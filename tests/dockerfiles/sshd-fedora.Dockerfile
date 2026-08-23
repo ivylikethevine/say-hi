@@ -11,7 +11,7 @@
 # entrypoint.sh is generated per build context by test_lib.sh's
 # _hi_sshd_entrypoint - it carries the throwaway pubkey and the sshd flags, so
 # it cannot be checked in beside this file.
-FROM fedora:41@sha256:f1a3fab47bcb3c3ddf3135d5ee7ba8b7b25f2e809a47440936212a3a50957f3d
+FROM fedora:44@sha256:6c75d5bf57cb0fa5aa4b92c6a83c86c791644496d9ac230de7711f5b8ec3b898
 RUN dnf install -y --setopt=install_weak_deps=False --nodocs \
       openssh-server bash zsh \
     && dnf clean all \
