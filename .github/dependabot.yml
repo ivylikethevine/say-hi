@@ -17,6 +17,24 @@
 # fails loudly with ::warning annotations in a run where Renovate opens pull
 # requests. For ten curl-installed pins, trading an annotation for a PR stream
 # is a downgrade in signal. Revisit if that roster grows several times over.
+#
+# The other question that keeps coming back: can dependabot open a PR only when
+# the bump reduces the number of known vulnerabilities? No. That is a separate
+# feature - dependabot *security* updates, driven by alerts against the GitHub
+# Advisory Database and toggled in repo settings rather than configured here.
+# Nothing in this file gates version updates on severity; `applies-to:
+# security-updates` groups security PRs, it does not create them.
+#
+# The nearest lever is `open-pull-requests-limit: 0`, which disables version
+# updates for one ecosystem while leaving security updates untouched - and it is
+# the wrong answer for both blocks below, for different reasons. github-actions
+# would freeze between the rare published action advisory, when what the
+# cooldown below guards is release freshness rather than advisories. docker
+# would go silent outright: it is version-updates-only, because GHSA has no
+# container ecosystem for an alert to come from, so there is no security-update
+# half to fall back on. The severity question for the base images is answered by
+# image-scan.yml instead, which measures it with trivy rather than asking for it
+# here.
 version: 2
 updates:
   - package-ecosystem: github-actions
