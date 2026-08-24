@@ -5,7 +5,7 @@
 #
 # Sourced by shells/bash.sh behind $_HI_DISABLE_PERSONAL, and NOT shipped at all
 # when that toggle is on (hi.sh's _hi_payload_tar trims it). Your own copy at
-# $_HI_CONFIG_DIR/bash_personal.sh is sourced after this one and wins, on
+# $_HI_CONFIG_DIR/bash.sh is sourced after this one and wins, on
 # misc/personal.sh's precedent - additive, never a replacement.
 HISTSIZE=2000
 HISTFILESIZE=2000

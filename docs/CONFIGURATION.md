@@ -9,16 +9,16 @@ one that adds rather than replaces, loading after the tree's own so yours win.
 `settings.sh` has no in-tree counterpart at all: `hi --configure` only ever
 writes it here.
 
-| overlay file                          | overrides                   | what it is                                                                                                                                   |
-| ------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/say-hi/settings.sh`        | -                           | what `hi --configure` writes                                                                                                                 |
-| `~/.config/say-hi/colors`             | `misc/colors`               | your color pins                                                                                                                              |
-| `~/.config/say-hi/packages`           | `misc/packages`             | what the package check looks for                                                                                                             |
-| `~/.config/say-hi/personal.sh`        | -                           | your answer to hi's own preference aliases - sourced right after `misc/personal.sh`, before your `aliases.sh`, in the same POSIX+fish subset |
-| `~/.config/say-hi/aliases.sh`         | -                           | your own aliases, sourced **last** of everything above so yours win - additive, never a replacement, and in the same POSIX+fish subset       |
-| `~/.config/say-hi/bash_personal.sh`   | `shells/bash_personal.sh`   | your bash preferences, sourced **after** hi's so yours win - history sizing, `shopt`s, readline bindings                                     |
-| `~/.config/say-hi/zsh_personal.zsh`   | `shells/zsh_personal.zsh`   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                           |
-| `~/.config/say-hi/fish_personal.fish` | `shells/fish_personal.fish` | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                        |
+| overlay file                   | overrides                   | what it is                                                                                                                                   |
+| ------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/say-hi/settings.sh` | -                           | what `hi --configure` writes                                                                                                                 |
+| `~/.config/say-hi/colors`      | `misc/colors`               | your color pins                                                                                                                              |
+| `~/.config/say-hi/packages`    | `misc/packages`             | what the package check looks for                                                                                                             |
+| `~/.config/say-hi/personal.sh` | -                           | your answer to hi's own preference aliases - sourced right after `misc/personal.sh`, before your `aliases.sh`, in the same POSIX+fish subset |
+| `~/.config/say-hi/aliases.sh`  | -                           | your own aliases, sourced **last** of everything above so yours win - additive, never a replacement, and in the same POSIX+fish subset       |
+| `~/.config/say-hi/bash.sh`     | `shells/bash_personal.sh`   | your bash preferences, sourced **after** hi's so yours win - history sizing, `shopt`s, readline bindings                                     |
+| `~/.config/say-hi/zsh.zsh`     | `shells/zsh_personal.zsh`   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                           |
+| `~/.config/say-hi/config.fish` | `shells/fish_personal.fish` | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                        |
 
 This is what keeps configuring say-hi from dirtying the checkout (so
 `hi --update`'s `git pull` keeps applying cleanly), and why the tree never has
@@ -28,9 +28,9 @@ All of it rides along to every host you say `hi` to, in its own small archive.
 Want history on it? `hi --overlay-init` makes `~/.config/say-hi` a git repo _in
 place_: from then on `hi --configure` commits its own settings writes,
 `hi --doctor` reports the commit count, and a push remote is one
-`git remote add` away. Entirely optional. (Keeping the same directory in chezmoi
-or yadm should work just as well (I haven't personally verified it yet). Related,
-see [ALTERNATIVES.md](ALTERNATIVES.md).)
+`git remote add` away. Entirely optional - and if you already keep dotfiles in
+chezmoi, yadm, GNU Stow or a bare repo, [that directory is the whole
+integration](#keeping-the-overlay-in-a-dotfile-manager).
 
 Everything in the tables below is an environment variable, checked where it's
 used. `hi --configure` writes your answers to `~/.config/say-hi/settings.sh`,
@@ -45,6 +45,7 @@ on every source, so an exported value never lasts - are named under it.
 
 - [How it works](#how-it-works)
 - [Every setting](#every-setting)
+- [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Features](#features)
 - [Colors](#colors)
 - [Two sessions to the same host](#two-sessions-to-the-same-host)
@@ -260,12 +261,47 @@ person's preference, so it lives in `shells/bash_personal.sh`,
 rc files, and the toggle takes all three off the wire as well as out of the
 session.
 
-Your own `bash_personal.sh`, `zsh_personal.zsh` or `fish_personal.fish` in the
+Your own `bash.sh`, `zsh.zsh` or `config.fish` in the
 config directory is sourced **after** hi's, in the same dialect, so yours wins -
 and it is _not_ behind the toggle, because the toggle turns off hi's taste, not
 yours. Setting `_HI_DISABLE_PERSONAL=1` and keeping your own file is the
 supported way to say "none of hi's preferences, all of mine". They ride the
 overlay archive to every target like the rest of the directory.
+
+## Keeping the overlay in a dotfile manager
+
+There is no say-hi plugin for chezmoi, yadm, GNU Stow or a bare `$HOME` repo,
+and there should not be: the overlay is a **plain directory of plain files**, so
+pointing whichever tool you already use at `~/.config/say-hi` is the whole
+integration. What follows is checked rather than assumed - the properties that
+make it true are pinned by cases in `tests/hi/payload_test.sh`.
+
+**Symlinks are fine, so Stow works.** Stow does not copy files, it links them,
+and hi dereferences on the way out: a target receives real file contents, not a
+link into a dotfiles path that does not exist there. Both shapes work - a
+symlink per file, or the whole `say-hi` directory as one link.
+
+**Nothing but the overlay files travels.** `$_HI_OVERLAY_FILES` is an allow
+list, so whatever else shares that directory stays on your machine: your
+manager's own metadata (`.chezmoiignore`, templates), the `.git` that
+`hi --overlay-init` creates, editor swap files, backups, and anything private
+that has no business on a host you are visiting. You do not have to tidy the
+directory to make it safe to ship.
+
+**Pick one keeper for the files a manager owns.** This is the only real friction
+and it is worth stating plainly: `hi --configure` writes `settings.sh` in the
+**live** directory. If your manager also owns that file, the two drift - the
+manager's copy and the live one diverge, and whichever runs last wins. Either
+
+- let hi own `settings.sh` (exclude it from the manager) and keep the rest
+  managed, or
+- keep it managed and run your manager's re-add step
+  (`chezmoi re-add ~/.config/say-hi/settings.sh`) after each `hi --configure`.
+
+Managers that work per-file - chezmoi among them - leave everything they do not
+own alone, so a partly-managed directory is a normal state rather than a broken
+one, and `hi --overlay-init`'s git repo coexists with them untouched. Running
+both keepers on the same file is what causes the drift, not running both tools.
 
 ## Colors
 

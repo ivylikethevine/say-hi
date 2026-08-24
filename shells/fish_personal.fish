@@ -6,7 +6,7 @@
 #
 # Sourced by shells/config.fish behind $_HI_DISABLE_PERSONAL, and NOT shipped at
 # all when that toggle is on (hi.sh's _hi_payload_tar trims it). Your own copy at
-# $_HI_CONFIG_DIR/fish_personal.fish is sourced after this one and wins, on
+# $_HI_CONFIG_DIR/config.fish is sourced after this one and wins, on
 # misc/personal.sh's precedent - additive, never a replacement.
 bind \cH backward-kill-word
 bind ctrl-delete kill-word

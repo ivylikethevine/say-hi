@@ -100,6 +100,12 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   time, and `_HI_SC_WIDTH=1` does the same for the lint fan-out — reach for
   them when a case is flaky or a transcript needs reading live rather than
   replayed.
+- A `source "$_HI_CONFIG_DIR/<name>"` needs a `# shellcheck source=/dev/null`
+  above it. `.shellcheckrc`'s `source-path=SCRIPTDIR` plus `shellcheck -x` makes
+  the bare basename resolve to the _sourcing file itself_, and the linter then
+  re-parses it forever - ~33GB resident, a global OOM, and on a desktop the
+  editor dies with the run. A runtime `[ -f ]` or path comparison does not help;
+  only the directive does. The lint suite refuses to start when one is missing.
 - `shfmt -w .` is **not** the fix for a red shfmt gate: the gate reads the same
   `*.sh` list shellcheck does, and `.` also reformats `shells/zsh.zsh`, which
   is zsh and ships. Reformat the paths the failure names.

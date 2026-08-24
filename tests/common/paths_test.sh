@@ -243,8 +243,8 @@ function test_settings_point_at_the_overlay_before_it_exists() {
 # override guard in paths.sh - except settings.sh (unguarded by design: the
 # overlay is its only home) and the five additive ones, which each shell or
 # misc/aliases.sh sources by name from $_HI_CONFIG_DIR rather than reaching
-# through a path var: personal.sh, aliases.sh and the three <shell>_personal
-# files. A missed
+# through a path var: personal.sh, aliases.sh and the three per-shell files
+# (bash.sh, zsh.zsh, config.fish). A missed
 # guard fails asymmetrically: the file works on targets but local sessions
 # ignore the override - the same silent drift the toggle-gate pin above
 # catches.
@@ -255,7 +255,7 @@ function test_overlay_guards_match_the_roster() {
   while IFS= read -r f; do
     case "$f" in
     settings.sh | personal.sh | aliases.sh) continue ;;
-    *_personal.sh | *_personal.zsh | *_personal.fish) continue ;;
+    bash.sh | zsh.zsh | config.fish) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no local-override guard in paths.sh" "$RED"

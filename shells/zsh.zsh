@@ -101,4 +101,6 @@ compdef _hi hi
 [[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/shells/zsh_personal.zsh" ]] &&
   source "$_HI_ROOT/shells/zsh_personal.zsh"
 
-[[ -f "$_HI_CONFIG_DIR/zsh_personal.zsh" ]] && source "$_HI_CONFIG_DIR/zsh_personal.zsh"
+# see shells/bash.sh for why the paths are compared before sourcing
+[[ "$_HI_CONFIG_DIR/zsh.zsh" != "$_HI_ROOT/shells/zsh.zsh" ]] &&
+  [[ -f "$_HI_CONFIG_DIR/zsh.zsh" ]] && source "$_HI_CONFIG_DIR/zsh.zsh"

@@ -253,7 +253,19 @@ release path uses are SHA-pinned separately.
 ## The lint gate
 
 `tests/test_runner.sh shellcheck` is one suite with ten halves, and CI runs all
-of them:
+of them.
+
+One check runs **before** all of them and is fatal rather than counted: every
+`source` of a `$_HI_CONFIG_DIR/...` path must carry a `# shellcheck source=`
+directive above it. `.shellcheckrc` sets `source-path=SCRIPTDIR`, so under
+`shellcheck -x` the basename resolves against the sourcing file's _own_
+directory - and where it names that file, the linter follows it into itself and
+re-parses until the kernel OOM-kills it. That is not hypothetical: it reached
+~33GB resident twice on a 38GB machine with no swap, taking the editor down with
+the run. The check is a precondition rather than an eleventh half precisely
+because of ordering - the damage happens in the fan-out below, so anything
+reporting afterwards never gets to speak. It aborts the suite naming the file
+and line, in well under a second.
 
 1. **shellcheck** over every `*.sh` (CI pins the version - see
    `.github/actions/setup-tool/tools.txt`). It is the whole cost of the fast

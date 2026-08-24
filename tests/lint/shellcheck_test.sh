@@ -460,6 +460,73 @@ function _hi_settings_roster() {
   } | sort -u
 }
 
+# A source of the user's config directory with no `# shellcheck source=`
+# directive above it is a machine-killer, not a style nit, and this is what
+# keeps one from landing again. It runs as a *precondition* of run_shellcheck
+# rather than as one of the halves at the end: the damage happens in the
+# fan-out, so a check that runs after it never gets the chance to speak.
+#
+# .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
+# basename in a config-dir source resolves against the *sourcing file's own*
+# directory. Where that basename is the file's own name - which is exactly what
+# the per-shell overrides and misc/aliases.sh's own overlay are - the linter
+# follows the file into itself and re-parses its source tree until the kernel
+# stops it. Measured on this tree: ~33GB resident before a global OOM, twice,
+# taking the editor down with the run. Neither the `[ -f ]` test nor the path
+# comparison guarding those lines is visible to it; only the directive is.
+#
+# (No line of this comment may begin with the linter's own name followed by a
+# space - that is the directive syntax, and prose there is a parse error.)
+#
+# Six lines of look-back because the guarded form spans an `&&` chain and the
+# directive sits above the whole statement, not above the `source` token.
+#
+# The needle is split so this file does not match its own detector - the two
+# halves are concatenated at run time and never appear adjacent in the source.
+function lint_config_dir_sources() {
+  local file needle rel stripped i n total ok bad=0
+  local -a lines
+  # shellcheck disable=SC2016 # a literal to match for, not an expansion
+  needle='"$_HI_CONFIG'"_DIR/"
+  _hi_h2 "Checking config-dir sources carry a shellcheck directive"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  for file in "${_HI_SH_FILES[@]}"; do
+    case "$(cat "$file")" in *"$needle"*) ;; *) continue ;; esac
+    _hi_read_lines lines <"$file"
+    total="${#lines[@]}"
+    for ((i = 0; i < total; i++)); do
+      # leading whitespace off, comments skipped, and the dot form only where
+      # `.` is a command: `grep -c . "$_HI_CONFIG_DIR/$f"` (scripts/doctor.sh)
+      # is a regex dot and an argument, not a source, and matching it was this
+      # check's first false positive.
+      stripped="${lines[i]#"${lines[i]%%[![:space:]]*}"}"
+      case "$stripped" in '#'*) continue ;; esac
+      case "$stripped" in
+      "source $needle"* | ". $needle"* | \
+        *"&& source $needle"* | *"&& . $needle"* | \
+        *"; source $needle"* | *"; . $needle"*) ;;
+      *) continue ;;
+      esac
+      ok=""
+      for ((n = 1; n <= 6 && i - n >= 0; n++)); do
+        case "${lines[i - n]}" in
+        *'# shellcheck source='*)
+          ok=1
+          break
+          ;;
+        esac
+      done
+      [ -n "$ok" ] && continue
+      rel="${file#"$_HI_ROOT"/}"
+      _hi_align " | $rel:$((i + 1)) sources the config dir with no 'shellcheck source=' above it" "FAILED" "$RED"
+      _hi_note_failure "config-dir source: $rel:$((i + 1))"
+      bad=$((bad + 1))
+    done
+  done
+  [ "$bad" -eq 0 ] && _hi_align " | every config-dir source is directive-guarded" "OK" "$GREEN"
+  return "$bad"
+}
+
 # The image definitions moved out of the suites into tests/dockerfiles/, which
 # bought readable files and cost the one thing a heredoc could not get wrong: a
 # Dockerfile written inline is referenced by construction. A checked-in one can
@@ -687,6 +754,16 @@ function run_shellcheck() {
   _hi_h2 "Version: $(shellcheck --version | awk '/^version:/ {print $2}')"
 
   _hi_cecho "$(printf ' | %s\n' "${_HI_SH_FILES[@]}")" "$BLUE"
+
+  # Before the fan-out, and fatal - not one of the halves below. A config-dir
+  # source with no directive makes the very next step recurse into itself until
+  # the kernel OOM-kills it, so a half that reports afterwards reports only when
+  # there is nothing to report. Ordering is the whole value of this check.
+  if ! lint_config_dir_sources; then
+    _hi_cecho " | refusing to run shellcheck: the files above would make it" "$RED"
+    _hi_cecho " | re-parse itself until the machine runs out of memory" "$RED"
+    exit 1
+  fi
 
   _hi_workdir shellchecktest
   _HI_SC_LOG="$_HI_WORKDIR/shellcheck.log"

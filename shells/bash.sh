@@ -159,4 +159,16 @@ fi
 [[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/shells/bash_personal.sh" ]] &&
   source "$_HI_ROOT/shells/bash_personal.sh"
 
-[[ -f "$_HI_CONFIG_DIR/bash_personal.sh" ]] && source "$_HI_CONFIG_DIR/bash_personal.sh"
+# The guard is misc/aliases.sh's: $_HI_CONFIG_DIR pointed at shells/ would make
+# this file source itself forever, and a hang is worse than an error.
+#
+# The directive is the same hazard seen statically, and it is NOT optional.
+# .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
+# basename below resolves against this file's own directory - to this file -
+# and shellcheck follows it into itself regardless of the runtime guard above,
+# re-parsing until it is OOM-killed (measured: ~33GB before the kernel stepped
+# in). /dev/null is what stops the follow; common/core.sh:45 does the same for
+# $_HI_CONFIG_DIR/settings.sh.
+# shellcheck source=/dev/null # user config, may not exist
+[[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/shells/bash.sh" ]] &&
+  [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"

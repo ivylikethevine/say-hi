@@ -5,7 +5,7 @@
 #
 # Sourced by shells/zsh.zsh behind $_HI_DISABLE_PERSONAL, and NOT shipped at all
 # when that toggle is on (hi.sh's _hi_payload_tar trims it). Your own copy at
-# $_HI_CONFIG_DIR/zsh_personal.zsh is sourced after this one and wins, on
+# $_HI_CONFIG_DIR/zsh.zsh is sourced after this one and wins, on
 # misc/personal.sh's precedent - additive, never a replacement.
 HISTFILE=~/.zsh_history
 HISTSIZE=2000

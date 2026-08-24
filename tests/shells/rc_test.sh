@@ -297,7 +297,9 @@ function test_fish_config_dir_explicit_value_wins() {
 #
 # Each shell's taste (history sizing, keybindings, completion and color styling)
 # moved out of the shipped rc into shells/<shell>_personal.*, on
-# misc/personal.sh's precedent. Three things have to stay true per shell, and
+# misc/personal.sh's precedent. The user's own copy keeps the *shell file's*
+# basename (bash.sh, zsh.zsh, config.fish) - what it extends, not where hi's
+# defaults happen to live. Three things have to stay true per shell, and
 # the third is the one the split exists for: hi's defaults load, the toggle
 # turns *those* off, and the user's own copy in $_HI_CONFIG_DIR is sourced after
 # and wins - including when the toggle is on, because the toggle is about hi's
@@ -305,9 +307,9 @@ function test_fish_config_dir_explicit_value_wins() {
 #
 # <shell>|<user file>|<probe script>|<shipped value>|<user line>|<user value>
 _HI_PERSONAL_ROWS=(
-  'bash|bash_personal.sh|source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|2|PROMPT_DIRTRIM=9|9'
-  'zsh|zsh_personal.zsh|source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|.zsh_history|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
-  'fish|fish_personal.fish|source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; printf %s "$fish_color_command"|blue|set -gx fish_color_command magenta|magenta'
+  'bash|bash.sh|source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|2|PROMPT_DIRTRIM=9|9'
+  'zsh|zsh.zsh|source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|.zsh_history|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
+  'fish|config.fish|source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; printf %s "$fish_color_command"|blue|set -gx fish_color_command magenta|magenta'
 )
 
 # the probe for one row, with the user's file present only when $2 says so

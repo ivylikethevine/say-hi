@@ -190,9 +190,16 @@ composition has a wrinkle worth knowing.
   terminal side: a persistent remote component under `~/.warp*` plus a hook
   line in the remote's rc files. It ships Warp's features, not your config.
   The two coexist — say-hi touches only its own marker-delimited lines.
-- **[chezmoi]/[yadm] as the overlay's keeper.** say-hi's per-user overlay lives
-  at `~/.config/say-hi/`. Keep it in your dotfile manager and the two compose
-  cleanly: chezmoi versions it, hi ships it to every target, per-session.
+- **[chezmoi]/[yadm]/[GNU Stow] as the overlay's keeper.** say-hi's per-user
+  overlay lives at `~/.config/say-hi/`. Keep it in your dotfile manager and the
+  two compose cleanly: the manager versions it, hi ships it to every target,
+  per-session. It is a plain directory of plain files, so there is nothing to
+  integrate - Stow's symlinks are dereferenced on the way out, and only the
+  overlay's own files travel, so the manager's metadata and anything private
+  sharing that directory stay put. The one thing to decide is who owns
+  `settings.sh`, since `hi --configure` writes the live copy;
+  [CONFIGURATION.md](CONFIGURATION.md#keeping-the-overlay-in-a-dotfile-manager)
+  has the two ways to settle that.
 
 ## What actually makes say-hi different
 

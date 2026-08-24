@@ -58,7 +58,7 @@ _HI_PAYLOAD=(common misc shells load.sh hi.sh)
 # sources $_HI_CONFIG_DIR/aliases.sh last, so one directory would make it
 # source itself forever.
 _HI_OVERLAY_FILES=(settings.sh colors packages personal.sh aliases.sh
-  bash_personal.sh zsh_personal.zsh fish_personal.fish)
+  bash.sh zsh.zsh config.fish)
 
 # What a bash-less target falls back to, best first: core.sh's $_HI_SHELL_TREE
 # minus bash (a missing bash is this ladder's precondition), derived so the two

@@ -304,11 +304,11 @@ names the files it touches.
 
 ## Large
 
-These reshape something the rest of the tree leans on - a promise the docs
-make, a fixture doctrine every suite shares, or which files ship at all - or
-are not yet scoped enough to start. The first work on several of them is a decision, not code, and one of
-them may end in deletion rather than implementation. The last is deferred past
-v1.0.0 on purpose.
+Two are left, and they reshape something the rest of the tree leans on rather
+than adding to it: what a platform job is allowed to assert, and the footprint
+promise [SECURITY.md](SECURITY.md) makes. The first work on the first one is a
+decision about test fixtures, not product code. The second is deferred past
+v1.0.0 on purpose - it rewrites the sentence the tag is being cut on.
 
 - [ ] **Decide what the Windows client job is allowed to assert** — _scope: a
       decision about the test fixtures, then whatever it implies; no product
@@ -358,44 +358,6 @@ shellcheck`, because `.github/actions/setup-tool` resolves linux/darwin
     is green once, ci.yml calls it on push, and
     [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
     client half as well as the target half.
-
-- [ ] **Integrate with chezmoi and other dotfile managers** — _scope: not yet
-      scoped - a design question before it is any amount of code; in-repo._
-      Carried into this file from a bare `TODO` in README asking for "more
-      tight integration to chezmoi and perhaps other dotfile managers". It is
-      the least specified entry here, and the first work is deciding what
-      "integration" means concretely enough to reject most of it.
-
-  - **Something already exists, which is the baseline to beat.**
-    [ALTERNATIVES.md](ALTERNATIVES.md) already tells this story: the config is
-    a plain directory at `$_HI_CONFIG_DIR`, so keeping it in a dotfile manager
-    works today with no code, and `hi --overlay-init` puts that directory under
-    git _in place_. The entry is only worth doing if it beats "point your
-    manager at the directory" by enough to justify owning a second mechanism.
-  - **The obvious shapes, cheapest first.** A documented recipe for chezmoi's
-    `.chezmoiexternal` or an `include` of the config directory, costing nothing
-    but a section in [CONFIGURATION.md](CONFIGURATION.md); a `hi --configure`
-    mode that writes into a managed source directory rather than the live one;
-    or genuine templating, which means adopting somebody else's template
-    language into a tree with a bash 3.2 floor and a four-shell export subset.
-    The third is almost certainly out on those grounds alone.
-  - **"Perhaps other dotfile managers" is the part that decides it.** chezmoi,
-    yadm, GNU stow and bare-repo setups do not agree on a model, and a feature
-    shaped around one of them is a feature the others cannot use. Anything that
-    lands here should work through the directory the tools already share rather
-    than through any one tool's format - the same reason
-    [SUPPORTED.md](SUPPORTED.md) drives what a target already has instead of
-    shipping its own.
-  - **The path it would document is now settled.** This used to wait on a
-    proposed rename of the config directory; that was decided against on
-    2026-08-24 and the reasoning is in
-    [UNSUPPORTED.md](UNSUPPORTED.md#changes-proposed-and-not-made). So
-    `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi` is stable, and a recipe written
-    against it will not go stale.
-  - **Ticks when:** either a named integration ships with its documentation and
-    a case pinning it, or this entry is deleted with a sentence in
-    [ALTERNATIVES.md](ALTERNATIVES.md) saying the plain directory is the
-    integration and why that is the end of it.
 
 - [ ] **Persistent sessions on a disposable target** — _**deferred until after
       v1.0.0.** Scope: the largest entry here. It changes cleanup semantics on

@@ -145,6 +145,72 @@ function test_payload_trims_the_personal_files() {
   return 0
 }
 
+# The three per-shell overrides, which take the shell file's own basename so a
+# user reading shells/bash.sh knows what ~/.config/say-hi/bash.sh extends.
+function test_overlay_tar_carries_shell_files() {
+  local dir
+  dir="$(_hi_overlay_fixture withshells bash.sh zsh.zsh config.fish)"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')" = "bash.sh config.fish zsh.zsh " ]
+}
+
+# --- keeping the overlay in a dotfile manager -------------------------------
+#
+# The overlay is a plain directory of plain files, which is the whole
+# integration story for chezmoi, yadm, GNU Stow and bare-repo setups
+# (docs/CONFIGURATION.md says so). Two properties make that claim true rather
+# than merely hopeful, and neither is obvious from reading _hi_overlay_tar.
+
+# Stow does not copy, it symlinks - so a Stow user's overlay is a directory of
+# links into their dotfiles repo. `_hi_tar_gz -h` is what dereferences them;
+# without it the target would unpack dangling links pointing at a dotfiles path
+# that does not exist there, and the session would silently fall back to
+# defaults. Both shapes Stow produces are covered: a symlink per file, and the
+# whole config directory as one link.
+function test_overlay_dereferences_symlinks() {
+  local real="$_HI_WORKDIR/stow-src" perfile="$_HI_WORKDIR/stow-perfile" whole="$_HI_WORKDIR/stow-whole"
+  local shape dir out
+  mkdir -p "$real" "$perfile"
+  printf 'export _HI_MAX_WIDTH=72\n' >"$real/settings.sh"
+  ln -sf "$real/settings.sh" "$perfile/settings.sh"
+  ln -sfn "$real" "$whole"
+  for shape in "$perfile" "$whole"; do
+    out="$(_HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar xzOf - settings.sh 2>/dev/null)"
+    [ "$out" = "export _HI_MAX_WIDTH=72" ] || {
+      _hi_cecho " | ${shape##*/}: symlinked overlay did not arrive as content: [$out]" "$RED"
+      return 1
+    }
+    # and as a regular file, not a link the target cannot resolve
+    _HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar tvzf - 2>/dev/null | grep -q '^-' || {
+      _hi_cecho " | ${shape##*/}: overlay member is not a regular file" "$RED"
+      return 1
+    }
+  done
+  return 0
+}
+
+# $_HI_OVERLAY_FILES is an allow list, and that is what makes pointing a dotfile
+# manager at this directory safe: the manager's own metadata, the .git that
+# `hi --overlay-init` creates, an editor swap file or a key that has no business
+# leaving the machine are all in the same directory and none of them travel.
+# A denylist would have to keep guessing; this asserts the allow list holds.
+function test_overlay_sends_nothing_outside_the_roster() {
+  local dir="$_HI_WORKDIR/overlay-leak" f
+  mkdir -p "$dir/.git" "$dir/.chezmoitemplates"
+  printf 'export _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
+  for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp; do
+    printf 'x\n' >"$dir/$f"
+  done
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case " ${_HI_OVERLAY_FILES[*]} " in
+    *" $f "*) continue ;;
+    esac
+    _hi_cecho " | the overlay stream carried $f, which is not in _HI_OVERLAY_FILES" "$RED"
+    return 1
+  done <<<"$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
+  return 0
+}
+
 # The payload is an allow list; this is its drift guard. Exact match on the
 # list (so nothing sneaks on the wire unnoticed) plus an existence check on
 # every member (so a rename can't quietly ship an empty payload).
@@ -437,6 +503,9 @@ function run_hi_payload_tests() {
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
   _hi_check "the user's personal.sh rides the stream" test_overlay_tar_carries_personal
+  _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
+  _hi_check "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
+  _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

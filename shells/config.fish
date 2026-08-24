@@ -224,6 +224,8 @@ if test "$_HI_ASCII" = 1
 end
 end
 
-if test -f $_HI_CONFIG_DIR/fish_personal.fish
-  source $_HI_CONFIG_DIR/fish_personal.fish
+# see shells/bash.sh for why the paths are compared before sourcing
+if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/shells/config.fish"
+    and test -f $_HI_CONFIG_DIR/config.fish
+  source $_HI_CONFIG_DIR/config.fish
 end

@@ -69,6 +69,7 @@ export EZA_CONFIG_DIR="$_HI_THEME_DIR"
 [ "$_HI_DISABLE_ALIASES" != 1 ] && [ -f "$_HI_ROOT/misc/personal.sh" ] &&
   . "$_HI_ROOT/misc/personal.sh" || true
 
+# shellcheck source=/dev/null # user config, may not exist
 [ "$_HI_CONFIG_DIR/personal.sh" != "$_HI_ROOT/misc/personal.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/personal.sh" ] && . "$_HI_CONFIG_DIR/personal.sh" || true
 
@@ -79,6 +80,10 @@ export EZA_CONFIG_DIR="$_HI_THEME_DIR"
 # The first test guards against $_HI_CONFIG_DIR being this file's own directory,
 # which would source this file forever. Nothing in the tree points here any
 # more, but an unbounded recursion is a hang, not an error, and this is one
-# comparison.
+# comparison. The shellcheck directive is the static half of the same hazard:
+# source-path=SCRIPTDIR resolves the basename below to *this file*, and under
+# -x shellcheck follows it into itself until it is OOM-killed - the runtime
+# guard on this line is invisible to it. See shells/bash.sh for the long form.
+# shellcheck source=/dev/null # user config, may not exist
 [ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/misc/aliases.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true
