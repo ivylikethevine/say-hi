@@ -15,7 +15,6 @@ for you than this, and some have been instrumental in this project!
   - [homeshick — the same constraints, the opposite answer](#homeshick--the-same-constraints-the-opposite-answer)
 - [Adjacent tools, and how they compose](#adjacent-tools-and-how-they-compose)
 - [What actually makes say-hi different](#what-actually-makes-say-hi-different)
-- [Where say-hi is the wrong choice](#where-say-hi-is-the-wrong-choice)
 - [Sources](#sources)
 
 ## The problem being solved
@@ -43,15 +42,13 @@ connection, uses it for that session, and gets out. That is the family say-hi is
 in, and everything below is a member of it.
 
 A third thing that looks similar but is not: **terminal emulators that help
-with ssh**, like [kitty's ssh kitten] and wezterm's ssh domains (which go
-further, with an optional persistent `wezterm-mux-server` on the remote). Those
-solve the adjacent and very real terminfo/shell-integration problem — kitty's
-copies the `xterm-kitty` terminfo database, enables shell integration, and can
-copy files you list. If your pain is "backspace is broken over ssh", that is
-the fix, and it composes with say-hi rather than competing. say-hi handles the
-terminfo half itself (`_hi_remote_preamble` probes the target's terminfo tree,
-falling back to `xterm-256color`) precisely so it doesn't depend on your
-terminal.
+with ssh**, like [kitty's ssh kitten], which solve the adjacent and very real
+terminfo/shell-integration problem — kitty's copies the `xterm-kitty` terminfo
+database, enables shell integration, and can copy files you list. If your pain
+is "backspace is broken over ssh", that is the fix, and it composes with say-hi
+rather than competing. say-hi handles the terminfo half itself (`_hi_remote_preamble`
+probes the target's terminfo tree, falling back to `xterm-256color`) precisely
+so it doesn't depend on your terminal.
 
 ## The direct alternatives, side by side
 
@@ -193,11 +190,6 @@ composition has a wrinkle worth knowing.
   terminal side: a persistent remote component under `~/.warp*` plus a hook
   line in the remote's rc files. It ships Warp's features, not your config.
   The two coexist — say-hi touches only its own marker-delimited lines.
-- **[atuin] / [hishtory]** carry the one thing say-hi deliberately does not:
-  your shell history, synced across machines you own. Complementary — and
-  since a target running one binds the same `Ctrl-R` hi's session lands you
-  at, the framework e2e suite boots a real atuin (plus fzf, zoxide, direnv,
-  mise) target and asserts its hooks survive hi's session.
 - **[chezmoi]/[yadm] as the overlay's keeper.** say-hi's per-user overlay lives
   at `~/.config/say-hi/`. Keep it in your dotfile manager and the two compose
   cleanly: chezmoi versions it, hi ships it to every target, per-session.
@@ -228,30 +220,12 @@ aliases) that rides along without dirtying the tree, `hi --doctor` for when
 something is slow, and detecting a permanent say-hi on the target to use in
 place.
 
-## Where say-hi is the wrong choice
-
-- **You want your shell on a host that does not have it.** Use [xxh].
-- **The machine is yours and you will be back.** Use [chezmoi], [yadm] or
-  [homeshick] (bash and git, nothing else) — per-session copying is the wrong
-  shape for a machine you own.
-- **You want the smallest thing that works.** [sshrc] or [kyrat] are less code,
-  and less code on every host you touch is a legitimate preference.
-- **Your problem is terminfo or shell integration, not config.** Use your
-  terminal's own helper — [kitty's ssh kitten] is excellent at exactly that.
-- **You want a styled nushell, elvish, xonsh or tcsh session.** None of them
-  is styled, and none of them is going to be — see the compatibility tables
-  above for the reason in each case. They all still work as _login_ shells:
-  hi lands you in the best of `$_HI_SHELL_TREE` the target has.
-- **You need something published and stable today.** say-hi is pre-1.0 and on no
-  channel yet — you install from a checkout or a release artifact. The
-  alternatives have been installable for years.
-
 ## Sources
 
 - [sshrc] — say-hi's ancestor; the link is [cdown's] maintained fork, the
   original having been deleted from GitHub ([danrabinowitz's] is the other
   line say-hi descends through)
-- [xxh] — portable shells over ssh
+- [xxh] — portable shells over ssh (requires python)
 - [kyrat] — bash ssh wrapper with cleanup
 - [sshdot] — sshrc without the size limit
 - [kitty's ssh kitten] — terminfo and shell integration
@@ -274,5 +248,3 @@ place.
 [mosh]: https://mosh.org/
 [Eternal Terminal]: https://eternalterminal.dev/
 [Warp]: https://docs.warp.dev/terminal/warpify/
-[atuin]: https://atuin.sh/
-[hishtory]: https://github.com/ddworken/hishtory
