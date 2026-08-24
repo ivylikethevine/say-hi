@@ -198,7 +198,7 @@ function test_fallback_rc_sources_paths_and_aliases() {
   local out
   out="$(CMDARG="" _hi_fallback_rc)"
   # shellcheck disable=SC2016 # same as above - $_HI_ROOT is the target's to expand
-  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/misc/aliases.sh'* ]]
+  [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/settings/aliases.sh'* ]]
 }
 
 function test_fallback_rc_appends_the_command() {
@@ -336,8 +336,8 @@ function test_term_fallback_keeps_a_term_with_terminfo() {
 # On a target, $_HI_CONFIG_DIR is the config/ the overlay was unpacked into,
 # not ${XDG_CONFIG_HOME:-...}: a ~/.config/say-hi belonging to whoever we logged
 # in as is not the config this session was asked to run with. It must also not
-# be misc/, which holds the *shipped* aliases.sh - pointed there,
-# misc/aliases.sh's tail line sources itself forever.
+# be settings/, which holds the *shipped* aliases.sh - pointed there,
+# settings/aliases.sh's tail line sources itself forever.
 function test_fallback_rc_points_config_dir_at_the_overlay() {
   # shellcheck disable=SC2016 # $_HI_ROOT is the target's to expand, not ours
   [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]]

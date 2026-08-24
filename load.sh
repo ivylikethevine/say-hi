@@ -136,7 +136,7 @@ function load() {
   # vim only: setting VIMINIT when all we have is vi breaks it. Gated on
   # _HI_DISABLE_EDITORS as well: VIMINIT pointing at hi's vimrc *is* the vim
   # config override that toggle turns off, and setting it needs the file to be
-  # there - which is what lets hi.sh trim misc/vim.rc out of the payload when
+  # there - which is what lets hi.sh trim settings/vim.rc out of the payload when
   # the toggle is off.
   [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]] &&
     command -v vim &>/dev/null &&

@@ -170,7 +170,7 @@ function test_container_target_reports_the_full_tier() {
   [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]]
 }
 
-# no bash means hi copies misc/aliases.sh alone and drops into the best of the
+# no bash means hi copies settings/aliases.sh alone and drops into the best of the
 # ladder - the report has to name which shell that is, since that is the whole
 # question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {

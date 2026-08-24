@@ -28,19 +28,19 @@ function test_payload_trims_what_the_overlay_disabled() {
   mkdir -p "$dir"
   printf "#!/bin/sh\nexport _HI_DISABLE_EDITORS='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/misc/vim.rc*)
-    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped misc/vim.rc" "$RED"
+  case "$listing" in *say-hi/settings/vim.rc*)
+    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped settings/vim.rc" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/misc/nano.rc*)
-    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped misc/nano.rc" "$RED"
+  case "$listing" in *say-hi/settings/nano.rc*)
+    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped settings/nano.rc" "$RED"
     return 1
     ;;
   esac
   # ...and the tree is otherwise intact
-  case "$listing" in *say-hi/misc/aliases.sh*) ;; *)
-    _hi_cecho " | the trim took misc/aliases.sh with it" "$RED"
+  case "$listing" in *say-hi/settings/aliases.sh*) ;; *)
+    _hi_cecho " | the trim took settings/aliases.sh with it" "$RED"
     return 1
     ;;
   esac
@@ -55,42 +55,42 @@ function test_payload_ships_everything_by_default() {
   local dir="$_HI_WORKDIR/notrim" listing
   mkdir -p "$dir"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/misc/vim.rc*) ;; *)
-    _hi_cecho " | a default client did not ship misc/vim.rc" "$RED"
+  case "$listing" in *say-hi/settings/vim.rc*) ;; *)
+    _hi_cecho " | a default client did not ship settings/vim.rc" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/shells/osc52.sh*) ;; *)
-    _hi_cecho " | a default client did not ship shells/osc52.sh" "$RED"
+  case "$listing" in *say-hi/common/osc52.sh*) ;; *)
+    _hi_cecho " | a default client did not ship common/osc52.sh" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/shells/notify.sh*) return 0 ;; esac
-  _hi_cecho " | a default client did not ship shells/notify.sh" "$RED"
+  case "$listing" in *say-hi/common/notify.sh*) return 0 ;; esac
+  _hi_cecho " | a default client did not ship common/notify.sh" "$RED"
   return 1
 }
 
 # The notification emitter is the second file a toggle takes off the wire, on
-# shells/osc52.sh's precedent: a client that never wants hi_notify pays nothing
+# common/osc52.sh's precedent: a client that never wants hi_notify pays nothing
 # for it. Same shape as the editors case above - the file goes, the tree stays.
 function test_payload_trims_the_notifier() {
   local dir="$_HI_WORKDIR/nonotify" listing
   mkdir -p "$dir"
   printf "#!/bin/sh\nexport _HI_DISABLE_NOTIFY='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/shells/notify.sh*)
-    _hi_cecho " | _HI_DISABLE_NOTIFY=1 still shipped shells/notify.sh" "$RED"
+  case "$listing" in *say-hi/common/notify.sh*)
+    _hi_cecho " | _HI_DISABLE_NOTIFY=1 still shipped common/notify.sh" "$RED"
     return 1
     ;;
   esac
   # the sibling emitter is not collateral: the two toggles are independent
-  case "$listing" in *say-hi/shells/osc52.sh*) return 0 ;; esac
-  _hi_cecho " | _HI_DISABLE_NOTIFY=1 took shells/osc52.sh with it" "$RED"
+  case "$listing" in *say-hi/common/osc52.sh*) return 0 ;; esac
+  _hi_cecho " | _HI_DISABLE_NOTIFY=1 took common/osc52.sh with it" "$RED"
   return 1
 }
 
 # _HI_DISABLE_ALIASES cuts along the seam between the two alias files and not
-# through either: misc/personal.sh leaves the payload, misc/aliases.sh stays.
+# through either: settings/personal.sh leaves the payload, settings/aliases.sh stays.
 # Both halves matter. aliases.sh installs the vim/nano and hi_copy
 # aliases above the source line, so trimming it would be a behaviour change
 # wearing a size saving's clothes; personal.sh is preference the target will
@@ -101,20 +101,20 @@ function test_payload_trims_personal_but_keeps_aliases() {
   printf "#!/bin/sh\nexport _HI_DISABLE_ALIASES='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
   case "$listing" in
-  *say-hi/misc/personal.sh*)
-    _hi_cecho " | _HI_DISABLE_ALIASES=1 still shipped misc/personal.sh" "$RED"
+  *say-hi/settings/personal.sh*)
+    _hi_cecho " | _HI_DISABLE_ALIASES=1 still shipped settings/personal.sh" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/misc/aliases.sh*) ;; *)
-    _hi_cecho " | _HI_DISABLE_ALIASES=1 dropped misc/aliases.sh, which still carries the editor and hi_copy aliases" "$RED"
+  case "$listing" in *say-hi/settings/aliases.sh*) ;; *)
+    _hi_cecho " | _HI_DISABLE_ALIASES=1 dropped settings/aliases.sh, which still carries the editor and hi_copy aliases" "$RED"
     return 1
     ;;
   esac
   # and the default client ships both
   listing="$(_hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/misc/personal.sh*) return 0 ;; esac
-  _hi_cecho " | a default client did not ship misc/personal.sh" "$RED"
+  case "$listing" in *say-hi/settings/personal.sh*) return 0 ;; esac
+  _hi_cecho " | a default client did not ship settings/personal.sh" "$RED"
   return 1
 }
 
@@ -128,16 +128,16 @@ function test_payload_trims_the_personal_files() {
   printf "#!/bin/sh\\nexport _HI_DISABLE_PERSONAL='1'\\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
   for f in bash_personal.sh zsh_personal.zsh fish_personal.fish; do
-    case "$listing" in *"say-hi/shells/$f"*)
-      _hi_cecho " | _HI_DISABLE_PERSONAL=1 still shipped shells/$f" "$RED"
+    case "$listing" in *"say-hi/common/$f"*)
+      _hi_cecho " | _HI_DISABLE_PERSONAL=1 still shipped common/$f" "$RED"
       return 1
       ;;
     esac
   done
   # the rc files that source them are not collateral
   for f in bash.sh zsh.zsh config.fish; do
-    case "$listing" in *"say-hi/shells/$f"*) ;; *)
-      _hi_cecho " | _HI_DISABLE_PERSONAL=1 took shells/$f with it" "$RED"
+    case "$listing" in *"say-hi/common/$f"*) ;; *)
+      _hi_cecho " | _HI_DISABLE_PERSONAL=1 took common/$f with it" "$RED"
       return 1
       ;;
     esac
@@ -146,7 +146,7 @@ function test_payload_trims_the_personal_files() {
 }
 
 # The three per-shell overrides, which take the shell file's own basename so a
-# user reading shells/bash.sh knows what ~/.config/say-hi/bash.sh extends.
+# user reading common/bash.sh knows what ~/.config/say-hi/bash.sh extends.
 function test_overlay_tar_carries_shell_files() {
   local dir
   dir="$(_hi_overlay_fixture withshells bash.sh zsh.zsh config.fish)"
@@ -216,7 +216,7 @@ function test_overlay_sends_nothing_outside_the_roster() {
 # every member (so a rename can't quietly ship an empty payload).
 function test_payload_ships_exactly_the_travelled_paths() {
   local m
-  [ "${_HI_PAYLOAD[*]}" = "common misc shells load.sh hi.sh" ] || {
+  [ "${_HI_PAYLOAD[*]}" = "common settings load.sh hi.sh" ] || {
     _hi_cecho " | payload list changed: ${_HI_PAYLOAD[*]} - update this guard deliberately" "$RED"
     return 1
   }
@@ -228,7 +228,7 @@ function test_payload_ships_exactly_the_travelled_paths() {
   done
 }
 
-# The payload only carries the *in-tree* misc/, so once the user's real
+# The payload only carries the *in-tree* settings/, so once the user's real
 # settings/colors/packages live outside the tree they need their own stream or a
 # target silently falls back to the shipped defaults. These assert the two
 # halves that can be checked without a target: that nothing is sent when there
@@ -275,7 +275,7 @@ function test_overlay_tar_carries_only_what_exists() {
 }
 
 # the additive personal aliases ride the same stream under their bare name,
-# which is where misc/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
+# which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
 function test_overlay_tar_carries_aliases() {
   local dir
@@ -283,7 +283,7 @@ function test_overlay_tar_carries_aliases() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "aliases.sh" ]
 }
 
-# The user's own personal.sh is sourced by misc/aliases.sh between the shipped
+# The user's own personal.sh is sourced by settings/aliases.sh between the shipped
 # one and their aliases.sh, so it has to reach a target for that ordering to
 # mean anything there - it did not until it joined the roster.
 function test_overlay_tar_carries_personal() {
@@ -488,7 +488,7 @@ function run_hi_payload_tests() {
   _hi_h1 "Testing hi.sh: the payload"
 
   _hi_h2 "Testing: the payload list"
-  _hi_check "Ships exactly common/misc/shells/load.sh" test_payload_ships_exactly_the_travelled_paths
+  _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "The toggle trims personal.sh and keeps aliases.sh" test_payload_trims_personal_but_keeps_aliases

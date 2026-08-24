@@ -2,7 +2,7 @@
 # The repo's lint gate. shellcheck covers every *.sh file; on top of that, every
 # file a non-bash shell parses for itself is run through that shell's own syntax
 # checker (`zsh -n` / `fish --no-execute`) - see $_HI_NATIVE_LINT below. Without
-# that second half, shells/zsh.zsh and shells/config.fish are checked by nothing
+# that second half, common/zsh.zsh and common/config.fish are checked by nothing
 # at all, and the files fish and zsh share with sh are only ever checked as sh.
 # Two more halves ride along when their tool is installed (and skip yellow when
 # not): shfmt as a formatting gate, and checkbashisms over the #!/bin/sh files.
@@ -18,27 +18,27 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # (A comment line here must never *begin* with the word shellcheck - that reads
 # as a directive and fails the very lint this file runs.)
 #
-# Two kinds of entry. shells/zsh.zsh and shells/config.fish are not shell the
+# Two kinds of entry. common/zsh.zsh and common/config.fish are not shell the
 # linter can parse at all, so their own shell's syntax checker (`zsh -n` /
 # `fish --no-execute`, the same two scripts/install.sh runs against the user's
 # rc files) is the only thing checking them.
 #
 # The rest are files shellcheck *does* read - as sh or bash - that another shell
-# also sources for real, so they have to parse in both. misc/aliases.sh and
-# common/paths.sh (and misc/personal.sh, which aliases.sh sources) are what fish reads directly, and the failure mode there
+# also sources for real, so they have to parse in both. settings/aliases.sh and
+# common/paths.sh (and settings/personal.sh, which aliases.sh sources) are what fish reads directly, and the failure mode there
 # is silent: a perfectly good `${X:-0}` is a fish parse error that aborts the
 # whole file, taking every alias (or every path) with it. zsh reaches
-# common/core.sh, common/git_prompt.sh and both of those through shells/zsh.zsh.
+# common/core.sh, common/git_prompt.sh and both of those through common/zsh.zsh.
 _HI_NATIVE_LINT=(
-  "shells/zsh.zsh:zsh:-n"
-  "shells/zsh_personal.zsh:zsh:-n"
-  "shells/config.fish:fish:--no-execute"
-  "shells/fish_personal.fish:fish:--no-execute"
-  "misc/aliases.sh:fish:--no-execute"
-  "misc/personal.sh:fish:--no-execute"
+  "common/zsh.zsh:zsh:-n"
+  "settings/zsh_personal.zsh:zsh:-n"
+  "common/config.fish:fish:--no-execute"
+  "settings/fish_personal.fish:fish:--no-execute"
+  "settings/aliases.sh:fish:--no-execute"
+  "settings/personal.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"
-  "misc/aliases.sh:zsh:-n"
-  "misc/personal.sh:zsh:-n"
+  "settings/aliases.sh:zsh:-n"
+  "settings/personal.sh:zsh:-n"
   "common/paths.sh:zsh:-n"
   "common/core.sh:zsh:-n"
   "common/git_prompt.sh:zsh:-n"
@@ -422,8 +422,8 @@ function lint_settings_table() {
   # before it is called a failure.
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local tree stale=0 stem
-  tree="$(grep -rhoE '_HI_[A-Z0-9_]+' "$_HI_ROOT/common" "$_HI_ROOT/misc" \
-    "$_HI_ROOT/shells" "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+  tree="$(grep -rhoE '_HI_[A-Z0-9_]+' "$_HI_ROOT/common" "$_HI_ROOT/settings" \
+    "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
     2>/dev/null | sort -u)"
   while IFS= read -r name; do
     [ -n "$name" ] || continue
@@ -469,7 +469,7 @@ function _hi_settings_roster() {
 # .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
 # basename in a config-dir source resolves against the *sourcing file's own*
 # directory. Where that basename is the file's own name - which is exactly what
-# the per-shell overrides and misc/aliases.sh's own overlay are - the linter
+# the per-shell overrides and settings/aliases.sh's own overlay are - the linter
 # follows the file into itself and re-parses its source tree until the kernel
 # stops it. Measured on this tree: ~33GB resident before a global OOM, twice,
 # taking the editor down with the run. Neither the `[ -f ]` test nor the path

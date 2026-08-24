@@ -1,9 +1,9 @@
 #!/bin/sh
 # <cmd> [args...] -> run it here, then a desktop notification on the *client's*
-# terminal emulator. The same trick shells/osc52.sh plays for the clipboard: the
+# terminal emulator. The same trick common/osc52.sh plays for the clipboard: the
 # escape rides the pty back, so nothing is installed or running on the target -
 # no notify-send, no terminal-notifier, no daemon. Run, not sourced, by the
-# `hi_notify` alias in misc/aliases.sh.
+# `hi_notify` alias in settings/aliases.sh.
 #
 # `set -u` and not `set -e`: the whole point is to survive the command failing
 # and report its status, which -e would turn into an early exit with no
@@ -16,7 +16,7 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # The escape bytes as themselves, not as `\033` for `printf %b` to expand.
-# shells/osc52.sh can use the %b form safely because its payload is base64,
+# common/osc52.sh can use the %b form safely because its payload is base64,
 # which has no backslash in it; a *command line* very much can, and %b would
 # turn a literal `\033` typed as an argument into a real ESC that breaks out of
 # the escape. Real bytes plus `printf %s` is what makes the body inert.
@@ -24,7 +24,7 @@ _HI_ESC="$(printf '\033')"
 _HI_BEL="$(printf '\a')"
 
 # One escape, wrapped for whatever multiplexer is in the way, written to the
-# tty. Same rule as shells/osc52.sh - read that file for why each arm is there.
+# tty. Same rule as common/osc52.sh - read that file for why each arm is there.
 # A function rather than the straight-line form osc52.sh uses because two
 # escapes go out below, and the tmux arm doubles the *inner* ESC: concatenating
 # both escapes first and wrapping once would double the first one's ESC and

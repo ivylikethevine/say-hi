@@ -227,7 +227,7 @@ fi
 # sets $debian_chroot in the caller's scope
 function _hi_interactive_extras() {
   [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
-  # shellcheck disable=SC2034 # read by shells/bash.sh and shells/zsh.zsh's PS1
+  # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
 }
 
@@ -407,7 +407,7 @@ function _hi_hash_color() {
 function _hi_local_username() { printf '%s\n' "${_HI_LOCAL_USER:-$(_hi_whoami)}"; }
 function _hi_local_hostname() { printf '%s\n' "${_HI_LOCAL_HOSTNAME:-$(_hi_hostname)}"; }
 
-# The two readers of misc/colors' "<type>,<name>,<color>" lines; everything
+# The two readers of settings/colors' "<type>,<name>,<color>" lines; everything
 # needing the file goes through them rather than re-deriving the format.
 # _hi_colors_lookup <type> <name> - that pin's color, or 1 if there isn't one
 function _hi_colors_lookup() {
@@ -569,7 +569,7 @@ function _hi_resolve_color() {
 
 # This machine's own two colors and their escapes. All four are memoized: none
 # can change under a running shell, and one unmemoized escape cost ~7 forks
-# (hostname, up to three reads of misc/colors, a walk of ~/.ssh/config).
+# (hostname, up to three reads of settings/colors, a walk of ~/.ssh/config).
 # `+x` tests *set*, not non-empty - a $NO_COLOR shell resolves to empty and
 # must not re-resolve forever.
 function _hi_host_color() {

@@ -75,14 +75,11 @@ contents:
   - src: ./dist/staging/usr/share/say-hi/common/*
     dst: /usr/share/say-hi/common/
     packager: apk
-  - src: ./dist/staging/usr/share/say-hi/misc/*
-    dst: /usr/share/say-hi/misc/
-    packager: apk
   - src: ./dist/staging/usr/share/say-hi/scripts/*
     dst: /usr/share/say-hi/scripts/
     packager: apk
-  - src: ./dist/staging/usr/share/say-hi/shells/*
-    dst: /usr/share/say-hi/shells/
+  - src: ./dist/staging/usr/share/say-hi/settings/*
+    dst: /usr/share/say-hi/settings/
     packager: apk
   - src: ./dist/staging/usr/share/say-hi/hi.sh
     dst: /usr/share/say-hi/hi.sh

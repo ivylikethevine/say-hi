@@ -64,13 +64,13 @@ something people actually sit in, not by being reachable.**
 
 ## The five that ship
 
-| target        | what a name resolves as                                      | proven by                                                                                                      |
-| ------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop) and `ssh_relay_test.sh` |
-| docker ✅     | a running container                                          | `tests/targets/docker_test.sh` - six cases across bash, zsh, fish, dash and busybox `sh`                       |
-| podman ✅     | a running container                                          | `tests/targets/podman_test.sh`, the same six against podman's own image store                                  |
-| nomad ✅      | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                               |
-| kubernetes ✅ | a running pod, or `pod/container`                            | `tests/targets/kube_test.sh`, against a real kind cluster                                                      |
+| target        | what a name resolves as                                      | proven by                                                                                                                                   |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop) and `ssh_relay_test.sh`                              |
+| docker ✅     | a running container                                          | `tests/targets/docker_test.sh` - six shell environments (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case |
+| podman ✅     | a running container                                          | `tests/targets/podman_test.sh`, the same six shell environments against podman's own image store                                            |
+| nomad ✅      | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                            |
+| kubernetes ✅ | a running pod, or `pod/container`                            | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                   |
 
 ssh is checked first and short-circuits the roster entirely, which is why a
 name that is both an ssh host and a container name resolves as the ssh host.
@@ -110,8 +110,8 @@ What hi hands you once it is on the target.
 | session shell                                    | result                                                                | note                                                                                                                                                            |
 | ------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bash` ≥ 3.2                                     | ✅ full: header, prompt, git status, aliases, editor configs          | 3.2 is the floor because macOS still ships it                                                                                                                   |
-| `zsh`                                            | ✅ full                                                               | `shells/zsh.zsh`                                                                                                                                                |
-| `fish`                                           | ✅ full                                                               | `shells/config.fish`                                                                                                                                            |
+| `zsh`                                            | ✅ full                                                               | `common/zsh.zsh`                                                                                                                                                |
+| `fish`                                           | ✅ full                                                               | `common/config.fish`                                                                                                                                            |
 | `sh`/`dash`/`ash` (no bash on the target)        | ⚠️ aliases and a colored `user@host` prompt, with a warning saying so | no header and no git segment - those need bash                                                                                                                  |
 | `nushell`, `elvish`, `xonsh`, `ion`, `oil`/`osh` | ❌ **decided against**, not pending                                   | see [Shells hi does not style](UNSUPPORTED.md#shells-hi-does-not-style). You still get a session — hi lands you in the best of `$_HI_SHELL_TREE` the target has |
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                                             |

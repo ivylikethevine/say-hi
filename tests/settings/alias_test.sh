@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sources misc/aliases.sh in a real instance of each target shell and checks
+# Sources settings/aliases.sh in a real instance of each target shell and checks
 # that every alias/var it unconditionally defines actually landed - not just
 # that the file was found. Skips any shell that isn't installed.
 #

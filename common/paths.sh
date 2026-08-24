@@ -25,20 +25,20 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # the var itself. Overridden per file - unoverridden ones keep tracking the
 # tree copy, and settings.sh has no in-tree half, so its path is unguarded.
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
-export _HI_COLORS="$_HI_ROOT/misc/colors"
+export _HI_COLORS="$_HI_ROOT/settings/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
-export _HI_PACKAGES="$_HI_ROOT/misc/packages"
+export _HI_PACKAGES="$_HI_ROOT/settings/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
-export _HI_VIMRC="$_HI_ROOT/misc/vim.rc"
-export _HI_NANORC="$_HI_ROOT/misc/nano.rc"
-# eza reads its theme from a *directory* (misc/theme.yml), not a file path
-export _HI_THEME_DIR="$_HI_ROOT/misc"
-export _HI_ALIASES="$_HI_ROOT/misc/aliases.sh"
-export _HI_OSC52="$_HI_ROOT/shells/osc52.sh"
-export _HI_NOTIFY="$_HI_ROOT/shells/notify.sh"
-export _HI_BASHRC="$_HI_ROOT/shells/bash.sh"
-export _HI_ZSHRC="$_HI_ROOT/shells/zsh.zsh"
-export _HI_FISH_CONFIG="$_HI_ROOT/shells/config.fish"
+export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
+export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
+# eza reads its theme from a *directory* (settings/theme.yml), not a file path
+export _HI_THEME_DIR="$_HI_ROOT/settings"
+export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
+export _HI_OSC52="$_HI_ROOT/common/osc52.sh"
+export _HI_NOTIFY="$_HI_ROOT/common/notify.sh"
+export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
+export _HI_ZSHRC="$_HI_ROOT/common/zsh.zsh"
+export _HI_FISH_CONFIG="$_HI_ROOT/common/config.fish"
 
 # install.sh's line tag and managed symlink, so everything recognising hi's
 # lines reads one string

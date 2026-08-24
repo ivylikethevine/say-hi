@@ -1,9 +1,9 @@
 #!/bin/bash
-# Unit tests for the desktop-notification feature: shells/notify.sh (the
-# emitter), the `hi_notify` alias in misc/aliases.sh, and the
+# Unit tests for the desktop-notification feature: common/notify.sh (the
+# emitter), the `hi_notify` alias in settings/aliases.sh, and the
 # _HI_DISABLE_NOTIFY toggle.
 #
-# Built on tests/shells/osc52_test.sh, which is the sibling feature and the
+# Built on tests/common/osc52_test.sh, which is the sibling feature and the
 # file to read first. The emitter's job is the same shape - produce exactly the
 # right bytes and put them on the tty - so every case here reads the bytes
 # through a pipe, which is what the script falls back to with no controlling
@@ -79,7 +79,7 @@ function _hi_reports_failure_status() {
 
 # --- the multiplexer wrapping -----------------------------------------------
 #
-# Same rule as shells/osc52.sh, and the reason each escape is wrapped on its own
+# Same rule as common/osc52.sh, and the reason each escape is wrapped on its own
 # rather than the pair being wrapped once: tmux's passthrough doubles the inner
 # ESC, so one wrap around both would leave the second escape's ESC to terminate
 # the DCS early. These cases are what pins that.
@@ -217,11 +217,11 @@ function _hi_toggle_in_fish_list() {
 # half. hi/payload_test.sh owns the trimming cases; this one is the claim that
 # hi.sh knows the file at all, which is what a rename would break.
 function _hi_payload_trims_the_emitter() {
-  grep -q 'exclude=say-hi/shells/notify.sh' "$_HI_LAUNCHER"
+  grep -q 'exclude=say-hi/common/notify.sh' "$_HI_LAUNCHER"
 }
 
 function run_notify_test() {
-  _hi_h1 "Testing desktop notifications (shells/notify.sh, hi_notify)"
+  _hi_h1 "Testing desktop notifications (common/notify.sh, hi_notify)"
   _hi_workdir notify
   _hi_suite_begin
 
@@ -257,7 +257,7 @@ function run_notify_test() {
   _hi_h2 "the toggle"
   _hi_check "_HI_DISABLE_NOTIFY in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list
   _hi_check "_HI_DISABLE_NOTIFY in config.fish's copy" _hi_toggle_in_fish_list
-  _hi_check "hi.sh trims shells/notify.sh when it is off" _hi_payload_trims_the_emitter
+  _hi_check "hi.sh trims common/notify.sh when it is off" _hi_payload_trims_the_emitter
 
   _hi_suite_end "notify"
 }

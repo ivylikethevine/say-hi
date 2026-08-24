@@ -43,12 +43,12 @@ export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)"
 # both - alias_fallthrough_test.sh pins them together.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
 
-# stdin -> the client's clipboard (shells/osc52.sh). The `[ -f ]` earns its
+# stdin -> the client's clipboard (common/osc52.sh). The `[ -f ]` earns its
 # place: the container fallback ships this file without paths.sh, where an
 # empty $_HI_OSC52 would make `sh ` an alias that opens a shell.
 [ "$_HI_DISABLE_OSC52" != 1 ] && [ -f "$_HI_OSC52" ] && alias hi_copy="sh $_HI_OSC52" || true
 
-# <cmd> -> run it, then a desktop notification on the client (shells/notify.sh),
+# <cmd> -> run it, then a desktop notification on the client (common/notify.sh),
 # so a long build finishing behind a switched-away terminal says so. Opt-in per
 # invocation, never a hook on the prompt: a notification after every command is
 # noise. Same `[ -f ]` guard as hi_copy above, for the same container-fallback
@@ -66,11 +66,11 @@ export EZA_CONFIG_DIR="$_HI_THEME_DIR"
 # that trim and the container fallback (aliases.sh alone) both make this path
 # absent.
 # shellcheck source=./personal.sh
-[ "$_HI_DISABLE_ALIASES" != 1 ] && [ -f "$_HI_ROOT/misc/personal.sh" ] &&
-  . "$_HI_ROOT/misc/personal.sh" || true
+[ "$_HI_DISABLE_ALIASES" != 1 ] && [ -f "$_HI_ROOT/settings/personal.sh" ] &&
+  . "$_HI_ROOT/settings/personal.sh" || true
 
 # shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/personal.sh" != "$_HI_ROOT/misc/personal.sh" ] &&
+[ "$_HI_CONFIG_DIR/personal.sh" != "$_HI_ROOT/settings/personal.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/personal.sh" ] && . "$_HI_CONFIG_DIR/personal.sh" || true
 
 # Last on purpose: the user's own aliases.sh (~/.config/say-hi/aliases.sh, or the
@@ -83,7 +83,7 @@ export EZA_CONFIG_DIR="$_HI_THEME_DIR"
 # comparison. The shellcheck directive is the static half of the same hazard:
 # source-path=SCRIPTDIR resolves the basename below to *this file*, and under
 # -x shellcheck follows it into itself until it is OOM-killed - the runtime
-# guard on this line is invisible to it. See shells/bash.sh for the long form.
+# guard on this line is invisible to it. See common/bash.sh for the long form.
 # shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/misc/aliases.sh" ] &&
+[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/settings/aliases.sh" ] &&
   [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true

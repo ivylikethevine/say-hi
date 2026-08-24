@@ -381,7 +381,7 @@ function test_the_shell_tree_is_the_documented_order() {
 # function above they cannot be reached by sourcing, so these cases run hi.sh
 # as a process against two throwaway trees.
 #
-# _hi_subcmd_home builds the shape a *target* gets: common/, misc/, shells/,
+# _hi_subcmd_home builds the shape a *target* gets: common/, settings/,
 # load.sh and hi.sh copied in, and deliberately no scripts/, no tests/ and
 # no .git. That is the shape every one of these flags has to refuse by name,
 # and it is the reason $_HI_NO_CHECKOUT exists.
@@ -393,7 +393,7 @@ function test_the_shell_tree_is_the_documented_order() {
 function _hi_subcmd_home() {
   local home="$_HI_WORKDIR/$1" f
   mkdir -p "$home/say-hi"
-  for f in common misc shells load.sh hi.sh; do
+  for f in common settings load.sh hi.sh; do
     cp -R "$_HI_ROOT/$f" "$home/say-hi/$f"
   done
   printf '%s' "$home"

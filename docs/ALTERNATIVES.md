@@ -60,7 +60,7 @@ so it doesn't depend on your terminal.
 | Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash | broad                                                                                           | Linux x86_64                                             | Linux, macOS                    | broad                    |
 | Installs on target                  | nothing                                                   | nothing                                                                                         | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
 | Cleans up on exit                   | yes, automatically                                        | leaves `/tmp` dir                                                                               | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
-| Size ceiling                        | ~32KB gzipped, enforced by CI                             | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
+| Size ceiling                        | ~32KB gzipped, 64KB budget enforced by CI                 | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                            | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                        | no                                                                                              | **yes**                                                  | no                              | no                       |
 | Maturity                            | pre-1.0, not yet published to any channel                 | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
@@ -115,7 +115,7 @@ plugin model is also more principled than copying dotfiles blind.
 - **Reach.** xxh targets "Linux on x86_64" — no ARM, no macOS, no BSD. say-hi's
   floor is bash 3.2 (what macOS still ships) and `base64`, and its suite runs
   real Debian, Alpine/musl and bash-3.2 targets every time.
-- **Weight.** xxh uploads shells; say-hi sends ~48KB a session and a CI job
+- **Weight.** xxh uploads shells; say-hi sends ~46KB a session and a CI job
   fails if that drifts more than 5% from the number on the badge.
 - **Footprint.** xxh is hermetic but persistent — `~/.xxh` stays until you
   delete it. say-hi removes itself when the session ends.

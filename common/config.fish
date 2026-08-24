@@ -32,7 +32,7 @@ end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
 
-# misc/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns
+# settings/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns
 # each into an opaque function with no preview of what it expands to. `alias`
 # with no args lists them as `alias name 'value'`, itself valid fish syntax, so
 # swapping the leading word for `abbr -a --` and eval'ing it reuses fish's own
@@ -59,7 +59,7 @@ end
 # `alias` builtin records the body as the function's description, so the
 # completion pager already prints `hi_copy  alias hi_copy=sh .../osc52.sh` when
 # you TAB the name - the expansion, visible, with the command line untouched.
-# That is the default behaviour for every alias misc/aliases.sh defines; the
+# That is the default behaviour for every alias settings/aliases.sh defines; the
 # abbr above is only for people who want the line itself rewritten.
 set -q _HI_ENABLE_FISH_ALIAS_ABBR; or set -gx _HI_ENABLE_FISH_ALIAS_ABBR 0
 test "$_HI_ENABLE_FISH_ALIAS_ABBR" = 1; and hi_abbr_aliases
@@ -180,11 +180,11 @@ end
 end
 # === end required configuration ===
 
-# hi's own preferences, in their own file - see shells/fish_personal.fish. The
+# hi's own preferences, in their own file - see settings/fish_personal.fish. The
 # user's copy comes after and is NOT gated: the toggle turns off *hi's* taste,
 # not yours.
-if test "$_HI_DISABLE_PERSONAL" != 1; and test -f $_HI_ROOT/shells/fish_personal.fish
-  source $_HI_ROOT/shells/fish_personal.fish
+if test "$_HI_DISABLE_PERSONAL" != 1; and test -f $_HI_ROOT/settings/fish_personal.fish
+  source $_HI_ROOT/settings/fish_personal.fish
 end
 
 # NOT in fish_personal.fish, though it sits behind the same toggle: this is
@@ -224,8 +224,8 @@ if test "$_HI_ASCII" = 1
 end
 end
 
-# see shells/bash.sh for why the paths are compared before sourcing
-if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/shells/config.fish"
+# see common/bash.sh for why the paths are compared before sourcing
+if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
     and test -f $_HI_CONFIG_DIR/config.fish
   source $_HI_CONFIG_DIR/config.fish
 end

@@ -4,8 +4,8 @@
 # Its job is to render the same answers the live prompt would give, so what
 # matters is that its own precedence logic (_hi_color_source) agrees with
 # common/core.sh's _hi_resolve_color, and that the helpers feeding the table
-# read misc/colors the way the rest of hi does. Everything runs against a
-# fixture misc/colors and ~/.ssh/config in the scratch dir, so the output is
+# read settings/colors the way the rest of hi does. Everything runs against a
+# fixture settings/colors and ~/.ssh/config in the scratch dir, so the output is
 # fixed rather than "whatever this machine is configured with".
 #
 # GLOSSARY: HI.30 + HI.34
@@ -135,9 +135,9 @@ function _hi_render_preview() {
 
 function _hi_write_preview_tree() {
   local home
-  home="$(_hi_scratch_tree tree common misc scripts)"
+  home="$(_hi_scratch_tree tree common settings scripts)"
   mkdir -p "$home/.ssh"
-  cp "$_HI_WORKDIR/colors" "$home/say-hi/misc/colors"
+  cp "$_HI_WORKDIR/colors" "$home/say-hi/settings/colors"
   cp "$_HI_WORKDIR/ssh_config" "$home/.ssh/config"
 }
 
@@ -163,7 +163,7 @@ function test_tables_skip_hosts_that_render_by_default() {
 }
 
 # the tag column has to name the tag that actually matched, since that's the
-# line a user reads to work out which misc/colors entry to edit
+# line a user reads to work out which settings/colors entry to edit
 function test_tables_name_the_matching_tag() {
   printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q 'tag:work'
 }

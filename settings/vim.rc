@@ -62,7 +62,7 @@ filetype plugin on
 filetype indent on
 set laststatus=1
 
-" Yank -> the client's clipboard; shells/osc52.sh does the encoding/wrapping,
+" Yank -> the client's clipboard; common/osc52.sh does the encoding/wrapping,
 " this only decides *when*. Four honest conditions: the toggle, the event
 " (exists('##...') - neovim lies to has('patch-')), $_HI_OSC52 (empty outside
 " a session), and the unnamed register - "ay stays local, a delete a delete.

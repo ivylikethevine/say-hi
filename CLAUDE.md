@@ -129,7 +129,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   editor dies with the run. A runtime `[ -f ]` or path comparison does not help;
   only the directive does. The lint suite refuses to start when one is missing.
 - `shfmt -w .` is **not** the fix for a red shfmt gate: the gate reads the same
-  `*.sh` list shellcheck does, and `.` also reformats `shells/zsh.zsh`, which
+  `*.sh` list shellcheck does, and `.` also reformats `common/zsh.zsh`, which
   is zsh and ships. Reformat the paths the failure names.
 - The e2e suites (ssh, docker, podman, nomad, kube) need real backends, and
   they do run in this environment (the sandbox allows the docker socket as of
@@ -143,18 +143,18 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 
 - bash 3.2 floor: no mapfile/readarray, associative arrays, namerefs, or case
   conversion. The lint suite greps for violations.
-- `common/`, `misc/`, `shells/`, `load.sh` and `hi.sh` itself ship in the ssh
+- `common/`, `settings/`, `load.sh` and `hi.sh` itself ship in the ssh
   payload (`$_HI_PAYLOAD`). It is CI-enforced twice, and the two are different
   numbers: `bench_payload_size` budgets the gzipped tar (65536 B), while the
   README badge tracks `_hi_wire_bytes` — the assembled script a session
   actually sends, which is what `hi` prints on connect — to within 5%. They
   move independently: putting a file _into_ the tar raises the first and
   lowers the second. Both measure a **default** configuration - `_hi_payload_tar`
-  trims `misc/vim.rc`, `misc/nano.rc`, `shells/osc52.sh`, `shells/notify.sh`,
-  the three `shells/*_personal.*` files and `misc/personal.sh`
-  when the overlay has turned them off, so a configured client sends less than
-  either number. Tooling-only helpers must not go into `common/core.sh`; check
-  both numbers when touching shipped files.
+  trims `settings/vim.rc`, `settings/nano.rc`, `common/osc52.sh`,
+  `common/notify.sh`, the three `settings/*_personal.*` files and
+  `settings/personal.sh` when the overlay has turned them off, so a configured
+  client sends less than either number. Tooling-only helpers must not go into
+  `common/core.sh`; check both numbers when touching shipped files.
 - Several files are dialect-constrained and say so at the top: paths.sh's
   four-shell plain-export subset, aliases.sh's POSIX+fish subset, and
   targets.sh's standalone POSIX. Respect the stated subset over "cleaner" bash.

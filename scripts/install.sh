@@ -329,7 +329,7 @@ function show_preview() {
 # being asked about.
 function _hi_banner_preview() { (unset _HI_HEADER_BANNER && banner Connected); }
 
-# sample "user@host cwd" line, colored like shells/bash.sh's real HI_PS1, with
+# sample "user@host cwd" line, colored like common/bash.sh's real HI_PS1, with
 # the literal current user/host/cwd instead of \u/\h/\w - the fragment itself
 # is core.sh's _hi_userhost
 function _hi_prompt_preview() {
@@ -347,7 +347,7 @@ function _hi_git_status_preview() {
 }
 
 # what `nano`/`vim` actually resolve to with the override on. The vim ladder
-# is misc/aliases.sh's, spelled again because this file cannot source it - see
+# is settings/aliases.sh's, spelled again because this file cannot source it - see
 # the note there; alias_fallthrough_test.sh fails when the two drift.
 function _hi_editors_preview() {
   printf 'nano -> nano --rcfile %s\n' "$_HI_NANORC"
@@ -359,19 +359,26 @@ function _hi_osc52_preview() {
   printf 'hi_copy  -> %s\n' "$_HI_OSC52"
 }
 
-# alias count plus a handful of names, read straight from misc/aliases.sh
-# rather than duplicating its fallthrough logic here
+# alias count plus a handful of names, read straight from settings/personal.sh
+# rather than duplicating its fallthrough logic here. personal.sh and not
+# $_HI_ALIASES: settings/aliases.sh is the *product* - the editor and hi_copy
+# aliases, which this toggle does not gate - and it defines every one of them
+# behind a `[ ... ] && alias` guard rather than at column 0, so counting it
+# reported 0 whatever the toggle would actually turn off.
 # One awk, not three pipelines over the same file: it counts and collects the
 # examples in a single pass, and reports 0 for a file with no aliases - where
-# `printf '%s\n' "" | wc -l` says 1.
+# `printf '%s\n' "" | wc -l` says 1. A file that isn't there prints nothing at
+# all, so show_preview draws no box rather than a truthful-looking zero.
 function _hi_aliases_preview() {
+  [ -f "$_HI_ROOT/settings/personal.sh" ] || return 0
   awk '{
          if (match($0, /^alias [A-Za-z0-9_]+=/)) {
            n++
            if (n <= 6) e = e (n > 1 ? "," : "") substr($0, 7, RLENGTH - 7)
          }
        }
-       END { printf "%d personal aliases, e.g.: %s, ...\n", n, e }' "$_HI_ALIASES"
+       END { printf "%d personal aliases, e.g.: %s, ...\n", n, e }' \
+    "$_HI_ROOT/settings/personal.sh"
 }
 
 # Every setting the config_* groups decide on, written to $_HI_SETTINGS in one
@@ -390,7 +397,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PERSONAL|1|| Enable personal shell settings (history size, keybindings, completion tweaks)?"
   "_HI_DISABLE_GIT_STATUS|1|_hi_git_status_preview| Enable git status in the prompt?"
   "_HI_DISABLE_EDITORS|1|_hi_editors_preview| Enable the vim/nano config overrides?"
-  "_HI_DISABLE_ALIASES|1|_hi_aliases_preview| Enable the personal aliases in misc/aliases.sh (sudo, cat/eza, git, docker, pacman/apt, etc)?"
+  "_HI_DISABLE_ALIASES|1|_hi_aliases_preview| Enable the personal aliases in settings/personal.sh (sudo, cat/bat, ls/eza, etc)?"
   "_HI_DISABLE_OSC52|1|_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?"
   "_HI_DISABLE_NOTIFY|1|| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?"
   "_HI_DISABLE_LOCAL|1|| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?"
@@ -824,7 +831,7 @@ function run_uninstall() {
 # so github.com and OpenSSF Scorecard's License check can both find it - they
 # look there and nowhere else. It makes no difference to the staged result:
 # install_tree's cp lands file entries flat by basename either way.
-_HI_PACKAGE_CONTENTS=(common misc scripts shells hi.sh load.sh LICENSE.md README.md)
+_HI_PACKAGE_CONTENTS=(common scripts settings hi.sh load.sh LICENSE.md README.md)
 
 # Packaging mode. say-hi normally installs *in place*, which assumes the tree is
 # somewhere you own; here the tree is copied to a staging root for a package

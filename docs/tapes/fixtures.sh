@@ -275,7 +275,7 @@ export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
 # shell - so anything conditional here would read the renderer's own overlay
 # and silently drop this demo's. Ahead of the rc, which is what sources it.
 export _HI_CONFIG_DIR='@CONFIG@'
-source "$_HI_ROOT/shells/bash.sh"
+source "$_HI_ROOT/common/bash.sh"
 _hi_demo_ps1() {
   ps1
   PS1="${PS1//\\u/@USER@}"
@@ -290,7 +290,7 @@ export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
 export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
 # unconditional, for the reason the bash rc spells out
 export _HI_CONFIG_DIR='@CONFIG@'
-source "$_HI_ROOT/shells/zsh.zsh"
+source "$_HI_ROOT/common/zsh.zsh"
 # %n reads $USERNAME, which zsh will not let a script reassign, so both escapes
 # are substituted out of the finished prompt instead. zsh builds PS1 once and
 # updates the git segment through a variable, so once is enough.
@@ -310,7 +310,7 @@ set -gx _HI_CONFIG_DIR '@CONFIG@'
 function prompt_hostname
   echo '@HOST@'
 end
-source "$_HI_ROOT/shells/config.fish"
+source "$_HI_ROOT/common/config.fish"
 EOF
     ;;
   esac

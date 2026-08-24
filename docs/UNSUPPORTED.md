@@ -55,12 +55,12 @@ own shell. A "no" here is about hi's roster, not about the machine.
 ## Shells hi does not style
 
 These are settled the same way the targets above are. Each would need its own rc
-in `shells/` (prompt, aliases, completion) plus a tier in the fallback ladder in
+in `common/` (prompt, aliases, completion) plus a tier in the fallback ladder in
 `hi.sh`'s `_hi_remote_suffix` and `load.sh`'s `load()`.
 
 | shell        | status                          | why                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `elvish`     | **decided against**             | its own language, so the prompt and aliases would be a second implementation to keep in sync forever, for an audience hi has no evidence of. A `shells/rc.elv` is what it would take, and nobody has asked                                                                                                                                                           |
+| `elvish`     | **decided against**             | its own language, so the prompt and aliases would be a second implementation to keep in sync forever, for an audience hi has no evidence of. A `common/rc.elv` is what it would take, and nobody has asked                                                                                                                                                           |
 | `xonsh`      | **decided against**             | Python — a third implementation, on the same terms as elvish and with the same answer                                                                                                                                                                                                                                                                                |
 | `tcsh`/`csh` | **decided against**             | different rc syntax _and_ no `$ENV` equivalent, so there is no hook to land on at all: it would need its own rc and its own delivery mechanism                                                                                                                                                                                                                       |
 | `nushell`    | **decided against**             | Nu is not POSIX, so it can source none of `common/`                                                                                                                                                                                                                                                                                                                  |
@@ -116,12 +116,13 @@ yes - which is why they are worth writing down rather than leaving to
 `git log`.
 
 **The tmux integration** (`hi --tmux`, `--no-tmux`, `_HI_TMUX_ATTACH`,
-`_HI_TMUX_SESSION`, `_HI_DISABLE_TMUX` and `misc/tmux.conf`) was removed on
-2026-08-21. It ran the session inside a named tmux on the target so a dropped
-connection detached instead of losing the session - but only where say-hi was
-**permanently installed**: on a disposable target the tree is deleted when the
-session ends, so a detached tmux would have outlived the thing it was attached
-to, and `_hi_tmux_wanted` refused rather than leave one pointing at nothing.
+`_HI_TMUX_SESSION`, `_HI_DISABLE_TMUX` and `misc/tmux.conf`, in what is today
+`settings/`) was removed on 2026-08-21. It ran the session inside a named tmux
+on the target so a dropped connection detached instead of losing the session -
+but only where say-hi was **permanently installed**: on a disposable target the
+tree is deleted when the session ends, so a detached tmux would have outlived
+the thing it was attached to, and `_hi_tmux_wanted` refused rather than leave
+one pointing at nothing.
 That restriction was never escapable from inside the feature, and the file it
 shipped cost payload bytes on every session that never used it.
 
@@ -131,10 +132,11 @@ _persistent sessions on a disposable target_ entry - which has to answer the
 multiplexer question itself rather than inherit an answer.
 
 **Three shell tiers existed briefly and were dropped**, each for the reason its
-row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu` (2026-08-18)
-and `shells/ksh.sh` (2026-08-21). The ksh one is the instructive case - it was
-written for the sake of a live git segment, and removing it was the decision
-that a second POSIX implementation to keep in sync is not worth one segment.
+row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu`
+(2026-08-18) and `shells/ksh.sh` (2026-08-21), in what is today `common/`. The
+ksh one is the instructive case - it was written for the sake of a live git
+segment, and removing it was the decision that a second POSIX implementation to
+keep in sync is not worth one segment.
 
 ## Changes proposed and not made
 

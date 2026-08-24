@@ -20,13 +20,13 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # before letting clean_all near $_HI_ROOT.
 #
 # The scratch overlay is deliberately a *different* directory from the scratch
-# tree's misc/, so "writes land outside the tree" is something the tests can see
+# tree's settings/, so "writes land outside the tree" is something the tests can see
 # rather than assume.
 function _hi_settings_fixture() {
   local dir="$_HI_WORKDIR/$1"
   local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/config"
   local _HI_SETTINGS="$dir/config/settings.sh"
-  mkdir -p "$dir/common" "$dir/misc" "$dir/config"
+  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
   shift
   "$@" >/dev/null
 }
@@ -149,7 +149,7 @@ function test_core_sources_settings_first() {
 }
 
 function test_fish_config_sources_settings_first() {
-  _hi_sources_settings_before_paths "$_HI_ROOT/shells/config.fish"
+  _hi_sources_settings_before_paths "$_HI_ROOT/common/config.fish"
 }
 
 # hi.sh's fallback rc is the third entry point, but it's *generated* rather
@@ -221,7 +221,7 @@ function test_shebang_is_written_to_a_new_settings_file() {
 # `hi --update`'s git pull still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
-  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/misc/settings.sh" ]
+  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/settings/settings.sh" ]
 }
 
 function _hi_shebang_then_settings() {
@@ -348,7 +348,7 @@ _HI_FLOOR_CHILD='
 function _hi_floor_pty() {
   local label="$1" input="$2" line="${3:-}"
   local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.floor.out"
-  mkdir -p "$dir/common" "$dir/misc" "$dir/config"
+  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
   printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
   : >"$out"
   printf '%b' "$input" |
@@ -625,7 +625,7 @@ function test_config_hi_degrades_when_sudo_cannot_link() {
 # install_tree run (or several runs)
 function _hi_package_src() {
   local dir="$_HI_WORKDIR/$1" item
-  mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/misc" "$dir/src/say-hi/scripts" "$dir/src/say-hi/shells"
+  mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/settings" "$dir/src/say-hi/scripts"
   for item in hi.sh load.sh LICENSE.md README.md; do printf 'x\n' >"$dir/src/say-hi/$item"; done
 }
 
@@ -640,7 +640,7 @@ function _hi_package_fixture() {
 function test_install_tree_copies_the_tree_under_destdir() {
   _hi_package_fixture copies
   local dest="$_HI_WORKDIR/copies/dest/usr/share/say-hi"
-  [ -d "$dest/common" ] && [ -d "$dest/misc" ] && [ -d "$dest/shells" ] &&
+  [ -d "$dest/common" ] && [ -d "$dest/settings" ] &&
     [ -f "$dest/load.sh" ] && [ -x "$dest/hi.sh" ]
 }
 
@@ -885,7 +885,7 @@ function run_install_tests() {
 
   _hi_h2 "Testing: settings are sourced ahead of paths.sh"
   _hi_check "common/core.sh" test_core_sources_settings_first
-  _hi_check "shells/config.fish" test_fish_config_sources_settings_first
+  _hi_check "common/config.fish" test_fish_config_sources_settings_first
 
   _hi_h2 "Testing: config_prompt_ends"
   _hi_check "Defaults write nothing" test_prompt_ends_writes_nothing_for_the_defaults

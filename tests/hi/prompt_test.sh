@@ -1,6 +1,6 @@
 #!/bin/bash
 # Unit tests for hi.sh: the prompt the bash-less tiers get.
-# shells/config.fish renders a git segment without common/git_prompt.sh, so it
+# common/config.fish renders a git segment without common/git_prompt.sh, so it
 # carries its own copy of core.sh's palette and glyphs. Much of this file is the
 # drift guard on that copy.
 #
@@ -44,7 +44,7 @@ function _hi_core_values() {
 # <role>=<value> per line, for the char_/color_ family named by $1
 function _hi_fish_settings() {
   sed -n "s/^ *set -g __fish_git_prompt_$1_\([a-z_]*\) '\{0,1\}\([^']*\)'\{0,1\}\$/\1=\2/p" \
-    "$_HI_ROOT/shells/config.fish"
+    "$_HI_ROOT/common/config.fish"
 }
 
 function _hi_fish_agrees() {
@@ -102,7 +102,7 @@ function test_fish_colors_match_core() {
 function test_fish_prompt_end_default_matches_core() {
   local fish_default core_default
   fish_default="$(sed -n "s/^set -g _hi_prompt_end '\(.*\)'\$/\1/p" \
-    "$_HI_ROOT/shells/config.fish")"
+    "$_HI_ROOT/common/config.fish")"
   core_default="$(_hi_prompt_end_default FISH)"
   [ -n "$fish_default" ] && [ "$fish_default" = "$core_default" ] || {
     _hi_cecho " | config.fish: '$fish_default'  core.sh: '$core_default'" "$RED"
@@ -114,7 +114,7 @@ function test_fish_prompt_end_default_matches_core() {
 # same repo renders a different branch name per shell
 function test_branch_shorten_length_agrees() {
   local missing=""
-  grep -q 'shorten_branch_len 32' "$_HI_ROOT/shells/config.fish" ||
+  grep -q 'shorten_branch_len 32' "$_HI_ROOT/common/config.fish" ||
     missing="$missing config.fish"
   grep -q '#ref} > 32' "$_HI_ROOT/common/git_prompt.sh" ||
     missing="$missing git_prompt.sh"

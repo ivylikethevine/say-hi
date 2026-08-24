@@ -2,7 +2,7 @@
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
-**fish** (which parses `common/paths.sh`, `misc/aliases.sh` and
+**fish** (which parses `common/paths.sh`, `settings/aliases.sh` and
 `settings.sh` natively). On top of that, targets split between **GNU and BSD
 userlands**. Each entry below is a construct that looks odd until you know
 which master it serves.
@@ -10,14 +10,14 @@ which master it serves.
 Every entry carries a stable `HI.NN` code, and a file references it with a short
 `# GLOSSARY: HI.NN` tag instead of re-explaining. Any file in the tree may carry
 a tag, and `tests/` carries plenty; the tag is _mandatory_ in `common/`,
-`shells/`, `misc/`, `load.sh` and `hi.sh` - not for wire bytes any more (HI.35
-strips comments out of the payload), but because those are the files a reader
-meets first and the tag is shorter than the explanation. The code is what the tags point at, so an entry can
-be retitled without touching a single tagged file; codes are never reused once
-retired. A tag is one code, or two joined with ` + `, with optional prose after
-it. `tests/lint/shellcheck_test.sh` fails the build if a tag names a code this
-file doesn't define. This file never ships (the payload is `$_HI_PAYLOAD` in
-`hi.sh`; `docs/` isn't in it).
+`settings/`, `load.sh` and `hi.sh` - not for wire bytes any more (HI.35 strips
+comments out of the payload), but because those are the files a reader meets
+first and the tag is shorter than the explanation. The code is what the tags
+point at, so an entry can be retitled without touching a single tagged file;
+codes are never reused once retired. A tag is one code, or two joined with
+` + `, with optional prose after it. `tests/lint/shellcheck_test.sh` fails the
+build if a tag names a code this file doesn't define. This file never ships
+(the payload is `$_HI_PAYLOAD` in `hi.sh`; `docs/` isn't in it).
 
 ## Contents
 
@@ -117,7 +117,7 @@ natively - so every `_HI_DISABLE_*` toggle is read _bare_, and a bare read of
 an unset variable is fatal under bash's `set -u`. Therefore the toggles must
 always exist: `common/core.sh` defaults the `_HI_TOGGLES` list (defaulted,
 never assigned, so settings.sh and paths.sh's gate still win),
-`shells/config.fish` mirrors it with `set -q X; or set -gx X 0` (fish can't
+`common/config.fish` mirrors it with `set -q X; or set -gx X 0` (fish can't
 read a bash array), and `hi.sh`'s `_hi_fallback_rc` emits `export X=0` lines
 from the same list for bash-less targets.
 
@@ -159,16 +159,17 @@ math around user-visible strings computes column counts explicitly (see
 ## HI.13 command -v fallthrough
 
 `alias x="$(command -v tool-a || command -v tool-b || command -v fallback)"`
-in `misc/aliases.sh`: resolved at source time, valid in sh, bash, zsh _and_
+in `settings/aliases.sh`: resolved at source time, valid in sh, bash, zsh _and_
 fish (modern fish parses `$(...)`), and never leaves the alias pointing at a
 missing binary. The `|| command -v echo` tail keeps `set -u`/`set -e` shells
 alive when nothing matches.
 
 A second, **narrower** chain over the same family is how flags reach only the
 tier that parses them: `$_HI_BAT_REAL` is `bat || batcat` where `$_HI_BATCAT_BIN`
-is `bat || batcat || ccat || cat`, so `misc/personal.sh` can attach bat-syntax
-options behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and leave ccat and
-coreutils `cat` - neither of which parses them - the bare binary.
+is `bat || batcat || ccat || cat`, so `settings/personal.sh` can attach
+bat-syntax options behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and
+leave ccat and coreutils `cat` - neither of which parses them - the bare
+binary.
 
 ## HI.14 _hi_on_exit
 
@@ -179,7 +180,7 @@ traps are registered in shared code.
 ## HI.15 strict-mode bracketing
 
 Files that run inside an interactive shell (`common/core.sh`, `hi.sh`,
-`shells/bash.sh`, `common/git_prompt.sh`, ...) set `set -euo pipefail` at the
+`common/bash.sh`, `common/git_prompt.sh`, ...) set `set -euo pipefail` at the
 top _and disable it at the end of their own code_: left on, any later
 non-zero status or unset variable kills the user's session. The bootloader
 and fallback rc do the same on targets - forgetting it there is what once
@@ -247,8 +248,8 @@ target as local and strips hi for anyone with `_HI_DISABLE_LOCAL=1`.
 install.sh runs, and a bare `.` on a missing file abandons the rest of the
 file in ash/dash. `_HI_CONFIG_DIR` points at the target's own `config/`, where
 the shipped overlay was unpacked - not a `~/.config/say-hi` belonging to
-whoever we logged in as, and not `misc/`, which holds the _shipped_ copies of
-the same names.
+whoever we logged in as, and not `settings/`, which holds the _shipped_ copies
+of the same names.
 
 ## HI.21 baked prompt
 
@@ -327,7 +328,7 @@ a just-started container may not appear until it expires, the trade for not
 paying ~110ms per TAB. **Nothing invalidates it**; there is no watch on
 container events, only the clock. Two windows stack, and they are offset: the
 file cache in `targets.sh` stamps when it was written, while the in-shell memo
-in `shells/bash.sh` and `shells/zsh.zsh` stamps when that shell last read the
+in `common/bash.sh` and `common/zsh.zsh` stamps when that shell last read the
 file. A memo filled from an already-4-second-old file holds it for its own full
 TTL, so worst-case staleness is close to **twice** the TTL, not once. Only
 `_HI_TARGETS_TTL=0` turns both off.
@@ -365,7 +366,7 @@ not a third fork in the common path.
 `_HI_PROMPT=starship` hands the prompt to [starship](https://starship.rs) when
 the target has it, keeping hi's header and aliases. `common/core.sh`'s
 `_hi_wants_starship` is the single predicate (the setting _and_ the binary);
-`shells/bash.sh` and `shells/zsh.zsh` each `eval` their own `starship init`
+`common/bash.sh` and `common/zsh.zsh` each `eval` their own `starship init`
 behind it and skip building hi's PS1. Absent starship, the setting is ignored
 silently.
 
@@ -396,9 +397,9 @@ answer.
 | `hi.sh`, `scripts/install.sh`, `packaging/lib.sh` | the same, behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and the unresolved path answers `/usr`. Three copies, because each must resolve itself before it can source anything |
 | `load.sh`, `tests/test_runner.sh` | `${BASH_SOURCE[0]}` - entry points that _export_ for children |
 | `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if it is set - the standalone-entry form below |
-| zsh (`shells/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; zsh has no `$BASH_SOURCE`, and bash cannot parse `%x`, so core.sh's arm is `eval`'d |
-| fish (`shells/config.fish`) | `sh -c 'cd -P "$1/../.." && pwd'`. Not fish's own `cd`/`pwd`: a builtin-only command substitution runs in the _current_ process, so it would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical |
-| `shells/bash.sh` | `$_HI_HOME`, not its own path - the one file that cannot self-locate, because `load.sh` grafts its _text_ into someone else's rc (HI.24), where `$BASH_SOURCE` is that rc |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; zsh has no `$BASH_SOURCE`, and bash cannot parse `%x`, so core.sh's arm is `eval`'d |
+| fish (`common/config.fish`) | `sh -c 'cd -P "$1/../.." && pwd'`. Not fish's own `cd`/`pwd`: a builtin-only command substitution runs in the _current_ process, so it would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical |
+| `common/bash.sh` | `$_HI_HOME`, not its own path - the one file that cannot self-locate, because `load.sh` grafts its _text_ into someone else's rc (HI.24), where `$BASH_SOURCE` is that rc |
 
 `common/core.sh`'s zsh arm is `eval`'d for one reason: bash reads `${(%):-%x}`
 as a bad substitution, and the file has to _parse_ in both shells whichever

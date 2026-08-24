@@ -14,7 +14,7 @@ This is a hobby project.
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/macos-e2e.yml?branch=main&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/macos-e2e.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
-![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
+![ssh payload](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
 [![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
@@ -188,11 +188,11 @@ normally, not the GIF cut short.
   [completion, every backend at once](#completion-every-backend-at-once)
 - configure `~/.ssh/config` tags via sshm
 - [optional] pin specific colors in `~/.config/say-hi/colors` — everything else
-  gets a color automatically. Copy `say-hi/misc/colors` there to start from the
-  shipped defaults
+  gets a color automatically. Copy `say-hi/settings/colors` there to start
+  from the shipped defaults
   - run `hi --color-preview` to preview what every ssh host/your user resolves
     to
-- [optional] copy `say-hi/misc/packages` to `~/.config/say-hi/packages` and
+- [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages` and
   edit it to your preferences
   - run `hi --packages-preview` to see what each priority means, the colors it
     renders installed and missing packages in, one real example of each from
@@ -233,7 +233,7 @@ shell you land in and what is left behind — is
 
 Every username and hostname gets a color deterministically derived from its
 name. To pin a specific color instead,
-add a line to `say-hi/misc/colors` (`username,root,red` /
+add a line to `say-hi/settings/colors` (`username,root,red` /
 `hostname,prod-db,yellow` / `hosttag,desktop,green`); `hosttag` entries match
 the _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config` - a wildcard block (`Host prod-*`,

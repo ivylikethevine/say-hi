@@ -1,12 +1,12 @@
 #!/bin/zsh
 # hi's own zsh preferences: history sizing, keybindings, completion styling.
-# Taste, not product - which is why they live here rather than in shells/zsh.zsh
+# Taste, not product - which is why they live here rather than in common/zsh.zsh
 # beside the prompt and the aliases that are.
 #
-# Sourced by shells/zsh.zsh behind $_HI_DISABLE_PERSONAL, and NOT shipped at all
+# Sourced by common/zsh.zsh behind $_HI_DISABLE_PERSONAL, and NOT shipped at all
 # when that toggle is on (hi.sh's _hi_payload_tar trims it). Your own copy at
 # $_HI_CONFIG_DIR/zsh.zsh is sourced after this one and wins, on
-# misc/personal.sh's precedent - additive, never a replacement.
+# settings/personal.sh's precedent - additive, never a replacement.
 HISTFILE=~/.zsh_history
 HISTSIZE=2000
 SAVEHIST=2000

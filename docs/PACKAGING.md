@@ -135,6 +135,8 @@ formula cannot call it: `install_tree` hardcodes `/usr/bin` and
 | `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                       |
 | `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it |
 | `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies         |
+| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source              |
+| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes    |
 | `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                  |
 | `aur/say-hi-git/`    | the same package built from `main`                                                  |
 | `homebrew/say-hi.rb` | the tap formula                                                                     |

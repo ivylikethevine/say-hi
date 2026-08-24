@@ -26,8 +26,8 @@ trust boundaries sit, and how to report what slipped through.
   built from that same script. `hi --update` is `git pull` in a checkout
   you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
-  `$_HI_PAYLOAD` at the top of `hi.sh` (`common misc shells load.sh
-hi.sh`) - docs, tests, CI and editor config never leave the client.
+  `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) -
+  docs, tests, CI and editor config never leave the client.
   `hi.sh` is in that list so a session can say `hi` onward from the
   target. Your overlay is a second, smaller allow list -
   `$_HI_OVERLAY_FILES`, also in `hi.sh` (`settings.sh`, `colors`,

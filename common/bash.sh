@@ -7,11 +7,11 @@
 # derivation is for a hand-written `source`; a graft and install.sh's rc line
 # both set $_HI_HOME first. GLOSSARY: HI.33
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-# shellcheck source=../common/core.sh
+# shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
-# shellcheck source=../common/git_prompt.sh
+# shellcheck source=./git_prompt.sh
 source "$_HI_GIT_PROMPT"
-# shellcheck source=../misc/aliases.sh
+# shellcheck source=../settings/aliases.sh
 source "$_HI_ALIASES"
 
 _hi_interactive_extras
@@ -154,12 +154,12 @@ fi
 # hi's own preferences, in their own file so a client that does not want them
 # does not ship them (hi.sh trims it under this toggle). The user's copy comes
 # after and is NOT gated: the toggle turns off *hi's* taste, not yours - the
-# same split misc/aliases.sh makes for misc/personal.sh.
-# shellcheck source=./bash_personal.sh
-[[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/shells/bash_personal.sh" ]] &&
-  source "$_HI_ROOT/shells/bash_personal.sh"
+# same split settings/aliases.sh makes for settings/personal.sh.
+# shellcheck source=../settings/bash_personal.sh
+[[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/settings/bash_personal.sh" ]] &&
+  source "$_HI_ROOT/settings/bash_personal.sh"
 
-# The guard is misc/aliases.sh's: $_HI_CONFIG_DIR pointed at shells/ would make
+# The guard is settings/aliases.sh's: $_HI_CONFIG_DIR pointed at common/ would make
 # this file source itself forever, and a hang is worse than an error.
 #
 # The directive is the same hazard seen statically, and it is NOT optional.
@@ -170,5 +170,5 @@ fi
 # in). /dev/null is what stops the follow; common/core.sh:45 does the same for
 # $_HI_CONFIG_DIR/settings.sh.
 # shellcheck source=/dev/null # user config, may not exist
-[[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/shells/bash.sh" ]] &&
+[[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/common/bash.sh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"

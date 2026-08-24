@@ -57,7 +57,7 @@ measurement against this tree, not a guess: `act -j test` — the job that runs
 the gate — reports **six failures a real runner does not**, because act's
 container runs everything as root and six fast-group cases assert non-root
 behaviour. Five are the fish prompt-separator cases in
-`tests/shells/rc_test.sh` (fish gives root `#` whatever the separator says) and
+`tests/common/rc_test.sh` (fish gives root `#` whatever the separator says) and
 the sixth is `install: Degrades when sudo can't link`. A contributor who
 followed that into a red run would be debugging the container, not their diff.
 
@@ -93,24 +93,24 @@ These are the constraints the tree enforces rather than requests:
   at it with a `GLOSSARY: HI.NN` tag rather than re-explaining — those tags are
   drift-checked, so an entry can't be deleted out from under them.
 - **Several files are a smaller dialect than bash, and say so at the top.**
-  `common/paths.sh` is the four-shell plain-`export` subset, `misc/aliases.sh`
-  is POSIX+fish, `common/targets.sh` is standalone POSIX. The stated subset wins
-  over anything cleaner.
+  `common/paths.sh` is the four-shell plain-`export` subset,
+  `settings/aliases.sh` is POSIX+fish, `common/targets.sh` is standalone POSIX.
+  The stated subset wins over anything cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
   its own path (`GLOSSARY: HI.33`); a guessed tree is how a session ends up
   reading someone else's. The lint sweep covers the docs here too, since the
   docs teach the rule as much as the code obeys it.
-- **The payload is budgeted twice.** `common/`, `misc/`, `shells/`, `load.sh`
-  and `hi.sh` ship to every target, and both the gzipped tar and the assembled
+- **The payload is budgeted twice.** `common/`, `settings/`, `load.sh` and
+  `hi.sh` ship to every target, and both the gzipped tar and the assembled
   wire script are CI-enforced against separate numbers. If you touch a shipped
   file, run `--group bench` and check both. Tooling-only helpers do not belong
   in `common/core.sh`.
-- **A new suite has a home and a registration.** It lives in `tests/<the
-directory it tests>/`, sources the `tests/test_lib.sh` façade and nothing else
-  (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS` table — no
-  group runs it otherwise.
+- **A new suite has a home and a registration.** It lives in
+  `tests/<the directory it tests>/`, sources the `tests/test_lib.sh` façade and
+  nothing else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS`
+  table — no group runs it otherwise.
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`, which
-  would also reformat `shells/zsh.zsh` — zsh, not bash, and shipped.
+  would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 
 ## Which docs change with what
 

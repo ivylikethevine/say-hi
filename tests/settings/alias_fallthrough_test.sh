@@ -1,5 +1,5 @@
 #!/bin/bash
-# The two pieces of misc/aliases.sh that alias_test.sh doesn't cover: the
+# The two pieces of settings/aliases.sh that alias_test.sh doesn't cover: the
 # `command -v a || command -v b || ...` fallthrough chains, and the
 # _HI_DISABLE_* guards that skip parts of the file. The split from
 # alias_test.sh is deliberate and considered-and-kept (2026-08): that suite
@@ -13,7 +13,7 @@
 # It is also the regression test for the bug that motivated it: in zsh, dash and
 # sh (not bash, not fish) `command -v name` returns an *alias's* definition once
 # one exists, so any chain reachable from an aliased name silently broke - see
-# the resolve-before-aliasing block at the top of misc/aliases.sh.
+# the resolve-before-aliasing block at the top of settings/aliases.sh.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -182,7 +182,7 @@ function _hi_run_scenario() {
   fi
 
   t0="$(_hi_now)"
-  # $_HI_ROOT is what aliases.sh resolves misc/personal.sh through - the same
+  # $_HI_ROOT is what aliases.sh resolves settings/personal.sh through - the same
   # variable its overlay-source tail already uses, and the only answer three
   # dialects share (sh and fish have no $BASH_SOURCE). Without it here the
   # personal half is simply absent and every _HI_DISABLE_ALIASES=0 case fails
@@ -207,7 +207,7 @@ function run_fallthrough_tests() {
   local var last mid installed expect fakepath shell
 
   # BAT_REAL is the one chain here with no floor: it is deliberately empty when
-  # nothing in it is installed, which is what misc/personal.sh gates the
+  # nothing in it is installed, which is what settings/personal.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
   for var in EDITOR_BIN:"nano micro pico vim vi" BATCAT_BIN:"bat batcat ccat cat" BAT_REAL:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
@@ -247,7 +247,7 @@ function run_flag_tests() {
   done
 }
 
-# misc/aliases.sh resolves `vim` through `command -v nvim || command -v vim`,
+# settings/aliases.sh resolves `vim` through `command -v nvim || command -v vim`,
 # and scripts/install.sh's _hi_editors_preview spells the same ladder a second
 # time to show the answer before the toggle is set. Neither can source the
 # other (see the note above the alias), so nothing but this pins them: a
@@ -258,7 +258,7 @@ function test_vim_ladder_matches_the_install_preview() {
   from_aliases="$(grep -o 'command -v nvim || command -v vim' "$_HI_ALIASES" | head -1)"
   from_install="$(grep -o 'command -v nvim || command -v vim' "$_HI_INSTALL" | head -1)"
   [ -n "$from_aliases" ] || {
-    _hi_cecho " | no nvim/vim ladder found in misc/aliases.sh" "$RED"
+    _hi_cecho " | no nvim/vim ladder found in settings/aliases.sh" "$RED"
     return 1
   }
   [ "$from_aliases" = "$from_install" ] || {

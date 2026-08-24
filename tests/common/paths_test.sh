@@ -91,7 +91,7 @@ function test_gate_list_matches_the_toggle_roster() {
 function test_fish_toggle_list_matches_core() {
   local fish_list core_list
   fish_list="$(awk '/^for _hi_toggle in /{p=1} p{print; if ($0 !~ /\\$/) exit}' \
-    "$_HI_ROOT/shells/config.fish" | grep -oE '_HI_[A-Z0-9_]+')"
+    "$_HI_ROOT/common/config.fish" | grep -oE '_HI_[A-Z0-9_]+')"
   core_list="$(printf '%s\n' "${_HI_TOGGLES[@]}")"
   [ "$fish_list" = "$core_list" ] || {
     _hi_cecho " | config.fish: $(printf '%s' "$fish_list" | tr '\n' ' ')" "$RED"
@@ -110,7 +110,7 @@ function test_paths_sources_cleanly_under_strict_mode() {
   '
 }
 
-# misc/aliases.sh and shells/config.fish read the toggles bare, and neither
+# settings/aliases.sh and common/config.fish read the toggles bare, and neither
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
 # invisible until something runs under `set -u`, where an unset toggle is fatal
@@ -146,16 +146,16 @@ function test_aliases_source_cleanly_under_nounset() {
     source "$_HI_ALIASES"' 2>/dev/null
 }
 
-# The overlay's aliases.sh is additive - misc/aliases.sh's last line sources
+# The overlay's aliases.sh is additive - settings/aliases.sh's last line sources
 # $_HI_CONFIG_DIR/aliases.sh so the user's definitions win. Point
-# $_HI_CONFIG_DIR at the tree's own misc/ and that line becomes the file
+# $_HI_CONFIG_DIR at the tree's own settings/ and that line becomes the file
 # sourcing itself, forever: exactly what a target does when the overlay is
-# unpacked over misc/ instead of into its own config/, and what hung every ssh
+# unpacked over settings/ instead of into its own config/, and what hung every ssh
 # session until the overlay got a directory of its own. Backgrounded and
 # waited on because a hang, not a failure, is the symptom - a bare call here
 # would take the whole suite down with it.
 function test_aliases_do_not_source_themselves() {
-  _HI_CONFIG_DIR="$_HI_ROOT/misc" bash -c 'set -eu
+  _HI_CONFIG_DIR="$_HI_ROOT/settings" bash -c 'set -eu
     . "$_HI_HOME/say-hi/common/paths.sh"
     . "$_HI_ALIASES"' >/dev/null 2>&1 &
   _hi_wait_pid "$!" 10
@@ -223,13 +223,13 @@ function test_overlay_falls_back_per_file() {
   dir="$(_hi_overlay_dir)"
   printf 'hostname,foo,brred\n' >"$dir/colors"
   rm -f "$dir/packages"
-  [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/misc/packages" ]
+  [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/settings/packages" ]
 }
 
 function test_no_overlay_uses_the_tree() {
   local dir="$_HI_WORKDIR/no-such-overlay"
-  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$_HI_ROOT/misc/colors" ] &&
-    [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/misc/packages" ]
+  [ "$(_hi_resolved _HI_COLORS "$dir")" = "$_HI_ROOT/settings/colors" ] &&
+    [ "$(_hi_resolved _HI_PACKAGES "$dir")" = "$_HI_ROOT/settings/packages" ]
 }
 
 # ...but settings.sh still points into the overlay on a machine that has no
@@ -242,7 +242,7 @@ function test_settings_point_at_the_overlay_before_it_exists() {
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs a local
 # override guard in paths.sh - except settings.sh (unguarded by design: the
 # overlay is its only home) and the five additive ones, which each shell or
-# misc/aliases.sh sources by name from $_HI_CONFIG_DIR rather than reaching
+# settings/aliases.sh sources by name from $_HI_CONFIG_DIR rather than reaching
 # through a path var: personal.sh, aliases.sh and the three per-shell files
 # (bash.sh, zsh.zsh, config.fish). A missed
 # guard fails asymmetrically: the file works on targets but local sessions
@@ -269,7 +269,7 @@ function test_overlay_guards_match_the_roster() {
 function test_overlay_settings_are_visible_to_the_gate() {
   local dir home
   dir="$(_hi_overlay_dir)"
-  home="$(_hi_scratch_tree overlaygate common misc shells)"
+  home="$(_hi_scratch_tree overlaygate common settings)"
   printf 'export _HI_DISABLE_LOCAL=1\n' >"$dir/settings.sh"
   _hi_all_gated "$(_HI_HOME="$home" _HI_CONFIG_DIR="$dir" _hi_gate 0 0)" 1
 }

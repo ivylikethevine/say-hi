@@ -1,5 +1,5 @@
 #!/bin/bash
-# Behavioral tests for shells/bash.sh, zsh.zsh and config.fish. Syntax-linting
+# Behavioral tests for common/bash.sh, zsh.zsh and config.fish. Syntax-linting
 # alone lets a prompt or completion silently stop being defined and still pass
 # CI, so these run them. Each case runs a fresh shell under `env -i` with HOME
 # and _HI_CONFIG_DIR pointed into the workdir, so local settings can't leak in.
@@ -28,34 +28,68 @@ function _hi_rc_shell() {
 function test_bash_hi_ps1_contains_user_host_cwd() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "$HI_PS1"')"
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"')"
   [[ "$out" == *'\u'* && "$out" == *@* && "$out" == *'\h'* && "$out" == *'\w'* ]]
 }
 
-# no color -> the exact plain form (shells/bash.sh's else branch)
+# no color -> the exact plain form (common/bash.sh's else branch)
 function test_bash_hi_ps1_plain_without_color() {
   local out
   out="$(_hi_rc_shell dumb bash \
-    'source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "$HI_PS1"')"
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"')"
   [[ "$out" == *'\u@\h:\w' ]]
 }
 
 function test_bash_prompt_disabled_leaves_ps1_alone() {
   local out
   out="$(_HI_DISABLE_PROMPT=1 _hi_rc_shell xterm-256color bash \
-    'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "${HI_PS1:-}"')"
+    'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${HI_PS1:-}"')"
   [ -z "$out" ]
 }
 
 function test_bash_registers_hi_completion() {
   _hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; complete -p hi' |
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; complete -p hi' |
     grep -qF '_hi_complete'
 }
 
+# What this case is really for: common/bash.sh's `source "$_HI_ALIASES"` line
+# actually reaching the alias chain in a real bash. It asserts the four aliases
+# settings/aliases.sh installs *itself* - hi_copy and hi_notify are hi's own,
+# vim and nano the editor-rc wrappers - because those are the product half, the
+# one _HI_DISABLE_ALIASES does not touch, so they are stable by contract rather
+# than by taste. It used to name `grep` and `mindiff` instead, and 8c5570a
+# retired both while removing personal aliases for the first release: the case
+# went red with nothing in the chain wrong. Nothing here depends on a binary
+# being installed - all four are defined by the file, not resolved from PATH.
 function test_bash_defines_key_aliases() {
   _hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; alias grep && alias mindiff' >/dev/null
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+     for a in vim nano hi_copy hi_notify; do
+       alias "$a" >/dev/null 2>&1 || { echo "missing alias: $a" >&2; exit 1; }
+     done'
+}
+
+# ...and that the chain carries on into settings/personal.sh, which is one
+# person's taste and is being retired entry by entry. Sampled from the file
+# rather than spelled here, on alias_test.sh's precedent and for the reason
+# above: a name written into this suite goes stale the next time one is
+# dropped. An empty sample is not a failure - it is what finishing that removal
+# looks like - so it reports and passes, and this case can be deleted with the
+# last alias in the file.
+function test_bash_sources_personal_aliases() {
+  local sample
+  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/settings/personal.sh" |
+    sed -E 's/^alias +//; s/=$//' | tr '\n' ' ')"
+  [ -n "$sample" ] || {
+    _hi_cecho " | settings/personal.sh defines no aliases left to sample" "$BLUE"
+    return 0
+  }
+  _hi_rc_shell xterm-256color bash \
+    "source \"\$_HI_HOME/say-hi/common/bash.sh\" 2>/dev/null
+     for a in $sample; do
+       alias \"\$a\" >/dev/null 2>&1 || { echo \"missing alias: \$a\" >&2; exit 1; }
+     done"
 }
 
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
@@ -85,15 +119,15 @@ function test_defers_to_starship_when_asked() {
   local shell="$1" script want out
   case "$shell" in
   bash)
-    script='source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf "%s|%s" "$PS1" "${HI_PS1:-unset}"'
+    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf "%s|%s" "$PS1" "${HI_PS1:-unset}"'
     want="STARSHIP-STUB|unset"
     ;;
   zsh)
-    script='source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; printf %s "$PS1"'
+    script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "$PS1"'
     want="STARSHIP-STUB"
     ;;
   fish)
-    script='source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; fish_prompt'
+    script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; fish_prompt'
     want="*STARSHIP-STUB*"
     ;;
   esac
@@ -106,7 +140,7 @@ function test_defers_to_starship_when_asked() {
 function test_bash_keeps_hi_prompt_without_the_setting() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
     PATH="$(_hi_starship_stub_dir):$PATH")"
   [[ "$out" == *'\u'* ]]
 }
@@ -115,7 +149,7 @@ function test_bash_keeps_hi_prompt_without_the_setting() {
 function test_bash_falls_back_when_starship_is_absent() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
     _HI_PROMPT=starship 2>&1)"
   [[ "$out" == *'\u'* ]]
 }
@@ -123,7 +157,7 @@ function test_bash_falls_back_when_starship_is_absent() {
 function test_zsh_prompt_is_built() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh \
-    'source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; print -r -- "$PS1"')"
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -r -- "$PS1"')"
   [[ "$out" == *%n* && "$out" == *@* && "$out" == *%m* ]]
 }
 
@@ -131,7 +165,7 @@ function test_fish_registers_hi_completion() {
   # fish echoes the registration back without the -c flag, so match on the
   # target-list wiring instead
   _hi_rc_shell xterm-256color fish \
-    'source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; complete -c hi' |
+    'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; complete -c hi' |
     grep -qF '$_HI_TARGETS'
 }
 
@@ -151,7 +185,7 @@ function test_fish_registers_hi_completion() {
 function test_zsh_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
-    source $_HI_HOME/say-hi/shells/zsh.zsh 2>/dev/null
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     compadd() { local -a a; [[ $1 == -a ]] && a=(${(P)2}); print -l -- $a }
     words=(hi --c); CURRENT=2
     _hi
@@ -166,7 +200,7 @@ function test_zsh_flag_completion_offers_hi_options() {
 function test_fish_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color fish '
-    source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null
+    source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
     complete -C "hi --col"
   ')"
   printf '%s\n' "$out" | grep -qx -- --color-preview || return 1
@@ -180,7 +214,7 @@ function test_fish_flag_completion_offers_hi_options() {
 function test_fish_flag_completion_does_not_also_sweep_targets() {
   local out
   out="$(_hi_rc_shell xterm-256color fish \
-    'source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; complete -c hi')"
+    'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; complete -c hi')"
   # the bare-target line is guarded, and the flags line still is too
   printf '%s\n' "$out" | grep -qF 'not string match -q -- "-*"' &&
     printf '%s\n' "$out" | grep -qF '$_HI_TARGETS flags'
@@ -197,9 +231,9 @@ function _hi_prompt_tail() {
   local shell="$1" script
   shift
   case "$shell" in
-  bash) script='source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; ps1; printf %s "$PS1"' ;;
-  zsh) script='source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"' ;;
-  fish) script='source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; fish_prompt' ;;
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; ps1; printf %s "$PS1"' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; fish_prompt' ;;
   esac
   _hi_strip_ansi "$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")"
 }
@@ -257,7 +291,7 @@ function test_prompt_end_empty_falls_back() {
 
 # --- config.fish's $_HI_CONFIG_DIR ladder ------------------------------------
 #
-# fish cannot call a bash helper, so shells/config.fish carries its own copy of
+# fish cannot call a bash helper, so common/config.fish carries its own copy of
 # common/core.sh's overlay-directory resolution. Two copies of one decision is
 # exactly the shape that drifts, so these cases run fish's and compare with the
 # answers tests/common/core_test.sh pins bash's against.
@@ -273,7 +307,7 @@ function _hi_fish_cfg_answer() {
   esac
   out="$(env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
     _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$base" \
-    fish -c 'source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; printf %s $_HI_CONFIG_DIR' </dev/null)"
+    fish -c 'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s $_HI_CONFIG_DIR' </dev/null)"
   printf '%s' "${out#"$base/"}"
 }
 
@@ -289,15 +323,15 @@ function test_fish_config_dir_explicit_value_wins() {
   mkdir -p "$base/say-hi"
   out="$(env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
     _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$base" _HI_CONFIG_DIR="$base/shipped" \
-    fish -c 'source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; printf %s $_HI_CONFIG_DIR' </dev/null)"
+    fish -c 'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s $_HI_CONFIG_DIR' </dev/null)"
   [ "$out" = "$base/shipped" ]
 }
 
 # --- the personal blocks, now their own overridable files --------------------
 #
 # Each shell's taste (history sizing, keybindings, completion and color styling)
-# moved out of the shipped rc into shells/<shell>_personal.*, on
-# misc/personal.sh's precedent. The user's own copy keeps the *shell file's*
+# moved out of the shipped rc into common/<shell>_personal.*, on
+# settings/personal.sh's precedent. The user's own copy keeps the *shell file's*
 # basename (bash.sh, zsh.zsh, config.fish) - what it extends, not where hi's
 # defaults happen to live. Three things have to stay true per shell, and
 # the third is the one the split exists for: hi's defaults load, the toggle
@@ -307,9 +341,9 @@ function test_fish_config_dir_explicit_value_wins() {
 #
 # <shell>|<user file>|<probe script>|<shipped value>|<user line>|<user value>
 _HI_PERSONAL_ROWS=(
-  'bash|bash.sh|source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|2|PROMPT_DIRTRIM=9|9'
-  'zsh|zsh.zsh|source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|.zsh_history|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
-  'fish|config.fish|source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; printf %s "$fish_color_command"|blue|set -gx fish_color_command magenta|magenta'
+  'bash|bash.sh|source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|2|PROMPT_DIRTRIM=9|9'
+  'zsh|zsh.zsh|source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|.zsh_history|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
+  'fish|config.fish|source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s "$fish_color_command"|blue|set -gx fish_color_command magenta|magenta'
 )
 
 # the probe for one row, with the user's file present only when $2 says so
@@ -354,7 +388,7 @@ function run_rc_tests() {
 
   _hi_suite_begin
 
-  _hi_h1 "Testing shells/bash.sh, zsh.zsh and config.fish behavior"
+  _hi_h1 "Testing common/bash.sh, zsh.zsh and config.fish behavior"
 
   _hi_h2 "Testing: bash"
   _hi_check "HI_PS1 carries user, host and cwd" test_bash_hi_ps1_contains_user_host_cwd
@@ -362,6 +396,7 @@ function run_rc_tests() {
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "Key aliases are defined" test_bash_defines_key_aliases
+  _hi_check "The personal aliases land too" test_bash_sources_personal_aliases
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built

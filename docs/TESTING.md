@@ -87,11 +87,11 @@ parallel suite uses.
 
 ### Where a suite lives
 
-`tests/<the directory it tests>/`. `tests/common/`, `tests/shells/`,
-`tests/misc/`, `tests/scripts/` and `tests/packaging/` mirror the tree;
-`tests/hi/` and `tests/load/` cover the two scripts at the root; `tests/lint/`
-is the lint gate, `tests/bench/` the timings, `tests/targets/` the container/ssh
-e2e suites, and `tests/harness/` the suites that test the harness. The harness
+`tests/<the directory it tests>/`. `tests/common/`, `tests/settings/`,
+`tests/scripts/` and `tests/packaging/` mirror the tree; `tests/hi/` and
+`tests/load/` cover the two scripts at the root; `tests/lint/` is the lint
+gate, `tests/bench/` the timings, `tests/targets/` the container/ssh e2e
+suites, and `tests/harness/` the suites that test the harness. The harness
 itself is `tests/test_lib.sh` — a façade over `tests/lib/`, which is where its
 parts live. A suite sources the façade and nothing else (`docs/GLOSSARY.md`'s
 HI.34).
@@ -165,8 +165,8 @@ It fails the other way instead: every line of a **heredoc body** counts as
 covered, including lines that are pure text, so anything that generates scripts
 reads high. `hi.sh` is the worst case at 97.38%, where `_say_hi` and
 `_say_hi_container` both report 100% — 182 lines nothing in `--group fast`
-calls. Files with no heredocs (all of `common/`, `shells/`, `misc/`) are the
-ones to believe.
+calls. Files with no heredocs (all of `common/` and `settings/`) are the ones
+to believe.
 
 It needs a gem rather than a source build: `gem install --user-install bashcov`,
 which needs ruby. The script finds a `--user-install` binary off `$PATH` by
@@ -296,7 +296,7 @@ and line, in well under a second.
    and `*.md` too, since the docs teach the rule as much as the code obeys it.
 5. **shfmt** as a formatting gate over the same `*.sh` list. The style comes
    from `.editorconfig`; fix a red run with `shfmt -w` on the paths it names,
-   not `shfmt -w .` - that would also reformat `shells/zsh.zsh`, which is not in
+   not `shfmt -w .` - that would also reformat `common/zsh.zsh`, which is not in
    the gate and is zsh, not bash.
 6. **checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
    really do parse on minimal targets.

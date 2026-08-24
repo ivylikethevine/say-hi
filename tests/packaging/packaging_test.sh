@@ -193,7 +193,7 @@ function test_formula_caveats_use_no_link() {
 # shellcheck disable=SC2016
 
 # Both must drive install.sh rather than copying by hand: an inline
-# `common shells misc load.sh hi.sh` copy in a PKGBUILD is a second payload
+# `common settings load.sh hi.sh` copy in a PKGBUILD is a second payload
 # list to keep in step, and one that omits scripts/ leaves a packaged install
 # with no hi --install for its users to run.
 function test_pkgbuilds_call_install_sh() {

@@ -295,7 +295,7 @@ function doctor_container_target() {
   doctor_row target "has: $tools"
 
   # the tier, which is the question this arm exists for. hi ships the tree and
-  # runs load.sh under bash; without bash it copies misc/aliases.sh alone and
+  # runs load.sh under bash; without bash it copies settings/aliases.sh alone and
   # drops into the best of the ladder.
   case " $tools" in
   *" bash "*)
@@ -304,7 +304,7 @@ function doctor_container_target() {
   *)
     shells="$(_hi_ladder_first "$tools")"
     if [ -n "$shells" ]; then
-      doctor_row session "aliases only - no bash, so a session lands in $shells with misc/aliases.sh" warn
+      doctor_row session "aliases only - no bash, so a session lands in $shells with settings/aliases.sh" warn
     else
       doctor_row session "no shell hi knows - not even ${_HI_SHELL_LADDER%% *}" bad
     fi

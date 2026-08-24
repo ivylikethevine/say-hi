@@ -352,12 +352,12 @@ function test_absent_backends_leave_only_ssh_rows() {
   ! printf '%s\n' "$out" | grep -qv $'\tssh$'
 }
 
-# shells/bash.sh's completion function, the other half of this file's subject:
+# common/bash.sh's completion function, the other half of this file's subject:
 # the cases above prove targets.sh produces the right rows, these prove
 # _hi_complete turns them into the right COMPREPLY. It reads $_HI_TARGETS,
 # $COMP_WORDS and $COMP_CWORD, so all three are set here and the shimmed PATH
 # gives it the same fixed backend list every other case sees.
-# A child bash rather than a source into this one: shells/bash.sh is an
+# A child bash rather than a source into this one: common/bash.sh is an
 # interactive rc, and sourcing it here would drop its aliases (rm -iv, cp -rv)
 # and readline binds on every case that runs after. The three toggles switch
 # off everything except the completion itself, which sits outside all of them.
@@ -365,7 +365,7 @@ function _hi_completions_for() {
   PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     _HI_DISABLE_ALIASES=1 _HI_DISABLE_PERSONAL=1 _HI_DISABLE_PROMPT=1 \
     bash -c '
-      # shellcheck source=../../shells/bash.sh
+      # shellcheck source=../../common/bash.sh
       source "$_HI_BASHRC"
       COMP_WORDS=(hi "$1")
       COMP_CWORD=1
@@ -425,7 +425,7 @@ EOF
   PATH="$dir:$_HI_SHIM_PATH" _HI_TARGETS_TTL="$1" \
     _HI_DISABLE_ALIASES=1 _HI_DISABLE_PERSONAL=1 _HI_DISABLE_PROMPT=1 \
     bash -c '
-      # shellcheck source=../../shells/bash.sh
+      # shellcheck source=../../common/bash.sh
       source "$_HI_BASHRC"
       COMP_WORDS=(hi "")
       COMP_CWORD=1
@@ -634,7 +634,7 @@ function run_targets_tests() {
   _hi_check "A file with no timestamp is re-derived" test_cache_ignores_a_file_with_no_timestamp
   _hi_check "The timestamp never reaches completion" test_cache_does_not_leak_its_timestamp
 
-  _hi_h2 "Testing: shells/bash.sh's _hi_complete"
+  _hi_h2 "Testing: common/bash.sh's _hi_complete"
   _hi_check "Offers every target" test_complete_offers_every_target
   _hi_check "Filters by the typed prefix" test_complete_filters_by_the_typed_prefix
   _hi_check "Drops the kind column" test_complete_drops_the_kind_column

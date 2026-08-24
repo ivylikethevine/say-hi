@@ -51,10 +51,10 @@ _HI_USAGE="Usage: hi [ssh-options] <target> [command ...]"
 # What ships to a target - an allow list instead of a deny list. hi.sh is in it
 # so a disposable session has a launcher to relay onward with; carrying it in
 # the gzipped tar costs ~14KB of wire, against ~41KB armored on its own.
-_HI_PAYLOAD=(common misc shells load.sh hi.sh)
+_HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay - a second stream, since it lives outside the tree.
-# It lands in a config/ of its own rather than over misc/: misc/aliases.sh
+# It lands in a config/ of its own rather than over settings/: settings/aliases.sh
 # sources $_HI_CONFIG_DIR/aliases.sh last, so one directory would make it
 # source itself forever.
 _HI_OVERLAY_FILES=(settings.sh colors packages personal.sh aliases.sh
@@ -224,13 +224,13 @@ AWK
 # to use - and the client knows the answer before building the tar, so this
 # costs no probe and no round trip.
 #
-# misc/aliases.sh is deliberately NOT trimmed under _HI_DISABLE_ALIASES=1: that
+# settings/aliases.sh is deliberately NOT trimmed under _HI_DISABLE_ALIASES=1: that
 # toggle turns off the *personal* aliases, while the same file installs the
 # vim/nano and hi_copy aliases and fish's toggle backstop above its own
 # early return. Dropping it would take those too - a behaviour change wearing a
 # size saving's clothes. The emitters that are trimmed are safe because every
-# consumer of shells/osc52.sh and shells/notify.sh tests the file exists first
-# (misc/aliases.sh's `[ -f ]`, misc/vim.rc's `filereadable`), and the editor rc
+# consumer of common/osc52.sh and common/notify.sh tests the file exists first
+# (settings/aliases.sh's `[ -f ]`, settings/vim.rc's `filereadable`), and the editor rc
 # files are reached only through aliases the same toggle switches off.
 #
 # Both budgets - bench_payload_size's gzipped ceiling and README's wire badge -
@@ -254,24 +254,24 @@ function _hi_payload_tar() {
     done < <(sed -n "s/^export \(_HI_DISABLE_[A-Z0-9_]*\)='\(.*\)'\$/\1=\2/p" "$_HI_CONFIG_DIR/settings.sh")
   fi
   if [ "$_hi_ed" = 1 ]; then
-    excl+=(--exclude=say-hi/misc/vim.rc --exclude=say-hi/misc/nano.rc)
+    excl+=(--exclude=say-hi/settings/vim.rc --exclude=say-hi/settings/nano.rc)
   fi
   if [ "$_hi_osc" = 1 ]; then
-    excl+=(--exclude=say-hi/shells/osc52.sh)
+    excl+=(--exclude=say-hi/common/osc52.sh)
   fi
   if [ "$_hi_nt" = 1 ]; then
-    excl+=(--exclude=say-hi/shells/notify.sh)
+    excl+=(--exclude=say-hi/common/notify.sh)
   fi
   # the three shells' own preference files, which is what this toggle is now
   # made of - each shell's `[ -f ]` guard is what makes their absence a no-op
   if [ "$_hi_pe" = 1 ]; then
-    excl+=(--exclude=say-hi/shells/bash_personal.sh
-      --exclude=say-hi/shells/zsh_personal.zsh
-      --exclude=say-hi/shells/fish_personal.fish)
+    excl+=(--exclude=say-hi/settings/bash_personal.sh
+      --exclude=say-hi/settings/zsh_personal.zsh
+      --exclude=say-hi/settings/fish_personal.fish)
   fi
-  # the personal half only - see above for why misc/aliases.sh always ships
+  # the personal half only - see above for why settings/aliases.sh always ships
   if [ "$_hi_al" = 1 ]; then
-    excl+=(--exclude=say-hi/misc/personal.sh)
+    excl+=(--exclude=say-hi/settings/personal.sh)
   fi
   # _HI_KEEP_COMMENTS=1 ships the tree verbatim, for reading the real source on
   # a target when something there is behaving differently than it does here.
@@ -480,7 +480,7 @@ function _hi_fallback_rc() {
   else
     printf 'export _HI_CONFIG_DIR=$_HI_ROOT/config\n'
     printf '[ -f $_HI_ROOT/config/settings.sh ] && . $_HI_ROOT/config/settings.sh\n'
-    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/misc/aliases.sh 2>/dev/null\n'
+    printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/settings/aliases.sh 2>/dev/null\n'
   fi
   [ -n "${CMDARG:-}" ] && printf '%s\n' "$CMDARG"
   return 0
@@ -717,7 +717,7 @@ REMOTE
     tree="$(_hi_payload_tar | $_HI_ARMOR)"
     # second, tiny stream: the overlay lives outside the tree, so it cannot
     # ride the payload, and is omitted when empty. It lands in its own config/
-    # beside misc/, with _HI_CONFIG_DIR pointing there.
+    # beside settings/, with _HI_CONFIG_DIR pointing there.
     if _hi_has_overlay; then
       overlay_line="mkdir -p \"\$_HI_ROOT/config\"
 $(_hi_overlay_tar | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"')"
@@ -838,12 +838,12 @@ function _say_hi_container() {
     fi
 
     # personal.sh rides along because this path ships files rather than the
-    # tree, and aliases.sh's `. $_HI_ROOT/misc/personal.sh` has nothing to
+    # tree, and aliases.sh's `. $_HI_ROOT/settings/personal.sh` has nothing to
     # resolve against here. Sourced by absolute path out of the fallback rc
     # instead. Skipped when the overlay turned the personal aliases off, so
     # this arm trims exactly what _hi_payload_tar does.
-    if [ "$(_hi_overlay_toggle _HI_DISABLE_ALIASES)" != 1 ] && [ -f "$_HI_ROOT/misc/personal.sh" ]; then
-      "${cp[@]}" sh -c "cat > '$root/personal.sh'" <"$_HI_ROOT/misc/personal.sh" 2>"$tmp" || true
+    if [ "$(_hi_overlay_toggle _HI_DISABLE_ALIASES)" != 1 ] && [ -f "$_HI_ROOT/settings/personal.sh" ]; then
+      "${cp[@]}" sh -c "cat > '$root/personal.sh'" <"$_HI_ROOT/settings/personal.sh" 2>"$tmp" || true
     fi
 
     # the shared fallback rc in its aliases-only shape, plus the POSIX prompt

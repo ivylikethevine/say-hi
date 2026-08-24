@@ -38,10 +38,10 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # list, so the two cannot disagree.
 if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
-    "fast:aliases:misc/alias_test.sh"
-    "fast:alias_fallthrough:misc/alias_fallthrough_test.sh"
-    "fast:osc52:shells/osc52_test.sh"
-    "fast:notify:shells/notify_test.sh"
+    "fast:aliases:settings/alias_test.sh"
+    "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
+    "fast:osc52:common/osc52_test.sh"
+    "fast:notify:common/notify_test.sh"
     "fast:shellcheck:lint/shellcheck_test.sh"
     "fast:install:scripts/install_test.sh"
     "fast:install_location:scripts/install_location_test.sh"
@@ -59,7 +59,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:packages_preview:scripts/packages_preview_test.sh"
     "fast:doctor:scripts/doctor_test.sh"
     "fast:load:load/load_test.sh"
-    "fast:rc:shells/rc_test.sh"
+    "fast:rc:common/rc_test.sh"
     "fast:test_lib:harness/lib_test.sh"
     "fast:test_lib_report:harness/lib_report_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"

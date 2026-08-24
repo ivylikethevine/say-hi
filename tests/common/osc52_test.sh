@@ -1,6 +1,6 @@
 #!/bin/bash
-# Unit tests for the OSC 52 clipboard feature: shells/osc52.sh (the emitter),
-# the `hi_copy` alias in misc/aliases.sh, and misc/vim.rc's yank autocmd.
+# Unit tests for the OSC 52 clipboard feature: common/osc52.sh (the emitter),
+# the `hi_copy` alias in settings/aliases.sh, and settings/vim.rc's yank autocmd.
 #
 # The emitter's whole job is producing exactly the right bytes, so every case
 # reads the bytes - captured through a pipe, which is the script's fallback
@@ -172,7 +172,7 @@ function _hi_vim_autocmd() {
 }
 
 function run_osc52_test() {
-  _hi_h1 "Testing OSC 52 clipboard (shells/osc52.sh, hi_copy, vim yank)"
+  _hi_h1 "Testing OSC 52 clipboard (common/osc52.sh, hi_copy, vim yank)"
   _hi_workdir osc52
   _hi_suite_begin
 

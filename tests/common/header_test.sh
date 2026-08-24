@@ -544,7 +544,7 @@ function run_header_tests() {
   _hi_check "Min priority above every rank prints nothing" test_full_check_min_priority_above_everything_is_silent
   _hi_check_requires bash "Min priority unset floors at 1" test_full_check_min_priority_defaults_to_one
   _hi_check_requires bash "Wraps rows at _HI_MAX_WIDTH" test_full_check_wraps_at_max_width
-  _hi_check "Real misc/packages file parses cleanly" test_full_check_reads_real_packages_file_without_erroring
+  _hi_check "Real settings/packages file parses cleanly" test_full_check_reads_real_packages_file_without_erroring
   _hi_check "Writes nothing to stderr" test_full_check_is_silent_on_stderr
   _hi_check "Emits a row for an installed package" test_full_check_emits_a_row_for_an_installed_package
 
