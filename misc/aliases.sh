@@ -62,6 +62,9 @@ export EZA_CONFIG_DIR="$_HI_THEME_DIR"
 [ "$_HI_DISABLE_ALIASES" != 1 ] && [ -f "$_HI_ROOT/misc/personal.sh" ] &&
   . "$_HI_ROOT/misc/personal.sh" || true
 
+[ "$_HI_CONFIG_DIR/personal.sh" != "$_HI_ROOT/misc/personal.sh" ] &&
+  [ -f "$_HI_CONFIG_DIR/personal.sh" ] && . "$_HI_CONFIG_DIR/personal.sh" || true
+
 # Last on purpose: the user's own aliases.sh (~/.config/say-hi/aliases.sh, or the
 # overlay stream's copy on a target) wins by coming after everything above.
 # Same POSIX+fish subset as this file.

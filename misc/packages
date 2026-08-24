@@ -110,6 +110,23 @@ msdnss:0
 nmap:0
 envrc:0
 
+
+# complementary packages
+kitty:1
+wezterm:1
+yadm:1
+xxh:1
+mosh:1
+chezmoi:1
+kyrat:1
+dotbot:1
+rcm:1
+ghostty:1
+konsole:1
+yakuake:1
+guake:1
+homeshick:1
+
 # --- what hi itself runs -----------------------------------------------------
 # Everything below is used by hi's own code (the payload, scripts/ and the test
 # suite) rather than being a tool worth knowing you have, so it all sits at the

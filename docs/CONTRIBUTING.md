@@ -44,8 +44,6 @@ that group (`--group e2e`, `--group backends`, or the suite by name) and say in
 the pull request whether it ran or skipped. `--require-run` turns a skip into a
 failure when you want to be certain it really ran.
 
-TODO: Mention using act runner & test that.
-
 Everything else about the runner — the groups, `--skip`, the parallel container
 cases, why the coverage figures are not to be trusted — is in
 [docs/TESTING.md](TESTING.md).

@@ -166,6 +166,70 @@ function test_overlay_tar_carries_aliases() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "aliases.sh" ]
 }
 
+# Block padding, which is a bug in shipped behaviour on a supported client and
+# not a size preference. `tar czf -` lets tar do the compressing, and the two
+# userlands pad different things: GNU tar rounds the *uncompressed* archive up
+# to the 10240-byte blocking factor and then gzips it, so the NULs compress away
+# to about thirty bytes, while bsdtar - macOS's /usr/bin/tar - pads the
+# *compressed stream*, so every payload a BSD client built was rounded up to a
+# whole multiple of 10240. Measured on this tree: 40960 against 32286 for the
+# payload, and 10240 against 140 for a one-file overlay.
+#
+# `_hi_tar_gz` (hi.sh) splits the two steps, which is what makes the userlands
+# agree. The first two cases below hold under either tar; the bsdtar pair is the
+# one that would actually have caught this, and is why they are worth having on
+# a Linux runner at all - the padding is invisible under GNU tar, which is
+# exactly how it survived. They skip rather than fail where bsdtar is absent.
+_HI_BLOCK=10240
+
+function test_payload_is_not_block_padded() {
+  local n
+  n="$(_hi_payload_tar | wc -c)"
+  [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ]
+}
+
+# a one-file overlay is a few hundred bytes of content; a whole block means the
+# stream was padded, not that the file was big
+function test_overlay_is_well_under_one_block() {
+  local dir n
+  dir="$(_hi_overlay_fixture blockcheck colors)"
+  n="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | wc -c)"
+  [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ]
+}
+
+# tar shimmed to bsdtar for the duration of one call: same libarchive macOS's
+# /usr/bin/tar is built on, so this reproduces the client the bug belonged to
+# without a macOS runner.
+function _hi_bsdtar_shim() {
+  local shim="$_HI_WORKDIR/bsdtar-shim"
+  mkdir -p "$shim"
+  ln -sf "$(command -v bsdtar)" "$shim/tar" 2>/dev/null || return 1
+  printf '%s' "$shim"
+}
+
+function test_payload_is_not_block_padded_under_bsdtar() {
+  local shim n
+  command -v bsdtar >/dev/null 2>&1 || {
+    _hi_skip "[bsdtar payload]" "no bsdtar to stand in for macOS's tar"
+    return 0
+  }
+  shim="$(_hi_bsdtar_shim)" || return 1
+  n="$(PATH="$shim:$PATH" _hi_payload_tar | wc -c)"
+  [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ]
+}
+
+function test_overlay_is_not_block_padded_under_bsdtar() {
+  local shim dir n
+  command -v bsdtar >/dev/null 2>&1 || {
+    _hi_skip "[bsdtar overlay]" "no bsdtar to stand in for macOS's tar"
+    return 0
+  }
+  shim="$(_hi_bsdtar_shim)" || return 1
+  dir="$(_hi_overlay_fixture blockcheck_bsd colors)"
+  n="$(PATH="$shim:$PATH" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | wc -c)"
+  [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ]
+}
+
 # This block exists because both halves were wrong at once: the connect line
 # reported `du` over the payload directories (the uncompressed tree, roughly
 # double the truth), and the armored script had grown to within a few kilobytes
@@ -310,6 +374,12 @@ function run_hi_payload_tests() {
   _hi_check "Members are bare names" test_overlay_tar_members_are_bare_names
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
+
+  _hi_h2 "Testing: block padding (BSD tar)"
+  _hi_check "The payload is not block-padded" test_payload_is_not_block_padded
+  _hi_check "A small overlay is well under a block" test_overlay_is_well_under_one_block
+  _hi_check "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
+  _hi_check "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
 
   _hi_h2 "Testing: the size hi reports"
   _hi_check "_hi_human_bytes matches du's shapes" test_human_bytes_matches_du_shapes
