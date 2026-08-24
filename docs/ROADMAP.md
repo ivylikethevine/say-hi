@@ -166,6 +166,48 @@ waiting on it.
     link to. Seven tapes render; six GIFs left the tree, because `complete` was
     never committed in the first place.
 
+- [ ] **Confirm the tar padding fix on the macOS job** — _scope: one CI run to
+      read; the code half has shipped; in-repo._ `_hi_payload_tar` and
+      `_hi_overlay_tar` let tar do the compressing (`tar czf -`), and the two
+      userlands pad different things: GNU tar rounds the _uncompressed_ archive
+      up to the 10240-byte blocking factor and then gzips it, so the NULs
+      compress away to about thirty bytes, while bsdtar - macOS's
+      `/usr/bin/tar` - pads the _compressed stream_. Every payload a BSD client
+      built was rounded up to a whole multiple of 10240.
+
+  - **What shipped.** A `_hi_tar_gz` helper in `hi.sh` compresses in a second
+    process (`tar cf - … | gzip -n`), checking both halves of the pipeline
+    through `${PIPESTATUS[@]}` - `hi.sh` turns `pipefail` back off for
+    interactive sourcing, so a failing tar would otherwise hide behind a
+    successful gzip and ship a truncated payload - and degrading to `tar czf -`
+    where the client has no `gzip`. All three call sites go through it:
+    `_hi_overlay_tar`, and `_hi_payload_tar`'s `_HI_KEEP_COMMENTS` and staged
+    arms.
+  - **It was reproduced against real bsdtar rather than inferred.** libarchive
+    is what macOS's tar is built on, so shimming `tar` to `bsdtar` reproduces
+    that client without a Mac. On this tree, before against after: the payload
+    **40960 → 32286 B**, so a stock macOS session shipped 27% more than it
+    needed; a one-file overlay **10240 → 140 B**. Four cases in
+    `tests/hi/payload_test.sh` pin it, and the two that shim bsdtar are the ones
+    that fail against the old code - the GNU-tar pair passes either way, which
+    is exactly how this survived unnoticed.
+  - **The OSC 52 delta now agrees between the userlands.** Under `tar czf -`,
+    `_HI_DISABLE_OSC52=1` trimmed 693 bytes under GNU tar and **0** under
+    bsdtar, because the trim never crossed a block boundary - which is what made
+    `doctor_payload_diff`'s _Payload diff shown when a toggle trims the wire_
+    red on the macOS job and green everywhere else. Split, the two agree to
+    within 52 bytes on the full wire figure.
+  - **The 128-byte floor needs no change, and this entry's note saying
+    otherwise was wrong.** It claimed measured jitter was zero across five runs.
+    It is not: six runs 1.1s apart give 9 bytes under GNU tar and 8 under
+    bsdtar, because the staged tree's stripped files carry each run's own mtime.
+    That is the "few bytes to a couple dozen" `scripts/doctor.sh`'s comment
+    already describes, so the comment stands as written - and the jitter, like
+    the 52-byte spread between userlands, sits far under the floor.
+  - **Ticks when:** `doctor`'s payload-diff case is green on the macOS job.
+    That is the only half left, and it needs a macOS runner - which is why this
+    is now a run to read rather than work to do.
+
 - [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
       and one README line either way, with nothing to judge before 2026-08-25;
       outside this checkout._ `scorecard.yml` runs weekly with
@@ -293,50 +335,6 @@ names the files it touches.
     `act` invocation that has been run against this tree and names what it
     covers, or says in one sentence that `act` is not the recommended path and
     what to run instead.
-
-- [ ] **Stop tar padding the payload on BSD clients** — _scope: one helper and
-      three call sites in `hi.sh`, plus two regression cases; in-repo._
-      `_hi_payload_tar` and `_hi_overlay_tar` let tar compress (`tar czf -`).
-      GNU tar pads the _uncompressed_ archive to the 10240-byte blocking
-      factor and then compresses it, so the trailing NULs cost about thirty
-      bytes. bsdtar - macOS's `/usr/bin/tar` - pads the _compressed output
-      stream_ instead, appending raw NULs after the gzip member. Every payload
-      a BSD client builds is rounded up to a multiple of 10240, and any change
-      smaller than one block is invisible.
-
-  - **What it costs.** GNU tar against bsdtar on the stripped tree: the stock
-    payload is 32131 B against **40960**, so a macOS client ships about 27%
-    more than it needs to every session; a two-file overlay is 189 B against
-    **10240**, a flat 54x. The padding is armored and sent, so this is real
-    cost, not a reporting error - and `hi`'s connect banner, `hi --doctor`'s
-    `payload` row and its `ships` row all quote the padded figure.
-  - **How it surfaced.** `doctor_payload_diff`'s _Payload diff shown when a
-    toggle trims the wire_ is red on the macOS job and green everywhere else.
-    `_HI_DISABLE_OSC52=1` trims 433 wire bytes under GNU tar and **0** under
-    bsdtar, because it never crosses a block boundary. The 128-byte floor is
-    sound and the test is right - measured jitter on one tree is zero across
-    five runs, not the "few bytes to a couple dozen" the floor's comment
-    assumes, so that comment wants tightening at the same time.
-  - **The fix.** Compress separately: `tar cf - … | gzip -n`, which agrees
-    with GNU tar to within four bytes under both userlands and is byte-stable
-    run to run. Behind one `_hi_tar_gz` helper in `hi.sh`, because three sites
-    need it (`_hi_overlay_tar`, and `_hi_payload_tar`'s `_HI_KEEP_COMMENTS`
-    and staged arms) and the pipe needs a `PIPESTATUS` check - `hi.sh` turns
-    `pipefail` back off for interactive sourcing, so a `tar` failure would
-    otherwise hide behind a successful `gzip`. **Degrade to `tar czf -` when
-    `gzip` is absent**: padded on bsdtar, but a working payload, which is the
-    right trade on a client that lean. The helper grows `hi.sh`, which is
-    itself in `$_HI_PAYLOAD`, so both budgets move - check them.
-  - **Why no test caught it.** `bench_test.sh`'s README-badge check would
-    have: the macOS wire figure is 24% over the badge's 5% window. But
-    `--group bench` does not run on the macOS job. The regression case to add
-    is cheaper and belongs in the fast group - assert `_hi_payload_tar`'s
-    output is not an exact multiple of 10240, and that a small overlay's
-    `_hi_overlay_tar` is well under one block. Whether bench should also run
-    on macOS is the open question this leaves behind.
-  - **Ticks when:** the three sites go through the helper, the two regression
-    cases are in the fast group, `doctor`'s payload-diff case is green on the
-    macOS job, and the OSC 52 wire delta agrees between GNU tar and bsdtar.
 
 - [ ] **OSC 9/777 desktop notifications** — _scope: one escape sequence and a
       toggle, on `shells/osc52.sh`'s exact precedent; in-repo._ A long-running

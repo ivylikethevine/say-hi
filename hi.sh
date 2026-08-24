@@ -141,11 +141,42 @@ function _hi_has_overlay() {
   [ -n "$(_hi_overlay_files)" ]
 }
 
+# tar's own arguments, but compressed in a second process rather than by `z`.
+# The two userlands pad differently, and only one of them pads something that
+# survives compression: GNU tar rounds the *uncompressed* archive up to the
+# 10240-byte blocking factor and then gzips it, so its trailing NULs cost about
+# thirty bytes, while bsdtar - macOS's /usr/bin/tar - pads the *compressed
+# output stream*, appending raw NULs after the gzip member. Every payload a BSD
+# client built was therefore rounded up to a multiple of 10240: about 27% of
+# waste on a stock payload, and a flat 54x on a two-file overlay (189 B against
+# 10240). Splitting the two steps agrees with GNU tar to within a few bytes
+# under both userlands and is byte-stable run to run.
+#
+# ${PIPESTATUS[@]}, not $?: hi.sh turns pipefail back off for interactive
+# sourcing, so a failing tar would otherwise hide behind a successful gzip and
+# ship a truncated payload. Both halves are checked.
+#
+# No gzip on the client degrades to `tar czf -` rather than failing - padded
+# again on bsdtar, but a working payload, which is the right trade on a client
+# that lean.
+function _hi_tar_gz() {
+  local -a st
+  if ! command -v gzip >/dev/null 2>&1; then
+    tar czf - "$@"
+    return $?
+  fi
+  tar cf - "$@" | gzip -n
+  st=("${PIPESTATUS[@]}")
+  [ "${st[0]}" = 0 ] || return "${st[0]}"
+  [ "${st[1]}" = 0 ] || return "${st[1]}"
+  return 0
+}
+
 function _hi_overlay_tar() {
   local -a present=()
   _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
-  tar czf - -h -C "$_HI_CONFIG_DIR" "${present[@]}"
+  _hi_tar_gz -h -C "$_HI_CONFIG_DIR" "${present[@]}"
 }
 
 # _hi_overlay_toggle <name> - what the overlay's settings.sh sets it to, or
@@ -232,7 +263,7 @@ function _hi_payload_tar() {
   # _HI_KEEP_COMMENTS=1 ships the tree verbatim, for reading the real source on
   # a target when something there is behaving differently than it does here.
   if [ "${_HI_KEEP_COMMENTS:-0}" = 1 ]; then
-    tar czf - -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}"
+    _hi_tar_gz -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}"
     return 0
   fi
 
@@ -263,7 +294,7 @@ function _hi_payload_tar() {
     while IFS= read -r f; do
       awk -f "$stage/strip.awk" "$f" >"$tmp" && _hi_write_back "$tmp" "$f"
     done < <(find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \))
-    tar czf - -C "$stage" say-hi
+    _hi_tar_gz -C "$stage" say-hi
   )
 }
 
