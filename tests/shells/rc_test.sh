@@ -293,6 +293,59 @@ function test_fish_config_dir_explicit_value_wins() {
   [ "$out" = "$base/shipped" ]
 }
 
+# --- the personal blocks, now their own overridable files --------------------
+#
+# Each shell's taste (history sizing, keybindings, completion and color styling)
+# moved out of the shipped rc into shells/<shell>_personal.*, on
+# misc/personal.sh's precedent. Three things have to stay true per shell, and
+# the third is the one the split exists for: hi's defaults load, the toggle
+# turns *those* off, and the user's own copy in $_HI_CONFIG_DIR is sourced after
+# and wins - including when the toggle is on, because the toggle is about hi's
+# taste, not the user's.
+#
+# <shell>|<user file>|<probe script>|<shipped value>|<user line>|<user value>
+_HI_PERSONAL_ROWS=(
+  'bash|bash_personal.sh|source "$_HI_HOME/say-hi/shells/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|2|PROMPT_DIRTRIM=9|9'
+  'zsh|zsh_personal.zsh|source "$_HI_HOME/say-hi/shells/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|.zsh_history|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
+  'fish|fish_personal.fish|source $_HI_HOME/say-hi/shells/config.fish 2>/dev/null; printf %s "$fish_color_command"|blue|set -gx fish_color_command magenta|magenta'
+)
+
+# the probe for one row, with the user's file present only when $2 says so
+function _hi_personal_probe() {
+  local row="$1" want_user="$2" toggle="$3"
+  local shell file script shipped line value
+  IFS='|' read -r shell file script shipped line value <<<"$row"
+  rm -f "$_HI_WORKDIR/cfg/$file"
+  [ "$want_user" = yes ] && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
+  _hi_rc_shell xterm-256color "$shell" "$script" _HI_DISABLE_PERSONAL="$toggle"
+}
+
+function test_personal_defaults_load() {
+  local row="$1" shell file script shipped
+  IFS='|' read -r shell file script shipped _ _ <<<"$row"
+  case "$(_hi_personal_probe "$row" no 0)" in *"$shipped"*) return 0 ;; esac
+  return 1
+}
+
+function test_personal_toggle_turns_them_off() {
+  [ -z "$(_hi_personal_probe "$1" no 1)" ]
+}
+
+function test_personal_user_file_wins() {
+  local row="$1" shell file script shipped line value
+  IFS='|' read -r shell file script shipped line value <<<"$row"
+  [ "$(_hi_personal_probe "$row" yes 0)" = "$value" ]
+}
+
+# The toggle is hi's taste, not yours - so a user file still applies with it on.
+# This is the half that would silently regress if the guard were folded into the
+# same condition as the shipped source.
+function test_personal_user_file_survives_the_toggle() {
+  local row="$1" shell file script shipped line value
+  IFS='|' read -r shell file script shipped line value <<<"$row"
+  [ "$(_hi_personal_probe "$row" yes 1)" = "$value" ]
+}
+
 function run_rc_tests() {
   _hi_workdir rctest
   mkdir -p "$_HI_WORKDIR/cfg"
@@ -311,6 +364,20 @@ function run_rc_tests() {
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
+
+  _hi_h2 "Testing: the personal blocks as overridable files"
+  local _hi_row _hi_sh
+  for _hi_row in "${_HI_PERSONAL_ROWS[@]}"; do
+    _hi_sh="${_hi_row%%|*}"
+    _hi_check_requires "$_hi_sh" "[$_hi_sh] hi's defaults load" \
+      test_personal_defaults_load "$_hi_row"
+    _hi_check_requires "$_hi_sh" "[$_hi_sh] _HI_DISABLE_PERSONAL turns them off" \
+      test_personal_toggle_turns_them_off "$_hi_row"
+    _hi_check_requires "$_hi_sh" "[$_hi_sh] the user's own file wins" \
+      test_personal_user_file_wins "$_hi_row"
+    _hi_check_requires "$_hi_sh" "[$_hi_sh] the user's file survives the toggle" \
+      test_personal_user_file_survives_the_toggle "$_hi_row"
+  done
 
   _hi_h2 "Testing: starship deference (_HI_PROMPT=starship)"
   _hi_check "[bash] defers when asked and present" test_defers_to_starship_when_asked bash

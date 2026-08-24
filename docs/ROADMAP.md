@@ -304,9 +304,9 @@ names the files it touches.
 
 ## Large
 
-These reshape something the rest of the tree leans on - a contract, a promise,
-or a path convention quoted in two dozen places - or are not yet scoped enough
-to start. The first work on several of them is a decision, not code, and two of
+These reshape something the rest of the tree leans on - a promise the docs
+make, a fixture doctrine every suite shares, or which files ship at all - or
+are not yet scoped enough to start. The first work on several of them is a decision, not code, and one of
 them may end in deletion rather than implementation. The last is deferred past
 v1.0.0 on purpose.
 
@@ -386,100 +386,16 @@ shellcheck`, because `.github/actions/setup-tool` resolves linux/darwin
     than through any one tool's format - the same reason
     [SUPPORTED.md](SUPPORTED.md) drives what a target already has instead of
     shipping its own.
-  - **Interacts with the config directory rename.**
-    [Rename the config directory](#large) below moves the very path a dotfile
-    manager would be pointed at, so settle that first or this documents a path
-    that is about to change.
+  - **The path it would document is now settled.** This used to wait on a
+    proposed rename of the config directory; that was decided against on
+    2026-08-24 and the reasoning is in
+    [UNSUPPORTED.md](UNSUPPORTED.md#changes-proposed-and-not-made). So
+    `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi` is stable, and a recipe written
+    against it will not go stale.
   - **Ticks when:** either a named integration ships with its documentation and
     a case pinning it, or this entry is deleted with a sentence in
     [ALTERNATIVES.md](ALTERNATIVES.md) saying the plain directory is the
     integration and why that is the end of it.
-
-- [ ] **Rename the config directory** — _scope: one derivation, every doc that
-      quotes the path, and a migration for existing installs; in-repo._ Promoted
-      from a bare `urgent item` note at the top of this file, which asked to
-      rename `~/.config/say-hi` to "something like `~/.say-hi-conf`". The
-      rename itself is one line; what makes it a large entry is that the old
-      path is quoted, hard-coded or re-derived in about two dozen places, and
-      that people already have the directory.
-
-  - **The question to settle before any of it.** The current path is
-    `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi` (`common/core.sh:40`), which is
-    XDG-correct and honours a user who has moved `$XDG_CONFIG_HOME`. A bare
-    `~/.say-hi-conf` does not: it drops spec compliance and puts another dotdir
-    in `$HOME`, which is the thing XDG exists to stop. If the motivation is
-    discoverability or a shorter path to type, `$_HI_CONFIG_DIR` is already an
-    override and a documented one - so this entry should first record **why the
-    XDG path is not good enough**, and is a candidate for deletion rather than
-    implementation if the answer is thin.
-  - **One derivation, three copies.** `common/core.sh:40` is the definition,
-    but it cannot be the only edit: `shells/config.fish` re-derives the same
-    path by hand (fish cannot expand the XDG default), and `hi.sh` points a
-    target at its shipped copy by pre-setting `$_HI_CONFIG_DIR`. All three have
-    to agree, and `common/paths.sh`'s four-shell plain-export subset constrains
-    how the fish half can be written.
-  - **Everything else quotes the literal.** `scripts/install.sh` (three
-    places), `scripts/packages_preview.sh`, `misc/aliases.sh` and
-    `docs/tapes/fixtures.sh` all name it; so do
-    [CONFIGURATION.md](CONFIGURATION.md) (its whole file table plus four more
-    lines), README (six), [SECURITY.md](SECURITY.md),
-    [GLOSSARY.md](GLOSSARY.md), [PACKAGING.md](PACKAGING.md) and
-    [ALTERNATIVES.md](ALTERNATIVES.md). The test fixtures are their own group:
-    `tests/test_lib.sh` isolates the suite by pointing `$XDG_CONFIG_HOME` at a
-    scratch dir and deriving `$_HI_CONFIG_DIR` from it, and
-    `tests/test_runner.sh`, `tests/common/core_test.sh`,
-    `tests/shells/rc_test.sh`, `tests/hi/remote_test.sh`,
-    `tests/common/paths_test.sh` and `tests/lib/workdir.sh` all depend on that
-    shape. A rename that keeps the XDG base changes the isolation trick; one
-    that drops it changes it more.
-  - **People already have the directory, so a rename without a migration is a
-    silent reset** - hi would start from defaults and the old config would sit
-    there unread, which is the worst of the three possible behaviours. Decide
-    between reading the old path when the new one is absent, moving it once on
-    `hi --install`, or refusing to start with a message, and document it.
-  - **Ticks when:** the decision is recorded either way - and if it is to
-    rename, the derivation moves in one place, every quoted path agrees, an
-    existing config is migrated rather than orphaned, and the suite is green.
-
-- [ ] **Move personal shell settings out of the shipped tree** — _scope: three
-      shell files, a new overlay file per shell, and the payload budgets;
-      in-repo._ Promoted from a bare `urgent item` note at the top of this
-      file: personal parts of the shells live inside `shells/`, and should be
-      user overrides under the config directory instead. **Depends on
-      [Rename the config directory](#large)** above - it defines the directory
-      these would live in, so settling that first avoids writing the path
-      twice.
-
-  - **What is actually personal today.** Each of the three shell files carries
-    a `_HI_DISABLE_PERSONAL` block, and the blocks are not small:
-    `shells/bash.sh:154` sets history sizing, `shopt`s and eleven `bind`
-    lines; `shells/zsh.zsh:98` sets `HISTFILE`, keybindings and roughly twenty
-    `zstyle` completion rules; `shells/config.fish:182` sets keybindings plus
-    the whole `fish_color_*` and `fish_pager_color_*` palette. That last one is
-    the clearest case: a color scheme is taste, and it currently ships.
-  - **The precedent is already in the tree, one layer up.** `misc/personal.sh`
-    is exactly this idea for aliases - shipped defaults, `_HI_DISABLE_ALIASES`
-    takes it off the wire entirely, and
-    [CONFIGURATION.md](CONFIGURATION.md) documents
-    `~/.config/say-hi/aliases.sh` as the user's own file sourced **after** it
-    so theirs wins. The same additive-override shape is what these blocks want:
-    a per-shell overlay file, sourced last, never a replacement.
-  - **The dialect constraint is the hard part.** `misc/personal.sh` can be one
-    file because it stays in the subset bash, zsh and fish all parse. These
-    blocks cannot: `bind`, `zstyle` and `set -gx fish_color_*` are
-    shell-specific by nature, so this is three files, not one, and each keeps
-    its own dialect.
-  - **Both payload budgets move, in opposite directions.** `shells/` ships in
-    `$_HI_PAYLOAD`, so taking bytes out of the shipped files lowers the wire
-    figure the README badge tracks while the tar figure moves separately -
-    and if the overlay files ride along, `_hi_payload_tar` needs to know how to
-    trim them the way it already trims `misc/personal.sh` when the toggle is
-    off. Check both numbers, per the rule in CLAUDE.md.
-  - **Ticks when:** each shell's personal block is a user-overridable file
-    under the config directory, `_HI_DISABLE_PERSONAL` still turns the shipped
-    defaults off, a user file is sourced after and wins,
-    [CONFIGURATION.md](CONFIGURATION.md) documents all three, and both payload
-    figures have been re-checked.
 
 - [ ] **Persistent sessions on a disposable target** — _**deferred until after
       v1.0.0.** Scope: the largest entry here. It changes cleanup semantics on

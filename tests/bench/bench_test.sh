@@ -147,9 +147,9 @@ function bench_targets_warm() {
 # independently - the launcher rides *inside* this tar, so it counts here and
 # not as a stream of its own. See CLAUDE.md.
 # Both figures below are a DEFAULT configuration's, and have to be: hi.sh's
-# _hi_payload_tar drops misc/vim.rc, misc/nano.rc, shells/osc52.sh and
-# shells/notify.sh when the overlay has already switched them off, so a
-# configured client sends less than
+# _hi_payload_tar drops misc/vim.rc, misc/nano.rc, shells/osc52.sh,
+# shells/notify.sh and the three shells/*_personal.* files when the overlay has
+# already switched them off, so a configured client sends less than
 # either number says. The ceiling and the badge are the unconfigured case, which
 # is the one every budget should be set against.
 function bench_payload_size() {

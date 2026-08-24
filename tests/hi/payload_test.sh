@@ -118,6 +118,33 @@ function test_payload_trims_personal_but_keeps_aliases() {
   return 1
 }
 
+# The toggle that used to trim nothing. Before the personal blocks moved into
+# their own files, _HI_DISABLE_PERSONAL=1 still shipped every bind, zstyle and
+# fish_color line to a target that would never read one; now it takes all three
+# files off the wire and leaves the rc files that source them alone.
+function test_payload_trims_the_personal_files() {
+  local dir="$_HI_WORKDIR/nopersonal" listing f
+  mkdir -p "$dir"
+  printf "#!/bin/sh\\nexport _HI_DISABLE_PERSONAL='1'\\n" >"$dir/settings.sh"
+  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
+  for f in bash_personal.sh zsh_personal.zsh fish_personal.fish; do
+    case "$listing" in *"say-hi/shells/$f"*)
+      _hi_cecho " | _HI_DISABLE_PERSONAL=1 still shipped shells/$f" "$RED"
+      return 1
+      ;;
+    esac
+  done
+  # the rc files that source them are not collateral
+  for f in bash.sh zsh.zsh config.fish; do
+    case "$listing" in *"say-hi/shells/$f"*) ;; *)
+      _hi_cecho " | _HI_DISABLE_PERSONAL=1 took shells/$f with it" "$RED"
+      return 1
+      ;;
+    esac
+  done
+  return 0
+}
+
 # The payload is an allow list; this is its drift guard. Exact match on the
 # list (so nothing sneaks on the wire unnoticed) plus an existence check on
 # every member (so a rename can't quietly ship an empty payload).
@@ -188,6 +215,15 @@ function test_overlay_tar_carries_aliases() {
   local dir
   dir="$(_hi_overlay_fixture withaliases aliases.sh)"
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "aliases.sh" ]
+}
+
+# The user's own personal.sh is sourced by misc/aliases.sh between the shipped
+# one and their aliases.sh, so it has to reach a target for that ordering to
+# mean anything there - it did not until it joined the roster.
+function test_overlay_tar_carries_personal() {
+  local dir
+  dir="$(_hi_overlay_fixture withpersonal personal.sh)"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "personal.sh" ]
 }
 
 # Block padding, which is a bug in shipped behaviour on a supported client and
@@ -384,6 +420,7 @@ function run_hi_payload_tests() {
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "The toggle trims personal.sh and keeps aliases.sh" test_payload_trims_personal_but_keeps_aliases
   _hi_check "_HI_DISABLE_NOTIFY trims notify.sh only" test_payload_trims_the_notifier
+  _hi_check "_HI_DISABLE_PERSONAL trims the three shell files" test_payload_trims_the_personal_files
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
@@ -399,6 +436,7 @@ function run_hi_payload_tests() {
   _hi_check "Members are bare names" test_overlay_tar_members_are_bare_names
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
+  _hi_check "the user's personal.sh rides the stream" test_overlay_tar_carries_personal
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

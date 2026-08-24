@@ -122,8 +122,8 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   actually sends, which is what `hi` prints on connect — to within 5%. They
   move independently: putting a file _into_ the tar raises the first and
   lowers the second. Both measure a **default** configuration - `_hi_payload_tar`
-  trims `misc/vim.rc`, `misc/nano.rc`, `shells/osc52.sh`, `shells/notify.sh`
-  and `misc/personal.sh`
+  trims `misc/vim.rc`, `misc/nano.rc`, `shells/osc52.sh`, `shells/notify.sh`,
+  the three `shells/*_personal.*` files and `misc/personal.sh`
   when the overlay has turned them off, so a configured client sends less than
   either number. Tooling-only helpers must not go into `common/core.sh`; check
   both numbers when touching shipped files.

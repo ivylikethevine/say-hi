@@ -31,7 +31,9 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # common/core.sh, common/git_prompt.sh and both of those through shells/zsh.zsh.
 _HI_NATIVE_LINT=(
   "shells/zsh.zsh:zsh:-n"
+  "shells/zsh_personal.zsh:zsh:-n"
   "shells/config.fish:fish:--no-execute"
+  "shells/fish_personal.fish:fish:--no-execute"
   "misc/aliases.sh:fish:--no-execute"
   "misc/personal.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"

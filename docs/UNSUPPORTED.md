@@ -21,6 +21,7 @@ answer](#what-would-change-an-answer) for the one thing that reopens a row.
 - [Shells hi does not style](#shells-hi-does-not-style)
 - [Packaging channels weighed and not shipped](#packaging-channels-weighed-and-not-shipped)
 - [Features that were removed](#features-that-were-removed)
+- [Changes proposed and not made](#changes-proposed-and-not-made)
 - [What would change an answer](#what-would-change-an-answer)
 
 ## Targets weighed and not shipped
@@ -134,6 +135,43 @@ row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu` (2026-08-18)
 and `shells/ksh.sh` (2026-08-21). The ksh one is the instructive case - it was
 written for the sake of a live git segment, and removing it was the decision
 that a second POSIX implementation to keep in sync is not worth one segment.
+
+## Changes proposed and not made
+
+Not a runtime, a shell or a channel - a change to something that already works,
+weighed and declined. Same rule as every section above: the reasoning is here so
+it is not re-derived from scratch next time.
+
+**Renaming the config directory** to `~/.say-hi-conf`, or anything else outside
+the XDG base, was decided against on 2026-08-24. The config lives at
+`${XDG_CONFIG_HOME:-$HOME/.config}/say-hi` (`common/core.sh`) and stays there.
+
+- **The override already does it.** `$_HI_CONFIG_DIR` is read before anything
+  else and wins over the derivation, so `_HI_CONFIG_DIR=~/.say-hi-conf` gets
+  exactly the asked-for path today, with no code change and no migration. A
+  rename would take that choice away from everyone else to hand it to one
+  person - the opposite of what an override is for.
+- **Discoverability, the likeliest motive, is already answered.** `hi --help`
+  names the path, and `hi --doctor` prints the _resolved_ one as a section
+  heading, so a user who has moved `$XDG_CONFIG_HOME` still gets told where
+  their own config is rather than where the default would be.
+- **A bare `~/.say-hi-conf` is strictly worse for the people it would affect
+  most.** It drops spec compliance silently for anyone who has moved
+  `$XDG_CONFIG_HOME` - their config would stop being read with no error - and
+  it puts another dotdir in `$HOME`, which is the thing XDG exists to stop.
+- **The cost is not the one-line derivation.** 29 files carry the literal path
+  or the XDG base, across 57 occurrences - the docs, `docs/hi.1`,
+  `packaging/homebrew/say-hi.rb`, the demo tapes and fixtures - plus a
+  migration for every existing install, plus the suite's isolation trick, where
+  `tests/test_lib.sh` points `$XDG_CONFIG_HOME` at a scratch directory and
+  derives `$_HI_CONFIG_DIR` from it and six suites depend on that shape.
+- **No motivation was ever recorded.** The proposal entered the tree on
+  2026-08-22 phrased as "something like `~/.say-hi-conf`", and nothing before or
+  after it names a problem the current path causes.
+
+**What would reopen it:** a concrete failure of the XDG path - a platform where
+it is wrong, or a collision with another tool - rather than a preference about
+how it reads. The general clause below applies otherwise.
 
 ## What would change an answer
 

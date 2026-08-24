@@ -9,12 +9,16 @@ one that adds rather than replaces, loading after the tree's own so yours win.
 `settings.sh` has no in-tree counterpart at all: `hi --configure` only ever
 writes it here.
 
-| overlay file                   | overrides       | what it is                                                                                                                                                   |
-| ------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `~/.config/say-hi/settings.sh` | -               | what `hi --configure` writes                                                                                                                                 |
-| `~/.config/say-hi/colors`      | `misc/colors`   | your color pins                                                                                                                                              |
-| `~/.config/say-hi/packages`    | `misc/packages` | what the package check looks for                                                                                                                             |
-| `~/.config/say-hi/aliases.sh`  | -               | your own aliases, sourced **after** `misc/aliases.sh` and `misc/personal.sh` so yours win - additive, never a replacement, and in the same POSIX+fish subset |
+| overlay file                          | overrides                   | what it is                                                                                                                                   |
+| ------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/say-hi/settings.sh`        | -                           | what `hi --configure` writes                                                                                                                 |
+| `~/.config/say-hi/colors`             | `misc/colors`               | your color pins                                                                                                                              |
+| `~/.config/say-hi/packages`           | `misc/packages`             | what the package check looks for                                                                                                             |
+| `~/.config/say-hi/personal.sh`        | -                           | your answer to hi's own preference aliases - sourced right after `misc/personal.sh`, before your `aliases.sh`, in the same POSIX+fish subset |
+| `~/.config/say-hi/aliases.sh`         | -                           | your own aliases, sourced **last** of everything above so yours win - additive, never a replacement, and in the same POSIX+fish subset       |
+| `~/.config/say-hi/bash_personal.sh`   | `shells/bash_personal.sh`   | your bash preferences, sourced **after** hi's so yours win - history sizing, `shopt`s, readline bindings                                     |
+| `~/.config/say-hi/zsh_personal.zsh`   | `shells/zsh_personal.zsh`   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                           |
+| `~/.config/say-hi/fish_personal.fish` | `shells/fish_personal.fish` | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                        |
 
 This is what keeps configuring say-hi from dirtying the checkout (so
 `hi --update`'s `git pull` keeps applying cleanly), and why the tree never has
@@ -121,7 +125,7 @@ group, so a tenth toggle cannot land without a row here.
 | ---------------------------- | --------------------------- | ---------------- | --------------------------------------------------------------------------------------------- |
 | `_HI_DISABLE_HEADER`         | `0`                         | `hi --configure` | [Features](#features) - the whole connect/disconnect header                                   |
 | `_HI_DISABLE_PROMPT`         | `0`                         | `hi --configure` | [Features](#features) - the colored `user@host` prompt                                        |
-| `_HI_DISABLE_PERSONAL`       | `0`                         | `hi --configure` | [Features](#features) - personal shell settings                                               |
+| `_HI_DISABLE_PERSONAL`       | `0`                         | `hi --configure` | [Features](#features) - hi's own shell preferences (not yours)                                |
 | `_HI_DISABLE_GIT_STATUS`     | `0`                         | `hi --configure` | [Features](#features) - the git segment in the prompt                                         |
 | `_HI_DISABLE_EDITORS`        | `0`                         | `hi --configure` | [Features](#features) - the `vim`/`nano` config overrides                                     |
 | `_HI_DISABLE_ALIASES`        | `0`                         | `hi --configure` | [Features](#features) - the personal aliases in `misc/personal.sh`                            |
@@ -168,6 +172,13 @@ either; export them in your environment instead, which is what `hi.sh` and
 those two by `common/paths.sh` on every source, so an exported value does not
 survive; point `$_HI_HOME` or `$HOME` somewhere else if you need them elsewhere.
 
+`$_HI_CONFIG_DIR` is also the answer to "I want my config somewhere else":
+exporting it moves the whole overlay, which is why the directory's own name is
+not a setting and why a proposal to rename it away from the XDG base was
+declined -
+[UNSUPPORTED.md](UNSUPPORTED.md#changes-proposed-and-not-made) carries that
+reasoning.
+
 Everything else beginning `_HI_` is internal state - glyph sets, color escapes,
 completion caches, the shell and rc rosters - named that way to stay out of your
 namespace, not to be set.
@@ -176,17 +187,17 @@ namespace, not to be set.
 
 Each is **on by default**; set it to `1` to turn that piece off.
 
-| variable                 | turns off                                                                                                                                                                                             |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_HI_DISABLE_HEADER`     | the whole connect/disconnect header, every line of it                                                                                                                                                 |
-| `_HI_DISABLE_PROMPT`     | the colored `user@host` prompt, leaving your shell's own                                                                                                                                              |
-| `_HI_DISABLE_PERSONAL`   | personal shell settings - history size, keybindings, completion tweaks                                                                                                                                |
-| `_HI_DISABLE_GIT_STATUS` | the git segment in the prompt                                                                                                                                                                         |
-| `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                                                                                     |
-| `_HI_DISABLE_ALIASES`    | the personal aliases in `misc/personal.sh` - not the editor and `hi_copy` aliases `misc/aliases.sh` installs, which are the product. Setting it also keeps `personal.sh` off the ssh payload entirely |
-| `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                                                                                         |
-| `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Setting it also keeps `shells/notify.sh` off the ssh payload entirely                                                          |
-| `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                       |
+| variable                 | turns off                                                                                                                                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_HI_DISABLE_HEADER`     | the whole connect/disconnect header, every line of it                                                                                                                                                                                  |
+| `_HI_DISABLE_PROMPT`     | the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                               |
+| `_HI_DISABLE_PERSONAL`   | hi's own shell preferences - history size, keybindings, completion and color styling. Setting it also keeps the three `shells/*_personal.*` files off the ssh payload entirely; **your** copies in the config directory are unaffected |
+| `_HI_DISABLE_GIT_STATUS` | the git segment in the prompt                                                                                                                                                                                                          |
+| `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                                                                                                                      |
+| `_HI_DISABLE_ALIASES`    | the personal aliases in `misc/personal.sh` - not the editor and `hi_copy` aliases `misc/aliases.sh` installs, which are the product. Setting it also keeps `personal.sh` off the ssh payload entirely                                  |
+| `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                                                                                                                          |
+| `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Setting it also keeps `shells/notify.sh` off the ssh payload entirely                                                                                           |
+| `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                                                        |
 
 ## Header details
 
@@ -239,6 +250,22 @@ both will show the notification twice. Multiplexer support is the same open
 question OSC 52 lives with, handled by the same rule: tmux needs passthrough
 allowed, and under `$ZELLIJ` the escape goes out raw.
 `shells/notify.sh` is the whole implementation.
+
+`_HI_DISABLE_PERSONAL` is the one toggle whose name is about **whose** taste
+rather than which feature. What each shell ships beyond the prompt and the
+aliases - bash's history sizing and readline bindings, zsh's keybindings and
+`zstyle` completion rules, fish's keybindings and color palette - is one
+person's preference, so it lives in `shells/bash_personal.sh`,
+`shells/zsh_personal.zsh` and `shells/fish_personal.fish` rather than inside the
+rc files, and the toggle takes all three off the wire as well as out of the
+session.
+
+Your own `bash_personal.sh`, `zsh_personal.zsh` or `fish_personal.fish` in the
+config directory is sourced **after** hi's, in the same dialect, so yours wins -
+and it is _not_ behind the toggle, because the toggle turns off hi's taste, not
+yours. Setting `_HI_DISABLE_PERSONAL=1` and keeping your own file is the
+supported way to say "none of hi's preferences, all of mine". They ride the
+overlay archive to every target like the rest of the directory.
 
 ## Colors
 

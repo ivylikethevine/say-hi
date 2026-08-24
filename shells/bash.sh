@@ -151,26 +151,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
 fi
 # === end required configuration ===
 
-if [[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]]; then
-  HISTSIZE=2000
-  HISTFILESIZE=2000
-  HISTCONTROL="erasedups:ignoreboth"
-  export HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear"
-  PROMPT_DIRTRIM=2
+# hi's own preferences, in their own file so a client that does not want them
+# does not ship them (hi.sh trims it under this toggle). The user's copy comes
+# after and is NOT gated: the toggle turns off *hi's* taste, not yours - the
+# same split misc/aliases.sh makes for misc/personal.sh.
+# shellcheck source=./bash_personal.sh
+[[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/shells/bash_personal.sh" ]] &&
+  source "$_HI_ROOT/shells/bash_personal.sh"
 
-  shopt -s histappend checkwinsize cmdhist
-  # globstar is bash 4; on bash 3.2 `shopt -s` on an unknown option is an error,
-  # which under an rc file that keeps going is noise on every prompt
-  shopt -s globstar 2>/dev/null || true
-
-  bind "set completion-ignore-case on"
-  bind "set completion-map-case on"
-  bind "set show-all-if-ambiguous on"
-  bind "set mark-symlinked-directories on"
-
-  bind Space:magic-space
-  bind '"\e[A": history-search-backward'
-  bind '"\e[B": history-search-forward'
-  bind '"\e[C": forward-char'
-  bind '"\e[D": backward-char'
-fi
+[[ -f "$_HI_CONFIG_DIR/bash_personal.sh" ]] && source "$_HI_CONFIG_DIR/bash_personal.sh"

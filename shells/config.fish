@@ -180,48 +180,18 @@ end
 end
 # === end required configuration ===
 
+# hi's own preferences, in their own file - see shells/fish_personal.fish. The
+# user's copy comes after and is NOT gated: the toggle turns off *hi's* taste,
+# not yours.
+if test "$_HI_DISABLE_PERSONAL" != 1; and test -f $_HI_ROOT/shells/fish_personal.fish
+  source $_HI_ROOT/shells/fish_personal.fish
+end
+
+# NOT in fish_personal.fish, though it sits behind the same toggle: this is
+# hi's git segment, the fish half of what common/git_prompt.sh does for bash and
+# zsh, and tests/hi/prompt_test.sh pins its glyphs and colors against core.sh.
+# Product, not taste - so it stays in the shipped rc where that pin can find it.
 if test "$_HI_DISABLE_PERSONAL" != 1
-
-bind \cH backward-kill-word
-bind ctrl-delete kill-word
-bind \e\[3\;5~ kill-word
-bind \e\[1\;5H beginning-of-line
-bind \e\[1\;5F end-of-line
-bind \e\[2\;5~ ''
-
-# syntax colors, ordered as per
-# https://fishshell.com/docs/4.5/interactive.html#syntax-highlighting-variables
-# (anything not listed keeps fish's default)
-set -gx fish_color_normal normal
-set -gx fish_color_command blue
-set -gx fish_color_keyword blue
-set -gx fish_color_quote yellow
-set -gx fish_color_redirection cyan --bold
-set -gx fish_color_end green
-set -gx fish_color_error brred
-set -gx fish_color_param cyan
-set -gx fish_color_valid_path --underline=single
-set -gx fish_color_option brgreen
-set -gx fish_color_comment red
-set -gx fish_color_selection white --bold --background=brblack
-set -gx fish_color_operator brcyan
-set -gx fish_color_escape brcyan
-set -gx fish_color_autosuggestion brblack
-set -gx fish_color_cwd green
-set -gx fish_color_cwd_root red
-set -gx fish_color_status red
-set -gx fish_color_cancel --reverse
-set -gx fish_color_search_match white --background=brblack
-set -gx fish_color_history_current --bold
-
-# pager colors, as per
-# https://fishshell.com/docs/4.5/interactive.html#pager-color-variables
-set -gx fish_pager_color_progress brwhite --background=cyan
-set -gx fish_pager_color_prefix normal --bold --underline=single
-set -gx fish_pager_color_completion normal
-set -gx fish_pager_color_description yellow --italics
-set -gx fish_pager_color_selected_background --reverse
-
 # git prompt, matched by common/git_prompt.sh for bash & zsh
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
@@ -252,5 +222,8 @@ if test "$_HI_ASCII" = 1
     set -g __fish_git_prompt_char_stashstate '$'
     set -g __fish_git_prompt_char_cleanstate 'ok'
 end
+end
 
+if test -f $_HI_CONFIG_DIR/fish_personal.fish
+  source $_HI_CONFIG_DIR/fish_personal.fish
 end

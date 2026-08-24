@@ -57,7 +57,8 @@ _HI_PAYLOAD=(common misc shells load.sh hi.sh)
 # It lands in a config/ of its own rather than over misc/: misc/aliases.sh
 # sources $_HI_CONFIG_DIR/aliases.sh last, so one directory would make it
 # source itself forever.
-_HI_OVERLAY_FILES=(settings.sh colors packages aliases.sh)
+_HI_OVERLAY_FILES=(settings.sh colors packages personal.sh aliases.sh
+  bash_personal.sh zsh_personal.zsh fish_personal.fish)
 
 # What a bash-less target falls back to, best first: core.sh's $_HI_SHELL_TREE
 # minus bash (a missing bash is this ladder's precondition), derived so the two
@@ -237,10 +238,10 @@ AWK
 # every shell file is comment-stripped on the way in (GLOSSARY: HI.35).
 function _hi_payload_tar() {
   local -a excl=()
-  # One pass over settings.sh for all four toggles, rather than four
+  # One pass over settings.sh for all five toggles, rather than five
   # _hi_overlay_toggle subshells re-parsing it. Last assignment wins, which is
   # what that helper's `tail -1` does.
-  local _hi_ed=0 _hi_osc=0 _hi_al=0 _hi_nt=0 _hi_kv
+  local _hi_ed=0 _hi_osc=0 _hi_al=0 _hi_nt=0 _hi_pe=0 _hi_kv
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
     while IFS= read -r _hi_kv || [ -n "$_hi_kv" ]; do
       case $_hi_kv in
@@ -248,6 +249,7 @@ function _hi_payload_tar() {
       _HI_DISABLE_OSC52=*) _hi_osc="${_hi_kv#*=}" ;;
       _HI_DISABLE_ALIASES=*) _hi_al="${_hi_kv#*=}" ;;
       _HI_DISABLE_NOTIFY=*) _hi_nt="${_hi_kv#*=}" ;;
+      _HI_DISABLE_PERSONAL=*) _hi_pe="${_hi_kv#*=}" ;;
       esac
     done < <(sed -n "s/^export \(_HI_DISABLE_[A-Z0-9_]*\)='\(.*\)'\$/\1=\2/p" "$_HI_CONFIG_DIR/settings.sh")
   fi
@@ -259,6 +261,13 @@ function _hi_payload_tar() {
   fi
   if [ "$_hi_nt" = 1 ]; then
     excl+=(--exclude=say-hi/shells/notify.sh)
+  fi
+  # the three shells' own preference files, which is what this toggle is now
+  # made of - each shell's `[ -f ]` guard is what makes their absence a no-op
+  if [ "$_hi_pe" = 1 ]; then
+    excl+=(--exclude=say-hi/shells/bash_personal.sh
+      --exclude=say-hi/shells/zsh_personal.zsh
+      --exclude=say-hi/shells/fish_personal.fish)
   fi
   # the personal half only - see above for why misc/aliases.sh always ships
   if [ "$_hi_al" = 1 ]; then
