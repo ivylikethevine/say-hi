@@ -314,6 +314,96 @@ function test_packages_floor_is_skipped_when_the_check_is_off() {
   [ -z "$(_hi_floor_lines floor_off | tr -d '[:space:]')" ]
 }
 
+# The loop itself, which none of the four cases above can reach: `[ -t 0 ]`
+# guards it, so exercising it at all needs a pty - which is how it went
+# untested long enough to grow an unbounded retry. An answer that was never a
+# number re-asked forever, with no way out but ^C and a full re-render of the
+# package check on every pass. What these pin is that it *stops*, by counting
+# the prompts rather than trusting a wall clock: a bound that regressed would
+# show up as more prompts, not as a slower suite.
+#
+# $_HI_PTY_FORCED is empty when there is no python3 to build the pty with,
+# which is what makes these skip yellow rather than fail - the backend suites'
+# doctrine, and for the same reason.
+# shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
+# is the child shell's to make, after the pty has put it on the other side
+_HI_FLOOR_CHILD='
+  _hi_dir="$1"
+  source "$_HI_TEST_LIB"
+  set --
+  source "$_HI_INSTALL"
+  _HI_ROOT="$_hi_dir"
+  _HI_CONFIG_DIR="$_hi_dir/config"
+  _HI_SETTINGS="$_hi_dir/config/settings.sh"
+  _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  config_packages_floor
+  printf "FLOORLINES:%s\n" "${_HI_SETTING_LINES[*]:-}"
+'
+
+# _hi_floor_pty <label> <input> [settings-line] - run config_packages_floor
+# under a pty with <input> (printf %b, so \n and \004 work) on its stdin.
+# Transcript lands in $_HI_WORKDIR/<label>.floor.out. Non-zero when the child
+# had to be killed, which is the regression this is here to catch.
+function _hi_floor_pty() {
+  local label="$1" input="$2" line="${3:-}"
+  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.floor.out"
+  mkdir -p "$dir/common" "$dir/misc" "$dir/config"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
+  : >"$out"
+  printf '%b' "$input" |
+    "${_HI_PTY_FORCED[@]}" bash -c "$_HI_FLOOR_CHILD" bash "$dir" >"$out" 2>&1 &
+  _hi_wait_pid "$!" 30 _hi_timed_out "$label" 30
+  [ "$_HI_WAIT_EXIT" != 124 ]
+}
+
+# a pty writes CR-LF, so all three readers normalise before matching. The
+# marker is deliberately not anchored to the start of a line: `read -p` leaves
+# the cursor on its prompt, so when the loop exits by repeating the value on
+# screen the marker is printed onto the tail of that same prompt line.
+function _hi_floor_prompts() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -c 'Lowest package priority' || true
+}
+function _hi_floor_finished() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
+}
+function _hi_floor_pty_lines() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | sed -n 's/.*FLOORLINES://p' | head -1
+}
+
+# eight junk answers, three prompts: the bound, not the patience.
+function test_packages_floor_stops_asking_for_a_number() {
+  [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
+    _hi_skip "[floor_junk]" "no python3 to drive an interactive pty"
+    return 0
+  }
+  _hi_floor_pty floor_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
+  _hi_floor_finished floor_junk || return 1
+  [ "$(_hi_floor_prompts floor_junk)" -le 3 ]
+}
+
+# EOF is not an answer: one prompt, then out.
+function test_packages_floor_ends_on_eof() {
+  [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
+    _hi_skip "[floor_eof]" "no python3 to drive an interactive pty"
+    return 0
+  }
+  _hi_floor_pty floor_eof '\004' || return 1
+  _hi_floor_finished floor_eof || return 1
+  [ "$(_hi_floor_prompts floor_eof)" -le 1 ]
+}
+
+# a rejected answer must not poison the ones after it - the reject count
+# resets, so this still lands on 2 rather than giving up first.
+function test_packages_floor_takes_a_number_after_a_rejection() {
+  [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
+    _hi_skip "[floor_recover]" "no python3 to drive an interactive pty"
+    return 0
+  }
+  _hi_floor_pty floor_recover 'zz\n2\n2\n' || return 1
+  [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=2" ]
+}
+
 # same mode-preservation contract as config_shell
 function _hi_shebang_mode() {
   mkdir -p "$_HI_CONFIG_DIR"
@@ -818,6 +908,9 @@ function run_install_tests() {
   _hi_check "Packages floor: the default is not written" test_packages_floor_does_not_write_the_default
   _hi_check "Packages floor: a zero is written out" test_packages_floor_writes_a_zero
   _hi_check "Packages floor: skipped when the check is off" test_packages_floor_is_skipped_when_the_check_is_off
+  _hi_check "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
+  _hi_check "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
+  _hi_check "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
   _hi_check "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 

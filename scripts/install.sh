@@ -460,25 +460,51 @@ function _hi_packages_floor_preview() {
 # whose whole point is how much it prints, so it re-renders the real check at
 # each value until the answer stops changing. Enter accepts what is on screen.
 #
+# Because it loops, it is also the one prompt that has to prove it can stop.
+# Three ways out, and a non-answer is not one of them: an empty line, an answer
+# equal to the value already on screen, or EOF. A reply that is not a number is
+# re-asked at most $max_rejects times and then keeps the current value - the
+# loop is a dial, not a validator, and an unbounded retry here is a hang.
+#
 # Skipped when the check it trims is not being drawn at all - the same shape
 # config_header_details and config_prompt_ends use, and for the same reason:
 # a preview of something switched off is a box full of nothing.
 function config_packages_floor() {
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
   setting_off _HI_HEADER_CHECK "$_HI_SETTINGS" 0 && return 0
-  local current reply
+  local current reply rejects=0 max_rejects=3
   current="$(grep -oE '^export _HI_PACKAGES_MIN_PRIORITY=[0-9]+' "$_HI_SETTINGS" 2>/dev/null | cut -d= -f2)"
   _hi_floor_candidate="${current:-1}"
   if [ -t 0 ]; then
     _hi_load_preview_sources
     while :; do
       show_preview _hi_packages_floor_preview
-      read -r -p " Lowest package priority to show (0-5, higher hides more)? [$_hi_floor_candidate] " reply || reply=""
+      # A failed read is EOF - a closed pipe, ^D, or a driver that ran out of
+      # input - and never an answer. `|| reply=""` used to fold that into the
+      # empty-answer case, which worked but only by accident: it relied on the
+      # break below rather than saying what happened. Break here instead, and
+      # close the prompt line, since read -p leaves the cursor on it.
+      if ! read -r -p " Lowest package priority to show (0-5, higher hides more)? [$_hi_floor_candidate] " reply; then
+        printf '\n' >&2
+        break
+      fi
       [ -z "$reply" ] && break
       if ! _hi_is_number "$reply"; then
-        _hi_cecho " not a number, leaving it at $_hi_floor_candidate" "$YELLOW"
+        # ask_value says "leaving it at X" and moves on; this prompt loops on
+        # purpose, so until it really does leave it there it has to say
+        # something else - the old wording announced a decision it then did not
+        # make. The bound is the other half: an answer that is never a number
+        # kept this loop going forever, with no exit but ^C and a full re-render
+        # of the package check on every pass.
+        rejects=$((rejects + 1))
+        if [ "$rejects" -ge "$max_rejects" ]; then
+          _hi_cecho " not a number, leaving it at $_hi_floor_candidate" "$YELLOW"
+          break
+        fi
+        _hi_cecho " not a number - type 0-5, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
         continue
       fi
+      rejects=0
       [ "$reply" = "$_hi_floor_candidate" ] && break
       _hi_floor_candidate="$reply"
     done

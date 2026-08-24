@@ -259,37 +259,6 @@ Bounded work with a precedent already in the tree to copy from, and a test or a
 budget to satisfy on the way out. Nothing here is a research problem; each one
 names the files it touches.
 
-- [ ] **Install test blocks on the package-floor prompt** — _scope: one test
-      invocation to pin down, then a guard or a fixture; in-repo._ Carried into
-      this file from a bare `TODO` in README, which recorded the symptom and
-      not the reproduction: an install test fails on the prompt that asks for
-      the package priority floor. The first job is therefore to say which
-      invocation fails, because the note does not.
-
-  - **Where it can block.** `config_packages_floor`
-    (`scripts/install.sh:466`) is **the one prompt in the configure flow that
-    loops** - its own comment says so. Every other question previews once and
-    takes an answer; this one re-renders the real package check at each value
-    until the answer stops changing, so it reads in a `while :` and only
-    `break`s on an empty reply or an unchanged number
-    (`scripts/install.sh:476`). A driver that supplies neither never leaves the
-    loop.
-  - **Why the unit cases do not hit it.** The loop is guarded by `[ -t 0 ]`,
-    and `tests/scripts/install_test.sh` drives its two floor cases
-    (`test_packages_floor_keeps_a_configured_value` and
-    `test_packages_floor_does_not_write_the_default`) through
-    `_hi_settings_fixture` with `</dev/null` and no tty - the non-interactive
-    path the suite uses throughout, which skips the prompt entirely. So the
-    failure is not there, and grepping the fast group for it will not find it.
-  - **So the suspect is a case that really gets a pty.** `tests/lib/process.sh`
-    hands one out through `_hi_pty_wrap`/`_hi_interactive_case`, and with a real
-    tty `[ -t 0 ]` is true and the loop arms. Reproduce it before changing
-    anything: the fix is a fixture that answers the prompt if a case means to
-    exercise it, and a bound on the loop if it does not.
-  - **Ticks when:** the failing invocation is named, it passes, and a case
-    covers the interactive path rather than only the `</dev/null` one - or the
-    entry is deleted with a line saying the note was stale.
-
 - [ ] **Say whether `act` is worth pointing contributors at** — _scope: one run
       against the real workflows, then a CONTRIBUTING paragraph or a note
       saying not to bother; in-repo._ Carried into this file from a bare `TODO`
