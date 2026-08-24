@@ -18,7 +18,7 @@ This is a hobby project.
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
 [![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecarzd.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 ![bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
@@ -51,6 +51,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [say-hi and the alternatives](#say-hi-and-the-alternatives)
   - [Compatibility](#compatibility)
 - [Testing](#testing)
+  - [Coverage and Profiling](#coverage-and-profiling)
 - [More docs](#more-docs)
 - [AI Usage](#ai-usage)
 
@@ -208,9 +209,11 @@ Usage: `hi foo` (just like ssh!)
 
 Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
-say `hi` to in its own small archive — `colors`, `packages` and
-`aliases.sh` overlay the tree's copies one file at a time, and `settings.sh`
-(what `hi --configure` writes) has no in-tree counterpart at all. The full
+say `hi` to in its own small archive — `colors` and `packages` overlay the
+tree's copies one file at a time, `aliases.sh` and `personal.sh` add to them,
+and a `bash.sh`/`zsh.zsh`/`config.fish` there is sourced after hi's own
+per-shell preferences so yours win. `settings.sh` (what `hi --configure`
+writes) has no in-tree counterpart at all. The full
 picture — the overlay file table, every `_HI_DISABLE_*` feature toggle, the
 header-line toggles, and every other
 environment variable hi reads (`_HI_SHELL_PREFERENCE`, `_HI_PROMPT`,

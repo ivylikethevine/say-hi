@@ -45,11 +45,13 @@ on every source, so an exported value never lasts - are named under it.
 
 - [How it works](#how-it-works)
 - [Every setting](#every-setting)
+  - [Not settings](#not-settings)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Features](#features)
 - [Colors](#colors)
 - [Two sessions to the same host](#two-sessions-to-the-same-host)
 - [Header details](#header-details)
+  - [Others](#others)
 - [Everything else](#everything-else)
 
 ## How it works

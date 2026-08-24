@@ -65,7 +65,7 @@ else
   _hi_body="failed ($_hi_rc): $_hi_what"
 fi
 
-# Both escapes, on the roadmap entry's call: OSC 9 is what most emulators
+# Both escapes, deliberately: OSC 9 is what most emulators
 # implement, OSC 777 is iTerm2's spelling, and which one a *client* understands
 # is not knowable from the target - $TERM_PROGRAM does not cross an ssh
 # connection the way $TERM does. An emulator that understands neither prints

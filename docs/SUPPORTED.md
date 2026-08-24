@@ -52,9 +52,10 @@ as>|<liveness probe>|<predicate>`. One list, walked by the dispatch and by
 
 Then the part that is paid by everyone else. `_hi_resolve_backend` runs
 **every** predicate, in parallel, on every `hi <target>`; `common/targets.sh`
-probes **every** backend on every TAB after `hi ` (GLOSSARY: HI.26). Both costs
-land on machines that have none of the runtime in question. The `command -v`
-guard inside each predicate short-circuits before the CLI is executed, so the
+probes **every** backend on every TAB after `hi` and a space
+(GLOSSARY: HI.26). Both costs land on machines that have none of the runtime
+in question. The `command -v` guard inside each predicate short-circuits
+before the CLI is executed, so the
 marginal cost of a row is a fork rather than a daemon round-trip - but it is
 still a fork, five times per keystroke instead of four.
 
@@ -118,10 +119,13 @@ What hi hands you once it is on the target.
 **If you use a shell framework**, hi lands you in your own login shell, so it
 loads normally — that is what `_HI_SHELL_PREFERENCE`'s default (`login`, then
 the styled head of `$_HI_SHELL_TREE`: `fish zsh bash`) means.
-`tests/targets/framework_test.sh` tests oh-my-zsh, powerlevel10k, starship and
-bash-it against hi, each asserting the session comes up with no shell errors
-and that hi neither changed zsh's array base under them nor dropped their
-`PROMPT_COMMAND`.
+`tests/targets/framework_test.sh` tests nine of them against hi — oh-my-zsh,
+powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise — each
+asserting the session comes up with no shell errors and that hi left the
+framework's own hook intact: zsh's array base unchanged under oh-my-zsh and
+powerlevel10k, `PROMPT_COMMAND` still chained rather than replaced for the
+bash prompt frameworks, and the `bind -x` key bindings and `PROMPT_COMMAND`
+hooks the rest install still in place.
 
 **Both tables above assume hi can reach the target in the first place**, which
 is what [The five that ship](#the-five-that-ship) and [Already

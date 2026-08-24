@@ -57,7 +57,7 @@ membership, which is the copy to trust —
 `tests/test_runner.sh --group fast --list`:
 
 - **`fast`** — dependency-free, the first thing CI runs on every push/PR. Every
-  suite except the four below, including `test_lib`, `test_lib_report`,
+  suite except the three groups below, including `test_lib`, `test_lib_report`,
   `test_lib_par` and `test_runner`, which are the harness testing itself.
 - **`bench`** — hot-path timings checked against ceilings, plus the payload's
   two size budgets.
@@ -318,8 +318,9 @@ enforces them.
 
 `hi` chains: from a session on B you can `hi C`, and the second hop is a full hi
 session. That works from a _disposable_ session too, because `hi.sh` rides every
-bash-capable one — it is not in the payload tar, but both transports write it to
-the target alongside the tree. `ssh_relay` is the proof: A → B → C, config
+bash-capable one — it is a member of `$_HI_PAYLOAD`, so it arrives in the
+payload tar with the rest of the tree, exec bit and all (which is why the
+write-back is `cat` and not `mv`, GLOSSARY HI.09). `ssh_relay` is the proof: A → B → C, config
 intact on the final hop, cleanup traps firing on **both** B and C, on a clean
 exit and on the link being killed mid-relay. The one tier that cannot relay is
 the container transport's bash-less fallback, which ships `aliases.sh` alone and

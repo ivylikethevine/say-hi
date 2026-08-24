@@ -431,9 +431,9 @@ checkout to derive from - `_hi_remote_root`'s probe asks in this order:
    neither a login nor an interactive shell and sources none of them.
 2. `$HOME`.
 3. Where an install lands when nothing declared it: `~/.local/share`,
-   `/usr/local/share`, `/opt`, `/usr/share`, and Homebrew's three default
+   `/usr/local/share`, `/opt`, `/usr/share`, and Homebrew's four default
    keg prefixes (`~/.linuxbrew`, `/home/linuxbrew/.linuxbrew`,
-   `/opt/homebrew` and `/usr/local` under `opt/say-hi/libexec`).
+   `/opt/homebrew` and `/usr/local`, each under `opt/say-hi/libexec`).
 
 Each candidate is then tried as `<home>/say-hi`.
 
@@ -560,11 +560,11 @@ never leaks into a caller.
 The second is easy to miss because the symptom looks identical - a `case`
 that never matches - but the cause is not splitting, it's globbing. Even
 once `pat` correctly holds one token per iteration, `case "$name" in $pat)`
-does not treat `*` in a *variable's* value as an active wildcard unless
+does not treat `*` in a _variable's_ value as an active wildcard unless
 `GLOB_SUBST` is set; bash needs no such flag; zsh's default is startlingly
 literal here; unquoted or quoted makes no difference. The tempting fix -
 `setopt globsubst` alongside `shwordsplit` - breaks the first workaround
-instead of completing it: with both set, splitting `$patterns` *also*
+instead of completing it: with both set, splitting `$patterns` _also_
 glob-expands each token against real files in the working directory, and a
 pattern matching nothing on disk errors the whole loop out (`no matches
 found`) rather than surviving to the `case`. `${~pat}` is the escape: a

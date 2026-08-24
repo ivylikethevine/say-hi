@@ -64,12 +64,12 @@ in `shells/` (prompt, aliases, completion) plus a tier in the fallback ladder in
 | `xonsh`      | **decided against**             | Python — a third implementation, on the same terms as elvish and with the same answer                                                                                                                                                                                                                                                                                |
 | `tcsh`/`csh` | **decided against**             | different rc syntax _and_ no `$ENV` equivalent, so there is no hook to land on at all: it would need its own rc and its own delivery mechanism                                                                                                                                                                                                                       |
 | `nushell`    | **decided against**             | Nu is not POSIX, so it can source none of `common/`                                                                                                                                                                                                                                                                                                                  |
-| `ksh`/`mksh` | **decided against** | they land in the `sh` tier like any other bash-less shell - aliases and the colored prompt, no header. A ksh-specific tier once existed for the sake of a live git segment; it was removed as not worth a second POSIX implementation to keep in sync |
+| `ksh`/`mksh` | **decided against**             | they land in the `sh` tier like any other bash-less shell - aliases and the colored prompt, no header. A ksh-specific tier once existed for the sake of a live git segment; it was removed as not worth a second POSIX implementation to keep in sync                                                                                                                |
 | PowerShell   | not a POSIX shell               | the greeting hi prints there is the whole extent of it                                                                                                                                                                                                                                                                                                               |
 
 Using one of these as a _login_ shell still works, and always did — hi lands
 you in the best of `$_HI_SHELL_TREE` the target actually has. Only the
-_session_ shell is limited, and only for the three above.
+_session_ shell is limited, and only for the shells in that table.
 
 ## Packaging channels weighed and not shipped
 

@@ -36,14 +36,16 @@ fish's config out of reach; a fish command typed by hand gets no such help. Set
 `XDG_CONFIG_HOME` to a throwaway directory when checking anything in fish
 outside the runner.
 
-**The second is inherited process state.** A long-lived shell started back when
-`~/hi.d` existed still carries a full `_HI_*` set (`_HI_HOME=/home/ivy`,
-`_HI_ROOT=/home/ivy/hi.d`, `_HI_TEST_LIB=/home/ivy/hi.d/tests/test_lib.sh`,
-~50 more) and hands it to every child, agent sessions included. Those paths
-point at a tree that no longer exists, so the runner dies at its `source` line
-with a bare `No such file or directory` naming a path nobody typed — before
-`_hi_host_tree_check` (`tests/lib/report.sh`) ever gets to warn. Check with
-`env | grep '^_HI_'`, and clear it with:
+**The second is inherited process state**, and it is the quieter of the two.
+Agent sessions start with a full `_HI_*` set already exported — ~60 names,
+`_HI_HOME=/home/ivy/projects`, `_HI_ROOT=/home/ivy/projects/say-hi`,
+`_HI_TEST_LIB=/home/ivy/projects/say-hi/tests/test_lib.sh` among them — handed
+down from the shell the session was launched from. Those paths are the **user's
+real install**, and it exists — so nothing fails loudly. Run anything with no
+override and it works, against the wrong tree. `_hi_host_tree_check`
+(`tests/lib/report.sh`) is the one thing that speaks up, and only on that
+shape; the half-corrected shape below slips past it. Check with
+`env | grep '^_HI_'` before trusting any result, and clear it with:
 
 ```sh
 unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
@@ -55,10 +57,14 @@ entry point derives the tree from its own path (GLOSSARY: HI.33), and
 
 **`_HI_HOME` alone is not enough to run one suite directly.** An inherited
 environment also carries `_HI_ROOT` and `_HI_TEST_LIB`, and a suite's source
-line is `${_HI_TEST_LIB:-…}` — the inherited value wins, so the *harness* is
-loaded out of the old tree while `core.sh` quietly corrects `$_HI_ROOT` to the
-tree you asked for. The run half-succeeds against two trees at once. Either go
-through the runner, which sources the harness by absolute path:
+line is `${_HI_TEST_LIB:-…}` — the inherited value wins, so the _harness_ is
+loaded out of the user's install while `core.sh` quietly corrects `$_HI_ROOT`
+to the tree you asked for. The run half-succeeds against two trees at once, and
+this is the shape nothing warns about: `_hi_host_tree_check` compares
+`$_HI_ROOT` against the tree you invoked from, and that half is right. Either
+go through the runner, which sources the harness by absolute path
+(`$_HI_HOME/say-hi/tests/test_lib.sh`, `test_runner.sh:30`) and so needs no
+`_HI_TEST_LIB` at all:
 
 ```sh
 _HI_HOME=/home/ivy/projects/claude tests/test_runner.sh <suite>

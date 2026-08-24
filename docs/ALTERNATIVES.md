@@ -27,7 +27,7 @@ no `ll`.
 There are two families of answer.
 
 **Install your config there.** Dotfile managers — [chezmoi], [yadm], [GNU Stow],
-[dotbot], [rcm], [homeshick], These are excellent, and
+[dotbot], [rcm], [homeshick]. These are excellent, and
 say-hi does not compete with them: they assume the machine is yours, that you'll
 be back, and that leaving files behind is fine. That fails for a shared
 production host, a box you touch once, or a container. The line blurs at the

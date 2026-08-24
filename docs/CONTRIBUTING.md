@@ -11,6 +11,7 @@ left to do — including the entries that are deliberately not being done.
 
 - [Before you start](#before-you-start)
 - [The gate](#the-gate)
+  - [Don't reach for `act`](#dont-reach-for-act)
 - [What a review will bounce on](#what-a-review-will-bounce-on)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)

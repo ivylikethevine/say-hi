@@ -194,8 +194,15 @@ Configuration lives outside the tree, in
 .RB ( settings.sh ,
 .BR colors ,
 .BR packages ,
-and additive personal
-.BR aliases.sh ),
+additive
+.B personal.sh
+and
+.BR aliases.sh ,
+and per-shell
+.BR bash.sh ,
+.B zsh.zsh
+and
+.BR config.fish ),
 written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
@@ -213,13 +220,16 @@ works identically).
 .TP
 .B ~/.config/say-hi/settings.sh
 feature toggles, written by
-.BR hi \-\-configure .
+.BR "hi \-\-configure" .
 .TP
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
 .TP
-.B ~/.config/say-hi/aliases.sh
+.B ~/.config/say-hi/personal.sh, ~/.config/say-hi/aliases.sh
 your own aliases, sourced after the shipped set so yours win.
+.TP
+.B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
+your own per\-shell preferences, sourced after hi's own so yours win.
 .SH ENVIRONMENT
 .TP
 .B _HI_HOME
