@@ -29,12 +29,6 @@ alias catn="batn"
 alias now='echo "LOCAL: $(date $_HI_HUMAN_SHORT_DATE) => UTC: $(date -u $_HI_HUMAN_SHORT_DATE)"'
 
 alias zed="$(command -v zeditor || command -v zed || command -v echo)"
-alias ehi="zed $_HI_ROOT"
-alias essh="zed $_HI_SSH_DIR"
-
-alias ls="ls -lh --color=auto"
-alias lsa="ls -a"
-alias lsr="lsa -R"
 
 # eza/exa (its predecessor) improved ls; time format per
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html
@@ -57,81 +51,3 @@ alias lea="le -a"
 alias let="le -T -L2"
 alias leg="le --git --git-repos-no-status"
 alias l="$_HI_EZA_BIN -l"
-
-alias lsd="lsd -lh --color=auto"
-
-alias dcl="docker container ls && docker compose ls"
-alias dcu="docker compose up"
-alias dcud="docker compose up -d"
-alias dcd="docker compose down"
-alias dps="dcl"
-alias dsp="docker system prune -fa"
-alias dil="docker image ls"
-alias grep="grep --color=auto"
-alias ps="ps aux"
-
-alias rm="rm -iv"
-alias rmv="rm -rv"
-
-alias cp="cp -rv"
-alias rsync="rsync -zvhPr --info=progress2"
-alias scp="scp -Cr"
-
-alias fc="ls | wc -l"
-alias mkex="chmod +x"
-
-alias ctar="tar -zcvf"
-alias utar="tar -zxvf"
-
-alias mindiff="diff -Bdw"
-
-# fallthrough aliases for improved basics
-# alias du="$(command -v dua || command -v du)" # this breaks du -sh :/
-alias df="$(command -v duf || command -v df)"
-alias dig="$(command -v dog || command -v dig || command -v echo)"
-
-alias ..="cd ../"
-alias ...="cd ../../"
-alias z="zoxide"
-
-alias gl="git log --abbrev-commit --graph"
-alias gf="git fetch -a"
-alias gp="git fetch -a && git pull"
-alias gch="git checkout"
-alias gcl="git clone"
-alias gs="git status"
-alias gst="git stash"
-alias gss="git stash show"
-alias gsl="git stash list"
-alias gsa="git stash apply"
-alias gsd="git stash drop"
-alias gsda="git stash clear"
-alias gd="git diff --color=always"
-alias gps="echo ' Okay. Where are we going?'"
-alias gpsh='git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)'
-
-alias ping="ping -O"
-alias pping="prettyping"
-alias ip="ip -color=always"
-alias ips="ip -br a"
-alias my_ip="ip route get 1.1.1.1"
-
-# pacman: for arch-likes
-alias yayy="yay -Syyu"
-alias yayc="yay -Sc --noconfirm"
-alias yaycc="sudo rm -rfv /var/cache/pacman/pkg/download-* >/dev/null"
-alias yay_list_orphans="pacman -Qdtq"
-alias yay_remove_orphans="pacman -Qdtq | sudo pacman -Rns -"
-
-# apt: for debian-likes
-alias aptup="sudo apt update"
-alias aptug="sudo apt upgrade"
-alias aptupg="sudo apt update && sudo apt upgrade"
-alias aptac="sudo apt autoclean && sudo apt autoremove"
-
-alias fw_check="fwupdmgr get-devices && fwupdmgr get-updates"
-alias fw_update="fwupdmgr update"
-
-alias sctl="sudo systemctl"
-alias chron="cron"
-alias chrontab="crontab"
