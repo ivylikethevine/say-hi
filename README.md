@@ -24,10 +24,6 @@ This is a hobby project.
 
 [Test Badge Disclaimer](docs/TESTING.md#coverage-and-profiling)
 
-# TODO: add more tight integration to chezmoi and perhaps other dotfile managers
-
-# TODO: Install test fails due to installation prompt for number of priority floor
-
 **One config directory to rule them all, uniting all shells from all hosts!**
 
 _Don't `ssh`ush your hosts, say `hi`!_

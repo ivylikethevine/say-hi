@@ -125,10 +125,9 @@ That restriction was never escapable from inside the feature, and the file it
 shipped cost payload bytes on every session that never used it.
 
 Nothing stands in its place today: a dropped connection loses the session. The
-question is open again from the other end, as
-[ROADMAP.md](ROADMAP.md#the-session-itself)'s _persistent sessions on a
-disposable target_ entry - which has to answer the multiplexer question itself
-rather than inherit an answer.
+question is open again from the other end, as [ROADMAP.md](ROADMAP.md#large)'s
+_persistent sessions on a disposable target_ entry - which has to answer the
+multiplexer question itself rather than inherit an answer.
 
 **Three shell tiers existed briefly and were dropped**, each for the reason its
 row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu` (2026-08-18)

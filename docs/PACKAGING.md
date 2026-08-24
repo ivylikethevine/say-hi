@@ -8,7 +8,8 @@ Nothing here publishes on its own — the publishing job waits on a manual
 approval, and the AUR and the Homebrew tap are copies you make by hand. Both
 signing keys are in place, so a release signs its sums and its apk; what is
 still one-time setup is the AUR deploy key and the tap token, a checklist with
-exact commands in [docs/ROADMAP.md](ROADMAP.md)'s _Release channels_ section.
+exact commands in [docs/ROADMAP.md](ROADMAP.md)'s _Homebrew tap_ and _AUR_
+entries.
 
 Every workflow's `runs-on:` reads a repo/org Actions variable first —
 `vars.RUNNER_LABEL`, or `vars.MACOS_RUNNER_LABEL` / `vars.WINDOWS_RUNNER_LABEL`
