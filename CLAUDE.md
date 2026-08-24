@@ -91,6 +91,22 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   `tests/<the directory it tests>/` and sources the `tests/test_lib.sh` façade
   and nothing else (`docs/GLOSSARY.md`'s HI.34), and a new suite has to be
   registered in `test_runner.sh`'s `_HI_TESTS` table or no group runs it.
+- **A green run here is not a green run in CI, and `/bin/sh` is why.** This box
+  is Arch: `/bin/sh` is a symlink to **bash**. CI's ubuntu is **dash** and
+  macOS's `/bin/sh` is bash in POSIX mode, and both expand backslash escapes in
+  `echo` where bash-as-sh leaves them as text (POSIX leaves it unspecified). A
+  case that runs anything under `sh` can therefore pass on this machine and
+  fail on both CI platforms - which is exactly what `notify`'s _a literal \033
+  in an argument stays text_ did for three commits. Prefer `printf` over `echo`
+  in a fixture, and when a suite shells out to `sh`, sweep it the cheap way
+  before pushing:
+
+  ```sh
+  mkdir -p /tmp/dashsh && ln -sf "$(command -v dash)" /tmp/dashsh/sh
+  PATH=/tmp/dashsh:$PATH _HI_HOME=/home/ivy/projects/claude \
+    tests/test_runner.sh --group fast
+  ```
+
 - Skip the suite when the diff is prose only — it costs ~2 minutes, most of it
   shellcheck, and no case reads ordinary `.md`. "Only `.yml`/`.md`" is _not_
   the same test, though: the fast group reads several of both. Run it when the

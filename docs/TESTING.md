@@ -73,6 +73,18 @@ Every e2e/backends suite skips cleanly with a warning rather than failing when
 its backend isn't installed. Every test script also runs directly, e.g.
 `tests/lint/shellcheck_test.sh`.
 
+The same doctrine reaches individual fast cases, through two guards that differ
+only in what they look for. `_hi_check_requires <bin>` skips the case when a
+_command_ is missing. `_hi_check_capable <capability>` skips it when a
+_facility_ is - something `command -v` cannot answer. The roster lives in
+`_hi_capable` (`tests/lib/fixtures.sh`) and is two entries long: `symlink`
+makes one and tests `[ -L ]`, so a filesystem that refuses _or_ silently copies
+both read as no; `pty` is python3 being able to `import pty`, not python3
+merely existing. Both are there for Git Bash, where `ln -s` wants Developer
+Mode and `pty` is Unix-only - and both are probes rather than OS sniffs, so
+nothing here has to know what MSYS is. `_hi_par_check_capable` is the twin a
+parallel suite uses.
+
 ### Where a suite lives
 
 `tests/<the directory it tests>/`. `tests/common/`, `tests/shells/`,

@@ -322,9 +322,9 @@ function test_packages_floor_is_skipped_when_the_check_is_off() {
 # the prompts rather than trusting a wall clock: a bound that regressed would
 # show up as more prompts, not as a slower suite.
 #
-# $_HI_PTY_FORCED is empty when there is no python3 to build the pty with,
-# which is what makes these skip yellow rather than fail - the backend suites'
-# doctrine, and for the same reason.
+# $_HI_PTY_FORCED is empty when there is no usable pty - no python3 at all, or
+# a python3 without the Unix-only `pty` module - which is what makes these skip
+# yellow rather than fail: the backend suites' doctrine, for the same reason.
 # shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
 # is the child shell's to make, after the pty has put it on the other side
 _HI_FLOOR_CHILD='
@@ -374,7 +374,7 @@ function _hi_floor_pty_lines() {
 # eight junk answers, three prompts: the bound, not the patience.
 function test_packages_floor_stops_asking_for_a_number() {
   [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_junk]" "no python3 to drive an interactive pty"
+    _hi_skip "[floor_junk]" "no usable pty to drive an interactive case"
     return 0
   }
   _hi_floor_pty floor_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
@@ -385,7 +385,7 @@ function test_packages_floor_stops_asking_for_a_number() {
 # EOF is not an answer: one prompt, then out.
 function test_packages_floor_ends_on_eof() {
   [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_eof]" "no python3 to drive an interactive pty"
+    _hi_skip "[floor_eof]" "no usable pty to drive an interactive case"
     return 0
   }
   _hi_floor_pty floor_eof '\004' || return 1
@@ -397,7 +397,7 @@ function test_packages_floor_ends_on_eof() {
 # resets, so this still lands on 2 rather than giving up first.
 function test_packages_floor_takes_a_number_after_a_rejection() {
   [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_recover]" "no python3 to drive an interactive pty"
+    _hi_skip "[floor_recover]" "no usable pty to drive an interactive case"
     return 0
   }
   _hi_floor_pty floor_recover 'zz\n2\n2\n' || return 1
@@ -944,10 +944,10 @@ function run_install_tests() {
   _hi_check_requires bash "Skips an empty file" test_check_one_config_skips_empty_file
 
   _hi_h2 "Testing: config_hi (skip path only)"
-  _hi_check "Skips when already linked" test_config_hi_skips_when_already_linked
-  _hi_check "Survives an unwritable launcher" test_config_hi_survives_an_unwritable_launcher
-  _hi_check "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
-  _hi_check "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
+  _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked
+  _hi_check_capable symlink "Survives an unwritable launcher" test_config_hi_survives_an_unwritable_launcher
+  _hi_check_capable symlink "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
+  _hi_check_capable symlink "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
   _hi_check "Degrades when sudo can't link" test_config_hi_degrades_when_sudo_cannot_link
 
   _hi_h2 "Testing: install_tree (packaging mode)"
@@ -955,11 +955,11 @@ function run_install_tests() {
   _hi_check "Ships scripts/" test_install_tree_ships_scripts
   _hi_check "Stages the man page, gzipped" test_install_tree_stages_the_man_page
   _hi_check "Skips the man page without a source" test_install_tree_skips_the_man_page_without_a_source
-  _hi_check "Links hi without DESTDIR in the target" test_install_tree_links_hi_without_destdir_in_the_target
+  _hi_check_capable symlink "Links hi without DESTDIR in the target" test_install_tree_links_hi_without_destdir_in_the_target
   _hi_check "Writes the profile.d snippet" test_install_tree_writes_the_profile_snippet
   _hi_check "Touches no rc file" test_install_tree_touches_no_rc_file
   _hi_check "Clears a stale destination" test_install_tree_clears_a_stale_destination
-  _hi_check "Replaces a symlinked dest without following" test_install_tree_replaces_a_symlinked_dest_without_following
+  _hi_check_capable symlink "Replaces a symlinked dest without following" test_install_tree_replaces_a_symlinked_dest_without_following
 
   _hi_h2 "Testing: strip_marker (--uninstall)"
   _hi_check "Removes only tagged lines" test_strip_marker_removes_tagged_lines_only
@@ -978,7 +978,7 @@ function run_install_tests() {
 
   _hi_h2 "Testing: unlink_hi (skip paths only)"
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
-  _hi_check "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
+  _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
   _hi_check "uninstall.sh shims onto --uninstall" test_uninstall_shim_delegates_to_install
 
   _hi_suite_end "install.sh logic"

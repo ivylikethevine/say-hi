@@ -128,38 +128,58 @@ waiting on it.
     [Get a release out under branch protection](#quick-wins), like everything
     else that needs a real tag.
 
-- [ ] **See a full demo render land on the site** — _scope: one green
-      `publish` run; the commit half has already shipped; in-repo._ Both halves
-      of the autogeneration are in: `demos.yml`'s `publish` job renders every
-      tape but `demo` on the self-hosted box, `pages.yml` lays the result over
-      the site, the six GIFs are out of the tree, and README and
-      [CONFIGURATION.md](CONFIGURATION.md) already link them at their published
-      URLs. `docs/demos/demo.gif` stays committed on purpose - it is the
-      hand-rendered one, and `.githooks/demo_staleness.sh` is what says when it
-      has gone stale.
+- [ ] **Get a demo render onto the site** — _scope: one repository variable,
+      then one `publish` run; outside this checkout._ Both halves of the
+      autogeneration are in: `demos.yml`'s `publish` job renders every tape but
+      `demo`, `pages.yml` lays the result over the site, the six GIFs are out
+      of the tree, and README and [CONFIGURATION.md](CONFIGURATION.md) link
+      them at their published URLs. `docs/demos/demo.gif` stays committed on
+      purpose - it is the hand-rendered one, and `.githooks/demo_staleness.sh`
+      is what says when it has gone stale.
 
-  - **Nothing 404s yet, and the merge order decides whether anything ever
-    does.** The deletion and the URL repoint live on `dev` only: `main` still
-    carries the six GIFs and the relative links that resolve to them, so the
-    front page is intact today. It breaks the moment `dev` merges — and since
-    `publish` never runs on a pull request (below), dispatching one against
-    `main` _before_ the merge keeps that window at zero, where merging first
-    leaves the front page broken for the length of a render. Nothing here can
-    prove the pipeline either way, which is why this entry stays open after the
-    commit: the pipeline is now the only source of the images the front page
-    shows.
-  - **The pull-request job is not the one that matters.** `demos.yml` has two:
-    `render` gates a PR that touches a tape, on a hosted runner, and renders
-    exactly `color_preview` - a green there says the vhs/ttyd/font toolchain
-    works and nothing about the other seven. `publish` is the one that produces
-    the site's GIFs, and it never runs on a pull request: push to `main`,
-    the weekly cron, or a manual dispatch.
-  - **The renderer's own dependencies were the last thing to bite.** A tape
+  - **Everything this entry used to say about merge order is out of date, and
+    the situation it warned about has already happened.** The deletion and the
+    URL repoint are on `main`, not only on `dev` - both branches carry
+    `demo.gif` and nothing else under `docs/demos/`, and both link the other
+    seven at `ivylikethevine.github.io`. So there is no window to keep at zero
+    by dispatching before a merge: **all seven of those URLs 404 today**, six
+    of them from the front page. The site itself is up and `demo.gif` serves,
+    which is what narrows it to the rendered ones.
+  - **`publish` is not waiting for a run. It has had four and failed all
+    four.** Three pushes to `main` and the weekly cron (most recently
+    2026-08-24), every one red at _Render every tape but demo_. `pages.yml`
+    serves the newest **successful** run's `demo-gifs` artifact, so there has
+    never been one to serve. The PR-side `render` job is green every time and
+    says nothing about this: it is a hosted runner rendering exactly
+    `color_preview`, which is the one tape that needs no backend.
+  - **One repository variable is the whole cause.** `publish` is
+    `runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}`, and `RUNNER_LABEL`
+    is unset - the failing runs report a `runner_name` of "GitHub Actions
+    …" and skip the `runner.environment != 'github-hosted'` step, which is
+    conclusive. So the job falls back to a hosted runner, where its own comment
+    already says only one of the seven tapes can render; `--require-run` then
+    turns the other six into the failure it is meant to be. The same fallback
+    appears in nine other workflows and is right in all of them - coverage,
+    link-check, codeql, scorecard and the rest do their job on a hosted runner.
+    `publish` is the one place where it is a guaranteed failure rather than a
+    degradation.
+  - **The code half now fails legibly, which is all this checkout can do about
+    it.** A preflight step fails `publish` immediately, before the first apt
+    call, naming `RUNNER_LABEL` and where to set it - rather than five minutes
+    of installs and a death inside vhs that no log line explains. It fails
+    rather than skips on purpose: `pages.yml` reads the last _successful_ run,
+    so a job that quietly stood down would leave the site serving nothing while
+    reporting green.
+  - **Do, in order:** set `RUNNER_LABEL` (Settings → Secrets and variables →
+    Actions → Variables) to the self-hosted box's label, then dispatch
+    `demos.yml`. It never runs on a pull request - push to `main`, the weekly
+    cron, or a manual dispatch - so a dispatch is the fast path.
+  - **Watch for the renderer's own dependencies on that first green.** A tape
     that opens `Set Shell zsh` wants that shell on the machine doing the
     recording, not on the target, so `publish` installs zsh, fish and nomad the
-    way `ci.yml`'s backends job does - docker, podman, kind and kubectl are
-    what the box already carries. Without them five of the seven tapes failed
-    under `--require-run`.
+    way `ci.yml`'s backends job does; docker, podman, kind and kubectl are what
+    the box is expected to already carry. That step has never run on the real
+    machine, because nothing has reached it.
   - **Ticks when:** a `publish` run has been green end to end and the seven
     published URLs actually serve an image — README's six, plus the
     `color_preview` one that [CONFIGURATION.md](CONFIGURATION.md) is the only
@@ -207,6 +227,90 @@ waiting on it.
   - **Ticks when:** `doctor`'s payload-diff case is green on the macOS job.
     That is the only half left, and it needs a macOS runner - which is why this
     is now a run to read rather than work to do.
+
+- [ ] **Make the Windows client job green** — _scope: one dispatch to read,
+      plus two repository steps once it is; the fixture half has shipped;
+      in-repo._ `.github/workflows/windows-client.yml` has been dispatched
+      twice, most recently 2026-08-22, and was red both times:
+      **37 failures across 8 suites, none of them a portability bug in
+      `hi`.** Every one traced to two facts about Git Bash - it cannot create
+      symbolic links (`ln -s` wants Developer Mode or administrator) and it has
+      no POSIX execute bit (MSYS answers `access(X_OK)` from a file's magic or
+      extension unless the mount carries `acl`). The question this entry used
+      to ask was whether the affected cases should stand down yellow or the job
+      stay red-but-explained.
+
+  - **The decision was neither: most of them were fixture bugs, and they are
+    fixed.** Only eleven cases actually need a real symlink; the rest were the
+    fixtures failing to say what they meant, and every fix below is worth
+    having on any platform rather than being a Windows concession.
+    - `_hi_real_path` (`tests/lib/fixtures.sh`) builds a toolbox of symlinks
+      and never checked `ln`'s result - it was the tail of an `&&` list, so a
+      failure neither aborted nor reported, and the `[ ! -d ]` build-once guard
+      then cached the **empty** directory forever. A caller splices that into
+      `$PATH` and has no `sh`, `awk` or `sed` at all, which is why `targets`'
+      three sweep cases, `packages_preview`'s two and most of `doctor`'s five
+      failed in ways that looked nothing like symlinks. It now checks, and
+      falls back to a `#!/bin/sh` exec wrapper - the shape `_hi_fake_path`
+      next door already relies on, and the one MSYS's magic-based
+      `access(X_OK)` accepts where an empty file's `chmod +x` does not.
+    - `_hi_probe_home` (`tests/hi/remote_test.sh`) made its launcher with
+      `: >hi.sh` - an empty file, so `chmod +x` does not stick on MSYS and
+      `_hi_remote_root_probe`'s `[ -x … ]` correctly answered "nothing
+      installed" for all fourteen `hi_remote` cases. The probe was right; the
+      fixture could not say what it meant. It writes a shebang now, through a
+      `_hi_probe_tree` helper that also absorbed the copy of itself further
+      down the suite.
+    - `packaging`'s two checksum cases read `awk '{ print $2 }'` over
+      `SHA256SUMS` and saw `*name`, because `sha256sum` opens binary by default
+      on Windows. `SHA256SUMS` is written by Linux CI and `sha256sum -c` reads
+      both spellings, so the assertion was the brittle half: `_HI_SUMS_NAMES`
+      strips the `*`.
+    - Two more fixtures leaned on a symlink for no reason and stopped.
+      `_hi_bsdtar_shim` (`tests/hi/payload_test.sh`) takes `_hi_real_path`'s
+      fallback, since it is the same "a symlink to a binary on `$PATH`" shape;
+      `_hi_subcmd_home` (`tests/hi/parse_test.sh`) now copies the tree into its
+      fake target instead of linking it, which is also what a real target has -
+      it unpacks the payload tar, so what lands there are regular files.
+  - **The eleven that genuinely need a symlink stand down**, on the backend
+    suites' doctrine, behind a probe rather than an OS sniff: `_hi_capable`
+    (`tests/lib/fixtures.sh`) answers `symlink` by making one and testing
+    `[ -L ]`, so a filesystem that silently _copies_ reads as "no" too, and
+    `_hi_check_capable` / `_hi_par_check_capable` are `_hi_check_requires`'
+    twins for a facility rather than a binary. Seven cases in `install`, two in
+    `packaging`, one in `install_location` and `hi_payload`'s Stow case use
+    it, all of them cases where a link is the subject rather than the
+    scaffolding. The twelfth stand-down is `test_lib`'s pty case, which was gated on
+    `command -v python3` - Windows _has_ python3 and lacks the Unix-only `pty`
+    module, so `$_HI_PTY_FORCED` is now filled from an `import pty, tty` probe
+    and the case asks `_hi_check_capable pty`.
+  - **All of it was proven without a Windows box.** A `ln` shim that fails on
+    `-s` and passes hard links through _is_ Git Bash without Developer Mode,
+    and a `python3` that exits non-zero on `import pty` is its interpreter.
+    Under the shim, the job's own invocation (`--group fast --skip
+    shellcheck`) is **green across all 25 suites with eleven yellow skips**;
+    without it, green with none. The second half is the one that matters: a guard that
+    skipped on Linux too would be hiding coverage rather than reporting a
+    platform.
+  - **What is left is a run and two settings.** Dispatch
+    `windows-client.yml`; any failure now is new information rather than one of
+    these classes. Two things to read rather than assume. The skip count
+    should be twelve (eleven symlink, one pty) on top of the 45 zsh/fish ones.
+    And `packaging`'s _staged_launcher shims a misnamed checkout_ should
+    **skip**, not fail: it needs a symlink to a _directory_, it is guarded now,
+    and the original run counted it green, so a failure there would say the
+    guard is in the wrong place.
+  - **Unchanged from before the run:** it runs `--group fast --skip
+shellcheck`, because `.github/actions/setup-tool` resolves linux/darwin
+    asset slugs and `run_shellcheck` exits 1 rather than standing down when
+    shellcheck is missing. There is no zsh or fish on the runner either, so 45
+    cases skip yellow before any of the above. Nothing is blocked on this
+    either way: a Windows _client_ is deliberately not a v1.0.0 criterion,
+    because a Windows client is not what "stable" promises. `windows-e2e.yml`
+    covers the target side, and that is the half the tag rests on.
+  - **Ticks when:** the job is green once, `ci.yml` calls it on push, and
+    [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
+    client half as well as the target half.
 
 - [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
       and one README line either way, with nothing to judge before 2026-08-25;
@@ -258,6 +362,14 @@ waiting on it.
     groups them the way the roster does, while `tests/common/targets_test.sh`
     checks the roster against `--help` each way round. Examples that churn are
     worse than no page, and these can no longer churn quietly.
+  - **The draft now reads like upstream's, which is the other thing review
+    catches.** It was structurally right already - `# hi`, a `>` block ending
+    in `More information:`, `{{placeholder}}` syntax, single-backtick command
+    lines, seven examples against a cap of eight - and wrong in the small ways
+    the style guide is explicit about: three lines over the 80-column cap,
+    inline backticks inside two example descriptions where upstream wants plain
+    prose, and a literal `...` in the last one. All fixed; the longest line is
+    79 now. What is left is genuinely just the submission.
   - **Do:** open the PR against tldr-pages. The draft leans on three flags —
     `--doctor`, `--version` and `--configure` — all of them frozen.
   - **Ticks when:** it is merged upstream.
@@ -304,60 +416,12 @@ names the files it touches.
 
 ## Large
 
-Two are left, and they reshape something the rest of the tree leans on rather
-than adding to it: what a platform job is allowed to assert, and the footprint
-promise [SECURITY.md](SECURITY.md) makes. The first work on the first one is a
-decision about test fixtures, not product code. The second is deferred past
-v1.0.0 on purpose - it rewrites the sentence the tag is being cut on.
-
-- [ ] **Decide what the Windows client job is allowed to assert** — _scope: a
-      decision about the test fixtures, then whatever it implies; no product
-      code is implicated; in-repo._ `.github/workflows/windows-client.yml` has
-      run. It is red, and what it found is worth writing down rather than
-      re-deriving: **37 failures across 8 suites, none of them a portability
-      bug in `hi`.** Every one traces to two facts about Git Bash.
-
-  - **It cannot create symbolic links.** `ln -s` needs Developer Mode or
-    administrator on Windows, so it fails outright. That is the whole of:
-    `install`'s seven `config_hi`/`install_tree` cases and `packaging`'s
-    _Symlink matches install_tree's_ (they exercise the symlink `install.sh`
-    makes); `install_location`'s _runs through a symlink onto it_; and - less
-    obviously - `targets`' three sweep cases, `packages_preview`'s two and most
-    of `doctor`'s five, because `_hi_real_path` (`tests/lib/fixtures.sh:95`)
-    builds its toolboxes out of `ln -sf` and silently prints an **empty**
-    directory when they fail. A suite that then replaces `$PATH` with it has no
-    `sh`, `awk` or `sed` at all, which is why those cases fail in ways that
-    look unrelated to symlinks.
-  - **It has no POSIX execute bit.** MSYS answers `access(X_OK)` from the
-    file's magic or extension unless the mount carries `acl`, so `chmod +x` on
-    a file with no `#!` does not stick. `_hi_probe_home` (`tests/hi/remote_test.sh:40`)
-    makes its launcher with `: >hi.sh` - an empty file - and
-    `_hi_remote_root_probe` requires `[ -x "$_h/say-hi/hi.sh" ]`, so the probe
-    correctly answers "nothing installed" for all fourteen of `hi_remote`'s
-    cases. The probe is right; the fixture cannot say what it means to say
-    there.
-  - **Two odds and ends.** `test_lib`'s _wrapper really allocates a pty_ wants
-    Python's `pty`, which is Unix-only. `packaging`'s two checksum cases see
-    `<hash> *name` because `sha256sum` opens binary by default on Windows -
-    the assertion is brittle, not the code: `SHA256SUMS` is written by Linux
-    CI and `sha256sum -c` reads both spellings either way.
-  - **So the decision is about the fixtures, not about hi.** Either the cases
-    that need a real symlink or a real exec bit learn to stand down yellow on
-    MSYS - the doctrine the backend suites already use, and the only route to a
-    green job - or this job stays dispatch-only and red-but-explained. Nothing
-    is blocked on it either way: a Windows _client_ is deliberately not a
-    v1.0.0 criterion, because a Windows client is not what "stable" promises.
-    `windows-e2e.yml` covers the target side, and that is the half the tag
-    rests on.
-  - **Unchanged from before the run:** it runs `--group fast --skip
-shellcheck`, because `.github/actions/setup-tool` resolves linux/darwin
-    asset slugs and `run_shellcheck` exits 1 rather than standing down when
-    shellcheck is missing. There is no zsh or fish on the runner either, so 45
-    cases skip yellow before any of the above.
-  - **Ticks when:** the fixtures either stand down or are made to work, the job
-    is green once, ci.yml calls it on push, and
-    [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
-    client half as well as the target half.
+One is left, and it reshapes something the rest of the tree leans on rather
+than adding to it: the footprint promise [SECURITY.md](SECURITY.md) makes. It
+is deferred past v1.0.0 on purpose - it rewrites the sentence the tag is being
+cut on. The Windows client job used to sit here as the second; the decision it
+was waiting on has been made and its fixture half has shipped, so it is a run
+to read now and lives in [Quick wins](#quick-wins).
 
 - [ ] **Persistent sessions on a disposable target** — _**deferred until after
       v1.0.0.** Scope: the largest entry here. It changes cleanup semantics on

@@ -340,7 +340,7 @@ function run_install_location_tests() {
   _hi_par_check_requires_eq fish "config.fish derives it" "$_HI_LOC_OUT_ROOT" test_outside_fish_derives_the_tree
   _hi_par_check_eq "core.sh derives it" "$_HI_LOC_OUT_ROOT" test_outside_core_derives_the_tree
   _hi_par_check "hi.sh runs from it" test_outside_launcher_runs
-  _hi_par_check "hi.sh runs through a symlink onto it" test_outside_launcher_runs_through_a_symlink
+  _hi_par_check_capable symlink "hi.sh runs through a symlink onto it" test_outside_launcher_runs_through_a_symlink
   _hi_par_check "A missing tree is named and refused" test_a_missing_tree_is_named_and_refused
   _hi_par_wait
 

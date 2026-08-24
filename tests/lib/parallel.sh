@@ -148,6 +148,28 @@ function _hi_par_check_requires() {
   _hi_par_case "$1" _hi_par_requires_body "$bin" _hi_assert "$@"
 }
 
+# _hi_par_check_capable <capability> <label> <cmd...> - _hi_check_capable's
+# parallel twin, for the container-shaped suites. The probe runs inside the
+# case's subshell like the _requires guard's does, so the skip is reported and
+# tallied through the same .res file every other verdict here goes through -
+# a parent-side skip would print out of submission order.
+function _hi_par_check_capable() {
+  local cap="$1"
+  shift
+  _hi_par_case "$1" _hi_par_capable_body "$cap" _hi_assert "$@"
+}
+
+function _hi_par_capable_body() {
+  local cap="$1" assert="$2" rc=0
+  shift 2
+  _hi_capable "$cap" || rc=$?
+  case "$rc" in
+  0) "$assert" "$@" ;;
+  1) _hi_skip "$1" "no $cap" ;;
+  *) return 1 ;;
+  esac
+}
+
 # _hi_par_check_requires_eq <bin> <label> <want> <cmd...> - the _hi_expect_eq
 # arm of the same guard.
 function _hi_par_check_requires_eq() {

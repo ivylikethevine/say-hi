@@ -410,6 +410,78 @@ function test_ssh_reachable_fails_against_a_dead_port() {
   ! _hi_ssh_reachable 1 2>/dev/null
 }
 
+# --- _hi_real_path and the capability guards ---------------------------------
+#
+# The toolbox half matters more than it looks: a caller replaces $PATH outright
+# with what _hi_real_path returns, so a build that quietly produced nothing
+# leaves the case with no `sh`, `awk` or `sed` at all - and it fails in a way
+# that names none of that.
+
+function test_real_path_builds_a_usable_toolbox() {
+  local dir
+  dir="$(_hi_real_path caplinked sh awk)"
+  [ -x "$dir/sh" ] && [ -x "$dir/awk" ] &&
+    [ "$(PATH="$dir" sh -c 'echo built')" = built ]
+}
+
+# `ln` shadowed by a failing function is Git Bash without Developer Mode, where
+# the real one cannot make a link. The toolbox still has to work.
+function test_real_path_falls_back_to_a_wrapper_when_ln_fails() {
+  local dir
+  dir="$(
+    function ln() { return 1; }
+    _hi_real_path capfallback sh awk
+  )"
+  [ ! -L "$dir/sh" ] && [ -x "$dir/sh" ] && [ -x "$dir/awk" ] &&
+    [ "$(PATH="$dir" sh -c 'echo wrapped')" = wrapped ]
+}
+
+# and the build-once guard must not hand a later caller the empty directory a
+# failed build used to leave behind
+function test_real_path_never_caches_an_empty_toolbox() {
+  local first second
+  first="$(
+    function ln() { return 1; }
+    _hi_real_path capcached sh
+  )"
+  second="$(_hi_real_path capcached sh)"
+  [ "$first" = "$second" ] && [ -n "$(ls -A "$second")" ] &&
+    [ "$(PATH="$second" sh -c 'echo cached')" = cached ]
+}
+
+function test_check_capable_runs_the_predicate_when_able() {
+  local out
+  out="$(
+    _HI_CAP_SYMLINK=yes
+    _HI_SKIPPED=0
+    _HI_TOTAL=0
+    _hi_check_capable symlink "a case that must run" true
+    printf 'skipped=%s total=%s\n' "$_HI_SKIPPED" "$_HI_TOTAL"
+  )"
+  [[ "$out" == *"skipped=0 total=1"* ]]
+}
+
+# the predicate is `false` on purpose: a guard that ran it would fail the case
+# rather than skip it, so total=0 is what proves it never ran
+function test_check_capable_skips_when_the_capability_is_absent() {
+  local out
+  out="$(
+    _HI_CAP_SYMLINK=no
+    _HI_SKIPPED=0
+    _HI_TOTAL=0
+    _hi_check_capable symlink "a case that must not run" false
+    printf 'skipped=%s total=%s\n' "$_HI_SKIPPED" "$_HI_TOTAL"
+  )"
+  [[ "$out" == *SKIPPED* ]] && [[ "$out" == *"skipped=1 total=0"* ]]
+}
+
+# a typo in a capability name has to be a failure, not a silent stand-down
+function test_capable_rejects_an_unknown_capability() {
+  local rc=0
+  _hi_capable no-such-capability 2>/dev/null || rc=$?
+  [ "$rc" -eq 2 ]
+}
+
 function run_lib_process_tests() {
   _hi_workdir libprocesstest
 
@@ -470,8 +542,16 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_pty_wrap"
   _hi_check "Force wraps regardless of the fd" test_pty_wrap_force_wraps_even_on_a_tty
   _hi_check "Auto leaves a real tty alone" test_pty_wrap_auto_leaves_a_real_tty_alone
-  _hi_check_requires python3 "The wrapper really allocates a pty" test_pty_wrap_actually_allocates_a_pty
+  _hi_check_capable pty "The wrapper really allocates a pty" test_pty_wrap_actually_allocates_a_pty
   _hi_check "Resets between calls" test_pty_wrap_resets_between_calls
+
+  _hi_h2 "Testing: _hi_real_path / _hi_check_capable"
+  _hi_check "Builds a usable toolbox" test_real_path_builds_a_usable_toolbox
+  _hi_check "Falls back to a wrapper when ln fails" test_real_path_falls_back_to_a_wrapper_when_ln_fails
+  _hi_check "Never caches an empty toolbox" test_real_path_never_caches_an_empty_toolbox
+  _hi_check "Runs the predicate when able" test_check_capable_runs_the_predicate_when_able
+  _hi_check "Skips when the capability is absent" test_check_capable_skips_when_the_capability_is_absent
+  _hi_check "Rejects an unknown capability" test_capable_rejects_an_unknown_capability
 
   _hi_h2 "Testing: shared ssh fixtures"
   _hi_check "Ssh opts never touch the user's known_hosts" test_ssh_opts_never_touch_the_users_known_hosts

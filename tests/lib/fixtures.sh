@@ -62,6 +62,67 @@ function _hi_check_requires() {
   fi
 }
 
+# _hi_can_symlink - whether this filesystem makes real symbolic links, probed
+# once and remembered. Git Bash is the case that matters: `ln -s` on Windows
+# wants Developer Mode or administrator, so it fails outright and every case
+# whose *subject* is a symlink has nothing to say there. Probed lazily rather
+# than at source time - $_HI_WORKDIR does not exist until a suite calls
+# _hi_workdir, and this file is sourced long before that.
+_HI_CAP_SYMLINK=""
+function _hi_can_symlink() {
+  local probe
+  if [ -z "$_HI_CAP_SYMLINK" ]; then
+    # a private directory rather than a fixed name: the memo dies with a
+    # parallel case's subshell, so several cases can be probing at once
+    probe="$(mktemp -d "$_HI_WORKDIR/cap.symlink.XXXXXX")"
+    : >"$probe/target"
+    ln -s "$probe/target" "$probe/link" 2>/dev/null || :
+    if [ -L "$probe/link" ]; then _HI_CAP_SYMLINK=yes; else _HI_CAP_SYMLINK=no; fi
+    rm -rf "$probe"
+  fi
+  [ "$_HI_CAP_SYMLINK" = yes ]
+}
+
+# _hi_capable <capability> - whether this machine can do <capability> at all.
+# The roster, and the one place either guard below asks:
+#
+#   symlink - `ln -s` makes a real link. No on Git Bash without Developer Mode
+#             or administrator, where it fails outright or silently copies -
+#             which is why the probe tests `[ -L ]` and not `ln`'s exit code.
+#   pty     - python3 can allocate one. No on Windows: `pty` is Unix-only, so
+#             $_HI_PTY_FORCED (tests/lib/process.sh) is the honest answer where
+#             `command -v python3` is not.
+#
+# Exit 2 for a capability nobody defined, so a typo is a failing case rather
+# than a silently skipped one.
+function _hi_capable() {
+  case "$1" in
+  symlink) _hi_can_symlink ;;
+  pty) [ "${#_HI_PTY_FORCED[@]}" -gt 0 ] ;;
+  *)
+    _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
+    return 2
+    ;;
+  esac
+}
+
+# _hi_check_capable <capability> <label> <predicate...> - _hi_check, unless this
+# machine cannot do <capability>, in which case the case counts as SKIPPED.
+# _hi_check_requires' twin for a *facility* rather than a binary, because what
+# is missing is not something `command -v` can find. Same reason the guard
+# lives here and not in the case body: a `return 0` there would report a green
+# OK for a case that never ran.
+function _hi_check_capable() {
+  local cap="$1" rc=0
+  shift
+  _hi_capable "$cap" || rc=$?
+  case "$rc" in
+  0) _hi_check "$@" ;;
+  1) _hi_skip "$1" "no $cap" ;;
+  *) return 1 ;;
+  esac
+}
+
 # _hi_fake_path <name> <bin...> - a $_HI_WORKDIR/<name> directory of no-op
 # executables, printed - for suites that prove a resolution ladder
 # ("candidate X is missing, does it fall through to Y") against a PATH they
@@ -81,18 +142,34 @@ function _hi_fake_path() {
 }
 
 # _hi_real_path <name> <tool...> - the real-binary half of _hi_fake_path, same
-# build-once-per-name contract: a $_HI_WORKDIR/<name> directory of symlinks to
-# the named tools as this machine resolves them, printed. For suites that
-# replace $PATH outright and still need a few real tools on it. A tool the
-# machine doesn't have is skipped, so the caller's cases fail (or skip) on the
-# missing tool itself rather than on the toolbox build.
+# build-once-per-name contract: a $_HI_WORKDIR/<name> directory pointing at the
+# named tools as this machine resolves them, printed. For suites that replace
+# $PATH outright and still need a few real tools on it. A tool the machine
+# doesn't have is skipped, so the caller's cases fail (or skip) on the missing
+# tool itself rather than on the toolbox build.
+#
+# A symlink where the filesystem makes them, a `#!/bin/sh` exec wrapper where it
+# does not: MSYS's `ln -s` wants Developer Mode or administrator and fails
+# outright, and _hi_fake_path's shebang files next door are the proof a wrapper
+# is executable there where an empty chmod'd file is not. The `ln` result is
+# *checked* rather than trusted, which is the older bug this closes on every
+# platform: it used to be the tail of an `&&` list, so a failure neither aborted
+# nor reported, and the `[ ! -d ]` build-once guard then cached the empty
+# directory forever. A caller that splices an empty toolbox into $PATH has no
+# `sh`, `awk` or `sed` at all, so its cases fail in ways that look nothing like
+# the symlink that caused them.
 function _hi_real_path() {
-  local dir="$_HI_WORKDIR/$1" tool
+  local dir="$_HI_WORKDIR/$1" tool real
   shift
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     for tool in "$@"; do
-      command -v "$tool" >/dev/null 2>&1 && ln -sf "$(command -v "$tool")" "$dir/$tool"
+      real="$(command -v "$tool" 2>/dev/null)" || continue
+      [ -n "$real" ] || continue
+      ln -sf "$real" "$dir/$tool" 2>/dev/null || :
+      [ -e "$dir/$tool" ] && continue
+      printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$dir/$tool"
+      chmod +x "$dir/$tool"
     done
   fi
   printf '%s' "$dir"

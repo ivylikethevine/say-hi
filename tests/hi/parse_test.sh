@@ -382,14 +382,19 @@ function test_the_shell_tree_is_the_documented_order() {
 # as a process against two throwaway trees.
 #
 # _hi_subcmd_home builds the shape a *target* gets: common/, misc/, shells/,
-# load.sh and hi.sh symlinked in, and deliberately no scripts/, no tests/ and
+# load.sh and hi.sh copied in, and deliberately no scripts/, no tests/ and
 # no .git. That is the shape every one of these flags has to refuse by name,
 # and it is the reason $_HI_NO_CHECKOUT exists.
+#
+# Copied and not symlinked, which is both cheaper to explain and truer: a real
+# target unpacks the payload tar, so what it has are regular files. It also
+# needs no symlink, which a filesystem may not offer (`_hi_capable` in
+# tests/lib/fixtures.sh) - and these five cases have nothing to do with links.
 function _hi_subcmd_home() {
   local home="$_HI_WORKDIR/$1" f
   mkdir -p "$home/say-hi"
   for f in common misc shells load.sh hi.sh; do
-    ln -sfn "$_HI_ROOT/$f" "$home/say-hi/$f"
+    cp -R "$_HI_ROOT/$f" "$home/say-hi/$f"
   done
   printf '%s' "$home"
 }

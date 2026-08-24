@@ -126,9 +126,19 @@ function _hi_no_wrap_for_xterm() {
 # that bit during development: `printf %b` expands a literal backslash-033 typed
 # as an *argument* into a real ESC, which breaks straight out of the escape.
 # The emitter uses real bytes and `printf %s` for exactly this.
+#
+# The wrapped command is `true` and must not go back to being `echo`. What is
+# under test is the *body* the emitter builds out of argv, and `echo`'s
+# treatment of a backslash is unspecified by POSIX: bash-as-sh leaves `\033` as
+# text, while dash and macOS's /bin/sh expand it. With `echo` the wrapped
+# command's own stdout therefore injects a real ESC of its own, and the count
+# below reads 3 - on ubuntu and macOS, which is to say on both platforms CI
+# runs and neither of the ones a bash-as-sh developer box has. `true` writes
+# nothing and still puts the argument on the command line, which is all this
+# case ever needed.
 function _hi_body_survives_a_literal_escape_sequence() {
   local out
-  out="$(_hi_notify -- echo 'x\033]9;pwned\a')"
+  out="$(_hi_notify -- true 'x\033]9;pwned\a')"
   # one ESC per escape, and no more: the argument's backslashes stay text
   [ "$(printf '%s' "$out" | tr -cd "$_HI_ESC" | wc -c)" -eq 2 ] || return 1
   case "$out" in *'\033]9;pwned\a'*) return 0 ;; esac

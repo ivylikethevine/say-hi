@@ -327,9 +327,16 @@ function test_overlay_is_well_under_one_block() {
 # /usr/bin/tar is built on, so this reproduces the client the bug belonged to
 # without a macOS runner.
 function _hi_bsdtar_shim() {
-  local shim="$_HI_WORKDIR/bsdtar-shim"
+  local shim="$_HI_WORKDIR/bsdtar-shim" real
+  real="$(command -v bsdtar 2>/dev/null)" || return 1
   mkdir -p "$shim"
-  ln -sf "$(command -v bsdtar)" "$shim/tar" 2>/dev/null || return 1
+  # a link where the filesystem makes them, an exec wrapper where it does not -
+  # _hi_real_path's rule, for the same reason (tests/lib/fixtures.sh)
+  ln -sf "$real" "$shim/tar" 2>/dev/null || :
+  [ -e "$shim/tar" ] || {
+    printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$shim/tar"
+    chmod +x "$shim/tar"
+  }
   printf '%s' "$shim"
 }
 
@@ -504,7 +511,7 @@ function run_hi_payload_tests() {
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
   _hi_check "the user's personal.sh rides the stream" test_overlay_tar_carries_personal
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
-  _hi_check "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
+  _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
 
   _hi_h2 "Testing: block padding (BSD tar)"

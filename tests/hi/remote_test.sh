@@ -29,6 +29,21 @@ source "$_HI_LAUNCHER"
 # scripts/install.sh wrote into a login rc - which is why each fixture writes
 # one rather than relying on the tree being findable.
 
+# _hi_probe_tree <dir> - the two files _hi_remote_root_probe looks for, at
+# <dir>: an executable hi.sh and a common/paths.sh. The launcher gets a real
+# `#!/bin/sh` line rather than being an empty file, because MSYS answers
+# access(X_OK) from a file's magic or extension unless the mount carries `acl`
+# - so `chmod +x` on an empty file does not stick there, the probe's
+# `[ -x "$_h/say-hi/hi.sh" ]` (hi.sh) correctly answers "nothing installed",
+# and every case in this suite fails against a fixture that cannot say what it
+# means to say. The shebang costs nothing anywhere else.
+function _hi_probe_tree() {
+  mkdir -p "$1/common"
+  printf '#!/bin/sh\n' >"$1/hi.sh"
+  chmod +x "$1/hi.sh"
+  : >"$1/common/paths.sh"
+}
+
 # _hi_probe_home <name> <tree-parent-relative-path> - a fake $HOME under
 # $_HI_WORKDIR/<name> holding a tree at <path>/say-hi, printed. No rc line: the
 # cases that want one add it themselves, so "an installed tree nothing points
@@ -36,10 +51,8 @@ source "$_HI_LAUNCHER"
 function _hi_probe_home() {
   local home="$_HI_WORKDIR/$1" tree="$_HI_WORKDIR/$1/${2#/}" name="say-hi"
   rm -rf "$home"
-  mkdir -p "$tree/$name/common" "$home/.config/fish"
-  : >"$tree/$name/hi.sh"
-  chmod +x "$tree/$name/hi.sh"
-  : >"$tree/$name/common/paths.sh"
+  mkdir -p "$home/.config/fish"
+  _hi_probe_tree "$tree/$name"
   printf '%s' "$home"
 }
 
@@ -115,10 +128,7 @@ function test_remote_probe_reads_the_standard_install_prefixes() {
 function test_remote_probe_prefers_home_over_an_install_prefix() {
   local home
   home="$(_hi_probe_home probe_precedence .)"
-  mkdir -p "$home/.local/share/say-hi/common"
-  : >"$home/.local/share/say-hi/hi.sh"
-  chmod +x "$home/.local/share/say-hi/hi.sh"
-  : >"$home/.local/share/say-hi/common/paths.sh"
+  _hi_probe_tree "$home/.local/share/say-hi"
   [ "$(_hi_probe_answer "$home")" = "$home/say-hi" ]
 }
 
