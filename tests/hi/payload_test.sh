@@ -60,8 +60,32 @@ function test_payload_ships_everything_by_default() {
     return 1
     ;;
   esac
+  case "$listing" in *say-hi/shells/osc52.sh*) ;; *)
+    _hi_cecho " | a default client did not ship shells/osc52.sh" "$RED"
+    return 1
+    ;;
+  esac
+  case "$listing" in *say-hi/shells/notify.sh*) return 0 ;; esac
+  _hi_cecho " | a default client did not ship shells/notify.sh" "$RED"
+  return 1
+}
+
+# The notification emitter is the second file a toggle takes off the wire, on
+# shells/osc52.sh's precedent: a client that never wants hi_notify pays nothing
+# for it. Same shape as the editors case above - the file goes, the tree stays.
+function test_payload_trims_the_notifier() {
+  local dir="$_HI_WORKDIR/nonotify" listing
+  mkdir -p "$dir"
+  printf "#!/bin/sh\nexport _HI_DISABLE_NOTIFY='1'\n" >"$dir/settings.sh"
+  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
+  case "$listing" in *say-hi/shells/notify.sh*)
+    _hi_cecho " | _HI_DISABLE_NOTIFY=1 still shipped shells/notify.sh" "$RED"
+    return 1
+    ;;
+  esac
+  # the sibling emitter is not collateral: the two toggles are independent
   case "$listing" in *say-hi/shells/osc52.sh*) return 0 ;; esac
-  _hi_cecho " | a default client did not ship shells/osc52.sh" "$RED"
+  _hi_cecho " | _HI_DISABLE_NOTIFY=1 took shells/osc52.sh with it" "$RED"
   return 1
 }
 
@@ -359,6 +383,7 @@ function run_hi_payload_tests() {
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "The toggle trims personal.sh and keeps aliases.sh" test_payload_trims_personal_but_keeps_aliases
+  _hi_check "_HI_DISABLE_NOTIFY trims notify.sh only" test_payload_trims_the_notifier
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments

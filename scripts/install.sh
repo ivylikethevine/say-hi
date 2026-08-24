@@ -392,6 +392,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_EDITORS|1|_hi_editors_preview| Enable the vim/nano config overrides?"
   "_HI_DISABLE_ALIASES|1|_hi_aliases_preview| Enable the personal aliases in misc/aliases.sh (sudo, cat/eza, git, docker, pacman/apt, etc)?"
   "_HI_DISABLE_OSC52|1|_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?"
+  "_HI_DISABLE_NOTIFY|1|| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?"
   "_HI_DISABLE_LOCAL|1|| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?"
 )
 

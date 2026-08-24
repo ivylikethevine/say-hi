@@ -33,13 +33,14 @@ used. `hi --configure` writes your answers to `~/.config/say-hi/settings.sh`,
 which every shell sources ahead of `common/paths.sh` - a plain `#!/bin/sh` script of
 `export NAME=value` lines, valid in sh, bash, zsh and fish alike. You never have
 to use `hi --configure`: exporting any of these by hand works just as well, and
-takes precedence for that shell. The one exception is marked read-only in its
-row: `common/paths.sh` derives it on every source, so an exported value never
-lasts.
+takes precedence for that shell. [Every setting](#every-setting) is the roster
+of what those names are; the exceptions - the handful `common/paths.sh` derives
+on every source, so an exported value never lasts - are named under it.
 
 ## Contents
 
 - [How it works](#how-it-works)
+- [Every setting](#every-setting)
 - [Features](#features)
 - [Colors](#colors)
 - [Two sessions to the same host](#two-sessions-to-the-same-host)
@@ -63,8 +64,8 @@ lasts.
    verbatim when you need to read the real source on a target.
 3. That assembled script is what `hi` prints the size of on connect, and what
    the payload badge measures — for a _default_ configuration, since a client
-   whose overlay turns off the editor overrides or the OSC 52 clipboard sends
-   less. Read it as the per-session wire cost, not as the package badge beside
+   whose overlay turns off the editor overrides, the OSC 52 clipboard or
+   `hi_notify` sends less. Read it as the per-session wire cost, not as the package badge beside
    it: that one is what a release downloads and what it occupies on disk, which
    is the larger figure, `scripts/` and the docs shipping in a package and
    never over the wire.
@@ -93,6 +94,84 @@ default keg prefixes, which is what finds a `brew install`ed target that never
 had its shells wired up. A tree installed anywhere is still found and reused.
 `hi --doctor` prints the wire size and the unpacked size, labeled.
 
+## Every setting
+
+The tables further down explain what each setting _does_, and each is organised
+around what it turns off. This one answers the other question - "what am I
+allowed to put in `settings.sh`?" - by naming the whole vocabulary in one place,
+in the order `hi --configure` asks for it. It is the index; the sections it
+links to are the explanations.
+
+The **set by** column says what a name is _for_:
+
+- **you** - supported surface, and nothing asks you about it: export it, or
+  write an `export` line into `settings.sh` by hand.
+- **`hi --configure`** - the same, with a question attached. These are the only
+  variables the wizard writes, so the column doubles as the list of what it can
+  round-trip.
+- **hi** - hi's own, listed because a `settings.sh` _can_ set it and something
+  will happen, not because you should. hi sets these per session, from the
+  client; overriding one is telling the target something untrue about where it
+  is.
+
+`common/core.sh`'s `_HI_TOGGLES` is checked against this table by the fast
+group, so a tenth toggle cannot land without a row here.
+
+| variable                     | default                     | set by           | what it does                                                                                  |
+| ---------------------------- | --------------------------- | ---------------- | --------------------------------------------------------------------------------------------- |
+| `_HI_DISABLE_HEADER`         | `0`                         | `hi --configure` | [Features](#features) - the whole connect/disconnect header                                   |
+| `_HI_DISABLE_PROMPT`         | `0`                         | `hi --configure` | [Features](#features) - the colored `user@host` prompt                                        |
+| `_HI_DISABLE_PERSONAL`       | `0`                         | `hi --configure` | [Features](#features) - personal shell settings                                               |
+| `_HI_DISABLE_GIT_STATUS`     | `0`                         | `hi --configure` | [Features](#features) - the git segment in the prompt                                         |
+| `_HI_DISABLE_EDITORS`        | `0`                         | `hi --configure` | [Features](#features) - the `vim`/`nano` config overrides                                     |
+| `_HI_DISABLE_ALIASES`        | `0`                         | `hi --configure` | [Features](#features) - the personal aliases in `misc/personal.sh`                            |
+| `_HI_DISABLE_OSC52`          | `0`                         | `hi --configure` | [Features](#features) - the OSC 52 clipboard                                                  |
+| `_HI_DISABLE_NOTIFY`         | `0`                         | `hi --configure` | [Features](#features) - the `hi_notify` desktop-notification alias                            |
+| `_HI_DISABLE_LOCAL`          | `0`                         | `hi --configure` | [Features](#features) - all of the above, on this machine only                                |
+| `_HI_REMOTE_SESSION`         | `0`                         | hi               | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote    |
+| `_HI_HEADER_BANNER`          | `1`                         | `hi --configure` | [Header details](#header-details) - the `~~~ Connected ~~~` line                              |
+| `_HI_HEADER_TIMESTAMP`       | `1`                         | `hi --configure` | [Header details](#header-details) - the date/time line                                        |
+| `_HI_HEADER_SYSINFO`         | `1`                         | `hi --configure` | [Header details](#header-details) - the OS/CPU/RAM line                                       |
+| `_HI_HEADER_IDENTITY`        | `1`                         | `hi --configure` | [Header details](#header-details) - the git identity/containers/ssh key line                  |
+| `_HI_HEADER_CHECK`           | `1`                         | `hi --configure` | [Header details](#header-details) - the installed-packages check                              |
+| `_HI_HEADER_GHZ`             | `0`                         | you              | [Everything else](#everything-else) - GHz instead of MHz on the CPU line                      |
+| `_HI_PACKAGES_MIN_PRIORITY`  | `1`                         | `hi --configure` | [Everything else](#everything-else) - how far down `misc/packages` the check reports          |
+| `_HI_MAX_WIDTH`              | `80`                        | `hi --configure` | [Everything else](#everything-else) - columns the header and banner are drawn to              |
+| `_HI_PROMPT`                 | unset                       | you              | [Everything else](#everything-else) - `starship` hands the prompt to starship                 |
+| `_HI_PROMPT_END`             | per shell                   | you              | [Everything else](#everything-else) - one prompt separator for every shell                    |
+| `_HI_PROMPT_END_BASH`        | `\$`                        | `hi --configure` | [Everything else](#everything-else) - bash's separator; wins over `_HI_PROMPT_END`            |
+| `_HI_PROMPT_END_ZSH`         | `>`                         | `hi --configure` | [Everything else](#everything-else) - zsh's separator                                         |
+| `_HI_PROMPT_END_FISH`        | `\|`                        | `hi --configure` | [Everything else](#everything-else) - fish's separator                                        |
+| `_HI_PROMPT_END_SH`          | `\$`                        | you              | the separator on a bash-less target, where hi bakes a plain `sh` prompt on the client         |
+| `_HI_SHELL_PREFERENCE`       | `login` + `$_HI_SHELL_TREE` | you              | [Everything else](#everything-else) - which shell a session runs in                           |
+| `_HI_TERM_FALLBACK`          | `1`                         | you              | [Everything else](#everything-else) - swap an unknown `TERM` for `xterm-256color`             |
+| `_HI_ASCII`                  | by locale                   | you              | [Everything else](#everything-else) - force ASCII stand-ins (`1`) or glyphs (`0`)             |
+| `NO_COLOR`                   | unset                       | you              | [Everything else](#everything-else) - not hi's variable; any non-empty value drops color      |
+| `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                         | you              | [Everything else](#everything-else) - fish only: give every alias a real `abbr`               |
+| `_HI_KEEP_COMMENTS`          | `0`                         | you              | `1` ships the tree verbatim rather than comment-stripped, for reading real source on a target |
+| `_HI_TARGETS_TTL`            | `5`                         | you              | [Everything else](#everything-else) - seconds `hi <TAB>` reuses its target list for           |
+| `_HI_PROBE_TIMEOUT`          | `2`                         | you              | [Everything else](#everything-else) - seconds any one backend CLI gets                        |
+| `_HI_TARGET`                 | -                           | hi               | the target as you typed it on the client                                                      |
+| `_HI_TARGET_COLOR`           | -                           | hi               | the color that target resolved to, decided on the client so it matches everywhere             |
+| `_HI_TARGET_TAG`             | -                           | hi               | the target's `# Tags:` value out of your `~/.ssh/config`                                      |
+| `_HI_LOCAL_USER`             | -                           | hi               | who you are on the client, for the header's "from" half                                       |
+| `_HI_LOCAL_HOSTNAME`         | -                           | hi               | where you came from, likewise                                                                 |
+| `_HI_RELEASE`                | -                           | hi               | the client's version, so a session says which say-hi it is running                            |
+
+### Not settings
+
+Four more names look like settings and are not. `$_HI_CONFIG_DIR` and
+`$_HI_HOME` are read **before** `settings.sh` is sourced - `common/core.sh`
+needs the first to find the file at all - so a line in that file is too late for
+either; export them in your environment instead, which is what `hi.sh` and
+`install.sh`'s rc line do. `$_HI_ROOT` and `$_HI_SSH_CONFIG` are derived from
+those two by `common/paths.sh` on every source, so an exported value does not
+survive; point `$_HI_HOME` or `$HOME` somewhere else if you need them elsewhere.
+
+Everything else beginning `_HI_` is internal state - glyph sets, color escapes,
+completion caches, the shell and rc rosters - named that way to stay out of your
+namespace, not to be set.
+
 ## Features
 
 Each is **on by default**; set it to `1` to turn that piece off.
@@ -106,6 +185,7 @@ Each is **on by default**; set it to `1` to turn that piece off.
 | `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                                                                                     |
 | `_HI_DISABLE_ALIASES`    | the personal aliases in `misc/personal.sh` - not the editor and `hi_copy` aliases `misc/aliases.sh` installs, which are the product. Setting it also keeps `personal.sh` off the ssh payload entirely |
 | `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                                                                                         |
+| `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Setting it also keeps `shells/notify.sh` off the ssh payload entirely                                                          |
 | `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                       |
 
 ## Header details
@@ -139,6 +219,26 @@ local. Terminal support varies (tmux needs `set -g allow-passthrough on`; zellij
 handles OSC 52 itself, so under `$ZELLIJ` the escape goes through raw and
 unwrapped), which is why it's a toggle like everything else; `shells/osc52.sh`
 is the whole implementation if you want to read what gets emitted.
+
+`_HI_DISABLE_NOTIFY` turns off the other feature that reaches back through the
+connection, and works the same way. `hi_notify <command>` runs the command on
+the target, then writes an
+[OSC 9](https://iterm2.com/documentation-escape-codes.html) escape (and iTerm2's
+older OSC 777 spelling of it) to the tty, so **your** terminal emulator raises
+the notification - a long build finishing behind a switched-away window says so
+without anything being installed on the host. The body is the command line and
+whether it succeeded, and `hi_notify` exits with the command's own status, so it
+drops into a pipeline or a `&&` chain unchanged.
+
+It is opt-in per invocation on purpose, never a hook on the prompt: a
+notification after every command is noise rather than signal, which is the same
+reason `hi_copy` is opt-in per yank. Both escapes go out because which one a
+client understands is not knowable from a target - `$TERM_PROGRAM` does not
+cross an ssh connection the way `$TERM` does - so an emulator that implements
+both will show the notification twice. Multiplexer support is the same open
+question OSC 52 lives with, handled by the same rule: tmux needs passthrough
+allowed, and under `$ZELLIJ` the escape goes out raw.
+`shells/notify.sh` is the whole implementation.
 
 ## Colors
 

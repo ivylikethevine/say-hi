@@ -20,11 +20,24 @@ user's shell any more:
   landed on `main`, so it is a `git pull` away from being current — whether it
   has pulled is not this checkout's business either way.
 
-The hazard is no longer a login profile: the rc wiring was removed on purpose,
-and nothing on disk exports `_HI_*` any more — not `.bashrc`, `.zshrc`,
-`config.fish`, `/etc/profile.d/`, nor `/etc/environment`. What remains is
-**inherited process state**. A long-lived shell started back when `~/hi.d`
-existed still carries a full `_HI_*` set (`_HI_HOME=/home/ivy`,
+There are two hazards, and the first one this file used to deny.
+
+**The rc wiring is still on disk.** `~/.bashrc`, `~/.zshrc` and
+`~/.config/fish/config.fish` each still carry hi's install block —
+`_HI_HOME=/home/ivy/projects` plus a `source` of that tree — so the claim that
+nothing on disk exports `_HI_*` was wrong (`/etc/profile.d/` and
+`/etc/environment` really are clean). It bites exactly one shell, which is why
+it went unnoticed: `bash -c` and `zsh -c` are non-interactive and read neither
+file, but **`fish -c` reads `config.fish` always**, so a bare `fish -c` runs
+against `~/projects/say-hi` no matter what `_HI_HOME` you exported — silently,
+against a tree that exists, with no error to read. The suites dodge it by
+accident of `tests/test_lib.sh`'s `XDG_CONFIG_HOME` isolation, which moves
+fish's config out of reach; a fish command typed by hand gets no such help. Set
+`XDG_CONFIG_HOME` to a throwaway directory when checking anything in fish
+outside the runner.
+
+**The second is inherited process state.** A long-lived shell started back when
+`~/hi.d` existed still carries a full `_HI_*` set (`_HI_HOME=/home/ivy`,
 `_HI_ROOT=/home/ivy/hi.d`, `_HI_TEST_LIB=/home/ivy/hi.d/tests/test_lib.sh`,
 ~50 more) and hands it to every child, agent sessions included. Those paths
 point at a tree that no longer exists, so the runner dies at its `source` line
@@ -36,8 +49,8 @@ with a bare `No such file or directory` naming a path nobody typed — before
 unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
 ```
 
-In a shell with no `_HI_*` set, no override is needed at all — every entry
-point derives the tree from its own path (GLOSSARY: HI.33), and
+In a bash or zsh shell with no `_HI_*` set, no override is needed at all — every
+entry point derives the tree from its own path (GLOSSARY: HI.33), and
 `tests/test_runner.sh <suite>` just works.
 
 **`_HI_HOME` alone is not enough to run one suite directly.** An inherited
@@ -66,7 +79,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 - Run the suite at the **end** of a multi-step change, not between its steps.
   A structural refactor breaks loudly at source time, and each run costs ~2
   minutes — twice through a six-step change buys nothing the last run doesn't.
-- The layout rule, the lint gate's nine halves, and the coverage caveat are
+- The layout rule, the lint gate's ten halves, and the coverage caveat are
   [docs/TESTING.md](docs/TESTING.md)'s job — read it rather than this file for
   those. The two that bite a session most often: a suite lives in
   `tests/<the directory it tests>/` and sources the `tests/test_lib.sh` façade
@@ -78,8 +91,10 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   diff touches `.github/workflows/*.yml` (`runner_test.sh` checks that every
   `--group` name `ci.yml` invokes exists; `packaging_test.sh` asserts against
   `release.yml` and scans every workflow for its `tool:` pins),
-  `docs/GLOSSARY.md` (drift-checked against the tree's `GLOSSARY:` tags by
-  `tests/lint/shellcheck_test.sh`), or `packaging/nfpm/nfpm.yaml`. `README.md`'s
+  `docs/GLOSSARY.md` (drift-checked against the tree's `GLOSSARY:` tags) or
+  `docs/CONFIGURATION.md` (whose _Every setting_ table is drift-checked against
+  `_HI_TOGGLES` and `install.sh`'s prompt rosters) — both by
+  `tests/lint/shellcheck_test.sh` — or `packaging/nfpm/nfpm.yaml`. `README.md`'s
   payload badge is read by `bench_test.sh` — `--group bench`, not fast.
 - `_HI_PAR_WIDTH=1` puts a parallel container suite back on one case at a
   time, and `_HI_SC_WIDTH=1` does the same for the lint fan-out — reach for
@@ -107,7 +122,8 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   actually sends, which is what `hi` prints on connect — to within 5%. They
   move independently: putting a file _into_ the tar raises the first and
   lowers the second. Both measure a **default** configuration - `_hi_payload_tar`
-  trims `misc/vim.rc`, `misc/nano.rc`, `shells/osc52.sh` and `misc/personal.sh`
+  trims `misc/vim.rc`, `misc/nano.rc`, `shells/osc52.sh`, `shells/notify.sh`
+  and `misc/personal.sh`
   when the overlay has turned them off, so a configured client sends less than
   either number. Tooling-only helpers must not go into `common/core.sh`; check
   both numbers when touching shipped files.

@@ -252,7 +252,7 @@ release path uses are SHA-pinned separately.
 
 ## The lint gate
 
-`tests/test_runner.sh shellcheck` is one suite with nine halves, and CI runs all
+`tests/test_runner.sh shellcheck` is one suite with ten halves, and CI runs all
 of them:
 
 1. **shellcheck** over every `*.sh` (CI pins the version - see
@@ -282,12 +282,22 @@ of them:
    shipped file. Matched anywhere on a line, so a mid-sentence
    `(GLOSSARY: HI.33)` counts; keep the code on the same line as the marker,
    since a reference wrapped onto the next comment line is not seen.
-8. **tests/dockerfiles/**: every image definition has a caller and every caller
+8. **The settings roster**: every name the tree treats as a setting - the
+   `_HI_TOGGLES` array in `common/core.sh`, and the variable column of
+   `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS` - has
+   to have a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_
+   table, and every row there has to name a variable the tree still reads. Only
+   that one section is matched, not the whole document: the point of the table
+   is that "what can I set?" is answerable from one place, which a name
+   mentioned in passing three sections away does not achieve. A name hi
+   assembles at run time (`_HI_PROMPT_END_$SHELL`) is matched by its literal
+   prefix, since it never appears whole.
+9. **tests/dockerfiles/**: every image definition has a caller and every caller
    has an image definition - see above.
-9. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
-   as a plain tag in shell or YAML has to agree with the digest-pinned version
-   in `tests/dockerfiles`. Dependabot bumps the Dockerfile digests and cannot
-   see the rest; this is what makes them follow.
+10. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
+    as a plain tag in shell or YAML has to agree with the digest-pinned version
+    in `tests/dockerfiles`. Dependabot bumps the Dockerfile digests and cannot
+    see the rest; this is what makes them follow.
 
 Halves 5 and 6 skip yellow when the tool isn't installed locally; CI always
 enforces them.

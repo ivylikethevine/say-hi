@@ -48,6 +48,39 @@ Everything else about the runner — the groups, `--skip`, the parallel containe
 cases, why the coverage figures are not to be trusted — is in
 [docs/TESTING.md](TESTING.md).
 
+### Don't reach for `act`
+
+[act](https://github.com/nektos/act) runs a workflow locally in a container,
+and it is **not** the recommended way to check a change here. That is a
+measurement against this tree, not a guess: `act -j test` — the job that runs
+the gate — reports **six failures a real runner does not**, because act's
+container runs everything as root and six fast-group cases assert non-root
+behaviour. Five are the fish prompt-separator cases in
+`tests/shells/rc_test.sh` (fish gives root `#` whatever the separator says) and
+the sixth is `install: Degrades when sudo can't link`. A contributor who
+followed that into a red run would be debugging the container, not their diff.
+
+Running the container as a normal user does not rescue it. `runner.environment`
+is **empty** under act — neither `github-hosted` nor `self-hosted` — so the
+`Reclaim the workspace` step that every self-hosted job opens with fires, and
+under `--container-options "--user 1000"` the job dies right there: that image
+has no passwordless sudo for a non-root user.
+
+`tests/test_runner.sh --group fast` is the same gate with none of that. It is
+exactly what `ci.yml`'s `test` job runs, and it needs no container at all.
+
+If you want a workflow run anyway, three jobs are green under act — `actionlint`,
+`hadolint` and `markdownlint (advisory)` — and all three are linters you can
+also just run directly. `zizmor` fails: act leaves `github.token` empty and
+zizmor refuses an empty one. `test-macos`, `e2e (macOS)` and `e2e (Windows)`
+have no container to run in at all, and `bench`, `packaging-smoke` and the two
+`e2e` jobs want the Docker socket and the self-hosted workspace. Measured with
+act 0.2.89:
+
+```sh
+act -W .github/workflows/ci.yml -j actionlint -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
 ## What a review will bounce on
 
 These are the constraints the tree enforces rather than requests:
@@ -85,11 +118,17 @@ Nothing here has a docs-only counterpart that can be skipped:
 | you changed                           | update                                        |
 | ------------------------------------- | --------------------------------------------- |
 | a flag, or `_hi_parse`                | `docs/hi.1` and `docs/tldr.md`                |
-| an environment variable or toggle     | `docs/CONFIGURATION.md`                       |
+| an environment variable or toggle     | `docs/CONFIGURATION.md` (enforced, see below) |
 | what hi leaves on a target            | `docs/SECURITY.md`                            |
 | a target hi does or doesn't answer to | `docs/SUPPORTED.md`, or `docs/UNSUPPORTED.md` |
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag  |
 | a release channel or the release flow | `docs/PACKAGING.md`                           |
+
+Two of those rows are checked rather than requested, both by the lint suite in
+the fast group: a `GLOSSARY:` tag naming an entry that does not exist fails, and
+so does a toggle in `common/core.sh` with no row in
+[CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table. The rest are on
+your honour and on review.
 
 `docs/ROADMAP.md` is a to-do list, not a changelog: finishing an entry means
 **deleting** it, since git history is the ledger.

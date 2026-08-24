@@ -227,26 +227,27 @@ AWK
 # toggle turns off the *personal* aliases, while the same file installs the
 # vim/nano and hi_copy aliases and fish's toggle backstop above its own
 # early return. Dropping it would take those too - a behaviour change wearing a
-# size saving's clothes. The two that are trimmed are safe because every
-# consumer of shells/osc52.sh tests the file exists first (misc/aliases.sh's
-# `[ -f ]`, misc/vim.rc's `filereadable`), and the editor rc files are reached
-# only through aliases the same toggle switches off.
+# size saving's clothes. The emitters that are trimmed are safe because every
+# consumer of shells/osc52.sh and shells/notify.sh tests the file exists first
+# (misc/aliases.sh's `[ -f ]`, misc/vim.rc's `filereadable`), and the editor rc
+# files are reached only through aliases the same toggle switches off.
 #
 # Both budgets - bench_payload_size's gzipped ceiling and README's wire badge -
 # measure a *default* configuration; a client with toggles off sends less, and
 # every shell file is comment-stripped on the way in (GLOSSARY: HI.35).
 function _hi_payload_tar() {
   local -a excl=()
-  # One pass over settings.sh for all three toggles, rather than three
+  # One pass over settings.sh for all four toggles, rather than four
   # _hi_overlay_toggle subshells re-parsing it. Last assignment wins, which is
   # what that helper's `tail -1` does.
-  local _hi_ed=0 _hi_osc=0 _hi_al=0 _hi_kv
+  local _hi_ed=0 _hi_osc=0 _hi_al=0 _hi_nt=0 _hi_kv
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
     while IFS= read -r _hi_kv || [ -n "$_hi_kv" ]; do
       case $_hi_kv in
       _HI_DISABLE_EDITORS=*) _hi_ed="${_hi_kv#*=}" ;;
       _HI_DISABLE_OSC52=*) _hi_osc="${_hi_kv#*=}" ;;
       _HI_DISABLE_ALIASES=*) _hi_al="${_hi_kv#*=}" ;;
+      _HI_DISABLE_NOTIFY=*) _hi_nt="${_hi_kv#*=}" ;;
       esac
     done < <(sed -n "s/^export \(_HI_DISABLE_[A-Z0-9_]*\)='\(.*\)'\$/\1=\2/p" "$_HI_CONFIG_DIR/settings.sh")
   fi
@@ -255,6 +256,9 @@ function _hi_payload_tar() {
   fi
   if [ "$_hi_osc" = 1 ]; then
     excl+=(--exclude=say-hi/shells/osc52.sh)
+  fi
+  if [ "$_hi_nt" = 1 ]; then
+    excl+=(--exclude=say-hi/shells/notify.sh)
   fi
   # the personal half only - see above for why misc/aliases.sh always ships
   if [ "$_hi_al" = 1 ]; then

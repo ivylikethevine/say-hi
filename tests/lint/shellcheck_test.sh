@@ -384,6 +384,80 @@ function lint_glossary_tags() {
   return "$bad"
 }
 
+# The vocabulary a `settings.sh` may use has to be written down where a user
+# looks for it, and the tree is where it actually lives - in three places, at
+# that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
+# `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS` are the
+# questions `hi --configure` asks and the lines it writes. A name goes into any
+# of the three without a thought for the docs, which is how "what can I set?"
+# stopped being answerable from one place; this is what makes CONFIGURATION.md's
+# roster derived rather than hand-kept.
+#
+# Only the `## Every setting` section counts, not every backticked `_HI_` name
+# in the file. The point of the entry is one table, and matching the whole
+# document would go green on a name mentioned in passing three sections away -
+# which is the state this check exists to end.
+function lint_settings_table() {
+  local doc="$_HI_ROOT/docs/CONFIGURATION.md"
+  local documented names name bad=0
+  _hi_h2 "Checking hi's settings against docs/CONFIGURATION.md"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  documented="$(_hi_settings_documented "$doc")"
+  _hi_read_lines names < <(_hi_settings_roster)
+  for name in "${names[@]}"; do
+    [ -n "$name" ] || continue
+    case "$documented" in *"|$name|"*) continue ;; esac
+    _hi_align " | $name is a setting with no row in '## Every setting'" "FAILED" "$RED"
+    _hi_note_failure "settings table: $name undocumented"
+    bad=$((bad + 1))
+  done
+  [ "$bad" -eq 0 ] && _hi_align " | every setting the tree defines has a row" "OK" "$GREEN"
+
+  # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
+  # a row for a variable nothing reads any more. Names hi assembles at run time
+  # never appear whole in the tree - core.sh reads `_HI_PROMPT_END_$1` through
+  # an eval - so a miss retries against the literal prefix up to the last `_`
+  # before it is called a failure.
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  local tree stale=0 stem
+  tree="$(grep -rhoE '_HI_[A-Z0-9_]+' "$_HI_ROOT/common" "$_HI_ROOT/misc" \
+    "$_HI_ROOT/shells" "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    2>/dev/null | sort -u)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    case "$tree" in *"$name"$'\n'* | *"$name") continue ;; esac
+    stem="${name%_*}_"
+    case "$tree" in *"$stem"*) continue ;; esac
+    _hi_align " | $name has a row but nothing in the tree reads it" "FAILED" "$RED"
+    _hi_note_failure "settings table: $name unread"
+    stale=$((stale + 1))
+  done <<<"$(printf '%s' "$documented" | tr '|' '\n')"
+  [ "$stale" -eq 0 ] && _hi_align " | every row names a variable the tree reads" "OK" "$GREEN"
+  bad=$((bad + stale))
+  return "$bad"
+}
+
+# The `_HI_` names of the `## Every setting` table, `|`-delimited with a leading
+# and trailing one so a `*"|$name|"*` match cannot succeed on a prefix.
+function _hi_settings_documented() {
+  # shellcheck disable=SC2016 # \1 is sed's backref and `|$` its anchor, not shell
+  printf '|%s|' "$(awk '/^## /{inside = ($0 == "## Every setting")} inside' "$1" |
+    sed -n 's/^| *`\(_HI_[A-Z0-9_]*\)`.*/\1/p' | sort -u | tr '\n' '|' | sed 's/|$//')"
+}
+
+# Every name the tree treats as a setting: core.sh's toggle roster, plus the
+# variable column of install.sh's two `<var>|<off>|<preview>|<question>` tables.
+# `sort -u` because the two overlap almost entirely - without it a toggle that
+# is also a `hi --configure` question is reported missing twice.
+function _hi_settings_roster() {
+  {
+    sed -n '/^  _HI_TOGGLES=(/,/)$/p' "$_HI_ROOT/common/core.sh" |
+      grep -oE '_HI_[A-Z0-9_]+' | grep -v '^_HI_TOGGLES$'
+    sed -n '/^_HI_FEATURE_PROMPTS=(/,/^)$/p;/^_HI_HEADER_PROMPTS=(/,/^)$/p' \
+      "$_HI_ROOT/scripts/install.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
+  } | sort -u
+}
+
 # The image definitions moved out of the suites into tests/dockerfiles/, which
 # bought readable files and cost the one thing a heredoc could not get wrong: a
 # Dockerfile written inline is referenced by construction. A checked-in one can
@@ -637,7 +711,8 @@ function run_shellcheck() {
   # order. Seeded with the shellcheck count from above.
   _HI_LINT_FAILED=$_HI_SC_FAILED
   for _hi_lint_half in lint_native lint_bash32 lint_home_default lint_shfmt \
-    lint_checkbashisms lint_glossary_tags lint_dockerfiles lint_image_tags; do
+    lint_checkbashisms lint_glossary_tags lint_settings_table \
+    lint_dockerfiles lint_image_tags; do
     "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
   done
   unset _hi_lint_half

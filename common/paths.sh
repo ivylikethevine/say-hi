@@ -35,6 +35,7 @@ export _HI_NANORC="$_HI_ROOT/misc/nano.rc"
 export _HI_THEME_DIR="$_HI_ROOT/misc"
 export _HI_ALIASES="$_HI_ROOT/misc/aliases.sh"
 export _HI_OSC52="$_HI_ROOT/shells/osc52.sh"
+export _HI_NOTIFY="$_HI_ROOT/shells/notify.sh"
 export _HI_BASHRC="$_HI_ROOT/shells/bash.sh"
 export _HI_ZSHRC="$_HI_ROOT/shells/zsh.zsh"
 export _HI_FISH_CONFIG="$_HI_ROOT/shells/config.fish"
@@ -88,4 +89,5 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_EDITORS=1
   export _HI_DISABLE_ALIASES=1
   export _HI_DISABLE_OSC52=1
+  export _HI_DISABLE_NOTIFY=1
 } || true
