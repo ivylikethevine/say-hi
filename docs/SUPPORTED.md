@@ -52,9 +52,10 @@ as>|<liveness probe>|<predicate>`. One list, walked by the dispatch and by
 
 Then the part that is paid by everyone else. `_hi_resolve_backend` runs
 **every** predicate, in parallel, on every `hi <target>`; `common/targets.sh`
-probes **every** backend on every TAB after `hi ` (GLOSSARY: HI.26). Both costs
-land on machines that have none of the runtime in question. The `command -v`
-guard inside each predicate short-circuits before the CLI is executed, so the
+probes **every** backend on every TAB after `hi` and a space
+(GLOSSARY: HI.26). Both costs land on machines that have none of the runtime
+in question. The `command -v` guard inside each predicate short-circuits
+before the CLI is executed, so the
 marginal cost of a row is a fork rather than a daemon round-trip - but it is
 still a fork, five times per keystroke instead of four.
 
@@ -63,13 +64,13 @@ something people actually sit in, not by being reachable.**
 
 ## The five that ship
 
-| target        | what a name resolves as                                      | proven by                                                                                                      |
-| ------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop) and `ssh_relay_test.sh` |
-| docker ✅     | a running container                                          | `tests/targets/docker_test.sh` - six cases across bash, zsh, fish, dash and busybox `sh`                       |
-| podman ✅     | a running container                                          | `tests/targets/podman_test.sh`, the same six against podman's own image store                                  |
-| nomad ✅      | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                               |
-| kubernetes ✅ | a running pod, or `pod/container`                            | `tests/targets/kube_test.sh`, against a real kind cluster                                                      |
+| target        | what a name resolves as                                      | proven by                                                                                                                                   |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop) and `ssh_relay_test.sh`                              |
+| docker ✅     | a running container                                          | `tests/targets/docker_test.sh` - six shell environments (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case |
+| podman ✅     | a running container                                          | `tests/targets/podman_test.sh`, the same six shell environments against podman's own image store                                            |
+| nomad ✅      | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                            |
+| kubernetes ✅ | a running pod, or `pod/container`                            | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                   |
 
 ssh is checked first and short-circuits the roster entirely, which is why a
 name that is both an ssh host and a container name resolves as the ssh host.
@@ -109,8 +110,8 @@ What hi hands you once it is on the target.
 | session shell                                    | result                                                                | note                                                                                                                                                            |
 | ------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bash` ≥ 3.2                                     | ✅ full: header, prompt, git status, aliases, editor configs          | 3.2 is the floor because macOS still ships it                                                                                                                   |
-| `zsh`                                            | ✅ full                                                               | `shells/zsh.zsh`                                                                                                                                                |
-| `fish`                                           | ✅ full                                                               | `shells/config.fish`                                                                                                                                            |
+| `zsh`                                            | ✅ full                                                               | `common/zsh.zsh`                                                                                                                                                |
+| `fish`                                           | ✅ full                                                               | `common/config.fish`                                                                                                                                            |
 | `sh`/`dash`/`ash` (no bash on the target)        | ⚠️ aliases and a colored `user@host` prompt, with a warning saying so | no header and no git segment - those need bash                                                                                                                  |
 | `nushell`, `elvish`, `xonsh`, `ion`, `oil`/`osh` | ❌ **decided against**, not pending                                   | see [Shells hi does not style](UNSUPPORTED.md#shells-hi-does-not-style). You still get a session — hi lands you in the best of `$_HI_SHELL_TREE` the target has |
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                                             |
@@ -118,10 +119,13 @@ What hi hands you once it is on the target.
 **If you use a shell framework**, hi lands you in your own login shell, so it
 loads normally — that is what `_HI_SHELL_PREFERENCE`'s default (`login`, then
 the styled head of `$_HI_SHELL_TREE`: `fish zsh bash`) means.
-`tests/targets/framework_test.sh` tests oh-my-zsh, powerlevel10k, starship and
-bash-it against hi, each asserting the session comes up with no shell errors
-and that hi neither changed zsh's array base under them nor dropped their
-`PROMPT_COMMAND`.
+`tests/targets/framework_test.sh` tests nine of them against hi — oh-my-zsh,
+powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise — each
+asserting the session comes up with no shell errors and that hi left the
+framework's own hook intact: zsh's array base unchanged under oh-my-zsh and
+powerlevel10k, `PROMPT_COMMAND` still chained rather than replaced for the
+bash prompt frameworks, and the `bind -x` key bindings and `PROMPT_COMMAND`
+hooks the rest install still in place.
 
 **Both tables above assume hi can reach the target in the first place**, which
 is what [The five that ship](#the-five-that-ship) and [Already

@@ -1,7 +1,7 @@
 #!/bin/bash
 # preview what every ssh host & every known user resolve to, rendered in that
 # actual color, plus why (override/hosttag/default) - handy when tuning
-# misc/colors. Run via `hi --color-preview`.
+# settings/colors. Run via `hi --color-preview`.
 set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -25,7 +25,7 @@ appear in, alongside *why* they resolve that way (an exact override, an
 ssh-config tag, or the hash of the name).
 
 Takes no arguments. Reads:
-  misc/colors        the type,name,color pins (its own comments explain them)
+  settings/colors        the type,name,color pins (its own comments explain them)
   ~/.ssh/config      hosts, and the "# Tags: ..." comments above them
 
 Hosts with no override and no usable tag are left out: they'd render exactly
@@ -48,7 +48,7 @@ function _hi_color_source() {
   printf 'default'
 }
 
-# both read misc/colors through common/core.sh's _hi_colors_names
+# both read settings/colors through common/core.sh's _hi_colors_names
 function _hi_known_users() {
   {
     _hi_whoami
@@ -113,7 +113,7 @@ function _hi_print_users_table() {
   # reads ${!a[@]+...} as expanding to nothing whatever the array holds, and
   # bash 5 reads it as an indirect reference and errors outright.
   _hi_widen w_item "${users[@]}" LOCALUSER ${usertags[@]+"${usertags[@]}"}
-  # _hi_color_source re-reads misc/colors end to end and walks ~/.ssh/config,
+  # _hi_color_source re-reads settings/colors end to end and walks ~/.ssh/config,
   # so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
   for user in "${users[@]}"; do
@@ -301,7 +301,7 @@ function _hi_print_hosts_table() {
           ((idx2 > 0)) && previewtext+='  '
           # pad after the hostname so the next column lands at the same spot
           # in every user row beneath it, regardless of that user's name
-          # length; mirrors HI_PS1 in shells/bash.sh - the "@" is yellow,
+          # length; mirrors HI_PS1 in common/bash.sh - the "@" is yellow,
           # same as a live ssh session, since that's what connecting to one
           # of these hosts is
           previewtext+="${user_escape}${user}${NC}${YELLOW}@${NC}${name_escape}${group_names[idx2]}$(printf '%*s' $((user_width - ${#user})) '')${NC}"

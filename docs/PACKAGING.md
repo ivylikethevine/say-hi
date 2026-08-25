@@ -29,18 +29,30 @@ same-OS one if substituted. The four lint jobs — `actionlint`, `zizmor`,
 and open no socket, so pointing them at your own machine buys nothing and only
 adds jobs contending for its workspace.
 
-Those five `ci.yml` jobs run in a chain rather than in parallel — `test` →
-`bench` → `packaging-smoke` → `e2e` → `e2e-backends` — so at most one of them
-occupies the runner at a time. Their `needs:` are ordering, not data
-dependencies, which is why each link is guarded with `!cancelled()`: a red job
-still lets the next one run and report its own verdict.
+Those jobs must not run concurrent checkouts against the box's shared
+workspace, and **job-level `concurrency` is what serializes them**, not a
+`needs:` chain. `bench`, `packaging-smoke`, `e2e` and `e2e-backends` each carry
+a group that resolves to the shared `hi-selfhosted-workspace` when the runner
+label is substituted, and to a per-job-per-run group otherwise — so a
+self-hosted run queues them one at a time while a GitHub-hosted run (every fork
+PR, and any repo with no `RUNNER_LABEL`) still gets full parallelism. A
+`needs:` chain used to do this and bought the serialization twice over: it
+also serialized the hosted runs that never needed it, and it did not actually
+solve the problem, because the workflow-level `concurrency` is keyed on
+`github.ref` and two _different_ PRs put jobs on the box at the same time
+regardless. What stays in `needs:` is only the real data dependency — `e2e` and
+`e2e-backends` gate on `test` passing, which is why their `if:` reads
+`!cancelled() && needs.test.result == 'success'`. `test-macos` was never in the
+chain: it reads `MACOS_RUNNER_LABEL`, so it is never that box.
 
-Know the limit of that guarantee, though: it holds _within_ this workflow only.
-`coverage.yml`, `pages.yml`, `link-check.yml`, `tool-versions.yml` and
-`scorecard.yml` read `RUNNER_LABEL` too, and nothing in a workflow file can
-order one workflow against another. The runner is the only thing that can: one
-runner process takes one job at a time, so registering exactly one on the box is
-what actually makes "never two at once" true.
+Know the limits of that guarantee. The shared group queues **across runs as
+well as within them**, and `demos.yml`'s `publish` job joins it too — but every
+other workflow that reads `RUNNER_LABEL` (`codeql.yml`, `coverage.yml`,
+`coverage-v2.yml`, `pages.yml`, `link-check.yml`, `tool-versions.yml`,
+`image-scan.yml`, `scorecard.yml`, `release.yml`) stays out of it, and so does
+`ci.yml`'s own `test` job. The runner is what closes that gap: one runner
+process takes one job at a time, so registering exactly one on the box is what
+actually makes "never two at once" true.
 
 Every one of those jobs also shares _one_ directory on the box —
 `_work/<repo>/<repo>`, which the runner keeps between jobs rather than
@@ -123,6 +135,8 @@ formula cannot call it: `install_tree` hardcodes `/usr/bin` and
 | `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                       |
 | `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it |
 | `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies         |
+| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source              |
+| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes    |
 | `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                  |
 | `aur/say-hi-git/`    | the same package built from `main`                                                  |
 | `homebrew/say-hi.rb` | the tap formula                                                                     |

@@ -11,8 +11,8 @@ end
 # GLOSSARY: HI.07 - defaulted, never assigned, so bare reads are
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
-    _HI_DISABLE_PROMPT _HI_DISABLE_PERSONAL _HI_DISABLE_GIT_STATUS \
-    _HI_DISABLE_EDITORS _HI_DISABLE_ALIASES _HI_DISABLE_OSC52
+    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -31,7 +31,7 @@ end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
 
-# misc/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns
+# settings/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns
 # each into an opaque function with no preview of what it expands to. `alias`
 # with no args lists them as `alias name 'value'`, itself valid fish syntax, so
 # swapping the leading word for `abbr -a --` and eval'ing it reuses fish's own
@@ -58,7 +58,7 @@ end
 # `alias` builtin records the body as the function's description, so the
 # completion pager already prints `hi_copy  alias hi_copy=sh .../osc52.sh` when
 # you TAB the name - the expansion, visible, with the command line untouched.
-# That is the default behaviour for every alias misc/aliases.sh defines; the
+# That is the default behaviour for every alias settings/aliases.sh defines; the
 # abbr above is only for people who want the line itself rewritten.
 set -q _HI_ENABLE_FISH_ALIAS_ABBR; or set -gx _HI_ENABLE_FISH_ALIAS_ABBR 0
 test "$_HI_ENABLE_FISH_ALIAS_ABBR" = 1; and hi_abbr_aliases
@@ -179,49 +179,10 @@ end
 end
 # === end required configuration ===
 
-if test "$_HI_DISABLE_PERSONAL" != 1
-
-bind \cH backward-kill-word
-bind ctrl-delete kill-word
-bind \e\[3\;5~ kill-word
-bind \e\[1\;5H beginning-of-line
-bind \e\[1\;5F end-of-line
-bind \e\[2\;5~ ''
-
-# syntax colors, ordered as per
-# https://fishshell.com/docs/4.5/interactive.html#syntax-highlighting-variables
-# (anything not listed keeps fish's default)
-set -gx fish_color_normal normal
-set -gx fish_color_command blue
-set -gx fish_color_keyword blue
-set -gx fish_color_quote yellow
-set -gx fish_color_redirection cyan --bold
-set -gx fish_color_end green
-set -gx fish_color_error brred
-set -gx fish_color_param cyan
-set -gx fish_color_valid_path --underline=single
-set -gx fish_color_option brgreen
-set -gx fish_color_comment red
-set -gx fish_color_selection white --bold --background=brblack
-set -gx fish_color_operator brcyan
-set -gx fish_color_escape brcyan
-set -gx fish_color_autosuggestion brblack
-set -gx fish_color_cwd green
-set -gx fish_color_cwd_root red
-set -gx fish_color_status red
-set -gx fish_color_cancel --reverse
-set -gx fish_color_search_match white --background=brblack
-set -gx fish_color_history_current --bold
-
-# pager colors, as per
-# https://fishshell.com/docs/4.5/interactive.html#pager-color-variables
-set -gx fish_pager_color_progress brwhite --background=cyan
-set -gx fish_pager_color_prefix normal --bold --underline=single
-set -gx fish_pager_color_completion normal
-set -gx fish_pager_color_description yellow --italics
-set -gx fish_pager_color_selected_background --reverse
-
-# git prompt, matched by common/git_prompt.sh for bash & zsh
+# hi's git segment: the fish half of what common/git_prompt.sh does for bash
+# and zsh, and tests/hi/prompt_test.sh pins its glyphs and colors against
+# core.sh. Product, not taste, so it is unconditional - it used to ride
+# $_HI_DISABLE_PERSONAL, which no longer exists.
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes
@@ -252,4 +213,8 @@ if test "$_HI_ASCII" = 1
     set -g __fish_git_prompt_char_cleanstate 'ok'
 end
 
+# see common/bash.sh for why the paths are compared before sourcing
+if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
+    and test -f $_HI_CONFIG_DIR/config.fish
+  source $_HI_CONFIG_DIR/config.fish
 end

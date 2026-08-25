@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sources misc/aliases.sh in a real instance of each target shell and checks
+# Sources settings/aliases.sh in a real instance of each target shell and checks
 # that every alias/var it unconditionally defines actually landed - not just
 # that the file was found. Skips any shell that isn't installed.
 #
@@ -35,8 +35,8 @@ function _hi_test_script() {
 
 # _hi_test_shell <shell> <dir> [strict] - run the sampled-alias script in a
 # real <shell>. With `strict`, the toggles are scrubbed from the environment
-# and the shell runs under `set -u`: aliases.sh reads _HI_DISABLE_EDITORS/
-# _HI_DISABLE_ALIASES bare (fish can't parse ${X:-0}), so it must default them
+# and the shell runs under `set -u`: aliases.sh reads _HI_DISABLE_EDITORS bare
+# (fish can't parse ${X:-0}), so it must default it
 # itself - that is the shape `hi <target> <command>` runs in, and how the ssh
 # suite once broke. fish has no `set -u` (unset is always empty there), so its
 # strict run only proves the defaulting line parses.
@@ -47,7 +47,7 @@ function _hi_test_shell() {
   if [ -n "$strict" ]; then
     what="Loaded with the toggles unset"
     [ "$shell" = fish ] || runner+=(-u)
-    runner=(env -u _HI_DISABLE_EDITORS -u _HI_DISABLE_ALIASES "${runner[@]}")
+    runner=(env -u _HI_DISABLE_EDITORS "${runner[@]}")
   fi
 
   _hi_h2 "Starting: [$shell]${strict:+ (toggles unset, strict mode)}"

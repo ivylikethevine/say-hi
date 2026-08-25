@@ -31,7 +31,7 @@ taken from your own packages file - then the marks, then the check itself
 exactly as a connect will print it.
 
 Takes no arguments. Reads:
-  misc/packages      the package:priority lines (override with $_HI_PACKAGES;
+  settings/packages      the package:priority lines (override with $_HI_PACKAGES;
                      ~/.config/say-hi/packages wins automatically when present)
   common/header.sh   the priority meanings and their two color tables
 

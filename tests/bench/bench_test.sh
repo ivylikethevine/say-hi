@@ -76,18 +76,18 @@ function _hi_bench() {
 }
 
 function bench_bash_startup() {
-  _hi_bench "bash rc (shells/bash.sh)" 500 10 \
-    _hi_bench_env bash -c 'source "$_HI_HOME/say-hi/shells/bash.sh"'
+  _hi_bench "bash rc (common/bash.sh)" 500 10 \
+    _hi_bench_env bash -c 'source "$_HI_HOME/say-hi/common/bash.sh"'
 }
 
 function bench_zsh_startup() {
-  _hi_bench "zsh rc (shells/zsh.zsh)" 500 10 \
-    _hi_bench_env zsh -c 'source "$_HI_HOME/say-hi/shells/zsh.zsh"'
+  _hi_bench "zsh rc (common/zsh.zsh)" 500 10 \
+    _hi_bench_env zsh -c 'source "$_HI_HOME/say-hi/common/zsh.zsh"'
 }
 
 function bench_fish_startup() {
-  _hi_bench "fish rc (shells/config.fish)" 500 10 \
-    _hi_bench_env fish -c 'source $_HI_HOME/say-hi/shells/config.fish'
+  _hi_bench "fish rc (common/config.fish)" 500 10 \
+    _hi_bench_env fish -c 'source $_HI_HOME/say-hi/common/config.fish'
 }
 
 # the connect banner the user watches before getting a shell; backend probes
@@ -147,8 +147,9 @@ function bench_targets_warm() {
 # independently - the launcher rides *inside* this tar, so it counts here and
 # not as a stream of its own. See CLAUDE.md.
 # Both figures below are a DEFAULT configuration's, and have to be: hi.sh's
-# _hi_payload_tar drops misc/vim.rc, misc/nano.rc and shells/osc52.sh when the
-# overlay has already switched them off, so a configured client sends less than
+# _hi_payload_tar drops settings/vim.rc, settings/nano.rc, common/osc52.sh and
+# common/notify.sh when the overlay has
+# already switched them off, so a configured client sends less than
 # either number says. The ceiling and the badge are the unconfigured case, which
 # is the one every budget should be set against.
 function bench_payload_size() {

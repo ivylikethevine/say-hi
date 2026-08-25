@@ -57,7 +57,7 @@ membership, which is the copy to trust —
 `tests/test_runner.sh --group fast --list`:
 
 - **`fast`** — dependency-free, the first thing CI runs on every push/PR. Every
-  suite except the four below, including `test_lib`, `test_lib_report`,
+  suite except the three groups below, including `test_lib`, `test_lib_report`,
   `test_lib_par` and `test_runner`, which are the harness testing itself.
 - **`bench`** — hot-path timings checked against ceilings, plus the payload's
   two size budgets.
@@ -73,13 +73,25 @@ Every e2e/backends suite skips cleanly with a warning rather than failing when
 its backend isn't installed. Every test script also runs directly, e.g.
 `tests/lint/shellcheck_test.sh`.
 
+The same doctrine reaches individual fast cases, through two guards that differ
+only in what they look for. `_hi_check_requires <bin>` skips the case when a
+_command_ is missing. `_hi_check_capable <capability>` skips it when a
+_facility_ is - something `command -v` cannot answer. The roster lives in
+`_hi_capable` (`tests/lib/fixtures.sh`) and is two entries long: `symlink`
+makes one and tests `[ -L ]`, so a filesystem that refuses _or_ silently copies
+both read as no; `pty` is python3 being able to `import pty`, not python3
+merely existing. Both are there for Git Bash, where `ln -s` wants Developer
+Mode and `pty` is Unix-only - and both are probes rather than OS sniffs, so
+nothing here has to know what MSYS is. `_hi_par_check_capable` is the twin a
+parallel suite uses.
+
 ### Where a suite lives
 
-`tests/<the directory it tests>/`. `tests/common/`, `tests/shells/`,
-`tests/misc/`, `tests/scripts/` and `tests/packaging/` mirror the tree;
-`tests/hi/` and `tests/load/` cover the two scripts at the root; `tests/lint/`
-is the lint gate, `tests/bench/` the timings, `tests/targets/` the container/ssh
-e2e suites, and `tests/harness/` the suites that test the harness. The harness
+`tests/<the directory it tests>/`. `tests/common/`, `tests/settings/`,
+`tests/scripts/` and `tests/packaging/` mirror the tree; `tests/hi/` and
+`tests/load/` cover the two scripts at the root; `tests/lint/` is the lint
+gate, `tests/bench/` the timings, `tests/targets/` the container/ssh e2e
+suites, and `tests/harness/` the suites that test the harness. The harness
 itself is `tests/test_lib.sh` — a façade over `tests/lib/`, which is where its
 parts live. A suite sources the façade and nothing else (`docs/GLOSSARY.md`'s
 HI.34).
@@ -153,8 +165,8 @@ It fails the other way instead: every line of a **heredoc body** counts as
 covered, including lines that are pure text, so anything that generates scripts
 reads high. `hi.sh` is the worst case at 97.38%, where `_say_hi` and
 `_say_hi_container` both report 100% — 182 lines nothing in `--group fast`
-calls. Files with no heredocs (all of `common/`, `shells/`, `misc/`) are the
-ones to believe.
+calls. Files with no heredocs (all of `common/` and `settings/`) are the ones
+to believe.
 
 It needs a gem rather than a source build: `gem install --user-install bashcov`,
 which needs ruby. The script finds a `--user-install` binary off `$PATH` by
@@ -252,8 +264,20 @@ release path uses are SHA-pinned separately.
 
 ## The lint gate
 
-`tests/test_runner.sh shellcheck` is one suite with nine halves, and CI runs all
-of them:
+`tests/test_runner.sh shellcheck` is one suite with ten halves, and CI runs all
+of them.
+
+One check runs **before** all of them and is fatal rather than counted: every
+`source` of a `$_HI_CONFIG_DIR/...` path must carry a `# shellcheck source=`
+directive above it. `.shellcheckrc` sets `source-path=SCRIPTDIR`, so under
+`shellcheck -x` the basename resolves against the sourcing file's _own_
+directory - and where it names that file, the linter follows it into itself and
+re-parses until the kernel OOM-kills it. That is not hypothetical: it reached
+~33GB resident twice on a 38GB machine with no swap, taking the editor down with
+the run. The check is a precondition rather than an eleventh half precisely
+because of ordering - the damage happens in the fan-out below, so anything
+reporting afterwards never gets to speak. It aborts the suite naming the file
+and line, in well under a second.
 
 1. **shellcheck** over every `*.sh` (CI pins the version - see
    `.github/actions/setup-tool/tools.txt`). It is the whole cost of the fast
@@ -272,7 +296,7 @@ of them:
    and `*.md` too, since the docs teach the rule as much as the code obeys it.
 5. **shfmt** as a formatting gate over the same `*.sh` list. The style comes
    from `.editorconfig`; fix a red run with `shfmt -w` on the paths it names,
-   not `shfmt -w .` - that would also reformat `shells/zsh.zsh`, which is not in
+   not `shfmt -w .` - that would also reformat `common/zsh.zsh`, which is not in
    the gate and is zsh, not bash.
 6. **checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
    really do parse on minimal targets.
@@ -282,12 +306,22 @@ of them:
    shipped file. Matched anywhere on a line, so a mid-sentence
    `(GLOSSARY: HI.33)` counts; keep the code on the same line as the marker,
    since a reference wrapped onto the next comment line is not seen.
-8. **tests/dockerfiles/**: every image definition has a caller and every caller
+8. **The settings roster**: every name the tree treats as a setting - the
+   `_HI_TOGGLES` array in `common/core.sh`, and the variable column of
+   `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS` - has
+   to have a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_
+   table, and every row there has to name a variable the tree still reads. Only
+   that one section is matched, not the whole document: the point of the table
+   is that "what can I set?" is answerable from one place, which a name
+   mentioned in passing three sections away does not achieve. A name hi
+   assembles at run time (`_HI_PROMPT_END_$SHELL`) is matched by its literal
+   prefix, since it never appears whole.
+9. **tests/dockerfiles/**: every image definition has a caller and every caller
    has an image definition - see above.
-9. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
-   as a plain tag in shell or YAML has to agree with the digest-pinned version
-   in `tests/dockerfiles`. Dependabot bumps the Dockerfile digests and cannot
-   see the rest; this is what makes them follow.
+10. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
+    as a plain tag in shell or YAML has to agree with the digest-pinned version
+    in `tests/dockerfiles`. Dependabot bumps the Dockerfile digests and cannot
+    see the rest; this is what makes them follow.
 
 Halves 5 and 6 skip yellow when the tool isn't installed locally; CI always
 enforces them.
@@ -296,8 +330,9 @@ enforces them.
 
 `hi` chains: from a session on B you can `hi C`, and the second hop is a full hi
 session. That works from a _disposable_ session too, because `hi.sh` rides every
-bash-capable one — it is not in the payload tar, but both transports write it to
-the target alongside the tree. `ssh_relay` is the proof: A → B → C, config
+bash-capable one — it is a member of `$_HI_PAYLOAD`, so it arrives in the
+payload tar with the rest of the tree, exec bit and all (which is why the
+write-back is `cat` and not `mv`, GLOSSARY HI.09). `ssh_relay` is the proof: A → B → C, config
 intact on the final hop, cleanup traps firing on **both** B and C, on a clean
 exit and on the link being killed mid-relay. The one tier that cannot relay is
 the container transport's bash-less fallback, which ships `aliases.sh` alone and

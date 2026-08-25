@@ -7,11 +7,11 @@
 # derivation is for a hand-written `source`; a graft and install.sh's rc line
 # both set $_HI_HOME first. GLOSSARY: HI.33
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-# shellcheck source=../common/core.sh
+# shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
-# shellcheck source=../common/git_prompt.sh
+# shellcheck source=./git_prompt.sh
 source "$_HI_GIT_PROMPT"
-# shellcheck source=../misc/aliases.sh
+# shellcheck source=../settings/aliases.sh
 source "$_HI_ALIASES"
 
 _hi_interactive_extras
@@ -151,26 +151,16 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
 fi
 # === end required configuration ===
 
-if [[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]]; then
-  HISTSIZE=2000
-  HISTFILESIZE=2000
-  HISTCONTROL="erasedups:ignoreboth"
-  export HISTIGNORE="&:[ ]*:exit:ls:bg:fg:history:clear"
-  PROMPT_DIRTRIM=2
-
-  shopt -s histappend checkwinsize cmdhist
-  # globstar is bash 4; on bash 3.2 `shopt -s` on an unknown option is an error,
-  # which under an rc file that keeps going is noise on every prompt
-  shopt -s globstar 2>/dev/null || true
-
-  bind "set completion-ignore-case on"
-  bind "set completion-map-case on"
-  bind "set show-all-if-ambiguous on"
-  bind "set mark-symlinked-directories on"
-
-  bind Space:magic-space
-  bind '"\e[A": history-search-backward'
-  bind '"\e[B": history-search-forward'
-  bind '"\e[C": forward-char'
-  bind '"\e[D": backward-char'
-fi
+# The guard is settings/aliases.sh's: $_HI_CONFIG_DIR pointed at common/ would make
+# this file source itself forever, and a hang is worse than an error.
+#
+# The directive is the same hazard seen statically, and it is NOT optional.
+# .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
+# basename below resolves against this file's own directory - to this file -
+# and shellcheck follows it into itself regardless of the runtime guard above,
+# re-parsing until it is OOM-killed (measured: ~33GB before the kernel stepped
+# in). /dev/null is what stops the follow; common/core.sh:45 does the same for
+# $_HI_CONFIG_DIR/settings.sh.
+# shellcheck source=/dev/null # user config, may not exist
+[[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/common/bash.sh" ]] &&
+  [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"

@@ -124,6 +124,22 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The `runs-on` fallback above is a sane degradation everywhere else it
+      # appears - coverage, link-check, codeql and the rest all do their job on
+      # a hosted runner. Here it is not: six of these seven tapes need docker,
+      # podman, nomad or kind, so with vars.RUNNER_LABEL unset this job installs
+      # for five minutes and then dies inside vhs, and no line of that log says
+      # "the repository variable is missing". Say it here instead, before the
+      # first apt call. Failing rather than skipping is deliberate and is
+      # --require-run's rule one level up: a render that produced nothing must
+      # not read as a green run, because pages.yml serves the last *successful*
+      # run's artifact and would go on serving nothing.
+      - name: Check this is the self-hosted renderer
+        if: ${{ runner.environment == 'github-hosted' }}
+        run: |
+          echo "::error title=RUNNER_LABEL is not set::demos publish needs the self-hosted renderer (docker, podman, nomad, kind) and is running on a GitHub-hosted runner. Set the RUNNER_LABEL repository variable - Settings > Secrets and variables > Actions > Variables - to that machine's runner label. Only color_preview can render here; the other six tapes cannot."
+          exit 1
+
       # hands the persistent self-hosted workspace back to the runner user, so
       # checkout's own cleanup can always finish - see docs/PACKAGING.md
       - name: Reclaim the workspace

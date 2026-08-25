@@ -49,17 +49,27 @@ function _hi_probe_cmd() {
 
 _HI_PTY_SPAWN='import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))'
 
+# Whether python3 can actually build one, which is a different question from
+# whether python3 exists: `pty` and `tty` are Unix-only modules, so on Windows
+# `command -v python3` succeeds and the import does not - and a case gated on
+# the binary runs and fails where it should have stood down. Probed once at
+# source time, one interpreter start per suite and only where there is an
+# interpreter to start, so every consumer below asks the capability instead.
+_HI_PTY_OK=0
+command -v python3 >/dev/null 2>&1 &&
+  python3 -c 'import pty, tty' >/dev/null 2>&1 && _HI_PTY_OK=1
+
 # Sets the global array _HI_PTY_WRAP to a python3-based pty-spawn prefix
 # whenever it's needed, empty otherwise. $1 is the fd to check for tty-ness,
 # $2 is "auto" (only wrap if fd $1 isn't a real tty) or "force" (always
 # wrap - for callers where the fd being checked is never the right proxy for
 # whether the *launcher* ends up with a real tty), $3 is the warning printed
-# if python3 isn't available to build the fake.
+# when there is no usable pty to build the fake with.
 function _hi_pty_wrap() {
   local fd="$1" mode="$2" warning="$3"
   _HI_PTY_WRAP=()
   if [ "$mode" = force ] || [ ! -t "$fd" ]; then
-    if command -v python3 >/dev/null 2>&1; then
+    if [ "$_HI_PTY_OK" -eq 1 ]; then
       _HI_PTY_WRAP=(python3 -c "$_HI_PTY_SPAWN")
     else
       _hi_cecho " | $warning" "$YELLOW"
@@ -72,11 +82,12 @@ function _hi_pty_wrap() {
 # running on a real terminal: it drives the session by *writing* to the
 # launcher's stdin, so that stdin is a pipe from us rather than the terminal,
 # and both `ssh -t` and `<backend> exec -it` want a tty there. Left empty when
-# python3 is missing, which is what makes those cases skip rather than fail.
-# Filled here rather than by a function four suites had to remember to call
-# first: it takes no arguments and reads nothing that varies between cases.
+# there is no usable pty, which is what makes those cases skip rather than
+# fail, and what `_hi_check_capable pty` reads. Filled here rather than by a
+# function four suites had to remember to call first: it takes no arguments
+# and reads nothing that varies between cases.
 _HI_PTY_FORCED=()
-command -v python3 >/dev/null 2>&1 && _HI_PTY_FORCED=(python3 -c "$_HI_PTY_SPAWN")
+[ "$_HI_PTY_OK" -eq 1 ] && _HI_PTY_FORCED=(python3 -c "$_HI_PTY_SPAWN")
 
 # The _hi_pty_wrap preamble every suite that backgrounds the launcher needs:
 # stash our real stdin on fd 3 and decide the pty wrap from *that*. $1 is the
@@ -268,7 +279,7 @@ function _hi_interactive_case() {
   local expected="$marker-INTERACTIVE"
 
   if [ "${#_HI_PTY_FORCED[@]}" -eq 0 ]; then
-    _hi_skip "[$label]" "no python3 to drive an interactive pty"
+    _hi_skip "[$label]" "no usable pty to drive an interactive case"
     return 0
   fi
 

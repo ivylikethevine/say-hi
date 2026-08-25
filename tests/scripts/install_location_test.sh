@@ -40,7 +40,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # What a tree needs for install.sh to run and `hi --doctor` to answer: the
 # shipped payload (mirrors install.sh's _HI_PACKAGE_CONTENTS) plus scripts/.
 # Not the whole checkout - .git is the expensive half and nothing reads it.
-_HI_LOC_ITEMS=(common misc shells scripts hi.sh load.sh)
+_HI_LOC_ITEMS=(common settings scripts hi.sh load.sh)
 
 # _hi_loc_tree <name> - a say-hi under $_HI_WORKDIR/<name>, printed.
 # _hi_scratch_tree copies and prints the parent; this adds an executable hi.sh.
@@ -123,7 +123,7 @@ function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config
 # the tree stays where it is: an install writes the user's rc files and the
 # overlay, never the checkout it was run from
 function test_the_install_wrote_nothing_into_the_tree() {
-  [ ! -e "$_HI_LOC_ROOT/config" ] && [ ! -e "$_HI_LOC_ROOT/misc/settings.sh" ]
+  [ ! -e "$_HI_LOC_ROOT/config" ] && [ ! -e "$_HI_LOC_ROOT/settings/settings.sh" ]
 }
 
 # --- a fresh shell in each dialect ----------------------------------------
@@ -183,7 +183,7 @@ function test_zsh_renders_the_header() {
   _hi_loc_renders_the_header zsh 'bash -c "source $_HI_HEADER; hi_header Online"'
 }
 
-# fish's own greeting is hi's header (shells/config.fish's fish_greeting), so
+# fish's own greeting is hi's header (common/config.fish's fish_greeting), so
 # this asks for the thing a user actually sees rather than a stand-in
 function test_fish_renders_the_header() {
   _hi_loc_renders_the_header fish 'fish_greeting'
@@ -238,15 +238,15 @@ function _hi_loc_outside_resolves() {
 }
 
 function test_outside_bash_derives_the_tree() {
-  _hi_loc_outside_resolves bash "source '$_HI_LOC_OUT_ROOT/shells/bash.sh'; printf %s \"\$_HI_ROOT\""
+  _hi_loc_outside_resolves bash "source '$_HI_LOC_OUT_ROOT/common/bash.sh'; printf %s \"\$_HI_ROOT\""
 }
 
 function test_outside_zsh_derives_the_tree() {
-  _hi_loc_outside_resolves zsh "source '$_HI_LOC_OUT_ROOT/shells/zsh.zsh'; printf %s \"\$_HI_ROOT\""
+  _hi_loc_outside_resolves zsh "source '$_HI_LOC_OUT_ROOT/common/zsh.zsh'; printf %s \"\$_HI_ROOT\""
 }
 
 function test_outside_fish_derives_the_tree() {
-  _hi_loc_outside_resolves fish "source '$_HI_LOC_OUT_ROOT/shells/config.fish'; printf %s \"\$_HI_ROOT\""
+  _hi_loc_outside_resolves fish "source '$_HI_LOC_OUT_ROOT/common/config.fish'; printf %s \"\$_HI_ROOT\""
 }
 
 function test_outside_core_derives_the_tree() {
@@ -340,7 +340,7 @@ function run_install_location_tests() {
   _hi_par_check_requires_eq fish "config.fish derives it" "$_HI_LOC_OUT_ROOT" test_outside_fish_derives_the_tree
   _hi_par_check_eq "core.sh derives it" "$_HI_LOC_OUT_ROOT" test_outside_core_derives_the_tree
   _hi_par_check "hi.sh runs from it" test_outside_launcher_runs
-  _hi_par_check "hi.sh runs through a symlink onto it" test_outside_launcher_runs_through_a_symlink
+  _hi_par_check_capable symlink "hi.sh runs through a symlink onto it" test_outside_launcher_runs_through_a_symlink
   _hi_par_check "A missing tree is named and refused" test_a_missing_tree_is_named_and_refused
   _hi_par_wait
 

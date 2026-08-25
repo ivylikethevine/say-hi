@@ -26,11 +26,14 @@ trust boundaries sit, and how to report what slipped through.
   built from that same script. `hi --update` is `git pull` in a checkout
   you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
-  `$_HI_PAYLOAD` at the top of `hi.sh` (`common misc shells load.sh
-hi.sh`) - docs, tests, CI and editor config never leave the client.
+  `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) -
+  docs, tests, CI and editor config never leave the client.
   `hi.sh` is in that list so a session can say `hi` onward from the
-  target. Your overlay (`settings.sh`, `colors`, `packages` from
-  `~/.config/say-hi/`) is a second, smaller allow list.
+  target. Your overlay is a second, smaller allow list -
+  `$_HI_OVERLAY_FILES`, also in `hi.sh` (`settings.sh`, `colors`,
+  `packages`, `aliases.sh`, `bash.sh`, `zsh.zsh`,
+  `config.fish` from `~/.config/say-hi/`) - so anything else sharing that
+  directory stays on the client.
 - **base64 is armor, not crypto.** The payload is base64-encoded so it
   survives the target's login shell unmangled; it provides no
   confidentiality or integrity. Both come entirely from the transport
@@ -74,11 +77,11 @@ the target executes was generated on the client.
   authentication, listens on nothing, and anyone positioned to intercept
   or control your ssh/container session could do so without hi in it.
 - A malicious target gets what any interactive session gives it: your
-  payload and a terminal. Treat your overlay (`settings.sh`, `colors`,
-  `packages`) as public to every host you visit. Nothing a target sends
-  back is ever executed on the client - the one string hi reads back
-  (the probe for an existing say-hi tree) is only interpolated into the
-  script sent back to that same target. Escape sequences in session
+  payload and a terminal. Treat every file in your overlay - the eight
+  `$_HI_OVERLAY_FILES` names above - as public to every host you visit.
+  Nothing a target sends back is ever executed on the client - the one
+  string hi reads back (the probe for an existing say-hi tree) is only
+  interpolated into the script sent back to that same target. Escape sequences in session
   output remain possible, exactly as with plain `ssh`.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs - the same ones you already

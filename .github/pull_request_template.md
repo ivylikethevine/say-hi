@@ -10,7 +10,7 @@ docs/CONTRIBUTING.md has the long version of all of this.
 
 - [ ] bash 3.2 floor
 - [ ] the dialect-constrained files still hold their stated subset
-      (`common/paths.sh`, `misc/aliases.sh`, `common/targets.sh`)
+      (`common/paths.sh`, `settings/aliases.sh`, `common/targets.sh`)
 - [ ] a new suite lives (if applicable) in `tests/<what it tests>/` and is registered in
       `test_runner.sh`'s `_HI_TESTS` table
 

@@ -43,8 +43,7 @@ docs/tapes/demo.tape
 docs/tapes/common.tape
 docs/tapes/fixtures.sh
 common
-misc
-shells
+settings
 load.sh
 hi.sh
 "

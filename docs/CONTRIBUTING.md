@@ -11,6 +11,7 @@ left to do — including the entries that are deliberately not being done.
 
 - [Before you start](#before-you-start)
 - [The gate](#the-gate)
+  - [Don't reach for `act`](#dont-reach-for-act)
 - [What a review will bounce on](#what-a-review-will-bounce-on)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)
@@ -48,6 +49,39 @@ Everything else about the runner — the groups, `--skip`, the parallel containe
 cases, why the coverage figures are not to be trusted — is in
 [docs/TESTING.md](TESTING.md).
 
+### Don't reach for `act`
+
+[act](https://github.com/nektos/act) runs a workflow locally in a container,
+and it is **not** the recommended way to check a change here. That is a
+measurement against this tree, not a guess: `act -j test` — the job that runs
+the gate — reports **six failures a real runner does not**, because act's
+container runs everything as root and six fast-group cases assert non-root
+behaviour. Five are the fish prompt-separator cases in
+`tests/common/rc_test.sh` (fish gives root `#` whatever the separator says) and
+the sixth is `install: Degrades when sudo can't link`. A contributor who
+followed that into a red run would be debugging the container, not their diff.
+
+Running the container as a normal user does not rescue it. `runner.environment`
+is **empty** under act — neither `github-hosted` nor `self-hosted` — so the
+`Reclaim the workspace` step that every self-hosted job opens with fires, and
+under `--container-options "--user 1000"` the job dies right there: that image
+has no passwordless sudo for a non-root user.
+
+`tests/test_runner.sh --group fast` is the same gate with none of that. It is
+exactly what `ci.yml`'s `test` job runs, and it needs no container at all.
+
+If you want a workflow run anyway, three jobs are green under act — `actionlint`,
+`hadolint` and `markdownlint (advisory)` — and all three are linters you can
+also just run directly. `zizmor` fails: act leaves `github.token` empty and
+zizmor refuses an empty one. `test-macos`, `e2e (macOS)` and `e2e (Windows)`
+have no container to run in at all, and `bench`, `packaging-smoke` and the two
+`e2e` jobs want the Docker socket and the self-hosted workspace. Measured with
+act 0.2.89:
+
+```sh
+act -W .github/workflows/ci.yml -j actionlint -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
 ## What a review will bounce on
 
 These are the constraints the tree enforces rather than requests:
@@ -59,24 +93,24 @@ These are the constraints the tree enforces rather than requests:
   at it with a `GLOSSARY: HI.NN` tag rather than re-explaining — those tags are
   drift-checked, so an entry can't be deleted out from under them.
 - **Several files are a smaller dialect than bash, and say so at the top.**
-  `common/paths.sh` is the four-shell plain-`export` subset, `misc/aliases.sh`
-  is POSIX+fish, `common/targets.sh` is standalone POSIX. The stated subset wins
-  over anything cleaner.
+  `common/paths.sh` is the four-shell plain-`export` subset,
+  `settings/aliases.sh` is POSIX+fish, `common/targets.sh` is standalone POSIX.
+  The stated subset wins over anything cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
   its own path (`GLOSSARY: HI.33`); a guessed tree is how a session ends up
   reading someone else's. The lint sweep covers the docs here too, since the
   docs teach the rule as much as the code obeys it.
-- **The payload is budgeted twice.** `common/`, `misc/`, `shells/`, `load.sh`
-  and `hi.sh` ship to every target, and both the gzipped tar and the assembled
+- **The payload is budgeted twice.** `common/`, `settings/`, `load.sh` and
+  `hi.sh` ship to every target, and both the gzipped tar and the assembled
   wire script are CI-enforced against separate numbers. If you touch a shipped
   file, run `--group bench` and check both. Tooling-only helpers do not belong
   in `common/core.sh`.
-- **A new suite has a home and a registration.** It lives in `tests/<the
-directory it tests>/`, sources the `tests/test_lib.sh` façade and nothing else
-  (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS` table — no
-  group runs it otherwise.
+- **A new suite has a home and a registration.** It lives in
+  `tests/<the directory it tests>/`, sources the `tests/test_lib.sh` façade and
+  nothing else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS`
+  table — no group runs it otherwise.
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`, which
-  would also reformat `shells/zsh.zsh` — zsh, not bash, and shipped.
+  would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 
 ## Which docs change with what
 
@@ -85,11 +119,17 @@ Nothing here has a docs-only counterpart that can be skipped:
 | you changed                           | update                                        |
 | ------------------------------------- | --------------------------------------------- |
 | a flag, or `_hi_parse`                | `docs/hi.1` and `docs/tldr.md`                |
-| an environment variable or toggle     | `docs/CONFIGURATION.md`                       |
+| an environment variable or toggle     | `docs/CONFIGURATION.md` (enforced, see below) |
 | what hi leaves on a target            | `docs/SECURITY.md`                            |
 | a target hi does or doesn't answer to | `docs/SUPPORTED.md`, or `docs/UNSUPPORTED.md` |
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag  |
 | a release channel or the release flow | `docs/PACKAGING.md`                           |
+
+Two of those rows are checked rather than requested, both by the lint suite in
+the fast group: a `GLOSSARY:` tag naming an entry that does not exist fails, and
+so does a toggle in `common/core.sh` with no row in
+[CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table. The rest are on
+your honour and on review.
 
 `docs/ROADMAP.md` is a to-do list, not a changelog: finishing an entry means
 **deleting** it, since git history is the ledger.

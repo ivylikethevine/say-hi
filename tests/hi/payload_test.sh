@@ -28,19 +28,19 @@ function test_payload_trims_what_the_overlay_disabled() {
   mkdir -p "$dir"
   printf "#!/bin/sh\nexport _HI_DISABLE_EDITORS='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/misc/vim.rc*)
-    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped misc/vim.rc" "$RED"
+  case "$listing" in *say-hi/settings/vim.rc*)
+    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped settings/vim.rc" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/misc/nano.rc*)
-    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped misc/nano.rc" "$RED"
+  case "$listing" in *say-hi/settings/nano.rc*)
+    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped settings/nano.rc" "$RED"
     return 1
     ;;
   esac
   # ...and the tree is otherwise intact
-  case "$listing" in *say-hi/misc/aliases.sh*) ;; *)
-    _hi_cecho " | the trim took misc/aliases.sh with it" "$RED"
+  case "$listing" in *say-hi/settings/aliases.sh*) ;; *)
+    _hi_cecho " | the trim took settings/aliases.sh with it" "$RED"
     return 1
     ;;
   esac
@@ -55,43 +55,124 @@ function test_payload_ships_everything_by_default() {
   local dir="$_HI_WORKDIR/notrim" listing
   mkdir -p "$dir"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/misc/vim.rc*) ;; *)
-    _hi_cecho " | a default client did not ship misc/vim.rc" "$RED"
+  case "$listing" in *say-hi/settings/vim.rc*) ;; *)
+    _hi_cecho " | a default client did not ship settings/vim.rc" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/shells/osc52.sh*) return 0 ;; esac
-  _hi_cecho " | a default client did not ship shells/osc52.sh" "$RED"
+  case "$listing" in *say-hi/common/osc52.sh*) ;; *)
+    _hi_cecho " | a default client did not ship common/osc52.sh" "$RED"
+    return 1
+    ;;
+  esac
+  case "$listing" in *say-hi/common/notify.sh*) return 0 ;; esac
+  _hi_cecho " | a default client did not ship common/notify.sh" "$RED"
   return 1
 }
 
-# _HI_DISABLE_ALIASES cuts along the seam between the two alias files and not
-# through either: misc/personal.sh leaves the payload, misc/aliases.sh stays.
-# Both halves matter. aliases.sh installs the vim/nano and hi_copy
-# aliases above the source line, so trimming it would be a behaviour change
-# wearing a size saving's clothes; personal.sh is preference the target will
-# not read, so shipping it is bytes on the wire for nothing.
-function test_payload_trims_personal_but_keeps_aliases() {
-  local dir="$_HI_WORKDIR/noalias" listing
+# The notification emitter is the second file a toggle takes off the wire, on
+# common/osc52.sh's precedent: a client that never wants hi_notify pays nothing
+# for it. Same shape as the editors case above - the file goes, the tree stays.
+function test_payload_trims_the_notifier() {
+  local dir="$_HI_WORKDIR/nonotify" listing
   mkdir -p "$dir"
-  printf "#!/bin/sh\nexport _HI_DISABLE_ALIASES='1'\n" >"$dir/settings.sh"
+  printf "#!/bin/sh\nexport _HI_DISABLE_NOTIFY='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in
-  *say-hi/misc/personal.sh*)
-    _hi_cecho " | _HI_DISABLE_ALIASES=1 still shipped misc/personal.sh" "$RED"
+  case "$listing" in *say-hi/common/notify.sh*)
+    _hi_cecho " | _HI_DISABLE_NOTIFY=1 still shipped common/notify.sh" "$RED"
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/misc/aliases.sh*) ;; *)
-    _hi_cecho " | _HI_DISABLE_ALIASES=1 dropped misc/aliases.sh, which still carries the editor and hi_copy aliases" "$RED"
-    return 1
-    ;;
-  esac
-  # and the default client ships both
-  listing="$(_hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/misc/personal.sh*) return 0 ;; esac
-  _hi_cecho " | a default client did not ship misc/personal.sh" "$RED"
+  # the sibling emitter is not collateral: the two toggles are independent
+  case "$listing" in *say-hi/common/osc52.sh*) return 0 ;; esac
+  _hi_cecho " | _HI_DISABLE_NOTIFY=1 took common/osc52.sh with it" "$RED"
   return 1
+}
+
+# settings/aliases.sh is trimmed by nothing, and there is no longer a toggle
+# that could: the sudo/cat/ls preferences that used to sit in a
+# settings/personal.sh of their own now live in this file beside the vim/nano
+# and hi_copy aliases and fish's toggle backstop. Dropping it under any toggle
+# would take all of those with it - a behaviour change wearing a size saving's
+# clothes - so this asserts against every toggle at once rather than the one
+# that used to cut here.
+function test_payload_always_ships_aliases() {
+  local dir="$_HI_WORKDIR/alloff" listing t
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n' >"$dir/settings.sh"
+  for t in "${_HI_TOGGLES[@]}"; do
+    printf "export %s='1'\n" "$t" >>"$dir/settings.sh"
+  done
+  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
+  case "$listing" in *say-hi/settings/aliases.sh*) return 0 ;; esac
+  _hi_cecho " | every toggle off dropped settings/aliases.sh, which carries the whole alias set" "$RED"
+  return 1
+}
+
+# The three per-shell overrides, which take the shell file's own basename so a
+# user reading common/bash.sh knows what ~/.config/say-hi/bash.sh extends.
+function test_overlay_tar_carries_shell_files() {
+  local dir
+  dir="$(_hi_overlay_fixture withshells bash.sh zsh.zsh config.fish)"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')" = "bash.sh config.fish zsh.zsh " ]
+}
+
+# --- keeping the overlay in a dotfile manager -------------------------------
+#
+# The overlay is a plain directory of plain files, which is the whole
+# integration story for chezmoi, yadm, GNU Stow and bare-repo setups
+# (docs/CONFIGURATION.md says so). Two properties make that claim true rather
+# than merely hopeful, and neither is obvious from reading _hi_overlay_tar.
+
+# Stow does not copy, it symlinks - so a Stow user's overlay is a directory of
+# links into their dotfiles repo. `_hi_tar_gz -h` is what dereferences them;
+# without it the target would unpack dangling links pointing at a dotfiles path
+# that does not exist there, and the session would silently fall back to
+# defaults. Both shapes Stow produces are covered: a symlink per file, and the
+# whole config directory as one link.
+function test_overlay_dereferences_symlinks() {
+  local real="$_HI_WORKDIR/stow-src" perfile="$_HI_WORKDIR/stow-perfile" whole="$_HI_WORKDIR/stow-whole"
+  local shape dir out
+  mkdir -p "$real" "$perfile"
+  printf 'export _HI_MAX_WIDTH=72\n' >"$real/settings.sh"
+  ln -sf "$real/settings.sh" "$perfile/settings.sh"
+  ln -sfn "$real" "$whole"
+  for shape in "$perfile" "$whole"; do
+    out="$(_HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar xzOf - settings.sh 2>/dev/null)"
+    [ "$out" = "export _HI_MAX_WIDTH=72" ] || {
+      _hi_cecho " | ${shape##*/}: symlinked overlay did not arrive as content: [$out]" "$RED"
+      return 1
+    }
+    # and as a regular file, not a link the target cannot resolve
+    _HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar tvzf - 2>/dev/null | grep -q '^-' || {
+      _hi_cecho " | ${shape##*/}: overlay member is not a regular file" "$RED"
+      return 1
+    }
+  done
+  return 0
+}
+
+# $_HI_OVERLAY_FILES is an allow list, and that is what makes pointing a dotfile
+# manager at this directory safe: the manager's own metadata, the .git that
+# `hi --overlay-init` creates, an editor swap file or a key that has no business
+# leaving the machine are all in the same directory and none of them travel.
+# A denylist would have to keep guessing; this asserts the allow list holds.
+function test_overlay_sends_nothing_outside_the_roster() {
+  local dir="$_HI_WORKDIR/overlay-leak" f
+  mkdir -p "$dir/.git" "$dir/.chezmoitemplates"
+  printf 'export _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
+  for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp; do
+    printf 'x\n' >"$dir/$f"
+  done
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case " ${_HI_OVERLAY_FILES[*]} " in
+    *" $f "*) continue ;;
+    esac
+    _hi_cecho " | the overlay stream carried $f, which is not in _HI_OVERLAY_FILES" "$RED"
+    return 1
+  done <<<"$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
+  return 0
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the
@@ -99,7 +180,7 @@ function test_payload_trims_personal_but_keeps_aliases() {
 # every member (so a rename can't quietly ship an empty payload).
 function test_payload_ships_exactly_the_travelled_paths() {
   local m
-  [ "${_HI_PAYLOAD[*]}" = "common misc shells load.sh hi.sh" ] || {
+  [ "${_HI_PAYLOAD[*]}" = "common settings load.sh hi.sh" ] || {
     _hi_cecho " | payload list changed: ${_HI_PAYLOAD[*]} - update this guard deliberately" "$RED"
     return 1
   }
@@ -111,7 +192,7 @@ function test_payload_ships_exactly_the_travelled_paths() {
   done
 }
 
-# The payload only carries the *in-tree* misc/, so once the user's real
+# The payload only carries the *in-tree* settings/, so once the user's real
 # settings/colors/packages live outside the tree they need their own stream or a
 # target silently falls back to the shipped defaults. These assert the two
 # halves that can be checked without a target: that nothing is sent when there
@@ -157,8 +238,8 @@ function test_overlay_tar_carries_only_what_exists() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ]
 }
 
-# the additive personal aliases ride the same stream under their bare name,
-# which is where misc/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
+# the user's own aliases ride the same stream under their bare name,
+# which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
 function test_overlay_tar_carries_aliases() {
   local dir
@@ -201,9 +282,16 @@ function test_overlay_is_well_under_one_block() {
 # /usr/bin/tar is built on, so this reproduces the client the bug belonged to
 # without a macOS runner.
 function _hi_bsdtar_shim() {
-  local shim="$_HI_WORKDIR/bsdtar-shim"
+  local shim="$_HI_WORKDIR/bsdtar-shim" real
+  real="$(command -v bsdtar 2>/dev/null)" || return 1
   mkdir -p "$shim"
-  ln -sf "$(command -v bsdtar)" "$shim/tar" 2>/dev/null || return 1
+  # a link where the filesystem makes them, an exec wrapper where it does not -
+  # _hi_real_path's rule, for the same reason (tests/lib/fixtures.sh)
+  ln -sf "$real" "$shim/tar" 2>/dev/null || :
+  [ -e "$shim/tar" ] || {
+    printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$shim/tar"
+    chmod +x "$shim/tar"
+  }
   printf '%s' "$shim"
 }
 
@@ -355,10 +443,11 @@ function run_hi_payload_tests() {
   _hi_h1 "Testing hi.sh: the payload"
 
   _hi_h2 "Testing: the payload list"
-  _hi_check "Ships exactly common/misc/shells/load.sh" test_payload_ships_exactly_the_travelled_paths
+  _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
-  _hi_check "The toggle trims personal.sh and keeps aliases.sh" test_payload_trims_personal_but_keeps_aliases
+  _hi_check "_HI_DISABLE_NOTIFY trims notify.sh only" test_payload_trims_the_notifier
+  _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
@@ -374,6 +463,9 @@ function run_hi_payload_tests() {
   _hi_check "Members are bare names" test_overlay_tar_members_are_bare_names
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
+  _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
+  _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
+  _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

@@ -28,6 +28,14 @@ _HI_PKGBUILD_GIT="$_HI_PKG_DIR/aur/say-hi-git/PKGBUILD"
 _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
 _HI_TOOLS_TXT="$_HI_ROOT/.github/actions/setup-tool/tools.txt"
 
+# The names SHA256SUMS covers, however the local sha256sum spelled them. GNU
+# writes `<hash>  <name>`; Windows' opens binary by default and writes
+# `<hash> *<name>`, and `sha256sum -c` reads both either way - so the leading
+# `*` is the assertion's problem and not the file's. Stripped here rather than
+# in each of the two callers, which is the only reason it is a variable.
+# shellcheck disable=SC2016 # $2 is awk's second field, not a shell expansion
+_HI_SUMS_NAMES='{ sub(/^\*/, "", $2); print $2 }'
+
 # bump.sh's functions (sha256_of, b2_of, write/check_manifests) -
 # inert under its source guard, and its derived paths equal the ones above
 # shellcheck source=../../packaging/bump.sh
@@ -185,7 +193,7 @@ function test_formula_caveats_use_no_link() {
 # shellcheck disable=SC2016
 
 # Both must drive install.sh rather than copying by hand: an inline
-# `common shells misc load.sh hi.sh` copy in a PKGBUILD is a second payload
+# `common settings load.sh hi.sh` copy in a PKGBUILD is a second payload
 # list to keep in step, and one that omits scripts/ leaves a packaged install
 # with no hi --install for its users to run.
 function test_pkgbuilds_call_install_sh() {
@@ -588,7 +596,7 @@ function test_write_checksums_lists_the_artifacts() {
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
     return 1
   # ...and it agrees with what SHA256SUMS covers
-  diff <(awk '{ print $2 }' "$d/SHA256SUMS" | sort) \
+  diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
     <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort)
 }
 
@@ -619,7 +627,7 @@ function test_write_checksums_ships_the_source_tarball() {
   diff <(sort "$d/ARTIFACTS") \
     <(printf '%s\n' say-hi-1.0.0.apk say-hi-1.0.0.tar.gz say-hi-1.0.0.x86_64.rpm say-hi_1.0.0_amd64.deb SHA256SUMS | sort) ||
     return 1
-  diff <(awk '{ print $2 }' "$d/SHA256SUMS" | sort) \
+  diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
     <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort)
 }
 
@@ -846,7 +854,7 @@ function run_packaging_tests() {
   _hi_h2 "Testing: nfpm.yaml against install_tree"
   _hi_check "Every staged src exists" test_nfpm_staging_sources_all_exist
   _hi_check "References the staging root" test_nfpm_references_the_staging_root
-  _hi_check "Symlink matches install_tree's" test_nfpm_symlink_matches_install_tree
+  _hi_check_capable symlink "Symlink matches install_tree's" test_nfpm_symlink_matches_install_tree
   _hi_check "Link target carries no staging prefix" test_nfpm_symlink_target_is_absolute_and_unstaged
   _hi_check "apk entries match _HI_PACKAGE_CONTENTS" test_nfpm_apk_entries_match_package_contents
   _hi_check "apk globs cover the staged depth" test_nfpm_apk_globs_cover_the_staged_depth
@@ -931,7 +939,7 @@ function run_packaging_tests() {
   _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
   _hi_check "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
   _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
-  _hi_check "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
+  _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
   _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
 
   _hi_suite_end "packaging"

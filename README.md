@@ -14,11 +14,11 @@ This is a hobby project.
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/macos-e2e.yml?branch=main&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/macos-e2e.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
-![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
+![ssh payload](https://img.shields.io/badge/ssh_payload-44KB_per_session-4c1)
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
 [![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecarzd.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 ![bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
@@ -51,6 +51,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [say-hi and the alternatives](#say-hi-and-the-alternatives)
   - [Compatibility](#compatibility)
 - [Testing](#testing)
+  - [Coverage and Profiling](#coverage-and-profiling)
 - [More docs](#more-docs)
 - [AI Usage](#ai-usage)
 
@@ -154,7 +155,7 @@ normally, not the GIF cut short.
   continue if any have issues
 - reload your shell!
 - run `hi --configure` any time afterward to revisit the feature toggle
-  prompts — header, prompt, personal settings, git status, editors, aliases,
+  prompts — header, prompt, git status, editors, clipboard, notifications,
   header details, how much of the package check to show, terminal width, and
   whether hi styles this machine too or only the hosts you say `hi` to —
   without touching the shell rc wiring. Most questions preview their answer;
@@ -187,11 +188,11 @@ normally, not the GIF cut short.
   [completion, every backend at once](#completion-every-backend-at-once)
 - configure `~/.ssh/config` tags via sshm
 - [optional] pin specific colors in `~/.config/say-hi/colors` — everything else
-  gets a color automatically. Copy `say-hi/misc/colors` there to start from the
-  shipped defaults
+  gets a color automatically. Copy `say-hi/settings/colors` there to start
+  from the shipped defaults
   - run `hi --color-preview` to preview what every ssh host/your user resolves
     to
-- [optional] copy `say-hi/misc/packages` to `~/.config/say-hi/packages` and
+- [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages` and
   edit it to your preferences
   - run `hi --packages-preview` to see what each priority means, the colors it
     renders installed and missing packages in, one real example of each from
@@ -208,9 +209,11 @@ Usage: `hi foo` (just like ssh!)
 
 Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
-say `hi` to in its own small archive — `colors`, `packages` and
-`aliases.sh` overlay the tree's copies one file at a time, and `settings.sh`
-(what `hi --configure` writes) has no in-tree counterpart at all. The full
+say `hi` to in its own small archive — `colors` and `packages` overlay the
+tree's copies one file at a time, `aliases.sh` adds to the shipped alias set,
+and a `bash.sh`/`zsh.zsh`/`config.fish` there is sourced at the end of hi's own
+per-shell rc so yours win. `settings.sh` (what `hi --configure`
+writes) has no in-tree counterpart at all. The full
 picture — the overlay file table, every `_HI_DISABLE_*` feature toggle, the
 header-line toggles, and every other
 environment variable hi reads (`_HI_SHELL_PREFERENCE`, `_HI_PROMPT`,
@@ -230,7 +233,7 @@ shell you land in and what is left behind — is
 
 Every username and hostname gets a color deterministically derived from its
 name. To pin a specific color instead,
-add a line to `say-hi/misc/colors` (`username,root,red` /
+add a line to `say-hi/settings/colors` (`username,root,red` /
 `hostname,prod-db,yellow` / `hosttag,desktop,green`); `hosttag` entries match
 the _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config` - a wildcard block (`Host prod-*`,

@@ -276,8 +276,8 @@ function test_settings_sh_is_sourced() {
 # Same preamble-in-a-fresh-bash shape as test_settings_sh_is_sourced above, for
 # the same reason.
 #
-# shells/config.fish carries the same resolution in fish's dialect and is
-# pinned against these answers by tests/shells/rc_test.sh.
+# common/config.fish carries the same resolution in fish's dialect and is
+# pinned against these answers by tests/common/rc_test.sh.
 
 # _hi_cfg_answer <case> - what core.sh resolves $_HI_CONFIG_DIR to when the XDG
 # base holds <case>: `new` or `neither`. Printed relative to the base, so a
@@ -305,7 +305,7 @@ function test_config_dir_explicit_value_wins() {
     bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$_HI_CONFIG_DIR"')" = "$base/shipped" ]
 }
 
-# shells/zsh.zsh sources core.sh directly, so its functions run in zsh too - and
+# common/zsh.zsh sources core.sh directly, so its functions run in zsh too - and
 # three zsh differences had each silently broken something: `${name:i:1}` is a
 # history modifier there, $BASH_REMATCH is never populated, and an unquoted
 # `$var` is not word-split. All three were invisible to a bash-only suite, so
@@ -354,7 +354,7 @@ function test_zsh_resolve_color_agrees_with_bash() {
 function test_zsh_rc_leaves_ksharrays_alone() {
   local out
   out="$(env _HI_HOME="$_HI_HOME" TERM=xterm-256color zsh -c \
-    'source "$_HI_HOME/say-hi/shells/zsh.zsh"; setopt | grep -c ksharrays' 2>/dev/null)"
+    'source "$_HI_HOME/say-hi/common/zsh.zsh"; setopt | grep -c ksharrays' 2>/dev/null)"
   [ "$out" = 0 ]
 }
 
@@ -362,7 +362,7 @@ function test_zsh_rc_leaves_ksharrays_alone() {
 function test_zsh_rc_survives_ksharrays_being_on() {
   local out
   out="$(env _HI_HOME="$_HI_HOME" TERM=xterm-256color zsh -c \
-    'setopt KSH_ARRAYS; source "$_HI_HOME/say-hi/shells/zsh.zsh"; print -n "$USER_COLOR"' 2>/dev/null)"
+    'setopt KSH_ARRAYS; source "$_HI_HOME/say-hi/common/zsh.zsh"; print -n "$USER_COLOR"' 2>/dev/null)"
   [ -n "$out" ]
 }
 

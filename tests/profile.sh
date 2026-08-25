@@ -60,9 +60,9 @@
 # Wrapping test_runner.sh instead would land in kcov's hole for exactly the
 # same reason, and would profile the harness rather than hi.
 #
-# **bash arms only.** timep profiles bash, so `shells/config.fish`,
-# `shells/zsh.zsh` and `common/targets.sh`-under-`sh` stay bench-only. What is
-# in scope is `shells/bash.sh`, `common/header.sh`, `common/git_prompt.sh` and
+# **bash arms only.** timep profiles bash, so `common/config.fish`,
+# `common/zsh.zsh` and `common/targets.sh`-under-`sh` stay bench-only. What is
+# in scope is `common/bash.sh`, `common/header.sh`, `common/git_prompt.sh` and
 # `hi.sh`'s payload assembly.
 # ---------------------------------------------------------------------------
 #
@@ -83,14 +83,14 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # runs, so it expands there and not here.
 _HI_PROF_NAMES=(rc header git_prompt payload)
 _HI_PROF_WHAT=(
-  "shells/bash.sh sourced once - what every prompt-shell start pays"
+  "common/bash.sh sourced once - what every prompt-shell start pays"
   "common/header.sh then hi_header Online - the banner and its probes"
   "common/git_prompt.sh, 50 calls in one shell - the per-prompt cost"
   "hi.sh's payload assembly - what a connect spends before it sends"
 )
 # shellcheck disable=SC2016 # every body expands in the child bash, not here
 _HI_PROF_BODY=(
-  'source "$_HI_HOME/say-hi/shells/bash.sh"'
+  'source "$_HI_HOME/say-hi/common/bash.sh"'
   'source "$_HI_HOME/say-hi/common/header.sh"; hi_header Online'
   'source "$_HI_HOME/say-hi/common/core.sh"
    source "$_HI_HOME/say-hi/common/git_prompt.sh"

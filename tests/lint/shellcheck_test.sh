@@ -2,7 +2,7 @@
 # The repo's lint gate. shellcheck covers every *.sh file; on top of that, every
 # file a non-bash shell parses for itself is run through that shell's own syntax
 # checker (`zsh -n` / `fish --no-execute`) - see $_HI_NATIVE_LINT below. Without
-# that second half, shells/zsh.zsh and shells/config.fish are checked by nothing
+# that second half, common/zsh.zsh and common/config.fish are checked by nothing
 # at all, and the files fish and zsh share with sh are only ever checked as sh.
 # Two more halves ride along when their tool is installed (and skip yellow when
 # not): shfmt as a formatting gate, and checkbashisms over the #!/bin/sh files.
@@ -18,25 +18,23 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # (A comment line here must never *begin* with the word shellcheck - that reads
 # as a directive and fails the very lint this file runs.)
 #
-# Two kinds of entry. shells/zsh.zsh and shells/config.fish are not shell the
+# Two kinds of entry. common/zsh.zsh and common/config.fish are not shell the
 # linter can parse at all, so their own shell's syntax checker (`zsh -n` /
 # `fish --no-execute`, the same two scripts/install.sh runs against the user's
 # rc files) is the only thing checking them.
 #
 # The rest are files shellcheck *does* read - as sh or bash - that another shell
-# also sources for real, so they have to parse in both. misc/aliases.sh and
-# common/paths.sh (and misc/personal.sh, which aliases.sh sources) are what fish reads directly, and the failure mode there
+# also sources for real, so they have to parse in both. settings/aliases.sh and
+# common/paths.sh are what fish reads directly, and the failure mode there
 # is silent: a perfectly good `${X:-0}` is a fish parse error that aborts the
 # whole file, taking every alias (or every path) with it. zsh reaches
-# common/core.sh, common/git_prompt.sh and both of those through shells/zsh.zsh.
+# common/core.sh, common/git_prompt.sh and both of those through common/zsh.zsh.
 _HI_NATIVE_LINT=(
-  "shells/zsh.zsh:zsh:-n"
-  "shells/config.fish:fish:--no-execute"
-  "misc/aliases.sh:fish:--no-execute"
-  "misc/personal.sh:fish:--no-execute"
+  "common/zsh.zsh:zsh:-n"
+  "common/config.fish:fish:--no-execute"
+  "settings/aliases.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"
-  "misc/aliases.sh:zsh:-n"
-  "misc/personal.sh:zsh:-n"
+  "settings/aliases.sh:zsh:-n"
   "common/paths.sh:zsh:-n"
   "common/core.sh:zsh:-n"
   "common/git_prompt.sh:zsh:-n"
@@ -384,6 +382,147 @@ function lint_glossary_tags() {
   return "$bad"
 }
 
+# The vocabulary a `settings.sh` may use has to be written down where a user
+# looks for it, and the tree is where it actually lives - in three places, at
+# that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
+# `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS` are the
+# questions `hi --configure` asks and the lines it writes. A name goes into any
+# of the three without a thought for the docs, which is how "what can I set?"
+# stopped being answerable from one place; this is what makes CONFIGURATION.md's
+# roster derived rather than hand-kept.
+#
+# Only the `## Every setting` section counts, not every backticked `_HI_` name
+# in the file. The point of the entry is one table, and matching the whole
+# document would go green on a name mentioned in passing three sections away -
+# which is the state this check exists to end.
+function lint_settings_table() {
+  local doc="$_HI_ROOT/docs/CONFIGURATION.md"
+  local documented names name bad=0
+  _hi_h2 "Checking hi's settings against docs/CONFIGURATION.md"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  documented="$(_hi_settings_documented "$doc")"
+  _hi_read_lines names < <(_hi_settings_roster)
+  for name in "${names[@]}"; do
+    [ -n "$name" ] || continue
+    case "$documented" in *"|$name|"*) continue ;; esac
+    _hi_align " | $name is a setting with no row in '## Every setting'" "FAILED" "$RED"
+    _hi_note_failure "settings table: $name undocumented"
+    bad=$((bad + 1))
+  done
+  [ "$bad" -eq 0 ] && _hi_align " | every setting the tree defines has a row" "OK" "$GREEN"
+
+  # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
+  # a row for a variable nothing reads any more. Names hi assembles at run time
+  # never appear whole in the tree - core.sh reads `_HI_PROMPT_END_$1` through
+  # an eval - so a miss retries against the literal prefix up to the last `_`
+  # before it is called a failure.
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  local tree stale=0 stem
+  tree="$(grep -rhoE '_HI_[A-Z0-9_]+' "$_HI_ROOT/common" "$_HI_ROOT/settings" \
+    "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    2>/dev/null | sort -u)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    case "$tree" in *"$name"$'\n'* | *"$name") continue ;; esac
+    stem="${name%_*}_"
+    case "$tree" in *"$stem"*) continue ;; esac
+    _hi_align " | $name has a row but nothing in the tree reads it" "FAILED" "$RED"
+    _hi_note_failure "settings table: $name unread"
+    stale=$((stale + 1))
+  done <<<"$(printf '%s' "$documented" | tr '|' '\n')"
+  [ "$stale" -eq 0 ] && _hi_align " | every row names a variable the tree reads" "OK" "$GREEN"
+  bad=$((bad + stale))
+  return "$bad"
+}
+
+# The `_HI_` names of the `## Every setting` table, `|`-delimited with a leading
+# and trailing one so a `*"|$name|"*` match cannot succeed on a prefix.
+function _hi_settings_documented() {
+  # shellcheck disable=SC2016 # \1 is sed's backref and `|$` its anchor, not shell
+  printf '|%s|' "$(awk '/^## /{inside = ($0 == "## Every setting")} inside' "$1" |
+    sed -n 's/^| *`\(_HI_[A-Z0-9_]*\)`.*/\1/p' | sort -u | tr '\n' '|' | sed 's/|$//')"
+}
+
+# Every name the tree treats as a setting: core.sh's toggle roster, plus the
+# variable column of install.sh's two `<var>|<off>|<preview>|<question>` tables.
+# `sort -u` because the two overlap almost entirely - without it a toggle that
+# is also a `hi --configure` question is reported missing twice.
+function _hi_settings_roster() {
+  {
+    sed -n '/^  _HI_TOGGLES=(/,/)$/p' "$_HI_ROOT/common/core.sh" |
+      grep -oE '_HI_[A-Z0-9_]+' | grep -v '^_HI_TOGGLES$'
+    sed -n '/^_HI_FEATURE_PROMPTS=(/,/^)$/p;/^_HI_HEADER_PROMPTS=(/,/^)$/p' \
+      "$_HI_ROOT/scripts/install.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
+  } | sort -u
+}
+
+# A source of the user's config directory with no `# shellcheck source=`
+# directive above it is a machine-killer, not a style nit, and this is what
+# keeps one from landing again. It runs as a *precondition* of run_shellcheck
+# rather than as one of the halves at the end: the damage happens in the
+# fan-out, so a check that runs after it never gets the chance to speak.
+#
+# .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
+# basename in a config-dir source resolves against the *sourcing file's own*
+# directory. Where that basename is the file's own name - which is exactly what
+# the per-shell overrides and settings/aliases.sh's own overlay are - the linter
+# follows the file into itself and re-parses its source tree until the kernel
+# stops it. Measured on this tree: ~33GB resident before a global OOM, twice,
+# taking the editor down with the run. Neither the `[ -f ]` test nor the path
+# comparison guarding those lines is visible to it; only the directive is.
+#
+# (No line of this comment may begin with the linter's own name followed by a
+# space - that is the directive syntax, and prose there is a parse error.)
+#
+# Six lines of look-back because the guarded form spans an `&&` chain and the
+# directive sits above the whole statement, not above the `source` token.
+#
+# The needle is split so this file does not match its own detector - the two
+# halves are concatenated at run time and never appear adjacent in the source.
+function lint_config_dir_sources() {
+  local file needle rel stripped i n total ok bad=0
+  local -a lines
+  # shellcheck disable=SC2016 # a literal to match for, not an expansion
+  needle='"$_HI_CONFIG'"_DIR/"
+  _hi_h2 "Checking config-dir sources carry a shellcheck directive"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  for file in "${_HI_SH_FILES[@]}"; do
+    case "$(cat "$file")" in *"$needle"*) ;; *) continue ;; esac
+    _hi_read_lines lines <"$file"
+    total="${#lines[@]}"
+    for ((i = 0; i < total; i++)); do
+      # leading whitespace off, comments skipped, and the dot form only where
+      # `.` is a command: `grep -c . "$_HI_CONFIG_DIR/$f"` (scripts/doctor.sh)
+      # is a regex dot and an argument, not a source, and matching it was this
+      # check's first false positive.
+      stripped="${lines[i]#"${lines[i]%%[![:space:]]*}"}"
+      case "$stripped" in '#'*) continue ;; esac
+      case "$stripped" in
+      "source $needle"* | ". $needle"* | \
+        *"&& source $needle"* | *"&& . $needle"* | \
+        *"; source $needle"* | *"; . $needle"*) ;;
+      *) continue ;;
+      esac
+      ok=""
+      for ((n = 1; n <= 6 && i - n >= 0; n++)); do
+        case "${lines[i - n]}" in
+        *'# shellcheck source='*)
+          ok=1
+          break
+          ;;
+        esac
+      done
+      [ -n "$ok" ] && continue
+      rel="${file#"$_HI_ROOT"/}"
+      _hi_align " | $rel:$((i + 1)) sources the config dir with no 'shellcheck source=' above it" "FAILED" "$RED"
+      _hi_note_failure "config-dir source: $rel:$((i + 1))"
+      bad=$((bad + 1))
+    done
+  done
+  [ "$bad" -eq 0 ] && _hi_align " | every config-dir source is directive-guarded" "OK" "$GREEN"
+  return "$bad"
+}
+
 # The image definitions moved out of the suites into tests/dockerfiles/, which
 # bought readable files and cost the one thing a heredoc could not get wrong: a
 # Dockerfile written inline is referenced by construction. A checked-in one can
@@ -612,6 +751,16 @@ function run_shellcheck() {
 
   _hi_cecho "$(printf ' | %s\n' "${_HI_SH_FILES[@]}")" "$BLUE"
 
+  # Before the fan-out, and fatal - not one of the halves below. A config-dir
+  # source with no directive makes the very next step recurse into itself until
+  # the kernel OOM-kills it, so a half that reports afterwards reports only when
+  # there is nothing to report. Ordering is the whole value of this check.
+  if ! lint_config_dir_sources; then
+    _hi_cecho " | refusing to run shellcheck: the files above would make it" "$RED"
+    _hi_cecho " | re-parse itself until the machine runs out of memory" "$RED"
+    exit 1
+  fi
+
   _hi_workdir shellchecktest
   _HI_SC_LOG="$_HI_WORKDIR/shellcheck.log"
 
@@ -637,7 +786,8 @@ function run_shellcheck() {
   # order. Seeded with the shellcheck count from above.
   _HI_LINT_FAILED=$_HI_SC_FAILED
   for _hi_lint_half in lint_native lint_bash32 lint_home_default lint_shfmt \
-    lint_checkbashisms lint_glossary_tags lint_dockerfiles lint_image_tags; do
+    lint_checkbashisms lint_glossary_tags lint_settings_table \
+    lint_dockerfiles lint_image_tags; do
     "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
   done
   unset _hi_lint_half

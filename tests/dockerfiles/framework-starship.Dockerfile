@@ -1,5 +1,5 @@
 # a prompt that owns PROMPT_COMMAND, which is the bash-side collision:
-# shells/bash.sh chains onto it rather than replacing it, and this is what says
+# common/bash.sh chains onto it rather than replacing it, and this is what says
 # whether that chaining actually holds.
 #
 # BASE is the sshd image from sshd-debian.Dockerfile; the framework goes on

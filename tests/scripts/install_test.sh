@@ -20,13 +20,13 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # before letting clean_all near $_HI_ROOT.
 #
 # The scratch overlay is deliberately a *different* directory from the scratch
-# tree's misc/, so "writes land outside the tree" is something the tests can see
+# tree's settings/, so "writes land outside the tree" is something the tests can see
 # rather than assume.
 function _hi_settings_fixture() {
   local dir="$_HI_WORKDIR/$1"
   local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/config"
   local _HI_SETTINGS="$dir/config/settings.sh"
-  mkdir -p "$dir/common" "$dir/misc" "$dir/config"
+  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
   shift
   "$@" >/dev/null
 }
@@ -149,7 +149,7 @@ function test_core_sources_settings_first() {
 }
 
 function test_fish_config_sources_settings_first() {
-  _hi_sources_settings_before_paths "$_HI_ROOT/shells/config.fish"
+  _hi_sources_settings_before_paths "$_HI_ROOT/common/config.fish"
 }
 
 # hi.sh's fallback rc is the third entry point, but it's *generated* rather
@@ -221,7 +221,7 @@ function test_shebang_is_written_to_a_new_settings_file() {
 # `hi --update`'s git pull still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
-  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/misc/settings.sh" ]
+  [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/settings/settings.sh" ]
 }
 
 function _hi_shebang_then_settings() {
@@ -322,9 +322,9 @@ function test_packages_floor_is_skipped_when_the_check_is_off() {
 # the prompts rather than trusting a wall clock: a bound that regressed would
 # show up as more prompts, not as a slower suite.
 #
-# $_HI_PTY_FORCED is empty when there is no python3 to build the pty with,
-# which is what makes these skip yellow rather than fail - the backend suites'
-# doctrine, and for the same reason.
+# $_HI_PTY_FORCED is empty when there is no usable pty - no python3 at all, or
+# a python3 without the Unix-only `pty` module - which is what makes these skip
+# yellow rather than fail: the backend suites' doctrine, for the same reason.
 # shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
 # is the child shell's to make, after the pty has put it on the other side
 _HI_FLOOR_CHILD='
@@ -348,7 +348,7 @@ _HI_FLOOR_CHILD='
 function _hi_floor_pty() {
   local label="$1" input="$2" line="${3:-}"
   local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.floor.out"
-  mkdir -p "$dir/common" "$dir/misc" "$dir/config"
+  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
   printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
   : >"$out"
   printf '%b' "$input" |
@@ -374,7 +374,7 @@ function _hi_floor_pty_lines() {
 # eight junk answers, three prompts: the bound, not the patience.
 function test_packages_floor_stops_asking_for_a_number() {
   [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_junk]" "no python3 to drive an interactive pty"
+    _hi_skip "[floor_junk]" "no usable pty to drive an interactive case"
     return 0
   }
   _hi_floor_pty floor_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
@@ -385,7 +385,7 @@ function test_packages_floor_stops_asking_for_a_number() {
 # EOF is not an answer: one prompt, then out.
 function test_packages_floor_ends_on_eof() {
   [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_eof]" "no python3 to drive an interactive pty"
+    _hi_skip "[floor_eof]" "no usable pty to drive an interactive case"
     return 0
   }
   _hi_floor_pty floor_eof '\004' || return 1
@@ -397,7 +397,7 @@ function test_packages_floor_ends_on_eof() {
 # resets, so this still lands on 2 rather than giving up first.
 function test_packages_floor_takes_a_number_after_a_rejection() {
   [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_recover]" "no python3 to drive an interactive pty"
+    _hi_skip "[floor_recover]" "no usable pty to drive an interactive case"
     return 0
   }
   _hi_floor_pty floor_recover 'zz\n2\n2\n' || return 1
@@ -625,7 +625,7 @@ function test_config_hi_degrades_when_sudo_cannot_link() {
 # install_tree run (or several runs)
 function _hi_package_src() {
   local dir="$_HI_WORKDIR/$1" item
-  mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/misc" "$dir/src/say-hi/scripts" "$dir/src/say-hi/shells"
+  mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/settings" "$dir/src/say-hi/scripts"
   for item in hi.sh load.sh LICENSE.md README.md; do printf 'x\n' >"$dir/src/say-hi/$item"; done
 }
 
@@ -640,7 +640,7 @@ function _hi_package_fixture() {
 function test_install_tree_copies_the_tree_under_destdir() {
   _hi_package_fixture copies
   local dest="$_HI_WORKDIR/copies/dest/usr/share/say-hi"
-  [ -d "$dest/common" ] && [ -d "$dest/misc" ] && [ -d "$dest/shells" ] &&
+  [ -d "$dest/common" ] && [ -d "$dest/settings" ] &&
     [ -f "$dest/load.sh" ] && [ -x "$dest/hi.sh" ]
 }
 
@@ -885,7 +885,7 @@ function run_install_tests() {
 
   _hi_h2 "Testing: settings are sourced ahead of paths.sh"
   _hi_check "common/core.sh" test_core_sources_settings_first
-  _hi_check "shells/config.fish" test_fish_config_sources_settings_first
+  _hi_check "common/config.fish" test_fish_config_sources_settings_first
 
   _hi_h2 "Testing: config_prompt_ends"
   _hi_check "Defaults write nothing" test_prompt_ends_writes_nothing_for_the_defaults
@@ -944,10 +944,10 @@ function run_install_tests() {
   _hi_check_requires bash "Skips an empty file" test_check_one_config_skips_empty_file
 
   _hi_h2 "Testing: config_hi (skip path only)"
-  _hi_check "Skips when already linked" test_config_hi_skips_when_already_linked
-  _hi_check "Survives an unwritable launcher" test_config_hi_survives_an_unwritable_launcher
-  _hi_check "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
-  _hi_check "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
+  _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked
+  _hi_check_capable symlink "Survives an unwritable launcher" test_config_hi_survives_an_unwritable_launcher
+  _hi_check_capable symlink "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
+  _hi_check_capable symlink "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
   _hi_check "Degrades when sudo can't link" test_config_hi_degrades_when_sudo_cannot_link
 
   _hi_h2 "Testing: install_tree (packaging mode)"
@@ -955,11 +955,11 @@ function run_install_tests() {
   _hi_check "Ships scripts/" test_install_tree_ships_scripts
   _hi_check "Stages the man page, gzipped" test_install_tree_stages_the_man_page
   _hi_check "Skips the man page without a source" test_install_tree_skips_the_man_page_without_a_source
-  _hi_check "Links hi without DESTDIR in the target" test_install_tree_links_hi_without_destdir_in_the_target
+  _hi_check_capable symlink "Links hi without DESTDIR in the target" test_install_tree_links_hi_without_destdir_in_the_target
   _hi_check "Writes the profile.d snippet" test_install_tree_writes_the_profile_snippet
   _hi_check "Touches no rc file" test_install_tree_touches_no_rc_file
   _hi_check "Clears a stale destination" test_install_tree_clears_a_stale_destination
-  _hi_check "Replaces a symlinked dest without following" test_install_tree_replaces_a_symlinked_dest_without_following
+  _hi_check_capable symlink "Replaces a symlinked dest without following" test_install_tree_replaces_a_symlinked_dest_without_following
 
   _hi_h2 "Testing: strip_marker (--uninstall)"
   _hi_check "Removes only tagged lines" test_strip_marker_removes_tagged_lines_only
@@ -978,7 +978,7 @@ function run_install_tests() {
 
   _hi_h2 "Testing: unlink_hi (skip paths only)"
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
-  _hi_check "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
+  _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
   _hi_check "uninstall.sh shims onto --uninstall" test_uninstall_shim_delegates_to_install
 
   _hi_suite_end "install.sh logic"

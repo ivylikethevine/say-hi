@@ -37,11 +37,10 @@ plugins:
 exclude:
   - bin/
   - common/
-  - shells/
   - scripts/
   - tests/
   - packaging/
-  - misc/
+  - settings/
   - docs/tapes/
   - docs/hi.1
   - hi.sh

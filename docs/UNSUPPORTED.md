@@ -21,6 +21,7 @@ answer](#what-would-change-an-answer) for the one thing that reopens a row.
 - [Shells hi does not style](#shells-hi-does-not-style)
 - [Packaging channels weighed and not shipped](#packaging-channels-weighed-and-not-shipped)
 - [Features that were removed](#features-that-were-removed)
+- [Changes proposed and not made](#changes-proposed-and-not-made)
 - [What would change an answer](#what-would-change-an-answer)
 
 ## Targets weighed and not shipped
@@ -54,21 +55,21 @@ own shell. A "no" here is about hi's roster, not about the machine.
 ## Shells hi does not style
 
 These are settled the same way the targets above are. Each would need its own rc
-in `shells/` (prompt, aliases, completion) plus a tier in the fallback ladder in
+in `common/` (prompt, aliases, completion) plus a tier in the fallback ladder in
 `hi.sh`'s `_hi_remote_suffix` and `load.sh`'s `load()`.
 
 | shell        | status                          | why                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `elvish`     | **decided against**             | its own language, so the prompt and aliases would be a second implementation to keep in sync forever, for an audience hi has no evidence of. A `shells/rc.elv` is what it would take, and nobody has asked                                                                                                                                                           |
+| `elvish`     | **decided against**             | its own language, so the prompt and aliases would be a second implementation to keep in sync forever, for an audience hi has no evidence of. A `common/rc.elv` is what it would take, and nobody has asked                                                                                                                                                           |
 | `xonsh`      | **decided against**             | Python — a third implementation, on the same terms as elvish and with the same answer                                                                                                                                                                                                                                                                                |
 | `tcsh`/`csh` | **decided against**             | different rc syntax _and_ no `$ENV` equivalent, so there is no hook to land on at all: it would need its own rc and its own delivery mechanism                                                                                                                                                                                                                       |
 | `nushell`    | **decided against**             | Nu is not POSIX, so it can source none of `common/`                                                                                                                                                                                                                                                                                                                  |
-| `ksh`/`mksh` | **decided against** | they land in the `sh` tier like any other bash-less shell - aliases and the colored prompt, no header. A ksh-specific tier once existed for the sake of a live git segment; it was removed as not worth a second POSIX implementation to keep in sync |
+| `ksh`/`mksh` | **decided against**             | they land in the `sh` tier like any other bash-less shell - aliases and the colored prompt, no header. A ksh-specific tier once existed for the sake of a live git segment; it was removed as not worth a second POSIX implementation to keep in sync                                                                                                                |
 | PowerShell   | not a POSIX shell               | the greeting hi prints there is the whole extent of it                                                                                                                                                                                                                                                                                                               |
 
 Using one of these as a _login_ shell still works, and always did — hi lands
 you in the best of `$_HI_SHELL_TREE` the target actually has. Only the
-_session_ shell is limited, and only for the three above.
+_session_ shell is limited, and only for the shells in that table.
 
 ## Packaging channels weighed and not shipped
 
@@ -115,12 +116,13 @@ yes - which is why they are worth writing down rather than leaving to
 `git log`.
 
 **The tmux integration** (`hi --tmux`, `--no-tmux`, `_HI_TMUX_ATTACH`,
-`_HI_TMUX_SESSION`, `_HI_DISABLE_TMUX` and `misc/tmux.conf`) was removed on
-2026-08-21. It ran the session inside a named tmux on the target so a dropped
-connection detached instead of losing the session - but only where say-hi was
-**permanently installed**: on a disposable target the tree is deleted when the
-session ends, so a detached tmux would have outlived the thing it was attached
-to, and `_hi_tmux_wanted` refused rather than leave one pointing at nothing.
+`_HI_TMUX_SESSION`, `_HI_DISABLE_TMUX` and `misc/tmux.conf`, in what is today
+`settings/`) was removed on 2026-08-21. It ran the session inside a named tmux
+on the target so a dropped connection detached instead of losing the session -
+but only where say-hi was **permanently installed**: on a disposable target the
+tree is deleted when the session ends, so a detached tmux would have outlived
+the thing it was attached to, and `_hi_tmux_wanted` refused rather than leave
+one pointing at nothing.
 That restriction was never escapable from inside the feature, and the file it
 shipped cost payload bytes on every session that never used it.
 
@@ -130,10 +132,48 @@ _persistent sessions on a disposable target_ entry - which has to answer the
 multiplexer question itself rather than inherit an answer.
 
 **Three shell tiers existed briefly and were dropped**, each for the reason its
-row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu` (2026-08-18)
-and `shells/ksh.sh` (2026-08-21). The ksh one is the instructive case - it was
-written for the sake of a live git segment, and removing it was the decision
-that a second POSIX implementation to keep in sync is not worth one segment.
+row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu`
+(2026-08-18) and `shells/ksh.sh` (2026-08-21), in what is today `common/`. The
+ksh one is the instructive case - it was written for the sake of a live git
+segment, and removing it was the decision that a second POSIX implementation to
+keep in sync is not worth one segment.
+
+## Changes proposed and not made
+
+Not a runtime, a shell or a channel - a change to something that already works,
+weighed and declined. Same rule as every section above: the reasoning is here so
+it is not re-derived from scratch next time.
+
+**Renaming the config directory** to `~/.say-hi-conf`, or anything else outside
+the XDG base, was decided against on 2026-08-24. The config lives at
+`${XDG_CONFIG_HOME:-$HOME/.config}/say-hi` (`common/core.sh`) and stays there.
+
+- **The override already does it.** `$_HI_CONFIG_DIR` is read before anything
+  else and wins over the derivation, so `_HI_CONFIG_DIR=~/.say-hi-conf` gets
+  exactly the asked-for path today, with no code change and no migration. A
+  rename would take that choice away from everyone else to hand it to one
+  person - the opposite of what an override is for.
+- **Discoverability, the likeliest motive, is already answered.** `hi --help`
+  names the path, and `hi --doctor` prints the _resolved_ one as a section
+  heading, so a user who has moved `$XDG_CONFIG_HOME` still gets told where
+  their own config is rather than where the default would be.
+- **A bare `~/.say-hi-conf` is strictly worse for the people it would affect
+  most.** It drops spec compliance silently for anyone who has moved
+  `$XDG_CONFIG_HOME` - their config would stop being read with no error - and
+  it puts another dotdir in `$HOME`, which is the thing XDG exists to stop.
+- **The cost is not the one-line derivation.** 29 files carry the literal path
+  or the XDG base, across 57 occurrences - the docs, `docs/hi.1`,
+  `packaging/homebrew/say-hi.rb`, the demo tapes and fixtures - plus a
+  migration for every existing install, plus the suite's isolation trick, where
+  `tests/test_lib.sh` points `$XDG_CONFIG_HOME` at a scratch directory and
+  derives `$_HI_CONFIG_DIR` from it and six suites depend on that shape.
+- **No motivation was ever recorded.** The proposal entered the tree on
+  2026-08-22 phrased as "something like `~/.say-hi-conf`", and nothing before or
+  after it names a problem the current path causes.
+
+**What would reopen it:** a concrete failure of the XDG path - a platform where
+it is wrong, or a collision with another tool - rather than a preference about
+how it reads. The general clause below applies otherwise.
 
 ## What would change an answer
 

@@ -27,7 +27,7 @@ no `ll`.
 There are two families of answer.
 
 **Install your config there.** Dotfile managers — [chezmoi], [yadm], [GNU Stow],
-[dotbot], [rcm], [homeshick], These are excellent, and
+[dotbot], [rcm], [homeshick]. These are excellent, and
 say-hi does not compete with them: they assume the machine is yours, that you'll
 be back, and that leaving files behind is fine. That fails for a shared
 production host, a box you touch once, or a container. The line blurs at the
@@ -60,7 +60,7 @@ so it doesn't depend on your terminal.
 | Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash | broad                                                                                           | Linux x86_64                                             | Linux, macOS                    | broad                    |
 | Installs on target                  | nothing                                                   | nothing                                                                                         | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
 | Cleans up on exit                   | yes, automatically                                        | leaves `/tmp` dir                                                                               | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
-| Size ceiling                        | ~32KB gzipped, enforced by CI                             | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
+| Size ceiling                        | ~32KB gzipped, 64KB budget enforced by CI                 | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                            | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                        | no                                                                                              | **yes**                                                  | no                              | no                       |
 | Maturity                            | pre-1.0, not yet published to any channel                 | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
@@ -115,7 +115,7 @@ plugin model is also more principled than copying dotfiles blind.
 - **Reach.** xxh targets "Linux on x86_64" — no ARM, no macOS, no BSD. say-hi's
   floor is bash 3.2 (what macOS still ships) and `base64`, and its suite runs
   real Debian, Alpine/musl and bash-3.2 targets every time.
-- **Weight.** xxh uploads shells; say-hi sends ~48KB a session and a CI job
+- **Weight.** xxh uploads shells; say-hi sends ~46KB a session and a CI job
   fails if that drifts more than 5% from the number on the badge.
 - **Footprint.** xxh is hermetic but persistent — `~/.xxh` stays until you
   delete it. say-hi removes itself when the session ends.
@@ -190,9 +190,16 @@ composition has a wrinkle worth knowing.
   terminal side: a persistent remote component under `~/.warp*` plus a hook
   line in the remote's rc files. It ships Warp's features, not your config.
   The two coexist — say-hi touches only its own marker-delimited lines.
-- **[chezmoi]/[yadm] as the overlay's keeper.** say-hi's per-user overlay lives
-  at `~/.config/say-hi/`. Keep it in your dotfile manager and the two compose
-  cleanly: chezmoi versions it, hi ships it to every target, per-session.
+- **[chezmoi]/[yadm]/[GNU Stow] as the overlay's keeper.** say-hi's per-user
+  overlay lives at `~/.config/say-hi/`. Keep it in your dotfile manager and the
+  two compose cleanly: the manager versions it, hi ships it to every target,
+  per-session. It is a plain directory of plain files, so there is nothing to
+  integrate - Stow's symlinks are dereferenced on the way out, and only the
+  overlay's own files travel, so the manager's metadata and anything private
+  sharing that directory stay put. The one thing to decide is who owns
+  `settings.sh`, since `hi --configure` writes the live copy;
+  [CONFIGURATION.md](CONFIGURATION.md#keeping-the-overlay-in-a-dotfile-manager)
+  has the two ways to settle that.
 
 ## What actually makes say-hi different
 

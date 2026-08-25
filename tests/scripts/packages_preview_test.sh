@@ -96,7 +96,7 @@ function test_color_name_of_names_a_palette_entry() {
 }
 
 # every escape in the header's two tables has to name something, or the legend
-# prints a color the user cannot look up in misc/colors
+# prints a color the user cannot look up in settings/colors
 function test_color_name_of_names_every_header_color() {
   local escape
   for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
@@ -191,8 +191,8 @@ function _hi_render_preview() {
 
 function _hi_write_preview_tree() {
   local home
-  home="$(_hi_scratch_tree tree common misc scripts)"
-  cp "$_HI_WORKDIR/packages" "$home/say-hi/misc/packages"
+  home="$(_hi_scratch_tree tree common settings scripts)"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages"
 }
 
 # One render (the slowest thing this suite does) shared by the cases below;
@@ -233,8 +233,8 @@ function test_preview_ends_with_the_real_check() {
 # path and no hint of which file the tool wanted.
 function test_preview_reports_a_missing_packages_file() {
   local home out
-  home="$(_hi_scratch_tree nopackages common misc scripts)"
-  rm -f "$home/say-hi/misc/packages"
+  home="$(_hi_scratch_tree nopackages common settings scripts)"
+  rm -f "$home/say-hi/settings/packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
     "$home/say-hi/scripts/packages_preview.sh" 2>&1)" && return 1
   [[ "$out" == *"No packages file"* ]]
