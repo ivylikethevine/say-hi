@@ -65,9 +65,15 @@ fi
 
 ttl="${_HI_TARGETS_TTL:-5}"
 
-# `timeout` is GNU, absent on stock macOS - optional. Called via list_*.
+# `timeout` is GNU (busybox has it too), absent on stock macOS - optional.
+# Called via list_*. `-k 0.2`: the cap is a SIGTERM, and a CLI is free to
+# finish what it was doing before honouring one - rootless podman defers it
+# for as long as its runtime is still initialising, which on a fresh $HOME is
+# a storage setup that can outlast the cap itself. The KILL 200ms later is
+# what makes $_HI_PROBE_TIMEOUT a bound rather than a request; core.sh's
+# _hi_probe carries the same one.
 if command -v timeout >/dev/null 2>&1; then
-  run_backend() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  run_backend() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
 else
   run_backend() { "$@"; }
 fi
@@ -145,8 +151,8 @@ emit_targets() {
   [ "$n_wanted" -gt 0 ] || return 0
 
   # worth its two forks only where something actually fans out: two or more
-  # backends, or nomad, whose per-job calls fan out on their own
-  if [ "$n_wanted" -ge 2 ] || [ "$wanted" = nomad ]; then
+  # backends, or nomad and kube alone, whose own calls fan out inside the lane
+  if [ "$n_wanted" -ge 2 ] || [ "$wanted" = nomad ] || [ "$wanted" = kube ]; then
     scratch_dir || :
   fi
 
@@ -245,21 +251,42 @@ list_nomad() {
 # Every namespace, one call: a pod in the current namespace is emitted bare,
 # any other as `namespace:pod` - the spelling hi.sh's _hi_kube_split takes.
 # The current namespace is read out of the kubeconfig (a local file, no
-# round trip); empty means `default`, as kubectl itself reads it.
+# round trip); empty means `default`, as kubectl itself reads it. Still an
+# exec of a large binary, so where there is a scratch dir it runs *beside*
+# the pod listing rather than ahead of it: this lane is the longest one on a
+# host whose daemons all answer, and two kubectl round trips in a row was
+# most of it.
 list_kube() {
-  _hi_ns="$(run_backend kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null)"
-  [ -n "$_hi_ns" ] || _hi_ns=default
+  if [ -n "$scratch" ]; then
+    run_backend kubectl config view --minify -o jsonpath='{..namespace}' >"$scratch/kube.ns" 2>/dev/null &
+    kube_pods >"$scratch/kube.pods" 2>/dev/null
+    wait
+    IFS= read -r _hi_ns <"$scratch/kube.ns" 2>/dev/null || _hi_ns=""
+    [ -n "$_hi_ns" ] || _hi_ns=default
+    kube_rows <"$scratch/kube.pods"
+  else
+    _hi_ns="$(run_backend kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null)"
+    [ -n "$_hi_ns" ] || _hi_ns=default
+    kube_pods 2>/dev/null | kube_rows
+  fi
+}
+
+kube_pods() {
   run_backend kubectl get pods -A --field-selector=status.phase=Running \
-    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}' 2>/dev/null |
-    while read -r ns pod c1 c2 rest; do
-      [ -n "$pod" ] || continue
-      [ "$ns" = "$_hi_ns" ] || pod="$ns:$pod"
-      printf '%s\tkube\n' "$pod"
-      # c2 non-empty means more than one container, so the choice is real
-      if [ -n "$c2" ]; then
-        for c in $c1 $c2 $rest; do printf '%s/%s\tkube\n' "$pod" "$c"; done
-      fi
-    done
+    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}'
+}
+
+# stdin is kube_pods' output; $_hi_ns decides which pods are emitted bare
+kube_rows() {
+  while read -r ns pod c1 c2 rest; do
+    [ -n "$pod" ] || continue
+    [ "$ns" = "$_hi_ns" ] || pod="$ns:$pod"
+    printf '%s\tkube\n' "$pod"
+    # c2 non-empty means more than one container, so the choice is real
+    if [ -n "$c2" ]; then
+      for c in $c1 $c2 $rest; do printf '%s/%s\tkube\n' "$pod" "$c"; done
+    fi
+  done
 }
 
 # No cache wanted (or no writable place to put one): just answer. Reached
@@ -288,8 +315,37 @@ fi
 cache="$cache_dir/hi.targets.$kind"
 now="$(date +%s 2>/dev/null || echo 0)"
 
+# The cache is written whole - temp-file-and-mv, so a mid-refresh reader sees
+# old or new, never half - and stamped with the run's *start* time, so a row
+# is never read as younger than it is. A cache that can't be written is not
+# an error - answer anyway.
+write_cache() {
+  _hi_tmp="$cache.$$"
+  if {
+    printf '%s\n' "$now"
+    [ -n "$1" ] && printf '%s\n' "$1"
+    true
+  } >"$_hi_tmp" 2>/dev/null; then
+    mv "$_hi_tmp" "$cache" 2>/dev/null || rm -f "$_hi_tmp" 2>/dev/null
+  else
+    rm -f "$_hi_tmp" 2>/dev/null
+  fi
+}
+
 # The timestamp is the cache's first line, not the mtime: every portable way to
 # read an mtime in seconds is a GNU `find`/`stat` extension.
+#
+# Three ages, not two. Inside the TTL the copy is the answer. Past it but
+# within $stale_for, the copy is *still* the answer - printed now, while the
+# sweep that replaces it runs behind the TAB - because a TAB that waits on a
+# daemon is the one cost here a user feels, and a list a few minutes old is
+# what completion offered a moment ago anyway. Past $stale_for the shell has
+# been idle long enough that the world has probably moved, and the sweep is
+# waited on the way a first TAB is: better one pause than a page of names
+# that no longer exist and none of the ones that do. TTL 0 skips the file
+# entirely (above), so it turns this off too.
+stale_for=600
+age=""
 if [ -f "$cache" ] && [ -r "$cache" ]; then
   # `read < file`, not $(head -n1): on the cache-*hit* path the subshell+exec
   # was most of the cost
@@ -297,26 +353,47 @@ if [ -f "$cache" ] && [ -r "$cache" ]; then
   case "$stamp" in
   '' | *[!0-9]*) ;; # not a timestamp - treat as a miss and rewrite it
   *)
-    if [ "$now" -ge "$stamp" ] && [ "$((now - stamp))" -lt "$ttl" ]; then
-      cache_body "$cache"
-      exit 0
+    if [ "$now" -ge "$stamp" ]; then
+      age=$((now - stamp))
+      if [ "$age" -lt "$ttl" ]; then
+        cache_body "$cache"
+        exit 0
+      fi
     fi
     ;;
   esac
 fi
 
-# Swept once, then temp-file-and-mv so a mid-refresh reader sees old or new,
-# never half. A cache that can't be written is not an error - answer anyway.
-out="$(emit_targets)"
-tmp="$cache.$$"
-if {
-  printf '%s\n' "$now"
-  [ -n "$out" ] && printf '%s\n' "$out"
-  true
-} >"$tmp" 2>/dev/null; then
-  mv "$tmp" "$cache" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-else
-  rm -f "$tmp" 2>/dev/null
+if [ -n "$age" ] && [ "$age" -lt "$stale_for" ]; then
+  cache_body "$cache"
+  # One refresh at a time: every TAB in the window a sweep takes would
+  # otherwise start another. The lock is a directory - made or not in one
+  # call - holding the time it was taken, and one older than any sweep runs
+  # (a flat 30s, not arithmetic on $_HI_PROBE_TIMEOUT, which may be a
+  # fraction) was left by a refresher that died; it is cleared and taken over
+  # rather than honoured forever.
+  lock="$cache.lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    IFS= read -r _hi_at <"$lock/at" 2>/dev/null || _hi_at=0
+    case "$_hi_at" in '' | *[!0-9]*) _hi_at=0 ;; esac
+    [ "$((now - _hi_at))" -gt 30 ] || exit 0
+    rm -rf "$lock" 2>/dev/null
+    mkdir "$lock" 2>/dev/null || exit 0
+  fi
+  printf '%s\n' "$now" >"$lock/at" 2>/dev/null
+  # Every descriptor goes to /dev/null: the shell reads this script through
+  # a command substitution, which returns only when the *last* writer to its
+  # pipe is gone - a refresher still holding stdout would be the wait this
+  # branch exists to avoid.
+  (
+    trap 'rm -rf "$lock"' EXIT
+    trap 'exit 1' HUP INT TERM
+    write_cache "$(emit_targets)"
+  ) </dev/null >/dev/null 2>&1 &
+  exit 0
 fi
+
+out="$(emit_targets)"
+write_cache "$out"
 [ -n "$out" ] && printf '%s\n' "$out"
 exit 0

@@ -290,10 +290,14 @@ latency-sensitive path in say-hi and the slowest (four of five backends are a
 subprocess each). Two knobs keep it honest.
 
 `_HI_PROBE_TIMEOUT` is the seconds a backend CLI gets (default 2, needs GNU
-`timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds the **whole
-sweep**: the backends are started together and read back in roster order, so
-four wedged daemons cost one ceiling rather than four. A host with no writable
-scratch directory falls back to the in-turn sweep, which is slow, not wrong.
+or busybox `timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds
+the **whole sweep**: the backends are started together and read back in
+roster order, so four wedged daemons cost one ceiling rather than four. A host
+with no writable scratch directory falls back to the in-turn sweep, which is
+slow, not wrong. The cap is a SIGTERM with a SIGKILL 200ms behind it
+(`timeout -k 0.2`): a CLI may defer a TERM while it finishes something —
+rootless podman does, for the whole of its runtime setup, which on a fresh
+`$HOME` can outlast the cap — and without the KILL the ceiling is a request.
 
 `_HI_TARGETS_TTL` is the seconds a result is reused (default 5, 0 disables) —
 a just-started container may not appear until it expires. **Nothing
@@ -302,6 +306,16 @@ cache in `targets.sh` stamps when it was written, the in-shell memo in
 `common/bash.sh`/`common/zsh.zsh` stamps when that shell last read the file,
 so worst-case staleness is close to **twice** the TTL. Only
 `_HI_TARGETS_TTL=0` turns both off.
+
+Past the TTL the file is not discarded at once. For ten minutes after it
+expires (`stale_for` in `targets.sh`) a TAB is answered **from the stale
+copy, immediately**, and the sweep that replaces it runs behind the TAB with
+every descriptor on `/dev/null` — so no TAB inside a working session waits on
+a daemon, and the one after a refresh is current. A lock directory beside the
+cache keeps it to one refresh at a time; a lock older than any sweep runs is a
+dead refresher's and is taken over. After ten idle minutes the sweep is waited
+on again, the way a first TAB is: one pause rather than a page of names that
+no longer exist. `_HI_TARGETS_TTL=0` skips the file, and so this, entirely.
 
 ## HI.29 apostrophes in substitution comments
 

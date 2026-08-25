@@ -333,6 +333,54 @@ function test_cache_expires_with_its_ttl() {
   ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"
 }
 
+# ...whereas one only just past the TTL is the answer *now*, and the sweep
+# that replaces it runs behind the TAB: the rows come back stale, the lock the
+# refresher holds goes away when its mv lands, and the file then says what
+# the shim answers. (An hour-old one, above, is past $stale_for and waits.)
+function test_stale_cache_answers_now_and_refreshes_behind() {
+  local dir="$_HI_WORKDIR/cache-swr" out i
+  mkdir -p "$dir"
+  printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
+  out="$(_hi_targets_cached "$dir" 5 docker)"
+  _hi_has_row "$out" stale docker || return 1
+  ! _hi_has_row "$out" alpha docker || return 1
+  for ((i = 0; i < 50; i++)); do
+    [ -d "$dir/hi.targets.docker.lock" ] || break
+    sleep 0.1
+  done
+  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
+}
+
+# a refresh already running is left to finish: a second stale TAB inside its
+# window answers from the copy and starts nothing
+function test_stale_cache_refresh_is_not_doubled() {
+  local dir="$_HI_WORKDIR/cache-swr-lock" out
+  mkdir -p "$dir/hi.targets.docker.lock"
+  date +%s >"$dir/hi.targets.docker.lock/at"
+  printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
+  out="$(_hi_targets_cached "$dir" 5 docker)"
+  _hi_has_row "$out" stale docker || return 1
+  sleep 0.3
+  [ -d "$dir/hi.targets.docker.lock" ] &&
+    grep -qxF "stale"$'\t'"docker" "$dir/hi.targets.docker"
+}
+
+# ...but a lock nobody could still be holding - taken longer ago than any
+# sweep runs - is a dead refresher's, and is taken over rather than obeyed
+function test_stale_cache_dead_lock_is_taken_over() {
+  local dir="$_HI_WORKDIR/cache-swr-dead" out i
+  mkdir -p "$dir/hi.targets.docker.lock"
+  printf '%s\n' "$(($(date +%s) - 120))" >"$dir/hi.targets.docker.lock/at"
+  printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
+  out="$(_hi_targets_cached "$dir" 5 docker)"
+  _hi_has_row "$out" stale docker || return 1
+  for ((i = 0; i < 50; i++)); do
+    [ -d "$dir/hi.targets.docker.lock" ] || break
+    sleep 0.1
+  done
+  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
+}
+
 # a hand-edited or truncated cache file must be re-derived, not printed
 function test_cache_ignores_a_file_with_no_timestamp() {
   local dir="$_HI_WORKDIR/cache-junk" out
@@ -637,6 +685,9 @@ function run_targets_tests() {
   _hi_check "A hit skips the backend entirely" test_cache_reuses_the_first_answer
   _hi_check "TTL 0 bypasses it" test_cache_is_bypassed_at_ttl_zero
   _hi_check "An expired entry is re-derived" test_cache_expires_with_its_ttl
+  _hi_check "A stale entry answers now, refreshes behind" test_stale_cache_answers_now_and_refreshes_behind
+  _hi_check "A running refresh is not doubled" test_stale_cache_refresh_is_not_doubled
+  _hi_check "A dead refresher's lock is taken over" test_stale_cache_dead_lock_is_taken_over
   _hi_check "A file with no timestamp is re-derived" test_cache_ignores_a_file_with_no_timestamp
   _hi_check "The timestamp never reaches completion" test_cache_does_not_leak_its_timestamp
 

@@ -228,9 +228,10 @@ function _hi_prime_identity() {
 }
 
 # Bound a backend CLI so a downed daemon can't hang a waited-on path; bare
-# when GNU `timeout` is absent (stock macOS). targets.sh keeps its own copy.
+# when GNU `timeout` is absent (stock macOS). targets.sh keeps its own copy,
+# and says why the KILL follows the TERM.
 if command -v timeout >/dev/null 2>&1; then
-  function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
 else
   function _hi_probe() { "$@"; }
 fi
