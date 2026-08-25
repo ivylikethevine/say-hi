@@ -5,7 +5,9 @@
 # completion make - and, given a target, walks the same resolution chain and
 # opens the same multiplexed ssh probe a real `hi` would. Read-only
 # throughout: nothing here modifies a thing, locally or remotely.
-# Run via `hi --doctor` or `hi --doctor [target]`.
+# Run via `hi --doctor` or `hi --doctor [target]`. `--json` anywhere in the
+# arguments swaps the report for one JSON document on stdout - the same rows,
+# for a bug report or a script - and the exit code stays the finding count.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` below into
 # hi.sh's trailing `_hi "$@"`, decides that call never returns, and marks
@@ -25,7 +27,7 @@ unset _hi_d
 case "${1:-}" in
 -h | --help)
   cat <<'EOF'
-Usage: doctor.sh [target]
+Usage: doctor.sh [--json] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -41,6 +43,13 @@ Prints, in order:
 
 ssh options are not accepted here - the probe uses your ssh config as-is,
 which is exactly what completion and the header do.
+
+--json prints the same report as one JSON document instead - what a bug
+report should carry:
+  {"version": ..., "target": ... or null, "findings": N,
+   "rows": [{"section", "label", "text", "severity"}, ...]}
+severity is one of info, ok, warn, bad; findings counts the bad rows, and is
+the exit code either way.
 EOF
   exit 0
   ;;
@@ -48,20 +57,54 @@ esac
 
 # hi.sh's source hatch hands over everything this needs without connecting
 # anywhere: the backend predicates, _hi_remote_root and $_HI_PAYLOAD.
-_HI_DOC_TARGET="${1:-}"
+# --json and the target may come in either order: `hi --doctor --json host`
+# reads naturally, and so does `hi --doctor host --json` appended after the fact
+_HI_DOC_TARGET=""
+_HI_DOC_JSON=0
+for _hi_arg in "$@"; do
+  case "$_hi_arg" in
+  --json) _HI_DOC_JSON=1 ;;
+  *) _HI_DOC_TARGET="$_hi_arg" ;;
+  esac
+done
+unset _hi_arg
 set -- # hi.sh reads "$@" at source time; it must see none
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
 
 _HI_DOC_BAD=0
+# the section the rows below belong to, and the JSON rows collected so far -
+# one string, built as the report runs, so the document can be printed whole
+# at the end (a bad row's count is in the header, so nothing streams)
+_HI_DOC_SECTION=""
+_HI_DOC_ROWS=""
+
+# doctor_section <key> <title> - a report section: the banner in the text
+# report, the "section" field of every row that follows in the JSON one. The
+# key is the stable name a script reads; the title is prose and may change.
+function doctor_section() {
+  _HI_DOC_SECTION="$1"
+  [ "$_HI_DOC_JSON" = 1 ] || _hi_h2 "$2"
+}
+
+# _hi_json_str <text> - <text> as a JSON string literal, quotes included.
+# Backslash and quote escaped, control characters folded to spaces: a row's
+# text is one line of prose, and the one multi-line thing that reaches here
+# (ssh's stderr on a failed connect) reads fine flattened. sed + tr, since
+# there is no bash-3.2-safe way to walk bytes without forking anyway.
+function _hi_json_str() {
+  printf '"%s"' "$(printf '%s' "$1" | tr '\n\t\r' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+}
 
 # doctor_row <label> <text> [severity] - one aligned row. Severity picks the
 # color AND decides whether the row counts as a finding: "" plain, ok green,
 # warn yellow, bad red-and-counted. Its own argument rather than inferred
 # from a color, so the palette and the finding counter are separate knobs.
+# Under --json the row is collected instead of printed; the severity word is
+# the one in the document, with "" spelled info.
 function doctor_row() {
-  local color=""
-  case "${3:-}" in
+  local color="" sev="${3:-info}"
+  case "$sev" in
   ok) color="$GREEN" ;;
   warn) color="$YELLOW" ;;
   bad)
@@ -69,6 +112,11 @@ function doctor_row() {
     _HI_DOC_BAD=$((_HI_DOC_BAD + 1))
     ;;
   esac
+  if [ "$_HI_DOC_JSON" = 1 ]; then
+    _HI_DOC_ROWS="$_HI_DOC_ROWS${_HI_DOC_ROWS:+,
+}    {\"section\": $(_hi_json_str "$_HI_DOC_SECTION"), \"label\": $(_hi_json_str "$1"), \"text\": $(_hi_json_str "$2"), \"severity\": \"$sev\"}"
+    return 0
+  fi
   _hi_cecho " | $(printf '%-12s' "$1") $2" "$color"
   return 0
 }
@@ -92,9 +140,12 @@ function doctor_row() {
 # with room on both sides for either to drift somewhat before this needs
 # revisiting.
 _HI_PAYLOAD_DIFF_FLOOR=128
+# doctor_payload_diff [this_bytes] - doctor_local passes the figure it already
+# built, so the payload is assembled twice per run (this config and the stock
+# one), not three times.
 function doctor_payload_diff() {
-  local this_bytes default_bytes default_h delta
-  this_bytes="$(_hi_wire_bytes)"
+  local this_bytes="${1:-}" default_bytes default_h delta
+  [ -n "$this_bytes" ] || this_bytes="$(_hi_wire_bytes)"
   default_bytes="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
   default_h="$(_hi_human_bytes "$default_bytes")"
   if [ "$this_bytes" -lt "$default_bytes" ]; then
@@ -109,8 +160,8 @@ function doctor_payload_diff() {
 }
 
 function doctor_local() {
-  local branch changes
-  _hi_h2 "The local tree"
+  local branch changes wire
+  doctor_section local "The local tree"
   doctor_row tree "$_HI_ROOT"
   doctor_row version "$(_hi_version)"
   if [ -d "$_HI_ROOT/.git" ]; then
@@ -123,8 +174,9 @@ function doctor_local() {
   # two numbers because they answer two questions: what leaves this machine
   # (a gzipped tar, base64-armored for the ssh path) and how big the thing is
   # once it lands. The first is the one people mean by "what does hi cost".
-  doctor_row payload "$(_hi_wire_estimate) over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
-  doctor_payload_diff
+  wire="$(_hi_wire_bytes)"
+  doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
+  doctor_payload_diff "$wire"
   # the shell column of core.sh's _HI_SHELL_TABLE, so this report cannot fall
   # behind the roster install.sh and load.sh wire up
   local s have=""
@@ -137,7 +189,7 @@ function doctor_local() {
 
 function doctor_config() {
   local f t v any=0
-  _hi_h2 "The config overlay ($_HI_CONFIG_DIR)"
+  doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
   if [ -f "$_HI_SETTINGS" ]; then
     if ! sh -n "$_HI_SETTINGS" 2>/dev/null; then
       doctor_row settings.sh "does NOT parse as sh - every shell sources this file" bad
@@ -202,7 +254,7 @@ function doctor_backend() {
 
 function doctor_backends() {
   local hosts t0 t1
-  _hi_h2 "Backends (probes capped at ${_HI_PROBE_TIMEOUT:-2}s each, like the header)"
+  doctor_section backends "Backends (probes capped at ${_HI_PROBE_TIMEOUT:-2}s each, like the header)"
   if [ -f "$_HI_SSH_CONFIG" ]; then
     # counted through targets.sh, whose awk owns the "literal Host" rule for
     # completion (hi.sh keeps a documented hot-path copy) - not a third copy
@@ -236,7 +288,7 @@ function doctor_target() {
     IFS='|' read -r name what _ predicate <<<"$row"
     chain+=("$what:$name:$predicate")
   done
-  _hi_h2 "Target: $target"
+  doctor_section target "Target: $target"
   for pair in "${chain[@]}"; do
     IFS=':' read -r name label predicate <<<"$pair"
     t0="$(_hi_now)"
@@ -314,7 +366,7 @@ function doctor_container_target() {
   # what it costs. No permanent-install branch here, unlike the ssh arm: a
   # container target has nowhere hi would find a tree it did not put there, so
   # every session pays the copy.
-  doctor_row ships "$(_hi_human_bytes "$(_hi_payload_tar | wc -c | tr -d ' ')") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
+  doctor_row ships "$(_hi_human_bytes "$(_hi_file_bytes <(_hi_payload_tar))") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
 }
 
 # _hi_ladder_first <space-separated tools> - the first shell of $_HI_SHELL_LADDER
@@ -348,7 +400,9 @@ function doctor_ssh_target() {
   if ! ssh "${ctl_opts[@]}" -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
     t1="$(_hi_now)"
     doctor_row connect "FAILED after $(_hi_elapsed "$t0" "$t1")s (BatchMode - a password/2FA prompt fails here but may work interactively)" bad
-    sed 's/^/      /' "$err"
+    # ssh's own words, as a row of their own: the JSON document has nowhere
+    # else to put them, and the text report reads the same either way
+    doctor_row "" "$(cat "$err")"
     rm -f "$err"
     return 0
   fi
@@ -381,12 +435,17 @@ function doctor_ssh_target() {
 # GLOSSARY: HI.06 - executed, it runs the report
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
-_hi_h1 "hi doctor"
+[ "$_HI_DOC_JSON" = 1 ] || _hi_h1 "hi doctor"
 doctor_local
 doctor_config
 doctor_backends
 [ -n "${_HI_DOC_TARGET:-}" ] && doctor_target "$_HI_DOC_TARGET"
-if [ "$_HI_DOC_BAD" -eq 0 ]; then
+if [ "$_HI_DOC_JSON" = 1 ]; then
+  _hi_target_json=null
+  [ -z "$_HI_DOC_TARGET" ] || _hi_target_json="$(_hi_json_str "$_HI_DOC_TARGET")"
+  printf '{\n  "version": %s,\n  "target": %s,\n  "findings": %s,\n  "rows": [\n%s\n  ]\n}\n' \
+    "$(_hi_json_str "$(_hi_version)")" "$_hi_target_json" "$_HI_DOC_BAD" "$_HI_DOC_ROWS"
+elif [ "$_HI_DOC_BAD" -eq 0 ]; then
   _hi_h1 "Nothing looks broken" "$BRGREEN"
 else
   _hi_h1 "$_HI_DOC_BAD finding(s) above in red" "$RED"

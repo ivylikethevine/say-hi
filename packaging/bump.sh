@@ -116,25 +116,23 @@ function write_manifests() {
       _hi_cecho " no such file: $tarball" "$RED" >&2
       return 1
     }
-  elif git -C "$_HI_ROOT" rev-parse -q --verify "refs/tags/v$_HI_VERSION" >/dev/null 2>&1; then
-    tarball="$(mktemp -t hi.tarball.XXXXXX)"
-    _hi_on_exit "rm -f '$tarball'"
-
-    _hi_h2 "Building the source tarball from refs/tags/v$_HI_VERSION"
-    src_tarball "$_HI_VERSION" "v$_HI_VERSION" "$tarball" || {
-      _hi_cecho " git archive failed" "$RED" >&2
-      return 1
-    }
   else
-    url="$(asset_url "$_HI_VERSION")"
     tarball="$(mktemp -t hi.tarball.XXXXXX)"
     _hi_on_exit "rm -f '$tarball'"
-
-    _hi_h2 "No local v$_HI_VERSION tag - fetching $url"
-    curl -fsSL -o "$tarball" "$url" || {
-      _hi_cecho " could not fetch it - has v$_HI_VERSION been released, or is its tag in this checkout?" "$RED" >&2
-      return 1
-    }
+    if git -C "$_HI_ROOT" rev-parse -q --verify "refs/tags/v$_HI_VERSION" >/dev/null 2>&1; then
+      _hi_h2 "Building the source tarball from refs/tags/v$_HI_VERSION"
+      src_tarball "$_HI_VERSION" "v$_HI_VERSION" "$tarball" || {
+        _hi_cecho " git archive failed" "$RED" >&2
+        return 1
+      }
+    else
+      url="$(asset_url "$_HI_VERSION")"
+      _hi_h2 "No local v$_HI_VERSION tag - fetching $url"
+      curl -fsSL -o "$tarball" "$url" || {
+        _hi_cecho " could not fetch it - has v$_HI_VERSION been released, or is its tag in this checkout?" "$RED" >&2
+        return 1
+      }
+    fi
   fi
   # both sums from the same bytes, so the two channels can never disagree about
   # what they are checksumming

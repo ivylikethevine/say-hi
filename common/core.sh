@@ -29,7 +29,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # _hi_fallback_rc; config.fish keeps its own copy.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY)
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -54,25 +54,42 @@ fi
 # Flags name the mechanism: `local` is install.sh appending to the user's own
 # rc, `graft` is load.sh copying hi's rc into a target's. Only the roster is
 # single-homed; the mechanisms stay separate (see install.sh's config_shell).
+# The last column is the rc's *dialect* - what an `export` line and the graft
+# guard around it have to look like. `sh` covers bash and zsh; a shell whose
+# rc is neither sh nor fish gets a new dialect here and arms in _hi_rc_guard
+# and install.sh's tmpdir_line, not a special case at each consumer.
 _HI_SHELL_TABLE=(
-  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local,graft"
-  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local,graft"
-  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local,graft"
+  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local,graft|sh"
+  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local,graft|sh"
+  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local,graft|fish"
 )
 
 # _hi_shell_rows [flag] - the roster, or only rows carrying <flag>. One per
 # line, for `while IFS='|' read` callers.
 function _hi_shell_rows() {
-  local row
+  local row flags
   for row in "${_HI_SHELL_TABLE[@]}"; do
     if [ -z "${1:-}" ]; then
       printf '%s\n' "$row"
       continue
     fi
-    case ",${row##*|}," in
+    IFS='|' read -r _ _ _ _ _ flags _ <<<"$row"
+    case ",$flags," in
     *",$1,"*) printf '%s\n' "$row" ;;
     esac
   done
+}
+
+# _hi_rc_guard <dialect> open|close - the tree-exists guard every rc graft is
+# wrapped in, in that rc's dialect. GLOSSARY: HI.24 - why every graft wraps
+function _hi_rc_guard() {
+  # shellcheck disable=SC2016 # single quotes are the point: the guard expands at shell start, not graft time
+  case "$1:$2" in
+  fish:open) printf '%s' 'if set -q _HI_HOME; and test -f $_HI_HOME/say-hi/common/core.sh' ;;
+  fish:close) printf 'end' ;;
+  *:open) printf '%s' 'if [ -f "${_HI_HOME:-}/say-hi/common/core.sh" ]; then' ;;
+  *:close) printf 'fi' ;;
+  esac
 }
 
 # The one ordering hi resolves shells by, best first, so the two consumers
@@ -154,10 +171,6 @@ function _hi_h2() {
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 
-function _hi_h3() {
-  _hi_hrule "$1" '~' 3 "${2:-$BRPURPLE}"
-}
-
 function _hi_now() {
   printf '%s' "${EPOCHREALTIME:-$(date +%s)}"
 }
@@ -215,9 +228,10 @@ function _hi_prime_identity() {
 }
 
 # Bound a backend CLI so a downed daemon can't hang a waited-on path; bare
-# when GNU `timeout` is absent (stock macOS). targets.sh keeps its own copy.
+# when GNU `timeout` is absent (stock macOS). targets.sh keeps its own copy,
+# and says why the KILL follows the TERM.
 if command -v timeout >/dev/null 2>&1; then
-  function _hi_probe() { timeout "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
+  function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
 else
   function _hi_probe() { "$@"; }
 fi
@@ -225,7 +239,9 @@ fi
 # lesspipe + the debian_chroot prompt label, shared by bash.sh and zsh.zsh;
 # sets $debian_chroot in the caller's scope
 function _hi_interactive_extras() {
-  [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+  # skipped when a parent shell already exported it: nested shells (tmux
+  # panes, `bash` inside bash) otherwise pay the fork+exec again for nothing
+  [ -z "${LESSOPEN:-}" ] && [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
   # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
 }
@@ -282,6 +298,41 @@ function _hi_on_exit() {
   fi
 }
 
+# _hi_setting_get <file> <name> [outvar] - what settings.sh assigns <name>, or
+# rc 1 when it does not. The one reader of that file's grammar, which has one
+# writer (install.sh's config_shell): `export NAME=value` or
+# `export NAME='value'`, an unquoted value's trailing `# comment` (the install
+# marker) stripped, last assignment wins. Read as a file, never off the
+# environment (GLOSSARY: HI.36), and with builtins only - install.sh asks
+# ~15 times per configure, hi.sh once per toggle per connect.
+function _hi_setting_get() {
+  # prefixed locals: the out-var is written by name into the caller's scope,
+  # and a plain `val` here would shadow a caller's `val` (GLOSSARY: HI.04)
+  local _hi_sg_line _hi_sg_val="" _hi_sg_found=1
+  [ -f "$1" ] || return 1
+  while IFS= read -r _hi_sg_line || [ -n "$_hi_sg_line" ]; do
+    case "$_hi_sg_line" in "export $2="*) ;; *) continue ;; esac
+    _hi_sg_line="${_hi_sg_line#"export $2="}"
+    case "$_hi_sg_line" in
+    "'"*)
+      _hi_sg_line="${_hi_sg_line#\'}"
+      _hi_sg_val="${_hi_sg_line%%\'*}"
+      ;;
+    *)
+      _hi_sg_val="${_hi_sg_line%%#*}"
+      _hi_sg_val="${_hi_sg_val%"${_hi_sg_val##*[![:space:]]}"}"
+      ;;
+    esac
+    _hi_sg_found=0
+  done <"$1"
+  [ "$_hi_sg_found" = 0 ] || return 1
+  if [ -n "${3:-}" ]; then
+    printf -v "$3" '%s' "$_hi_sg_val"
+  else
+    printf '%s' "$_hi_sg_val"
+  fi
+}
+
 # What each shell's prompt ends with unless overridden, <SHELL>:<char>. SH is
 # the sh fallback hi.sh bakes on the client. config.fish keeps its
 # own copy (fish parses no bash); hi_test.sh pins it here.
@@ -299,18 +350,21 @@ function _hi_prompt_end_default() {
   done
 }
 
-# _hi_prompt_end <SHELL> - per-shell setting, then the all-three one, then the
-# roster default. Empty counts as unset (`' '` still means "none"); reaches
-# $PS1 unescaped so `%#` and `\$` keep their meaning. The default sits inside
-# the expansion, so an override costs no fork. config.fish mirrors this rule.
+# _hi_prompt_end <SHELL> [outvar] - per-shell setting, then the all-three one,
+# then the roster default. Empty counts as unset (`' '` still means "none");
+# reaches $PS1 unescaped so `%#` and `\$` keep their meaning. The default sits
+# inside the expansion, so an override costs no fork, and the out-var form
+# (GLOSSARY: HI.05) spares the prompt builders a `$( )`. config.fish mirrors
+# this rule.
 function _hi_prompt_end() {
-  local specific
-  eval "specific=\"\${_HI_PROMPT_END_$1:-}\""
-  printf '%s' "${specific:-${_HI_PROMPT_END:-$(_hi_prompt_end_default "$1")}}"
-}
-
-function _hi_at_color() {
-  [ -n "${SSH_TTY:-}" ] && printf '%b' "$YELLOW" || printf '%b' "$NC"
+  local _hi_pe
+  eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
+  _hi_pe="${_hi_pe:-${_HI_PROMPT_END:-$(_hi_prompt_end_default "$1")}}"
+  if [ -n "${2:-}" ]; then
+    printf -v "$2" '%s' "$_hi_pe"
+  else
+    printf '%s' "$_hi_pe"
+  fi
 }
 
 # Deference: _HI_PROMPT=starship hands the prompt over when the target has it,
@@ -552,8 +606,7 @@ function _hi_ssh_host_tag_walk() {
 
 function _hi_ssh_tag_color() {
   local tag
-  tag=$(_hi_ssh_host_tag "$1") && _hi_override_color hosttag "$tag" && return
-  return 1
+  tag=$(_hi_ssh_host_tag "$1") && _hi_override_color hosttag "$tag"
 }
 
 function _hi_resolve_color() {
@@ -599,12 +652,6 @@ function _hi_host_escape_var() {
 function _hi_user_escape_var() {
   _hi_user_escape >/dev/null
   printf -v "$1" '%s' "$_HI_USER_ESC"
-}
-
-# The literal colored " user@host" fragment (@ yellow over ssh) install.sh's
-# preview renders; bash.sh/zsh.zsh keep their escape-based (\u/%n) forms.
-function _hi_userhost() {
-  printf '%b' " $(_hi_user_escape)$(_hi_whoami)$(_hi_at_color)@$(_hi_host_escape)$(_hi_hostname)$NC"
 }
 
 set +euo pipefail # see the top of the file

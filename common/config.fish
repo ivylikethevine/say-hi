@@ -12,7 +12,7 @@ end
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -69,7 +69,8 @@ test "$_HI_ENABLE_FISH_ALIAS_ABBR" = 1; and hi_abbr_aliases
 # an ssh config - the promise targets.sh's own flags branch makes by exiting
 # before the cache and the probes, and the one bash.sh and zsh.zsh keep by
 # answering `-*` words without touching the target cache.
-complete -c hi -f -n 'not string match -q -- "-*" (commandline -ct)' \
+# -k keeps targets.sh's order - recent targets first - instead of sorting
+complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
 # hi's own options, from the same file rather than a second list here - the two
 # would drift, and targets.sh is the only one of the three fish can run.
@@ -88,7 +89,7 @@ end
 # a whole process for two color names, so memoized in a universal variable
 # keyed on user@host+colors-mtime: only the first shell after a change pays
 set -l hi_key "$USER@"(prompt_hostname)
-test -f $_HI_COLORS; and set hi_key "$hi_key:"(command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
+test -f $_HI_COLORS; and set hi_key "$hi_key:"(path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
   set -l hi_colors (bash -c "source $_HI_CORE; _hi_user_color; _hi_host_color")
   set -U __hi_color_user $hi_colors[1]
@@ -168,11 +169,36 @@ function fish_prompt --description 'Write out the prompt'
   test $__fish_prompt_status_generation = $status_generation; and set bold_flag
   set __fish_prompt_status_generation $status_generation
 
+  # quoted so an empty set_color (no colour on this TERM) still counts as an
+  # argument - fish 3 otherwise reports "missing argument" on every prompt
   set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
-    (set_color $fish_color_status) (set_color $bold_flag $fish_color_status) $last_pipestatus)
+    "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
 
-  echo -n -s (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
-    (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " "
+  echo -n -s $_hi_marks_a (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
+    (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $_hi_marks_b
+end
+
+# OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
+# common/bash.sh's ps1() and common/zsh.zsh's precmd emit. fish 4 emits both
+# itself, so only fish 3 gets hi's copy - two sets of marks would confuse the
+# terminal about where a prompt begins.
+set -g _hi_marks_a ''
+set -g _hi_marks_b ''
+if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
+  set -g _hi_marks_a \e']133;A'\a
+  set -g _hi_marks_b \e']133;B'\a
+  function __hi_marks_preexec --on-event fish_preexec
+    printf '\e]133;C\a'
+  end
+  function __hi_marks_postexec --on-event fish_postexec
+    printf '\e]133;D;%s\a' $status
+  end
+  # only an interactive fish owns a terminal to report to: `fish -c` and the
+  # suites' captured runs would otherwise get the escape ahead of their output
+  function __hi_marks_cwd --on-variable PWD
+    status is-interactive; and printf '\e]7;file://%s%s\a' (hostname) $PWD
+  end
+  __hi_marks_cwd
 end
 
 end

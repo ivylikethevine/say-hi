@@ -116,10 +116,14 @@ function bench_git_prompt() {
 # answering costs that whole cap, and a hosted runner hands this job two of
 # them (docker and podman both wedged), so $_HI_BENCH_PROBE seconds is the
 # floor this number cannot go under however parallel the sweep is. The +600ms
-# is everything around it: `env -i`, `sh`, the scratch mkdir, and one
-# `timeout`+CLI exec per backend, which are large Go binaries. A contended
-# 4-core hosted runner spends ~285ms there; a developer machine with a docker
-# that answers, ~90ms for the whole run.
+# is everything around it: the 200ms KILL grace behind the cap's TERM (a
+# rootless podman on a fresh $HOME defers the TERM through its whole runtime
+# setup, and a hosted runner has been seen to take a second over that - the
+# 2013ms that once failed this case was that lane, not the sweep going in
+# turn), then `env -i`, `sh`, the scratch mkdir, and one `timeout`+CLI exec
+# per backend, which are large Go binaries. A contended 4-core hosted runner
+# spends ~285ms on those; a developer machine with a docker that answers,
+# ~90ms for the whole run.
 #
 # In turn on that same host would be two caps and change, so this still tells
 # the two apart - but it is a wall clock on somebody else's machine and it is

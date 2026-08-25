@@ -32,15 +32,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # Deliberately no `uses: ./.github/actions/setup-tool` in this job, and
-      # it is not an oversight that could be fixed by adding one: that action
-      # resolves linux.x86_64/darwin.* asset slugs and caches into
-      # /usr/local/bin, and neither is a Windows shape. Hence `--skip
-      # shellcheck` rather than letting the suite stand down - run_shellcheck
-      # exits 1 when shellcheck is missing, on purpose (a lint gate that did
-      # not run must not read as a pass), so leaving it selected would red this
-      # job on the one suite with nothing to say about Windows. ci.yml's ubuntu
-      # job is where lint is enforced, against pinned versions.
+      # Deliberately no `uses: ./.github/actions/setup-tool` in this job: that
+      # action resolves linux.x86_64/darwin.* asset slugs and caches into
+      # /usr/local/bin, and neither is a Windows shape. The lint group is not
+      # run here for that reason - ci.yml's ubuntu job is where it is enforced,
+      # against pinned versions.
       #
       # No --require-run and no --totals-file either. Skips are the expected
       # shape here - there is no zsh or fish on the runner - and README's tests
@@ -61,7 +57,7 @@ jobs:
           # because $GITHUB_WORKSPACE is a backslashed path bash cannot walk.
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          ./tests/test_runner.sh --verbose --host-report --group fast --skip shellcheck
+          ./tests/test_runner.sh --verbose --host-report --group fast
 
       - name: Say so, without failing
         if: steps.suites.outcome == 'failure'

@@ -206,6 +206,23 @@ function run_ssh_tests() {
     done
 
     _hi_par_case bystander _hi_run_bystander_case
+
+    # A starved target: a tenth of a core, 64 MiB, and a link with 300 ms
+    # each way at 128 kbit/s - a satellite hop, or a Pi on the far side of a
+    # bad hotel wifi. Every other case here measures hi against a container
+    # with the host's cpu and a loopback link, so the payload's cost, the
+    # handshake's round trips and every timeout in the connect path had only
+    # ever been seen on a fast box. The number that matters is the time in
+    # the verdict line: the case's own timeout is the budget hi gets on such
+    # a target, and a change that pushes it past that has to say so here
+    # before a user does (7-8 s here at the time of writing, against ~1.5 s
+    # for the same probe unshaped). netem goes on inside the container (NET_ADMIN,
+    # iproute2 in the image), where it shapes the container's own eth0 and
+    # nothing on the host.
+    _HI_SSH_RUN_ARGS="--cpus 0.1 --memory 64m --cap-add NET_ADMIN" \
+      _HI_SSH_SHAPE_CMD="tc qdisc add dev eth0 root netem delay 300ms rate 128kbit" \
+      _HI_SSH_CASE_TIMEOUT=300 \
+      _hi_par_case starved _hi_run_case starved "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
   fi
 
   for _hi_case_spec in nobash:alpine:ssh_fallback nobash-zsh:alpine-zsh:ssh_fallback \

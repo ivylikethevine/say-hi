@@ -36,9 +36,10 @@ function _hi_fake_rcs() {
   done
   printf '%s\n' "$_HI_USER_LINE" >"$_HI_FAKE_HOME/.bashrc"
   printf '%s\n' "$_HI_USER_LINE" >"$_HI_FAKE_HOME/.zshrc"
+  # rows are "<dialect>|<hi's rc>|<the user's rc>": bash and zsh share `sh`
   _HI_CONFIGS=(
-    "bash|$_HI_FAKE_HOME/src.bashrc|$_HI_FAKE_HOME/.bashrc"
-    "zsh|$_HI_FAKE_HOME/src.zshrc|$_HI_FAKE_HOME/.zshrc"
+    "sh|$_HI_FAKE_HOME/src.bashrc|$_HI_FAKE_HOME/.bashrc"
+    "sh|$_HI_FAKE_HOME/src.zshrc|$_HI_FAKE_HOME/.zshrc"
     "fish|$_HI_FAKE_HOME/src.fishconf|$_HI_FAKE_HOME/.config/fish/config.fish"
   )
 }
@@ -49,7 +50,7 @@ function _hi_clean_all() {
 }
 
 function _hi_clean_only_root() {
-  local -a _HI_CONFIGS=("bash|$_HI_WORKDIR/no.src|$_HI_WORKDIR/no.such.rc")
+  local -a _HI_CONFIGS=("sh|$_HI_WORKDIR/no.src|$_HI_WORKDIR/no.such.rc")
   _hi_clean_all "$@"
 }
 

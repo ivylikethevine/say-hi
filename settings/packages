@@ -12,8 +12,9 @@
 #
 # 5: bright green installed, bright red missing - the tools whose absence
 #    changes how you work
-asdf:5
+asdf:5,mise:5
 direnv:5
+starship:1
 sshpass:5
 
 # 4: hidden installed, yellow missing - the tools any working box has, hi's
@@ -22,20 +23,22 @@ sshpass:5
 top:4,btop:4,htop:4,btm:4
 make:4,cmake:4
 ping:4,prettyping:1,gping:1
-jq:4,yq:4
-curl:4,httpie:4,httpstat:4
+jq:4,gojq:4,jaq:4
+yq:4
+curl:4,httpie:4,xh:4,httpstat:4
 aria2:4,wget:4
-fd:4,find:4
+fd:4,fdfind:4,find:4
 sd:4,sed:1
-tre:4,tree:1
-strace:4
+tre:4,tree:1,broot:1
+strace:4,ltrace:1
 cosign:4
 whois:4
 pkgconf:4
 sudo:4
 openssl:4
 tar:4
-zip:4
+zip:4,unzip:4
+7z:1,zstd:1,xz:1
 git:4
 fusermount:4
 dotnet:4
@@ -48,14 +51,15 @@ ffmpeg:4
 # 3: bright green installed, bright yellow missing - favorites, which is where
 #    the "you meant to install this here" nudge lands
 eza:3,exa:3,lsd:3
-just:3
+just:3,task:3
 hi:3
 bat:3,batcat:3,ccat:3,cat:2
-docker:3,podman:3
+docker:3,podman:3,nerdctl:3
 kubectl:3
+k9s:1,helm:1,kind:0,minikube:0
 nomad:3
 python3:3,python2:3,python:3
-tldr:3,man:2
+tldr:3,tlrc:3,tealdeer:3,man:2
 act:3
 
 # 2: green installed, yellow missing - system and package tools
@@ -69,31 +73,34 @@ act:3
 # file order: the native manager comes before the helper that wraps it (pacman
 # before yay, dnf/zypper before rpm, brew before mas), so a machine that has
 # both names shows the one that actually owns the packages.
-apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,brew:2,choco:2,chocolatey:2,yay:2,rpm:2,mas:2
+apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,chocolatey:2,yay:2,paru:2,rpm:2,mas:2
 # ...and the layers that sit *on top* of the native one. These can coexist -
 # Ubuntu ships both snap and flatpak - so this is a "do you have any of these"
 # row rather than an exclusive choice, which is still one row instead of four.
-flatpak:2,snap:2,nix:2,appimage:2
-sshfs:2
+flatpak:2,snap:2,nix:2,guix:2,appimage:2
+sshfs:2,rclone:1
 sshm:2
-nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2
+nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2,hx:2,helix:2,kak:2
 
 # 1: bright cyan installed, bright magenta missing - optional extras
 golang:1,go:1
 scc:1,cloc:1
-tmux:1,screen:0
-dog:1,dig:0
+tmux:1,zellij:1,screen:0,dtach:0
+dog:1,doggo:1,dig:0
+fzf:1,sk:1,skim:1
+atuin:1,mcfly:0
 dua:1
 duf:1
-zoxide:1
+zoxide:1,autojump:0
 symlinks:1
 fdupes:1
-rg:1
+rg:1,ag:1,ugrep:1,ack:0
 stow:1
-dust:1
-procs:1
-ctop:1
-navi:1
+dust:1,ncdu:1
+procs:1,pstree:0
+ctop:1,lazydocker:1
+lazygit:1,tig:1
+navi:1,cheat:0
 hyperfine:1
 pv:1
 progress:1
@@ -106,14 +113,14 @@ progress:1
 rust:0,rustc:4,rustup:4
 pip:0,pyenv:0,pyvenv:0
 n:0,npx:0,npm:0,nvm:0,node:0
-netstat:0,bandwhich:0
+netstat:0,bandwhich:0,iftop:0,nethogs:0
 dpkg:0,wpkg:0
 diff-so-fancy:0,icdiff:0,delta:0,xdelta3:0
 grc:0
 has:0
 nmcli:0
 msdnss:0
-nmap:0
+nmap:0,rustscan:0
 envrc:0
 
 
@@ -121,6 +128,8 @@ envrc:0
 
 kitty:0
 wezterm:0
+alacritty:0
+foot:0
 yadm:0
 xxh:0
 mosh:0
@@ -135,6 +144,18 @@ guake:0
 homeshick:0
 sshrc:0
 shelly:0
+sshuttle:0
+autossh:0
+et:0
+tailscale:0
+tsh:0
+limactl:0
+colima:0
+orb:0
+distrobox:0
+toolbox:0
+devpod:0
+xpipe:0
 
 # --- what hi itself runs -----------------------------------------------------
 # Everything below is used by hi's own code (the payload, scripts/ and the test

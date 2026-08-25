@@ -51,10 +51,15 @@ case "$1 $2" in
 esac
 EOF
 
+  # `get pods -A` rows are "<namespace> <pod> [containers...]"; `config view`
+  # answers the current namespace, so pod-c should come back prefixed
   cat >"$dir/kubectl" <<'EOF'
 #!/bin/sh
-[ "$1" = get ] || exit 1
-printf 'pod-a\npod-b\n'
+case "$1" in
+config) printf 'default' ;;
+get) printf 'default pod-a\ndefault pod-b\nother pod-c\n' ;;
+*) exit 1 ;;
+esac
 EOF
 
   for tool in docker podman nomad kubectl; do
@@ -97,7 +102,7 @@ EOF
 printf 'kube start\n' >>"$_HI_PROBE_LOG"
 sleep 0.3
 printf 'kube end\n' >>"$_HI_PROBE_LOG"
-printf 'slow-pod\n'
+printf 'default slow-pod\n'
 EOF
 
   cat >"$dir/nomad" <<'EOF'
@@ -241,7 +246,8 @@ function test_nomad_kind_lists_running_allocs() {
 function test_kube_kind_lists_running_pods() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" kube)"
-  _hi_has_row "$out" pod-a kube && _hi_has_row "$out" pod-b kube
+  _hi_has_row "$out" pod-a kube && _hi_has_row "$out" pod-b kube &&
+    _hi_has_row "$out" other:pod-c kube
 }
 
 # The fan-out itself. Three backends that take 0.3s each: started together the
@@ -327,6 +333,54 @@ function test_cache_expires_with_its_ttl() {
   ! printf '%s\n' "$out" | grep -qxF "stale"$'\t'"docker"
 }
 
+# ...whereas one only just past the TTL is the answer *now*, and the sweep
+# that replaces it runs behind the TAB: the rows come back stale, the lock the
+# refresher holds goes away when its mv lands, and the file then says what
+# the shim answers. (An hour-old one, above, is past $stale_for and waits.)
+function test_stale_cache_answers_now_and_refreshes_behind() {
+  local dir="$_HI_WORKDIR/cache-swr" out i
+  mkdir -p "$dir"
+  printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
+  out="$(_hi_targets_cached "$dir" 5 docker)"
+  _hi_has_row "$out" stale docker || return 1
+  ! _hi_has_row "$out" alpha docker || return 1
+  for ((i = 0; i < 50; i++)); do
+    [ -d "$dir/hi.targets.docker.lock" ] || break
+    sleep 0.1
+  done
+  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
+}
+
+# a refresh already running is left to finish: a second stale TAB inside its
+# window answers from the copy and starts nothing
+function test_stale_cache_refresh_is_not_doubled() {
+  local dir="$_HI_WORKDIR/cache-swr-lock" out
+  mkdir -p "$dir/hi.targets.docker.lock"
+  date +%s >"$dir/hi.targets.docker.lock/at"
+  printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
+  out="$(_hi_targets_cached "$dir" 5 docker)"
+  _hi_has_row "$out" stale docker || return 1
+  sleep 0.3
+  [ -d "$dir/hi.targets.docker.lock" ] &&
+    grep -qxF "stale"$'\t'"docker" "$dir/hi.targets.docker"
+}
+
+# ...but a lock nobody could still be holding - taken longer ago than any
+# sweep runs - is a dead refresher's, and is taken over rather than obeyed
+function test_stale_cache_dead_lock_is_taken_over() {
+  local dir="$_HI_WORKDIR/cache-swr-dead" out i
+  mkdir -p "$dir/hi.targets.docker.lock"
+  printf '%s\n' "$(($(date +%s) - 120))" >"$dir/hi.targets.docker.lock/at"
+  printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
+  out="$(_hi_targets_cached "$dir" 5 docker)"
+  _hi_has_row "$out" stale docker || return 1
+  for ((i = 0; i < 50; i++)); do
+    [ -d "$dir/hi.targets.docker.lock" ] || break
+    sleep 0.1
+  done
+  grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
+}
+
 # a hand-edited or truncated cache file must be re-derived, not printed
 function test_cache_ignores_a_file_with_no_timestamp() {
   local dir="$_HI_WORKDIR/cache-junk" out
@@ -361,6 +415,73 @@ function test_absent_backends_leave_only_ssh_rows() {
 # interactive rc, and sourcing it here would drop its aliases (rm -iv, cp -rv)
 # and readline binds on every case that runs after. The three toggles switch
 # off everything except the completion itself, which sits outside all of them.
+# Recent targets first. _HI_RECENT_FILE points targets.sh at a file the case
+# wrote - "<epoch>\t<name>" lines - and the stamps are relative to now, so
+# the frecency weights are the ones a real file would get.
+function _hi_recent_file() {
+  local f="$_HI_WORKDIR/recent.$1" now
+  shift
+  now="$(date +%s)"
+  : >"$f"
+  # <name>:<seconds ago>, one visit each
+  local spec
+  for spec in "$@"; do
+    printf '%s\t%s\n' "$((now - ${spec#*:}))" "${spec%%:*}" >>"$f"
+  done
+  printf '%s' "$f"
+}
+function _hi_targets_ranked() {
+  local f="$1"
+  shift
+  _HI_RECENT_FILE="$f" _hi_targets "$_HI_CONFIG" "$@"
+}
+# the roster order is alpha, beta, lowercase-keyword... - so beta first is
+# only ever the file's doing
+function test_recent_target_comes_first() {
+  local out
+  out="$(_hi_targets_ranked "$(_hi_recent_file one beta:10)" ssh)"
+  [ "$(printf '%s\n' "$out" | head -1)" = "beta"$'\t'"ssh" ] &&
+    _hi_has_row "$out" alpha ssh
+}
+# frecency, not recency alone: three visits within the day (2 each) outrank
+# one visit a minute ago (4)
+function test_recent_ranks_by_frecency() {
+  local out
+  out="$(_hi_targets_ranked "$(_hi_recent_file freq lowercase-keyword:60 beta:80000 beta:80001 beta:80002)" ssh)"
+  [ "$(printf '%s\n' "$out" | sed -n 1p)" = "beta"$'\t'"ssh" ] &&
+    [ "$(printf '%s\n' "$out" | sed -n 2p)" = "lowercase-keyword"$'\t'"ssh" ] &&
+    [ "$(printf '%s\n' "$out" | sed -n 3p)" = "alpha"$'\t'"ssh" ]
+}
+# the file ranks rows, it never adds one: a name with no row stays absent
+function test_recent_never_invents_a_target() {
+  local out
+  out="$(_hi_targets_ranked "$(_hi_recent_file ghost no-such-host:10)" ssh)"
+  ! printf '%s\n' "$out" | grep -q no-such-host &&
+    [ "$(printf '%s\n' "$out" | head -1)" = "alpha"$'\t'"ssh" ]
+}
+function test_recent_is_off_with_the_setting() {
+  local out
+  out="$(_HI_RECENT=0 _hi_targets_ranked "$(_hi_recent_file off beta:10)" ssh)"
+  [ "$(printf '%s\n' "$out" | head -1)" = "alpha"$'\t'"ssh" ]
+}
+# the order survives the cache: a hit is ranked on the way out, so a session
+# between two TABs changes the next one without waiting out the TTL
+function test_recent_ranks_a_cache_hit() {
+  local dir="$_HI_WORKDIR/cache-recent" f out
+  mkdir -p "$dir"
+  _hi_targets_cached "$dir" 60 ssh >/dev/null
+  f="$(_hi_recent_file hit beta:10)"
+  out="$(_HI_RECENT_FILE="$f" _hi_targets_cached "$dir" 60 ssh)"
+  [ "$(printf '%s\n' "$out" | head -1)" = "beta"$'\t'"ssh" ]
+}
+# ...and through the bash completion, which is where "first offered" is seen
+function test_complete_offers_the_most_recent_first() {
+  local f out
+  f="$(_hi_recent_file complete beta:10)"
+  out="$(_HI_RECENT_FILE="$f" _hi_completions_for "")"
+  [ "$(printf '%s\n' "$out" | head -1)" = beta ]
+}
+
 function _hi_completions_for() {
   PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
     _HI_DISABLE_PROMPT=1 \
@@ -530,7 +651,7 @@ function test_flags_drop_what_a_package_lacks() {
   local tree="$_HI_WORKDIR/pkgtree" out flag
   rm -rf "$tree"
   mkdir -p "$tree/common" "$tree/scripts"
-  cp "$_HI_ROOT/common/targets.sh" "$tree/common/targets.sh"
+  cp "$_HI_ROOT/common/targets.sh" "$_HI_ROOT/common/flags" "$tree/common/"
   out="$(sh "$tree/common/targets.sh" flags)"
   for flag in --test --update; do
     case $'\n'"$out"$'\n' in
@@ -631,6 +752,9 @@ function run_targets_tests() {
   _hi_check "A hit skips the backend entirely" test_cache_reuses_the_first_answer
   _hi_check "TTL 0 bypasses it" test_cache_is_bypassed_at_ttl_zero
   _hi_check "An expired entry is re-derived" test_cache_expires_with_its_ttl
+  _hi_check "A stale entry answers now, refreshes behind" test_stale_cache_answers_now_and_refreshes_behind
+  _hi_check "A running refresh is not doubled" test_stale_cache_refresh_is_not_doubled
+  _hi_check "A dead refresher's lock is taken over" test_stale_cache_dead_lock_is_taken_over
   _hi_check "A file with no timestamp is re-derived" test_cache_ignores_a_file_with_no_timestamp
   _hi_check "The timestamp never reaches completion" test_cache_does_not_leak_its_timestamp
 
@@ -643,6 +767,14 @@ function run_targets_tests() {
   # ...and TTL 0 means no cache at all - the same thing it means to targets.sh
   _hi_check_eq "TTL 0 refetches every time" 2 _hi_complete_forks 0
   _hi_check "The cached answer is still an answer" test_complete_still_answers_from_the_cache
+
+  _hi_h2 "Testing: recent targets first"
+  _hi_check "A recent target leads" test_recent_target_comes_first
+  _hi_check "Ranked by frecency, not recency alone" test_recent_ranks_by_frecency
+  _hi_check "Never invents a target" test_recent_never_invents_a_target
+  _hi_check "_HI_RECENT=0 keeps the roster order" test_recent_is_off_with_the_setting
+  _hi_check "A cache hit is ranked too" test_recent_ranks_a_cache_hit
+  _hi_check "The completion offers it first" test_complete_offers_the_most_recent_first
   _hi_check "flags: every one is in hi --help" test_flags_all_appear_in_help
   _hi_check "flags: every --help flag is in the roster" test_help_flags_all_appear_in_roster
   _hi_check "flags: a session is offered only what works there" test_flags_drop_local_subcommands_in_a_session

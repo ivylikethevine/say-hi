@@ -152,15 +152,9 @@ rewrite "$_HI_LAUNCHER_FILE" "s/^_HI_RELEASE=.*/_HI_RELEASE=\"$_HI_VERSION\"/"
 # The man page is a soft skip when absent: install_tree leaves it out on a host
 # with no gzip. Present but unstampable is still an error.
 if [ -n "$_HI_MAN_FILE" ]; then
+  _hi_page="${_HI_MAN_FILE%.gz}"
   _hi_gz=""
-  case "$_HI_MAN_FILE" in
-  *.gz) [ -f "$_HI_MAN_FILE" ] && _hi_gz="$_HI_MAN_FILE" ;;
-  *)
-    [ -f "$_HI_MAN_FILE.gz" ] && _hi_gz="$_HI_MAN_FILE.gz"
-    ;;
-  esac
-  _hi_page="${_hi_gz%.gz}"
-  [ -n "$_hi_gz" ] || _hi_page="$_HI_MAN_FILE"
+  [ -f "$_hi_page.gz" ] && _hi_gz="$_hi_page.gz"
 
   if [ -n "$_hi_gz" ] || [ -f "$_hi_page" ]; then
     # -9n, and no timestamp in the member header, so a re-run reproduces the

@@ -137,24 +137,43 @@ function _hi_target_color() {
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
-function _hi_overlay_files() {
-  local f ed
-  # the editor rcs are _HI_DISABLE_EDITORS' the same way the tree copies are in
-  # _hi_payload_tar: off has to take *both* halves off the wire, or a toggle
-  # the user switched off still ships a file - and an overlay of nothing else
-  # then stops being an overlay at all, which is what _hi_has_overlay reads.
-  ed="$(_hi_overlay_toggle _HI_DISABLE_EDITORS)"
-  for f in "${_HI_OVERLAY_FILES[@]}"; do
-    case "$f" in
-    vim.rc | nano.rc) [ "$ed" = 1 ] && continue ;;
+# <toggle>|<tree files, under $_HI_HOME>|<overlay files>: what each settings.sh
+# toggle takes off the wire. Off has to take *both* halves off, or a toggle
+# the user switched off still ships a file - so one table feeds both
+# _hi_payload_tar (the tree column) and _hi_overlay_files (the overlay one).
+_HI_TRIM_TABLE=(
+  "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
+  "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
+  "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
+)
+
+# _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
+# whose toggle the overlay sets to 1, space-separated, into <outvar>.
+function _hi_trimmed() {
+  local row val out=""
+  for row in "${_HI_TRIM_TABLE[@]}"; do
+    val=""
+    _hi_overlay_toggle "${row%%|*}" val
+    [ "$val" = 1 ] || continue
+    row="${row#*|}"
+    case "$1" in
+    tree) out="$out ${row%%|*}" ;;
+    overlay) out="$out ${row#*|}" ;;
     esac
+  done
+  printf -v "$2" '%s' "$out"
+}
+
+# _hi_overlay_files - the overlay members that exist and are not trimmed, one
+# per line. Callers read it once and hand the list to _hi_overlay_tar.
+function _hi_overlay_files() {
+  local f skip=""
+  _hi_trimmed overlay skip
+  for f in "${_HI_OVERLAY_FILES[@]}"; do
+    case " $skip " in *" $f "*) continue ;; esac
     [ -f "$_HI_CONFIG_DIR/$f" ] && printf '%s\n' "$f"
   done
   return 0
-}
-
-function _hi_has_overlay() {
-  [ -n "$(_hi_overlay_files)" ]
 }
 
 # tar's own arguments, but compressed in a second process rather than by `z`.
@@ -188,19 +207,20 @@ function _hi_tar_gz() {
   return 0
 }
 
+# _hi_overlay_tar [file...] - the overlay archive over the given members, or
+# over _hi_overlay_files when called bare; nothing at all when there are none.
 function _hi_overlay_tar() {
-  local -a present=()
-  _hi_read_lines present < <(_hi_overlay_files)
+  local -a present=("$@")
+  [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
   _hi_tar_gz -h -C "$_HI_CONFIG_DIR" "${present[@]}"
 }
 
-# _hi_overlay_toggle <name> - what the overlay's settings.sh sets it to, or
-# nothing, read from the file rather than off the environment.
+# _hi_overlay_toggle <name> [outvar] - what the overlay's settings.sh sets it
+# to, read from the file rather than off the environment.
 # GLOSSARY: HI.36 - why the file and not the environment
 function _hi_overlay_toggle() {
-  [ -f "$_HI_CONFIG_DIR/settings.sh" ] || return 0
-  sed -n "s/^export $1='\(.*\)'\$/\1/p" "$_HI_CONFIG_DIR/settings.sh" | tail -1
+  _hi_setting_get "$_HI_CONFIG_DIR/settings.sh" "$@"
 }
 
 # The comment stripper every shell file takes on its way into the payload:
@@ -209,12 +229,13 @@ function _hi_overlay_toggle() {
 # GLOSSARY: HI.35 - all three rules, and why the ordering is the whole argument
 function _hi_strip_awk() {
   cat <<'AWK'
-NR == 1 && /^#!/ { print; next }
+FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0 }
+FNR == 1 && /^#!/ { print > out; next }
 tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)
   if (line == tag) tag = ""
-  print
+  print > out
   next
 }
 /^[ \t]*#/ { next }
@@ -229,7 +250,7 @@ tag != "" {
     sub(/["']$/, "", m)
     tag = m
   }
-  print
+  print > out
 }
 AWK
 }
@@ -252,28 +273,9 @@ AWK
 # every shell file is comment-stripped on the way in (GLOSSARY: HI.35).
 function _hi_payload_tar() {
   local -a excl=()
-  # One pass over settings.sh for all three toggles, rather than three
-  # _hi_overlay_toggle subshells re-parsing it. Last assignment wins, which is
-  # what that helper's `tail -1` does.
-  local _hi_ed=0 _hi_osc=0 _hi_nt=0 _hi_kv
-  if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
-    while IFS= read -r _hi_kv || [ -n "$_hi_kv" ]; do
-      case $_hi_kv in
-      _HI_DISABLE_EDITORS=*) _hi_ed="${_hi_kv#*=}" ;;
-      _HI_DISABLE_OSC52=*) _hi_osc="${_hi_kv#*=}" ;;
-      _HI_DISABLE_NOTIFY=*) _hi_nt="${_hi_kv#*=}" ;;
-      esac
-    done < <(sed -n "s/^export \(_HI_DISABLE_[A-Z0-9_]*\)='\(.*\)'\$/\1=\2/p" "$_HI_CONFIG_DIR/settings.sh")
-  fi
-  if [ "$_hi_ed" = 1 ]; then
-    excl+=(--exclude=say-hi/settings/vim.rc --exclude=say-hi/settings/nano.rc)
-  fi
-  if [ "$_hi_osc" = 1 ]; then
-    excl+=(--exclude=say-hi/common/osc52.sh)
-  fi
-  if [ "$_hi_nt" = 1 ]; then
-    excl+=(--exclude=say-hi/common/notify.sh)
-  fi
+  local _hi_trim="" _hi_f
+  _hi_trimmed tree _hi_trim
+  for _hi_f in $_hi_trim; do excl+=("--exclude=$_hi_f"); done
   # _HI_KEEP_COMMENTS=1 ships the tree verbatim, for reading the real source on
   # a target when something there is behaving differently than it does here.
   if [ "${_HI_KEEP_COMMENTS:-0}" = 1 ]; then
@@ -292,7 +294,7 @@ function _hi_payload_tar() {
   # function's own shell it would replace the one _hi installed for its error
   # log. INT and TERM are spelled out because a signal that kills the subshell
   # outright never reaches the EXIT trap.
-  local stage f tmp
+  local stage f
   (
     stage="$(mktemp -d -t hi.stage.XXXXXX)" || exit 1
     trap 'rm -rf "$stage"' EXIT
@@ -301,13 +303,15 @@ function _hi_payload_tar() {
     tar cf - -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}" |
       tar xf - -C "$stage" || exit 1
     _hi_strip_awk >"$stage/strip.awk"
-    tmp="$stage/strip.out"
-    # _hi_write_back, not mv: mktemp's mode would land on the file and hi.sh has
-    # to stay executable - the target's probe tests `[ -x .../hi.sh ]`.
+    # one awk over every file (each lands in <file>.strip), not one per file.
+    # _hi_write_back, not mv: the strip file's mode would land on the target
+    # and hi.sh has to stay executable - the probe tests `[ -x .../hi.sh ]`.
     # GLOSSARY: HI.09
+    find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \) \
+      -exec awk -f "$stage/strip.awk" {} + || exit 1
     while IFS= read -r f; do
-      awk -f "$stage/strip.awk" "$f" >"$tmp" && _hi_write_back "$tmp" "$f"
-    done < <(find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \))
+      _hi_write_back "$f" "${f%.strip}"
+    done < <(find "$stage/say-hi" -type f -name '*.strip')
     _hi_tar_gz -C "$stage" say-hi
   )
 }
@@ -360,12 +364,38 @@ function _hi_is_nomad_alloc() {
     [ "$(nomad alloc status -t '{{.ClientStatus}}' "$(_hi_outer "$1")" 2>/dev/null)" = running ]
 }
 
+# _hi_kube_split <target> - the kube spelling `[[context:]namespace:]pod[/container]`
+# into _HI_K_POD and the kubectl arguments the prefixes add (_HI_K_ARGS). `:`
+# is the separator because no ssh host, container name or allocation id may
+# carry one, so a prefixed name can only mean a pod. No prefix means whatever
+# kubectl points at, exactly as before; common/targets.sh's list_kube emits
+# the same spelling for pods outside the current namespace.
+function _hi_kube_split() {
+  local outer="${1%%/*}"
+  _HI_K_POD="$outer"
+  _HI_K_ARGS=()
+  case "$outer" in
+  *:*:*)
+    _HI_K_ARGS+=(--context "${outer%%:*}")
+    outer="${outer#*:}"
+    _HI_K_ARGS+=(--namespace "${outer%%:*}")
+    _HI_K_POD="${outer#*:}"
+    ;;
+  *:*)
+    _HI_K_ARGS+=(--namespace "${outer%%:*}")
+    _HI_K_POD="${outer#*:}"
+    ;;
+  esac
+  return 0
+}
+
 # A multi-container pod resolves on the pod half; kubectl checks the container
 # half when the session runs and fails loudly on a name that is not there -
 # better than declining silently and falling through to ssh.
 function _hi_is_k8s_pod() {
-  command -v kubectl >/dev/null 2>&1 &&
-    [ "$(kubectl get pod "$(_hi_outer "$1")" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]
+  command -v kubectl >/dev/null 2>&1 || return 1
+  _hi_kube_split "$1"
+  [ "$(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]
 }
 
 # The backend roster, in resolution order:
@@ -414,8 +444,14 @@ function _hi_ctl_close() {
 # sequence, so the comment strip goes first, addressed to unquoted lines - after
 # unquoting it would eat a `#` from inside the quotes.
 function _hi_remote_root_probe() {
+  # the rc files to read: core.sh's _HI_SHELL_TABLE home-rc column, with this
+  # client's $HOME swapped for the target's own, plus the packaged snippet
+  local rcs="" home_rc
+  while IFS='|' read -r _ _ _ home_rc _; do
+    rcs="$rcs \"\$HOME${home_rc#"$HOME"}\""
+  done < <(_hi_shell_rows graft)
+  printf '_c=$(for _f in%s /etc/profile.d/say-hi.sh; do\n' "$rcs"
   cat <<'PROBE'
-_c=$(for _f in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.config/fish/config.fish" /etc/profile.d/say-hi.sh; do
   [ -f "$_f" ] && sed -n -e 's/^[[:space:]]*export  *_HI_HOME=//p' -e 's/^[[:space:]]*set -gx  *_HI_HOME  *//p' "$_f"
 done | sed -e '/^"/!s/[[:space:]]*#.*$//' -e 's/^"\([^"]*\)".*$/\1/' -e 's/[[:space:]]*$//')
 IFS='
@@ -438,10 +474,6 @@ function _hi_remote_root() {
   out="$(_hi_ssh_sh "$(_hi_remote_root_probe)" \
     "$@" -o ConnectTimeout=5 2>/dev/null)" || out=""
   printf '%s' "$out"
-}
-
-function _hi_copy_time() {
-  awk -v now="$(_hi_now)" -v a="$1" -v b="$2" -v c="$3" 'BEGIN { printf "%.3f", (now - a) - (c - b) }'
 }
 
 # GLOSSARY: HI.15
@@ -705,7 +737,7 @@ REMOTE
 function _say_hi() {
   local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ec=0
   local bootloader="" tree="" overlay_line=""
-  local -a ctl_opts
+  local -a ctl_opts overlay=()
 
   # only this path armors (containers stream via their CLI); a target with no
   # base64 fails the one-liner loudly on its own
@@ -741,9 +773,10 @@ REMOTE
     # second, tiny stream: the overlay lives outside the tree, so it cannot
     # ride the payload, and is omitted when empty. It lands in its own config/
     # beside settings/, with _HI_CONFIG_DIR pointing there.
-    if _hi_has_overlay; then
+    _hi_read_lines overlay < <(_hi_overlay_files)
+    if ((${#overlay[@]})); then
       overlay_line="mkdir -p \"\$_HI_ROOT/config\"
-$(_hi_overlay_tar | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"')"
+$(_hi_overlay_tar "${overlay[@]}" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"')"
     fi
     # not known yet: the figure counts the assembled script, so it can only be
     # measured once that exists
@@ -825,20 +858,22 @@ function _hi_container_cmds() {
     attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=true "$outer")
     ;;
   kube)
+    # the context/namespace prefixes, if any, ride every kubectl call
+    _hi_kube_split "$DOMAIN"
     [ -n "$inner" ] && pick=(-c "$inner")
-    probe=(kubectl exec "$outer" ${pick[@]+"${pick[@]}"} --)
-    cp=(kubectl exec -i "$outer" ${pick[@]+"${pick[@]}"} --)
-    attach=(kubectl exec -it "$outer" ${pick[@]+"${pick[@]}"} --)
+    probe=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
+    cp=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -i "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
+    attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -it "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     ;;
   esac
 }
 
-# _say_hi_container <label> <errlog> <copy_start> - the container arm, across
-# docker, podman, nomad and kube.
+# _say_hi_container <label> <errlog> - the container arm, across docker,
+# podman, nomad and kube.
 function _say_hi_container() {
-  local label="$1" tmp="$2" copy_start="$3"
+  local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
-  local -a probe cp attach
+  local -a probe cp attach overlay=()
   _hi_container_cmds "$label"
 
   # A literal /tmp on purpose: this path is created inside the *container*, so
@@ -914,8 +949,9 @@ function _say_hi_container() {
   fi
   rm -f "$tarball"
 
-  if _hi_has_overlay &&
-    ! _hi_overlay_tar |
+  _hi_read_lines overlay < <(_hi_overlay_files)
+  if ((${#overlay[@]})) &&
+    ! _hi_overlay_tar "${overlay[@]}" |
     "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar mxzf - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW"
   fi
@@ -927,7 +963,7 @@ function _say_hi_container() {
   # `rm -rf "$root"` below is the client-side belt to it. Shared vars come from
   # _hi_session_env; the tree paths and timing are this transport's own.
   env_kv="$(_hi_env_each ' %s=%s')"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_copy_time "$copy_start" "$_HI_SHELL_START" "$shell_end")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc'"
+  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc'"
   exit_code=$?
 
   "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
@@ -984,21 +1020,49 @@ function _hi_resolve_backend() {
   return 0
 }
 
+# _hi_record_recent <target> - one "<epoch>\t<target>" line appended to the
+# recent-targets file, which common/targets.sh ranks completion by (frecency:
+# what you connect to most, and most recently, is offered first). Client-side
+# only: a session's own hi (a relay hop) writes nothing, so nothing about a
+# client's habits lands on a target, and the file is not in $_HI_PAYLOAD.
+# _HI_RECENT=0 turns the whole thing off, this half and the ranking alike.
+# Every write can fail quietly - a read-only $HOME is not a reason to fail a
+# session that already ended well.
+#
+# Trimmed in place past 500 lines to the newest 300: a bound, so the file
+# stays a few KB however long a machine is used, and the rank cost stays flat.
+function _hi_record_recent() {
+  local f n tmp
+  [ "${_HI_RECENT:-1}" != 0 ] || return 0
+  [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || return 0
+  f="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
+  [ -d "${f%/*}" ] || mkdir -p "${f%/*}" 2>/dev/null || return 0
+  printf '%s\t%s\n' "$(date +%s 2>/dev/null || echo 0)" "$1" >>"$f" 2>/dev/null || return 0
+  n="$(grep -c . "$f" 2>/dev/null || echo 0)"
+  if [ "$n" -gt 500 ]; then
+    tmp="$f.$$"
+    if tail -n 300 "$f" >"$tmp" 2>/dev/null; then
+      mv "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    else
+      rm -f "$tmp" 2>/dev/null
+    fi
+  fi
+  return 0
+}
+
 function _hi() {
-  local copy_start tmp exit_code errors backend
+  local tmp exit_code errors backend
 
   [ -d "$_HI_ROOT" ] || {
     _hi_cecho "hi: no such directory: $_HI_ROOT" "$RED" >&2
     exit 1
   }
 
-  copy_start="$(_hi_now)"
   tmp="$(mktemp -t hi.log.XXXXXX)"
   # $tmp is resolved when the trap fires, not now
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
-  _HI_SHELL_START="$(_hi_now)"
   # shellcheck disable=SC2094 # $tmp rides as an argument
   {
     backend=""
@@ -1006,12 +1070,16 @@ function _hi() {
       backend="$(_hi_resolve_backend "$DOMAIN")"
     fi
     if [ -n "$backend" ]; then
-      _say_hi_container "$backend" "$tmp" "$copy_start"
+      _say_hi_container "$backend" "$tmp"
     else
       _say_hi
     fi
   } 2>"$tmp"
   exit_code="$?"
+
+  # a session that ended cleanly is one worth offering first next time; one
+  # that never connected (a typo, an unreachable host) is not
+  [ "$exit_code" -eq 0 ] && _hi_record_recent "$DOMAIN"
 
   if [ "$exit_code" -ne 0 ]; then
     errors="$(<"$tmp")"
@@ -1037,36 +1105,48 @@ function _hi_run_script() {
 }
 
 # The sub-commands that only hand off to one of those scripts, as
-# <flag>|<the path variable>|<argument the script needs first>. A table rather
-# than eight `case` arms differing in nothing but those three fields, where one
-# naming the wrong script read exactly like the seven correct ones. Anything
-# needing logic of its own stays a case arm below.
-_HI_SUBCOMMANDS=(
-  "--install|_HI_INSTALL|"
-  "--uninstall|_HI_UNINSTALL|"
-  "--configure|_HI_INSTALL|--features-only"
-  "--check-configs|_HI_INSTALL|--check-configs"
-  "--overlay-init|_HI_INSTALL|--overlay-init"
-  "--color-preview|_HI_COLOR_PREVIEW|"
-  "--doctor|_HI_DOCTOR|"
-  "--test|_HI_TEST_RUN|"
-)
+# hi's flags, out of common/flags: "<flag>|<needs>|<script var>|<arg>|<help>".
+# One table for the dispatch here, the option lines of --help, and the roster
+# common/targets.sh completes from - so a flag cannot exist in one and not the
+# others. Rows with a script var hand off to that script; the rest (--help,
+# --version, --update, --packages-preview) have logic of their own in the case
+# arms below and are in the table for the help text and the completion.
+_HI_FLAGS=()
+while IFS= read -r _hi_row || [ -n "$_hi_row" ]; do
+  case "$_hi_row" in '#'* | '') continue ;; esac
+  _HI_FLAGS+=("$_hi_row")
+done <"$_HI_ROOT/common/flags"
+unset _hi_row
 
 # _hi_dispatch_subcommand "$@" - hands $1 to its script and never returns when
-# the table names it; returns 1 otherwise, leaving the case below to answer.
+# the table names one; returns 1 otherwise, leaving the case below to answer.
 # ${!var} is bash 2 indirect expansion, not a bash-4 form the lint suite greps.
 function _hi_dispatch_subcommand() {
-  local row flag rest var arg
-  for row in "${_HI_SUBCOMMANDS[@]}"; do
+  local row flag var arg
+  for row in "${_HI_FLAGS[@]}"; do
     flag="${row%%|*}"
     [ "$flag" = "${1:-}" ] || continue
-    rest="${row#*|}"
-    var="${rest%%|*}"
-    arg="${rest#*|}"
+    IFS='|' read -r flag _ var arg _ <<<"$row"
+    [ -n "$var" ] || return 1
     shift
     _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} "$@"
   done
   return 1
+}
+
+# _hi_flag_help <-|local> - the option lines of --help: `-` is what works
+# anywhere, `local` what needs a part of the tree the payload does not carry.
+function _hi_flag_help() {
+  local row flag needs help
+  for row in "${_HI_FLAGS[@]}"; do
+    IFS='|' read -r flag needs _ _ help <<<"$row"
+    case "$1:$needs" in
+    -:-) [ "$flag" = --help ] && flag="-h, --help" ;;
+    local:-) continue ;;
+    -:*) continue ;;
+    esac
+    printf '  %-21s %s\n' "$flag" "$help"
+  done
 }
 
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
@@ -1076,7 +1156,7 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 
 # hi's own flags, dispatched on $1 alone: _hi_parse hands every other -flag to
 # ssh, so anything hi answers itself has to be caught first; the plain
-# hand-off-to-a-script flags come off $_HI_SUBCOMMANDS instead.
+# hand-off-to-a-script flags come off $_HI_FLAGS instead.
 _hi_dispatch_subcommand "$@"
 
 case "${1:-}" in
@@ -1097,27 +1177,16 @@ ssh does.
   2. a running docker container, by name or ID
   3. a running podman container
   4. a running nomad allocation, by ID or prefix
-  5. a kubernetes pod, in whatever context/namespace kubectl points at
+  5. a kubernetes pod, in whatever context/namespace kubectl points at -
+     or namespace:pod / context:namespace:pod for another one
 
-hi's own options:
-  -h, --help            this text
-      --version         the version: stamped at packaging time, or git describe
-      --doctor [target] a read-only pre-flight report instead of connecting -
-                        the local tree, the config overlay, every backend
-                        probed and timed, and with a target, which backend the
-                        name resolves to plus an ssh reachability check
+hi's own options, which work anywhere - a session included:
+$(_hi_flag_help -)
 
 hi's local sub-commands, which act on this machine instead of connecting. They
-need the full say-hi checkout, so inside a hi session each says so and stops:
-      --install          install or repair say-hi's lines in your shell rc files
-      --uninstall        take those lines back out again
-      --configure        revisit the feature toggles, leaving the rc wiring be
-      --check-configs    re-run just the shell rc syntax validation
-      --overlay-init     make the config overlay a git repo, in place
-      --update           git pull in the say-hi checkout (needs its .git)
-      --color-preview    what every ssh host and your user resolve to, in color
-      --packages-preview the package-priority legend, as the header prints it
-      --test             run the test suite (needs the full checkout)
+need a part of the tree the payload does not carry, so inside a hi session
+each says so and stops:
+$(_hi_flag_help local)
 
 Everything else is passed to ssh unchanged - -p, -i, -J, -o and the rest behave
 exactly as they do there. Only the first non-option word is the target;

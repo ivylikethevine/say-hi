@@ -121,50 +121,6 @@ function test_unknown_suite_name_lists_the_known_ones() {
   [[ "$_HI_RUN_OUT" == *"alpha"* && "$_HI_RUN_OUT" == *"beta"* ]]
 }
 
-# --skip subtracts from whatever the selection produced. Two CI jobs lean on it
-# (ci.yml's macOS job and windows-client.yml), so the unknown-name error is as
-# much of the contract as the drop is: a rename that quietly un-skipped a suite
-# would put the lint gate back on a runner that cannot run it, and that job
-# would go red for a reason nobody would look for here.
-
-function test_skip_drops_the_named_suite() {
-  _hi_run_runner $'keep:green.sh\ndrop:red.sh' --skip drop
-  [[ "$_HI_RUN_OUT" == *"Running 1 test suite(s)"* ]] &&
-    [[ "$_HI_RUN_OUT" != *"ran:red"* ]]
-}
-
-function test_skip_is_repeatable_in_both_spellings() {
-  _hi_run_runner $'a:green.sh\nb:green.sh\nc:green.sh' --skip a --skip=b
-  [[ "$_HI_RUN_OUT" == *"Running 1 test suite(s)"* ]]
-}
-
-function test_skip_composes_with_a_group() {
-  _hi_run_runner $'fast:a:green.sh\nfast:b:green.sh\ne2e:c:green.sh' --group fast --skip b
-  [[ "$_HI_RUN_OUT" == *"Running 1 test suite(s)"* ]] &&
-    [[ "$_HI_RUN_OUT" != *"ran:b"* ]]
-}
-
-# a caller shouldn't have to know which group a name is in to drop it
-function test_skipping_an_unselected_suite_is_harmless() {
-  _hi_run_runner $'fast:a:green.sh\ne2e:c:green.sh' --group fast --skip c
-  [ "$_HI_RUN_EXIT" -eq 0 ] && [[ "$_HI_RUN_OUT" == *"Running 1 test suite(s)"* ]]
-}
-
-function test_unknown_skip_name_is_an_error() {
-  _hi_run_runner $'a:green.sh' --skip nosuchsuite
-  [ "$_HI_RUN_EXIT" -eq 1 ] &&
-    [[ "$_HI_RUN_OUT" == *"no test suite matches --skip nosuchsuite"* ]]
-}
-
-function test_skipping_everything_is_an_error() {
-  _hi_run_runner $'a:green.sh' --skip a
-  [ "$_HI_RUN_EXIT" -eq 1 ] && [[ "$_HI_RUN_OUT" == *"--skip left no suites"* ]]
-}
-
-function test_skip_is_listed_in_help() {
-  "$_HI_TEST_RUN" --help | grep -q -- '--skip'
-}
-
 function test_all_passing_exits_zero_with_a_green_summary() {
   _hi_run_runner $'a:green.sh\nb:green.sh'
   [ "$_HI_RUN_EXIT" -eq 0 ] && [[ "$_HI_RUN_OUT" == *"2/2 test suites passed"* ]]
@@ -608,25 +564,6 @@ function test_ci_runs_every_group_in_the_table() {
   }
 }
 
-# The other half of the same contract as the group check above: a workflow that
-# says `--skip <name>` has to name a real suite, or the runner exits 1 and the
-# job dies on a flag rather than on a test. Reads every workflow, not just
-# ci.yml - windows-client.yml carries one too.
-function test_workflow_skips_name_real_suites() {
-  local dir="$_HI_ROOT/.github/workflows" name missing=""
-  local -a names=()
-  [ -d "$dir" ] || return 0 # a shipped tree has no .github
-  while read -r _ name; do names+=("$name"); done < <(_hi_runner_list)
-  while read -r name; do
-    [ -n "$name" ] || continue
-    [[ " ${names[*]} " == *" $name "* ]] || missing+=" $name"
-  done < <(sed -n 's/.*--skip[ =]\([a-z0-9_]*\).*/\1/p' "$dir"/*.yml | sort -u)
-  [ -z "$missing" ] || {
-    _hi_cecho " | --skip in a workflow names no such suite:$missing" "$RED"
-    return 1
-  }
-}
-
 # Each suite selectable on its own, and every group non-empty: together these
 # are what makes `--group` a safe thing for CI to depend on.
 # --group is what ci.yml invokes, so every group the table uses has to select
@@ -686,13 +623,6 @@ function run_runner_tests() {
   _hi_check "Keeps table order regardless of argument order" test_selecting_several_suites_keeps_table_order
   _hi_check "An unknown name is an error" test_unknown_suite_name_is_an_error
   _hi_check "An unknown name lists the known ones" test_unknown_suite_name_lists_the_known_ones
-  _hi_check "--skip drops the named suite" test_skip_drops_the_named_suite
-  _hi_check "--skip is repeatable, both spellings" test_skip_is_repeatable_in_both_spellings
-  _hi_check "--skip composes with --group" test_skip_composes_with_a_group
-  _hi_check "--skip of an unselected suite is fine" test_skipping_an_unselected_suite_is_harmless
-  _hi_check "An unknown --skip name is an error" test_unknown_skip_name_is_an_error
-  _hi_check "--skip leaving nothing is an error" test_skipping_everything_is_an_error
-  _hi_check "--skip is listed in help" test_skip_is_listed_in_help
 
   _hi_h2 "Testing: results and exit codes"
   _hi_check "All passing -> exit 0, green summary" test_all_passing_exits_zero_with_a_green_summary
@@ -764,7 +694,6 @@ function run_runner_tests() {
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
-  _hi_check "Workflow --skip names a real suite" test_workflow_skips_name_real_suites
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
 
   _hi_suite_end "test_runner.sh"

@@ -1,0 +1,63 @@
+name: FreeBSD e2e
+
+# The BSD-userland path on a BSD that is not macOS: a FreeBSD VM (vmactions
+# boots one on the hosted ubuntu runner) runs the fast suites and then ssh's
+# to itself, so one job covers client AND target - BSD sed/sort/date/mktemp,
+# `base64` without `-d`, and a pkg-installed bash rather than /bin/sh. This is
+# what turns SUPPORTED.md's "*BSD" row from expected-to-work into proven.
+#
+# ci.yml calls this on every push to main once the fast-suite jobs are green;
+# dispatch still works for running it on its own.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loopback:
+    name: hi localhost (FreeBSD both ends)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The VM shares the checkout over rsync, so ./hi.sh inside it is this
+      # tree. `--group fast` and not lint: the lint group is enforced once, on
+      # the ubuntu job, against pinned tool versions.
+      - name: Fast suites, then say hi to ourselves
+        uses: vmactions/freebsd-vm@d0518f912576ae759075aa00fb9fe27037940271 # v1.5.4
+        with:
+          release: "14.2"
+          usesh: true
+          sync: rsync
+          copyback: false
+          prepare: |
+            pkg install -y bash zsh fish git python3 gtar
+          run: |
+            set -eu
+            cd "$GITHUB_WORKSPACE"
+            _HI_HOME="$(cd .. && pwd)"
+            export _HI_HOME
+            bash ./tests/test_runner.sh --verbose --host-report --group fast
+
+            # a throwaway key, and sshd is already up in the vmactions image
+            ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
+            cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
+            chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
+            # the same pty trick the e2e suites use: `ssh -t` needs a tty on
+            # our side, and a CI step has none
+            out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
+              bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+              "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1)" || true
+            printf '%s\n' "$out"
+            printf '%s\n' "$out" | grep -q HI_BSD_LOOP_OK
+
+            if ls -d "${TMPDIR:-/tmp}"/*.hi.* 2>/dev/null; then
+              echo "session directory survived the exit" >&2
+              exit 1
+            fi

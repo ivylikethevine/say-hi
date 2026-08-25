@@ -13,8 +13,9 @@
 #         placeholder is substituted. The url column carries the literal "v"
 #         where the tag needs it. check_tool_versions.sh strips a leading "v"
 #         from both sides before comparing, so either convention compares fine.
-# kind    raw (a bare executable), tar.gz, tar.xz, or cmake (a source
-#         tarball this builds - kcov publishes no binary asset).
+# kind    raw (a bare executable), tar.gz, tar.xz, cmake (a source tarball
+#         this builds - kcov publishes no binary asset), or make (the same,
+#         for a ./configure && make tree - mandoc).
 # url     %v is the pin. %a is the asset slug for this runner
 #         (linux.x86_64 / darwin.aarch64 / darwin.x86_64) and is resolved
 #         first, so a version can never be mistaken for one; only shellcheck
@@ -41,3 +42,5 @@ minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/m
 trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy
 hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint
 kcov|43|cmake|https://github.com/SimonKagstrom/kcov/archive/refs/tags/v%v.tar.gz|--version|github:SimonKagstrom/kcov
+typos|1.49.0|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos
+mandoc|1.14.6|make|https://mandoc.bsd.lv/snapshots/mandoc-%v.tar.gz|-T lint -W error /dev/null|-

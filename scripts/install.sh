@@ -63,9 +63,10 @@ its current setting when there is no tty to answer on.
                    re-run the feature toggle prompts. This is what
                    \`hi --configure\` calls once say-hi is installed.
   --check-configs  Only run the pre-install validation of your existing
-                   ~/.bashrc, ~/.zshrc and ~/.config/fish/config.fish -
-                   skip everything else. This is what \`hi --check-configs\`
-                   calls.
+                   ~/.bashrc, ~/.zshrc and ~/.config/fish/config.fish, plus
+                   the shell files in your config overlay (aliases.sh under
+                   both sh and fish) - skip everything else. This is what
+                   \`hi --check-configs\` calls.
   --overlay-init   Version the config overlay: \`git init\` plus a first
                    commit in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi, in
                    place. From then on \`hi --configure\` commits its own
@@ -256,18 +257,9 @@ function setting_off() {
     [ "$answer" = "$off" ]
     return
   fi
-  # `$(<f)` is the builtin read where `cat` was a process, and the guard covers
-  # the missing file the redirect would otherwise complain about. ~15 questions
-  # run per hi --configure, each asking this.
-  [ -f "$target" ] || return 1
-  case $'\n'"$(<"$target")" in
-  *$'\n'"export $var=$off"*) return 0 ;;
-  esac
-  return 1
-}
-
-function setting_enabled() {
-  ! setting_off "$@"
+  # core.sh's reader, which knows config_shell's marker-padded spelling; out-var
+  # form, since ~15 questions run per hi --configure, each asking this
+  _hi_setting_get "$target" "$var" answer && [ "$answer" = "$off" ]
 }
 
 # Ask a yes/no question about one setting, defaulting to its current state.
@@ -278,7 +270,7 @@ function setting_enabled() {
 # skip the preview since the question is auto-answered.
 function ask_setting() {
   local var="$1" question="$2" target="$3" off="${4:-1}" preview="${5:-}" default hint reply=""
-  setting_enabled "$var" "$target" "$off" && default=y || default=n
+  setting_off "$var" "$target" "$off" && default=n || default=y
   if [ ! -t 0 ]; then
     [ "$default" = y ]
     return
@@ -298,14 +290,17 @@ function ask_setting() {
 # functions, sized to its longest line rather than the terminal width, since
 # previews range from one short colored line to full_check's wrapped block.
 function show_preview() {
-  local out content_w=0 len line pad top bottom fill_top fill_bottom
+  local out content_w=0 len line pad top bottom fill_top fill_bottom i
   local label="$_HI_BOX_H preview "
-  local -a lines
+  local -a lines lens=()
   out="$("$@" 2>/dev/null)" || true
   [ -n "$out" ] || return 0
   _hi_read_lines lines <<<"$out"
+  # measured once, kept for the render loop: the strip behind _hi_visible_len
+  # is the expensive half of every line
   for line in "${lines[@]}"; do
     _hi_visible_len len "$line"
+    lens+=("$len")
     ((len > content_w)) && content_w=$len
   done
   # core.sh's _hi_repeat, which is exactly this padding idiom and exists to
@@ -315,10 +310,9 @@ function show_preview() {
   top="$_HI_BOX_TL${label}${fill_top}$_HI_BOX_TR"
   bottom="$_HI_BOX_BL${fill_bottom}$_HI_BOX_BR"
   _hi_cecho "   $top" "$NC"
-  for line in "${lines[@]}"; do
-    _hi_visible_len len "$line"
-    pad=$((content_w - len))
-    printf '   %s %s%*s %s\n' "$_HI_BOX_V" "$line" "$pad" "" "$_HI_BOX_V"
+  for i in "${!lines[@]}"; do
+    pad=$((content_w - lens[i]))
+    printf '   %s %s%*s %s\n' "$_HI_BOX_V" "${lines[i]}" "$pad" "" "$_HI_BOX_V"
   done
   _hi_cecho "   $bottom" "$NC"
 }
@@ -330,11 +324,11 @@ function show_preview() {
 function _hi_banner_preview() { (unset _HI_HEADER_BANNER && banner Connected); }
 
 # sample "user@host cwd" line, colored like common/bash.sh's real HI_PS1, with
-# the literal current user/host/cwd instead of \u/\h/\w - the fragment itself
-# is core.sh's _hi_userhost
+# the literal current user/host/cwd instead of \u/\h/\w (@ yellow over ssh)
 function _hi_prompt_preview() {
-  local cwd="${PWD/#$HOME/\~}"
-  printf '%b\n' "$(_hi_userhost) $BRBLUE$cwd$NC"
+  local cwd="${PWD/#$HOME/\~}" at="$NC"
+  [ -n "${SSH_TTY:-}" ] && at="$YELLOW"
+  printf '%b\n' " $(_hi_user_escape)$(_hi_whoami)$at@$(_hi_host_escape)$(_hi_hostname)$NC $BRBLUE$cwd$NC"
 }
 
 # the real git prompt segment against say-hi's own checkout (always a git repo),
@@ -376,6 +370,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_EDITORS|1|_hi_editors_preview| Enable the vim/nano config overrides?"
   "_HI_DISABLE_OSC52|1|_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?"
   "_HI_DISABLE_NOTIFY|1|| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?"
+  "_HI_DISABLE_MARKS|1|| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?"
   "_HI_DISABLE_LOCAL|1|| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?"
 )
 
@@ -457,7 +452,8 @@ function config_packages_floor() {
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
   setting_off _HI_HEADER_CHECK "$_HI_SETTINGS" 0 && return 0
   local current reply rejects=0 max_rejects=3
-  current="$(grep -oE '^export _HI_PACKAGES_MIN_PRIORITY=[0-9]+' "$_HI_SETTINGS" 2>/dev/null | cut -d= -f2)"
+  current=""
+  _hi_setting_get "$_HI_SETTINGS" _HI_PACKAGES_MIN_PRIORITY current
   _hi_floor_candidate="${current:-1}"
   if [ -t 0 ]; then
     _hi_load_preview_sources
@@ -535,8 +531,8 @@ function _hi_has_no_single_quote() {
 # own built-in default, via ${_HI_MAX_WIDTH:-80}) clears the override instead
 # of writing it out.
 function config_max_width() {
-  local current value
-  current="$(grep -oE '^export _HI_MAX_WIDTH=[0-9]+' "$_HI_SETTINGS" 2>/dev/null | cut -d= -f2)"
+  local current="" value
+  _hi_setting_get "$_HI_SETTINGS" _HI_MAX_WIDTH current
   value="$(ask_value "Terminal width for the header/banner?" "$current" 80 \
     _hi_is_number "not a number")"
   _HI_SETTING_LINES+=("${value:+export _HI_MAX_WIDTH=$value}")
@@ -558,7 +554,8 @@ function config_prompt_ends() {
     shell="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
     default="$(_hi_prompt_end_default "$shell")"
     var="_HI_PROMPT_END_$shell"
-    current="$(grep -oE "^export $var='.*'\$" "$_HI_SETTINGS" 2>/dev/null | sed -E "s/^export $var='//; s/'\$//")"
+    current=""
+    _hi_setting_get "$_HI_SETTINGS" "$var" current
     value="$(ask_value "Character to end the $name prompt with?" "$current" "$default" \
       _hi_has_no_single_quote "a single quote can't be written to settings.sh")"
     # shellcheck disable=SC2016 # the quotes are written to the file, not read here
@@ -664,10 +661,10 @@ function check_one_config() {
 # uses are kept, so the three loops below read the same four fields they always
 # did.
 _HI_RC_TABLE=()
-while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags; do
-  _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check")
+while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
+  _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check|$_hi_tree_rc|$_hi_dialect")
 done < <(_hi_shell_rows local)
-unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags
+unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect
 
 # Validates whatever of the roster's rc files already exist, before
 # install.sh's own lines get appended to them. Returns non-zero if anything
@@ -676,10 +673,39 @@ function check_shell_configs() {
   _hi_h2 "Checking existing shell configs"
   local bad=0 row shell label target check
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check <<<"$row"
+    IFS='|' read -r shell label target check _ <<<"$row"
     # the check-column word split is the point: it is a command plus its flag
     # shellcheck disable=SC2086
     check_one_config "$shell" "$target" $check || bad=1
+  done
+  return $bad
+}
+
+# The overlay's shell-dialect files, each against the parser(s) that will read
+# it on a target: <file>|<label>|<syntax check cmd>. aliases.sh is the one
+# with two rows - it is sourced by bash, zsh *and* fish on every target, in
+# the POSIX+fish subset, and nothing else warns when it steps outside that:
+# an `if` in it works locally and breaks on the first fish target. Rows are
+# skipped silently when the file is not overridden or the parser is not
+# installed, the same way check_one_config treats a missing rc file.
+_HI_OVERLAY_CHECKS=(
+  "settings.sh|settings.sh overlay|sh -n"
+  "aliases.sh|aliases.sh overlay (sh)|sh -n"
+  "aliases.sh|aliases.sh overlay (fish)|fish --no-execute"
+  "bash.sh|bash.sh overlay|bash -n"
+  "zsh.zsh|zsh.zsh overlay|zsh -n"
+  "config.fish|config.fish overlay|fish --no-execute"
+)
+
+# Validates whatever of the overlay's shell files exist, before a session
+# ships them to a target. Non-zero if any failed, like check_shell_configs.
+function check_overlay_configs() {
+  _hi_h2 "Checking the config overlay"
+  local bad=0 row file label check
+  for row in "${_HI_OVERLAY_CHECKS[@]}"; do
+    IFS='|' read -r file label check <<<"$row"
+    # shellcheck disable=SC2086 # the check column is a command plus its flag
+    check_one_config "$label" "$_HI_CONFIG_DIR/$file" $check || bad=1
   done
   return $bad
 }
@@ -790,7 +816,7 @@ function unlink_hi() {
 function run_uninstall() {
   local row shell label target check
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check <<<"$row"
+    IFS='|' read -r shell label target check _ <<<"$row"
     strip_marker "$label" "$target"
   done
   strip_settings
@@ -899,8 +925,10 @@ if [ -n "$_HI_PACKAGING" ]; then
 fi
 
 if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
-  check_shell_configs
-  exit $?
+  _hi_check_rc=0
+  check_shell_configs || _hi_check_rc=1
+  check_overlay_configs || _hi_check_rc=1
+  exit $_hi_check_rc
 fi
 
 # Ahead of everything that reads or writes the overlay, and after the modes
@@ -935,32 +963,22 @@ if [ -n "$_HI_FEATURES_ONLY" ]; then
   exit 0
 fi
 
-# the rc lines each shell gets, keyed by the roster's rc label - the one
-# per-shell irregular part of the _HI_RC_TABLE loop
+# the rc lines each shell gets, in the row's dialect: where say-hi is, then
+# a source of hi's rc for that shell, interactive shells only. bash is the one
+# shell whose rc runs for non-interactive shells too, hence its extra line.
 for _hi_row in "${_HI_RC_TABLE[@]}"; do
-  IFS='|' read -r _hi_shell _hi_label _hi_target _hi_check <<<"$_hi_row"
-  case "$_hi_label" in
-  bashrc)
-    config_shell "$_hi_label" "$_hi_target" \
-      "$(tmpdir_line sh)" \
-      '[[ $- != *i* ]] && return' \
-      "source \"$_HI_BASHRC\""
+  IFS='|' read -r _hi_shell _hi_label _hi_target _hi_check _hi_tree_rc _hi_dialect <<<"$_hi_row"
+  _hi_lines=("$(tmpdir_line "$_hi_dialect")")
+  case "$_hi_dialect" in
+  fish) _hi_lines+=('if status is-interactive' "  source \"$_hi_tree_rc\"" 'end') ;;
+  *)
+    [ "$_hi_shell" = bash ] && _hi_lines+=('[[ $- != *i* ]] && return')
+    _hi_lines+=("source \"$_hi_tree_rc\"")
     ;;
-  zshrc)
-    config_shell "$_hi_label" "$_hi_target" \
-      "$(tmpdir_line sh)" \
-      "source \"$_HI_ZSHRC\""
-    ;;
-  config.fish)
-    config_shell "$_hi_label" "$_hi_target" \
-      "$(tmpdir_line fish)" \
-      'if status is-interactive' \
-      "  source \"$_HI_FISH_CONFIG\"" \
-      'end'
-    ;;
-  *) _hi_cecho " no rc lines defined for $_hi_label - add its arm above" "$RED" ;;
   esac
+  config_shell "$_hi_label" "$_hi_target" "${_hi_lines[@]}"
 done
+unset _hi_lines
 
 config_hi
 

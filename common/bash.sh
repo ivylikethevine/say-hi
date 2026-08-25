@@ -20,16 +20,18 @@ export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quo
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
   _hi_prime_identity
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
-  HI_PS1_END="$(_hi_prompt_end BASH)"
+  HI_PS1_END=""
+  _hi_prompt_end BASH HI_PS1_END
   if _hi_has_color; then
     # the *_var forms, not $( ): _hi_prime_identity resolved both escapes in
     # this shell already. Spelled empty first so shellcheck sees the
     # `printf -v` assignment (SC2154); file scope, so no `local`.
-    _hi_ps1_u="" _hi_ps1_h=""
+    _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
     _hi_user_escape_var _hi_ps1_u
     _hi_host_escape_var _hi_ps1_h
-    HI_PS1=" ${debian_chroot:-}\[$_hi_ps1_u\]\u\[$(_hi_at_color)\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
-    unset _hi_ps1_u _hi_ps1_h
+    [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
+    HI_PS1=" ${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
+    unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
   else
     HI_PS1=" ${debian_chroot:-}\u@\h:\w"
   fi
@@ -133,17 +135,36 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       done
       printf -v "$1" '%s' "$out$s"
     }
+    # Semantic prompt marks (OSC 133) and cwd reporting (OSC 7), for
+    # terminals that read them - kitty, WezTerm, ghostty, foot, iTerm2: jump
+    # between prompts, select one command's output, open a new tab in this
+    # directory. D carries the last status and A opens the prompt, both from
+    # PROMPT_COMMAND; B closes it at the end of PS1; C, "command starts", is
+    # PS0's job and PS0 is bash 4.4 - on 3.2 the marks simply lack it. Raw,
+    # never multiplexer-wrapped: a terminal that does not know an OSC drops
+    # it, and tmux passes 133 through on its own. \[ \] keeps readline from
+    # counting them. _HI_DISABLE_MARKS=1 turns the lot off.
+    _hi_marks_a="" _hi_marks_b=""
+    if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
+      _hi_marks_a=$'\[\e]133;A\a\]'
+      _hi_marks_b=$'\[\e]133;B\a\]'
+      if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
+        PS0=$'\e]133;C\a'"${PS0:-}"
+      fi
+    fi
     function ps1() {
+      local _hi_ec=$?
+      [ -n "$_hi_marks_a" ] && printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$_hi_ec" "${HOSTNAME:-}" "$PWD"
       # git info through a reference, never expanded into PS1: expanding user
       # strings is the pw3nage class of bug (github.com/njhartwell/pw3nage)
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt
       _hi_ps_mark __powerline_git_info
       # shellcheck disable=SC2154 # assigned by the printf -v two lines up
       if shopt -q promptvars; then
-        PS1="$HI_PS1\${__powerline_git_info}\[$NC\] $HI_PS1_END "
+        PS1="$_hi_marks_a$HI_PS1\${__powerline_git_info}\[$NC\] $HI_PS1_END $_hi_marks_b"
       else
         # no expansion happens without promptvars, so the value goes in as text
-        PS1="$HI_PS1$__powerline_git_info\[$NC\] $HI_PS1_END "
+        PS1="$_hi_marks_a$HI_PS1$__powerline_git_info\[$NC\] $HI_PS1_END $_hi_marks_b"
       fi
     }
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"

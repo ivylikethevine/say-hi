@@ -217,7 +217,8 @@ function _hi_toggle_in_fish_list() {
 # half. hi/payload_test.sh owns the trimming cases; this one is the claim that
 # hi.sh knows the file at all, which is what a rename would break.
 function _hi_payload_trims_the_emitter() {
-  grep -q 'exclude=say-hi/common/notify.sh' "$_HI_LAUNCHER"
+  # the _HI_TRIM_TABLE row: toggle, then the tree file it takes off the wire
+  grep -q '"_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|' "$_HI_LAUNCHER"
 }
 
 function run_notify_test() {

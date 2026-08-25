@@ -268,7 +268,9 @@ function test_shebang_replaces_a_different_one_and_keeps_content() {
 # without a pty are the three that do not need one - it keeps an existing floor
 # rather than dropping it, it does not restate the shipped default, and it does
 # not ask about a check that is switched off. The loop itself needs a terminal
-# and is skipped when there is none, which is what makes these callable here.
+# and is skipped when there is none, which is what makes these callable here -
+# provided stdin really is not one: run by hand from a terminal it would be,
+# and the case would sit at the prompt, so it is fed /dev/null explicitly.
 # _hi_settings_fixture swallows stdout (its other users assert against the file
 # it wrote), so the collected lines go to a file inside the fixture instead -
 # otherwise "no lines" and "lines nobody saw" look identical and two of these
@@ -278,7 +280,7 @@ function _hi_floor_run() {
   printf '#!/bin/sh\n%s\n' "$1" >"$_HI_SETTINGS"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
-  config_packages_floor
+  config_packages_floor </dev/null
   printf '%s\n' ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} >"$_HI_CONFIG_DIR/lines.out"
 }
 
@@ -446,22 +448,31 @@ function test_setting_off_sees_this_runs_answer() {
     ! setting_off _HI_DISABLE_PROMPT "$target" 1
 }
 
-function test_setting_enabled_default_true_when_absent() {
+function test_setting_off_false_when_absent() {
   local target="$_HI_WORKDIR/absent"
   : >"$target"
-  setting_enabled _HI_DISABLE_FOO "$target"
+  ! setting_off _HI_DISABLE_FOO "$target"
 }
 
-function test_setting_enabled_false_when_off_present() {
+function test_setting_off_true_when_off_present() {
   local target="$_HI_WORKDIR/off"
   printf 'export _HI_DISABLE_FOO=1\n' >"$target"
-  ! setting_enabled _HI_DISABLE_FOO "$target"
+  setting_off _HI_DISABLE_FOO "$target"
 }
 
-function test_setting_enabled_respects_custom_off_value() {
+function test_setting_off_respects_custom_off_value() {
   local target="$_HI_WORKDIR/customoff"
   printf 'export _HI_HEADER_TIMESTAMP=0\n' >"$target"
-  ! setting_enabled _HI_HEADER_TIMESTAMP "$target" 0
+  setting_off _HI_HEADER_TIMESTAMP "$target" 0
+}
+
+# the line as config_shell really writes it: marker-padded, unquoted - the
+# spelling hi.sh's payload trim once could not read
+function test_setting_off_reads_marker_padded_line() {
+  local target="$_HI_WORKDIR/padded"
+  printf '%-45s %s\n' 'export _HI_DISABLE_FOO=1' "$_HI_MARKER" >"$target"
+  setting_off _HI_DISABLE_FOO "$target" &&
+    [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
 }
 
 # Written even for a tree at the default location: nothing defaults to $HOME
@@ -526,6 +537,24 @@ function test_check_one_config_skips_missing_shell() {
   local target="$_HI_WORKDIR/whatever"
   printf 'irrelevant\n' >"$target"
   check_one_config nope "$target" definitely-not-a-real-shell-xyz
+}
+
+# check_overlay_configs: the roster over a scratch overlay. What the fish row
+# pins is the reason the function exists - an `if` block in aliases.sh is
+# valid sh and invalid fish, and the sh row alone would wave it through.
+function _hi_overlay_check_run() { check_overlay_configs; }
+# shellcheck disable=SC2016 # $_HI_CONFIG_DIR is the fixture child's to expand
+function test_check_overlay_configs_passes_a_clean_overlay() {
+  _hi_settings_fixture ov_clean bash -c 'printf "alias ll=\"ls -l\"\n" >"$_HI_CONFIG_DIR/aliases.sh"'
+  _hi_settings_fixture ov_clean _hi_overlay_check_run
+}
+# shellcheck disable=SC2016 # same: expands in the child
+function test_check_overlay_configs_catches_sh_only_aliases() {
+  _hi_settings_fixture ov_if bash -c 'printf "if true; then alias ll=ls; fi\n" >"$_HI_CONFIG_DIR/aliases.sh"'
+  ! _hi_settings_fixture ov_if _hi_overlay_check_run
+}
+function test_check_overlay_configs_passes_with_no_overlay() {
+  _hi_settings_fixture ov_none _hi_overlay_check_run
 }
 
 function test_check_one_config_skips_empty_file() {
@@ -919,10 +948,11 @@ function run_install_tests() {
   _hi_check "Written outside the tree" test_settings_are_written_outside_the_tree
   _hi_check "setting_off sees this run's answer" test_setting_off_sees_this_runs_answer
 
-  _hi_h2 "Testing: setting_off / setting_enabled"
-  _hi_check "Defaults to enabled when absent" test_setting_enabled_default_true_when_absent
-  _hi_check "Disabled when off-value present" test_setting_enabled_false_when_off_present
-  _hi_check "Respects a custom off value" test_setting_enabled_respects_custom_off_value
+  _hi_h2 "Testing: setting_off"
+  _hi_check "Not off when absent" test_setting_off_false_when_absent
+  _hi_check "Off when off-value present" test_setting_off_true_when_off_present
+  _hi_check "Respects a custom off value" test_setting_off_respects_custom_off_value
+  _hi_check "Reads the marker-padded line config_shell writes" test_setting_off_reads_marker_padded_line
 
   _hi_h2 "Testing: tmpdir_line"
   _hi_check "States the tree even at \$HOME" test_tmpdir_line_states_the_tree_even_at_home
@@ -942,6 +972,11 @@ function run_install_tests() {
   _hi_check_requires bash "Invalid bash syntax" test_check_one_config_invalid_bash
   _hi_check "Skips a missing shell" test_check_one_config_skips_missing_shell
   _hi_check_requires bash "Skips an empty file" test_check_one_config_skips_empty_file
+
+  _hi_h2 "Testing: check_overlay_configs"
+  _hi_check_requires fish "A clean overlay passes" test_check_overlay_configs_passes_a_clean_overlay
+  _hi_check_requires fish "An sh-only aliases.sh is caught by the fish row" test_check_overlay_configs_catches_sh_only_aliases
+  _hi_check "No overlay, nothing to say" test_check_overlay_configs_passes_with_no_overlay
 
   _hi_h2 "Testing: config_hi (skip path only)"
   _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked

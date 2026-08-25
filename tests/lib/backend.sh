@@ -17,18 +17,20 @@ function _hi_container_running() {
   [ "$("${_HI_BACKEND:-docker}" container inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]
 }
 
-# _hi_start_case_container <label> <image> - boot one throwaway container for
-# a case (kept alive by `tail -f`), registered for teardown, waited until the
-# backend reports it running.
+# _hi_start_case_container <label> <image> [run-arg...] - boot one throwaway
+# container for a case (kept alive by `tail -f`), registered for teardown,
+# waited until the backend reports it running. Extra arguments go to `run`
+# ahead of the image (a `--label`, say), as _hi_sshd_container's do.
 function _hi_start_case_container() {
   local label="$1" image="$2"
+  shift 2
 
   _HI_CONTAINER="hi-${_HI_BACKEND}test-$label-$$"
   _hi_h3 "Testing shell: $label"
 
   # tracked before the run, for the reason _hi_sshd_container states
   _hi_track_container "$_HI_CONTAINER"
-  if ! "$_HI_BACKEND" run -d --name "$_HI_CONTAINER" "$image" tail -f /dev/null \
+  if ! "$_HI_BACKEND" run -d --name "$_HI_CONTAINER" "$@" "$image" tail -f /dev/null \
     >/dev/null 2>"$_HI_WORKDIR/$label.run.log"; then
     _hi_dump_log "Failed to start container (image: $image):" "$_HI_WORKDIR/$label.run.log"
     return 1

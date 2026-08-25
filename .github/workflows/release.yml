@@ -60,14 +60,6 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      # hands the persistent self-hosted workspace back to the runner user, so
-      # checkout's own cleanup can always finish - see docs/PACKAGING.md
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -124,6 +116,9 @@ jobs:
       # against the manifests this release will actually ship
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
+
+      - name: Run the lint group
+        run: "${{ github.workspace }}/tests/test_runner.sh --group lint"
 
       - uses: ./.github/actions/setup-tool
         with:
@@ -221,14 +216,6 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      # hands the persistent self-hosted workspace back to the runner user, so
-      # checkout's own cleanup can always finish - see docs/PACKAGING.md
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

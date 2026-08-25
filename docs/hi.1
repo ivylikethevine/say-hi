@@ -1,4 +1,4 @@
-.TH HI 1 "2026" "say-hi" "User Commands"
+.TH HI 1 "2026-08-25" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
 .SH SYNOPSIS
@@ -58,7 +58,15 @@ a running allocation, by ID or ID prefix.
 .B 4. kubernetes pod
 a running pod in the current
 .BR kubectl (1)
-context and namespace.
+context and namespace, or
+.I namespace:pod
+and
+.I context:namespace:pod
+for one elsewhere \- the prefixes become
+.B kubectl \-\-context
+and
+.BR "\-\-namespace" .
+Completion spells a pod outside the current namespace the same way.
 .PP
 The last two can hold more than one thing to land in, and a
 .B /
@@ -112,10 +120,13 @@ shipped
 .BR common/header.sh ,
 rather than refusing.
 .TP
-.B \-\-doctor \fR[\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, every backend probed and timed, and \- with a target \-
-which backend the name resolves to plus an ssh reachability check.
+which backend the name resolves to plus an ssh reachability check. With
+.BR \-\-json ,
+the same rows as one JSON document on stdout \- what a bug report should
+carry \- with the finding count as the exit status either way.
 .TP
 .B \-\-install\fR, \fB\-\-uninstall
 install or repair say-hi's lines in your shell rc files, or take them back
@@ -125,7 +136,9 @@ out again.
 revisit the feature toggles only, leaving the rc wiring alone.
 .TP
 .B \-\-check\-configs
-re\-run just the shell rc syntax validation, without the rest of the install.
+re\-run just the syntax validation, without the rest of the install: the
+shell rc files, and the overlay's own shell files (\fBaliases.sh\fR under both
+\fBsh\fR and \fBfish\fR, since a target sources it in whichever it has).
 .TP
 .B \-\-overlay\-init
 make the config overlay at

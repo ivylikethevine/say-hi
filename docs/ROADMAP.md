@@ -2,33 +2,24 @@
 
 What is left to do on say-hi. [What v1.0.0 means](#what-v100-means) is the gate
 the tag waits on; everything below it is sorted into four tiers by **how hard
-the work is**, so the file answers "what should I pick up next" rather than
-"where does this work happen":
+the work is**, so the file answers "what should I pick up next":
 
 - **[Quick wins](#quick-wins)** — a single run, click, upstream pull request or
-  one-line decision. Nothing here needs a design.
-- **[Moderate](#moderate)** — a bounded feature or fix with a precedent already
-  in the tree to copy, plus the tests that pin it.
+  one-line decision.
+- **[Moderate](#moderate)** — a bounded feature or fix with a precedent in the
+  tree to copy, plus the tests that pin it.
 - **[Large](#large)** — reshapes a contract, a promise or a path convention
-  across many files, or is not yet scoped enough to start.
+  across many files.
 - **[Blocked until someone else moves](#blocked-until-someone-else-moves)** —
   externally gated. Tracked, not actionable.
 
-Each entry still opens with its **scope** in italics, and the scope still says
-what the work _is_ rather than how long it takes: "one CI run" and "a backend
-across seven files" are the useful distinction, and a guessed number of days is
-not. The tier heading is the difficulty; the scope is the detail. Each scope
-closes by naming where the work happens — _in-repo_ for what can be written and
-finished in this checkout, _outside this checkout_ for what is gated on a
-machine, an account, a key or a click that no file here can perform.
+Each entry opens with its **scope** in italics — what the work _is_, not how
+long it takes — closing with _in-repo_ (finishable in this checkout) or
+_outside this checkout_ (gated on a machine, an account, a key or a click).
+Ordering inside a tier is dependency order first, then ascending scope.
 
-Ordering inside a tier is dependency order first, then ascending scope. That
-matters most in [Quick wins](#quick-wins), where the first entry blocks three
-others spread across three tiers.
-
-Nothing is wired up until its checkbox is ticked. Entries that are finished,
-and questions that have been decided against, are **deleted** rather than kept
-here: git history is the ledger, and this file is only what is left to do.
+Nothing is wired up until its checkbox is ticked. Finished entries and
+questions decided against are **deleted**: git history is the ledger.
 
 ## Contents
 
@@ -40,351 +31,249 @@ here: git history is the ledger, and this file is only what is left to do.
 
 ## What v1.0.0 means
 
-README carries EXPERIMENTAL UNTIL v1.0.0 and the tiers below are sorted by
-difficulty rather than against it, so this is the list that says what actually
-gates the tag: what has to be true before it, each line naming the entry or file
-that satisfies it. It is a **gate, not a wish list** — anything that would
-merely be nice by v1 stays an ordinary unticked entry below rather than padding
-this, and the one piece of product work left (_[persistent
-sessions](#large)_) is explicitly deferred past the tag rather than held in
-front of it. The point is a list short enough to finish — and what
-is left of it is no longer a list but a single chain: the release below unblocks
-the channels after it, and nothing else gates the tag.
+A **gate, not a wish list**: anything merely nice by v1 stays an ordinary entry
+below, and the one piece of product work left (_[persistent
+sessions](#large)_) is explicitly deferred past the tag. What is left is a
+single chain — the release below unblocks the channels after it.
 
 - [ ] **A release has gone out under branch protection**, with the manifest
       step green — the [Get a release out under branch
-      protection](#quick-wins) entry. The criterion below it cannot start until
-      this one lands: `tap` and `aur` are `needs: publish`, and `publish` is the
-      job the rule currently refuses.
-- [ ] **Every publishable channel has been published once by hand**, before the
-      automation is trusted with it: deb/rpm/apk and the Homebrew tap, per
+      protection](#quick-wins) entry. The criterion below cannot start until
+      this lands: `tap` and `aur` are `needs: publish`.
+- [ ] **Every publishable channel has been published once by hand**, before
+      the automation is trusted with it: deb/rpm/apk and the Homebrew tap, per
       [PACKAGING.md](PACKAGING.md)'s _Publishing each channel_. The tap half is
       the [Homebrew tap](#moderate) entry.
 
+- [ ] **A stability contract is written down**, so "experimental" has an
+      opposite. README promises interfaces can still move; nothing says which
+      stop moving at the tag. One page (`docs/STABILITY.md`, or a CONTRIBUTING
+      section) listing what 1.x will not break: the twelve flags in
+      `common/flags`, every row of CONFIGURATION.md's _Every setting_,
+      `$_HI_OVERLAY_FILES`, the `# hi-config-start`/`-end` markers, the
+      `$_HI_HOME/say-hi` + `/etc/profile.d/say-hi.sh` layout packagers rely
+      on, and `_HI_RELEASE` — plus the semver rule and how a toggle is retired
+      (warns for one minor, then goes). The same commit fills SECURITY.md's
+      _Supported versions_ placeholder.
+
 **The AUR is excluded on purpose.** Registration is closed to new accounts
-because of spam, so there is nothing to do and no date to do it by; v1 should
-not wait on somebody else's spam problem. Its entry stays tracked under
-[Blocked until someone else moves](#blocked-until-someone-else-moves) and ticks
-whenever it reopens.
+because of spam; v1 should not wait on somebody else's spam problem. Its entry
+stays under [Blocked until someone else moves](#blocked-until-someone-else-moves).
 
 ## Quick wins
 
-A run, a click, an upstream pull request, or a decision written down. None of
-these needs a design first, and the first one gates more of this file than
-anything else in it: [Say what changed in a release](#quick-wins) below,
-[Homebrew tap](#moderate), and [AUR](#blocked-until-someone-else-moves) are all
-waiting on it.
+The first entry gates more of this file than anything else: [Say what changed
+in a release](#quick-wins), [Homebrew tap](#moderate) and
+[AUR](#blocked-until-someone-else-moves) all wait on it.
 
 - [ ] **Get a release out under branch protection** — _scope: one real release,
       plus one repository setting to confirm first; outside this checkout._
-      _The rule is on:_ `main` requires a pull request and refuses a direct
-      push, which closes Scorecard's highest-severity finding. What has not
-      happened is a release under it, and until one does **both release-channel
-      entries below are blocked behind this one**: `tap` and `aur` are
-      `needs: publish`.
+      `main` requires a pull request and refuses a direct push, which closes
+      Scorecard's highest-severity finding. What has not happened is a release
+      under it.
 
-  - **The code half has shipped.** `publish` no longer pushes to `main`: its
-    credential-keeping checkout writes the regenerated `PKGBUILD`, `.SRCINFO`
-    and `say-hi.rb` onto a `manifests-<tag>` branch and opens a pull request,
-    on the `tap` job's precedent, with `pull-requests: write` on the job to do
-    it. No workflow in the tree pushes to `main` any more. The release does not
-    wait on that merge either - `tap` and `aur` read the manifests out of the
-    `packages` artifact, not out of `main`.
+  - **The code half has shipped.** `publish` no longer pushes to `main`: it
+    writes the regenerated `PKGBUILD`, `.SRCINFO` and `say-hi.rb` onto a
+    `manifests-<tag>` branch and opens a pull request, on the `tap` job's
+    precedent. The release does not wait on that merge — `tap` and `aur` read
+    the manifests out of the `packages` artifact.
   - **Confirm one setting before the first tag.** A workflow can only open that
     pull request if _Settings → Actions → General → Allow GitHub Actions to
-    create and approve pull requests_ is on. With it off, `gh pr create` fails
-    with "GitHub Actions is not permitted to create or approve pull requests" -
-    at the last step of the release, with the packages already published, which
-    is exactly the failure the PR conversion was meant to remove.
-  - **The required checks are still unset.** Only the pull-request requirement
-    is configured. When they go on, per the note on the markdownlint job, do
-    not make the advisory ones required — `markdownlint`, `hadolint`,
-    `demo-staleness`, lychee, trivy and (until it has been green once) the
-    Windows client job are all designed to be ignorable. `e2e (macOS)` and
-    `e2e (Windows)` are now green on push and are reasonable candidates.
+    create and approve pull requests_ is on. Off, `gh pr create` fails at the
+    last step of the release, with the packages already published.
+  - **The required checks are still unset.** When they go on, do not make the
+    advisory ones required — `markdownlint`, `hadolint`, `demo-staleness`,
+    lychee, trivy and (until green once) the Windows client job are designed
+    to be ignorable. `e2e (macOS)` and `e2e (Windows)` are green on push and
+    reasonable candidates.
   - **Ticks when:** a release has gone out under the rule, with the manifest
     pull request opened rather than a push refused.
 
 - [ ] **Say what changed in a release** — _scope: shipped; waits on a real
-      release to prove it; in-repo._ say-hi ships to deb, rpm, apk and
-      Homebrew, and nothing told a packaged user what moved between two
-      versions. `git log` is not something a `brew upgrade` reaches, which is
-      exactly why deleting finished entries from this file — right for a to-do
-      list — left that gap: the ledger has to be published, not merely kept.
+      release to prove it; in-repo._ Nothing told a packaged user what moved
+      between two versions — `git log` is not something a `brew upgrade`
+      reaches, which is the gap deleting finished entries from this file left.
 
-  - **What shipped.** `release.yml`'s publish job now composes the release body
-    out of both halves. GitHub's `releases/generate-notes` endpoint supplies the
-    top — the PR titles merged since the last tag, derived rather than
-    hand-kept, so it cannot go stale — and the _verification checklist_ this
-    entry once wrongly claimed was already there is appended below it, reading
-    its minisign public key straight out of
-    [PACKAGING.md](PACKAGING.md#verifying-a-release-download) so the key exists
-    once in the tree.
-  - **Why it is composed rather than two flags.** `gh` appends generated notes
-    _after_ `--notes`, which would bury what changed under how to check it.
-  - **A `CHANGELOG.md` is still not open**, and should only be opened if the
-    generated notes turn out not to be enough — the same test as before.
-  - **Ticks when:** a release has gone out whose body names what changed as well
-    as how to check it, with nobody hand-writing the list. Blocked behind
-    [Get a release out under branch protection](#quick-wins), like everything
-    else that needs a real tag.
+  - **What shipped.** `release.yml`'s publish job composes the release body
+    from GitHub's `releases/generate-notes` (the PR titles merged since the
+    last tag, derived rather than hand-kept) with the verification checklist
+    appended below it, reading its minisign key straight out of
+    [PACKAGING.md](PACKAGING.md#verifying-a-release-download). Composed rather
+    than two flags because `gh` appends generated notes _after_ `--notes`.
+  - **A `CHANGELOG.md` is still not open**, and should only be if the
+    generated notes turn out not to be enough.
+  - **Ticks when:** a release has gone out whose body names what changed as
+    well as how to check it, with nobody hand-writing the list.
 
-- [ ] **Get a demo render onto the site** — _scope: one `publish` run to
-      read; the code half has shipped; outside this checkout._ Both halves of
-      the autogeneration are in: `demos.yml`'s `publish` job renders every
-      tape but `demo`, `pages.yml` lays the result over the site, the six GIFs
-      are out of the tree, and README and [CONFIGURATION.md](CONFIGURATION.md)
-      link them at their published URLs. `docs/demos/demo.gif` stays committed
-      on purpose - it is the hand-rendered one, and
-      `.githooks/demo_staleness.sh` (and now `ci.yml`'s `demo-staleness` job)
-      is what says when it has gone stale.
+- [ ] **Get a demo render onto the site** — _scope: one `publish` run to read;
+      the code half has shipped; outside this checkout._ `demos.yml`'s
+      `publish` job renders every tape but `demo`, `pages.yml` lays the result
+      over the site, six GIFs are out of the tree, and README and
+      [CONFIGURATION.md](CONFIGURATION.md) link them at their published URLs.
+      `docs/demos/demo.gif` stays committed on purpose — it is the
+      hand-rendered one, and `.githooks/demo_staleness.sh` says when it has
+      gone stale.
 
-  - **All seven of those URLs 404 today**, six of them from the front page:
-    `publish` had four runs (three pushes to `main` and the weekly cron, most
-    recently 2026-08-24) and every one was red at _Render every tape but
-    demo_, because the job assumed a self-hosted renderer, `RUNNER_LABEL` was
-    unset, and it fell back to a hosted runner where six of the seven tapes
-    had no backend. `pages.yml` serves the newest **successful** run's
-    `demo-gifs` artifact, so there has never been one to serve.
-  - **What shipped.** `publish` no longer needs the variable: it installs
-    podman, nomad and kind on a hosted runner by the same steps `ci.yml`'s
-    `e2e-backends` job already used every run, and docker is on the image.
-    `RUNNER_LABEL` still substitutes a box that has them already; it is a
-    speed-up now, not a requirement, and the preflight step that failed the
-    job without it is gone.
-  - **Do:** dispatch `demos.yml` (it never runs on a pull request - push to
-    `main`, the weekly cron, or a manual dispatch). Watch the first hosted
-    render for the renderer's own dependencies: a tape that opens `Set Shell
-    zsh` wants that shell on the machine doing the recording, which the install
-    step covers, and a kind cluster on a two-core hosted runner has never been
-    timed - the job's timeout is 60 minutes for that reason.
+  - **All seven of those URLs 404 today**: `publish` had four runs (most
+    recently 2026-08-24), every one red at _Render every tape but demo_,
+    because the job assumed a self-hosted renderer and fell back to a hosted
+    runner where six of the seven tapes had no backend. `pages.yml` serves the
+    newest **successful** run's `demo-gifs` artifact, so there has never been
+    one to serve.
+  - **What shipped.** `publish` installs podman, nomad and kind on a hosted
+    runner by the same steps `ci.yml`'s `e2e-backends` job uses;
+    `RUNNER_LABEL` is a speed-up now, not a requirement.
+  - **Do:** dispatch `demos.yml` (it never runs on a pull request). Watch the
+    first hosted render for the renderer's own dependencies — a tape opening
+    `Set Shell zsh` wants that shell on the recording machine, and a kind
+    cluster on a two-core hosted runner has never been timed (the job's timeout
+    is 60 minutes for that reason).
   - **Ticks when:** a `publish` run has been green end to end and the seven
-    published URLs actually serve an image — README's six, plus the
-    `color_preview` one that [CONFIGURATION.md](CONFIGURATION.md) is the only
-    link to. Seven tapes render; six GIFs left the tree, because `complete` was
-    never committed in the first place.
+    published URLs serve an image — README's six, plus the `color_preview` one
+    only [CONFIGURATION.md](CONFIGURATION.md) links.
 
 - [ ] **Confirm the tar padding fix on the macOS job** — _scope: one CI run to
-      read; the code half has shipped; in-repo._ `_hi_payload_tar` and
-      `_hi_overlay_tar` let tar do the compressing (`tar czf -`), and the two
-      userlands pad different things: GNU tar rounds the _uncompressed_ archive
-      up to the 10240-byte blocking factor and then gzips it, so the NULs
-      compress away to about thirty bytes, while bsdtar - macOS's
-      `/usr/bin/tar` - pads the _compressed stream_. Every payload a BSD client
-      built was rounded up to a whole multiple of 10240.
+      read; the code half has shipped; in-repo._ GNU tar rounds the
+      _uncompressed_ archive up to the 10240-byte blocking factor and then
+      gzips it (the NULs compress to ~30 bytes), while bsdtar — macOS's
+      `/usr/bin/tar` — pads the _compressed stream_, so every payload a BSD
+      client built was rounded up to a multiple of 10240.
 
-  - **What shipped.** A `_hi_tar_gz` helper in `hi.sh` compresses in a second
-    process (`tar cf - … | gzip -n`), checking both halves of the pipeline
-    through `${PIPESTATUS[@]}` - `hi.sh` turns `pipefail` back off for
-    interactive sourcing, so a failing tar would otherwise hide behind a
-    successful gzip and ship a truncated payload - and degrading to `tar czf -`
-    where the client has no `gzip`. All three call sites go through it:
-    `_hi_overlay_tar`, and `_hi_payload_tar`'s `_HI_KEEP_COMMENTS` and staged
-    arms.
-  - **It was reproduced against real bsdtar rather than inferred.** libarchive
-    is what macOS's tar is built on, so shimming `tar` to `bsdtar` reproduces
-    that client without a Mac. On this tree, before against after: the payload
-    **40960 → 32286 B**, so a stock macOS session shipped 27% more than it
-    needed; a one-file overlay **10240 → 140 B**. Four cases in
-    `tests/hi/payload_test.sh` pin it, and the two that shim bsdtar are the ones
-    that fail against the old code - the GNU-tar pair passes either way, which
-    is exactly how this survived unnoticed.
-  - **The OSC 52 delta now agrees between the userlands.** Under `tar czf -`,
-    `_HI_DISABLE_OSC52=1` trimmed 693 bytes under GNU tar and **0** under
-    bsdtar, because the trim never crossed a block boundary - which is what made
-    `doctor_payload_diff`'s _Payload diff shown when a toggle trims the wire_
-    red on the macOS job and green everywhere else. Split, the two agree to
-    within 52 bytes on the full wire figure.
-  - **The 128-byte floor needs no change, and this entry's note saying
-    otherwise was wrong.** It claimed measured jitter was zero across five runs.
-    It is not: six runs 1.1s apart give 9 bytes under GNU tar and 8 under
-    bsdtar, because the staged tree's stripped files carry each run's own mtime.
-    That is the "few bytes to a couple dozen" `scripts/doctor.sh`'s comment
-    already describes, so the comment stands as written - and the jitter, like
-    the 52-byte spread between userlands, sits far under the floor.
+  - **What shipped.** `_hi_tar_gz` in `hi.sh` compresses in a second process
+    (`tar cf - … | gzip -n`), checking both halves through `${PIPESTATUS[@]}`
+    and degrading to `tar czf -` where the client has no `gzip`. All three
+    call sites go through it. Reproduced against real bsdtar (libarchive) by
+    shimming `tar`: the payload went **40960 → 32286 B**, a one-file overlay
+    **10240 → 140 B**. Four cases in `tests/hi/payload_test.sh` pin it, and the
+    two that shim bsdtar are the ones that fail against the old code.
+  - **The OSC 52 delta now agrees between the userlands**, which is what made
+    `doctor_payload_diff`'s case red on the macOS job and green everywhere
+    else. The 128-byte floor needs no change: measured jitter is 8-9 bytes,
+    from the staged tree's per-run mtimes, far under it.
   - **Ticks when:** `doctor`'s payload-diff case is green on the macOS job.
-    That is the only half left, and it needs a macOS runner - which is why this
-    is now a run to read rather than work to do.
 
 - [ ] **Make the Windows client job green** — _scope: one dispatch to read,
       plus two repository steps once it is; the fixture half has shipped;
-      in-repo._ `.github/workflows/windows-client.yml` has been dispatched
-      twice, most recently 2026-08-22, and was red both times:
-      **37 failures across 8 suites, none of them a portability bug in
-      `hi`.** Every one traced to two facts about Git Bash - it cannot create
-      symbolic links (`ln -s` wants Developer Mode or administrator) and it has
-      no POSIX execute bit (MSYS answers `access(X_OK)` from a file's magic or
-      extension unless the mount carries `acl`). The question this entry used
-      to ask was whether the affected cases should stand down yellow or the job
-      stay red-but-explained.
+      in-repo._ `.github/workflows/windows-client.yml` was dispatched twice
+      (most recently 2026-08-22) and red both times: **37 failures across 8
+      suites, none a portability bug in `hi`.** Every one traced to two facts
+      about Git Bash — it cannot create symbolic links without Developer Mode,
+      and it has no POSIX execute bit (MSYS answers `access(X_OK)` from a
+      file's magic or extension).
 
-  - **The decision was neither: most of them were fixture bugs, and they are
-    fixed.** Only eleven cases actually need a real symlink; the rest were the
-    fixtures failing to say what they meant, and every fix below is worth
-    having on any platform rather than being a Windows concession.
-    - `_hi_real_path` (`tests/lib/fixtures.sh`) builds a toolbox of symlinks
-      and never checked `ln`'s result - it was the tail of an `&&` list, so a
-      failure neither aborted nor reported, and the `[ ! -d ]` build-once guard
-      then cached the **empty** directory forever. A caller splices that into
-      `$PATH` and has no `sh`, `awk` or `sed` at all, which is why `targets`'
-      three sweep cases, `packages_preview`'s two and most of `doctor`'s five
-      failed in ways that looked nothing like symlinks. It now checks, and
-      falls back to a `#!/bin/sh` exec wrapper - the shape `_hi_fake_path`
-      next door already relies on, and the one MSYS's magic-based
-      `access(X_OK)` accepts where an empty file's `chmod +x` does not.
-    - `_hi_probe_home` (`tests/hi/remote_test.sh`) made its launcher with
-      `: >hi.sh` - an empty file, so `chmod +x` does not stick on MSYS and
-      `_hi_remote_root_probe`'s `[ -x … ]` correctly answered "nothing
-      installed" for all fourteen `hi_remote` cases. The probe was right; the
-      fixture could not say what it meant. It writes a shebang now, through a
-      `_hi_probe_tree` helper that also absorbed the copy of itself further
-      down the suite.
-    - `packaging`'s two checksum cases read `awk '{ print $2 }'` over
-      `SHA256SUMS` and saw `*name`, because `sha256sum` opens binary by default
-      on Windows. `SHA256SUMS` is written by Linux CI and `sha256sum -c` reads
-      both spellings, so the assertion was the brittle half: `_HI_SUMS_NAMES`
-      strips the `*`.
-    - Two more fixtures leaned on a symlink for no reason and stopped.
-      `_hi_bsdtar_shim` (`tests/hi/payload_test.sh`) takes `_hi_real_path`'s
-      fallback, since it is the same "a symlink to a binary on `$PATH`" shape;
-      `_hi_subcmd_home` (`tests/hi/parse_test.sh`) now copies the tree into its
-      fake target instead of linking it, which is also what a real target has -
-      it unpacks the payload tar, so what lands there are regular files.
-  - **The eleven that genuinely need a symlink stand down**, on the backend
-    suites' doctrine, behind a probe rather than an OS sniff: `_hi_capable`
-    (`tests/lib/fixtures.sh`) answers `symlink` by making one and testing
-    `[ -L ]`, so a filesystem that silently _copies_ reads as "no" too, and
-    `_hi_check_capable` / `_hi_par_check_capable` are `_hi_check_requires`'
-    twins for a facility rather than a binary. Seven cases in `install`, two in
-    `packaging`, one in `install_location` and `hi_payload`'s Stow case use
-    it, all of them cases where a link is the subject rather than the
-    scaffolding. The twelfth stand-down is `test_lib`'s pty case, which was gated on
-    `command -v python3` - Windows _has_ python3 and lacks the Unix-only `pty`
-    module, so `$_HI_PTY_FORCED` is now filled from an `import pty, tty` probe
-    and the case asks `_hi_check_capable pty`.
-  - **All of it was proven without a Windows box.** A `ln` shim that fails on
-    `-s` and passes hard links through _is_ Git Bash without Developer Mode,
-    and a `python3` that exits non-zero on `import pty` is its interpreter.
-    Under the shim, the job's own invocation (`--group fast --skip
-    shellcheck`) is **green across all 25 suites with eleven yellow skips**;
-    without it, green with none. The second half is the one that matters: a guard that
-    skipped on Linux too would be hiding coverage rather than reporting a
-    platform.
-  - **What is left is a run and two settings.** `ci.yml` now calls
-    `windows-client.yml` on every push to `main` beside `e2e (Windows)`, as
-    an _advisory_ job - the suite step carries `continue-on-error` and the
-    job restates a failure as a warning, the markdownlint shape - so the run
-    to read arrives on its own rather than by dispatch. Any failure now is new
-    information rather than one of these classes. Two things to read rather than assume. The skip count
-    should be twelve (eleven symlink, one pty) on top of the 45 zsh/fish ones.
-    And `packaging`'s _staged_launcher shims a misnamed checkout_ should
-    **skip**, not fail: it needs a symlink to a _directory_, it is guarded now,
-    and the original run counted it green, so a failure there would say the
-    guard is in the wrong place.
-  - **Unchanged from before the run:** it runs `--group fast --skip
-shellcheck`, because `.github/actions/setup-tool` resolves linux/darwin
-    asset slugs and `run_shellcheck` exits 1 rather than standing down when
-    shellcheck is missing. There is no zsh or fish on the runner either, so 45
-    cases skip yellow before any of the above. Nothing is blocked on this
-    either way: a Windows _client_ is deliberately not a v1.0.0 criterion,
-    because a Windows client is not what "stable" promises. `windows-e2e.yml`
-    covers the target side, and that is the half the tag rests on.
-  - **Ticks when:** the job is green once, the `continue-on-error` and the
-    word _advisory_ come out of `windows-client.yml` so it gates like
-    `e2e (Windows)` does, and [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s
-    Windows row reads ✅ for the client half as well as the target half.
+  - **Most were fixture bugs, and they are fixed** — every fix worth having on
+    any platform. `_hi_real_path` (`tests/lib/fixtures.sh`) never checked
+    `ln`'s result and cached an **empty** toolbox forever, which is why
+    `targets`', `packages_preview`'s and most of `doctor`'s cases failed in
+    ways that looked nothing like symlinks; it now checks and falls back to a
+    `#!/bin/sh` exec wrapper. `_hi_probe_home` (`tests/hi/remote_test.sh`)
+    made its launcher with `: >hi.sh`, an empty file `chmod +x` does not stick
+    on under MSYS; it writes a shebang now. `packaging`'s checksum cases saw
+    `*name` because `sha256sum` opens binary by default on Windows;
+    `_HI_SUMS_NAMES` strips the `*`. `_hi_bsdtar_shim` and `_hi_subcmd_home`
+    leaned on a symlink for no reason and stopped.
+  - **The eleven that genuinely need a symlink stand down** behind a probe
+    rather than an OS sniff: `_hi_capable symlink` makes one and tests
+    `[ -L ]`, and `_hi_check_capable` / `_hi_par_check_capable` are
+    `_hi_check_requires`' twins for a facility. The twelfth stand-down is
+    `test_lib`'s pty case, now gated on an `import pty, tty` probe rather than
+    `command -v python3`.
+  - **Proven without a Windows box**: a `ln` shim that fails on `-s` _is_ Git
+    Bash without Developer Mode. Under the shim the job's own invocation
+    (`--group fast`) is green across all 25 suites with
+    eleven yellow skips; without it, green with none.
+  - **What is left is a run and two settings.** `ci.yml` calls
+    `windows-client.yml` on every push to `main` as an _advisory_ job. Expect
+    twelve skips (eleven symlink, one pty) on top of the 45 zsh/fish ones, and
+    `packaging`'s _staged_launcher shims a misnamed checkout_ should **skip**,
+    not fail. It runs `--group fast` alone, since `setup-tool` resolves
+    linux/darwin slugs only and the lint group is the ubuntu job's. A Windows _client_ is deliberately not a v1.0.0
+    criterion; `windows-e2e.yml` covers the target side, which is the half the
+    tag rests on.
+  - **Ticks when:** the job is green once, the `continue-on-error` and the word
+    _advisory_ come out of `windows-client.yml`, and
+    [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
+    client half.
 
 - [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
       and one README line either way, with nothing to judge before 2026-08-25;
       outside this checkout._ `scorecard.yml` runs weekly with
-      `publish_results: true` and `README.md` carries the badge, but **no score
-      has been published yet**: `api.scorecard.dev` and
-      `api.securityscorecards.dev` both 404 for this repo, and the badge
-      renders `openssf scorecard: invalid repo path` — on `main` as much as
-      here. The cause is benign. `publish_results` only takes effect on a
-      _scheduled_ run against the default branch, the cron is `41 7 * * 2`, and
-      the schedule-only trigger landed on `main` on Wed 2026-08-19 — so the
-      first run is Tue 2026-08-25 and there has not been one. If the badge is
-      still an error after that date, a run fired and failed rather than never
-      having fired, and the Actions tab is the only place that tells those two
-      apart.
+      `publish_results: true` and README carries the badge, but no score has
+      been published: the badge renders `invalid repo path`. The cause is
+      benign — `publish_results` only takes effect on a _scheduled_ run against
+      the default branch, the cron is `41 7 * * 2`, and the trigger landed on
+      `main` on 2026-08-19, so the first run is 2026-08-25. If the badge is
+      still an error after that, a run fired and failed; the Actions tab tells
+      those apart.
 
-  - **Until then the README shows an error rather than a number.** Leave it:
-    re-adding the line afterwards is a second commit spent on a few days of
-    cosmetic blemish, on a repo whose first heading already says EXPERIMENTAL.
-    Pull it only if that reads worse in practice than it does written down.
-  - **The question the number has to answer** is whether showing it helps. Two
-    checks a solo maintainer cannot move — Code-Review and CI-Tests — dominate
-    it, so it reads partly as a verdict on the project's headcount rather than
-    on its engineering, sitting next to badges that measure something real.
-  - **CII-Best-Practices used to be on that list and is not.** It reads for a
-    contribution guide among other things, so it was movable by writing one —
-    and `docs/CONTRIBUTING.md` has since shipped. That is one unmovable check
-    fewer than when this entry was written, which is the other reason to judge
-    the first real report rather than guess at it.
-  - **The rest of the report is settled and needs nothing.** SAST counts
-    `codeql.yml`'s `actions` pack over the workflows (worth having on its own
-    merits, and a poor reason to believe the resulting number, since the
-    product is still bash and still unread by it); Fuzzing has no obvious
-    target in a shell tree; everything else already passes.
-  - **Ticks when:** the badge either stays, with a sentence here saying why the
-    number is worth showing, or comes back out of the README.
+  - **Until then leave the README as is** — re-adding the line afterwards is a
+    second commit spent on a few days of cosmetic blemish.
+  - **The question is whether showing it helps.** Two checks a solo maintainer
+    cannot move — Code-Review and CI-Tests — dominate it, so it reads partly
+    as a verdict on headcount. CII-Best-Practices used to be unmovable and is
+    not now that `docs/CONTRIBUTING.md` has shipped. The rest of the report is
+    settled: SAST counts `codeql.yml`'s `actions` pack, Fuzzing has no target
+    in a shell tree, everything else passes.
+  - **Ticks when:** the badge either stays, with a sentence here saying why,
+    or comes back out of the README.
 
 - [ ] **tldr page** — _scope: one upstream pull request; the gate it waited on
       has lifted; outside this checkout._ Seven example lines reach everyone
-      who types `tldr hi` before anyone reads a man page. Upstream has its own
-      style guide and review, so this is a submission, not a file here; the
-      draft is at `docs/tldr.md`.
+      who types `tldr hi`. Upstream has its own style guide and review, so this
+      is a submission; the draft is `docs/tldr.md`.
 
-  - **The CLI surface is frozen, which is what this was waiting on.** All twelve
-    flags agree across `hi.sh`'s `_HI_SUBCOMMANDS` table and case arms,
-    `docs/hi.1`, and `common/targets.sh`'s completion roster — and the agreement
-    is CI-enforced in both directions rather than read: `tests/hi/parse_test.sh`
-    checks that every `--help` flag reaches the man page _and_ that the page
-    groups them the way the roster does, while `tests/common/targets_test.sh`
-    checks the roster against `--help` each way round. Examples that churn are
-    worse than no page, and these can no longer churn quietly.
-  - **The draft now reads like upstream's, which is the other thing review
-    catches.** It was structurally right already - `# hi`, a `>` block ending
-    in `More information:`, `{{placeholder}}` syntax, single-backtick command
-    lines, seven examples against a cap of eight - and wrong in the small ways
-    the style guide is explicit about: three lines over the 80-column cap,
-    inline backticks inside two example descriptions where upstream wants plain
-    prose, and a literal `...` in the last one. All fixed; the longest line is
-    79 now. What is left is genuinely just the submission.
-  - **Do:** open the PR against tldr-pages. The draft leans on three flags —
-    `--doctor`, `--version` and `--configure` — all of them frozen.
-  - **Ticks when:** it is merged upstream.
+  - **The CLI surface is frozen.** All twelve flags agree across `hi.sh`'s
+    `common/flags` table and case arms, `docs/hi.1` and
+    `common/targets.sh`'s completion roster, CI-enforced in both directions by
+    `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`.
+  - **The draft reads like upstream's**: `# hi`, a `>` block ending in
+    `More information:`, `{{placeholder}}` syntax, seven examples against a cap
+    of eight, longest line 79 columns, no inline backticks in descriptions.
+  - **Do:** open the PR against tldr-pages. **Ticks when:** merged upstream.
+
+- [ ] **Flip to stable** — _scope: one commit at tag time, listed now so
+      nothing is missed; in-repo._ The EXPERIMENTAL banner has anchors and
+      echoes: README's banner and the `#experimental-until-v100-stable-releases`
+      anchor CONTRIBUTING links, ALTERNATIVES.md's "pre-1.0, not yet published
+      to any channel" cell, SECURITY.md's _Supported versions_. **Ticks when:**
+      every one of those reads as a released project in the same commit the
+      tag points at.
+
+- [ ] **Check the name is free** — _scope: five minutes on Repology,
+      `apt-file search bin/hi`, Homebrew core, the AUR and
+      pkgs.alpinelinux.org; outside this checkout._ `hi` is two letters and
+      `/usr/bin/hi` is what every package installs; a distro that already
+      ships one surfaces as a file conflict only after the `.deb` is public.
+      **Ticks when:** no channel hi will publish to has a `hi` binary or a
+      `say-hi` package, or the conflict is known and named here.
+
+- [ ] **A release candidate before the tag** — _scope: one `v1.0.0-rc.1` tag
+      and one decision; in-repo then outside it._ `v0.0.x` tags skip `tap` and
+      `aur` by design, so today the first tag to walk `bump.sh` → manifests PR
+      → tap PR → `brew audit` on a real Mac is `v1.0.0` itself. Decide whether
+      `-rc` tags reach the tap (`release.yml` special-cases only `v0.0.x`),
+      then cut one and read the run. **Ticks when:** an rc has gone through
+      every job `v1.0.0` will, with the tap PR opened.
 
 ## Moderate
 
-Bounded work with a precedent already in the tree to copy from, and a test or a
-budget to satisfy on the way out. Nothing here is a research problem; each one
-names the files it touches.
+Bounded work with a precedent in the tree to copy and a test or budget to
+satisfy on the way out.
 
-- [ ] **A job-started hook on the self-hosted runner** — _scope: a script and an
-      env var on that machine, plus one commit here deleting fifteen copies;
-      outside this checkout._ Fifteen jobs across ten workflows open with the
-      same `Reclaim the workspace` step: a `sudo chown -R` of
-      `$GITHUB_WORKSPACE`, guarded on `runner.environment != 'github-hosted'`,
-      because that box's `_work` persists between jobs and one root-owned file
-      from a container test makes the next checkout's cleanup throw
-      (docs/PACKAGING.md has the full account). It cannot be factored into a
-      composite action, since it has to run _before_ `actions/checkout` and
-      `uses: ./.github/actions/...` needs the checkout that has not happened
-      yet.
+- [ ] **A job-started hook on the self-hosted runner** — _scope: one file and
+      one env var on that machine; the repo half has shipped; outside this
+      checkout._ The fifteen `Reclaim the workspace` steps are gone from the
+      workflows, and `.github/runner/job-started.sh` is what replaces them: the
+      same `sudo chown -R` of `$GITHUB_WORKSPACE`, run once by the runner
+      before every job via `ACTIONS_RUNNER_HOOK_JOB_STARTED` (the file's header
+      has the install commands). Nothing breaks meanwhile - `RUNNER_LABEL` is
+      unset, so every run is hosted and gets a fresh workspace.
 
-  - **Where it actually belongs:** `ACTIONS_RUNNER_HOOK_JOB_STARTED` on the
-    runner itself — a script the runner executes before every job, which is
-    exactly this step's scope. Setting it is a file and an env var on that
-    machine, which is the half of this no file in the checkout can perform.
-  - **Recount before deleting rather than trusting the number here.** It was
-    thirteen across eight when this entry was written and is fifteen across ten
-    now, because workflows keep arriving;
-    `grep -rc 'Reclaim the workspace' .github/workflows/` is the whole check.
-  - **Ticks when:** the hook is in place and every copy is deleted in one
-    commit. Do both at once: the copies are harmless, but leaving them after
-    the hook exists means two mechanisms for one problem.
+  - **Do, before pointing `RUNNER_LABEL` at the box:** install the hook there.
+    A self-hosted run without it wedges on the first root-owned file a
+    container suite leaves behind, exactly as docs/PACKAGING.md describes.
+  - **Ticks when:** the hook is installed and one self-hosted run has gone
+    through with it.
 
 - [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, and one gate re-run on a
       real Mac; outside this checkout._ Create the `homebrew-tap` repo (a plain
@@ -396,113 +285,136 @@ names the files it touches.
   - **Ticks when:** `brew install ivy/tap/say-hi` works, from a release the
     `tap` job opened a PR for.
 
+- [ ] **De-personalise the shipped defaults** — _scope: two shipped files
+      and a `--group bench` run; in-repo._ The `*_personal.*` files went, but
+      two places still ship one person's workflow as the product. In
+      `settings/packages`, tier 4 ("tools any working box has", yellow when
+      missing) includes `dotnet`, `php`, `ffmpeg`, `fusermount`, `cosign`,
+      `whois`, `pkgconf`, and tier 5 (bright red when missing) is
+      `asdf`/`mise`/`direnv`/`sshpass` — so a bare Debian target warns it lacks
+      PHP and .NET and shouts that it lacks `sshpass`. In `settings/aliases.sh`,
+      `cat` is rebound to `bat -P --style changes,grid`, `micro` hardcodes
+      `-colorscheme=darcula`, and `IDE`, `zed` and `now` are personal. Keep
+      the fallthrough machinery (`_HI_BATCAT_BIN` and friends); demote the
+      ranks to 1/0 and move the rebinding and colour choices to the overlay,
+      where `~/.config/say-hi/packages` and `aliases.sh` already win.
+      **Ticks when:** a stock session on a bare Debian target prints no
+      yellow or red line for a tool a server has no reason to have, `cat` is
+      `cat` unless the overlay says otherwise, and both payload numbers still
+      fit.
+
+- [ ] **`hi` with no target picks one** — _scope: one client-side arm and a
+      fallback; in-repo._ Bare `hi` falls through to ssh's usage today. With
+      `fzf` or `sk` on the client, offer the list `common/targets.sh` already
+      builds (backend-tagged, cached by `_HI_TARGETS_TTL`) and connect to the
+      pick; without either, a numbered `select`. Client-only, so the footprint
+      promise is untouched. **Ticks when:** `hi` alone lands a session, the
+      completion GIF has a sibling, and `parse_test.sh` pins the arm.
+
+- [ ] **Say when the multiplexer will eat OSC 52** — _scope: one header
+      line; in-repo._ CONFIGURATION.md documents that tmux needs
+      `allow-passthrough on` for `hi_copy` and `hi_notify`; the header already
+      probes the target. When `$TMUX` is set there and
+      `tmux show -g allow-passthrough` is off, print one line saying so. The
+      "hi_copy does nothing" report answered before it is filed. **Ticks
+      when:** the line shows under a tmux with passthrough off and nowhere
+      else, with a `header_test.sh` case each way.
+
+- [ ] **A devcontainer Feature** — _scope: a `devcontainer-feature.json`
+      around `install.sh --prefix`, published to ghcr; a new channel, so a
+      row in PACKAGING.md and a drift-guard case; post-1.0._ SUPPORTED.md
+      reaches devcontainers from outside as docker targets; a Feature puts
+      say-hi _inside_ one, so the VS Code and Codespaces terminal is styled
+      with no client involved. **Ticks when:** a `features` entry naming
+      it installs a working `hi` in a fresh devcontainer.
+
 ## Large
 
-One is left, and it reshapes something the rest of the tree leans on rather
-than adding to it: the footprint promise [SECURITY.md](SECURITY.md) makes. It
-is deferred past v1.0.0 on purpose - it rewrites the sentence the tag is being
-cut on. The Windows client job used to sit here as the second; the decision it
-was waiting on has been made and its fixture half has shipped, so it is a run
-to read now and lives in [Quick wins](#quick-wins).
+One is left, and it reshapes the footprint promise [SECURITY.md](SECURITY.md)
+makes. Deferred past v1.0.0 on purpose — it rewrites the sentence the tag is
+being cut on.
 
 - [ ] **Persistent sessions on a disposable target** — _**deferred until after
-      v1.0.0.** Scope: the largest entry here. It changes cleanup semantics on
-      both paths, needs a findable tree path and something to reap it, and
-      rewrites SECURITY.md's footprint promise; in-repo._ Deferred because the
-      thing it changes is the promise v1 is being tagged on: SECURITY.md says a
-      machine you visited looks untouched, and every other entry left is a run
-      or a click rather than a rewrite of that sentence. The plan below is the
-      research, not queued work.
+      v1.0.0.** Scope: the largest entry here — cleanup semantics on both
+      paths, a findable tree path and something to reap it, and SECURITY.md's
+      footprint promise rewritten; in-repo._ The plan below is the research,
+      not queued work.
 
-  A dropped connection currently loses the session outright: the
-  tree is deleted when the session ends, so there is nothing to reconnect
-  to. This entry is that changed — keep the tree across a dropped
-  connection, reconnect into the same session later, and delete only on a
-  definitive exit or after a configurable timeout. **Opt-in, not the
-  default**: a bare `hi <target>` stays exactly as disposable as it is
-  today — a named session is what asks for the tradeoff below, on the same
-  "nothing changes for people who never asked" precedent every toggle in
-  this project follows.
+  A dropped connection currently loses the session outright: the tree is
+  deleted when the session ends. This entry is that changed — keep the tree
+  across a dropped connection, reconnect into the same session, and delete only
+  on a definitive exit or after a configurable timeout. **Opt-in, not the
+  default**: a bare `hi <target>` stays exactly as disposable as today.
 
-  - **The plan, in one line.** `hi --session <name> <target>` writes a
-    deterministic tree instead of `mktemp`'s random one, `load.sh`'s cleanup
-    trap becomes conditional on whether that session is still wanted, and
-    reattachment rides whatever multiplexer the target already has -
-    nothing new ships to provide one.
+  - **In one line.** `hi --session <name> <target>` writes a deterministic tree
+    instead of `mktemp`'s random one, `load.sh`'s cleanup trap becomes
+    conditional on whether that session is still wanted, and reattachment
+    rides whatever multiplexer the target already has.
   - **What has to stop happening, carefully.** Cleanup has two independent
     paths — the bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` and `load.sh`'s
-    own on-exit hook — and `tests/targets/ssh_disconnect_test.sh` exists
-    specifically to prove they fire on an _abrupt_ disconnect rather than only
-    a clean exit. That is the current contract and it is deliberate, so this
-    makes it conditional rather than weaker: the suite gains a second case
-    (dropped **with** `--session` keeps the tree) beside the one it has
-    (dropped **without** still reaps it).
-  - **The tree has to be findable again, and only when asked for by name.**
-    `mktemp -d -t $(_hi_whoami).hi.XXXXXX` (`hi.sh`) stays the default - a
-    fresh random name every session, exactly as unfindable as it is meant to
-    be for a one-off connection. `--session <name>` swaps that for a
-    deterministic path scoped to the same user and target,
-    `${TMPDIR:-/tmp}/$(_hi_whoami).hi.session.<name>` (mode 0700, same as
-    today's tree - GLOSSARY: HI.33's derivation, not a new convention). A
-    second `hi --session <name> <target>` finds it already there, skips
-    re-copying the payload once its manifest matches, and reattaches instead
-    of bootstrapping fresh. `<name>` is a plain token (alnum, `-`, `_`) so it
-    can never walk the path outside `$TMPDIR` - the same shape a target name
-    is already constrained to.
-  - **Reaping it defaults to zero footprint, not a background process.** The
-    default is reap-on-next-connect: a session tree older than
-    `_HI_PERSIST_TIMEOUT` (documented in [CONFIGURATION.md](CONFIGURATION.md),
-    unset means "keep indefinitely until an explicit `hi --session <name>
---end`") is deleted the moment the _next_ `hi` of any kind touches that
-    target, not by anything running in the meantime - keeping "a machine you
-    visited looks untouched" true in the stronger sense of leaving no process
-    behind, at the cost of a stale tree sitting there if you never reconnect
-    at all. A detached watchdog (`sh -c 'sleep N; rm -rf ...' &`, disowned) is
-    the opt-in stronger guarantee for someone who wants the timeout enforced
-    even if they never come back - a second flag, not the default, because a
-    process left running on every persistent session is exactly the kind of
-    footprint SECURITY.md currently promises against. Either way, SECURITY.md's
-    _Footprint and cleanup_ section needs rewriting to describe the two modes
-    rather than the one guarantee it states today.
-  - **Keeping the shell alive rides what the target already has, nothing
-    ships to provide it.** This keeps the _tree_ alive; the _shell_ needs a
-    reattachable process, and hi ships no multiplexer config to lean on
-    (`--tmux` and `misc/tmux.conf` were removed). The plan is the same ladder
-    hi already uses for everything else it does not want to own two
-    implementations of ([SUPPORTED.md](SUPPORTED.md), `_HI_SHELL_PREFERENCE`):
-    detect what is already on the target and drive it, in order `tmux` →
-    `screen` → `dtach` (the last needs nothing but a bare `dtach -A
-<socket> <shell>` - no config file to ship, unlike tmux). `--session`
-    wraps the session in whichever of the three is found first,
-    `tmux new-session -A -s hi-<name>` or the equivalent. A target with **none**
-    of the three declines persistence outright with a clear message at
-    connect time - `--session` on that target behaves like today's plain `hi`,
-    rather than silently pretending the reattach half of the promise held.
+    on-exit hook — and `tests/targets/ssh_disconnect_test.sh` proves they fire
+    on an _abrupt_ disconnect. This makes that conditional rather than weaker:
+    the suite gains a second case (dropped **with** `--session` keeps the
+    tree) beside the one it has.
+  - **The tree has to be findable again, only when asked for by name.**
+    `--session <name>` swaps the random path for
+    `${TMPDIR:-/tmp}/$(_hi_whoami).hi.session.<name>` (mode 0700). A second
+    `hi --session <name> <target>` finds it, skips re-copying the payload once
+    its manifest matches, and reattaches. `<name>` is a plain token (alnum,
+    `-`, `_`) so it can never walk outside `$TMPDIR`.
+  - **Reaping defaults to zero footprint, not a background process.** A
+    session tree older than `_HI_PERSIST_TIMEOUT` (documented in
+    [CONFIGURATION.md](CONFIGURATION.md); unset means keep until an explicit
+    `hi --session <name> --end`) is deleted the moment the _next_ `hi` of any
+    kind touches that target — keeping "a machine you visited looks untouched"
+    true in the sense of no process left behind, at the cost of a stale tree if
+    you never reconnect. A detached watchdog (`sh -c 'sleep N; rm -rf ...' &`)
+    is the opt-in stronger guarantee — a second flag, not the default. Either
+    way SECURITY.md's _Footprint and cleanup_ section needs rewriting to
+    describe two modes.
+  - **Keeping the shell alive rides what the target already has.** hi ships no
+    multiplexer config (`--tmux` and `misc/tmux.conf` were removed). The plan is
+    the same ladder hi uses elsewhere: detect and drive `tmux` → `screen` →
+    `dtach` (the last needs nothing but `dtach -A <socket> <shell>`), e.g.
+    `tmux new-session -A -s hi-<name>`. A target with none declines persistence
+    with a clear message at connect time rather than silently pretending.
   - **Ticks when:** `hi --session <name> <target>` survives a dropped
-    connection and reattaches on the next `hi --session <name> <target>`, a
-    bare `hi <target>` is unchanged, the timeout and its watchdog opt-in are
-    documented settings, SECURITY.md's footprint section describes both
-    cleanup modes, and the disconnect suite covers persisted-and-reattached
-    alongside the existing dropped-and-reaped case.
+    connection and reattaches on the next one, a bare `hi <target>` is
+    unchanged, the timeout and its watchdog opt-in are documented settings,
+    SECURITY.md describes both cleanup modes, and the disconnect suite covers
+    persisted-and-reattached alongside dropped-and-reaped.
 
 ## Blocked until someone else moves
 
 Tracked, not actionable. Nothing in this checkout changes when these unblock,
-and none of them is a v1.0.0 criterion.
+and none is a v1.0.0 criterion.
+
+- [ ] **Outside the repo, once a release exists** — _scope: a badge, a
+      questionnaire, a toggle and a check; none in-repo._ Listed together so
+      they are not forgotten between the tag and the announcement:
+      - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
+        the one Scorecard input a solo maintainer can move, achievable now
+        that CONTRIBUTING.md exists;
+      - a Repology badge, once deb/rpm/apk, the tap and the AUR carry a
+        version;
+      - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`, as the
+        low-stakes place for "does it work with X" that UNSUPPORTED.md is
+        written to answer;
+      - one check that `ubi --project ivylikethevine/say-hi` / `mise use
+        ubi:ivylikethevine/say-hi` finds `hi.sh` in the release tarball, and a
+        PACKAGING.md line if it needs an `--exe` hint;
+      - `actions/attest-sbom` beside the provenance step, low priority for a
+        shell tree.
 
 - [ ] **AUR** — _scope: nothing actionable until registration reopens; then an
       account, a key, and one manual first push; outside this checkout._
-      _Externally blocked:_ registration is closed to new accounts because of
-      spam, so there is no account to push from and nothing in this checkout
-      changes that. `release.yml`'s `aur` job stays written and unexercised
-      until it reopens, and this entry is tracked rather than actionable — it
-      is deliberately not a v1 criterion.
+      Registration is closed to new accounts because of spam. `release.yml`'s
+      `aur` job stays written and unexercised until it reopens.
 
   - **When it reopens:** register; `ssh-keygen -t ed25519`, add the public half
-    there, add the private half as the `AUR_SSH_KEY` repo secret and delete the
-    local copy. For each package's first push, re-run the namcap gate against
-    the published source and push only `PKGBUILD` + `.SRCINFO` — that first
-    push is manual, `release.yml`'s `aur` job handles the versioned package
-    after.
+    there, add the private half as the `AUR_SSH_KEY` repo secret and delete
+    the local copy. For each package's first push, re-run the namcap gate
+    against the published source and push only `PKGBUILD` + `.SRCINFO` — that
+    first push is manual; the `aur` job handles the versioned package after.
   - **Ticks when:** both packages are live on the AUR and the `aur` job has
     kept `say-hi` current for one real release.

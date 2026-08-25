@@ -91,4 +91,5 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_EDITORS=1
   export _HI_DISABLE_OSC52=1
   export _HI_DISABLE_NOTIFY=1
+  export _HI_DISABLE_MARKS=1
 } || true

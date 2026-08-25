@@ -215,6 +215,31 @@ function test_container_cmds_pick_the_inner_unit() {
   return 1
 }
 
+# The kube prefixes: `namespace:pod` and `context:namespace:pod`, with or
+# without a `/container`, each landing as kubectl's own flags ahead of `exec`.
+function test_kube_prefixes_become_kubectl_flags() {
+  local -a probe cp attach
+  local DOMAIN
+
+  DOMAIN=staging:web
+  _hi_container_cmds kube
+  case "${attach[*]}" in
+  "kubectl --namespace staging exec -it web --") ;;
+  *)
+    _hi_cecho " | namespace:pod gave '${attach[*]}'" "$RED"
+    return 1
+    ;;
+  esac
+
+  DOMAIN=prod:staging:web/sidecar
+  _hi_container_cmds kube
+  case "${attach[*]}" in
+  "kubectl --context prod --namespace staging exec -it web -c sidecar --") return 0 ;;
+  esac
+  _hi_cecho " | context:namespace:pod/container gave '${attach[*]}'" "$RED"
+  return 1
+}
+
 # The one arm of the dispatch block that has to be *executed* rather than
 # sourced: sourcing hi.sh stops at the BASH_SOURCE guard, which is above the
 # `case "${1:-}"`. So these run the real launcher as a subprocess, with an ssh
@@ -464,7 +489,7 @@ function test_local_subcommands_exec_the_right_script() {
   home="$(_hi_subcmd_stubs)"
   for spec in \
     '--install|STUB install' \
-    '--uninstall|STUB uninstall' \
+    '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
     '--check-configs|STUB install --check-configs' \
     '--overlay-init|STUB install --overlay-init' \
@@ -502,6 +527,38 @@ function test_paths_defines_no_command_aliases() {
     _hi_cecho " | paths.sh still defines: $stray" "$RED"
     return 1
   }
+}
+
+# _hi_record_recent: the client half of recent-targets-first (targets.sh's
+# ranking is targets_test.sh's). The file is pointed into the workdir.
+function test_record_recent_appends_a_line() {
+  local f="$_HI_WORKDIR/recent.append"
+  rm -f "$f"
+  _HI_RECENT_FILE="$f" _hi_record_recent alpha
+  _HI_RECENT_FILE="$f" _hi_record_recent beta
+  [ "$(grep -c . "$f")" -eq 2 ] &&
+    grep -qE $'^[0-9]+\talpha$' "$f" && grep -qE $'^[0-9]+\tbeta$' "$f"
+}
+# the promise the roadmap made: nothing about it reaches a target - a relay's
+# hi, which is the same file running in a session, records nothing there
+function test_record_recent_is_silent_in_a_session() {
+  local f="$_HI_WORKDIR/recent.session"
+  rm -f "$f"
+  _HI_REMOTE_SESSION=1 _HI_RECENT_FILE="$f" _hi_record_recent alpha
+  [ ! -e "$f" ]
+}
+function test_record_recent_is_silent_when_off() {
+  local f="$_HI_WORKDIR/recent.off"
+  rm -f "$f"
+  _HI_RECENT=0 _HI_RECENT_FILE="$f" _hi_record_recent alpha
+  [ ! -e "$f" ]
+}
+function test_record_recent_trims() {
+  local f="$_HI_WORKDIR/recent.trim" i
+  rm -f "$f"
+  for i in $(seq 1 500); do printf '1\told-%s\n' "$i"; done >"$f"
+  _HI_RECENT_FILE="$f" _hi_record_recent newest
+  [ "$(grep -c . "$f")" -eq 300 ] && [ "$(tail -1 "$f" | cut -f2)" = newest ]
 }
 
 function run_hi_parse_tests() {
@@ -546,6 +603,13 @@ function run_hi_parse_tests() {
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
   _hi_check "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
+  _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
+
+  _hi_h2 "Testing: _hi_record_recent"
+  _hi_check "Appends a stamped line" test_record_recent_appends_a_line
+  _hi_check "Writes nothing in a session" test_record_recent_is_silent_in_a_session
+  _hi_check "Writes nothing when off" test_record_recent_is_silent_when_off
+  _hi_check "Trims past 500 lines to 300" test_record_recent_trims
 
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
