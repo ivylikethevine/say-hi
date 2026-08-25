@@ -168,8 +168,10 @@ function fish_prompt --description 'Write out the prompt'
   test $__fish_prompt_status_generation = $status_generation; and set bold_flag
   set __fish_prompt_status_generation $status_generation
 
+  # quoted so an empty set_color (no colour on this TERM) still counts as an
+  # argument - fish 3 otherwise reports "missing argument" on every prompt
   set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
-    (set_color $fish_color_status) (set_color $bold_flag $fish_color_status) $last_pipestatus)
+    "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
 
   echo -n -s $_hi_marks_a (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
     (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $_hi_marks_b
@@ -190,8 +192,10 @@ if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $versi
   function __hi_marks_postexec --on-event fish_postexec
     printf '\e]133;D;%s\a' $status
   end
+  # only an interactive fish owns a terminal to report to: `fish -c` and the
+  # suites' captured runs would otherwise get the escape ahead of their output
   function __hi_marks_cwd --on-variable PWD
-    printf '\e]7;file://%s%s\a' (hostname) $PWD
+    status is-interactive; and printf '\e]7;file://%s%s\a' (hostname) $PWD
   end
   __hi_marks_cwd
 end
