@@ -15,19 +15,29 @@ current state is not a representation of final, published quality.
 [![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
 ![ssh payload](https://img.shields.io/badge/ssh_payload-44KB_per_session-4c1)
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
-[![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
-[![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 ![bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-blue)
-
-[Test Badge Disclaimer](docs/TESTING.md#coverage-and-profiling)
 
 **One config directory to rule them all, uniting all shells from all hosts!**
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
 ![hi connecting to a container: banner, header, packages check, colored prompt, and the cleanup on exit](docs/demos/demo.gif)
+
+## In sixty seconds
+
+```sh
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi
+~/say-hi/scripts/install.sh    # wires your rc files, asks about each feature
+exec $SHELL                    # reload
+hi some-host                   # ssh, with your prompt, aliases and editors along
+```
+
+`hi <name>` takes anything `ssh` takes — plus a running docker/podman
+container, a nomad allocation or a kubernetes pod by name — lands you in a
+session that looks like your own shell, and removes every trace when you
+leave. `hi <TAB>` lists all of them. Nothing is installed on the far end.
 
 ## Contents
 
@@ -273,8 +283,9 @@ then `--group lint` is what CI runs on every push/PR. The runbook is
 
 ### Coverage and Profiling
 
-Both coverage badges are grey because neither number can be taken at face
-value, and neither gates anything: **kcov** loses its `DEBUG` trap the moment
+Two coverage tools sit beside the suites, and neither number can be taken at
+face value, which is why README carries no coverage badge and neither gates
+anything: **kcov** loses its `DEBUG` trap the moment
 the harness is sourced, so it counts only what ran while things were loading
 and reads far too low (`common/git_prompt.sh` shows 2.56% with seventeen cases
 passing against it). **bashcov** reads bash's `xtrace` and gets that file

@@ -4,6 +4,15 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Weekly, so the parts of e2e that track upstream are re-tested without a
+  # push: the three deliberately unpinned `curl | sh` framework installers
+  # (tests/dockerfiles/frameworks/{atuin,mise,starship}.sh) and the kind and
+  # nomad binaries e2e-backends installs. Dependabot's digest bumps exercise
+  # the same jobs, but only when a base image moved. Wednesday, after the
+  # Monday dependabot/tool-versions and Tuesday codeql/scorecard crons, so a
+  # red run here follows a fresh dependency sweep rather than preceding one.
+  schedule:
+    - cron: '17 6 * * 3'
   workflow_dispatch:
 
 permissions:

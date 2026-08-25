@@ -156,11 +156,12 @@ believe. It needs `gem install --user-install bashcov`; the script finds the
 binary off `$PATH`, writes a `.simplecov` into the checkout for the run and
 removes it after, and refuses to start rather than overwrite one you have.
 
-README's **kcov** and **bashcov** badges are those two aggregates, published by
-the dispatch-only `coverage.yml` and `coverage-v2.yml` via `pages.yml`. Both
-are grey and say `load-time` / `heredoc-inflated` rather than `coverage`; until
-someone dispatches the workflow each reads `not measured`. Neither gates
-anything.
+The dispatch-only `coverage.yml` and `coverage-v2.yml` publish those two
+aggregates as shields endpoints (`badges/coverage.json`,
+`badges/coverage-v2.json`) via `pages.yml`, labelled `load-time` /
+`heredoc-inflated` rather than `coverage`. README deliberately does not show
+them: a badge whose own docs say to ignore it costs the row beside it
+credibility. Neither gates anything.
 
 `tests/profile.sh` is what to run when a `--group bench` ceiling trips:
 `_hi_bench` says _whether_ a path got slower, this says _which command in it_

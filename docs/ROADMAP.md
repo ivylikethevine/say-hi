@@ -45,6 +45,17 @@ single chain — the release below unblocks the channels after it.
       [PACKAGING.md](PACKAGING.md)'s _Publishing each channel_. The tap half is
       the [Homebrew tap](#moderate) entry.
 
+- [ ] **A stability contract is written down**, so "experimental" has an
+      opposite. README promises interfaces can still move; nothing says which
+      stop moving at the tag. One page (`docs/STABILITY.md`, or a CONTRIBUTING
+      section) listing what 1.x will not break: the twelve flags in
+      `common/flags`, every row of CONFIGURATION.md's _Every setting_,
+      `$_HI_OVERLAY_FILES`, the `# hi-config-start`/`-end` markers, the
+      `$_HI_HOME/say-hi` + `/etc/profile.d/say-hi.sh` layout packagers rely
+      on, and `_HI_RELEASE` — plus the semver rule and how a toggle is retired
+      (warns for one minor, then goes). The same commit fills SECURITY.md's
+      _Supported versions_ placeholder.
+
 **The AUR is excluded on purpose.** Registration is closed to new accounts
 because of spam; v1 should not wait on somebody else's spam problem. Its entry
 stays under [Blocked until someone else moves](#blocked-until-someone-else-moves).
@@ -220,6 +231,39 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     of eight, longest line 79 columns, no inline backticks in descriptions.
   - **Do:** open the PR against tldr-pages. **Ticks when:** merged upstream.
 
+- [ ] **Flip to stable** — _scope: one commit at tag time, listed now so
+      nothing is missed; in-repo._ The EXPERIMENTAL banner has anchors and
+      echoes: README's banner and the `#experimental-until-v100-stable-releases`
+      anchor CONTRIBUTING links, ALTERNATIVES.md's "pre-1.0, not yet published
+      to any channel" cell, SECURITY.md's _Supported versions_. **Ticks when:**
+      every one of those reads as a released project in the same commit the
+      tag points at.
+
+- [ ] **Check the name is free** — _scope: five minutes on Repology,
+      `apt-file search bin/hi`, Homebrew core, the AUR and
+      pkgs.alpinelinux.org; outside this checkout._ `hi` is two letters and
+      `/usr/bin/hi` is what every package installs; a distro that already
+      ships one surfaces as a file conflict only after the `.deb` is public.
+      **Ticks when:** no channel hi will publish to has a `hi` binary or a
+      `say-hi` package, or the conflict is known and named here.
+
+- [ ] **A release candidate before the tag** — _scope: one `v1.0.0-rc.1` tag
+      and one decision; in-repo then outside it._ `v0.0.x` tags skip `tap` and
+      `aur` by design, so today the first tag to walk `bump.sh` → manifests PR
+      → tap PR → `brew audit` on a real Mac is `v1.0.0` itself. Decide whether
+      `-rc` tags reach the tap (`release.yml` special-cases only `v0.0.x`),
+      then cut one and read the run. **Ticks when:** an rc has gone through
+      every job `v1.0.0` will, with the tap PR opened.
+
+- [ ] **Lint the man page** — _scope: an eleventh half of the lint gate;
+      in-repo._ `docs/hi.1` ships in every package and is drift-checked for
+      flags by `parse_test.sh`, never parsed. `mandoc -T lint docs/hi.1`
+      (skip-yellow without mandoc, on shfmt's precedent), plus `typos` over
+      the docs and comments on the same terms — `settings/packages` carries
+      `msdnss`, `envrc` and `has`, which look like exactly what it would
+      catch. **Ticks when:** both run in `--group lint` and CI pins them in
+      `tools.txt`.
+
 ## Moderate
 
 Bounded work with a precedent in the tree to copy and a test or budget to
@@ -249,6 +293,71 @@ satisfy on the way out.
 
   - **Ticks when:** `brew install ivy/tap/say-hi` works, from a release the
     `tap` job opened a PR for.
+
+- [ ] **De-personalise the shipped defaults** — _scope: two shipped files
+      and a `--group bench` run; in-repo._ The `*_personal.*` files went, but
+      two places still ship one person's workflow as the product. In
+      `settings/packages`, tier 4 ("tools any working box has", yellow when
+      missing) includes `dotnet`, `php`, `ffmpeg`, `fusermount`, `cosign`,
+      `whois`, `pkgconf`, and tier 5 (bright red when missing) is
+      `asdf`/`mise`/`direnv`/`sshpass` — so a bare Debian target warns it lacks
+      PHP and .NET and shouts that it lacks `sshpass`. In `settings/aliases.sh`,
+      `cat` is rebound to `bat -P --style changes,grid`, `micro` hardcodes
+      `-colorscheme=darcula`, and `IDE`, `zed` and `now` are personal. Keep
+      the fallthrough machinery (`_HI_BATCAT_BIN` and friends); demote the
+      ranks to 1/0 and move the rebinding and colour choices to the overlay,
+      where `~/.config/say-hi/packages` and `aliases.sh` already win.
+      **Ticks when:** a stock session on a bare Debian target prints no
+      yellow or red line for a tool a server has no reason to have, `cat` is
+      `cat` unless the overlay says otherwise, and both payload numbers still
+      fit.
+
+- [ ] **`hi` with no target picks one** — _scope: one client-side arm and a
+      fallback; in-repo._ Bare `hi` falls through to ssh's usage today. With
+      `fzf` or `sk` on the client, offer the list `common/targets.sh` already
+      builds (backend-tagged, cached by `_HI_TARGETS_TTL`) and connect to the
+      pick; without either, a numbered `select`. Client-only, so the footprint
+      promise is untouched. **Ticks when:** `hi` alone lands a session, the
+      completion GIF has a sibling, and `parse_test.sh` pins the arm.
+
+- [ ] **Recent targets first** — _scope: one client-side file and one
+      setting; in-repo._ Append each successful `hi <target>` to
+      `$XDG_STATE_HOME/say-hi/recent` and let completion and the picker above
+      order by frecency — zoxide's idea for hosts. `_HI_RECENT=0` turns it
+      off; a row in CONFIGURATION.md. **Ticks when:** the most recent target
+      is the first completion offered, and nothing about it reaches a target.
+
+- [ ] **Say when the multiplexer will eat OSC 52** — _scope: one header
+      line; in-repo._ CONFIGURATION.md documents that tmux needs
+      `allow-passthrough on` for `hi_copy` and `hi_notify`; the header already
+      probes the target. When `$TMUX` is set there and
+      `tmux show -g allow-passthrough` is off, print one line saying so. The
+      "hi_copy does nothing" report answered before it is filed. **Ticks
+      when:** the line shows under a tmux with passthrough off and nowhere
+      else, with a `header_test.sh` case each way.
+
+- [ ] **`--check-configs` checks the overlay too** — _scope: two syntax
+      checks the installer already knows how to run; in-repo._ A user's
+      `aliases.sh` overlay is sourced by bash, zsh _and_ fish on every target,
+      in the POSIX+fish subset — and nothing warns when it steps outside it,
+      so it breaks on the first fish-only target instead. Run `sh -n` and
+      `fish --no-execute` over the overlay files `$_HI_OVERLAY_FILES` will
+      ship. **Ticks when:** an overlay with an `if` in `aliases.sh` is
+      reported before it is shipped.
+
+- [ ] **`hi --doctor --json`** — _scope: a second output mode for a script
+      that already gathers everything; in-repo._ Doctor has every probe
+      timing and the resolved backend; a stable machine-readable form is
+      what `bug_report.yml` should ask for. **Ticks when:** the flag is in
+      `common/flags`, `docs/hi.1` and the bug template.
+
+- [ ] **A devcontainer Feature** — _scope: a `devcontainer-feature.json`
+      around `install.sh --prefix`, published to ghcr; a new channel, so a
+      row in PACKAGING.md and a drift-guard case; post-1.0._ SUPPORTED.md
+      reaches devcontainers from outside as docker targets; a Feature puts
+      say-hi _inside_ one, so the VS Code and Codespaces terminal is styled
+      with no client involved. **Ticks when:** a `features` entry naming
+      it installs a working `hi` in a fresh devcontainer.
 
 ## Large
 
@@ -310,6 +419,23 @@ being cut on.
 
 Tracked, not actionable. Nothing in this checkout changes when these unblock,
 and none is a v1.0.0 criterion.
+
+- [ ] **Outside the repo, once a release exists** — _scope: a badge, a
+      questionnaire, a toggle and a check; none in-repo._ Listed together so
+      they are not forgotten between the tag and the announcement:
+      - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
+        the one Scorecard input a solo maintainer can move, achievable now
+        that CONTRIBUTING.md exists;
+      - a Repology badge, once deb/rpm/apk, the tap and the AUR carry a
+        version;
+      - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`, as the
+        low-stakes place for "does it work with X" that UNSUPPORTED.md is
+        written to answer;
+      - one check that `ubi --project ivylikethevine/say-hi` / `mise use
+        ubi:ivylikethevine/say-hi` finds `hi.sh` in the release tarball, and a
+        PACKAGING.md line if it needs an `--exe` hint;
+      - `actions/attest-sbom` beside the provenance step, low priority for a
+        shell tree.
 
 - [ ] **AUR** — _scope: nothing actionable until registration reopens; then an
       account, a key, and one manual first push; outside this checkout._
