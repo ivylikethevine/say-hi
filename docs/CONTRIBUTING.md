@@ -1,11 +1,9 @@
 # Contributing to say-hi
 
-[docs/TESTING.md](TESTING.md) - the test runbook and
-[docs/GLOSSARY.md](GLOSSARY.md) - the named idioms
-
-say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md#experimental-until-v100-stable-releases).
-Interfaces can still move, and [docs/ROADMAP.md](ROADMAP.md) is what is
-left to do — including the entries that are deliberately not being done.
+say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md#experimental-until-v100-stable-releases):
+interfaces can still move, and [docs/ROADMAP.md](ROADMAP.md) is what is left
+to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
+[docs/GLOSSARY.md](GLOSSARY.md).
 
 ## Contents
 
@@ -19,13 +17,13 @@ left to do — including the entries that are deliberately not being done.
 
 ## Before you start
 
-- **Check it isn't already decided.** [docs/UNSUPPORTED.md](UNSUPPORTED.md)
-  holds a verdict and a reason for every runtime, shell, packaging channel and
-  feature answered no, and [docs/SUPPORTED.md](SUPPORTED.md) for everything hi
-  does reach; [docs/ALTERNATIVES.md](ALTERNATIVES.md) does the same for the
-  tools say-hi is not trying to be. A "no" there is a settled answer with its
-  reasoning attached, not an oversight — though a reason that has stopped being
-  true is worth an issue, and if a good implementation appears, I would consider it.
+**Check it isn't already decided.** [docs/UNSUPPORTED.md](UNSUPPORTED.md) holds
+a verdict and a reason for every runtime, shell, packaging channel and feature
+answered no; [docs/SUPPORTED.md](SUPPORTED.md) covers everything hi does reach;
+[docs/ALTERNATIVES.md](ALTERNATIVES.md) does the same for the tools say-hi is
+not trying to be. A "no" there is settled, not an oversight — though a reason
+that has stopped being true is worth an issue, and a good implementation would
+be considered.
 
 ## The gate
 
@@ -33,50 +31,34 @@ left to do — including the entries that are deliberately not being done.
 tests/test_runner.sh --group fast
 ```
 
-That is what CI runs on every push, and the lint suite is inside it — there is
-no separate lint step to remember. `--group fast` should be green before you
-open the pull request, and the summary line it prints is what the template asks
-you to paste.
+That is what CI runs on every push, lint suite included — there is no separate
+lint step. It should be green before you open the pull request, and its summary
+line is what the template asks you to paste.
 
-The `e2e` and `backends` groups need real backends — a reachable sshd, a docker
-or podman socket, a nomad agent, a cluster — and stand down **yellow SKIPPED**
-when they can't run, never green. If your change touches one of those paths, run
-that group (`--group e2e`, `--group backends`, or the suite by name) and say in
-the pull request whether it ran or skipped. `--require-run` turns a skip into a
-failure when you want to be certain it really ran.
-
-Everything else about the runner — the groups, `--skip`, the parallel container
-cases, why the coverage figures are not to be trusted — is in
-[docs/TESTING.md](TESTING.md).
+The `e2e` and `backends` groups need real backends (a reachable sshd, a docker
+or podman socket, a nomad agent, a cluster) and stand down **yellow SKIPPED**
+when they can't run, never green. If your change touches one of those paths,
+run that group (or the suite by name) and say in the pull request whether it
+ran or skipped; `--require-run` turns a skip into a failure.
 
 ### Don't reach for `act`
 
-[act](https://github.com/nektos/act) runs a workflow locally in a container,
-and it is **not** the recommended way to check a change here. That is a
-measurement against this tree, not a guess: `act -j test` — the job that runs
-the gate — reports **six failures a real runner does not**, because act's
-container runs everything as root and six fast-group cases assert non-root
-behaviour. Five are the fish prompt-separator cases in
-`tests/common/rc_test.sh` (fish gives root `#` whatever the separator says) and
-the sixth is `install: Degrades when sudo can't link`. A contributor who
-followed that into a red run would be debugging the container, not their diff.
+[act](https://github.com/nektos/act) is **not** the way to check a change here,
+measured against this tree with act 0.2.89: `act -j test` reports **six
+failures a real runner does not**, because act's container runs as root and six
+fast-group cases assert non-root behaviour (five fish prompt-separator cases in
+`tests/common/rc_test.sh`, plus `install: Degrades when sudo can't link`).
+Running the container as a normal user does not rescue it: `runner.environment`
+is empty under act, so the `Reclaim the workspace` step fires, and under
+`--container-options "--user 1000"` the job dies there for want of passwordless
+sudo.
 
-Running the container as a normal user does not rescue it. `runner.environment`
-is **empty** under act — neither `github-hosted` nor `self-hosted` — so the
-`Reclaim the workspace` step that every self-hosted job opens with fires, and
-under `--container-options "--user 1000"` the job dies right there: that image
-has no passwordless sudo for a non-root user.
-
-`tests/test_runner.sh --group fast` is the same gate with none of that. It is
-exactly what `ci.yml`'s `test` job runs, and it needs no container at all.
-
-If you want a workflow run anyway, three jobs are green under act — `actionlint`,
-`hadolint` and `markdownlint (advisory)` — and all three are linters you can
-also just run directly. `zizmor` fails: act leaves `github.token` empty and
-zizmor refuses an empty one. `test-macos`, `e2e (macOS)` and `e2e (Windows)`
-have no container to run in at all, and `bench`, `packaging-smoke` and the two
-`e2e` jobs want the Docker socket and the self-hosted workspace. Measured with
-act 0.2.89:
+`tests/test_runner.sh --group fast` is the same gate with none of that. If you
+want a workflow run anyway, `actionlint`, `hadolint` and
+`markdownlint (advisory)` are green under act and are all linters you can run
+directly; `zizmor` fails on act's empty `github.token`; the macOS/Windows jobs
+have no container to run in; `bench`, `packaging-smoke` and the two `e2e` jobs
+want the Docker socket and the self-hosted workspace.
 
 ```sh
 act -W .github/workflows/ci.yml -j actionlint -P ubuntu-latest=catthehacker/ubuntu:act-latest
@@ -84,37 +66,31 @@ act -W .github/workflows/ci.yml -j actionlint -P ubuntu-latest=catthehacker/ubun
 
 ## What a review will bounce on
 
-These are the constraints the tree enforces rather than requests:
+These are constraints the tree enforces, not requests:
 
-- **bash 3.2 is the floor.** No `mapfile`/`readarray`, no associative arrays, no
-  namerefs, no `${x,,}` case conversion. macOS ships bash 3.2 and hi runs there,
-  so the lint suite greps for all four. Every deliberately-odd construct that
-  forces is explained once in [GLOSSARY.md](GLOSSARY.md), and code points
-  at it with a `GLOSSARY: HI.NN` tag rather than re-explaining — those tags are
-  drift-checked, so an entry can't be deleted out from under them.
+- **bash 3.2 is the floor.** No `mapfile`/`readarray`, associative arrays,
+  namerefs or `${x,,}`; the lint suite greps for all four. Every deliberately
+  odd construct that forces is explained once in [GLOSSARY.md](GLOSSARY.md),
+  and code points at it with a `GLOSSARY: HI.NN` tag — drift-checked, so an
+  entry can't be deleted out from under them.
 - **Several files are a smaller dialect than bash, and say so at the top.**
   `common/paths.sh` is the four-shell plain-`export` subset,
   `settings/aliases.sh` is POSIX+fish, `common/targets.sh` is standalone POSIX.
   The stated subset wins over anything cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
-  its own path (`GLOSSARY: HI.33`); a guessed tree is how a session ends up
-  reading someone else's. The lint sweep covers the docs here too, since the
-  docs teach the rule as much as the code obeys it.
+  its own path (`GLOSSARY: HI.33`). The lint sweep covers the docs too.
 - **The payload is budgeted twice.** `common/`, `settings/`, `load.sh` and
-  `hi.sh` ship to every target, and both the gzipped tar and the assembled
-  wire script are CI-enforced against separate numbers. If you touch a shipped
-  file, run `--group bench` and check both. Tooling-only helpers do not belong
-  in `common/core.sh`.
+  `hi.sh` ship to every target; the gzipped tar and the assembled wire script
+  are CI-enforced against separate numbers. Touch a shipped file, run
+  `--group bench` and check both. Tooling-only helpers do not belong in
+  `common/core.sh`.
 - **A new suite has a home and a registration.** It lives in
-  `tests/<the directory it tests>/`, sources the `tests/test_lib.sh` façade and
-  nothing else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS`
-  table — no group runs it otherwise.
-- **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`, which
-  would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
+  `tests/<the directory it tests>/`, sources `tests/test_lib.sh` and nothing
+  else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS` table.
+- **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
+  which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 
 ## Which docs change with what
-
-Nothing here has a docs-only counterpart that can be skipped:
 
 | you changed                           | update                                        |
 | ------------------------------------- | --------------------------------------------- |
@@ -125,29 +101,26 @@ Nothing here has a docs-only counterpart that can be skipped:
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag  |
 | a release channel or the release flow | `docs/PACKAGING.md`                           |
 
-Two of those rows are checked rather than requested, both by the lint suite in
-the fast group: a `GLOSSARY:` tag naming an entry that does not exist fails, and
-so does a toggle in `common/core.sh` with no row in
+Two rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
+entry fails, and so does a toggle in `common/core.sh` with no row in
 [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table. The rest are on
 your honour and on review.
 
 `docs/ROADMAP.md` is a to-do list, not a changelog: finishing an entry means
-**deleting** it, since git history is the ledger.
+**deleting** it — git history is the ledger.
 
 ## Opening the pull request
 
-- **Base it on the dev branch** unless an issue says otherwise. `main` is
-  protected: it takes pull requests from `dev`, and then releases are built off it.
-  `dev` is where community input is merged and tested while preparing for
-  new builds and releases.
-- **Simple, concise commits**. Keep it simple, but allow some idea of what is
-  going on. The Pull Request body is where the bullet point will live.
-- **Say if AI wrote part of it.** [README's AI Usage](../README.md#ai-usage)
-  statement is the standard the project holds itself to, and it applies to
-  contributions: the tool is fine, and the code is still yours to have
-  understood, reviewed and stood behind.
+- **Base it on `dev`** unless an issue says otherwise. `main` is protected: it
+  takes pull requests from `dev`, and releases are built off it.
+- **Simple, concise commits** — enough to see what is going on; the pull
+  request body is where the detail lives.
+- **Say if AI wrote part of it.** [README's AI Usage](../README.md#ai-usage) is
+  the standard, and it applies to contributions: the tool is fine, and the code
+  is still yours to have understood, reviewed and stood behind.
 
 ## Reporting a vulnerability
 
-If you feel there is a critical security failing (keeping in mind this is, at its
-heart, a shell script), please report it privately here: [docs/SECURITY.md](SECURITY.md#reporting-a-vulnerability)
+Report anything exploitable privately, per
+[docs/SECURITY.md](SECURITY.md#reporting-a-vulnerability) — not as a public
+issue.

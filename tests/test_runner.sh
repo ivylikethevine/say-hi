@@ -84,7 +84,6 @@ function _hi_test_name() {
   local rest="${1#*:}"
   printf '%s' "${rest%%:*}"
 }
-function _hi_test_path() { printf '%s' "${1##*:}"; }
 
 function _hi_test_names() {
   local t
@@ -293,7 +292,7 @@ if [ "$_HI_LIST" = 1 ]; then
   for _hi_t in "${_HI_SELECTED[@]}"; do
     if [ "$_HI_LIST_PATHS" = 1 ]; then
       printf '%s %s %s\n' "$(_hi_test_group "$_hi_t")" "$(_hi_test_name "$_hi_t")" \
-        "$_HI_HOME/say-hi/tests/$(_hi_test_path "$_hi_t")"
+        "$_HI_HOME/say-hi/tests/${_hi_t##*:}"
     else
       printf '%s %s\n' "$(_hi_test_group "$_hi_t")" "$(_hi_test_name "$_hi_t")"
     fi

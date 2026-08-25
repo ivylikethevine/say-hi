@@ -88,7 +88,7 @@ end
 # a whole process for two color names, so memoized in a universal variable
 # keyed on user@host+colors-mtime: only the first shell after a change pays
 set -l hi_key "$USER@"(prompt_hostname)
-test -f $_HI_COLORS; and set hi_key "$hi_key:"(command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
+test -f $_HI_COLORS; and set hi_key "$hi_key:"(path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
   set -l hi_colors (bash -c "source $_HI_CORE; _hi_user_color; _hi_host_color")
   set -U __hi_color_user $hi_colors[1]

@@ -154,10 +154,6 @@ function _hi_h2() {
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 
-function _hi_h3() {
-  _hi_hrule "$1" '~' 3 "${2:-$BRPURPLE}"
-}
-
 function _hi_now() {
   printf '%s' "${EPOCHREALTIME:-$(date +%s)}"
 }
@@ -225,7 +221,9 @@ fi
 # lesspipe + the debian_chroot prompt label, shared by bash.sh and zsh.zsh;
 # sets $debian_chroot in the caller's scope
 function _hi_interactive_extras() {
-  [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+  # skipped when a parent shell already exported it: nested shells (tmux
+  # panes, `bash` inside bash) otherwise pay the fork+exec again for nothing
+  [ -z "${LESSOPEN:-}" ] && [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
   # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
 }
@@ -282,6 +280,41 @@ function _hi_on_exit() {
   fi
 }
 
+# _hi_setting_get <file> <name> [outvar] - what settings.sh assigns <name>, or
+# rc 1 when it does not. The one reader of that file's grammar, which has one
+# writer (install.sh's config_shell): `export NAME=value` or
+# `export NAME='value'`, an unquoted value's trailing `# comment` (the install
+# marker) stripped, last assignment wins. Read as a file, never off the
+# environment (GLOSSARY: HI.36), and with builtins only - install.sh asks
+# ~15 times per configure, hi.sh once per toggle per connect.
+function _hi_setting_get() {
+  # prefixed locals: the out-var is written by name into the caller's scope,
+  # and a plain `val` here would shadow a caller's `val` (GLOSSARY: HI.04)
+  local _hi_sg_line _hi_sg_val="" _hi_sg_found=1
+  [ -f "$1" ] || return 1
+  while IFS= read -r _hi_sg_line || [ -n "$_hi_sg_line" ]; do
+    case "$_hi_sg_line" in "export $2="*) ;; *) continue ;; esac
+    _hi_sg_line="${_hi_sg_line#"export $2="}"
+    case "$_hi_sg_line" in
+    "'"*)
+      _hi_sg_line="${_hi_sg_line#\'}"
+      _hi_sg_val="${_hi_sg_line%%\'*}"
+      ;;
+    *)
+      _hi_sg_val="${_hi_sg_line%%#*}"
+      _hi_sg_val="${_hi_sg_val%"${_hi_sg_val##*[![:space:]]}"}"
+      ;;
+    esac
+    _hi_sg_found=0
+  done <"$1"
+  [ "$_hi_sg_found" = 0 ] || return 1
+  if [ -n "${3:-}" ]; then
+    printf -v "$3" '%s' "$_hi_sg_val"
+  else
+    printf '%s' "$_hi_sg_val"
+  fi
+}
+
 # What each shell's prompt ends with unless overridden, <SHELL>:<char>. SH is
 # the sh fallback hi.sh bakes on the client. config.fish keeps its
 # own copy (fish parses no bash); hi_test.sh pins it here.
@@ -299,18 +332,21 @@ function _hi_prompt_end_default() {
   done
 }
 
-# _hi_prompt_end <SHELL> - per-shell setting, then the all-three one, then the
-# roster default. Empty counts as unset (`' '` still means "none"); reaches
-# $PS1 unescaped so `%#` and `\$` keep their meaning. The default sits inside
-# the expansion, so an override costs no fork. config.fish mirrors this rule.
+# _hi_prompt_end <SHELL> [outvar] - per-shell setting, then the all-three one,
+# then the roster default. Empty counts as unset (`' '` still means "none");
+# reaches $PS1 unescaped so `%#` and `\$` keep their meaning. The default sits
+# inside the expansion, so an override costs no fork, and the out-var form
+# (GLOSSARY: HI.05) spares the prompt builders a `$( )`. config.fish mirrors
+# this rule.
 function _hi_prompt_end() {
-  local specific
-  eval "specific=\"\${_HI_PROMPT_END_$1:-}\""
-  printf '%s' "${specific:-${_HI_PROMPT_END:-$(_hi_prompt_end_default "$1")}}"
-}
-
-function _hi_at_color() {
-  [ -n "${SSH_TTY:-}" ] && printf '%b' "$YELLOW" || printf '%b' "$NC"
+  local _hi_pe
+  eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
+  _hi_pe="${_hi_pe:-${_HI_PROMPT_END:-$(_hi_prompt_end_default "$1")}}"
+  if [ -n "${2:-}" ]; then
+    printf -v "$2" '%s' "$_hi_pe"
+  else
+    printf '%s' "$_hi_pe"
+  fi
 }
 
 # Deference: _HI_PROMPT=starship hands the prompt over when the target has it,
@@ -552,8 +588,7 @@ function _hi_ssh_host_tag_walk() {
 
 function _hi_ssh_tag_color() {
   local tag
-  tag=$(_hi_ssh_host_tag "$1") && _hi_override_color hosttag "$tag" && return
-  return 1
+  tag=$(_hi_ssh_host_tag "$1") && _hi_override_color hosttag "$tag"
 }
 
 function _hi_resolve_color() {
@@ -599,12 +634,6 @@ function _hi_host_escape_var() {
 function _hi_user_escape_var() {
   _hi_user_escape >/dev/null
   printf -v "$1" '%s' "$_HI_USER_ESC"
-}
-
-# The literal colored " user@host" fragment (@ yellow over ssh) install.sh's
-# preview renders; bash.sh/zsh.zsh keep their escape-based (\u/%n) forms.
-function _hi_userhost() {
-  printf '%b' " $(_hi_user_escape)$(_hi_whoami)$(_hi_at_color)@$(_hi_host_escape)$(_hi_hostname)$NC"
 }
 
 set +euo pipefail # see the top of the file

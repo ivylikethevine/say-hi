@@ -92,9 +92,12 @@ function doctor_row() {
 # with room on both sides for either to drift somewhat before this needs
 # revisiting.
 _HI_PAYLOAD_DIFF_FLOOR=128
+# doctor_payload_diff [this_bytes] - doctor_local passes the figure it already
+# built, so the payload is assembled twice per run (this config and the stock
+# one), not three times.
 function doctor_payload_diff() {
-  local this_bytes default_bytes default_h delta
-  this_bytes="$(_hi_wire_bytes)"
+  local this_bytes="${1:-}" default_bytes default_h delta
+  [ -n "$this_bytes" ] || this_bytes="$(_hi_wire_bytes)"
   default_bytes="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
   default_h="$(_hi_human_bytes "$default_bytes")"
   if [ "$this_bytes" -lt "$default_bytes" ]; then
@@ -109,7 +112,7 @@ function doctor_payload_diff() {
 }
 
 function doctor_local() {
-  local branch changes
+  local branch changes wire
   _hi_h2 "The local tree"
   doctor_row tree "$_HI_ROOT"
   doctor_row version "$(_hi_version)"
@@ -123,8 +126,9 @@ function doctor_local() {
   # two numbers because they answer two questions: what leaves this machine
   # (a gzipped tar, base64-armored for the ssh path) and how big the thing is
   # once it lands. The first is the one people mean by "what does hi cost".
-  doctor_row payload "$(_hi_wire_estimate) over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
-  doctor_payload_diff
+  wire="$(_hi_wire_bytes)"
+  doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
+  doctor_payload_diff "$wire"
   # the shell column of core.sh's _HI_SHELL_TABLE, so this report cannot fall
   # behind the roster install.sh and load.sh wire up
   local s have=""
@@ -314,7 +318,7 @@ function doctor_container_target() {
   # what it costs. No permanent-install branch here, unlike the ssh arm: a
   # container target has nowhere hi would find a tree it did not put there, so
   # every session pays the copy.
-  doctor_row ships "$(_hi_human_bytes "$(_hi_payload_tar | wc -c | tr -d ' ')") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
+  doctor_row ships "$(_hi_human_bytes "$(_hi_file_bytes <(_hi_payload_tar))") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
 }
 
 # _hi_ladder_first <space-separated tools> - the first shell of $_HI_SHELL_LADDER

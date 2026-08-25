@@ -30,9 +30,10 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     if _hi_has_color; then
       export CLICOLOR=1
       export LSCOLORS=gafacadabaegedabagacad
-      # %F{} has no bright variants, so brred/brblue/... fall back to their base color
-      USER_COLOR="${$(_hi_user_color)//br/}"
-      HOST_COLOR="${$(_hi_host_color)//br/}"
+      # %F{} has no bright variants, so brred/brblue/... fall back to their base
+      # color. The memos, not $( ): _hi_prime_identity filled both in this shell
+      USER_COLOR="${_HI_USER_COLOR//br/}"
+      HOST_COLOR="${_HI_HOST_COLOR//br/}"
       _hi_at_color=plain
       [ -n "${SSH_TTY:-}" ] && _hi_at_color=yellow
       PS1=$' ${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END"' '

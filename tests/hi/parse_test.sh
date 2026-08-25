@@ -464,7 +464,7 @@ function test_local_subcommands_exec_the_right_script() {
   home="$(_hi_subcmd_stubs)"
   for spec in \
     '--install|STUB install' \
-    '--uninstall|STUB uninstall' \
+    '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
     '--check-configs|STUB install --check-configs' \
     '--overlay-init|STUB install --overlay-init' \

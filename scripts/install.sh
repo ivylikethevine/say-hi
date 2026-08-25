@@ -256,18 +256,9 @@ function setting_off() {
     [ "$answer" = "$off" ]
     return
   fi
-  # `$(<f)` is the builtin read where `cat` was a process, and the guard covers
-  # the missing file the redirect would otherwise complain about. ~15 questions
-  # run per hi --configure, each asking this.
-  [ -f "$target" ] || return 1
-  case $'\n'"$(<"$target")" in
-  *$'\n'"export $var=$off"*) return 0 ;;
-  esac
-  return 1
-}
-
-function setting_enabled() {
-  ! setting_off "$@"
+  # core.sh's reader, which knows config_shell's marker-padded spelling; out-var
+  # form, since ~15 questions run per hi --configure, each asking this
+  _hi_setting_get "$target" "$var" answer && [ "$answer" = "$off" ]
 }
 
 # Ask a yes/no question about one setting, defaulting to its current state.
@@ -278,7 +269,7 @@ function setting_enabled() {
 # skip the preview since the question is auto-answered.
 function ask_setting() {
   local var="$1" question="$2" target="$3" off="${4:-1}" preview="${5:-}" default hint reply=""
-  setting_enabled "$var" "$target" "$off" && default=y || default=n
+  setting_off "$var" "$target" "$off" && default=n || default=y
   if [ ! -t 0 ]; then
     [ "$default" = y ]
     return
@@ -298,14 +289,17 @@ function ask_setting() {
 # functions, sized to its longest line rather than the terminal width, since
 # previews range from one short colored line to full_check's wrapped block.
 function show_preview() {
-  local out content_w=0 len line pad top bottom fill_top fill_bottom
+  local out content_w=0 len line pad top bottom fill_top fill_bottom i
   local label="$_HI_BOX_H preview "
-  local -a lines
+  local -a lines lens=()
   out="$("$@" 2>/dev/null)" || true
   [ -n "$out" ] || return 0
   _hi_read_lines lines <<<"$out"
+  # measured once, kept for the render loop: the strip behind _hi_visible_len
+  # is the expensive half of every line
   for line in "${lines[@]}"; do
     _hi_visible_len len "$line"
+    lens+=("$len")
     ((len > content_w)) && content_w=$len
   done
   # core.sh's _hi_repeat, which is exactly this padding idiom and exists to
@@ -315,10 +309,9 @@ function show_preview() {
   top="$_HI_BOX_TL${label}${fill_top}$_HI_BOX_TR"
   bottom="$_HI_BOX_BL${fill_bottom}$_HI_BOX_BR"
   _hi_cecho "   $top" "$NC"
-  for line in "${lines[@]}"; do
-    _hi_visible_len len "$line"
-    pad=$((content_w - len))
-    printf '   %s %s%*s %s\n' "$_HI_BOX_V" "$line" "$pad" "" "$_HI_BOX_V"
+  for i in "${!lines[@]}"; do
+    pad=$((content_w - lens[i]))
+    printf '   %s %s%*s %s\n' "$_HI_BOX_V" "${lines[i]}" "$pad" "" "$_HI_BOX_V"
   done
   _hi_cecho "   $bottom" "$NC"
 }
@@ -330,11 +323,11 @@ function show_preview() {
 function _hi_banner_preview() { (unset _HI_HEADER_BANNER && banner Connected); }
 
 # sample "user@host cwd" line, colored like common/bash.sh's real HI_PS1, with
-# the literal current user/host/cwd instead of \u/\h/\w - the fragment itself
-# is core.sh's _hi_userhost
+# the literal current user/host/cwd instead of \u/\h/\w (@ yellow over ssh)
 function _hi_prompt_preview() {
-  local cwd="${PWD/#$HOME/\~}"
-  printf '%b\n' "$(_hi_userhost) $BRBLUE$cwd$NC"
+  local cwd="${PWD/#$HOME/\~}" at="$NC"
+  [ -n "${SSH_TTY:-}" ] && at="$YELLOW"
+  printf '%b\n' " $(_hi_user_escape)$(_hi_whoami)$at@$(_hi_host_escape)$(_hi_hostname)$NC $BRBLUE$cwd$NC"
 }
 
 # the real git prompt segment against say-hi's own checkout (always a git repo),
@@ -457,7 +450,8 @@ function config_packages_floor() {
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
   setting_off _HI_HEADER_CHECK "$_HI_SETTINGS" 0 && return 0
   local current reply rejects=0 max_rejects=3
-  current="$(grep -oE '^export _HI_PACKAGES_MIN_PRIORITY=[0-9]+' "$_HI_SETTINGS" 2>/dev/null | cut -d= -f2)"
+  current=""
+  _hi_setting_get "$_HI_SETTINGS" _HI_PACKAGES_MIN_PRIORITY current
   _hi_floor_candidate="${current:-1}"
   if [ -t 0 ]; then
     _hi_load_preview_sources
@@ -535,8 +529,8 @@ function _hi_has_no_single_quote() {
 # own built-in default, via ${_HI_MAX_WIDTH:-80}) clears the override instead
 # of writing it out.
 function config_max_width() {
-  local current value
-  current="$(grep -oE '^export _HI_MAX_WIDTH=[0-9]+' "$_HI_SETTINGS" 2>/dev/null | cut -d= -f2)"
+  local current="" value
+  _hi_setting_get "$_HI_SETTINGS" _HI_MAX_WIDTH current
   value="$(ask_value "Terminal width for the header/banner?" "$current" 80 \
     _hi_is_number "not a number")"
   _HI_SETTING_LINES+=("${value:+export _HI_MAX_WIDTH=$value}")
@@ -558,7 +552,8 @@ function config_prompt_ends() {
     shell="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
     default="$(_hi_prompt_end_default "$shell")"
     var="_HI_PROMPT_END_$shell"
-    current="$(grep -oE "^export $var='.*'\$" "$_HI_SETTINGS" 2>/dev/null | sed -E "s/^export $var='//; s/'\$//")"
+    current=""
+    _hi_setting_get "$_HI_SETTINGS" "$var" current
     value="$(ask_value "Character to end the $name prompt with?" "$current" "$default" \
       _hi_has_no_single_quote "a single quote can't be written to settings.sh")"
     # shellcheck disable=SC2016 # the quotes are written to the file, not read here

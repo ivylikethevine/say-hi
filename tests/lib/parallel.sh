@@ -46,8 +46,8 @@ function _hi_par_width() {
     printf '%s' "$_HI_PAR_WIDTH"
     return 0
   fi
-  cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || true)"
-  case "$cpus" in '' | *[!0-9]*) cpus=2 ;; esac
+  cpus="$(_hi_host_cores)"
+  [ -n "$cpus" ] || cpus=2
   [ "$cpus" -lt 1 ] && cpus=1
   [ "$cpus" -gt 4 ] && cpus=4
   printf '%s' "$cpus"

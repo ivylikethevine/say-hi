@@ -18,10 +18,17 @@
 # never past a two-space gutter, so the label and the verdict cannot run
 # together into one unreadable word.
 function _hi_align() {
-  local left="$1" right="$2" pad floor=$((${#2} + 2))
+  local left="$1" right="$2" pad line floor=$((${#2} + 2))
   pad=$((${_HI_MAX_WIDTH:-80} - ${#left}))
   ((pad < floor)) && pad=$floor
-  _hi_cecho "$(printf '%s%*s' "$left" "$pad" "$right")" "${3:-}"
+  # printf -v, not $( ): this runs once per verdict line, hundreds a run
+  printf -v line '%s%*s' "$left" "$pad" "$right"
+  _hi_cecho "$line" "${3:-}"
+}
+
+# the third rule weight, below core.sh's _hi_h1/_hi_h2 - suites only
+function _hi_h3() {
+  _hi_hrule "$1" '~' 3 "${2:-$BRPURPLE}"
 }
 
 function _hi_suite_begin() {

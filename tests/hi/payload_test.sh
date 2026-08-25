@@ -210,14 +210,14 @@ function _hi_overlay_fixture() {
 function test_overlay_is_empty_without_one() {
   local dir="$_HI_WORKDIR/no-overlay"
   mkdir -p "$dir"
-  ! (_HI_CONFIG_DIR="$dir" _hi_has_overlay) &&
+  [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" ] &&
     [ -z "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar)" ]
 }
 
 function test_overlay_is_seen_when_present() {
   local dir
   dir="$(_hi_overlay_fixture some colors)"
-  (_HI_CONFIG_DIR="$dir" _hi_has_overlay)
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_files)" = colors ]
 }
 
 # members land at the archive's top level under their plain names, since it is

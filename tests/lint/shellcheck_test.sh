@@ -643,8 +643,8 @@ function _hi_sc_width() {
     printf '%s' "$_HI_SC_WIDTH"
     return 0
   fi
-  cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || true)"
-  case "$cpus" in '' | *[!0-9]*) cpus=2 ;; esac
+  cpus="$(_hi_host_cores)"
+  [ -n "$cpus" ] || cpus=2
   [ "$cpus" -lt 1 ] && cpus=1
   printf '%s' "$cpus"
 }
@@ -773,7 +773,7 @@ function run_shellcheck() {
   if [ "$_HI_SC_RC" -ne 0 ]; then
     # -Calways leaves ANSI codes in $_HI_SC_LOG (needed for the colorized
     # output above), so they have to be stripped before "^In " can match
-    _HI_SC_FAILED=$(sed 's/\x1b\[[0-9;]*m//g' "$_HI_SC_LOG" | grep -oE '^In .* line [0-9]+:' | sed -E 's/^In (.*) line [0-9]+:/\1/' | sort -u | wc -l)
+    _HI_SC_FAILED=$(_hi_strip_ansi "$(<"$_HI_SC_LOG")" | grep -oE '^In .* line [0-9]+:' | sed -E 's/^In (.*) line [0-9]+:/\1/' | sort -u | wc -l)
     _hi_note_failure "shellcheck: $_HI_SC_FAILED file(s) with findings"
   fi
 

@@ -446,22 +446,31 @@ function test_setting_off_sees_this_runs_answer() {
     ! setting_off _HI_DISABLE_PROMPT "$target" 1
 }
 
-function test_setting_enabled_default_true_when_absent() {
+function test_setting_off_false_when_absent() {
   local target="$_HI_WORKDIR/absent"
   : >"$target"
-  setting_enabled _HI_DISABLE_FOO "$target"
+  ! setting_off _HI_DISABLE_FOO "$target"
 }
 
-function test_setting_enabled_false_when_off_present() {
+function test_setting_off_true_when_off_present() {
   local target="$_HI_WORKDIR/off"
   printf 'export _HI_DISABLE_FOO=1\n' >"$target"
-  ! setting_enabled _HI_DISABLE_FOO "$target"
+  setting_off _HI_DISABLE_FOO "$target"
 }
 
-function test_setting_enabled_respects_custom_off_value() {
+function test_setting_off_respects_custom_off_value() {
   local target="$_HI_WORKDIR/customoff"
   printf 'export _HI_HEADER_TIMESTAMP=0\n' >"$target"
-  ! setting_enabled _HI_HEADER_TIMESTAMP "$target" 0
+  setting_off _HI_HEADER_TIMESTAMP "$target" 0
+}
+
+# the line as config_shell really writes it: marker-padded, unquoted - the
+# spelling hi.sh's payload trim once could not read
+function test_setting_off_reads_marker_padded_line() {
+  local target="$_HI_WORKDIR/padded"
+  printf '%-45s %s\n' 'export _HI_DISABLE_FOO=1' "$_HI_MARKER" >"$target"
+  setting_off _HI_DISABLE_FOO "$target" &&
+    [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
 }
 
 # Written even for a tree at the default location: nothing defaults to $HOME
@@ -919,10 +928,11 @@ function run_install_tests() {
   _hi_check "Written outside the tree" test_settings_are_written_outside_the_tree
   _hi_check "setting_off sees this run's answer" test_setting_off_sees_this_runs_answer
 
-  _hi_h2 "Testing: setting_off / setting_enabled"
-  _hi_check "Defaults to enabled when absent" test_setting_enabled_default_true_when_absent
-  _hi_check "Disabled when off-value present" test_setting_enabled_false_when_off_present
-  _hi_check "Respects a custom off value" test_setting_enabled_respects_custom_off_value
+  _hi_h2 "Testing: setting_off"
+  _hi_check "Not off when absent" test_setting_off_false_when_absent
+  _hi_check "Off when off-value present" test_setting_off_true_when_off_present
+  _hi_check "Respects a custom off value" test_setting_off_respects_custom_off_value
+  _hi_check "Reads the marker-padded line config_shell writes" test_setting_off_reads_marker_padded_line
 
   _hi_h2 "Testing: tmpdir_line"
   _hi_check "States the tree even at \$HOME" test_tmpdir_line_states_the_tree_even_at_home

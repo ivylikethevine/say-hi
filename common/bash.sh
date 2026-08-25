@@ -20,16 +20,18 @@ export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quo
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
   _hi_prime_identity
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
-  HI_PS1_END="$(_hi_prompt_end BASH)"
+  HI_PS1_END=""
+  _hi_prompt_end BASH HI_PS1_END
   if _hi_has_color; then
     # the *_var forms, not $( ): _hi_prime_identity resolved both escapes in
     # this shell already. Spelled empty first so shellcheck sees the
     # `printf -v` assignment (SC2154); file scope, so no `local`.
-    _hi_ps1_u="" _hi_ps1_h=""
+    _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
     _hi_user_escape_var _hi_ps1_u
     _hi_host_escape_var _hi_ps1_h
-    HI_PS1=" ${debian_chroot:-}\[$_hi_ps1_u\]\u\[$(_hi_at_color)\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
-    unset _hi_ps1_u _hi_ps1_h
+    [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
+    HI_PS1=" ${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
+    unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
   else
     HI_PS1=" ${debian_chroot:-}\u@\h:\w"
   fi

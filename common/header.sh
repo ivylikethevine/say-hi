@@ -29,8 +29,9 @@ function _hi_header_version() {
 
 # UTC | version | local: no "say-hi" label - the banner above already says whose
 function timestamp() {
+  _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
   header_row "$BRBLUE$(date -u "$_HI_HUMAN_CENTRIC_DATE") " \
-    "$GREEN$(_hi_header_version)" \
+    "$GREEN$_HI_HEADER_VERSION" \
     " $BRYELLOW$(date "$_HI_HUMAN_CENTRIC_DATE")"
 }
 
@@ -253,7 +254,9 @@ function banner() {
   end_len=$((tildes - start_len))
   _hi_repeat start_tildes "$start_len" '~'
   _hi_repeat end_tildes "$end_len" '~'
-  printf '%b\n' " $changes$color$start_tildes $label ${NC}[$(_hi_host_escape)$host$NC]$color $end_tildes$NC"
+  local host_esc=""
+  _hi_host_escape_var host_esc
+  printf '%b\n' " $changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
 function hi_header() {
