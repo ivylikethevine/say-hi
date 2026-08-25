@@ -112,20 +112,21 @@ envrc:0
 
 
 # complementary packages
-kitty:1
-wezterm:1
-yadm:1
-xxh:1
-mosh:1
-chezmoi:1
-kyrat:1
-dotbot:1
-rcm:1
-ghostty:1
-konsole:1
-yakuake:1
-guake:1
-homeshick:1
+kitty:0
+wezterm:0
+yadm:0
+xxh:0
+mosh:0
+chezmoi:0
+kyrat:0
+dotbot:0
+rcm:0
+ghostty:0
+konsole:0
+yakuake:0
+guake:0
+homeshick:0
+sshrc:0
 
 # --- what hi itself runs -----------------------------------------------------
 # Everything below is used by hi's own code (the payload, scripts/ and the test
