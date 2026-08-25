@@ -9,7 +9,10 @@
 # _hi_strip_ansi <text> - the palette taken back out, for suites asserting on
 # geometry or plain content. The inverse of _hi_rendered, and one home for a
 # regex that was hand-written in six suites, where a silent stop-matching is
-# the failure mode.
+# the failure mode. Also takes OSC sequences (BEL- or ST-terminated) with it:
+# an interactive fish -i -c fires its built-in cwd-reporting hook (OSC 7) on
+# some fish builds, unprompted, and it would otherwise land ahead of whatever
+# the case actually asked fish to print.
 function _hi_strip_ansi() {
   local out="$1" restore=0
   shopt -q extglob || {
@@ -17,6 +20,8 @@ function _hi_strip_ansi() {
     restore=1
   }
   out="${out//$'\e'\[*([0-9;])m/}"
+  out="${out//$'\e'\]*([^$'\a\e'])$'\a'/}"
+  out="${out//$'\e'\]*([^$'\a\e'])$'\e'\\/}"
   ((restore)) && shopt -u extglob
   printf '%s' "$out"
 }
