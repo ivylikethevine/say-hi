@@ -1,66 +1,23 @@
+" hi's vim override, kept to the minimum that earns the `-u`: vim's own shipped
+" defaults, so the alias is not a downgrade, plus the OSC 52 yank autocmd,
+" which is hi's and has no other home. Nothing to taste lives here - your own
+" $_HI_CONFIG_DIR/vim.rc replaces this file wholesale.
+
 " must be first: `vim -u <file>` implies 'compatible', which disables <> key
-" notation - every <C-x>, <CR>, <Esc> below would map as literal text
+" notation and a good deal else. defaults.vim clears it too, but that file is
+" not on every vim and never on neovim.
 set nocompatible
 
-set autoread
-set ai
-set backspace=eol,start,indent
-set background=dark
-set cmdheight=2
-set encoding=utf8
-set expandtab
-set ffs=unix,dos,mac
-set foldcolumn=1
-set hid
-set history=500
-set hlsearch
-set incsearch
-set ignorecase
-set langmenu=en
-set lbr
-set lazyredraw
-set magic
-set mat=2
-set nobackup
-set nowb
-set noswapfile
-set noerrorbells
-set novisualbell
-set ruler
-set regexpengine=0
-set smartcase
-set showmatch
-set showmode
-set si
-set so=7
-set smarttab
-set shiftwidth=2
-set tm=500
-set tabstop=2
-set tw=500
-set whichwrap+=<,>,h,l
-set wrap
-set wildmenu
-set wildignore=*.o,*~,*.pyc
-if has("win16") || has("win32")
-  set wildignore+=.git\*,.hg\*,.svn\*
-else
-  set wildignore+=*/.git/*,*/.hg/*,*/.svn/*,*/.DS_Store
-endif
-try
-  set switchbuf=useopen,usetab,newtab
-  set stal=2
-catch
-endtry
-try
-  colorscheme slate
-catch
-endtry
+" the out-of-the-box editor rather than the 1976 one, spelled the way vim
+" itself spells it. `unlet!` because a system vimrc may have set the skip flag;
+" `silent!` because neovim ships no such file and needs none.
+unlet! skip_defaults_vim
+silent! source $VIMRUNTIME/defaults.vim
 
+" belt and braces for a vim old enough to have no defaults.vim; neovim has both
+" on already, and setting them twice costs nothing.
 syntax enable
-filetype plugin on
-filetype indent on
-set laststatus=1
+filetype plugin indent on
 
 " Yank -> the client's clipboard; common/osc52.sh does the encoding/wrapping,
 " this only decides *when*. Four honest conditions: the toggle, the event
@@ -75,15 +32,4 @@ if $_HI_DISABLE_OSC52 != '1' && exists('##TextYankPost') && filereadable($_HI_OS
           \                      join(v:event.regcontents, "\n")) |
           \ endif
   augroup END
-endif
-
-" Ctrl-X quits from any mode (overrides insert-mode completion prefix)
-nnoremap <C-x> :qa!<CR>
-inoremap <C-x> <Esc>:qa!<CR>
-vnoremap <C-x> <Esc>:qa!<CR>
-snoremap <C-x> <Esc>:qa!<CR>
-onoremap <C-x> <Esc>:qa!<CR>
-cnoremap <C-x> <C-c>:qa!<CR>
-if exists(':tnoremap')
-  tnoremap <C-x> <C-\><C-n>:qa!<CR>
 endif

@@ -30,9 +30,12 @@ export _HI_COLORS="$_HI_ROOT/settings/colors"
 export _HI_PACKAGES="$_HI_ROOT/settings/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
 export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
+[ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
 export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
+[ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
+
 # eza reads its theme from a *directory* (settings/theme.yml), not a file path
-export _HI_THEME_DIR="$_HI_ROOT/settings"
+export _HI_THEME_DIR="$_HI_ROOT/settings" # TODO: Move to personal chezmoi
 export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
 export _HI_OSC52="$_HI_ROOT/common/osc52.sh"
 export _HI_NOTIFY="$_HI_ROOT/common/notify.sh"

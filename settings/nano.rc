@@ -1,28 +1,12 @@
+# hi's nano override, kept to the minimum that earns the --rcfile: the syntax
+# definitions nano already ships, and nothing to taste. Your own file at
+# $_HI_CONFIG_DIR/nano.rc replaces this one wholesale.
+#
+# One glob, not two. An `include` that expands to nothing is not fatal, but
+# nano says so on the status bar ("Mistakes in '<rcfile>'") and rings the bell,
+# which is a poor way to open a file on a fresh target. /usr/share/nano ships
+# with the nano package itself; /usr/share/nano/extra is a Debian split that
+# Fedora, Alpine and macOS do not have, so including it is a bell on three
+# platforms to gain a handful of syntaxes on one. Specific completion syntax
+# belongs in ~/.nanorc, which is yours and is not sent anywhere.
 include "/usr/share/nano/*.nanorc"
-include "/usr/share/nano/extra/*.nanorc"
-# include "/usr/share/nano-syntax-highlighting/*.nanorc" # specific completion syntax should be sourced in ~/.nanorc, not here, as it won't be available on every target system
-
-set atblanks
-set autoindent
-set breaklonglines
-set constantshow
-set indicator
-set linenumbers
-set mouse
-set softwrap
-set tabsize 2
-set tabstospaces
-# no `set whitespace`: nano's own default is the locale-aware pair - "»⋅"
-# under UTF-8 and ">." everywhere else. A hardcoded multibyte pair is two
-# characters only to a UTF-8 nano; on a target in the C locale the same
-# line counts four and nano opens with "Two single-column characters
-# required" over the file. The payload has to survive the target it lands on.
-set zap
-
-set titlecolor brightwhite,blue
-set statuscolor brightwhite,magenta
-set selectedcolor black,green
-set errorcolor brightwhite,red
-set numbercolor black,white
-set functioncolor cyan
-set scrollercolor brightcyan

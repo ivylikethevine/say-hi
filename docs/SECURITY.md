@@ -31,7 +31,7 @@ trust boundaries sit, and how to report what slipped through.
   `hi.sh` is in that list so a session can say `hi` onward from the
   target. Your overlay is a second, smaller allow list -
   `$_HI_OVERLAY_FILES`, also in `hi.sh` (`settings.sh`, `colors`,
-  `packages`, `aliases.sh`, `bash.sh`, `zsh.zsh`,
+  `packages`, `vim.rc`, `nano.rc`, `aliases.sh`, `bash.sh`, `zsh.zsh`,
   `config.fish` from `~/.config/say-hi/`) - so anything else sharing that
   directory stays on the client.
 - **base64 is armor, not crypto.** The payload is base64-encoded so it
@@ -77,7 +77,7 @@ the target executes was generated on the client.
   authentication, listens on nothing, and anyone positioned to intercept
   or control your ssh/container session could do so without hi in it.
 - A malicious target gets what any interactive session gives it: your
-  payload and a terminal. Treat every file in your overlay - the eight
+  payload and a terminal. Treat every file in your overlay - the nine
   `$_HI_OVERLAY_FILES` names above - as public to every host you visit.
   Nothing a target sends back is ever executed on the client - the one
   string hi reads back (the probe for an existing say-hi tree) is only

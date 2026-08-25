@@ -57,7 +57,14 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # It lands in a config/ of its own rather than over settings/: settings/aliases.sh
 # sources $_HI_CONFIG_DIR/aliases.sh last, so one directory would make it
 # source itself forever.
-_HI_OVERLAY_FILES=(settings.sh colors packages aliases.sh
+#
+# vim.rc and nano.rc ride it for the same reason colors and packages do: the
+# tree copy is a default, and common/paths.sh points $_HI_VIMRC/$_HI_NANORC at
+# the overlay's when there is one. Without them here that guard could only ever
+# fire on the client, so an editor override worked locally and silently
+# reverted to the default on every target - the asymmetry
+# paths_test.sh's guard/roster pin exists to catch, one layer up.
+_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc aliases.sh
   bash.sh zsh.zsh config.fish)
 
 # What a bash-less target falls back to, best first: core.sh's $_HI_SHELL_TREE
@@ -131,8 +138,16 @@ function _hi_target_color() {
 }
 
 function _hi_overlay_files() {
-  local f
+  local f ed
+  # the editor rcs are _HI_DISABLE_EDITORS' the same way the tree copies are in
+  # _hi_payload_tar: off has to take *both* halves off the wire, or a toggle
+  # the user switched off still ships a file - and an overlay of nothing else
+  # then stops being an overlay at all, which is what _hi_has_overlay reads.
+  ed="$(_hi_overlay_toggle _HI_DISABLE_EDITORS)"
   for f in "${_HI_OVERLAY_FILES[@]}"; do
+    case "$f" in
+    vim.rc | nano.rc) [ "$ed" = 1 ] && continue ;;
+    esac
     [ -f "$_HI_CONFIG_DIR/$f" ] && printf '%s\n' "$f"
   done
   return 0
