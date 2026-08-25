@@ -223,8 +223,8 @@ the release path uses are SHA-pinned separately.
 
 ## The lint gate
 
-`tests/test_runner.sh shellcheck` is one suite with ten halves, and CI runs all
-of them.
+`tests/test_runner.sh shellcheck` is one suite with twelve halves, and CI runs
+all of them.
 
 One check runs **before** all of them and is fatal rather than counted: every
 `source` of a `$_HI_CONFIG_DIR/...` path must carry a `# shellcheck source=`
@@ -232,7 +232,7 @@ directive above it. `.shellcheckrc` sets `source-path=SCRIPTDIR`, so under
 `shellcheck -x` the basename resolves against the sourcing file's own
 directory — and where it names that file, the linter follows it into itself and
 re-parses until the kernel OOM-kills it (~33GB resident on a 38GB machine,
-editor included). It is a precondition rather than an eleventh half because the
+editor included). It is a precondition rather than a thirteenth half because the
 damage happens in the fan-out below.
 
 1. **shellcheck** over every `*.sh` (CI pins the version in
@@ -253,23 +253,28 @@ damage happens in the fan-out below.
    `shfmt -w .`, which would also reformat `common/zsh.zsh`.
 6. **checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
    really do parse on minimal targets.
-7. **GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree has to name a code
+7. **mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`): the page ships
+   in every package, and a roff mistake renders as garbage on `man hi` while
+   failing nothing else.
+8. **typos** over the whole tree; the allowlist is `_typos.toml` at the root,
+   one commented line per term the checker reads wrong.
+9. **GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree has to name a code
    [GLOSSARY.md](GLOSSARY.md) defines, and every entry has to be referenced.
    Codes are matched, not titles; matched anywhere on a line, so keep the code
    on the same line as the marker.
-8. **The settings roster**: every name the tree treats as a setting
+10. **The settings roster**: every name the tree treats as a setting
    (`_HI_TOGGLES` in `common/core.sh`, the variable column of
    `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS`) has
    a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table, and
    every row there names a variable the tree still reads. Only that section is
    matched. A name assembled at run time (`_HI_PROMPT_END_$SHELL`) is matched
    by its literal prefix.
-9. **tests/dockerfiles/**: every image definition has a caller and vice versa.
-10. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
+11. **tests/dockerfiles/**: every image definition has a caller and vice versa.
+12. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
     as a plain tag in shell or YAML agrees with the digest-pinned version in
     `tests/dockerfiles`.
 
-Halves 5 and 6 skip yellow when the tool isn't installed locally; CI always
+Halves 5 to 8 skip yellow when the tool isn't installed locally; CI always
 enforces them.
 
 ## Relaying

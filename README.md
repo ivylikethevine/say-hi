@@ -13,7 +13,7 @@ current state is not a representation of final, published quality.
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/macos-e2e.yml?branch=main&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/macos-e2e.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
-![ssh payload](https://img.shields.io/badge/ssh_payload-44KB_per_session-4c1)
+![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 ![bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
@@ -114,7 +114,9 @@ aliases-only fallback. Client: zsh. Showing `_HI_DISABLE_GIT_STATUS=1`.
 ### completion, every backend at once
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
-running container, allocation and pod, each tagged with its backend;
+running container, allocation and pod, each tagged with its backend.
+Targets you connect to most, and most recently, come first (zsh and fish keep
+that order; `_HI_RECENT=0` turns it off).
 `hi --<TAB>` answers hi's own flags without probing any backend. Client: fish,
 for the description column its pager gives every row.
 
@@ -165,7 +167,8 @@ that is completion behaving normally, not the GIF cut short.
 - `hi --doctor [<target>]` when something is slow or failing: the tree, the
   config overlay, every backend probed and timed with the same ceilings the
   header and completion use, and — with a target — which backend it resolves
-  to plus an ssh reachability check. All read-only.
+  to plus an ssh reachability check. All read-only. `--json` prints the same
+  rows as one JSON document — what a bug report should carry.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags.
   bash, zsh and fish read the same list (`common/targets.sh`), so the three
   cannot drift. GIF above: [completion](#completion-every-backend-at-once).

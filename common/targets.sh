@@ -289,10 +289,56 @@ kube_rows() {
   done
 }
 
+# Recent targets first. hi.sh appends "<epoch>\t<target>" to the recent file
+# after every session that ended cleanly (client-side only - a target never
+# sees it); this reads it back and puts the rows it names ahead of the rest,
+# best first, where a row's score is zoxide's frecency: each visit weighs 4
+# within the hour, 2 within the day, 0.5 within the week, 0.25 after. Rows
+# the file does not name keep the roster's order behind them, and a name in
+# the file that is not a row is not invented - the file ranks, it never adds.
+#
+# Applied on the way out rather than before the cache, so a session changes
+# the order at the next TAB without waiting out the cache's TTL. One awk,
+# only when the file exists: a machine that has never connected pays nothing.
+# _HI_RECENT=0 turns it off; the file itself can be pointed elsewhere with
+# _HI_RECENT_FILE (the suite does).
+rank_recent() {
+  _hi_recent="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
+  # pass-through without an exec: a host with no recent file (or a PATH with
+  # no coreutils, which the suite's toolbox is) must cost nothing here
+  if [ "${_HI_RECENT:-1}" = 0 ] || [ ! -r "$_hi_recent" ]; then
+    while IFS= read -r _hi_line || [ -n "$_hi_line" ]; do printf '%s\n' "$_hi_line"; done
+    return 0
+  fi
+  awk -F '\t' -v now="$(date +%s 2>/dev/null || echo 0)" '
+    FNR == NR {
+      if ($2 == "") next
+      age = now - $1
+      if (age < 0) age = 0
+      w = age < 3600 ? 4 : age < 86400 ? 2 : age < 604800 ? 0.5 : 0.25
+      score[$2] += w
+      next
+    }
+    { n++; row[n] = $0; name[n] = $1 }
+    END {
+      # the scored rows, highest first: a selection pass per emitted row,
+      # which is nothing at the size a target list is
+      for (;;) {
+        best = 0
+        for (i = 1; i <= n; i++)
+          if (!(done[i]) && (name[i] in score) && (best == 0 || score[name[i]] > score[name[best]])) best = i
+        if (best == 0) break
+        done[best] = 1
+        print row[best]
+      }
+      for (i = 1; i <= n; i++) if (!(done[i])) print row[i]
+    }' "$_hi_recent" -
+}
+
 # No cache wanted (or no writable place to put one): just answer. Reached
 # before the two forks below, so a TTL of 0 pays for neither.
 if [ "$ttl" -le 0 ]; then
-  emit_targets
+  emit_targets | rank_recent
   exit 0
 fi
 
@@ -356,7 +402,7 @@ if [ -f "$cache" ] && [ -r "$cache" ]; then
     if [ "$now" -ge "$stamp" ]; then
       age=$((now - stamp))
       if [ "$age" -lt "$ttl" ]; then
-        cache_body "$cache"
+        cache_body "$cache" | rank_recent
         exit 0
       fi
     fi
@@ -365,7 +411,7 @@ if [ -f "$cache" ] && [ -r "$cache" ]; then
 fi
 
 if [ -n "$age" ] && [ "$age" -lt "$stale_for" ]; then
-  cache_body "$cache"
+  cache_body "$cache" | rank_recent
   # One refresh at a time: every TAB in the window a sweep takes would
   # otherwise start another. The lock is a directory - made or not in one
   # call - holding the time it was taken, and one older than any sweep runs
@@ -395,5 +441,5 @@ fi
 
 out="$(emit_targets)"
 write_cache "$out"
-[ -n "$out" ] && printf '%s\n' "$out"
+[ -n "$out" ] && printf '%s\n' "$out" | rank_recent
 exit 0

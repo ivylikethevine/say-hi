@@ -105,6 +105,25 @@ cmake)
     exit 1
   }
   ;;
+make)
+  # ./configure && make, for mandoc: bsd.lv publishes a source tarball and
+  # nothing else, and it builds with libc and a compiler alone (zlib is
+  # optional and configure copes without it). build-essential is already on
+  # the ubuntu runner image, so no apt step here.
+  curl -sSfL -o "$_hi_tmp/archive" "$_hi_url"
+  tar -xzf "$_hi_tmp/archive" -C "$_hi_tmp"
+  _hi_src="$(find "$_hi_tmp" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  [ -n "$_hi_src" ] || {
+    echo "setup-tool: no source directory inside $_hi_url" >&2
+    exit 1
+  }
+  (cd "$_hi_src" && ./configure && make -j"$(nproc)")
+  _hi_bin="$(find "$_hi_src" -maxdepth 1 -type f -name "$HI_TOOL" -perm -u+x | head -1)"
+  [ -n "$_hi_bin" ] || {
+    echo "setup-tool: $HI_TOOL was not built by $_hi_url" >&2
+    exit 1
+  }
+  ;;
 tar.gz | tar.xz)
   curl -sSfL -o "$_hi_tmp/archive" "$_hi_url"
   # extract whole and then look, rather than naming a member: the layouts here

@@ -88,6 +88,14 @@ jobs:
         with:
           tool: checkbashisms
 
+      - uses: ./.github/actions/setup-tool
+        with:
+          tool: mandoc
+
+      - uses: ./.github/actions/setup-tool
+        with:
+          tool: typos
+
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast --totals-file ${{ runner.temp }}/totals"
 

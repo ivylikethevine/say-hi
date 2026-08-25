@@ -108,7 +108,9 @@ _hi() {
     done < <(sh "$_HI_TARGETS")
     _HI_TARGET_ROWS_AT=$SECONDS
   fi
-  compadd -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
+  # -V: an unsorted group, so the order targets.sh answers in - recent targets
+  # first - is the order the menu offers, rather than alphabetical
+  compadd -V hi-targets -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
 }
 compdef _hi hi
 # only when something actually completes `eza`: compdef's service form errors

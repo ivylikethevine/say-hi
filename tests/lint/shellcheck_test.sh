@@ -4,8 +4,9 @@
 # checker (`zsh -n` / `fish --no-execute`) - see $_HI_NATIVE_LINT below. Without
 # that second half, common/zsh.zsh and common/config.fish are checked by nothing
 # at all, and the files fish and zsh share with sh are only ever checked as sh.
-# Two more halves ride along when their tool is installed (and skip yellow when
-# not): shfmt as a formatting gate, and checkbashisms over the #!/bin/sh files.
+# More halves ride along when their tool is installed (and skip yellow when
+# not): shfmt as a formatting gate, checkbashisms over the #!/bin/sh files,
+# mandoc over the man page, and typos over the whole tree.
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -254,6 +255,54 @@ function lint_checkbashisms() {
     fi
   done
   return "$bad"
+}
+
+# The man page, parsed. docs/hi.1 ships in every package and parse_test.sh
+# drift-checks its flags, but until this nothing ever ran it through a roff
+# parser - a macro typo renders as garbage on `man hi` and fails nothing.
+# `mandoc -T lint` at warning level: a warning is a page that renders wrong
+# somewhere (an unparseable .TH date, say), which is the whole point. Skips
+# yellow when mandoc is absent; CI pins one via tools.txt.
+function lint_manpage() {
+  local man="$_HI_ROOT/docs/hi.1" out
+  _hi_h2 "Checking the man page (mandoc -T lint)"
+  if ! command -v mandoc >/dev/null 2>&1; then
+    _hi_skip "mandoc" "not installed"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if out="$(mandoc -T lint -W warning "$man" 2>&1)"; then
+    _hi_align " | docs/hi.1" "OK" "$GREEN"
+  else
+    _hi_align " | docs/hi.1" "FAILED" "$RED"
+    printf '%s
+' "$out" | sed 's/^/      /'
+    _hi_note_failure "docs/hi.1 (mandoc)"
+    return 1
+  fi
+}
+
+# Spelling, over everything git tracks (typos honours .gitignore, so dist/ and
+# the like stay out). The allowlist is _typos.toml at the root - a term it
+# reads wrong goes there with a word on what it is, not into a wider ignore.
+# Skips yellow when typos is absent; CI pins one via tools.txt.
+function lint_typos() {
+  local out
+  _hi_h2 "Checking spelling (typos, allowlist in _typos.toml)"
+  if ! command -v typos >/dev/null 2>&1; then
+    _hi_skip "typos" "not installed"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if out="$(cd "$_HI_ROOT" && typos --format brief --config _typos.toml . 2>&1)"; then
+    _hi_align " | typos $(typos --version | awk '{print $2}'): nothing misspelt" "OK" "$GREEN"
+  else
+    _hi_align " | typos: misspellings below (a term that is right goes in _typos.toml)" "FAILED" "$RED"
+    printf '%s
+' "$out" | sed 's/^/      /'
+    _hi_note_failure "spelling (typos)"
+    return 1
+  fi
 }
 
 # The base images are digest-pinned in tests/dockerfiles/ (docs/TESTING.md says
@@ -786,8 +835,8 @@ function run_shellcheck() {
   # order. Seeded with the shellcheck count from above.
   _HI_LINT_FAILED=$_HI_SC_FAILED
   for _hi_lint_half in lint_native lint_bash32 lint_home_default lint_shfmt \
-    lint_checkbashisms lint_glossary_tags lint_settings_table \
-    lint_dockerfiles lint_image_tags; do
+    lint_checkbashisms lint_manpage lint_typos lint_glossary_tags \
+    lint_settings_table lint_dockerfiles lint_image_tags; do
     "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
   done
   unset _hi_lint_half

@@ -45,6 +45,9 @@
 *.csv
 *.sql
 *.toml
+# ...except the typos allowlist, which the lint gate's spelling half reads
+# (tests/lint/shellcheck_test.sh, lint_typos): the same trap as tools.txt above.
+!_typos.toml
 
 # where packaging/mkpkg.sh stages the tree and drops the built packages.
 # Deliberately a name none of the blanket rules above already cover - a

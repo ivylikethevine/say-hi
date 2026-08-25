@@ -69,7 +69,8 @@ test "$_HI_ENABLE_FISH_ALIAS_ABBR" = 1; and hi_abbr_aliases
 # an ssh config - the promise targets.sh's own flags branch makes by exiting
 # before the cache and the probes, and the one bash.sh and zsh.zsh keep by
 # answering `-*` words without touching the target cache.
-complete -c hi -f -n 'not string match -q -- "-*" (commandline -ct)' \
+# -k keeps targets.sh's order - recent targets first - instead of sorting
+complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
 # hi's own options, from the same file rather than a second list here - the two
 # would drift, and targets.sh is the only one of the three fish can run.

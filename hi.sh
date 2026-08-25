@@ -1020,6 +1020,36 @@ function _hi_resolve_backend() {
   return 0
 }
 
+# _hi_record_recent <target> - one "<epoch>\t<target>" line appended to the
+# recent-targets file, which common/targets.sh ranks completion by (frecency:
+# what you connect to most, and most recently, is offered first). Client-side
+# only: a session's own hi (a relay hop) writes nothing, so nothing about a
+# client's habits lands on a target, and the file is not in $_HI_PAYLOAD.
+# _HI_RECENT=0 turns the whole thing off, this half and the ranking alike.
+# Every write can fail quietly - a read-only $HOME is not a reason to fail a
+# session that already ended well.
+#
+# Trimmed in place past 500 lines to the newest 300: a bound, so the file
+# stays a few KB however long a machine is used, and the rank cost stays flat.
+function _hi_record_recent() {
+  local f n tmp
+  [ "${_HI_RECENT:-1}" != 0 ] || return 0
+  [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || return 0
+  f="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
+  [ -d "${f%/*}" ] || mkdir -p "${f%/*}" 2>/dev/null || return 0
+  printf '%s\t%s\n' "$(date +%s 2>/dev/null || echo 0)" "$1" >>"$f" 2>/dev/null || return 0
+  n="$(grep -c . "$f" 2>/dev/null || echo 0)"
+  if [ "$n" -gt 500 ]; then
+    tmp="$f.$$"
+    if tail -n 300 "$f" >"$tmp" 2>/dev/null; then
+      mv "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    else
+      rm -f "$tmp" 2>/dev/null
+    fi
+  fi
+  return 0
+}
+
 function _hi() {
   local tmp exit_code errors backend
 
@@ -1046,6 +1076,10 @@ function _hi() {
     fi
   } 2>"$tmp"
   exit_code="$?"
+
+  # a session that ended cleanly is one worth offering first next time; one
+  # that never connected (a typo, an unreachable host) is not
+  [ "$exit_code" -eq 0 ] && _hi_record_recent "$DOMAIN"
 
   if [ "$exit_code" -ne 0 ]; then
     errors="$(<"$tmp")"

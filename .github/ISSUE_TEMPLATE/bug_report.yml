@@ -49,12 +49,13 @@ body:
   - type: textarea
     id: doctor
     attributes:
-      label: "`hi --doctor` output"
+      label: "`hi --doctor --json` output"
       description: >-
-        From the machine you typed `hi` on. Add `hi --doctor <target>` too if the
-        problem is on the far end. Redact hostnames freely — what matters is the
-        versions, the tiers and the sizes.
-      render: text
+        From the machine you typed `hi` on. Add `hi --doctor --json <target>` too
+        if the problem is on the far end. Redact hostnames freely — what matters
+        is the versions, the tiers and the sizes. (The plain `hi --doctor` text
+        is fine too if that is what you have.)
+      render: json
     validations:
       required: true
 

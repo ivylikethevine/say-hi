@@ -255,15 +255,6 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
       then cut one and read the run. **Ticks when:** an rc has gone through
       every job `v1.0.0` will, with the tap PR opened.
 
-- [ ] **Lint the man page** — _scope: an eleventh half of the lint gate;
-      in-repo._ `docs/hi.1` ships in every package and is drift-checked for
-      flags by `parse_test.sh`, never parsed. `mandoc -T lint docs/hi.1`
-      (skip-yellow without mandoc, on shfmt's precedent), plus `typos` over
-      the docs and comments on the same terms — `settings/packages` carries
-      `msdnss`, `envrc` and `has`, which look like exactly what it would
-      catch. **Ticks when:** both run in `--group lint` and CI pins them in
-      `tools.txt`.
-
 ## Moderate
 
 Bounded work with a precedent in the tree to copy and a test or budget to
@@ -320,13 +311,6 @@ satisfy on the way out.
       promise is untouched. **Ticks when:** `hi` alone lands a session, the
       completion GIF has a sibling, and `parse_test.sh` pins the arm.
 
-- [ ] **Recent targets first** — _scope: one client-side file and one
-      setting; in-repo._ Append each successful `hi <target>` to
-      `$XDG_STATE_HOME/say-hi/recent` and let completion and the picker above
-      order by frecency — zoxide's idea for hosts. `_HI_RECENT=0` turns it
-      off; a row in CONFIGURATION.md. **Ticks when:** the most recent target
-      is the first completion offered, and nothing about it reaches a target.
-
 - [ ] **Say when the multiplexer will eat OSC 52** — _scope: one header
       line; in-repo._ CONFIGURATION.md documents that tmux needs
       `allow-passthrough on` for `hi_copy` and `hi_notify`; the header already
@@ -335,12 +319,6 @@ satisfy on the way out.
       "hi_copy does nothing" report answered before it is filed. **Ticks
       when:** the line shows under a tmux with passthrough off and nowhere
       else, with a `header_test.sh` case each way.
-
-- [ ] **`hi --doctor --json`** — _scope: a second output mode for a script
-      that already gathers everything; in-repo._ Doctor has every probe
-      timing and the resolved backend; a stable machine-readable form is
-      what `bug_report.yml` should ask for. **Ticks when:** the flag is in
-      `common/flags`, `docs/hi.1` and the bug template.
 
 - [ ] **A devcontainer Feature** — _scope: a `devcontainer-feature.json`
       around `install.sh --prefix`, published to ghcr; a new channel, so a

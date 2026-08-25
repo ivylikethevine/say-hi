@@ -529,6 +529,38 @@ function test_paths_defines_no_command_aliases() {
   }
 }
 
+# _hi_record_recent: the client half of recent-targets-first (targets.sh's
+# ranking is targets_test.sh's). The file is pointed into the workdir.
+function test_record_recent_appends_a_line() {
+  local f="$_HI_WORKDIR/recent.append"
+  rm -f "$f"
+  _HI_RECENT_FILE="$f" _hi_record_recent alpha
+  _HI_RECENT_FILE="$f" _hi_record_recent beta
+  [ "$(grep -c . "$f")" -eq 2 ] &&
+    grep -qE $'^[0-9]+\talpha$' "$f" && grep -qE $'^[0-9]+\tbeta$' "$f"
+}
+# the promise the roadmap made: nothing about it reaches a target - a relay's
+# hi, which is the same file running in a session, records nothing there
+function test_record_recent_is_silent_in_a_session() {
+  local f="$_HI_WORKDIR/recent.session"
+  rm -f "$f"
+  _HI_REMOTE_SESSION=1 _HI_RECENT_FILE="$f" _hi_record_recent alpha
+  [ ! -e "$f" ]
+}
+function test_record_recent_is_silent_when_off() {
+  local f="$_HI_WORKDIR/recent.off"
+  rm -f "$f"
+  _HI_RECENT=0 _HI_RECENT_FILE="$f" _hi_record_recent alpha
+  [ ! -e "$f" ]
+}
+function test_record_recent_trims() {
+  local f="$_HI_WORKDIR/recent.trim" i
+  rm -f "$f"
+  for i in $(seq 1 500); do printf '1\told-%s\n' "$i"; done >"$f"
+  _HI_RECENT_FILE="$f" _hi_record_recent newest
+  [ "$(grep -c . "$f")" -eq 300 ] && [ "$(tail -1 "$f" | cut -f2)" = newest ]
+}
+
 function run_hi_parse_tests() {
   _hi_workdir hiparsetest
   _hi_probe_shims "$_HI_WORKDIR/shims"
@@ -572,6 +604,12 @@ function run_hi_parse_tests() {
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
   _hi_check "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
   _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
+
+  _hi_h2 "Testing: _hi_record_recent"
+  _hi_check "Appends a stamped line" test_record_recent_appends_a_line
+  _hi_check "Writes nothing in a session" test_record_recent_is_silent_in_a_session
+  _hi_check "Writes nothing when off" test_record_recent_is_silent_when_off
+  _hi_check "Trims past 500 lines to 300" test_record_recent_trims
 
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout

@@ -11,7 +11,7 @@
 --help|-|||this text
 --version|-|||the version: stamped at packaging time, or git describe
 --packages-preview|-|||the package-priority legend, as the header prints it
---doctor|scripts|_HI_DOCTOR||[target] a read-only pre-flight report: the tree, the overlay, every backend probed, and with a target, what it resolves to
+--doctor|scripts|_HI_DOCTOR||[--json] [target] a read-only pre-flight report: the tree, the overlay, every backend probed, and with a target, what it resolves to; --json for a bug report
 --install|scripts|_HI_INSTALL||install or repair say-hi's lines in your shell rc files
 --uninstall|scripts|_HI_INSTALL|--uninstall|take those lines back out again
 --configure|scripts|_HI_INSTALL|--features-only|revisit the feature toggles, leaving the rc wiring be
