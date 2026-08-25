@@ -276,9 +276,14 @@ matter what.
 decides it isn't interactive (from stdin, not the flag) and ignores the
 rcfile entirely - that was `hi <target> <cmd>` doing nothing from a script or
 cron - and `-i` must come _after_ `--rcfile`, because bash's long-option pass
-ends at the first short option. fish is different again: `exit` inside a
-sourced file only unwinds the source, so the fish arm feeds the rc's content
-to `-C` instead.
+ends at the first short option. fish is different again, twice over: `exit`
+inside a sourced file only unwinds the source, so the fish arm feeds the rc's
+content to `-C` instead - and `exit` inside `-C` does not stop fish starting
+its interactive reader when stdin is a tty (fish 4 sits at a prompt after it),
+so the command from `hi <target> <cmd>` is not in the rc at all but rides
+`-c`, which fish runs after `-C` and then exits from. sh and zsh get the same
+command appended to their rc (`_hi_command_append`), where they read it to
+the end and honour the `exit`.
 
 ## HI.24 graft crash guard
 

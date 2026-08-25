@@ -342,6 +342,30 @@ function test_wait_pid_skips_the_hook_on_a_clean_exit() {
   [ ! -f "$marker" ]
 }
 
+# The verdict's one look at the exit code. A case that was SIGKILLed at its
+# deadline (124) fails even with every marker in the transcript - the podman
+# suite's fish case echoed its marker and then hung, and read OK for as long as
+# only the markers were consulted. Any other status leaves the markers in
+# charge. $_HI_FAILS_FILE is emptied so the FAILED verdict under test does not
+# land in this suite's own recap.
+function test_case_result_fails_a_timed_out_case_despite_its_marker() {
+  local out="$_HI_WORKDIR/case-result.out"
+  printf 'HI_MARK\n' >"$out"
+  ! _HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK >/dev/null
+}
+
+function test_case_result_keeps_ok_on_an_odd_exit_with_the_marker() {
+  local out="$_HI_WORKDIR/case-result.out"
+  printf 'HI_MARK\n' >"$out"
+  _HI_FAILS_FILE="" _hi_case_result probe "a case" 3 0 1 "$out" HI_MARK >/dev/null
+}
+
+function test_case_result_says_timed_out_by_name() {
+  local out="$_HI_WORKDIR/case-result.out"
+  printf 'HI_MARK\n' >"$out"
+  [[ "$(_HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK 2>&1 || true)" == *'TIMED OUT'* ]]
+}
+
 function test_pty_wrap_force_wraps_even_on_a_tty() {
   _hi_pty_wrap 0 force "no python3" >/dev/null
   if command -v python3 >/dev/null 2>&1; then
@@ -537,6 +561,9 @@ function run_lib_process_tests() {
   _hi_check "Reports the real exit code" test_wait_pid_reports_the_real_exit_code
   _hi_check "Kills and reports 124 on timeout" test_wait_pid_kills_and_reports_124_on_timeout
   _hi_check "Runs the timeout hook before killing" test_wait_pid_runs_the_timeout_hook_before_killing
+  _hi_check "Case result fails a timed-out case despite its marker" test_case_result_fails_a_timed_out_case_despite_its_marker
+  _hi_check "Case result keeps OK on an odd exit with the marker" test_case_result_keeps_ok_on_an_odd_exit_with_the_marker
+  _hi_check "Case result names a timeout" test_case_result_says_timed_out_by_name
   _hi_check "Skips the hook on a clean exit" test_wait_pid_skips_the_hook_on_a_clean_exit
 
   _hi_h2 "Testing: _hi_pty_wrap"

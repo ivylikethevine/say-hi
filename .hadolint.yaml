@@ -22,10 +22,10 @@ ignored:
 
   # Last USER should not be root.
   #
-  # These images run sshd. The framework fixtures deliberately end on `USER
-  # root` after dropping to hitest to write a dotfile, because the entrypoint
-  # has to run ssh-keygen and bind a privileged port. A fixture that ended as
-  # hitest would not start.
+  # These images run sshd. The framework fixture deliberately ends on `USER
+  # root` after dropping to hitest to run the framework's setup script,
+  # because the entrypoint has to run ssh-keygen and bind a privileged port. A
+  # fixture that ended as hitest would not start.
   - DL3002
 
   # Non-numeric user-id may not be resolvable by the host.
@@ -37,11 +37,14 @@ ignored:
 
   # Expressions don't expand in single quotes.
   #
-  # In all six places that is the entire intent: the RUN writes a line like
-  # `eval "$(starship init bash)"` into a dotfile with printf and single
-  # quotes, so the *target's* shell expands it at session time. Double quotes
-  # here would expand it at build time, against a shell that has no framework
-  # loaded yet, and bake the empty result into the image.
+  # Where a RUN writes a line like `eval "$(starship init bash)"` into a
+  # dotfile with printf and single quotes, that is the entire intent: the
+  # *target's* shell expands it at session time, and double quotes would
+  # expand it at build time against a shell with no framework loaded and bake
+  # the empty result into the image. Those lines live in
+  # tests/dockerfiles/frameworks/*.sh now, where shellcheck sees them with a
+  # per-line disable; the ignore stays for the sed in installed-pkg and for
+  # whatever the next fixture writes.
   - SC2016
 
 # What is NOT ignored, and why it is worth knowing:
@@ -53,6 +56,7 @@ ignored:
 #   than a mute button. This job is advisory, so they do not block anything.
 #
 #   DL4006 (a piped RUN with no pipefail) was real and IS fixed - three
-#   framework fixtures piped curl into sh, where a 404 still built a green
-#   image with the framework missing. They carry `SHELL -o pipefail` now.
+#   framework setup scripts pipe curl into sh, where a 404 still built a green
+#   image with the framework missing. framework.Dockerfile carries `SHELL -o
+#   pipefail` and every script sets it itself.
 failure-threshold: error

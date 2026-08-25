@@ -1,7 +1,8 @@
-# The demo tapes' ssh target: the e2e sshd image shape (debian + sshd + the
-# shells, PUBKEY wired by the entrypoint) and on top of it this checkout
-# preinstalled at ~/say-hi - the permanent-install story the README GIF cannot
-# otherwise show.
+# The demo tapes' ssh target: the e2e sshd image itself (BASE, built by
+# docs/tapes/fixtures.sh from sshd-debian.Dockerfile with the demo's own
+# entrypoint) and on top of it this checkout preinstalled at ~/say-hi - the
+# permanent-install story the README GIF cannot otherwise show. One debian
+# digest pin fewer to bump: the base carries it.
 #
 # hitest's login shell is fish on purpose: hi follows the login shell now
 # (load.sh's _hi_session_shell), so this is what makes the demo land in a shell
@@ -15,16 +16,13 @@
 # configuration. It belongs in the image rather than in a `docker exec` after
 # the run: hi's permanent-install path ships no overlay and reads the box's own
 # ~/.config/say-hi, so this file is part of what makes the box the demo's box.
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      openssh-server bash zsh fish git ca-certificates \
+ARG BASE=hi-demo-sshd-base
+FROM ${BASE}
+# git for the prompt's git segment, which the demo shows
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/sshd \
-    && useradd -m -s /usr/bin/fish hitest
+    && usermod -s /usr/bin/fish hitest
 COPY --chown=hitest:hitest checkout /home/hitest/say-hi
 COPY --chown=hitest:hitest ssh-target-settings.sh /home/hitest/.config/say-hi/settings.sh
 RUN chmod +x /home/hitest/say-hi/hi.sh \
     && chown -R hitest:hitest /home/hitest/.config
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]

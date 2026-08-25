@@ -208,8 +208,10 @@ reason the header says to read the ranking, not the milliseconds.
 Every container image an e2e suite builds is a real Dockerfile under
 [`tests/dockerfiles/`](../tests/dockerfiles) - `sshd-debian`, `sshd-alpine` and
 `sshd-fedora` for the ssh targets, `alpine-shell` for the bare shell ones,
-`installed-*` for the install-method targets, `framework-*` for the nine shell
-frameworks, and so on. What stays generated per case is the
+`installed-*` for the install-method targets (`installed-pkg` takes the
+`.deb`, `.rpm` or `.apk` as a build arg and picks the installer the base has),
+`framework` for the nine shell frameworks (one Dockerfile; the framework is a
+build arg naming a setup script under `frameworks/`), and so on. What stays generated per case is the
 _build context_: the throwaway keypair's `entrypoint.sh`, and for the
 pre-installed case the repo itself. Suites reach a file through
 `_hi_dockerfile <stem>` and pass it with `-f`; the variants that differ only by
@@ -252,12 +254,13 @@ disagrees with the digest-pinned one in `tests/dockerfiles/`. Dependabot bumps
 one place; the gate makes the others follow.
 
 **The three `curl | sh` framework installers are deliberately not pinned.**
-`framework-atuin`, `framework-mise` and `framework-starship` each exist to test
-hi against whatever that framework _currently_ installs. Pinning them would test
-a frozen framework, which is the opposite of the question they are asked. They
-carry `SHELL ["/bin/bash", "-o", "pipefail", "-c"]` so a 404 fails the build
-rather than shipping an image with the framework missing - that, not a pin, is
-what makes them trustworthy.
+`frameworks/atuin.sh`, `frameworks/mise.sh` and `frameworks/starship.sh` each
+exist to test hi against whatever that framework _currently_ installs. Pinning
+them would test a frozen framework, which is the opposite of the question they
+are asked. `framework.Dockerfile` runs them under
+`SHELL ["/bin/bash", "-o", "pipefail", "-c"]` and each sets `pipefail` itself,
+so a 404 fails the build rather than shipping an image with the framework
+missing - that, not a pin, is what makes them trustworthy.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions the
 release path uses are SHA-pinned separately.

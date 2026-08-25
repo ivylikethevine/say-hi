@@ -7,11 +7,14 @@ name: Windows client
 # *target*. README's compatibility table rests on both, and said so while only
 # one of them existed.
 #
-# Dispatch-only for now, on windows-e2e.yml's precedent and for its reason:
-# nothing here has ever executed the harness under Git Bash, so the first runs
-# are information, not a gate on somebody's pull request. `workflow_call` is
-# already here so ci.yml can pick this up beside `e2e-windows` the day it has
-# been green once - which is what its docs/ROADMAP.md entry now ticks on.
+# Called by ci.yml on every push to main beside `e2e-windows`, and advisory
+# until it has been green once: the suite step below carries continue-on-error
+# and the job restates a failure as a warning (markdownlint's shape in ci.yml),
+# because nothing had executed the harness under Git Bash when this was wired
+# up and the first runs are information, not a gate. When it has been green,
+# drop the continue-on-error, the summary step and the word from the job name
+# - which is what its docs/ROADMAP.md entry ticks on. Dispatch still works for
+# running it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -21,7 +24,7 @@ permissions:
 
 jobs:
   fast-suites:
-    name: fast suites (Git Bash)
+    name: fast suites (Git Bash, advisory)
     runs-on: ${{ vars.WINDOWS_RUNNER_LABEL || 'windows-latest' }}
     timeout-minutes: 25
     steps:
@@ -43,7 +46,9 @@ jobs:
       # shape here - there is no zsh or fish on the runner - and README's tests
       # badge is the ubuntu count on purpose, per the note above ci.yml's
       # fast-totals upload.
-      - name: Run the fast suites under Git Bash
+      - id: suites
+        name: Run the fast suites under Git Bash
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -57,3 +62,16 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           ./tests/test_runner.sh --verbose --host-report --group fast --skip shellcheck
+
+      - name: Say so, without failing
+        if: steps.suites.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::warning title=windows-client::the fast suites failed under Git Bash - advisory until this job has been green once (docs/ROADMAP.md)"
+          {
+            echo "### Windows client suites failed"
+            echo
+            echo "Advisory only: this job does not block anything yet. See the step above for the"
+            echo "transcript; docs/ROADMAP.md's Windows client entry says what a failure here means."
+          } >>"$GITHUB_STEP_SUMMARY"

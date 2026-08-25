@@ -27,26 +27,28 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # "<label>=<0|1>", the same kv shape the other target suites use
 _HI_FRAMEWORK_OK=""
 
-# <label>:<login shell>:<probe family>. The image for each is
-# tests/dockerfiles/framework-<label>.Dockerfile: every one installs its
-# framework unattended and leaves a *real* rc file behind - an empty ~/.zshrc
-# would prove nothing, since the whole question is what happens when hi's block
-# is appended after someone else's.
+# <label>:<login shell>:<apt packages>:<probe family>. Every image is
+# tests/dockerfiles/framework.Dockerfile with the packages installed and
+# tests/dockerfiles/frameworks/<label>.sh run as hitest: each script installs
+# its framework unattended and leaves a *real* rc file behind - an empty
+# ~/.zshrc would prove nothing, since the whole question is what happens when
+# hi's block is appended after someone else's. The family is the last field so
+# its own colon (bind:fzf) survives the split.
 _HI_FRAMEWORKS=(
-  "omz:/usr/bin/zsh:zsh"
-  "p10k:/usr/bin/zsh:zsh"
-  "starship:/bin/bash:bash"
-  "bashit:/bin/bash:bash"
+  "omz:/usr/bin/zsh:zsh curl git:zsh"
+  "p10k:/usr/bin/zsh:zsh curl git:zsh"
+  "starship:/bin/bash:curl:bash"
+  "bashit:/bin/bash:git:bash"
   # The env tools, which hook the same two surfaces hi's bash half touches -
   # each probed by the family:<needle> in its third field: bind:* is a
   # `bind -x` key binding (fzf's and atuin's Ctrl-R), hook:* a PROMPT_COMMAND
   # hook, the needle being the tool's handler name. zoxide's hook is
   # _zoxide_hook in debian's 0.8 and __zoxide_hook upstream; the
   # underscore-less needle matches both.
-  "fzf:/bin/bash:bind:fzf"
-  "zoxide:/bin/bash:hook:zoxide_hook"
-  "direnv:/bin/bash:hook:_direnv_hook"
-  "atuin:/bin/bash:bind:atuin"
+  "fzf:/bin/bash:fzf:bind:fzf"
+  "zoxide:/bin/bash:zoxide:hook:zoxide_hook"
+  "direnv:/bin/bash:direnv:hook:_direnv_hook"
+  "atuin:/bin/bash:curl:bind:atuin"
   "mise:/bin/bash:hook:mise"
 )
 
@@ -71,21 +73,20 @@ function _hi_framework_probe() {
   esac
 }
 
-# One image per framework, each from
-# tests/dockerfiles/framework-<label>.Dockerfile on top of the shared sshd
-# base. A failed build - these all reach the network - marks its label 0 and
-# the case skips rather than failing the suite.
+# One image per framework, each tests/dockerfiles/framework.Dockerfile with
+# that row's packages and setup script, on top of the shared sshd base. A
+# failed build - these all reach the network - marks its label 0 and the case
+# skips rather than failing the suite.
 function _hi_build_frameworks() {
-  local spec label ctx
+  local spec label shell pkgs family
   for spec in "${_HI_FRAMEWORKS[@]}"; do
-    label="${spec%%:*}"
-    # an empty context: none of the framework images COPY anything in, but the
-    # build still wants a directory to be handed
-    ctx="$_HI_WORKDIR/$label"
-    mkdir -p "$ctx"
+    IFS=: read -r label shell pkgs family <<<"$spec"
+    # the context is tests/dockerfiles itself: the one COPY is the script
+    # under frameworks/, and nothing else in that directory is large
     if _hi_build_image "$label" "hi-fwtest-$label-$$" "the $label case" \
       --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile "framework-$label")" "$ctx"; then
+      --build-arg "FRAMEWORK=$label" --build-arg "PKGS=$pkgs" \
+      -f "$(_hi_dockerfile framework)" "$_HI_ROOT/tests/dockerfiles"; then
       _hi_kv_set _HI_FRAMEWORK_OK "$label" 1
     else
       _hi_kv_set _HI_FRAMEWORK_OK "$label" 0
@@ -151,10 +152,10 @@ function run_framework_tests() {
 
   # Nine frameworks, nine containers, nothing shared between them - the widest
   # fan-out in the tree and the one this suite is almost entirely made of.
-  local spec label shell family
+  local spec label shell pkgs family
   _hi_par_begin "framework cases"
   for spec in "${_HI_FRAMEWORKS[@]}"; do
-    IFS=: read -r label shell family <<<"$spec"
+    IFS=: read -r label shell pkgs family <<<"$spec"
     if [ "$(_hi_kv_get _HI_FRAMEWORK_OK "$label")" = 1 ]; then
       _hi_par_case "$label" _hi_run_framework_case "$label" "$shell" "$family"
     else

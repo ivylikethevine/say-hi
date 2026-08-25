@@ -98,8 +98,9 @@ waiting on it.
     is exactly the failure the PR conversion was meant to remove.
   - **The required checks are still unset.** Only the pull-request requirement
     is configured. When they go on, per the note on the markdownlint job, do
-    not make the advisory ones required — `markdownlint`, `hadolint`, lychee
-    and trivy are all designed to be ignorable. `e2e (macOS)` and
+    not make the advisory ones required — `markdownlint`, `hadolint`,
+    `demo-staleness`, lychee, trivy and (until it has been green once) the
+    Windows client job are all designed to be ignorable. `e2e (macOS)` and
     `e2e (Windows)` are now green on push and are reasonable candidates.
   - **Ticks when:** a release has gone out under the rule, with the manifest
     pull request opened rather than a push refused.
@@ -128,58 +129,35 @@ waiting on it.
     [Get a release out under branch protection](#quick-wins), like everything
     else that needs a real tag.
 
-- [ ] **Get a demo render onto the site** — _scope: one repository variable,
-      then one `publish` run; outside this checkout._ Both halves of the
-      autogeneration are in: `demos.yml`'s `publish` job renders every tape but
-      `demo`, `pages.yml` lays the result over the site, the six GIFs are out
-      of the tree, and README and [CONFIGURATION.md](CONFIGURATION.md) link
-      them at their published URLs. `docs/demos/demo.gif` stays committed on
-      purpose - it is the hand-rendered one, and `.githooks/demo_staleness.sh`
+- [ ] **Get a demo render onto the site** — _scope: one `publish` run to
+      read; the code half has shipped; outside this checkout._ Both halves of
+      the autogeneration are in: `demos.yml`'s `publish` job renders every
+      tape but `demo`, `pages.yml` lays the result over the site, the six GIFs
+      are out of the tree, and README and [CONFIGURATION.md](CONFIGURATION.md)
+      link them at their published URLs. `docs/demos/demo.gif` stays committed
+      on purpose - it is the hand-rendered one, and
+      `.githooks/demo_staleness.sh` (and now `ci.yml`'s `demo-staleness` job)
       is what says when it has gone stale.
 
-  - **Everything this entry used to say about merge order is out of date, and
-    the situation it warned about has already happened.** The deletion and the
-    URL repoint are on `main`, not only on `dev` - both branches carry
-    `demo.gif` and nothing else under `docs/demos/`, and both link the other
-    seven at `ivylikethevine.github.io`. So there is no window to keep at zero
-    by dispatching before a merge: **all seven of those URLs 404 today**, six
-    of them from the front page. The site itself is up and `demo.gif` serves,
-    which is what narrows it to the rendered ones.
-  - **`publish` is not waiting for a run. It has had four and failed all
-    four.** Three pushes to `main` and the weekly cron (most recently
-    2026-08-24), every one red at _Render every tape but demo_. `pages.yml`
-    serves the newest **successful** run's `demo-gifs` artifact, so there has
-    never been one to serve. The PR-side `render` job is green every time and
-    says nothing about this: it is a hosted runner rendering exactly
-    `color_preview`, which is the one tape that needs no backend.
-  - **One repository variable is the whole cause.** `publish` is
-    `runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}`, and `RUNNER_LABEL`
-    is unset - the failing runs report a `runner_name` of "GitHub Actions
-    …" and skip the `runner.environment != 'github-hosted'` step, which is
-    conclusive. So the job falls back to a hosted runner, where its own comment
-    already says only one of the seven tapes can render; `--require-run` then
-    turns the other six into the failure it is meant to be. The same fallback
-    appears in nine other workflows and is right in all of them - coverage,
-    link-check, codeql, scorecard and the rest do their job on a hosted runner.
-    `publish` is the one place where it is a guaranteed failure rather than a
-    degradation.
-  - **The code half now fails legibly, which is all this checkout can do about
-    it.** A preflight step fails `publish` immediately, before the first apt
-    call, naming `RUNNER_LABEL` and where to set it - rather than five minutes
-    of installs and a death inside vhs that no log line explains. It fails
-    rather than skips on purpose: `pages.yml` reads the last _successful_ run,
-    so a job that quietly stood down would leave the site serving nothing while
-    reporting green.
-  - **Do, in order:** set `RUNNER_LABEL` (Settings → Secrets and variables →
-    Actions → Variables) to the self-hosted box's label, then dispatch
-    `demos.yml`. It never runs on a pull request - push to `main`, the weekly
-    cron, or a manual dispatch - so a dispatch is the fast path.
-  - **Watch for the renderer's own dependencies on that first green.** A tape
-    that opens `Set Shell zsh` wants that shell on the machine doing the
-    recording, not on the target, so `publish` installs zsh, fish and nomad the
-    way `ci.yml`'s backends job does; docker, podman, kind and kubectl are what
-    the box is expected to already carry. That step has never run on the real
-    machine, because nothing has reached it.
+  - **All seven of those URLs 404 today**, six of them from the front page:
+    `publish` had four runs (three pushes to `main` and the weekly cron, most
+    recently 2026-08-24) and every one was red at _Render every tape but
+    demo_, because the job assumed a self-hosted renderer, `RUNNER_LABEL` was
+    unset, and it fell back to a hosted runner where six of the seven tapes
+    had no backend. `pages.yml` serves the newest **successful** run's
+    `demo-gifs` artifact, so there has never been one to serve.
+  - **What shipped.** `publish` no longer needs the variable: it installs
+    podman, nomad and kind on a hosted runner by the same steps `ci.yml`'s
+    `e2e-backends` job already used every run, and docker is on the image.
+    `RUNNER_LABEL` still substitutes a box that has them already; it is a
+    speed-up now, not a requirement, and the preflight step that failed the
+    job without it is gone.
+  - **Do:** dispatch `demos.yml` (it never runs on a pull request - push to
+    `main`, the weekly cron, or a manual dispatch). Watch the first hosted
+    render for the renderer's own dependencies: a tape that opens `Set Shell
+    zsh` wants that shell on the machine doing the recording, which the install
+    step covers, and a kind cluster on a two-core hosted runner has never been
+    timed - the job's timeout is 60 minutes for that reason.
   - **Ticks when:** a `publish` run has been green end to end and the seven
     published URLs actually serve an image — README's six, plus the
     `color_preview` one that [CONFIGURATION.md](CONFIGURATION.md) is the only
@@ -292,9 +270,12 @@ waiting on it.
     without it, green with none. The second half is the one that matters: a guard that
     skipped on Linux too would be hiding coverage rather than reporting a
     platform.
-  - **What is left is a run and two settings.** Dispatch
-    `windows-client.yml`; any failure now is new information rather than one of
-    these classes. Two things to read rather than assume. The skip count
+  - **What is left is a run and two settings.** `ci.yml` now calls
+    `windows-client.yml` on every push to `main` beside `e2e (Windows)`, as
+    an _advisory_ job - the suite step carries `continue-on-error` and the
+    job restates a failure as a warning, the markdownlint shape - so the run
+    to read arrives on its own rather than by dispatch. Any failure now is new
+    information rather than one of these classes. Two things to read rather than assume. The skip count
     should be twelve (eleven symlink, one pty) on top of the 45 zsh/fish ones.
     And `packaging`'s _staged_launcher shims a misnamed checkout_ should
     **skip**, not fail: it needs a symlink to a _directory_, it is guarded now,
@@ -308,9 +289,10 @@ shellcheck`, because `.github/actions/setup-tool` resolves linux/darwin
     either way: a Windows _client_ is deliberately not a v1.0.0 criterion,
     because a Windows client is not what "stable" promises. `windows-e2e.yml`
     covers the target side, and that is the half the tag rests on.
-  - **Ticks when:** the job is green once, `ci.yml` calls it on push, and
-    [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
-    client half as well as the target half.
+  - **Ticks when:** the job is green once, the `continue-on-error` and the
+    word _advisory_ come out of `windows-client.yml` so it gates like
+    `e2e (Windows)` does, and [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s
+    Windows row reads ✅ for the client half as well as the target half.
 
 - [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
       and one README line either way, with nothing to judge before 2026-08-25;
