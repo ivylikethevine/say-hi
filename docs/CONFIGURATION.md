@@ -14,6 +14,8 @@ writes it here.
 | `~/.config/say-hi/settings.sh` | -                             | what `hi --configure` writes                                                                                                                     |
 | `~/.config/say-hi/colors`      | `settings/colors`             | your color pins                                                                                                                                  |
 | `~/.config/say-hi/packages`    | `settings/packages`           | what the package check looks for                                                                                                                 |
+| `~/.config/say-hi/vim.rc`      | `settings/vim.rc`             | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale, so carry the OSC 52 yank block over if you want it     |
+| `~/.config/say-hi/nano.rc`     | `settings/nano.rc`            | the same for nano, used by the `nano` alias - replaces hi's default wholesale                                                                     |
 | `~/.config/say-hi/aliases.sh`  | -                             | your own aliases, sourced **last** of everything above so yours win - additive, never a replacement, and in the same POSIX+fish subset           |
 | `~/.config/say-hi/bash.sh`     | -                             | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                      |
 | `~/.config/say-hi/zsh.zsh`     | -                             | the same for zsh - history, keybindings, `zstyle` completion rules                                                                              |

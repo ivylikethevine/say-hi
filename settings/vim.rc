@@ -1,0 +1,35 @@
+" hi's vim override, kept to the minimum that earns the `-u`: vim's own shipped
+" defaults, so the alias is not a downgrade, plus the OSC 52 yank autocmd,
+" which is hi's and has no other home. Nothing to taste lives here - your own
+" $_HI_CONFIG_DIR/vim.rc replaces this file wholesale.
+
+" must be first: `vim -u <file>` implies 'compatible', which disables <> key
+" notation and a good deal else. defaults.vim clears it too, but that file is
+" not on every vim and never on neovim.
+set nocompatible
+
+" the out-of-the-box editor rather than the 1976 one, spelled the way vim
+" itself spells it. `unlet!` because a system vimrc may have set the skip flag;
+" `silent!` because neovim ships no such file and needs none.
+unlet! skip_defaults_vim
+silent! source $VIMRUNTIME/defaults.vim
+
+" belt and braces for a vim old enough to have no defaults.vim; neovim has both
+" on already, and setting them twice costs nothing.
+syntax enable
+filetype plugin indent on
+
+" Yank -> the client's clipboard; common/osc52.sh does the encoding/wrapping,
+" this only decides *when*. Four honest conditions: the toggle, the event
+" (exists('##...') - neovim lies to has('patch-')), $_HI_OSC52 (empty outside
+" a session), and the unnamed register - "ay stays local, a delete a delete.
+if $_HI_DISABLE_OSC52 != '1' && exists('##TextYankPost') && filereadable($_HI_OSC52)
+  augroup hi_osc52
+    autocmd!
+    autocmd TextYankPost *
+          \ if v:event.operator ==# 'y' && v:event.regname ==# '' |
+          \   silent call system('sh ' . shellescape($_HI_OSC52),
+          \                      join(v:event.regcontents, "\n")) |
+          \ endif
+  augroup END
+endif

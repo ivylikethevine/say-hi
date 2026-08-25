@@ -1,0 +1,12 @@
+# hi's nano override, kept to the minimum that earns the --rcfile: the syntax
+# definitions nano already ships, and nothing to taste. Your own file at
+# $_HI_CONFIG_DIR/nano.rc replaces this one wholesale.
+#
+# One glob, not two. An `include` that expands to nothing is not fatal, but
+# nano says so on the status bar ("Mistakes in '<rcfile>'") and rings the bell,
+# which is a poor way to open a file on a fresh target. /usr/share/nano ships
+# with the nano package itself; /usr/share/nano/extra is a Debian split that
+# Fedora, Alpine and macOS do not have, so including it is a bell on three
+# platforms to gain a handful of syntaxes on one. Specific completion syntax
+# belongs in ~/.nanorc, which is yours and is not sent anywhere.
+include "/usr/share/nano/*.nanorc"
