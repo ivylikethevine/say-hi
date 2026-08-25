@@ -247,7 +247,7 @@ jobs:
             echo "or run \`markdownlint-cli2 '**/*.md' '!.claude/**'\` locally."
           } >>"$GITHUB_STEP_SUMMARY"
 
-  # The seventeen fixture Dockerfiles, which nothing linted before. Advisory for
+  # The fixture Dockerfiles, which nothing linted before. Advisory for
   # the same reason markdownlint is: what is left after .hadolint.yaml's ignores
   # is DL3009 and DL3015 - apt lists and --no-install-recommends, both image
   # size on a fixture built once and thrown away. Worth seeing, never worth
@@ -276,7 +276,7 @@ jobs:
 
       # `|| true` on the loop and the verdict re-read afterwards, rather than
       # continue-on-error: hadolint exits non-zero per file, and this has to
-      # lint all seventeen before deciding, not stop at the first.
+      # lint every one before deciding, not stop at the first.
       - id: lint
         name: Lint the fixture Dockerfiles
         run: |
@@ -307,6 +307,58 @@ jobs:
             echo
             echo '```'
             sed -n '1,80p' "$RUNNER_TEMP/hadolint.out"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  # docs/demos/demo.gif is the one hand-rendered GIF, and .githooks/
+  # demo_staleness.sh is what says when the tape, the fixtures or the shipped
+  # tree moved after it was last rendered. As a git hook it only speaks on a
+  # machine that opted in (`git config core.hooksPath .githooks`); here it
+  # speaks on every pull request. Advisory on markdownlint's precedent and for
+  # the same reason the hook never blocks a commit: a GIF is re-rendered and
+  # looked at by a person, and a red check would be making that call for them.
+  #
+  # Pull requests only - on a push to main there is nobody left to warn - and
+  # fetch-depth 0, because the script compares last-commit dates with `git
+  # log` and a shallow clone answers that with the clone's own date for every
+  # path. The script always exits 0, so its verdict is read out of its output.
+  demo-staleness:
+    name: demo.gif staleness (advisory)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: check
+        name: Compare demo.gif against what it renders
+        run: |
+          set -euo pipefail
+          .githooks/demo_staleness.sh | tee "$RUNNER_TEMP/staleness.out"
+          if grep -q 'may be out of date' "$RUNNER_TEMP/staleness.out"; then
+            echo "stale=1" >>"$GITHUB_OUTPUT"
+          else
+            echo "demo.gif is newer than everything it renders"
+            echo "stale=0" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Say so, without failing
+        if: steps.check.outputs.stale == '1'
+        run: |
+          set -euo pipefail
+          echo "::warning title=demo.gif::docs/demos/demo.gif is older than something it renders - advisory, not blocking"
+          {
+            echo "### demo.gif may be out of date"
+            echo
+            echo "Advisory only: this job never blocks a merge. Re-render with"
+            echo "\`docs/tapes/generate.sh demo\` (needs docker), look at the result, and commit it"
+            echo "in its own commit - see docs/PACKAGING.md, _Regenerating the demo GIFs_."
+            echo
+            echo '```'
+            sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/staleness.out"
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
@@ -552,3 +604,14 @@ jobs:
     needs: [test, test-macos]
     if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
     uses: ./.github/workflows/windows-e2e.yml
+
+  # The client-side half of the Windows story, on the same gate. Advisory
+  # until it has been green once (docs/ROADMAP.md): windows-client.yml itself
+  # carries the continue-on-error, so a red suite there is a warning in this
+  # run, not a red check on the push. Must stay off the required-checks list
+  # until that comes out.
+  e2e-windows-client:
+    name: fast suites (Windows client)
+    needs: [test, test-macos]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
+    uses: ./.github/workflows/windows-client.yml

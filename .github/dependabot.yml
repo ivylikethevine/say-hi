@@ -14,9 +14,10 @@
 # *bumped* rather than merely guarded by lint_image_tags. What it costs is worse
 # than what it buys at this size: a second bot app on the repo, a renovate.json
 # that is its own dialect to learn, and - the deciding one - tool-versions.yml
-# fails loudly with ::warning annotations in a run where Renovate opens pull
-# requests. For ten curl-installed pins, trading an annotation for a PR stream
-# is a downgrade in signal. Revisit if that roster grows several times over.
+# keeps one tracking issue current (plus ::warning annotations in the run)
+# where Renovate opens pull requests. For ten curl-installed pins, trading one
+# issue for a PR stream is a downgrade in signal. Revisit if that roster grows
+# several times over.
 #
 # The other question that keeps coming back: can dependabot open a PR only when
 # the bump reduces the number of known vulnerabilities? No. That is a separate

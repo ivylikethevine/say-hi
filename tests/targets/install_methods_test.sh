@@ -100,7 +100,7 @@ function run_install_methods_tests() {
     _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-deb-img-$$")
     _hi_build_image deb "$_HI_SSH_CASE_PREFIX-deb-img-$$" "the .deb case" \
       --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-deb)" "$ctx" && deb_ok=1
+      --build-arg "PKG=pkg.deb" -f "$(_hi_dockerfile installed-pkg)" "$ctx" && deb_ok=1
   fi
 
   if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context rpm '*.rpm' pkg.rpm)"; then
@@ -114,7 +114,7 @@ function run_install_methods_tests() {
       _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-rpm-img-$$")
       _hi_build_image rpm "$_HI_SSH_CASE_PREFIX-rpm-img-$$" "the .rpm case" \
         --build-arg "BASE=$_HI_SSH_CASE_PREFIX-fedora-$$" \
-        -f "$(_hi_dockerfile installed-rpm)" "$ctx" && rpm_ok=1
+        --build-arg "PKG=pkg.rpm" -f "$(_hi_dockerfile installed-pkg)" "$ctx" && rpm_ok=1
     fi
   fi
 
@@ -129,7 +129,7 @@ function run_install_methods_tests() {
       _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-apk-img-$$")
       _hi_build_image apk "$_HI_SSH_CASE_PREFIX-apk-img-$$" "the .apk case" \
         --build-arg "BASE=$_HI_SSH_CASE_PREFIX-alpine-$$" \
-        -f "$(_hi_dockerfile installed-apk)" "$ctx" && apk_ok=1
+        --build-arg "PKG=pkg.apk" -f "$(_hi_dockerfile installed-pkg)" "$ctx" && apk_ok=1
     fi
   fi
 

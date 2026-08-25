@@ -185,14 +185,36 @@ function _hi_timed_out() {
 # _hi_case_result <label> <what> <exit> <t0> <t1> <out_file> <marker...> - the
 # verdict both case runners reach: OK with a timing, or FAILED with the
 # transcript indented under it. Every marker given must be present.
+#
+# The exit code is read for exactly one value. 124 is _hi_wait_pid's timeout
+# (the process was SIGKILLed at the deadline), and that is a failure whatever
+# the transcript holds: the podman suite's fish case echoed its marker and
+# then sat at a prompt for the full 30s, and read OK for as long as this only
+# looked at the markers - a green run that hid a session which never exited.
+# Any other non-zero status stays OK once the markers are there, because
+# `docker exec -it`, `nomad alloc exec` and `kubectl exec` hand back statuses
+# of their own that nothing here asserts on - but it is printed on the OK
+# line rather than swallowed, so a case that starts exiting oddly is seen.
 function _hi_case_result() {
   local label="$1" what="$2" exit_code="$3" t0="$4" t1="$5" out_file="$6" marker ok=1
   shift 6
   for marker in "$@"; do
     grep -qF "$marker" "$out_file" 2>/dev/null || ok=0
   done
+  if [ "$exit_code" = 124 ]; then
+    local markers=present
+    [ "$ok" -eq 1 ] || markers=missing
+    _hi_h3 " | [$label] -- FAILED: TIMED OUT ($(_hi_elapsed "$t0" "$t1")s, markers $markers)" "$RED"
+    sed 's/^/      /' "$out_file" 2>/dev/null
+    _hi_note_failure "[$label] $what (timed out)"
+    return 1
+  fi
   if [ "$ok" -eq 1 ]; then
-    _hi_align " | [$label] -- $what" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
+    if [ "$exit_code" = 0 ]; then
+      _hi_align " | [$label] -- $what" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
+    else
+      _hi_align " | [$label] -- $what" "OK ($(_hi_elapsed "$t0" "$t1")s, exit $exit_code)" "$YELLOW"
+    fi
     return 0
   fi
   _hi_h3 " | [$label] -- FAILED (exit $exit_code, $(_hi_elapsed "$t0" "$t1")s)" "$RED"

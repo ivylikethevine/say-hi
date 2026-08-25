@@ -21,9 +21,11 @@ lives — a pull request from a _fork_ gets the GitHub-hosted label whatever the
 variable says, so a stranger's branch never runs on your machine.
 
 Jobs that install apt packages or touch the Docker socket (`ci.yml`'s `test`,
-`bench`, `packaging-smoke`, `e2e`, `e2e-backends`, and `coverage.yml`) need a
-self-hosted runner providing those; `macos-e2e.yml` and `windows-e2e.yml` need a
-same-OS one if substituted. The four lint jobs — `actionlint`, `zizmor`,
+`bench`, `packaging-smoke`, `e2e`, `e2e-backends`, `coverage.yml` and
+`demos.yml`'s `publish`) need a substituted runner to provide `sudo apt-get`
+and a docker daemon — the hosted `ubuntu-latest` image has both, which is why
+none of them needs the variable to be set; `macos-e2e.yml` and
+`windows-e2e.yml` need a same-OS one if substituted. The four lint jobs — `actionlint`, `zizmor`,
 `markdownlint`, `hadolint` — are the other side of that list, and are pinned to
 `ubuntu-latest` outright rather than reading the variable: they install nothing
 and open no socket, so pointing them at your own machine buys nothing and only
@@ -306,13 +308,17 @@ Copy `packaging/homebrew/say-hi.rb` to `Formula/say-hi.rb` there and
 `brew install ivy/tap/say-hi` works — no review, no approval, which is exactly
 why `brew audit --strict` is a hard gate here.
 
-**The copy is automated, the checks are not.** `release.yml`'s `tap` job (behind
-the same approval as `publish`) opens a PR against `<owner>/homebrew-tap` with
-the regenerated formula and the three commands below as its checklist. It needs
-a `HOMEBREW_TAP_TOKEN` repo secret — a fine-grained PAT scoped to that repo with
-contents + pull-requests write — and without it the job says so and does
-nothing, which is the state until the tap repo exists. Merging the PR is yours,
-as is running these first:
+**The copy and the checks are automated; the merge is not.** `release.yml`'s
+`tap` job (behind the same approval as `publish`) opens a PR against
+`<owner>/homebrew-tap` with the regenerated formula and the three commands
+below as its checklist. It needs a `HOMEBREW_TAP_TOKEN` repo secret — a
+fine-grained PAT scoped to that repo with contents + pull-requests write — and
+without it the job says so and does nothing, which is the state until the tap
+repo exists. Its sibling `brew` job runs the three commands on a hosted mac
+against the tarball the release just published, with the two findings quoted
+further down filtered out as expected, and records the verdict in its run
+summary. Merging the PR is yours, as is repeating these on a mac of your own
+if the hosted run leaves a doubt:
 
 ```bash
 brew install --build-from-source ./packaging/homebrew/say-hi.rb
@@ -447,8 +453,9 @@ crashed run.
 
 **Seven of the eight render themselves.**
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
-but `demo` on the self-hosted runner — the only machine with all four backends —
-on
+but `demo` in CI — on a hosted runner it installs podman, nomad and kind the
+way `ci.yml`'s `e2e-backends` job does, and `RUNNER_LABEL` substitutes a box
+that already has them — on
 a tape change, weekly, or on dispatch, and hands the GIFs to the Pages build,
 which lays them over the committed copies at the same paths. Nothing is
 committed back: a bot commit on top of the author's is what branch protection
@@ -460,8 +467,9 @@ stock defaults, so it is stale the moment the header, the prompt or the tape
 changes, and nothing about looking at it says so.
 [`.githooks/demo_staleness.sh`](../.githooks/demo_staleness.sh) is the reminder
 — it compares `demo.gif`'s last commit against the tape, the fixtures and the
-shipped tree, and says which of them moved since. Run it by hand, or wire it up
-as a pre-commit hook:
+shipped tree, and says which of them moved since. `ci.yml`'s `demo-staleness`
+job runs it on every pull request and reports as a warning; to hear it before
+the push, wire it up as a pre-commit hook:
 
 ```sh
 git config core.hooksPath .githooks

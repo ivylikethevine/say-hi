@@ -4,8 +4,9 @@
 # (docs/tapes/generate.sh says so at the top), and a check that refused a
 # commit would be making that call for you. Exit status is always 0.
 #
-# Run by hand, or as the pre-commit hook beside it - see docs/PACKAGING.md's
-# "Regenerating the demo GIFs". It lives in .githooks/ rather than scripts/
+# Run by hand, as the pre-commit hook beside it, or by ci.yml's demo-staleness
+# job on every pull request - see docs/PACKAGING.md's "Regenerating the demo
+# GIFs". It lives in .githooks/ rather than scripts/
 # because scripts/ is in $_HI_PACKAGE_CONTENTS: a contributor's git hook has no
 # business in /usr/share/say-hi, and a subdirectory under scripts/ also falls
 # straight through nfpm.yaml's one-level apk globs (packaging_test.sh fails on

@@ -2,7 +2,6 @@
   "file_types": {
     "JSONC": [".zed/settings.json"],
     "Rainbow CSV (,)": ["colors**", "packages**"],
-    "SSH Config": ["travel_config"],
     "Properties": ["vim.rc", "nano.rc"],
   },
   "tab_size": 2,

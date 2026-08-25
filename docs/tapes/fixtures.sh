@@ -43,9 +43,11 @@ function demo_keypair() {
 }
 
 function demo_sshd_image() {
-  # the image is tests/dockerfiles/demo-sshd.Dockerfile; what this function
-  # assembles is its build context - the entrypoint below, the box's own hi
-  # settings, and the clean checkout further down
+  # Two images: the e2e sshd base from tests/dockerfiles/sshd-debian.Dockerfile
+  # (its context is the entrypoint below, alone in its own directory so the
+  # checkout is not sent to the daemon twice), and the demo target from
+  # tests/dockerfiles/demo-sshd.Dockerfile on top of it - the box's own hi
+  # settings and the clean checkout further down are that one's context.
 
   # The ssh demo's configuration, and the only one that lives on the target.
   # hi.sh's permanent-install branch (_say_hi, the $remote_root arm) sets
@@ -59,7 +61,8 @@ export _HI_HEADER_TIMESTAMP='0'
 export _HI_HEADER_SYSINFO='0'
 EOF
 
-  cat >"$_HI_DEMO_DIR/entrypoint.sh" <<'EOF'
+  mkdir -p "$_HI_DEMO_DIR/base"
+  cat >"$_HI_DEMO_DIR/base/entrypoint.sh" <<'EOF'
 #!/bin/bash
 set -eu
 mkdir -p /home/hitest/.ssh
@@ -69,6 +72,8 @@ chmod 700 /home/hitest/.ssh
 ssh-keygen -A
 exec /usr/sbin/sshd -D -e
 EOF
+  docker build -q -t hi-demo-sshd-base \
+    -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >/dev/null
   # A clean copy rather than the live checkout as context: .git and dist/ would
   # bloat the build context and the image alike.
   #
@@ -87,7 +92,7 @@ EOF
   else
     (cd "$_HI_ROOT" && git archive HEAD | tar -x -C "$_HI_DEMO_DIR/checkout")
   fi
-  docker build -q -t hi-demo-sshd \
+  docker build -q -t hi-demo-sshd --build-arg BASE=hi-demo-sshd-base \
     -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
 }
 

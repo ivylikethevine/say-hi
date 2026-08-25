@@ -1,13 +1,18 @@
 name: Tool versions
 
 # Weekly drift check over the curl-installed tools in setup-tool's tools.txt -
-# the one class of pin dependabot cannot see (its own config says so). A red
-# run with ::warning annotations is the signal; the bump itself stays a
-# one-line edit to that file's version column.
+# the one class of pin dependabot cannot see (its own config says so). The
+# signal is one tracking issue, kept current: opened when a pin is behind,
+# rewritten with the current table on every later run, closed by the run that
+# finds everything current - image-scan.yml's shape, and for its reason: a
+# stale pin is a standing state, not an event, and a ::warning in a scheduled
+# run that nobody opens is a signal only in the sense that a tree falling in a
+# forest is. The annotations stay too, for whoever does open the run. The bump
+# itself stays a one-line edit to that file's version column.
 #
-# That annotation is also why this workflow still exists rather than being
-# folded into Renovate, which could watch the same pins: the reasoning is in
-# .github/dependabot.yml's header, and the answer there is no.
+# An issue, not a pull request, is also why this workflow still exists rather
+# than being folded into Renovate, which could watch the same pins: the
+# reasoning is in .github/dependabot.yml's header, and the answer there is no.
 on:
   schedule:
     - cron: "23 7 * * 1"
@@ -15,6 +20,8 @@ on:
 
 permissions:
   contents: read
+  # the one write this job does: upsert (and close) its own tracking issue
+  issues: write
 
 jobs:
   check:
@@ -34,5 +41,63 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Compare pinned defaults to upstream releases
-        run: .github/scripts/check_tool_versions.sh
+      # The script exits with the number of outdated pins; captured as an
+      # output rather than failing the step, so the issue below can be closed
+      # on the zero and opened on the rest. A missing upstream answer prints
+      # a row and counts as current, which is the script's own call.
+      - id: check
+        name: Compare pinned defaults to upstream releases
+        run: |
+          set -uo pipefail
+          rc=0
+          .github/scripts/check_tool_versions.sh | tee "$RUNNER_TEMP/tools.txt" || rc=$?
+          echo "outdated=$rc" >>"$GITHUB_OUTPUT"
+
+      - name: Keep the tracking issue current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTDATED: ${{ steps.check.outputs.outdated }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          label=tool-versions
+          title="Pinned CI tools are behind their upstream releases"
+
+          # --force is create-or-update, so a deleted label heals itself rather
+          # than turning every later `issue create` into a hard failure
+          gh label create "$label" --force --color 0E8A16 \
+            --description "A tools.txt pin in .github/actions/setup-tool is behind upstream" >/dev/null
+
+          # one issue, reused: the finding is a standing state of the pins, not
+          # an event, so a new issue per weekly run would be pure noise
+          open="$(gh issue list --label "$label" --state open --json number --jq '.[0].number // empty')"
+
+          if [ "$OUTDATED" = 0 ]; then
+            if [ -n "$open" ]; then
+              gh issue close "$open" --comment "Every pin is current again. [Latest run]($RUN_URL)."
+            fi
+            echo "every pin is current"
+            exit 0
+          fi
+
+          report="$RUNNER_TEMP/report.md"
+          {
+            echo "$OUTDATED pinned tool(s) in \`.github/actions/setup-tool/tools.txt\` are behind upstream."
+            echo "Bump the version column of each OUTDATED row; the drift check reads the same file."
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/tools.txt"
+            echo '```'
+            echo
+            echo "Found by [\`tool-versions\`]($RUN_URL). Closed automatically once every pin is current."
+          } >"$report"
+          cat "$report" >>"$GITHUB_STEP_SUMMARY"
+
+          # --body-file, not --body: the table is a code block with blank lines,
+          # and a YAML-indented shell string would arrive indented into it
+          if [ -n "$open" ]; then
+            gh issue edit "$open" --title "$title" --body-file "$report"
+            echo "updated #$open"
+          else
+            gh issue create --label "$label" --title "$title" --body-file "$report"
+          fi

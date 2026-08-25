@@ -201,8 +201,36 @@ function test_fallback_rc_sources_paths_and_aliases() {
   [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/settings/aliases.sh'* ]]
 }
 
-function test_fallback_rc_appends_the_command() {
-  [[ "$(CMDARG='echo hi; exit' _hi_fallback_rc)" == *'echo hi; exit'* ]]
+# The command is NOT in the shared rc any more - fish reads that file through
+# -C, where an `exit` does not stop its interactive reader (GLOSSARY: HI.23),
+# and the podman suite's fish case hung the full timeout for as long as it was
+function test_fallback_rc_leaves_the_command_out() {
+  [[ "$(CMDARG='echo hi; exit' _hi_fallback_rc)" != *'echo hi'* ]]
+}
+
+# ...so each arm of the suffix takes it its own way: fish as a -c flag after
+# the -C, quoted for the target's sh; zsh appended to the .zshrc copy; the
+# POSIX arm appended to the rc it exports as ENV
+function test_remote_suffix_hands_fish_the_command_as_a_flag() {
+  local out
+  out="$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo hi; exit" _hi_remote_suffix)"
+  # shellcheck disable=SC2016 # the target's expansion, and the quoting is the point
+  [[ "$out" == *'fish -C "$(cat "$_hi_rc_dir/.hi_fallback_rc")" -c '"'"'echo hi; exit'"'"* ]] &&
+    [[ "$out" == *'>> "$_hi_rc_dir/.zshrc"'* ]] &&
+    _hi_before "$out" '>> "\$_hi_rc_dir/.hi_fallback_rc"' 'ENV='
+}
+
+# an apostrophe in the command survives the trip as data - _hi_shquote's job
+function test_remote_suffix_quotes_the_fish_command() {
+  # shellcheck disable=SC2016 # the target's sh reads this, not ours
+  [[ "$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="echo it's; exit" _hi_remote_suffix)" == *" -c 'echo it'\\''s; exit'"* ]]
+}
+
+function test_remote_suffix_without_a_command_adds_nothing() {
+  local out
+  out="$(hi_esc="" nc_esc="" DOMAIN=host CMDARG="" _hi_remote_suffix)"
+  # shellcheck disable=SC2016 # the target's path
+  [[ "$out" != *'.hi_fallback_rc")" -c'* && "$out" != *'>> "$_hi_rc_dir/.zshrc"'* ]]
 }
 
 # the no-bash target is one of the four entry points that has to source the
@@ -356,7 +384,10 @@ function run_hi_remote_tests() {
   _hi_check "Bootloader drops strict mode before the command" test_bootloader_drops_strict_mode_before_the_command
   _hi_check "Bootloader drops strict mode after sourcing load.sh" test_bootloader_drops_strict_mode_after_sourcing_load
   _hi_check "Fallback rc sources paths and aliases" test_fallback_rc_sources_paths_and_aliases
-  _hi_check "Fallback rc appends the command" test_fallback_rc_appends_the_command
+  _hi_check "Fallback rc leaves the command out" test_fallback_rc_leaves_the_command_out
+  _hi_check "Remote suffix hands fish the command as -c" test_remote_suffix_hands_fish_the_command_as_a_flag
+  _hi_check "Remote suffix quotes the fish command" test_remote_suffix_quotes_the_fish_command
+  _hi_check "Remote suffix adds nothing without a command" test_remote_suffix_without_a_command_adds_nothing
   _hi_check "Fallback rc sources settings before paths" test_fallback_rc_sources_settings_before_paths
   _hi_check "Fallback rc points at the overlay config dir" test_fallback_rc_points_config_dir_at_the_overlay
 

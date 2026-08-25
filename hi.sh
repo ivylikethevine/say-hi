@@ -477,8 +477,33 @@ function _hi_fallback_rc() {
     printf '[ -f $_HI_ROOT/config/settings.sh ] && . $_HI_ROOT/config/settings.sh\n'
     printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/settings/aliases.sh 2>/dev/null\n'
   fi
-  [ -n "${CMDARG:-}" ] && printf '%s\n' "$CMDARG"
+  # No $CMDARG here, deliberately: it used to be the last line, and fish then
+  # ran it from -C and ignored its `exit` (GLOSSARY: HI.23), so a command
+  # session sat at a prompt forever. The two helpers below hand it to each
+  # shell the way that shell will actually honour it.
   return 0
+}
+
+# _hi_command_append <file-word> - the `hi <target> <cmd>` line, armored the
+# way the rc itself travels, appended to <file-word> on the target; nothing at
+# all when there is no command. For the sh and zsh arms, which read their rc
+# to the end and exit on the `exit` _hi_parse suffixed. fish is the exception
+# (GLOSSARY: HI.23) and takes _hi_command_fish_flag instead.
+function _hi_command_append() {
+  [ -n "${CMDARG:-}" ] || return 0
+  printf '%s\n' "$CMDARG" | _hi_armored_line '>>' "$1"
+}
+
+# _hi_command_fish_flag - ` -c '<cmd>'` for the fish arm, or nothing. fish runs
+# -C before its interactive reader and an `exit` in there does not stop the
+# reader on a tty, so the command has to arrive as -c, which fish runs after
+# -C and then exits from. Quoted through _hi_shquote: this lands in the
+# generated script as text the target's sh parses.
+function _hi_command_fish_flag() {
+  local q
+  [ -n "${CMDARG:-}" ] || return 0
+  _hi_shquote q "$CMDARG"
+  printf ' -c %s' "$q"
 }
 
 # The fallback-shell probe both transports interpolate: one sh loop over
@@ -634,13 +659,16 @@ function _hi_remote_suffix() {
         case "\$_hi_fallback" in
         zsh)
           cp "\$_hi_rc_dir/.hi_fallback_rc" "\$_hi_rc_dir/.zshrc"
+          $(_hi_command_append '"$_hi_rc_dir/.zshrc"')
           ZDOTDIR="\$_hi_rc_dir" zsh -i
           ;;
-        fish) fish -C "\$(cat "\$_hi_rc_dir/.hi_fallback_rc")" ;;
+        # the rc through -C and the command through -c - GLOSSARY: HI.23
+        fish) fish -C "\$(cat "\$_hi_rc_dir/.hi_fallback_rc")"$(_hi_command_fish_flag) ;;
         # sh/dash/ash; the prompt is appended here, not in the shared rc,
         # which also feeds fish (no PS1) and zsh (different \$ escape)
         *)
           $(_hi_fallback_prompt | _hi_armored_line '>>' '"$_hi_rc_dir/.hi_fallback_rc"')
+          $(_hi_command_append '"$_hi_rc_dir/.hi_fallback_rc"')
           ENV="\$_hi_rc_dir/.hi_fallback_rc" "\$_hi_fallback" -i
           ;;
         esac
@@ -835,14 +863,19 @@ function _say_hi_container() {
     # the shared fallback rc in its aliases-only shape, plus the POSIX prompt
     # for the shells that can parse it - the ssh path's `*)` rule, applied
     # while the file is written rather than in a second `exec` round trip
+    local -a fish_cmd=()
     {
       _hi_fallback_rc --aliases-only "$root"
       case "$fallback" in
       zsh | fish) ;;
       *) _hi_fallback_prompt ;;
       esac
+      # the command last, for the shells that read the file to its end; fish
+      # takes it as -c below instead (GLOSSARY: HI.23)
+      [ "$fallback" = fish ] || [ -z "${CMDARG:-}" ] || printf '%s\n' "$CMDARG"
     } |
       "${cp[@]}" sh -c "cat > '$root/.hi_fallback_rc'" 2>"$tmp"
+    [ "$fallback" != fish ] || [ -z "${CMDARG:-}" ] || fish_cmd=(-c "$CMDARG")
 
     case "$fallback" in
     zsh)
@@ -850,8 +883,9 @@ function _say_hi_container() {
       "${attach[@]}" sh -c "export ZDOTDIR='$root'; exec zsh -i"
       ;;
     # see the ssh path's identical fish case in _hi_remote_suffix for why this
-    # reads the file into -C directly instead of `source`ing it
-    fish) "${attach[@]}" fish -C "$("${probe[@]}" cat "$root/.hi_fallback_rc")" ;;
+    # reads the file into -C directly instead of `source`ing it, and why the
+    # command rides -c rather than the file
+    fish) "${attach[@]}" fish -C "$("${probe[@]}" cat "$root/.hi_fallback_rc")" ${fish_cmd[@]+"${fish_cmd[@]}"} ;;
     *) "${attach[@]}" sh -c "export ENV='$root/.hi_fallback_rc'; exec $fallback -i" ;;
     esac
     exit_code=$?
