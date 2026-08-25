@@ -47,8 +47,14 @@ zmodload zsh/complist
 autoload -Uz compinit promptinit
 # bare `compinit` costs 50-150ms a start; full check once a day, -C between.
 # (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h.
+# -u on the full check: a fresh full compinit runs compaudit, and on a host
+# where anything in $fpath is group/other-writable that means an interactive
+# [y/n] prompt with no controlling terminal to answer it - `hi` piped through
+# something non-interactive (vhs recording a demo included) just hangs, and
+# whatever byte was queued next gets read as the answer instead. -u trusts
+# $fpath the same way -C already implicitly does on the cached path below.
 if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
-  compinit
+  compinit -u
   # compinit leaves an unchanged dump's mtime alone, making this branch
   # permanent once the dump turns a day old - touch restarts the clock
   touch "${ZDOTDIR:-$HOME}/.zcompdump" 2>/dev/null || true
