@@ -63,11 +63,11 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 
 ## Testing
 
-- `tests/test_runner.sh` runs everything; `--group fast` is the CI gate, and
-  lint (shellcheck, shfmt, checkbashisms, the bash-4 grep) is inside it.
+- `tests/test_runner.sh` runs everything; the CI gate is `--group fast` (the
+  unit suites, run side by side, ~40s) then `--group lint` (shellcheck, shfmt,
+  checkbashisms, the bash-4 grep and the doc drift checks, ~40s). Run both.
 - Run the suite at the **end** of a multi-step change, not between steps — a
-  structural refactor breaks loudly at source time, and each run costs ~2
-  minutes.
+  structural refactor breaks loudly at source time.
 - Layout rule, the lint gate's ten halves and the coverage caveat are
   [docs/TESTING.md](docs/TESTING.md)'s job. The two that bite most: a suite
   lives in `tests/<the directory it tests>/` and sources `tests/test_lib.sh`
@@ -92,7 +92,8 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   for `tool:` pins), `docs/GLOSSARY.md` (drift-checked against the tree's
   `GLOSSARY:` tags), `docs/CONFIGURATION.md` (its _Every setting_ table is
   drift-checked against `_HI_TOGGLES` and `install.sh`'s prompt rosters) or
-  `packaging/nfpm/nfpm.yaml`. `README.md`'s payload badge is read by
+  `packaging/nfpm/nfpm.yaml`. The GLOSSARY and CONFIGURATION checks are in
+  the lint group. `README.md`'s payload badge is read by
   `bench_test.sh` — `--group bench`, not fast.
 - `_HI_PAR_WIDTH=1` puts a parallel container suite back on one case at a time;
   `_HI_SC_WIDTH=1` does the same for the lint fan-out — for a flaky case or a

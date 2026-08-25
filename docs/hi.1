@@ -58,7 +58,15 @@ a running allocation, by ID or ID prefix.
 .B 4. kubernetes pod
 a running pod in the current
 .BR kubectl (1)
-context and namespace.
+context and namespace, or
+.I namespace:pod
+and
+.I context:namespace:pod
+for one elsewhere \- the prefixes become
+.B kubectl \-\-context
+and
+.BR "\-\-namespace" .
+Completion spells a pod outside the current namespace the same way.
 .PP
 The last two can hold more than one thing to land in, and a
 .B /

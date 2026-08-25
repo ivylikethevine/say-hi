@@ -145,6 +145,35 @@ EOF
   [ "$ok" -eq 1 ]
 }
 
+# The namespace prefix: a pod in a namespace kubectl does *not* point at,
+# reached as `namespace:pod`. A bare `hi <pod>` would not find it at all, so
+# a session landing is the proof that the prefix became --namespace.
+function _hi_kube_namespace_case() {
+  local ns=hi-kubetest-ns name=hi-kubetest-nspod ok=0
+  _hi_h3 "Testing shape: [namespace:pod]"
+  if ! kubectl create namespace "$ns" >"$_HI_WORKDIR/ns.run.log" 2>&1; then
+    _hi_dump_log "Failed to create the namespace:" "$_HI_WORKDIR/ns.run.log"
+    return 1
+  fi
+  if ! kubectl -n "$ns" run "$name" --image="$_HI_PAIR_IMAGE_SH" --image-pull-policy=IfNotPresent \
+    --restart=Never --command -- sleep infinity >>"$_HI_WORKDIR/ns.run.log" 2>&1; then
+    _hi_dump_log "Failed to create the namespaced pod:" "$_HI_WORKDIR/ns.run.log"
+    kubectl delete namespace "$ns" --now >/dev/null 2>&1
+    return 1
+  fi
+  if ! _hi_poll_bool 240 0.5 _hi_pod_running_in "$ns" "$name"; then
+    kubectl -n "$ns" describe pod "$name" >"$_HI_WORKDIR/ns.describe.log" 2>&1 || true
+    _hi_dump_log "Namespaced pod never reported Running:" "$_HI_WORKDIR/ns.describe.log"
+    kubectl delete namespace "$ns" --now >/dev/null 2>&1
+    return 1
+  fi
+  _hi_exec_case ns "kube path (namespace:pod)" "$_HI_TEST_MARKER" 90 \
+    "$ns:$name" "$(_hi_probe_cmd "$_HI_TEST_MARKER" sh)" && ok=1
+  kubectl delete namespace "$ns" --now >/dev/null 2>&1
+  [ "$ok" -eq 1 ]
+}
+function _hi_pod_running_in() { [ "$(kubectl -n "$1" get pod "$2" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]; }
+
 function run_kube_test() {
   _hi_require kind
   _hi_require kubectl
@@ -204,7 +233,7 @@ function run_kube_test() {
 
   _hi_pty_stdin auto "no tty and no python3 to fake one - kubectl exec -it will fail outright, results may be unreliable"
 
-  _hi_backend_pair_cases kube "shape" _hi_kube_multi_container_case
+  _hi_backend_pair_cases kube "shape" _hi_kube_multi_container_case _hi_kube_namespace_case
 }
 
 run_kube_test

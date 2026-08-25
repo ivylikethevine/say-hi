@@ -50,19 +50,28 @@ CI passes it on every job. The `_HI_HOME` half prints on **every** run when
 the tree under test is not the one you invoked the runner from — the quietest
 way to get a wrong result here.
 
-Four groups (`--group <name>`), matching CI's four jobs; `--list` prints the
-membership:
+Five groups (`--group <name>`); `--list` prints the membership:
 
-- **`fast`** — dependency-free, the first thing CI runs. Every suite except the
-  three groups below, including `test_lib`, `test_lib_report`, `test_lib_par`
-  and `test_runner`, which are the harness testing itself.
+- **`fast`** — dependency-free unit suites, the first thing CI runs, on every
+  platform job. Includes `test_lib`, `test_lib_report`, `test_lib_par` and
+  `test_runner`, which are the harness testing itself. Its suites run **side
+  by side** (up to four, or the CPU count), each in its own workdir with its
+  own tally files, and the transcripts are replayed in table order — so the
+  run reads exactly like a serial one and takes about as long as its slowest
+  suite. `_HI_RUNNER_WIDTH=1` puts it back to one at a time; `--verbose`
+  implies that, since two live transcripts would interleave.
+- **`lint`** — the linter sweep ([The lint gate](#the-lint-gate)), run once,
+  as its own CI step on the ubuntu job against pinned tool versions. The
+  macOS, Windows and FreeBSD jobs run `fast` alone: linting text does not
+  depend on the userland underneath it.
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
-  budgets.
+  budgets. Serial, since it measures.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `install_methods`,
   `docker`, `framework`: throwaway containers driving `hi.sh`'s actual
   connection paths (`_say_hi` and `_say_hi_container`).
 - **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
-  need extra runner setup; a separate, slower CI job.
+  need extra runner setup; a separate, slower CI job. `e2e` and `backends`
+  run their suites one at a time — they contend on one container daemon.
 
 Every test script also runs directly, e.g. `tests/lint/shellcheck_test.sh`.
 
@@ -226,7 +235,7 @@ editor included). It is a precondition rather than an eleventh half because the
 damage happens in the fan-out below.
 
 1. **shellcheck** over every `*.sh` (CI pins the version in
-   `.github/actions/setup-tool/tools.txt`). It is the whole cost of the fast
+   `.github/actions/setup-tool/tools.txt`). It is the whole cost of the lint
    group, so the file list is dealt into one invocation per CPU and replayed in
    order; `_HI_SC_WIDTH=1` puts it back on a single process.
 2. **Native syntax checks**: `zsh -n` / `fish --no-execute` over the files those

@@ -261,8 +261,9 @@ command appended to their rc (`_hi_command_append`).
 ## HI.24 graft crash guard
 
 `clean_all` cannot run after a hard kill, so every rc graft is wrapped in a
-tree-exists guard that makes the block vanish on its own when the tree it
-points at is gone — otherwise every shell the user opens from then on errors
+tree-exists guard (`_hi_rc_guard` in `common/core.sh`, in the rc's dialect
+from `_HI_SHELL_TABLE`'s last column) that makes the block vanish on its own
+when the tree it points at is gone — otherwise every shell the user opens from then on errors
 at its first source line, and in a container sharing `$HOME` (distrobox) that
 is the _host's_ rc file. The guard re-resolves at shell start and asks for
 `$_HI_HOME`, stopping when there is none rather than falling back to `$HOME`

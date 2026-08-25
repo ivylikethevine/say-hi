@@ -24,6 +24,21 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # fork-free, pw3nage-safe form bash.sh's ps1() uses
     __hi_git_precmd() { _hi_git_prompt __hi_git_info; }
     precmd_functions+=(__hi_git_precmd)
+    # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
+    # emits them: D (last status) and A from precmd, B at the end of PS1, C
+    # from preexec. Raw, unwrapped; _HI_DISABLE_MARKS=1 turns them off.
+    _hi_marks_a="" _hi_marks_b=""
+    if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
+      _hi_marks_a=$'%{\e]133;A\a%}'
+      _hi_marks_b=$'%{\e]133;B\a%}'
+      __hi_marks_precmd() {
+        local ec=$?
+        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
+      }
+      __hi_marks_preexec() { printf '\e]133;C\a'; }
+      precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
+      preexec_functions+=(__hi_marks_preexec)
+    fi
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment
     HI_PS1_END="$(_hi_prompt_end ZSH)"
@@ -36,9 +51,9 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       HOST_COLOR="${_HI_HOST_COLOR//br/}"
       _hi_at_color=plain
       [ -n "${SSH_TTY:-}" ] && _hi_at_color=yellow
-      PS1=$' ${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END"' '
+      PS1="$_hi_marks_a"$' ${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
     else
-      PS1=$' ${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END"' '
+      PS1="$_hi_marks_a"$' ${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
     fi
   fi
 fi

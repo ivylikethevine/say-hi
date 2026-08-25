@@ -369,6 +369,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_EDITORS|1|_hi_editors_preview| Enable the vim/nano config overrides?"
   "_HI_DISABLE_OSC52|1|_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?"
   "_HI_DISABLE_NOTIFY|1|| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?"
+  "_HI_DISABLE_MARKS|1|| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?"
   "_HI_DISABLE_LOCAL|1|| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?"
 )
 
@@ -659,10 +660,10 @@ function check_one_config() {
 # uses are kept, so the three loops below read the same four fields they always
 # did.
 _HI_RC_TABLE=()
-while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags; do
-  _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check")
+while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
+  _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check|$_hi_tree_rc|$_hi_dialect")
 done < <(_hi_shell_rows local)
-unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags
+unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect
 
 # Validates whatever of the roster's rc files already exist, before
 # install.sh's own lines get appended to them. Returns non-zero if anything
@@ -671,7 +672,7 @@ function check_shell_configs() {
   _hi_h2 "Checking existing shell configs"
   local bad=0 row shell label target check
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check <<<"$row"
+    IFS='|' read -r shell label target check _ <<<"$row"
     # the check-column word split is the point: it is a command plus its flag
     # shellcheck disable=SC2086
     check_one_config "$shell" "$target" $check || bad=1
@@ -785,7 +786,7 @@ function unlink_hi() {
 function run_uninstall() {
   local row shell label target check
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check <<<"$row"
+    IFS='|' read -r shell label target check _ <<<"$row"
     strip_marker "$label" "$target"
   done
   strip_settings
@@ -930,32 +931,22 @@ if [ -n "$_HI_FEATURES_ONLY" ]; then
   exit 0
 fi
 
-# the rc lines each shell gets, keyed by the roster's rc label - the one
-# per-shell irregular part of the _HI_RC_TABLE loop
+# the rc lines each shell gets, in the row's dialect: where say-hi is, then
+# a source of hi's rc for that shell, interactive shells only. bash is the one
+# shell whose rc runs for non-interactive shells too, hence its extra line.
 for _hi_row in "${_HI_RC_TABLE[@]}"; do
-  IFS='|' read -r _hi_shell _hi_label _hi_target _hi_check <<<"$_hi_row"
-  case "$_hi_label" in
-  bashrc)
-    config_shell "$_hi_label" "$_hi_target" \
-      "$(tmpdir_line sh)" \
-      '[[ $- != *i* ]] && return' \
-      "source \"$_HI_BASHRC\""
+  IFS='|' read -r _hi_shell _hi_label _hi_target _hi_check _hi_tree_rc _hi_dialect <<<"$_hi_row"
+  _hi_lines=("$(tmpdir_line "$_hi_dialect")")
+  case "$_hi_dialect" in
+  fish) _hi_lines+=('if status is-interactive' "  source \"$_hi_tree_rc\"" 'end') ;;
+  *)
+    [ "$_hi_shell" = bash ] && _hi_lines+=('[[ $- != *i* ]] && return')
+    _hi_lines+=("source \"$_hi_tree_rc\"")
     ;;
-  zshrc)
-    config_shell "$_hi_label" "$_hi_target" \
-      "$(tmpdir_line sh)" \
-      "source \"$_HI_ZSHRC\""
-    ;;
-  config.fish)
-    config_shell "$_hi_label" "$_hi_target" \
-      "$(tmpdir_line fish)" \
-      'if status is-interactive' \
-      "  source \"$_HI_FISH_CONFIG\"" \
-      'end'
-    ;;
-  *) _hi_cecho " no rc lines defined for $_hi_label - add its arm above" "$RED" ;;
   esac
+  config_shell "$_hi_label" "$_hi_target" "${_hi_lines[@]}"
 done
+unset _hi_lines
 
 config_hi
 

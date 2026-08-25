@@ -32,31 +32,34 @@ kind="${1:-all}"
 # tests/common/targets_test.sh drift-checks both halves against hi.sh's --help,
 # so a flag added there and forgotten here fails the fast suite.
 if [ "$kind" = flags ]; then
-  # Always offered, because each answers without a file the payload drops:
-  # --help and --version are hi.sh's own case arms, and --packages-preview
-  # falls back to the shipped common/header.sh when scripts/ is absent - so it
-  # prints the check itself on a target rather than refusing.
-  printf '%s\n' --help --version --packages-preview
-  # The rest need a tree that is not always on disk, and completing one of those
-  # lands straight on hi.sh's $_HI_NO_CHECKOUT refusal. Two filters rather than
-  # one, because they answer different questions: _HI_REMOTE_SESSION is what a
-  # session is marked with, and the presence checks below catch what that
-  # variable cannot see - a package-manager install ships scripts/ but neither
-  # tests/ nor .git, which is the same pair hi.sh's own --test and --update arms
-  # test for. --doctor belongs here and not above: scripts/doctor.sh is not in
-  # $_HI_PAYLOAD, however much a read-only probe looks like it would work
-  # anywhere. Derived from $0 rather than $_HI_ROOT, since a completion can
-  # reach this file from a shell that never sourced paths.sh (GLOSSARY: HI.33).
-  if [ "${_HI_REMOTE_SESSION:-0}" != 1 ]; then
-    case $0 in
-    */*) hi_tree="${0%/*}/.." ;;
-    *) hi_tree=".." ;;
+  # Out of common/flags, the same table hi.sh dispatches and prints --help
+  # from. A row's <needs> column says what it wants that is not always on
+  # disk: `-` is offered everywhere (--help and --version are hi.sh's own,
+  # --packages-preview falls back to the shipped common/header.sh), and the
+  # rest are withheld in a session - completing one there lands on hi.sh's
+  # $_HI_NO_CHECKOUT refusal - and then checked against the tree, since a
+  # package-manager install ships scripts/ but neither tests/ nor .git.
+  # Derived from $0 rather than $_HI_ROOT, since a completion can reach this
+  # file from a shell that never sourced paths.sh (GLOSSARY: HI.33).
+  case $0 in
+  */*) hi_tree="${0%/*}/.." ;;
+  *) hi_tree=".." ;;
+  esac
+  while IFS='|' read -r flag needs _rest; do
+    case "$flag" in '#'* | '') continue ;; esac
+    case "$needs" in
+    -) ;;
+    *)
+      [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
+      case "$needs" in
+      scripts) [ -d "$hi_tree/scripts" ] || continue ;;
+      tests) [ -f "$hi_tree/tests/test_runner.sh" ] || continue ;;
+      git) [ -d "$hi_tree/.git" ] || continue ;;
+      esac
+      ;;
     esac
-    [ -d "$hi_tree/scripts" ] && printf '%s\n' --install --uninstall \
-      --configure --check-configs --overlay-init --color-preview --doctor
-    [ -f "$hi_tree/tests/test_runner.sh" ] && printf '%s\n' --test
-    [ -d "$hi_tree/.git" ] && printf '%s\n' --update
-  fi
+    printf '%s\n' "$flag"
+  done <"$hi_tree/common/flags"
   exit 0
 fi
 
@@ -238,11 +241,19 @@ list_nomad() {
 # target where there is nothing to choose.
 #
 # One jsonpath, not one call per pod: this runs on every TAB.
+#
+# Every namespace, one call: a pod in the current namespace is emitted bare,
+# any other as `namespace:pod` - the spelling hi.sh's _hi_kube_split takes.
+# The current namespace is read out of the kubeconfig (a local file, no
+# round trip); empty means `default`, as kubectl itself reads it.
 list_kube() {
-  run_backend kubectl get pods --field-selector=status.phase=Running \
-    -o jsonpath='{range .items[*]}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}' 2>/dev/null |
-    while read -r pod c1 c2 rest; do
+  _hi_ns="$(run_backend kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null)"
+  [ -n "$_hi_ns" ] || _hi_ns=default
+  run_backend kubectl get pods -A --field-selector=status.phase=Running \
+    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{range .spec.containers[*]}{" "}{.name}{end}{"\n"}{end}' 2>/dev/null |
+    while read -r ns pod c1 c2 rest; do
       [ -n "$pod" ] || continue
+      [ "$ns" = "$_hi_ns" ] || pod="$ns:$pod"
       printf '%s\tkube\n' "$pod"
       # c2 non-empty means more than one container, so the choice is real
       if [ -n "$c2" ]; then

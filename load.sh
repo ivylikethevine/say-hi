@@ -36,21 +36,21 @@ _HI_CONFIG_START="# hi-config-start"
 _HI_CONFIG_END="# hi-config-end"
 
 # rc file <- hi config; fish only when installed (no config dir otherwise).
-# "<shell>|<hi's rc>|<the user's rc>", from core.sh's _HI_SHELL_TABLE rows
+# "<dialect>|<hi's rc>|<the user's rc>", from core.sh's _HI_SHELL_TABLE rows
 # flagged `graft` - the same roster scripts/install.sh reads for its local
-# half. The shell name is carried, not re-derived from the rc's suffix: it is
-# what picks the guard dialect below, and a graft whose rc is not named
-# *.fish would otherwise get sh syntax appended to a real fish config.
+# half. The dialect is the table's, not re-derived from the rc's suffix: it
+# picks the guard below, and a graft whose rc is not named *.fish would
+# otherwise get sh syntax appended to a real fish config.
 _HI_CONFIGS=()
-while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags; do
-  _HI_CONFIGS+=("$_hi_shell|$_hi_tree_rc|$_hi_home_rc")
+while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
+  _HI_CONFIGS+=("$_hi_dialect|$_hi_tree_rc|$_hi_home_rc")
 done < <(_hi_shell_rows graft)
-unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags
+unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect
 
 function configure_files() {
-  local row shell target src open body
+  local row dialect target src body
   for row in "${_HI_CONFIGS[@]}"; do
-    shell="${row%%|*}"
+    dialect="${row%%|*}"
     src="${row#*|}"
     src="${src%|*}"
     target="${row##*|}"
@@ -60,18 +60,8 @@ function configure_files() {
     # every connect. $(<f) slurps where grep short-circuits: fine for an rc.
     : >>"$target"
     case "$(<"$target")" in *"$_HI_CONFIG_START"*) continue ;; esac
-    # GLOSSARY: HI.24 - why every graft wraps
-    # shellcheck disable=SC2016 # single quotes are the point: the guard expands at shell start, not graft time
-    case "$shell" in
-    fish)
-      open='if set -q _HI_HOME; and test -f $_HI_HOME/say-hi/common/core.sh'
-      body="$open"$'\n'"$(<"$src")"$'\n'"end"
-      ;;
-    *)
-      open='if [ -f "${_HI_HOME:-}/say-hi/common/core.sh" ]; then'
-      body="$open"$'\n'"$(<"$src")"$'\n'"fi"
-      ;;
-    esac
+    # core.sh's _hi_rc_guard, in the row's dialect (GLOSSARY: HI.24)
+    body="$(_hi_rc_guard "$dialect" open)"$'\n'"$(<"$src")"$'\n'"$(_hi_rc_guard "$dialect" close)"
     printf '%s\n' "$_HI_CONFIG_START"$'\n'"$body"$'\n'"$_HI_CONFIG_END" >>"$target"
   done
 }

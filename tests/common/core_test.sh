@@ -370,13 +370,20 @@ function test_zsh_rc_survives_ksharrays_being_on() {
 # column names only mechanisms that exist. A row short a field silently
 # hands install.sh an empty rc path, which is a `touch ""` at install time.
 function test_shell_table_rows_are_wellformed() {
-  local row shell label tree home check flags rest
+  local row shell label tree home check flags dialect rest
   for row in "${_HI_SHELL_TABLE[@]}"; do
-    IFS='|' read -r shell label tree home check flags rest <<<"$row"
+    IFS='|' read -r shell label tree home check flags dialect rest <<<"$row"
     [ -n "$shell" ] && [ -n "$label" ] && [ -n "$check" ] || {
       _hi_cecho " | thin row: $row" "$RED"
       return 1
     }
+    case "$dialect" in
+    sh | fish) ;;
+    *)
+      _hi_cecho " | unknown rc dialect '$dialect': $row" "$RED"
+      return 1
+      ;;
+    esac
     [ -z "$rest" ] || {
       _hi_cecho " | too many fields: $row" "$RED"
       return 1

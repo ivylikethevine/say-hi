@@ -169,14 +169,14 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     `command -v python3`.
   - **Proven without a Windows box**: a `ln` shim that fails on `-s` _is_ Git
     Bash without Developer Mode. Under the shim the job's own invocation
-    (`--group fast --skip shellcheck`) is green across all 25 suites with
+    (`--group fast`) is green across all 25 suites with
     eleven yellow skips; without it, green with none.
   - **What is left is a run and two settings.** `ci.yml` calls
     `windows-client.yml` on every push to `main` as an _advisory_ job. Expect
     twelve skips (eleven symlink, one pty) on top of the 45 zsh/fish ones, and
     `packaging`'s _staged_launcher shims a misnamed checkout_ should **skip**,
-    not fail. It runs `--skip shellcheck` because `setup-tool` resolves
-    linux/darwin slugs only. A Windows _client_ is deliberately not a v1.0.0
+    not fail. It runs `--group fast` alone, since `setup-tool` resolves
+    linux/darwin slugs only and the lint group is the ubuntu job's. A Windows _client_ is deliberately not a v1.0.0
     criterion; `windows-e2e.yml` covers the target side, which is the half the
     tag rests on.
   - **Ticks when:** the job is green once, the `continue-on-error` and the word
@@ -212,7 +212,7 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
       is a submission; the draft is `docs/tldr.md`.
 
   - **The CLI surface is frozen.** All twelve flags agree across `hi.sh`'s
-    `_HI_SUBCOMMANDS` table and case arms, `docs/hi.1` and
+    `common/flags` table and case arms, `docs/hi.1` and
     `common/targets.sh`'s completion roster, CI-enforced in both directions by
     `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`.
   - **The draft reads like upstream's**: `# hi`, a `>` block ending in
@@ -225,23 +225,20 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
 Bounded work with a precedent in the tree to copy and a test or budget to
 satisfy on the way out.
 
-- [ ] **A job-started hook on the self-hosted runner** — _scope: a script and
-      an env var on that machine, plus one commit here deleting fifteen
-      copies; outside this checkout._ Fifteen jobs across ten workflows open
-      with the same `Reclaim the workspace` step (`sudo chown -R` of
-      `$GITHUB_WORKSPACE`, guarded on `runner.environment != 'github-hosted'`),
-      because that box's `_work` persists and one root-owned file from a
-      container test makes the next checkout's cleanup throw
-      (docs/PACKAGING.md has the full account). It cannot be a composite
-      action: it has to run _before_ `actions/checkout`, and `uses: ./…` needs
-      the checkout.
+- [ ] **A job-started hook on the self-hosted runner** — _scope: one file and
+      one env var on that machine; the repo half has shipped; outside this
+      checkout._ The fifteen `Reclaim the workspace` steps are gone from the
+      workflows, and `.github/runner/job-started.sh` is what replaces them: the
+      same `sudo chown -R` of `$GITHUB_WORKSPACE`, run once by the runner
+      before every job via `ACTIONS_RUNNER_HOOK_JOB_STARTED` (the file's header
+      has the install commands). Nothing breaks meanwhile - `RUNNER_LABEL` is
+      unset, so every run is hosted and gets a fresh workspace.
 
-  - **Where it belongs:** `ACTIONS_RUNNER_HOOK_JOB_STARTED` on the runner — a
-    script executed before every job.
-  - **Recount before deleting**: `grep -rc 'Reclaim the workspace' .github/workflows/`.
-  - **Ticks when:** the hook is in place and every copy is deleted in one
-    commit — leaving copies after the hook exists is two mechanisms for one
-    problem.
+  - **Do, before pointing `RUNNER_LABEL` at the box:** install the hook there.
+    A self-hosted run without it wedges on the first root-owned file a
+    container suite leaves behind, exactly as docs/PACKAGING.md describes.
+  - **Ticks when:** the hook is installed and one self-hosted run has gone
+    through with it.
 
 - [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, and one gate re-run on a
       real Mac; outside this checkout._ Create the `homebrew-tap` repo (a plain

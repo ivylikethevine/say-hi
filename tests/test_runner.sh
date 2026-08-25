@@ -42,7 +42,6 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
     "fast:osc52:common/osc52_test.sh"
     "fast:notify:common/notify_test.sh"
-    "fast:shellcheck:lint/shellcheck_test.sh"
     "fast:install:scripts/install_test.sh"
     "fast:install_location:scripts/install_location_test.sh"
     "fast:packaging:packaging/packaging_test.sh"
@@ -64,6 +63,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:test_lib_report:harness/lib_report_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"
     "fast:test_runner:harness/runner_test.sh"
+    "lint:shellcheck:lint/shellcheck_test.sh"
     "bench:bench:bench/bench_test.sh"
     "e2e:ssh:targets/ssh_test.sh"
     "e2e:ssh_disconnect:targets/ssh_disconnect_test.sh"
@@ -115,7 +115,6 @@ _HI_TESTS_DIR="${_HI_TESTS_DIR:-$_HI_ROOT/tests}"
 # and rejected as unknown. The suite list comes from $_HI_TESTS rather than
 # being spelled out again, so it can't drift.
 _HI_GROUP=""
-declare -a _HI_SKIP=()
 _HI_LIST=0
 _HI_LIST_PATHS=0
 _HI_REQUIRE_RUN=0
@@ -129,7 +128,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
   -h | --help)
     cat <<EOF
-Usage: test_runner.sh [--group <group>] [--skip <suite>] [--verbose] [suite ...]
+Usage: test_runner.sh [--group <group>] [--verbose] [suite ...]
 
 Runs every test suite, or just the named ones, timing each and printing a
 pass/fail summary table at the end. Exits with the number of failed suites.
@@ -139,10 +138,8 @@ rather than PASS, so a green run can't overstate what actually ran.
 
   suite ...        one or more of the names below (default: all of them)
   --group <group>  every suite in one group: $(_hi_test_groups)
-  --skip <suite>   drop one suite from whatever the above selected; repeatable.
-                   An unknown name is an error, not a no-op, so a suite renamed
-                   out from under a caller fails loudly instead of quietly
-                   running again
+                   fast is the unit suites, lint the linter sweep (CI runs the
+                   two as separate steps; a platform job runs fast alone)
   --list           print "<group> <name>" per suite and exit
   --list-paths     the same, plus each suite's absolute path as a third column
   --require-run    treat SKIPPED suites as failures - for CI runners where a
@@ -206,15 +203,6 @@ EOF
     shift
     ;;
   --group=*) _HI_GROUP="${1#--group=}" ;;
-  --skip)
-    [ "$#" -ge 2 ] || {
-      _hi_cecho "test_runner.sh: --skip needs a value" "$RED" >&2
-      exit 1
-    }
-    _HI_SKIP+=("$2")
-    shift
-    ;;
-  --skip=*) _HI_SKIP+=("${1#--skip=}") ;;
   *) _HI_ARGS+=("$1") ;;
   esac
   shift
@@ -243,45 +231,6 @@ else
   done
   if [ "${#_HI_SELECTED[@]}" -eq 0 ]; then
     _hi_cecho "no test suite matches: ${_HI_ARGS[*]} (known: $(_hi_test_names))" "$RED"
-    exit 1
-  fi
-fi
-
-# --skip subtracts from whatever the block above selected, so one flag composes
-# with --group, with a suite list, and with the default of everything. It exists
-# because two CI jobs run the fast group on a machine the lint suite has nothing
-# to say about: `test-macos` would re-run the same pinned shellcheck over the
-# same files the ubuntu job already linted, and the Windows client job cannot
-# install shellcheck at all (setup-tool's asset slugs are linux/darwin only) -
-# where run_shellcheck exits 1 rather than skipping, on purpose.
-#
-# An unknown name is an error. A stale --skip after a rename would otherwise
-# quietly put the suite back and nothing would say so. Skipping a suite the
-# selection never held is still fine (`--group fast --skip ssh`): the check is
-# against the whole table, so a caller need not know which group a name is in.
-if [ "${#_HI_SKIP[@]}" -gt 0 ]; then
-  for _hi_s in "${_HI_SKIP[@]}"; do
-    _hi_found=0
-    for _hi_t in "${_HI_TESTS[@]}"; do
-      [ "$(_hi_test_name "$_hi_t")" = "$_hi_s" ] && _hi_found=1
-    done
-    if [ "$_hi_found" = 0 ]; then
-      _hi_cecho "no test suite matches --skip $_hi_s (known: $(_hi_test_names))" "$RED"
-      exit 1
-    fi
-  done
-  declare -a _hi_kept=()
-  for _hi_t in "${_HI_SELECTED[@]}"; do
-    _hi_name="$(_hi_test_name "$_hi_t")"
-    _hi_drop=0
-    for _hi_s in "${_HI_SKIP[@]}"; do
-      [ "$_hi_name" = "$_hi_s" ] && _hi_drop=1
-    done
-    [ "$_hi_drop" = 1 ] || _hi_kept+=("$_hi_t")
-  done
-  _HI_SELECTED=(${_hi_kept[@]+"${_hi_kept[@]}"})
-  if [ "${#_HI_SELECTED[@]}" -eq 0 ]; then
-    _hi_cecho "--skip left no suites to run" "$RED"
     exit 1
   fi
 fi
@@ -329,24 +278,16 @@ function _hi_restore_tty() {
 }
 
 # Each suite runs as its own process, so its case tally can't come back in a
-# variable - _hi_suite_end writes "<total> <failed>" here instead. Assigned
-# unconditionally (never defaulted from the environment) so that a runner
-# nested inside another run - which is exactly what harness/runner_test.sh
-# does - gets its own file and can't clobber its parent's.
-_HI_COUNTS_FILE="$(mktemp -t hi.counts.XXXXXX)"
-export _HI_COUNTS_FILE
+# variable - _hi_suite_end writes "<total> <failed>" to $_HI_COUNTS_FILE, the
+# failing labels ride $_HI_FAILS_FILE, and a collapsed transcript lands in a
+# log; all three are per suite, under one directory, so suites can run side by
+# side. Assigned unconditionally (never defaulted from the environment) so a
+# runner nested inside another run - which is exactly what
+# harness/runner_test.sh does - gets its own and can't clobber its parent's.
+_HI_RUN_DIR="$(mktemp -d -t hi.run.XXXXXX)"
 
-# The failing cases' labels ride the same per-suite channel (_hi_note_failure
-# appends, the runner truncates between suites), repeated under the summary so
-# finding what broke never means scrolling the whole transcript. The suite log
-# is where a suite's output lands when it is being collapsed - see the output
-# modes below.
-_HI_FAILS_FILE="$(mktemp -t hi.fails.XXXXXX)"
-export _HI_FAILS_FILE
-_HI_SUITE_LOG="$(mktemp -t hi.suitelog.XXXXXX)"
-
-# shellcheck disable=SC2064 # the paths are fixed by now; expand them here
-trap "_hi_restore_tty; rm -f '$_HI_COUNTS_FILE' '$_HI_FAILS_FILE' '$_HI_SUITE_LOG'" EXIT
+# shellcheck disable=SC2064 # the path is fixed by now; expand it here
+trap "_hi_restore_tty; rm -rf '$_HI_RUN_DIR'" EXIT
 
 # Output modes. Default: a passing suite's transcript collapses to one status
 # line and the full text replays only on failure or skip, so a green run fits
@@ -379,32 +320,21 @@ function _hi_status_line() {
   _hi_align " | $1" "$2" "$3"
 }
 
-for _hi_t in "${_HI_SELECTED[@]}"; do
-  # the accessors' own expansions, inlined: this runs once per selected suite
-  # and both fields come off the one row, so two forks a suite bought nothing
-  _hi_rest="${_hi_t#*:}"
-  _hi_name="${_hi_rest%%:*}"
-  _hi_path="$_HI_TESTS_DIR/${_hi_t##*:}"
+# _hi_collect_suite <name> <code|MISSING> <seconds> <counts> <fails> <log> -
+# tally one finished suite into the summary rows and, in collapsed mode, print
+# its status line (and its transcript, when it did not pass).
+function _hi_collect_suite() {
+  local _hi_name="$1" _hi_code="$2" _hi_dur="$3s" _hi_counts="$4" _hi_fails="$5" _hi_log="$6"
+  local _hi_pass="-" _hi_fail="-" _hi_skipcnt="-" _hi_skip="" _hi_status _hi_cases _hi_rest _hi_bad _hi_line _hi_cases_note
 
-  if [ ! -f "$_hi_path" ]; then
-    _hi_cecho " | $_hi_name: script missing ($_hi_path), skipping" "$YELLOW"
+  if [ "$_hi_code" = MISSING ]; then
+    # the log carries the path that was not there
+    _hi_cecho " | $_hi_name: script missing ($(<"$_hi_log")), skipping" "$YELLOW"
     _HI_ROWS+=("$_hi_name"$'\t'MISSING$'\t'-$'\t'-$'\t'-$'\t'-)
-    _HI_FAIL_NOTES+=("$_hi_name: script missing ($_hi_path)")
+    _HI_FAIL_NOTES+=("$_hi_name: script missing ($(<"$_hi_log"))")
     _HI_SUITE_FAILED=$((_HI_SUITE_FAILED + 1))
-    continue
+    return 0
   fi
-
-  _hi_h2 "Running $_hi_name"
-  : >"$_HI_COUNTS_FILE"
-  : >"$_HI_FAILS_FILE"
-  _hi_t0="$(_hi_now)"
-  if [ "$_HI_VERBOSE" = 1 ]; then
-    if "$_hi_path"; then _hi_code=0; else _hi_code=$?; fi
-  else
-    if "$_hi_path" >"$_HI_SUITE_LOG" 2>&1; then _hi_code=0; else _hi_code=$?; fi
-  fi
-  _hi_dur="$(_hi_elapsed "$_hi_t0" "$(_hi_now)")s"
-  _hi_restore_tty
 
   # empty unless the suite reached _hi_suite_end - a suite that reports its own
   # way contributes no cases. A leading SKIP instead of a tally is _hi_require's
@@ -412,12 +342,8 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
   # and exits 0 doing it, so only this tells the two apart from a real pass.
   # The tally is "<total> <failed> [skipped]"; the SKIP reason is read whole
   # rather than through the same fields, since it may contain spaces.
-  _hi_pass="-"
-  _hi_fail="-"
-  _hi_skipcnt="-"
-  _hi_skip=""
-  if [ -s "$_HI_COUNTS_FILE" ]; then
-    read -r _hi_cases _hi_rest <"$_HI_COUNTS_FILE"
+  if [ -s "$_hi_counts" ]; then
+    read -r _hi_cases _hi_rest <"$_hi_counts"
     if [ "$_hi_cases" = SKIP ]; then
       _hi_skip="${_hi_rest:-skipped}"
     else
@@ -446,10 +372,10 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
   # without noting any still gets one line, so the recap can't be empty for a
   # red run
   if [ "$_hi_status" != PASS ] && [ "$_hi_status" != SKIPPED ]; then
-    if [ -s "$_HI_FAILS_FILE" ]; then
+    if [ -s "$_hi_fails" ]; then
       while IFS= read -r _hi_line; do
         [ -n "$_hi_line" ] && _HI_FAIL_NOTES+=("$_hi_name: $_hi_line")
-      done <"$_HI_FAILS_FILE"
+      done <"$_hi_fails"
     else
       _HI_FAIL_NOTES+=("$_hi_name: suite exited $_hi_code with no per-case detail")
     fi
@@ -462,11 +388,11 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
     if [ "$_hi_status" = PASS ]; then
       if [ -n "$_HI_CI" ]; then
         printf '::group::%s\n' "$_hi_name"
-        cat "$_HI_SUITE_LOG"
+        cat "$_hi_log"
         printf '::endgroup::\n'
       fi
     else
-      cat "$_HI_SUITE_LOG"
+      cat "$_hi_log"
     fi
     _hi_cases_note=""
     [ "$_hi_pass" != - ] && _hi_cases_note="$_hi_pass passed, "
@@ -477,7 +403,101 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
     *) _hi_status_line "$_hi_name" "$_hi_status ($_hi_cases_note$_hi_dur)" "$RED" ;;
     esac
   fi
+}
+
+# How many suites run at once. Every suite isolates itself (its own workdir,
+# its own $XDG_CONFIG_HOME, per-suite tally files above), so the unit groups
+# run side by side and the wall clock collapses toward the slowest suite.
+# Serial where it has to be: --verbose streams transcripts live and two at
+# once would interleave; bench measures timings; e2e and backends contend on
+# one container daemon. $_HI_RUNNER_WIDTH overrides (1 is a plain serial run).
+_HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-}"
+if [ -z "$_HI_RUNNER_WIDTH" ]; then
+  _HI_RUNNER_WIDTH="$(_hi_host_cores)"
+  [ -n "$_HI_RUNNER_WIDTH" ] || _HI_RUNNER_WIDTH=2
+  [ "$_HI_RUNNER_WIDTH" -gt 4 ] && _HI_RUNNER_WIDTH=4
+fi
+[ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1
+[ "$_HI_VERBOSE" = 1 ] && _HI_RUNNER_WIDTH=1
+for _hi_t in "${_HI_SELECTED[@]}"; do
+  case "${_hi_t%%:*}" in bench | e2e | backends) _HI_RUNNER_WIDTH=1 ;; esac
 done
+[ "$_HI_RUNNER_WIDTH" -le 1 ] || [ "${#_HI_SELECTED[@]}" -le 1 ] ||
+  _hi_cecho " | $_HI_RUNNER_WIDTH suites at a time, transcripts replayed in table order (_HI_RUNNER_WIDTH=1 for one by one)" "$BLUE"
+
+declare -a _HI_RUN_NAMES=()
+declare -a _HI_RUN_PIDS=()
+declare -a _hi_running=()
+_hi_i=0
+for _hi_t in "${_HI_SELECTED[@]}"; do
+  # the accessors' own expansions, inlined: this runs once per selected suite
+  # and both fields come off the one row, so two forks a suite bought nothing
+  _hi_rest="${_hi_t#*:}"
+  _hi_name="${_hi_rest%%:*}"
+  _hi_path="$_HI_TESTS_DIR/${_hi_t##*:}"
+  _hi_i=$((_hi_i + 1))
+  _hi_counts="$_HI_RUN_DIR/$_hi_i.counts"
+  _hi_fails="$_HI_RUN_DIR/$_hi_i.fails"
+  _hi_log="$_HI_RUN_DIR/$_hi_i.log"
+  : >"$_hi_counts"
+  : >"$_hi_fails"
+  _HI_RUN_NAMES+=("$_hi_name")
+
+  if [ ! -f "$_hi_path" ]; then
+    _HI_RUN_PIDS+=("")
+    printf 'MISSING 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
+    printf '%s' "$_hi_path" >"$_hi_log"
+    [ "$_HI_RUNNER_WIDTH" -gt 1 ] || _hi_collect_suite "$_hi_name" MISSING 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
+    continue
+  fi
+
+  if [ "$_HI_RUNNER_WIDTH" -gt 1 ]; then
+    # a slot: `wait <pid>` in turn and never `wait -n` (bash 3.2)
+    while [ "${#_hi_running[@]}" -ge "$_HI_RUNNER_WIDTH" ]; do
+      _hi_keep=()
+      for _hi_pid in "${_hi_running[@]}"; do
+        if kill -0 "$_hi_pid" 2>/dev/null; then _hi_keep+=("$_hi_pid"); else wait "$_hi_pid" 2>/dev/null || true; fi
+      done
+      _hi_running=(${_hi_keep[@]+"${_hi_keep[@]}"})
+      [ "${#_hi_running[@]}" -ge "$_HI_RUNNER_WIDTH" ] && sleep 0.2
+    done
+    (
+      _hi_t0="$(_hi_now)"
+      if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+      printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
+    ) &
+    _hi_running+=("$!")
+    _HI_RUN_PIDS+=("$!")
+    continue
+  fi
+
+  _HI_RUN_PIDS+=("")
+  _hi_h2 "Running $_hi_name"
+  _hi_t0="$(_hi_now)"
+  if [ "$_HI_VERBOSE" = 1 ]; then
+    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" "$_hi_path"; then _hi_code=0; else _hi_code=$?; fi
+  else
+    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+  fi
+  _hi_restore_tty
+  _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
+done
+
+# the parallel run's collection pass, in table order: wait for each, then
+# tally and replay it exactly as the serial loop above would have
+if [ "$_HI_RUNNER_WIDTH" -gt 1 ]; then
+  _hi_i=0
+  for _hi_name in "${_HI_RUN_NAMES[@]}"; do
+    _hi_i=$((_hi_i + 1))
+    _hi_pid="${_HI_RUN_PIDS[$((_hi_i - 1))]}"
+    [ -z "$_hi_pid" ] || wait "$_hi_pid" 2>/dev/null || true
+    _hi_code=1 _hi_dur=0
+    [ -f "$_HI_RUN_DIR/$_hi_i.rc" ] && read -r _hi_code _hi_dur <"$_HI_RUN_DIR/$_hi_i.rc"
+    _hi_h2 "Running $_hi_name"
+    _hi_restore_tty
+    _hi_collect_suite "$_hi_name" "$_hi_code" "$_hi_dur" "$_HI_RUN_DIR/$_hi_i.counts" "$_HI_RUN_DIR/$_hi_i.fails" "$_HI_RUN_DIR/$_hi_i.log"
+  done
+fi
 
 _hi_h1 "Summary"
 _hi_width=5 # "TOTAL" is the widest the name column can need on its own

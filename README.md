@@ -229,10 +229,13 @@ the pairs for any allocation that has more than one.
 ### Kubernetes pods
 
 `hi <pod-name>` is checked last, using `kubectl exec` against whatever
-context/namespace your `kubectl` currently points at. `hi <pod>/<container>`
-picks a container (`kubectl exec -c <name>`); without the suffix `kubectl`
-falls back to the pod's first container with a warning. Completion offers
-`pod/container` for every pod that has more than one.
+context/namespace your `kubectl` currently points at; `hi <ns>:<pod>` and
+`hi <context>:<ns>:<pod>` reach one elsewhere (the prefixes become
+`--namespace`/`--context`). `hi <pod>/<container>` picks a container
+(`kubectl exec -c <name>`); without the suffix `kubectl` falls back to the
+pod's first container with a warning. Completion offers `pod/container` for
+every pod that has more than one, and `ns:pod` for pods outside the current
+namespace.
 
 ### Windows hosts
 
@@ -264,8 +267,9 @@ weighed and answered **no**, with the argument attached, is
 ## Testing
 
 `tests/test_runner.sh` (`hi --test` once installed) runs the suite and prints
-a colored pass/fail summary; `--group fast` is what CI runs on every push/PR.
-The runbook is [docs/TESTING.md](docs/TESTING.md).
+a colored pass/fail summary; `--group fast` (the unit suites, side by side)
+then `--group lint` is what CI runs on every push/PR. The runbook is
+[docs/TESTING.md](docs/TESTING.md).
 
 ### Coverage and Profiling
 

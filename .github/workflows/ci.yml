@@ -58,20 +58,6 @@ jobs:
     needs: runner
     timeout-minutes: 15
     steps:
-      # Self-hosted `_work` persists between jobs, and checkout's own cleanup
-      # runs as the runner user: one root-owned file left behind by a container
-      # test makes its delete throw, and that throw is then masked by the
-      # `Removing auth` teardown (persist-credentials: false), which reports
-      # "fatal: --local can only be used inside a git repository" instead. The
-      # half-deleted workspace has no .git left, so every later run takes the
-      # same path and dies the same way - a wedge, not a flake. Hosted runners
-      # get a fresh workspace and skip this. See docs/PACKAGING.md.
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -96,6 +82,13 @@ jobs:
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast --totals-file ${{ runner.temp }}/totals"
 
+      # The lint group, once, here: linting text does not depend on the
+      # userland underneath it, so the macOS, Windows and FreeBSD jobs run
+      # `--group fast` alone and this step - against the pinned tools above -
+      # is where the gate is enforced.
+      - name: Run the lint group
+        run: "${{ github.workspace }}/tests/test_runner.sh --verbose --group lint --require-run"
+
       # The tests badge's number, published rather than committed: pages.yml
       # picks this artifact up and writes it into the site as a shields
       # endpoint, so the figure stays generated without a bot commit landing on
@@ -115,17 +108,9 @@ jobs:
           retention-days: 14
 
   # The same suites on macOS: /bin/bash 3.2, BSD userland. The %e/width/sort
-  # fixes in common/ came out of this job, so it gates for real now.
-  #
-  # Minus the lint suite, deliberately. `--skip shellcheck` drops the one suite
-  # in the fast group with nothing to say about this machine: it runs the same
-  # pinned shellcheck over the same file list as the ubuntu job above and
-  # reaches the same findings, because linting text does not depend on the
-  # userland underneath it. What that saves is the pinned install plus the
-  # slowest suite in the group, on a runner billed at ten times the Linux rate.
-  # The lint gate is not weakened - it is enforced, once, where it is cheap.
-  # (shfmt and checkbashisms were already absent here for a related reason: a
-  # brew-floating shfmt could disagree with the pinned one about formatting.)
+  # fixes in common/ came out of this job, so it gates for real now. The lint
+  # group is not run here: it is the ubuntu job's separate step, against
+  # pinned tools, on a runner billed at a tenth of this one's rate.
   test-macos:
     name: fast suites (macos-latest)
     runs-on: ${{ needs.runner.outputs.macos }}
@@ -140,7 +125,7 @@ jobs:
         run: brew install fish
 
       - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast --skip shellcheck"
+        run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast"
 
   # bad `needs`, invalid contexts, shellcheck over every run: block - the
   # workflows and composite actions are code too, so they get a linter
@@ -390,14 +375,6 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 10
     steps:
-      # hands the persistent self-hosted workspace back to the runner user, so
-      # checkout's own cleanup can always finish - see docs/PACKAGING.md
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -421,14 +398,6 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 10
     steps:
-      # hands the persistent self-hosted workspace back to the runner user, so
-      # checkout's own cleanup can always finish - see docs/PACKAGING.md
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -514,14 +483,6 @@ jobs:
     if: ${{ !cancelled() && needs.test.result == 'success' }}
     timeout-minutes: 25
     steps:
-      # hands the persistent self-hosted workspace back to the runner user, so
-      # checkout's own cleanup can always finish - see docs/PACKAGING.md
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -551,14 +512,6 @@ jobs:
     if: ${{ !cancelled() && needs.test.result == 'success' }}
     timeout-minutes: 40
     steps:
-      # hands the persistent self-hosted workspace back to the runner user, so
-      # checkout's own cleanup can always finish - see docs/PACKAGING.md
-      - name: Reclaim the workspace
-        if: ${{ runner.environment != 'github-hosted' }}
-        run: |
-          set -euo pipefail
-          sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -604,6 +557,14 @@ jobs:
     needs: [test, test-macos]
     if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
     uses: ./.github/workflows/windows-e2e.yml
+
+  # The non-macOS BSD, on the same gate: a FreeBSD VM on a hosted runner runs
+  # the fast suites and ssh's to itself.
+  e2e-freebsd:
+    name: e2e (FreeBSD)
+    needs: [test, test-macos]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
+    uses: ./.github/workflows/freebsd-e2e.yml
 
   # The client-side half of the Windows story, on the same gate. Advisory
   # until it has been green once (docs/ROADMAP.md): windows-client.yml itself

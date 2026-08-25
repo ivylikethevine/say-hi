@@ -29,7 +29,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # _hi_fallback_rc; config.fish keeps its own copy.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY)
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -54,25 +54,42 @@ fi
 # Flags name the mechanism: `local` is install.sh appending to the user's own
 # rc, `graft` is load.sh copying hi's rc into a target's. Only the roster is
 # single-homed; the mechanisms stay separate (see install.sh's config_shell).
+# The last column is the rc's *dialect* - what an `export` line and the graft
+# guard around it have to look like. `sh` covers bash and zsh; a shell whose
+# rc is neither sh nor fish gets a new dialect here and arms in _hi_rc_guard
+# and install.sh's tmpdir_line, not a special case at each consumer.
 _HI_SHELL_TABLE=(
-  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local,graft"
-  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local,graft"
-  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local,graft"
+  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local,graft|sh"
+  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local,graft|sh"
+  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local,graft|fish"
 )
 
 # _hi_shell_rows [flag] - the roster, or only rows carrying <flag>. One per
 # line, for `while IFS='|' read` callers.
 function _hi_shell_rows() {
-  local row
+  local row flags
   for row in "${_HI_SHELL_TABLE[@]}"; do
     if [ -z "${1:-}" ]; then
       printf '%s\n' "$row"
       continue
     fi
-    case ",${row##*|}," in
+    IFS='|' read -r _ _ _ _ _ flags _ <<<"$row"
+    case ",$flags," in
     *",$1,"*) printf '%s\n' "$row" ;;
     esac
   done
+}
+
+# _hi_rc_guard <dialect> open|close - the tree-exists guard every rc graft is
+# wrapped in, in that rc's dialect. GLOSSARY: HI.24 - why every graft wraps
+function _hi_rc_guard() {
+  # shellcheck disable=SC2016 # single quotes are the point: the guard expands at shell start, not graft time
+  case "$1:$2" in
+  fish:open) printf '%s' 'if set -q _HI_HOME; and test -f $_HI_HOME/say-hi/common/core.sh' ;;
+  fish:close) printf 'end' ;;
+  *:open) printf '%s' 'if [ -f "${_HI_HOME:-}/say-hi/common/core.sh" ]; then' ;;
+  *:close) printf 'fi' ;;
+  esac
 }
 
 # The one ordering hi resolves shells by, best first, so the two consumers

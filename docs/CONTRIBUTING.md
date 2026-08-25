@@ -29,11 +29,13 @@ be considered.
 
 ```sh
 tests/test_runner.sh --group fast
+tests/test_runner.sh --group lint
 ```
 
-That is what CI runs on every push, lint suite included — there is no separate
-lint step. It should be green before you open the pull request, and its summary
-line is what the template asks you to paste.
+That is what CI runs on every push: the unit suites (side by side, ~40s), then
+the linter sweep (shellcheck, shfmt, checkbashisms, the bash-4 grep and the doc
+drift checks). Both should be green before you open the pull request, and the
+fast group's summary line is what the template asks you to paste.
 
 The `e2e` and `backends` groups need real backends (a reachable sshd, a docker
 or podman socket, a nomad agent, a cluster) and stand down **yellow SKIPPED**
@@ -48,10 +50,9 @@ measured against this tree with act 0.2.89: `act -j test` reports **six
 failures a real runner does not**, because act's container runs as root and six
 fast-group cases assert non-root behaviour (five fish prompt-separator cases in
 `tests/common/rc_test.sh`, plus `install: Degrades when sudo can't link`).
-Running the container as a normal user does not rescue it: `runner.environment`
-is empty under act, so the `Reclaim the workspace` step fires, and under
-`--container-options "--user 1000"` the job dies there for want of passwordless
-sudo.
+Running the container as a normal user does not rescue it: under
+`--container-options "--user 1000"` the image has no passwordless sudo for the
+apt installs the job opens with.
 
 `tests/test_runner.sh --group fast` is the same gate with none of that. If you
 want a workflow run anyway, `actionlint`, `hadolint` and

@@ -18,7 +18,8 @@ says, so a stranger's branch never runs on your machine. Jobs that install apt
 packages or touch the Docker socket (`test`, `bench`, `packaging-smoke`, `e2e`,
 `e2e-backends`, `coverage.yml`, `demos.yml`'s `publish`) need a substituted
 runner to provide `sudo apt-get` and a docker daemon; `macos-e2e.yml` and
-`windows-e2e.yml` need a same-OS one. The four lint jobs (`actionlint`,
+`windows-e2e.yml` need a same-OS one, and `freebsd-e2e.yml` boots its own VM
+on a hosted ubuntu runner and reads no variable at all. The four lint jobs (`actionlint`,
 `zizmor`, `markdownlint`, `hadolint`) are pinned to `ubuntu-latest` outright:
 they install nothing and open no socket.
 
@@ -49,9 +50,13 @@ The process '/usr/bin/git' failed with exit code 128
 ```
 
 Read that as "something in the workspace could not be deleted", not a git
-problem; it does not clear on retry. The `Reclaim the workspace` step ahead of
-each checkout is the guard — a `sudo chown -R` back to the runner user, skipped
-on hosted runners. If a box has wedged, look at what survived
+problem; it does not clear on retry. The guard is a runner **job-started
+hook**, `.github/runner/job-started.sh` — a `sudo chown -R` back to the runner
+user, run by the runner itself before every job's checkout. It lives on the
+box, not in the workflows: install it per the file's header and set
+`ACTIONS_RUNNER_HOOK_JOB_STARTED` in the runner's `.env` **before** pointing
+`RUNNER_LABEL` at that machine. Hosted runners get a fresh workspace and never
+need it. If a box has wedged, look at what survived
 (`find . ! -user "$(id -un)"`, plus `mount` for a stale mount point) before
 clearing it.
 

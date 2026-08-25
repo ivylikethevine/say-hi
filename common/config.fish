@@ -12,7 +12,7 @@ end
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -171,8 +171,29 @@ function fish_prompt --description 'Write out the prompt'
   set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
     (set_color $fish_color_status) (set_color $bold_flag $fish_color_status) $last_pipestatus)
 
-  echo -n -s (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
-    (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " "
+  echo -n -s $_hi_marks_a (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
+    (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $_hi_marks_b
+end
+
+# OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
+# common/bash.sh's ps1() and common/zsh.zsh's precmd emit. fish 4 emits both
+# itself, so only fish 3 gets hi's copy - two sets of marks would confuse the
+# terminal about where a prompt begins.
+set -g _hi_marks_a ''
+set -g _hi_marks_b ''
+if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
+  set -g _hi_marks_a \e']133;A'\a
+  set -g _hi_marks_b \e']133;B'\a
+  function __hi_marks_preexec --on-event fish_preexec
+    printf '\e]133;C\a'
+  end
+  function __hi_marks_postexec --on-event fish_postexec
+    printf '\e]133;D;%s\a' $status
+  end
+  function __hi_marks_cwd --on-variable PWD
+    printf '\e]7;file://%s%s\a' (hostname) $PWD
+  end
+  __hi_marks_cwd
 end
 
 end

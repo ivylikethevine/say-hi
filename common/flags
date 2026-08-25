@@ -1,0 +1,22 @@
+# hi's own flags, one row each: <flag>|<needs>|<script var>|<first arg>|<help>
+#
+# The one place they are spelled. hi.sh reads it to dispatch (a row with a
+# script var execs ${!var} with the arg first; the rest are hi.sh's own case
+# arms) and to print --help; common/targets.sh reads it so `hi --<TAB>` offers
+# the same list. <needs> is what a flag wants that the payload does not carry:
+# `-` for nothing (works in a session), `scripts` for scripts/ (a package ships
+# it, a session does not), `tests` and `git` for tests/ and .git (neither a
+# package nor a session has those). docs/hi.1 is the long form and is
+# drift-checked against this by tests/hi/parse_test.sh.
+--help|-|||this text
+--version|-|||the version: stamped at packaging time, or git describe
+--packages-preview|-|||the package-priority legend, as the header prints it
+--doctor|scripts|_HI_DOCTOR||[target] a read-only pre-flight report: the tree, the overlay, every backend probed, and with a target, what it resolves to
+--install|scripts|_HI_INSTALL||install or repair say-hi's lines in your shell rc files
+--uninstall|scripts|_HI_INSTALL|--uninstall|take those lines back out again
+--configure|scripts|_HI_INSTALL|--features-only|revisit the feature toggles, leaving the rc wiring be
+--check-configs|scripts|_HI_INSTALL|--check-configs|re-run just the shell rc syntax validation
+--overlay-init|scripts|_HI_INSTALL|--overlay-init|make the config overlay a git repo, in place
+--color-preview|scripts|_HI_COLOR_PREVIEW||what every ssh host and your user resolve to, in color
+--update|git|||git pull in the say-hi checkout (needs its .git)
+--test|tests|_HI_TEST_RUN||run the test suite (needs the full checkout)

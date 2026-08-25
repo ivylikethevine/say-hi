@@ -215,6 +215,31 @@ function test_container_cmds_pick_the_inner_unit() {
   return 1
 }
 
+# The kube prefixes: `namespace:pod` and `context:namespace:pod`, with or
+# without a `/container`, each landing as kubectl's own flags ahead of `exec`.
+function test_kube_prefixes_become_kubectl_flags() {
+  local -a probe cp attach
+  local DOMAIN
+
+  DOMAIN=staging:web
+  _hi_container_cmds kube
+  case "${attach[*]}" in
+  "kubectl --namespace staging exec -it web --") ;;
+  *)
+    _hi_cecho " | namespace:pod gave '${attach[*]}'" "$RED"
+    return 1
+    ;;
+  esac
+
+  DOMAIN=prod:staging:web/sidecar
+  _hi_container_cmds kube
+  case "${attach[*]}" in
+  "kubectl --context prod --namespace staging exec -it web -c sidecar --") return 0 ;;
+  esac
+  _hi_cecho " | context:namespace:pod/container gave '${attach[*]}'" "$RED"
+  return 1
+}
+
 # The one arm of the dispatch block that has to be *executed* rather than
 # sourced: sourcing hi.sh stops at the BASH_SOURCE guard, which is above the
 # `case "${1:-}"`. So these run the real launcher as a subprocess, with an ssh
@@ -546,6 +571,7 @@ function run_hi_parse_tests() {
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
   _hi_check "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
+  _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
 
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout

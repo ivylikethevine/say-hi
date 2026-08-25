@@ -51,10 +51,15 @@ case "$1 $2" in
 esac
 EOF
 
+  # `get pods -A` rows are "<namespace> <pod> [containers...]"; `config view`
+  # answers the current namespace, so pod-c should come back prefixed
   cat >"$dir/kubectl" <<'EOF'
 #!/bin/sh
-[ "$1" = get ] || exit 1
-printf 'pod-a\npod-b\n'
+case "$1" in
+config) printf 'default' ;;
+get) printf 'default pod-a\ndefault pod-b\nother pod-c\n' ;;
+*) exit 1 ;;
+esac
 EOF
 
   for tool in docker podman nomad kubectl; do
@@ -97,7 +102,7 @@ EOF
 printf 'kube start\n' >>"$_HI_PROBE_LOG"
 sleep 0.3
 printf 'kube end\n' >>"$_HI_PROBE_LOG"
-printf 'slow-pod\n'
+printf 'default slow-pod\n'
 EOF
 
   cat >"$dir/nomad" <<'EOF'
@@ -241,7 +246,8 @@ function test_nomad_kind_lists_running_allocs() {
 function test_kube_kind_lists_running_pods() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" kube)"
-  _hi_has_row "$out" pod-a kube && _hi_has_row "$out" pod-b kube
+  _hi_has_row "$out" pod-a kube && _hi_has_row "$out" pod-b kube &&
+    _hi_has_row "$out" other:pod-c kube
 }
 
 # The fan-out itself. Three backends that take 0.3s each: started together the
@@ -530,7 +536,7 @@ function test_flags_drop_what_a_package_lacks() {
   local tree="$_HI_WORKDIR/pkgtree" out flag
   rm -rf "$tree"
   mkdir -p "$tree/common" "$tree/scripts"
-  cp "$_HI_ROOT/common/targets.sh" "$tree/common/targets.sh"
+  cp "$_HI_ROOT/common/targets.sh" "$_HI_ROOT/common/flags" "$tree/common/"
   out="$(sh "$tree/common/targets.sh" flags)"
   for flag in --test --update; do
     case $'\n'"$out"$'\n' in
