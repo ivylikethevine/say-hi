@@ -143,7 +143,7 @@ function test_zsh_resolves_the_nested_tree() {
 }
 
 function test_fish_resolves_the_nested_tree() {
-  _hi_loc_shell fish 'printf %s "$_HI_ROOT"'
+  _hi_strip_ansi "$(_hi_loc_shell fish 'printf %s "$_HI_ROOT"')"
 }
 
 # sh has no rc of its own to wire up - it reaches paths.sh directly, told where
@@ -163,7 +163,7 @@ function test_zsh_has_his_prompt() {
 }
 
 function test_fish_has_his_prompt() {
-  [ "$(_hi_loc_shell fish 'functions -q fish_prompt; and echo yes')" = yes ]
+  [ "$(_hi_strip_ansi "$(_hi_loc_shell fish 'functions -q fish_prompt; and echo yes')")" = yes ]
 }
 
 # _hi_loc_header <shell> <script> - the banner, as that shell reaches it. The
