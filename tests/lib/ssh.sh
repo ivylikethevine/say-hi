@@ -146,6 +146,15 @@ function _hi_post_check() {
 # shells, install_methods_test.sh across the ways say-hi gets onto a target - so
 # the `<&3` contract below is stated once. $_HI_SSH_CASE_PREFIX names the
 # containers, so two suites running at once cannot collide on one.
+#
+# Two more knobs ride in the environment rather than the argument list, since
+# one case in one suite wants them and every other call site would carry two
+# empty slots: $_HI_SSH_RUN_ARGS is word-split into `docker run` ahead of the
+# image (`--cpus 0.1 --memory 64m`, say), and $_HI_SSH_SHAPE_CMD is run inside
+# the container, as root, once sshd answers and before the session starts -
+# after, so the reachability poll is not itself made against the shaped link.
+# A shaping command that fails is a failed case: a starved target that was
+# not actually starved proves nothing, and says so here rather than passing.
 function _hi_run_case() {
   local label="$1" image="$2" login_shell="$3" cmd="$4" post="${5:-}" name exit_code=0 t0 t1 ok=0
   # the container's mapped port, owned by this case: _hi_sshd_container assigns
@@ -157,7 +166,17 @@ function _hi_run_case() {
   _hi_h3 "Testing login shell: $label ($login_shell)"
   t0="$(_hi_now)"
 
-  _hi_sshd_container "$name" "$image" -e "LOGIN_SHELL=$login_shell" || return 1
+  # shellcheck disable=SC2086 # the run args are a flag list, split on purpose
+  _hi_sshd_container "$name" "$image" -e "LOGIN_SHELL=$login_shell" ${_HI_SSH_RUN_ARGS:-} || return 1
+  if [ -n "${_HI_SSH_SHAPE_CMD:-}" ]; then
+    _hi_cecho " | Shaping: $_HI_SSH_SHAPE_CMD"
+    if ! docker exec "$name" sh -c "$_HI_SSH_SHAPE_CMD" >"$_HI_WORKDIR/$label.shape.log" 2>&1; then
+      _hi_dump_log "Shaping the target failed (no netem on this kernel?):" "$_HI_WORKDIR/$label.shape.log"
+      _hi_note_failure "[$label] could not shape the target"
+      _hi_rm_container "$name"
+      return 1
+    fi
+  fi
 
   _hi_cecho " | Running: $_HI_LAUNCHER -p $_HI_SSH_PORT hitest@127.0.0.1 $cmd"
   _hi_ssh_launch "$_HI_SSH_PORT"

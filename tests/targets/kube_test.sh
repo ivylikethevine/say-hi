@@ -168,7 +168,7 @@ function _hi_kube_namespace_case() {
     return 1
   fi
   _hi_exec_case ns "kube path (namespace:pod)" "$_HI_TEST_MARKER" 90 \
-    "$ns:$name" "$(_hi_probe_cmd "$_HI_TEST_MARKER" sh)" && ok=1
+    "$ns:$name" "$(_hi_probe_cmd "$_HI_TEST_MARKER" fallback)" && ok=1
   kubectl delete namespace "$ns" --now >/dev/null 2>&1
   [ "$ok" -eq 1 ]
 }

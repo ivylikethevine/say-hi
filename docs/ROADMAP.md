@@ -336,15 +336,6 @@ satisfy on the way out.
       when:** the line shows under a tmux with passthrough off and nowhere
       else, with a `header_test.sh` case each way.
 
-- [ ] **`--check-configs` checks the overlay too** — _scope: two syntax
-      checks the installer already knows how to run; in-repo._ A user's
-      `aliases.sh` overlay is sourced by bash, zsh _and_ fish on every target,
-      in the POSIX+fish subset — and nothing warns when it steps outside it,
-      so it breaks on the first fish-only target instead. Run `sh -n` and
-      `fish --no-execute` over the overlay files `$_HI_OVERLAY_FILES` will
-      ship. **Ticks when:** an overlay with an `if` in `aliases.sh` is
-      reported before it is shipped.
-
 - [ ] **`hi --doctor --json`** — _scope: a second output mode for a script
       that already gathers everything; in-repo._ Doctor has every probe
       timing and the resolved backend; a stable machine-readable form is

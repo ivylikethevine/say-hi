@@ -152,7 +152,9 @@ that is completion behaving normally, not the GIF cut short.
   depth, terminal width, and whether hi styles this machine too — without
   touching the rc wiring. Most questions preview their answer; answers land in
   `~/.config/say-hi/settings.sh` (see [Configuration](#configuration)).
-- `hi --check-configs` re-runs just the rc validation.
+- `hi --check-configs` re-runs just the rc validation, and parses the overlay's
+  shell files too (`aliases.sh` under both `sh` and `fish`, since every target
+  sources it in whichever shell it lands in).
 - `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
   on `hi --configure` commits its own writes. Optional — see
   [docs/CONFIGURATION.md](docs/CONFIGURATION.md).

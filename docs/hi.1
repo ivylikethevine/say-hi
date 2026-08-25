@@ -133,7 +133,9 @@ out again.
 revisit the feature toggles only, leaving the rc wiring alone.
 .TP
 .B \-\-check\-configs
-re\-run just the shell rc syntax validation, without the rest of the install.
+re\-run just the syntax validation, without the rest of the install: the
+shell rc files, and the overlay's own shell files (\fBaliases.sh\fR under both
+\fBsh\fR and \fBfish\fR, since a target sources it in whichever it has).
 .TP
 .B \-\-overlay\-init
 make the config overlay at
