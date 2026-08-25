@@ -35,14 +35,14 @@ export _HI_EXA_BIN="$(command -v exa || command -v eza || command -v ls)"
 export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)"
 
 # off on _HI_DISABLE_EDITORS=1; `|| true` keeps set -e sourcers alive
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
+[ -f "$_HI_CONFIG_DIR/nano.rc" ] && [ "$_HI_DISABLE_EDITORS" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
 # this ladder is spelled a second time in scripts/install.sh's
 # _hi_editors_preview, which shows what `vim` will resolve to before the
 # toggle is answered. It cannot share this one: install.sh does not source
 # aliases.sh (that would define every alias in a config run) and this file is
 # parsed by fish, so it cannot call a core.sh helper either. Fix one, fix
 # both - alias_fallthrough_test.sh pins them together.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
+[ -f "$_HI_CONFIG_DIR/vim.rc" ] && [ "$_HI_DISABLE_EDITORS" != 1 ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
 
 # stdin -> the client's clipboard (common/osc52.sh). The `[ -f ]` earns its
 # place: the container fallback ships this file without paths.sh, where an

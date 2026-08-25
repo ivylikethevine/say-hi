@@ -15,6 +15,7 @@
 asdf:5
 direnv:5
 sshpass:5
+
 # 4: hidden installed, yellow missing - the tools any working box has, hi's
 #    own dependencies among them. A healthy target says nothing here; a bare
 #    one says exactly what it is missing
@@ -43,6 +44,7 @@ gpg:4
 scp:4
 rsync:4
 ffmpeg:4
+
 # 3: bright green installed, bright yellow missing - favorites, which is where
 #    the "you meant to install this here" nudge lands
 eza:3,exa:3,lsd:3
@@ -55,6 +57,7 @@ nomad:3
 python3:3,python2:3,python:3
 tldr:3,man:2
 act:3
+
 # 2: green installed, yellow missing - system and package tools
 # One line per *question*, not per tool, wherever the answers are mutually
 # exclusive: check_line renders the first name on the line that resolves, so
@@ -74,6 +77,7 @@ flatpak:2,snap:2,nix:2,appimage:2
 sshfs:2
 sshm:2
 nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2
+
 # 1: bright cyan installed, bright magenta missing - optional extras
 golang:1,go:1
 scc:1,cloc:1
@@ -93,10 +97,12 @@ navi:1
 hyperfine:1
 pv:1
 progress:1
+
 # 0: blue installed, bright blue missing - platform-specific or trivia. The
 #    bottom tier, and the one the shipped floor of 1 already leaves out: a
 #    Linux box does report `sw_vers` missing now, and $_HI_PACKAGES_MIN_PRIORITY
 #    of 0 is how you say you wanted to hear about it after all
+
 rust:0,rustc:4,rustup:4
 pip:0,pyenv:0,pyvenv:0
 n:0,npx:0,npm:0,nvm:0,node:0
@@ -112,6 +118,7 @@ envrc:0
 
 
 # complementary packages
+
 kitty:0
 wezterm:0
 yadm:0
@@ -127,6 +134,7 @@ yakuake:0
 guake:0
 homeshick:0
 sshrc:0
+shelly:0
 
 # --- what hi itself runs -----------------------------------------------------
 # Everything below is used by hi's own code (the payload, scripts/ and the test
@@ -171,6 +179,7 @@ ssh-keygen:4
 gzip:4
 od:4
 stty:4
+
 # probed for, and hi carries on without them - but the session is worse for it:
 # an unbounded backend probe, or a "?" where the header's system info should be
 # The same grouping rule as the package managers above, for the same reason:
@@ -179,6 +188,7 @@ stty:4
 # had - so each is paired with what answers the same question there. hi already
 # falls back at runtime (`timeout` is optional in common/targets.sh, and the
 # header's CPU line degrades to "?"), and the check should say the same thing.
+
 timeout:4,gtimeout:4
 lscpu:4,nproc:4,sysctl:4
 df:4
@@ -189,12 +199,14 @@ stat:4
 # answer the same question, and no machine has two of them. sw_vers first so
 # macOS reports the macOS-only name, wmic next for Windows, sysctl last as the
 # one everything else answers with.
+
 sw_vers:0,wmic:0,sysctl:0
 lesspipe:0
 
 # --- what the test suite and the release workflow run ------------------------
 # Dev-machine tooling. Every suite that needs one of these skips cleanly when it
 # is missing, so none of them is ever worth a warning on a target.
+
 shellcheck:0
 shfmt:0
 checkbashisms:0
