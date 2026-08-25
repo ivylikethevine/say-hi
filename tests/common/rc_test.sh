@@ -55,13 +55,13 @@ function test_bash_registers_hi_completion() {
 
 # What this case is really for: common/bash.sh's `source "$_HI_ALIASES"` line
 # actually reaching the alias chain in a real bash. It asserts the four aliases
-# settings/aliases.sh installs *itself* - hi_copy and hi_notify are hi's own,
-# vim and nano the editor-rc wrappers - because those are the product half, the
-# one _HI_DISABLE_ALIASES does not touch, so they are stable by contract rather
-# than by taste. It used to name `grep` and `mindiff` instead, and 8c5570a
-# retired both while removing personal aliases for the first release: the case
-# went red with nothing in the chain wrong. Nothing here depends on a binary
-# being installed - all four are defined by the file, not resolved from PATH.
+# hi installs on its own account - hi_copy and hi_notify are hi's, vim and nano
+# the editor-rc wrappers - rather than any of the convenience aliases below them
+# in the file, because these four are named by a toggle apiece and so are stable
+# by contract. It used to name `grep` and `mindiff` instead, and 8c5570a retired
+# both while removing personal aliases for the first release: the case went red
+# with nothing in the chain wrong. Nothing here depends on a binary being
+# installed - all four are defined by the file, not resolved from PATH.
 function test_bash_defines_key_aliases() {
   _hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
@@ -70,19 +70,22 @@ function test_bash_defines_key_aliases() {
      done'
 }
 
-# ...and that the chain carries on into settings/personal.sh, which is one
-# person's taste and is being retired entry by entry. Sampled from the file
-# rather than spelled here, on alias_test.sh's precedent and for the reason
-# above: a name written into this suite goes stale the next time one is
-# dropped. An empty sample is not a failure - it is what finishing that removal
-# looks like - so it reports and passes, and this case can be deleted with the
-# last alias in the file.
-function test_bash_sources_personal_aliases() {
+# ...and that the chain carries on past those four into the convenience set -
+# sudo, the cat/bat and ls/eza families - which used to be a settings/personal.sh
+# of its own and is now the tail of settings/aliases.sh. Sampled from the file
+# rather than spelled here, on alias_test.sh's precedent: those names are still
+# being retired entry by entry, and one written into this suite goes stale the
+# next time one is dropped. The unguarded `alias` lines are exactly that tail -
+# everything above it is defined behind a `[ ... ] &&` test, not at column 0.
+# An empty sample is not a failure - it is what finishing that removal looks
+# like - so it reports and passes, and this case can be deleted with the last
+# alias in the file.
+function test_bash_sources_the_convenience_aliases() {
   local sample
-  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/settings/personal.sh" |
+  sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/settings/aliases.sh" |
     sed -E 's/^alias +//; s/=$//' | tr '\n' ' ')"
   [ -n "$sample" ] || {
-    _hi_cecho " | settings/personal.sh defines no aliases left to sample" "$BLUE"
+    _hi_cecho " | settings/aliases.sh defines no unguarded aliases left to sample" "$BLUE"
     return 0
   }
   _hi_rc_shell xterm-256color bash \
@@ -327,59 +330,47 @@ function test_fish_config_dir_explicit_value_wins() {
   [ "$out" = "$base/shipped" ]
 }
 
-# --- the personal blocks, now their own overridable files --------------------
+# --- the per-shell override files -------------------------------------------
 #
-# Each shell's taste (history sizing, keybindings, completion and color styling)
-# moved out of the shipped rc into common/<shell>_personal.*, on
-# settings/personal.sh's precedent. The user's own copy keeps the *shell file's*
-# basename (bash.sh, zsh.zsh, config.fish) - what it extends, not where hi's
-# defaults happen to live. Three things have to stay true per shell, and
-# the third is the one the split exists for: hi's defaults load, the toggle
-# turns *those* off, and the user's own copy in $_HI_CONFIG_DIR is sourced after
-# and wins - including when the toggle is on, because the toggle is about hi's
-# taste, not the user's.
+# hi used to ship one person's taste per shell - history sizing, keybindings,
+# completion and color styling - in settings/<shell>_personal.* behind
+# $_HI_DISABLE_PERSONAL. Those files and that toggle are gone, and what is left
+# is the hook they were built against: the user's own file in $_HI_CONFIG_DIR,
+# named for the *shell file* it extends (bash.sh, zsh.zsh, config.fish) rather
+# than for where hi's defaults used to live.
 #
-# <shell>|<user file>|<probe script>|<shipped value>|<user line>|<user value>
-_HI_PERSONAL_ROWS=(
-  'bash|bash.sh|source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|2|PROMPT_DIRTRIM=9|9'
-  'zsh|zsh.zsh|source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|.zsh_history|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
-  'fish|config.fish|source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s "$fish_color_command"|blue|set -gx fish_color_command magenta|magenta'
+# Two things have to stay true per shell, and the second is why the first is
+# worth asserting: hi ships no default of its own for these settings any more,
+# and the user's file is sourced and applies. The empty case is the regression
+# guard on the removal - a preference creeping back into a shipped rc shows up
+# here as a non-empty probe.
+#
+# <shell>|<user file>|<probe script>|<user line>|<user value>
+_HI_SHELL_OVERRIDE_ROWS=(
+  'bash|bash.sh|source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
+  'zsh|zsh.zsh|source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HISTFILE:-}"|HISTFILE=/tmp/hi.sentinel|/tmp/hi.sentinel'
+  'fish|config.fish|source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
 )
 
 # the probe for one row, with the user's file present only when $2 says so
-function _hi_personal_probe() {
-  local row="$1" want_user="$2" toggle="$3"
-  local shell file script shipped line value
-  IFS='|' read -r shell file script shipped line value <<<"$row"
+function _hi_shell_override_probe() {
+  local row="$1" want_user="$2"
+  local shell file script line value
+  IFS='|' read -r shell file script line value <<<"$row"
   rm -f "$_HI_WORKDIR/cfg/$file"
   [ "$want_user" = yes ] && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
-  _hi_rc_shell xterm-256color "$shell" "$script" _HI_DISABLE_PERSONAL="$toggle"
+  _hi_rc_shell xterm-256color "$shell" "$script"
 }
 
-function test_personal_defaults_load() {
-  local row="$1" shell file script shipped
-  IFS='|' read -r shell file script shipped _ _ <<<"$row"
-  case "$(_hi_personal_probe "$row" no 0)" in *"$shipped"*) return 0 ;; esac
-  return 1
+# No user file, so nothing should answer: the shipped rc sets none of these.
+function test_shell_ships_no_preference_default() {
+  [ -z "$(_hi_shell_override_probe "$1" no)" ]
 }
 
-function test_personal_toggle_turns_them_off() {
-  [ -z "$(_hi_personal_probe "$1" no 1)" ]
-}
-
-function test_personal_user_file_wins() {
-  local row="$1" shell file script shipped line value
-  IFS='|' read -r shell file script shipped line value <<<"$row"
-  [ "$(_hi_personal_probe "$row" yes 0)" = "$value" ]
-}
-
-# The toggle is hi's taste, not yours - so a user file still applies with it on.
-# This is the half that would silently regress if the guard were folded into the
-# same condition as the shipped source.
-function test_personal_user_file_survives_the_toggle() {
-  local row="$1" shell file script shipped line value
-  IFS='|' read -r shell file script shipped line value <<<"$row"
-  [ "$(_hi_personal_probe "$row" yes 1)" = "$value" ]
+function test_shell_user_file_applies() {
+  local row="$1" shell file script line value
+  IFS='|' read -r shell file script line value <<<"$row"
+  [ "$(_hi_shell_override_probe "$row" yes)" = "$value" ]
 }
 
 function run_rc_tests() {
@@ -396,24 +387,20 @@ function run_rc_tests() {
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "Key aliases are defined" test_bash_defines_key_aliases
-  _hi_check "The personal aliases land too" test_bash_sources_personal_aliases
+  _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
 
-  _hi_h2 "Testing: the personal blocks as overridable files"
+  _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh
-  for _hi_row in "${_HI_PERSONAL_ROWS[@]}"; do
+  for _hi_row in "${_HI_SHELL_OVERRIDE_ROWS[@]}"; do
     _hi_sh="${_hi_row%%|*}"
-    _hi_check_requires "$_hi_sh" "[$_hi_sh] hi's defaults load" \
-      test_personal_defaults_load "$_hi_row"
-    _hi_check_requires "$_hi_sh" "[$_hi_sh] _HI_DISABLE_PERSONAL turns them off" \
-      test_personal_toggle_turns_them_off "$_hi_row"
-    _hi_check_requires "$_hi_sh" "[$_hi_sh] the user's own file wins" \
-      test_personal_user_file_wins "$_hi_row"
-    _hi_check_requires "$_hi_sh" "[$_hi_sh] the user's file survives the toggle" \
-      test_personal_user_file_survives_the_toggle "$_hi_row"
+    _hi_check_requires "$_hi_sh" "[$_hi_sh] hi ships no preference of its own" \
+      test_shell_ships_no_preference_default "$_hi_row"
+    _hi_check_requires "$_hi_sh" "[$_hi_sh] the user's own file applies" \
+      test_shell_user_file_applies "$_hi_row"
   done
 
   _hi_h2 "Testing: starship deference (_HI_PROMPT=starship)"

@@ -182,15 +182,12 @@ function _hi_run_scenario() {
   fi
 
   t0="$(_hi_now)"
-  # $_HI_ROOT is what aliases.sh resolves settings/personal.sh through - the same
-  # variable its overlay-source tail already uses, and the only answer three
-  # dialects share (sh and fish have no $BASH_SOURCE). Without it here the
-  # personal half is simply absent and every _HI_DISABLE_ALIASES=0 case fails
-  # on a missing `sudo`.
+  # $_HI_ROOT is what aliases.sh resolves its overlay-source tail through, and
+  # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
-    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" _HI_DISABLE_ALIASES="${_HI_DISABLE_ALIASES:-0}" \
+    _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
@@ -207,7 +204,7 @@ function run_fallthrough_tests() {
   local var last mid installed expect fakepath shell
 
   # BAT_REAL is the one chain here with no floor: it is deliberately empty when
-  # nothing in it is installed, which is what settings/personal.sh gates the
+  # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
   for var in EDITOR_BIN:"nano micro pico vim vi" BATCAT_BIN:"bat batcat ccat cat" BAT_REAL:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
@@ -229,19 +226,27 @@ function run_fallthrough_tests() {
   done
 }
 
+# _HI_DISABLE_ALIASES used to be the second half of this: it gated `sudo` and
+# $EDITOR in a settings/personal.sh of their own, so the table was a 2x2 over
+# both toggles. That file and that toggle are gone - the convenience aliases are
+# now the tail of settings/aliases.sh and unconditional - so `sudo` and $EDITOR
+# are asserted *present* on both rows. They stay in the table rather than being
+# dropped from it: they are the cheapest pin on the merged tail being reached at
+# all in three dialects, and the shape that would regress is one of them
+# quietly acquiring a guard.
 function run_flag_tests() {
-  _hi_h1 "_HI_DISABLE_EDITORS / _HI_DISABLE_ALIASES guards"
+  _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_flags vi)"
 
-  for combo in "0 0 1 1 1" "1 0 0 1 1" "0 1 1 0 0" "1 1 0 0 0"; do
-    # shellcheck disable=SC2086 # fixed 5-field combo, splitting is intended
+  for combo in "0 1 1 1" "1 0 1 1"; do
+    # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
     set -- $combo
-    local de="$1" da="$2" want_nano="$3" want_sudo="$4" want_editor="$5"
+    local de="$1" want_nano="$2" want_sudo="$3" want_editor="$4"
     for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_EDITORS="$de" _HI_DISABLE_ALIASES="$da" \
+      _HI_DISABLE_EDITORS="$de" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_EDITORS=$de _HI_DISABLE_ALIASES=$da" \
+        "_HI_DISABLE_EDITORS=$de" \
         _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_EDITOR_SET="$want_editor"
     done
   done

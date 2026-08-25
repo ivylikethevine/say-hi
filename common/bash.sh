@@ -151,14 +151,6 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
 fi
 # === end required configuration ===
 
-# hi's own preferences, in their own file so a client that does not want them
-# does not ship them (hi.sh trims it under this toggle). The user's copy comes
-# after and is NOT gated: the toggle turns off *hi's* taste, not yours - the
-# same split settings/aliases.sh makes for settings/personal.sh.
-# shellcheck source=../settings/bash_personal.sh
-[[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/settings/bash_personal.sh" ]] &&
-  source "$_HI_ROOT/settings/bash_personal.sh"
-
 # The guard is settings/aliases.sh's: $_HI_CONFIG_DIR pointed at common/ would make
 # this file source itself forever, and a hang is worse than an error.
 #

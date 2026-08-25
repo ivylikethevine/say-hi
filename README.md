@@ -14,7 +14,7 @@ This is a hobby project.
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/macos-e2e.yml?branch=main&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/macos-e2e.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
-![ssh payload](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
+![ssh payload](https://img.shields.io/badge/ssh_payload-44KB_per_session-4c1)
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
 [![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
@@ -155,7 +155,7 @@ normally, not the GIF cut short.
   continue if any have issues
 - reload your shell!
 - run `hi --configure` any time afterward to revisit the feature toggle
-  prompts — header, prompt, personal settings, git status, editors, aliases,
+  prompts — header, prompt, git status, editors, clipboard, notifications,
   header details, how much of the package check to show, terminal width, and
   whether hi styles this machine too or only the hosts you say `hi` to —
   without touching the shell rc wiring. Most questions preview their answer;
@@ -210,9 +210,9 @@ Usage: `hi foo` (just like ssh!)
 Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
 say `hi` to in its own small archive — `colors` and `packages` overlay the
-tree's copies one file at a time, `aliases.sh` and `personal.sh` add to them,
-and a `bash.sh`/`zsh.zsh`/`config.fish` there is sourced after hi's own
-per-shell preferences so yours win. `settings.sh` (what `hi --configure`
+tree's copies one file at a time, `aliases.sh` adds to the shipped alias set,
+and a `bash.sh`/`zsh.zsh`/`config.fish` there is sourced at the end of hi's own
+per-shell rc so yours win. `settings.sh` (what `hi --configure`
 writes) has no in-tree counterpart at all. The full
 picture — the overlay file table, every `_HI_DISABLE_*` feature toggle, the
 header-line toggles, and every other

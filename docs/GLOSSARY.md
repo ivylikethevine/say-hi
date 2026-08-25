@@ -166,7 +166,7 @@ alive when nothing matches.
 
 A second, **narrower** chain over the same family is how flags reach only the
 tier that parses them: `$_HI_BAT_REAL` is `bat || batcat` where `$_HI_BATCAT_BIN`
-is `bat || batcat || ccat || cat`, so `settings/personal.sh` can attach
+is `bat || batcat || ccat || cat`, so the same file can attach
 bat-syntax options behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and
 leave ccat and coreutils `cat` - neither of which parses them - the bare
 binary.

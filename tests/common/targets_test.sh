@@ -363,7 +363,7 @@ function test_absent_backends_leave_only_ssh_rows() {
 # off everything except the completion itself, which sits outside all of them.
 function _hi_completions_for() {
   PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
-    _HI_DISABLE_ALIASES=1 _HI_DISABLE_PERSONAL=1 _HI_DISABLE_PROMPT=1 \
+    _HI_DISABLE_PROMPT=1 \
     bash -c '
       # shellcheck source=../../common/bash.sh
       source "$_HI_BASHRC"
@@ -423,7 +423,7 @@ exec $(command -v sh) "\$@"
 EOF
   chmod +x "$dir/sh"
   PATH="$dir:$_HI_SHIM_PATH" _HI_TARGETS_TTL="$1" \
-    _HI_DISABLE_ALIASES=1 _HI_DISABLE_PERSONAL=1 _HI_DISABLE_PROMPT=1 \
+    _HI_DISABLE_PROMPT=1 \
     bash -c '
       # shellcheck source=../../common/bash.sh
       source "$_HI_BASHRC"
@@ -441,7 +441,7 @@ EOF
 function test_complete_still_answers_from_the_cache() {
   local out
   out="$(
-    PATH="$_HI_SHIM_PATH" _HI_DISABLE_ALIASES=1 _HI_DISABLE_PERSONAL=1 _HI_DISABLE_PROMPT=1 \
+    PATH="$_HI_SHIM_PATH" _HI_DISABLE_PROMPT=1 \
       bash -c '
         source "$_HI_BASHRC"
         COMP_WORDS=(hi "")

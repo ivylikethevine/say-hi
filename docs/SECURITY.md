@@ -31,7 +31,7 @@ trust boundaries sit, and how to report what slipped through.
   `hi.sh` is in that list so a session can say `hi` onward from the
   target. Your overlay is a second, smaller allow list -
   `$_HI_OVERLAY_FILES`, also in `hi.sh` (`settings.sh`, `colors`,
-  `packages`, `personal.sh`, `aliases.sh`, `bash.sh`, `zsh.zsh`,
+  `packages`, `aliases.sh`, `bash.sh`, `zsh.zsh`,
   `config.fish` from `~/.config/say-hi/`) - so anything else sharing that
   directory stays on the client.
 - **base64 is armor, not crypto.** The payload is base64-encoded so it

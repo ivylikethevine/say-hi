@@ -195,8 +195,6 @@ Configuration lives outside the tree, in
 .BR colors ,
 .BR packages ,
 additive
-.B personal.sh
-and
 .BR aliases.sh ,
 and per-shell
 .BR bash.sh ,
@@ -206,7 +204,7 @@ and
 written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
-variable toggle \- header, prompt, git status, aliases, editors \- each on
+variable toggle \- header, prompt, git status, editors, clipboard \- each on
 by default and tabulated in
 .IR docs/CONFIGURATION.md .
 The tree itself can be
@@ -225,7 +223,7 @@ feature toggles, written by
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
 .TP
-.B ~/.config/say-hi/personal.sh, ~/.config/say-hi/aliases.sh
+.B ~/.config/say-hi/aliases.sh
 your own aliases, sourced after the shipped set so yours win.
 .TP
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish

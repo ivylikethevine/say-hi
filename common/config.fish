@@ -11,9 +11,8 @@ end
 # GLOSSARY: HI.07 - defaulted, never assigned, so bare reads are
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
-    _HI_DISABLE_PROMPT _HI_DISABLE_PERSONAL _HI_DISABLE_GIT_STATUS \
-    _HI_DISABLE_EDITORS _HI_DISABLE_ALIASES _HI_DISABLE_OSC52 \
-    _HI_DISABLE_NOTIFY
+    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -180,19 +179,10 @@ end
 end
 # === end required configuration ===
 
-# hi's own preferences, in their own file - see settings/fish_personal.fish. The
-# user's copy comes after and is NOT gated: the toggle turns off *hi's* taste,
-# not yours.
-if test "$_HI_DISABLE_PERSONAL" != 1; and test -f $_HI_ROOT/settings/fish_personal.fish
-  source $_HI_ROOT/settings/fish_personal.fish
-end
-
-# NOT in fish_personal.fish, though it sits behind the same toggle: this is
-# hi's git segment, the fish half of what common/git_prompt.sh does for bash and
-# zsh, and tests/hi/prompt_test.sh pins its glyphs and colors against core.sh.
-# Product, not taste - so it stays in the shipped rc where that pin can find it.
-if test "$_HI_DISABLE_PERSONAL" != 1
-# git prompt, matched by common/git_prompt.sh for bash & zsh
+# hi's git segment: the fish half of what common/git_prompt.sh does for bash
+# and zsh, and tests/hi/prompt_test.sh pins its glyphs and colors against
+# core.sh. Product, not taste, so it is unconditional - it used to ride
+# $_HI_DISABLE_PERSONAL, which no longer exists.
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes
@@ -221,7 +211,6 @@ if test "$_HI_ASCII" = 1
     set -g __fish_git_prompt_char_untrackedfiles '?'
     set -g __fish_git_prompt_char_stashstate '$'
     set -g __fish_git_prompt_char_cleanstate 'ok'
-end
 end
 
 # see common/bash.sh for why the paths are compared before sourcing

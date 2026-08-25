@@ -25,20 +25,16 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 #
 # The rest are files shellcheck *does* read - as sh or bash - that another shell
 # also sources for real, so they have to parse in both. settings/aliases.sh and
-# common/paths.sh (and settings/personal.sh, which aliases.sh sources) are what fish reads directly, and the failure mode there
+# common/paths.sh are what fish reads directly, and the failure mode there
 # is silent: a perfectly good `${X:-0}` is a fish parse error that aborts the
 # whole file, taking every alias (or every path) with it. zsh reaches
 # common/core.sh, common/git_prompt.sh and both of those through common/zsh.zsh.
 _HI_NATIVE_LINT=(
   "common/zsh.zsh:zsh:-n"
-  "settings/zsh_personal.zsh:zsh:-n"
   "common/config.fish:fish:--no-execute"
-  "settings/fish_personal.fish:fish:--no-execute"
   "settings/aliases.sh:fish:--no-execute"
-  "settings/personal.sh:fish:--no-execute"
   "common/paths.sh:fish:--no-execute"
   "settings/aliases.sh:zsh:-n"
-  "settings/personal.sh:zsh:-n"
   "common/paths.sh:zsh:-n"
   "common/core.sh:zsh:-n"
   "common/git_prompt.sh:zsh:-n"

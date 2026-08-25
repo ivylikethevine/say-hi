@@ -17,8 +17,8 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
-_HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT _HI_DISABLE_PERSONAL
-  _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS _HI_DISABLE_ALIASES
+_HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
+  _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
   _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
@@ -241,9 +241,9 @@ function test_settings_point_at_the_overlay_before_it_exists() {
 
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs a local
 # override guard in paths.sh - except settings.sh (unguarded by design: the
-# overlay is its only home) and the five additive ones, which each shell or
+# overlay is its only home) and the four additive ones, which each shell or
 # settings/aliases.sh sources by name from $_HI_CONFIG_DIR rather than reaching
-# through a path var: personal.sh, aliases.sh and the three per-shell files
+# through a path var: aliases.sh and the three per-shell files
 # (bash.sh, zsh.zsh, config.fish). A missed
 # guard fails asymmetrically: the file works on targets but local sessions
 # ignore the override - the same silent drift the toggle-gate pin above
@@ -254,7 +254,7 @@ function test_overlay_guards_match_the_roster() {
   [ -n "$roster" ] || return 1
   while IFS= read -r f; do
     case "$f" in
-    settings.sh | personal.sh | aliases.sh) continue ;;
+    settings.sh | aliases.sh) continue ;;
     bash.sh | zsh.zsh | config.fish) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {

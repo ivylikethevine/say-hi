@@ -95,12 +95,6 @@ compdef _hi hi
 (( ${+_comps[eza]} )) && compdef exa=eza
 # === end required configuration ===
 
-# hi's own preferences, in their own file - see settings/zsh_personal.zsh. The user's
-# copy comes after and is NOT gated: the toggle turns off *hi's* taste, not
-# yours.
-[[ "${_HI_DISABLE_PERSONAL:-0}" != 1 ]] && [[ -f "$_HI_ROOT/settings/zsh_personal.zsh" ]] &&
-  source "$_HI_ROOT/settings/zsh_personal.zsh"
-
 # see common/bash.sh for why the paths are compared before sourcing
 [[ "$_HI_CONFIG_DIR/zsh.zsh" != "$_HI_ROOT/common/zsh.zsh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/zsh.zsh" ]] && source "$_HI_CONFIG_DIR/zsh.zsh"

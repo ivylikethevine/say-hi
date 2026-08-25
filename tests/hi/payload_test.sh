@@ -89,60 +89,24 @@ function test_payload_trims_the_notifier() {
   return 1
 }
 
-# _HI_DISABLE_ALIASES cuts along the seam between the two alias files and not
-# through either: settings/personal.sh leaves the payload, settings/aliases.sh stays.
-# Both halves matter. aliases.sh installs the vim/nano and hi_copy
-# aliases above the source line, so trimming it would be a behaviour change
-# wearing a size saving's clothes; personal.sh is preference the target will
-# not read, so shipping it is bytes on the wire for nothing.
-function test_payload_trims_personal_but_keeps_aliases() {
-  local dir="$_HI_WORKDIR/noalias" listing
+# settings/aliases.sh is trimmed by nothing, and there is no longer a toggle
+# that could: the sudo/cat/ls preferences that used to sit in a
+# settings/personal.sh of their own now live in this file beside the vim/nano
+# and hi_copy aliases and fish's toggle backstop. Dropping it under any toggle
+# would take all of those with it - a behaviour change wearing a size saving's
+# clothes - so this asserts against every toggle at once rather than the one
+# that used to cut here.
+function test_payload_always_ships_aliases() {
+  local dir="$_HI_WORKDIR/alloff" listing t
   mkdir -p "$dir"
-  printf "#!/bin/sh\nexport _HI_DISABLE_ALIASES='1'\n" >"$dir/settings.sh"
+  printf '#!/bin/sh\n' >"$dir/settings.sh"
+  for t in "${_HI_TOGGLES[@]}"; do
+    printf "export %s='1'\n" "$t" >>"$dir/settings.sh"
+  done
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in
-  *say-hi/settings/personal.sh*)
-    _hi_cecho " | _HI_DISABLE_ALIASES=1 still shipped settings/personal.sh" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/settings/aliases.sh*) ;; *)
-    _hi_cecho " | _HI_DISABLE_ALIASES=1 dropped settings/aliases.sh, which still carries the editor and hi_copy aliases" "$RED"
-    return 1
-    ;;
-  esac
-  # and the default client ships both
-  listing="$(_hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/settings/personal.sh*) return 0 ;; esac
-  _hi_cecho " | a default client did not ship settings/personal.sh" "$RED"
+  case "$listing" in *say-hi/settings/aliases.sh*) return 0 ;; esac
+  _hi_cecho " | every toggle off dropped settings/aliases.sh, which carries the whole alias set" "$RED"
   return 1
-}
-
-# The toggle that used to trim nothing. Before the personal blocks moved into
-# their own files, _HI_DISABLE_PERSONAL=1 still shipped every bind, zstyle and
-# fish_color line to a target that would never read one; now it takes all three
-# files off the wire and leaves the rc files that source them alone.
-function test_payload_trims_the_personal_files() {
-  local dir="$_HI_WORKDIR/nopersonal" listing f
-  mkdir -p "$dir"
-  printf "#!/bin/sh\\nexport _HI_DISABLE_PERSONAL='1'\\n" >"$dir/settings.sh"
-  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  for f in bash_personal.sh zsh_personal.zsh fish_personal.fish; do
-    case "$listing" in *"say-hi/common/$f"*)
-      _hi_cecho " | _HI_DISABLE_PERSONAL=1 still shipped common/$f" "$RED"
-      return 1
-      ;;
-    esac
-  done
-  # the rc files that source them are not collateral
-  for f in bash.sh zsh.zsh config.fish; do
-    case "$listing" in *"say-hi/common/$f"*) ;; *)
-      _hi_cecho " | _HI_DISABLE_PERSONAL=1 took common/$f with it" "$RED"
-      return 1
-      ;;
-    esac
-  done
-  return 0
 }
 
 # The three per-shell overrides, which take the shell file's own basename so a
@@ -274,22 +238,13 @@ function test_overlay_tar_carries_only_what_exists() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ]
 }
 
-# the additive personal aliases ride the same stream under their bare name,
+# the user's own aliases ride the same stream under their bare name,
 # which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
 function test_overlay_tar_carries_aliases() {
   local dir
   dir="$(_hi_overlay_fixture withaliases aliases.sh)"
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "aliases.sh" ]
-}
-
-# The user's own personal.sh is sourced by settings/aliases.sh between the shipped
-# one and their aliases.sh, so it has to reach a target for that ordering to
-# mean anything there - it did not until it joined the roster.
-function test_overlay_tar_carries_personal() {
-  local dir
-  dir="$(_hi_overlay_fixture withpersonal personal.sh)"
-  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "personal.sh" ]
 }
 
 # Block padding, which is a bug in shipped behaviour on a supported client and
@@ -491,9 +446,8 @@ function run_hi_payload_tests() {
   _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
-  _hi_check "The toggle trims personal.sh and keeps aliases.sh" test_payload_trims_personal_but_keeps_aliases
   _hi_check "_HI_DISABLE_NOTIFY trims notify.sh only" test_payload_trims_the_notifier
-  _hi_check "_HI_DISABLE_PERSONAL trims the three shell files" test_payload_trims_the_personal_files
+  _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
@@ -509,7 +463,6 @@ function run_hi_payload_tests() {
   _hi_check "Members are bare names" test_overlay_tar_members_are_bare_names
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
-  _hi_check "the user's personal.sh rides the stream" test_overlay_tar_carries_personal
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster

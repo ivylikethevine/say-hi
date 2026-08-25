@@ -15,19 +15,20 @@
 # silence compare stderr. `-` not `:-`, so intentional empties survive.
 # GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_ALIASES="${_HI_DISABLE_ALIASES-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}"' 2>/dev/null || true
 
 # Resolved before any alias exists: once one is set, zsh/dash `command -v`
 # returns its definition and poisons later fallthrough chains.
 export _HI_EDITOR_BIN="$(command -v nano || command -v micro || command -v pico || command -v vim || command -v vi)"
 export _HI_BATCAT_BIN="$(command -v bat || command -v batcat || command -v ccat || command -v cat)"
 # The same family narrowed to bat itself, under either of its two names: this
-# is the tier that parses $_HI_BAT_OPTS, and it is the gate personal.sh attaches
-# them behind. Every other tier of the chain above rejects that syntax -
-# coreutils cat exits on the first one ("unrecognized option '--tabs'") and ccat
-# is a different program with its own flags - so attaching them unconditionally
-# breaks `cat` in every session on a box without bat. ccat still wins
-# $_HI_BATCAT_BIN when it is the best installed; it just gets the bare binary.
+# is the tier that parses $_HI_BAT_OPTS, and it is the gate the bat aliases
+# below attach them behind. Every other tier of the chain above rejects that
+# syntax - coreutils cat exits on the first one ("unrecognized option
+# '--tabs'") and ccat is a different program with its own flags - so attaching
+# them unconditionally breaks `cat` in every session on a box without bat. ccat
+# still wins $_HI_BATCAT_BIN when it is the best installed; it just gets the
+# bare binary.
 export _HI_BAT_REAL="$(command -v bat || command -v batcat)"
 # exa and eza differ in preference order on purpose, so each needs its own var
 export _HI_EXA_BIN="$(command -v exa || command -v eza || command -v ls)"
@@ -55,24 +56,9 @@ export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)"
 # reason.
 [ "$_HI_DISABLE_NOTIFY" != 1 ] && [ -f "$_HI_NOTIFY" ] && alias hi_notify="sh $_HI_NOTIFY" || true
 
-# styles eza itself, not an alias - above the early return, so disabling
-# personal aliases still leaves the theme for a direct eza run
+# styles eza itself, not an alias, so a direct `eza` run is themed too - not
+# only the aliases below that go through it
 export EZA_CONFIG_DIR="$_HI_THEME_DIR"
-
-# Last on purpose: the user's own aliases.sh (~/.config/say-hi/aliases.sh, or the
-# overlay stream's copy on a target) wins by coming after everything above.
-# Same POSIX+fish subset as this file.
-#
-# The first test guards against $_HI_CONFIG_DIR being this file's own directory,
-# which would source this file forever. Nothing in the tree points here any
-# more, but an unbounded recursion is a hang, not an error, and this is one
-# comparison. The shellcheck directive is the static half of the same hazard:
-# source-path=SCRIPTDIR resolves the basename below to *this file*, and under
-# -x shellcheck follows it into itself until it is OOM-killed - the runtime
-# guard on this line is invisible to it. See common/bash.sh for the long form.
-# shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/settings/aliases.sh" ] &&
-  [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true
 
 alias sudo="command sudo " # works in bash/zsh, fish has a sudo wrapper in config.fish
 
@@ -82,7 +68,7 @@ export IDE="$(command -v zeditor || command -v zed || command -v code || command
 
 # cat is bat with our options when bat exists, plain cat otherwise. Everything
 # in here is bat syntax, -P (--no-pager) included, which is why it is only ever
-# attached behind $_HI_BAT_REAL - see the chain's comment in aliases.sh.
+# attached behind $_HI_BAT_REAL - see the chain's comment above.
 export _HI_BAT_OPTS='-P --tabs 2 --theme Monokai\ Extended\ Bright --style changes,grid'
 # batcat is batcat on some Linux distros (fallback to ccat)
 # ccat is cat with syntax highlighting (fallback to cat)
@@ -119,3 +105,18 @@ alias lea="le -a"
 alias let="le -T -L2"
 alias leg="le --git --git-repos-no-status"
 alias l="$_HI_EZA_BIN -l"
+
+# Last on purpose: the user's own aliases.sh (~/.config/say-hi/aliases.sh, or the
+# overlay stream's copy on a target) wins by coming after everything above.
+# Same POSIX+fish subset as this file.
+#
+# The first test guards against $_HI_CONFIG_DIR being this file's own directory,
+# which would source this file forever. Nothing in the tree points here any
+# more, but an unbounded recursion is a hang, not an error, and this is one
+# comparison. The shellcheck directive is the static half of the same hazard:
+# source-path=SCRIPTDIR resolves the basename below to *this file*, and under
+# -x shellcheck follows it into itself until it is OOM-killed - the runtime
+# guard on this line is invisible to it. See common/bash.sh for the long form.
+# shellcheck source=/dev/null # user config, may not exist
+[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/settings/aliases.sh" ] &&
+  [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true

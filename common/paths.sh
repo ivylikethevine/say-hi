@@ -84,10 +84,8 @@ export _HI_REMOTE_SESSION
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && {
   export _HI_DISABLE_HEADER=1
   export _HI_DISABLE_PROMPT=1
-  export _HI_DISABLE_PERSONAL=1
   export _HI_DISABLE_GIT_STATUS=1
   export _HI_DISABLE_EDITORS=1
-  export _HI_DISABLE_ALIASES=1
   export _HI_DISABLE_OSC52=1
   export _HI_DISABLE_NOTIFY=1
 } || true
