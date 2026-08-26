@@ -8,6 +8,10 @@
 
 `hi {{host}}`
 
+- Pick a target from the list of everything reachable:
+
+`hi`
+
 - Run a single command on a target and exit, the way ssh does:
 
 `hi {{host}} '{{command}}'`

@@ -506,9 +506,9 @@ jobs:
 
       # install_methods_test.sh installs a real .deb/.rpm/.apk on its targets,
       # and builds them with the same mkpkg.sh the release runs. Without nfpm
-      # those three cases stand down - a per-case skip, which --require-run does
-      # not catch (it reads suite-level skips), so the pin is what makes them
-      # actually run here rather than quietly not.
+      # those three cases stand down yellow per case - caught by --require-run
+      # like any other stand-down, but the pin is still what makes them
+      # actually run here rather than fail the gate by standing down.
       - uses: ./.github/actions/setup-tool
         with:
           tool: nfpm

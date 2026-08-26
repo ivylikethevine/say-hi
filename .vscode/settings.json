@@ -1,0 +1,15 @@
+{
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "files.associations": {
+    "settings/colors": "csv",
+    "settings/packages": "csv",
+    "settings/vim.rc": "ini",
+    "settings/nano.rc": "ini",
+  },
+  "[markdown]": {
+    "editor.inlineSuggest.enabled": false,
+    "editor.formatOnSave": false,
+  },
+}

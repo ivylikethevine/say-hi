@@ -8,6 +8,9 @@ adds rather than replaces, loading after the tree's own so yours win.
 `settings.sh` has no in-tree counterpart: `hi --configure` only ever writes it
 here.
 
+Four of those files can also live somewhere else entirely — see
+[Pointing one file somewhere else](#pointing-one-file-somewhere-else).
+
 | overlay file                   | overrides           | what it is                                                                                                                               |
 | ------------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.config/say-hi/settings.sh` | -                   | what `hi --configure` writes                                                                                                             |
@@ -41,6 +44,7 @@ works just as well and takes precedence for that shell.
 
 - [How it works](#how-it-works)
 - [Every setting](#every-setting)
+  - [Pointing one file somewhere else](#pointing-one-file-somewhere-else)
   - [Not settings](#not-settings)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Presets](#presets)
@@ -119,6 +123,7 @@ row here.
 | `_HI_DISABLE_OSC52`          | `0`                             | `hi --configure`          | [Features](#features) - the OSC 52 clipboard                                                  |
 | `_HI_DISABLE_NOTIFY`         | `0`                             | `hi --configure`          | [Features](#features) - the `hi_notify` desktop-notification alias                            |
 | `_HI_DISABLE_MARKS`          | `0`                             | `hi --configure`          | [Features](#features) - OSC 133 prompt marks and OSC 7 cwd reporting                          |
+| `_HI_DISABLE_HISTORY`        | `0`                             | `hi --configure`          | [Features](#features) - per-shell scratch command history                                     |
 | `_HI_DISABLE_LOCAL`          | `0`                             | `hi --configure`          | [Features](#features) - all of the above, on this machine only                                |
 | `_HI_REMOTE_SESSION`         | `0`                             | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote    |
 | `_HI_HEADER_BANNER`          | `1`                             | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                              |
@@ -145,12 +150,45 @@ row here.
 | `NO_COLOR`                   | unset                           | you                       | [Everything else](#everything-else) - not hi's variable; any non-empty value drops color      |
 | `_HI_KEEP_COMMENTS`          | `0`                             | you                       | `1` ships the tree verbatim rather than comment-stripped, for reading real source on a target |
 | `_HI_RECENT_FILE`            | `$XDG_STATE_HOME/say-hi/recent` | you                       | [Everything else](#everything-else) - where those are kept                                    |
+| `_HI_COLORS`                 | overlay, else tree              | you                       | [Pointing one file somewhere else](#pointing-one-file-somewhere-else) - where the color pins are read from |
+| `_HI_PACKAGES`               | overlay, else tree              | you                       | the same for the package check's list                                                         |
+| `_HI_VIMRC`                  | overlay, else tree              | you                       | the same for the vim config the `vim` alias and `$VIMINIT` point at                           |
+| `_HI_NANORC`                 | overlay, else tree              | you                       | the same for nano's                                                                           |
 | `_HI_TARGET`                 | -                               | hi                        | the target as you typed it on the client                                                      |
 | `_HI_TARGET_COLOR`           | -                               | hi                        | the color that target resolved to, decided on the client so it matches everywhere             |
 | `_HI_TARGET_TAG`             | -                               | hi                        | the target's `# Tags:` value out of your `~/.ssh/config`                                      |
 | `_HI_LOCAL_USER`             | -                               | hi                        | who you are on the client, for the header's "from" half                                       |
 | `_HI_LOCAL_HOSTNAME`         | -                               | hi                        | where you came from, likewise                                                                 |
 | `_HI_RELEASE`                | -                               | hi                        | the client's version, so a session says which say-hi it is running                            |
+
+### Pointing one file somewhere else
+
+`$_HI_CONFIG_DIR` moves the whole overlay. The four files inside it that have a
+path variable of their own — `colors`, `packages`, `vim.rc` and `nano.rc` — can
+each be moved on their own instead:
+
+```sh
+export _HI_COLORS="$HOME/dotfiles/hi-colors"     # in settings.sh, or the environment
+```
+
+That one file now comes from `~/dotfiles`; the other three go on resolving the
+way they always did — the overlay's copy when you have made one, the tree's
+otherwise. It wins even when `~/.config/say-hi/colors` also exists, which is
+what makes it useful to a dotfile manager that would rather keep its own paths
+than symlink into `~/.config/say-hi` (the whole-directory route is
+[still there](#keeping-the-overlay-in-a-dotfile-manager) and is simpler when
+you are moving all of it).
+
+Two edges worth knowing. A value equal to what `common/paths.sh` would have
+resolved to anyway is not treated as a choice — it is what a child shell
+inherits from its parent, and re-resolving it is what lets
+`_HI_CONFIG_DIR=elsewhere bash` mean something. And the four are read on every
+source, so a shell already running does not notice a file you have only just
+created; open a new one.
+
+The other five overlay files have no such variable. `aliases.sh` and the three
+per-shell files are sourced by a fixed name straight off `$_HI_CONFIG_DIR`, and
+`settings.sh` is read before any of this happens.
 
 ### Not settings
 
@@ -200,6 +238,7 @@ Each is **on by default**; set it to `1` to turn that piece off.
 | `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                     |
 | `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely |
 | `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                       |
+| `_HI_DISABLE_HISTORY`    | each shell's command history capture into a scratch directory wiped on exit, see below                                            |
 | `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                   |
 
 ## Header details
@@ -232,6 +271,20 @@ Terminal support varies (tmux needs `set -g allow-passthrough on`; under
 `$ZELLIJ` the escape goes through raw), which is why it is a toggle.
 `common/osc52.sh` is the whole implementation.
 
+**The header says so when tmux is going to eat it.** `allow-passthrough` has
+been off by default since tmux 3.3, and nothing fails when it is: `hi_copy`
+exits 0, the escape is swallowed on the way past, and the paste afterwards
+hands back your previous clipboard. So a session that finds `$TMUX` set with
+the option off prints one line on connect —
+
+```text
+ | tmux passthrough off - hi_copy/hi_notify muted | set -g allow-passthrough on
+```
+
+— and nowhere else. It has no toggle of its own: turn the option on, or turn
+off the two features it is about, and it stops. A tmux too old to have the
+option says nothing, since there would be no setting to point at.
+
 `_HI_DISABLE_NOTIFY` turns off the other one. `hi_notify <command>` runs the
 command on the target, then writes an
 [OSC 9](https://iterm2.com/documentation-escape-codes.html) escape (and
@@ -255,6 +308,17 @@ Nothing is installed on the target and a terminal that does not know an OSC
 drops it; fish 4 emits both itself, so there hi stays out of the way. Only the
 styled shells emit them — the bash-less `sh` prompt does not.
 
+`_HI_DISABLE_HISTORY` turns off a per-shell scratch copy of your command
+history. On, each of bash, zsh and fish points its history at a fresh
+`mktemp -d` directory (`$_HI_TMPDIR`), removed when that shell exits; bash and
+zsh use their own `HISTFILE`, and fish - which has no arbitrary history path,
+only a session-name suffix under `$XDG_DATA_HOME/fish` - logs commands to a
+plain text file through a `fish_postexec` hook instead of its own history
+mechanism. Nothing here is a hand-tuned preference: it is opt-out, ephemeral,
+and scoped to a throwaway directory rather than your real `$HOME`, which is
+why it stays a shipped default rather than something you set up yourself, as
+the paragraph below draws the line.
+
 hi used to ship one person's shell preferences (history sizing, keybindings,
 `zstyle` rules, fish's palette) in `settings/*_personal.*` files behind a
 `_HI_DISABLE_PERSONAL` toggle. Those are gone: what remains in each rc is the
@@ -262,7 +326,8 @@ prompt, the completions and the git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
 the end of hi's, in the same dialect, and your `aliases.sh` loads after
 `settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza` families) and
-wins.
+wins - including your own `HISTFILE`, which lands after `_HI_DISABLE_HISTORY`'s
+and so overrides it.
 
 ## Keeping the overlay in a dotfile manager
 
@@ -345,6 +410,7 @@ behaviour.
 | `_HI_HEADER_GHZ`             | `0`                         | `1` shows the header's CPU line as `x.xxx/x.xxx GHz` instead of whole MHz; ignored when `_HI_HEADER_SYSINFO=0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_PACKAGES_MIN_PRIORITY`  | `1`                         | the lowest `settings/packages` priority the header's check prints, and the main dial on how long that check is. The file ranks every entry 0-5 and every rank reports what is _missing_ as well as what is there. On a well-equipped machine `1` (the default) drops the trivia tier (about ten lines), `0` prints everything, `2` drops the optional extras too (about four), `3` leaves favorites and what your workflow depends on (two), and above `5` the check prints nothing. Rank 4 is silent when present and speaks only when missing, so a bare target still says what it lacks at any floor up to 4. `hi --configure` asks for this with a live preview; `hi --packages-preview` marks the ranks it silences `below floor` |
 | `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                         | fish only: `1` gives every alias hi defines a real `abbr`, so it expands to the full command on the line before you run it - it rewrites what your command line and history say, hence opt-in (`hi_abbr_aliases` does the work and is callable by hand). Not in the `_HI_DISABLE_*` table since it is fish-specific, not one of `core.sh`'s shared toggles                                                                                                                                                                                                                                                                                                                                                                             |
+| `_HI_TMPDIR`                 | `mktemp -d`                 | the per-shell scratch directory `_HI_DISABLE_HISTORY` writes command history into, removed when that shell exits; exporting your own value points hi at it instead of making one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 `_HI_TARGETS_TTL` and `_HI_PROBE_TIMEOUT` exist because completion runs on
 **every TAB** and the header runs **before you get a shell**: a docker daemon

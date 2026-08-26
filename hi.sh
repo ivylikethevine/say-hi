@@ -112,6 +112,7 @@ _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
   "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
   "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
+  "_HI_DISABLE_HISTORY|say-hi/common/history.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
@@ -834,6 +835,58 @@ function _say_hi_container() {
 }
 
 # split ssh's arguments from the target and any trailing remote command
+# A target chosen from the list, on stdout. What bare `hi` reaches instead of
+# falling through to ssh's usage message. Two failures, told apart because they
+# deserve different answers: 2 is "there was nothing to offer", which is still
+# ssh's usage message to print, and 1 is "you dismissed the menu", which is not.
+#
+# The rows are common/targets.sh's, the same "<name>\t<kind>" list the three
+# shell completions read - so the offer is backend-tagged, recency-ranked, and
+# served out of the $_HI_TARGETS_TTL cache a TAB may already have warmed. This
+# runs entirely on the client and connects to the result like any other target,
+# so nothing here reaches a payload or a target's disk.
+#
+# fzf or sk when the client has one, a numbered `select` when it does not:
+# nothing has to be installed for bare `hi` to work. Both write their menu to
+# the terminal rather than to stdout, which is this function's return value -
+# fzf and sk open /dev/tty themselves, and bash's `select` prompts on stderr.
+function _hi_pick_target() {
+  local picker rows reply name kind
+  rows="$(sh "$_HI_TARGETS" 2>/dev/null || true)"
+  [ -n "$rows" ] || return 2
+  picker="$(command -v fzf || command -v sk || true)"
+  if [ -n "$picker" ]; then
+    # --with-nth over a tab delimiter shows the tag beside the name while
+    # keeping the whole row as the value, so the cut below is the same for
+    # both pickers
+    # stderr is deliberately not swallowed: the picker draws its pane on
+    # /dev/tty, so the only thing that reaches stderr is a complaint - a flag
+    # this build does not take, most likely - and silence there would read as
+    # "hi did nothing". A dismissal is an empty answer, not an error.
+    reply="$(printf '%s\n' "$rows" | "$picker" --prompt='hi ' \
+      --delimiter=$'\t' --with-nth=1,2 --height=40% --reverse --no-multi || true)"
+    reply="${reply%%$'\t'*}"
+  else
+    local -a menu=()
+    while IFS=$'\t' read -r name kind; do
+      [ -n "$name" ] || continue
+      # bash prints a `select` item verbatim, so "<name> (<kind>)" is all the
+      # formatting there is - and the cut below takes the name back off it
+      menu+=("$name (${kind:-ssh})")
+    done <<<"$rows"
+    ((${#menu[@]})) || return 2
+    # stdin, not an explicit /dev/tty: bare `hi` already established that stdin
+    # is a terminal, and reopening one here would ignore a redirect
+    local PS3="hi which? "
+    select reply in "${menu[@]}"; do
+      [ -n "$reply" ] && break
+    done
+    reply="${reply%% *}"
+  fi
+  [ -n "$reply" ] || return 1
+  printf '%s' "$reply"
+}
+
 function _hi_parse() {
   SSHARGS=()
   while [ $# -gt 0 ]; do
@@ -860,6 +913,24 @@ function _hi_parse() {
     shift
   done
   [ -n "${DOMAIN:-}" ] || {
+    # Bare `hi` - no target and no ssh option either - has a list to offer
+    # rather than a usage message to print. Any ssh option present and the old
+    # behaviour stands: `hi -V` has to go on being `ssh -V`, and an option
+    # without a host is ssh's error to report, not a target to guess at.
+    #
+    # Both ends of a terminal are required. Without them there is nobody to
+    # answer the picker, and a `hi` in a script or a CI job would hang on a
+    # menu instead of failing the way it does today.
+    if [ "${#SSHARGS[@]}" -eq 0 ] && [ -t 0 ] && [ -t 2 ]; then
+      local pick_rc=0
+      DOMAIN="$(_hi_pick_target)" || pick_rc=$?
+      [ -n "${DOMAIN:-}" ] && return 0
+      # dismissed rather than empty: that is an answer, and printing ssh's
+      # usage over the top of the menu just closed is not a reply to it. A
+      # machine with nothing to offer (rc 2) falls through and says so the way
+      # it always has.
+      [ "$pick_rc" -eq 1 ] && exit 0
+    fi
     ssh "${SSHARGS[@]}"
     exit 1
   }
@@ -1023,6 +1094,10 @@ ssh does.
   4. a running nomad allocation, by ID or prefix
   5. a kubernetes pod, in whatever context/namespace kubectl points at -
      or namespace:pod / context:namespace:pod for another one
+
+With no target at all, hi offers that same list - the one your shell completes
+from, backend-tagged and recently-used first - and connects to what you pick:
+through fzf or sk when you have one, a numbered menu when you do not.
 
 hi's own options, which work anywhere - a session included:
 $(_hi_flag_help -)

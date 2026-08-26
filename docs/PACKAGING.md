@@ -77,6 +77,7 @@ required reviewer would stall the run.
   - [AUR](#aur)
   - [Homebrew tap](#homebrew-tap)
   - [deb / rpm / apk](#deb--rpm--apk)
+  - [devcontainer Feature](#devcontainer-feature)
 - [Verifying a packaged build locally](#verifying-a-packaged-build-locally)
   - [Reproducibility](#reproducibility)
 - [After installing from a package](#after-installing-from-a-package)
@@ -95,10 +96,11 @@ _new_ process with no tree to derive from — a login shell, tmux's
 `update-environment`, another machine's `hi` probing this one — has nothing
 else to read.
 
-| channel            | tree                   | how `_HI_HOME` gets set                                    |
-| ------------------ | ---------------------- | ---------------------------------------------------------- |
-| AUR, deb, rpm, apk | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`      |
-| Homebrew           | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes |
+| channel                | tree                   | how `_HI_HOME` gets set                                    |
+| ---------------------- | ---------------------- | ---------------------------------------------------------- |
+| AUR, deb, rpm, apk     | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`      |
+| Homebrew               | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes |
+| devcontainer Feature   | `/usr/share/say-hi`    | the same `/etc/profile.d/say-hi.sh` - it calls `install_tree` too |
 
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this and
 is the single decider of what a packaged install contains —
@@ -120,6 +122,7 @@ prefix; `tests/packaging/packaging_test.sh` fails if that copy drifts.
 | `aur/say-hi-git/`    | the same package built from `main`                                                  |
 | `homebrew/say-hi.rb` | the tap formula                                                                     |
 | `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                             |
+| `devcontainer/src/`  | the devcontainer Feature, one directory per feature (the publishing action's layout) |
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the `hi.sh` a
 channel installs and the version into the man page's `.TH` line; all four
@@ -316,6 +319,57 @@ signed apk on Alpine every PR.
 No `apt upgrade` — the trade for not maintaining a repository. Revisit
 [OBS](https://en.opensuse.org/openSUSE:Build_Service_Debian_builds) only if
 people ask for a repo to subscribe to.
+
+### devcontainer Feature
+
+**The one channel that installs say-hi on the far side.** Every other one
+packages it for a machine you own and then say `hi` _from_.
+[SUPPORTED.md](SUPPORTED.md) already reaches a devcontainer from outside — it
+is a docker container like any other — but a Codespace or a _Reopen in
+Container_ has no client at all: the terminal that opens is already standing on
+the target. So this Feature puts say-hi _inside_ the image, and the terminal is
+styled with nothing connecting to it.
+
+A user adds it to their `devcontainer.json`:
+
+```jsonc
+"features": {
+  "ghcr.io/ivylikethevine/say-hi/say-hi:0": {}
+}
+```
+
+| option           | default        | what it does                                                                       |
+| ---------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `version`        | `latest`       | the newest release, a release version like `1.0.0`, or `main` for the branch         |
+| `preset`         | `everything`   | which of [CONFIGURATION.md's presets](CONFIGURATION.md#presets) the user's settings start from |
+| `configureShell` | `true`         | run `hi --install` for `$_REMOTE_USER`; off leaves `/usr/bin/hi` working and the terminal unstyled |
+
+`packaging/devcontainer/src/say-hi/install.sh` is deliberately thin, and the
+packaging suite keeps it that way. It downloads the release source tarball,
+checks it against the release's own `SHA256SUMS`, links the unpacked directory
+to the name `say-hi` (`install.sh` derives `$_HI_HOME` as `<checkout>/..` and
+then looks for `$_HI_HOME/say-hi` — the AUR's `prepare()` makes the same link
+for the same reason), and hands over to `scripts/install.sh --prefix
+/usr/share` and `packaging/stamp.sh`. What a packaged install _contains_ stays
+`_HI_PACKAGE_CONTENTS`' business, here as everywhere.
+
+Then it does the half a package manager cannot: `hi --install --yes --preset`,
+as `$_REMOTE_USER` rather than as root, so the rc files it writes belong to the
+person who will open the terminal. `--preset` is doing real work there — it is
+the one way to answer every feature question at once with no terminal to ask
+on.
+
+**`version: main` is the unverified arm** and says so on the way past. There is
+no `SHA256SUMS` for a branch, which is exactly the trade the `say-hi-git` AUR
+package makes; a release version is the default and the checked path.
+
+**Publishing is `release.yml`'s `feature` job**, behind the same approval as
+the tap and the AUR, pushing to ghcr with the workflow's own `GITHUB_TOKEN` —
+no secret to create, unlike the other two. **The Feature's `version` is its
+own**, not the release's: the registry refuses a re-push of a version, so it
+moves when `devcontainer-feature.json` changes and not when say-hi does. That
+is consistent because nothing in the Feature names a say-hi version — its
+`version` option picks one at container-build time.
 
 ## Verifying a packaged build locally
 

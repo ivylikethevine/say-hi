@@ -19,7 +19,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-  _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS)
+  _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
 # print "<var>=<value>" for every toggle the gate governs. core.sh does the
@@ -239,6 +239,136 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
+# ...and an explicit value outranks both. The four overlay files with a path
+# variable of their own carry the same "only when unset" guard $_HI_HOME and
+# $_HI_CONFIG_DIR use, so `export _HI_COLORS=/anywhere` in settings.sh or in
+# the environment moves that one file and leaves the other three tracking the
+# overlay. Without the guard paths.sh re-exported over the top of it, and the
+# symptom was a setting that simply did nothing.
+_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC)
+
+# the overlay basename each of the four resolves to, in the same order
+_HI_OVERLAY_PATH_FILES=(colors packages vim.rc nano.rc)
+
+# an overlay directory holding a copy of all four, so every case below is
+# choosing between two real files rather than between a file and a miss
+function _hi_full_overlay_dir() {
+  local dir f
+  dir="$_HI_WORKDIR/full-overlay"
+  mkdir -p "$dir"
+  for f in "${_HI_OVERLAY_PATH_FILES[@]}"; do printf '#\n' >"$dir/$f"; done
+  printf '%s' "$dir"
+}
+
+# $1 exported to $2, with $_HI_CONFIG_DIR pointed at a full overlay: the
+# override has to win over the overlay's same-named file, not merely over the
+# tree default
+function test_env_override_beats_the_overlay_file() {
+  local dir i var
+  dir="$(_hi_full_overlay_dir)"
+  for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
+    var="${_HI_OVERLAY_PATH_VARS[i]}"
+    # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
+    [ "$(_HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "/anywhere/hi-$i" ] || {
+      _hi_cecho " | $var: the overlay's copy won over an explicit export" "$RED"
+      return 1
+    }
+  done
+}
+
+# the same through settings.sh, which is where a user actually writes it -
+# core.sh sources that file before paths.sh for exactly this reason
+function test_settings_override_beats_the_overlay_file() {
+  local dir
+  dir="$(_hi_full_overlay_dir)"
+  printf 'export _HI_VIMRC=/dotfiles/hi-vim.rc\n' >"$dir/settings.sh"
+  [ "$(_hi_resolved _HI_VIMRC "$dir")" = /dotfiles/hi-vim.rc ]
+}
+
+# ...and it moves that one file only: the other three still resolve to the
+# overlay, which is the difference between this and pointing $_HI_CONFIG_DIR
+# somewhere else
+function test_override_moves_one_file_only() {
+  local dir i var
+  dir="$(_hi_full_overlay_dir)"
+  rm -f "$dir/settings.sh"
+  for i in 1 2 3; do
+    var="${_HI_OVERLAY_PATH_VARS[i]}"
+    # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
+    [ "$(_HI_CONFIG_DIR="$dir" env _HI_COLORS=/anywhere/hi-colors bash -c \
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
+      _hi_cecho " | $var followed _HI_COLORS out of the overlay" "$RED"
+      return 1
+    }
+  done
+}
+
+# the guard must not cost the default: with nothing exported, the overlay's
+# copy still wins over the tree's, which is the behaviour every install has
+function test_unset_still_prefers_the_overlay() {
+  local dir i var
+  dir="$(_hi_full_overlay_dir)"
+  rm -f "$dir/settings.sh"
+  for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
+    var="${_HI_OVERLAY_PATH_VARS[i]}"
+    [ "$(_hi_resolved "$var" "$dir")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
+      _hi_cecho " | $var did not resolve to the overlay" "$RED"
+      return 1
+    }
+  done
+}
+
+# The guard must not make this file's own answer sticky. A child shell inherits
+# every one of the four, so a guard that took an inherited value at face value
+# would pin the result to the parent's $_HI_CONFIG_DIR - and `_HI_CONFIG_DIR=elsewhere bash`
+# would go on reading the overlay it was told to leave. Modelled the way it
+# happens: resolve once against one overlay, carry the whole result into a
+# child pointed at another.
+function test_a_derived_value_does_not_survive_a_new_config_dir() {
+  local first second out
+  first="$(_hi_full_overlay_dir)"
+  rm -f "$first/settings.sh"
+  second="$_HI_WORKDIR/second-overlay"
+  mkdir -p "$second"
+  printf '#\n' >"$second/colors"
+  out="$(_HI_CONFIG_DIR="$first" bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    _HI_CONFIG_DIR="$1" bash -c '"'"'
+      source "$_HI_HOME/say-hi/common/core.sh"
+      printf "%s\n%s" "$_HI_COLORS" "$_HI_PACKAGES"'"'"'' _ "$second")"
+  [ "$out" = "$second/colors"$'\n'"$_HI_ROOT/settings/packages" ] || {
+    _hi_cecho " | re-resolved to [$out], not the second overlay" "$RED"
+    return 1
+  }
+}
+
+# core.sh owes paths.sh a defined value for each of the four, the way it owes
+# the toggles one: paths.sh reads them bare, and under `set -u` an unset name
+# is fatal rather than empty
+function test_core_defines_every_overlay_path_var() {
+  local var out
+  for var in "${_HI_OVERLAY_PATH_VARS[@]}"; do
+    out="$(bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1-UNSET}"' _ "$var")"
+    [ "$out" != UNSET ] || {
+      _hi_cecho " | $var is unset after core.sh" "$RED"
+      return 1
+    }
+  done
+}
+
+# every one of the four is guarded, so a fifth path variable added beside them
+# cannot quietly skip the override
+function test_every_overlay_path_var_is_guarded() {
+  local var
+  for var in "${_HI_OVERLAY_PATH_VARS[@]}"; do
+    grep -qF "[ -z \"\$$var\" ] && export $var=" "$_HI_ROOT/common/paths.sh" || {
+      _hi_cecho " | $var has no \"only when unset\" guard in paths.sh" "$RED"
+      return 1
+    }
+  done
+}
+
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs a local
 # override guard in paths.sh - except settings.sh (unguarded by design: the
 # overlay is its only home) and the four additive ones, which each shell or
@@ -305,6 +435,15 @@ function run_paths_tests() {
   _hi_check "Settings point at the overlay before it exists" test_settings_point_at_the_overlay_before_it_exists
   _hi_check "Overlay settings reach the gate" test_overlay_settings_are_visible_to_the_gate
   _hi_check "Every overlay file has its paths.sh guard" test_overlay_guards_match_the_roster
+
+  _hi_h2 "Testing: per-file overlay location overrides"
+  _hi_check "core.sh defines every path variable" test_core_defines_every_overlay_path_var
+  _hi_check "Every path variable is guarded" test_every_overlay_path_var_is_guarded
+  _hi_check "Unset still prefers the overlay" test_unset_still_prefers_the_overlay
+  _hi_check "The environment beats the overlay file" test_env_override_beats_the_overlay_file
+  _hi_check "settings.sh beats the overlay file" test_settings_override_beats_the_overlay_file
+  _hi_check "An override moves one file only" test_override_moves_one_file_only
+  _hi_check "A derived value does not outlive its config dir" test_a_derived_value_does_not_survive_a_new_config_dir
 
   _hi_suite_end "paths.sh"
 }

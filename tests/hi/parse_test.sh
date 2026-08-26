@@ -69,6 +69,184 @@ function test_parse_names_the_offending_flag() {
   [[ "$out" == *"-o"* ]]
 }
 
+# _hi_pick_target - what bare `hi` reaches instead of ssh's usage message.
+#
+# $_HI_TARGETS is assigned *after* hi.sh is sourced in every case below, never
+# exported into it: sourcing hi.sh goes through common/paths.sh, which derives
+# that variable from the tree and would overwrite anything the environment had
+# to say about it - and the case would then quietly run against this machine's
+# real target list.
+#
+# _hi_pick_rows - a stand-in targets.sh printing three rows, one per backend
+# shape: a plain ssh host, a container, and a pod whose name carries a colon.
+function _hi_pick_rows() {
+  local f="$_HI_WORKDIR/pick-targets.sh"
+  if [ ! -f "$f" ]; then
+    mkdir -p "$_HI_WORKDIR"
+    printf '%s\n' '#!/bin/sh' \
+      'printf "web1\tssh\napi\tdocker\nteam:pod\tkube\n"' >"$f"
+    chmod +x "$f"
+  fi
+  printf '%s' "$f"
+}
+
+# an empty one, for the "nothing to offer" direction
+function _hi_pick_no_rows() {
+  local f="$_HI_WORKDIR/pick-empty.sh"
+  if [ ! -f "$f" ]; then
+    mkdir -p "$_HI_WORKDIR"
+    printf '%s\n' '#!/bin/sh' 'exit 0' >"$f"
+    chmod +x "$f"
+  fi
+  printf '%s' "$f"
+}
+
+# _hi_pick_shim <name> - a directory whose only executable is <name>, standing
+# in for fzf or sk: it takes the row the caller asks for by line number
+# ($_HI_PICK_LINE, default 1) and prints it back whole, tab and all, which is
+# what both real pickers do.
+function _hi_pick_shim() {
+  local dir="$_HI_WORKDIR/pick-$1"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    printf '%s\n' '#!/bin/sh' \
+      'sed -n "${_HI_PICK_LINE:-1}p"' >"$dir/$1"
+    chmod +x "$dir/$1"
+  fi
+  printf '%s' "$dir"
+}
+
+# _hi_pick <PATH> [stdin] - _hi_pick_target's stdout, then its exit code on a
+# line of its own. The PATH is total rather than prepended: fzf really is
+# installed on plenty of developer machines, and a case about the `select`
+# fallback has to be able to say it is not here.
+function _hi_pick() {
+  local path="$1" input="${2-}"
+  PATH="$path" bash -c '
+    source "$_HI_LAUNCHER"
+    _HI_TARGETS="$1"
+    rc=0
+    _hi_pick_target || rc=$?
+    printf "\n%s\n" "$rc"' _ "$(_hi_pick_rows)" <<<"$input" 2>/dev/null
+}
+
+# the tools _hi_pick_target and hi.sh's own source-time work need, and nothing
+# that could pick for them: fzf really is installed on plenty of developer
+# machines, and the `select` cases have to be able to say it is not here
+function _hi_pick_bare_path() {
+  _hi_real_path pickbare bash sh sed cat
+}
+
+function test_pick_uses_fzf_when_it_is_there() {
+  local out
+  out="$(_HI_PICK_LINE=2 _hi_pick "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)")"
+  [ "$out" = "$(printf 'api\n0\n')" ]
+}
+
+# sk is the second rung of the same ladder, reached only when fzf is absent
+function test_pick_falls_through_to_sk() {
+  local out
+  out="$(_HI_PICK_LINE=3 _hi_pick "$(_hi_pick_shim sk):$(_hi_pick_bare_path)")"
+  [ "$out" = "$(printf 'team:pod\n0\n')" ]
+}
+
+# ...and the tag is cut back off, whichever picker answered: fzf is shown two
+# columns so the backend is visible, but only the name is a target
+function test_pick_returns_the_name_without_its_tag() {
+  local out
+  out="$(_HI_PICK_LINE=1 _hi_pick "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)")"
+  [ "$out" = "$(printf 'web1\n0\n')" ]
+}
+
+# neither picker installed: a numbered `select`, so nothing has to be installed
+# for bare `hi` to work at all. The menu goes to stderr, the pick to stdout.
+function test_pick_falls_back_to_a_numbered_select() {
+  local out
+  out="$(_hi_pick "$(_hi_pick_bare_path)" 3)"
+  [ "$out" = "$(printf 'team:pod\n0\n')" ]
+}
+
+# the fallback names the backend beside each row, the way the pickers do
+function test_select_menu_tags_each_row() {
+  local menu
+  menu="$(PATH="$(_hi_pick_bare_path)" bash -c '
+    source "$_HI_LAUNCHER"
+    _HI_TARGETS="$1"
+    _hi_pick_target >/dev/null' _ "$(_hi_pick_rows)" <<<"3" 2>&1)"
+  [[ "$menu" == *"web1 (ssh)"* && "$menu" == *"api (docker)"* && "$menu" == *"team:pod (kube)"* ]]
+}
+
+# dismissed rather than chosen - a real fzf answers empty on Ctrl-C, and the
+# shim does the same asked for a line that is not there. 1, not 2: hi.sh tells
+# the two apart, because only one of them still owes the user ssh's usage.
+function test_pick_reports_a_dismissal_as_one() {
+  local out
+  out="$(_HI_PICK_LINE=99 _hi_pick "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)")"
+  [ "$out" = "$(printf '\n1\n')" ]
+}
+
+# nothing to offer is 2, which is what sends hi.sh back to ssh's usage rather
+# than exiting quietly on a machine that simply has no targets yet
+function test_pick_reports_an_empty_list_as_two() {
+  local out
+  out="$(PATH="$(_hi_pick_shim fzf):$(_hi_pick_bare_path)" bash -c '
+    source "$_HI_LAUNCHER"
+    _HI_TARGETS="$1"
+    rc=0
+    _hi_pick_target || rc=$?
+    printf "\n%s\n" "$rc"' _ "$(_hi_pick_no_rows)" </dev/null 2>/dev/null)"
+  [ "$out" = "$(printf '\n2\n')" ]
+}
+
+# ...and the arm itself: a bare `hi` on a terminal comes out of _hi_parse with
+# $DOMAIN filled in, which is what makes it land a session. Under a pty,
+# because the arm is gated on both ends of one - see the case below for why.
+# The PATH is narrowed *inside* the child rather than around it: the pty
+# wrapper is python3, and a PATH with no picker on it has no python3 either.
+function test_bare_hi_takes_a_target_from_the_picker() {
+  local out
+  out="$(_HI_PICK_LINE=2 "${_HI_PTY_FORCED[@]}" bash -c '
+      source "$_HI_LAUNCHER"
+      PATH="$2"
+      _HI_TARGETS="$1"
+      _hi_parse
+      printf "DOMAIN=%s\n" "${DOMAIN:-}"' _ "$(_hi_pick_rows)" \
+    "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)" 2>/dev/null)"
+  [[ "$out" == *"DOMAIN=api"* ]]
+}
+
+# No terminal, no picker. A `hi` in a script or a CI job has nobody to answer a
+# menu, so it has to go on failing the way it always has rather than hang on
+# one - which is what the `-t 0` half of the guard is for.
+function test_bare_hi_without_a_terminal_still_reaches_ssh() {
+  local out rc=0
+  out="$(PATH="$(_hi_pick_shim fzf):$(_hi_real_path pickssh bash sh sed cat ssh)" bash -c '
+    source "$_HI_LAUNCHER"
+    _HI_TARGETS="$1"
+    _hi_parse' _ "$(_hi_pick_rows)" </dev/null 2>&1)" || rc=$?
+  # ssh with no arguments prints its usage and fails; either way the picker
+  # must not have spoken, so no target name can be in what came back
+  [ "$rc" -ne 0 ] && [[ "$out" != *api* ]]
+}
+
+# an ssh option with no host is ssh's error to report, not a target to guess
+# at: `hi -V` has to stay `ssh -V`. The stub prints its argv, so the case can
+# say the flag arrived rather than merely that the picker stayed quiet.
+function test_an_ssh_option_without_a_target_never_picks() {
+  local dir out rc=0
+  dir="$_HI_WORKDIR/pick-sshstub"
+  mkdir -p "$dir"
+  printf '%s\n' '#!/bin/sh' 'echo "ssh-stub: $*"' >"$dir/ssh"
+  chmod +x "$dir/ssh"
+  out="$("${_HI_PTY_FORCED[@]}" bash -c '
+      source "$_HI_LAUNCHER"
+      PATH="$2"
+      _HI_TARGETS="$1"
+      _hi_parse -4' _ "$(_hi_pick_rows)" \
+    "$dir:$(_hi_pick_shim fzf):$(_hi_pick_bare_path)" 2>&1)" || rc=$?
+  [[ "$out" == *"ssh-stub: -4"* ]] && [[ "$out" != *api* ]]
+}
+
 function test_is_docker_container_accepts_a_running_one() {
   PATH="$_HI_SHIM_PATH" _hi_is_docker_container yes
 }
@@ -585,6 +763,18 @@ function run_hi_parse_tests() {
   _hi_check "A plain session has no command" test_parse_leaves_cmdarg_empty_for_a_plain_session
   _hi_check "Rejects a flag missing its value" test_parse_rejects_a_flag_missing_its_value
   _hi_check "Names the offending flag" test_parse_names_the_offending_flag
+
+  _hi_h2 "Testing: bare hi picks a target"
+  _hi_check "fzf when it is there" test_pick_uses_fzf_when_it_is_there
+  _hi_check "sk when fzf is not" test_pick_falls_through_to_sk
+  _hi_check "The tag is not part of the target" test_pick_returns_the_name_without_its_tag
+  _hi_check "A numbered select when neither is" test_pick_falls_back_to_a_numbered_select
+  _hi_check "The select menu is backend-tagged" test_select_menu_tags_each_row
+  _hi_check "A dismissal is 1" test_pick_reports_a_dismissal_as_one
+  _hi_check "An empty list is 2" test_pick_reports_an_empty_list_as_two
+  _hi_check_capable pty "Bare hi takes the pick as its target" test_bare_hi_takes_a_target_from_the_picker
+  _hi_check "No terminal, no picker" test_bare_hi_without_a_terminal_still_reaches_ssh
+  _hi_check_capable pty "An ssh option with no target still reaches ssh" test_an_ssh_option_without_a_target_never_picks
 
   _hi_h2 "Testing: backend predicates"
   _hi_check "docker: running" test_is_docker_container_accepts_a_running_one

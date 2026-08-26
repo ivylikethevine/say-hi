@@ -24,15 +24,49 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 # User config lives in $_HI_CONFIG_DIR, outside the tree; each entry point sets
 # the var itself. Overridden per file - unoverridden ones keep tracking the
 # tree copy, and settings.sh has no in-tree half, so its path is unguarded.
+#
+# Each of the four also carries the "only when unset" guard $_HI_HOME and
+# $_HI_CONFIG_DIR already use, so `export _HI_COLORS=~/dotfiles/hi-colors` in
+# settings.sh (or in the environment) points that one file elsewhere without
+# moving the rest of the overlay, and wins even where $_HI_CONFIG_DIR/colors
+# also exists. Four lines each, in this order, because the dialect here has no
+# if/elif and no ${var:-...}:
+#
+#   1. drop an inherited value this file itself resolved last time (below);
+#   2. the tree's copy, unconditionally, into the companion;
+#   3. the overlay's copy over it, when the user has made one;
+#   4. the companion into the variable, unless something already set it.
+#
+# $_HI_COLORS_AUTO and its three siblings are step 1's whole reason. All of
+# these are exported, so a child shell inherits whatever the parent resolved -
+# and a guard that took that at face value would pin the answer to the parent's
+# $_HI_CONFIG_DIR and $_HI_HOME, leaving `_HI_CONFIG_DIR=elsewhere bash` reading
+# the overlay it was told to leave and a moved tree reading the old one. The
+# companion carries what *this file* decided, so a value still equal to it is
+# this file's own answer rather than a choice, and is resolved again. A path
+# the user named matches neither and survives - including, deliberately, the
+# tree's own copy named to outrank an overlay file of the same name.
+#
+# core.sh defaults all eight to empty ahead of this file, which is what makes
+# the bare reads safe under `set -u`; fish needs no such mirror, since an unset
+# variable there expands to the empty string rather than aborting.
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
-export _HI_COLORS="$_HI_ROOT/settings/colors"
-[ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
-export _HI_PACKAGES="$_HI_ROOT/settings/packages"
-[ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
-export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
-[ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
-export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
-[ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
+[ "$_HI_COLORS" = "$_HI_COLORS_AUTO" ] && export _HI_COLORS=""
+export _HI_COLORS_AUTO="$_HI_ROOT/settings/colors"
+[ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS_AUTO="$_HI_CONFIG_DIR/colors"
+[ -z "$_HI_COLORS" ] && export _HI_COLORS="$_HI_COLORS_AUTO"
+[ "$_HI_PACKAGES" = "$_HI_PACKAGES_AUTO" ] && export _HI_PACKAGES=""
+export _HI_PACKAGES_AUTO="$_HI_ROOT/settings/packages"
+[ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES_AUTO="$_HI_CONFIG_DIR/packages"
+[ -z "$_HI_PACKAGES" ] && export _HI_PACKAGES="$_HI_PACKAGES_AUTO"
+[ "$_HI_VIMRC" = "$_HI_VIMRC_AUTO" ] && export _HI_VIMRC=""
+export _HI_VIMRC_AUTO="$_HI_ROOT/settings/vim.rc"
+[ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC_AUTO="$_HI_CONFIG_DIR/vim.rc"
+[ -z "$_HI_VIMRC" ] && export _HI_VIMRC="$_HI_VIMRC_AUTO"
+[ "$_HI_NANORC" = "$_HI_NANORC_AUTO" ] && export _HI_NANORC=""
+export _HI_NANORC_AUTO="$_HI_ROOT/settings/nano.rc"
+[ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC_AUTO="$_HI_CONFIG_DIR/nano.rc"
+[ -z "$_HI_NANORC" ] && export _HI_NANORC="$_HI_NANORC_AUTO"
 
 # eza reads its theme from a *directory* (settings/theme.yml), not a file path
 export _HI_THEME_DIR="$_HI_ROOT/settings"
@@ -92,4 +126,5 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_OSC52=1
   export _HI_DISABLE_NOTIFY=1
   export _HI_DISABLE_MARKS=1
+  export _HI_DISABLE_HISTORY=1
 } || true

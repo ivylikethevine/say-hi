@@ -17,6 +17,13 @@ source "$_HI_ALIASES"
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
+if [[ "${_HI_DISABLE_HISTORY:-0}" != 1 ]]; then
+  # shellcheck source=./history.sh
+  source "$_HI_HOME/say-hi/common/history.sh"
+  export HISTFILE="$_HI_TMPDIR/bash_history"
+  PROMPT_COMMAND="history -a${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+fi
+
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
   _hi_prime_identity
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end

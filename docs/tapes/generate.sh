@@ -84,6 +84,7 @@ _HI_GEN_TAPES=(
   "demo:demo:docker"
   "ssh:ssh:docker ssh ssh-keygen"
   "docker:docker:docker zsh"
+  "pick:pick:docker fzf"
   "podman:podman:podman fish"
   "nomad:nomad:nomad docker"
   "complete:complete:docker podman nomad kind kubectl fish"
@@ -203,13 +204,14 @@ function gen_list() {
 #
 # A warning rather than a refusal: it is legible in the finished GIF (that is
 # the trouble with it), the fix is `docker stop` on things this script must not
-# touch, and every other tape is unaffected. Only asked when complete is in the
-# run, and only of the two backends that answer for the whole host - nomad and
-# kube list their own jobs and pods, which is a smaller and less personal set.
+# touch, and every other tape is unaffected. Only asked when complete or pick is
+# in the run - the two tapes that put a target list on screen - and only of the
+# two backends that answer for the whole host: nomad and kube list their own
+# jobs and pods, which is a smaller and less personal set.
 function gen_foreign_check() {
   local backend all ours n=0
   case " ${_HI_GEN_RUN[*]%%:*} " in
-  *" complete "*) ;;
+  *" complete "* | *" pick "*) ;;
   *) return 0 ;;
   esac
   for backend in docker podman; do
@@ -223,7 +225,7 @@ function gen_foreign_check() {
   done
   if [ "$n" -gt 0 ]; then
     gen_row targets WARN "$YELLOW" "$n container(s) not from the fixtures are running"
-    gen_row "" note "$YELLOW" "complete.tape lists every one of them by name in the pane"
+    gen_row "" note "$YELLOW" "complete.tape and pick.tape list every one of them by name"
   else
     gen_row targets ok "$GREEN" "nothing running but the fixtures - the pane is the demo's own"
   fi

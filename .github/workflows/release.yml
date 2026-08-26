@@ -517,6 +517,44 @@ jobs:
           git commit -am "say-hi $GITHUB_REF_NAME"
           git push origin master
 
+  # The devcontainer Feature, published to ghcr as an OCI artifact. Behind the
+  # same human gate as the two channels above (`environment: release`,
+  # `needs: publish`) and skipped on a v0.0.x debug tag for their reason.
+  #
+  # Its own version is not the release's. A Feature carries a `version` in
+  # devcontainer-feature.json and the registry refuses a re-push of one, so it
+  # moves only when the *Feature* changes - the say-hi it installs is chosen by
+  # its `version` option at container-build time, which defaults to whatever
+  # the newest release is by then. That is the whole reason this job needs no
+  # bump.sh pass: nothing in the Feature names a say-hi version.
+  #
+  # No secret to skip on, unlike the tap and the AUR: ghcr takes the workflow's
+  # own GITHUB_TOKEN, so `packages: write` is the only thing it wants. See
+  # docs/PACKAGING.md's devcontainer Feature section.
+  feature:
+    name: publish the devcontainer Feature to ghcr
+    needs: publish
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Publish
+        uses: devcontainers/action@1082abd5d2bf3a11abccba70eef98df068277772 # v1.4.3
+        with:
+          publish-features: "true"
+          base-path-to-features: packaging/devcontainer/src
+          generate-docs: "false"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # The three commands docs/PACKAGING.md's "Homebrew tap" section asks for by
   # hand before a tap PR is merged, run on a hosted mac against the tarball
   # this release just published - the formula's url points at the release
