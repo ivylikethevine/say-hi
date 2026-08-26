@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for tests/test_runner.sh.
 #
 # GLOSSARY: HI.30 + HI.34

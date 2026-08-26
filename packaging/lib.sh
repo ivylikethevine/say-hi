@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh): locate
 # the tree, source core.sh, and hold the primitives they share.
 # scripts/install.sh keeps its own locator on purpose - it ships in packages

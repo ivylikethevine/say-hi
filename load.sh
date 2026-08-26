@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The target half (forked from sshrc): header, rc grafts, shell handoff, undo.
 
 # `bash --rcfile` skips the startup chain; restore it before strict mode

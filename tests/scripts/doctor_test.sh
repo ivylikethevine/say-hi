@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for scripts/doctor.sh. Every backend and ssh call runs against
 # shims on a restricted PATH, so the findings are fixed instead of "whatever
 # this machine happens to be running" - the same isolation targets_test.sh

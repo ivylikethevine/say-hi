@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The suite's scratch dir, the teardown ledger, and the exit trap that spends it.
 #
 # Part of the tests/test_lib.sh harness; sourced by it, never on its own.

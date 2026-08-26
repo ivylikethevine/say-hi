@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # hi against the shell frameworks people actually have installed.
 #
 # Almost nobody's ~/.zshrc is empty, and load.sh appends hi's block to the *end*

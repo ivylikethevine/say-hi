@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Driving something that takes time: the target-side probe strings, pty wrapping,
 # the polling helpers, and the timed interactive case.
 #

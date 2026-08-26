@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # preview how the header's packages check will render: what each priority
 # means, the colors it paints an installed and a missing package at that
 # priority, a real example of each drawn from your own packages file, and the

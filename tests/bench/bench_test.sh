@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Benchmarks for the product's hot paths - the code every shell start, prompt,
 # TAB completion and connect runs - plus the ssh payload's size budget. The
 # test suite itself is deliberately NOT benchmarked. Ceilings are generous on

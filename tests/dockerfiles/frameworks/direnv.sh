@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # direnv's PROMPT_COMMAND hook, the same coexistence question as zoxide's. One
 # apt package.
 #

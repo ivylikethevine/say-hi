@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The counted case: _hi_case tallies, _hi_assert reports, _hi_check does both.
 #
 # Part of the tests/test_lib.sh harness; sourced by it, never on its own.

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # preview what every ssh host & every known user resolve to, rendered in that
 # actual color, plus why (override/hosttag/default) - handy when tuning
 # settings/colors. Run via `hi --color-preview`.

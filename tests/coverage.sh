@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Line coverage for the bash suites via kcov - a dev tool to run occasionally,
 # deliberately not wired into CI. The point is finding which arms of
 # scripts/install.sh and packaging/bump.sh the ~670 fast cases never touch,

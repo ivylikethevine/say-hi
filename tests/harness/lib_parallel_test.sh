@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for the tests/lib/ harness - the scratch dir, its teardown, and
 # the parallel batch.
 # tests/lib/workdir.sh and tests/lib/parallel.sh. The cases that overwrite

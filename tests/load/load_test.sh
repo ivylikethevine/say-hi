@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for load.sh, the target-side half of hi: the marker-delimited block
 # it grafts onto the host's rc files, and the cleanup that takes it - and, only
 # for a disposable tree, say-hi itself - back out. Sourced with

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Sets the release version across every manifest, with real checksums, so that
 # cutting a release is one command rather than four hand-edits that can
 # disagree. The version of record is packaging/aur/say-hi/PKGBUILD's pkgver -

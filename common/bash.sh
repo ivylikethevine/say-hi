@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # set -euo pipefail # cannot be enabled: an interactive shell would exit on the first error
 
 # === start required configuration ===

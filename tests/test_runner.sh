@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unified test runner - runs every test in tests/ (or a chosen subset), times
 # each one, and prints a colored pass/fail summary table at the end.
 #

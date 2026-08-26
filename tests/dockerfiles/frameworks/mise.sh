@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # mise's PROMPT_COMMAND hook. Installed from mise.run rather than apt, which
 # does not package it.
 #

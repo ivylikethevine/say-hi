@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash-it, the bash-side counterpart to oh-my-zsh. --no-modify-config leaves
 # the rc graft to the explicit append below, so the file hi appends after is
 # one this script wrote deliberately.

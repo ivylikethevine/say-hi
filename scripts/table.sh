@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The boxed table the preview scripts draw with: measure every column, then
 # print a rule, padded cells, and a closing rule.
 #

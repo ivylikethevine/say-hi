@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Shared bash/zsh git prompt segment, styled to match fish's fish_vcs_prompt
 # (see config.fish's __fish_git_prompt_* settings). Needs the palette sourced.
 set -euo pipefail # off again at the end: an error must not close an interactive shell

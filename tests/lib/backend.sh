@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The container-backend suites, whole: one throwaway container per case, and the
 # docker/podman/nomad/kube test bodies that drive hi.sh through it.
 #

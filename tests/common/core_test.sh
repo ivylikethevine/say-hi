@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for common/core.sh
 # GLOSSARY: HI.30 + HI.34. The single-quoted probe scripts are expanded by the
 # *child* shell, which is the whole point (SC2016).

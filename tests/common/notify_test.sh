@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for the desktop-notification feature: common/notify.sh (the
 # emitter), the `hi_notify` alias in settings/aliases.sh, and the
 # _HI_DISABLE_NOTIFY toggle.
