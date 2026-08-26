@@ -14,7 +14,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # than three near-copies of the same hand-escaped printf format.
 function _hi_fixture() {
   {
-    printf '#!/bin/bash\nprintf "ran:%s\\n"\n' "$1"
+    printf '#!/usr/bin/env bash\nprintf "ran:%s\\n"\n' "$1"
     # shellcheck disable=SC2016 # $_HI_COUNTS_FILE is resolved when the fixture runs
     [ -n "${3:-}" ] && printf 'printf "%%s\\n" "%s" >"$_HI_COUNTS_FILE"\n' "$3"
     printf 'exit %s\n' "$2"
@@ -494,7 +494,7 @@ function test_ci_annotates_failures_unfolded() {
 # listed by name, one that failed silently still gets one line
 function test_failing_cases_are_recapped_under_the_summary() {
   {
-    printf '#!/bin/bash\nprintf "ran:noted\\n"\n'
+    printf '#!/usr/bin/env bash\nprintf "ran:noted\\n"\n'
     # shellcheck disable=SC2016 # $_HI_FAILS_FILE resolves when the fixture runs
     printf 'printf "%%s\\n" "case-x" >>"$_HI_FAILS_FILE"\n'
     printf 'exit 1\n'

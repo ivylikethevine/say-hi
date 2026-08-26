@@ -184,7 +184,7 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     eleven yellow skips; without it, green with none.
   - **What is left is a run and two settings.** `ci.yml` calls
     `windows-client.yml` on every push to `main` as an _advisory_ job. Expect
-    twelve skips (eleven symlink, one pty) on top of the 45 zsh/fish ones, and
+    twelve skips (eleven symlink, one pty) on top of the 47 zsh/fish ones, and
     `packaging`'s _staged_launcher shims a misnamed checkout_ should **skip**,
     not fail. It runs `--group fast` alone, since `setup-tool` resolves
     linux/darwin slugs only and the lint group is the ubuntu job's. A Windows _client_ is deliberately not a v1.0.0
