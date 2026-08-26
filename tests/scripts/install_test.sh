@@ -629,7 +629,12 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
 }
 
 # refused/absent sudo on an unwritable bindir must end in instructions, not a
-# `set -e` death at the last step of a completed install
+# `set -e` death at the last step of a completed install.
+#
+# The bindir's mode is what stages the failure, so this needs a run that a mode
+# can actually refuse - hence `_hi_check_capable lockout` at the registration
+# below. As root the chmod is inert: config_hi's `[ -w ]` answers yes, the link
+# is made, and the case fails on a step that worked.
 function test_config_hi_degrades_when_sudo_cannot_link() {
   local dir="$_HI_WORKDIR/nosudo" out rc=0
   mkdir -p "$dir/bin"
@@ -1204,7 +1209,7 @@ function run_install_tests() {
   _hi_check_capable symlink "Survives an unwritable launcher" test_config_hi_survives_an_unwritable_launcher
   _hi_check_capable symlink "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
   _hi_check_capable symlink "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
-  _hi_check "Degrades when sudo can't link" test_config_hi_degrades_when_sudo_cannot_link
+  _hi_check_capable lockout "Degrades when sudo can't link" test_config_hi_degrades_when_sudo_cannot_link
 
   _hi_h2 "Testing: install_tree (packaging mode)"
   _hi_check "Copies the tree under DESTDIR" test_install_tree_copies_the_tree_under_destdir

@@ -204,6 +204,16 @@ tag != "" {
 AWK
 }
 
+# _hi_require <tool> <why> - the tool, or a refusal that names it. Every
+# transport needs a handful of binaries that a stripped-down client may not
+# have, and "hi: requires tar on [box] ..." is the difference between a
+# session that says what is missing and one that prints line numbers.
+function _hi_require() {
+  command -v "$1" >/dev/null 2>&1 && return 0
+  _hi_cecho >&2 "hi: requires $1 on [$(_hi_hostname)] $2, but it is not installed. Aborting..." "$RED"
+  return 1
+}
+
 # The tree minus what the overlay switched off, comment-stripped through a
 # staging copy; both size budgets measure a *default* configuration.
 # GLOSSARY: HI.39 + HI.35
@@ -615,11 +625,14 @@ function _say_hi() {
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
-  # only this path armors (containers stream via their CLI)
-  command -v base64 >/dev/null 2>&1 || {
-    _hi_cecho >&2 "hi: requires base64 on [$(_hi_hostname)] to reach an ssh target, but it is not installed. Aborting..." "$RED"
-    return 1
-  }
+  # only this path armors (containers stream via their CLI); tar is every
+  # transport's floor, and both are asked here rather than at the pipeline
+  # that needs them - `tree="$(_hi_payload_tar | base64)"` takes the armor's
+  # status, so a refusal further in is swallowed and the session carries on to
+  # the next missing binary, printing a raw "command not found" per pipe
+  # stage and handing the target an empty archive.
+  _hi_require base64 "to reach an ssh target" || return 1
+  _hi_require tar "to pack the payload" || return 1
 
   printf -v hi_esc '%b' "$YELLOW"
   printf -v nc_esc '%b' "$NC"
@@ -731,6 +744,7 @@ function _say_hi_container() {
   local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
   local -a probe cp attach overlay=()
+  _hi_require tar "to pack the payload" || return 1
   _hi_container_cmds "$label"
 
   # a literal /tmp: created inside the *container*, so the client's $TMPDIR has

@@ -42,7 +42,22 @@ jobs:
             cd "$GITHUB_WORKSPACE"
             _HI_HOME="$(cd .. && pwd)"
             export _HI_HOME
-            bash ./tests/test_runner.sh --verbose --host-report --group fast
+
+            # rsync carries the runner's uid into a VM whose only user is
+            # root, so git sees a checkout it is not the owner of and refuses
+            # to touch it ("detected dubious ownership"). Everything that asks
+            # git about this tree then fails - `hi --version`'s git describe
+            # fallback, packaging's `git archive` - for a reason that has
+            # nothing to do with what those cases test.
+            git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+            # `timeout` bounds the suites rather than the job: a run that
+            # wedges dies in minutes with its transcript in the log, instead
+            # of sitting on the 30-minute job timeout and being cancelled with
+            # no verdict at all (which is what a forced-interactive bash
+            # stopping its own process group used to do here). FreeBSD ships
+            # timeout(1) in base.
+            timeout 900 bash ./tests/test_runner.sh --verbose --host-report --group fast
 
             # a throwaway key, and sshd is already up in the vmactions image
             ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"

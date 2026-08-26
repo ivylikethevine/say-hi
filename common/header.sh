@@ -28,17 +28,28 @@ function _hi_header_version() {
 }
 
 # UTC | version | local: no "say-hi" label - the banner above already says whose
+#
+# Both clocks are one `|| :` from silence for system_info's reason: a target
+# with no date(1) prints two "command not found" lines across the header
+# otherwise, and an empty cell says the same thing without them.
 function timestamp() {
+  local utc local_now
   _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
-  header_row "$BRBLUE$(date -u "$_HI_HUMAN_CENTRIC_DATE") " \
+  utc="$(date -u "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
+  local_now="$(date "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
+  header_row "$BRBLUE${utc:-?} " \
     "$GREEN$_HI_HEADER_VERSION" \
-    " $BRYELLOW$(date "$_HI_HUMAN_CENTRIC_DATE")"
+    " $BRYELLOW${local_now:-?}"
 }
 
 function system_info() {
   local kernel arch os cpus ram base_mhz boost_mhz
-  # process substitution, not <<<: a here-string is a temp file before bash 5.1
-  read -r kernel arch < <(uname -sm)
+  # process substitution, not <<<: a here-string is a temp file before bash 5.1.
+  # `|| :` for the same reason every probe below carries one, one rung earlier:
+  # no uname means no kernel and no arch, not a "command not found" in the
+  # middle of the banner - and an unread `read` leaves both empty, which the
+  # cells below already render as "?".
+  read -r kernel arch < <(uname -sm 2>/dev/null || :)
   _hi_sanitize_var kernel "$kernel"
   _hi_sanitize_var arch "$arch"
   local base_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/base_frequency"
@@ -47,7 +58,7 @@ function system_info() {
   local amd_floor_path="/sys/devices/system/cpu/cpu0/cpufreq/amd_pstate_lowest_nonlinear_freq"
   if [ -f "$_HI_LINUX_RELEASE" ]; then
     # also covers WSL - it's a real Linux kernel with its own /etc/os-release
-    os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE")
+    os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE" 2>/dev/null || true)
     # every probe ends in `|| true`: a stripped-down target falls through to
     # "?" instead of aborting under set -e
     cpus=$(nproc 2>/dev/null || true)
@@ -85,6 +96,10 @@ function system_info() {
       awk 'NR==2 && $1 ~ /^[0-9]+$/ { printf "%.0fG", $1 / 1073741824 }' || true)
     # wmic only exposes the rated (base) clock; turbo/boost isn't queryable this way
     base_mhz=$(wmic cpu get MaxClockSpeed 2>/dev/null | awk 'NR==2 && $1 ~ /^[0-9]+$/ { print $1 }' || true)
+  elif [ -z "$kernel" ]; then
+    # no /etc/os-release and no uname to ask: the branches below are guesses
+    # from $kernel, and there is nothing to guess from
+    os=""
   else
     os="macOS $(sw_vers -productVersion 2>/dev/null || true)"
     cpus=$(sysctl -n hw.ncpu 2>/dev/null || true)
@@ -109,7 +124,7 @@ function system_info() {
       }
     done
   fi
-  header_row "$PURPLE$arch" "$GREEN$os" "${YELLOW}Cores: ${cpus:-?}" \
+  header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
     "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} $freq_unit"
 }
 

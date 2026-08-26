@@ -141,6 +141,39 @@ function test_system_info_includes_static_labels() {
   [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
 }
 
+# A target with a shell and awk and nothing else - core_test.sh's barebones
+# box, one layer up. The header is the first thing a session prints, so a
+# missing uname or date used to greet the user with "command not found" across
+# the banner; the cells say "?" instead, which is what every other probe in
+# system_info has always done.
+# shellcheck disable=SC2016 # the probe expands in the child bash, not here
+function _hi_stripped_header() {
+  local nocfg="$_HI_WORKDIR/stripped-nocfg"
+  env -i PATH="$(_hi_real_path stripped bash awk)" HOME="$HOME" NO_COLOR=1 \
+    XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
+    _HI_HOME="$_HI_HOME" _HI_CASE_PROBE="$1" bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HEADER"; eval "$_HI_CASE_PROBE"' 2>&1
+}
+
+function test_system_info_without_uname_says_unknown() {
+  local out
+  out="$(_hi_stripped_header system_info)"
+  [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+}
+
+function test_timestamp_without_date_says_unknown() {
+  local out
+  out="$(_hi_stripped_header timestamp)"
+  [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+}
+
+# the whole banner, since that is what a session actually prints
+function test_banner_renders_without_coreutils() {
+  local out
+  out="$(_hi_stripped_header 'banner Connected "" ""')"
+  [[ "$out" == *Connected* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+}
+
 function test_identity_includes_static_labels() {
   local out
   out="$(identity)"
@@ -523,6 +556,11 @@ function run_header_tests() {
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
+
+  _hi_h2 "Testing: a target with no coreutils"
+  _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown
+  _hi_check "Timestamp says ? without date" test_timestamp_without_date_says_unknown
+  _hi_check "The banner still renders" test_banner_renders_without_coreutils
 
   _hi_h2 "Testing: hi_header"
   _hi_check "No output when disabled" test_hi_header_disabled_produces_no_output

@@ -159,8 +159,26 @@ function doctor_payload_diff() {
   fi
 }
 
+# The tools hi needs *here* to ship a payload at all, and the one place the
+# report asks. base64 armors the ssh transport (_say_hi refuses without it),
+# tar packs the tree for every transport, and gzip only shrinks it - so a
+# missing gzip is a bigger payload rather than no session, which is why it is
+# named separately below rather than counted as a floor.
+_HI_LOCAL_FLOOR=(base64 tar)
+_HI_LOCAL_NICE=(gzip)
+
+# _hi_missing_tools <name...> - those of <name...> this machine does not have,
+# space-separated, in the order given.
+function _hi_missing_tools() {
+  local tool missing=""
+  for tool in "$@"; do
+    command -v "$tool" >/dev/null 2>&1 || missing="$missing$tool "
+  done
+  printf '%s' "${missing% }"
+}
+
 function doctor_local() {
-  local branch changes wire
+  local branch changes wire missing nice_missing
   doctor_section local "The local tree"
   doctor_row tree "$_HI_ROOT"
   doctor_row version "$(_hi_version)"
@@ -171,19 +189,38 @@ function doctor_local() {
   else
     doctor_row checkout "no .git - a package-manager install (hi --update will say so too)"
   fi
+  # A machine missing the floor cannot ship a payload, so the size below is
+  # not a number worth printing - and computing it anyway is what used to
+  # answer `hi --doctor` with a pair of raw "base64: command not found" lines
+  # from inside _hi_wire_bytes, on the one run whose whole job is to say what
+  # is wrong with this machine. Named here, once, and the size step skipped.
+  missing="$(_hi_missing_tools "${_HI_LOCAL_FLOOR[@]}")"
+  nice_missing="$(_hi_missing_tools "${_HI_LOCAL_NICE[@]}")"
+  if [ -n "$missing" ]; then
+    doctor_row tools "MISSING locally: $missing - hi cannot ship a payload without them" bad
+  else
+    doctor_row tools "${_HI_LOCAL_FLOOR[*]} present${nice_missing:+, no $nice_missing (a bigger payload, not a broken one)}" \
+      "${nice_missing:+warn}"
+  fi
   # two numbers because they answer two questions: what leaves this machine
   # (a gzipped tar, base64-armored for the ssh path) and how big the thing is
   # once it lands. The first is the one people mean by "what does hi cost".
-  wire="$(_hi_wire_bytes)"
-  doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
-  doctor_payload_diff "$wire"
+  if [ -z "$missing" ]; then
+    wire="$(_hi_wire_bytes)"
+    doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
+    doctor_payload_diff "$wire"
+  else
+    doctor_row payload "unknown - needs $missing to measure (${_HI_PAYLOAD[*]})" bad
+  fi
   # the shell column of core.sh's _HI_SHELL_TABLE, so this report cannot fall
-  # behind the roster install.sh and load.sh wire up
+  # behind the roster install.sh and load.sh wire up. Split in the shell and
+  # not by `cut`: one fork fewer, and a report that runs where coreutils does
+  # not - which is exactly the machine most likely to be running it.
   local s have=""
   # shellcheck disable=SC2119 # the flag filter is optional; no flag means all
-  for s in $(_hi_shell_rows | cut -d'|' -f1); do
+  while IFS='|' read -r s _; do
     command -v "$s" >/dev/null 2>&1 && have="$have$s "
-  done
+  done < <(_hi_shell_rows)
   doctor_row shells "local: ${have:-none?!}"
 }
 
