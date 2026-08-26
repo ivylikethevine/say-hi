@@ -302,7 +302,11 @@ function _hi_host_cpu_model() {
       return 0
     done <"${_HI_PROC_CPUINFO:-/proc/cpuinfo}"
   fi
-  sysctl -n machdep.cpu.brand_string 2>/dev/null || true
+  # macOS answers the brand string; the BSDs put the same thing in hw.model,
+  # which on macOS is the *machine* model ("MacBookPro18,3") - so it comes second
+  line="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"
+  [ -n "$line" ] || line="$(sysctl -n hw.model 2>/dev/null || true)"
+  printf '%s' "$line"
 }
 
 # _hi_host_mem_kb <field> - a /proc/meminfo value in kB, or empty
@@ -333,18 +337,20 @@ function _hi_host_gib() {
   printf '%s.%s GiB' "$whole" "$tenth"
 }
 
-# _hi_host_memory - "15.6 GiB total, 13.9 GiB available", or empty. macOS has
-# no cheap MemAvailable equivalent, so it reports the total alone.
+# _hi_host_memory - "15.6 GiB total, 13.9 GiB available", or empty. Only Linux
+# has a cheap MemAvailable equivalent, so everywhere else reports the total
+# alone: macOS keeps it in hw.memsize and the BSDs in hw.physmem - hw.physmem64
+# first for NetBSD, where the 32-bit name saturates on a big machine.
 function _hi_host_memory() {
-  local total avail bytes
+  local total avail bytes name
   total="$(_hi_host_gib "$(_hi_host_mem_kb MemTotal)")"
   if [ -z "$total" ]; then
-    bytes="$(sysctl -n hw.memsize 2>/dev/null || true)"
-    case "$bytes" in
-    '' | *[!0-9]*) return 0 ;;
-    *) total="$(_hi_host_gib $((bytes / 1024)))" ;;
-    esac
-    printf '%s total' "$total"
+    for name in hw.memsize hw.physmem64 hw.physmem; do
+      bytes="$(sysctl -n "$name" 2>/dev/null || true)"
+      case "$bytes" in '' | *[!0-9]*) continue ;; esac
+      printf '%s total' "$(_hi_host_gib $((bytes / 1024)))"
+      return 0
+    done
     return 0
   fi
   avail="$(_hi_host_gib "$(_hi_host_mem_kb MemAvailable)")"

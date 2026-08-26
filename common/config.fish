@@ -130,11 +130,13 @@ function sudo
 end
 
 # the prompt's end character, mirroring core.sh's _hi_prompt_end (fish can't
-# call it): fish setting, then all-three, then default. Empty counts as unset,
-# and root still gets '#'.
+# call it): fish setting, then all-three, then default. Empty counts as unset.
+# Whether either setting actually spoke is remembered, because root's '#' below
+# replaces the *default* only - the same rule bash's shipped `\$` follows.
 set -g _hi_prompt_end '|'
-set -q _HI_PROMPT_END; and test -n "$_HI_PROMPT_END"; and set -g _hi_prompt_end $_HI_PROMPT_END
-set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_prompt_end $_HI_PROMPT_END_FISH
+set -g _hi_prompt_end_explicit 0
+set -q _HI_PROMPT_END; and test -n "$_HI_PROMPT_END"; and set -g _hi_prompt_end $_HI_PROMPT_END; and set -g _hi_prompt_end_explicit 1
+set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_prompt_end $_HI_PROMPT_END_FISH; and set -g _hi_prompt_end_explicit 1
 
 # prompt: "<chroot> user@host cwd (git) [status] |", @ yellow over ssh; skipped
 # entirely when disabled, leaving fish's own default prompt in place
@@ -177,7 +179,10 @@ function fish_prompt --description 'Write out the prompt'
   set -l suffix " $_hi_prompt_end"
   if functions -q fish_is_root_user; and fish_is_root_user
     set -q fish_color_cwd_root; and set color_cwd $fish_color_cwd_root
-    set suffix '#'
+    # root's '#' is the *default* giving way, not an override: bash's shipped
+    # `\$` renders as # for root the same way, and an explicit setting still
+    # wins there. A separator somebody chose is honoured for root too.
+    test "$_hi_prompt_end_explicit" = 1; or set suffix ' #'
   end
 
   # bold the status only when it changed since the last prompt

@@ -371,7 +371,9 @@ write_cache() {
     printf '%s\n' "$now"
     [ -n "$1" ] && printf '%s\n' "$1"
     true
-  } >"$_hi_tmp" 2>/dev/null; then
+    # stderr first: the message a refused `>` prints is the shell's own, and a
+    # 2>/dev/null after the redirection that fails comes too late to catch it
+  } 2>/dev/null >"$_hi_tmp"; then
     mv "$_hi_tmp" "$cache" 2>/dev/null || rm -f "$_hi_tmp" 2>/dev/null
   else
     rm -f "$_hi_tmp" 2>/dev/null

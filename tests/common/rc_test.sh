@@ -229,14 +229,22 @@ function test_fish_flag_completion_does_not_also_sweep_targets() {
 # grepping the rc, since the whole risk here is a value that reaches $PS1 in a
 # form the shell then mangles.
 
-# the last non-blank characters of the prompt the shell actually built
+# the last non-blank characters of the prompt the shell actually built.
+# $_HI_AS_ROOT=yes/no shadows fish's root test either way: fish is the only one
+# of the three whose prompt is *run* here (bash and zsh are read as raw $PS1),
+# so without the shadow which branch a case takes depends on who invoked CI -
+# and the FreeBSD VM, like most container images, is root.
 function _hi_prompt_tail() {
-  local shell="$1" script
+  local shell="$1" script root=""
   shift
+  case "${_HI_AS_ROOT:-}" in
+  yes) root='function fish_is_root_user; return 0; end; ' ;;
+  no) root='function fish_is_root_user; return 1; end; ' ;;
+  esac
   case "$shell" in
   bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; ps1; printf %s "$PS1"' ;;
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"' ;;
-  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; fish_prompt' ;;
+  fish) script="source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null; $root fish_prompt" ;;
   esac
   # the OSC 133 mark that closes every prompt (and bash's \[ \] around it)
   # is not part of the separator, so it comes off before the tail is read
@@ -248,7 +256,7 @@ function _hi_prompt_tail() {
 # $ for a user and # for root), zsh's `>`, fish's `|`
 function test_prompt_end_default() {
   local shell="$1" want="$2" out
-  out="$(_hi_prompt_tail "$shell")"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell")"
   case "${out% }" in
   *"$want") return 0 ;;
   esac
@@ -257,7 +265,7 @@ function test_prompt_end_default() {
 
 function test_prompt_end_shell_specific() {
   local shell="$1" var="$2" out
-  out="$(_hi_prompt_tail "$shell" "$var=@@")"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" "$var=@@")"
   case "${out% }" in
   *@@) return 0 ;;
   esac
@@ -268,7 +276,7 @@ function test_prompt_end_shell_specific() {
 # everywhere - the shell-specific one still wins over it
 function test_prompt_end_global_fallback() {
   local shell="$1" out
-  out="$(_hi_prompt_tail "$shell" _HI_PROMPT_END=%%)"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" _HI_PROMPT_END=%%)"
   case "${out% }" in
   *%%) return 0 ;;
   esac
@@ -277,7 +285,7 @@ function test_prompt_end_global_fallback() {
 
 function test_prompt_end_specific_beats_global() {
   local shell="$1" var="$2" out
-  out="$(_hi_prompt_tail "$shell" _HI_PROMPT_END=%% "$var=@@")"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" _HI_PROMPT_END=%% "$var=@@")"
   case "${out% }" in
   *@@) return 0 ;;
   esac
@@ -288,10 +296,30 @@ function test_prompt_end_specific_beats_global() {
 # is never what someone meant, and ' ' still expresses it
 function test_prompt_end_empty_falls_back() {
   local shell="$1" var="$2" want="$3" out
-  out="$(_hi_prompt_tail "$shell" "$var=")"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" "$var=")"
   case "${out% }" in
   *"$want") return 0 ;;
   esac
+  return 1
+}
+
+# Root gets '#' - but as the *default* giving way, never as an override, which
+# is the rule bash's shipped `\$` follows (it renders as # for root, and an
+# explicit _HI_PROMPT_END_BASH still wins). fish is the only shell where that
+# decision is made in hi's own code rather than by the shell, so it is the only
+# one with a case. Run through the shadow, so it covers the branch on a
+# non-root box too.
+function test_prompt_end_root_takes_the_default() {
+  local out
+  out="$(_HI_AS_ROOT=yes _hi_prompt_tail fish)"
+  case "${out% }" in *'#') return 0 ;; esac
+  return 1
+}
+
+function test_prompt_end_root_keeps_an_explicit_one() {
+  local out
+  out="$(_HI_AS_ROOT=yes _hi_prompt_tail fish _HI_PROMPT_END_FISH=@@)"
+  case "${out% }" in *@@) return 0 ;; esac
   return 1
 }
 
@@ -344,40 +372,53 @@ function test_fish_config_dir_explicit_value_wins() {
 #
 # Two things have to stay true per shell, and the second is why the first is
 # worth asserting: hi ships no default of its own for these settings any more,
-# and the user's file is sourced and applies. The empty case is the regression
+# and the user's file is sourced and applies. The no-file case is the regression
 # guard on the removal - a preference creeping back into a shipped rc shows up
-# here as a non-empty probe.
+# here as a probe that stopped agreeing with a bare shell's.
 #
-# <shell>|<user file>|<probe script>|<user line>|<user value>
+# <shell>|<user file, and the rc it extends>|<probe read>|<user line>|<user value>
+#
+# That naming is why the second field doubles as the rc to source -
+# `source "$_HI_HOME/say-hi/common/$file"` parses in bash and fish both - and
+# the third is the read on its own. Keeping the two apart is what lets the probe
+# run the read *without* hi's rc, for the baseline the no-file case measures
+# against.
 #
 # zsh's row used to be HISTFILE, proving hi shipped no history preference at
 # all. It now does - _HI_DISABLE_HISTORY, on by default - so HISTFILE moved to
 # tests/common/history_test.sh, which covers that toggle's default, its
 # _HI_DISABLE_LOCAL/off behavior, and the overlay's own HISTFILE still winning.
 _HI_SHELL_OVERRIDE_ROWS=(
-  'bash|bash.sh|source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
-  'fish|config.fish|source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
+  'bash|bash.sh|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
+  'fish|config.fish|printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
 )
 
-# the probe for one row, with the user's file present only when $2 says so
+# _hi_shell_override_probe <row> <none|user|bare> - the row's read, run with
+# hi's rc and no user file (none), with both (user), or with neither (bare).
 function _hi_shell_override_probe() {
-  local row="$1" want_user="$2"
-  local shell file script line value
+  local row="$1" mode="$2"
+  local shell file script line value src=""
   IFS='|' read -r shell file script line value <<<"$row"
   rm -f "$_HI_WORKDIR/cfg/$file"
-  [ "$want_user" = yes ] && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
-  _hi_rc_shell xterm-256color "$shell" "$script"
+  [ "$mode" = user ] && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
+  [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$file"'" 2>/dev/null; '
+  _hi_rc_shell xterm-256color "$shell" "$src$script"
 }
 
-# No user file, so nothing should answer: the shipped rc sets none of these.
+# The shipped rc sets none of these - measured against the same shell *without*
+# it rather than against the empty string, because a bare shell does not always
+# answer empty: fish 4.0 through 4.6 set every fish_color_* in a `fish -c` too,
+# which 4.7 stopped and fish 3 never did. Reading "hi changed nothing" off an
+# absolute value made this case a report on the local fish build; as a
+# difference it still fails the day a preference lands back in a shipped rc.
 function test_shell_ships_no_preference_default() {
-  [ -z "$(_hi_shell_override_probe "$1" no)" ]
+  [ "$(_hi_shell_override_probe "$1" none)" = "$(_hi_shell_override_probe "$1" bare)" ]
 }
 
 function test_shell_user_file_applies() {
   local row="$1" shell file script line value
   IFS='|' read -r shell file script line value <<<"$row"
-  [ "$(_hi_shell_override_probe "$row" yes)" = "$value" ]
+  [ "$(_hi_shell_override_probe "$row" user)" = "$value" ]
 }
 
 function run_rc_tests() {
@@ -440,6 +481,8 @@ function run_rc_tests() {
     _hi_check_requires "$shell" "[$shell] the specific one beats it" test_prompt_end_specific_beats_global "$shell" "$var"
     _hi_check_requires "$shell" "[$shell] empty falls back to '$default'" test_prompt_end_empty_falls_back "$shell" "$var" "$default"
   done
+  _hi_check_requires fish "[fish] root takes '#' over the default" test_prompt_end_root_takes_the_default
+  _hi_check_requires fish "[fish] root keeps an explicit one" test_prompt_end_root_keeps_an_explicit_one
 
   _hi_suite_end "rc"
 }

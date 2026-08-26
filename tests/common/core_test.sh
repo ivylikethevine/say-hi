@@ -18,8 +18,13 @@ function test_use_ascii_in_a_c_locale() {
 function test_use_ascii_not_under_utf8() {
   (
     unset LC_ALL LC_CTYPE LANG _HI_ASCII
+    # The brace group is what silences bash's `warning: setlocale` on a host
+    # without the locale (FreeBSD has C.UTF-8 and not C.utf8): the assignment
+    # is made ahead of a simple command's own redirection, so 2>/dev/null has
+    # to wrap the command instead. The case is about the *spelling* reaching
+    # _hi_use_ascii's glob, never about the locale existing.
     ! LANG=en_US.UTF-8 _hi_use_ascii &&
-      ! LC_ALL=C.utf8 _hi_use_ascii # LC_ALL outranks, both spellings count
+      ! { LC_ALL=C.utf8 _hi_use_ascii; } 2>/dev/null # LC_ALL outranks, both spellings count
   )
 }
 
