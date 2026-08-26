@@ -900,14 +900,14 @@ function test_prompt_ends_skipped_when_the_prompt_is_off() {
 # setting_on is the one reader of both, and ask_prompt_group writes both.
 
 function test_setting_on_opt_in_absent_is_off() {
-  local target="$_HI_WORKDIR/optin_absent"
+  local target="$_HI_WORKDIR/opt_in_absent"
   : >"$target"
   _HI_SETTING_PENDING=()
   ! setting_on _HI_HEADER_GHZ "$target" 0 1
 }
 
 function test_setting_on_opt_in_present_is_on() {
-  local target="$_HI_WORKDIR/optin_present"
+  local target="$_HI_WORKDIR/opt_in_present"
   printf 'export _HI_HEADER_GHZ=1\n' >"$target"
   _HI_SETTING_PENDING=()
   setting_on _HI_HEADER_GHZ "$target" 0 1
