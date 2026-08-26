@@ -41,8 +41,23 @@ function _hi_suite_begin() {
 # opposed to _hi_report_skip, which is the whole suite standing down. Counted
 # rather than silently passed, so _hi_suite_end's banner can say how much of
 # what it just reported was actually exercised.
+#
+# Under --require-run it is a failure instead, and reported as one here rather
+# than by counting up at the end: this is the only place the case's label and
+# its reason are both in hand, so it is the only place the runner's recap can
+# be told which case went missing. The tally still calls it a skip - the case
+# did stand down, and the summary's SKIP column should say so - and
+# _hi_suite_end is what turns the count into the suite's verdict. That split
+# is also what makes the parallel path work: _HI_SKIPPED comes back from a
+# case's subshell through its verdict file (see _hi_par_case), while a
+# counter bumped here would not.
 function _hi_skip() {
   _HI_SKIPPED=$((${_HI_SKIPPED:-0} + 1))
+  if [ "${_HI_REQUIRE_RUN:-0}" = 1 ]; then
+    _hi_align " | $1" "SKIPPED${2:+ ($2)}" "$RED"
+    _hi_note_failure "$1 stood down${2:+ ($2)}, and --require-run was given"
+    return 0
+  fi
   _hi_align " | $1" "SKIPPED${2:+ ($2)}" "$YELLOW"
 }
 
@@ -148,16 +163,34 @@ function _hi_report_skip() {
   printf 'SKIP %s\n' "$1" >"$_HI_COUNTS_FILE"
 }
 
+# The tally, the closing banner, and the suite's exit status - which is what
+# the runner reads as PASS or FAILED.
+#
+# Under --require-run a skipped case counts toward that status, so a suite that
+# quietly ran less than it was asked to cannot exit 0. The counts handed up are
+# untouched by it: the summary's FAIL column stays the number of cases that
+# actually failed an assertion, the SKIP column the number that never ran, and
+# the exit status carries the verdict. $_hi_bad is what the banner and the
+# status are built from, so the two can never disagree.
 function _hi_suite_end() {
-  local subject="$1" skipped=""
+  local subject="$1" skipped="" bad="$_HI_FAILED" stood_down=""
   [ "${_HI_SKIPPED:-0}" -gt 0 ] && skipped=", ${_HI_SKIPPED} skipped"
   _hi_report_counts "$_HI_TOTAL" "$_HI_FAILED" "${_HI_SKIPPED:-0}"
-  if [ "$_HI_FAILED" -eq 0 ]; then
-    _hi_h1 "${2:-All $subject checks passed ($_HI_TOTAL cases$skipped)}" "$BRGREEN"
-  else
-    _hi_h1 "${3:-$_HI_FAILED/$_HI_TOTAL $subject checks FAILED}" "$RED"
+  if [ "${_HI_REQUIRE_RUN:-0}" = 1 ] && [ "${_HI_SKIPPED:-0}" -gt 0 ]; then
+    bad=$((bad + _HI_SKIPPED))
+    stood_down=" (${_HI_SKIPPED} more stood down, and --require-run was given)"
   fi
-  exit "$_HI_FAILED"
+  if [ "$bad" -eq 0 ]; then
+    _hi_h1 "${2:-All $subject checks passed ($_HI_TOTAL cases$skipped)}" "$BRGREEN"
+  elif [ "$_HI_FAILED" -eq 0 ]; then
+    # nothing failed an assertion - the verdict is entirely --require-run's,
+    # so it says so rather than borrowing the caller's failure banner, which
+    # would report cases that never ran as cases that broke
+    _hi_h1 "${_HI_SKIPPED} of $subject's cases stood down, and --require-run was given" "$RED"
+  else
+    _hi_h1 "${3:-$_HI_FAILED/$_HI_TOTAL $subject checks FAILED}$stood_down" "$RED"
+  fi
+  exit "$bad"
 }
 
 # _hi_stand_down <reason> [message] - the whole suite stops here, honestly:

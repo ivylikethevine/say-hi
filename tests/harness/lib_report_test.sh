@@ -218,21 +218,89 @@ function test_require_reports_a_skip_for_a_missing_binary() {
 # _hi_skip in a subshell and lose the increment it is meant to prove
 function test_skip_counts_the_case_without_passing_it() {
   local out file="$_HI_WORKDIR/skip.out"
-  local _HI_SKIPPED=0
+  local _HI_SKIPPED=0 _HI_REQUIRE_RUN=0
   _hi_skip "[case]" "no python3" >"$file"
   out="$(cat "$file")"
   [ "$_HI_SKIPPED" -eq 1 ] && [[ "$out" == *SKIPPED* ]] && [[ "$out" == *"no python3"* ]]
 }
 
+# $_HI_REQUIRE_RUN is pinned off in every case below that skips something: the
+# runner hands it down to each suite, so a `--require-run` run of this suite
+# would otherwise put its own cases under the rule they are describing.
 function test_suite_end_names_the_skipped_cases() {
   local out
   out="$(
+    _HI_REQUIRE_RUN=0
     _HI_TOTAL=3
     _HI_FAILED=0
     _HI_SKIPPED=2
     _hi_suite_end demo
   )" || true
   [[ "$out" == *"3 cases, 2 skipped"* ]]
+}
+
+# --require-run: a case that never ran is a failure, and the suite has to exit
+# non-zero saying so - a green suite with a yellow line in it is the hole the
+# flag exists to close
+function test_suite_end_fails_on_a_skip_under_require_run() {
+  local out rc=0
+  out="$(
+    _HI_REQUIRE_RUN=1
+    _HI_TOTAL=3
+    _HI_FAILED=0
+    _HI_SKIPPED=2
+    _hi_suite_end demo
+  )" || rc=$?
+  [ "$rc" -eq 2 ] && [[ "$out" == *"stood down"* ]] && [[ "$out" == *"--require-run"* ]]
+}
+
+# a suite that both failed and skipped keeps its own failure wording, with the
+# stand-downs added to the count rather than replacing what broke
+function test_suite_end_adds_skips_to_real_failures() {
+  local out rc=0
+  out="$(
+    _HI_REQUIRE_RUN=1
+    _HI_TOTAL=5
+    _HI_FAILED=2
+    _HI_SKIPPED=1
+    _hi_suite_end demo
+  )" || rc=$?
+  [ "$rc" -eq 3 ] && [[ "$out" == *"2/5 demo checks FAILED"* ]] && [[ "$out" == *"1 more stood down"* ]]
+}
+
+# ...but the tally it hands the runner is unchanged: the cases skipped, they
+# did not fail an assertion, and the summary's two columns have to keep saying
+# which is which
+function test_require_run_leaves_the_counts_alone() {
+  local file
+  file="$_HI_WORKDIR/counts.require_run"
+  (
+    _HI_REQUIRE_RUN=1
+    _HI_COUNTS_FILE="$file"
+    _HI_TOTAL=4
+    _HI_FAILED=1
+    _HI_SKIPPED=2
+    _hi_suite_end thing >/dev/null
+  ) || true
+  [ "$(cat "$file")" = "4 1 2" ]
+}
+
+# the label and the reason are only in hand inside _hi_skip, so that is where
+# the runner's recap has to be told which case went missing
+function test_skip_names_the_case_under_require_run() {
+  local file fails
+  file="$_HI_WORKDIR/skip.requirerun.out"
+  fails="$_HI_WORKDIR/skip.requirerun.fails"
+  : >"$fails"
+  (
+    _HI_REQUIRE_RUN=1
+    _HI_FAILS_FILE="$fails"
+    _HI_SKIPPED=0
+    _hi_skip "[mise]" "image did not build" >"$file"
+  )
+  [[ "$(cat "$fails")" == *"[mise]"* ]] &&
+    [[ "$(cat "$fails")" == *"image did not build"* ]] &&
+    [[ "$(cat "$file")" == *SKIPPED* ]]
 }
 
 function test_suite_end_stays_quiet_with_nothing_skipped() {
@@ -404,6 +472,10 @@ function run_lib_report_tests() {
   _hi_check "Skip counts a case without passing it" test_skip_counts_the_case_without_passing_it
   _hi_check "End names the skipped cases" test_suite_end_names_the_skipped_cases
   _hi_check "End stays quiet with nothing skipped" test_suite_end_stays_quiet_with_nothing_skipped
+  _hi_check "End fails on a skip under --require-run" test_suite_end_fails_on_a_skip_under_require_run
+  _hi_check "End adds skips to real failures" test_suite_end_adds_skips_to_real_failures
+  _hi_check "--require-run leaves the counts alone" test_require_run_leaves_the_counts_alone
+  _hi_check "Skip names the case under --require-run" test_skip_names_the_case_under_require_run
 
   _hi_h2 "Testing: _hi_align"
   _hi_check "Spans _HI_MAX_WIDTH" test_align_spans_hi_max_width
