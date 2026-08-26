@@ -149,10 +149,17 @@ that is completion behaving normally, not the GIF cut short.
   validates each with that shell's own syntax checker and asks whether to
   continue if any has issues.
 - reload your shell!
-- `hi --configure` revisits the feature toggle prompts — header, prompt, git
-  status, editors, clipboard, notifications, header details, package-check
-  depth, terminal width, and whether hi styles this machine too — without
-  touching the rc wiring. Most questions preview their answer; answers land in
+- `hi --configure` revisits the settings in short sections, starting from a
+  preset if you like (`everything`, `balanced`, `minimal`;
+  `--preset <name>` applies one without asking) — features (header,
+  prompt, git status, editors, clipboard, notifications, prompt marks, and
+  whether hi styles this machine too), header details, package-check depth,
+  terminal width, the prompt (starship deference, separators), and an
+  _advanced_ section you can skip with one Enter (session shell, glyphs vs
+  ASCII, TERM fallback, recent targets, completion timing) — without touching
+  the rc wiring. Every question says what it is set to now and previews what
+  it decides where it can; Enter keeps the current answer; nothing is written
+  until the end, and the run closes with what changed. Answers land in
   `~/.config/say-hi/settings.sh` (see [Configuration](#configuration)).
 - `hi --check-configs` re-runs just the rc validation, and parses the overlay's
   shell files too (`aliases.sh` under both `sh` and `fish`, since every target

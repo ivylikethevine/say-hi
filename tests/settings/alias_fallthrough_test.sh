@@ -253,7 +253,7 @@ function run_flag_tests() {
 }
 
 # settings/aliases.sh resolves `vim` through `command -v nvim || command -v vim`,
-# and scripts/install.sh's _hi_editors_preview spells the same ladder a second
+# and scripts/configure.sh's _hi_editors_preview spells the same ladder a second
 # time to show the answer before the toggle is set. Neither can source the
 # other (see the note above the alias), so nothing but this pins them: a
 # preview that disagrees with the alias it previews is a lie told during
@@ -261,14 +261,14 @@ function run_flag_tests() {
 function test_vim_ladder_matches_the_install_preview() {
   local from_aliases from_install
   from_aliases="$(grep -o 'command -v nvim || command -v vim' "$_HI_ALIASES" | head -1)"
-  from_install="$(grep -o 'command -v nvim || command -v vim' "$_HI_INSTALL" | head -1)"
+  from_install="$(grep -o 'command -v nvim || command -v vim' "$_HI_ROOT/scripts/configure.sh" | head -1)"
   [ -n "$from_aliases" ] || {
     _hi_cecho " | no nvim/vim ladder found in settings/aliases.sh" "$RED"
     return 1
   }
   [ "$from_aliases" = "$from_install" ] || {
     _hi_cecho " | aliases.sh: [$from_aliases]" "$RED"
-    _hi_cecho " | install.sh: [$from_install]" "$RED"
+    _hi_cecho " | configure.sh: [$from_install]" "$RED"
     return 1
   }
 }

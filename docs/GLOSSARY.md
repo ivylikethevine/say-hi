@@ -54,6 +54,13 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.35 payload comment strip](#hi35-payload-comment-strip)
 - [HI.36 overlay toggle source](#hi36-overlay-toggle-source)
 - [HI.37 zsh pattern-in-variable](#hi37-zsh-pattern-in-variable)
+- [HI.38 split tar and gzip](#hi38-split-tar-and-gzip)
+- [HI.39 payload staging](#hi39-payload-staging)
+- [HI.40 hand-rolled sh quoting](#hi40-hand-rolled-sh-quoting)
+- [HI.41 overlay stream](#hi41-overlay-stream)
+- [HI.42 recent targets](#hi42-recent-targets)
+- [HI.43 container target grammar](#hi43-container-target-grammar)
+- [HI.44 wire size token](#hi44-wire-size-token)
 
 ## HI.01 empty-array guard
 
@@ -497,3 +504,141 @@ branches on `$ZSH_VERSION`.
 A `!`-prefixed token (ssh's per-pattern negation) is not honored as exclusion —
 it survives as a literal pattern nothing is ever named, so it is inert rather
 than wrong; the cost is a wrongly-colored excluded host, which is cosmetic.
+
+## HI.38 split tar and gzip
+
+`_hi_tar_gz` (`hi.sh`) runs `tar cf - | gzip -n` rather than `tar czf -`. The
+two userlands pad differently, and only one pads something that survives
+compression: GNU tar rounds the _uncompressed_ archive up to the 10240-byte
+blocking factor and then gzips it, so its trailing NULs cost about thirty
+bytes; bsdtar — macOS's `/usr/bin/tar` — pads the _compressed output stream_,
+appending raw NULs after the gzip member. Every payload a BSD client built was
+therefore a multiple of 10240: about 27% waste on a stock payload and a flat
+54× on a two-file overlay (189 B against 10240). Splitting the steps agrees
+with GNU tar to within a few bytes under both userlands and is byte-stable run
+to run.
+
+Two details ride along. `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail`
+back off for interactive sourcing, so a failing tar would otherwise hide
+behind a successful gzip and ship a truncated payload — both halves are
+checked. And a client with no `gzip` degrades to `tar czf -` rather than
+failing: padded again on bsdtar, but a working payload, the right trade on a
+client that lean.
+
+## HI.39 payload staging
+
+`_hi_payload_tar` (`hi.sh`) ships the tree minus whatever the overlay has
+switched off, and comment-stripped (HI.35). Three things about how.
+
+**Trimmed by toggle, on the client.** `$_HI_PAYLOAD` is whole directories, so
+without `_HI_TRIM_TABLE` a session ships files it has been told not to use;
+the client reads `settings.sh` (HI.36) before building the tar, so this costs
+no probe. One table feeds both halves — the tree files and the overlay files a
+toggle takes off — because off has to take _both_ off or a switched-off toggle
+still ships a file. `settings/aliases.sh` is never trimmed: it carries the
+whole alias set and every consumer of `common/osc52.sh` and `common/notify.sh`
+tests the file exists first, so trimming the emitters is safe.
+
+**Staged, in a subshell, under a trap.** The strip rewrites files and the tree
+is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
+(reusing the exclusion list exactly; `-h` resolves symlinks so the stage holds
+real files). The whole thing runs in a subshell so cleanup can be an `EXIT`
+trap rather than an `rm` on each way out — a ^C while a slow payload builds
+used to leave the stage in the client's tmp. `INT` and `TERM` are trapped
+explicitly to `exit`, since a signal that kills the subshell outright never
+reaches the `EXIT` trap; set in the function's own shell the trap would replace
+the one `_hi` installed for its error log.
+
+**One awk, then `_hi_write_back`.** Every file is stripped by a single awk
+invocation (each lands in `<file>.strip`), and the result goes back with HI.09's
+`cat`, not `mv`: the strip file's mode would otherwise land on the target and
+`hi.sh` has to stay executable — the install probe tests `[ -x .../hi.sh ]`.
+
+## HI.40 hand-rolled sh quoting
+
+`_hi_shquote` (`hi.sh`) turns a value into one single-quoted `sh` word by
+walking it with prefix/suffix removal rather than the obvious
+`${2//\'/\'\\\'\'}`: bash 3.2 — the floor, and the bash macOS ships —
+leaves the quoting of the replacement word in the result, so that spelling
+emits a word no `sh` can parse. Prefix and suffix removal answer the same on
+every bash there is.
+
+It exists because everything `hi.sh` bakes into a script for the target is
+text the target's shell will parse, and some of it is data: `$DOMAIN` off
+argv, `$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE`
+off `git describe --dirty`. A `$`, a quote or a backtick in any of them used
+to land unescaped — a bootloader that no longer parses, and a command
+substitution the target would run. `_hi_ssh_sh` quotes its `sh -c` word
+through the same function, so the transports cannot drift into two dialects,
+and `_hi_env_each` takes values already quoted (`%s=%s`, never `%s="%s"`) so
+quoting is one decision rather than one per transport.
+
+## HI.41 overlay stream
+
+The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) travels as a
+second, much smaller archive rather than inside the payload, because it lives
+outside the tree. It lands in a `config/` of its own beside `settings/`, with
+`$_HI_CONFIG_DIR` pointing there, rather than over `settings/`:
+`settings/aliases.sh` sources `$_HI_CONFIG_DIR/aliases.sh` last, so one
+directory would make it source itself forever. It is omitted entirely when
+there is nothing to send.
+
+`vim.rc` and `nano.rc` ride it for the same reason `colors` and `packages` do:
+the tree copy is a default and `common/paths.sh` points `$_HI_VIMRC` /
+`$_HI_NANORC` at the overlay's when there is one. Without them in the stream
+that guard could only fire on the client, so an editor override worked locally
+and silently reverted on every target — the asymmetry `paths_test.sh`'s
+guard/roster pin catches one layer up.
+
+## HI.42 recent targets
+
+`_hi_record_recent` (`hi.sh`) appends one `<epoch>\t<target>` line to the
+recent-targets file after a session that ended cleanly, and
+`common/targets.sh` ranks completion by it (frecency: what you connect to most,
+and most recently, is offered first). Client-side only: a session's own `hi` (a
+relay hop) writes nothing, so nothing about a client's habits lands on a
+target, and the file is not in `$_HI_PAYLOAD`. `_HI_RECENT=0` turns off both
+halves. Every write may fail quietly — a read-only `$HOME` is not a reason to
+fail a session that already ended well. The file is trimmed in place past 500
+lines to the newest 300, so it stays a few KB however long a machine is used
+and the rank cost stays flat.
+
+## HI.43 container target grammar
+
+A container target may name what to run _in_ as well as where: `pod/container`
+for kube, `alloc/task` for nomad — one spelling for both, since a task and a
+container are the same idea here, and a suffix rather than a flag so completion
+can offer the pairs (`_hi_outer` / `_hi_inner` in `hi.sh`). Only those two
+split: a docker or podman name is taken whole, having no inner unit and `/`
+being legal in it.
+
+kube adds `[[context:]namespace:]pod[/container]` (`_hi_kube_split`). `:` is
+the separator because no ssh host, container name or allocation id may carry
+one, so a prefixed name can only mean a pod; no prefix means whatever kubectl
+points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
+pods outside the current namespace. A multi-container pod resolves on the pod
+half; kubectl checks the container half when the session runs and fails loudly
+on a name that is not there — better than declining silently and falling
+through to ssh.
+
+docker alone also answers to a compose service name (`_hi_compose_container`),
+when exactly one running container carries that label. Ambiguous (two projects,
+same service) and absent both fail rather than guess — a wrong guess would land
+a session in someone else's container — and the lookup runs only when the
+literal name does not already resolve, so the common case pays for one
+inspect, not two.
+
+## HI.44 wire size token
+
+The connect line prints the size of the script the session sent, but that
+script cannot know its own size while it is being assembled. `_say_hi`
+(`hi.sh`) builds it with `$_HI_SIZE_TOKEN` (`@@SIZE@@`, wider than any figure)
+standing in, measures `${#script}`, and substitutes the human figure back —
+honest to a few bytes, since the streams inside are already armored and the
+script goes over the wire as it stands. `_hi_wire_bytes` — what `hi --doctor`
+and the README badge quote — assembles the same script through the same
+`_preamble`/`_middle`/`_suffix` rather than summing the armored streams:
+summing skips the boilerplate they are wrapped in and reads ~6KB low, and a
+badge has to show the number the user sees. No overlay is counted there, since
+which files ride is a question about a target.
+

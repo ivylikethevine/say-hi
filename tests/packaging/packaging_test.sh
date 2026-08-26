@@ -326,7 +326,7 @@ function test_minisign_pin_is_drift_checked() {
 # thin row reaches CI as a runtime failure nobody sees until the job runs
 function test_tool_manifest_rows_are_wellformed() {
   [ -f "$_HI_TOOLS_TXT" ] || return 0
-  local row tool version kind url verify check rest bad=0
+  local tool version kind url verify check rest bad=0
   while IFS='|' read -r tool version kind url verify check rest; do
     [ -n "$tool" ] && [ -n "$version" ] && [ -n "$url" ] &&
       [ -n "$verify" ] && [ -n "$check" ] && [ -z "$rest" ] || {
