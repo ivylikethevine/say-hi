@@ -38,9 +38,12 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 A passing suite's transcript collapses to one status line; failures replay in
 full and are recapped under the summary table. `--verbose` (`_HI_VERBOSE=1`)
 streams every transcript live, for a case that fails only under the runner. A
-suite whose backend is missing reports **SKIPPED**, never green, and
-`--require-run` (what CI's e2e/backends jobs pass) turns those skips into
-failures.
+suite whose backend is missing reports **SKIPPED**, never green, and so does a
+single case inside a suite that otherwise runs (an image that would not build,
+a tool that is not installed). `--require-run` — what CI's lint, e2e and
+backends jobs pass — turns both kinds of skip into failures: the suite goes
+red, its transcript replays, and each stood-down case is named in the recap
+under the summary table.
 
 `--host-report` (`_HI_HOST_REPORT=1`) prints one block before the first suite:
 bash, the OS, GNU/BSD/busybox userland, the locale's glyph verdict, which tree
@@ -133,9 +136,9 @@ and no payload was copied — a session that merely works proves nothing, since
 hi shipping its whole tree over the top produces one of those too.
 
 The three package cases build what they install with `packaging/mkpkg.sh`, so
-they need `nfpm`; without it they stand down yellow **per case**, which
-`--require-run` does not catch (it reads suite-level skips) — `ci.yml`'s e2e
-job pins nfpm through `setup-tool` so they actually run.
+they need `nfpm`; without it they stand down yellow **per case** — caught by
+`--require-run` like any other stand-down, and `ci.yml`'s e2e job pins nfpm
+through `setup-tool` so they actually run.
 
 ### Coverage and profiling
 

@@ -99,12 +99,38 @@ function test_configure_files_grafts_fish_when_dir_exists() {
 # content is not a command, so a guard failing
 # open shows up as "command not found" on the next shell's stderr - which is
 # exactly the user-visible symptom the guard exists to prevent.
+
+# _hi_graft_probe <command> [NAME=VALUE...] - the shell the bash cases below
+# put the graft in front of: a bash reading the grafted rc, on a pty of its
+# own, with the run's environment cleared down to $HOME, $TERM and $PATH plus
+# whatever the case names - $_HI_HOME above all, since the guard reads it.
+#
+# The pty is not decoration. `-i` is the only thing that makes bash read an
+# --rcfile, and a forced-interactive bash claims a terminal for job control:
+# it takes the one it inherits, and when its process group is not that
+# terminal's foreground group it SIGTTINs its *whole* process group - this
+# suite and the runner driving it included. That stops the run rather than
+# failing it, with no output and nothing to wait for: the FreeBSD e2e job hung
+# here for its full 30 minutes and was cancelled with the transcript ending on
+# the "crash guard" heading. $_HI_PTY_FORCED gives the probe a session and a
+# terminal of its own, so the only process group its job control can reach is
+# its own; </dev/null keeps the wrapper's tcsetattr off our terminal, which is
+# the same hazard one signal over (SIGTTOU). The cases are registered with
+# _hi_check_capable pty, so a host that cannot build one skips them yellow
+# rather than running the shape that hangs.
+function _hi_graft_probe() {
+  local cmd="$1"
+  shift
+  env -i HOME="$_HI_FAKE_HOME" TERM=dumb PATH="$PATH" "$@" \
+    "${_HI_PTY_FORCED[@]}" bash --rcfile "$_HI_FAKE_HOME/.bashrc" -ic "$cmd" \
+    </dev/null 2>&1
+}
+
 function test_dead_graft_is_silent_in_bash() {
   local out
   _hi_fake_rcs deadgraft
   configure_files
-  out="$(env -i HOME="$_HI_FAKE_HOME" TERM=dumb PATH="$PATH" \
-    bash --rcfile "$_HI_FAKE_HOME/.bashrc" -ic 'echo probe-ok' 2>&1)"
+  out="$(_hi_graft_probe 'echo probe-ok')"
   # the shared error vocabulary, not just "command not found": a guard that
   # fails open with any symptom has to fail this test
   [[ "$out" == *probe-ok* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
@@ -121,8 +147,7 @@ function test_live_graft_still_runs_in_bash() {
   : >"$_HI_FAKE_HOME/say-hi/common/core.sh"
   printf 'echo graft-ran\n' >"$_HI_FAKE_HOME/src.bashrc"
   configure_files
-  out="$(env -i HOME="$_HI_FAKE_HOME" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_FAKE_HOME" \
-    bash --rcfile "$_HI_FAKE_HOME/.bashrc" -ic 'true' 2>&1)"
+  out="$(_hi_graft_probe true _HI_HOME="$_HI_FAKE_HOME")"
   [[ "$out" == *graft-ran* ]]
 }
 
@@ -137,8 +162,7 @@ function test_live_graft_is_silent_without_a_tree_in_the_env() {
   : >"$_HI_FAKE_HOME/say-hi/common/core.sh"
   printf 'echo graft-ran\n' >"$_HI_FAKE_HOME/src.bashrc"
   configure_files
-  out="$(env -i HOME="$_HI_FAKE_HOME" TERM=dumb PATH="$PATH" \
-    bash --rcfile "$_HI_FAKE_HOME/.bashrc" -ic 'echo probe-ok' 2>&1)"
+  out="$(_hi_graft_probe 'echo probe-ok')"
   [[ "$out" == *probe-ok* ]] && [[ "$out" != *graft-ran* ]] &&
     ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
@@ -298,9 +322,9 @@ function run_load_tests() {
   _hi_check "Creates an rc file that doesn't exist yet" test_configure_files_creates_missing_rc_file
 
   _hi_h2 "Testing: the crash guard"
-  _hi_check "A dead graft is silent in bash" test_dead_graft_is_silent_in_bash
-  _hi_check "A live tree still runs the graft" test_live_graft_still_runs_in_bash
-  _hi_check "A bystander shell with no tree in its env is left alone" test_live_graft_is_silent_without_a_tree_in_the_env
+  _hi_check_capable pty "A dead graft is silent in bash" test_dead_graft_is_silent_in_bash
+  _hi_check_capable pty "A live tree still runs the graft" test_live_graft_still_runs_in_bash
+  _hi_check_capable pty "A bystander shell with no tree in its env is left alone" test_live_graft_is_silent_without_a_tree_in_the_env
   _hi_check_requires fish "A dead graft is silent in fish" test_dead_graft_is_silent_in_fish
 
   _hi_h2 "Testing: clean_all"

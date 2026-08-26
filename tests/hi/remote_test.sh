@@ -275,7 +275,11 @@ function test_version_prints_the_stamp() {
 # an unstamped checkout answers with git describe (--always: a bare commit
 # hash before any tag exists), never with "unknown"
 function test_version_falls_back_to_git_describe() {
-  [ -d "$_HI_ROOT/.git" ] || return 0 # nothing to describe in a tarball tree
+  # "is there a checkout here" is git's question, not the filesystem's: a tree
+  # git declines to read - the rsync'd, root-run checkout a VM runner hands it,
+  # where ownership is another uid's and git calls it dubious - has a .git and
+  # still has nothing to describe, exactly as a tarball tree does.
+  git -C "$_HI_ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
   local out
   out="$(_HI_RELEASE="" _hi_version)"
   [ -n "$out" ] && [[ "$out" != unknown* ]]

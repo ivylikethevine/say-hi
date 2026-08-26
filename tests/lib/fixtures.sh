@@ -88,6 +88,30 @@ function _hi_can_symlink() {
   [ "$_HI_CAP_SYMLINK" = yes ]
 }
 
+# _hi_can_lock_out - whether a mode can actually refuse *us* a write, probed
+# once and remembered. Root is the case that matters: it bypasses the
+# permission bits outright, so a case that chmods a directory 555 to make the
+# next write fail gets a write that succeeds instead, and reads as a bug in
+# the code under test rather than as a test that cannot run here. CI that
+# runs as root is not exotic - the FreeBSD VM and most container images do -
+# so the answer has to be asked rather than assumed. Lazy for
+# _hi_can_symlink's reason: $_HI_WORKDIR is not there at source time.
+_HI_CAP_LOCKOUT=""
+function _hi_can_lock_out() {
+  local probe
+  if [ -z "$_HI_CAP_LOCKOUT" ]; then
+    probe="$(mktemp -d "$_HI_WORKDIR/cap.lockout.XXXXXX")"
+    mkdir -p "$probe/dir"
+    chmod 555 "$probe/dir"
+    # stderr first: the message a refused `>` prints is the shell's own, and a
+    # 2>/dev/null after the redirection that fails comes too late to catch it
+    if : 2>/dev/null >"$probe/dir/probe"; then _HI_CAP_LOCKOUT=no; else _HI_CAP_LOCKOUT=yes; fi
+    chmod 755 "$probe/dir"
+    rm -rf "$probe"
+  fi
+  [ "$_HI_CAP_LOCKOUT" = yes ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -97,6 +121,9 @@ function _hi_can_symlink() {
 #   pty     - python3 can allocate one. No on Windows: `pty` is Unix-only, so
 #             $_HI_PTY_FORCED (tests/lib/process.sh) is the honest answer where
 #             `command -v python3` is not.
+#   lockout - a mode can refuse us a write. No as root, which bypasses the
+#             bits, so every case that stages a failure by making something
+#             unwritable has to ask first.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -104,6 +131,7 @@ function _hi_capable() {
   case "$1" in
   symlink) _hi_can_symlink ;;
   pty) [ "${#_HI_PTY_FORCED[@]}" -gt 0 ] ;;
+  lockout) _hi_can_lock_out ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2
@@ -169,8 +197,18 @@ function _hi_real_path() {
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
     for tool in "$@"; do
-      real="$(command -v "$tool" 2>/dev/null)" || continue
+      # `type -P` and not `command -v`: a toolbox holds real binaries, and
+      # `command -v printf` answers "printf" - the builtin, a bare word rather
+      # than a path. Linked as one that made $dir/printf -> printf, a symlink
+      # onto itself: `[ -e ]` said no (ELOOP), and the wrapper written next
+      # could not be written either, because the redirection followed the loop
+      # it was there to replace ("Too many levels of symbolic links", on every
+      # platform - only ever seen where a suite's transcript was replayed).
+      # A tool that is *only* a builtin has no binary to put here, which is
+      # the documented skip.
+      real="$(type -P "$tool" 2>/dev/null)" || continue
       [ -n "$real" ] || continue
+      rm -f "$dir/$tool"
       ln -sf "$real" "$dir/$tool" 2>/dev/null || :
       [ -e "$dir/$tool" ] && continue
       printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$dir/$tool"

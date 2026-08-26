@@ -81,6 +81,57 @@ function test_no_color_blanks_the_palette_at_source_time() {
   [ -z "$out" ]
 }
 
+# --- a target with nothing but a shell ---------------------------------------
+#
+# hi is meant to reach a scratch or distroless container: bash and no
+# coreutils at all, so `hostname`, `uname`, `whoami` and `id` are none of them
+# there. The identity helpers are read for the banner and the prompt on every
+# connect, so what they do without their binaries is user-visible - it used to
+# be "uname: command not found" at the top of the session, and a colour hashed
+# off an empty string.
+#
+# A child shell per case: the answers are memoized for the life of a shell, so
+# this one's PATH has to be in place before the first call. 2>&1 into the
+# assertion on purpose - a rung that leaked to stderr is the whole bug.
+#
+# $_HI_CONFIG_DIR is aimed at a directory that is never created, and
+# $XDG_CONFIG_HOME with it: `env -i` leaves neither set, and core.sh then
+# resolves the overlay to the *real* ~/.config/say-hi and sources whatever the
+# person running the suite has configured into the middle of the probe.
+function _hi_barebones() {
+  local nocfg="$_HI_WORKDIR/barebones-nocfg"
+  env -i PATH="$(_hi_real_path barebones bash)" HOME="$HOME" NO_COLOR=1 \
+    XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
+    _HI_HOME="$_HI_HOME" "$@" bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$(eval "$_HI_CASE_PROBE")"' 2>&1
+}
+
+function test_hostname_falls_back_to_the_shells_own() {
+  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=probe-host)" = probe-host ]
+}
+
+function test_hostname_names_itself_unknown_with_nothing_to_ask() {
+  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=)" = unknown ]
+}
+
+function test_whoami_falls_back_to_the_environment() {
+  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_whoami USER=probe-user)" = probe-user ] &&
+    [ "$(_hi_barebones _HI_CASE_PROBE=_hi_whoami LOGNAME=probe-logname)" = probe-logname ]
+}
+
+function test_whoami_names_itself_unknown_with_nothing_to_ask() {
+  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_whoami)" = unknown ]
+}
+
+# $EPOCHREALTIME unset is bash 3.2 (macOS) as much as it is a stripped box:
+# unsetting it drops the special attribute, so the date(1) rung is reachable
+# from a bash 5 that would otherwise never fork.
+function test_now_answers_without_date() {
+  local out
+  out="$(_hi_barebones _HI_CASE_PROBE='unset EPOCHREALTIME; _hi_now')"
+  case "$out" in '' | *[!0-9.]*) return 1 ;; esac
+}
+
 function test_hash_color_matches_hand_computed_bucket() {
   # ord('a')=97, 97 % 12 == 1 -> _HI_COLOR_NAMES[1] == green
   [ "$(_hi_hash_color a)" = "green" ] || return 1
@@ -482,6 +533,13 @@ function run_core_tests() {
   _hi_check "No match fails" test_override_color_no_match_fails
   _hi_check "LOCALUSER special case" test_override_color_localuser_special_case
   _hi_check "LOCALHOSTNAME special case" test_override_color_localhostname_special_case
+
+  _hi_h2 "Testing: a target with nothing but a shell"
+  _hi_check "Hostname falls back to the shell's own" test_hostname_falls_back_to_the_shells_own
+  _hi_check "...and to \"unknown\" with nothing to ask" test_hostname_names_itself_unknown_with_nothing_to_ask
+  _hi_check "Whoami falls back to the environment" test_whoami_falls_back_to_the_environment
+  _hi_check "...and to \"unknown\" with nothing to ask" test_whoami_names_itself_unknown_with_nothing_to_ask
+  _hi_check "_hi_now answers without date(1)" test_now_answers_without_date
 
   _hi_h2 "Testing: _HI_SHELL_TABLE"
   _hi_check "Every row is six well-formed fields" test_shell_table_rows_are_wellformed

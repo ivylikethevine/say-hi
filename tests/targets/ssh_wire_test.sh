@@ -106,22 +106,70 @@ function _hi_wire_proxy_file() {
   printf '%s\n' "$_HI_WIRE_PROXY_PY" >"$_HI_WORKDIR/wire_proxy.py"
 }
 
-# the figure hi claims for the target the case connects to, exact bytes and
-# the human form the connect line prints - hi.sh's own functions, in a fresh
-# bash so nothing of this suite's shell leaks into the assembled script.
-# $DOMAIN is what _hi_wire_bytes builds the script for; the real session's
-# target name is the one detail that changes its length.
+# _hi_wire_claim[_human] <probe> - the figure hi claims for the session the
+# case is about to run, exact bytes and the human form the connect line prints:
+# hi.sh's own functions, in a fresh bash so nothing of this suite's shell leaks
+# into the assembled script.
+#
+# $DOMAIN and the remote command are the two details that change the script's
+# length - the command rides it three times over, armored, once per fallback
+# shell arm, and once more in the bootloader where it replaces `load`. So the
+# claim is built from the case's own argv through _hi_parse, hi.sh's own
+# splitter, rather than by setting $DOMAIN here and leaving $CMDARG unset:
+# that measured an interactive session (which is what the badge and doctor
+# ask for) while the case ran a command-shaped one, and the two round to
+# different figures.
 function _hi_wire_claim() {
-  DOMAIN=hitest@127.0.0.1 bash -c 'source "$1" && _hi_wire_bytes' bash "$_HI_LAUNCHER"
+  bash -c 'source "$1" && _hi_parse "$2" "$3" && _hi_wire_bytes' \
+    bash "$_HI_LAUNCHER" hitest@127.0.0.1 "$1"
 }
 function _hi_wire_claim_human() {
-  DOMAIN=hitest@127.0.0.1 bash -c 'source "$1" && _hi_wire_estimate' bash "$_HI_LAUNCHER"
+  bash -c 'source "$1" && _hi_parse "$2" "$3" && _hi_wire_estimate' \
+    bash "$_HI_LAUNCHER" hitest@127.0.0.1 "$1"
 }
 
-# the connect line is colored, with a reset between its leading space and the
-# figure, so the transcript is read with the escapes stripped
-function _hi_wire_transcript_has() {
-  sed 's/\x1b\[[0-9;]*m//g' "$1" | grep -qF "$2"
+# The margin every figure in this suite is checked to, as a percentage. Nothing
+# here is byte-stable: gzip jitter moves the payload a few dozen bytes run to
+# run, and the connect line prints _hi_human_bytes' rounded form, which lands on
+# a 1024 B step and turns a handful of bytes either side of it into a whole
+# different string. So the checks below are numeric and bounded, never
+# equalities - the same 5% the README badge's drift check allows, for the same
+# reason. GLOSSARY: HI.44
+_HI_WIRE_MARGIN=5
+
+# _hi_wire_transcript_figure <transcript> - the size the connect line printed,
+# in its human form ("48K"), or nothing when the line never appeared. It is the
+# first figure in the session's output: hi prints " <size>" before the target
+# has said anything, so the case's own marker and whatever the shell echoes
+# after it cannot be read as the figure. The line is colored, with a reset
+# between its leading space and the figure, so the escapes come off first.
+function _hi_wire_transcript_figure() {
+  sed 's/\x1b\[[0-9;]*m//g' "$1" |
+    grep -oE '(^| )[0-9]+(\.[0-9])?[BKMG]' | head -1 | tr -d ' '
+}
+
+# _hi_wire_figure_bytes <human> - "48K" back to bytes, so a printed figure can
+# be compared with the claim as a number. The rounding is not undone (it
+# cannot be): "48K" comes back as 49152, up to half a step from what was
+# measured, which is well inside the margin above.
+function _hi_wire_figure_bytes() {
+  awk -v h="$1" 'BEGIN {
+    n = h + 0
+    u = index("BKMG", substr(h, length(h)))
+    for (i = 1; i < u; i++) n *= 1024
+    printf "%d", n
+  }'
+}
+
+# _hi_wire_within <got> <want> - is <got> inside $_HI_WIRE_MARGIN% of <want>?
+# Integer arithmetic throughout, and 0 (the "no figure at all" case) is never
+# within anything.
+function _hi_wire_within() {
+  local got="$1" want="$2" delta
+  [ "$got" -gt 0 ] || return 1
+  delta=$((got - want))
+  [ "$delta" -lt 0 ] && delta=$((-delta))
+  [ "$((delta * 100))" -le "$((want * _HI_WIRE_MARGIN))" ]
 }
 
 function _hi_wire_counted() {
@@ -140,7 +188,7 @@ function _hi_wire_rx_bytes() {
 # measures nothing.
 function _hi_wire_case() {
   local label="$1" image="$2" shape="$3" name counts out_file exit_code t0 t1 ok=1
-  local up down rx0 rx1 claim human overhead limit probe
+  local up down rx0 rx1 claim human overhead limit probe floor printed printed_bytes
   local _HI_SSH_PORT=""
 
   name="$_HI_SSH_CASE_PREFIX-$label-$$"
@@ -153,8 +201,8 @@ function _hi_wire_case() {
   installed) probe="$(_hi_probe_cmd "$_HI_TEST_MARKER" installed)" ;;
   esac
 
-  claim="$(_hi_wire_claim)"
-  human="$(_hi_wire_claim_human)"
+  claim="$(_hi_wire_claim "$probe")"
+  human="$(_hi_wire_claim_human "$probe")"
   rx0="$(_hi_wire_rx_bytes "$name")"
 
   # the ProxyCommand rides in ahead of the target, where hi's parser hands
@@ -202,11 +250,15 @@ function _hi_wire_case() {
     limit=$((claim / 5))
     [ "$limit" -lt 12288 ] && limit=12288
     _hi_cecho " | overhead beyond the figure: $overhead B ($((overhead * 100 / claim))% of it; limit $limit B)" "$BLUE"
-    # -256: the figure is not byte-stable run to run (gzip-level jitter, a
-    # few dozen bytes - doctor.sh's _HI_PAYLOAD_DIFF_FLOOR has the numbers)
-    _hi_assert "[$label] the wire carried at least the claimed script" [ "$up" -ge "$((claim - 256))" ] || ok=0
+    # the floor carries the margin, not an exact claim: see $_HI_WIRE_MARGIN
+    floor=$((claim - claim * _HI_WIRE_MARGIN / 100))
+    printed="$(_hi_wire_transcript_figure "$out_file")"
+    printed_bytes="$(_hi_wire_figure_bytes "${printed:-0}")"
+    _hi_cecho " | the connect line printed: ${printed:-(no figure)} ($printed_bytes B; within $_HI_WIRE_MARGIN% of $claim B?)" "$BLUE"
+    _hi_assert "[$label] the wire carried at least the claimed script" [ "$up" -ge "$floor" ] || ok=0
     _hi_assert "[$label] the overhead beyond the claim is bounded" [ "$overhead" -le "$limit" ] || ok=0
-    _hi_assert "[$label] the connect line printed that figure ($human)" _hi_wire_transcript_has "$out_file" " $human" || ok=0
+    _hi_assert "[$label] the connect line's figure is within $_HI_WIRE_MARGIN% of the claim ($human)" \
+      _hi_wire_within "$printed_bytes" "$claim" || ok=0
     ;;
   installed)
     # no tree crosses: the bootloader, the probe and the handshake are all

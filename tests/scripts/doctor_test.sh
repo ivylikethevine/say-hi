@@ -21,8 +21,16 @@ source "$_HI_DOCTOR"
 # A toolbox PATH: the coreutils the functions need, plus whichever shims a
 # case installs. Nothing else, so a backend "not installed" case is real
 # even on a machine with every backend.
+#
+# base64, tar, gzip and find are hi's own floor for building a payload, and
+# they belong here for the same reason `bash` does: leaving them off did not
+# model a client without them, it just made the report print raw
+# "base64: command not found" lines out of _hi_wire_bytes into every case's
+# transcript, and measure a wire size nothing had packed. A *target* without
+# base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
-  _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep timeout du date
+  _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
+    timeout du date base64 tar gzip find
 }
 
 function _hi_doctor_shims() {

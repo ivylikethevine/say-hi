@@ -49,7 +49,7 @@ _HI_FRAMEWORKS=(
   "zoxide:/bin/bash:zoxide:hook:zoxide_hook"
   "direnv:/bin/bash:direnv:hook:_direnv_hook"
   "atuin:/bin/bash:curl:bind:atuin"
-  "mise:/bin/bash:hook:mise"
+  "mise:/bin/bash:curl:hook:mise"
 )
 
 # The line each case types into the live session, once hi and the framework are

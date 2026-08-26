@@ -376,6 +376,24 @@ function test_require_run_adds_skips_to_the_failure_exit_code() {
   [ "$_HI_RUN_EXIT" -eq 2 ]
 }
 
+# The other half of the flag: a suite that passed while standing cases down
+# inside itself. _hi_suite_end turns those red on the suite side; this is the
+# runner's backstop for a suite that reports its own way (shellcheck's), which
+# is why the fixture exits 0 with a skip tally rather than failing.
+function test_require_run_fails_when_a_case_skips() {
+  _hi_counting_fixture case_stood_down 6 0 2
+  _hi_run_runner $'case_stood_down:case_stood_down.sh\nok:green.sh' --require-run
+  [ "$_HI_RUN_EXIT" -eq 1 ] && [[ "$_HI_RUN_OUT" == *"1/2 test suites FAILED"* ]]
+}
+
+# and the same run without the flag, which is every local run: a skipped case
+# is a yellow note, not a failure
+function test_case_skips_are_not_failures_by_default() {
+  _hi_counting_fixture case_stood_down2 6 0 2
+  _hi_run_runner $'case_stood_down2:case_stood_down2.sh\nok:green.sh'
+  [ "$_HI_RUN_EXIT" -eq 0 ]
+}
+
 function test_require_run_is_listed_in_help() {
   "$_HI_TEST_RUN" --help | grep -q -- '--require-run'
 }
@@ -677,6 +695,8 @@ function run_runner_tests() {
   _hi_check "--require-run turns a skip into a failure" test_require_run_fails_when_a_suite_skips
   _hi_check "--require-run passes when nothing skips" test_require_run_passes_when_nothing_skips
   _hi_check "--require-run adds skips to the exit code" test_require_run_adds_skips_to_the_failure_exit_code
+  _hi_check "--require-run turns a skipped case into a failure" test_require_run_fails_when_a_case_skips
+  _hi_check "a skipped case is not a failure by default" test_case_skips_are_not_failures_by_default
   _hi_check "--require-run appears in --help" test_require_run_is_listed_in_help
 
   _hi_h2 "Testing: the host report"

@@ -171,8 +171,13 @@ function _hi_h2() {
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 
+# $EPOCHREALTIME on bash 5, date(1) on the 3.2 macOS ships, and $SECONDS where
+# there is no date to fork: what this feeds is only ever differenced, so a
+# clock that starts at shell startup still measures the interval - and an
+# empty answer would have made _hi_elapsed print a time for a session it never
+# timed.
 function _hi_now() {
-  printf '%s' "${EPOCHREALTIME:-$(date +%s)}"
+  printf '%s' "${EPOCHREALTIME:-$(date +%s 2>/dev/null || printf '%s' "$SECONDS")}"
 }
 
 function _hi_elapsed() {
@@ -206,13 +211,26 @@ function _hi_du_size() {
 
 # Memoized; the binaries stay authoritative over $HOSTNAME/$USER - the exact
 # string feeds _hi_hash_color, and a different one repaints every unpinned host.
+#
+# Every rung is optional, and the shell's own variable is the floor. A target
+# with bash and nothing else is a shape hi is meant to reach (a scratch or
+# distroless container carries no coreutils, so neither `whoami` nor `uname`
+# is there), and both of these are read for the banner and the prompt on every
+# connect: unguarded, they greet the user with "uname: command not found"
+# twice and then colour the session off an empty string. GLOSSARY: HI.33
 function _hi_hostname() {
-  [ -n "${_HI_HOSTNAME_CACHE:-}" ] || _HI_HOSTNAME_CACHE="$(hostname 2>/dev/null || uname -n)"
+  if [ -z "${_HI_HOSTNAME_CACHE:-}" ]; then
+    _HI_HOSTNAME_CACHE="$(hostname 2>/dev/null || uname -n 2>/dev/null || :)"
+    [ -n "$_HI_HOSTNAME_CACHE" ] || _HI_HOSTNAME_CACHE="${HOSTNAME:-unknown}"
+  fi
   printf '%s\n' "$_HI_HOSTNAME_CACHE"
 }
 
 function _hi_whoami() {
-  [ -n "${_HI_WHOAMI_CACHE:-}" ] || _HI_WHOAMI_CACHE="$(whoami)"
+  if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
+    _HI_WHOAMI_CACHE="$(whoami 2>/dev/null || id -un 2>/dev/null || :)"
+    [ -n "$_HI_WHOAMI_CACHE" ] || _HI_WHOAMI_CACHE="${USER:-${LOGNAME:-unknown}}"
+  fi
   printf '%s\n' "$_HI_WHOAMI_CACHE"
 }
 

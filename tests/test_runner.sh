@@ -135,7 +135,8 @@ Runs every test suite, or just the named ones, timing each and printing a
 pass/fail summary table at the end. Exits with the number of failed suites.
 
 A suite that stands down because its backend isn't installed reports SKIPPED
-rather than PASS, so a green run can't overstate what actually ran.
+rather than PASS, so a green run can't overstate what actually ran. So does a
+single case inside it - and --require-run turns both into failures.
 
   suite ...        one or more of the names below (default: all of them)
   --group <group>  every suite in one group: $(_hi_test_groups)
@@ -143,8 +144,9 @@ rather than PASS, so a green run can't overstate what actually ran.
                    two as separate steps; a platform job runs fast alone)
   --list           print "<group> <name>" per suite and exit
   --list-paths     the same, plus each suite's absolute path as a third column
-  --require-run    treat SKIPPED suites as failures - for CI runners where a
-                   skip means the runner is broken, not the backend optional
+  --require-run    treat SKIPPED suites *and* skipped cases as failures - for
+                   CI runners where a skip means the runner is broken, not the
+                   backend optional
   --totals-file <path>
                    write "<passed> <failed> <skipped> <suites>" there once the
                    run is over, for a caller that needs the numbers rather than
@@ -282,7 +284,9 @@ function _hi_restore_tty() {
 # variable - _hi_suite_end writes "<total> <failed>" to $_HI_COUNTS_FILE, the
 # failing labels ride $_HI_FAILS_FILE, and a collapsed transcript lands in a
 # log; all three are per suite, under one directory, so suites can run side by
-# side. Assigned unconditionally (never defaulted from the environment) so a
+# side. $_HI_REQUIRE_RUN travels the same way, in the other direction: a suite
+# has to know before it stands a case down, since that is where the label the
+# recap needs is still in hand. Assigned unconditionally (never defaulted from the environment) so a
 # runner nested inside another run - which is exactly what
 # harness/runner_test.sh does - gets its own and can't clobber its parent's.
 _HI_RUN_DIR="$(mktemp -d -t hi.run.XXXXXX)"
@@ -356,6 +360,17 @@ function _hi_collect_suite() {
       _HI_CASES_FAILED=$((_HI_CASES_FAILED + _hi_bad))
       _HI_CASES_SKIPPED=$((_HI_CASES_SKIPPED + _hi_skipcnt))
     fi
+  fi
+
+  # --require-run: a suite that quietly ran less than it was asked to is a
+  # failure, whatever it exited with. _hi_suite_end has already made that the
+  # suite's own verdict for anything built on the standard counters, so this
+  # only bites for a suite that reports its own way (shellcheck's, whose unit
+  # is files rather than cases) - and it is what puts the skipped cases into
+  # the recap below, which is only read for a suite that did not pass.
+  if [ "$_HI_REQUIRE_RUN" = 1 ] && [ "$_hi_code" -eq 0 ] &&
+    [ "$_hi_skipcnt" != - ] && [ "$_hi_skipcnt" -gt 0 ]; then
+    _hi_code="$_hi_skipcnt"
   fi
 
   if [ -n "$_hi_skip" ]; then
@@ -464,7 +479,7 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
     done
     (
       _hi_t0="$(_hi_now)"
-      if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+      if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
       printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
     ) &
     _hi_running+=("$!")
@@ -476,9 +491,9 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
   _hi_h2 "Running $_hi_name"
   _hi_t0="$(_hi_now)"
   if [ "$_HI_VERBOSE" = 1 ]; then
-    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" "$_hi_path"; then _hi_code=0; else _hi_code=$?; fi
+    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"; then _hi_code=0; else _hi_code=$?; fi
   else
-    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
   fi
   _hi_restore_tty
   _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
@@ -569,7 +584,9 @@ else
 fi
 
 # a runner missing its backends skips everything and exits 0 - at the job
-# level that reads as a pass; --require-run makes it a failure
+# level that reads as a pass; --require-run makes it a failure. A suite that
+# skipped only *cases* is already counted in $_HI_SUITE_FAILED by
+# _hi_collect_suite, so it needs nothing here.
 if [ "$_HI_REQUIRE_RUN" = 1 ] && [ "$_HI_SUITE_SKIPPED" -gt 0 ]; then
   _hi_h1 "$_HI_SUITE_SKIPPED suite(s) skipped, but --require-run was given" "$RED"
   exit $((_HI_SUITE_FAILED + _HI_SUITE_SKIPPED))
