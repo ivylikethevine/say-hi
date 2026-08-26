@@ -6,6 +6,8 @@ hi \- your shell config, on every host you say hi to
 .RI [ ssh\-options ]
 .I target
 .RI [ command ...]
+.br
+.B hi
 .SH DESCRIPTION
 .B hi
 copies your
@@ -88,6 +90,41 @@ pairs for any allocation or pod that has more than one.
 A name matching none of these is handed to
 .BR ssh (1)
 anyway, so unlisted hosts still work.
+.SH NO TARGET
+.B hi
+with no
+.I target
+and no
+.I ssh\-options
+offers the list instead of failing \- the same rows the shell completions read,
+so the offer is backend\-tagged, ranked by what you connected to recently, and
+served out of the
+.B $_HI_TARGETS_TTL
+cache a
+.B TAB
+may already have warmed. Picking one connects to it.
+.PP
+.BR fzf (1)
+is used when it is on the client, then
+.BR sk (1);
+with neither, a numbered
+.B select
+menu, so nothing has to be installed for this to work. The picker runs on the
+client only and never reaches a target.
+.PP
+Both ends of a terminal are required, so
+.B hi
+in a script or a CI job goes on printing the usage message from
+.BR ssh (1)
+and failing rather than waiting on a menu nobody can answer. An
+.I ssh\-option
+with no target does the same: an option without a host is an error for
+.BR ssh (1)
+to report, not a target to guess at \- which is what keeps
+.B hi \-V
+behaving as
+.B ssh \-V
+does.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
@@ -268,6 +305,13 @@ then the shells hi styles in preference order:
 per\-feature opt\-outs; see
 .I docs/CONFIGURATION.md
 for the full table.
+.TP
+.B _HI_COLORS, _HI_PACKAGES, _HI_VIMRC, _HI_NANORC
+where each of those four config files is read from. Unset, each resolves to
+the copy in
+.B $_HI_CONFIG_DIR
+if you have made one and to the tree's otherwise; exported, it points that
+one file elsewhere and leaves the rest of the overlay where it is.
 .SH EXAMPLES
 .TP
 .B hi prod-db
@@ -282,6 +326,11 @@ through a jump host.
 .TP
 .B hi 8f41c2
 session inside a running container or allocation with that ID.
+.TP
+.B hi
+no target: pick one from the list \- see
+.B NO TARGET
+above.
 .SH SEE ALSO
 .BR ssh (1)
 .PP

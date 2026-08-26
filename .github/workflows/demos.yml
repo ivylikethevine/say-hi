@@ -41,7 +41,7 @@ on:
   # certainly moved a demo; the weekly run is for the changes that move one
   # without touching a tape at all - the header, the prompt, anything in the
   # shipped tree the session in the frame is running (.githooks/demo_staleness.sh
-  # lists them as $_HI_DEMO_INPUTS). Rendering seven tapes stands a kind cluster
+  # lists them as $_HI_DEMO_INPUTS). Rendering eight tapes stands a kind cluster
   # up and tears it down, so this is a cadence, not a per-push gate.
   push:
     branches: [main]
@@ -109,7 +109,7 @@ jobs:
 
   publish:
     name: render every tape but demo
-    # Six of these seven tapes need docker, podman, nomad or kind. A hosted
+    # Seven of these eight tapes need docker, podman, nomad or kind. A hosted
     # ubuntu runner carries docker and this job installs the other three below
     # (the same steps ci.yml's e2e-backends job runs), so the fallback here is a
     # working renderer and not, as it once was, a job that installed for five
@@ -142,13 +142,15 @@ jobs:
       # than a clean stand-down. So this installs the shells as well as the
       # backends (docker and kube want zsh, podman wants fish, complete wants
       # both fish and nomad), and --require-run below turns each missing one
-      # into a failed tape.
+      # into a failed tape. fzf is here for the same reason and is not a shell:
+      # pick.tape records the picker bare `hi` reaches for first, and `Require
+      # fzf` would otherwise stand that tape down on a runner that has none.
       #
       # The same packages ci.yml's e2e-backends job installs, by the same
       # route - neither job may assume the other has run on the machine, and
       # apt is idempotent when one has. docker itself is on every hosted
       # ubuntu image and on any box worth pointing RUNNER_LABEL at.
-      - name: Install zsh, fish, podman and nomad
+      - name: Install zsh, fish, fzf, podman and nomad
         run: |
           set -euo pipefail
           # gpg unprivileged, `sudo` only for the write - see the identical
@@ -158,7 +160,7 @@ jobs:
             sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
           echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" |
             sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
-          sudo apt-get update && sudo apt-get install -y zsh fish podman nomad
+          sudo apt-get update && sudo apt-get install -y zsh fish fzf podman nomad
           nomad version
 
       # kind, and the kubectl it brings along, for the kube and complete tapes
@@ -180,7 +182,7 @@ jobs:
       - name: Render every tape but demo
         run: >-
           docs/tapes/generate.sh --require-run
-          color_preview ssh docker podman nomad complete kube
+          color_preview ssh docker pick podman nomad complete kube
 
       # The fixtures are torn down by generate.sh between tapes, but a run that
       # died mid-tape leaves the last one up on a machine that persists between

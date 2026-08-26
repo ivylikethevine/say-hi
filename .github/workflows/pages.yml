@@ -205,7 +205,7 @@ jobs:
       # triggered this deploy. The site therefore carries the last GIFs anyone
       # rendered and keeps carrying them until somebody renders again.
       #
-      # These six are no longer committed, so this is the only place they come
+      # None of them is committed any more, so this is the only place they come
       # from and README.md links them at their published URLs. Until a render
       # has landed there is nothing to serve and those links 404 - deliberate,
       # per docs/ROADMAP.md's Demos entry.
@@ -227,11 +227,11 @@ jobs:
           if [ -n "$run_id" ]; then
             echo "demo GIFs from run $run_id"
           else
-            echo "no successful demos run on main - the six rendered GIFs are missing"
+            echo "no successful demos run on main - the rendered GIFs are missing"
           fi
 
       # continue-on-error for the badges' reason: an expired or missing render
-      # means the six GIFs are absent from the site, not a failed site deploy
+      # means the published GIFs are absent from the site, not a failed site deploy
       - name: Fetch that run's GIFs
         if: steps.demo-run.outputs.run_id != ''
         continue-on-error: true

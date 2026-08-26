@@ -40,6 +40,17 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     _HI_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/say-hi"
   fi
   export _HI_CONFIG_DIR
+  # The four overlay files that get a path variable of their own, and the four
+  # companions paths.sh records its own answer in: defaulted to empty and never
+  # assigned here, so paths.sh's per-file "only when unset" guards can read
+  # them bare under `set -u` - and so an export in settings.sh (sourced just
+  # below) or in the environment is what those guards find.
+  # GLOSSARY: HI.07, the same contract the toggles above are defaulted under.
+  for _hi_t in _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC \
+    _HI_COLORS_AUTO _HI_PACKAGES_AUTO _HI_VIMRC_AUTO _HI_NANORC_AUTO; do
+    eval ": \"\${$_hi_t:=}\"; export $_hi_t"
+  done
+  unset _hi_t
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then

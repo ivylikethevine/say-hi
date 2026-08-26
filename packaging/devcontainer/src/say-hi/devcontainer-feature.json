@@ -1,0 +1,26 @@
+{
+  "id": "say-hi",
+  "version": "0.1.0",
+  "name": "say-hi",
+  "documentationURL": "https://github.com/ivylikethevine/say-hi/blob/main/docs/PACKAGING.md#devcontainer-feature",
+  "description": "Installs say-hi inside the container and wires the remote user's shell to it, so a devcontainer or Codespaces terminal is styled with no client involved.",
+  "options": {
+    "version": {
+      "type": "string",
+      "default": "latest",
+      "description": "Which say-hi to install: 'latest' for the newest release, a release version such as '1.0.0', or 'main' for the current branch (unverified - no SHA256SUMS exists for a branch)."
+    },
+    "preset": {
+      "type": "string",
+      "proposals": ["everything", "balanced", "minimal"],
+      "default": "everything",
+      "description": "The feature preset hi --configure writes for the remote user. See docs/CONFIGURATION.md's Presets."
+    },
+    "configureShell": {
+      "type": "boolean",
+      "default": true,
+      "description": "Run 'hi --install' for the remote user, adding say-hi's lines to their shell rc files. With this off the tree is installed and /usr/bin/hi works, but the terminal is not styled."
+    }
+  },
+  "installsAfter": ["ghcr.io/devcontainers/features/common-utils"]
+}

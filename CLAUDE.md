@@ -68,7 +68,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   checkbashisms, the bash-4 grep and the doc drift checks, ~40s). Run both.
 - Run the suite at the **end** of a multi-step change, not between steps — a
   structural refactor breaks loudly at source time.
-- Layout rule, the lint gate's ten halves and the coverage caveat are
+- Layout rule, the lint gate's twelve halves and the coverage caveat are
   [docs/TESTING.md](docs/TESTING.md)'s job. The two that bite most: a suite
   lives in `tests/<the directory it tests>/` and sources `tests/test_lib.sh`
   and nothing else (GLOSSARY: HI.34), and a new suite has to be registered in

@@ -19,6 +19,16 @@ set -euo pipefail
 # real ~/say-hi.
 export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/hi.testcfg.$$"
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
+# ...and the four files that carry a path variable of their own, for the same
+# reason one line later. Each now takes an explicit value over the overlay's
+# ("only when unset", common/paths.sh), so a value inherited from the shell
+# that launched the suite - an agent session, a developer's own hi session -
+# would be read as a deliberate choice and outrank the $_HI_CONFIG_DIR above.
+# paths.sh drops a value still equal to the one it recorded resolving, so an
+# ordinary child shell needs no help here - but a shell that predates those
+# companions carries the value without the record, and its tree is not this one.
+unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC
+unset _HI_COLORS_AUTO _HI_PACKAGES_AUTO _HI_VIMRC_AUTO _HI_NANORC_AUTO
 
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"

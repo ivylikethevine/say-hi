@@ -181,9 +181,11 @@ function test_example_cell_marks_a_priority_below_the_floor() {
   [ "$text" = "below floor" ] && [ "$width" -eq 11 ]
 }
 
-# Running the real script can't reuse the exported fixture above: paths.sh
-# re-exports $_HI_PACKAGES from $_HI_ROOT every time it's sourced, so the only
-# way to point the script at one is to give it a scratch tree to derive it from.
+# Running the real script through a scratch tree rather than through the
+# exported fixture above, and still deliberately: $_HI_PACKAGES does now reach a
+# child (paths.sh keeps a value it did not derive - the per-file override), and
+# the case below pins that, but what these cases want proved is the ordinary
+# path, where the file is the one the *tree* carries.
 function _hi_render_preview() {
   PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/packages_preview.sh" 2>&1
@@ -231,13 +233,34 @@ function test_preview_ends_with_the_real_check() {
 # Every section of the preview reads the packages file, so a missing one is
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
+# $_HI_PACKAGES is cleared for the child, and has to be: the suite exports its
+# own fixture into this shell, and an exported value is now an *override* that
+# paths.sh keeps rather than something the next source overwrites. Leaving it
+# set would point the script at a file that exists and prove nothing.
 function test_preview_reports_a_missing_packages_file() {
   local home out
   home="$(_hi_scratch_tree nopackages common settings scripts)"
   rm -f "$home/say-hi/settings/packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
+  _HI_PACKAGES="" _HI_PACKAGES_AUTO="" \
     "$home/say-hi/scripts/packages_preview.sh" 2>&1)" && return 1
   [[ "$out" == *"No packages file"* ]]
+}
+
+# ...and the other half of the same fact, which is the feature rather than its
+# side effect: an exported $_HI_PACKAGES points the check at one file without
+# moving the rest of the overlay, and survives the paths.sh the script sources
+# on its way in. The tree here has a perfectly good packages file; the export
+# names a different one, and the roster that comes out has to be that one's.
+function test_preview_reads_an_exported_packages_file() {
+  local home out
+  home="$(_hi_scratch_tree exportedpkgs common settings scripts)"
+  printf 'hionlyone:3
+' >"$_HI_WORKDIR/exported-packages"
+  out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
+  _HI_PACKAGES="$_HI_WORKDIR/exported-packages" \
+    "$home/say-hi/scripts/packages_preview.sh" 2>&1)" || return 1
+  [[ "$out" == *hionlyone* ]] && [[ "$out" != *hibravo* ]]
 }
 
 # The same invariant color_preview_test.sh asserts, through literally the same
@@ -293,6 +316,7 @@ function run_packages_preview_tests() {
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" test_tables_are_rectangular
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
+  _hi_check "Reads an exported packages file" test_preview_reads_an_exported_packages_file
 
   _hi_suite_end "packages_preview.sh"
 }

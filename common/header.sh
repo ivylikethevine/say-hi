@@ -274,6 +274,43 @@ function banner() {
   printf '%b\n' " $changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
+# tmux eats the DCS passthrough that common/osc52.sh and common/notify.sh wrap
+# their escapes in unless `allow-passthrough` is on, and it has been off by
+# default since the option arrived in tmux 3.3. Nothing fails when it is off:
+# `hi_copy` exits 0, the escape is swallowed on the way past, and the paste
+# afterwards hands back the previous clipboard. That is the "hi_copy does
+# nothing" report, answered here before it is filed.
+#
+# Three conditions, all of them necessary. A tmux has to be in the way ($TMUX,
+# not $TERM: tmux leaves TERM as screen-*, the same reason osc52.sh tests it
+# first). At least one of the two features it would mute has to be on, since
+# there is nothing to warn a user about who turned both off. And that tmux has
+# to say the option is not set.
+#
+# `show -Apv`, not `show -g`: allow-passthrough is a *pane* option, so the
+# pane's own value is the one that governs and -A includes the global it
+# inherits. A tmux too old to have the option answers nothing at all, and
+# nothing is the right thing to say back - there is no setting to point at, and
+# the line would name a fix that does not exist there. `all` counts as on: it
+# is the wider of the two yes values, allowing passthrough from an invisible
+# pane as well.
+#
+# No _HI_HEADER_* toggle of its own, unlike every row above. This one appears
+# only where something is already broken, so the way to be rid of it is to fix
+# the tmux or to turn off the features it is about - both of which silence it
+# by answering it.
+function passthrough_check() {
+  local value
+  [ -n "${TMUX:-}" ] || return 0
+  [[ "${_HI_DISABLE_OSC52:-0}" == 1 && "${_HI_DISABLE_NOTIFY:-0}" == 1 ]] && return 0
+  command -v tmux &>/dev/null || return 0
+  value="$(tmux show -Apv allow-passthrough 2>/dev/null || true)"
+  [ -n "$value" ] || value="$(tmux show -gv allow-passthrough 2>/dev/null || true)"
+  case "$value" in on | all | '') return 0 ;; esac
+  header_row "${YELLOW}tmux passthrough off - hi_copy/hi_notify muted" \
+    "${BRYELLOW}set -g allow-passthrough on"
+}
+
 function hi_header() {
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && return 0
   banner "$@"
@@ -284,6 +321,10 @@ function hi_header() {
   [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info
   [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity
   [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check
+  # last, so the one line that says something is wrong is the one left next to
+  # the prompt. Connect only: load.sh's disconnect calls banner directly, and
+  # twice a session is a nag rather than an answer.
+  passthrough_check
 }
 
 # package priorities, lowest to highest (more can be added).

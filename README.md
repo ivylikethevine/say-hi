@@ -125,6 +125,17 @@ for the description column its pager gives every row.
 The list stops at eleven rows because fish hands its pager half the screen —
 that is completion behaving normally, not the GIF cut short.
 
+### no target at all
+
+`hi` on its own does not fall through to ssh's usage message: it offers the
+same list, backend-tagged and recently-used first, and connects to what you
+pick. `fzf` or `sk` if you have one, a numbered menu if you do not — nothing
+has to be installed. It runs on the client and never reaches a target, and a
+`hi` in a script or a CI job still fails the way it always has rather than
+waiting on a menu nobody can answer.
+
+![bare hi offering its target list through fzf, then landing a session in the container picked from it](https://ivylikethevine.github.io/say-hi/docs/demos/pick.gif)
+
 ## Requirements
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
@@ -179,6 +190,9 @@ that is completion behaving normally, not the GIF cut short.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags.
   bash, zsh and fish read the same list (`common/targets.sh`), so the three
   cannot drift. GIF above: [completion](#completion-every-backend-at-once).
+- `hi` on its own offers that same list and connects to what you pick — `fzf`
+  or `sk` if you have one, a numbered menu if not. GIF above:
+  [no target at all](#no-target-at-all).
 - configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
@@ -186,6 +200,11 @@ that is completion behaving normally, not the GIF cut short.
 - [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages`
   and edit; `hi --packages-preview` shows what each priority means and the
   check as a connect will print it.
+- [optional] either of those files can live somewhere else instead —
+  `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one file
+  without moving the rest of the overlay (`_HI_PACKAGES`, `_HI_VIMRC` and
+  `_HI_NANORC` likewise); see
+  [docs/CONFIGURATION.md](docs/CONFIGURATION.md#pointing-one-file-somewhere-else).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. It leaves the `say-hi` directory and your

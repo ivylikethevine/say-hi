@@ -382,7 +382,7 @@ EOF
 # connects to.
 #
 # Composed from the existing up_* rather than written fresh, so the names in the
-# completion pane are the ones the other six GIFs already use and nothing here
+# completion pane are the ones the other GIFs already use and nothing here
 # can drift from them. The two container names are picked to *not* collide with
 # demo_ssh_config's hosts: `db-prod` is an ssh host in that roster, and a pane
 # listing it twice - once ssh, once docker - reads as a bug rather than as the
@@ -392,6 +392,22 @@ EOF
 # which is all targets.sh reads for them (its `emit_targets` awks the file), so
 # a running sshd would cost four minutes of image build and change nothing on
 # screen.
+# The picker demo's stage: the ssh roster off a file, and one container to land
+# in.
+#
+# `app-1`, and neither of the two container names the other GIFs already use,
+# because both are wrong here for a different reason. `db-prod` is one of
+# demo_ssh_config's hosts, and a list naming the same word twice - once ssh,
+# once docker - reads as a bug rather than as two backends (up_complete makes
+# the same choice, from the same file). `cache-1` is the zsh-only box, so a
+# session landing in it prints the bash-less fallback notice instead of the
+# ordinary greeting: true, and docker.tape's subject, but not this one's.
+# Debian, therefore, under a name that is in no roster.
+function up_pick() {
+  demo_ssh_config
+  up_container docker app-1 debian || return 1
+}
+
 function up_complete() {
   demo_ssh_config
   up_container docker cache-1 zsh || return 1
@@ -506,6 +522,28 @@ export _HI_DISABLE_GIT_STATUS='1'
 EOF
   up_kube
   ;;
+up:pick)
+  # Bare `hi` - the picker. Cheap on purpose: this demo's subject is the
+  # *choice*, not the roster, so it wants a list with more than one kind of row
+  # in it and one row that can actually be connected to. demo_ssh_config's six
+  # hosts supply the first (they are read out of a file, so no sshd is built for
+  # them) and one docker container supplies the second.
+  #
+  # _HI_TARGETS_TTL=0 for up:complete's reason: the sweep is cached for 5s in
+  # $XDG_RUNTIME_DIR, which the renderer shares with every other shell on their
+  # box, so a stale window would render *their* containers into a committed GIF.
+  client_rc bash ivy workshop
+  # ...and a package floor, docker.tape's setting for docker.tape's reason: on
+  # a bare debian the top rank is one line, so the check stays short enough for
+  # the picker and the session it opens to fit the same recording. The header
+  # is not this demo's subject; the choice above it is.
+  demo_settings <<'EOF'
+export _HI_TARGETS_TTL='0'
+export _HI_PACKAGES_MIN_PRIORITY='5'
+EOF
+  up_pick
+  ;;
+
 up:complete)
   # The one demo whose subject is the *client* alone - nothing is connected to,
   # so the fixture exists only to be listed. fish for the client because its

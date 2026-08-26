@@ -8,6 +8,9 @@ adds rather than replaces, loading after the tree's own so yours win.
 `settings.sh` has no in-tree counterpart: `hi --configure` only ever writes it
 here.
 
+Four of those files can also live somewhere else entirely — see
+[Pointing one file somewhere else](#pointing-one-file-somewhere-else).
+
 | overlay file                   | overrides           | what it is                                                                                                                               |
 | ------------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.config/say-hi/settings.sh` | -                   | what `hi --configure` writes                                                                                                             |
@@ -41,6 +44,7 @@ works just as well and takes precedence for that shell.
 
 - [How it works](#how-it-works)
 - [Every setting](#every-setting)
+  - [Pointing one file somewhere else](#pointing-one-file-somewhere-else)
   - [Not settings](#not-settings)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Presets](#presets)
@@ -146,12 +150,45 @@ row here.
 | `NO_COLOR`                   | unset                           | you                       | [Everything else](#everything-else) - not hi's variable; any non-empty value drops color      |
 | `_HI_KEEP_COMMENTS`          | `0`                             | you                       | `1` ships the tree verbatim rather than comment-stripped, for reading real source on a target |
 | `_HI_RECENT_FILE`            | `$XDG_STATE_HOME/say-hi/recent` | you                       | [Everything else](#everything-else) - where those are kept                                    |
+| `_HI_COLORS`                 | overlay, else tree              | you                       | [Pointing one file somewhere else](#pointing-one-file-somewhere-else) - where the color pins are read from |
+| `_HI_PACKAGES`               | overlay, else tree              | you                       | the same for the package check's list                                                         |
+| `_HI_VIMRC`                  | overlay, else tree              | you                       | the same for the vim config the `vim` alias and `$VIMINIT` point at                           |
+| `_HI_NANORC`                 | overlay, else tree              | you                       | the same for nano's                                                                           |
 | `_HI_TARGET`                 | -                               | hi                        | the target as you typed it on the client                                                      |
 | `_HI_TARGET_COLOR`           | -                               | hi                        | the color that target resolved to, decided on the client so it matches everywhere             |
 | `_HI_TARGET_TAG`             | -                               | hi                        | the target's `# Tags:` value out of your `~/.ssh/config`                                      |
 | `_HI_LOCAL_USER`             | -                               | hi                        | who you are on the client, for the header's "from" half                                       |
 | `_HI_LOCAL_HOSTNAME`         | -                               | hi                        | where you came from, likewise                                                                 |
 | `_HI_RELEASE`                | -                               | hi                        | the client's version, so a session says which say-hi it is running                            |
+
+### Pointing one file somewhere else
+
+`$_HI_CONFIG_DIR` moves the whole overlay. The four files inside it that have a
+path variable of their own — `colors`, `packages`, `vim.rc` and `nano.rc` — can
+each be moved on their own instead:
+
+```sh
+export _HI_COLORS="$HOME/dotfiles/hi-colors"     # in settings.sh, or the environment
+```
+
+That one file now comes from `~/dotfiles`; the other three go on resolving the
+way they always did — the overlay's copy when you have made one, the tree's
+otherwise. It wins even when `~/.config/say-hi/colors` also exists, which is
+what makes it useful to a dotfile manager that would rather keep its own paths
+than symlink into `~/.config/say-hi` (the whole-directory route is
+[still there](#keeping-the-overlay-in-a-dotfile-manager) and is simpler when
+you are moving all of it).
+
+Two edges worth knowing. A value equal to what `common/paths.sh` would have
+resolved to anyway is not treated as a choice — it is what a child shell
+inherits from its parent, and re-resolving it is what lets
+`_HI_CONFIG_DIR=elsewhere bash` mean something. And the four are read on every
+source, so a shell already running does not notice a file you have only just
+created; open a new one.
+
+The other five overlay files have no such variable. `aliases.sh` and the three
+per-shell files are sourced by a fixed name straight off `$_HI_CONFIG_DIR`, and
+`settings.sh` is read before any of this happens.
 
 ### Not settings
 
@@ -233,6 +270,20 @@ on the target. Only the unnamed register is sent, so `"ay` stays local.
 Terminal support varies (tmux needs `set -g allow-passthrough on`; under
 `$ZELLIJ` the escape goes through raw), which is why it is a toggle.
 `common/osc52.sh` is the whole implementation.
+
+**The header says so when tmux is going to eat it.** `allow-passthrough` has
+been off by default since tmux 3.3, and nothing fails when it is: `hi_copy`
+exits 0, the escape is swallowed on the way past, and the paste afterwards
+hands back your previous clipboard. So a session that finds `$TMUX` set with
+the option off prints one line on connect —
+
+```text
+ | tmux passthrough off - hi_copy/hi_notify muted | set -g allow-passthrough on
+```
+
+— and nowhere else. It has no toggle of its own: turn the option on, or turn
+off the two features it is about, and it stops. A tmux too old to have the
+option says nothing, since there would be no setting to point at.
 
 `_HI_DISABLE_NOTIFY` turns off the other one. `hi_notify <command>` runs the
 command on the target, then writes an

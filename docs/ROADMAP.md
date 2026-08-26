@@ -108,16 +108,16 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
 - [ ] **Get a demo render onto the site** — _scope: one `publish` run to read;
       the code half has shipped; outside this checkout._ `demos.yml`'s
       `publish` job renders every tape but `demo`, `pages.yml` lays the result
-      over the site, six GIFs are out of the tree, and README and
+      over the site, seven GIFs are out of the tree, and README and
       [CONFIGURATION.md](CONFIGURATION.md) link them at their published URLs.
       `docs/demos/demo.gif` stays committed on purpose — it is the
       hand-rendered one, and `.githooks/demo_staleness.sh` says when it has
       gone stale.
 
-  - **All seven of those URLs 404 today**: `publish` had four runs (most
+  - **All of those URLs 404 today**: `publish` had four runs (most
     recently 2026-08-24), every one red at _Render every tape but demo_,
     because the job assumed a self-hosted renderer and fell back to a hosted
-    runner where six of the seven tapes had no backend. `pages.yml` serves the
+    runner where all but one of the tapes had no backend. `pages.yml` serves the
     newest **successful** run's `demo-gifs` artifact, so there has never been
     one to serve.
   - **What shipped.** `publish` installs podman, nomad and kind on a hosted
@@ -125,12 +125,12 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     `RUNNER_LABEL` is a speed-up now, not a requirement.
   - **Do:** dispatch `demos.yml` (it never runs on a pull request). Watch the
     first hosted render for the renderer's own dependencies — a tape opening
-    `Set Shell zsh` wants that shell on the recording machine, and a kind
-    cluster on a two-core hosted runner has never been timed (the job's timeout
-    is 60 minutes for that reason).
-  - **Ticks when:** a `publish` run has been green end to end and the seven
-    published URLs serve an image — README's six, plus the `color_preview` one
-    only [CONFIGURATION.md](CONFIGURATION.md) links.
+    `Set Shell zsh` wants that shell on the recording machine, `pick.tape`
+    wants `fzf`, and a kind cluster on a two-core hosted runner has never been
+    timed (the job's timeout is 60 minutes for that reason).
+  - **Ticks when:** a `publish` run has been green end to end and all eight
+    published URLs serve an image — README's seven, plus the `color_preview`
+    one only [CONFIGURATION.md](CONFIGURATION.md) links.
 
 - [ ] **Confirm the tar padding fix on the macOS job** — _scope: one CI run to
       read; the code half has shipped; in-repo._ GNU tar rounds the
@@ -303,52 +303,39 @@ satisfy on the way out.
       `cat` unless the overlay says otherwise, and both payload numbers still
       fit.
 
-- [ ] **Per-file overlay location overrides** — _scope: four guarded exports
-      in `common/paths.sh`, their `CONFIGURATION.md` rows, and a
-      `paths_test.sh` case; in-repo._ `$_HI_CONFIG_DIR` already wins over its
-      own derivation once exported (`common/core.sh`'s `if [ -z ... ]` guard),
-      but the four files inside it that get their own path variable -
-      `_HI_COLORS`, `_HI_PACKAGES`, `_HI_VIMRC`, `_HI_NANORC` - do not: each is
-      exported to the tree default and then unconditionally re-exported to
-      `$_HI_CONFIG_DIR/<name>` when that file exists, clobbering anything
-      `settings.sh` set for the same name first. Give each the same
-      "only when unset" guard `_HI_CONFIG_DIR` and `_HI_HOME` already use, so
-      `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` (or the
-      environment) points that one file elsewhere without moving the rest of
-      the overlay. `aliases.sh`, `bash.sh`, `zsh.zsh` and `config.fish` are out
-      of scope: each shell sources them by a fixed name straight off
-      `$_HI_CONFIG_DIR` rather than through a path variable, which is a bigger
-      change than four guards.
-      **Ticks when:** `_HI_COLORS=/anywhere` (and the same for the other
-      three) in `settings.sh` resolves to that path even when
-      `$_HI_CONFIG_DIR/colors` also exists, `docs/CONFIGURATION.md` documents
-      it per variable, and `paths_test.sh` pins the override winning over both
-      the tree default and the same-named overlay file.
+- [ ] **A devcontainer Feature** — _scope: one publish to ghcr, which needs a
+      release first; the code half has shipped; outside this checkout._
+      [SUPPORTED.md](SUPPORTED.md) reaches devcontainers from outside as docker
+      targets. A Feature puts say-hi _inside_ one, so a VS Code or Codespaces
+      terminal — which has no client to say `hi` from, being already on the
+      target — is styled anyway.
 
-- [ ] **`hi` with no target picks one** — _scope: one client-side arm and a
-      fallback; in-repo._ Bare `hi` falls through to ssh's usage today. With
-      `fzf` or `sk` on the client, offer the list `common/targets.sh` already
-      builds (backend-tagged, cached by `_HI_TARGETS_TTL`) and connect to the
-      pick; without either, a numbered `select`. Client-only, so the footprint
-      promise is untouched. **Ticks when:** `hi` alone lands a session, the
-      completion GIF has a sibling, and `parse_test.sh` pins the arm.
-
-- [ ] **Say when the multiplexer will eat OSC 52** — _scope: one header
-      line; in-repo._ CONFIGURATION.md documents that tmux needs
-      `allow-passthrough on` for `hi_copy` and `hi_notify`; the header already
-      probes the target. When `$TMUX` is set there and
-      `tmux show -g allow-passthrough` is off, print one line saying so. The
-      "hi_copy does nothing" report answered before it is filed. **Ticks
-      when:** the line shows under a tmux with passthrough off and nowhere
-      else, with a `header_test.sh` case each way.
-
-- [ ] **A devcontainer Feature** — _scope: a `devcontainer-feature.json`
-      around `install.sh --prefix`, published to ghcr; a new channel, so a
-      row in PACKAGING.md and a drift-guard case; post-1.0._ SUPPORTED.md
-      reaches devcontainers from outside as docker targets; a Feature puts
-      say-hi _inside_ one, so the VS Code and Codespaces terminal is styled
-      with no client involved. **Ticks when:** a `features` entry naming
-      it installs a working `hi` in a fresh devcontainer.
+  - **What shipped.** `packaging/devcontainer/src/say-hi/` is the Feature:
+    `devcontainer-feature.json` with three options (`version`, `preset`,
+    `configureShell`) and an `install.sh` that downloads the release source
+    tarball, checks it against the release's `SHA256SUMS`, and hands off to
+    `scripts/install.sh --prefix /usr/share` and `packaging/stamp.sh` — the
+    same two scripts every other channel calls, so nothing here is a second
+    copy of what a packaged install contains. Then it runs
+    `hi --install --yes --preset` as `$_REMOTE_USER`, which is the half a
+    package manager cannot do and the whole reason the channel exists.
+    `release.yml`'s `feature` job publishes it to ghcr behind the same approval
+    as the tap and the AUR; eight cases in `tests/packaging/packaging_test.sh`
+    hold the layout, the options and the handoff, and
+    [PACKAGING.md](PACKAGING.md#devcontainer-feature) has the row and the
+    section.
+  - **Verified end to end against `version: main`**, which is the arm that can
+    run before a release exists: a debian container came out with
+    `/usr/bin/hi`, `/etc/profile.d/say-hi.sh`, and the remote user's bash
+    carrying say-hi's prompt, OSC 133 marks and aliases. The stamp half was
+    exercised separately (`hi --version` went from `unknown` to the version
+    passed, and the man page's `.TH` with it), since the release arm has no
+    release to download yet.
+  - **Do:** cut the release, let the `feature` job run, then install it from a
+    real `devcontainer.json` rather than from a shimmed container.
+  - **Ticks when:** a `features` entry naming
+    `ghcr.io/ivylikethevine/say-hi/say-hi` installs a working `hi` in a fresh
+    devcontainer.
 
 ## Large
 
