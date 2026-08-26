@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Builds the distributable packages: stage the tree with scripts/install.sh's
 # packaging mode, then hand that staging root to nfpm for .deb/.rpm/.apk.
 #

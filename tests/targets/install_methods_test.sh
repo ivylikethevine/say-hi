@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Every way say-hi gets onto a target, driven over real ssh: the .deb, the .rpm,
 # the .apk, a Homebrew-shaped keg, a system-wide `install.sh --prefix`, and a
 # packaged tree whose /etc/profile.d announcement has been taken away.

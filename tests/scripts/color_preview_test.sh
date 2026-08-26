@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for scripts/color_preview.sh - the `hi --color-preview` table.
 #
 # Its job is to render the same answers the live prompt would give, so what

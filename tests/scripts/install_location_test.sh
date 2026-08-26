@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # say-hi installed somewhere other than $HOME/say-hi, driven through the real
 # scripts/install.sh and then read back out of a *fresh* shell in each dialect.
 #

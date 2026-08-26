@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Demo-tape fixtures: the targets docs/tapes/*.tape connect to, shaped like
 # the e2e fixtures (tests/test_lib.sh) but standalone - a tape render happens
 # outside the test harness, on a machine that just has the backends installed.

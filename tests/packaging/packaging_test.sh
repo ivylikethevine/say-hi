@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Drift guards for packaging/. Every channel has to describe the same install,
 # and three of them describe it in a language that cannot call scripts/
 # install.sh - a PKGBUILD calls it, but nfpm reads YAML and a Homebrew formula

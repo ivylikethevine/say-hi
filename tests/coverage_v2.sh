@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Line coverage for the bash suites via bashcov - a dev tool to run
 # occasionally, deliberately not wired into CI (yet). Same job and same CLI as
 # tests/coverage.sh, different instrumentation, and that difference is the

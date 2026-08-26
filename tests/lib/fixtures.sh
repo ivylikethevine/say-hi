@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # World-building for a case: fake and real PATHs, git and settings fixtures, a
 # scratch tree, and the string helpers that read what came back out.
 #

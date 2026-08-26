@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Per-command profiles of hi's hot paths via timep - a dev tool to run when a
 # bench ceiling trips, deliberately not wired into CI.
 #

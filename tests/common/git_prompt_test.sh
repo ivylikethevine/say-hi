@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for common/git_prompt.sh's _hi_git_prompt.
 #
 # GLOSSARY: HI.30 + HI.34

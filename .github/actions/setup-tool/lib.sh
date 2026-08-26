@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Reading ./tools.txt, shared by this action's install.sh and by
 # .github/scripts/check_tool_versions.sh - the two consumers of the roster,
 # so neither keeps a copy of it.

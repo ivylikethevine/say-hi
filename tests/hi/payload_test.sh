@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for hi.sh: the ssh payload, the config overlay stream, and the size
 # hi reports on connect. The payload is an allow list, so most of this file is
 # its drift guard - what ships, what an overlay trims, and what never trims.

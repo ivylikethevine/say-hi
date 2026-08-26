@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for scripts/install.sh's reusable logic - both halves of it, since
 # `--uninstall` lives in the same script: the marker-based rc rewriting and the
 # settings/toggle handling, then the stripping that reverses them (incl. an

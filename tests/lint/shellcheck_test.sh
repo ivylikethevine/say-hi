@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The repo's lint gate. shellcheck covers every *.sh file; on top of that, every
 # file a non-bash shell parses for itself is run through that shell's own syntax
 # checker (`zsh -n` / `fish --no-execute`) - see $_HI_NATIVE_LINT below. Without

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The parallel batch runner - the counters, teardown and transcript a case needs
 # when it runs in a background subshell instead of this shell.
 #

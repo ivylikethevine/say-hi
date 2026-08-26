@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Drives hi.sh's real podman path - see test_lib.sh's
 # _hi_container_backend_test for what this actually does and why it's shared
 # with docker_test.sh. Podman keeps its own separate image/container store

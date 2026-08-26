@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for common/paths.sh's local-only gate: the toggle flip at the
 # bottom of the file, which is what _HI_DISABLE_LOCAL means. It turns every
 # toggle off on the machine say-hi is *installed* on while leaving them on when

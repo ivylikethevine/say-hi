@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Builds the source tarball a release ships, and nothing else.
 #
 # Its own entry point rather than a line of YAML in .github/workflows/release.yml

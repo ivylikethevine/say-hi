@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # The severity half of digest-pinning, and the gate dependabot cannot offer.
 #
 # tests/dockerfiles pins its base images by digest, and dependabot opens the

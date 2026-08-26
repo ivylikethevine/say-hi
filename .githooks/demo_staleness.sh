@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Warn when docs/demos/demo.gif is older than the things that decide what it
 # shows. Warn, never block: demo.gif is a manual artifact reviewed by eye
 # (docs/tapes/generate.sh says so at the top), and a check that refused a

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for common/targets.sh - the "<name>\t<kind>" list behind `hi`'s
 # bash/zsh/fish completions and hi.sh's own _hi_is_ssh_host check.
 #

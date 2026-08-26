@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Everything a suite prints: the aligned status line, the begin/end banners, the
 # skip and failure ledgers the runner reads, and the host report.
 #

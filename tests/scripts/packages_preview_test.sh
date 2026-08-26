@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Unit tests for scripts/packages_preview.sh - the `hi --packages-preview` legend.
 #
 # The preview's whole claim is that it shows what the *header* will do, so what
@@ -47,7 +47,7 @@ EOF
 
 # the fixture's packages, and the coreutils the script itself shells out to
 function _hi_pkg_path() {
-  printf '%s:%s' "$(_hi_fake_path pkgbin)" "$(_hi_real_path pkgtools awk sort sed cat)"
+  printf '%s:%s' "$(_hi_fake_path pkgbin)" "$(_hi_real_path pkgtools bash awk sort sed cat)"
 }
 
 # collect once - it is the same work for every case that reads the results

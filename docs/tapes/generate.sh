@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Renders every demo GIF from its tape: one `vhs` run per tape, with a
 # `fixtures.sh down` in between - no tape cleans up after itself, on purpose
 # (typing into the pty right after a session teardown proved flaky), so this
