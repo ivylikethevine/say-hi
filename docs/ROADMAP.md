@@ -303,6 +303,28 @@ satisfy on the way out.
       `cat` unless the overlay says otherwise, and both payload numbers still
       fit.
 
+- [ ] **Per-file overlay location overrides** — _scope: four guarded exports
+      in `common/paths.sh`, their `CONFIGURATION.md` rows, and a
+      `paths_test.sh` case; in-repo._ `$_HI_CONFIG_DIR` already wins over its
+      own derivation once exported (`common/core.sh`'s `if [ -z ... ]` guard),
+      but the four files inside it that get their own path variable -
+      `_HI_COLORS`, `_HI_PACKAGES`, `_HI_VIMRC`, `_HI_NANORC` - do not: each is
+      exported to the tree default and then unconditionally re-exported to
+      `$_HI_CONFIG_DIR/<name>` when that file exists, clobbering anything
+      `settings.sh` set for the same name first. Give each the same
+      "only when unset" guard `_HI_CONFIG_DIR` and `_HI_HOME` already use, so
+      `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` (or the
+      environment) points that one file elsewhere without moving the rest of
+      the overlay. `aliases.sh`, `bash.sh`, `zsh.zsh` and `config.fish` are out
+      of scope: each shell sources them by a fixed name straight off
+      `$_HI_CONFIG_DIR` rather than through a path variable, which is a bigger
+      change than four guards.
+      **Ticks when:** `_HI_COLORS=/anywhere` (and the same for the other
+      three) in `settings.sh` resolves to that path even when
+      `$_HI_CONFIG_DIR/colors` also exists, `docs/CONFIGURATION.md` documents
+      it per variable, and `paths_test.sh` pins the override winning over both
+      the tree default and the same-named overlay file.
+
 - [ ] **`hi` with no target picks one** — _scope: one client-side arm and a
       fallback; in-repo._ Bare `hi` falls through to ssh's usage today. With
       `fzf` or `sk` on the client, offer the list `common/targets.sh` already

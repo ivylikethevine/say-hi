@@ -12,7 +12,7 @@ end
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -30,6 +30,23 @@ if test -f $_HI_CONFIG_DIR/settings.sh
 end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
+
+# Per-shell scratch history: mirrors common/history.sh's mktemp'd,
+# exit-cleaned directory (fish can't source it). fish has no arbitrary
+# history path of its own - fish_history only picks a session-name suffix
+# under $XDG_DATA_HOME/fish - so commands land in a plain text log instead,
+# appended by the same postexec event the marks below use. GLOSSARY: HI.45
+if test "$_HI_DISABLE_HISTORY" != 1
+  if not set -q _HI_TMPDIR
+    set -gx _HI_TMPDIR (command mktemp -d -t hi.history.XXXXXX)
+  end
+  function __hi_history_cleanup --on-event fish_exit
+    rm -rf $_HI_TMPDIR
+  end
+  function __hi_history_postexec --on-event fish_postexec
+    echo $argv[1] >> $_HI_TMPDIR/fish_history
+  end
+end
 
 # settings/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns
 # each into an opaque function with no preview of what it expands to. `alias`

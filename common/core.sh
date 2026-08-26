@@ -29,7 +29,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # _hi_fallback_rc; config.fish keeps its own copy.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS)
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -305,11 +305,17 @@ function _hi_release_or_describe() {
   fi
 }
 
-# zsh's `trap ... EXIT` doesn't fire the way bash's does; it has TRAPEXIT instead
+# zsh's `trap ... EXIT` (TRAPEXIT included) fires when the *function it was
+# set inside* returns, not at real shell exit - and _hi_on_exit is itself that
+# function, for every caller. `zshexit`, added through the standard
+# `add-zsh-hook` array, is the one mechanism exempt from that scoping.
 # GLOSSARY: HI.14
 function _hi_on_exit() {
   if [ -n "${ZSH_VERSION:-}" ]; then
-    eval "TRAPEXIT() { $1; }"
+    _hi_on_exit_n=$((${_hi_on_exit_n:-0} + 1))
+    eval "_hi_on_exit_fn_$_hi_on_exit_n() { $1; }"
+    autoload -Uz add-zsh-hook
+    add-zsh-hook zshexit "_hi_on_exit_fn_$_hi_on_exit_n"
   else
     # shellcheck disable=SC2064 # $1 is the command we want stored, expanded now
     trap "$1" EXIT

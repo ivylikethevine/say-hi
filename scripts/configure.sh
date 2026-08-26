@@ -287,6 +287,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?|"
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?|"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?|"
+  "_HI_DISABLE_HISTORY|1||| Save each shell's command history to a scratch directory that's wiped when the shell exits?|"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?|"
 )
 
@@ -368,7 +369,7 @@ function ask_prompt_group() {
 _HI_PRESETS=(
   "everything|every feature and every header line on - the shipped defaults|"
   "balanced|everything but the noise: the header keeps its banner, system info and a shorter package check; no desktop notifications|_HI_HEADER_TIMESTAMP=0 _HI_HEADER_IDENTITY=0 _HI_PACKAGES_MIN_PRIORITY=3 _HI_DISABLE_NOTIFY=1"
-  "minimal|on targets only the colored prompt and the aliases - no header, editors, clipboard or notifications; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_OSC52=1 _HI_DISABLE_NOTIFY=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, editors, clipboard or notifications; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_OSC52=1 _HI_DISABLE_NOTIFY=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_HISTORY=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the yes/no tables above, plus the one
