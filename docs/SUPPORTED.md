@@ -59,7 +59,7 @@ reachable.**
 
 | target       | what a name resolves as                                      | proven by                                                                                                                                   |
 | ------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop) and `ssh_relay_test.sh`                              |
+| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` and `ssh_wire_test.sh` (bytes on the wire vs the printed size)                              |
 | docker ✅     | a running container                                          | `tests/targets/docker_test.sh` - six shell environments (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case |
 | podman ✅     | a running container                                          | `tests/targets/podman_test.sh`, the same six shell environments against podman's own image store                                            |
 | nomad ✅      | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                            |

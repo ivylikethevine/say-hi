@@ -493,15 +493,18 @@ function _hi_settings_documented() {
 }
 
 # Every name the tree treats as a setting: core.sh's toggle roster, plus the
-# variable column of install.sh's two `<var>|<off>|<preview>|<question>` tables.
-# `sort -u` because the two overlap almost entirely - without it a toggle that
-# is also a `hi --configure` question is reported missing twice.
+# variable column of every `_HI_*_PROMPTS` table in configure.sh (the yes/no
+# groups `hi --configure` asks, `<var>|<off>|<on>|<preview>|<question>|<needs>`
+# rows). Any table by that name counts, so a section added to the wizard
+# cannot ask about a setting this check never sees. `sort -u` because the
+# toggles and the tables overlap almost entirely - without it a toggle that
+# is also a question is reported missing twice.
 function _hi_settings_roster() {
   {
     sed -n '/^  _HI_TOGGLES=(/,/)$/p' "$_HI_ROOT/common/core.sh" |
       grep -oE '_HI_[A-Z0-9_]+' | grep -v '^_HI_TOGGLES$'
-    sed -n '/^_HI_FEATURE_PROMPTS=(/,/^)$/p;/^_HI_HEADER_PROMPTS=(/,/^)$/p' \
-      "$_HI_ROOT/scripts/install.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
+    sed -n '/^_HI_[A-Z_]*_PROMPTS=(/,/^)$/p' \
+      "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
   } | sort -u
 }
 

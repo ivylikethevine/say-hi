@@ -860,7 +860,8 @@ function _hi_prompt_ends_lines() {
   local -a _HI_SETTING_LINES=()
   mkdir -p "$dir"
   [ "$#" -eq 0 ] && : >"$_HI_SETTINGS" || printf '%s\n' "$@" >"$_HI_SETTINGS"
-  config_prompt_ends </dev/null
+  # >/dev/null: the section heading is stdout, the lines are the array
+  config_prompt_ends </dev/null >/dev/null
   printf '%s' "${_HI_SETTING_LINES[*]}"
 }
 
@@ -890,6 +891,204 @@ function test_prompt_ends_skipped_when_the_prompt_is_off() {
   local out
   out="$(_hi_prompt_ends_lines "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+}
+
+# --- the opt-in shape, and the sections it made possible ----------------------
+#
+# A default-on toggle is on unless its off-value is written; an opt-in
+# (_HI_HEADER_GHZ=1, _HI_PROMPT=starship) is on only when its on-value is.
+# setting_on is the one reader of both, and ask_prompt_group writes both.
+
+function test_setting_on_opt_in_absent_is_off() {
+  local target="$_HI_WORKDIR/optin_absent"
+  : >"$target"
+  _HI_SETTING_PENDING=()
+  ! setting_on _HI_HEADER_GHZ "$target" 0 1
+}
+
+function test_setting_on_opt_in_present_is_on() {
+  local target="$_HI_WORKDIR/optin_present"
+  printf 'export _HI_HEADER_GHZ=1\n' >"$target"
+  _HI_SETTING_PENDING=()
+  setting_on _HI_HEADER_GHZ "$target" 0 1
+}
+
+function test_setting_on_toggle_absent_is_on() {
+  local target="$_HI_WORKDIR/toggle_absent"
+  : >"$target"
+  _HI_SETTING_PENDING=()
+  setting_on _HI_DISABLE_FOO "$target" 1
+}
+
+# _hi_section_lines <name> <fn> [settings-line ...] - what <fn> would write,
+# non-interactively (stdin is /dev/null, so every question keeps what the
+# file holds), as one string
+function _hi_section_lines() {
+  local dir="$_HI_WORKDIR/section_$1" fn="$2"
+  local _HI_SETTINGS="$dir/settings.sh"
+  local -a _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  mkdir -p "$dir"
+  shift 2
+  [ "$#" -eq 0 ] && : >"$_HI_SETTINGS" || printf '%s\n' "$@" >"$_HI_SETTINGS"
+  "$fn" </dev/null >/dev/null
+  printf '%s' "${_HI_SETTING_LINES[*]:-}"
+}
+
+# the GHz dial hangs off the system info line: kept while that line is on
+function test_ghz_kept_while_sysinfo_is_on() {
+  local out
+  out="$(_hi_section_lines ghz_on config_header_details "export _HI_HEADER_GHZ=1")"
+  [[ "$out" == *"export _HI_HEADER_GHZ=1"* ]]
+}
+
+# ...and not restated once it is moot, the way every skipped section behaves
+function test_ghz_dropped_when_sysinfo_is_off() {
+  local out
+  out="$(_hi_section_lines ghz_off config_header_details "export _HI_HEADER_SYSINFO=0" "export _HI_HEADER_GHZ=1")"
+  [[ "$out" != *"_HI_HEADER_GHZ"* ]]
+}
+
+# an opt-in that is off writes nothing - there is no "=0" spelling of it
+function test_opt_in_off_writes_nothing() {
+  local out
+  out="$(_hi_section_lines ghz_default config_header_details)"
+  [[ "$out" != *"_HI_HEADER_GHZ"* ]]
+}
+
+function test_starship_kept_when_chosen() {
+  local out
+  out="$(_hi_section_lines starship config_prompt_ends "export _HI_PROMPT=starship")"
+  [[ "$out" == *"export _HI_PROMPT=starship"* ]]
+}
+
+# the gate declined (here: nobody to answer it) keeps every advanced value,
+# quoting included - the section runs, it just is not asked
+function test_advanced_declined_keeps_every_value() {
+  local out
+  out="$(_hi_section_lines adv_keep config_advanced \
+    "export _HI_TERM_FALLBACK=0" "export _HI_RECENT=0" \
+    "export _HI_SHELL_PREFERENCE='zsh login'" "export _HI_ASCII=1" \
+    "export _HI_TARGETS_TTL=9" "export _HI_PROBE_TIMEOUT=0.5")"
+  [[ "$out" == *"export _HI_TERM_FALLBACK=0"* && "$out" == *"export _HI_RECENT=0"* &&
+    "$out" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$out" == *"export _HI_ASCII=1"* &&
+    "$out" == *"export _HI_TARGETS_TTL=9"* && "$out" == *"export _HI_PROBE_TIMEOUT=0.5"* ]]
+}
+
+# and with nothing set, writes nothing - the defaults live in the code
+function test_advanced_defaults_write_nothing() {
+  [ -z "$(_hi_section_lines adv_default config_advanced | tr -d ' ')" ]
+}
+
+# a row whose <needs> command is absent is carried, not asked and not dropped
+function test_prompt_group_carries_a_row_it_cannot_ask() {
+  local out dir="$_HI_WORKDIR/needs"
+  local _HI_SETTINGS="$dir/settings.sh"
+  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_HEADER_GHZ|0|1|| moot?|no-such-command-$$")
+  _HI_SETTING_PENDING=()
+  mkdir -p "$dir"
+  printf 'export _HI_HEADER_GHZ=1\n' >"$_HI_SETTINGS"
+  ask_prompt_group _HI_NEEDS_PROMPTS </dev/null
+  out="${_HI_SETTING_LINES[*]:-}"
+  [[ "$out" == *"export _HI_HEADER_GHZ=1"* ]]
+}
+
+function test_validators_for_the_advanced_values() {
+  _hi_is_shell_list "login zsh bash" && ! _hi_is_shell_list "login sh" && ! _hi_is_shell_list "" &&
+    _hi_is_seconds 0.5 && _hi_is_seconds 3 && ! _hi_is_seconds abc &&
+    _hi_is_glyph_choice ascii && ! _hi_is_glyph_choice yes
+}
+
+# the closing report: what this run wrote against what the block held, as
+# +/- lines, read through config_shell's own marker padding
+function _hi_diff_run() {
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "export _HI_MAX_WIDTH=120")
+  mkdir -p "$_HI_CONFIG_DIR"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1" "export _HI_HEADER_CHECK=0"
+  settings_diff_before
+  settings_diff_report >"$_HI_CONFIG_DIR/diff.out"
+}
+
+function test_settings_diff_reports_added_and_removed() {
+  local out
+  _hi_settings_fixture diff _hi_diff_run
+  out="$(cat "$_HI_WORKDIR/diff/config/diff.out")"
+  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_HEADER_CHECK=0"* &&
+    "$out" != *"_HI_DISABLE_PROMPT"* ]]
+}
+
+function _hi_diff_same_run() {
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1")
+  mkdir -p "$_HI_CONFIG_DIR"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1"
+  settings_diff_before
+  settings_diff_report >"$_HI_CONFIG_DIR/diff.out"
+}
+
+function test_settings_diff_says_no_changes() {
+  _hi_settings_fixture diff_same _hi_diff_same_run
+  grep -q 'no changes' "$_HI_WORKDIR/diff_same/config/diff.out"
+}
+
+# --- presets -------------------------------------------------------------------
+#
+# A preset is an absolute answer over its vocabulary: what it names is set,
+# everything else in the vocabulary goes back to the default, and nothing
+# outside it (width, separators, the advanced section) is touched.
+
+function test_apply_preset_seeds_every_answer() {
+  local target="$_HI_WORKDIR/preset_seed"
+  printf 'export _HI_DISABLE_PROMPT=1\nexport _HI_MAX_WIDTH=120\n' >"$target"
+  _HI_SETTING_PENDING=()
+  apply_preset minimal >/dev/null || return 1
+  # named by the preset: off; not named: back to on, even though the file
+  # says off; outside the vocabulary: still the file's
+  setting_off _HI_DISABLE_HEADER "$target" 1 &&
+    ! setting_off _HI_DISABLE_PROMPT "$target" 1 &&
+    [ "$(setting_value _HI_MAX_WIDTH "$target")" = 120 ]
+}
+
+function test_apply_preset_rejects_a_stranger() {
+  _HI_SETTING_PENDING=()
+  ! apply_preset no-such-preset 2>/dev/null
+}
+
+function test_every_preset_names_only_vocabulary() {
+  local row values pair vocab
+  vocab="$(_hi_preset_vocab)"
+  # shellcheck disable=SC2153 # _HI_PRESETS is configure.sh's table, not a typo of --preset's var
+  for row in "${_HI_PRESETS[@]}"; do
+    values="${row##*|}"
+    for pair in $values; do
+      case "$vocab" in *"${pair%%=*}"*) ;; *) return 1 ;; esac
+    done
+  done
+}
+
+# the whole run with --preset, no tty: exactly the preset's lines land in the
+# block, a value outside the vocabulary survives, and one inside it that the
+# preset does not name is gone. The fixture is written through config_shell,
+# so the before-state is the marked block a real run would find.
+function _hi_preset_run() {
+  mkdir -p "$_HI_CONFIG_DIR"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_EDITORS=1" "export _HI_MAX_WIDTH=120"
+  _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  _HI_PRESET_FINAL=""
+  run_configure balanced </dev/null
+}
+
+function test_preset_run_writes_the_preset() {
+  local block
+  _hi_settings_fixture preset_run _hi_preset_run
+  block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings preset_run)")"
+  [[ "$block" == *"export _HI_HEADER_TIMESTAMP=0"* && "$block" == *"export _HI_HEADER_IDENTITY=0"* &&
+    "$block" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* && "$block" == *"export _HI_DISABLE_NOTIFY=1"* &&
+    "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_DISABLE_EDITORS"* ]]
+}
+
+function test_install_rejects_an_unknown_preset() {
+  ! bash "$_HI_INSTALL" --features-only --preset nope </dev/null >/dev/null 2>&1
 }
 
 function run_install_tests() {
@@ -962,6 +1161,28 @@ function run_install_tests() {
   _hi_h2 "Testing: ask_setting (non-interactive)"
   _hi_check "Keeps enabled default" test_ask_setting_default_keeps_enabled
   _hi_check "Keeps disabled default" test_ask_setting_default_keeps_disabled
+
+  _hi_h2 "Testing: opt-ins, the advanced section and the closing report"
+  _hi_check "An absent opt-in is off" test_setting_on_opt_in_absent_is_off
+  _hi_check "A written opt-in is on" test_setting_on_opt_in_present_is_on
+  _hi_check "An absent toggle is on" test_setting_on_toggle_absent_is_on
+  _hi_check "GHz is kept while sysinfo is on" test_ghz_kept_while_sysinfo_is_on
+  _hi_check "GHz is dropped once sysinfo is off" test_ghz_dropped_when_sysinfo_is_off
+  _hi_check "An opt-in that is off writes nothing" test_opt_in_off_writes_nothing
+  _hi_check "starship is kept when chosen" test_starship_kept_when_chosen
+  _hi_check "Advanced: declined keeps every value" test_advanced_declined_keeps_every_value
+  _hi_check "Advanced: defaults write nothing" test_advanced_defaults_write_nothing
+  _hi_check "A row that cannot be asked is carried" test_prompt_group_carries_a_row_it_cannot_ask
+  _hi_check "Validators for the advanced values" test_validators_for_the_advanced_values
+  _hi_check "Diff reports added and removed lines" test_settings_diff_reports_added_and_removed
+  _hi_check "Diff says no changes" test_settings_diff_says_no_changes
+
+  _hi_h2 "Testing: presets"
+  _hi_check "A preset seeds every answer in its vocabulary" test_apply_preset_seeds_every_answer
+  _hi_check "An unknown preset is refused" test_apply_preset_rejects_a_stranger
+  _hi_check "Every preset stays inside the vocabulary" test_every_preset_names_only_vocabulary
+  _hi_check "--preset writes exactly the preset" test_preset_run_writes_the_preset
+  _hi_check "install.sh refuses an unknown --preset" test_install_rejects_an_unknown_preset
 
   _hi_h2 "Testing: _hi_visible_len"
   _hi_check "Plain text" test_visible_len_plain_text

@@ -66,9 +66,12 @@ Five groups (`--group <name>`); `--list` prints the membership:
   depend on the userland underneath it.
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
   budgets. Serial, since it measures.
-- **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `install_methods`,
-  `docker`, `framework`: throwaway containers driving `hi.sh`'s actual
-  connection paths (`_say_hi` and `_say_hi_container`).
+- **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,
+  `install_methods`, `docker`, `framework`: throwaway containers driving
+  `hi.sh`'s actual connection paths (`_say_hi` and `_say_hi_container`).
+  `ssh_wire` is the one that measures: a session to a bare target and to one
+  with say-hi installed, each through a byte-counting `ProxyCommand`, with
+  the counts set against the figure hi prints on its connect line.
 - **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
   need extra runner setup; a separate, slower CI job. `e2e` and `backends`
   run their suites one at a time — they contend on one container daemon.
@@ -264,7 +267,7 @@ damage happens in the fan-out below.
    on the same line as the marker.
 10. **The settings roster**: every name the tree treats as a setting
    (`_HI_TOGGLES` in `common/core.sh`, the variable column of
-   `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS`) has
+   every `_HI_*_PROMPTS` table in `scripts/configure.sh`) has
    a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table, and
    every row there names a variable the tree still reads. Only that section is
    matched. A name assembled at run time (`_HI_PROMPT_END_$SHELL`) is matched

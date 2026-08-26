@@ -133,7 +133,13 @@ install or repair say-hi's lines in your shell rc files, or take them back
 out again.
 .TP
 .B \-\-configure
-revisit the feature toggles only, leaving the rc wiring alone.
+revisit the settings only, leaving the rc wiring alone: features, header
+details, package\-check depth, width, the prompt, and an advanced section
+one Enter skips. Every question shows its current value and previews what it
+decides; nothing is written until the last one. Opens with a choice of preset
+(\fBeverything\fR, \fBbalanced\fR, \fBminimal\fR) as a starting point;
+.B \-\-preset <name>
+after it applies one without asking.
 .TP
 .B \-\-check\-configs
 re\-run just the syntax validation, without the rest of the install: the

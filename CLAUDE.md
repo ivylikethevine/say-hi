@@ -91,7 +91,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   `packaging_test.sh` asserts against `release.yml` and scans every workflow
   for `tool:` pins), `docs/GLOSSARY.md` (drift-checked against the tree's
   `GLOSSARY:` tags), `docs/CONFIGURATION.md` (its _Every setting_ table is
-  drift-checked against `_HI_TOGGLES` and `install.sh`'s prompt rosters) or
+  drift-checked against `_HI_TOGGLES` and `scripts/configure.sh`'s prompt rosters) or
   `packaging/nfpm/nfpm.yaml`. The GLOSSARY and CONFIGURATION checks are in
   the lint group. `README.md`'s payload badge is read by
   `bench_test.sh` — `--group bench`, not fast.
