@@ -57,7 +57,14 @@ jobs:
             # no verdict at all (which is what a forced-interactive bash
             # stopping its own process group used to do here). FreeBSD ships
             # timeout(1) in base.
-            timeout 900 bash ./tests/test_runner.sh --verbose --host-report --group fast
+            #
+            # </dev/null here and below is structural, not caution: vmactions
+            # runs `ssh <host> sh` and pipes *this script* to that sh's stdin,
+            # so anything started from it inherits the untransmitted remainder
+            # as its own stdin. A child that reads to EOF eats the rest of the
+            # script, and sh - which had buffered exactly 1024 bytes - resumes
+            # at EOF mid-word. That is what `sh: ssh-k: not found` was.
+            timeout 900 bash ./tests/test_runner.sh --verbose --host-report --group fast </dev/null
 
             # a throwaway key, and sshd is already up in the vmactions image
             ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
@@ -68,7 +75,7 @@ jobs:
             out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
               bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-              "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1)" || true
+              "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1 </dev/null)" || true
             printf '%s\n' "$out"
             printf '%s\n' "$out" | grep -q HI_BSD_LOOP_OK
 

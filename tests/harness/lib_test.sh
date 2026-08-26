@@ -390,8 +390,17 @@ function test_pty_wrap_auto_leaves_a_real_tty_alone() {
 function test_pty_wrap_actually_allocates_a_pty() {
   _hi_pty_wrap 0 force "no python3" >/dev/null
   [ "${#_HI_PTY_WRAP[@]}" -gt 0 ] || return 0
-  # `test -t 0` inside the wrapper is the whole point: it must see a terminal
-  ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} sh -c 'test -t 0' >/dev/null 2>&1
+  # `test -t 0` inside the wrapper is the whole point: it must see a terminal.
+  #
+  # </dev/null is not decoration: pty.spawn copies *our* stdin into the pty
+  # until it reads EOF, so without it this case eats whatever the person who
+  # started the run was feeding the shell - and wins that race against its own
+  # instantly-exiting child often enough to look intermittent. The FreeBSD job
+  # is where it bit: vmactions pipes its `run:` script to the remote sh's
+  # stdin, `--verbose` runs suites in the foreground with that stdin inherited,
+  # and this case swallowed the rest of the script mid-word. The child's fd 0
+  # is the pty slave either way, so the assertion is untouched.
+  ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} sh -c 'test -t 0' >/dev/null 2>&1 </dev/null
 }
 
 function test_pty_wrap_resets_between_calls() {
