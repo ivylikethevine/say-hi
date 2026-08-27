@@ -12,8 +12,14 @@ end
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY \
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS \
     _HI_DISABLE_BAT_ALIAS
+  set -q $_hi_toggle; or set -gx $_hi_toggle 0
+end
+# ...and core.sh's _HI_OPT_INS, the settings that ship off. A separate loop
+# because tests/common/paths_test.sh pins the list above to _HI_TOGGLES
+# name-for-name, and because these default to 0 meaning "no", not "yes".
+for _hi_toggle in _HI_GRAFT_RC _HI_SCRATCH_HISTORY
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -32,17 +38,39 @@ end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
 
+# core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored the way the toggles
+# above are (fish cannot read a bash array); tests/common/exports_test.sh pins
+# both name-for-name. The first is what a child of this shell inherits once
+# the loop at the end of the required block has run. The second is what
+# hi.sh resolved on the client and load.sh wrote into the session rc as plain
+# globals - so the bash this file shells out to for the header and the colours
+# has to be handed them, which is __hi_bash's whole job. `-f` (function
+# scope, fish 3.4+) rather than `-l`: a `-l` inside the `for` is scoped to
+# that block and is gone by the time the command runs. GLOSSARY: HI.47
+set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
+    _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE
+set -g _HI_SESSION_VARS _HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
+    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII
+function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
+  for __hi_n in $_HI_SESSION_VARS
+    set -q $__hi_n; and set -fx $__hi_n $$__hi_n
+  end
+  command bash -c $argv
+end
+
 # Per-shell scratch history: mirrors common/history.sh's mktemp'd,
-# exit-cleaned directory (fish can't source it). fish has no arbitrary
-# history path of its own - fish_history only picks a session-name suffix
-# under $XDG_DATA_HOME/fish - so commands land in a plain text log instead,
-# appended by the same postexec event the marks below use. GLOSSARY: HI.45
-if test "$_HI_DISABLE_HISTORY" != 1
+# exit-cleaned directory under the say-hi tree (fish can't source it; the
+# directory sits in $_HI_HOME/say-hi, off the ssh payload's enumerated
+# members, so it is never relayed onward). fish has no arbitrary history path
+# of its own - fish_history only picks a session-name suffix under
+# $XDG_DATA_HOME/fish - so commands land in a plain text log instead, appended
+# by the same postexec event the marks below use. GLOSSARY: HI.45
+if test "$_HI_SCRATCH_HISTORY" = 1
   if not set -q _HI_TMPDIR
-    set -gx _HI_TMPDIR (command mktemp -d -t hi.history.XXXXXX)
+    set -gx _HI_TMPDIR (command mktemp -d $_HI_HOME/say-hi/hi.history.XXXXXX)
   end
   function __hi_history_cleanup --on-event fish_exit
-    rm -rf $_HI_TMPDIR
+    command rm -rf $_HI_TMPDIR
   end
   function __hi_history_postexec --on-event fish_postexec
     echo $argv[1] >> $_HI_TMPDIR/fish_history
@@ -101,7 +129,7 @@ complete exa --wraps eza
 function fish_greeting
   # on a hi session load.sh printed this already and sets $fish_greeting to
   # suppress us; locally nothing sets it, so we print the header ourselves
-  set -q fish_greeting; or bash -c "source $_HI_HEADER; hi_header Online"
+  set -q fish_greeting; or __hi_bash "source $_HI_HEADER; hi_header Online"
 end
 
 # a whole process for two color names, so memoized in a universal variable
@@ -109,7 +137,7 @@ end
 set -l hi_key "$USER@"(prompt_hostname)
 test -f $_HI_COLORS; and set hi_key "$hi_key:"(path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
-  set -l hi_colors (bash -c "source $_HI_CORE; _hi_user_color; _hi_host_color")
+  set -l hi_colors (__hi_bash "source $_HI_CORE; _hi_user_color; _hi_host_color")
   set -U __hi_color_user $hi_colors[1]
   set -U __hi_color_host $hi_colors[2]
   set -U __hi_colors_key "$hi_key"
@@ -226,6 +254,17 @@ end
 
 end
 end
+
+# The fish half of core.sh's _hi_unexport: every _HI_* name not in
+# _HI_CHILD_ENV loses its export flag, value kept (`set -gu NAME $NAME` -
+# fish has no way to flip the flag alone). Last in the required block, after
+# every alias has expanded its paths and the colour bridge above has run.
+# `string match` with a glob, not -r: a regex match prints the matched text,
+# which for '^_HI_' is four characters and not the name. GLOSSARY: HI.47
+for __hi_n in (set -n | string match '_HI_*')
+  contains -- $__hi_n $_HI_CHILD_ENV; or set -gu $__hi_n $$__hi_n
+end
+set -e __hi_n
 # === end required configuration ===
 
 # hi's git segment: the fish half of what common/git_prompt.sh does for bash

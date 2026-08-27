@@ -346,17 +346,53 @@ fi
 # private directory of its own, not a predictable name in a shared /tmp.
 cache_dir="${XDG_RUNTIME_DIR:-}"
 if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
-  cache_dir="${TMPDIR:-/tmp}/hi-$(id -u 2>/dev/null || echo unknown)"
+  # one `id -u`, not two: the name needs it and so does the ownership check
+  _hi_uid="$(id -u 2>/dev/null || echo unknown)"
+  cache_dir="${TMPDIR:-/tmp}/hi-$_hi_uid"
   # first TAB only: otherwise two execs per completion on any host without
   # $XDG_RUNTIME_DIR (macOS, most containers)
   # -m 700 on the create, so a fresh cache is never even briefly world-readable
-  # - and no -p, which would silently adopt a path somebody else made. The
-  # chmod is the other arm rather than a follow-on: it runs only when the mkdir
-  # declined, which past the `-d` test above means losing a race with another
-  # shell, and this directory is *meant* to outlive the run.
-  [ -d "$cache_dir" ] || {
-    mkdir -m 700 "$cache_dir" 2>/dev/null || chmod 700 "$cache_dir" 2>/dev/null
-  }
+  # - and no -p, which would silently adopt a path somebody else made.
+  [ -d "$cache_dir" ] || mkdir -m 700 "$cache_dir" 2>/dev/null
+  # The name is predictable (it has to be - the next TAB has to find it), so on
+  # a box with a shared /tmp another user can get there first. This used to
+  # `chmod 700` whatever it found and carry on, which hands that user's
+  # directory the cache and the `$cache.$$` temp file written beside it: they
+  # would then be choosing what `hi <TAB>` offers, and a chmod on a directory
+  # somebody else owns fails anyway, silently, leaving the mode they chose.
+  #
+  # Ownership through `ls -ld`, not `test -O`: this file is standalone POSIX
+  # (it is what fish shells out to, and it runs on whatever /bin/sh a target
+  # has), and -O is a bash/ksh/zsh extension - shellcheck's SC3067. The owner
+  # column is field 3 of `ls -l` in every implementation that matters, and it
+  # is compared against both the name and the uid because a host with no
+  # passwd entry for the caller gets a number there instead.
+  #
+  # A directory that is not ours is not made ours: the cache is skipped and the
+  # backends are swept instead, which is slower and correct.
+  #
+  # Spelled as a flag rather than one `[ ] || [ ] && [ ]` chain: shell reads
+  # those strictly left to right, so the grouping that makes such a line correct
+  # is invisible, and this is a check whose whole job is to be obviously right.
+  _hi_cache_ok=1
+  [ -d "$cache_dir" ] || _hi_cache_ok=0
+  if [ -L "$cache_dir" ]; then _hi_cache_ok=0; fi
+  # shellcheck disable=SC2012 # `find -maxdepth` is not POSIX and `find -user`
+  # takes a user *name*, which is exactly what a host with no passwd entry for
+  # the caller cannot supply - the case the uid arm below exists for. SC2012's
+  # hazard is parsing file *names* out of ls; this reads a fixed column off one
+  # path this script built itself.
+  _hi_owner="$(ls -ld "$cache_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
+  if [ -z "$_hi_owner" ]; then
+    _hi_cache_ok=0
+  elif [ "$_hi_owner" != "$(id -un 2>/dev/null || echo)" ] &&
+    [ "$_hi_owner" != "$_hi_uid" ]; then
+    _hi_cache_ok=0
+  fi
+  if [ "$_hi_cache_ok" = 0 ]; then
+    emit_targets | rank_recent
+    exit 0
+  fi
 fi
 cache="$cache_dir/hi.targets.$kind"
 now="$(date +%s 2>/dev/null || echo 0)"

@@ -33,7 +33,9 @@ checking anything in fish outside the runner.
 already exported (~60 names, `_HI_HOME=/home/ivy/projects`,
 `_HI_ROOT=/home/ivy/projects/say-hi`, `_HI_TEST_LIB=…/say-hi/tests/test_lib.sh`
 among them) from the launching shell. Those paths are the **user's real
-install**, and it exists, so nothing fails loudly. Check with
+install**, and it exists, so nothing fails loudly. (An install that carries
+HI.47 exports eight names, `_HI_HOME` and `_HI_CONFIG_DIR` among them, and the
+same check and clear still apply.) Check with
 `env | grep '^_HI_'` before trusting any result, and clear it with:
 
 ```sh
@@ -68,7 +70,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   checkbashisms, the bash-4 grep and the doc drift checks, ~40s). Run both.
 - Run the suite at the **end** of a multi-step change, not between steps — a
   structural refactor breaks loudly at source time.
-- Layout rule, the lint gate's twelve halves and the coverage caveat are
+- Layout rule, the lint gate's fourteen halves and the coverage caveat are
   [docs/TESTING.md](docs/TESTING.md)'s job. The two that bite most: a suite
   lives in `tests/<the directory it tests>/` and sources `tests/test_lib.sh`
   and nothing else (GLOSSARY: HI.34), and a new suite has to be registered in

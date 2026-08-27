@@ -55,6 +55,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:git_prompt:common/git_prompt_test.sh"
     "fast:targets:common/targets_test.sh"
     "fast:paths:common/paths_test.sh"
+    "fast:exports:common/exports_test.sh"
     "fast:color_preview:scripts/color_preview_test.sh"
     "fast:packages_preview:scripts/packages_preview_test.sh"
     "fast:doctor:scripts/doctor_test.sh"

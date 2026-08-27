@@ -108,21 +108,36 @@ function _hi_target_color() {
 
 # <toggle>|<tree files, under $_HI_HOME>|<overlay files>: what each settings.sh
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
+# A leading "!" inverts the row: trim unless the setting is 1. That is what an
+# opt-in wants - _HI_SCRATCH_HISTORY ships off, so common/history.sh stays home
+# unless the user asked for it, where every _HI_DISABLE_* row is the other way
+# round and ships until the user says no.
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
   "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
   "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
-  "_HI_DISABLE_HISTORY|say-hi/common/history.sh|"
+  "!_HI_SCRATCH_HISTORY|say-hi/common/history.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
-# whose toggle the overlay sets to 1, space-separated, into <outvar>.
+# whose setting the overlay answers the way the row asks, space-separated, into
+# <outvar>.
 function _hi_trimmed() {
-  local row val out=""
+  local row val out="" name want
   for row in "${_HI_TRIM_TABLE[@]}"; do
+    name="${row%%|*}"
+    want=1
+    case "$name" in
+    '!'*)
+      name="${name#!}"
+      want=0
+      ;;
+    esac
     val=""
-    _hi_overlay_toggle "${row%%|*}" val
-    [ "$val" = 1 ] || continue
+    _hi_overlay_toggle "$name" val
+    # anything that is not a literal 1 is "off"; an absent setting reads empty
+    [ "$val" = 1 ] || val=0
+    [ "$val" = "$want" ] || continue
     row="${row#*|}"
     case "$1" in
     tree) out="$out ${row%%|*}" ;;
@@ -341,18 +356,38 @@ function _hi_ssh_sh() {
 }
 
 # _hi_ctl_open <persist-secs> [ssh-opts...] - a fresh ControlMaster socket into
-# the caller's ctl_path/ctl_opts, so the install probe and the session that
-# follows multiplex one authentication; _hi_ctl_close tears it down
+# the caller's ctl_dir/ctl_path/ctl_opts, so the install probe and the session
+# that follows multiplex one authentication; _hi_ctl_close tears it down.
+#
+# The socket lives *inside* a `mktemp -d` (0700) rather than at a `mktemp -u`
+# name in a shared $TMPDIR. `mktemp -u` only promises the name was free when it
+# was printed, and `ControlMaster=auto` *joins* an existing socket at that path
+# rather than refusing it - so on a multi-user box the predictable-name form is
+# the shape every hardening guide names. The directory is made atomically and
+# only this user can traverse it, which makes the socket's own name moot.
+#
+# "/s", not a second random component: ControlPath goes into a sockaddr_un,
+# capped near 104 bytes, and macOS's per-user $TMPDIR already spends ~50 of them.
+#
+# A host with no writable temp directory gets no multiplexing rather than no
+# session: ctl_opts stays empty, ssh authenticates twice, everything still works.
 function _hi_ctl_open() {
-  ctl_path="$(mktemp -u -t hi.cm.XXXXXX)"
-  ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$1")
+  ctl_dir=""
+  ctl_path=""
+  ctl_opts=()
+  ctl_dir="$(mktemp -d -t hi.cm.XXXXXX 2>/dev/null)" || ctl_dir=""
+  if [ -n "$ctl_dir" ]; then
+    ctl_path="$ctl_dir/s"
+    ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$1")
+  fi
   shift
   ctl_opts+=("$@")
 }
 
 function _hi_ctl_close() {
-  ssh -O exit "${ctl_opts[@]}" "$DOMAIN" >/dev/null 2>&1 || true
-  rm -f "$ctl_path" 2>/dev/null || true
+  [ -n "$ctl_path" ] && ssh -O exit "${ctl_opts[@]}" "$DOMAIN" >/dev/null 2>&1
+  [ -n "$ctl_dir" ] && rm -rf "$ctl_dir" 2>/dev/null
+  return 0
 }
 
 # The sh script _hi_remote_root runs on the target: the path of a permanent
@@ -383,11 +418,41 @@ done
 PROBE
 }
 
-# Prints the path of a permanent say-hi on $DOMAIN, if any
+# The sh script the first ssh call runs: check for base64, make a scratch
+# directory, take the bootloader off stdin, and say where it went. Its own
+# function so a suite can assert on it without an ssh hop, the same reason
+# _hi_remote_root_probe is one.
+#
+# Every path in it is the *target's*. Nothing here interpolates a client-side
+# value, and that is the whole point: this was a client `mktemp -u -t`, which
+# names a path in the client's $TMPDIR and then asks the target to mkdir it -
+# fine while both are /tmp, and a session that silently fell through to the
+# PowerShell branch the moment the client had $TMPDIR set, which is every macOS
+# login shell. GLOSSARY: HI.19
+function _hi_boot_probe() {
+  cat <<'PROBE'
+command -v base64 >/dev/null 2>&1 || exit 1
+d=$(mktemp -d -t hi.boot.XXXXXX) || exit 1
+cat > "$d/bootloader" || exit 1
+printf "\nHIBOOT:%s\n" "$d"
+PROBE
+}
+
+# Prints the path of a permanent say-hi on $DOMAIN, if any.
+#
+# stderr is deliberately *not* redirected. This is the first of the two calls,
+# so it is the one that opens the ControlMaster - which makes it the call that
+# carries the server's `Banner`, the "Permanently added ... to the list of known
+# hosts" line, and, on a host nobody has met before, the key fingerprint the
+# user is being asked to compare. ssh reads the yes/no answer from /dev/tty but
+# prints the fingerprint to stderr, so silencing it left the prompt on screen
+# with the thing it is a prompt *about* thrown away - trust-on-first-use with
+# nothing to base the trust on. The probe's own noise on an odd target is the
+# price, and it is the cheaper of the two.
 function _hi_remote_root() {
   local out
   out="$(_hi_ssh_sh "$(_hi_remote_root_probe)" \
-    "$@" -o ConnectTimeout=5 2>/dev/null)" || out=""
+    "$@" -o ConnectTimeout=5)" || out=""
   printf '%s' "$out"
 }
 
@@ -611,7 +676,7 @@ function _hi_remote_middle() {
       mkdir "\$_HI_ROOT"
       trap 'rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
-      printf '%s %s%s' "$hi_esc" "$nc_esc" "$size"
+      printf '%s %s%s' "$hi_esc" "$nc_esc" "$size" >&2
       echo "$bootloader" | $_HI_UNARMOR > "\$_hi_rc_dir/hi.bashrc"
       echo "$tree" | $_HI_UNARMOR | tar mxzf - -C "\$_HI_HOME"
       $overlay_line
@@ -622,7 +687,7 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ec=0
+  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ec=0
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
@@ -650,7 +715,7 @@ function _say_hi() {
       export _HI_HOME="$tmp_root"
       export _HI_ROOT="$remote_root"
       _hi_rc_dir="\$(dirname "\$0")"
-      printf '%s %s%s' "$hi_esc" "$nc_esc" "-> local say-hi install"
+      printf '%s %s%s' "$hi_esc" "$nc_esc" "-> local say-hi install" >&2
       $(_hi_bootloader | _hi_armored_line '>' '"$_hi_rc_dir/hi.bashrc"')
       export _HI_CONNECT_PREFIX="-> local say-hi install"
 REMOTE
@@ -678,18 +743,63 @@ $(_hi_remote_suffix)"
     script="${script//$_HI_SIZE_TOKEN/$size}"
   fi
 
-  # -u: a name only - the directory is created on the *target* by the mkdir
-  boot_tmp="$(mktemp -u -t hi.boot.XXXXXX)"
-
   # The bootloader rides stdin of the first of two calls on one connection; the
   # write doubles as the POSIX-shell-and-base64 probe that selects the
   # PowerShell fallback. GLOSSARY: HI.19 - the argv cap, and why two calls
-  if printf '%s\n' "$script" | ssh "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
-    "sh -c 'command -v base64 >/dev/null 2>&1 && mkdir -m 700 \"$boot_tmp\" && cat > \"$boot_tmp/bootloader\"'" 2>/dev/null; then
-    ssh -t "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
+  # ...and this one keeps its stderr too: where the ControlMaster could not be
+  # opened above, this is the call that authenticates, so it inherits the same
+  # duty. A target with no POSIX shell says so in one line before the PowerShell
+  # branch announces itself, which reads better than a silent swap anyway.
+  #
+  # The *target* names the directory and prints it back. This used to be a
+  # client-side `mktemp -u`, which names a path in the **client's** $TMPDIR and
+  # then asks the target to `mkdir` it: on any client with $TMPDIR set - every
+  # macOS login shell, where it is /var/folders/../T - that path does not exist
+  # on a Linux target, the mkdir fails, and the whole session falls through to
+  # the PowerShell branch on a host that has bash. CI could not see it because
+  # the macOS job only ever connects to 127.0.0.1, where the path does exist.
+  # The container arm already got this right ("a literal /tmp", below).
+  #
+  # `mktemp -d` also creates at 0700 itself, so the mode no longer rides a
+  # separate mkdir flag. Six X exactly: busybox mktemp accepts no other count.
+  local boot_out
+  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_out=""
+
+  # Tagged rather than taken whole: a target whose sh writes anything of its own
+  # to stdout would otherwise prepend it to the path. Everything after the last
+  # marker, up to the newline.
+  boot_tmp=""
+  case "$boot_out" in *HIBOOT:*)
+    boot_tmp="${boot_out##*HIBOOT:}"
+    boot_tmp="${boot_tmp%%$'\n'*}"
+    ;;
+  esac
+  # ...and it is a string from the target being interpolated into a command run
+  # back on that target, `rm -rf` among them. It can only be a path mktemp just
+  # made, so anything that is not one is refused rather than escaped: absolute,
+  # and drawn from the characters a temp path is built out of ("+" included -
+  # macOS's /var/folders names use it).
+  case "$boot_tmp" in
+  /*) ;;
+  *) boot_tmp="" ;;
+  esac
+  case "$boot_tmp" in
+  *[!A-Za-z0-9._/+-]*) boot_tmp="" ;;
+  esac
+
+  # `-t` only when there is a terminal to ask for. ssh already declines to
+  # allocate a pty when stdin is not one, so this changes no behaviour - it
+  # just stops "Pseudo-terminal will not be allocated because stdin is not a
+  # terminal" landing in the stderr of every piped `hi <host> <cmd>`. The
+  # container arms have to make the same decision for a harder reason
+  # (_hi_container_cmds).
+  local -a tflag=()
+  [ "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}" = 1 ] && tflag=(-t)
+  if [ -n "$boot_tmp" ]; then
+    ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
       "sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
   else
-    ssh -t "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
+    ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
       powershell -NoLogo -NoExit -Command \
       "Write-Host 'hi from PowerShell - no bash or sh on this host, say-hi colors/aliases are unavailable' -ForegroundColor Yellow" || ec=$?
   fi
@@ -708,6 +818,21 @@ function _hi_container_cmds() {
   outer="$(_hi_outer "$DOMAIN")"
   inner="$(_hi_inner "$DOMAIN")"
   local -a pick=()
+  # A tty only when there is one to hand over. `docker exec -it` with stdin on
+  # a pipe does not degrade - it refuses outright ("cannot attach stdin to a
+  # TTY-enabled container because stdin is not a terminal"), so
+  # `hi <container> <cmd> | ...` failed at the transport before the command
+  # ever ran. ssh -t merely warns and carries on, which is why only the
+  # container arms had this.
+  #
+  # $_HI_TTY answers for `[ -t 0 ]` when it is set: hi's own suites have no tty
+  # and need a deterministic answer to assert either arm against, and it is the
+  # escape hatch for a wrapper that knows better than the probe does.
+  local tty="${_HI_TTY:-}"
+  if [ -z "$tty" ]; then
+    tty=0
+    [ -t 0 ] && tty=1
+  fi
   case "$1" in
   docker | podman)
     local target="$DOMAIN"
@@ -718,15 +843,24 @@ function _hi_container_cmds() {
     fi
     probe=("$1" exec "$target")
     cp=("$1" exec -i "$target")
-    attach=("$1" exec -it "$target")
+    if [ "$tty" = 1 ]; then
+      attach=("$1" exec -it "$target")
+    else
+      attach=("$1" exec -i "$target")
+    fi
     ;;
   nomad)
     [ -n "$inner" ] && pick=(-task "$inner")
     probe=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=false -t=false "$outer")
     cp=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=false "$outer")
-    # explicit -t=true: nomad's stdin-is-a-tty guess lands wrong on a wrapped
-    # pty and then hangs the exec outright
-    attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=true "$outer")
+    # explicit -t either way: nomad's stdin-is-a-tty guess lands wrong on a
+    # wrapped pty and then hangs the exec outright, so the answer is spelled
+    # out rather than left to it
+    if [ "$tty" = 1 ]; then
+      attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=true "$outer")
+    else
+      attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=false "$outer")
+    fi
     ;;
   kube)
     # the context/namespace prefixes, if any, ride every kubectl call
@@ -734,7 +868,11 @@ function _hi_container_cmds() {
     [ -n "$inner" ] && pick=(-c "$inner")
     probe=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     cp=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -i "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
-    attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -it "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
+    if [ "$tty" = 1 ]; then
+      attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -it "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
+    else
+      attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -i "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
+    fi
     ;;
   esac
 }
@@ -756,11 +894,24 @@ function _say_hi_container() {
   # no bash on the target means no fancy stuff, just our aliases
   if ! "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>"$tmp"; then
     fallback=$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>"$tmp")
-    [ -n "$fallback" ] || return 1
-    _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW"
+    # $fallback is a *word read back from the container* and it is interpolated
+    # into `sh -c "... exec $fallback -i"` below. The probe only ever echoes one
+    # of $_HI_SHELL_LADDER's own names, so anything else means the answer did not
+    # come from the probe - a busybox `echo` with a mind of its own, or a shell
+    # that wrote something extra on the way past. Checked against the ladder
+    # rather than sanitized: there is a fixed list of right answers, and a
+    # target that gives a wrong one has told us the probe does not work there.
+    case " $_HI_SHELL_LADDER " in
+    *" $fallback "*) ;;
+    *)
+      _hi_cecho " [$DOMAIN] named no shell hi asked about - not falling back" "$BRRED" >&2
+      return 1
+      ;;
+    esac
+    _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
 
     if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
-      _hi_cecho " failed to copy aliases.sh into [$DOMAIN]" "$BRRED"
+      _hi_cecho " failed to copy aliases.sh into [$DOMAIN]" "$BRRED" >&2
       "${attach[@]}" "$fallback"
       return $?
     fi
@@ -798,17 +949,17 @@ function _say_hi_container() {
   # staged to a file so the announced size is the one actually sent
   tarball="$tmp.tar.gz"
   if ! _hi_payload_tar >"$tarball"; then
-    _hi_cecho " failed to archive say-hi for [$DOMAIN]" "$BRRED"
+    _hi_cecho " failed to archive say-hi for [$DOMAIN]" "$BRRED" >&2
     return 1
   fi
   size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
   # just the size, the way the ssh path's prefix reads
   prefix=" $size"
-  echo -ne " $size"
+  echo -ne " $size" >&2
 
   if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && tar mxzf - -C '$root'" <"$tarball"; then
     rm -f "$tarball"
-    _hi_cecho " failed to copy say-hi into [$DOMAIN]" "$BRRED"
+    _hi_cecho " failed to copy say-hi into [$DOMAIN]" "$BRRED" >&2
     "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
     return 1
   fi
@@ -818,16 +969,26 @@ function _say_hi_container() {
   if ((${#overlay[@]})) &&
     ! _hi_overlay_tar "${overlay[@]}" |
     "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar mxzf - -C '$root/say-hi/config'" 2>"$tmp"; then
-    _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW"
+    _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
   fi
 
   # hi.sh rides the payload tar unpacked above, mode and all - no separate copy
   _hi_bootloader | "${cp[@]}" sh -c "cat > '$root/say-hi/hi.bashrc'"
 
+  # `-i` explicitly, the way the ssh arm's _hi_remote_suffix has always spelled
+  # it. `--rcfile` is read by an *interactive* bash and nothing else, and until
+  # the tty became conditional above this line got its interactivity by
+  # accident: `docker exec -it` handed bash a terminal on stdin and stderr with
+  # no script argument, which is the other way bash decides it is interactive.
+  # Drop the tty for a piped `hi <container> <cmd>` and that inference goes with
+  # it - bash reads the (empty) pipe as a script, ignores the rcfile, never
+  # sources load.sh and never runs the command, and the caller gets a clean
+  # exit and no output.
+  #
   # _HI_CLEANUP marks the tree disposable for load.sh's clean_all; the rm -rf
   # below is the client-side belt to it
   env_kv="$(_hi_env_each ' %s=%s')"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc'"
+  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
   "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
@@ -989,18 +1150,24 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
-  # shellcheck disable=SC2094 # $tmp rides as an argument
-  {
-    backend=""
-    if ! _hi_is_ssh_host "$DOMAIN"; then
-      backend="$(_hi_resolve_backend "$DOMAIN")"
-    fi
-    if [ -n "$backend" ]; then
-      _say_hi_container "$backend" "$tmp"
-    else
-      _say_hi
-    fi
-  } 2>"$tmp"
+  # No `2>"$tmp"` around this block. It used to wrap the whole connect so a
+  # failure could be reprinted in red at the end, and the cost was every word
+  # ssh says on a *successful* session: the server's `Banner` - the notice a
+  # regulated fleet is required to display - the "Permanently added" line, and
+  # the host-key fingerprint. Every backend probe already silences its own
+  # daemon chatter (_hi_is_container_running and friends), so what this was
+  # catching was almost entirely the transport's, and the transport has the
+  # better claim on the terminal. $tmp is still handed to _say_hi_container,
+  # which redirects the individual commands whose noise is genuinely hi's.
+  backend=""
+  if ! _hi_is_ssh_host "$DOMAIN"; then
+    backend="$(_hi_resolve_backend "$DOMAIN")"
+  fi
+  if [ -n "$backend" ]; then
+    _say_hi_container "$backend" "$tmp"
+  else
+    _say_hi
+  fi
   exit_code="$?"
 
   # a session that ended cleanly is one worth offering first next time; one
@@ -1009,9 +1176,12 @@ function _hi() {
 
   if [ "$exit_code" -ne 0 ]; then
     errors="$(<"$tmp")"
-    echo -ne "\r\r\r\r"
-    _hi_cecho "hi failed [code: $exit_code]" "$BRRED"
-    _hi_cecho "$errors" "$BRRED"
+    echo -ne "\r\r\r\r" >&2
+    _hi_cecho "hi failed [code: $exit_code]" "$BRRED" >&2
+    # only the container arm still files anything here, and only sometimes: the
+    # ssh arm's diagnostics now go straight to the terminal as they happen, so
+    # an empty file means "already said", not "nothing to say"
+    [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
   fi
   exit "$exit_code"
 }
@@ -1084,8 +1254,14 @@ $_HI_USAGE
 
 Copies your say-hi to <target> and hands you an identical shell session there -
 header, colors, git prompt, aliases, vim/nano configs - then strips it all
-back out when the session ends. With [command ...], runs that instead, the way
-ssh does.
+back out when the session ends.
+
+With [command ...], runs that instead - but not quite the way ssh does, and the
+difference matters if you are scripting: the command runs inside hi's session,
+so it has hi's aliases, \$PATH and environment, and it runs on a pty when your
+own stdin is one. Only the command's own output goes to stdout; hi's progress
+and errors go to stderr. For a plain, unstyled, pty-free remote command - a
+tarball you are piping into a file, say - use ssh itself.
 
 <target> is resolved in this order, first match wins:
   1. a Host in ~/.ssh/config (or any name ssh can reach)
@@ -1108,8 +1284,10 @@ each says so and stops:
 $(_hi_flag_help local)
 
 Everything else is passed to ssh unchanged - -p, -i, -J, -o and the rest behave
-exactly as they do there. Only the first non-option word is the target;
-everything after it is the remote command.
+exactly as they do there, and ssh keeps its own stderr, so a host's login
+banner and an unknown key's fingerprint reach you as they always would. Only
+the first non-option word is the target; everything after it is the remote
+command.
 
 Configuration lives outside this tree, in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/
 so it survives an upgrade. See \`man hi\` and the README for all of it.

@@ -374,6 +374,46 @@ function test_fallback_rc_points_config_dir_at_the_overlay() {
   [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]]
 }
 
+# The bootstrap directory is the *target's* to name. This was a client-side
+# `mktemp -u -t`, whose answer is a path in the client's $TMPDIR - identical to
+# the target's while both are /tmp, and a path that does not exist there at all
+# the moment the client has $TMPDIR set. Every macOS login shell does
+# (/var/folders/../T), so a Mac talking to a Linux box had the mkdir fail and
+# the session fall through to the PowerShell branch on a host running bash.
+# Neither platform job could see it: the macOS e2e only ever connects to
+# 127.0.0.1, where the client's path is also the target's.
+function test_boot_probe_is_target_side() {
+  local probe
+  probe="$(_hi_boot_probe)"
+  case "$probe" in *'mktemp -d'*) ;; *)
+    _hi_cecho " | the probe does not mktemp on the target: $probe" "$RED"
+    return 1
+    ;;
+  esac
+  # ...and it has to say where, or the second call has nothing to run
+  case "$probe" in *'HIBOOT:%s'*) return 0 ;; esac
+  _hi_cecho " | the probe never reports the directory it made" "$RED"
+  return 1
+}
+
+# The stronger half: run it under a $TMPDIR the way a Mac client has one, and
+# nothing that shape may appear in the script. A single-quoted heredoc is what
+# keeps that true, so this fails the moment one becomes double-quoted.
+function test_boot_probe_bakes_no_client_path() {
+  local probe fake="/var/folders/zz/9xk1n2j50000gn/T"
+  probe="$(TMPDIR="$fake" _hi_boot_probe)"
+  case "$probe" in
+  *"$fake"*)
+    _hi_cecho " | the client's \$TMPDIR was baked into the probe: $probe" "$RED"
+    return 1
+    ;;
+  esac
+  # the six X busybox mktemp insists on, still intact
+  case "$probe" in *'hi.boot.XXXXXX'*) return 0 ;; esac
+  _hi_cecho " | the template is not six X: $probe" "$RED"
+  return 1
+}
+
 function run_hi_remote_tests() {
   _hi_workdir hiremotetest
 
@@ -382,6 +422,8 @@ function run_hi_remote_tests() {
   _hi_h1 "Testing hi.sh: the target-side strings"
 
   _hi_h2 "Testing: bootloader / fallback rc"
+  _hi_check "The boot probe makes its scratch dir on the target" test_boot_probe_is_target_side
+  _hi_check "...and bakes in no client path" test_boot_probe_bakes_no_client_path
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command
   _hi_check "Bootloader drops strict mode before the command" test_bootloader_drops_strict_mode_before_the_command

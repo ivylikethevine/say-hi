@@ -17,7 +17,7 @@ source "$_HI_ALIASES"
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
-if [[ "${_HI_DISABLE_HISTORY:-0}" != 1 ]]; then
+if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
   # shellcheck source=./history.sh
   source "$_HI_HOME/say-hi/common/history.sh"
   export HISTFILE="$_HI_TMPDIR/bash_history"
@@ -177,6 +177,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   fi
 fi
+
+# Last in the required block, once every alias above has expanded its paths:
+# nothing started from this shell inherits hi's namespace beyond core.sh's
+# _HI_CHILD_ENV. The overlay's bash.sh below runs after this and can `export`
+# any name it wants a child to see. GLOSSARY: HI.47
+_hi_unexport
 # === end required configuration ===
 
 # The guard is settings/aliases.sh's: $_HI_CONFIG_DIR pointed at common/ would make

@@ -57,6 +57,14 @@ function _hi_run_bystander_case() {
   local by_file="$_HI_WORKDIR/bystander.by.out"
   local graft_flag="$_HI_WORKDIR/bystander.grafted"
   _hi_h3 "Testing a bystander shell during a live session"
+  # The graft is opt-in (load.sh's _HI_GRAFT_RC) and this case *is* its
+  # coverage, so it asks for it - through an overlay of its own rather than the
+  # suite's shared $_HI_CONFIG_DIR, which every case running beside this one in
+  # the parallel batch would otherwise read too. _hi_par_case runs each case in
+  # a background subshell, so the export dies with this one.
+  export _HI_CONFIG_DIR="$_HI_WORKDIR/bystander.cfg"
+  mkdir -p "$_HI_CONFIG_DIR"
+  printf 'export _HI_GRAFT_RC=1\n' >"$_HI_CONFIG_DIR/settings.sh"
   if [ "${#_HI_PTY_FORCED[@]}" -eq 0 ]; then
     _hi_skip "[bystander]" "no python3 to drive an interactive pty"
     return 0
@@ -84,11 +92,20 @@ function _hi_run_bystander_case() {
     _hi_poll_bool 20 0.25 grep -q "hi closing" "$out_file" || true
   } | "${_HI_PTY_FORCED[@]}" "${_HI_SSH_LAUNCH_BARE[@]}" >"$out_file" 2>&1 &
   _hi_wait_pid "$!" "${_HI_SSH_CASE_TIMEOUT:-90}"
+  # ...and it has to be gone again now the session has ended. This is the only
+  # case that watches a *live* graft, so it is the only one that can prove
+  # clean_all took it back out - the permanent-install case's `! grep` runs
+  # against a session that never grafted at all now that _HI_GRAFT_RC ships off,
+  # and would pass with the removal deleted.
+  local stripped=0
+  docker exec "$name" grep -q '^# hi-config-start' /home/hitest/.bashrc 2>/dev/null || stripped=1
   # the error sweep is the shared vocabulary plus this case's own tells: a
   # graft that ran anyway sources a missing tree ("No such file") or leaves
   # its prompt variable behind (HI_PS1)
   if [ ! -f "$graft_flag" ]; then
     _hi_h3 " | [bystander] -- graft never appeared in ~/.bashrc" "$RED"
+  elif [ "$stripped" -ne 1 ]; then
+    _hi_h3 " | [bystander] -- the graft was still in ~/.bashrc after the session ended" "$RED"
   elif grep -q BYSTANDER-OK "$by_file" &&
     ! grep -q -e "No such file" -e HI_PS1 "$by_file" &&
     _hi_transcript_is_clean bystander "$by_file"; then
@@ -256,7 +273,9 @@ function run_ssh_tests() {
       'test -f /home/hitest/say-hi/.installed_sentinel'
     # the one case that catches load.sh's clean_all deleting the target's own
     # permanent install: a command-shaped case can't, since $CMDARG means
-    # clean_all never runs at all. Also asserts the rc graft came back out.
+    # clean_all never runs at all. The `! grep` is a floor rather than the
+    # graft's coverage - _HI_GRAFT_RC ships off, so this session never wrote
+    # one; the bystander case above is what proves the removal still works.
     _hi_par_case installed-interactive _hi_run_interactive_case installed-interactive "hi-sshtest-debian-installed-$$" /bin/bash \
       'test -f /home/hitest/say-hi/.installed_sentinel && test -x /home/hitest/say-hi/hi.sh && ! grep -q hi-config-start /home/hitest/.bashrc'
     # The same permanent install behind a *fish* login shell. _hi_remote_root's

@@ -62,6 +62,7 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.43 container target grammar](#hi43-container-target-grammar)
 - [HI.44 wire size token](#hi44-wire-size-token)
 - [HI.45 fish history capture](#hi45-fish-history-capture)
+- [HI.46 session rc directory](#hi46-session-rc-directory)
 
 ## HI.01 empty-array guard
 
@@ -655,7 +656,7 @@ which files ride is a question about a target.
 
 fish has no arbitrary history file path — `fish_history` only picks a
 *session name* suffix under `$XDG_DATA_HOME/fish/`, not a directory — so
-`common/config.fish`'s copy of `_HI_DISABLE_HISTORY` (mirroring
+`common/config.fish`'s copy of `_HI_SCRATCH_HISTORY` (mirroring
 `common/history.sh`'s bash/zsh `mktemp`'d, exit-cleaned directory, which fish
 cannot source) does not use fish's own history at all. It logs instead: a
 `fish_postexec` function — the same event `config.fish`'s prompt marks already
@@ -663,3 +664,85 @@ hook — appends each command line to a plain file under `$_HI_TMPDIR`. A
 parallel log, not a substitute for fish's real history: `history` inside that
 shell still reads whatever fish itself recorded, untouched.
 
+
+## HI.46 session rc directory
+
+`load.sh`'s `_hi_session_rc_setup` writes one rc per shell into a `mktemp -d`
+of hi's own and exports `$_HI_SESSION_RC` at it. It exists because the shell a
+user types at is **not** the one `hi.sh` starts: `bash --rcfile hi.bashrc`
+starts the *bootloader*, which sources `load.sh` and calls `load()`, and
+`load()` then starts the session shell. A bare `$shell -i` there reads the
+target's `~/.bashrc` — so hi's prompt and aliases used to reach the session
+only as a side effect of the `_HI_GRAFT_RC` block having been written into
+that file. Pointing the session shell at hi's own rc instead is what let the
+graft become opt-in.
+
+Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
+`~/.zshenv` — `ZDOTDIR` moves *all* of zsh's startup files, not just `.zshrc`),
+then hi's on top: the same order the graft produced, since the graft appended.
+
+Three variables are exported, and which shell needs which is the whole design:
+
+| shell           | reached by                | inherited by a nested shell?     |
+| --------------- | ------------------------- | -------------------------------- |
+| zsh             | `$ZDOTDIR`                | yes — free                       |
+| sh, dash, ash   | `$ENV`                    | yes — free, interactive shells   |
+| bash            | `--rcfile`                | no — needs a wrapper             |
+| fish            | `-C 'source …'`           | no — needs a wrapper             |
+
+`$ZDOTDIR` and `$ENV` are read by any zsh or POSIX shell started inside the
+session however it was started, including by something that is not a shell.
+bash and fish have no equivalent (`$BASH_ENV` is for *non*-interactive bash
+only), so `settings/aliases.sh` defines a `bash` and a `fish` wrapper off
+`$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
+function of that name, and without it `fish` would call itself forever.
+
+What the wrappers cannot cover is a shell nothing typed — a `tmux` pane
+spawning a login shell, an editor's shell-out. That is the remaining job of
+`_HI_GRAFT_RC`, and the reason it still exists rather than having been deleted.
+
+
+## HI.47 what a child inherits
+
+`env | grep ^_HI_` in a process started from an interactive hi shell shows
+core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The
+roster is eight names: the tree and overlay pointers (`$_HI_HOME`,
+`$_HI_CONFIG_DIR` — the overlay on a target is wherever `hi.sh` put it, and
+cannot be re-derived), `$_HI_REMOTE_SESSION`, `$_HI_SESSION_RC` (HI.46's
+wrappers are re-defined in every nested shell), and the four knobs
+`sh targets.sh` reads straight off its environment from a completion
+(`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_RECENT`, `_HI_RECENT_FILE`).
+
+It works by taking the attribute off, not by never setting it.
+`common/paths.sh` is parsed by fish as well as sh, zsh and bash, and that
+dialect has exactly one assignment all four accept — `export NAME=value` — so
+every name it sets arrives exported, sixty-odd of them. Each interactive rc
+(`bash.sh`, `zsh.zsh`, `config.fish`) then un-exports the lot as the last thing
+in its required block: `_hi_unexport` in core.sh (bash `export -n`, zsh
+`typeset -g +x` — a bare `typeset` inside a function declares a local), and a
+`set -gu NAME $NAME` loop in config.fish. The values stay, as shell variables:
+`now` expands `$_HI_HUMAN_SHORT_DATE` when it is typed, the prompt reads the
+colour memos every render, and a `$( )` is a fork rather than an exec. Every
+alias that names a path expanded it at definition time and never needed the
+variable to survive at all. Last in the block on purpose: the overlay's
+per-shell rc runs after it, and can `export` whatever it wants a child to see.
+
+The client's verdicts — `hi.sh`'s `_hi_session_env`, pinned to core.sh's
+`_HI_SESSION_VARS` — are the reason the flip is not enough on its own. Two of
+them (`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) name the operator's workstation,
+which is the one thing a target's process table should never learn from hi;
+they are not in the roster, so a nested shell cannot inherit them. `load.sh`'s
+`_hi_session_rc_setup` writes them into each session rc instead (HI.46), as
+plain assignments between the target's own rc and hi's, and fish — which
+shells out to bash for the header and the colours — hands them to that one
+`bash -c` through `__hi_bash`'s function-scoped exports (`set -fx`; a `-l`
+inside the loop would be block-scoped and gone before the command runs).
+
+What is not covered, and why: a POSIX `sh` started inside a session reads
+`$ENV`, which sources `paths.sh` and exports the roster into *that* shell
+again — dash has no un-export. The bash-less fallback rc (HI.20) has the same
+shape for the same reason. Both are the tiers below what `load.sh` styles.
+`tests/common/exports_test.sh` pins the contract: the child environment in
+all three shells, config.fish's two mirrors against core.sh, `_hi_session_env`
+against `_HI_SESSION_VARS`, every env read in targets.sh against the roster,
+and the session rc's quoting round-trip in each dialect.

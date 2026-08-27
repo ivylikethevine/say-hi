@@ -27,11 +27,25 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   export _HI_HOME
   # GLOSSARY: HI.07 + HI.04. List shared with
   # _hi_fallback_rc; config.fish keeps its own copy.
+  #
+  # Everything here is a *disable*: 0 is hi's shipped behaviour and 1 turns it
+  # off. That polarity is load-bearing twice over - hi.sh's _hi_fallback_rc
+  # exports the lot as 0 to give a bash-less target hi's defaults, and
+  # paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1 to mean "all of the
+  # above, off here". A setting that ships *off* cannot live in this list: both
+  # of those would read it backwards. Those go in _HI_OPT_INS below.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
     _HI_DISABLE_BAT_ALIAS)
-  for _hi_t in "${_HI_TOGGLES[@]}"; do
+  # The other polarity: shipped off, 1 asks for them. Both are things hi would
+  # otherwise do to a machine that is not yours - write to the target's rc
+  # files, and take its shell history somewhere it will be deleted - which is
+  # why neither is a default and why they are answered per install rather than
+  # assumed. Defaulted the same way the toggles are, so settings/aliases.sh and
+  # common/config.fish can keep reading every one of these bare under `set -u`.
+  _HI_OPT_INS=(_HI_GRAFT_RC _HI_SCRATCH_HISTORY)
+  for _hi_t in "${_HI_TOGGLES[@]}" "${_HI_OPT_INS[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
   unset _hi_t
@@ -276,6 +290,52 @@ function _hi_interactive_extras() {
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
 }
 
+# What a process started from an interactive hi shell inherits, and nothing
+# else with the prefix: the four-shell dialect of paths.sh can only `export`,
+# so every name it sets reaches the shell exported, and the rc files take the
+# attribute off again once the aliases (which expand at definition time) and
+# the prompt have read them. This roster is the exception list - the names an
+# exec'd child really reads from its environment rather than re-deriving:
+# the tree and overlay pointers (core.sh derives the tree from its own path,
+# but the overlay on a target is wherever hi.sh put it), the remote flag, the
+# session rc directory (HI.46's wrappers, re-defined in every nested shell),
+# and the four knobs `sh targets.sh` reads straight off the environment from
+# a completion. common/config.fish mirrors the list; exports_test.sh pins the
+# two together. GLOSSARY: HI.47
+_HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
+  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE)
+# The client's verdicts hi.sh exports into a session (its _hi_session_env,
+# pinned to this list by the same suite). Two name the operator's own
+# workstation, which is why they are not in _HI_CHILD_ENV: load.sh writes them
+# into the session rc files instead, and a nested shell reads them from there.
+_HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
+  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII)
+
+# _hi_unexport - take the export attribute off every _HI_* name not in
+# _HI_CHILD_ENV. The value stays: aliases that expand at use time (`now`) and
+# the prompt read shell variables, and a `$( )` is a fork, not an exec. The
+# enumeration and the attribute flip are the two things bash and zsh spell
+# differently, so both arms are eval'd behind the shell test; zsh's is `-g`
+# because a bare `typeset` inside a function declares a local of that name.
+function _hi_unexport() {
+  local _hi_n
+  local -a _hi_names
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
+  else
+    eval '_hi_names=("${!_HI_@}")'
+  fi
+  for _hi_n in "${_hi_names[@]}"; do
+    case " ${_HI_CHILD_ENV[*]} " in *" $_hi_n "*) continue ;; esac
+    if [ -n "${ZSH_VERSION:-}" ]; then
+      typeset -g +x "$_hi_n"
+    else
+      # shellcheck disable=SC2163 # un-exporting the name held in $_hi_n is the point
+      export -n "$_hi_n"
+    fi
+  done
+}
+
 # _hi_sanitize_var <var> <text> - control chars and backslashes out, into
 # <var>; the header reaches it seven times a banner, each a fork through $( ).
 # GLOSSARY: HI.05
@@ -289,7 +349,7 @@ function _hi_sanitize_var() {
 # GLOSSARY: HI.09
 function _hi_write_back() {
   cat "$1" >"$2"
-  rm -f "$1"
+  command rm -f "$1"
 }
 
 # _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.

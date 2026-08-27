@@ -15,7 +15,7 @@
 # silence compare stderr. `-` not `:-`, so intentional empties survive.
 # GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}"' 2>/dev/null || true
 
 # Resolved before any alias exists: once one is set, zsh/dash `command -v`
 # returns its definition and poisons later fallthrough chains.
@@ -107,6 +107,25 @@ alias lea="le -a"
 alias let="le -T -L2"
 alias leg="le --git --git-repos-no-status"
 alias l="$_HI_EZA_BIN -l"
+
+# Drop into another shell inside a session and hi comes with you.
+#
+# load.sh's _hi_session_rc_setup writes one rc per shell into $_HI_SESSION_RC
+# and exports it. zsh and the POSIX shells need nothing here - $ZDOTDIR and
+# $ENV are exported beside it and are read by any zsh/dash/ash/sh started in
+# the session, however it was started. bash and fish have no equivalent
+# variable (bash's $BASH_ENV is for *non*-interactive shells only), so each
+# gets a wrapper that hands it the same file.
+#
+# `command` leads both bodies: fish's `alias` builds a function of that name,
+# and without it `fish` would call itself forever. Guarded on
+# _HI_REMOTE_SESSION so nothing here rebinds `bash` on the machine say-hi is
+# installed on, and on the file, which is absent in the container fallback
+# that ships this file without load.sh. GLOSSARY: HI.46
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_SESSION_RC/bashrc" ] &&
+  alias bash="command bash --rcfile $_HI_SESSION_RC/bashrc" || true
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_SESSION_RC/fish.config" ] &&
+  alias fish="command fish -C 'source $_HI_SESSION_RC/fish.config'" || true
 
 # Last on purpose: the user's own aliases.sh (~/.config/say-hi/aliases.sh, or the
 # overlay stream's copy on a target) wins by coming after everything above.

@@ -383,9 +383,10 @@ function test_fish_config_dir_explicit_value_wins() {
 # against.
 #
 # zsh's row used to be HISTFILE, proving hi shipped no history preference at
-# all. It now does - _HI_DISABLE_HISTORY, on by default - so HISTFILE moved to
-# tests/common/history_test.sh, which covers that toggle's default, its
-# _HI_DISABLE_LOCAL/off behavior, and the overlay's own HISTFILE still winning.
+# all. By default it still ships none - _HI_SCRATCH_HISTORY is opt-in - so that
+# claim moved to tests/common/history_test.sh rather than being dropped: it
+# covers the untouched default, the opt-in, the _HI_DISABLE_LOCAL gate and the
+# overlay's own HISTFILE still winning.
 _HI_SHELL_OVERRIDE_ROWS=(
   'bash|bash.sh|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
   'fish|config.fish|printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
