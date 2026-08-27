@@ -207,11 +207,14 @@ function identity() {
     if [ -f "$_HI_PROBE_DIR/nomad" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/nomad"
       lines=("${lines[@]:1}") # drop the header row
-      jobs="Jobs: ${#lines[@]}"
+      # zero left is an unreachable/idle nomad the same way it looks to
+      # `nomad job status` itself - nothing to say, so the cell stays hidden
+      # rather than reporting "Jobs: 0"
+      ((${#lines[@]} > 0)) && jobs="Jobs: ${#lines[@]}"
     fi
     if [ -f "$_HI_PROBE_DIR/kube" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/kube"
-      pods="Pods: ${#lines[@]}"
+      ((${#lines[@]} > 0)) && pods="Pods: ${#lines[@]}"
     fi
     rm -rf "$_HI_PROBE_DIR"
     _HI_PROBE_DIR=""
@@ -219,7 +222,7 @@ function identity() {
   [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_read_lines lines <"$_HI_SSH_AUTHORIZED_KEYS" && authorized=${#lines[@]}
   [ -d "$_HI_SSH_DIR" ] && _hi_read_lines lines < <(find "$_HI_SSH_DIR" -type f -name "*.pub") && public=${#lines[@]}
   cells=("$user_part" "$BLUE$containers")
-  [ -n "$jobs" ] && cells+=("$CYAN$jobs")
+  [ -n "$jobs" ] && cells+=("$BRCYAN$jobs")
   [ -n "$pods" ] && cells+=("$CYAN$pods")
   cells+=("${RED}Auth: $authorized" "${PURPLE}Pub: $public")
   header_row "${cells[@]}"

@@ -94,7 +94,6 @@ function run_install_methods_tests() {
 
   _hi_build_packages && pkgs_ok=1
 
-  # --- the three real packages ------------------------------------------------
   if [ "$pkgs_ok" -eq 1 ] && [ "$debian_ok" -eq 1 ] &&
     ctx="$(_hi_pkg_context deb '*.deb' pkg.deb)"; then
     _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-deb-img-$$")
@@ -133,7 +132,6 @@ function run_install_methods_tests() {
     fi
   fi
 
-  # --- the two that announce themselves nowhere, and the from-checkout one ----
   if [ "$debian_ok" -eq 1 ]; then
     _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-brew-img-$$")
     _hi_build_image brew "$_HI_SSH_CASE_PREFIX-brew-img-$$" "the Homebrew keg case" \

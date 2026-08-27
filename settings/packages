@@ -1,25 +1,50 @@
 # The packages hi's header checks for. Copy this file to
-# ~/.config/say-hi/packages and edit it there - the copy in the tree is the
-# default say-hi ships, and editing it dirties the checkout `hi --update` pulls into.
+# ~/.config/say-hi/packages and edit it there, this copy is the default
 # `hi --packages-preview` renders what the priorities below do: each one's
 # colors, a real example of each from this file, then the check itself.
+# _HI_PACKAGES_MIN_PRIORITY is the dial that decides how far down the list you
+# want to hear about. It ships at 11, so tier 0 is hidden.
+
 #group,package:priority,package2:priority2...
-# Every tier below reports a package that is missing as well as one that is
-# present - that nudge is the point - and $_HI_PACKAGES_MIN_PRIORITY is the
-# dial that decides how far down the list you want to hear about. It ships at
-# 1, so tier 0 is off until you ask for it. Tier 4 is the one exception and the
-# only thing that hides: see common/header.sh.
-#
 # 5: bright green installed, bright red missing - the tools whose absence
 #    changes how you work
 asdf:5,mise:5
 direnv:5
-starship:1
 sshpass:5
+bash:5
 
 # 4: hidden installed, yellow missing - the tools any working box has, hi's
 #    own dependencies among them. A healthy target says nothing here; a bare
 #    one says exactly what it is missing
+# needed: the payload, load.sh, install.sh and the suites all break without these
+awk:4
+base64:4
+grep:4
+tr:4
+cut:4
+head:4
+sort:4
+uniq:4
+wc:4
+paste:4
+date:4
+du:4
+mkdir:4
+rm:4
+ln:4
+chmod:4
+mktemp:4
+dirname:4
+readlink:4
+hostname:4
+uname:4
+whoami:4
+ssh:4
+ssh-keygen:4
+gzip:4
+od:4
+stty:4
+# optional
 top:4,btop:4,htop:4,btm:4
 make:4,cmake:4
 ping:4,prettyping:1,gping:1
@@ -47,6 +72,10 @@ gpg:4
 scp:4
 rsync:4
 ffmpeg:4
+timeout:4,gtimeout:4
+lscpu:4,nproc:4,sysctl:4
+df:4
+stat:4
 
 # 3: bright green installed, bright yellow missing - favorites, which is where
 #    the "you meant to install this here" nudge lands
@@ -64,23 +93,13 @@ act:3
 
 # 2: green installed, yellow missing - system and package tools
 # One line per *question*, not per tool, wherever the answers are mutually
-# exclusive: check_line renders the first name on the line that resolves, so
-# grouping things no single machine has together collapses a column of `x`
-# marks into one honest row. A Debian box has no business reporting that it is
-# missing `choco`, `brew` and `apk`.
-#
-# Order inside a line is the tiebreak, because equal priorities are settled by
-# file order: the native manager comes before the helper that wraps it (pacman
-# before yay, dnf/zypper before rpm, brew before mas), so a machine that has
-# both names shows the one that actually owns the packages.
+# exclusive: check_line renders the first name on the line that resolves
 apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,chocolatey:2,yay:2,paru:2,rpm:2,mas:2
-# ...and the layers that sit *on top* of the native one. These can coexist -
-# Ubuntu ships both snap and flatpak - so this is a "do you have any of these"
-# row rather than an exclusive choice, which is still one row instead of four.
 flatpak:2,snap:2,nix:2,guix:2,appimage:2
 sshfs:2,rclone:1
 sshm:2
 nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2,hx:2,helix:2,kak:2
+zeditor:2,zed:2,code:2
 
 # 1: bright cyan installed, bright magenta missing - optional extras
 golang:1,go:1
@@ -88,6 +107,7 @@ scc:1,cloc:1
 tmux:1,zellij:1,screen:0,dtach:0
 dog:1,doggo:1,dig:0
 fzf:1,sk:1,skim:1
+zsh:1,fish:1
 atuin:1,mcfly:0
 dua:1
 duf:1
@@ -104,12 +124,12 @@ navi:1,cheat:0
 hyperfine:1
 pv:1
 progress:1
+starship:1
 
 # 0: blue installed, bright blue missing - platform-specific or trivia. The
 #    bottom tier, and the one the shipped floor of 1 already leaves out: a
 #    Linux box does report `sw_vers` missing now, and $_HI_PACKAGES_MIN_PRIORITY
 #    of 0 is how you say you wanted to hear about it after all
-
 rust:0,rustc:4,rustup:4
 pip:0,pyenv:0,pyvenv:0
 n:0,npx:0,npm:0,nvm:0,node:0
@@ -122,10 +142,6 @@ nmcli:0
 msdnss:0
 nmap:0,rustscan:0
 envrc:0
-
-
-# complementary packages
-
 kitty:0
 wezterm:0
 alacritty:0
@@ -156,78 +172,8 @@ distrobox:0
 toolbox:0
 devpod:0
 xpipe:0
-
-# --- what hi itself runs -----------------------------------------------------
-# Everything below is used by hi's own code (the payload, scripts/ and the test
-# suite) rather than being a tool worth knowing you have, so it all sits at the
-# two quiet priorities:
-#
-#   4: hidden when installed, yellow when missing - hi needs it, and a target
-#      without it behaves differently, so that is worth saying once, quietly.
-#   0: blue when installed, bright blue when missing - either platform-specific
-#      or dev-machine tooling. Absence is not news on either count, which is
-#      why they sit at the tier the floor removes first.
-#
-# `cat`, `find`, `sed`, `tar`, `git`, `sudo`, `openssl`, `scp`, `python3`,
-# `hyperfine`, `docker`/`podman`, `nomad`, `kubectl`, `tmux` and the editor and
-# pager chains are already listed above and are not repeated here.
-
-# needed: the payload, load.sh, install.sh and the suites all break without these
-awk:4
-base64:4
-grep:4
-tr:4
-cut:4
-head:4
-sort:4
-uniq:4
-wc:4
-paste:4
-date:4
-du:4
-mkdir:4
-rm:4
-ln:4
-chmod:4
-mktemp:4
-dirname:4
-readlink:4
-hostname:4
-uname:4
-whoami:4
-ssh:4
-ssh-keygen:4
-gzip:4
-od:4
-stty:4
-
-# probed for, and hi carries on without them - but the session is worse for it:
-# an unbounded backend probe, or a "?" where the header's system info should be
-# The same grouping rule as the package managers above, for the same reason:
-# these three are GNU, and a Mac has none of them. Left on their own they are
-# three yellow warnings on every macOS target about tools that platform never
-# had - so each is paired with what answers the same question there. hi already
-# falls back at runtime (`timeout` is optional in common/targets.sh, and the
-# header's CPU line degrades to "?"), and the check should say the same thing.
-
-timeout:4,gtimeout:4
-lscpu:4,nproc:4,sysctl:4
-df:4
-stat:4
-
-# Platform-specific by nature: a missing one is information about the host
-# rather than about the install. The first three are one row on purpose - they
-# answer the same question, and no machine has two of them. sw_vers first so
-# macOS reports the macOS-only name, wmic next for Windows, sysctl last as the
-# one everything else answers with.
-
 sw_vers:0,wmic:0,sysctl:0
 lesspipe:0
-
-# --- what the test suite and the release workflow run ------------------------
-# Dev-machine tooling. Every suite that needs one of these skips cleanly when it
-# is missing, so none of them is ever worth a warning on a target.
-
 shellcheck:0
 shfmt:0
 checkbashisms:0
@@ -241,3 +187,12 @@ minisign:0
 gh:0
 makepkg:0
 namcap:0
+trivy:0
+hadolint:0
+typos:0
+mandoc:0
+bashcov:0
+bsdtar:0
+b2sum:0,sha256sum:0
+vhs:0,ttyd:0
+gtar:0

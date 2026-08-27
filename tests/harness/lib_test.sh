@@ -443,7 +443,6 @@ function test_ssh_reachable_fails_against_a_dead_port() {
   ! _hi_ssh_reachable 1 2>/dev/null
 }
 
-# --- _hi_real_path and the capability guards ---------------------------------
 #
 # The toolbox half matters more than it looks: a caller replaces $PATH outright
 # with what _hi_real_path returns, so a build that quietly produced nothing

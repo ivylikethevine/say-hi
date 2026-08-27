@@ -109,8 +109,6 @@ function _hi_loc_shell() {
   _hi_loc_env "$_HI_LOC_HOME" "$1" -i -c "$2" </dev/null 2>/dev/null
 }
 
-# --- the rc wiring --------------------------------------------------------
-
 # _hi_loc_rc_states_the_tree <rc-path> - that rc file names the nested parent
 function _hi_loc_rc_states_the_tree() {
   grep -qF "_HI_HOME" "$_HI_LOC_HOME/$1" && grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/$1"
@@ -125,8 +123,6 @@ function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config
 function test_the_install_wrote_nothing_into_the_tree() {
   [ ! -e "$_HI_LOC_ROOT/config" ] && [ ! -e "$_HI_LOC_ROOT/settings/settings.sh" ]
 }
-
-# --- a fresh shell in each dialect ----------------------------------------
 
 # Value producers rather than predicates: _hi_par_check_eq compares and, on a
 # mismatch, prints what came back. A bare `[ "$(...)" = "$..." ]` here reported
@@ -151,8 +147,6 @@ function test_fish_resolves_the_nested_tree() {
 function test_sh_sources_paths_from_the_nested_tree() {
   _hi_loc_sh 'printf %s "$_HI_ROOT"'
 }
-
-# --- prompt, header, doctor ----------------------------------------------
 
 function test_bash_has_his_prompt() {
   [ -n "$(_hi_loc_shell bash 'printf %s "${HI_PS1:-}"')" ]
@@ -217,7 +211,6 @@ function test_sh_doctor_names_the_nested_tree() {
   [[ "$(_hi_strip_ansi "$(_hi_loc_sh '"$_HI_LAUNCHER" --doctor')")" == *"$_HI_LOC_ROOT"* ]]
 }
 
-# --- a tree outside $HOME, with $_HI_HOME unset ---------------------------
 #
 # The rc wiring above is one way to carry a non-default location. This is the
 # other, and the one that has to hold when there is no wiring at all: a file
@@ -277,8 +270,6 @@ function test_a_missing_tree_is_named_and_refused() {
   [ "$rc" -ne 0 ] && [[ "$out" == *"no say-hi at $_HI_WORKDIR/nothing-here"* ]] &&
     [[ "$out" == *"set _HI_HOME"* ]]
 }
-
-# --- the inverse ----------------------------------------------------------
 
 # --uninstall takes its own line back out of all three rc files, wherever the
 # tree is - the half that would rot if only the install were tested

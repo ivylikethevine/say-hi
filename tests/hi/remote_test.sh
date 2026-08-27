@@ -20,7 +20,6 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
-# --- _hi_remote_root's probe -------------------------------------------------
 #
 # The probe runs on the *target*, under whatever `sh` is there, so these cases
 # run it the same way: a real `sh -c` against a fake $HOME rather than the

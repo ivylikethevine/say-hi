@@ -323,7 +323,6 @@ function test_prompt_end_root_keeps_an_explicit_one() {
   return 1
 }
 
-# --- config.fish's $_HI_CONFIG_DIR ladder ------------------------------------
 #
 # fish cannot call a bash helper, so common/config.fish carries its own copy of
 # common/core.sh's overlay-directory resolution. Two copies of one decision is
@@ -361,7 +360,6 @@ function test_fish_config_dir_explicit_value_wins() {
   [ "$out" = "$base/shipped" ]
 }
 
-# --- the per-shell override files -------------------------------------------
 #
 # hi used to ship one person's taste per shell - history sizing, keybindings,
 # completion and color styling - in settings/<shell>_personal.* behind

@@ -13,13 +13,24 @@ if [ "${#_hi_b64}" -gt 100000 ]; then
   exit 1
 fi
 
-_hi_esc="\033]52;c;$_hi_b64\a"
+# Real bytes, not `\033` for printf %b to expand. This payload is base64 and
+# has no backslash of its own, so %b was safe here (unlike common/notify.sh,
+# which carries a command line) - raw bytes are used anyway so the wrap block
+# below stays byte-for-byte the same as notify.sh's _hi_emit.
+_HI_ESC="$(printf '\033')"
+_HI_BEL="$(printf '\a')"
+
+_hi_esc="$_HI_ESC]52;c;$_hi_b64$_HI_BEL"
 
 # tmux/screen swallow unknown OSCs unless passthrough-wrapped ($TMUX first:
 # tmux leaves TERM as screen-*). zellij is the opposite - it handles OSC 52
 # itself, has no DCS passthrough, and needs the escape raw.
+# Same wrap as common/notify.sh's _hi_emit - read that file for why each arm
+# is there; kept as two copies rather than one sourced file because each has
+# its own _HI_DISABLE_* trim-table row (hi.sh's _HI_TRIM_TABLE, GLOSSARY:
+# HI.39) and a shared file would have to ship whenever either toggle is on.
 if [ -n "${TMUX:-}" ]; then
-  _hi_esc="\033Ptmux;\033$_hi_esc\033\\" # tmux wants the inner ESC doubled
+  _hi_esc="$_HI_ESC""P""tmux;""$_HI_ESC""$_hi_esc""$_HI_ESC""\\" # tmux wants the inner ESC doubled
 elif [ -n "${ZELLIJ:-}" ]; then
   : # raw
 else
@@ -28,10 +39,10 @@ else
   case "${TERM:-}" in
   # unchunked: real screen truncates a long DCS, so a big yank there can arrive
   # clipped - visibly, and rarely enough not to earn a rejoin loop
-  screen*) _hi_esc="\033P$_hi_esc\033\\" ;;
+  screen*) _hi_esc="$_HI_ESC""P""$_hi_esc""$_HI_ESC""\\" ;;
   esac
 fi
 
 # the open is the test (`[ -w /dev/tty ]` passes with no controlling terminal);
 # 2>/dev/null so the shell's complaint stays off the screen
-printf '%b' "$_hi_esc" 2>/dev/null >/dev/tty || printf '%b' "$_hi_esc"
+printf '%s' "$_hi_esc" 2>/dev/null >/dev/tty || printf '%s' "$_hi_esc"

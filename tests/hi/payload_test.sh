@@ -139,7 +139,6 @@ function test_overlay_tar_carries_shell_files() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | sort | tr '\n' ' ')" = "bash.sh config.fish zsh.zsh " ]
 }
 
-# --- keeping the overlay in a dotfile manager -------------------------------
 #
 # The overlay is a plain directory of plain files, which is the whole
 # integration story for chezmoi, yadm, GNU Stow and bare-repo setups

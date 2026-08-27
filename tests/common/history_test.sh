@@ -28,8 +28,6 @@ function _hi_history_shell() {
     "$shell" -c "$script" </dev/null
 }
 
-# --- bash/zsh: HISTFILE and its directory --------------------------------
-
 # the directory check has to happen *inside* the child, before its own exit
 # trap removes it - by the time a $(...) capture returns, that shell has
 # already exited and cleaned up after itself.
@@ -90,7 +88,6 @@ function test_zsh_user_histfile_overrides_the_default() {
   [ "$out" = /tmp/hi.sentinel ]
 }
 
-# --- fish: the postexec log, since it has no arbitrary history path -------
 #
 # fish_postexec is emitted by the interactive reader loop, which `fish -c`
 # never runs (confirmed: a --on-event fish_postexec handler never fires under
@@ -128,8 +125,6 @@ function test_fish_tmpdir_removed_after_shell_exits() {
     'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s $_HI_TMPDIR')"
   [ -n "$dir" ] && [ ! -d "$dir" ]
 }
-
-# --- the toggle -------------------------------------------------------------
 
 function _hi_toggle_in_core_list() {
   case " ${_HI_TOGGLES[*]} " in
