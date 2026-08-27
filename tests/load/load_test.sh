@@ -251,22 +251,110 @@ function _hi_source_load() {
     'source "$1/load.sh"; printf "%s|%s" "${HI_LOAD_TEST_PROFILE:-}" "$PATH"' _ "$_HI_ROOT"
 }
 
-function test_source_restores_profile_and_path() {
+function test_source_restores_profile() {
   local home="$_HI_WORKDIR/profilehome" out
   mkdir -p "$home"
   printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 0)"
-  [[ "${out%%|*}" == 1 ]] || return 1
-  [[ "${out#*|}" == *"$_HI_ROOT"* ]]
+  [[ "${out%%|*}" == 1 ]]
 }
 
-function test_no_init_guard_skips_profile_and_path() {
+function test_no_init_guard_skips_profile() {
   local home="$_HI_WORKDIR/profilehome" out
   mkdir -p "$home"
   printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 1)"
-  [[ -z "${out%%|*}" ]] || return 1
-  [[ "${out#*|}" != *"$_HI_ROOT"* ]]
+  [[ -z "${out%%|*}" ]]
+}
+
+# The tree must NOT land on $PATH. It used to, so that `hi` could be typed in a
+# session to relay onward - but on a disposable session $_HI_ROOT is a
+# directory under /tmp, and "no /tmp on PATH" is a line item in every hardening
+# baseline an admin has to answer to. paths.sh's `alias hi=` is what a session
+# actually reaches the launcher through, in all four shells, so nothing was
+# lost. Asserted on the restore path *and* under the no-init guard, since the
+# append lived in the function the guard skips and could come back in either.
+function test_tree_is_never_put_on_path() {
+  local home="$_HI_WORKDIR/profilehome" out guard
+  mkdir -p "$home"
+  printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
+  for guard in 0 1; do
+    out="$(_hi_source_load "$home" "$guard")"
+    [[ "${out#*|}" != *"$_HI_ROOT"* ]] || {
+      _hi_cecho " | _HI_LOAD_NO_INIT=$guard put $_HI_ROOT on PATH" "$RED"
+      return 1
+    }
+  done
+}
+
+# HI.46: the rc directory load() points the session shell at, and the three
+# variables that carry it to anything started inside the session. The whole
+# reason _HI_GRAFT_RC could become opt-in, so it is pinned rather than left to
+# the e2e suites.
+function _hi_rc_setup_in_a_subshell() {
+  # in a subshell: this exports ZDOTDIR and ENV, which the rest of the run
+  # must not inherit, and makes a directory only clean_all removes
+  (
+    _HI_SESSION_RC_DIR=""
+    _hi_session_rc_setup || exit 1
+    printf '%s\n' "$_HI_SESSION_RC_DIR" "$_HI_SESSION_RC" "$ZDOTDIR" "$ENV"
+    for f in bashrc .zshrc .zshenv fish.config shrc; do
+      [ -f "$_HI_SESSION_RC_DIR/$f" ] || {
+        printf 'MISSING %s\n' "$f"
+        exit 1
+      }
+    done
+    # the target's own rc first, hi's on top - the order the graft produced
+    head -n1 "$_HI_SESSION_RC_DIR/bashrc"
+    rm -rf "$_HI_SESSION_RC_DIR"
+  )
+}
+
+function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
+  local out dir rc zdot env_ first
+  out="$(_hi_rc_setup_in_a_subshell)" || return 1
+  case "$out" in *MISSING*)
+    _hi_cecho " | $out" "$RED"
+    return 1
+    ;;
+  esac
+  dir="$(printf '%s' "$out" | sed -n 1p)"
+  rc="$(printf '%s' "$out" | sed -n 2p)"
+  zdot="$(printf '%s' "$out" | sed -n 3p)"
+  env_="$(printf '%s' "$out" | sed -n 4p)"
+  first="$(printf '%s' "$out" | sed -n 5p)"
+  [ -n "$dir" ] || return 1
+  # $_HI_SESSION_RC and $ZDOTDIR are the directory; $ENV is the POSIX rc in it
+  [ "$rc" = "$dir" ] && [ "$zdot" = "$dir" ] && [ "$env_" = "$dir/shrc" ] || {
+    _hi_cecho " | rc=$rc zdotdir=$zdot env=$env_ dir=$dir" "$RED"
+    return 1
+  }
+  case "$first" in *'$HOME/.bashrc'*) return 0 ;; esac
+  _hi_cecho " | the generated bashrc does not source the target's own first: $first" "$RED"
+  return 1
+}
+
+# The session shell must be started against hi's rc, not a bare `$shell -i`
+# that would read the target's $HOME. zsh is the one arm with no flag, because
+# _hi_session_rc_setup exported $ZDOTDIR for it.
+function test_session_shell_cmd_points_each_shell_at_his_rc() {
+  local -a cmd=()
+  local _HI_SESSION_RC_DIR="$_HI_WORKDIR/rcdir"
+  _hi_session_shell_cmd bash cmd
+  [ "${cmd[*]}" = "bash --rcfile $_HI_SESSION_RC_DIR/bashrc -i" ] || {
+    _hi_cecho " | bash: ${cmd[*]}" "$RED"
+    return 1
+  }
+  _hi_session_shell_cmd zsh cmd
+  [ "${cmd[*]}" = "zsh -i" ] || {
+    _hi_cecho " | zsh: ${cmd[*]}" "$RED"
+    return 1
+  }
+  _hi_session_shell_cmd fish cmd
+  [ "${cmd[*]}" = "fish -C source $_HI_SESSION_RC_DIR/fish.config -i" ] || {
+    _hi_cecho " | fish: ${cmd[*]}" "$RED"
+    return 1
+  }
 }
 
 function test_this_checkout_was_never_touched() {
@@ -336,8 +424,11 @@ function run_load_tests() {
   _hi_check "Succeeds with nothing to clean" test_clean_all_succeeds_with_nothing_to_do
 
   _hi_h2 "Testing: profile restoration"
-  _hi_check "Sourcing restores the profile chain and PATH" test_source_restores_profile_and_path
-  _hi_check "_HI_LOAD_NO_INIT=1 skips both" test_no_init_guard_skips_profile_and_path
+  _hi_check "Sourcing restores the profile chain" test_source_restores_profile
+  _hi_check "_HI_LOAD_NO_INIT=1 skips it" test_no_init_guard_skips_profile
+  _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
+  _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
+  _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc
 
   _hi_h2 "Testing: _hi_session_shell"
   # <label>|<installed shells>|<env pairs>|<want>. Six cases, three of which

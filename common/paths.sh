@@ -126,6 +126,9 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_OSC52=1
   export _HI_DISABLE_NOTIFY=1
   export _HI_DISABLE_MARKS=1
-  export _HI_DISABLE_HISTORY=1
   export _HI_DISABLE_BAT_ALIAS=1
+  # core.sh's _HI_OPT_INS, the other polarity: "all of the above, off" means 0
+  # for a setting that ships off, not 1. _HI_GRAFT_RC is not here - it only
+  # ever means anything on a target, and this gate is the local machine.
+  export _HI_SCRATCH_HISTORY=0
 } || true

@@ -62,6 +62,7 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.43 container target grammar](#hi43-container-target-grammar)
 - [HI.44 wire size token](#hi44-wire-size-token)
 - [HI.45 fish history capture](#hi45-fish-history-capture)
+- [HI.46 session rc directory](#hi46-session-rc-directory)
 
 ## HI.01 empty-array guard
 
@@ -655,7 +656,7 @@ which files ride is a question about a target.
 
 fish has no arbitrary history file path — `fish_history` only picks a
 *session name* suffix under `$XDG_DATA_HOME/fish/`, not a directory — so
-`common/config.fish`'s copy of `_HI_DISABLE_HISTORY` (mirroring
+`common/config.fish`'s copy of `_HI_SCRATCH_HISTORY` (mirroring
 `common/history.sh`'s bash/zsh `mktemp`'d, exit-cleaned directory, which fish
 cannot source) does not use fish's own history at all. It logs instead: a
 `fish_postexec` function — the same event `config.fish`'s prompt marks already
@@ -663,3 +664,39 @@ hook — appends each command line to a plain file under `$_HI_TMPDIR`. A
 parallel log, not a substitute for fish's real history: `history` inside that
 shell still reads whatever fish itself recorded, untouched.
 
+
+## HI.46 session rc directory
+
+`load.sh`'s `_hi_session_rc_setup` writes one rc per shell into a `mktemp -d`
+of hi's own and exports `$_HI_SESSION_RC` at it. It exists because the shell a
+user types at is **not** the one `hi.sh` starts: `bash --rcfile hi.bashrc`
+starts the *bootloader*, which sources `load.sh` and calls `load()`, and
+`load()` then starts the session shell. A bare `$shell -i` there reads the
+target's `~/.bashrc` — so hi's prompt and aliases used to reach the session
+only as a side effect of the `_HI_GRAFT_RC` block having been written into
+that file. Pointing the session shell at hi's own rc instead is what let the
+graft become opt-in.
+
+Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
+`~/.zshenv` — `ZDOTDIR` moves *all* of zsh's startup files, not just `.zshrc`),
+then hi's on top: the same order the graft produced, since the graft appended.
+
+Three variables are exported, and which shell needs which is the whole design:
+
+| shell           | reached by                | inherited by a nested shell?     |
+| --------------- | ------------------------- | -------------------------------- |
+| zsh             | `$ZDOTDIR`                | yes — free                       |
+| sh, dash, ash   | `$ENV`                    | yes — free, interactive shells   |
+| bash            | `--rcfile`                | no — needs a wrapper             |
+| fish            | `-C 'source …'`           | no — needs a wrapper             |
+
+`$ZDOTDIR` and `$ENV` are read by any zsh or POSIX shell started inside the
+session however it was started, including by something that is not a shell.
+bash and fish have no equivalent (`$BASH_ENV` is for *non*-interactive bash
+only), so `settings/aliases.sh` defines a `bash` and a `fish` wrapper off
+`$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
+function of that name, and without it `fish` would call itself forever.
+
+What the wrappers cannot cover is a shell nothing typed — a `tmux` pane
+spawning a login shell, an editor's shell-out. That is the remaining job of
+`_HI_GRAFT_RC`, and the reason it still exists rather than having been deleted.

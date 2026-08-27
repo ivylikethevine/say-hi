@@ -14,7 +14,7 @@ setopt prompt_subst
 
 _hi_interactive_extras
 
-if [[ "${_HI_DISABLE_HISTORY:-0}" != 1 ]]; then
+if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
   source "$_HI_HOME/say-hi/common/history.sh"
   export HISTFILE="$_HI_TMPDIR/zsh_history"
   : "${HISTSIZE:=1000}"

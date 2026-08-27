@@ -12,8 +12,14 @@ end
 # safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY \
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS \
     _HI_DISABLE_BAT_ALIAS
+  set -q $_hi_toggle; or set -gx $_hi_toggle 0
+end
+# ...and core.sh's _HI_OPT_INS, the settings that ship off. A separate loop
+# because tests/common/paths_test.sh pins the list above to _HI_TOGGLES
+# name-for-name, and because these default to 0 meaning "no", not "yes".
+for _hi_toggle in _HI_GRAFT_RC _HI_SCRATCH_HISTORY
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -37,7 +43,7 @@ source $_HI_ALIASES
 # history path of its own - fish_history only picks a session-name suffix
 # under $XDG_DATA_HOME/fish - so commands land in a plain text log instead,
 # appended by the same postexec event the marks below use. GLOSSARY: HI.45
-if test "$_HI_DISABLE_HISTORY" != 1
+if test "$_HI_SCRATCH_HISTORY" = 1
   if not set -q _HI_TMPDIR
     set -gx _HI_TMPDIR (command mktemp -d -t hi.history.XXXXXX)
   end

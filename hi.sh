@@ -108,21 +108,36 @@ function _hi_target_color() {
 
 # <toggle>|<tree files, under $_HI_HOME>|<overlay files>: what each settings.sh
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
+# A leading "!" inverts the row: trim unless the setting is 1. That is what an
+# opt-in wants - _HI_SCRATCH_HISTORY ships off, so common/history.sh stays home
+# unless the user asked for it, where every _HI_DISABLE_* row is the other way
+# round and ships until the user says no.
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
   "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
   "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
-  "_HI_DISABLE_HISTORY|say-hi/common/history.sh|"
+  "!_HI_SCRATCH_HISTORY|say-hi/common/history.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
-# whose toggle the overlay sets to 1, space-separated, into <outvar>.
+# whose setting the overlay answers the way the row asks, space-separated, into
+# <outvar>.
 function _hi_trimmed() {
-  local row val out=""
+  local row val out="" name want
   for row in "${_HI_TRIM_TABLE[@]}"; do
+    name="${row%%|*}"
+    want=1
+    case "$name" in
+    '!'*)
+      name="${name#!}"
+      want=0
+      ;;
+    esac
     val=""
-    _hi_overlay_toggle "${row%%|*}" val
-    [ "$val" = 1 ] || continue
+    _hi_overlay_toggle "$name" val
+    # anything that is not a literal 1 is "off"; an absent setting reads empty
+    [ "$val" = 1 ] || val=0
+    [ "$val" = "$want" ] || continue
     row="${row#*|}"
     case "$1" in
     tree) out="$out ${row%%|*}" ;;
@@ -341,18 +356,38 @@ function _hi_ssh_sh() {
 }
 
 # _hi_ctl_open <persist-secs> [ssh-opts...] - a fresh ControlMaster socket into
-# the caller's ctl_path/ctl_opts, so the install probe and the session that
-# follows multiplex one authentication; _hi_ctl_close tears it down
+# the caller's ctl_dir/ctl_path/ctl_opts, so the install probe and the session
+# that follows multiplex one authentication; _hi_ctl_close tears it down.
+#
+# The socket lives *inside* a `mktemp -d` (0700) rather than at a `mktemp -u`
+# name in a shared $TMPDIR. `mktemp -u` only promises the name was free when it
+# was printed, and `ControlMaster=auto` *joins* an existing socket at that path
+# rather than refusing it - so on a multi-user box the predictable-name form is
+# the shape every hardening guide names. The directory is made atomically and
+# only this user can traverse it, which makes the socket's own name moot.
+#
+# "/s", not a second random component: ControlPath goes into a sockaddr_un,
+# capped near 104 bytes, and macOS's per-user $TMPDIR already spends ~50 of them.
+#
+# A host with no writable temp directory gets no multiplexing rather than no
+# session: ctl_opts stays empty, ssh authenticates twice, everything still works.
 function _hi_ctl_open() {
-  ctl_path="$(mktemp -u -t hi.cm.XXXXXX)"
-  ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$1")
+  ctl_dir=""
+  ctl_path=""
+  ctl_opts=()
+  ctl_dir="$(mktemp -d -t hi.cm.XXXXXX 2>/dev/null)" || ctl_dir=""
+  if [ -n "$ctl_dir" ]; then
+    ctl_path="$ctl_dir/s"
+    ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$1")
+  fi
   shift
   ctl_opts+=("$@")
 }
 
 function _hi_ctl_close() {
-  ssh -O exit "${ctl_opts[@]}" "$DOMAIN" >/dev/null 2>&1 || true
-  rm -f "$ctl_path" 2>/dev/null || true
+  [ -n "$ctl_path" ] && ssh -O exit "${ctl_opts[@]}" "$DOMAIN" >/dev/null 2>&1
+  [ -n "$ctl_dir" ] && rm -rf "$ctl_dir" 2>/dev/null
+  return 0
 }
 
 # The sh script _hi_remote_root runs on the target: the path of a permanent
@@ -383,11 +418,21 @@ done
 PROBE
 }
 
-# Prints the path of a permanent say-hi on $DOMAIN, if any
+# Prints the path of a permanent say-hi on $DOMAIN, if any.
+#
+# stderr is deliberately *not* redirected. This is the first of the two calls,
+# so it is the one that opens the ControlMaster - which makes it the call that
+# carries the server's `Banner`, the "Permanently added ... to the list of known
+# hosts" line, and, on a host nobody has met before, the key fingerprint the
+# user is being asked to compare. ssh reads the yes/no answer from /dev/tty but
+# prints the fingerprint to stderr, so silencing it left the prompt on screen
+# with the thing it is a prompt *about* thrown away - trust-on-first-use with
+# nothing to base the trust on. The probe's own noise on an odd target is the
+# price, and it is the cheaper of the two.
 function _hi_remote_root() {
   local out
   out="$(_hi_ssh_sh "$(_hi_remote_root_probe)" \
-    "$@" -o ConnectTimeout=5 2>/dev/null)" || out=""
+    "$@" -o ConnectTimeout=5)" || out=""
   printf '%s' "$out"
 }
 
@@ -622,7 +667,7 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ec=0
+  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ec=0
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
@@ -684,8 +729,12 @@ $(_hi_remote_suffix)"
   # The bootloader rides stdin of the first of two calls on one connection; the
   # write doubles as the POSIX-shell-and-base64 probe that selects the
   # PowerShell fallback. GLOSSARY: HI.19 - the argv cap, and why two calls
+  # ...and this one keeps its stderr too: where the ControlMaster could not be
+  # opened above, this is the call that authenticates, so it inherits the same
+  # duty. A target with no POSIX shell says so in one line before the PowerShell
+  # branch announces itself, which reads better than a silent swap anyway.
   if printf '%s\n' "$script" | ssh "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
-    "sh -c 'command -v base64 >/dev/null 2>&1 && mkdir -m 700 \"$boot_tmp\" && cat > \"$boot_tmp/bootloader\"'" 2>/dev/null; then
+    "sh -c 'command -v base64 >/dev/null 2>&1 && mkdir -m 700 \"$boot_tmp\" && cat > \"$boot_tmp/bootloader\"'"; then
     ssh -t "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
       "sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
   else
@@ -756,7 +805,20 @@ function _say_hi_container() {
   # no bash on the target means no fancy stuff, just our aliases
   if ! "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>"$tmp"; then
     fallback=$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>"$tmp")
-    [ -n "$fallback" ] || return 1
+    # $fallback is a *word read back from the container* and it is interpolated
+    # into `sh -c "... exec $fallback -i"` below. The probe only ever echoes one
+    # of $_HI_SHELL_LADDER's own names, so anything else means the answer did not
+    # come from the probe - a busybox `echo` with a mind of its own, or a shell
+    # that wrote something extra on the way past. Checked against the ladder
+    # rather than sanitized: there is a fixed list of right answers, and a
+    # target that gives a wrong one has told us the probe does not work there.
+    case " $_HI_SHELL_LADDER " in
+    *" $fallback "*) ;;
+    *)
+      _hi_cecho " [$DOMAIN] named no shell hi asked about - not falling back" "$BRRED"
+      return 1
+      ;;
+    esac
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW"
 
     if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
@@ -989,18 +1051,24 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
-  # shellcheck disable=SC2094 # $tmp rides as an argument
-  {
-    backend=""
-    if ! _hi_is_ssh_host "$DOMAIN"; then
-      backend="$(_hi_resolve_backend "$DOMAIN")"
-    fi
-    if [ -n "$backend" ]; then
-      _say_hi_container "$backend" "$tmp"
-    else
-      _say_hi
-    fi
-  } 2>"$tmp"
+  # No `2>"$tmp"` around this block. It used to wrap the whole connect so a
+  # failure could be reprinted in red at the end, and the cost was every word
+  # ssh says on a *successful* session: the server's `Banner` - the notice a
+  # regulated fleet is required to display - the "Permanently added" line, and
+  # the host-key fingerprint. Every backend probe already silences its own
+  # daemon chatter (_hi_is_container_running and friends), so what this was
+  # catching was almost entirely the transport's, and the transport has the
+  # better claim on the terminal. $tmp is still handed to _say_hi_container,
+  # which redirects the individual commands whose noise is genuinely hi's.
+  backend=""
+  if ! _hi_is_ssh_host "$DOMAIN"; then
+    backend="$(_hi_resolve_backend "$DOMAIN")"
+  fi
+  if [ -n "$backend" ]; then
+    _say_hi_container "$backend" "$tmp"
+  else
+    _say_hi
+  fi
   exit_code="$?"
 
   # a session that ended cleanly is one worth offering first next time; one
@@ -1011,7 +1079,10 @@ function _hi() {
     errors="$(<"$tmp")"
     echo -ne "\r\r\r\r"
     _hi_cecho "hi failed [code: $exit_code]" "$BRRED"
-    _hi_cecho "$errors" "$BRRED"
+    # only the container arm still files anything here, and only sometimes: the
+    # ssh arm's diagnostics now go straight to the terminal as they happen, so
+    # an empty file means "already said", not "nothing to say"
+    [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED"
   fi
   exit "$exit_code"
 }

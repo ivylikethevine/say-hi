@@ -19,7 +19,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-  _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY
+  _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
   _HI_DISABLE_BAT_ALIAS)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
@@ -46,6 +46,24 @@ function _hi_all_gated() {
 # _HI_DISABLE_LOCAL=1 on the install machine itself: hi stays out of the way
 function test_local_only_disables_every_toggle_locally() {
   _hi_all_gated "$(_hi_gate 1 0)" 1
+}
+
+# The same gate over core.sh's other roster, where "off" is 0 rather than 1:
+# _HI_OPT_INS ships off, so the gate has to leave it off (or put it back) on
+# the local machine rather than setting it to 1 the way it does a disable.
+# Without this the two polarities drift silently - a 1 here would mean
+# "_HI_DISABLE_LOCAL=1 turned the scratch history on", the exact inversion
+# _HI_DISABLE_OSC52 once suffered in the other direction.
+function test_local_only_leaves_opt_ins_off_locally() {
+  local out
+  out="$(_HI_DISABLE_LOCAL=1 _HI_REMOTE_SESSION=0 _HI_SCRATCH_HISTORY=1 bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    printf "%s" "${_HI_SCRATCH_HISTORY:-}"
+  ')"
+  [ "$out" = 0 ] || {
+    _hi_cecho " | _HI_SCRATCH_HISTORY is $out under the local-only gate, wanted 0" "$RED"
+    return 1
+  }
 }
 
 # ...but the same setting must not follow the user onto a target, which is the

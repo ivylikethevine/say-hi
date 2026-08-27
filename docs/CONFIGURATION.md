@@ -124,8 +124,9 @@ row here.
 | `_HI_DISABLE_OSC52`          | `0`                             | `hi --configure`          | [Features](#features) - the OSC 52 clipboard                                                  |
 | `_HI_DISABLE_NOTIFY`         | `0`                             | `hi --configure`          | [Features](#features) - the `hi_notify` desktop-notification alias                            |
 | `_HI_DISABLE_MARKS`          | `0`                             | `hi --configure`          | [Features](#features) - OSC 133 prompt marks and OSC 7 cwd reporting                          |
-| `_HI_DISABLE_HISTORY`        | `0`                             | `hi --configure`          | [Features](#features) - per-shell scratch command history                                     |
 | `_HI_DISABLE_LOCAL`          | `0`                             | `hi --configure`          | [Features](#features) - all of the above, on this machine only                                |
+| `_HI_SCRATCH_HISTORY`        | `0`                             | `hi --configure`          | [Features](#features) - **opt-in**: send session history to a scratch dir wiped on exit       |
+| `_HI_GRAFT_RC`               | `0`                             | `hi --configure`          | [Features](#features) - **opt-in**: let a session write hi's block into the target's rc files |
 | `_HI_REMOTE_SESSION`         | `0`                             | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote    |
 | `_HI_HEADER_BANNER`          | `1`                             | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                              |
 | `_HI_HEADER_TIMESTAMP`       | `1`                             | `hi --configure`          | [Header details](#header-details) - the date/time line                                        |
@@ -216,7 +217,7 @@ to stay out of your namespace.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `everything` | every feature and every header line on — the shipped defaults                                                                                     |
 | `balanced`   | the header keeps its banner, system info and a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`); the timestamp, identity line and `hi_notify` are off |
-| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors, clipboard, notifications or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`) |
+| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors, clipboard, notifications or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`). The two opt-ins are off in every preset; they are only ever turned on by hand |
 
 A preset is an absolute answer over the feature, header and prompt questions:
 what it names is set, everything else in that vocabulary goes back to its
@@ -240,8 +241,16 @@ Each is **on by default**; set it to `1` to turn that piece off.
 | `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                     |
 | `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely |
 | `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                       |
-| `_HI_DISABLE_HISTORY`    | each shell's command history capture into a scratch directory wiped on exit, see below                                            |
 | `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                   |
+
+Two settings go the other way - they ship **off**, and `1` turns them on. Both
+are things hi would otherwise do to a machine that is not yours, which is why
+neither is a default:
+
+| set to `1` to enable   | what it turns on                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `_HI_SCRATCH_HISTORY`  | each shell's command history into a scratch directory wiped on exit, instead of the target's own history file, see below   |
+| `_HI_GRAFT_RC`         | a session adding hi's config block to the **target's** `~/.bashrc`, `~/.zshrc` and fish config for its duration, see below |
 
 ## Header details
 
@@ -310,16 +319,60 @@ Nothing is installed on the target and a terminal that does not know an OSC
 drops it; fish 4 emits both itself, so there hi stays out of the way. Only the
 styled shells emit them — the bash-less `sh` prompt does not.
 
-`_HI_DISABLE_HISTORY` turns off a per-shell scratch copy of your command
-history. On, each of bash, zsh and fish points its history at a fresh
+`_HI_SCRATCH_HISTORY` turns **on** a per-shell scratch copy of your command
+history. Set, each of bash, zsh and fish points its history at a fresh
 `mktemp -d` directory (`$_HI_TMPDIR`), removed when that shell exits; bash and
 zsh use their own `HISTFILE`, and fish - which has no arbitrary history path,
 only a session-name suffix under `$XDG_DATA_HOME/fish` - logs commands to a
 plain text file through a `fish_postexec` hook instead of its own history
-mechanism. Nothing here is a hand-tuned preference: it is opt-out, ephemeral,
-and scoped to a throwaway directory rather than your real `$HOME`, which is
-why it stays a shipped default rather than something you set up yourself, as
-the paragraph below draws the line.
+mechanism.
+
+Unset, which is how it ships, hi touches history on a target not at all: your
+commands land in that host's own `~/.bash_history` exactly as they would over
+plain `ssh`. That is the default because the alternative is not a neutral one.
+A session that silently redirects an administrator's shell history into a
+directory it deletes on the way out is, after the fact, indistinguishable from
+one that was covering its tracks - and on a shared or audited host, the
+person who has to answer for that is you. Turn it on for the machines where a
+throwaway session is what you want, not everywhere by default.
+
+### Shells you drop into inside a session
+
+A `bash`, `zsh`, `fish` or `dash` started *inside* a session keeps hi's
+aliases, prompt and paths, and nothing had to be written to the target to
+arrange it. `load.sh` writes one rc per shell into a scratch directory of its
+own and exports `$_HI_SESSION_RC` at it:
+
+- **zsh** through `$ZDOTDIR` and **sh/dash/ash** through `$ENV` - both are
+  exported, so any such shell started in the session reads hi's rc however it
+  was started, including by something that is not a shell;
+- **bash** and **fish** have no equivalent variable (bash's `$BASH_ENV` covers
+  only *non*-interactive shells), so `settings/aliases.sh` defines a wrapper
+  for each that hands it the same file.
+
+Each of those rc files sources the target's own `~/.bashrc` / `~/.zshrc` /
+`~/.zshenv` first and hi's on top, so the host's configuration still applies
+underneath. The mechanism is [HI.46](GLOSSARY.md#hi46-session-rc-directory).
+
+What no wrapper can reach is a shell nothing typed - a `tmux` pane spawning a
+login shell, an editor shelling out. That is what the next setting is for.
+
+`_HI_GRAFT_RC` is the other opt-in. Set, a session appends hi's
+`# hi-config-start` … `# hi-config-end` block to the **target's** `~/.bashrc`,
+`~/.zshrc` and `~/.config/fish/config.fish` while it runs, and strips it again
+on exit, so a shell you start *inside* the session - a bare `bash`, a tmux
+pane - looks like the session around it. The session's own shell does not need
+it: hi starts that shell against its own rc with `bash --rcfile`, `ZDOTDIR` or
+`fish -C`, sourcing the target's `~/.bashrc`/`~/.zshrc` first so the host's own
+configuration still applies underneath hi's.
+
+Unset, hi writes nothing to any login file on any host you visit. That is the
+default because the graft is a write to a watched path on somebody else's
+machine, twice per session, for every host you ever say hi to: an entry in
+whatever file-integrity monitor covers those files, a window in which another
+login on a shared account reads a half-written rc, and a block left behind if
+the session dies between the write and the cleanup. Every graft is wrapped in
+a tree-exists guard so a leftover one is inert, but inert is not absent.
 
 hi used to ship one person's shell preferences (history sizing, keybindings,
 `zstyle` rules, fish's palette) in `settings/*_personal.*` files behind a
@@ -328,7 +381,7 @@ prompt, the completions and the git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
 the end of hi's, in the same dialect, and your `aliases.sh` loads after
 `settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza` families) and
-wins - including your own `HISTFILE`, which lands after `_HI_DISABLE_HISTORY`'s
+wins - including your own `HISTFILE`, which lands after `_HI_SCRATCH_HISTORY`'s
 and so overrides it.
 
 ## Keeping the overlay in a dotfile manager
@@ -412,7 +465,8 @@ behaviour.
 | `_HI_HEADER_GHZ`             | `0`                         | `1` shows the header's CPU line as `x.xxx/x.xxx GHz` instead of whole MHz; ignored when `_HI_HEADER_SYSINFO=0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_PACKAGES_MIN_PRIORITY`  | `1`                         | the lowest `settings/packages` priority the header's check prints, and the main dial on how long that check is. The file ranks every entry 0-5 and every rank reports what is _missing_ as well as what is there. On a well-equipped machine `1` (the default) drops the trivia tier (about ten lines), `0` prints everything, `2` drops the optional extras too (about four), `3` leaves favorites and what your workflow depends on (two), and above `5` the check prints nothing. Rank 4 is silent when present and speaks only when missing, so a bare target still says what it lacks at any floor up to 4. `hi --configure` asks for this with a live preview; `hi --packages-preview` marks the ranks it silences `below floor` |
 | `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                         | fish only: `1` gives every alias hi defines a real `abbr`, so it expands to the full command on the line before you run it - it rewrites what your command line and history say, hence opt-in (`hi_abbr_aliases` does the work and is callable by hand). Not in the `_HI_DISABLE_*` table since it is fish-specific, not one of `core.sh`'s shared toggles                                                                                                                                                                                                                                                                                                                                                                             |
-| `_HI_TMPDIR`                 | `mktemp -d`                 | the per-shell scratch directory `_HI_DISABLE_HISTORY` writes command history into, removed when that shell exits; exporting your own value points hi at it instead of making one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `_HI_SESSION_RC`             | `mktemp -d`                 | set by hi inside a session: the directory holding the per-shell rc files a nested `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends. `$ZDOTDIR` and `$ENV` are exported alongside it, see [HI.46](GLOSSARY.md#hi46-session-rc-directory)                                                                                                                                                                                                                                                                                                                    |
+| `_HI_TMPDIR`                 | `mktemp -d`                 | the per-shell scratch directory `_HI_SCRATCH_HISTORY` writes command history into, removed when that shell exits; exporting your own value points hi at it instead of making one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 `_HI_TARGETS_TTL` and `_HI_PROBE_TIMEOUT` exist because completion runs on
 **every TAB** and the header runs **before you get a shell**: a docker daemon

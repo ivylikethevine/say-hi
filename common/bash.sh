@@ -17,7 +17,7 @@ source "$_HI_ALIASES"
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
-if [[ "${_HI_DISABLE_HISTORY:-0}" != 1 ]]; then
+if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
   # shellcheck source=./history.sh
   source "$_HI_HOME/say-hi/common/history.sh"
   export HISTFILE="$_HI_TMPDIR/bash_history"

@@ -339,9 +339,29 @@ satisfy on the way out.
 
 ## Large
 
-One is left, and it reshapes the footprint promise [SECURITY.md](SECURITY.md)
-makes. Deferred past v1.0.0 on purpose — it rewrites the sentence the tag is
-being cut on.
+Two are left. Both reshape a promise [SECURITY.md](SECURITY.md) makes, and both
+are deferred past v1.0.0 on purpose — they rewrite sentences the tag is being
+cut on.
+
+- [ ] **Stop exporting the whole `_HI_*` namespace into a session** — _Scope:
+      splits `common/paths.sh` into a per-dialect pair and re-homes ~60
+      variables; in-repo._
+
+  Every name `paths.sh` sets is `export`ed, so a session hands all ~60 to every
+  process started from it: a service started by hand, a `sudo -E`, a `cron`
+  line pasted at the prompt. Two of them (`_HI_LOCAL_USER`,
+  `_HI_LOCAL_HOSTNAME`) name the operator's own workstation, and the rest make
+  an `env` diff on a target unreadable. `hi --doctor` and the payload need only
+  a handful; the aliases in `settings/aliases.sh` expand theirs at definition
+  time and do not need the variable to survive at all.
+
+  The reason it is all-or-nothing today is the dialect: `paths.sh` is parsed by
+  **fish** as well as sh, zsh and bash, and that subset has no way to set a
+  variable without exporting it — `NAME=value` is not fish syntax, and
+  `set -g` is not sh's. Narrowing the set means a fish half and an sh half that
+  cannot drift, which is a new contract (and a new drift check) rather than an
+  edit. Until then it is written down under
+  [Known, and not yet fixed](SECURITY.md#known-and-not-yet-fixed).
 
 - [ ] **Persistent sessions on a disposable target** — _**deferred until after
       v1.0.0.** Scope: the largest entry here — cleanup semantics on both

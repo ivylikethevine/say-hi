@@ -8,6 +8,7 @@ the trust boundaries sit, and how to report what slipped through.
 
 - [What hi does - and deliberately doesn't](#what-hi-does---and-deliberately-doesnt)
 - [What runs where](#what-runs-where)
+- [What hi writes on a target](#what-hi-writes-on-a-target)
 - [Footprint and cleanup on the target](#footprint-and-cleanup-on-the-target)
 - [Trust boundaries](#trust-boundaries)
 - [When a push is refused](#when-a-push-is-refused)
@@ -33,6 +34,22 @@ the trust boundaries sit, and how to report what slipped through.
 - **base64 is armor, not crypto.** It gets the payload through the target's
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.
+- **Nothing on the target is written outside the session directory, by
+  default.** No login file, no history file, nothing under `$HOME`. The two
+  settings that would change that are opt-in and named in
+  [What hi writes on a target](#what-hi-writes-on-a-target) below.
+- **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
+  so the server's `Banner`, the `Permanently added ... to the list of known
+  hosts` line and the host-key fingerprint on a first connection reach your
+  terminal exactly as they would without hi in the way. hi captured all of it
+  until it was pointed out that this quietly turned trust-on-first-use into
+  accepting a fingerprint nobody was shown.
+- **`hi --update` is an unsigned `git pull`.** There are no signed tags yet
+  (there is no tagged release yet at all - see
+  [Supported versions](#supported-versions)), so what it verifies is what
+  `git` verifies: the transport to the remote, and nothing about the commits.
+  A packaged install updates through its package manager instead, which has
+  its own signing story.
 
 ## What runs where
 
@@ -43,6 +60,36 @@ the header, grafts hi's marker-delimited blocks onto the host's rc files, and
 hands off to the best shell available. Everything the target executes was
 generated on the client.
 
+## What hi writes on a target
+
+Default answer: one directory, and only for the life of the session.
+
+| what                     | where                                              | when                                    |
+| ------------------------ | -------------------------------------------------- | --------------------------------------- |
+| the session tree         | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`         | always (unless the target has its own permanent say-hi, which is used in place and never written to) |
+| the ssh bootstrap        | `mkdir -m 700` under the target's temp directory   | ssh targets only, removed by the session it starts |
+| the target's rc files    | `~/.bashrc`, `~/.zshrc`, fish's `config.fish`      | **only with `_HI_GRAFT_RC=1`** - off by default |
+| command history          | a `mktemp -d` wiped on exit, instead of the host's | **only with `_HI_SCRATCH_HISTORY=1`** - off by default |
+
+Both of those last two ship **off**, and both are off for a reason a fleet
+operator will recognise:
+
+- The **rc graft** is a write to a login file on a machine that is not yours,
+  twice per session, for every host you visit. Whatever watches those paths -
+  AIDE, Wazuh, osquery, a package manager's own integrity check - sees a
+  modification it will ask you about, and another login on a shared account
+  can read the file mid-write. `_HI_GRAFT_RC=1` turns it on for the hosts
+  where a shell started *inside* the session should match the session.
+- **Scratch history** redirects the session's command history into a directory
+  that is deleted when the shell exits. It is a reasonable thing to want on a
+  throwaway box and an unreasonable default everywhere: a session that erases
+  the record of what it did is, afterwards, the same shape as one that was
+  meant to. Off, your commands land in the target's own history file exactly
+  as they would over plain `ssh`.
+
+`hi --doctor` prints any setting that is not at its default, both of these
+included, so "what is this install allowed to do to a target" is one command.
+
 ## Footprint and cleanup on the target
 
 - The session tree lives in a `mktemp -d` directory (mode 0700, named
@@ -51,8 +98,15 @@ generated on the client.
   `trap 'rm -rf $_HI_CLEANUP' exit` and `load.sh`'s own on-exit hook.
   `tests/targets/ssh_disconnect_test.sh` verifies cleanup fires on an abrupt
   disconnect, not just a clean exit.
-- The rc additions sit between `# hi-config-start` and `# hi-config-end`
-  markers and are stripped by that same hook.
+- The rc additions - **when `_HI_GRAFT_RC=1` asked for them** - sit between
+  `# hi-config-start` and `# hi-config-end` markers and are stripped by that
+  same hook. Each is also wrapped in a tree-exists guard, so one left behind
+  by a session that was killed between the write and the cleanup is inert
+  rather than an error in every later login.
+- The session tree is **not** added to `$PATH`. `hi` inside a session is an
+  alias (`common/paths.sh`), which is how it was always reached; the `$PATH`
+  entry that used to sit beside it put a `/tmp` path on `$PATH`, which is a
+  finding on any host that is scanned for one.
 - A target with a permanent say-hi is used in place and nothing is deleted; the
   rc grafts are still cleaned on exit. hi finds that tree by reading the
   target's login rc files, then the standard install prefixes, so nothing has to
@@ -76,6 +130,27 @@ generated on the client.
   remain possible, exactly as with plain `ssh`.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
+- The ssh `ControlMaster` socket lives inside a `mktemp -d` of its own rather
+  than at a `mktemp -u` name in a shared temp directory: `ControlMaster=auto`
+  *joins* a socket it finds at the path it was given, and a name that was
+  merely unused when it was printed is not a guarantee about the moment it is
+  used.
+- `hi <TAB>`'s target cache is written to `$XDG_RUNTIME_DIR`, or to a
+  per-uid directory hi creates with `mkdir -m 700`. The name is predictable —
+  the next TAB has to find it — so if that path already exists and is not
+  owned by you, or is a symlink, the cache is skipped rather than adopted.
+  Completion falls back to sweeping the backends, which is slower and correct.
+
+### Known, and not yet fixed
+
+- **hi exports around sixty `_HI_*` variables into the session**, so every
+  process started from it inherits them — including `_HI_LOCAL_USER` and
+  `_HI_LOCAL_HOSTNAME`, which name your workstation. They are exported because
+  `common/paths.sh` is parsed by fish as well as by sh, zsh and bash, and that
+  four-shell subset has no way to set a variable *without* exporting it
+  (`NAME=value` is not fish syntax). Narrowing this needs paths.sh split into
+  a per-dialect pair, which is a design change rather than a patch; it is
+  tracked in [ROADMAP.md](ROADMAP.md).
 
 ## When a push is refused
 

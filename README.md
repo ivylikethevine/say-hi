@@ -228,7 +228,14 @@ target is [How it works](docs/CONFIGURATION.md#how-it-works) there.
 **_IMPORTANT: Local-only changes MUST stay in `~/.bashrc`, `~/.zshrc`,
 `~/.config/fish/config.fish`, etc. — anything in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` is copied to every host you say
-`hi` to._**
+`hi` to. Treat every file in it as readable by every host you visit: a token,
+an internal hostname or a private path in your `aliases.sh` lands on each of
+them. See [docs/SECURITY.md](docs/SECURITY.md)._**
+
+By default hi writes nothing to a target outside its own temp directory — not
+your login files, not your shell history. The two settings that change that
+are opt-in and spelled out in
+[What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, username, and group/tag colors
 

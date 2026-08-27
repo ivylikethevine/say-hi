@@ -27,11 +27,25 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   export _HI_HOME
   # GLOSSARY: HI.07 + HI.04. List shared with
   # _hi_fallback_rc; config.fish keeps its own copy.
+  #
+  # Everything here is a *disable*: 0 is hi's shipped behaviour and 1 turns it
+  # off. That polarity is load-bearing twice over - hi.sh's _hi_fallback_rc
+  # exports the lot as 0 to give a bash-less target hi's defaults, and
+  # paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1 to mean "all of the
+  # above, off here". A setting that ships *off* cannot live in this list: both
+  # of those would read it backwards. Those go in _HI_OPT_INS below.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS _HI_DISABLE_HISTORY
+    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
     _HI_DISABLE_BAT_ALIAS)
-  for _hi_t in "${_HI_TOGGLES[@]}"; do
+  # The other polarity: shipped off, 1 asks for them. Both are things hi would
+  # otherwise do to a machine that is not yours - write to the target's rc
+  # files, and take its shell history somewhere it will be deleted - which is
+  # why neither is a default and why they are answered per install rather than
+  # assumed. Defaulted the same way the toggles are, so settings/aliases.sh and
+  # common/config.fish can keep reading every one of these bare under `set -u`.
+  _HI_OPT_INS=(_HI_GRAFT_RC _HI_SCRATCH_HISTORY)
+  for _hi_t in "${_HI_TOGGLES[@]}" "${_HI_OPT_INS[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
   unset _hi_t

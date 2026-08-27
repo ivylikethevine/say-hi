@@ -3,6 +3,14 @@
 
 # `bash --rcfile` skips the startup chain; restore it before strict mode
 # (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
+#
+# $_HI_ROOT is deliberately *not* appended to $PATH here. It used to be, so
+# that `hi` could be typed inside a session to relay onward - but on a
+# disposable session $_HI_ROOT is a directory under /tmp, and a /tmp path on
+# $PATH is what every hardening baseline greps for. It bought nothing: common/
+# paths.sh already defines `alias hi="$_HI_LAUNCHER"` in all four shells, which
+# is how an interactive session reaches the launcher, and that is the only way
+# a session ever reached it.
 function _hi_restore_profile() {
   if [ -r /etc/profile ]; then source /etc/profile; fi
   # shellcheck disable=SC1090 # target-specific files, no fixed location
@@ -13,7 +21,6 @@ function _hi_restore_profile() {
   elif [ -r ~/.profile ]; then
     source ~/.profile
   fi
-  export PATH="$PATH:$_HI_ROOT"
 }
 
 # _HI_LOAD_NO_INIT=1: functions only, no profile chain - install.sh's source
@@ -81,6 +88,8 @@ function clean_all() {
     # configure_files did appending through that same link
     _hi_rewrite "$target" "$pattern"
   done
+  # the session shell's rc directory, which is hi's own and never the target's
+  [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
   [ -n "${_HI_CLEANUP:-}" ] && rm -rf "$_HI_ROOT"
   return 0
 }
@@ -114,6 +123,100 @@ function _hi_session_shell() {
   printf 'bash'
 }
 
+# Where the session shell's rc files are written: a directory of hi's own, never
+# the target's $HOME. Made once by _hi_session_rc_setup and removed by clean_all
+# - the *same* exit hook, deliberately, because core.sh's _hi_on_exit is a
+# `trap ... EXIT` in bash and a second call would replace the first rather than
+# adding to it.
+_HI_SESSION_RC_DIR=""
+
+# _hi_session_rc_setup - write every shell's rc into one directory and export
+# the three variables that point the session, and anything started inside it,
+# at them. Idempotent; safe to call more than once.
+#
+# This is the load-bearing half of _HI_GRAFT_RC being optional. `bash --rcfile`
+# in hi.sh starts the *bootloader*, which sources this file and calls load();
+# the shell the user actually types at is started below, and a bare `bash -i`
+# reads ~/.bashrc - so until this existed, hi's prompt and aliases reached the
+# session only because the graft had written them into that file. Every
+# mechanism here is one hi already relies on for a bash-less target (hi.sh's
+# _hi_remote_suffix): --rcfile, ZDOTDIR, $ENV and fish's -C.
+#
+# Each file sources the target's own rc *first*, so the ordering the graft
+# produced is preserved exactly: the host's config, then hi's on top of it.
+#
+# mktemp rather than a path under $_HI_ROOT: on a target with a *permanent*
+# say-hi that tree is often root-owned and read-only, which is the whole reason
+# your config lives elsewhere. %q on every interpolated path, since $TMPDIR is
+# the target's to choose.
+#
+# shellcheck disable=SC2016 # the single quotes are the point: $HOME is the
+# *target's* to expand when it reads these files, not this script's to expand
+# while writing them
+function _hi_session_rc_setup() {
+  [ -z "$_HI_SESSION_RC_DIR" ] || return 0
+  _HI_SESSION_RC_DIR="$(mktemp -d -t hi.rc.XXXXXX)" || return 1
+  local dir="$_HI_SESSION_RC_DIR" q
+
+  printf -v q '%q' "$_HI_BASHRC"
+  {
+    printf '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n'
+    printf '. %s\n' "$q"
+  } >"$dir/bashrc"
+
+  # ZDOTDIR moves *all* of zsh's startup files, not just .zshrc, so the
+  # target's .zshenv needs a shim of its own or the environment it sets is
+  # simply lost. .zprofile/.zlogin are login-shell only, and this is `zsh -i`.
+  printf -v q '%q' "$_HI_ZSHRC"
+  printf '[ -r "$HOME/.zshenv" ] && . "$HOME/.zshenv"\n' >"$dir/.zshenv"
+  {
+    printf '[ -r "$HOME/.zshrc" ] && . "$HOME/.zshrc"\n'
+    printf '. %s\n' "$q"
+  } >"$dir/.zshrc"
+
+  # fish reads its own config.fish before -C runs, so the host's fish config is
+  # already in place by the time this is sourced - the same order as above, for
+  # free. The header is our greeting, hence fish_greeting.
+  printf -v q '%q' "$_HI_FISH_CONFIG"
+  {
+    printf "set fish_greeting ''\n"
+    printf 'source %s\n' "$q"
+  } >"$dir/fish.config"
+
+  # $ENV is what POSIX sh, dash and ash read for an *interactive* shell, which
+  # is the only kind this matters for. hi's own aliases and paths, not the full
+  # bash rc - this is the same subset the bash-less fallback gets.
+  printf -v q '%q' "$_HI_ROOT"
+  {
+    printf '[ -r %s/common/paths.sh ] && . %s/common/paths.sh\n' "$q" "$q"
+    printf '[ -r %s/settings/aliases.sh ] && . %s/settings/aliases.sh\n' "$q" "$q"
+  } >"$dir/shrc"
+
+  # Exported, so a shell started *inside* the session inherits them. ZDOTDIR
+  # and ENV do the whole job for zsh and for sh/dash/ash respectively - no
+  # wrapper needed, and they survive being started by something that is not a
+  # shell. bash and fish have no such variable, so settings/aliases.sh defines
+  # a wrapper for each off $_HI_SESSION_RC. GLOSSARY: HI.46
+  export _HI_SESSION_RC="$dir"
+  export ZDOTDIR="$dir"
+  export ENV="$dir/shrc"
+  return 0
+}
+
+# _hi_session_shell_cmd <shell> <outvar> - how to start the session's shell so
+# that it reads hi's rc without hi's rc having been written into the target's
+# $HOME first. _hi_session_rc_setup has already exported ZDOTDIR, so zsh needs
+# nothing here.
+function _hi_session_shell_cmd() {
+  local shell="$1" out="$2" dir="$_HI_SESSION_RC_DIR"
+  case "$shell" in
+  bash) eval "$out=(bash --rcfile \"\$dir/bashrc\" -i)" ;;
+  zsh) eval "$out=(zsh -i)" ;;
+  fish) eval "$out=(fish -C \"source \$dir/fish.config\" -i)" ;;
+  *) eval "$out=(\"\$shell\" -i)" ;;
+  esac
+}
+
 function load() {
   local start
   start="$(_hi_now)"
@@ -131,7 +234,29 @@ function load() {
   [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]] &&
     command -v vim &>/dev/null &&
     export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
-  configure_files
+  # Opt-in, and off by default. The graft appends a block to the *target's*
+  # ~/.bashrc, ~/.zshrc and fish config so that a shell started inside the
+  # session - a `bash` typed at the prompt, a tmux pane - looks like the
+  # session around it.
+  #
+  # The session's *own* shell no longer needs it: _hi_session_shell_cmd above
+  # starts that shell against hi's rc directly (--rcfile / ZDOTDIR / fish -C).
+  # Until that existed this graft was the only thing putting hi's prompt and
+  # aliases in front of the user, because load() starts a plain `$shell -i`
+  # and bash reads ~/.bashrc - which is why turning the graft off without that
+  # change left sessions unstyled and `hi` inside one "command not found".
+  #
+  # What it cost was a write to a login file on someone else's machine, twice
+  # per session, for every host anyone ever said hi to: an entry in whatever
+  # file-integrity monitor watches those paths, a window in which another
+  # login on a shared account reads a half-written rc, and a block left behind
+  # whenever the process died between the write and clean_all. None of that is
+  # a fair price for a convenience the session does not use, so it is now
+  # something a user turns on for the hosts they want it on.
+  #
+  # clean_all stays unconditional: it must still take out a block left by a
+  # session that ran with this on, or by a build that shipped before it existed.
+  [ "${_HI_GRAFT_RC:-0}" = 1 ] && configure_files
   _hi_cecho " | " "$NC" 1
   _hi_cecho "hi loaded with... " "$BRCYAN" 1
 
@@ -146,9 +271,9 @@ function load() {
   _hi_cecho " | load: $(_hi_elapsed "$start" "$(_hi_now)")s | copy: ${_HI_COPY_TIME:--1}s"
 
   local shell_ec=0
-  local -a shell_cmd=("$shell" -i)
-  # the header above is our greeting
-  [ "$shell" = fish ] && shell_cmd=(fish -C "set fish_greeting ''" -i)
+  local -a shell_cmd=()
+  _hi_session_rc_setup
+  _hi_session_shell_cmd "$shell" shell_cmd
   "${shell_cmd[@]}" || shell_ec=$?
 
   local size dur
