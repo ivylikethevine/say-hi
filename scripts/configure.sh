@@ -220,6 +220,19 @@ function _hi_editors_preview() {
   printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
 }
 
+# what `cat` resolves to with the rebind on. settings/aliases.sh's ladder is
+# spelled again because this file cannot source it - see the note there;
+# alias_fallthrough_test.sh fails when the two drift.
+function _hi_bat_alias_preview() {
+  local bat_bin
+  bat_bin="$(command -v bat || command -v batcat)"
+  if [ -n "$bat_bin" ]; then
+    printf 'cat -> %s -P --tabs 2 --theme Monokai\\ Extended\\ Bright --style changes,grid\n' "$bat_bin"
+  else
+    printf 'bat is not installed here - only targets that have it are affected\n'
+  fi
+}
+
 function _hi_osc52_preview() {
   printf 'vim yank -> \\e]52;c;<base64> -> your local clipboard\n'
   printf 'hi_copy  -> %s\n' "$_HI_OSC52"
@@ -276,6 +289,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?|"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?|"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?|"
+  "_HI_DISABLE_BAT_ALIAS|1||_hi_bat_alias_preview| Enable the cat -> bat alias (styled output, --tabs 2, changes/grid) when bat is installed?|bat"
   "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?|"
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?|"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?|"

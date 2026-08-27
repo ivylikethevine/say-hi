@@ -15,7 +15,7 @@
 # silence compare stderr. `-` not `:-`, so intentional empties survive.
 # GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}"' 2>/dev/null || true
 
 # Resolved before any alias exists: once one is set, zsh/dash `command -v`
 # returns its definition and poisons later fallthrough chains.
@@ -68,7 +68,9 @@ export IDE="$(command -v zeditor || command -v zed || command -v code || command
 
 # cat is bat with our options when bat exists, plain cat otherwise. Everything
 # in here is bat syntax, -P (--no-pager) included, which is why it is only ever
-# attached behind $_HI_BAT_REAL - see the chain's comment above.
+# attached behind $_HI_BAT_REAL - see the chain's comment above. The cat/catn
+# rebind itself (not bat/batcat/batn, which you'd only reach by name) is behind
+# _HI_DISABLE_BAT_ALIAS (`hi --configure`, off on _HI_DISABLE_BAT_ALIAS=1).
 export _HI_BAT_OPTS='-P --tabs 2 --theme Monokai\ Extended\ Bright --style changes,grid'
 # batcat is batcat on some Linux distros (fallback to ccat)
 # ccat is cat with syntax highlighting (fallback to cat)
@@ -77,8 +79,8 @@ alias bat="batcat"
 alias batn="batcat"
 [ -n "$_HI_BAT_REAL" ] && alias bat="batcat $_HI_BAT_OPTS" || true
 [ -n "$_HI_BAT_REAL" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
-alias cat="bat"
-alias catn="batn"
+[ "$_HI_DISABLE_BAT_ALIAS" != 1 ] && alias cat="bat" || true
+[ "$_HI_DISABLE_BAT_ALIAS" != 1 ] && alias catn="batn" || true
 
 alias now='echo "LOCAL: $(date $_HI_HUMAN_SHORT_DATE) => UTC: $(date -u $_HI_HUMAN_SHORT_DATE)"'
 

@@ -72,6 +72,11 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   else
     [ -z "${EDITOR:-}" ] || { echo "expected EDITOR unset, got [$EDITOR]" >&2; fail=1; }
   fi
+  if [ "$_HI_EXPECT_CAT_ALIAS" = 1 ]; then
+    alias cat >/dev/null 2>&1 || { echo "expected cat alias, missing" >&2; fail=1; }
+  else
+    alias cat >/dev/null 2>&1 && { echo "expected no cat alias, but found one" >&2; fail=1; }
+  fi
 fi
 
 exit $fail
@@ -115,6 +120,11 @@ if set -q _HI_CHECK_FLAGS
     set -q EDITOR; or begin; echo "expected EDITOR set, got empty" >&2; set fail 1; end
   else
     set -q EDITOR; and begin; echo "expected EDITOR unset, got [$EDITOR]" >&2; set fail 1; end
+  end
+  if test "$_HI_EXPECT_CAT_ALIAS" = 1
+    functions -q -- cat; or begin; echo "expected cat alias, missing" >&2; set fail 1; end
+  else
+    functions -q -- cat; and begin; echo "expected no cat alias, but found one" >&2; set fail 1; end
   end
 end
 
@@ -188,6 +198,7 @@ function _hi_run_scenario() {
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
+    _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
@@ -247,7 +258,29 @@ function run_flag_tests() {
       _HI_DISABLE_EDITORS="$de" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
         "_HI_DISABLE_EDITORS=$de" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_EDITOR_SET="$want_editor"
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_EDITOR_SET="$want_editor" _HI_EXPECT_CAT_ALIAS=1
+    done
+  done
+}
+
+# The cat/catn rebind is unconditional once $_HI_BATCAT_BIN resolves to
+# anything - even down to plain cat, its floor - so the guard is tested the
+# same way as _HI_DISABLE_EDITORS's above: does the alias exist at all,
+# regardless of what it would ultimately run.
+function run_bat_alias_flag_tests() {
+  _hi_h1 "_HI_DISABLE_BAT_ALIAS guard"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_batflags cat vi)"
+
+  for combo in "0 1" "1 0"; do
+    # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
+    set -- $combo
+    local dba="$1" want_cat="$2"
+    for shell in $_HI_INSTALLED_SHELLS; do
+      _HI_DISABLE_BAT_ALIAS="$dba" \
+        _hi_case _hi_run_scenario "$shell" "$fakepath" \
+        "_HI_DISABLE_BAT_ALIAS=$dba" \
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_EDITOR_SET=1 _HI_EXPECT_CAT_ALIAS="$want_cat"
     done
   done
 }
@@ -264,6 +297,25 @@ function test_vim_ladder_matches_the_install_preview() {
   from_install="$(grep -o 'command -v nvim || command -v vim' "$_HI_ROOT/scripts/configure.sh" | head -1)"
   [ -n "$from_aliases" ] || {
     _hi_cecho " | no nvim/vim ladder found in settings/aliases.sh" "$RED"
+    return 1
+  }
+  [ "$from_aliases" = "$from_install" ] || {
+    _hi_cecho " | aliases.sh: [$from_aliases]" "$RED"
+    _hi_cecho " | configure.sh: [$from_install]" "$RED"
+    return 1
+  }
+}
+
+# settings/aliases.sh resolves bat through `command -v bat || command -v batcat`,
+# and scripts/configure.sh's _hi_bat_alias_preview spells the same ladder a
+# second time to show the answer before the toggle is set. Same reasoning as
+# the vim ladder pin above - neither file can source the other.
+function test_bat_ladder_matches_the_install_preview() {
+  local from_aliases from_install
+  from_aliases="$(grep -o 'command -v bat || command -v batcat' "$_HI_ALIASES" | head -1)"
+  from_install="$(grep -o 'command -v bat || command -v batcat' "$_HI_ROOT/scripts/configure.sh" | head -1)"
+  [ -n "$from_aliases" ] || {
+    _hi_cecho " | no bat/batcat ladder found in settings/aliases.sh" "$RED"
     return 1
   }
   [ "$from_aliases" = "$from_install" ] || {
@@ -301,8 +353,11 @@ function run_alias_fallthrough_test() {
   _hi_suite_begin
   _hi_check "The vim ladder matches install.sh's preview" \
     test_vim_ladder_matches_the_install_preview
+  _hi_check "The bat ladder matches install.sh's preview" \
+    test_bat_ladder_matches_the_install_preview
   run_fallthrough_tests
   run_flag_tests
+  run_bat_alias_flag_tests
   run_overlay_tests
 
   _hi_suite_end "" \
