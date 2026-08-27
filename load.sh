@@ -143,11 +143,20 @@ _HI_SESSION_RC_DIR=""
 
 # _hi_fishquote <var> <value> - <value> as one single-quoted fish word, into
 # <var>. fish's single quotes know two escapes, \' and \\, and nothing else.
+# Walked a character at a time: bash 3.2 unescapes the replacement half of a
+# ${x//a/b} differently from bash 4+, and a backslash that comes out doubled
+# ends the fish string early.
 function _hi_fishquote() {
-  local _s="$2"
-  _s="${_s//\\/\\\\}"
-  _s="${_s//\'/\\\'}"
-  printf -v "$1" "'%s'" "$_s"
+  local _in="$2" _out="" _c
+  while [ -n "$_in" ]; do
+    _c="${_in%"${_in#?}"}"
+    _in="${_in#?}"
+    case "$_c" in
+    \\ | \') _out="$_out\\$_c" ;;
+    *) _out="$_out$_c" ;;
+    esac
+  done
+  printf -v "$1" "'%s'" "$_out"
 }
 
 # _hi_session_rc_setup - write every shell's rc into one directory and export
