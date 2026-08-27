@@ -39,6 +39,17 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # shellcheck source=./common/header.sh
 source "$_HI_HEADER"
 
+# This is the bootloader shell: `hi <target> <cmd>` runs <cmd> right here, and
+# load() starts the session shell from here, so what is exported at this point
+# is what both inherit. Everything above needed the full set as shell
+# variables and still has it; children get core.sh's _HI_CHILD_ENV. The
+# session's own pointers ($_HI_SESSION_RC, $ZDOTDIR, $ENV) are exported later,
+# by _hi_session_rc_setup, and the client's verdicts reach the session shell
+# through the rc it writes. Not under _HI_LOAD_NO_INIT: install.sh and the
+# suites source this file for its functions and keep their environment.
+# GLOSSARY: HI.47
+[ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_unexport
+
 _HI_CONFIG_START="# hi-config-start"
 _HI_CONFIG_END="# hi-config-end"
 
@@ -130,6 +141,15 @@ function _hi_session_shell() {
 # adding to it.
 _HI_SESSION_RC_DIR=""
 
+# _hi_fishquote <var> <value> - <value> as one single-quoted fish word, into
+# <var>. fish's single quotes know two escapes, \' and \\, and nothing else.
+function _hi_fishquote() {
+  local _s="$2"
+  _s="${_s//\\/\\\\}"
+  _s="${_s//\'/\\\'}"
+  printf -v "$1" "'%s'" "$_s"
+}
+
 # _hi_session_rc_setup - write every shell's rc into one directory and export
 # the three variables that point the session, and anything started inside it,
 # at them. Idempotent; safe to call more than once.
@@ -158,9 +178,26 @@ function _hi_session_rc_setup() {
   _HI_SESSION_RC_DIR="$(mktemp -d -t hi.rc.XXXXXX)" || return 1
   local dir="$_HI_SESSION_RC_DIR" q
 
+  # The client's verdicts - core.sh's _HI_SESSION_VARS, which hi.sh exported
+  # into this process - as plain assignments in each rc, between the target's
+  # own rc and hi's. The session shell takes the export attribute off every
+  # _HI_* name that is not in _HI_CHILD_ENV (two of these name the operator's
+  # workstation), so a shell started inside the session gets them from here
+  # rather than from its environment. Only the set ones: an empty tag is
+  # "no tag" and an absent one reads the same. GLOSSARY: HI.47
+  local v sh_vars="" fish_vars=""
+  for v in "${_HI_SESSION_VARS[@]}"; do
+    [ -n "${!v-}" ] || continue
+    printf -v q '%q' "${!v}"
+    sh_vars="$sh_vars$v=$q"$'\n'
+    _hi_fishquote q "${!v}"
+    fish_vars="${fish_vars}set -g $v $q"$'\n'
+  done
+
   printf -v q '%q' "$_HI_BASHRC"
   {
     printf '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n'
+    printf '%s' "$sh_vars"
     printf '. %s\n' "$q"
   } >"$dir/bashrc"
 
@@ -171,6 +208,7 @@ function _hi_session_rc_setup() {
   printf '[ -r "$HOME/.zshenv" ] && . "$HOME/.zshenv"\n' >"$dir/.zshenv"
   {
     printf '[ -r "$HOME/.zshrc" ] && . "$HOME/.zshrc"\n'
+    printf '%s' "$sh_vars"
     printf '. %s\n' "$q"
   } >"$dir/.zshrc"
 
@@ -180,6 +218,7 @@ function _hi_session_rc_setup() {
   printf -v q '%q' "$_HI_FISH_CONFIG"
   {
     printf "set fish_greeting ''\n"
+    printf '%s' "$fish_vars"
     printf 'source %s\n' "$q"
   } >"$dir/fish.config"
 

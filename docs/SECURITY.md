@@ -141,16 +141,21 @@ included, so "what is this install allowed to do to a target" is one command.
   owned by you, or is a symlink, the cache is skipped rather than adopted.
   Completion falls back to sweeping the backends, which is slower and correct.
 
-### Known, and not yet fixed
+### What a process started from a session inherits
 
-- **hi exports around sixty `_HI_*` variables into the session**, so every
-  process started from it inherits them — including `_HI_LOCAL_USER` and
-  `_HI_LOCAL_HOSTNAME`, which name your workstation. They are exported because
-  `common/paths.sh` is parsed by fish as well as by sh, zsh and bash, and that
-  four-shell subset has no way to set a variable *without* exporting it
-  (`NAME=value` is not fish syntax). Narrowing this needs paths.sh split into
-  a per-dialect pair, which is a design change rather than a patch; it is
-  tracked in [ROADMAP.md](ROADMAP.md).
+Eight `_HI_*` names, and nothing else with the prefix: the tree and overlay
+pointers, the remote-session flag, the session rc directory, and the four
+completion knobs `targets.sh` reads from its environment. Everything else hi
+sets — sixty-odd paths and toggles — stays a shell variable in the session
+shell and stops there, so a service started by hand, a `sudo -E`, or a cron
+line pasted at the prompt sees an ordinary environment. In particular the
+two values that name your workstation (`_HI_LOCAL_USER`,
+`_HI_LOCAL_HOSTNAME`) are never in a child's environment; a shell started
+inside the session reads them from hi's own rc directory instead. The
+mechanism and the roster are [HI.47](GLOSSARY.md#hi47-what-a-child-inherits);
+`tests/common/exports_test.sh` pins both. The one tier this does not reach is
+a POSIX `sh` started inside a session (and the bash-less fallback), where
+`$ENV` sources `paths.sh` again and dash has no un-export.
 
 ## When a push is refused
 

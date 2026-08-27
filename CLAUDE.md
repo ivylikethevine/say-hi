@@ -33,7 +33,9 @@ checking anything in fish outside the runner.
 already exported (~60 names, `_HI_HOME=/home/ivy/projects`,
 `_HI_ROOT=/home/ivy/projects/say-hi`, `_HI_TEST_LIB=…/say-hi/tests/test_lib.sh`
 among them) from the launching shell. Those paths are the **user's real
-install**, and it exists, so nothing fails loudly. Check with
+install**, and it exists, so nothing fails loudly. (An install that carries
+HI.47 exports eight names, `_HI_HOME` and `_HI_CONFIG_DIR` among them, and the
+same check and clear still apply.) Check with
 `env | grep '^_HI_'` before trusting any result, and clear it with:
 
 ```sh

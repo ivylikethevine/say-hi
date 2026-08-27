@@ -38,7 +38,13 @@ Every setting below is an environment variable, checked where it is used.
 `hi --configure` writes your answers to `settings.sh` — a plain `#!/bin/sh`
 script of `export NAME=value` lines, valid in sh, bash, zsh and fish — which
 every shell sources ahead of `common/paths.sh`. Exporting any of them by hand
-works just as well and takes precedence for that shell.
+works just as well and takes precedence for that shell. One thing an
+`export` does not do is reach programs you start from a hi shell: once the rc
+has run, every `_HI_*` name except eight is a plain shell variable, so a
+child sees an ordinary environment (which names, and why, is
+[HI.47](GLOSSARY.md#hi47-what-a-child-inherits)). A setting you need a
+child to see - a script of your own reading `$_HI_COLORS`, say - is an
+`export` in the overlay's `bash.sh`/`zsh.zsh`/`config.fish`, which run last.
 
 ## Contents
 

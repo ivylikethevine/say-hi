@@ -28,6 +28,15 @@ function _hi_kube_cleanup() {
 
 function _hi_pod_running() { [ "$(kubectl get pod "$1" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]; }
 
+# _hi_pod_containers_running <pod> <n> - every one of the pod's <n> containers
+# has a `running` state, which the phase alone does not promise (see the
+# multi-container case). One word per running container, counted.
+function _hi_pod_containers_running() {
+  local running
+  running="$(kubectl get pod "$1" -o jsonpath='{range .status.containerStatuses[*]}{.state.running.startedAt}{" "}{end}' 2>/dev/null)"
+  [ "$(printf '%s' "$running" | wc -w | tr -d ' ')" -eq "$2" ]
+}
+
 # A kind node starts with an empty containerd, so --image-pull-policy=IfNotPresent
 # still pulls from the registry the first time a pod wants an image - and
 # debian:bookworm-slim did not finish inside the Running poll's budget on CI
@@ -125,21 +134,38 @@ EOF
     _hi_dump_log "Failed to create the multi-container pod:" "$_HI_WORKDIR/multi.run.log"
     return 1
   fi
-  if ! _hi_poll_bool 240 0.5 _hi_pod_running "$name"; then
+  # Both containers, not the pod's phase: `Running` is the phase as soon as
+  # *one* container runs, and on a loaded node the sidecar can still be
+  # starting when app is up. Polling the phase let the `kubectl exec` below
+  # land on a container that was not there yet - silently, with its stderr
+  # dropped - and the session then read an empty file back: the `read ''`
+  # this case reported on CI while passing on every dev box.
+  if ! _hi_poll_bool 240 0.5 _hi_pod_containers_running "$name" 2; then
     kubectl describe pod "$name" >"$_HI_WORKDIR/multi.describe.log" 2>&1 || true
-    _hi_dump_log "Multi-container pod never reported Running:" "$_HI_WORKDIR/multi.describe.log"
+    _hi_dump_log "Multi-container pod never had both containers running:" "$_HI_WORKDIR/multi.describe.log"
     kubectl delete pod "$name" --now >/dev/null 2>&1
     return 1
   fi
-  kubectl exec "$name" -c app -- sh -c 'echo app >/tmp/who' >/dev/null 2>&1
-  kubectl exec "$name" -c sidecar -- sh -c 'echo sidecar >/tmp/who' >/dev/null 2>&1
+  # The writes are the fixture; a failed one is a broken case, not a failed
+  # assertion, so they are checked and their stderr kept.
+  local c
+  for c in app sidecar; do
+    if ! kubectl exec "$name" -c "$c" -- sh -c "echo $c >/tmp/who" >"$_HI_WORKDIR/multi.write.log" 2>&1; then
+      _hi_dump_log "Could not write /tmp/who in container $c:" "$_HI_WORKDIR/multi.write.log"
+      kubectl delete pod "$name" --now >/dev/null 2>&1
+      return 1
+    fi
+  done
 
-  got="$("$_HI_ROOT/hi.sh" "$name/sidecar" 'cat /tmp/who' 2>/dev/null | tr -d '\r' | tail -1)"
+  # hi's stderr is kept: an empty read is otherwise indistinguishable between
+  # "reached the wrong container" and "never reached the pod at all"
+  got="$("$_HI_ROOT/hi.sh" "$name/sidecar" 'cat /tmp/who' 2>"$_HI_WORKDIR/multi.hi.log" | tr -d '\r' | tail -1)"
   if [ "$got" = sidecar ]; then
     _hi_align " | pod/container reached the named container" "OK" "$GREEN"
     ok=1
   else
     _hi_cecho " | hi $name/sidecar read '$got', expected 'sidecar'" "$RED"
+    _hi_dump_log "hi's stderr:" "$_HI_WORKDIR/multi.hi.log"
   fi
   kubectl delete pod "$name" --now >/dev/null 2>&1
   [ "$ok" -eq 1 ]

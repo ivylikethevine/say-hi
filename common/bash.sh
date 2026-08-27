@@ -177,6 +177,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   fi
 fi
+
+# Last in the required block, once every alias above has expanded its paths:
+# nothing started from this shell inherits hi's namespace beyond core.sh's
+# _HI_CHILD_ENV. The overlay's bash.sh below runs after this and can `export`
+# any name it wants a child to see. GLOSSARY: HI.47
+_hi_unexport
 # === end required configuration ===
 
 # The guard is settings/aliases.sh's: $_HI_CONFIG_DIR pointed at common/ would make

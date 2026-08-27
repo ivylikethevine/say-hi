@@ -700,3 +700,49 @@ function of that name, and without it `fish` would call itself forever.
 What the wrappers cannot cover is a shell nothing typed — a `tmux` pane
 spawning a login shell, an editor's shell-out. That is the remaining job of
 `_HI_GRAFT_RC`, and the reason it still exists rather than having been deleted.
+
+
+## HI.47 what a child inherits
+
+`env | grep ^_HI_` in a process started from an interactive hi shell shows
+core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The
+roster is eight names: the tree and overlay pointers (`$_HI_HOME`,
+`$_HI_CONFIG_DIR` — the overlay on a target is wherever `hi.sh` put it, and
+cannot be re-derived), `$_HI_REMOTE_SESSION`, `$_HI_SESSION_RC` (HI.46's
+wrappers are re-defined in every nested shell), and the four knobs
+`sh targets.sh` reads straight off its environment from a completion
+(`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_RECENT`, `_HI_RECENT_FILE`).
+
+It works by taking the attribute off, not by never setting it.
+`common/paths.sh` is parsed by fish as well as sh, zsh and bash, and that
+dialect has exactly one assignment all four accept — `export NAME=value` — so
+every name it sets arrives exported, sixty-odd of them. Each interactive rc
+(`bash.sh`, `zsh.zsh`, `config.fish`) then un-exports the lot as the last thing
+in its required block: `_hi_unexport` in core.sh (bash `export -n`, zsh
+`typeset -g +x` — a bare `typeset` inside a function declares a local), and a
+`set -gu NAME $NAME` loop in config.fish. The values stay, as shell variables:
+`now` expands `$_HI_HUMAN_SHORT_DATE` when it is typed, the prompt reads the
+colour memos every render, and a `$( )` is a fork rather than an exec. Every
+alias that names a path expanded it at definition time and never needed the
+variable to survive at all. Last in the block on purpose: the overlay's
+per-shell rc runs after it, and can `export` whatever it wants a child to see.
+
+The client's verdicts — `hi.sh`'s `_hi_session_env`, pinned to core.sh's
+`_HI_SESSION_VARS` — are the reason the flip is not enough on its own. Two of
+them (`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) name the operator's workstation,
+which is the one thing a target's process table should never learn from hi;
+they are not in the roster, so a nested shell cannot inherit them. `load.sh`'s
+`_hi_session_rc_setup` writes them into each session rc instead (HI.46), as
+plain assignments between the target's own rc and hi's, and fish — which
+shells out to bash for the header and the colours — hands them to that one
+`bash -c` through `__hi_bash`'s function-scoped exports (`set -fx`; a `-l`
+inside the loop would be block-scoped and gone before the command runs).
+
+What is not covered, and why: a POSIX `sh` started inside a session reads
+`$ENV`, which sources `paths.sh` and exports the roster into *that* shell
+again — dash has no un-export. The bash-less fallback rc (HI.20) has the same
+shape for the same reason. Both are the tiers below what `load.sh` styles.
+`tests/common/exports_test.sh` pins the contract: the child environment in
+all three shells, config.fish's two mirrors against core.sh, `_hi_session_env`
+against `_HI_SESSION_VARS`, every env read in targets.sh against the roster,
+and the session rc's quoting round-trip in each dialect.

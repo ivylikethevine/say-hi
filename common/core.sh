@@ -290,6 +290,52 @@ function _hi_interactive_extras() {
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
 }
 
+# What a process started from an interactive hi shell inherits, and nothing
+# else with the prefix: the four-shell dialect of paths.sh can only `export`,
+# so every name it sets reaches the shell exported, and the rc files take the
+# attribute off again once the aliases (which expand at definition time) and
+# the prompt have read them. This roster is the exception list - the names an
+# exec'd child really reads from its environment rather than re-deriving:
+# the tree and overlay pointers (core.sh derives the tree from its own path,
+# but the overlay on a target is wherever hi.sh put it), the remote flag, the
+# session rc directory (HI.46's wrappers, re-defined in every nested shell),
+# and the four knobs `sh targets.sh` reads straight off the environment from
+# a completion. common/config.fish mirrors the list; exports_test.sh pins the
+# two together. GLOSSARY: HI.47
+_HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
+  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE)
+# The client's verdicts hi.sh exports into a session (its _hi_session_env,
+# pinned to this list by the same suite). Two name the operator's own
+# workstation, which is why they are not in _HI_CHILD_ENV: load.sh writes them
+# into the session rc files instead, and a nested shell reads them from there.
+_HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
+  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII)
+
+# _hi_unexport - take the export attribute off every _HI_* name not in
+# _HI_CHILD_ENV. The value stays: aliases that expand at use time (`now`) and
+# the prompt read shell variables, and a `$( )` is a fork, not an exec. The
+# enumeration and the attribute flip are the two things bash and zsh spell
+# differently, so both arms are eval'd behind the shell test; zsh's is `-g`
+# because a bare `typeset` inside a function declares a local of that name.
+function _hi_unexport() {
+  local _hi_n
+  local -a _hi_names
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
+  else
+    eval '_hi_names=("${!_HI_@}")'
+  fi
+  for _hi_n in "${_hi_names[@]}"; do
+    case " ${_HI_CHILD_ENV[*]} " in *" $_hi_n "*) continue ;; esac
+    if [ -n "${ZSH_VERSION:-}" ]; then
+      typeset -g +x "$_hi_n"
+    else
+      # shellcheck disable=SC2163 # un-exporting the name held in $_hi_n is the point
+      export -n "$_hi_n"
+    fi
+  done
+}
+
 # _hi_sanitize_var <var> <text> - control chars and backslashes out, into
 # <var>; the header reaches it seven times a banner, each a fork through $( ).
 # GLOSSARY: HI.05

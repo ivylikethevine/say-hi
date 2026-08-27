@@ -125,6 +125,10 @@ compdef _hi hi
 # out when the right-hand side has no binding, which is every shell without
 # eza. _comps is compinit's own command -> completion map, so no fork.
 (( ${+_comps[eza]} )) && compdef exa=eza
+
+# see common/bash.sh: children inherit core.sh's _HI_CHILD_ENV and nothing
+# else with the prefix. GLOSSARY: HI.47
+_hi_unexport
 # === end required configuration ===
 
 # see common/bash.sh for why the paths are compared before sourcing
