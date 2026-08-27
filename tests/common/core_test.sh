@@ -86,7 +86,6 @@ function test_no_color_blanks_the_palette_at_source_time() {
   [ -z "$out" ]
 }
 
-# --- a target with nothing but a shell ---------------------------------------
 #
 # hi is meant to reach a scratch or distroless container: bash and no
 # coreutils at all, so `hostname`, `uname`, `whoami` and `id` are none of them
@@ -326,7 +325,6 @@ function test_settings_sh_is_sourced() {
     bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = global ]
 }
 
-# --- $_HI_CONFIG_DIR resolution ----------------------------------------------
 #
 # $_HI_CONFIG_DIR is derived from the XDG base, and an explicit value wins.
 # Same preamble-in-a-fresh-bash shape as test_settings_sh_is_sourced above, for

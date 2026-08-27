@@ -103,7 +103,7 @@ than copying dotfiles blind.
 - **Reach.** xxh targets "Linux on x86_64" — no ARM, no macOS, no BSD. say-hi's
   floor is bash 3.2 and `base64`, and its suite runs real Debian, Alpine/musl
   and bash-3.2 targets every time.
-- **Weight.** xxh uploads shells; say-hi sends ~46KB a session, and CI fails if
+- **Weight.** xxh uploads shells; say-hi sends ~48KB a session, and CI fails if
   that drifts more than 5% from the badge.
 - **Footprint.** xxh is hermetic but persistent — `~/.xxh` stays until you
   delete it. say-hi removes itself when the session ends.

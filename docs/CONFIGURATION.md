@@ -120,6 +120,7 @@ row here.
 | `_HI_DISABLE_PROMPT`         | `0`                             | `hi --configure`          | [Features](#features) - the colored `user@host` prompt                                        |
 | `_HI_DISABLE_GIT_STATUS`     | `0`                             | `hi --configure`          | [Features](#features) - the git segment in the prompt                                         |
 | `_HI_DISABLE_EDITORS`        | `0`                             | `hi --configure`          | [Features](#features) - the `vim`/`nano` config overrides                                     |
+| `_HI_DISABLE_BAT_ALIAS`      | `0`                             | `hi --configure`          | [Features](#features) - rebinding `cat`/`catn` to a styled `bat`                              |
 | `_HI_DISABLE_OSC52`          | `0`                             | `hi --configure`          | [Features](#features) - the OSC 52 clipboard                                                  |
 | `_HI_DISABLE_NOTIFY`         | `0`                             | `hi --configure`          | [Features](#features) - the `hi_notify` desktop-notification alias                            |
 | `_HI_DISABLE_MARKS`          | `0`                             | `hi --configure`          | [Features](#features) - OSC 133 prompt marks and OSC 7 cwd reporting                          |
@@ -235,6 +236,7 @@ Each is **on by default**; set it to `1` to turn that piece off.
 | `_HI_DISABLE_PROMPT`     | the colored `user@host` prompt, leaving your shell's own                                                                          |
 | `_HI_DISABLE_GIT_STATUS` | the git segment in the prompt                                                                                                     |
 | `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                 |
+| `_HI_DISABLE_BAT_ALIAS`  | rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way                     |
 | `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                     |
 | `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely |
 | `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                       |

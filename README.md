@@ -48,6 +48,7 @@ leave. `hi <TAB>` lists all of them. Nothing is installed on the far end.
   - [nomad](#nomad)
   - [kubernetes](#kubernetes)
   - [completion, every backend at once](#completion-every-backend-at-once)
+  - [no target at all](#no-target-at-all)
 - [Requirements](#requirements)
 - [Installation/Usage](#installationusage)
 - [Configuration](#configuration)

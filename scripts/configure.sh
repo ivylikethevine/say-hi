@@ -24,8 +24,6 @@ function _hi_load_preview_sources() {
   source "$_HI_GIT_PROMPT"
 }
 
-# --- reading a setting ---------------------------------------------------------
-
 # Answers this run has already taken, as "<var>=<value>" entries. An indexed
 # array rather than `declare -A`: associative arrays are bash 4 and macOS
 # ships 3.2. A linear scan over a few dozen answers costs nothing.
@@ -79,8 +77,6 @@ function setting_on() {
     [ "$answer" != "$off" ]
   fi
 }
-
-# --- asking ---------------------------------------------------------------------
 
 # Ask a yes/no question about one setting, defaulting to its current state.
 # $5, if given, is a zero-arg function whose output is boxed as a live preview
@@ -193,8 +189,6 @@ function show_preview() {
   _hi_cecho "   $bottom" "$NC"
 }
 
-# --- previews -------------------------------------------------------------------
-
 # banner() takes an arg, so wrap it to the zero-arg signature ask_setting's $5
 # expects. _HI_HEADER_BANNER is unset for the call (in a subshell), or a toggle
 # the user has switched off would render an empty preview of the very thing
@@ -224,6 +218,19 @@ function _hi_git_status_preview() {
 function _hi_editors_preview() {
   printf 'nano -> nano --rcfile %s\n' "$_HI_NANORC"
   printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
+}
+
+# what `cat` resolves to with the rebind on. settings/aliases.sh's ladder is
+# spelled again because this file cannot source it - see the note there;
+# alias_fallthrough_test.sh fails when the two drift.
+function _hi_bat_alias_preview() {
+  local bat_bin
+  bat_bin="$(command -v bat || command -v batcat)"
+  if [ -n "$bat_bin" ]; then
+    printf 'cat -> %s -P --tabs 2 --theme Monokai\\ Extended\\ Bright --style changes,grid\n' "$bat_bin"
+  else
+    printf 'bat is not installed here - only targets that have it are affected\n'
+  fi
 }
 
 function _hi_osc52_preview() {
@@ -263,8 +270,6 @@ function _hi_packages_floor_preview() {
   fi
 }
 
-# --- the questions, as tables -------------------------------------------------
-
 # Every setting the config_* groups decide on, written to $_HI_SETTINGS in one
 # go by run_configure. An ordered array, because config_shell compares what it
 # would write against what is there to decide whether the file is up to date -
@@ -284,6 +289,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?|"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?|"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?|"
+  "_HI_DISABLE_BAT_ALIAS|1||_hi_bat_alias_preview| Enable the cat -> bat alias (styled output, --tabs 2, changes/grid) when bat is installed?|bat"
   "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?|"
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?|"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?|"
@@ -356,8 +362,6 @@ function ask_prompt_group() {
     fi
   done
 }
-
-# --- presets --------------------------------------------------------------------
 
 # <name>|<one-line description>|<var=value ...>: a starting point for the
 # feature, header, package-check and prompt questions - the presets say
@@ -441,8 +445,6 @@ function config_preset() {
   [[ "$reply" =~ ^[Yy] ]] && _HI_PRESET_FINAL=1
   return 0
 }
-
-# --- the sections ---------------------------------------------------------------
 
 # What a run is about to do, said once up front: how answering works, where
 # the answers go, and that nothing is written until the last question - so
@@ -635,8 +637,6 @@ function config_advanced() {
   fi
 }
 
-# --- writing --------------------------------------------------------------------
-
 # $_HI_SETTINGS is hi's own file, not one of the user's rc files, and it
 # holds nothing but `export NAME=value` lines - so it gets a real `#!/bin/sh`
 # line 1, which every shell that sources it (sh, bash, zsh, fish) reads as a
@@ -747,8 +747,6 @@ function overlay_commit() {
   git -C "$_HI_CONFIG_DIR" commit -q -m "hi --configure: settings update" >/dev/null 2>&1 || true
   return 0
 }
-
-# --- the run --------------------------------------------------------------------
 
 # every section, then the one write. $1 is a preset name, or empty: with one,
 # its answers are taken as final and nothing is asked - the questions all run

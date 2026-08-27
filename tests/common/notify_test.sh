@@ -55,8 +55,6 @@ function _hi_notify() {
     sh "$_HI_NOTIFY" "$@" 2>/dev/null
 }
 
-# --- the escape shape -------------------------------------------------------
-
 # Both escapes, spelled out rather than built the way the script builds them: a
 # case that assembles the sequence with the same expression would pass against
 # a broken one.
@@ -77,7 +75,6 @@ function _hi_reports_failure_status() {
   return 1
 }
 
-# --- the multiplexer wrapping -----------------------------------------------
 #
 # Same rule as common/osc52.sh, and the reason each escape is wrapped on its own
 # rather than the pair being wrapped once: tmux's passthrough doubles the inner
@@ -119,8 +116,6 @@ function _hi_no_wrap_for_xterm() {
   return 1
 }
 
-# --- the body ---------------------------------------------------------------
-
 # A command line is not base64 the way OSC 52's payload is, so the emitter has
 # to defend the escape from what is in it. Two shapes, and the second is the one
 # that bit during development: `printf %b` expands a literal backslash-033 typed
@@ -154,7 +149,6 @@ function _hi_body_strips_real_control_bytes() {
   [ "$body" = "ok: echo " ]
 }
 
-# --- the exit status --------------------------------------------------------
 #
 # hi_notify wraps a command, so it has to be transparent: dropping the status
 # would break every `hi_notify make && ...` written with it.
@@ -181,8 +175,6 @@ function _hi_refuses_with_no_command() {
   return 1
 }
 
-# --- the alias --------------------------------------------------------------
-
 # Every shell aliases.sh has to parse, since the alias line sits in that file's
 # POSIX+fish subset - test_lib.sh's _hi_alias_probe holds the two dialects.
 function _hi_alias_defined_in() {
@@ -195,8 +187,6 @@ function _hi_alias_defined_in() {
 function _hi_no_alias_without_paths() {
   [ "$(_hi_alias_probe_bare hi_notify _HI_NOTIFY)" = no ]
 }
-
-# --- the toggle -------------------------------------------------------------
 
 function _hi_toggle_in_core_list() {
   case " ${_HI_TOGGLES[*]} " in

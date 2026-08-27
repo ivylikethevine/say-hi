@@ -898,7 +898,6 @@ function test_prompt_ends_skipped_when_the_prompt_is_off() {
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
 }
 
-# --- the opt-in shape, and the sections it made possible ----------------------
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
 # (_HI_HEADER_GHZ=1, _HI_PROMPT=starship) is on only when its on-value is.
@@ -1035,7 +1034,6 @@ function test_settings_diff_says_no_changes() {
   grep -q 'no changes' "$_HI_WORKDIR/diff_same/config/diff.out"
 }
 
-# --- presets -------------------------------------------------------------------
 #
 # A preset is an absolute answer over its vocabulary: what it names is set,
 # everything else in the vocabulary goes back to the default, and nothing
