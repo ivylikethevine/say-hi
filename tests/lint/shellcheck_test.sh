@@ -180,6 +180,129 @@ function _hi_lint_mirror() {
   _hi_lint_blanks "$_HI_LINT_MIRROR" "${files[@]}"
 }
 
+# The two dialect *floors*, run rather than grepped: the files zsh and fish read
+# for themselves, checked again inside a digest-pinned oldest-supported build of
+# that shell (tests/dockerfiles/{zsh58,fish37}.Dockerfile).
+#
+# _HI_NATIVE_LINT above already runs both sets through the *host's* zsh and
+# fish, and that is the half these exist because of: a developer's shell is
+# newer than the floor, so it accepts constructs the floor rejects and the run
+# goes green while CI does not. The case that earned the pair was a comment
+# inside a `{ ... }` block in common/paths.sh - a brace expansion to fish, where
+# `#` is not a comment - which fish 4.8 parsed happily and fish 3.7 refused with
+# "Mismatched braces", taking $_HI_TARGETS, every path and every alias with it.
+#
+# Both skip yellow without docker, like every other half whose tool may be
+# absent. The builds are quiet and cached; only the first run pays for them.
+
+# _hi_floor_ready <stem> <tag> <label> - docker present, answering, and the
+# pinned image built. rc 0 to go on, rc 1 when it has already reported a skip.
+function _hi_floor_ready() {
+  local stem="$1" tag="$2" label="$3" backend="${_HI_BACKEND:-docker}"
+  if ! command -v "$backend" >/dev/null 2>&1; then
+    _hi_skip "$label" "no $backend to build the pinned image"
+    return 1
+  fi
+  if ! "$backend" info >/dev/null 2>&1; then
+    _hi_skip "$label" "$backend is installed but not answering"
+    return 1
+  fi
+  # A build failure here is a *failure*, not a skip. The base image is pinned by
+  # digest and the only other thing in the file is an apt install with a version
+  # assertion on it, so "would not build" means the distro moved off the version
+  # this floor claims to be - which is exactly the news the check exists to
+  # deliver. Skipping it would retire the floor silently, which is how a floor
+  # check quietly stops being one.
+  if ! _hi_build_image "$stem" "$tag" "the $label check" -f "$(_hi_dockerfile "$stem")" "$_HI_ROOT/tests/dockerfiles"; then
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    _hi_align " | $label: the pinned image would not build (has the distro moved off it?)" "FAILED" "$RED"
+    _hi_note_failure "$label: image build"
+    return 2
+  fi
+  return 0
+}
+
+# _hi_floor_files <shell> - the rows of _HI_NATIVE_LINT for that shell, into the
+# caller's $files. One roster for both the host check and the floor, so the two
+# cannot drift into checking different lists.
+function _hi_floor_files() {
+  local row
+  files=()
+  for row in "${_HI_NATIVE_LINT[@]}"; do
+    case "$row" in *":$1:"*) files+=("${row%%:*}") ;; esac
+  done
+}
+
+function lint_fish37() {
+  local out rc=0 backend="${_HI_BACKEND:-docker}"
+  local -a files=()
+  _hi_h2 "Checking the fish files against the fish 3.7 floor"
+  _hi_floor_ready fish37 hi-fish37 "fish 3.7 floor" || return $(($? == 2 ? 1 : 0))
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  _hi_floor_files fish
+  # the paths ride as arguments rather than spliced into the script, so nothing
+  # here depends on how a filename quotes
+  # shellcheck disable=SC2016 # $f and $@ belong to the sh inside the container
+  out="$("$backend" run --rm -v "$_HI_ROOT":/w:ro hi-fish37 sh -c '
+    rc=0
+    for f in "$@"; do
+      fish --no-execute "/w/$f" || rc=1
+    done
+    fish --version
+    exit $rc' sh "${files[@]}" 2>&1)" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    _hi_align " | $(printf '%s' "$out" | tail -n1): every fish file parses" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_align " | the fish files do not parse under the 3.7 floor" "FAILED" "$RED"
+  printf '%s\n' "$out" | sed 's/^/      /'
+  _hi_note_failure "fish 3.7 floor: $(printf '%s' "$out" | grep -c 'Mismatched\|error\|Error' || true) complaint(s)"
+  return 1
+}
+
+# zsh's floor gets a second stage fish's does not need, because zsh's failure
+# modes here are *runtime*: `add-zsh-hook zshexit`, `${(%):-%x}`, `${~pat}` and
+# the KSH_ARRAYS divergence all parse on every zsh and only misbehave on an old
+# one. So this parses the files and then sources common/zsh.zsh for real, in an
+# interactive shell, and asks the four things a session actually depends on -
+# a prompt, the aliases, a resolved host color and the prompt separator. A
+# `zsh -n` sweep alone would have passed every one of those constructs.
+function lint_zsh58() {
+  local out rc=0 backend="${_HI_BACKEND:-docker}"
+  local -a files=()
+  _hi_h2 "Checking the zsh files against the zsh 5.8 floor"
+  _hi_floor_ready zsh58 hi-zsh58 "zsh 5.8 floor" || return $(($? == 2 ? 1 : 0))
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  _hi_floor_files zsh
+  # $HOME and $_HI_CONFIG_DIR into the container's own /tmp: the tree is mounted
+  # read-only, and a session resolves an overlay whether or not one exists
+  # shellcheck disable=SC2016 # every expansion below is the container's
+  out="$("$backend" run --rm -v "$_HI_ROOT":/w/say-hi:ro hi-zsh58 sh -c '
+    rc=0
+    for f in "$@"; do
+      zsh -n "/w/say-hi/$f" || rc=1
+    done
+    [ "$rc" = 0 ] || exit "$rc"
+    mkdir -p /tmp/cfg
+    HOME=/tmp _HI_HOME=/w _HI_CONFIG_DIR=/tmp/cfg zsh -ic "
+      source /w/say-hi/common/zsh.zsh
+      [ -n \"\$PS1\" ] || { print -r -- \"NO PROMPT\"; exit 1 }
+      alias cat >/dev/null || { print -r -- \"NO ALIASES\"; exit 1 }
+      [ -n \"\$(_hi_host_color)\" ] || { print -r -- \"NO HOST COLOR\"; exit 1 }
+      [ -n \"\$(_hi_prompt_end ZSH)\" ] || { print -r -- \"NO PROMPT END\"; exit 1 }
+    " || rc=1
+    zsh --version
+    exit $rc' sh "${files[@]}" 2>&1)" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    _hi_align " | $(printf '%s' "$out" | tail -n1): parses, sources and prompts" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_align " | the zsh files do not hold up under the 5.8 floor" "FAILED" "$RED"
+  printf '%s\n' "$out" | sed 's/^/      /'
+  _hi_note_failure "zsh 5.8 floor"
+  return 1
+}
+
 function lint_bash32() {
   _hi_h2 "Checking for bash-4-only constructs (macOS ships bash 3.2)"
   _hi_lint_mirror
@@ -837,7 +960,7 @@ function run_shellcheck() {
   # break. Each function prints its own _hi_h2 banner, so order is the running
   # order. Seeded with the shellcheck count from above.
   _HI_LINT_FAILED=$_HI_SC_FAILED
-  for _hi_lint_half in lint_native lint_bash32 lint_home_default lint_shfmt \
+  for _hi_lint_half in lint_native lint_fish37 lint_zsh58 lint_bash32 lint_home_default lint_shfmt \
     lint_checkbashisms lint_manpage lint_typos lint_glossary_tags \
     lint_settings_table lint_dockerfiles lint_image_tags; do
     "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))

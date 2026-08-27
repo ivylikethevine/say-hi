@@ -352,7 +352,10 @@ function test_resolve_backend_prints_nothing_without_any_cli() {
 # syntax is additive or it breaks every existing target.
 function test_container_cmds_pick_the_inner_unit() {
   local -a probe cp attach
-  local DOMAIN
+  # a tty, pinned: these cases are about the target *grammar* - the inner unit
+  # and the kube prefixes - and a suite has no tty of its own, so without this
+  # they would be asserting the tty probe's answer by accident
+  local DOMAIN _HI_TTY=1
 
   DOMAIN=mypod
   _hi_container_cmds kube
@@ -393,11 +396,66 @@ function test_container_cmds_pick_the_inner_unit() {
   return 1
 }
 
+# The other arm of that probe, which is the one `hi <target> <cmd> | ...` takes:
+# `docker exec -it` does not fall back to a pipe when stdin is not a terminal,
+# it refuses ("cannot attach stdin to a TTY-enabled container"), so the command
+# form failed at the transport before the command ran. Every container backend
+# has to drop the `-t` and keep the `-i`; nomad spells both out either way,
+# because its own stdin-is-a-tty guess hangs the exec on a wrapped pty.
+function test_container_cmds_drop_the_tty_without_one() {
+  local -a probe cp attach
+  local DOMAIN _HI_TTY=0
+
+  DOMAIN=mypod
+  _hi_container_cmds kube
+  case "${attach[*]}" in
+  *"exec -i mypod --") ;;
+  *)
+    _hi_cecho " | kube kept a tty without one: '${attach[*]}'" "$RED"
+    return 1
+    ;;
+  esac
+
+  DOMAIN=somebox
+  _hi_container_cmds docker
+  case "${attach[*]}" in
+  *"exec -i somebox") ;;
+  *)
+    _hi_cecho " | docker kept a tty without one: '${attach[*]}'" "$RED"
+    return 1
+    ;;
+  esac
+
+  DOMAIN=685afd67
+  _hi_container_cmds nomad
+  case "${attach[*]}" in
+  *"-i=true -t=false"*) ;;
+  *)
+    _hi_cecho " | nomad did not spell -t=false: '${attach[*]}'" "$RED"
+    return 1
+    ;;
+  esac
+
+  # ...and the copy stream never wanted a tty in the first place, either way.
+  # Matched on the *enabled* spellings, not a bare "-t": nomad's cp line says
+  # `-t=false` on purpose, and a glob for "-t" calls that a tty.
+  case "${cp[*]}" in
+  *"-it"* | *"-t=true"*)
+    _hi_cecho " | the cp stream grew a tty: '${cp[*]}'" "$RED"
+    return 1
+    ;;
+  esac
+  return 0
+}
+
 # The kube prefixes: `namespace:pod` and `context:namespace:pod`, with or
 # without a `/container`, each landing as kubectl's own flags ahead of `exec`.
 function test_kube_prefixes_become_kubectl_flags() {
   local -a probe cp attach
-  local DOMAIN
+  # a tty, pinned: these cases are about the target *grammar* - the inner unit
+  # and the kube prefixes - and a suite has no tty of its own, so without this
+  # they would be asserting the tty probe's answer by accident
+  local DOMAIN _HI_TTY=1
 
   DOMAIN=staging:web
   _hi_container_cmds kube
@@ -793,6 +851,7 @@ function run_hi_parse_tests() {
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
   _hi_check "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
+  _hi_check "no tty, no -t (hi <target> <cmd> | ...)" test_container_cmds_drop_the_tty_without_one
   _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
 
   _hi_h2 "Testing: _hi_record_recent"

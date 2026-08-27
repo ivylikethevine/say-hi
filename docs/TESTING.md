@@ -229,7 +229,7 @@ the release path uses are SHA-pinned separately.
 
 ## The lint gate
 
-`tests/test_runner.sh shellcheck` is one suite with twelve halves, and CI runs
+`tests/test_runner.sh shellcheck` is one suite with fourteen halves, and CI runs
 all of them.
 
 One check runs **before** all of them and is fatal rather than counted: every
@@ -238,7 +238,7 @@ directive above it. `.shellcheckrc` sets `source-path=SCRIPTDIR`, so under
 `shellcheck -x` the basename resolves against the sourcing file's own
 directory — and where it names that file, the linter follows it into itself and
 re-parses until the kernel OOM-kills it (~33GB resident on a 38GB machine,
-editor included). It is a precondition rather than a thirteenth half because the
+editor included). It is a precondition rather than a fifteenth half because the
 damage happens in the fan-out below.
 
 1. **shellcheck** over every `*.sh` (CI pins the version in
@@ -246,42 +246,70 @@ damage happens in the fan-out below.
    group, so the file list is dealt into one invocation per CPU and replayed in
    order; `_HI_SC_WIDTH=1` puts it back on a single process.
 2. **Native syntax checks**: `zsh -n` / `fish --no-execute` over the files those
-   shells parse for themselves.
-3. **The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs or
+   shells parse for themselves — using whatever `zsh` and `fish` this machine
+   has.
+3. **The fish 3.7 floor**: the same files fish reads, parsed again inside a
+   digest-pinned **fish 3.7.0** (`tests/dockerfiles/fish37.Dockerfile`, Ubuntu
+   24.04's fish, which is CI's). Half 2 cannot cover this: fish 4 accepts
+   constructs 3.7 rejects, so a developer on current fish gets a green run and
+   CI does not. The construct that earned this half was a *comment inside a
+   `{ ... }` block* in `common/paths.sh` — `{` opens a brace expansion to fish
+   and `#` is not a comment inside one, so the file died with "Mismatched
+   braces", taking `$_HI_TARGETS`, every path and every alias with it. fish 4.8
+   parsed it; 3.7 did not; every fish case in CI failed at once. The rule that
+   follows is written at the block itself: nothing but `export NAME=value`
+   lines between those braces. Skips yellow without docker.
+4. **The zsh 5.8 floor**: the same idea one shell over, and it does more than
+   parse. zsh's risky constructs here — `add-zsh-hook zshexit`, the
+   `${(%):-%x}` the tree is derived with, `${~pat}`, the `KSH_ARRAYS`
+   divergence — parse on every zsh and only misbehave on an old one, so a
+   `zsh -n` sweep would wave all of them through. This one parses the files and
+   then *sources* `common/zsh.zsh` in a real interactive zsh inside a pinned
+   **zsh 5.8** (`tests/dockerfiles/zsh58.Dockerfile`, Debian oldstable's), and
+   asks for the four things a session depends on: a prompt, the aliases, a
+   resolved host color and the prompt separator. 5.8 because bookworm, noble,
+   alpine and macOS all ship 5.9 — no machine anyone develops on is the floor.
+   Skips yellow without docker.
+5. **The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs or
    `${x,,}`. Every deliberately odd construct this forces is explained once in
    [GLOSSARY.md](GLOSSARY.md); code references entries by `GLOSSARY: HI.NN`
    tag.
-4. **The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
+6. **The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
    derives the say-hi tree. Wider than the shellcheck list — `*.zsh`, `*.fish`
    and `*.md` too, since the docs teach the rule as much as the code obeys it.
-5. **shfmt** as a formatting gate over the same `*.sh` list, style from
+7. **shfmt** as a formatting gate over the same `*.sh` list, style from
    `.editorconfig`. Fix a red run with `shfmt -w` on the paths it names, not
    `shfmt -w .`, which would also reformat `common/zsh.zsh`.
-6. **checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
+8. **checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
    really do parse on minimal targets.
-7. **mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`): the page ships
+9. **mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`): the page ships
    in every package, and a roff mistake renders as garbage on `man hi` while
    failing nothing else.
-8. **typos** over the whole tree; the allowlist is `_typos.toml` at the root,
+10. **typos** over the whole tree; the allowlist is `_typos.toml` at the root,
    one commented line per term the checker reads wrong.
-9. **GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree has to name a code
+11. **GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree has to name a code
    [GLOSSARY.md](GLOSSARY.md) defines, and every entry has to be referenced.
    Codes are matched, not titles; matched anywhere on a line, so keep the code
    on the same line as the marker.
-10. **The settings roster**: every name the tree treats as a setting
+12. **The settings roster**: every name the tree treats as a setting
    (`_HI_TOGGLES` in `common/core.sh`, the variable column of
    every `_HI_*_PROMPTS` table in `scripts/configure.sh`) has
    a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table, and
    every row there names a variable the tree still reads. Only that section is
    matched. A name assembled at run time (`_HI_PROMPT_END_$SHELL`) is matched
    by its literal prefix.
-11. **tests/dockerfiles/**: every image definition has a caller and vice versa.
-12. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`bash:3.2` named
+13. **tests/dockerfiles/**: every image definition has a caller and vice versa.
+14. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`debian:bullseye-slim`/`bash:3.2`/`ubuntu:24.04` named
     as a plain tag in shell or YAML agrees with the digest-pinned version in
     `tests/dockerfiles`.
 
-Halves 5 to 8 skip yellow when the tool isn't installed locally; CI always
-enforces them.
+Halves 3, 4 and 7 to 10 skip yellow when their tool (docker, shfmt,
+checkbashisms, mandoc, typos) isn't installed locally; CI always enforces them.
+The two floors are the exception to the skip rule in one direction: with docker
+*present*, an image that will not build is a **failure**, not a skip. The base
+is digest-pinned and the only other thing in either file is an apt install with
+a version assertion on it, so "would not build" means the distro moved off the
+version that floor claims to be — which is the news the check exists to carry.
 
 ## Relaying
 

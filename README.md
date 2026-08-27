@@ -17,6 +17,9 @@ current state is not a representation of final, published quality.
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 ![bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
+![zsh](https://img.shields.io/badge/zsh-5.8%2B-C63D14)
+![fish](https://img.shields.io/badge/fish-3.7%2B-4AAE9B)
+![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
 **One config directory to rule them all, uniting all shells from all hosts!**
@@ -38,6 +41,11 @@ hi some-host                   # ssh, with your prompt, aliases and editors alon
 container, a nomad allocation or a kubernetes pod by name — lands you in a
 session that looks like your own shell, and removes every trace when you
 leave. `hi <TAB>` lists all of them. Nothing is installed on the far end.
+
+`hi <name> <command ...>` runs one command instead, **inside** that session —
+so it has hi's aliases and environment, and it runs on a pty when your stdin is
+one. Only the command's output goes to stdout. When you want a plain,
+pty-free remote command, that is still `ssh`'s job.
 
 ## Contents
 
@@ -141,11 +149,23 @@ waiting on a menu nobody can answer.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
   shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), plus
-  `docker`/`podman`/`nomad`/`kubectl` for those backends.
+  `ssh` itself for ssh targets and
+  `docker`/`podman`/`nomad`/`kubectl` for those backends. hi never speaks a
+  protocol of its own — `ssh` is the transport, and `base64` is armor, not
+  crypto ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod
   targets. `bash` gets the full experience; without it `hi` lands you in the
   best shell the target has, with a smaller session — see
   [Compatibility](#compatibility).
+- **The other two shells** hi styles have floors of their own, and both are
+  checked on every run rather than claimed. `tests/lint` builds a pinned
+  container for each and re-checks the files that shell reads, because a
+  developer's own shell is newer than the floor and will accept what the floor
+  rejects. **fish 3.7+** (Ubuntu 24.04's, and CI's) is parsed; **zsh 5.8+**
+  (Debian oldstable's) is parsed *and* sourced, since zsh's risky constructs
+  fail at runtime rather than at parse time — the check asks for a prompt, the
+  aliases, a resolved host color and the prompt separator. See
+  [docs/TESTING.md](docs/TESTING.md).
 - **bash 3.2** is the floor on both ends (macOS still ships it), so hi uses no
   bash-4-only construct: no `mapfile`/`readarray` (`_hi_read_lines` in
   `common/core.sh` does that job), associative arrays, namerefs or `${x,,}`.

@@ -195,6 +195,34 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
     client half.
 
+- [ ] **Dismiss Scorecard's Pinned-Dependencies findings, with the reason** —
+      _scope: a handful of clicks in the Security tab; outside this checkout._
+      `scorecard.yml` uploads its SARIF to code scanning, so every `RUN apt-get
+      install` / `apk add` / `dnf install` in `tests/dockerfiles/` arrives as a
+      **medium** Pinned-Dependencies alert. There is nothing to fix in the tree:
+      the question was already answered the other way round, on purpose, and
+      `.hadolint.yaml` carries the argument in full under its `DL3008`/`DL3018`
+      ignores — the base image is pinned **by digest**, which fixes the whole
+      package set at once and is maintainable because dependabot watches it,
+      where pinning each package individually would freeze dozens of versions
+      nothing watches. Scorecard cannot see that file, so it re-raises the same
+      finding every week.
+
+  - **What did change**, because it was a real gap rather than the same
+    argument: `fish37.Dockerfile` and `zsh58.Dockerfile` exist to *be* a
+    version, and nothing was holding them to it. Both now assert it
+    (`fish --version | grep -qE '^fish, version 3\.7\.'` and the zsh
+    equivalent) instead of pinning an exact `fish=3.7.0-1`, which would break
+    the build outright the day the distro ships a security update. A floor whose
+    version can drift is not a floor; a floor that fails to build is worse,
+    because it stops running instead of failing — so the lint half treats an
+    unbuildable floor image as a failure rather than a skip.
+  - **Do not "fix" it by pinning every package.** If that argument is ever
+    reopened, reopen it in `.hadolint.yaml` where it is written down, and change
+    both places together — not by silently satisfying one tool.
+  - The alerts are dismissible as *used in tests* / *won't fix* with that
+    reason attached, which is the outcome this entry is asking for.
+
 - [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
       and one README line either way, with nothing to judge before 2026-08-25;
       outside this checkout._ `scorecard.yml` runs weekly with

@@ -253,7 +253,7 @@ default that nothing is written to a target outside its own temp directory.
 
 ## Usability
 
-### U1. `hi host cmd` is not `ssh host cmd`, though `--help` says it is
+### U1. FIXED. `hi host cmd` is not `ssh host cmd`, though `--help` says it is
 
 `_hi_parse` turns the trailing words into `CMDARG="cmd; exit"` and runs it
 _inside the interactive rc_ on a pty (`hi.sh:399`, `hi.sh:908`). So:
@@ -269,7 +269,27 @@ does not. Either make the command form `exec ssh "$@"` verbatim (no payload,
 no pty) or document it as "runs the command in a hi session" and keep the
 banner off stdout.
 
-### U2. macOS client → Linux target lands in the PowerShell fallback
+**Done — the second option, because the first deletes the feature.** Running
+the command *inside* the session is the point of it (hi's aliases and
+environment), and the test suite's own probes depend on it. So the defects were
+fixed and the claim corrected rather than the behaviour thrown away:
+
+- **stdout carries only the command's output.** The size prefix both transports
+  printed, and every `hi failed`/diagnostic line, moved to stderr. Measured:
+  `hi <container> 'echo HELLO' 2>/dev/null | od -c` is now exactly
+  `H E L L O \n` and was ` 3 3 K \r \r \r \r <ESC>[1;31mhi failed…`.
+- **The pty is conditional** (`_HI_TTY`, defaulting to `[ -t 0 ]`). This was
+  worse than "mangles binary": `docker exec -it` *refuses* when stdin is a
+  pipe, so `hi <container> <cmd> | …` failed at the transport before the
+  command ran. 20KB of `/dev/urandom` now round-trips md5-identical.
+  Dropping `-t` also exposed a second bug — the container arm's
+  `bash --rcfile` had no `-i`, so it was interactive only by accident of the
+  tty, and without one it ignored the rcfile and ran nothing. `-i` is now
+  spelled out the way the ssh arm always did.
+- **`--help` and the README** now say what it actually does, and point at
+  plain `ssh` for a pty-free remote command.
+
+### U2. FIXED. macOS client → Linux target lands in the PowerShell fallback
 
 `boot_tmp="$(mktemp -u -t hi.boot.XXXXXX)"` (`hi.sh:682`) is resolved on the
 _client_ and then used as the path of a `mkdir -m 700` (no `-p`) on the
@@ -282,6 +302,17 @@ that runs `powershell` on a Linux server. Verified locally:
 `127.0.0.1`, where the directory happens to exist, so CI cannot see it. The
 container path already does this right ("a literal /tmp: created inside the
 container", `hi.sh:751`); the ssh path needs the same.
+
+**Done, and the target names it now.** Rather than picking a literal `/tmp`,
+the first ssh call runs `mktemp -d` on the *target* and prints the path back
+behind a `HIBOOT:` marker; the client validates it (absolute, and drawn from
+the characters a temp path is made of) before interpolating it into the second
+call. `mktemp -d` also creates at 0700, so the mode no longer rides a separate
+`mkdir` flag. Two guards keep it: `tests/hi/remote_test.sh` asserts the probe
+mktemps target-side and that a macOS-shaped `$TMPDIR` never appears in it, and
+the ssh e2e suite was re-run end to end with a client `$TMPDIR` that exists
+locally and on no target — 23/23, where the old code would have taken the
+PowerShell branch every time.
 
 ### U3. The connect is chatty and the failure mode is worse
 

@@ -117,7 +117,19 @@ export _HI_DISABLE_LOCAL
 export _HI_REMOTE_SESSION
 
 # core.sh's _HI_TOGGLES minus the gate's own two inputs, spelled out because
-# this dialect can't loop; paths_test.sh pins the two lists together.
+# this dialect can't loop; paths_test.sh pins the two lists together. The last
+# line is core.sh's _HI_OPT_INS, the other polarity: "all of the above, off"
+# means 0 for a setting that ships off, not 1. _HI_GRAFT_RC is deliberately not
+# among them - it only ever means anything on a target, and this gate is about
+# the local machine.
+#
+# NOTHING INSIDE THE BRACES BUT `export NAME=value` LINES - no comments, blank
+# lines are fine. fish parses this file, and to fish `{` opens a *brace
+# expansion*, not a block: it scans for the matching `}` with `#` carrying no
+# comment meaning in between, so a comment in there is just text with commas
+# and apostrophes in it and the file dies with "Mismatched braces". fish 4
+# accepts it; fish 3.7 - Ubuntu 24.04's, and CI's - does not, which is what
+# tests/lint's fish-floor case is for.
 [ "$_HI_DISABLE_LOCAL" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && {
   export _HI_DISABLE_HEADER=1
   export _HI_DISABLE_PROMPT=1
@@ -127,8 +139,5 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_NOTIFY=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_BAT_ALIAS=1
-  # core.sh's _HI_OPT_INS, the other polarity: "all of the above, off" means 0
-  # for a setting that ships off, not 1. _HI_GRAFT_RC is not here - it only
-  # ever means anything on a target, and this gate is the local machine.
   export _HI_SCRATCH_HISTORY=0
 } || true
