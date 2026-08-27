@@ -216,7 +216,7 @@ function identity() {
       _hi_read_lines lines <"$_HI_PROBE_DIR/kube"
       ((${#lines[@]} > 0)) && pods="Pods: ${#lines[@]}"
     fi
-    rm -rf "$_HI_PROBE_DIR"
+    command rm -rf "$_HI_PROBE_DIR"
     _HI_PROBE_DIR=""
   fi
   [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_read_lines lines <"$_HI_SSH_AUTHORIZED_KEYS" && authorized=${#lines[@]}

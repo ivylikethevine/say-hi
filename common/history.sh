@@ -14,5 +14,5 @@ if [ -z "${_HI_TMPDIR:-}" ]; then
   export _HI_TMPDIR
   # GLOSSARY: HI.14 - bash's `trap ... EXIT` vs zsh's TRAPEXIT
   # shellcheck disable=SC2016 # $_HI_TMPDIR is resolved when the trap fires, not now
-  _hi_on_exit 'rm -rf "$_HI_TMPDIR"'
+  _hi_on_exit 'command rm -rf "$_HI_TMPDIR"'
 fi

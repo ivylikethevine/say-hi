@@ -48,7 +48,7 @@ if test "$_HI_SCRATCH_HISTORY" = 1
     set -gx _HI_TMPDIR (command mktemp -d -t hi.history.XXXXXX)
   end
   function __hi_history_cleanup --on-event fish_exit
-    rm -rf $_HI_TMPDIR
+    command rm -rf $_HI_TMPDIR
   end
   function __hi_history_postexec --on-event fish_postexec
     echo $argv[1] >> $_HI_TMPDIR/fish_history

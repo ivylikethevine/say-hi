@@ -303,7 +303,7 @@ function _hi_sanitize_var() {
 # GLOSSARY: HI.09
 function _hi_write_back() {
   cat "$1" >"$2"
-  rm -f "$1"
+  command rm -f "$1"
 }
 
 # _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.
