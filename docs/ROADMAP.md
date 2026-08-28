@@ -164,32 +164,39 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
   - Dismiss as _used in tests_ / _won't fix_ with that reason attached.
 
 - [ ] **Get the Scorecard badge actually publishing, then decide whether to
-      keep it** — _scope: a scheduled run to confirm the fix, outside this
-      checkout._ The 2026-08-25 cron fired and the job went green, but
-      neither `api.scorecard.dev` nor `api.securityscorecards.dev` carried
-      say-hi (both 404 on a direct fetch); a comparable project publishes
-      fine on `api.scorecard.dev`, so the mechanism works, just not for this
-      repo yet.
+      keep it** — _scope: a workflow_dispatch run to confirm the fix, outside
+      this checkout._ Through 2026-08-27 every Scorecard run on this repo went
+      green but neither `api.scorecard.dev` nor `api.securityscorecards.dev`
+      carried say-hi (both 404 on a direct fetch, cache-buster included); a
+      comparable project (sharerr-rs) publishes fine on `api.scorecard.dev`,
+      so the mechanism works, just not for this repo yet.
 
-  - Root cause: the runner. `ossf/scorecard-action`'s publishing
-    requirements say the job must run on an Ubuntu-hosted runner —
-    `scorecard.yml` ran on the same self-hosted-capable fallback as every
-    other workflow, so it went green while `publish_results`'s OIDC
-    submission was silently rejected. Every other constraint already checked
-    out (no workflow/job `env` or `defaults`, no write permissions beyond
-    top-level `read-all`, the four steps are exactly the publishing
-    allowlist). Fixed: `scorecard.yml` now pins a bare `ubuntu-latest` (moot
-    anyway now that the whole tree is hosted-only, see
-    [SELFHOSTED-RUNNERS.md](SELFHOSTED-RUNNERS.md)).
-  - Do: watch the next Tuesday 07:41 UTC run and check both endpoints again.
+  - Root cause: not the runner — the literal text of `runs-on:`.
+    `publish_results` has `ossf/scorecard-webapp` re-fetch `scorecard.yml` at
+    the run's commit and check it with a static parser (actionlint) that
+    never evaluates `${{ }}` expressions. Every run through 53c1629 (2026-08-27)
+    had `runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}`; the webapp saw
+    that literal string, failed its `^ubuntu-(latest|NN.NN)(-arm)?$` check,
+    and rejected the submission — while the job itself landed on a hosted
+    `ubuntu-latest` runner (confirmed on the job's own `runs-on.labels`) and
+    went green regardless. Every other constraint already checked out (no
+    workflow/job `env` or `defaults`, no write permissions beyond top-level
+    `read-all`, the four steps are exactly the publishing allowlist). Fixed:
+    `scorecard.yml` now pins a bare `ubuntu-latest` (moot anyway now that the
+    whole tree is hosted-only, see
+    [SELFHOSTED-RUNNERS.md](SELFHOSTED-RUNNERS.md)) — landed in `a51485db`
+    (2026-08-28), after the last run, so not yet exercised.
+  - Do: dispatch the workflow (`workflow_dispatch` publishes too, gated only
+    on the event not being `pull_request` — no need to wait for the Tuesday
+    07:41 UTC cron) and check both endpoints again.
   - Then decide if showing it helps: Code-Review and CI-Tests dominate the
     score and a solo maintainer can't move either; CII-Best-Practices moved
     out of that unmovable set once CONTRIBUTING.md shipped; the rest is
     settled (SAST counts `codeql.yml`'s `actions` pack, no Fuzzing target in
     a shell tree).
-  - **Ticks when:** a scheduled run publishes a real score, and a decision
-    is written down either way — the badge stays with a sentence here saying
-    why, or comes out of the README.
+  - **Ticks when:** a run publishes a real score, and a decision is written
+    down either way — the badge stays with a sentence here saying why, or
+    comes out of the README.
 
 - [ ] **tldr page** — _scope: one upstream pull request; the gate it waited
       on has lifted; outside this checkout._ The CLI surface is frozen: all
