@@ -146,8 +146,8 @@ XDG base, was decided against on 2026-08-24. The config lives at
   most.** It drops spec compliance silently for anyone who has moved
   `$XDG_CONFIG_HOME`, and puts another dotdir in `$HOME`, which is what XDG
   exists to stop.
-- **The cost is not the one-line derivation.** 29 files carry the literal path
-  or the XDG base across 57 occurrences — the docs, `docs/hi.1`, the formula,
+- **The cost is not the one-line derivation.** 33 files carry the literal path
+  or the XDG base across 81 occurrences — the docs, `docs/hi.1`, the formula,
   the demo tapes and fixtures — plus a migration for every existing install,
   plus the suite's isolation trick (`tests/test_lib.sh` points
   `$XDG_CONFIG_HOME` at a scratch directory, and six suites depend on that).
