@@ -269,8 +269,9 @@ set -e __hi_n
 
 # hi's git segment: the fish half of what common/git_prompt.sh does for bash
 # and zsh, and tests/hi/prompt_test.sh pins its glyphs and colors against
-# core.sh. Product, not taste, so it is unconditional - it used to ride
-# $_HI_DISABLE_PERSONAL, which no longer exists.
+# core.sh. Product, not taste, so it is unconditional - there is no toggle
+# for it, the way there is for the other per-shell personal preferences
+# docs/CONFIGURATION.md explains hi stopped shipping.
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes

@@ -467,12 +467,39 @@ function test_setting_off_respects_custom_off_value() {
 }
 
 # the line as config_shell really writes it: marker-padded, unquoted - the
-# spelling hi.sh's payload trim once could not read
+# exact spelling hi.sh's payload trim has to read correctly
 function test_setting_off_reads_marker_padded_line() {
   local target="$_HI_WORKDIR/padded"
   printf '%-45s %s\n' 'export _HI_DISABLE_FOO=1' "$_HI_MARKER" >"$target"
   setting_off _HI_DISABLE_FOO "$target" &&
     [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
+}
+
+# _hi_setting_get sources the file for real now rather than hand-scanning
+# `export NAME=value` text: a computed value real bash would honour reads the
+# same way here, exactly as a settings.sh sourced on a target would resolve it.
+function test_setting_get_reads_a_computed_value() {
+  local target="$_HI_WORKDIR/computed"
+  # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
+  printf 'export _HI_DISABLE_FOO=$((1))\n' >"$target"
+  [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
+}
+
+# ...and a two-statement assignment, which never matched the old parser's
+# `export NAME=` line-start check at all
+function test_setting_get_reads_a_two_statement_assignment() {
+  local target="$_HI_WORKDIR/twostatement"
+  printf '_HI_DISABLE_FOO=1\nexport _HI_DISABLE_FOO\n' >"$target"
+  [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
+}
+
+# a settings.sh that references another real variable ($_HI_CONFIG_DIR, say)
+# still resolves normally - only the queried name is unset going in
+function test_setting_get_leaves_other_variables_ambient() {
+  local target="$_HI_WORKDIR/ambient"
+  # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
+  printf 'export _HI_DISABLE_FOO="$_HI_CONFIG_DIR/marker"\n' >"$target"
+  [ "$(_HI_CONFIG_DIR=/probe-dir _hi_setting_get "$target" _HI_DISABLE_FOO)" = /probe-dir/marker ]
 }
 
 # Written even for a tree at the default location: nothing defaults to $HOME
@@ -1155,6 +1182,11 @@ function run_install_tests() {
   _hi_check "Off when off-value present" test_setting_off_true_when_off_present
   _hi_check "Respects a custom off value" test_setting_off_respects_custom_off_value
   _hi_check "Reads the marker-padded line config_shell writes" test_setting_off_reads_marker_padded_line
+
+  _hi_h2 "Testing: _hi_setting_get sources the file for real"
+  _hi_check "Reads a computed value" test_setting_get_reads_a_computed_value
+  _hi_check "Reads a two-statement assignment" test_setting_get_reads_a_two_statement_assignment
+  _hi_check "Leaves other variables ambient" test_setting_get_leaves_other_variables_ambient
 
   _hi_h2 "Testing: tmpdir_line"
   _hi_check "States the tree even at \$HOME" test_tmpdir_line_states_the_tree_even_at_home

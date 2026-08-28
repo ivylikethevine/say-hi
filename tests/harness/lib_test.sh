@@ -469,7 +469,7 @@ function test_real_path_falls_back_to_a_wrapper_when_ln_fails() {
 }
 
 # and the build-once guard must not hand a later caller the empty directory a
-# failed build used to leave behind
+# failed build would otherwise leave behind
 function test_real_path_never_caches_an_empty_toolbox() {
   local first second
   first="$(

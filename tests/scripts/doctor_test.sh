@@ -204,6 +204,26 @@ function test_target_falls_through_to_ssh() {
   [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]]
 }
 
+# --docker forces the arm and skips the probe chain entirely: "ghostbox" would
+# fall through to ssh unforced (nothing answers for it), but a forced backend
+# reports it as a container without ever asking whether one is running.
+function test_target_honors_a_forced_backend() {
+  local out
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
+  _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=docker doctor_target ghostbox)"
+  [[ "$out" == *"resolves"*"docker container"*"forced by --docker"* && "$out" != *checked* ]]
+}
+
+# --ssh overrides the other way too: "runningbox" answers docker's predicate
+# (test_target_resolves_a_running_container relies on exactly that), and a
+# forced --ssh has to win over it rather than the roster ever being asked.
+function test_forced_ssh_overrides_a_real_container() {
+  local out
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_ROOT="" HI_FAKE_TOOLS="base64 bash " \
+  _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target runningbox)"
+  [[ "$out" == *"resolves"*"ssh host (forced by --ssh)"* && "$out" == *"connect"*ok* ]]
+}
+
 function test_ssh_target_reports_a_permanent_install() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_ROOT=/home/u/say-hi \
@@ -288,6 +308,19 @@ d = json.load(sys.stdin)
 assert d["target"] == "run\"ning\\box", d["target"]
 '
 }
+
+# --plain has nothing for doctor to report (it never connects), but it is a
+# real hi.sh flag now - the arg loop has to consume it rather than fall
+# through to _HI_DOC_TARGET the way an unrecognized word otherwise would
+function test_plain_flag_is_not_mistaken_for_the_target() {
+  local out
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --plain runningbox)"
+  printf '%s' "$out" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["target"] == "runningbox", d["target"]
+'
+}
 # a bad row lands in findings and in the exit code alike, and the document
 # still parses around it. The finding is the ssh target with no base64 - the
 # shim answers the tool probe with nothing when $HI_FAKE_TOOLS is unset. (Not
@@ -354,6 +387,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: --json"
   _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
   _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
+  _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
   _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
   _hi_check "Off by default" test_json_is_off_by_default
 

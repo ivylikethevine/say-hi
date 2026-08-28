@@ -10,9 +10,9 @@
 #
 # Built on tests/common/rc_test.sh's _hi_rc_shell pattern: a fresh shell under
 # `env -i`, HOME and _HI_CONFIG_DIR pointed into the workdir so nothing local
-# leaks in. rc_test.sh used to carry a zsh HISTFILE row of its own, proving hi
-# shipped no history preference at all; that coverage lives here now that there
-# is a setting which can ask for one.
+# leaks in. A zsh HISTFILE row in rc_test.sh once proved hi shipped no history
+# preference at all; that coverage lives here now that there is a setting
+# which can ask for one.
 #
 # GLOSSARY: HI.30 + HI.34. The single-quoted scripts are expanded by the
 # *child* shell, which is the whole point (SC2016).

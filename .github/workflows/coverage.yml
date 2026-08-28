@@ -26,7 +26,7 @@ permissions:
 jobs:
   kcov:
     name: kcov over the fast suites
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,8 +68,8 @@ jobs:
       # is a 90-day artifact somebody downloads, this is a number the site
       # re-reads on every deploy until the next coverage run replaces it.
       #
-      # sed, not jq: the self-hosted runner is not guaranteed to have jq. The
-      # anchor is load-bearing - kcov writes "percent_covered" nineteen times
+      # sed, not jq: one dependency fewer for the same job. The anchor is
+      # load-bearing - kcov writes "percent_covered" nineteen times
       # in this file, once per traced file inline inside a `{...}`, and once
       # for the whole run on a line of its own. Only the aggregate starts a
       # line, so `^[[:space:]]*` is what picks it out; without it the first

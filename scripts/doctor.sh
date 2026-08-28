@@ -27,7 +27,7 @@ unset _hi_d
 case "${1:-}" in
 -h | --help)
   cat <<'EOF'
-Usage: doctor.sh [--json] [target]
+Usage: doctor.sh [--json] [--ssh|--docker|--podman|--nomad|--kube] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -42,7 +42,10 @@ Prints, in order:
                      remote end has installed
 
 ssh options are not accepted here - the probe uses your ssh config as-is,
-which is exactly what completion and the header do.
+which is exactly what completion and the header do. A backend flag names the
+target's arm outright, the same one a real `hi --docker <target>` would take,
+and skips the probe chain in the target report. --plain is accepted and
+ignored - doctor never connects, so it has nothing to report.
 
 --json prints the same report as one JSON document instead - what a bug
 report should carry:
@@ -56,21 +59,39 @@ EOF
 esac
 
 # hi.sh's source hatch hands over everything this needs without connecting
-# anywhere: the backend predicates, _hi_remote_root and $_HI_PAYLOAD.
-# --json and the target may come in either order: `hi --doctor --json host`
-# reads naturally, and so does `hi --doctor host --json` appended after the fact
+# anywhere: the backend predicates, _hi_remote_root, $_HI_PAYLOAD and
+# _hi_backend_flag. The args are saved before the source line clears "$@" (hi.sh
+# reads it at source time, and must see none) and classified after, so a
+# backend flag is recognized through the one place that spells the roster
+# rather than a second list here.
 _HI_DOC_TARGET=""
 _HI_DOC_JSON=0
-for _hi_arg in "$@"; do
-  case "$_hi_arg" in
-  --json) _HI_DOC_JSON=1 ;;
-  *) _HI_DOC_TARGET="$_hi_arg" ;;
-  esac
-done
-unset _hi_arg
-set -- # hi.sh reads "$@" at source time; it must see none
+_HI_DOC_BACKEND=""
+_hi_doc_args=("$@")
+set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
+
+# --json, the target and a backend flag may come in any order: `hi --doctor
+# --json host`, `hi --doctor host --json`, `hi --doctor --docker host` all read
+# naturally.
+for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
+  case "$_hi_arg" in
+  --json) _HI_DOC_JSON=1 ;;
+  # doctor never connects, so --plain has nothing to report and is silently
+  # accepted rather than misread as the target name it would otherwise fall
+  # through to below
+  --plain) ;;
+  *)
+    if _hi_bf="$(_hi_backend_flag "$_hi_arg")"; then
+      _HI_DOC_BACKEND="$_hi_bf"
+    else
+      _HI_DOC_TARGET="$_hi_arg"
+    fi
+    ;;
+  esac
+done
+unset _hi_arg _hi_bf _hi_doc_args
 
 _HI_DOC_BAD=0
 # the section the rows below belong to, and the JSON rows collected so far -
@@ -190,10 +211,10 @@ function doctor_local() {
     doctor_row checkout "no .git - a package-manager install (hi --update will say so too)"
   fi
   # A machine missing the floor cannot ship a payload, so the size below is
-  # not a number worth printing - and computing it anyway is what used to
-  # answer `hi --doctor` with a pair of raw "base64: command not found" lines
-  # from inside _hi_wire_bytes, on the one run whose whole job is to say what
-  # is wrong with this machine. Named here, once, and the size step skipped.
+  # not a number worth printing - computing it anyway would answer
+  # `hi --doctor` with a pair of raw "base64: command not found" lines from
+  # inside _hi_wire_bytes, on the one run whose whole job is to say what is
+  # wrong with this machine. Named here, once, and the size step skipped.
   missing="$(_hi_missing_tools "${_HI_LOCAL_FLOOR[@]}")"
   nice_missing="$(_hi_missing_tools "${_HI_LOCAL_NICE[@]}")"
   if [ -n "$missing" ]; then
@@ -269,9 +290,9 @@ function doctor_config() {
 }
 
 # The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS
-# (sourced above) - the very rows _hi dispatches on, so this report can't
-# drift from the dispatch the way a copy here once did. doctor_backends
-# probes column 3, doctor_target times column 4.
+# (sourced above) - the very rows _hi dispatches on, reading the roster
+# directly rather than a copy of it that could drift from the dispatch.
+# doctor_backends probes column 3, doctor_target times column 4.
 
 # doctor_backend <name> <cli> <probe...> - installed, answering, and how long
 # the answer took; the same _hi_probe ceiling the header and completion use
@@ -321,29 +342,48 @@ function doctor_backends() {
 # ssh leads (its predicate isn't a backend row), then the roster in order
 function doctor_target() {
   local target="$1" kind="" label="" pair row name what predicate t0 t1
-  # the label rides along beside the human name: doctor_container_target needs
-  # "docker", not "docker container", to build the same exec the session would
-  local -a chain=("ssh host::_hi_is_ssh_host")
-  for row in "${_HI_BACKENDS[@]}"; do
-    IFS='|' read -r name what _ predicate <<<"$row"
-    chain+=("$what:$name:$predicate")
-  done
   doctor_section target "Target: $target"
-  for pair in "${chain[@]}"; do
-    IFS=':' read -r name label predicate <<<"$pair"
-    t0="$(_hi_now)"
-    if "$predicate" "$target" >/dev/null 2>&1; then
-      t1="$(_hi_now)"
-      kind="$name"
-      doctor_row resolves "$name ($(_hi_elapsed "$t0" "$t1")s)" ok
-      break
+  if [ -n "${_HI_DOC_BACKEND:-}" ]; then
+    # a forced arm skips the probe chain below entirely - the point of the
+    # flag is to not run it
+    if [ "$_HI_DOC_BACKEND" = ssh ]; then
+      kind="ssh host"
+      doctor_row resolves "ssh host (forced by --ssh)" ok
+    else
+      for row in "${_HI_BACKENDS[@]}"; do
+        IFS='|' read -r name what _ _ <<<"$row"
+        [ "$name" = "$_HI_DOC_BACKEND" ] || continue
+        kind="$what"
+        label="$name"
+        doctor_row resolves "$what (forced by --$name)" ok
+        break
+      done
     fi
-    t1="$(_hi_now)"
-    doctor_row checked "not a $name ($(_hi_elapsed "$t0" "$t1")s)"
-  done
-  if [ -z "$kind" ]; then
-    doctor_row resolves "nothing matched - hi would hand it to ssh anyway"
-    kind="ssh host"
+  else
+    # the label rides along beside the human name: doctor_container_target
+    # needs "docker", not "docker container", to build the same exec the
+    # session would
+    local -a chain=("ssh host::_hi_is_ssh_host")
+    for row in "${_HI_BACKENDS[@]}"; do
+      IFS='|' read -r name what _ predicate <<<"$row"
+      chain+=("$what:$name:$predicate")
+    done
+    for pair in "${chain[@]}"; do
+      IFS=':' read -r name label predicate <<<"$pair"
+      t0="$(_hi_now)"
+      if "$predicate" "$target" >/dev/null 2>&1; then
+        t1="$(_hi_now)"
+        kind="$name"
+        doctor_row resolves "$name ($(_hi_elapsed "$t0" "$t1")s)" ok
+        break
+      fi
+      t1="$(_hi_now)"
+      doctor_row checked "not a $name ($(_hi_elapsed "$t0" "$t1")s)"
+    done
+    if [ -z "$kind" ]; then
+      doctor_row resolves "nothing matched - hi would hand it to ssh anyway"
+      kind="ssh host"
+    fi
   fi
   if [ "$kind" = "ssh host" ]; then
     doctor_ssh_target "$target"

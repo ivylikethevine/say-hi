@@ -303,15 +303,16 @@ function test_remote_preamble_ships_the_glyph_verdict() {
 
 # Every value the preamble exports is data the client picked up rather than
 # code it wrote: $DOMAIN off argv, $_HI_TARGET_TAG out of a free-text ssh_config
-# comment, $_HI_RELEASE off `git describe`. Interpolated raw they were the
-# target's to *execute* - `hi 'a$(id)b'` used to render
-# `export _HI_TARGET="a$(id)b"` - so the assertion is a round trip through a
-# real sh rather than a match on the rendered text: whatever the name was, that
-# is what has to arrive.
+# comment, $_HI_RELEASE off `git describe`. Interpolated raw, they are the
+# target's to *execute* - `hi 'a$(id)b'` rendering as
+# `export _HI_TARGET="a$(id)b"` is exactly the injection quoting has to
+# prevent - so the assertion is a round trip through a real sh rather than a
+# match on the rendered text: whatever the name was, that is what has to
+# arrive.
 #
 # _HI_MEAN is deliberately every character that ends a quoted word in either
-# dialect, since the two transports used to quote differently and only one of
-# them could be wrong at a time.
+# dialect, so a quoting bug specific to one transport cannot hide behind
+# coverage aimed at the other.
 _HI_MEAN='we$(id)ird"ho'\''st`whoami`\\%s'
 
 function _hi_preamble_env_value() { # <name> - what the preamble delivers, via sh

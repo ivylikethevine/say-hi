@@ -206,11 +206,10 @@ function bench_payload_readme_badge() {
 # The probes above run with $HOME pointed at the scratch dir, so a rootless
 # podman answering `podman ps` initialises its storage under it - and the
 # overlay dirs it leaves behind belong to a subuid, which the generic
-# `rm -rf "$_HI_WORKDIR"` cannot remove ("Permission denied" on .../work/work,
-# and a directory left in $TMPDIR for good on a self-hosted runner). `podman
-# unshare` re-enters the user namespace they were made in, which is the only
-# way this user can take them back. Runs before the generic teardown, because
-# that is the rm it exists to let succeed.
+# `rm -rf "$_HI_WORKDIR"` cannot remove ("Permission denied" on .../work/work).
+# `podman unshare` re-enters the user namespace they were made in, which is
+# the only way this user can take them back. Runs before the generic
+# teardown, because that is the rm it exists to let succeed.
 function _hi_bench_cleanup() {
   [ -n "$_HI_WORKDIR" ] && [ -d "$_HI_WORKDIR/.local/share/containers" ] || return 0
   command -v podman >/dev/null 2>&1 || return 0

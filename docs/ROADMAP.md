@@ -56,9 +56,9 @@ single chain — the release below unblocks the channels after it.
       (warns for one minor, then goes). The same commit fills SECURITY.md's
       _Supported versions_ placeholder.
 
-**The AUR is excluded on purpose.** Registration is closed to new accounts
-because of spam; v1 should not wait on somebody else's spam problem. Its entry
-stays under [Blocked until someone else moves](#blocked-until-someone-else-moves).
+**The AUR is excluded on purpose** — v1 should not wait on somebody else's
+spam problem. Why, and what happens when it lifts, is its own entry under
+[Blocked until someone else moves](#blocked-until-someone-else-moves).
 
 ## Quick wins
 
@@ -72,11 +72,11 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
       Scorecard's highest-severity finding. What has not happened is a release
       under it.
 
-  - **The code half has shipped.** `publish` no longer pushes to `main`: it
-    writes the regenerated `PKGBUILD`, `.SRCINFO` and `say-hi.rb` onto a
-    `manifests-<tag>` branch and opens a pull request, on the `tap` job's
-    precedent. The release does not wait on that merge — `tap` and `aur` read
-    the manifests out of the `packages` artifact.
+  - **The code half has shipped.** `publish` writes the regenerated
+    `PKGBUILD`, `.SRCINFO` and `say-hi.rb` onto a `manifests-<tag>` branch and
+    opens a pull request rather than pushing to `main` directly, on the `tap`
+    job's precedent. The release does not wait on that merge — `tap` and
+    `aur` read the manifests out of the `packages` artifact.
   - **Confirm one setting before the first tag.** A workflow can only open that
     pull request if _Settings → Actions → General → Allow GitHub Actions to
     create and approve pull requests_ is on. Off, `gh pr create` fails at the
@@ -104,33 +104,6 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     generated notes turn out not to be enough.
   - **Ticks when:** a release has gone out whose body names what changed as
     well as how to check it, with nobody hand-writing the list.
-
-- [ ] **Get a demo render onto the site** — _scope: one `publish` run to read;
-      the code half has shipped; outside this checkout._ `demos.yml`'s
-      `publish` job renders every tape but `demo`, `pages.yml` lays the result
-      over the site, seven GIFs are out of the tree, and README and
-      [CONFIGURATION.md](CONFIGURATION.md) link them at their published URLs.
-      `docs/demos/demo.gif` stays committed on purpose — it is the
-      hand-rendered one, and `.githooks/demo_staleness.sh` says when it has
-      gone stale.
-
-  - **All of those URLs 404 today**: `publish` had four runs (most
-    recently 2026-08-24), every one red at _Render every tape but demo_,
-    because the job assumed a self-hosted renderer and fell back to a hosted
-    runner where all but one of the tapes had no backend. `pages.yml` serves the
-    newest **successful** run's `demo-gifs` artifact, so there has never been
-    one to serve.
-  - **What shipped.** `publish` installs podman, nomad and kind on a hosted
-    runner by the same steps `ci.yml`'s `e2e-backends` job uses;
-    `RUNNER_LABEL` is a speed-up now, not a requirement.
-  - **Do:** dispatch `demos.yml` (it never runs on a pull request). Watch the
-    first hosted render for the renderer's own dependencies — a tape opening
-    `Set Shell zsh` wants that shell on the recording machine, `pick.tape`
-    wants `fzf`, and a kind cluster on a two-core hosted runner has never been
-    timed (the job's timeout is 60 minutes for that reason).
-  - **Ticks when:** a `publish` run has been green end to end and all eight
-    published URLs serve an image — README's seven, plus the `color_preview`
-    one only [CONFIGURATION.md](CONFIGURATION.md) links.
 
 - [ ] **Confirm the tar padding fix on the macOS job** — _scope: one CI run to
       read; the code half has shipped; in-repo._ GNU tar rounds the
@@ -182,16 +155,24 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     Bash without Developer Mode. Under the shim the job's own invocation
     (`--group fast`) is green across all 25 suites with
     eleven yellow skips; without it, green with none.
-  - **What is left is a run and two settings.** `ci.yml` calls
-    `windows-client.yml` on every push to `main` as an _advisory_ job. Expect
-    twelve skips (eleven symlink, one pty) on top of the 47 zsh/fish ones, and
-    `packaging`'s _staged_launcher shims a misnamed checkout_ should **skip**,
-    not fail. It runs `--group fast` alone, since `setup-tool` resolves
-    linux/darwin slugs only and the lint group is the ubuntu job's. A Windows _client_ is deliberately not a v1.0.0
-    criterion; `windows-e2e.yml` covers the target side, which is the half the
-    tag rests on.
-  - **Ticks when:** the job is green once, the `continue-on-error` and the word
-    _advisory_ come out of `windows-client.yml`, and
+  - **What is left is a run.** `ci.yml` calls `windows-client.yml` on every
+    push to `main`, and as of 2026-08-27 that call is a real gate -
+    `continue-on-error` and the word _advisory_ are out of the workflow, so a
+    red suite there fails the job and the push (still not on the
+    required-checks list, so it doesn't block a merge yet - see the
+    release-readiness entry above). That's ahead of the thing this entry is
+    actually waiting on: no dispatch has been read against the current tree
+    with the fixture fixes below in it, only against the two 2026-08-22 runs
+    that predate them, and a local `ln`-shim simulation, neither of which is a
+    real Windows CI transcript. Expect twelve skips (eleven symlink, one pty)
+    on top of the 47 zsh/fish ones, and `packaging`'s _staged_launcher shims a
+    misnamed checkout_ should **skip**, not fail. It runs `--group fast`
+    alone, since `setup-tool` resolves linux/darwin slugs only and the lint
+    group is the ubuntu job's. A Windows _client_ is deliberately not a
+    v1.0.0 criterion; `windows-e2e.yml` covers the target side, which is the
+    half the tag rests on.
+  - **Ticks when:** a push to `main` has actually run `windows-client.yml`
+    green against current `dev`, and
     [SUPPORTED.md](SUPPORTED.md#the-targets-os)'s Windows row reads ✅ for the
     client half.
 
@@ -223,27 +204,39 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
   - The alerts are dismissible as *used in tests* / *won't fix* with that
     reason attached, which is the outcome this entry is asking for.
 
-- [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
-      and one README line either way, with nothing to judge before 2026-08-25;
-      outside this checkout._ `scorecard.yml` runs weekly with
-      `publish_results: true` and README carries the badge, but no score has
-      been published: the badge renders `invalid repo path`. The cause is
-      benign — `publish_results` only takes effect on a _scheduled_ run against
-      the default branch, the cron is `41 7 * * 2`, and the trigger landed on
-      `main` on 2026-08-19, so the first run is 2026-08-25. If the badge is
-      still an error after that, a run fired and failed; the Actions tab tells
-      those apart.
+- [ ] **Get the Scorecard badge actually publishing, then decide whether to
+      keep it** — _scope: a scheduled run to confirm the fix, outside this
+      checkout._ The 2026-08-25 cron fired and the job went green, but
+      neither `api.scorecard.dev` nor `api.securityscorecards.dev` carried
+      say-hi (both 404 on a direct fetch); a comparable project (sharerr-rs)
+      publishes fine on `api.scorecard.dev`, so the mechanism works, just not
+      for this repo yet.
 
-  - **Until then leave the README as is** — re-adding the line afterwards is a
-    second commit spent on a few days of cosmetic blemish.
-  - **The question is whether showing it helps.** Two checks a solo maintainer
-    cannot move — Code-Review and CI-Tests — dominate it, so it reads partly
-    as a verdict on headcount. CII-Best-Practices used to be unmovable and is
-    not now that `docs/CONTRIBUTING.md` has shipped. The rest of the report is
-    settled: SAST counts `codeql.yml`'s `actions` pack, Fuzzing has no target
-    in a shell tree, everything else passes.
-  - **Ticks when:** the badge either stays, with a sentence here saying why,
-    or comes back out of the README.
+  - **Root cause: the runner.** `ossf/scorecard-action`'s own publishing
+    requirements say the job **must run on an Ubuntu-hosted runner** -
+    `scorecard.yml` ran on the same self-hosted-capable fallback every other
+    workflow in the tree used for speed, so it would go green while
+    `publish_results`'s OIDC submission was silently rejected, since nothing
+    else in the job depends on the publish succeeding. Every other constraint
+    the action's docs list checked out against the file already: no workflow-
+    or job-level `env`/`defaults`, no workflow-level write permissions
+    (`read-all` at the top), and the job's four steps (`checkout`,
+    `scorecard-action`, `upload-artifact`, `codeql-action/upload-sarif`) are
+    exactly the publishing allowlist - nothing extra. Fixed: `scorecard.yml`
+    now pins a bare `ubuntu-latest` (moot anyway now that every workflow in
+    the tree is hosted-only, see
+    [docs/SELFHOSTED-RUNNERS.md](SELFHOSTED-RUNNERS.md)).
+  - **Do:** watch the next Tuesday 07:41 UTC run and check both API endpoints
+    again.
+  - **Then, the original question: does showing it help?** Two checks a solo
+    maintainer cannot move — Code-Review and CI-Tests — dominate it, so it
+    reads partly as a verdict on headcount. CII-Best-Practices moved out of
+    the unmovable set once `docs/CONTRIBUTING.md` shipped. The rest of the
+    report is settled: SAST counts `codeql.yml`'s `actions` pack, Fuzzing has
+    no target in a shell tree, everything else passes.
+  - **Ticks when:** a scheduled run has published and the badge renders a
+    real score, and a decision is written down either way - the badge stays
+    with a sentence here saying why, or comes back out of the README.
 
 - [ ] **tldr page** — _scope: one upstream pull request; the gate it waited on
       has lifted; outside this checkout._ Seven example lines reach everyone
@@ -267,14 +260,6 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
       every one of those reads as a released project in the same commit the
       tag points at.
 
-- [ ] **Check the name is free** — _scope: five minutes on Repology,
-      `apt-file search bin/hi`, Homebrew core, the AUR and
-      pkgs.alpinelinux.org; outside this checkout._ `hi` is two letters and
-      `/usr/bin/hi` is what every package installs; a distro that already
-      ships one surfaces as a file conflict only after the `.deb` is public.
-      **Ticks when:** no channel hi will publish to has a `hi` binary or a
-      `say-hi` package, or the conflict is known and named here.
-
 - [ ] **A release candidate before the tag** — _scope: one `v1.0.0-rc.1` tag
       and one decision; in-repo then outside it._ `v0.0.x` tags skip `tap` and
       `aur` by design, so today the first tag to walk `bump.sh` → manifests PR
@@ -287,21 +272,6 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
 
 Bounded work with a precedent in the tree to copy and a test or budget to
 satisfy on the way out.
-
-- [ ] **A job-started hook on the self-hosted runner** — _scope: one file and
-      one env var on that machine; the repo half has shipped; outside this
-      checkout._ The fifteen `Reclaim the workspace` steps are gone from the
-      workflows, and `.github/runner/job-started.sh` is what replaces them: the
-      same `sudo chown -R` of `$GITHUB_WORKSPACE`, run once by the runner
-      before every job via `ACTIONS_RUNNER_HOOK_JOB_STARTED` (the file's header
-      has the install commands). Nothing breaks meanwhile - `RUNNER_LABEL` is
-      unset, so every run is hosted and gets a fresh workspace.
-
-  - **Do, before pointing `RUNNER_LABEL` at the box:** install the hook there.
-    A self-hosted run without it wedges on the first root-owned file a
-    container suite leaves behind, exactly as docs/PACKAGING.md describes.
-  - **Ticks when:** the hook is installed and one self-hosted run has gone
-    through with it.
 
 - [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, and one gate re-run on a
       real Mac; outside this checkout._ Create the `homebrew-tap` repo (a plain
@@ -321,15 +291,16 @@ satisfy on the way out.
       `whois`, `pkgconf`, and tier 5 (bright red when missing) is
       `asdf`/`mise`/`direnv`/`sshpass` — so a bare Debian target warns it lacks
       PHP and .NET and shouts that it lacks `sshpass`. In `settings/aliases.sh`,
-      `cat` is rebound to `bat -P --style changes,grid`, `micro` hardcodes
-      `-colorscheme=darcula`, and `IDE`, `zed` and `now` are personal. Keep
-      the fallthrough machinery (`_HI_BATCAT_BIN` and friends); demote the
-      ranks to 1/0 and move the rebinding and colour choices to the overlay,
-      where `~/.config/say-hi/packages` and `aliases.sh` already win.
+      `micro` hardcodes `-colorscheme=darcula`, and `IDE`, `zed` and `now` are
+      personal (`cat`'s own rebind is already plain `bat`, no forced style -
+      that half is done). Keep the fallthrough machinery (`_HI_BATCAT_BIN` and
+      friends); demote the package ranks to 1/0 and move the remaining
+      rebinding and colour choices to the overlay, where
+      `~/.config/say-hi/packages` and `aliases.sh` already win.
       **Ticks when:** a stock session on a bare Debian target prints no
-      yellow or red line for a tool a server has no reason to have, `cat` is
-      `cat` unless the overlay says otherwise, and both payload numbers still
-      fit.
+      yellow or red line for a tool a server has no reason to have, `micro`
+      and the personal aliases follow the overlay, and both payload numbers
+      still fit.
 
 - [ ] **A devcontainer Feature** — _scope: one publish to ghcr, which needs a
       release first; the code half has shipped; outside this checkout._
@@ -387,12 +358,13 @@ on.
     instead of `mktemp`'s random one, `load.sh`'s cleanup trap becomes
     conditional on whether that session is still wanted, and reattachment
     rides whatever multiplexer the target already has.
-  - **What has to stop happening, carefully.** Cleanup has two independent
-    paths — the bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` and `load.sh`'s
-    on-exit hook — and `tests/targets/ssh_disconnect_test.sh` proves they fire
-    on an _abrupt_ disconnect. This makes that conditional rather than weaker:
-    the suite gains a second case (dropped **with** `--session` keeps the
-    tree) beside the one it has.
+  - **What has to stop happening, carefully.** `load.sh`'s on-exit hook is
+    the one place that owns undoing everything hi did on a disconnect - the
+    tree, the session-rc directory, the opt-in graft - and
+    `tests/targets/ssh_disconnect_test.sh` proves it fires on an _abrupt_
+    disconnect. This makes that conditional rather than weaker: the suite
+    gains a second case (dropped **with** `--session` keeps the tree) beside
+    the one it has.
   - **The tree has to be findable again, only when asked for by name.**
     `--session <name>` swaps the random path for
     `${TMPDIR:-/tmp}/$(_hi_whoami).hi.session.<name>` (mode 0700). A second

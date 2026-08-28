@@ -27,7 +27,12 @@ permissions: read-all
 jobs:
   analysis:
     name: supply-chain scorecard
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    # Not vars.RUNNER_LABEL: unlike every other workflow's self-hosted
+    # fallback, this one is a hard requirement of publish_results, not a
+    # speed preference - ossf/scorecard-action's own docs require an
+    # Ubuntu-hosted runner to publish, and a self-hosted run would go green
+    # while the OIDC submission is silently rejected (docs/ROADMAP.md).
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     # Deliberately no `environment:` gate: this runs on a schedule, and a
     # schedule cannot pass one - a required reviewer would leave every weekly

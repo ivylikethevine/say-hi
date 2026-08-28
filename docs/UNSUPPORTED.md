@@ -2,8 +2,8 @@
 
 Every answer say-hi has given that was **no**, with the argument attached: the
 runtimes it will not reach, the shells it will not style, the packaging
-channels it does not publish, and the features it used to have and took back
-out. It exists so nobody re-litigates a suggestion from scratch, and so anyone
+channels it does not publish, and the features it added and then removed. It
+exists so nobody re-litigates a suggestion from scratch, and so anyone
 outside the repo can tell whether their runtime was rejected or never
 considered. What say-hi _does_ support is [SUPPORTED.md](SUPPORTED.md),
 including [what a "yes" costs](SUPPORTED.md#what-a-yes-costs), the bar every row

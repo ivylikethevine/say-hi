@@ -56,6 +56,7 @@ child to see - a script of your own reading `$_HI_COLORS`, say - is an
 - [Presets](#presets)
 - [Features](#features)
 - [Colors](#colors)
+  - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
 - [Two sessions to the same host](#two-sessions-to-the-same-host)
 - [Header details](#header-details)
   - [Others](#others)
@@ -165,6 +166,10 @@ row here.
 | `_HI_TARGET`                 | -                               | hi                        | the target as you typed it on the client                                                      |
 | `_HI_TARGET_COLOR`           | -                               | hi                        | the color that target resolved to, decided on the client so it matches everywhere             |
 | `_HI_TARGET_TAG`             | -                               | hi                        | the target's `# Tags:` value out of your `~/.ssh/config`                                      |
+| `_HI_HOST_COLOR`             | -                               | hi                        | [Your own prompt](#using-the-hash-in-your-own-prompt) - the hostname color, by name (zsh's `%F{}` form) |
+| `_HI_USER_COLOR`             | -                               | hi                        | the same for the username                                                                     |
+| `_HI_HOST_ESC`               | -                               | hi                        | the hostname color, as a raw ANSI escape (bash's form)                                        |
+| `_HI_USER_ESC`               | -                               | hi                        | the same for the username                                                                     |
 | `_HI_LOCAL_USER`             | -                               | hi                        | who you are on the client, for the header's "from" half                                       |
 | `_HI_LOCAL_HOSTNAME`         | -                               | hi                        | where you came from, likewise                                                                 |
 | `_HI_RELEASE`                | -                               | hi                        | the client's version, so a session says which say-hi it is running                            |
@@ -382,10 +387,11 @@ login on a shared account reads a half-written rc, and a block left behind if
 the session dies between the write and the cleanup. Every graft is wrapped in
 a tree-exists guard so a leftover one is inert, but inert is not absent.
 
-hi used to ship one person's shell preferences (history sizing, keybindings,
-`zstyle` rules, fish's palette) in `settings/*_personal.*` files behind a
-`_HI_DISABLE_PERSONAL` toggle. Those are gone: what remains in each rc is the
-prompt, the completions and the git segment, which are the product. Your own
+Earlier versions shipped one person's shell preferences (history sizing,
+keybindings, `zstyle` rules, fish's palette) in `settings/*_personal.*` files
+behind a `_HI_DISABLE_PERSONAL` toggle; neither the files nor the toggle
+exist anymore. What remains in each rc is the prompt, the completions and the
+git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
 the end of hi's, in the same dialect, and your `aliases.sh` loads after
 `settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza` families) and
@@ -432,6 +438,26 @@ A pin always beats the hash.
 knows of, drawn in the colors themselves, each row naming the rule it matched:
 
 ![hi --color-preview: every ssh host and user, in the colors they resolve to](https://ivylikethevine.github.io/say-hi/docs/demos/color_preview.gif)
+
+### Using the hash in your own prompt
+
+`_HI_DISABLE_PROMPT=1` [(Features)](#features) turns off hi's own
+`user@host` prompt, but the per-host color hashing above is still resolved -
+just into variables instead of a prompt, ready for your own `bash.sh` or
+`zsh.zsh` (sourced at the end of hi's,
+[above](#shells-you-drop-into-inside-a-session)) to use:
+
+- `$_HI_HOST_ESC`/`$_HI_USER_ESC` — the raw ANSI escape, for a bash `PS1` to
+  embed directly (wrap it in `\[ \]` so readline doesn't count its width):
+  `PS1="\[$_HI_HOST_ESC\]\h\[$NC\] \w "`.
+- `$_HI_HOST_COLOR`/`$_HI_USER_COLOR` — the color by name, for zsh's own
+  `%F{}`: `PS1='%F{$_HI_HOST_COLOR}%m%f %~ '`.
+- fish needs neither: `$fish_color_host`/`$fish_color_user` are already set
+  by `common/config.fish`, unconditionally, for `set_color $fish_color_host`
+  in your own `fish_prompt`.
+
+All four update the moment the color pins above do - nothing to re-derive by
+hand.
 
 ## Two sessions to the same host
 

@@ -431,10 +431,10 @@ function demo_down() {
   # The agent, by its pid file and then by the pattern that started it. The
   # second half is not belt and braces: demo_down deletes $_HI_DEMO_DIR itself
   # and generate.sh runs a teardown between every tape, so an agent started
-  # after the first `down` of a run has no pid file left to reap it by, and one
-  # survived a whole render before this line existed. The job cannot stand in
-  # for the pid either - the first teardown purges it, leaving an agent that is
-  # still running and no longer serving anything.
+  # after the first `down` of a run has no pid file left to reap it by, and
+  # without the pattern fallback it would survive a whole render unreaped. The
+  # job cannot stand in for the pid either - the first teardown purges it,
+  # leaving an agent that is still running and no longer serving anything.
   #
   # So it is the same sweep up_nomad does on the way in, which is what makes it
   # fair: a dev agent is already something the fixtures claim rather than share,

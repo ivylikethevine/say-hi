@@ -128,13 +128,12 @@ function test_payload_trims_history() {
   return 1
 }
 
-# settings/aliases.sh is trimmed by nothing, and there is no longer a toggle
-# that could: the sudo/cat/ls preferences that used to sit in a
-# settings/personal.sh of their own now live in this file beside the vim/nano
-# and hi_copy aliases and fish's toggle backstop. Dropping it under any toggle
-# would take all of those with it - a behaviour change wearing a size saving's
-# clothes - so this asserts against every toggle at once rather than the one
-# that used to cut here.
+# settings/aliases.sh is trimmed by nothing, and no toggle exists that could:
+# the sudo/cat/ls preferences, once a settings/personal.sh of their own, now
+# live in this file beside the vim/nano and hi_copy aliases and fish's toggle
+# backstop. Dropping it under any toggle would take all of those with it - a
+# behaviour change wearing a size saving's clothes - so this asserts against
+# every toggle at once rather than one in particular.
 function test_payload_always_ships_aliases() {
   local dir="$_HI_WORKDIR/alloff" listing t
   mkdir -p "$dir"

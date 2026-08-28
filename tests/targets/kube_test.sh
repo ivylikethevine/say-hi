@@ -222,13 +222,14 @@ function run_kube_test() {
   #
   # The default ServiceAccount is what lets a pod be admitted, so it has to
   # exist before `kubectl run` - but it shows up while the node is still
-  # NotReady, and that is the trap: the cases used to start there, ~10s before
-  # kindnet and CoreDNS had settled, so every `kubectl exec` in them was racing
-  # the cluster's own startup. A session is eight API round trips (probe, shell
-  # ladder, three file streams, the attach, the cleanup), and eight round trips
-  # against a still-booting API server is exactly how a 30s case budget goes on
-  # a runner slower than a laptop. Waiting for Ready costs wall clock the pod
-  # poll was going to spend anyway, and buys a settled cluster to measure on.
+  # NotReady, and that is the trap: starting the cases there, ~10s before
+  # kindnet and CoreDNS have settled, would race every `kubectl exec` in them
+  # against the cluster's own startup. A session is eight API round trips
+  # (probe, shell ladder, three file streams, the attach, the cleanup), and
+  # eight round trips against a still-booting API server is exactly how a 30s
+  # case budget goes on a runner slower than a laptop. Waiting for Ready costs
+  # wall clock the pod poll was going to spend anyway, and buys a settled
+  # cluster to measure on.
   #
   # The preload is started first and collected after, because `crictl` talks to
   # the node's containerd directly - which is up long before the node is Ready -

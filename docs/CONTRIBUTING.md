@@ -59,7 +59,7 @@ want a workflow run anyway, `actionlint`, `hadolint` and
 `markdownlint (advisory)` are green under act and are all linters you can run
 directly; `zizmor` fails on act's empty `github.token`; the macOS/Windows jobs
 have no container to run in; `bench`, `packaging-smoke` and the two `e2e` jobs
-want the Docker socket and the self-hosted workspace.
+want the Docker socket.
 
 ```sh
 act -W .github/workflows/ci.yml -j actionlint -P ubuntu-latest=catthehacker/ubuntu:act-latest

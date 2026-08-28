@@ -4,13 +4,12 @@
 # `bash --rcfile` skips the startup chain; restore it before strict mode
 # (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
 #
-# $_HI_ROOT is deliberately *not* appended to $PATH here. It used to be, so
-# that `hi` could be typed inside a session to relay onward - but on a
-# disposable session $_HI_ROOT is a directory under /tmp, and a /tmp path on
-# $PATH is what every hardening baseline greps for. It bought nothing: common/
-# paths.sh already defines `alias hi="$_HI_LAUNCHER"` in all four shells, which
-# is how an interactive session reaches the launcher, and that is the only way
-# a session ever reached it.
+# $_HI_ROOT is deliberately *not* appended to $PATH here: on a disposable
+# session it is a directory under /tmp, and a /tmp path on $PATH is what
+# every hardening baseline greps for. Putting it there would buy nothing
+# anyway - common/paths.sh already defines `alias hi="$_HI_LAUNCHER"` in all
+# four shells, which is how an interactive session reaches the launcher to
+# relay `hi` onward, with no PATH entry needed for it.
 function _hi_restore_profile() {
   if [ -r /etc/profile ]; then source /etc/profile; fi
   # shellcheck disable=SC1090 # target-specific files, no fixed location
@@ -100,8 +99,14 @@ function clean_all() {
     _hi_rewrite "$target" "$pattern"
   done
   # the session shell's rc directory, which is hi's own and never the target's
+  # - nested under $_HI_CLEANUP when there is one, so the line below already
+  # covers it; a standalone mktemp on the permanent-install path still needs
+  # this explicit removal
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
-  [ -n "${_HI_CLEANUP:-}" ] && rm -rf "$_HI_ROOT"
+  # the whole disposable tree, not just $_HI_ROOT: $_HI_CLEANUP is $_HI_HOME,
+  # $_HI_ROOT's parent, so this is a strict superset - anything else that ever
+  # lands directly under $_HI_HOME goes with it, not just say-hi/ itself
+  [ -n "${_HI_CLEANUP:-}" ] && rm -rf "$_HI_CLEANUP"
   return 0
 }
 
@@ -138,7 +143,10 @@ function _hi_session_shell() {
 # the target's $HOME. Made once by _hi_session_rc_setup and removed by clean_all
 # - the *same* exit hook, deliberately, because core.sh's _hi_on_exit is a
 # `trap ... EXIT` in bash and a second call would replace the first rather than
-# adding to it.
+# adding to it. Nested under $_HI_CLEANUP when there is one (D4: so the
+# bootstrap's own `rm -rf $_HI_CLEANUP` backstop, not just clean_all, sweeps
+# it too), a standalone mktemp on the permanent-install path (no $_HI_CLEANUP
+# to nest under, and clean_all is the only cleanup path there regardless).
 _HI_SESSION_RC_DIR=""
 
 # _hi_fishquote <var> <value> - <value> as one single-quoted fish word, into
@@ -166,10 +174,11 @@ function _hi_fishquote() {
 # This is the load-bearing half of _HI_GRAFT_RC being optional. `bash --rcfile`
 # in hi.sh starts the *bootloader*, which sources this file and calls load();
 # the shell the user actually types at is started below, and a bare `bash -i`
-# reads ~/.bashrc - so until this existed, hi's prompt and aliases reached the
-# session only because the graft had written them into that file. Every
-# mechanism here is one hi already relies on for a bash-less target (hi.sh's
-# _hi_remote_suffix): --rcfile, ZDOTDIR, $ENV and fish's -C.
+# reads ~/.bashrc - so without pointing it here instead, hi's prompt and
+# aliases would reach the session only because the graft had written them
+# into that file. Every mechanism here is one hi already relies on for a
+# bash-less target (hi.sh's _hi_remote_suffix): --rcfile, ZDOTDIR, $ENV and
+# fish's -C.
 #
 # Each file sources the target's own rc *first*, so the ordering the graft
 # produced is preserved exactly: the host's config, then hi's on top of it.
@@ -177,14 +186,20 @@ function _hi_fishquote() {
 # mktemp rather than a path under $_HI_ROOT: on a target with a *permanent*
 # say-hi that tree is often root-owned and read-only, which is the whole reason
 # your config lives elsewhere. %q on every interpolated path, since $TMPDIR is
-# the target's to choose.
+# the target's to choose. $_HI_CLEANUP, when set, is always writable - it is
+# the ephemeral tree hi itself just made - so nesting under it there costs
+# nothing and is never the read-only-tree case this paragraph is about.
 #
 # shellcheck disable=SC2016 # the single quotes are the point: $HOME is the
 # *target's* to expand when it reads these files, not this script's to expand
 # while writing them
 function _hi_session_rc_setup() {
   [ -z "$_HI_SESSION_RC_DIR" ] || return 0
-  _HI_SESSION_RC_DIR="$(mktemp -d -t hi.rc.XXXXXX)" || return 1
+  if [ -n "${_HI_CLEANUP:-}" ]; then
+    _HI_SESSION_RC_DIR="$(mktemp -d "$_HI_CLEANUP/hi.rc.XXXXXX")" || return 1
+  else
+    _HI_SESSION_RC_DIR="$(mktemp -d -t hi.rc.XXXXXX)" || return 1
+  fi
   local dir="$_HI_SESSION_RC_DIR" q
 
   # The client's verdicts - core.sh's _HI_SESSION_VARS, which hi.sh exported
@@ -287,20 +302,21 @@ function load() {
   # session - a `bash` typed at the prompt, a tmux pane - looks like the
   # session around it.
   #
-  # The session's *own* shell no longer needs it: _hi_session_shell_cmd above
-  # starts that shell against hi's rc directly (--rcfile / ZDOTDIR / fish -C).
-  # Until that existed this graft was the only thing putting hi's prompt and
-  # aliases in front of the user, because load() starts a plain `$shell -i`
-  # and bash reads ~/.bashrc - which is why turning the graft off without that
-  # change left sessions unstyled and `hi` inside one "command not found".
+  # The graft is not what styles the session's *own* shell:
+  # _hi_session_shell_cmd above starts that shell directly against hi's rc
+  # (--rcfile / ZDOTDIR / fish -C), independent of the target's own rc files.
+  # What the graft is for is a shell started *inside* the session - a `bash`
+  # typed at the prompt, a tmux pane - which spawns via the target's own
+  # ~/.bashrc/~/.zshrc/fish config and would otherwise come up unstyled, `hi`
+  # inside it reading as "command not found".
   #
-  # What it cost was a write to a login file on someone else's machine, twice
-  # per session, for every host anyone ever said hi to: an entry in whatever
+  # What it costs is a write to a login file on someone else's machine, twice
+  # per session, for every host anyone ever says hi to: an entry in whatever
   # file-integrity monitor watches those paths, a window in which another
   # login on a shared account reads a half-written rc, and a block left behind
-  # whenever the process died between the write and clean_all. None of that is
-  # a fair price for a convenience the session does not use, so it is now
-  # something a user turns on for the hosts they want it on.
+  # whenever the process dies between the write and clean_all. None of that is
+  # a fair price for a convenience most sessions never use, so it is something
+  # a user turns on for the hosts they want it on, rather than a default.
   #
   # clean_all stays unconditional: it must still take out a block left by a
   # session that ran with this on, or by a build that shipped before it existed.

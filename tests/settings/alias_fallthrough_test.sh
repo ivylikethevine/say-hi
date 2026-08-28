@@ -47,7 +47,6 @@ fail=0
 
 if [ -n "${_HI_CHECK_VAR:-}" ]; then
   case "$_HI_CHECK_VAR" in
-  EDITOR_BIN) actual=$_HI_EDITOR_BIN ;;
   BATCAT_BIN) actual=$_HI_BATCAT_BIN ;;
   BAT_REAL) actual=$_HI_BAT_REAL ;;
   EXA_BIN) actual=$_HI_EXA_BIN ;;
@@ -67,11 +66,6 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   else
     alias sudo >/dev/null 2>&1 && { echo "expected no sudo alias, but found one" >&2; fail=1; }
   fi
-  if [ "$_HI_EXPECT_EDITOR_SET" = 1 ]; then
-    [ -n "${EDITOR:-}" ] || { echo "expected EDITOR set, got empty" >&2; fail=1; }
-  else
-    [ -z "${EDITOR:-}" ] || { echo "expected EDITOR unset, got [$EDITOR]" >&2; fail=1; }
-  fi
   if [ "$_HI_EXPECT_CAT_ALIAS" = 1 ]; then
     alias cat >/dev/null 2>&1 || { echo "expected cat alias, missing" >&2; fail=1; }
   else
@@ -88,8 +82,6 @@ set fail 0
 
 if set -q _HI_CHECK_VAR
   switch "$_HI_CHECK_VAR"
-  case EDITOR_BIN
-    set actual $_HI_EDITOR_BIN
   case BATCAT_BIN
     set actual $_HI_BATCAT_BIN
   case BAT_REAL
@@ -115,11 +107,6 @@ if set -q _HI_CHECK_FLAGS
     functions -q -- sudo; or begin; echo "expected sudo alias, missing" >&2; set fail 1; end
   else
     functions -q -- sudo; and begin; echo "expected no sudo alias, but found one" >&2; set fail 1; end
-  end
-  if test "$_HI_EXPECT_EDITOR_SET" = 1
-    set -q EDITOR; or begin; echo "expected EDITOR set, got empty" >&2; set fail 1; end
-  else
-    set -q EDITOR; and begin; echo "expected EDITOR unset, got [$EDITOR]" >&2; set fail 1; end
   end
   if test "$_HI_EXPECT_CAT_ALIAS" = 1
     functions -q -- cat; or begin; echo "expected cat alias, missing" >&2; set fail 1; end
@@ -218,7 +205,7 @@ function run_fallthrough_tests() {
   # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
-  for var in EDITOR_BIN:"nano micro pico vim vi" BATCAT_BIN:"bat batcat ccat cat" BAT_REAL:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
+  for var in BATCAT_BIN:"bat batcat ccat cat" BAT_REAL:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
     local name="${var%%:*}" cands="${var#*:}"
     # shellcheck disable=SC2086 # word-splitting into positional candidates is intended
     set -- $cands
@@ -237,28 +224,27 @@ function run_fallthrough_tests() {
   done
 }
 
-# _HI_DISABLE_ALIASES used to be the second half of this: it gated `sudo` and
-# $EDITOR in a settings/personal.sh of their own, so the table was a 2x2 over
-# both toggles. That file and that toggle are gone - the convenience aliases are
-# now the tail of settings/aliases.sh and unconditional - so `sudo` and $EDITOR
-# are asserted *present* on both rows. They stay in the table rather than being
-# dropped from it: they are the cheapest pin on the merged tail being reached at
-# all in three dialects, and the shape that would regress is one of them
-# quietly acquiring a guard.
+# A _HI_DISABLE_ALIASES toggle once gated `sudo` in a settings/personal.sh of
+# its own, making this a 2x2 table over both toggles; neither the file nor
+# that toggle exist anymore, and the convenience aliases are now the tail of
+# settings/aliases.sh and unconditional, so `sudo` is asserted *present* on
+# both rows. It stays in the table rather than being dropped from it: it is
+# the cheapest pin on the merged tail being reached at all in three dialects,
+# and the shape that would regress is it quietly acquiring a guard.
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_flags vi)"
 
-  for combo in "0 1 1 1" "1 0 1 1"; do
-    # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
+  for combo in "0 1 1" "1 0 1"; do
+    # shellcheck disable=SC2086 # fixed 3-field combo, splitting is intended
     set -- $combo
-    local de="$1" want_nano="$2" want_sudo="$3" want_editor="$4"
+    local de="$1" want_nano="$2" want_sudo="$3"
     for shell in $_HI_INSTALLED_SHELLS; do
       _HI_DISABLE_EDITORS="$de" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
         "_HI_DISABLE_EDITORS=$de" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_EDITOR_SET="$want_editor" _HI_EXPECT_CAT_ALIAS=1
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
     done
   done
 }
@@ -280,7 +266,7 @@ function run_bat_alias_flag_tests() {
       _HI_DISABLE_BAT_ALIAS="$dba" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
         "_HI_DISABLE_BAT_ALIAS=$dba" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_EDITOR_SET=1 _HI_EXPECT_CAT_ALIAS="$want_cat"
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want_cat"
     done
   done
 }

@@ -226,8 +226,17 @@ AWK
 # session that says what is missing and one that prints line numbers.
 function _hi_require() {
   command -v "$1" >/dev/null 2>&1 && return 0
-  _hi_cecho >&2 "hi: requires $1 on [$(_hi_hostname)] $2, but it is not installed. Aborting..." "$RED"
+  _hi_fail "hi: requires $1 on [$(_hi_hostname)] $2, but it is not installed. Aborting..."
   return 1
+}
+
+# _hi_fail <msg> - <msg> in red on stderr, and a mark that hi already said its
+# piece: _hi's end-of-connect report reads $_HI_SAID to tell "the transport
+# failed silently" from "hi already printed the reason", so a failure is never
+# announced twice.
+function _hi_fail() {
+  _hi_cecho "$1" "$BRRED" >&2
+  _HI_SAID=1
 }
 
 # The tree minus what the overlay switched off, comment-stripped through a
@@ -345,6 +354,23 @@ _HI_BACKENDS=(
   "nomad|nomad allocation|nomad job status|_hi_is_nomad_alloc"
   "kube|kubernetes pod|kubectl get pods -o name|_hi_is_k8s_pod"
 )
+
+# _hi_backend_flag <word> - "docker" for "--docker", "ssh" for "--ssh", or
+# nothing: whether <word> names a backend to force rather than probe for.
+# Reads $_HI_BACKENDS rather than a second spelling of the roster, so a
+# backend added there gets its flag for free; common/flags still carries the
+# row each name needs for --help and completion, and
+# tests/hi/parse_test.sh checks the two rosters agree.
+function _hi_backend_flag() {
+  local row
+  case "$1" in
+  --ssh) printf 'ssh' && return 0 ;;
+  esac
+  for row in "${_HI_BACKENDS[@]}"; do
+    [ "$1" = "--${row%%|*}" ] && printf '%s' "${row%%|*}" && return 0
+  done
+  return 1
+}
 
 # Run <script> on $DOMAIN through `sh -c`, with ssh's own flags in "$@"
 # GLOSSARY: HI.18 - fish-shaped login shells, and quoting over %q
@@ -665,6 +691,17 @@ REMOTE
 # The disposable-tree half of the script: unpack the armored streams into a
 # fresh /tmp root. Reads $hi_esc/$nc_esc/$size and the streams from its caller,
 # so _say_hi and _hi_wire_bytes assemble one shape rather than two kept in step.
+#
+# The `trap ... exit` below is a backstop, not a second owner (D4): load.sh's
+# clean_all is what actually knows how to undo everything hi did on the
+# target - this tree, $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
+# exactly this reason, load.sh:~141), and the opt-in rc graft - and it runs
+# on every normal exit and on an abrupt disconnect alike (SIGHUP, tested by
+# tests/targets/ssh_disconnect_test.sh). This trap exists for the one thing
+# clean_all cannot survive: bash killed by a signal nothing can trap. It only
+# ever needs to remove the tree, since $_HI_SESSION_RC_DIR now lives inside
+# it - kept out of the heredoc itself, since every byte here rides the wire
+# on every connect.
 function _hi_remote_middle() {
   local tmpl
   _hi_shquote tmpl "$(_hi_whoami).hi.XXXXXX"
@@ -751,17 +788,18 @@ $(_hi_remote_suffix)"
   # duty. A target with no POSIX shell says so in one line before the PowerShell
   # branch announces itself, which reads better than a silent swap anyway.
   #
-  # The *target* names the directory and prints it back. This used to be a
-  # client-side `mktemp -u`, which names a path in the **client's** $TMPDIR and
-  # then asks the target to `mkdir` it: on any client with $TMPDIR set - every
-  # macOS login shell, where it is /var/folders/../T - that path does not exist
-  # on a Linux target, the mkdir fails, and the whole session falls through to
-  # the PowerShell branch on a host that has bash. CI could not see it because
-  # the macOS job only ever connects to 127.0.0.1, where the path does exist.
-  # The container arm already got this right ("a literal /tmp", below).
+  # The *target* names the directory and prints it back, rather than a
+  # client-side `mktemp -u` naming a path in the **client's** $TMPDIR for the
+  # target to `mkdir`: on any client with $TMPDIR set - every macOS login
+  # shell, where it is /var/folders/../T - that path would not exist on a
+  # Linux target, the mkdir would fail, and the whole session would fall
+  # through to the PowerShell branch on a host that has bash, invisibly to CI
+  # (whose macOS job only ever connects to 127.0.0.1, where the path does
+  # exist). The container arm already gets this right ("a literal /tmp",
+  # below).
   #
-  # `mktemp -d` also creates at 0700 itself, so the mode no longer rides a
-  # separate mkdir flag. Six X exactly: busybox mktemp accepts no other count.
+  # `mktemp -d` also creates at 0700 itself, so no separate mkdir flag is
+  # needed for the mode. Six X exactly: busybox mktemp accepts no other count.
   local boot_out
   boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_out=""
 
@@ -904,14 +942,14 @@ function _say_hi_container() {
     case " $_HI_SHELL_LADDER " in
     *" $fallback "*) ;;
     *)
-      _hi_cecho " [$DOMAIN] named no shell hi asked about - not falling back" "$BRRED" >&2
+      _hi_fail " [$DOMAIN] named no shell hi asked about - not falling back"
       return 1
       ;;
     esac
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
 
     if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
-      _hi_cecho " failed to copy aliases.sh into [$DOMAIN]" "$BRRED" >&2
+      _hi_fail " failed to copy aliases.sh into [$DOMAIN]"
       "${attach[@]}" "$fallback"
       return $?
     fi
@@ -949,7 +987,7 @@ function _say_hi_container() {
   # staged to a file so the announced size is the one actually sent
   tarball="$tmp.tar.gz"
   if ! _hi_payload_tar >"$tarball"; then
-    _hi_cecho " failed to archive say-hi for [$DOMAIN]" "$BRRED" >&2
+    _hi_fail " failed to archive say-hi for [$DOMAIN]"
     return 1
   fi
   size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
@@ -959,7 +997,7 @@ function _say_hi_container() {
 
   if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && tar mxzf - -C '$root'" <"$tarball"; then
     rm -f "$tarball"
-    _hi_cecho " failed to copy say-hi into [$DOMAIN]" "$BRRED" >&2
+    _hi_fail " failed to copy say-hi into [$DOMAIN]"
     "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
     return 1
   fi
@@ -985,14 +1023,56 @@ function _say_hi_container() {
   # sources load.sh and never runs the command, and the caller gets a clean
   # exit and no output.
   #
-  # _HI_CLEANUP marks the tree disposable for load.sh's clean_all; the rm -rf
-  # below is the client-side belt to it
+  # _HI_CLEANUP marks the tree disposable for load.sh's clean_all, which owns
+  # undoing everything hi did here (D4). The rm -rf below is a client-side
+  # backstop for the one thing clean_all cannot survive - bash killed by a
+  # signal nothing can trap - not a second place that has to know what to
+  # remove: $_HI_SESSION_RC_DIR nests under $_HI_CLEANUP, so this one `rm -rf`
+  # already covers it too.
   env_kv="$(_hi_env_each ' %s=%s')"
   "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
   "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
   return $exit_code
+}
+
+# _say_hi_plain - --plain over ssh: no bootstrap, no local-install probe, no
+# payload - just ssh handing over the target's own login shell, the way it
+# always would with no target-side config to try. Needs nothing beyond sshd
+# and a shell: no tar, no base64, no writable /tmp, no $HOME.
+function _say_hi_plain() {
+  local -a tflag=()
+  [ "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}" = 1 ] && tflag=(-t)
+  ssh ${tflag[@]+"${tflag[@]}"} "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
+}
+
+# _say_hi_container_plain <label> - --plain over a container backend: no
+# mkdir, no copy, straight into the best shell the target has - bash if a
+# read-only probe finds it, else the best of $_HI_SHELL_LADDER, else a bare
+# `sh`. _hi_container_cmds builds the same probe/attach the full path uses,
+# so the two can never disagree on how to reach the target.
+function _say_hi_container_plain() {
+  local label="$1" shell
+  local -a probe cp attach
+  _hi_container_cmds "$label"
+  if "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>&1; then
+    shell=bash
+  else
+    # same probe-and-validate shape as the full path's no-bash fallback
+    # (above): a fixed list of right answers, so a target that gives a wrong
+    # one has told us the probe does not work there rather than named a shell
+    shell="$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>/dev/null)"
+    case " $_HI_SHELL_LADDER " in
+    *" $shell "*) ;;
+    *) shell="sh" ;;
+    esac
+  fi
+  if [ -n "${RAWCMD:-}" ]; then
+    "${attach[@]}" "$shell" -c "$RAWCMD"
+  else
+    "${attach[@]}" "$shell"
+  fi
 }
 
 # split ssh's arguments from the target and any trailing remote command
@@ -1049,6 +1129,7 @@ function _hi_pick_target() {
 }
 
 function _hi_parse() {
+  local backend_word
   SSHARGS=()
   while [ $# -gt 0 ]; do
     case $1 in
@@ -1061,11 +1142,31 @@ function _hi_parse() {
       SSHARGS+=("$1" "$2")
       shift
       ;;
-    -*) SSHARGS+=("$1") ;;
+    # a backend flag names the arm outright, ahead of the target - like any
+    # other ssh option. ssh itself takes no `--` option, so claiming every one
+    # here costs nothing: today they are all just ssh's own "unknown option"
+    # to report. Only ahead of the target - one already chosen means this is
+    # the remote command's own word, not hi's.
+    -*)
+      if [ -z "${DOMAIN:-}" ] && backend_word="$(_hi_backend_flag "$1")"; then
+        if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
+          _hi_cecho "hi: $1 and --$BACKEND both name a backend; pick one" "$RED" >&2
+          exit 1
+        fi
+        BACKEND="$backend_word"
+      elif [ -z "${DOMAIN:-}" ] && [ "$1" = --plain ]; then
+        PLAIN=1
+      else
+        SSHARGS+=("$1")
+      fi
+      ;;
     *)
       if [ -z "${DOMAIN:-}" ]; then
         DOMAIN="$1"
       else
+        # the words as-is, for --plain's direct ssh/exec (no bootloader to
+        # embed them in, so no "; exit" to close a sourced script out with)
+        RAWCMD="$*"
         CMDARG="$*$([[ "$*" = *[![:space:]]* ]] && echo '; ') exit"
         return
       fi
@@ -1115,6 +1216,20 @@ function _hi_resolve_backend() {
   return 0
 }
 
+# _hi_select_arm - the arm $DOMAIN connects through: empty for ssh, one of
+# $_HI_BACKENDS' names otherwise. $BACKEND (a backend flag, set by _hi_parse)
+# wins outright and skips every probe below it - "ssh" means the empty arm,
+# same as an unforced ssh host. Its own function, apart from _hi, so a suite
+# can assert the choice without a real connect.
+function _hi_select_arm() {
+  if [ -n "${BACKEND:-}" ]; then
+    [ "$BACKEND" = ssh ] || printf '%s' "$BACKEND"
+    return 0
+  fi
+  _hi_is_ssh_host "$DOMAIN" && return 0
+  _hi_resolve_backend "$DOMAIN"
+}
+
 # _hi_record_recent <target> - one "<epoch>\t<target>" line appended to the
 # recent-targets file common/targets.sh ranks completion by; client-side only,
 # quiet on failure, trimmed past 500 lines. GLOSSARY: HI.42
@@ -1137,8 +1252,38 @@ function _hi_record_recent() {
   return 0
 }
 
+# _hi_report_failure <code> <arm> <errlog> - what a failed connect says, at
+# most once. Three ways it says nothing at all, each because the failure was
+# already spoken for: $_HI_SAID means _hi_fail already printed the reason;
+# ssh reserves exit 255 for its own failures and prints them itself (the
+# comment above this function's caller explains why hi stopped wrapping the
+# whole connect to catch them again), so any other code from the ssh arm is
+# the session's or the remote command's own status - `hi host false` has to
+# stay as quiet as `ssh host false`; and an empty container errlog means
+# nothing hi ran on the way in complained, so the code is the session's too.
+function _hi_report_failure() {
+  local code="$1" arm="$2" errlog="$3" errors
+  [ "${_HI_SAID:-0}" != 1 ] || return 0
+  if [ -n "$arm" ]; then
+    [ -s "$errlog" ] || return 0
+  else
+    [ "$code" -eq 255 ] || return 0
+  fi
+  errors="$(<"$errlog")"
+  # a real line-clear, not four bytes of \r: what this is clearing is the
+  # container arm's in-progress " <size>" (no trailing newline yet) - on a
+  # pipe there is no cursor to move, so a newline is the whole job instead
+  if [ -t 2 ]; then
+    printf '\r\033[K' >&2
+  else
+    printf '\n' >&2
+  fi
+  _hi_cecho "hi: could not reach [$DOMAIN]" "$BRRED" >&2
+  [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
+}
+
 function _hi() {
-  local tmp exit_code errors backend
+  local tmp exit_code arm
 
   [ -d "$_HI_ROOT" ] || {
     _hi_cecho "hi: no such directory: $_HI_ROOT" "$RED" >&2
@@ -1150,21 +1295,24 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
-  # No `2>"$tmp"` around this block. It used to wrap the whole connect so a
-  # failure could be reprinted in red at the end, and the cost was every word
-  # ssh says on a *successful* session: the server's `Banner` - the notice a
-  # regulated fleet is required to display - the "Permanently added" line, and
-  # the host-key fingerprint. Every backend probe already silences its own
-  # daemon chatter (_hi_is_container_running and friends), so what this was
-  # catching was almost entirely the transport's, and the transport has the
-  # better claim on the terminal. $tmp is still handed to _say_hi_container,
-  # which redirects the individual commands whose noise is genuinely hi's.
-  backend=""
-  if ! _hi_is_ssh_host "$DOMAIN"; then
-    backend="$(_hi_resolve_backend "$DOMAIN")"
-  fi
-  if [ -n "$backend" ]; then
-    _say_hi_container "$backend" "$tmp"
+  # No `2>"$tmp"` around this block: wrapping the whole connect to reprint a
+  # failure in red at the end would also catch every word ssh says on a
+  # *successful* session - the server's `Banner` (the notice a regulated
+  # fleet is required to display), the "Permanently added" line, and the
+  # host-key fingerprint. Every backend probe already silences its own daemon
+  # chatter (_hi_is_container_running and friends), so that catch-all would be
+  # almost entirely the transport's noise, and the transport has the better
+  # claim on the terminal. $tmp is still handed to _say_hi_container, which
+  # redirects the individual commands whose noise is genuinely hi's.
+  arm="$(_hi_select_arm)"
+  if [ "${PLAIN:-0}" = 1 ]; then
+    if [ -n "$arm" ]; then
+      _say_hi_container_plain "$arm"
+    else
+      _say_hi_plain
+    fi
+  elif [ -n "$arm" ]; then
+    _say_hi_container "$arm" "$tmp"
   else
     _say_hi
   fi
@@ -1174,15 +1322,7 @@ function _hi() {
   # that never connected (a typo, an unreachable host) is not
   [ "$exit_code" -eq 0 ] && _hi_record_recent "$DOMAIN"
 
-  if [ "$exit_code" -ne 0 ]; then
-    errors="$(<"$tmp")"
-    echo -ne "\r\r\r\r" >&2
-    _hi_cecho "hi failed [code: $exit_code]" "$BRRED" >&2
-    # only the container arm still files anything here, and only sometimes: the
-    # ssh arm's diagnostics now go straight to the terminal as they happen, so
-    # an empty file means "already said", not "nothing to say"
-    [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
-  fi
+  [ "$exit_code" -eq 0 ] || _hi_report_failure "$exit_code" "$arm" "$tmp"
   exit "$exit_code"
 }
 
@@ -1270,6 +1410,12 @@ tarball you are piping into a file, say - use ssh itself.
   4. a running nomad allocation, by ID or prefix
   5. a kubernetes pod, in whatever context/namespace kubectl points at -
      or namespace:pod / context:namespace:pod for another one
+
+--ssh, --docker, --podman, --nomad or --kube before the target names the arm
+outright and skips every probe above it - the fix for a container that
+shadows an unrelated ssh host of the same name. --plain skips the payload
+too and hands over a bare shell on whichever arm resolves - no tar, no
+base64, no writable /tmp, no \$HOME needed on the target at all.
 
 With no target at all, hi offers that same list - the one your shell completes
 from, backend-tagged and recently-used first - and connects to what you pick:

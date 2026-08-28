@@ -1,20 +1,15 @@
 name: Windows client
 
-# The client-side half of the Windows story, and the half nothing has ever run:
-# the fast suites under the runner's own Git Bash, proving hi.sh works when the
-# machine you are *sitting at* is Windows. windows-e2e.yml is the other half -
-# it stands up sshd and drives `hi localhost` into a stock Windows OpenSSH
-# *target*. README's compatibility table rests on both, and said so while only
-# one of them existed.
+# The client-side half of the Windows story: the fast suites under the
+# runner's own Git Bash, proving hi.sh works when the machine you are
+# *sitting at* is Windows. windows-e2e.yml is the other half - it stands up
+# sshd and drives `hi localhost` into a stock Windows OpenSSH *target*.
+# README's compatibility table rests on both.
 #
-# Called by ci.yml on every push to main beside `e2e-windows`, and advisory
-# until it has been green once: the suite step below carries continue-on-error
-# and the job restates a failure as a warning (markdownlint's shape in ci.yml),
-# because nothing had executed the harness under Git Bash when this was wired
-# up and the first runs are information, not a gate. When it has been green,
-# drop the continue-on-error, the summary step and the word from the job name
-# - which is what its docs/ROADMAP.md entry ticks on. Dispatch still works for
-# running it on its own.
+# Called by ci.yml on every push to main beside `e2e-windows`, and a real gate
+# like every other job there: a failing suite fails this job and the push's
+# overall status, no continue-on-error. Dispatch still works for running it on
+# its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -24,8 +19,8 @@ permissions:
 
 jobs:
   fast-suites:
-    name: fast suites (Git Bash, advisory)
-    runs-on: ${{ vars.WINDOWS_RUNNER_LABEL || 'windows-latest' }}
+    name: fast suites (Git Bash)
+    runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,9 +37,7 @@ jobs:
       # shape here - there is no zsh or fish on the runner - and README's tests
       # badge is the ubuntu count on purpose, per the note above ci.yml's
       # fast-totals upload.
-      - id: suites
-        name: Run the fast suites under Git Bash
-        continue-on-error: true
+      - name: Run the fast suites under Git Bash
         shell: bash
         run: |
           set -euo pipefail
@@ -58,16 +51,3 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           ./tests/test_runner.sh --verbose --host-report --group fast
-
-      - name: Say so, without failing
-        if: steps.suites.outcome == 'failure'
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "::warning title=windows-client::the fast suites failed under Git Bash - advisory until this job has been green once (docs/ROADMAP.md)"
-          {
-            echo "### Windows client suites failed"
-            echo
-            echo "Advisory only: this job does not block anything yet. See the step above for the"
-            echo "transcript; docs/ROADMAP.md's Windows client entry says what a failure here means."
-          } >>"$GITHUB_STEP_SUMMARY"

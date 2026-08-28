@@ -47,6 +47,29 @@ function test_bash_prompt_disabled_leaves_ps1_alone() {
   [ -z "$out" ]
 }
 
+# C2: even with hi's own prompt off, the color hashing it would have used is
+# still primed into plain variables - $_HI_HOST_ESC/$_HI_USER_ESC (the raw
+# ANSI escape, bash's form) and $_HI_HOST_COLOR/$_HI_USER_COLOR (the color
+# name, zsh's %F{} form) - so a custom PS1 in the user's own bash.sh/zsh.zsh
+# can still use it, per docs/CONFIGURATION.md.
+function test_bash_prompt_disabled_still_primes_color_variables() {
+  local out host_esc user_esc host_color user_color
+  out="$(_HI_DISABLE_PROMPT=1 _hi_rc_shell xterm-256color bash \
+    'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+     printf "%s\t%s\t%s\t%s" "$_HI_HOST_ESC" "$_HI_USER_ESC" "$_HI_HOST_COLOR" "$_HI_USER_COLOR"')"
+  IFS=$'\t' read -r host_esc user_esc host_color user_color <<<"$out"
+  [ -n "$host_esc" ] && [ -n "$user_esc" ] && [ -n "$host_color" ] && [ -n "$user_color" ]
+}
+
+function test_zsh_prompt_disabled_still_primes_color_variables() {
+  local out host_color user_color
+  out="$(_HI_DISABLE_PROMPT=1 _hi_rc_shell xterm-256color zsh \
+    'export _HI_DISABLE_PROMPT=1; source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null
+     printf "%s\t%s" "$_HI_HOST_COLOR" "$_HI_USER_COLOR"')"
+  IFS=$'\t' read -r host_color user_color <<<"$out"
+  [ -n "$host_color" ] && [ -n "$user_color" ]
+}
+
 function test_bash_registers_hi_completion() {
   _hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; complete -p hi' |
@@ -57,11 +80,12 @@ function test_bash_registers_hi_completion() {
 # actually reaching the alias chain in a real bash. It asserts the four aliases
 # hi installs on its own account - hi_copy and hi_notify are hi's, vim and nano
 # the editor-rc wrappers - rather than any of the convenience aliases below them
-# in the file, because these four are named by a toggle apiece and so are stable
-# by contract. It used to name `grep` and `mindiff` instead, and 8c5570a retired
-# both while removing personal aliases for the first release: the case went red
-# with nothing in the chain wrong. Nothing here depends on a binary being
-# installed - all four are defined by the file, not resolved from PATH.
+# in the file, because these four are named by a toggle apiece and so are
+# stable by contract - unlike `grep`/`mindiff`, named here before 8c5570a
+# retired both while removing personal aliases for the first release and
+# turned the case red with nothing in the chain actually wrong. Nothing here
+# depends on a binary being installed - all four are defined by the file, not
+# resolved from PATH.
 function test_bash_defines_key_aliases() {
   _hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
@@ -71,8 +95,8 @@ function test_bash_defines_key_aliases() {
 }
 
 # ...and that the chain carries on past those four into the convenience set -
-# sudo, the cat/bat and ls/eza families - which used to be a settings/personal.sh
-# of its own and is now the tail of settings/aliases.sh. Sampled from the file
+# sudo, the cat/bat and ls/eza families - now the tail of settings/aliases.sh,
+# a settings/personal.sh of their own before. Sampled from the file
 # rather than spelled here, on alias_test.sh's precedent: those names are still
 # being retired entry by entry, and one written into this suite goes stale the
 # next time one is dropped. The unguarded `alias` lines are exactly that tail -
@@ -361,12 +385,12 @@ function test_fish_config_dir_explicit_value_wins() {
 }
 
 #
-# hi used to ship one person's taste per shell - history sizing, keybindings,
-# completion and color styling - in settings/<shell>_personal.* behind
-# $_HI_DISABLE_PERSONAL. Those files and that toggle are gone, and what is left
-# is the hook they were built against: the user's own file in $_HI_CONFIG_DIR,
-# named for the *shell file* it extends (bash.sh, zsh.zsh, config.fish) rather
-# than for where hi's defaults used to live.
+# Earlier versions shipped one person's taste per shell - history sizing,
+# keybindings, completion and color styling - in settings/<shell>_personal.*
+# behind $_HI_DISABLE_PERSONAL; neither the files nor that toggle exist
+# anymore. What is left is the hook they were built against: the user's own
+# file in $_HI_CONFIG_DIR, named for the *shell file* it extends (bash.sh,
+# zsh.zsh, config.fish) rather than for the defaults hi no longer ships.
 #
 # Two things have to stay true per shell, and the second is why the first is
 # worth asserting: hi ships no default of its own for these settings any more,
@@ -382,11 +406,11 @@ function test_fish_config_dir_explicit_value_wins() {
 # run the read *without* hi's rc, for the baseline the no-file case measures
 # against.
 #
-# zsh's row used to be HISTFILE, proving hi shipped no history preference at
-# all. By default it still ships none - _HI_SCRATCH_HISTORY is opt-in - so that
-# claim moved to tests/common/history_test.sh rather than being dropped: it
-# covers the untouched default, the opt-in, the _HI_DISABLE_LOCAL gate and the
-# overlay's own HISTFILE still winning.
+# zsh's row here was HISTFILE once, proving hi shipped no history preference
+# at all. By default it still ships none - _HI_SCRATCH_HISTORY is opt-in - so
+# that claim moved to tests/common/history_test.sh rather than being dropped:
+# it covers the untouched default, the opt-in, the _HI_DISABLE_LOCAL gate and
+# the overlay's own HISTFILE still winning.
 _HI_SHELL_OVERRIDE_ROWS=(
   'bash|bash.sh|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
   'fish|config.fish|printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
@@ -432,6 +456,8 @@ function run_rc_tests() {
   _hi_check "HI_PS1 carries user, host and cwd" test_bash_hi_ps1_contains_user_host_cwd
   _hi_check "Plain HI_PS1 without color" test_bash_hi_ps1_plain_without_color
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
+  _hi_check "...but still primes the color variables (C2, bash)" test_bash_prompt_disabled_still_primes_color_variables
+  _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "Key aliases are defined" test_bash_defines_key_aliases
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases

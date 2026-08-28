@@ -834,9 +834,9 @@ function _hi_sc_width() {
 # parts 130 times and spend triple the CPU to save half the wall clock.
 #
 # The same argument decides how the files are *dealt*, and it points the
-# opposite way to load balancing. Round-robin used to deal file by file, which
-# spread tests/ evenly and made all eight invocations parse test_lib.sh and its
-# parts - eight times the work that one invocation would do. Dealing whole
+# opposite way to load balancing. Dealing file by file with round-robin would
+# spread tests/ evenly but make all eight invocations parse test_lib.sh and
+# its parts - eight times the work one invocation would do. Dealing whole
 # top-level directories instead keeps every file that shares a sourced tree in
 # the same invocation, so that tree is parsed once. Measured at width 8: 42-45s
 # by file, 32s by directory, repeatably.
