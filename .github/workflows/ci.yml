@@ -112,9 +112,16 @@ jobs:
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast"
 
   # bad `needs`, invalid contexts, shellcheck over every run: block - the
-  # workflows and composite actions are code too, so they get a linter
-  actionlint:
-    name: actionlint
+  # workflows and composite actions are code too, so they get a linter.
+  # zizmor is the GitHub Actions security audit, promoted to CI once the SHA
+  # pinning made it quiet, per the roadmap's condition; the one deliberate
+  # exception (the credentialed release checkout) is suppressed inline where
+  # it happens. Both run as steps in one job rather than two: each carries
+  # continue-on-error so a finding in one doesn't stop the other from
+  # reporting, and the trailing step fails the job if either did - one check
+  # instead of two, with both tools still always running and still gating.
+  workflow-lint:
+    name: workflow lint
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -123,7 +130,7 @@ jobs:
           persist-credentials: false
 
       # actionlint shells out to shellcheck for run: blocks when it is on
-      # PATH - pin it so both jobs lint shell with the same version
+      # PATH - pin it so both tools lint shell with the same version
       - uses: ./.github/actions/setup-tool
         with:
           tool: shellcheck
@@ -132,49 +139,54 @@ jobs:
         with:
           tool: actionlint
 
-      - name: Lint the workflows
+      - id: actionlint
+        name: Lint the workflows
+        continue-on-error: true
         run: actionlint -color
-
-  # GitHub Actions security audit. Promoted to CI once the SHA pinning made it
-  # quiet, per the roadmap's condition; the one deliberate exception (the
-  # credentialed release checkout) is suppressed inline where it happens.
-  zizmor:
-    name: zizmor
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       - uses: ./.github/actions/setup-tool
         with:
           tool: zizmor
 
-      - name: Audit the workflows
+      - id: zizmor
+        name: Audit the workflows
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: zizmor --no-progress .github/
 
-  # Advisory, not a gate. A heading level or a stray hard tab in a doc is worth
-  # seeing and has never shipped a bug, so this job reports and does not block:
-  # the lint step keeps its exit code (`continue-on-error` on the *step*, so the
-  # findings still annotate the diff), and the job then restates them as a
-  # warning in the run summary. Note the difference from `continue-on-error` on
-  # the job, which would paint the job green and hide the result entirely.
+      - name: Fail if either found something
+        if: steps.actionlint.outcome == 'failure' || steps.zizmor.outcome == 'failure'
+        run: exit 1
+
+  # Advisory, not a gate, for all three checks in this job. A heading level, a
+  # dockerfile nit or a stale GIF is worth seeing and has never shipped a bug,
+  # so this job reports and does not block: each lint step keeps its exit code
+  # (`continue-on-error` on the *step*, or an output read afterwards, so
+  # findings still annotate the diff), and ./.github/actions/advisory-note
+  # restates them as a warning in the run summary. Note the difference from
+  # `continue-on-error` on the job, which would paint the job green and hide
+  # the result entirely.
   #
   # The corollary, now that branch protection is on (see docs/ROADMAP.md): its
   # required checks are still unset, and this job must stay off that list when
   # they go on - it is designed to be ignorable.
-  markdownlint:
-    name: markdownlint (advisory)
+  #
+  # One checkout for all three, at fetch-depth 0: only the demo-staleness step
+  # needs full history (it compares commit dates with `git log`, and a shallow
+  # clone answers that with the clone's own date for every path), but a
+  # shared checkout means markdownlint and hadolint carry that cost too.
+  advisory-lint:
+    name: advisory lint
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - id: lint
+
+      - id: markdownlint
         continue-on-error: true
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
         with:
@@ -189,36 +201,26 @@ jobs:
             !.claude/**
           config: ".markdownlint.yaml"
 
-      - name: Say so, without failing
-        if: steps.lint.outcome == 'failure'
-        run: |
-          set -euo pipefail
-          echo "::warning title=markdownlint::Markdown lint findings above - advisory, not blocking"
-          {
-            echo "### markdownlint found something"
-            echo
-            echo "Advisory only: this job never blocks a merge. See the step above for the findings,"
-            echo "or run \`markdownlint-cli2 '**/*.md' '!.claude/**'\` locally."
-          } >>"$GITHUB_STEP_SUMMARY"
-
-  # The fixture Dockerfiles, which nothing linted before. Advisory for
-  # the same reason markdownlint is: what is left after .hadolint.yaml's ignores
-  # is DL3009 and DL3015 - apt lists and --no-install-recommends, both image
-  # size on a fixture built once and thrown away. Worth seeing, never worth
-  # reddening somebody's PR over.
-  #
-  # The one finding worth a hard failure is fixed in the fixtures rather than
-  # ignored here: DL4006, a framework fixture piping curl into sh with no
-  # pipefail, where a 404 builds a green image with the framework missing.
-  hadolint:
-    name: hadolint (advisory)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/advisory-note
+        if: steps.markdownlint.outcome == 'failure'
         with:
-          persist-credentials: false
+          title: markdownlint
+          warning-body: Markdown lint findings above - advisory, not blocking
+          heading: markdownlint found something
+          body: |
+            Advisory only: this job never blocks a merge. See the step above for the findings,
+            or run `markdownlint-cli2 '**/*.md' '!.claude/**'` locally.
 
+      # The fixture Dockerfiles, which nothing linted before. Advisory for
+      # the same reason markdownlint is: what is left after .hadolint.yaml's
+      # ignores is DL3009 and DL3015 - apt lists and --no-install-recommends,
+      # both image size on a fixture built once and thrown away. Worth
+      # seeing, never worth reddening somebody's PR over.
+      #
+      # The one finding worth a hard failure is fixed in the fixtures rather
+      # than ignored here: DL4006, a framework fixture piping curl into sh
+      # with no pipefail, where a 404 builds a green image with the
+      # framework missing.
       - uses: ./.github/actions/setup-tool
         with:
           tool: hadolint
@@ -226,7 +228,7 @@ jobs:
       # `|| true` on the loop and the verdict re-read afterwards, rather than
       # continue-on-error: hadolint exits non-zero per file, and this has to
       # lint every one before deciding, not stop at the first.
-      - id: lint
+      - id: hadolint
         name: Lint the fixture Dockerfiles
         run: |
           set -uo pipefail
@@ -243,47 +245,31 @@ jobs:
             echo "found=0" >>"$GITHUB_OUTPUT"
           fi
 
-      - name: Say so, without failing
-        if: steps.lint.outputs.found == '1'
-        run: |
-          set -euo pipefail
-          echo "::warning title=hadolint::Dockerfile lint findings above - advisory, not blocking"
-          {
-            echo "### hadolint found something"
-            echo
-            echo "Advisory only: this job never blocks a merge. \`.hadolint.yaml\` carries a"
-            echo "reason per silenced rule; anything reaching here is deliberately left visible."
-            echo
-            echo '```'
-            sed -n '1,80p' "$RUNNER_TEMP/hadolint.out"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Truncate the findings before they go in the summary
+        if: steps.hadolint.outputs.found == '1'
+        run: sed -n '1,80p' "$RUNNER_TEMP/hadolint.out" >"$RUNNER_TEMP/hadolint.truncated"
 
-  # docs/demos/demo.gif is the one hand-rendered GIF, and .githooks/
-  # demo_staleness.sh is what says when the tape, the fixtures or the shipped
-  # tree moved after it was last rendered. As a git hook it only speaks on a
-  # machine that opted in (`git config core.hooksPath .githooks`); here it
-  # speaks on every pull request. Advisory on markdownlint's precedent and for
-  # the same reason the hook never blocks a commit: a GIF is re-rendered and
-  # looked at by a person, and a red check would be making that call for them.
-  #
-  # Pull requests only - on a push to main there is nobody left to warn - and
-  # fetch-depth 0, because the script compares last-commit dates with `git
-  # log` and a shallow clone answers that with the clone's own date for every
-  # path. The script always exits 0, so its verdict is read out of its output.
-  demo-staleness:
-    name: demo.gif staleness (advisory)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/advisory-note
+        if: steps.hadolint.outputs.found == '1'
         with:
-          fetch-depth: 0
-          persist-credentials: false
+          title: hadolint
+          warning-body: Dockerfile lint findings above - advisory, not blocking
+          heading: hadolint found something
+          body: |
+            Advisory only: this job never blocks a merge. `.hadolint.yaml` carries a
+            reason per silenced rule; anything reaching here is deliberately left visible.
+          report-file: ${{ runner.temp }}/hadolint.truncated
 
-      - id: check
+      # docs/demos/demo.gif is the one hand-rendered GIF, and .githooks/
+      # demo_staleness.sh is what says when the tape, the fixtures or the
+      # shipped tree moved after it was last rendered. As a git hook it only
+      # speaks on a machine that opted in (`git config core.hooksPath
+      # .githooks`); here it speaks on every pull request. Pull requests
+      # only - on a push to main there is nobody left to warn. The script
+      # always exits 0, so its verdict is read out of its output.
+      - id: demo-staleness
         name: Compare demo.gif against what it renders
+        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
           .githooks/demo_staleness.sh | tee "$RUNNER_TEMP/staleness.out"
@@ -294,22 +280,21 @@ jobs:
             echo "stale=0" >>"$GITHUB_OUTPUT"
           fi
 
-      - name: Say so, without failing
-        if: steps.check.outputs.stale == '1'
-        run: |
-          set -euo pipefail
-          echo "::warning title=demo.gif::docs/demos/demo.gif is older than something it renders - advisory, not blocking"
-          {
-            echo "### demo.gif may be out of date"
-            echo
-            echo "Advisory only: this job never blocks a merge. Re-render with"
-            echo "\`docs/tapes/generate.sh demo\` (needs docker), look at the result, and commit it"
-            echo "in its own commit - see docs/PACKAGING.md, _Regenerating the demo GIFs_."
-            echo
-            echo '```'
-            sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/staleness.out"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Strip ANSI before it goes in the summary
+        if: steps.demo-staleness.outputs.stale == '1'
+        run: sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/staleness.out" >"$RUNNER_TEMP/staleness.plain"
+
+      - uses: ./.github/actions/advisory-note
+        if: steps.demo-staleness.outputs.stale == '1'
+        with:
+          title: demo.gif
+          warning-body: docs/demos/demo.gif is older than something it renders - advisory, not blocking
+          heading: demo.gif may be out of date
+          body: |
+            Advisory only: this job never blocks a merge. Re-render with
+            `docs/tapes/generate.sh demo` (needs docker), look at the result, and commit it
+            in its own commit - see docs/PACKAGING.md, _Regenerating the demo GIFs_.
+          report-file: ${{ runner.temp }}/staleness.plain
 
   # Hot-path timings against generous ceilings - catches an order-of-magnitude
   # regression (a fork in a loop, a probe losing its timeout), and prints the
@@ -474,24 +459,44 @@ jobs:
   # to hand a fork's pull request, and the runner job's fork guard covers only
   # the jobs that name it. Gated on both fast-suite jobs so a red unit test
   # doesn't cost a 15-minute macOS runner.
+  #
+  # One gate job rather than the same needs/if repeated on all four callers
+  # below - a single place to read or change the condition instead of four.
+  e2e-gate:
+    name: e2e gate
+    needs: [test, test-macos]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ok: ${{ steps.gate.outputs.ok }}
+    steps:
+      - id: gate
+        run: |
+          ok=false
+          if [ "${{ github.event_name }}" = push ] && [ "${{ needs.test.result }}" = success ] && [ "${{ needs.test-macos.result }}" = success ]; then
+            ok=true
+          fi
+          echo "ok=$ok" >>"$GITHUB_OUTPUT"
+
   e2e-macos:
     name: e2e (macOS)
-    needs: [test, test-macos]
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
+    needs: e2e-gate
+    if: needs.e2e-gate.outputs.ok == 'true'
     uses: ./.github/workflows/macos-e2e.yml
 
   e2e-windows:
     name: e2e (Windows)
-    needs: [test, test-macos]
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
+    needs: e2e-gate
+    if: needs.e2e-gate.outputs.ok == 'true'
     uses: ./.github/workflows/windows-e2e.yml
 
   # The non-macOS BSD, on the same gate: a FreeBSD VM on a hosted runner runs
   # the fast suites and ssh's to itself.
   e2e-freebsd:
     name: e2e (FreeBSD)
-    needs: [test, test-macos]
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
+    needs: e2e-gate
+    if: needs.e2e-gate.outputs.ok == 'true'
     uses: ./.github/workflows/freebsd-e2e.yml
 
   # The client-side half of the Windows story, on the same gate. A real check,
@@ -501,6 +506,6 @@ jobs:
   # doesn't block a merge yet, only shows red on the push.
   e2e-windows-client:
     name: fast suites (Windows client)
-    needs: [test, test-macos]
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
+    needs: e2e-gate
+    if: needs.e2e-gate.outputs.ok == 'true'
     uses: ./.github/workflows/windows-client.yml

@@ -403,7 +403,7 @@ The top-of-README `demo.gif` is the one that goes quietly wrong: it claims to
 be the stock defaults, so it is stale the moment the header, the prompt or the
 tape changes. [`.githooks/demo_staleness.sh`](../.githooks/demo_staleness.sh)
 compares its last commit against the tape, the fixtures and the shipped tree.
-`ci.yml`'s `demo-staleness` job runs it on every pull request as a warning; to
+`ci.yml`'s `advisory-lint` job runs it on every pull request as a warning; to
 hear it before the push:
 
 ```sh

@@ -45,34 +45,13 @@ jobs:
           .github/scripts/check_tool_versions.sh | tee "$RUNNER_TEMP/tools.txt" || rc=$?
           echo "outdated=$rc" >>"$GITHUB_OUTPUT"
 
-      - name: Keep the tracking issue current
+      - name: Compose the report, when there's drift to report
+        if: steps.check.outputs.outdated != 0
         env:
-          GH_TOKEN: ${{ github.token }}
           OUTDATED: ${{ steps.check.outputs.outdated }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          label=tool-versions
-          title="Pinned CI tools are behind their upstream releases"
-
-          # --force is create-or-update, so a deleted label heals itself rather
-          # than turning every later `issue create` into a hard failure
-          gh label create "$label" --force --color 0E8A16 \
-            --description "A tools.txt pin in .github/actions/setup-tool is behind upstream" >/dev/null
-
-          # one issue, reused: the finding is a standing state of the pins, not
-          # an event, so a new issue per weekly run would be pure noise
-          open="$(gh issue list --label "$label" --state open --json number --jq '.[0].number // empty')"
-
-          if [ "$OUTDATED" = 0 ]; then
-            if [ -n "$open" ]; then
-              gh issue close "$open" --comment "Every pin is current again. [Latest run]($RUN_URL)."
-            fi
-            echo "every pin is current"
-            exit 0
-          fi
-
-          report="$RUNNER_TEMP/report.md"
           {
             echo "$OUTDATED pinned tool(s) in \`.github/actions/setup-tool/tools.txt\` are behind upstream."
             echo "Bump the version column of each OUTDATED row; the drift check reads the same file."
@@ -82,14 +61,14 @@ jobs:
             echo '```'
             echo
             echo "Found by [\`tool-versions\`]($RUN_URL). Closed automatically once every pin is current."
-          } >"$report"
-          cat "$report" >>"$GITHUB_STEP_SUMMARY"
+          } >"$RUNNER_TEMP/report.md"
 
-          # --body-file, not --body: the table is a code block with blank lines,
-          # and a YAML-indented shell string would arrive indented into it
-          if [ -n "$open" ]; then
-            gh issue edit "$open" --title "$title" --body-file "$report"
-            echo "updated #$open"
-          else
-            gh issue create --label "$label" --title "$title" --body-file "$report"
-          fi
+      - uses: ./.github/actions/upsert-tracking-issue
+        with:
+          label: tool-versions
+          label-color: 0E8A16
+          label-description: A tools.txt pin in .github/actions/setup-tool is behind upstream
+          title: Pinned CI tools are behind their upstream releases
+          resolved: ${{ steps.check.outputs.outdated == 0 && 'true' || 'false' }}
+          close-comment: Every pin is current again. [Latest run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          body-file: ${{ runner.temp }}/report.md

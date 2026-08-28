@@ -1,0 +1,73 @@
+name: Fetch latest artifact
+# pages.yml looks up the newest successful run of a workflow, then downloads
+# one named artifact from it - four times over (CI's totals, CI's package
+# sizes, coverage's pct, coverage-v2's pct, demos' GIFs). Each pair was
+# written out by hand with only the workflow filename, the artifact name,
+# the destination and the two log lines actually varying.
+description: Find the newest successful run of a workflow and download one artifact from it
+
+inputs:
+  workflow:
+    description: workflow filename to query, e.g. ci.yml
+    required: true
+  artifact-name:
+    description: name of the artifact to download
+    required: true
+  dest-subdir:
+    description: destination directory under ${{ runner.temp }}
+    required: true
+  found-message:
+    description: logged as "<found-message> <run_id>" when a run is found
+    required: true
+  missing-message:
+    description: logged when no successful run exists
+    required: true
+  warn-on-missing:
+    description: "'true' to log the missing case as a ::warning instead of a plain echo"
+    required: false
+    default: "false"
+
+outputs:
+  run_id:
+    description: the run id a run was found under, empty otherwise
+    value: ${{ steps.find.outputs.run_id }}
+
+runs:
+  using: composite
+  steps:
+    # The lookup is by query rather than off a workflow_run payload on
+    # purpose - the newest green run on main *is* the triggering run when
+    # that is the event, so one code path serves push and dispatch too.
+    - id: find
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        WORKFLOW: ${{ inputs.workflow }}
+        FOUND_MESSAGE: ${{ inputs.found-message }}
+        MISSING_MESSAGE: ${{ inputs.missing-message }}
+        WARN_ON_MISSING: ${{ inputs.warn-on-missing }}
+      run: |
+        set -euo pipefail
+        run_id="$(gh api \
+          "repos/$REPO/actions/workflows/$WORKFLOW/runs?branch=main&status=success&per_page=1" \
+          --jq '.workflow_runs[0].id // empty')"
+        echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
+        if [ -n "$run_id" ]; then
+          echo "$FOUND_MESSAGE $run_id"
+        elif [ "$WARN_ON_MISSING" = true ]; then
+          echo "::warning::$MISSING_MESSAGE"
+        else
+          echo "$MISSING_MESSAGE"
+        fi
+
+    # continue-on-error, not a gate: an expired or missing artifact is a grey
+    # badge or an absent render, not a failed site deploy
+    - if: steps.find.outputs.run_id != ''
+      continue-on-error: true
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/${{ inputs.dest-subdir }}
+        run-id: ${{ steps.find.outputs.run_id }}
+        github-token: ${{ github.token }}

@@ -72,8 +72,8 @@ release](#quick-wins), [Homebrew tap](#moderate) and
   - Confirm _Settings → Actions → General → Allow GitHub Actions to create
     and approve pull requests_ before the first tag — off, `gh pr create`
     fails at the last step, with the packages already published.
-  - Required checks are still unset. Keep `markdownlint`, `hadolint`,
-    `demo-staleness`, lychee, trivy advisory. `e2e (macOS)`, `e2e (Windows)`
+  - Required checks are still unset. Keep `advisory lint` (markdownlint,
+    hadolint, demo-staleness), lychee, trivy advisory. `e2e (macOS)`, `e2e (Windows)`
     and the Windows client job are green on push and reasonable candidates.
     Requiring even one — `fast suites (ubuntu-latest)` is the obvious pick —
     is also what Scorecard's Branch-Protection check is waiting on: it scores
@@ -170,12 +170,21 @@ Tracked, not actionable. Nothing in this checkout changes when these unblock,
 and none is a v1.0.0 criterion.
 
 - [ ] **Outside the repo, once a release exists** — _scope: a badge, a
-      questionnaire, a toggle and a check; none in-repo._ Listed together so
-      they're not forgotten between the tag and the announcement:
+      questionnaire, a toggle and a check; mostly outside this checkout._
+      Listed together so they're not forgotten between the tag and the
+      announcement:
       - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
-        achievable now that CONTRIBUTING.md exists;
-      - a Repology badge, once deb/rpm/apk, the tap and the AUR carry a
-        version;
+        the in-repo half has shipped:
+        [CII-BEST-PRACTICES-DRAFT.md](CII-BEST-PRACTICES-DRAFT.md) answers
+        all 67 passing-level criteria against this tree, and README's badge
+        block carries the two commented-out lines waiting on a project ID.
+        What's left is outside this checkout — register at bestpractices.dev,
+        transcribe the draft, uncomment the badge — and the tick still means
+        *passing*, which stays blocked on three release-shaped MUST criteria
+        until the first tag ships;
+      - a Repology badge — added to README's badge block already (renders
+        empty for now); the tick still means it's carrying a real version,
+        once deb/rpm/apk, the tap and the AUR do;
       - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`;
       - a check that `ubi`/`mise use ubi:` finds `hi.sh` in the release
         tarball, and a PACKAGING.md line if it needs an `--exe` hint;

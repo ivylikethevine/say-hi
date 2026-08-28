@@ -42,14 +42,12 @@ jobs:
             './**/*.md'
           fail: true
 
-      - name: Say so, without failing
+      - uses: ./.github/actions/advisory-note
         if: steps.lychee.outcome == 'failure'
-        run: |
-          set -euo pipefail
-          echo "::warning title=lychee::Dead or unreachable links above - advisory, not blocking"
-          {
-            echo "### lychee found dead links"
-            echo
-            echo "Advisory only: this job never blocks anything. See the step above for the list,"
-            echo "or run \`lychee --exclude-path .claude './**/*.md'\` locally."
-          } >>"$GITHUB_STEP_SUMMARY"
+        with:
+          title: lychee
+          warning-body: Dead or unreachable links above - advisory, not blocking
+          heading: lychee found dead links
+          body: |
+            Advisory only: this job never blocks anything. See the step above for the list,
+            or run `lychee --exclude-path .claude './**/*.md'` locally.

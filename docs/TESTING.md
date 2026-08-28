@@ -265,11 +265,14 @@ re-deciding it each time the report is read:
 - **Contributors sits at 3** — the check wants ≥2 contributing organizations
   among recent contributors; there's one. `.scorecard.yml` marks this
   `not-applicable` too.
-- **CII-Best-Practices sits at 0** — no effort has been made toward an OpenSSF
-  Best Practices badge (a self-assessment questionnaire at
-  [bestpractices.dev](https://www.bestpractices.dev/), separate from
-  Scorecard). Plausibly worth doing; nobody has started it, so it isn't
-  tracked as in-progress anywhere.
+- **CII-Best-Practices sits at 0** — no project is registered yet at
+  [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
+  Practices badge, a self-assessment questionnaire separate from Scorecard).
+  The answers are drafted at
+  [CII-BEST-PRACTICES-DRAFT.md](CII-BEST-PRACTICES-DRAFT.md); the score moves
+  off 0 as soon as the project is registered there and the draft is
+  transcribed, which needs no code change. Passing still waits on the first
+  release — three MUST criteria are release-shaped.
 - **Signed-Releases reads -1 (excluded from the average)**, not a fixable 0 —
   Scorecard hasn't seen a release yet. `release.yml` already ships
   `dist/SHA256SUMS.minisig` and a build-provenance attestation, and `.minisig`
