@@ -38,12 +38,16 @@ never read a variable at all. The four lint jobs (`actionlint`, `zizmor`,
 install nothing and open no socket, so a self-hosted box bought them nothing
 while adding contention for it.
 
-`scorecard.yml` is the one exception worth remembering if this comes back:
-`ossf/scorecard-action`'s publish step is a **hard requirement** of an
-Ubuntu-hosted runner, not a preference. Pointing `RUNNER_LABEL` at it would
-make the job go green while `publish_results`'s OIDC submission is silently
-rejected — this is exactly what happened and is diagnosed in
-[docs/ROADMAP.md](ROADMAP.md). Never wire that job to the variable.
+`scorecard.yml` is the one exception worth remembering if this comes back, and
+the reason is stricter than "prefers a hosted runner": `ossf/scorecard-action`'s
+`publish_results` step has the OpenSSF webapp re-fetch the workflow file and
+check its `runs-on:` with a static parser that never evaluates `${{ }}`
+expressions. Pointing `RUNNER_LABEL` at it doesn't just risk landing on the
+wrong machine — the webapp sees the literal expression text, which matches no
+supported runner label, and rejects the submission on that basis alone, even
+though the job itself still lands on a hosted runner and goes green. This is
+exactly what happened and is diagnosed in [docs/ROADMAP.md](ROADMAP.md). Never
+wire that job to the variable, however the variable would resolve.
 
 ## The fork-PR guard
 
