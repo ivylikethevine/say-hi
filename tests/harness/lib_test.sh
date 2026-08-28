@@ -368,7 +368,10 @@ function test_case_result_says_timed_out_by_name() {
 
 function test_pty_wrap_force_wraps_even_on_a_tty() {
   _hi_pty_wrap 0 force "no python3" >/dev/null
-  if command -v python3 >/dev/null 2>&1; then
+  # _HI_PTY_OK, not `command -v python3`: Windows ships python3 but its `pty`
+  # module is Unix-only, so a python3 that can't back a real pty must read the
+  # same as no python3 at all - the probe _hi_pty_wrap itself gates on.
+  if [ "$_HI_PTY_OK" -eq 1 ]; then
     [ "${#_HI_PTY_WRAP[@]}" -gt 0 ] && [ "${_HI_PTY_WRAP[0]}" = python3 ]
   else
     [ "${#_HI_PTY_WRAP[@]}" -eq 0 ]
@@ -378,9 +381,9 @@ function test_pty_wrap_force_wraps_even_on_a_tty() {
 function test_pty_wrap_auto_leaves_a_real_tty_alone() {
   _hi_pty_wrap 0 auto "no python3" >/dev/null
   # Three environments, three right answers: a real tty needs no fake, no tty
-  # gets one, and no tty *and* no python3 to build one with leaves it empty
-  # (which is the warning path, not a failure).
-  if [ -t 0 ] || ! command -v python3 >/dev/null 2>&1; then
+  # gets one, and no tty *and* no working pty module to build one with leaves
+  # it empty (which is the warning path, not a failure).
+  if [ -t 0 ] || [ "$_HI_PTY_OK" -ne 1 ]; then
     [ "${#_HI_PTY_WRAP[@]}" -eq 0 ]
   else
     [ "${#_HI_PTY_WRAP[@]}" -gt 0 ]

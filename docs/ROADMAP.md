@@ -100,25 +100,6 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
   - **Ticks when:** a release body names what changed and how to check it,
     with nobody hand-writing the list.
 
-- [ ] **Confirm the tar padding fix on the macOS job** — _scope: one CI run
-      to read; the code half has shipped; in-repo._ GNU tar rounds the
-      _uncompressed_ archive up to the 10240-byte blocking factor and then
-      gzips it (the NULs compress to ~30 bytes); bsdtar — macOS's
-      `/usr/bin/tar` — pads the _compressed_ stream instead, so every BSD
-      client's payload was rounded up to a multiple of 10240.
-
-  - `_hi_tar_gz` in `hi.sh` now compresses in a second process (`tar cf - |
-    gzip -n`), checking both halves via `${PIPESTATUS[@]}` and degrading to
-    `tar czf -` where the client has no `gzip`. All three call sites go
-    through it. Reproduced against real bsdtar by shimming `tar`: the
-    payload went **40960 → 32286 B**, a one-file overlay **10240 → 140 B**.
-    Four cases in `tests/hi/payload_test.sh` pin it — the two that shim
-    bsdtar are the ones that fail against the old code.
-  - This is what made `doctor_payload_diff`'s case red on the macOS job and
-    green everywhere else; the 128-byte OSC 52 floor needs no change
-    (measured jitter is 8-9 bytes).
-  - **Ticks when:** `doctor`'s payload-diff case is green on the macOS job.
-
 - [ ] **Make the Windows client job green** — _scope: one dispatch to read,
       plus two repository steps once it is; the fixture half has shipped;
       in-repo._ `.github/workflows/windows-client.yml` was dispatched twice
