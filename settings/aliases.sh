@@ -17,8 +17,7 @@
 #
 # Also defaults the value vars every guard below reads bare under `set -u`
 # (_HI_BATCAT_BIN and friends, plus the two *_OPTS families) so the overlay
-# source right after this line can test them with `[ -z ]` before anything
-# has assigned them.
+# source right after this line can test them with `[ -z ]` before anything's assigned
 command -v shift >/dev/null 2>&1 &&
   eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_OSC52="${_HI_DISABLE_OSC52-0}" _HI_OSC52="${_HI_OSC52-}" _HI_DISABLE_NOTIFY="${_HI_DISABLE_NOTIFY-0}" _HI_NOTIFY="${_HI_NOTIFY-}" _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS-0}" _HI_DISABLE_EZA_CONFIG="${_HI_DISABLE_EZA_CONFIG-0}" _HI_DISABLE_LS_ALIASES="${_HI_DISABLE_LS_ALIASES-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_BATCAT_BIN="${_HI_BATCAT_BIN-}" _HI_BAT_REAL="${_HI_BAT_REAL-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_SHARED_OPTS="${_HI_EXA_SHARED_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_EZA_OPTS_SIZE="${_HI_EZA_OPTS_SIZE-}"' 2>/dev/null || true
 
