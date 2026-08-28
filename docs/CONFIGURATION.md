@@ -169,10 +169,10 @@ row here.
 | `_HI_VIMRC`                  | overlay, else tree              | you                       | the same for the vim config the `vim` alias and `$VIMINIT` point at                           |
 | `_HI_NANORC`                 | overlay, else tree              | you                       | the same for nano's                                                                           |
 | `_HI_BAT_OPTS`               | Monokai theme, `--tabs 2`, `changes,grid` style | you       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own    |
-| `_HI_EXA_SHARED_OPTS`        | `-F -1 -l -m --group-directories-first` | you               | the flags every `exa`/`eza` alias shares before its own family's are appended                  |
-| `_HI_EXA_OPTS`               | `$_HI_EXA_SHARED_OPTS --group --no-filesize` | you          | the `exa` family's flags (its predecessor's column set)                                       |
-| `_HI_EZA_OPTS`               | `$_HI_EXA_SHARED_OPTS` + smart-group + a time format | you  | the `eza` family's flags                                                                       |
-| `_HI_EZA_OPTS_SIZE`          | `$_HI_EZA_OPTS --total-size`    | you                       | the size-reporting `eza` aliases' flags (`les`, `lest`, `lesg`)                                |
+| `_HI_EXA_SHARED_OPTS`        | `-F -1 -l -m --group-directories-first` | you               | the flags the `exa`/`eza` aliases share before each one's own are appended                     |
+| `_HI_EXA_OPTS`               | `$_HI_EXA_SHARED_OPTS --group --no-filesize` | you          | the `exa` alias's flags (its predecessor's column set)                                        |
+| `_HI_EZA_OPTS`               | `$_HI_EXA_SHARED_OPTS` + smart-group + a time format | you  | the `eza` alias's flags                                                                        |
+| `_HI_EZA_OPTS_SIZE`          | `$_HI_EZA_OPTS --total-size`    | you                       | exported for an overlay's own use; no shipped alias reads it today                             |
 | `_HI_TARGET`                 | -                               | hi                        | the target as you typed it on the client                                                      |
 | `_HI_TARGET_COLOR`           | -                               | hi                        | the color that target resolved to, decided on the client so it matches everywhere             |
 | `_HI_TARGET_TAG`             | -                               | hi                        | the target's `# Tags:` value out of your `~/.ssh/config`                                      |
@@ -260,7 +260,7 @@ Each is **on by default**; set it to `1` to turn that piece off.
 | `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                 |
 | `_HI_DISABLE_BAT_ALIAS`  | rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way                     |
 | `_HI_DISABLE_EZA_CONFIG` | styling `eza` itself from hi's theme (`EZA_CONFIG_DIR`) - independent of the alias family below, and keeps `settings/theme.yml` off the ssh payload entirely |
-| `_HI_DISABLE_LS_ALIASES` | the `exa`/`eza` ls-family aliases (`lr`, `lsx`, `lra`, `lrt`, `eza`, `lsz`, `les`, `lest`, `lesg`, `le`, `lea`, `let`, `leg`, `l`) - `exa`/`eza` themselves stay available by name either way |
+| `_HI_DISABLE_LS_ALIASES` | the styled `exa`/`eza` aliases - the `exa`/`eza` binaries themselves stay available by name either way |
 | `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                     |
 | `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely |
 | `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                       |

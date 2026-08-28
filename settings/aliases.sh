@@ -107,11 +107,10 @@ alias batn="batcat"
 [ "$_HI_DISABLE_BAT_ALIAS" != 1 ] && alias catn="batn" || true
 
 # eza/exa (its predecessor) improved ls; time format per
-# https://docs.rs/chrono/latest/chrono/format/strftime/index.html. The whole
-# family is behind _HI_DISABLE_LS_ALIASES (`let` shadows zsh's own builtin,
-# `l` is many people's personal binding) - off on _HI_DISABLE_LS_ALIASES=1,
-# the same shape as _HI_DISABLE_BAT_ALIAS above. $_HI_EXA_BIN/$_HI_EZA_BIN
-# stay resolvable either way.
+# https://docs.rs/chrono/latest/chrono/format/strftime/index.html. These two
+# styled wrappers are behind _HI_DISABLE_LS_ALIASES - off on
+# _HI_DISABLE_LS_ALIASES=1, the same shape as _HI_DISABLE_BAT_ALIAS above.
+# $_HI_EXA_BIN/$_HI_EZA_BIN stay resolvable either way.
 [ -z "$_HI_EXA_SHARED_OPTS" ] && export _HI_EXA_SHARED_OPTS='-F -1 -l -m --group-directories-first' || true
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS="$_HI_EXA_SHARED_OPTS --group --no-filesize" || true
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS="$_HI_EXA_SHARED_OPTS"' --smart-group --time-style="+%b %d %Y %H:%M"' || true

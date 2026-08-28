@@ -80,9 +80,9 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   fi
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
     if [ "$_HI_EXPECT_LS_ALIAS" = 1 ]; then
-      alias l >/dev/null 2>&1 || { echo "expected l alias, missing" >&2; fail=1; }
+      alias eza >/dev/null 2>&1 || { echo "expected eza alias, missing" >&2; fail=1; }
     else
-      alias l >/dev/null 2>&1 && { echo "expected no l alias, but found one" >&2; fail=1; }
+      alias eza >/dev/null 2>&1 && { echo "expected no eza alias, but found one" >&2; fail=1; }
     fi
   fi
   if [ -n "${_HI_EXPECT_EZA_CONFIG:-}" ]; then
@@ -143,9 +143,9 @@ if set -q _HI_CHECK_FLAGS
   end
   if set -q _HI_EXPECT_LS_ALIAS
     if test "$_HI_EXPECT_LS_ALIAS" = 1
-      functions -q -- l; or begin; echo "expected l alias, missing" >&2; set fail 1; end
+      functions -q -- eza; or begin; echo "expected eza alias, missing" >&2; set fail 1; end
     else
-      functions -q -- l; and begin; echo "expected no l alias, but found one" >&2; set fail 1; end
+      functions -q -- eza; and begin; echo "expected no eza alias, but found one" >&2; set fail 1; end
     end
   end
   if set -q _HI_EXPECT_EZA_CONFIG
@@ -171,6 +171,10 @@ EOF
 # way to keep an overlay alias of a shipped name is the matching
 # `_HI_DISABLE_*` toggle); one per shell proves a config-dir-less run (the
 # container fallback's shape) stays silent.
+#
+# The shadowed case probes `batcat`, not a toggled name: it is defined
+# unconditionally (no _HI_DISABLE_* can make it disappear), so the case can
+# never again go red just because a name was de-opinionated out from under it.
 function _hi_run_overlay_case() {
   local shell="$1" mode="$2" shell_bin cfgdir="" script out
   shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
@@ -191,15 +195,18 @@ function _hi_run_overlay_case() {
   shadowed)
     cfgdir="$_HI_WORKDIR/overlaycfg_shadowed"
     mkdir -p "$cfgdir"
-    printf 'alias l="echo overlay-wins"\n' >"$cfgdir/aliases.sh"
+    printf 'alias batcat="echo overlay-wins"\n' >"$cfgdir/aliases.sh"
     if [ "$shell" = fish ]; then
-      # `functions l`'s header line is metadata (fish keeps a stale --wraps
-      # from the overlay's first definition even after the shipped one
-      # overwrites the body), so only the body line - always second-to-last,
-      # right before the closing `end` - is checked
-      script="source $_HI_ALIASES; functions l | tail -n 2 | head -n 1 | string match -q '*overlay-wins*'; and echo SHADOWED-BAD; or echo SHADOWED-OK"
+      # `functions batcat`'s header line is metadata (fish keeps a stale
+      # --wraps from the overlay's first definition even after the shipped
+      # one overwrites the body), so it's excluded by name/shape rather than
+      # by a fixed line offset - `functions`' exact line count isn't stable
+      # across fish versions (this shipped alias is unconditional, so a
+      # missing function here is this case's own bug, not a de-opinionated
+      # name - hence SHADOWED-MISSING is distinct from SHADOWED-BAD)
+      script="source $_HI_ALIASES; functions -q -- batcat; or begin; echo SHADOWED-MISSING; exit; end; functions batcat | string match -v -r '^(#|function |end\$)' | string match -q '*overlay-wins*'; and echo SHADOWED-BAD; or echo SHADOWED-OK"
     else
-      script=". $_HI_ALIASES && { alias l 2>/dev/null | grep -q overlay-wins && echo SHADOWED-BAD || echo SHADOWED-OK; }"
+      script=". $_HI_ALIASES && { alias batcat >/dev/null 2>&1 || { echo SHADOWED-MISSING; exit 0; }; alias batcat 2>/dev/null | grep -q overlay-wins && echo SHADOWED-BAD || echo SHADOWED-OK; }"
     fi
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
       _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
@@ -405,7 +412,7 @@ function run_eza_config_flag_tests() {
 
 # Modelled on _HI_DISABLE_BAT_ALIAS above: the exa/eza *binaries* stay
 # resolvable either way (run_fallthrough_tests already covers that), only the
-# ls-family rebinds (lr, le, l and friends) go.
+# styled `exa`/`eza` wrapper aliases go.
 function run_ls_aliases_flag_tests() {
   _hi_h1 "_HI_DISABLE_LS_ALIASES guard"
   local shell fakepath
@@ -414,13 +421,13 @@ function run_ls_aliases_flag_tests() {
   for combo in "0 1" "1 0"; do
     # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
     set -- $combo
-    local dla="$1" want_l="$2"
+    local dla="$1" want_eza="$2"
     for shell in $_HI_INSTALLED_SHELLS; do
       _HI_DISABLE_LS_ALIASES="$dla" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
         "_HI_DISABLE_LS_ALIASES=$dla" \
         _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS=1 \
-        _HI_EXPECT_LS_ALIAS="$want_l"
+        _HI_EXPECT_LS_ALIAS="$want_eza"
     done
   done
 }
