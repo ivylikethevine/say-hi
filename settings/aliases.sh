@@ -118,20 +118,7 @@ alias batn="batcat"
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS="$_HI_EXA_SHARED_OPTS"' --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ -z "$_HI_EZA_OPTS_SIZE" ] && export _HI_EZA_OPTS_SIZE="$_HI_EZA_OPTS --total-size" || true
 [ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias exa="$_HI_EXA_BIN $_HI_EXA_OPTS" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lr="exa" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lsx="lr" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lra="lr -a" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lrt="lr -T -L2" || true
 [ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lsz="eza" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias les="eza $_HI_EZA_OPTS_SIZE" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lest="eza $_HI_EZA_OPTS_SIZE -T -L2" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lesg="eza $_HI_EZA_OPTS_SIZE --git --git-repos-no-status" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias le="eza --no-filesize" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias lea="le -a" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias let="le -T -L2" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias leg="le --git --git-repos-no-status" || true
-[ "$_HI_DISABLE_LS_ALIASES" != 1 ] && alias l="$_HI_EZA_BIN -l" || true
 
 # Drop into another shell inside a session and hi comes with you.
 #
