@@ -4,7 +4,10 @@ Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` (`$_HI_CONFIG_DIR`). `colors` and
 `packages` there override the tree's copies one file at a time, so anything you
 haven't overridden keeps tracking what `hi --update` delivers. `aliases.sh`
-adds rather than replaces, loading after the tree's own so yours win.
+loads **before** the tree's own, so any `_HI_*_OPTS` value or `_HI_DISABLE_*`
+toggle you set there takes effect before hi builds anything from it; an
+`alias` you define there does not win over the same name shipped after it —
+turn the shipped family off with its toggle and define your own instead.
 `settings.sh` has no in-tree counterpart: `hi --configure` only ever writes it
 here.
 
@@ -18,7 +21,7 @@ Four of those files can also live somewhere else entirely — see
 | `~/.config/say-hi/packages`    | `settings/packages` | what the package check looks for                                                                                                         |
 | `~/.config/say-hi/vim.rc`      | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale, so carry the OSC 52 yank block over if wanted |
 | `~/.config/say-hi/nano.rc`     | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                              |
-| `~/.config/say-hi/aliases.sh`  | -                   | your own aliases, sourced **last** so yours win - additive, in the same POSIX+fish subset                                                |
+| `~/.config/say-hi/aliases.sh`  | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
 | `~/.config/say-hi/bash.sh`     | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                              |
 | `~/.config/say-hi/zsh.zsh`     | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                       |
 | `~/.config/say-hi/config.fish` | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                    |
@@ -128,6 +131,8 @@ row here.
 | `_HI_DISABLE_GIT_STATUS`     | `0`                             | `hi --configure`          | [Features](#features) - the git segment in the prompt                                         |
 | `_HI_DISABLE_EDITORS`        | `0`                             | `hi --configure`          | [Features](#features) - the `vim`/`nano` config overrides                                     |
 | `_HI_DISABLE_BAT_ALIAS`      | `0`                             | `hi --configure`          | [Features](#features) - rebinding `cat`/`catn` to a styled `bat`                              |
+| `_HI_DISABLE_EZA_CONFIG`     | `0`                             | `hi --configure`          | [Features](#features) - styling `eza` itself from hi's theme                                  |
+| `_HI_DISABLE_LS_ALIASES`     | `0`                             | `hi --configure`          | [Features](#features) - the `exa`/`eza` ls-family aliases                                     |
 | `_HI_DISABLE_OSC52`          | `0`                             | `hi --configure`          | [Features](#features) - the OSC 52 clipboard                                                  |
 | `_HI_DISABLE_NOTIFY`         | `0`                             | `hi --configure`          | [Features](#features) - the `hi_notify` desktop-notification alias                            |
 | `_HI_DISABLE_MARKS`          | `0`                             | `hi --configure`          | [Features](#features) - OSC 133 prompt marks and OSC 7 cwd reporting                          |
@@ -163,6 +168,11 @@ row here.
 | `_HI_PACKAGES`               | overlay, else tree              | you                       | the same for the package check's list                                                         |
 | `_HI_VIMRC`                  | overlay, else tree              | you                       | the same for the vim config the `vim` alias and `$VIMINIT` point at                           |
 | `_HI_NANORC`                 | overlay, else tree              | you                       | the same for nano's                                                                           |
+| `_HI_BAT_OPTS`               | Monokai theme, `--tabs 2`, `changes,grid` style | you       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own    |
+| `_HI_EXA_SHARED_OPTS`        | `-F -1 -l -m --group-directories-first` | you               | the flags every `exa`/`eza` alias shares before its own family's are appended                  |
+| `_HI_EXA_OPTS`               | `$_HI_EXA_SHARED_OPTS --group --no-filesize` | you          | the `exa` family's flags (its predecessor's column set)                                       |
+| `_HI_EZA_OPTS`               | `$_HI_EXA_SHARED_OPTS` + smart-group + a time format | you  | the `eza` family's flags                                                                       |
+| `_HI_EZA_OPTS_SIZE`          | `$_HI_EZA_OPTS --total-size`    | you                       | the size-reporting `eza` aliases' flags (`les`, `lest`, `lesg`)                                |
 | `_HI_TARGET`                 | -                               | hi                        | the target as you typed it on the client                                                      |
 | `_HI_TARGET_COLOR`           | -                               | hi                        | the color that target resolved to, decided on the client so it matches everywhere             |
 | `_HI_TARGET_TAG`             | -                               | hi                        | the target's `# Tags:` value out of your `~/.ssh/config`                                      |
@@ -249,6 +259,8 @@ Each is **on by default**; set it to `1` to turn that piece off.
 | `_HI_DISABLE_GIT_STATUS` | the git segment in the prompt                                                                                                     |
 | `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                 |
 | `_HI_DISABLE_BAT_ALIAS`  | rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way                     |
+| `_HI_DISABLE_EZA_CONFIG` | styling `eza` itself from hi's theme (`EZA_CONFIG_DIR`) - independent of the alias family below, and keeps `settings/theme.yml` off the ssh payload entirely |
+| `_HI_DISABLE_LS_ALIASES` | the `exa`/`eza` ls-family aliases (`lr`, `lsx`, `lra`, `lrt`, `eza`, `lsz`, `les`, `lest`, `lesg`, `le`, `lea`, `let`, `leg`, `l`) - `exa`/`eza` themselves stay available by name either way |
 | `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                     |
 | `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely |
 | `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                       |
@@ -393,10 +405,13 @@ behind a `_HI_DISABLE_PERSONAL` toggle; neither the files nor the toggle
 exist anymore. What remains in each rc is the prompt, the completions and the
 git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
-the end of hi's, in the same dialect, and your `aliases.sh` loads after
-`settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza` families) and
-wins - including your own `HISTFILE`, which lands after `_HI_SCRATCH_HISTORY`'s
-and so overrides it.
+the end of hi's, in the same dialect, and wins - including your own
+`HISTFILE`, which lands after `_HI_SCRATCH_HISTORY`'s and so overrides it.
+Your `aliases.sh` is different: it loads **before**
+`settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza` families), so a
+`_HI_*_OPTS` value or `_HI_DISABLE_*` toggle you set there wins, but an
+`alias` of the same name does not - the shipped one is defined after and
+overwrites it.
 
 ## Keeping the overlay in a dotfile manager
 

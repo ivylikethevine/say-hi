@@ -55,6 +55,13 @@ if [ -n "${_HI_CHECK_VAR:-}" ]; then
   [ "$actual" = "$_HI_EXPECT" ] || { echo "$_HI_CHECK_VAR: got [$actual] want [$_HI_EXPECT]" >&2; fail=1; }
 fi
 
+if [ -n "${_HI_CHECK_BAT_OPTS:-}" ]; then
+  case "$(alias bat 2>/dev/null)" in
+  *"$_HI_EXPECT_BAT_OPTS"*) : ;;
+  *) echo "bat alias missing overlay opts [$_HI_EXPECT_BAT_OPTS]: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
+  esac
+fi
+
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   if [ "$_HI_EXPECT_NANO" = 1 ]; then
     alias nano >/dev/null 2>&1 || { echo "expected nano alias, missing" >&2; fail=1; }
@@ -70,6 +77,20 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
     alias cat >/dev/null 2>&1 || { echo "expected cat alias, missing" >&2; fail=1; }
   else
     alias cat >/dev/null 2>&1 && { echo "expected no cat alias, but found one" >&2; fail=1; }
+  fi
+  if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
+    if [ "$_HI_EXPECT_LS_ALIAS" = 1 ]; then
+      alias l >/dev/null 2>&1 || { echo "expected l alias, missing" >&2; fail=1; }
+    else
+      alias l >/dev/null 2>&1 && { echo "expected no l alias, but found one" >&2; fail=1; }
+    fi
+  fi
+  if [ -n "${_HI_EXPECT_EZA_CONFIG:-}" ]; then
+    if [ "$_HI_EXPECT_EZA_CONFIG" = 1 ]; then
+      [ -n "${EZA_CONFIG_DIR:-}" ] || { echo "expected EZA_CONFIG_DIR set, missing" >&2; fail=1; }
+    else
+      [ -z "${EZA_CONFIG_DIR:-}" ] || { echo "expected EZA_CONFIG_DIR unset, got [$EZA_CONFIG_DIR]" >&2; fail=1; }
+    fi
   fi
 fi
 
@@ -97,6 +118,13 @@ if set -q _HI_CHECK_VAR
   end
 end
 
+if set -q _HI_CHECK_BAT_OPTS
+  if not string match -q -- "*$_HI_EXPECT_BAT_OPTS*" (functions bat | string join \n)
+    echo "bat alias missing overlay opts [$_HI_EXPECT_BAT_OPTS]" >&2
+    set fail 1
+  end
+end
+
 if set -q _HI_CHECK_FLAGS
   if test "$_HI_EXPECT_NANO" = 1
     functions -q -- nano; or begin; echo "expected nano alias, missing" >&2; set fail 1; end
@@ -113,33 +141,71 @@ if set -q _HI_CHECK_FLAGS
   else
     functions -q -- cat; and begin; echo "expected no cat alias, but found one" >&2; set fail 1; end
   end
+  if set -q _HI_EXPECT_LS_ALIAS
+    if test "$_HI_EXPECT_LS_ALIAS" = 1
+      functions -q -- l; or begin; echo "expected l alias, missing" >&2; set fail 1; end
+    else
+      functions -q -- l; and begin; echo "expected no l alias, but found one" >&2; set fail 1; end
+    end
+  end
+  if set -q _HI_EXPECT_EZA_CONFIG
+    if test "$_HI_EXPECT_EZA_CONFIG" = 1
+      set -q EZA_CONFIG_DIR; and test -n "$EZA_CONFIG_DIR"; or begin; echo "expected EZA_CONFIG_DIR set, missing" >&2; set fail 1; end
+    else
+      not set -q EZA_CONFIG_DIR; or test -z "$EZA_CONFIG_DIR"; or begin; echo "expected EZA_CONFIG_DIR unset, got [$EZA_CONFIG_DIR]" >&2; set fail 1; end
+    end
+  end
 end
 
 exit $fail
 EOF
 }
 
-# aliases.sh's last act is sourcing $_HI_CONFIG_DIR/aliases.sh when it exists:
-# additive, last-wins, silent when absent. One case per shell proves the
-# overlay's alias arrives AND its redefinition of a shipped alias wins; one
-# per shell proves a config-dir-less run (the container fallback's shape)
-# stays silent.
+# aliases.sh's first act is sourcing $_HI_CONFIG_DIR/aliases.sh when it
+# exists, so any _HI_*_OPTS or _HI_DISABLE_* toggle it sets lands ahead of
+# the shipped aliases being built. One case per shell proves a new overlay
+# alias (one the shipped file never touches) still arrives; one proves the
+# opposite of the old contract - an overlay `alias` of a name the shipped
+# file *also* defines does NOT win, since the shipped definition runs after
+# it and overwrites it (docs/CONFIGURATION.md describes this trade-off; the
+# way to keep an overlay alias of a shipped name is the matching
+# `_HI_DISABLE_*` toggle); one per shell proves a config-dir-less run (the
+# container fallback's shape) stays silent.
 function _hi_run_overlay_case() {
   local shell="$1" mode="$2" shell_bin cfgdir="" script out
   shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
-  if [ "$mode" = present ]; then
+  case "$mode" in
+  present)
     cfgdir="$_HI_WORKDIR/overlaycfg"
     mkdir -p "$cfgdir"
-    printf 'alias overlay_probe="echo probe"\nalias gs="echo overlay-wins"\n' >"$cfgdir/aliases.sh"
+    printf 'alias overlay_probe="echo probe"\n' >"$cfgdir/aliases.sh"
     if [ "$shell" = fish ]; then
-      script="source $_HI_ALIASES; functions -q overlay_probe; and functions gs | grep -q overlay-wins; and echo OVERLAY-OK"
+      script="source $_HI_ALIASES; functions -q overlay_probe; and echo OVERLAY-OK"
     else
-      script=". $_HI_ALIASES && alias overlay_probe >/dev/null 2>&1 && alias gs 2>/dev/null | grep -q overlay-wins && echo OVERLAY-OK"
+      script=". $_HI_ALIASES && alias overlay_probe >/dev/null 2>&1 && echo OVERLAY-OK"
     fi
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
       _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
     [ "$out" = OVERLAY-OK ]
-  else
+    ;;
+  shadowed)
+    cfgdir="$_HI_WORKDIR/overlaycfg_shadowed"
+    mkdir -p "$cfgdir"
+    printf 'alias l="echo overlay-wins"\n' >"$cfgdir/aliases.sh"
+    if [ "$shell" = fish ]; then
+      # `functions l`'s header line is metadata (fish keeps a stale --wraps
+      # from the overlay's first definition even after the shipped one
+      # overwrites the body), so only the body line - always second-to-last,
+      # right before the closing `end` - is checked
+      script="source $_HI_ALIASES; functions l | tail -n 2 | head -n 1 | string match -q '*overlay-wins*'; and echo SHADOWED-BAD; or echo SHADOWED-OK"
+    else
+      script=". $_HI_ALIASES && { alias l 2>/dev/null | grep -q overlay-wins && echo SHADOWED-BAD || echo SHADOWED-OK; }"
+    fi
+    out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
+      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
+    [ "$out" = SHADOWED-OK ]
+    ;;
+  *)
     # no _HI_CONFIG_DIR in the environment at all - the backstop default must
     # leave the tail line a silent no-op, with nothing on stderr
     if [ "$shell" = fish ]; then
@@ -150,14 +216,56 @@ function _hi_run_overlay_case() {
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
       "$shell_bin" -c "$script" 2>&1)"
     [ "$out" = NO-OVERLAY-OK ]
-  fi
+    ;;
+  esac
+}
+
+# The ordering hazard the reorder introduces: in zsh and dash (not bash, not
+# fish) `command -v name` returns an *alias's* definition once one exists, so
+# if the overlay ran before the command -v fallthrough chains, an overlay
+# `alias cat=...` would poison $_HI_BATCAT_BIN before it ever resolves to a
+# real binary. settings/aliases.sh keeps the chains above the overlay source
+# specifically to avoid this (GLOSSARY: HI.13) - this is the regression test
+# for that ordering, over a fake PATH holding nothing but a fake `cat`.
+function run_overlay_poisoning_test() {
+  _hi_h1 "An overlay alias cannot poison the command -v fallthrough chains"
+  local shell fakepath cfgdir
+  fakepath="$(_hi_fake_path fp_poison cat)"
+  cfgdir="$_HI_WORKDIR/poisoncfg"
+  mkdir -p "$cfgdir"
+  printf 'alias cat="echo overlay-cat"\n' >"$cfgdir/aliases.sh"
+
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "[$shell] overlay alias cat= does not poison \$_HI_BATCAT_BIN" \
+      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_VAR=BATCAT_BIN _HI_EXPECT="$fakepath/cat"
+  done
+}
+
+# The other half of sourcing the overlay first: a value it sets - here
+# _HI_BAT_OPTS - has to reach the alias the shipped file builds from it, which
+# is the whole point of the reorder.
+function run_overlay_bat_opts_test() {
+  _hi_h1 "Overlay _HI_BAT_OPTS reaches the bat alias"
+  local shell fakepath cfgdir
+  fakepath="$(_hi_fake_path fp_batopts bat)"
+  cfgdir="$_HI_WORKDIR/batoptscfg"
+  mkdir -p "$cfgdir"
+  printf "export _HI_BAT_OPTS='--style plain --overlay-marker'\n" >"$cfgdir/aliases.sh"
+
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "[$shell] overlay _HI_BAT_OPTS lands in the bat alias" \
+      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--overlay-marker'
+  done
 }
 
 function run_overlay_tests() {
-  _hi_h1 "The overlay aliases.sh (additive, last-wins, silent when absent)"
+  _hi_h1 "The overlay aliases.sh (sourced first: values/toggles win, alias redefinitions don't)"
   local shell
   for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_check "[$shell] overlay sourced and its redefinition wins" _hi_run_overlay_case "$shell" present
+    _hi_check "[$shell] overlay's own alias arrives" _hi_run_overlay_case "$shell" present
+    _hi_check "[$shell] overlay's redefinition of a shipped alias does not win" _hi_run_overlay_case "$shell" shadowed
     _hi_check "[$shell] silent without a config dir" _hi_run_overlay_case "$shell" absent
   done
 }
@@ -184,8 +292,11 @@ function _hi_run_scenario() {
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
+    _HI_THEME_DIR="$_HI_WORKDIR/theme" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS:-0}" \
+    _HI_DISABLE_EZA_CONFIG="${_HI_DISABLE_EZA_CONFIG:-0}" \
+    _HI_DISABLE_LS_ALIASES="${_HI_DISABLE_LS_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
@@ -271,6 +382,49 @@ function run_bat_alias_flag_tests() {
   done
 }
 
+# Styling eza itself is independent of the alias family below it, so this
+# checks EZA_CONFIG_DIR alone - the ls-family aliases stay on either way.
+function run_eza_config_flag_tests() {
+  _hi_h1 "_HI_DISABLE_EZA_CONFIG guard"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_ezacfg cat vi eza)"
+
+  for combo in "0 1" "1 0"; do
+    # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
+    set -- $combo
+    local dec="$1" want_eza_config="$2"
+    for shell in $_HI_INSTALLED_SHELLS; do
+      _HI_DISABLE_EZA_CONFIG="$dec" \
+        _hi_case _hi_run_scenario "$shell" "$fakepath" \
+        "_HI_DISABLE_EZA_CONFIG=$dec" \
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS=1 \
+        _HI_EXPECT_EZA_CONFIG="$want_eza_config"
+    done
+  done
+}
+
+# Modelled on _HI_DISABLE_BAT_ALIAS above: the exa/eza *binaries* stay
+# resolvable either way (run_fallthrough_tests already covers that), only the
+# ls-family rebinds (lr, le, l and friends) go.
+function run_ls_aliases_flag_tests() {
+  _hi_h1 "_HI_DISABLE_LS_ALIASES guard"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_lsflags cat vi eza exa)"
+
+  for combo in "0 1" "1 0"; do
+    # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
+    set -- $combo
+    local dla="$1" want_l="$2"
+    for shell in $_HI_INSTALLED_SHELLS; do
+      _HI_DISABLE_LS_ALIASES="$dla" \
+        _hi_case _hi_run_scenario "$shell" "$fakepath" \
+        "_HI_DISABLE_LS_ALIASES=$dla" \
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS=1 \
+        _HI_EXPECT_LS_ALIAS="$want_l"
+    done
+  done
+}
+
 # settings/aliases.sh resolves `vim` through `command -v nvim || command -v vim`,
 # and scripts/configure.sh's _hi_editors_preview spells the same ladder a second
 # time to show the answer before the toggle is set. Neither can source the
@@ -344,7 +498,11 @@ function run_alias_fallthrough_test() {
   run_fallthrough_tests
   run_flag_tests
   run_bat_alias_flag_tests
+  run_eza_config_flag_tests
+  run_ls_aliases_flag_tests
   run_overlay_tests
+  run_overlay_poisoning_test
+  run_overlay_bat_opts_test
 
   _hi_suite_end "" \
     "All fallthrough + flag scenarios passed on every installed shell ($_HI_TOTAL scenarios)" \

@@ -3,8 +3,8 @@ name: Pages
 # The repo's markdown as a site: README.md as the index (it carries the demos,
 # the comparison, the architecture, packaging and Windows material inline),
 # plus what is left in docs/ - CONFIGURATION, TESTING, GLOSSARY, SECURITY, PACKAGING,
-# ROADMAP and tldr - which interlink with relative links link-check.yml keeps
-# honest.
+# ROADMAP, FUTURE and tldr - which interlink with relative links link-check.yml
+# keeps honest.
 #
 # It also carries files Jekyll never sees: badges/*.json, the shields
 # endpoint README's tests badge reads. Publishing the figure here rather than

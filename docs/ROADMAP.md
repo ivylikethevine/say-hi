@@ -6,10 +6,12 @@ What's left, sorted into four tiers by **how hard the work is**:
   one-line decision.
 - **[Moderate](#moderate)** — bounded, with a precedent in the tree to copy,
   plus a test or budget to satisfy on the way out.
-- **[Large](#large)** — reshapes a contract, a promise, or a path convention
-  across many files.
 - **[Blocked until someone else moves](#blocked-until-someone-else-moves)** —
   externally gated. Tracked, not actionable.
+
+Research and undecided questions — nothing scheduled, nothing gating a
+release — live in [FUTURE.md](FUTURE.md) instead of here; an entry moves over
+once someone commits to it.
 
 Each entry opens with its **scope** in italics — what the work _is_, not how
 long it takes — closing with _in-repo_ or _outside this checkout_. Ordering
@@ -23,15 +25,16 @@ questions decided against are **deleted**: git history is the ledger.
 - [What v1.0.0 means](#what-v100-means)
 - [Quick wins](#quick-wins)
 - [Moderate](#moderate)
-- [Large](#large)
 - [Blocked until someone else moves](#blocked-until-someone-else-moves)
 
 ## What v1.0.0 means
 
 A **gate, not a wish list**: anything merely nice by v1 stays an ordinary
 entry below, and the one piece of product work left
-(_[persistent sessions](#large)_) is explicitly deferred past the tag. What's
-left is a single chain — the release below unblocks the channels after it.
+(_[persistent sessions](FUTURE.md#persistent-sessions-on-a-disposable-target)_)
+is deferred past the tag, tracked in [FUTURE.md](FUTURE.md) rather than here.
+What's left is a single chain — the release below unblocks the channels after
+it.
 
 - [ ] **A release has gone out under branch protection**, manifest step
       green — [Get a release out under branch protection](#quick-wins).
@@ -114,26 +117,24 @@ release](#quick-wins), [Homebrew tap](#moderate) and
       **Ticks when:** `brew install ivy/tap/say-hi` works, from a release the
       `tap` job opened a PR for.
 
-- [ ] **De-personalise the shipped defaults** — _scope: two shipped files and
-      a `--group bench` run; in-repo._ `settings/packages` tiers 4-5 warn a
-      bare Debian target for lacking `dotnet`/`php`/`ffmpeg`/etc. and shout
-      about missing `sshpass`; `settings/aliases.sh` hardcodes `micro
-      -colorscheme=darcula` and personal `IDE`/`zed`/`now` rebinds. Keep the
-      fallthrough machinery (`_HI_BATCAT_BIN` and friends); demote the
-      package ranks to 1/0 and move rebinding/colour choices to the overlay,
-      where `~/.config/say-hi/packages` and `aliases.sh` already win.
-      **Ticks when:** a stock session on a bare Debian target prints no
-      yellow or red line for a tool a server has no reason to have, the
-      personal aliases follow the overlay, and both payload numbers still
-      fit.
+- [ ] **De-personalise the shipped defaults** — _scope: one shipped file and
+      a `--group bench` run; in-repo._ The `settings/aliases.sh` half is
+      done: the overlay now sources first, every `_HI_*_OPTS` yields to a
+      value already set, and `_HI_DISABLE_EZA_CONFIG`/`_HI_DISABLE_LS_ALIASES`
+      gate the opinionated families. What's left is `settings/packages`:
+      tiers 4-5 warn a bare Debian target for lacking
+      `dotnet`/`php`/`ffmpeg`/etc. and shout about missing `sshpass`. Demote
+      those package ranks to 1/0. **Ticks when:** a stock session on a bare
+      Debian target prints no yellow or red line for a tool a server has no
+      reason to have, and the payload numbers still fit.
 
 - [ ] **Add `_HI_DISABLE_ALIASES`** to turn off the shipped alias/export set
       — _scope: one toggle plus a doc row; in-repo._ `settings/aliases.sh`
-      unconditionally sets `EDITOR`/`IDE`/`EZA_CONFIG_DIR`/`GCC_COLORS` and a
-      dozen aliases; the user's own file runs last but can't disable them
-      wholesale — clobbering an `EDITOR` an admin deliberately set is the one
-      most people hit first. `_HI_DISABLE_BAT_ALIAS` already does this for
-      `cat` alone; generalize the pattern. **Ticks when:**
+      unconditionally sets `sudo` and a dozen aliases; the user's own file
+      can turn off the `bat` and `ls` families
+      (`_HI_DISABLE_BAT_ALIAS`/`_HI_DISABLE_EZA_CONFIG`/`_HI_DISABLE_LS_ALIASES`)
+      but not the rest wholesale. Generalize the pattern to the file's
+      remaining unconditional lines. **Ticks when:**
       `_HI_DISABLE_ALIASES=1` ships none of it, and CONFIGURATION.md's
       _Every setting_ table has the row.
 
@@ -151,53 +152,6 @@ release](#quick-wins), [Homebrew tap](#moderate) and
       install it from a real `devcontainer.json`. **Ticks when:** a
       `features` entry naming `ghcr.io/ivylikethevine/say-hi/say-hi` installs
       a working `hi` in a fresh devcontainer.
-
-## Large
-
-- [ ] **Persistent sessions on a disposable target** — _**deferred until
-      after v1.0.0.** Scope: the largest entry here — cleanup semantics on
-      both paths, a findable tree path and something to reap it, and
-      SECURITY.md's footprint promise rewritten; in-repo._ This is research,
-      not queued work.
-
-  A dropped connection loses the session outright today (the tree is deleted
-  on exit). Goal: keep the tree across a drop, reconnect into the same
-  session, delete only on a definitive exit or a configurable timeout.
-  **Opt-in, not the default** — a bare `hi <target>` stays disposable.
-
-  - `hi --session <name> <target>` writes a deterministic tree
-    (`${TMPDIR:-/tmp}/$(_hi_whoami).hi.session.<name>`, mode 0700, `<name>`
-    restricted to alnum/`-`/`_`) instead of `mktemp`'s random one; a second
-    call finds it, skips re-copying an unchanged payload, and reattaches.
-  - `load.sh`'s on-exit hook (proven by
-    `tests/targets/ssh_disconnect_test.sh`) needs to become conditional, not
-    weaker — add a case for dropped-with-`--session` keeping the tree.
-  - Reaping defaults to zero footprint: a tree older than
-    `_HI_PERSIST_TIMEOUT` (unset means keep until `hi --session <name>
-    --end`) is deleted the moment the _next_ `hi` touches that target. A
-    detached watchdog (`sh -c 'sleep N; rm -rf ...' &`) is the stronger
-    opt-in. SECURITY.md's _Footprint and cleanup_ needs both modes described.
-  - Reattachment rides whatever multiplexer the target already has: `tmux` →
-    `screen` → `dtach`, in that order; a target with none declines
-    persistence with a clear message rather than pretending.
-  - **Ticks when:** `--session` survives a dropped connection and reattaches,
-    a bare `hi <target>` is unchanged, the timeout and watchdog are
-    documented settings, SECURITY.md describes both cleanup modes, and the
-    disconnect suite covers both paths.
-
-- [ ] **Raise the client's bash floor to 4, keep 3.2 only for the target** —
-      _scope: reshapes the eval/table plumbing across `common/`; in-repo._ No
-      associative arrays, `mapfile`, or namerefs under bash 3.2, so tables
-      are `|`-joined strings read back with `IFS='|' read`
-      (`_HI_SHELL_TABLE`, `_HI_BACKENDS`, `_HI_TRIM_TABLE`, `common/flags`)
-      and arrays are filled through `eval` (`_hi_read_lines`,
-      `core.sh:159-165`) — safe, but every reader has to check it. The floor
-      only matters for the macOS _client_ (Homebrew bash is the norm there
-      already; `#!/usr/bin/env bash` picks it up); target-only code could
-      stay at 3.2. **Ticks when:** the decision is written down, and — if
-      raising the floor — client-side tables move to bash 4 associative
-      arrays/`mapfile` and the lint suite's 3.2-floor grep is scoped to
-      target-only files.
 
 ## Blocked until someone else moves
 

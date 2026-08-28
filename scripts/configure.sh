@@ -290,6 +290,8 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?|"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?|"
   "_HI_DISABLE_BAT_ALIAS|1||_hi_bat_alias_preview| Enable the cat -> bat alias (styled output, --tabs 2, changes/grid) when bat is installed?|bat"
+  "_HI_DISABLE_EZA_CONFIG|1||| Style eza itself from hi's theme (EZA_CONFIG_DIR), on top of the ls-family aliases below?|eza"
+  "_HI_DISABLE_LS_ALIASES|1||| Enable the exa/eza ls-family aliases (lr, le, l and friends)?|eza"
   "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?|"
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?|"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?|"

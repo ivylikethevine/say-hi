@@ -179,6 +179,14 @@ tier that parses them: `$_HI_BAT_REAL` is `bat || batcat` where
 attach behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and leave ccat and
 coreutils `cat` the bare binary.
 
+Every chain like this sits **above** the user's overlay `aliases.sh` source in
+`settings/aliases.sh`, even though that overlay is otherwise sourced first in
+the file. Reversing the two would let an overlay `alias cat=...` poison the
+chain before it resolves - in zsh and dash (not bash, not fish) `command -v
+name` returns an *alias's* definition once one exists, so `_HI_BATCAT_BIN`
+would end up holding the overlay's alias body instead of a real binary path.
+`alias_fallthrough_test.sh` is the regression test for this.
+
 ## HI.14 _hi_on_exit
 
 bash's `trap "$cmd" EXIT` fires at real shell exit regardless of where it was
