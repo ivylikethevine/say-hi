@@ -182,14 +182,18 @@ function _hi_fake_path() {
 # tool itself rather than on the toolbox build.
 #
 # A symlink where the filesystem makes them, a `#!/bin/sh` exec wrapper where it
-# does not: MSYS's `ln -s` wants Developer Mode or administrator and fails
-# outright, and _hi_fake_path's shebang files next door are the proof a wrapper
-# is executable there where an empty chmod'd file is not. The `ln` result is
-# *checked* rather than trusted: at the tail of an `&&` list it would fail
-# silently, unaborted and unreported, and the `[ ! -d ]` build-once guard
-# would then cache the empty directory forever. A caller that splices an
-# empty toolbox into $PATH has no `sh`, `awk` or `sed` at all, so its cases
-# would fail in ways that look nothing like the symlink that caused them.
+# does not: MSYS's `ln -s` wants Developer Mode or administrator, and where
+# that's off it doesn't always fail loudly - a real 2026-08-28 windows-latest
+# run left `ln`'s own exit status and `[ -e ]` both satisfied against an
+# unusable entry (a plain copy standing in for the link, or a link `PATH`-exec
+# can't actually run - either way `_hi_can_symlink`'s dedicated probe, which
+# every other symlink-gated case in this suite already trusts, correctly said
+# no). Gated on that probe now rather than re-deriving the answer per tool:
+# `ln -sf` is only attempted where the probe says it works, and its result is
+# checked with `[ -L ]`, not `[ -e ]`, so a copy standing in for the link can't
+# pass as one. A caller that splices a broken toolbox into $PATH has no `sh`,
+# `awk` or `sed` at all, so its cases would fail in ways that look nothing
+# like the symlink that caused them.
 function _hi_real_path() {
   local dir="$_HI_WORKDIR/$1" tool real
   shift
@@ -208,8 +212,10 @@ function _hi_real_path() {
       real="$(type -P "$tool" 2>/dev/null)" || continue
       [ -n "$real" ] || continue
       rm -f "$dir/$tool"
-      ln -sf "$real" "$dir/$tool" 2>/dev/null || :
-      [ -e "$dir/$tool" ] && continue
+      if _hi_can_symlink; then
+        ln -sf "$real" "$dir/$tool" 2>/dev/null || :
+        [ -L "$dir/$tool" ] && continue
+      fi
       printf '%s\n' '#!/bin/sh' "exec \"$real\" \"\$@\"" >"$dir/$tool"
       chmod +x "$dir/$tool"
     done
