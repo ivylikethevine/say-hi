@@ -1,0 +1,40 @@
+# Maintainer annotations for OpenSSF Scorecard (.github/workflows/scorecard.yml).
+# https://github.com/ossf/scorecard/blob/main/config/README.md
+#
+# These do not change the score - Scorecard's five reason codes are display
+# only, surfaced on the scorecard.dev viewer under --show-annotations. They
+# exist so a finding this repo isn't going to fix reads as "seen and decided"
+# rather than "unnoticed". docs/TESTING.md's "What is pinned, and what
+# deliberately is not" has the prose version of the pinned-dependencies entry.
+#
+# Deliberately not annotated: code-review. The 0/9 finding is accurate - no
+# second person has reviewed these PRs - and none of the five reason codes
+# says that truthfully. docs/ROADMAP.md's Scorecard ceiling note explains it
+# instead of hiding it behind a label.
+annotations:
+  - checks:
+      - pinned-dependencies
+    reasons:
+      - reason: test-data
+        # Every finding here is under tests/dockerfiles/ and never reaches a
+        # release. Two shapes: eight `FROM ${BASE}` lines name an image the
+        # suite builds locally (hi-test-sshd, hi-demo-sshd-base - see
+        # `--build-arg BASE=` in tests/targets/*_test.sh), which has no
+        # upstream digest to pin; and the three `curl | sh` framework
+        # installers (frameworks/{atuin,mise,starship}.sh) each pin a
+        # release but not a hash - Scorecard's downloadThenRun probe has no
+        # "pinned to a version" state, only pinned-by-hash or not.
+
+  - checks:
+      - fuzzing
+    reasons:
+      - reason: not-applicable
+        # say-hi is bash. Scorecard detects OSS-Fuzz, ClusterFuzzLite, Go
+        # native fuzzing, cargo-fuzz and OneFuzz; none has a shell target.
+
+  - checks:
+      - contributors
+    reasons:
+      - reason: not-applicable
+        # Wants >=2 contributing organizations among recent contributors.
+        # Single maintainer.
