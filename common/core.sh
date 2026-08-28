@@ -345,10 +345,17 @@ function _hi_sanitize_var() {
 }
 
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
-# lands on the destination and severs any hardlink/ACL on it.
+# lands on the destination and severs any hardlink/ACL on it. The mode is
+# still captured and reapplied explicitly rather than trusted to the
+# truncate-in-place alone: a real Windows Git Bash run round-tripped a mode
+# through this exact cat that its own `chmod 604` beforehand didn't survive -
+# the GNU/BSD `stat` fallback mirrors config.fish's mtime probe above.
 # GLOSSARY: HI.09
 function _hi_write_back() {
+  local mode=""
+  [ -e "$2" ] && mode="$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)"
   cat "$1" >"$2"
+  [ -n "$mode" ] && chmod "$mode" "$2" 2>/dev/null
   command rm -f "$1"
 }
 
