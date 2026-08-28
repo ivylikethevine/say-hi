@@ -63,6 +63,7 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.44 wire size token](#hi44-wire-size-token)
 - [HI.45 fish history capture](#hi45-fish-history-capture)
 - [HI.46 session rc directory](#hi46-session-rc-directory)
+- [HI.47 what a child inherits](#hi47-what-a-child-inherits)
 
 ## HI.01 empty-array guard
 
