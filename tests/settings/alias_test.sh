@@ -11,10 +11,15 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # derived straight from aliases.sh so this test can't drift out of sync with
-# it; only unconditional top-of-line `alias name=`/`export name=` are picked
-# up, so conditionally-set vars (e.g. ANDROID_HOME) are correctly skipped
-_HI_SAMPLE_ALIASES=$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^alias +//; s/=$//' | tr '\n' ' ')
-_HI_SAMPLE_VARS=$(grep -oE '^export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^export +//; s/=$//' | tr '\n' ' ')
+# it. Most of the file is `[ toggle-test ] && alias/export name=... || true`
+# now (the toggles default to "shipped on"), so the patterns below allow up to
+# two leading `[ ... ] &&` guards ahead of the `alias`/`export` token, still
+# anchored to the start of the line so a mention of `alias x=` in a comment
+# can't match. What that excludes on purpose: a two-line statement (the
+# `bash`/`fish` session wrappers, whose guard and `alias` sit on separate
+# physical lines) and anything gated on more than two brackets.
+_HI_SAMPLE_ALIASES=$(grep -oE '^(\[[^]]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*alias +//; s/=$//' | tr '\n' ' ')
+_HI_SAMPLE_VARS=$(grep -oE '^(\[[^]]*\] && ){0,2}export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*export +//; s/=$//' | tr '\n' ' ')
 
 # posix `alias name` / `test -n "${v+x}"` work unmodified in dash, bash and zsh;
 # fish has neither - aliases are functions there, and `set -q` is its "is set"

@@ -119,8 +119,9 @@ and `_hi_tmux_wanted` refused rather than leave one pointing at nothing. That
 restriction was never escapable from inside the feature, and the file cost
 payload bytes on every session that never used it. Nothing stands in its
 place: a dropped connection loses the session. The question is open again from
-the other end, as [ROADMAP.md](ROADMAP.md#large)'s _persistent sessions on a
-disposable target_ entry.
+the other end, as
+[FUTURE.md](FUTURE.md#persistent-sessions-on-a-disposable-target)'s _persistent
+sessions on a disposable target_ entry.
 
 **Three shell tiers existed briefly and were dropped**, each for the reason its
 row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu`

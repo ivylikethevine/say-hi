@@ -371,6 +371,7 @@ too high.
 - [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
   reproducibility contract, verifying a download, regenerating the demo GIFs
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned and what it is blocked on
+- [docs/FUTURE.md](docs/FUTURE.md) — unscheduled research, not queued work
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
   request, and which doc changes with what
 

@@ -37,7 +37,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
-    _HI_DISABLE_BAT_ALIAS)
+    _HI_DISABLE_BAT_ALIAS _HI_DISABLE_EZA_CONFIG _HI_DISABLE_LS_ALIASES)
   # The other polarity: shipped off, 1 asks for them. Both are things hi would
   # otherwise do to a machine that is not yours - write to the target's rc
   # files, and take its shell history somewhere it will be deleted - which is
