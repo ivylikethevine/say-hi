@@ -45,9 +45,10 @@ check its `runs-on:` with a static parser that never evaluates `${{ }}`
 expressions. Pointing `RUNNER_LABEL` at it doesn't just risk landing on the
 wrong machine — the webapp sees the literal expression text, which matches no
 supported runner label, and rejects the submission on that basis alone, even
-though the job itself still lands on a hosted runner and goes green. This is
-exactly what happened and is diagnosed in [docs/ROADMAP.md](ROADMAP.md). Never
-wire that job to the variable, however the variable would resolve.
+though the job itself still lands on a hosted runner and goes green — exactly
+what happened here before `scorecard.yml` was fixed to pin a bare
+`ubuntu-latest`. Never wire that job to the variable, however the variable
+would resolve.
 
 ## The fork-PR guard
 
