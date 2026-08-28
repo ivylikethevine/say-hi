@@ -75,6 +75,14 @@ EOF
 # the *order* of events rather than on a stopwatch, so a loaded runner and the
 # macOS job read it the same way.
 #
+# The wait is 2s, not the 0.3s a real stopwatch-free assertion could get away
+# with elsewhere: MSYS's fork+exec is expensive enough on a real Windows
+# runner (a 2026-08-28 dispatch measured a fully sequential "docker start,
+# docker end, podman start" with the shorter wait) that launching the next
+# backend can outlast a short sleep on its own, making even genuine `&`
+# fan-out read as in-turn. 2s gives real concurrency room to prove itself
+# there without slowing the other platforms enough to notice.
+#
 # nomad answers a header row and no jobs: it belongs to the roster (four
 # backends is what makes emit_targets fan out at all) but has nothing to wait
 # for, and its per-job fan-out is a second mechanism this case is not about.
@@ -90,7 +98,7 @@ function _hi_write_slow_shims() {
 #!/bin/sh
 [ "\$1" = ps ] || exit 1
 printf '$tool start\\n' >>"\$_HI_PROBE_LOG"
-sleep 0.3
+sleep 2
 printf '$tool end\\n' >>"\$_HI_PROBE_LOG"
 printf 'slow-$tool\\n'
 EOF
@@ -100,7 +108,7 @@ EOF
 #!/bin/sh
 [ "$1" = get ] || exit 1
 printf 'kube start\n' >>"$_HI_PROBE_LOG"
-sleep 0.3
+sleep 2
 printf 'kube end\n' >>"$_HI_PROBE_LOG"
 printf 'default slow-pod\n'
 EOF

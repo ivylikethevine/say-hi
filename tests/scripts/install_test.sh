@@ -406,21 +406,31 @@ function test_packages_floor_takes_a_number_after_a_rejection() {
   [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=2" ]
 }
 
-# same mode-preservation contract as config_shell
+# same mode-preservation contract as config_shell, and the same reason its own
+# check compares a file to its earlier self rather than to a separately
+# chmod'd reference: two files that never shared a history can end up with
+# different `ls -l` strings for the same nominal mode wherever the platform's
+# permission bits are a derived/ACL-backed approximation rather than a stored
+# POSIX field (seen on a real Windows runner - the two `chmod 604`s disagreed
+# even though nothing here should ever move a bit). Stashed to a workdir file
+# because $_HI_WORKDIR is the only channel back out - _hi_settings_fixture
+# swallows stdout and its $_HI_SETTINGS is local to its own call.
 function _hi_shebang_mode() {
   mkdir -p "$_HI_CONFIG_DIR"
   printf 'X=1\n' >"$_HI_SETTINGS"
   chmod 604 "$_HI_SETTINGS"
+  # shellcheck disable=SC2012 # fixture paths, mode via ls as elsewhere here
+  ls -l "$_HI_SETTINGS" | awk '{ print $1 }' >"$_HI_WORKDIR/shebang_mode.before"
   ensure_settings_shebang
 }
 
 # shellcheck disable=SC2012 # fixture paths, mode via ls as above
 function test_settings_shebang_preserves_mode() {
   _hi_settings_fixture shebang_mode _hi_shebang_mode
-  local ref="$_HI_WORKDIR/mode.ref"
-  : >"$ref"
-  chmod 604 "$ref"
-  [ "$(ls -l "$(_hi_fixture_settings shebang_mode)" | awk '{ print $1 }')" = "$(ls -l "$ref" | awk '{ print $1 }')" ]
+  local before after
+  before="$(cat "$_HI_WORKDIR/shebang_mode.before")"
+  after="$(ls -l "$(_hi_fixture_settings shebang_mode)" | awk '{ print $1 }')"
+  [ "$after" = "$before" ]
 }
 
 # the three config_* groups accumulate rather than each calling config_shell,
@@ -684,10 +694,17 @@ function test_config_hi_degrades_when_sudo_cannot_link() {
 
 # the scratch source tree alone, for cases that need setup between it and the
 # install_tree run (or several runs)
+#
+# hi.sh gets a real shebang, not the bare "x" every other placeholder file
+# gets: install_tree's chmod +x on the staged copy has nothing to grab onto on
+# a real Windows runner otherwise - MSYS's executable bit is content-derived
+# (a shebang or a PE header), not purely the chmod call, so a shebang-less
+# stand-in can chmod +x clean and still read as non-executable afterward.
 function _hi_package_src() {
   local dir="$_HI_WORKDIR/$1" item
   mkdir -p "$dir/src/say-hi/common" "$dir/src/say-hi/settings" "$dir/src/say-hi/scripts"
-  for item in hi.sh load.sh LICENSE.md README.md; do printf 'x\n' >"$dir/src/say-hi/$item"; done
+  printf '#!/bin/sh\nx\n' >"$dir/src/say-hi/hi.sh"
+  for item in load.sh LICENSE.md README.md; do printf 'x\n' >"$dir/src/say-hi/$item"; done
 }
 
 # Stand a scratch tree up and run install_tree against it.
