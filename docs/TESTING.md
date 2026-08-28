@@ -206,11 +206,19 @@ naming a Dockerfile that isn't there.
 Scorecard's Pinned-Dependencies check reports every line below and will keep
 reporting some of them. The answer, so it is not re-decided each time:
 
-**Base images are digest-pinned, non-negotiably.** Every `FROM` in
-`tests/dockerfiles/` carries a `@sha256:`. A digest is what makes a failed e2e
-run reproducible and a base-image move a deliberate, reviewable act. Dependabot
-bumps the digests weekly; the Alpine 3.20 → 3.24 upgrade in August 2026 (3.20
-past EOL since 2026-04-01) is the case for it.
+**Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
+`tests/dockerfiles/` that names an upstream image (8 of 16 - alpine, ubuntu,
+debian, fedora, bash) carries a `@sha256:`. A digest is what makes a failed
+e2e run reproducible and a base-image move a deliberate, reviewable act.
+Dependabot bumps the digests weekly; the Alpine 3.20 → 3.24 upgrade in
+August 2026 (3.20 past EOL since 2026-04-01) is the case for it.
+
+The other 8 are `FROM ${BASE}` over an image the suite builds locally
+(`hi-test-sshd`, `hi-demo-sshd-base`, `hi-test-installed-prefix` - see
+`--build-arg BASE=` in `tests/targets/*_test.sh`), which has no upstream
+digest to pin against. Scorecard's Pinned-Dependencies check flags these as
+unpinned `containerImage` dependencies with no fix available; `.scorecard.yml`
+annotates the check `test-data` rather than pretending it's clean.
 
 **The same tags named in shell and YAML are guarded, not watched.** `alpine:`
 and `debian:` also appear as plain tags in `tests/lib/backend.sh`,
@@ -218,14 +226,56 @@ and `debian:` also appear as plain tags in `tests/lib/backend.sh`,
 cannot see. `lint_image_tags` fails the build when a tag named anywhere in the
 tree disagrees with the digest-pinned one in `tests/dockerfiles/`.
 
-**The three `curl | sh` framework installers are deliberately not pinned.**
-`frameworks/atuin.sh`, `frameworks/mise.sh` and `frameworks/starship.sh` exist
-to test hi against whatever that framework _currently_ installs. Each runs
-under `pipefail`, so a 404 fails the build rather than shipping an image with
-the framework missing.
+**The three `curl | sh` framework installers are pinned to a release each, not
+a hash.** `frameworks/atuin.sh` (v18.20.1, in the download URL),
+`frameworks/mise.sh` (v2026.8.14, via `MISE_VERSION`) and
+`frameworks/starship.sh` (v1.26.0, via `--version`) each name the pin in their
+own header and are bumped by hand when that framework's own bugs are worth
+chasing — not on a schedule; `ci.yml`'s weekly run re-tests them against
+whatever else moved but does not touch the pin. Scorecard's
+Pinned-Dependencies check still reports all three as unpinned `downloadThenRun`
+dependencies: its probe has no "pinned to a version" state for a download
+piped to a shell, only pinned-by-hash or not. Each script runs under
+`pipefail`, so a 404 or a checksum mismatch fails the build rather than
+shipping an image with the framework silently missing.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions
 the release path uses are SHA-pinned separately.
+
+What Scorecard still dings here, and how it's annotated, is in
+[`.scorecard.yml`](../.scorecard.yml) at the repo root.
+
+### The score has a ceiling here
+
+Scorecard weights each check (Binary-Artifacts, License and the rest that sit
+at 10 count fully) and averages, so it's worth writing down which of the low
+scores are actually fixable in this tree and which aren't, rather than
+re-deciding it each time the report is read:
+
+- **Code-Review sits at 0** — 0 of the last several changesets carry an
+  approved review, because there is one maintainer and nobody else to approve
+  a PR. A `Reviewed-by:` trailer would satisfy the scanner without a review
+  having happened; that's not going to be added. This is the single largest
+  fixable-looking gap in the report and it isn't fixable without a second
+  person.
+- **Fuzzing sits at 0** — say-hi is bash, and Scorecard's fuzzing probe
+  detects OSS-Fuzz, ClusterFuzzLite, Go native fuzzing, cargo-fuzz and
+  OneFuzz integrations. None targets shell. `.scorecard.yml` marks this
+  `not-applicable`.
+- **Contributors sits at 3** — the check wants ≥2 contributing organizations
+  among recent contributors; there's one. `.scorecard.yml` marks this
+  `not-applicable` too.
+- **CII-Best-Practices sits at 0** — no effort has been made toward an OpenSSF
+  Best Practices badge (a self-assessment questionnaire at
+  [bestpractices.dev](https://www.bestpractices.dev/), separate from
+  Scorecard). Plausibly worth doing; nobody has started it, so it isn't
+  tracked as in-progress anywhere.
+- **Signed-Releases reads -1 (excluded from the average)**, not a fixable 0 —
+  Scorecard hasn't seen a release yet. `release.yml` already ships
+  `dist/SHA256SUMS.minisig` and a build-provenance attestation, and `.minisig`
+  is one of the extensions the check recognizes, so this should resolve on
+  its own with no further change once
+  [a release ships under branch protection](ROADMAP.md#quick-wins).
 
 ## The lint gate
 

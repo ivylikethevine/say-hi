@@ -75,6 +75,17 @@ release](#quick-wins), [Homebrew tap](#moderate) and
   - Required checks are still unset. Keep `markdownlint`, `hadolint`,
     `demo-staleness`, lychee, trivy advisory. `e2e (macOS)`, `e2e (Windows)`
     and the Windows client job are green on push and reasonable candidates.
+    Requiring even one — `fast suites (ubuntu-latest)` is the obvious pick —
+    is also what Scorecard's Branch-Protection check is waiting on: it scores
+    in tiers, and "require ≥1 status check" is the whole of tier 3 (6→8 of
+    10). Confirm in _Settings → Branches → Branch protection rules_.
+  - Stop there. Tier 4 needs ≥2 reviewers *and* code-owner review, which a
+    solo maintainer can't satisfy, and Scorecard requires a tier fully met
+    before the next one scores anything — so tier 5's *dismiss stale
+    reviews*/*include administrators* earns nothing while tier 4 is unmet.
+    Concretely: leave _Do not allow bypassing the above settings_ off. Turning
+    it on would cost zero points and lock the only maintainer out of merging
+    their own PRs.
   - **Ticks when:** a release has gone out under the rule, manifest PR opened
     rather than a push refused.
 

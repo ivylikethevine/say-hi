@@ -22,16 +22,21 @@ name: CodeQL
 #
 # Scorecard's SAST check counts this and does not count shellcheck, actionlint
 # or zizmor - a real reason to run it, and a bad reason to believe the score.
+#
+# No `paths:` filter, deliberately - there used to be one, scoped to
+# `.github/workflows/**` and `.github/actions/**`, and it made the score
+# worse than not running this at all. Scorecard's SAST check doesn't ask
+# whether CodeQL is configured; it walks the merged PRs behind the last 30
+# commits on the default branch and counts how many carry a completed
+# check run from it. Most merges into `main` here are dev->main PRs that
+# touch no workflow file, so a path-filtered trigger skipped them - no run,
+# nothing to count - and the check read as if CodeQL only sometimes existed.
+# Running the `actions` pack over an unchanged workflow set on every PR costs
+# a minute or two of CI; that's what buys a real count.
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/**"
-      - ".github/actions/**"
   pull_request:
-    paths:
-      - ".github/workflows/**"
-      - ".github/actions/**"
   # the default-branch baseline code scanning diffs a PR against. Without a
   # scheduled run the first PR to touch a workflow has nothing to compare to.
   schedule:
