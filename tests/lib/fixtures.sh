@@ -127,6 +127,24 @@ function _hi_can_fork_concurrently() {
   esac
 }
 
+# _hi_can_trust_mode_bits - whether a file's reported permission string
+# reflects chmod's stored bits alone. No on MSYS/Cygwin: a real windows-latest
+# run showed a file's `ls -l` string change across a rewrite that chmod'd it
+# back to the same mode it started with (_hi_write_back does exactly that) -
+# the one thing that changed was the file gaining a `#!` first line. The
+# runtime appears to OR a shebang/PE-header executable guess into what
+# stat()/`ls` report, independent of anything chmod controls - the same
+# content-derived executable-bit behavior install_test.sh's DESTDIR fixture
+# already works around by giving its stand-in hi.sh a real shebang. Same
+# kernel-name probe as fork_concurrency, a different root cause: that one is
+# about scheduling, this one is about what the permission string even means.
+function _hi_can_trust_mode_bits() {
+  case "$(uname -s 2>/dev/null)" in
+  MINGW* | MSYS* | CYGWIN*) return 1 ;;
+  *) return 0 ;;
+  esac
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -144,6 +162,9 @@ function _hi_can_fork_concurrently() {
 #                       first.
 #   fork_concurrency - backgrounded jobs actually run alongside each other.
 #                       No on MSYS/Cygwin - see _hi_can_fork_concurrently.
+#   mode_bits        - a permission string reflects only chmod's bits, no
+#                       content-derived guess mixed in. No on MSYS/Cygwin -
+#                       see _hi_can_trust_mode_bits.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -153,6 +174,7 @@ function _hi_capable() {
   pty) [ "${#_HI_PTY_FORCED[@]}" -gt 0 ] ;;
   lockout) _hi_can_lock_out ;;
   fork_concurrency) _hi_can_fork_concurrently ;;
+  mode_bits) _hi_can_trust_mode_bits ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2

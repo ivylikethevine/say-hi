@@ -5,12 +5,17 @@ on:
   push:
     branches: [main]
   # Weekly, so the parts of e2e that track upstream are re-tested without a
-  # push: the three deliberately unpinned `curl | sh` framework installers
-  # (tests/dockerfiles/frameworks/{atuin,mise,starship}.sh) and the kind and
-  # nomad binaries e2e-backends installs. Dependabot's digest bumps exercise
-  # the same jobs, but only when a base image moved. Wednesday, after the
-  # Monday dependabot/tool-versions and Tuesday codeql/scorecard crons, so a
-  # red run here follows a fresh dependency sweep rather than preceding one.
+  # push: the kind and nomad binaries e2e-backends installs, both still
+  # unpinned (nomad rides whatever's current in HashiCorp's apt repo; kind's
+  # own version isn't pinned by helm/kind-action's install_only, only the
+  # action's own SHA is). The three `curl | sh` framework installers
+  # (tests/dockerfiles/frameworks/{atuin,mise,starship}.sh) were this list's
+  # other members until they were pinned to a specific release each - bump
+  # those by hand when a framework's own bugs are the thing worth chasing,
+  # not by this schedule. Dependabot's digest bumps exercise the same jobs,
+  # but only when a base image moved. Wednesday, after the Monday
+  # dependabot/tool-versions and Tuesday codeql/scorecard crons, so a red run
+  # here follows a fresh dependency sweep rather than preceding one.
   schedule:
     - cron: '17 6 * * 3'
   workflow_dispatch:

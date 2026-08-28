@@ -1187,7 +1187,7 @@ function run_install_tests() {
   _hi_check "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
   _hi_check "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
-  _hi_check "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
+  _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
   _hi_check "Writes every group at once" test_config_settings_writes_every_group_at_once
