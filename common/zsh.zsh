@@ -14,6 +14,13 @@ setopt prompt_subst
 
 _hi_interactive_extras
 
+# C2: primed unconditionally, not only when hi's own prompt is on, so a
+# custom PROMPT in the user's own zsh.zsh (sourced at the end of hi's,
+# docs/CONFIGURATION.md) can still use hi's per-host/per-user color hashing
+# with _HI_DISABLE_PROMPT=1 - $_HI_HOST_COLOR/$_HI_USER_COLOR are the color
+# *names* zsh's own %F{} wants, the way this file's own PS1 below uses them.
+_hi_prime_identity
+
 if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
   source "$_HI_HOME/say-hi/common/history.sh"
   export HISTFILE="$_HI_TMPDIR/zsh_history"
@@ -27,7 +34,6 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # GLOSSARY: HI.32
     eval "$(starship init zsh)"
   else
-    _hi_prime_identity
     # git info through a precmd out-var reference, never a $( ) in PS1 - the
     # fork-free, pw3nage-safe form bash.sh's ps1() uses
     __hi_git_precmd() { _hi_git_prompt __hi_git_info; }

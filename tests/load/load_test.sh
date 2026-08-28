@@ -5,10 +5,10 @@
 # _HI_LOAD_NO_INIT=1 for the functions alone, with _HI_CONFIGS and _HI_ROOT
 # reassigned into the scratch dir.
 #
-# SAFETY: clean_all ends in `rm -rf "$_HI_ROOT"`, so no case calls it directly -
-# every call goes through _hi_clean_all, which shadows _HI_ROOT. The real thing
-# with the real _HI_ROOT would delete this checkout; the canary case at the end
-# proves none did.
+# SAFETY: clean_all ends in `rm -rf "${_HI_CLEANUP:-$_HI_ROOT}"`, so no case
+# calls it directly - every call goes through _hi_clean_all, which shadows
+# both. The real thing with the real paths would delete this checkout; the
+# canary case at the end proves none did.
 #
 # GLOSSARY: HI.30 + HI.34
 # The single-quoted probe scripts expand in the child shell, which is the
@@ -237,8 +237,20 @@ function test_clean_all_removes_disposable_copy() {
   local root="$_HI_WORKDIR/disposable"
   mkdir -p "$root"
   printf 'copied\n' >"$root/keepme"
-  _hi_clean_only_root "$root" "$_HI_WORKDIR"
+  _hi_clean_only_root "$root" "$root"
   [ ! -e "$root" ]
+}
+
+# D4: clean_all removes the whole $_HI_CLEANUP tree, not just $_HI_ROOT under
+# it - a sibling file that landed directly under $_HI_HOME (the ssh arm's
+# $_HI_SESSION_RC_DIR before it was nested under $_HI_CLEANUP, or anything
+# else that might one day) goes with it, not just say-hi/ itself.
+function test_clean_all_removes_the_whole_cleanup_tree_not_just_root() {
+  local cleanup="$_HI_WORKDIR/wholetree" root="$_HI_WORKDIR/wholetree/say-hi"
+  mkdir -p "$root"
+  printf 'sibling\n' >"$cleanup/sibling-file"
+  _hi_clean_only_root "$root" "$cleanup"
+  [ ! -e "$cleanup" ]
 }
 
 function test_clean_all_succeeds_with_nothing_to_do() {
@@ -335,6 +347,50 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   return 1
 }
 
+# D4: with $_HI_CLEANUP set (the ephemeral shape), the rc directory nests
+# under it - so the bootstrap's own `rm -rf $_HI_CLEANUP` backstop sweeps it
+# too, not just clean_all - rather than a wholly separate mktemp invisible to
+# that trap.
+function test_session_rc_setup_nests_under_cleanup_when_set() {
+  local dir
+  (
+    local _HI_SESSION_RC_DIR="" _HI_CLEANUP="$_HI_WORKDIR/nesttest"
+    mkdir -p "$_HI_CLEANUP"
+    _hi_session_rc_setup || exit 1
+    printf '%s\n' "$_HI_SESSION_RC_DIR"
+  ) >"$_HI_WORKDIR/nest_out"
+  dir="$(cat "$_HI_WORKDIR/nest_out")"
+  case "$dir" in
+  "$_HI_WORKDIR/nesttest"/*) rm -rf "$_HI_WORKDIR/nesttest" ;;
+  *)
+    _hi_cecho " | $dir is not nested under \$_HI_CLEANUP" "$RED"
+    rm -rf "$_HI_WORKDIR/nesttest"
+    return 1
+    ;;
+  esac
+}
+
+# ...and without one (the permanent-install shape), a standalone mktemp -
+# unaffected, and the case this suite already had before D4.
+function test_session_rc_setup_stands_alone_without_cleanup() {
+  local dir
+  (
+    local _HI_SESSION_RC_DIR=""
+    unset _HI_CLEANUP
+    _hi_session_rc_setup || exit 1
+    printf '%s\n' "$_HI_SESSION_RC_DIR"
+  ) >"$_HI_WORKDIR/nofollow_out"
+  dir="$(cat "$_HI_WORKDIR/nofollow_out")"
+  case "$dir" in
+  "$_HI_WORKDIR"/*)
+    _hi_cecho " | $dir landed under \$_HI_WORKDIR unexpectedly" "$RED"
+    rm -rf "$dir"
+    return 1
+    ;;
+  esac
+  rm -rf "$dir"
+}
+
 # The session shell must be started against hi's rc, not a bare `$shell -i`
 # that would read the target's $HOME. zsh is the one arm with no flag, because
 # _hi_session_rc_setup exported $ZDOTDIR for it.
@@ -422,6 +478,7 @@ function run_load_tests() {
   _hi_check "Removes a start marker with no end marker" test_clean_all_removes_lone_start_marker
   _hi_check "Keeps \$_HI_ROOT when _HI_CLEANUP is unset" test_clean_all_keeps_permanent_install
   _hi_check "Removes \$_HI_ROOT when _HI_CLEANUP is set" test_clean_all_removes_disposable_copy
+  _hi_check "Removes the whole \$_HI_CLEANUP tree, not just \$_HI_ROOT (D4)" test_clean_all_removes_the_whole_cleanup_tree_not_just_root
   _hi_check "Succeeds with nothing to clean" test_clean_all_succeeds_with_nothing_to_do
 
   _hi_h2 "Testing: profile restoration"
@@ -430,6 +487,8 @@ function run_load_tests() {
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc
+  _hi_check "the rc dir nests under \$_HI_CLEANUP when set (D4)" test_session_rc_setup_nests_under_cleanup_when_set
+  _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
 
   _hi_h2 "Testing: _hi_session_shell"
   # <label>|<installed shells>|<env pairs>|<want>. Six cases, three of which

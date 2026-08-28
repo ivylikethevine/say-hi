@@ -17,6 +17,18 @@ source "$_HI_ALIASES"
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
+# C2: primed unconditionally, not only when hi's own prompt is on, so a
+# custom PS1 in the user's own bash.sh (sourced at the end of hi's,
+# docs/CONFIGURATION.md) can still use hi's per-host/per-user color hashing
+# with _HI_DISABLE_PROMPT=1 - $_HI_HOST_ESC/$_HI_USER_ESC are the ANSI
+# escapes ready to embed, the way this file's own PS1 below does; core.sh's
+# _hi_prime_identity stops at the color names ($_HI_HOST_COLOR/$_HI_USER_COLOR
+# - what zsh's own prompt wants) since zsh never uses the escape form, so bash
+# primes its own on top.
+_hi_prime_identity
+_hi_host_escape >/dev/null
+_hi_user_escape >/dev/null
+
 if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
   # shellcheck source=./history.sh
   source "$_HI_HOME/say-hi/common/history.sh"
@@ -25,14 +37,14 @@ if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
 fi
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
-  _hi_prime_identity
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
   HI_PS1_END=""
   _hi_prompt_end BASH HI_PS1_END
   if _hi_has_color; then
-    # the *_var forms, not $( ): _hi_prime_identity resolved both escapes in
-    # this shell already. Spelled empty first so shellcheck sees the
-    # `printf -v` assignment (SC2154); file scope, so no `local`.
+    # the *_var forms, not $( ): both escapes were primed unconditionally
+    # above, so this is a cache read, not a fresh $( ) fork. Spelled empty
+    # first so shellcheck sees the `printf -v` assignment (SC2154); file
+    # scope, so no `local`.
     _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
     _hi_user_escape_var _hi_ps1_u
     _hi_host_escape_var _hi_ps1_h

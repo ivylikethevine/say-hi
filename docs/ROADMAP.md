@@ -56,9 +56,9 @@ single chain — the release below unblocks the channels after it.
       (warns for one minor, then goes). The same commit fills SECURITY.md's
       _Supported versions_ placeholder.
 
-**The AUR is excluded on purpose.** Registration is closed to new accounts
-because of spam; v1 should not wait on somebody else's spam problem. Its entry
-stays under [Blocked until someone else moves](#blocked-until-someone-else-moves).
+**The AUR is excluded on purpose** — v1 should not wait on somebody else's
+spam problem. Why, and what happens when it lifts, is its own entry under
+[Blocked until someone else moves](#blocked-until-someone-else-moves).
 
 ## Quick wins
 
@@ -223,19 +223,16 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
   - The alerts are dismissible as *used in tests* / *won't fix* with that
     reason attached, which is the outcome this entry is asking for.
 
-- [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement call
-      and one README line either way, with nothing to judge before 2026-08-25;
-      outside this checkout._ `scorecard.yml` runs weekly with
-      `publish_results: true` and README carries the badge, but no score has
-      been published: the badge renders `invalid repo path`. The cause is
-      benign — `publish_results` only takes effect on a _scheduled_ run against
-      the default branch, the cron is `41 7 * * 2`, and the trigger landed on
-      `main` on 2026-08-19, so the first run is 2026-08-25. If the badge is
-      still an error after that, a run fired and failed; the Actions tab tells
-      those apart.
+- [ ] **Decide whether to keep the Scorecard badge** — _scope: a judgement
+      call and one README line either way; outside this checkout._
+      `scorecard.yml` runs weekly with `publish_results: true` and README
+      carries the badge; as of 2026-08-19 nothing had published yet and the
+      badge rendered `invalid repo path` (`publish_results` only takes effect
+      on a _scheduled_ run against the default branch, cron `41 7 * * 2`, and
+      the trigger had just landed on `main`). The first scheduled run was due
+      2026-08-25 - check the Actions tab for whether it fired and what it
+      found before judging.
 
-  - **Until then leave the README as is** — re-adding the line afterwards is a
-    second commit spent on a few days of cosmetic blemish.
   - **The question is whether showing it helps.** Two checks a solo maintainer
     cannot move — Code-Review and CI-Tests — dominate it, so it reads partly
     as a verdict on headcount. CII-Best-Practices moved out of the unmovable
@@ -321,15 +318,16 @@ satisfy on the way out.
       `whois`, `pkgconf`, and tier 5 (bright red when missing) is
       `asdf`/`mise`/`direnv`/`sshpass` — so a bare Debian target warns it lacks
       PHP and .NET and shouts that it lacks `sshpass`. In `settings/aliases.sh`,
-      `cat` is rebound to `bat -P --style changes,grid`, `micro` hardcodes
-      `-colorscheme=darcula`, and `IDE`, `zed` and `now` are personal. Keep
-      the fallthrough machinery (`_HI_BATCAT_BIN` and friends); demote the
-      ranks to 1/0 and move the rebinding and colour choices to the overlay,
-      where `~/.config/say-hi/packages` and `aliases.sh` already win.
+      `micro` hardcodes `-colorscheme=darcula`, and `IDE`, `zed` and `now` are
+      personal (`cat`'s own rebind is already plain `bat`, no forced style -
+      that half is done). Keep the fallthrough machinery (`_HI_BATCAT_BIN` and
+      friends); demote the package ranks to 1/0 and move the remaining
+      rebinding and colour choices to the overlay, where
+      `~/.config/say-hi/packages` and `aliases.sh` already win.
       **Ticks when:** a stock session on a bare Debian target prints no
-      yellow or red line for a tool a server has no reason to have, `cat` is
-      `cat` unless the overlay says otherwise, and both payload numbers still
-      fit.
+      yellow or red line for a tool a server has no reason to have, `micro`
+      and the personal aliases follow the overlay, and both payload numbers
+      still fit.
 
 - [ ] **A devcontainer Feature** — _scope: one publish to ghcr, which needs a
       release first; the code half has shipped; outside this checkout._
@@ -387,12 +385,13 @@ on.
     instead of `mktemp`'s random one, `load.sh`'s cleanup trap becomes
     conditional on whether that session is still wanted, and reattachment
     rides whatever multiplexer the target already has.
-  - **What has to stop happening, carefully.** Cleanup has two independent
-    paths — the bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` and `load.sh`'s
-    on-exit hook — and `tests/targets/ssh_disconnect_test.sh` proves they fire
-    on an _abrupt_ disconnect. This makes that conditional rather than weaker:
-    the suite gains a second case (dropped **with** `--session` keeps the
-    tree) beside the one it has.
+  - **What has to stop happening, carefully.** `load.sh`'s on-exit hook is
+    the one place that owns undoing everything hi did on a disconnect - the
+    tree, the session-rc directory, the opt-in graft - and
+    `tests/targets/ssh_disconnect_test.sh` proves it fires on an _abrupt_
+    disconnect. This makes that conditional rather than weaker: the suite
+    gains a second case (dropped **with** `--session` keeps the tree) beside
+    the one it has.
   - **The tree has to be findable again, only when asked for by name.**
     `--session <name>` swaps the random path for
     `${TMPDIR:-/tmp}/$(_hi_whoami).hi.session.<name>` (mode 0700). A second

@@ -691,6 +691,17 @@ REMOTE
 # The disposable-tree half of the script: unpack the armored streams into a
 # fresh /tmp root. Reads $hi_esc/$nc_esc/$size and the streams from its caller,
 # so _say_hi and _hi_wire_bytes assemble one shape rather than two kept in step.
+#
+# The `trap ... exit` below is a backstop, not a second owner (D4): load.sh's
+# clean_all is what actually knows how to undo everything hi did on the
+# target - this tree, $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
+# exactly this reason, load.sh:~141), and the opt-in rc graft - and it runs
+# on every normal exit and on an abrupt disconnect alike (SIGHUP, tested by
+# tests/targets/ssh_disconnect_test.sh). This trap exists for the one thing
+# clean_all cannot survive: bash killed by a signal nothing can trap. It only
+# ever needs to remove the tree, since $_HI_SESSION_RC_DIR now lives inside
+# it - kept out of the heredoc itself, since every byte here rides the wire
+# on every connect.
 function _hi_remote_middle() {
   local tmpl
   _hi_shquote tmpl "$(_hi_whoami).hi.XXXXXX"
@@ -1012,8 +1023,12 @@ function _say_hi_container() {
   # sources load.sh and never runs the command, and the caller gets a clean
   # exit and no output.
   #
-  # _HI_CLEANUP marks the tree disposable for load.sh's clean_all; the rm -rf
-  # below is the client-side belt to it
+  # _HI_CLEANUP marks the tree disposable for load.sh's clean_all, which owns
+  # undoing everything hi did here (D4). The rm -rf below is a client-side
+  # backstop for the one thing clean_all cannot survive - bash killed by a
+  # signal nothing can trap - not a second place that has to know what to
+  # remove: $_HI_SESSION_RC_DIR nests under $_HI_CLEANUP, so this one `rm -rf`
+  # already covers it too.
   env_kv="$(_hi_env_each ' %s=%s')"
   "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?

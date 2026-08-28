@@ -414,7 +414,7 @@ function _hi_setting_get() {
   [ -f "$_hi_sg_file" ] || return 1
   _hi_sg_val="$(
     unset "$_hi_sg_name"
-    # shellcheck source=/dev/null # a config file (or a test's), not one shellcheck can trace
+    # shellcheck source=/dev/null # a config file, or one a test wrote - not one shellcheck can trace
     . "$_hi_sg_file" >/dev/null 2>&1
     eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
     eval "printf '%s' \"\$${_hi_sg_name}\""

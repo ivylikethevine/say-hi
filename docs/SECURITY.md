@@ -94,10 +94,13 @@ included, so "what is this install allowed to do to a target" is one command.
 
 - The session tree lives in a `mktemp -d` directory (mode 0700, named
   `<user>.hi.XXXXXX`); the ssh bootstrap directory is `mkdir -m 700`.
-- Removal has two independent paths: the bootstrap's
-  `trap 'rm -rf $_HI_CLEANUP' exit` and `load.sh`'s own on-exit hook.
-  `tests/targets/ssh_disconnect_test.sh` verifies cleanup fires on an abrupt
-  disconnect, not just a clean exit.
+- `load.sh`'s own on-exit hook owns removal - the whole disposable tree, the
+  session-rc directory, and, opt-in, the rc graft - and runs on a clean exit
+  and on an abrupt disconnect alike (`tests/targets/ssh_disconnect_test.sh`
+  verifies the latter). The bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is
+  a narrower backstop for the one thing the hook cannot survive - bash
+  killed by a signal nothing can trap - and only ever needs to remove the
+  tree, since the session-rc directory lives inside it.
 - The rc additions - **when `_HI_GRAFT_RC=1` asked for them** - sit between
   `# hi-config-start` and `# hi-config-end` markers and are stripped by that
   same hook. Each is also wrapped in a tree-exists guard, so one left behind
