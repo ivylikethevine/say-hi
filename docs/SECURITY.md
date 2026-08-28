@@ -104,9 +104,8 @@ included, so "what is this install allowed to do to a target" is one command.
   by a session that was killed between the write and the cleanup is inert
   rather than an error in every later login.
 - The session tree is **not** added to `$PATH`. `hi` inside a session is an
-  alias (`common/paths.sh`), which is how it was always reached; the `$PATH`
-  entry that used to sit beside it put a `/tmp` path on `$PATH`, which is a
-  finding on any host that is scanned for one.
+  alias (`common/paths.sh`) instead, which is what a `$PATH` entry would cost:
+  a `/tmp` path on `$PATH`, a finding on any host that is scanned for one.
 - A target with a permanent say-hi is used in place and nothing is deleted; the
   rc grafts are still cleaned on exit. hi finds that tree by reading the
   target's login rc files, then the standard install prefixes, so nothing has to

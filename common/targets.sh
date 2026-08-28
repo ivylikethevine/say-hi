@@ -355,11 +355,11 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   # - and no -p, which would silently adopt a path somebody else made.
   [ -d "$cache_dir" ] || mkdir -m 700 "$cache_dir" 2>/dev/null
   # The name is predictable (it has to be - the next TAB has to find it), so on
-  # a box with a shared /tmp another user can get there first. This used to
-  # `chmod 700` whatever it found and carry on, which hands that user's
-  # directory the cache and the `$cache.$$` temp file written beside it: they
-  # would then be choosing what `hi <TAB>` offers, and a chmod on a directory
-  # somebody else owns fails anyway, silently, leaving the mode they chose.
+  # a box with a shared /tmp another user can get there first. `chmod 700`ing
+  # whatever is found there and carrying on would hand that user's directory
+  # the cache and the `$cache.$$` temp file written beside it - they would
+  # then be choosing what `hi <TAB>` offers - and the chmod would fail anyway
+  # on a directory somebody else owns, silently, leaving their mode in place.
   #
   # Ownership through `ls -ld`, not `test -O`: this file is standalone POSIX
   # (it is what fish shells out to, and it runs on whatever /bin/sh a target

@@ -394,36 +394,33 @@ function _hi_on_exit() {
   fi
 }
 
-# _hi_setting_get <file> <name> [outvar] - what settings.sh assigns <name>, or
-# rc 1 when it does not. The one reader of that file's grammar, which has one
-# writer (install.sh's config_shell): `export NAME=value` or
-# `export NAME='value'`, an unquoted value's trailing `# comment` (the install
-# marker) stripped, last assignment wins. Read as a file, never off the
-# environment (GLOSSARY: HI.36), and with builtins only - install.sh asks
-# ~15 times per configure, hi.sh once per toggle per connect.
+# _hi_setting_get <file> <name> [outvar] - what <name> is left holding after
+# sourcing <file>, or rc 1 when it never gets set. One parser: a subshell
+# sources <file> for real - the same interpreter core.sh's own line 72 uses -
+# with only <name> unset going in, so it agrees with whatever install.sh's
+# config_shell wrote or a target sourcing the file for real would see, rather
+# than a second hand-rolled grammar of its own to keep in sync. Every other
+# variable ($_HI_CONFIG_DIR included, which a settings.sh is free to
+# reference) keeps its real ambient value, and the caller's own variables are
+# untouched either way - GLOSSARY: HI.36's "the file, not the environment" is
+# unaffected, since nothing here reads or writes anything outside the
+# subshell. Forks once per call where the old text scan forked never; call
+# volume is a human-paced `hi --configure` and a handful of toggles per
+# connect, so that trade is not worth a cache.
 function _hi_setting_get() {
   # prefixed locals: the out-var is written by name into the caller's scope,
   # and a plain `val` here would shadow a caller's `val` (GLOSSARY: HI.04)
-  local _hi_sg_line _hi_sg_val="" _hi_sg_found=1
-  [ -f "$1" ] || return 1
-  while IFS= read -r _hi_sg_line || [ -n "$_hi_sg_line" ]; do
-    case "$_hi_sg_line" in "export $2="*) ;; *) continue ;; esac
-    _hi_sg_line="${_hi_sg_line#"export $2="}"
-    case "$_hi_sg_line" in
-    "'"*)
-      _hi_sg_line="${_hi_sg_line#\'}"
-      _hi_sg_val="${_hi_sg_line%%\'*}"
-      ;;
-    *)
-      _hi_sg_val="${_hi_sg_line%%#*}"
-      _hi_sg_val="${_hi_sg_val%"${_hi_sg_val##*[![:space:]]}"}"
-      ;;
-    esac
-    _hi_sg_found=0
-  done <"$1"
-  [ "$_hi_sg_found" = 0 ] || return 1
-  if [ -n "${3:-}" ]; then
-    printf -v "$3" '%s' "$_hi_sg_val"
+  local _hi_sg_file="$1" _hi_sg_name="$2" _hi_sg_outvar="${3:-}" _hi_sg_val
+  [ -f "$_hi_sg_file" ] || return 1
+  _hi_sg_val="$(
+    unset "$_hi_sg_name"
+    # shellcheck source=/dev/null # a config file (or a test's), not one shellcheck can trace
+    . "$_hi_sg_file" >/dev/null 2>&1
+    eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
+    eval "printf '%s' \"\$${_hi_sg_name}\""
+  )" || return 1
+  if [ -n "$_hi_sg_outvar" ]; then
+    printf -v "$_hi_sg_outvar" '%s' "$_hi_sg_val"
   else
     printf '%s' "$_hi_sg_val"
   fi

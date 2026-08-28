@@ -4,13 +4,12 @@
 # `bash --rcfile` skips the startup chain; restore it before strict mode
 # (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
 #
-# $_HI_ROOT is deliberately *not* appended to $PATH here. It used to be, so
-# that `hi` could be typed inside a session to relay onward - but on a
-# disposable session $_HI_ROOT is a directory under /tmp, and a /tmp path on
-# $PATH is what every hardening baseline greps for. It bought nothing: common/
-# paths.sh already defines `alias hi="$_HI_LAUNCHER"` in all four shells, which
-# is how an interactive session reaches the launcher, and that is the only way
-# a session ever reached it.
+# $_HI_ROOT is deliberately *not* appended to $PATH here: on a disposable
+# session it is a directory under /tmp, and a /tmp path on $PATH is what
+# every hardening baseline greps for. Putting it there would buy nothing
+# anyway - common/paths.sh already defines `alias hi="$_HI_LAUNCHER"` in all
+# four shells, which is how an interactive session reaches the launcher to
+# relay `hi` onward, with no PATH entry needed for it.
 function _hi_restore_profile() {
   if [ -r /etc/profile ]; then source /etc/profile; fi
   # shellcheck disable=SC1090 # target-specific files, no fixed location
@@ -287,20 +286,21 @@ function load() {
   # session - a `bash` typed at the prompt, a tmux pane - looks like the
   # session around it.
   #
-  # The session's *own* shell no longer needs it: _hi_session_shell_cmd above
-  # starts that shell against hi's rc directly (--rcfile / ZDOTDIR / fish -C).
-  # Until that existed this graft was the only thing putting hi's prompt and
-  # aliases in front of the user, because load() starts a plain `$shell -i`
-  # and bash reads ~/.bashrc - which is why turning the graft off without that
-  # change left sessions unstyled and `hi` inside one "command not found".
+  # The graft is not what styles the session's *own* shell:
+  # _hi_session_shell_cmd above starts that shell directly against hi's rc
+  # (--rcfile / ZDOTDIR / fish -C), independent of the target's own rc files.
+  # What the graft is for is a shell started *inside* the session - a `bash`
+  # typed at the prompt, a tmux pane - which spawns via the target's own
+  # ~/.bashrc/~/.zshrc/fish config and would otherwise come up unstyled, `hi`
+  # inside it reading as "command not found".
   #
-  # What it cost was a write to a login file on someone else's machine, twice
-  # per session, for every host anyone ever said hi to: an entry in whatever
+  # What it costs is a write to a login file on someone else's machine, twice
+  # per session, for every host anyone ever says hi to: an entry in whatever
   # file-integrity monitor watches those paths, a window in which another
   # login on a shared account reads a half-written rc, and a block left behind
-  # whenever the process died between the write and clean_all. None of that is
-  # a fair price for a convenience the session does not use, so it is now
-  # something a user turns on for the hosts they want it on.
+  # whenever the process dies between the write and clean_all. None of that is
+  # a fair price for a convenience most sessions never use, so it is something
+  # a user turns on for the hosts they want it on, rather than a default.
   #
   # clean_all stays unconditional: it must still take out a block left by a
   # session that ran with this on, or by a build that shipped before it existed.

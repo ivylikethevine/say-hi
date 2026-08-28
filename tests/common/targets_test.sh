@@ -619,9 +619,9 @@ function test_help_flags_all_appear_in_roster() {
 
 # Inside a session the local sub-commands need a checkout the payload does not
 # carry, so completing one lands on hi.sh's refusal. The roster has to know.
-# --doctor is one of them, which this test used to assert the opposite of:
-# scripts/doctor.sh is not in $_HI_PAYLOAD, so `hi --doctor` on a target answers
-# $_HI_NO_CHECKOUT like the rest, however much a read-only probe looks portable.
+# --doctor is one of them, despite looking portable as a read-only probe:
+# scripts/doctor.sh is not in $_HI_PAYLOAD, so `hi --doctor` on a target
+# answers $_HI_NO_CHECKOUT like the rest.
 function test_flags_drop_local_subcommands_in_a_session() {
   local out flag
   out="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags)"

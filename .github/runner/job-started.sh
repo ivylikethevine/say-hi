@@ -1,7 +1,7 @@
 #!/bin/sh
-# The self-hosted runner's job-started hook - what the `Reclaim the workspace`
-# step every job used to open with, run once by the runner itself instead of
-# fifteen times from the workflows.
+# The self-hosted runner's job-started hook: what would otherwise be a
+# `Reclaim the workspace` step opening every job, run once here by the
+# runner itself instead of fifteen times over from the workflows.
 #
 # The box's `_work/<repo>/<repo>` persists between jobs, and the container
 # suites can leave a file the runner user cannot delete (root-owned from a

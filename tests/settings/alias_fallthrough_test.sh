@@ -237,14 +237,14 @@ function run_fallthrough_tests() {
   done
 }
 
-# _HI_DISABLE_ALIASES used to be the second half of this: it gated `sudo` and
-# $EDITOR in a settings/personal.sh of their own, so the table was a 2x2 over
-# both toggles. That file and that toggle are gone - the convenience aliases are
-# now the tail of settings/aliases.sh and unconditional - so `sudo` and $EDITOR
-# are asserted *present* on both rows. They stay in the table rather than being
-# dropped from it: they are the cheapest pin on the merged tail being reached at
-# all in three dialects, and the shape that would regress is one of them
-# quietly acquiring a guard.
+# A _HI_DISABLE_ALIASES toggle once gated `sudo` and $EDITOR in a
+# settings/personal.sh of their own, making this a 2x2 table over both
+# toggles; neither the file nor that toggle exist anymore, and the
+# convenience aliases are now the tail of settings/aliases.sh and
+# unconditional, so `sudo` and $EDITOR are asserted *present* on both rows.
+# They stay in the table rather than being dropped from it: they are the
+# cheapest pin on the merged tail being reached at all in three dialects, and
+# the shape that would regress is one of them quietly acquiring a guard.
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath

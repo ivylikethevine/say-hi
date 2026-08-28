@@ -143,9 +143,9 @@ function test_system_info_includes_static_labels() {
 
 # A target with a shell and awk and nothing else - core_test.sh's barebones
 # box, one layer up. The header is the first thing a session prints, so a
-# missing uname or date used to greet the user with "command not found" across
-# the banner; the cells say "?" instead, which is what every other probe in
-# system_info has always done.
+# missing uname or date greeting the user with "command not found" across the
+# banner would be a bad first impression; the cells say "?" instead, the way
+# every other probe in system_info answers a missing binary.
 # shellcheck disable=SC2016 # the probe expands in the child bash, not here
 function _hi_stripped_header() {
   local nocfg="$_HI_WORKDIR/stripped-nocfg"

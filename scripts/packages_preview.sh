@@ -79,10 +79,10 @@ function _hi_priority_meanings() {
 # variables hold a literal "\e[..." while _hi_color_escape emits a real ESC.
 # Anything outside the palette - $NC, and every color under $NO_COLOR - is
 # "plain", which is exactly how it will render.
-# The escapes for _HI_COLOR_NAMES, in the same order, resolved once. Built here
-# rather than inside _hi_color_name_of because that used to fork
-# _hi_color_escape for all twelve names on every call, and the legend calls it
-# four times a row.
+# The escapes for _HI_COLOR_NAMES, in the same order, resolved once. Built
+# here rather than inside _hi_color_name_of, which the legend calls four
+# times a row - resolving all twelve names on every one of those calls would
+# fork _hi_color_escape forty-eight times instead of twelve.
 _HI_COLOR_ESCAPES=()
 for _hi_cn in "${_HI_COLOR_NAMES[@]}"; do
   _HI_COLOR_ESCAPES+=("$(_hi_color_escape "$_hi_cn")")

@@ -489,9 +489,10 @@ and is sourced on the target, so it is the value that will apply there. The
 client's exported copy means something else — `_HI_DISABLE_LOCAL=1` is "leave
 my machine alone but style the hosts I visit", and trimming the payload on it
 would stop shipping files to targets that never disabled them.
-`_hi_setting_get` is the one reader of the grammar `install.sh`'s
-`config_shell` writes: quoted or bare values, the install marker padded after
-a bare one, last assignment wins.
+`_hi_setting_get` gets there by sourcing the file in a subshell and reading
+one name back, so it sees exactly what a real `.` of it would - quoted or
+bare values, the install marker padded after a bare one, last assignment
+wins - with nothing that happens inside the subshell reaching the caller.
 
 ## HI.37 zsh pattern-in-variable
 
@@ -553,11 +554,12 @@ tests the file exists first, so trimming the emitters is safe.
 is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
 (reusing the exclusion list exactly; `-h` resolves symlinks so the stage holds
 real files). The whole thing runs in a subshell so cleanup can be an `EXIT`
-trap rather than an `rm` on each way out — a ^C while a slow payload builds
-used to leave the stage in the client's tmp. `INT` and `TERM` are trapped
-explicitly to `exit`, since a signal that kills the subshell outright never
-reaches the `EXIT` trap; set in the function's own shell the trap would replace
-the one `_hi` installed for its error log.
+trap rather than an `rm` on each way out — a ^C during a slow payload build
+would otherwise skip that `rm` and leave the stage behind in the client's
+tmp. `INT` and `TERM` are trapped explicitly to `exit`, since a signal that
+kills the subshell outright never reaches the `EXIT` trap; set in the
+function's own shell the trap would replace the one `_hi` installed for its
+error log.
 
 **One awk, then `_hi_write_back`.** Every file is stripped by a single awk
 invocation (each lands in `<file>.strip`), and the result goes back with HI.09's
@@ -576,9 +578,9 @@ every bash there is.
 It exists because everything `hi.sh` bakes into a script for the target is
 text the target's shell will parse, and some of it is data: `$DOMAIN` off
 argv, `$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE`
-off `git describe --dirty`. A `$`, a quote or a backtick in any of them used
-to land unescaped — a bootloader that no longer parses, and a command
-substitution the target would run. `_hi_ssh_sh` quotes its `sh -c` word
+off `git describe --dirty`. A `$`, a quote or a backtick in any of them,
+unescaped, breaks the bootloader's parse and lets the target run a command
+substitution it should not. `_hi_ssh_sh` quotes its `sh -c` word
 through the same function, so the transports cannot drift into two dialects,
 and `_hi_env_each` takes values already quoted (`%s=%s`, never `%s="%s"`) so
 quoting is one decision rather than one per transport.
@@ -672,10 +674,10 @@ of hi's own and exports `$_HI_SESSION_RC` at it. It exists because the shell a
 user types at is **not** the one `hi.sh` starts: `bash --rcfile hi.bashrc`
 starts the *bootloader*, which sources `load.sh` and calls `load()`, and
 `load()` then starts the session shell. A bare `$shell -i` there reads the
-target's `~/.bashrc` — so hi's prompt and aliases used to reach the session
-only as a side effect of the `_HI_GRAFT_RC` block having been written into
-that file. Pointing the session shell at hi's own rc instead is what let the
-graft become opt-in.
+target's `~/.bashrc` — so without pointing the session shell at hi's own rc
+directly, hi's prompt and aliases would reach the session only as a side
+effect of the `_HI_GRAFT_RC` block having been written into that file.
+Pointing it there directly is what makes the graft optional.
 
 Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
 `~/.zshenv` — `ZDOTDIR` moves *all* of zsh's startup files, not just `.zshrc`),

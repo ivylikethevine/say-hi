@@ -382,10 +382,11 @@ login on a shared account reads a half-written rc, and a block left behind if
 the session dies between the write and the cleanup. Every graft is wrapped in
 a tree-exists guard so a leftover one is inert, but inert is not absent.
 
-hi used to ship one person's shell preferences (history sizing, keybindings,
-`zstyle` rules, fish's palette) in `settings/*_personal.*` files behind a
-`_HI_DISABLE_PERSONAL` toggle. Those are gone: what remains in each rc is the
-prompt, the completions and the git segment, which are the product. Your own
+Earlier versions shipped one person's shell preferences (history sizing,
+keybindings, `zstyle` rules, fish's palette) in `settings/*_personal.*` files
+behind a `_HI_DISABLE_PERSONAL` toggle; neither the files nor the toggle
+exist anymore. What remains in each rc is the prompt, the completions and the
+git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
 the end of hi's, in the same dialect, and your `aliases.sh` loads after
 `settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza` families) and

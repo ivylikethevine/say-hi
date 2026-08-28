@@ -90,9 +90,9 @@ function test_no_color_blanks_the_palette_at_source_time() {
 # hi is meant to reach a scratch or distroless container: bash and no
 # coreutils at all, so `hostname`, `uname`, `whoami` and `id` are none of them
 # there. The identity helpers are read for the banner and the prompt on every
-# connect, so what they do without their binaries is user-visible - it used to
-# be "uname: command not found" at the top of the session, and a colour hashed
-# off an empty string.
+# connect, so what they do without their binaries is user-visible: unhandled,
+# that is "uname: command not found" at the top of the session, and a colour
+# hashed off an empty string.
 #
 # A child shell per case: the answers are memoized for the life of a shell, so
 # this one's PATH has to be in place before the first call. 2>&1 into the

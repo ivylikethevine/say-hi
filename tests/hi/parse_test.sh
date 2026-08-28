@@ -347,6 +347,173 @@ function test_resolve_backend_prints_nothing_without_any_cli() {
   [ -z "$(PATH="$empty" _hi_resolve_backend yes)" ]
 }
 
+# common/flags is what --help and completion read; drift here means a backend
+# a user can reach through the roster has no flag to force it with, or a flag
+# _hi_backend_flag doesn't actually recognize.
+#
+# SC2031: the roster swap above (test_resolve_backend_follows_the_roster_order)
+# happens inside a $( ) and never reaches here; this reads the file-scope table
+function test_every_backend_has_a_flag_row() {
+  local name
+  # shellcheck disable=SC2031
+  for name in ssh "${_HI_BACKENDS[@]%%|*}"; do
+    grep -q "^--$name|" "$_HI_ROOT/common/flags" || return 1
+    [ "$(_hi_backend_flag "--$name")" = "$name" ] || return 1
+  done
+}
+
+function test_backend_flag_rejects_a_stranger() {
+  ! _hi_backend_flag --frobnicate >/dev/null 2>&1
+}
+
+# BACKEND is _hi_parse's other output, alongside DOMAIN/CMDARG/SSHARGS -
+# _hi_parse_out predates it and pins an exact line count, so this reads it
+# through its own helper instead of disturbing that one.
+function _hi_backend_parse_out() {
+  (
+    unset DOMAIN CMDARG BACKEND
+    _hi_parse "$@" >/dev/null 2>&1
+    printf '%s\n%s\n' "${DOMAIN:-}" "${BACKEND:-}"
+  )
+}
+
+function test_parse_backend_flags_set_backend_for_every_name() {
+  local name
+  for name in ssh docker podman nomad kube; do
+    [ "$(_hi_backend_parse_out "--$name" myhost)" = "$(printf 'myhost\n%s\n' "$name")" ] || return 1
+  done
+}
+
+# a backend flag is consumed outright, not folded into SSHARGS the way an
+# ssh option is - _hi_parse_out's existing exact-output form catches an extra
+# SSHARGS line if it ever leaked through
+function test_parse_backend_flag_does_not_reach_sshargs() {
+  [ "$(_hi_parse_out --docker myhost)" = "$(printf 'myhost\n\n')" ]
+}
+
+function test_parse_two_backend_flags_refuse_each_other() {
+  local rc=0
+  (_hi_parse --docker --ssh myhost >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ]
+}
+
+function test_parse_names_both_conflicting_flags() {
+  local out
+  out="$( (_hi_parse --docker --ssh myhost 2>&1 >/dev/null) || true)"
+  [[ "$out" == *"--ssh"*"--docker"* ]]
+}
+
+# the same flag twice is not a conflict
+function test_parse_repeating_a_backend_flag_is_fine() {
+  [ "$(_hi_backend_parse_out --docker --docker myhost)" = "$(printf 'myhost\ndocker\n')" ]
+}
+
+# once DOMAIN is set, a following -word is ssh's business again (today's
+# behaviour, unchanged: only ahead of the target does a backend flag mean
+# anything to hi itself)
+function test_parse_backend_flag_after_the_target_is_not_claimed() {
+  [ "$(_hi_backend_parse_out myhost --docker)" = "$(printf 'myhost\n\n')" ]
+}
+
+# _hi_parse's third output, alongside DOMAIN/CMDARG/BACKEND: whether --plain
+# was given, and never folded into SSHARGS - _hi_parse_out's exact-output
+# form would catch an extra line if it leaked through.
+function _hi_plain_parse_out() {
+  (
+    unset DOMAIN CMDARG PLAIN
+    _hi_parse "$@" >/dev/null 2>&1
+    printf '%s\n%s\n' "${DOMAIN:-}" "${PLAIN:-0}"
+  )
+}
+
+function test_parse_plain_sets_plain_not_sshargs() {
+  [ "$(_hi_plain_parse_out --plain myhost)" = "$(printf 'myhost\n1\n')" ] &&
+    [ "$(_hi_parse_out --plain myhost)" = "$(printf 'myhost\n\n')" ]
+}
+
+# combines freely with a backend flag - orthogonal, checked in either order
+function test_parse_plain_combines_with_a_backend_flag() {
+  [ "$(_hi_plain_parse_out --plain --docker myhost)" = "$(printf 'myhost\n1\n')" ] &&
+    [ "$(_hi_backend_parse_out --plain --docker myhost)" = "$(printf 'myhost\ndocker\n')" ]
+}
+
+# RAWCMD is CMDARG's raw material, without the "; exit" suffix baked in for
+# the bootloader's own embedding - --plain execs the words directly and has
+# no bootloader to close out
+function test_parse_rawcmd_has_no_exit_suffix() {
+  local out
+  out="$(
+    unset RAWCMD CMDARG
+    _hi_parse myhost echo hello >/dev/null 2>&1
+    printf '%s\n%s\n' "$RAWCMD" "$CMDARG"
+  )"
+  [ "$(printf '%s\n' "$out" | sed -n 1p)" = "echo hello" ] &&
+    [[ "$(printf '%s\n' "$out" | sed -n 2p)" == *"exit"* ]]
+}
+
+# _hi_select_arm is what _hi calls to choose $arm; testing it directly means
+# asserting the choice without a real connect
+function test_select_arm_backend_flag_wins_over_a_real_match() {
+  local DOMAIN=yes BACKEND=ssh
+  [ -z "$(PATH="$_HI_SHIM_PATH" _hi_select_arm)" ]
+}
+
+function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
+  local DOMAIN=no BACKEND=docker
+  # PATH has nothing at all: a probe would find no CLI and print nothing, so
+  # a printed "docker" here can only have come from $BACKEND
+  local empty="$_HI_WORKDIR/empty"
+  mkdir -p "$empty"
+  [ "$(PATH="$empty" _hi_select_arm)" = docker ]
+}
+
+function test_select_arm_falls_back_to_resolution_when_backend_unset() {
+  local DOMAIN=yes BACKEND=
+  [ "$(PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ]
+}
+
+function test_report_failure_is_silent_once_hi_already_said_it() {
+  local _HI_SAID=1
+  [ -z "$(_hi_report_failure 255 "" "" 2>&1)" ]
+}
+
+# ssh reserves 255 for its own failures; anything else through the ssh arm is
+# the session's or the remote command's own exit status, which ssh itself
+# never announces either
+function test_report_failure_is_silent_for_a_non_255_ssh_exit() {
+  [ -z "$(_hi_report_failure 1 "" "" 2>&1)" ]
+}
+
+function test_report_failure_speaks_on_255() {
+  local DOMAIN=myhost f="$_HI_WORKDIR/ssh255.log"
+  : >"$f"
+  [[ "$(_hi_report_failure 255 "" "$f" 2>&1)" == *"could not reach [myhost]"* ]]
+}
+
+# a container arm with nothing filed in its errlog means nothing hi ran on
+# the way in complained, so the exit is the session's, not hi's to announce
+function test_report_failure_is_silent_for_a_quiet_container_errlog() {
+  local f="$_HI_WORKDIR/empty.log"
+  : >"$f"
+  [ -z "$(_hi_report_failure 1 docker "$f" 2>&1)" ]
+}
+
+function test_report_failure_speaks_with_a_filed_container_error() {
+  local DOMAIN=mybox f="$_HI_WORKDIR/filed.log"
+  printf 'copy failed\n' >"$f"
+  local out
+  out="$(_hi_report_failure 1 docker "$f" 2>&1)"
+  [[ "$out" == *"could not reach [mybox]"* && "$out" == *"copy failed"* ]]
+}
+
+# no \r anywhere when stderr is not a terminal - a captured/piped failure
+# gets a plain newline instead of a cursor move that has nothing to move
+function test_report_failure_has_no_carriage_return_off_a_tty() {
+  local DOMAIN=myhost f="$_HI_WORKDIR/notty.log"
+  : >"$f"
+  [[ "$(_hi_report_failure 255 "" "$f" 2>&1)" != *$'\r'* ]]
+}
+
 # `pod/container` and `alloc/task`: one spelling for both, because a task and a
 # container are the same idea. The plain form has to stay byte-identical - this
 # syntax is additive or it breaks every existing target.
@@ -476,11 +643,110 @@ function test_kube_prefixes_become_kubectl_flags() {
   return 1
 }
 
+# A docker shim scoped to --plain: exec-only, and it refuses (exit 9) any
+# invocation shaped like a write - mkdir, tar, or a `cat >` redirect target -
+# so a plain path that ever tried to copy something would fail loudly here
+# instead of a real /tmp write silently passing on this machine's own docker.
+# $HI_FAKE_BASH answers the bash probe; the ladder probe always answers
+# "dash" (a real $_HI_SHELL_LADDER member, so the caller's own validation
+# against it passes) since which one hi picks is not what these cases are about.
+function _hi_plain_container_shim() {
+  local dir="$_HI_WORKDIR/plainshims"
+  [ -d "$dir" ] && {
+    printf '%s' "$dir"
+    return 0
+  }
+  mkdir -p "$dir"
+  cat >"$dir/docker" <<'EOF'
+#!/bin/sh
+for a in "$@"; do
+  case "$a" in
+  *mkdir*'-p'*|*'tar '*|*'cat >'*)
+    echo "docker shim: unexpected write: $*" >&2
+    exit 9
+    ;;
+  esac
+done
+[ "$1" = exec ] || exit 1
+shift
+for a in "$@"; do
+  case "$a" in
+  'command -v bash') [ "${HI_FAKE_BASH:-0}" = 1 ] && exit 0 || exit 1 ;;
+  'for _hi_s in'*) printf 'dash\n'; exit 0 ;;
+  esac
+done
+# neither marker present: this is the attach call, shaped -i/-it <target>
+# "$shell" [-c "$cmd"] - drop the flag and the target, keep the rest
+case "$1" in -i | -it) shift ;; esac
+shift
+printf 'ATTACHED:%s\n' "$*"
+EOF
+  chmod +x "$dir/docker"
+  printf '%s' "$dir"
+}
+
+function test_plain_container_attaches_with_no_write() {
+  local out DOMAIN RAWCMD=""
+  DOMAIN=mybox
+  out="$(PATH="$(_hi_plain_container_shim):$PATH" HI_FAKE_BASH=1 _say_hi_container_plain docker)"
+  [[ "$out" == "ATTACHED:bash" ]]
+}
+
+function test_plain_container_falls_back_to_the_ladder_without_bash() {
+  local out DOMAIN RAWCMD=""
+  DOMAIN=mybox
+  out="$(PATH="$(_hi_plain_container_shim):$PATH" HI_FAKE_BASH=0 _say_hi_container_plain docker)"
+  [[ "$out" == "ATTACHED:dash" ]]
+}
+
+function test_plain_container_runs_rawcmd_with_dash_c() {
+  local out DOMAIN RAWCMD
+  DOMAIN=mybox
+  RAWCMD="echo hi"
+  out="$(PATH="$(_hi_plain_container_shim):$PATH" HI_FAKE_BASH=1 _say_hi_container_plain docker)"
+  [[ "$out" == "ATTACHED:bash -c echo hi" ]]
+}
+
+# ssh itself is "just get me a shell" with no target, so --plain's ssh path
+# is real ssh with no bootstrap - asserted through a shim that echoes its own
+# argv, proving nothing beyond SSHARGS/DOMAIN/RAWCMD ever reaches it
+function test_plain_ssh_execs_real_ssh_with_rawcmd() {
+  local dir="$_HI_WORKDIR/plainssh" out
+  mkdir -p "$dir"
+  cat >"$dir/ssh" <<'EOF'
+#!/bin/sh
+echo "SSH:$*"
+EOF
+  chmod +x "$dir/ssh"
+  out="$(
+    DOMAIN=myhost SSHARGS=() RAWCMD="echo hi" _HI_TTY=0
+    PATH="$dir:$PATH" _say_hi_plain
+  )"
+  [[ "$out" == "SSH:myhost echo hi" ]]
+}
+
+function test_plain_ssh_with_no_command_passes_none() {
+  local dir="$_HI_WORKDIR/plainssh"
+  [ -d "$dir" ] || mkdir -p "$dir"
+  cat >"$dir/ssh" <<'EOF'
+#!/bin/sh
+echo "SSH:$*"
+EOF
+  chmod +x "$dir/ssh"
+  local out
+  out="$(
+    DOMAIN=myhost SSHARGS=() _HI_TTY=0
+    unset RAWCMD
+    PATH="$dir:$PATH" _say_hi_plain
+  )"
+  [[ "$out" == "SSH:myhost" ]]
+}
+
 # The one arm of the dispatch block that has to be *executed* rather than
 # sourced: sourcing hi.sh stops at the BASH_SOURCE guard, which is above the
 # `case "${1:-}"`. So these run the real launcher as a subprocess, with an ssh
-# that fails loudly on $PATH - the whole point of the flag is that it never
-# reaches ssh, and before it existed `hi -h` answered with ssh's usage block.
+# that fails loudly on $PATH - proof that the flag is caught before it ever
+# reaches ssh, rather than falling through to ssh's own usage block.
 
 # --help is asserted four separate ways and its output cannot differ between
 # them, so it is launched once and kept; the ssh shim that makes a stray
@@ -850,9 +1116,39 @@ function run_hi_parse_tests() {
   _hi_check "The header counts every backend the roster dispatches" test_header_probes_every_backend_in_the_roster
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
+
+  _hi_h2 "Testing: backend override flags (--ssh, --docker, ...)"
+  _hi_check "Every roster backend has a flag row" test_every_backend_has_a_flag_row
+  _hi_check "_hi_backend_flag rejects a stranger" test_backend_flag_rejects_a_stranger
+  _hi_check "Each flag sets BACKEND to its own name" test_parse_backend_flags_set_backend_for_every_name
+  _hi_check "A backend flag never reaches SSHARGS" test_parse_backend_flag_does_not_reach_sshargs
+  _hi_check "Two different backend flags refuse each other" test_parse_two_backend_flags_refuse_each_other
+  _hi_check "Both conflicting flags are named" test_parse_names_both_conflicting_flags
+  _hi_check "The same flag twice is not a conflict" test_parse_repeating_a_backend_flag_is_fine
+  _hi_check "A backend flag after the target is ssh's, not hi's" test_parse_backend_flag_after_the_target_is_not_claimed
+  _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
+  _hi_check "--plain combines with a backend flag" test_parse_plain_combines_with_a_backend_flag
+  _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix
+  _hi_check "select_arm: the flag wins over a real match" test_select_arm_backend_flag_wins_over_a_real_match
+  _hi_check "select_arm: the flag names the arm with no probe" test_select_arm_backend_flag_names_the_arm_with_no_probe
+  _hi_check "select_arm: unset falls back to resolution" test_select_arm_falls_back_to_resolution_when_backend_unset
+  _hi_check "report_failure: silent once hi already said it" test_report_failure_is_silent_once_hi_already_said_it
+  _hi_check "report_failure: silent for a non-255 ssh exit" test_report_failure_is_silent_for_a_non_255_ssh_exit
+  _hi_check "report_failure: speaks on 255" test_report_failure_speaks_on_255
+  _hi_check "report_failure: silent for a quiet container errlog" test_report_failure_is_silent_for_a_quiet_container_errlog
+  _hi_check "report_failure: speaks with a filed container error" test_report_failure_speaks_with_a_filed_container_error
+  _hi_check "report_failure: no \\r off a tty" test_report_failure_has_no_carriage_return_off_a_tty
+
   _hi_check "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
   _hi_check "no tty, no -t (hi <target> <cmd> | ...)" test_container_cmds_drop_the_tty_without_one
   _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
+
+  _hi_h2 "Testing: --plain (U6)"
+  _hi_check "Container: attaches with no write, prefers bash" test_plain_container_attaches_with_no_write
+  _hi_check "Container: falls back to the ladder without bash" test_plain_container_falls_back_to_the_ladder_without_bash
+  _hi_check "Container: runs RAWCMD with -c" test_plain_container_runs_rawcmd_with_dash_c
+  _hi_check "ssh: execs real ssh with RAWCMD" test_plain_ssh_execs_real_ssh_with_rawcmd
+  _hi_check "ssh: no command means no trailing word" test_plain_ssh_with_no_command_passes_none
 
   _hi_h2 "Testing: _hi_record_recent"
   _hi_check "Appends a stamped line" test_record_recent_appends_a_line

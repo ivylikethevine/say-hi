@@ -185,12 +185,11 @@ function _hi_fake_path() {
 # does not: MSYS's `ln -s` wants Developer Mode or administrator and fails
 # outright, and _hi_fake_path's shebang files next door are the proof a wrapper
 # is executable there where an empty chmod'd file is not. The `ln` result is
-# *checked* rather than trusted, which is the older bug this closes on every
-# platform: it used to be the tail of an `&&` list, so a failure neither aborted
-# nor reported, and the `[ ! -d ]` build-once guard then cached the empty
-# directory forever. A caller that splices an empty toolbox into $PATH has no
-# `sh`, `awk` or `sed` at all, so its cases fail in ways that look nothing like
-# the symlink that caused them.
+# *checked* rather than trusted: at the tail of an `&&` list it would fail
+# silently, unaborted and unreported, and the `[ ! -d ]` build-once guard
+# would then cache the empty directory forever. A caller that splices an
+# empty toolbox into $PATH has no `sh`, `awk` or `sed` at all, so its cases
+# would fail in ways that look nothing like the symlink that caused them.
 function _hi_real_path() {
   local dir="$_HI_WORKDIR/$1" tool real
   shift

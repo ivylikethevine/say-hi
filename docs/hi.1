@@ -90,6 +90,18 @@ pairs for any allocation or pod that has more than one.
 A name matching none of these is handed to
 .BR ssh (1)
 anyway, so unlisted hosts still work.
+.PP
+.BR \-\-ssh ,
+.BR \-\-docker ,
+.BR \-\-podman ,
+.BR \-\-nomad
+or
+.B \-\-kube
+before
+.I target
+names the arm outright and skips every probe above it \- the fix for a
+container that shadows an unrelated ssh host of the same name, or the other
+way around.
 .SH NO TARGET
 .B hi
 with no
@@ -137,6 +149,45 @@ one. Caught before the pass\-through below, so it never reaches
 print the version and exit: the version stamped in at packaging time, or
 .B git describe
 output in a checkout.
+.TP
+.B \-\-ssh
+force the ssh arm for
+.IR target ,
+skipping every backend probe in
+.B TARGET RESOLUTION
+above \- ssh's own error speaks if it is not there.
+.TP
+.B \-\-docker
+force the docker arm for
+.IR target .
+.TP
+.B \-\-podman
+force the podman arm for
+.IR target .
+.TP
+.B \-\-nomad
+force the nomad arm for
+.IR target .
+.TP
+.B \-\-kube
+force the kube arm for
+.IR target .
+.TP
+.B \-\-plain
+skip the payload entirely and hand over a bare shell on whichever arm
+.I target
+resolves to \- no copy, no aliases, no header. Needs nothing from the target
+beyond a shell (and, for an ssh target,
+.BR sshd (8))
+\- not even
+.BR tar (1)
+or
+.BR base64 (1),
+and no writable
+.B /tmp
+or
+.B $HOME
+either.
 .PP
 The following act on this machine instead of connecting, and each needs a part
 of the tree that is not always present. All of them want
@@ -157,10 +208,12 @@ shipped
 .BR common/header.sh ,
 rather than refusing.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-ssh\fR|\fB\-\-docker\fR|\fB\-\-podman\fR|\fB\-\-nomad\fR|\fB\-\-kube\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, every backend probed and timed, and \- with a target \-
-which backend the name resolves to plus an ssh reachability check. With
+which backend the name resolves to plus an ssh reachability check. A backend
+flag reports the same forced arm a real connect with it would take, skipping
+the probe chain. With
 .BR \-\-json ,
 the same rows as one JSON document on stdout \- what a bug report should
 carry \- with the finding count as the exit status either way.

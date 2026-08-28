@@ -191,10 +191,10 @@ function test_clean_all_strips_block_and_keeps_user_lines() {
   [ "$(cat "$_HI_FAKE_HOME/.zshrc")" = "$_HI_USER_LINE" ]
 }
 
-# Two overlapping sessions to one host, which is the shape neither the docs nor
-# a test used to state. configure_files skips the graft when the marker is
-# already there, so the second session adds nothing; clean_all strips on the way
-# out unconditionally, so the *first* session to leave takes the block away from
+# Two overlapping sessions to one host, a shape the docs otherwise leave
+# unstated. configure_files skips the graft when the marker is already there,
+# so the second session adds nothing; clean_all strips on the way out
+# unconditionally, so the *first* session to leave takes the block away from
 # the one still running. Not "the owner cleans up after itself" - whoever exits
 # first does.
 #
@@ -267,13 +267,14 @@ function test_no_init_guard_skips_profile() {
   [[ -z "${out%%|*}" ]]
 }
 
-# The tree must NOT land on $PATH. It used to, so that `hi` could be typed in a
-# session to relay onward - but on a disposable session $_HI_ROOT is a
-# directory under /tmp, and "no /tmp on PATH" is a line item in every hardening
-# baseline an admin has to answer to. paths.sh's `alias hi=` is what a session
-# actually reaches the launcher through, in all four shells, so nothing was
-# lost. Asserted on the restore path *and* under the no-init guard, since the
-# append lived in the function the guard skips and could come back in either.
+# The tree must NOT land on $PATH: on a disposable session $_HI_ROOT is a
+# directory under /tmp, and "no /tmp on PATH" is a line item in every
+# hardening baseline an admin has to answer to. paths.sh's `alias hi=` is
+# what a session actually reaches the launcher through, in all four shells,
+# so a PATH entry would add nothing `hi` typed inside a session to relay
+# onward doesn't already have. Asserted on the restore path *and* under the
+# no-init guard, since the append lives in the function the guard skips and
+# could come back in either.
 function test_tree_is_never_put_on_path() {
   local home="$_HI_WORKDIR/profilehome" out guard
   mkdir -p "$home"

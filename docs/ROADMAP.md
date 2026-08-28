@@ -72,11 +72,11 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
       Scorecard's highest-severity finding. What has not happened is a release
       under it.
 
-  - **The code half has shipped.** `publish` no longer pushes to `main`: it
-    writes the regenerated `PKGBUILD`, `.SRCINFO` and `say-hi.rb` onto a
-    `manifests-<tag>` branch and opens a pull request, on the `tap` job's
-    precedent. The release does not wait on that merge — `tap` and `aur` read
-    the manifests out of the `packages` artifact.
+  - **The code half has shipped.** `publish` writes the regenerated
+    `PKGBUILD`, `.SRCINFO` and `say-hi.rb` onto a `manifests-<tag>` branch and
+    opens a pull request rather than pushing to `main` directly, on the `tap`
+    job's precedent. The release does not wait on that merge — `tap` and
+    `aur` read the manifests out of the `packages` artifact.
   - **Confirm one setting before the first tag.** A workflow can only open that
     pull request if _Settings → Actions → General → Allow GitHub Actions to
     create and approve pull requests_ is on. Off, `gh pr create` fails at the
@@ -238,8 +238,8 @@ in a release](#quick-wins), [Homebrew tap](#moderate) and
     second commit spent on a few days of cosmetic blemish.
   - **The question is whether showing it helps.** Two checks a solo maintainer
     cannot move — Code-Review and CI-Tests — dominate it, so it reads partly
-    as a verdict on headcount. CII-Best-Practices used to be unmovable and is
-    not now that `docs/CONTRIBUTING.md` has shipped. The rest of the report is
+    as a verdict on headcount. CII-Best-Practices moved out of the unmovable
+    set once `docs/CONTRIBUTING.md` shipped. The rest of the report is
     settled: SAST counts `codeql.yml`'s `actions` pack, Fuzzing has no target
     in a shell tree, everything else passes.
   - **Ticks when:** the badge either stays, with a sentence here saying why,
