@@ -55,14 +55,16 @@ Running the container as a normal user does not rescue it: under
 apt installs the job opens with.
 
 `tests/test_runner.sh --group fast` is the same gate with none of that. If you
-want a workflow run anyway, `actionlint`, `hadolint` and
-`markdownlint (advisory)` are green under act and are all linters you can run
-directly; `zizmor` fails on act's empty `github.token`; the macOS/Windows jobs
-have no container to run in; `bench`, `packaging-smoke` and the two `e2e` jobs
-want the Docker socket.
+want a workflow run anyway, `advisory-lint` (markdownlint, hadolint,
+demo-staleness) is green under act and every tool in it you can also run
+directly. `workflow-lint` bundles actionlint with zizmor, and zizmor fails on
+act's empty `github.token`, so a run of that job shows red under act even when
+actionlint itself is clean — run `actionlint -color` directly instead if
+that's what you're checking. The macOS/Windows jobs have no container to run
+in; `bench`, `packaging-smoke` and the two `e2e` jobs want the Docker socket.
 
 ```sh
-act -W .github/workflows/ci.yml -j actionlint -P ubuntu-latest=catthehacker/ubuntu:act-latest
+act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
 
 ## What a review will bounce on

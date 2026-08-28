@@ -1,0 +1,52 @@
+name: Advisory note
+# The tail every advisory (never-blocking) check in this tree ends with: a
+# ::warning annotation plus a $GITHUB_STEP_SUMMARY section restating that it
+# never blocks a merge. markdownlint, hadolint, demo-staleness and lychee all
+# had this written out by hand, word for word in three of the four cases.
+# What stays at the call site: the tool-specific `if:` that decides whether
+# this even runs, and (for hadolint/demo-staleness) any ANSI-stripping or
+# truncation of the report before it's handed here.
+description: Emit a ::warning annotation and a step-summary section for a non-blocking finding
+
+inputs:
+  title:
+    description: the ::warning title=... value
+    required: true
+  warning-body:
+    description: the ::warning message body
+    required: true
+  heading:
+    description: the step-summary '### ...' heading, without the '### '
+    required: true
+  body:
+    description: the explanatory sentence(s) under the heading
+    required: true
+  report-file:
+    description: optional path to a file cat'd into a fenced code block after body
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TITLE: ${{ inputs.title }}
+        WARNING_BODY: ${{ inputs.warning-body }}
+        HEADING: ${{ inputs.heading }}
+        BODY: ${{ inputs.body }}
+        REPORT_FILE: ${{ inputs.report-file }}
+      run: |
+        set -euo pipefail
+        echo "::warning title=$TITLE::$WARNING_BODY"
+        {
+          echo "### $HEADING"
+          echo
+          printf '%s\n' "$BODY"
+          if [ -n "$REPORT_FILE" ]; then
+            echo
+            echo '```'
+            cat "$REPORT_FILE"
+            echo '```'
+          fi
+        } >>"$GITHUB_STEP_SUMMARY"

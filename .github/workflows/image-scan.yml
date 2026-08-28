@@ -86,49 +86,27 @@ jobs:
 
       # The report is the summary and the issue body both, so the two can never
       # drift into saying different things.
-      - name: Say what it found, and open an issue when a repin would help
+      - name: Append the footer before the issue upsert
+        if: steps.scan.outputs.verdict == 2
         env:
-          GH_TOKEN: ${{ github.token }}
           REPORT: ${{ runner.temp }}/image-scan-report.md
-          VERDICT: ${{ steps.scan.outputs.verdict }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          cat "$REPORT" >>"$GITHUB_STEP_SUMMARY"
-
-          label=image-scan
-          title="Base image repin would close known vulnerabilities"
-
-          # --force is create-or-update, so a deleted label heals itself rather
-          # than turning every later `issue create` into a hard failure
-          gh label create "$label" --force --color D93F0B \
-            --description "A pinned base image can be repinned to fix a CVE" >/dev/null
-
-          # one issue, reused: the finding is a standing state of the pins, not
-          # an event, so a new issue per weekly run would be pure noise
-          open="$(gh issue list --label "$label" --state open --json number --jq '.[0].number // empty')"
-
-          if [ "$VERDICT" != 2 ]; then
-            if [ -n "$open" ]; then
-              gh issue close "$open" --comment "The pins no longer have a fixable finding a repin would clear. [Latest run]($RUN_URL)."
-            fi
-            echo "nothing actionable"
-            exit 0
-          fi
-
-          # --body-file, not --body: the report is markdown with blank lines and
-          # backticks in it, and a YAML-indented shell string would arrive with
-          # every continuation line four-space-indented into a code block
-          # the backticks are a markdown code span, not a substitution
+          # the backticks below are a markdown code span, not a substitution
           # shellcheck disable=SC2016
           printf '\nFound by [`image-scan`](%s). Closed automatically once the pins no longer need it.\n' \
             "$RUN_URL" >>"$REPORT"
 
-          if [ -n "$open" ]; then
-            gh issue edit "$open" --title "$title" --body-file "$REPORT"
-            echo "updated #$open"
-          else
-            gh issue create --label "$label" --title "$title" --body-file "$REPORT"
-          fi
-
-          echo "::warning title=trivy::A pinned base image can be repinned to close known vulnerabilities - see the issue"
+      - uses: ./.github/actions/upsert-tracking-issue
+        with:
+          label: image-scan
+          label-color: D93F0B
+          label-description: A pinned base image can be repinned to fix a CVE
+          title: Base image repin would close known vulnerabilities
+          resolved: ${{ steps.scan.outputs.verdict != 2 && 'true' || 'false' }}
+          close-comment: The pins no longer have a fixable finding a repin would clear. [Latest run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          write-summary-on-resolved: "true"
+          body-file: ${{ runner.temp }}/image-scan-report.md
+          warning-title: trivy
+          warning-body: A pinned base image can be repinned to close known vulnerabilities - see the issue

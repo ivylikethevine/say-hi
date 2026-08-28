@@ -1,0 +1,100 @@
+name: Upsert tracking issue
+# One labeled, reused issue per standing finding - opened when actionable,
+# rewritten on every later run while it stays actionable, closed the run it
+# clears. image-scan.yml and tool-versions.yml both had this exact create/
+# list/close/edit/create sequence written out by hand; this is that sequence,
+# parameterized. What each caller still owns: composing the report body
+# (a trivy scan's markdown vs. a tools.txt drift table are nothing alike) and
+# deciding `resolved` from its own tool's verdict.
+description: Create, update, or close one labeled GitHub issue tracking a standing finding
+
+inputs:
+  label:
+    description: the issue label (also used as the tracking key - one open issue per label)
+    required: true
+  label-color:
+    description: hex color (no '#') for `gh label create`
+    required: true
+  label-description:
+    description: description for `gh label create`
+    required: true
+  title:
+    description: issue title, used on both create and edit
+    required: true
+  resolved:
+    description: "'true' when this run found nothing actionable - closes any open issue instead of upserting"
+    required: true
+  close-comment:
+    description: comment left on the issue when it's closed
+    required: true
+  body-file:
+    description: path to the fully-composed markdown issue body; required unless resolved is 'true'
+    required: false
+    default: ""
+  write-summary-on-resolved:
+    description: "'true' if body-file should still be cat'd to $GITHUB_STEP_SUMMARY when resolved is 'true'"
+    required: false
+    default: "false"
+  warning-title:
+    description: optional ::warning title=... emitted after a non-resolved upsert
+    required: false
+    default: ""
+  warning-body:
+    description: the ::warning message body, only used when warning-title is set
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        LABEL: ${{ inputs.label }}
+        LABEL_COLOR: ${{ inputs.label-color }}
+        LABEL_DESCRIPTION: ${{ inputs.label-description }}
+        TITLE: ${{ inputs.title }}
+        RESOLVED: ${{ inputs.resolved }}
+        CLOSE_COMMENT: ${{ inputs.close-comment }}
+        BODY_FILE: ${{ inputs.body-file }}
+        WRITE_SUMMARY_ON_RESOLVED: ${{ inputs.write-summary-on-resolved }}
+        WARNING_TITLE: ${{ inputs.warning-title }}
+        WARNING_BODY: ${{ inputs.warning-body }}
+      run: |
+        set -euo pipefail
+
+        # --force is create-or-update, so a deleted label heals itself rather
+        # than turning every later `issue create` into a hard failure
+        gh label create "$LABEL" --force --color "$LABEL_COLOR" \
+          --description "$LABEL_DESCRIPTION" >/dev/null
+
+        # one issue, reused: the finding is a standing state, not an event,
+        # so a new issue per run would be pure noise
+        open="$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty')"
+
+        if [ "$RESOLVED" = true ]; then
+          if [ "$WRITE_SUMMARY_ON_RESOLVED" = true ] && [ -n "$BODY_FILE" ] && [ -f "$BODY_FILE" ]; then
+            cat "$BODY_FILE" >>"$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "$open" ]; then
+            gh issue close "$open" --comment "$CLOSE_COMMENT"
+          fi
+          echo "nothing actionable"
+          exit 0
+        fi
+
+        # --body-file, not --body: these bodies are markdown with blank lines
+        # and (for image-scan) backticks - a YAML-indented shell string would
+        # arrive with every continuation line indented into a code block
+        cat "$BODY_FILE" >>"$GITHUB_STEP_SUMMARY"
+
+        if [ -n "$open" ]; then
+          gh issue edit "$open" --title "$TITLE" --body-file "$BODY_FILE"
+          echo "updated #$open"
+        else
+          gh issue create --label "$LABEL" --title "$TITLE" --body-file "$BODY_FILE"
+        fi
+
+        if [ -n "$WARNING_TITLE" ]; then
+          echo "::warning title=$WARNING_TITLE::$WARNING_BODY"
+        fi

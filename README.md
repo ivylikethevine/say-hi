@@ -9,18 +9,63 @@ current state is not a representation of final, published quality.
 
 ---
 
+<!-- CI status. macOS/Windows/FreeBSD/Windows-client are workflow_call targets
+     invoked from ci.yml, so each one's own run history is dispatch-only and
+     can lag what CI actually ran against main - a status badge in this shape
+     shows the last manual dispatch, not the last CI run. pages.yml already
+     has the badge() machinery to publish a shields endpoint from CI
+     artifacts instead, the way tests.json and package.json do, if that gap
+     is worth closing later. -->
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/macos-e2e.yml?branch=main&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/macos-e2e.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
+[![FreeBSD](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/freebsd-e2e.yml?branch=main&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/freebsd-e2e.yml)
+[![Windows client](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-client.yml?branch=main&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-client.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
+
+<!-- payload/package. The KB figure below is read by
+     tests/bench/bench_test.sh's bench_payload_readme_badge - keep the
+     literal `ssh_payload-<n>KB_per_session` substring intact and don't add
+     one elsewhere in this file, or the sed that extracts it grabs the wrong
+     line. -->
 ![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
 [![package](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fpackage.json)](https://github.com/ivylikethevine/say-hi/releases)
+
+<!-- Security / supply chain. The Best Practices and Baseline lines stay
+     commented out until registration at bestpractices.dev yields a project
+     ID - see docs/CII-BEST-PRACTICES-DRAFT.md. -->
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
+<!-- [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<ID>/badge)](https://www.bestpractices.dev/projects/<ID>) -->
+<!-- [![OpenSSF Baseline](https://www.bestpractices.dev/projects/<ID>/baseline)](https://www.bestpractices.dev/projects/<ID>) -->
+![dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white)
+[![security policy](https://img.shields.io/badge/security-policy-blue)](docs/SECURITY.md)
+[![provenance](https://img.shields.io/badge/provenance-attested-4c1)](.github/workflows/release.yml)
+
+<!-- Requirements. -->
 ![bash](https://img.shields.io/badge/bash-3.2%2B-4EAA25?logo=gnubash&logoColor=white)
 ![zsh](https://img.shields.io/badge/zsh-5.8%2B-C63D14)
 ![fish](https://img.shields.io/badge/fish-3.7%2B-4AAE9B)
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![license](https://img.shields.io/badge/license-MIT-blue)
+
+<!-- Release-gated: no tag exists yet, so these render "no releases" /
+     zero / empty until the first `git tag v*` ships. Kept in rather than
+     left for later, per plan - prune if the placeholder state isn't wanted
+     on the README before then. -->
+[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi?include_prereleases)](https://github.com/ivylikethevine/say-hi/releases)
+[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
+[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
+
+<!-- Project metadata. -->
+[![license](https://img.shields.io/github/license/ivylikethevine/say-hi)](LICENSE.md)
+[![last commit](https://img.shields.io/github/last-commit/ivylikethevine/say-hi/main)](https://github.com/ivylikethevine/say-hi/commits/main)
+![commit activity](https://img.shields.io/github/commit-activity/m/ivylikethevine/say-hi)
+![code size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
+![contributors](https://img.shields.io/github/contributors/ivylikethevine/say-hi)
+![stars](https://img.shields.io/github/stars/ivylikethevine/say-hi)
+![open issues](https://img.shields.io/github/issues/ivylikethevine/say-hi)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](docs/CONTRIBUTING.md)
 
 **One config directory to rule them all, uniting all shells from all hosts!**
 
@@ -372,6 +417,9 @@ too high.
   reproducibility contract, verifying a download, regenerating the demo GIFs
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned and what it is blocked on
 - [docs/FUTURE.md](docs/FUTURE.md) — unscheduled research, not queued work
+- [docs/CII-BEST-PRACTICES-DRAFT.md](docs/CII-BEST-PRACTICES-DRAFT.md) — the
+  OpenSSF Best Practices questionnaire, answered against this tree, scratch
+  until it's transcribed to bestpractices.dev
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
   request, and which doc changes with what
 

@@ -90,112 +90,63 @@ jobs:
       # file is written straight into _site, so it needs no front matter and no
       # _config.yml exclusion to survive the build untouched.
       #
-      # The lookup is by query rather than off the workflow_run payload on
-      # purpose - the newest green CI run on main *is* the triggering run when
-      # that is the event, so one code path serves push and dispatch too.
-      - name: Find the CI run that counted the suites
-        id: ci-run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          run_id="$(gh api \
-            "repos/$REPO/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id // empty')"
-          echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
-          if [ -n "$run_id" ]; then
-            echo "counting from CI run $run_id"
-          else
-            echo "::warning::no successful CI run on main to read a count from"
-          fi
-
-      # continue-on-error, not a gate: an expired artifact is a grey badge, not
-      # a failed site deploy
-      - name: Fetch that run's totals
-        if: steps.ci-run.outputs.run_id != ''
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      # Each lookup below is by query rather than off the workflow_run payload
+      # on purpose - the newest green run on main *is* the triggering run when
+      # that is the event, so one code path serves push and dispatch too. The
+      # lookup-then-download pair is ./.github/actions/fetch-latest-artifact;
+      # totals and package sizes both come from ci.yml's newest run, so they
+      # look it up twice rather than sharing a step - a second `gh api` call
+      # is cheap and keeps every one of the five below the same shape.
+      - name: Fetch CI's totals
+        uses: ./.github/actions/fetch-latest-artifact
         with:
-          name: fast-totals
-          path: ${{ runner.temp }}/totals
-          run-id: ${{ steps.ci-run.outputs.run_id }}
-          github-token: ${{ github.token }}
+          workflow: ci.yml
+          artifact-name: fast-totals
+          dest-subdir: totals
+          found-message: counting from CI run
+          missing-message: no successful CI run on main to read a count from
+          warn-on-missing: "true"
 
-      # the same run, so the lookup above serves both. Separate artifacts because
-      # they come from different jobs: the count from `test`, the sizes from
+      # the same run totals came from - separate artifacts because they come
+      # from different jobs: the count from `test`, the sizes from
       # `packaging-smoke`.
-      - name: Fetch that run's package sizes
-        if: steps.ci-run.outputs.run_id != ''
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Fetch CI's package sizes
+        uses: ./.github/actions/fetch-latest-artifact
         with:
-          name: package-sizes
-          path: ${{ runner.temp }}/sizes
-          run-id: ${{ steps.ci-run.outputs.run_id }}
-          github-token: ${{ github.token }}
+          workflow: ci.yml
+          artifact-name: package-sizes
+          dest-subdir: sizes
+          found-message: sizing from CI run
+          missing-message: no successful CI run on main to read package sizes from
+          warn-on-missing: "true"
 
       # Coverage is its own lookup, not the CI run above: coverage.yml is
       # dispatch-only and slow, so its newest successful run is almost never
       # the run that triggered this deploy. The badge therefore shows the last
       # figure anyone measured and keeps showing it until somebody measures
       # again - which is the honest behaviour for a number nobody runs weekly.
-      - name: Find the last coverage run
-        id: cov-run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          run_id="$(gh api \
-            "repos/$REPO/actions/workflows/coverage.yml/runs?branch=main&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id // empty')"
-          echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
-          if [ -n "$run_id" ]; then
-            echo "kcov figure from coverage run $run_id"
-          else
-            echo "no successful coverage run on main - the kcov badge stays grey"
-          fi
-
-      - name: Fetch that run's kcov figure
-        if: steps.cov-run.outputs.run_id != ''
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      # warn-on-missing stays off here (and below): a dispatch-only workflow
+      # with no run yet is the normal state, not something to flag.
+      - name: Fetch the last coverage run's kcov figure
+        uses: ./.github/actions/fetch-latest-artifact
         with:
-          name: coverage-pct
-          path: ${{ runner.temp }}/cov
-          run-id: ${{ steps.cov-run.outputs.run_id }}
-          github-token: ${{ github.token }}
+          workflow: coverage.yml
+          artifact-name: coverage-pct
+          dest-subdir: cov
+          found-message: kcov figure from coverage run
+          missing-message: no successful coverage run on main - the kcov badge stays grey
 
       # The bashcov figure, looked up exactly as the kcov one above is and for
       # the same reason: coverage-v2.yml is dispatch-only, so its newest
       # successful run is almost never the run that triggered this deploy.
-      - name: Find the last bashcov coverage run
-        id: cov2-run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          run_id="$(gh api \
-            "repos/$REPO/actions/workflows/coverage-v2.yml/runs?branch=main&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id // empty')"
-          echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
-          if [ -n "$run_id" ]; then
-            echo "bashcov figure from coverage-v2 run $run_id"
-          else
-            echo "no successful coverage-v2 run on main - the bashcov badge stays grey"
-          fi
-
-      - name: Fetch that run's bashcov figure
-        if: steps.cov2-run.outputs.run_id != ''
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Fetch the last coverage-v2 run's bashcov figure
+        uses: ./.github/actions/fetch-latest-artifact
         with:
-          name: coverage-v2-pct
-          path: ${{ runner.temp }}/cov2
-          run-id: ${{ steps.cov2-run.outputs.run_id }}
-          github-token: ${{ github.token }}
+          workflow: coverage-v2.yml
+          artifact-name: coverage-v2-pct
+          dest-subdir: cov2
+          found-message: bashcov figure from coverage-v2 run
+          missing-message: no successful coverage-v2 run on main - the bashcov badge stays grey
 
       # The autogenerated demos, on the coverage badge's pattern rather than the
       # tests badge's: demos.yml's render is slow and does not run on every
@@ -211,34 +162,14 @@ jobs:
       # docs/demos/demo.gif is deliberately not in that artifact - it is the
       # hand-rendered one, still committed, and Jekyll has already copied it
       # into _site, which is exactly where it should come from.
-      - name: Find the last demo render
-        id: demo-run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          run_id="$(gh api \
-            "repos/$REPO/actions/workflows/demos.yml/runs?branch=main&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id // empty')"
-          echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
-          if [ -n "$run_id" ]; then
-            echo "demo GIFs from run $run_id"
-          else
-            echo "no successful demos run on main - the rendered GIFs are missing"
-          fi
-
-      # continue-on-error for the badges' reason: an expired or missing render
-      # means the published GIFs are absent from the site, not a failed site deploy
-      - name: Fetch that run's GIFs
-        if: steps.demo-run.outputs.run_id != ''
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Fetch the last demo render's GIFs
+        uses: ./.github/actions/fetch-latest-artifact
         with:
-          name: demo-gifs
-          path: ${{ runner.temp }}/demos
-          run-id: ${{ steps.demo-run.outputs.run_id }}
-          github-token: ${{ github.token }}
+          workflow: demos.yml
+          artifact-name: demo-gifs
+          dest-subdir: demos
+          found-message: demo GIFs from run
+          missing-message: no successful demos run on main - the rendered GIFs are missing
 
       - name: Write the shields endpoint
         env:
@@ -300,7 +231,9 @@ jobs:
             echo "::warning::no package-sizes to read - package badge published as unknown"
           fi
 
-          # README's kcov badge. Grey and labelled "load-time", never green and
+          # The kcov endpoint. Published for anyone who wants it, but not in
+          # README - README.md's Coverage and Profiling section says why not.
+          # Grey and labelled "load-time", never green and
           # never "coverage": tests/coverage.sh's header explains at length that
           # kcov loses its DEBUG trap once the harness is sourced, so this
           # figure is the share of lines that ran while things were loading and
@@ -320,7 +253,8 @@ jobs:
             echo "kcov badge: no figure published yet"
           fi
 
-          # README's bashcov badge. Grey and labelled "heredoc-inflated" for the
+          # The bashcov endpoint. Same deal as the kcov one above - published,
+          # not in README. Grey and labelled "heredoc-inflated" for the
           # mirror-image reason kcov's says "load-time": bashcov reads xtrace
           # rather than a DEBUG trap, so it does not lose the suites (
           # common/git_prompt.sh reads 92.68% here against kcov's 2.56%), but it

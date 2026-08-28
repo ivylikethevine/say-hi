@@ -33,10 +33,11 @@ Jobs that install apt packages or touch the Docker socket (`test`, `bench`,
 a docker daemon are on every hosted ubuntu image too, so the win was speed,
 never capability. `macos-e2e.yml` and `windows-e2e.yml` would have needed a
 same-OS box; `freebsd-e2e.yml` boots its own VM on a hosted ubuntu runner and
-never read a variable at all. The four lint jobs (`actionlint`, `zizmor`,
-`markdownlint`, `hadolint`) were pinned to `ubuntu-latest` outright: they
-install nothing and open no socket, so a self-hosted box bought them nothing
-while adding contention for it.
+never read a variable at all. The lint jobs (`workflow-lint` — actionlint and
+zizmor; `advisory-lint` — markdownlint, hadolint and demo-staleness, merged
+from four jobs into two since this was written) were pinned to `ubuntu-latest`
+outright: they install nothing and open no socket, so a self-hosted box bought
+them nothing while adding contention for it.
 
 `scorecard.yml` is the one exception worth remembering if this comes back, and
 the reason is stricter than "prefers a hosted runner": `ossf/scorecard-action`'s
