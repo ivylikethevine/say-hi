@@ -26,7 +26,7 @@ permissions:
 jobs:
   bashcov:
     name: bashcov over the fast suites
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,8 +42,8 @@ jobs:
       # which is the one practical advantage it has over kcov here - kcov ships
       # no binary asset and reaches Debian/Ubuntu only through a PPA, so
       # coverage.yml has to compile it. ruby is preinstalled on the hosted
-      # images; installed explicitly so a self-hosted runner without it says so
-      # here rather than failing inside the sweep.
+      # images, so the install below is a defensive fallback that should never
+      # actually run.
       #
       # The version is pinned by hand here rather than in setup-tool's
       # tools.txt, which is the roster for everything else: every `kind` that

@@ -25,46 +25,9 @@ concurrency:
 
 jobs:
 
-  # One place decides which runner the rest of *this file* gets, instead of the
-  # same expression copy-pasted into every job here. It is not repo-wide:
-  # codeql, scorecard, coverage, image-scan, link-check, tool-versions, pages
-  # and release.yml each still derive `vars.RUNNER_LABEL || 'ubuntu-latest'` on
-  # their own, because none of them needs the fork guard below.
-  #
-  # A pull request from a fork is code nobody has read yet and vars.RUNNER_LABEL
-  # is somebody's actual machine, so that case gets the hosted runner whatever
-  # the variable says - a structural stop, not a reviewer remembering. See
-  # docs/PACKAGING.md for the variable.
-  runner:
-    name: pick the runner
-    runs-on: ubuntu-latest # never vars.RUNNER_LABEL: this job is the guard
-    timeout-minutes: 2
-    outputs:
-      ubuntu: ${{ steps.pick.outputs.ubuntu }}
-      macos: ${{ steps.pick.outputs.macos }}
-    steps:
-      # through env: rather than ${{ }} inline in run: - zizmor gates this repo
-      # and a template expanded straight into a shell line is what it catches
-      - id: pick
-        env:
-          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-          UBUNTU: ${{ vars.RUNNER_LABEL }}
-          MACOS: ${{ vars.MACOS_RUNNER_LABEL }}
-        run: |
-          set -euo pipefail
-          if [ "$FORK" = true ]; then
-            echo "ubuntu=ubuntu-latest" >>"$GITHUB_OUTPUT"
-            echo "macos=macos-latest" >>"$GITHUB_OUTPUT"
-            echo "::notice title=runner::fork PR - GitHub-hosted only, ignoring RUNNER_LABEL"
-          else
-            echo "ubuntu=${UBUNTU:-ubuntu-latest}" >>"$GITHUB_OUTPUT"
-            echo "macos=${MACOS:-macos-latest}" >>"$GITHUB_OUTPUT"
-          fi
-
   test:
     name: fast suites (ubuntu-latest)
-    runs-on: ${{ needs.runner.outputs.ubuntu }}
-    needs: runner
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,8 +93,7 @@ jobs:
   # pinned tools, on a runner billed at a tenth of this one's rate.
   test-macos:
     name: fast suites (macos-latest)
-    runs-on: ${{ needs.runner.outputs.macos }}
-    needs: runner
+    runs-on: macos-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -148,11 +110,6 @@ jobs:
   # workflows and composite actions are code too, so they get a linter
   actionlint:
     name: actionlint
-    # Pinned hosted, not needs.runner: this job installs no apt packages and
-    # never touches the Docker socket, so it has nothing to gain from a
-    # self-hosted box - and staying off it keeps one less thing contending
-    # for that runner's workspace. See docs/PACKAGING.md for the list that
-    # does need it.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -178,11 +135,6 @@ jobs:
   # credentialed release checkout) is suppressed inline where it happens.
   zizmor:
     name: zizmor
-    # Pinned hosted, not needs.runner: this job installs no apt packages and
-    # never touches the Docker socket, so it has nothing to gain from a
-    # self-hosted box - and staying off it keeps one less thing contending
-    # for that runner's workspace. See docs/PACKAGING.md for the list that
-    # does need it.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -211,11 +163,6 @@ jobs:
   # they go on - it is designed to be ignorable.
   markdownlint:
     name: markdownlint (advisory)
-    # Pinned hosted, not needs.runner: this job installs no apt packages and
-    # never touches the Docker socket, so it has nothing to gain from a
-    # self-hosted box - and staying off it keeps one less thing contending
-    # for that runner's workspace. See docs/PACKAGING.md for the list that
-    # does need it.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -260,11 +207,6 @@ jobs:
   # pipefail, where a 404 builds a green image with the framework missing.
   hadolint:
     name: hadolint (advisory)
-    # Pinned hosted, not needs.runner: this job installs no apt packages and
-    # never touches the Docker socket, so it has nothing to gain from a
-    # self-hosted box - and staying off it keeps one less thing contending
-    # for that runner's workspace. See docs/PACKAGING.md for the list that
-    # does need it.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -367,29 +309,9 @@ jobs:
   # Hot-path timings against generous ceilings - catches an order-of-magnitude
   # regression (a fork in a loop, a probe losing its timeout), and prints the
   # numbers into every run's log for eyeballing trends.
-  # bench, packaging-smoke, e2e and e2e-backends all land on one machine when
-  # vars.RUNNER_LABEL is set, and must not run concurrent checkouts against its
-  # shared workspace. That used to be a `needs:` chain, which bought the
-  # serialization at two costs: on GitHub-hosted runs (every fork PR, and any
-  # repo with no RUNNER_LABEL) four jobs that could have gone in parallel ran
-  # strictly one after another, and the chain still did not solve the stated
-  # problem - `concurrency` at the top of this file is keyed on github.ref, so
-  # two *different* PRs put jobs on the same box at the same time anyway.
-  #
-  # Job-level concurrency instead: self-hosted runs share one group and queue,
-  # across runs as well as within them, while hosted runs get a group per job
-  # per run and full parallelism. Only the real data dependencies stay in
-  # `needs:` - e2e and e2e-backends gate on `test` passing. `test-macos` was
-  # never in the chain: it reads MACOS_RUNNER_LABEL, so it is never that box.
   bench:
     name: hot-path benchmarks
-    runs-on: ${{ needs.runner.outputs.ubuntu }}
-    needs: runner
-    # one group for the shared self-hosted workspace, one per job per run
-    # otherwise - see the note above bench
-    concurrency:
-      group: ${{ needs.runner.outputs.ubuntu == 'ubuntu-latest' && format('{0}-{1}', github.run_id, github.job) || 'hi-selfhosted-workspace' }}
-      cancel-in-progress: false
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -406,13 +328,7 @@ jobs:
   # the next release tag
   packaging-smoke:
     name: package build (deb, rpm, apk)
-    runs-on: ${{ needs.runner.outputs.ubuntu }}
-    needs: runner
-    # one group for the shared self-hosted workspace, one per job per run
-    # otherwise - see the note above bench
-    concurrency:
-      group: ${{ needs.runner.outputs.ubuntu == 'ubuntu-latest' && format('{0}-{1}', github.run_id, github.job) || 'hi-selfhosted-workspace' }}
-      cancel-in-progress: false
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -490,13 +406,8 @@ jobs:
 
   e2e:
     name: e2e (ssh, docker)
-    runs-on: ${{ needs.runner.outputs.ubuntu }}
-    needs: [runner, test]
-    # one group for the shared self-hosted workspace, one per job per run
-    # otherwise - see the note above bench
-    concurrency:
-      group: ${{ needs.runner.outputs.ubuntu == 'ubuntu-latest' && format('{0}-{1}', github.run_id, github.job) || 'hi-selfhosted-workspace' }}
-      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    needs: test
     if: ${{ !cancelled() && needs.test.result == 'success' }}
     timeout-minutes: 25
     steps:
@@ -519,13 +430,8 @@ jobs:
 
   e2e-backends:
     name: e2e (podman, nomad, kube)
-    runs-on: ${{ needs.runner.outputs.ubuntu }}
-    needs: [runner, test]
-    # one group for the shared self-hosted workspace, one per job per run
-    # otherwise - see the note above bench
-    concurrency:
-      group: ${{ needs.runner.outputs.ubuntu == 'ubuntu-latest' && format('{0}-{1}', github.run_id, github.job) || 'hi-selfhosted-workspace' }}
-      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    needs: test
     if: ${{ !cancelled() && needs.test.result == 'success' }}
     timeout-minutes: 40
     steps:
@@ -583,11 +489,11 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'push' && needs.test.result == 'success' && needs.test-macos.result == 'success' }}
     uses: ./.github/workflows/freebsd-e2e.yml
 
-  # The client-side half of the Windows story, on the same gate. Advisory
-  # until it has been green once (docs/ROADMAP.md): windows-client.yml itself
-  # carries the continue-on-error, so a red suite there is a warning in this
-  # run, not a red check on the push. Must stay off the required-checks list
-  # until that comes out.
+  # The client-side half of the Windows story, on the same gate. A real check,
+  # not advisory - windows-client.yml carries no continue-on-error, so a red
+  # suite there fails this job and the push. Not yet on the required-checks
+  # list (docs/ROADMAP.md's release-readiness entry), so a red run here
+  # doesn't block a merge yet, only shows red on the push.
   e2e-windows-client:
     name: fast suites (Windows client)
     needs: [test, test-macos]

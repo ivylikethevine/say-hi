@@ -17,7 +17,7 @@ permissions:
 jobs:
   loopback:
     name: hi localhost (BSD both ends)
-    runs-on: ${{ vars.MACOS_RUNNER_LABEL || 'macos-latest' }}
+    runs-on: macos-latest
     timeout-minutes: 15
     # Deliberately no `environment:`. A required reviewer on it would stall
     # every push to main waiting for a human. The gate instead is the caller:

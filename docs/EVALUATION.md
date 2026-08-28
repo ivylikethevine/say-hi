@@ -1,22 +1,5 @@
 # Evaluation
 
-## Contents
-
-- [Usability](#usability)
-- [Design](#design)
-- [Customizability](#customizability)
-
-## Usability
-
-### U3. The connect is chatty
-
-A default connect prints a size, a copy time, a load time, the greeting
-("only bash today :("), a three-row header with UTC/local/version, sysinfo,
-and a package check; the disconnect prints a size, a duration, a second
-banner and a timestamp. Every one is a toggle; none is off by default. An
-admin connecting forty times a day wants `user@host $` — this half is what
-the presets in `hi --configure` are for, and stays as it is here.
-
 ## Design
 
 ### D2. bash 3.2 as the floor shapes everything

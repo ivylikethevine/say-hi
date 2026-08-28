@@ -21,7 +21,7 @@ permissions:
 jobs:
   stock-openssh:
     name: hi at stock Windows OpenSSH (PowerShell fallback)
-    runs-on: ${{ vars.WINDOWS_RUNNER_LABEL || 'windows-latest' }}
+    runs-on: windows-latest
     timeout-minutes: 20
     # No `environment:` here any more - see the note in macos-e2e.yml. ci.yml
     # calls this only on `push`, so a fork PR never reaches it.

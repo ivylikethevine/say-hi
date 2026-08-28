@@ -19,7 +19,6 @@ command -v shift >/dev/null 2>&1 &&
 
 # Resolved before any alias exists: once one is set, zsh/dash `command -v`
 # returns its definition and poisons later fallthrough chains.
-export _HI_EDITOR_BIN="$(command -v nano || command -v micro || command -v pico || command -v vim || command -v vi)"
 export _HI_BATCAT_BIN="$(command -v bat || command -v batcat || command -v ccat || command -v cat)"
 # The same family narrowed to bat itself, under either of its two names: this
 # is the tier that parses $_HI_BAT_OPTS, and it is the gate the bat aliases
@@ -62,15 +61,12 @@ export EZA_CONFIG_DIR="$_HI_THEME_DIR"
 
 alias sudo="command sudo " # works in bash/zsh, fish has a sudo wrapper in config.fish
 
-export EDITOR="$_HI_EDITOR_BIN"
-alias micro="micro -autoindent=true -colorscheme=darcula -colorcolumn=80 -diffgutter=true -softwrap=true -tabsize=2"
-export IDE="$(command -v zeditor || command -v zed || command -v code || command -v vi)"
-
 # cat is bat with our options when bat exists, plain cat otherwise. Everything
 # in here is bat syntax, -P (--no-pager) included, which is why it is only ever
 # attached behind $_HI_BAT_REAL - see the chain's comment above. The cat/catn
 # rebind itself (not bat/batcat/batn, which you'd only reach by name) is behind
 # _HI_DISABLE_BAT_ALIAS (`hi --configure`, off on _HI_DISABLE_BAT_ALIAS=1).
+# TODO: Better way to customize these/eza/exa options
 export _HI_BAT_OPTS='-P --tabs 2 --theme Monokai\ Extended\ Bright --style changes,grid'
 # batcat is batcat on some Linux distros (fallback to ccat)
 # ccat is cat with syntax highlighting (fallback to cat)
@@ -81,10 +77,6 @@ alias batn="batcat"
 [ -n "$_HI_BAT_REAL" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
 [ "$_HI_DISABLE_BAT_ALIAS" != 1 ] && alias cat="bat" || true
 [ "$_HI_DISABLE_BAT_ALIAS" != 1 ] && alias catn="batn" || true
-
-alias now='echo "LOCAL: $(date $_HI_HUMAN_SHORT_DATE) => UTC: $(date -u $_HI_HUMAN_SHORT_DATE)"'
-
-alias zed="$(command -v zeditor || command -v zed || command -v echo)"
 
 # eza/exa (its predecessor) improved ls; time format per
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html

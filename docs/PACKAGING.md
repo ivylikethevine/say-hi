@@ -9,63 +9,14 @@ copies you make by hand. Both signing keys are in place; the AUR deploy key
 and the tap token are still one-time setup, with exact commands in
 [docs/ROADMAP.md](ROADMAP.md)'s _Homebrew tap_ and _AUR_ entries.
 
-**Runners.** Every workflow's `runs-on:` reads a repo/org Actions variable
-first — `vars.RUNNER_LABEL`, or `vars.MACOS_RUNNER_LABEL` /
-`vars.WINDOWS_RUNNER_LABEL` for the two OS-locked e2e jobs — falling back to
-the GitHub-hosted label when unset. `ci.yml`'s `runner` job resolves the pair
-once; a pull request from a _fork_ gets the hosted label whatever the variable
-says, so a stranger's branch never runs on your machine. Jobs that install apt
-packages or touch the Docker socket (`test`, `bench`, `packaging-smoke`, `e2e`,
-`e2e-backends`, `coverage.yml`, `demos.yml`'s `publish`) need a substituted
-runner to provide `sudo apt-get` and a docker daemon; `macos-e2e.yml` and
-`windows-e2e.yml` need a same-OS one, and `freebsd-e2e.yml` boots its own VM
-on a hosted ubuntu runner and reads no variable at all. The four lint jobs (`actionlint`,
-`zizmor`, `markdownlint`, `hadolint`) are pinned to `ubuntu-latest` outright:
-they install nothing and open no socket.
-
-**Serialization on the self-hosted box is job-level `concurrency`, not a
-`needs:` chain.** `bench`, `packaging-smoke`, `e2e` and `e2e-backends` each
-carry a group that resolves to the shared `hi-selfhosted-workspace` when the
-runner label is substituted, and to a per-job-per-run group otherwise — so a
-self-hosted run queues them one at a time while a hosted run keeps full
-parallelism. (A `needs:` chain also serialized hosted runs, and did not solve
-the problem: two _different_ PRs still put jobs on the box together.) What
-stays in `needs:` is the real data dependency — `e2e` and `e2e-backends` gate
-on `test`, hence `!cancelled() && needs.test.result == 'success'`. The shared
-group queues across runs too, and `demos.yml`'s `publish` joins it; every other
-workflow reading `RUNNER_LABEL` stays out, as does `ci.yml`'s `test`. One
-registered runner process per box is what actually makes "never two at once"
-true.
-
-**Every job shares one directory on the box**, `_work/<repo>/<repo>`, and the
-container suites can leave a file the runner user cannot delete (root-owned
-from a docker step, subuid-owned from rootless podman). `actions/checkout`'s
-cleanup then throws, the throw is swallowed (`persist-credentials: false` runs a
-`Removing auth` teardown in `finally` against the now-`.git`-less directory),
-and the real error is replaced with:
-
-```text
-fatal: --local can only be used inside a git repository
-The process '/usr/bin/git' failed with exit code 128
-```
-
-Read that as "something in the workspace could not be deleted", not a git
-problem; it does not clear on retry. The guard is a runner **job-started
-hook**, `.github/runner/job-started.sh` — a `sudo chown -R` back to the runner
-user, run by the runner itself before every job's checkout. It lives on the
-box, not in the workflows: install it per the file's header and set
-`ACTIONS_RUNNER_HOOK_JOB_STARTED` in the runner's `.env` **before** pointing
-`RUNNER_LABEL` at that machine. Hosted runners get a fresh workspace and never
-need it. If a box has wedged, look at what survived
-(`find . ! -user "$(id -un)"`, plus `mount` for a stale mount point) before
-clearing it.
-
-**Two repo settings must exist before pointing any variable at a self-hosted
-runner**: the fork-PR approval, and the environments `release.yml` names —
-`manual-dispatch` on its rehearsal gate and `release` on `publish`/`tap`/`aur`.
-An `environment:` naming one that does not exist gates nothing. The two e2e
-workflows carry none: `ci.yml` calls them on every push to `main`, where a
-required reviewer would stall the run.
+**Runners.** Every job in the tree runs on a plain GitHub-hosted label
+(`ubuntu-latest`, `macos-latest`, `windows-latest`) — no job reads a
+repo/org Actions variable to substitute a machine of its own. Self-hosted
+runner support existed here before and is documented, unused, in
+[docs/SELFHOSTED-RUNNERS.md](SELFHOSTED-RUNNERS.md) — the variable pattern to
+restore, the fork-PR safety logic it needs, the job-level `concurrency`
+serialization, and the workspace-ownership wedge its job-started hook fixed —
+in case self-hosted is worth reactivating later.
 
 ## Contents
 
@@ -442,8 +393,8 @@ crashed run.
 **Seven of the eight render themselves.**
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
 but `demo` in CI — installing podman, nomad and kind on a hosted runner the way
-`ci.yml`'s `e2e-backends` job does, or on the box `RUNNER_LABEL` names — on a
-tape change, weekly, or on dispatch, and hands the GIFs to the Pages build,
+`ci.yml`'s `e2e-backends` job does — on a tape change, weekly, or on dispatch,
+and hands the GIFs to the Pages build,
 which lays them over the committed copies at the same paths. Nothing is
 committed back: branch protection refuses a bot commit, the same reason the
 tests badge is published rather than written into README.

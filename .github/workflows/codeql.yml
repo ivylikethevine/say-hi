@@ -48,7 +48,7 @@ concurrency:
 jobs:
   analyze:
     name: CodeQL (actions)
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read

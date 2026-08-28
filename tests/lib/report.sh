@@ -264,10 +264,10 @@ function _hi_host_versions() {
 
 # How big is this machine. The ceilings in tests/bench/bench_test.sh are one
 # number for every runner the matrix has, so which box a borderline timing came
-# off is the first thing anybody asks of a CI log - a 2-core hosted runner and
-# the self-hosted one are not the same host in any way that matters to a
-# benchmark. Overridable paths so the cases can point at a fixture instead of
-# the real /proc.
+# off is the first thing anybody asks of a CI log - GitHub's hosted runners
+# vary in spec across OS images and over time, and a contributor's own machine
+# is a different host again. Overridable paths so the cases can point at a
+# fixture instead of the real /proc.
 #
 # Read with the `read` builtin rather than awk: these two rows have to survive
 # the empty-PATH case below like every other, and on Linux this way they cost

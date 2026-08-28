@@ -52,7 +52,7 @@ jobs:
     # explicit result check rather than a bare `needs`. `!cancelled()` rather
     # than `always()` so that cancelling the run still stops the build.
     if: ${{ !cancelled() && needs.gate.result != 'failure' }}
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     # the provenance attestation below needs these two; contents stays read
     permissions:
@@ -209,7 +209,7 @@ jobs:
     # hard gate, not just the environment: a rehearsal dispatch must never be
     # able to publish, however the environment happens to be configured
     if: github.event_name == 'push'
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
     permissions:
@@ -389,7 +389,7 @@ jobs:
     # that is a fact about which secrets happen to exist rather than a
     # promise about which tags publish - this line is the promise.
     if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
     permissions:
@@ -466,7 +466,7 @@ jobs:
     # itself, not to ship - so it reaches no external channel, on the tap
     # job's reasoning above.
     if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
     permissions:
@@ -535,7 +535,7 @@ jobs:
     name: publish the devcontainer Feature to ghcr
     needs: publish
     if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
-    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
     permissions:
@@ -573,7 +573,7 @@ jobs:
     name: brew install, test and audit the formula (macOS)
     needs: publish
     if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
-    runs-on: ${{ vars.MACOS_RUNNER_LABEL || 'macos-latest' }}
+    runs-on: macos-latest
     timeout-minutes: 20
     permissions:
       contents: read
