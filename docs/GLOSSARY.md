@@ -140,6 +140,13 @@ must stay executable in the payload. Non-atomicity is acceptable for
 single-user rc files; `common/targets.sh`'s cache swap keeps `mv` deliberately,
 for atomicity over a file it owns.
 
+`_hi_write_back` additionally reads the target's mode before the `cat` and
+`chmod`s it back after, rather than trusting the truncate-in-place alone to
+carry it: a real Windows Git Bash run lost a `604` mode across this exact
+rewrite despite going through the existing inode. The `stat -c`/`stat -f`
+fallback is the same GNU/BSD split `common/config.fish`'s mtime probe already
+uses.
+
 ## HI.10 strftime %e over %-e
 
 `date +%-e` (no-padding) is a GNU extension; BSD strftime prints the literal

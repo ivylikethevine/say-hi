@@ -75,13 +75,11 @@ EOF
 # the *order* of events rather than on a stopwatch, so a loaded runner and the
 # macOS job read it the same way.
 #
-# The wait is 2s, not the 0.3s a real stopwatch-free assertion could get away
-# with elsewhere: MSYS's fork+exec is expensive enough on a real Windows
-# runner (a 2026-08-28 dispatch measured a fully sequential "docker start,
-# docker end, podman start" with the shorter wait) that launching the next
-# backend can outlast a short sleep on its own, making even genuine `&`
-# fan-out read as in-turn. 2s gives real concurrency room to prove itself
-# there without slowing the other platforms enough to notice.
+# Gated on fork_concurrency, not just slowed down: a 2026-08-28 windows-latest
+# dispatch measured this fan-out taking exactly as long as the deliberately
+# in-turn fallback below, at both 0.3s and a since-reverted 2s wait - MSYS
+# backgrounding doesn't overlap here at all, so no wait would ever pass this,
+# and a longer one only slows every other platform for nothing.
 #
 # nomad answers a header row and no jobs: it belongs to the roster (four
 # backends is what makes emit_targets fan out at all) but has nothing to wait
@@ -98,7 +96,7 @@ function _hi_write_slow_shims() {
 #!/bin/sh
 [ "\$1" = ps ] || exit 1
 printf '$tool start\\n' >>"\$_HI_PROBE_LOG"
-sleep 2
+sleep 0.3
 printf '$tool end\\n' >>"\$_HI_PROBE_LOG"
 printf 'slow-$tool\\n'
 EOF
@@ -108,7 +106,7 @@ EOF
 #!/bin/sh
 [ "$1" = get ] || exit 1
 printf 'kube start\n' >>"$_HI_PROBE_LOG"
-sleep 2
+sleep 0.3
 printf 'kube end\n' >>"$_HI_PROBE_LOG"
 printf 'default slow-pod\n'
 EOF
@@ -748,7 +746,7 @@ function run_targets_tests() {
   _hi_check "podman -> running containers" test_podman_kind_lists_running_containers
   _hi_check "nomad -> running allocs, no header row" test_nomad_kind_lists_running_allocs
   _hi_check "kube -> running pods" test_kube_kind_lists_running_pods
-  _hi_check "Backends are swept together, not in turn" test_backends_are_swept_together
+  _hi_check_capable fork_concurrency "Backends are swept together, not in turn" test_backends_are_swept_together
   _hi_check "No scratch dir -> in turn, same rows" test_no_scratch_dir_falls_back_in_turn
 
   _hi_h2 "Testing: argument handling"

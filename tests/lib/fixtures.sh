@@ -112,18 +112,59 @@ function _hi_can_lock_out() {
   [ "$_HI_CAP_LOCKOUT" = yes ]
 }
 
+# _hi_can_fork_concurrently - whether backgrounded jobs from one shell
+# actually overlap rather than serialize. No on MSYS/Cygwin: a real
+# windows-latest run measured `&`-then-`wait` fan-out taking exactly as long
+# as running the same jobs one at a time, at both 0.3s and 2s per job - not a
+# timing-margin gap a longer sleep could close, a structural one in how the
+# runtime forks. Answered by kernel name rather than by racing something at
+# suite-start: the failure mode is "every job serializes," which a race can
+# only prove by re-triggering the same cost the case under test already pays.
+function _hi_can_fork_concurrently() {
+  case "$(uname -s 2>/dev/null)" in
+  MINGW* | MSYS* | CYGWIN*) return 1 ;;
+  *) return 0 ;;
+  esac
+}
+
+# _hi_can_trust_mode_bits - whether a file's reported permission string
+# reflects chmod's stored bits alone. No on MSYS/Cygwin: a real windows-latest
+# run showed a file's `ls -l` string change across a rewrite that chmod'd it
+# back to the same mode it started with (_hi_write_back does exactly that) -
+# the one thing that changed was the file gaining a `#!` first line. The
+# runtime appears to OR a shebang/PE-header executable guess into what
+# stat()/`ls` report, independent of anything chmod controls - the same
+# content-derived executable-bit behavior install_test.sh's DESTDIR fixture
+# already works around by giving its stand-in hi.sh a real shebang. Same
+# kernel-name probe as fork_concurrency, a different root cause: that one is
+# about scheduling, this one is about what the permission string even means.
+function _hi_can_trust_mode_bits() {
+  case "$(uname -s 2>/dev/null)" in
+  MINGW* | MSYS* | CYGWIN*) return 1 ;;
+  *) return 0 ;;
+  esac
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
-#   symlink - `ln -s` makes a real link. No on Git Bash without Developer Mode
-#             or administrator, where it fails outright or silently copies -
-#             which is why the probe tests `[ -L ]` and not `ln`'s exit code.
-#   pty     - python3 can allocate one. No on Windows: `pty` is Unix-only, so
-#             $_HI_PTY_FORCED (tests/lib/process.sh) is the honest answer where
-#             `command -v python3` is not.
-#   lockout - a mode can refuse us a write. No as root, which bypasses the
-#             bits, so every case that stages a failure by making something
-#             unwritable has to ask first.
+#   symlink          - `ln -s` makes a real link. No on Git Bash without
+#                       Developer Mode or administrator, where it fails
+#                       outright or silently copies - which is why the probe
+#                       tests `[ -L ]` and not `ln`'s exit code.
+#   pty              - python3 can allocate one. No on Windows: `pty` is
+#                       Unix-only, so $_HI_PTY_FORCED (tests/lib/process.sh)
+#                       is the honest answer where `command -v python3` is
+#                       not.
+#   lockout          - a mode can refuse us a write. No as root, which
+#                       bypasses the bits, so every case that stages a
+#                       failure by making something unwritable has to ask
+#                       first.
+#   fork_concurrency - backgrounded jobs actually run alongside each other.
+#                       No on MSYS/Cygwin - see _hi_can_fork_concurrently.
+#   mode_bits        - a permission string reflects only chmod's bits, no
+#                       content-derived guess mixed in. No on MSYS/Cygwin -
+#                       see _hi_can_trust_mode_bits.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -132,6 +173,8 @@ function _hi_capable() {
   symlink) _hi_can_symlink ;;
   pty) [ "${#_HI_PTY_FORCED[@]}" -gt 0 ] ;;
   lockout) _hi_can_lock_out ;;
+  fork_concurrency) _hi_can_fork_concurrently ;;
+  mode_bits) _hi_can_trust_mode_bits ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2
