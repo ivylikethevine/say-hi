@@ -295,7 +295,6 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?|"
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?|"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?|"
-  "_HI_SCRATCH_HISTORY|0|1|| Send each session's command history to a scratch directory wiped on exit, instead of the target's own history file? (off keeps your commands in the target's ~/.bash_history, where an audit would look for them)|"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?|"
 )
 

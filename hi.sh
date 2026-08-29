@@ -108,37 +108,23 @@ function _hi_target_color() {
 
 # <toggle>|<tree files, under $_HI_HOME>|<overlay files>: what each settings.sh
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
-# A leading "!" inverts the row: trim unless the setting is 1. That is what an
-# opt-in wants - _HI_SCRATCH_HISTORY ships off, so common/history.sh stays home
-# unless the user asked for it, where every _HI_DISABLE_* row is the other way
-# round and ships until the user says no.
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
   "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
   "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
   "_HI_DISABLE_EZA_CONFIG|say-hi/settings/theme.yml|"
-  "!_HI_SCRATCH_HISTORY|say-hi/common/history.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
 # whose setting the overlay answers the way the row asks, space-separated, into
 # <outvar>.
 function _hi_trimmed() {
-  local row val out="" name want
+  local row val out=""
   for row in "${_HI_TRIM_TABLE[@]}"; do
-    name="${row%%|*}"
-    want=1
-    case "$name" in
-    '!'*)
-      name="${name#!}"
-      want=0
-      ;;
-    esac
     val=""
-    _hi_overlay_toggle "$name" val
+    _hi_overlay_toggle "${row%%|*}" val
     # anything that is not a literal 1 is "off"; an absent setting reads empty
-    [ "$val" = 1 ] || val=0
-    [ "$val" = "$want" ] || continue
+    [ "$val" = 1 ] || continue
     row="${row#*|}"
     case "$1" in
     tree) out="$out ${row%%|*}" ;;

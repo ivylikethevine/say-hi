@@ -21,14 +21,6 @@ _hi_interactive_extras
 # *names* zsh's own %F{} wants, the way this file's own PS1 below uses them.
 _hi_prime_identity
 
-if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
-  source "$_HI_HOME/say-hi/common/history.sh"
-  export HISTFILE="$_HI_TMPDIR/zsh_history"
-  : "${HISTSIZE:=1000}"
-  : "${SAVEHIST:=1000}"
-  setopt INC_APPEND_HISTORY
-fi
-
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   if _hi_wants_starship; then
     # GLOSSARY: HI.32

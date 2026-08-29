@@ -117,9 +117,7 @@ export _HI_DISABLE_LOCAL
 export _HI_REMOTE_SESSION
 
 # core.sh's _HI_TOGGLES minus the gate's own two inputs, spelled out because
-# this dialect can't loop; paths_test.sh pins the two lists together. The last
-# line is core.sh's _HI_OPT_INS, the other polarity: "all of the above, off"
-# means 0 for a setting that ships off, not 1.
+# this dialect can't loop; paths_test.sh pins the two lists together.
 #
 # NOTHING INSIDE THE BRACES BUT `export NAME=value` LINES - no comments, blank
 # lines are fine. fish parses this file, and to fish `{` opens a *brace
@@ -139,5 +137,4 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_BAT_ALIAS=1
   export _HI_DISABLE_EZA_CONFIG=1
   export _HI_DISABLE_LS_ALIASES=1
-  export _HI_SCRATCH_HISTORY=0
 } || true

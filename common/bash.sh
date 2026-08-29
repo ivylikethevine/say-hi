@@ -28,13 +28,6 @@ _hi_prime_identity
 _hi_host_escape >/dev/null
 _hi_user_escape >/dev/null
 
-if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
-  # shellcheck source=./history.sh
-  source "$_HI_HOME/say-hi/common/history.sh"
-  export HISTFILE="$_HI_TMPDIR/bash_history"
-  PROMPT_COMMAND="history -a${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
-fi
-
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
   HI_PS1_END=""

@@ -35,9 +35,9 @@ the trust boundaries sit, and how to report what slipped through.
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.
 - **Nothing on the target is written outside the session directory, by
-  default.** No login file, no history file, nothing under `$HOME`. The one
-  setting that would change that is opt-in and named in
-  [What hi writes on a target](#what-hi-writes-on-a-target) below.
+  default.** No login file, no history file, nothing under `$HOME`, under any
+  setting - [What hi writes on a target](#what-hi-writes-on-a-target) is the
+  whole list.
 - **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
   so the server's `Banner`, the `Permanently added ... to the list of known
   hosts` line and the host-key fingerprint on a first connection reach your
@@ -69,19 +69,11 @@ Default answer: one directory, and only for the life of the session.
 | ------------------------ | -------------------------------------------------- | --------------------------------------- |
 | the session tree         | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`         | always (unless the target has its own permanent say-hi, which is used in place and never written to) |
 | the ssh bootstrap        | `mkdir -m 700` under the target's temp directory   | ssh targets only, removed by the session it starts |
-| command history          | a `mktemp -d` wiped on exit, instead of the host's | **only with `_HI_SCRATCH_HISTORY=1`** - off by default |
 
-That last one ships **off**, for a reason a fleet operator will recognise:
-
-- **Scratch history** redirects the session's command history into a directory
-  that is deleted when the shell exits. It is a reasonable thing to want on a
-  throwaway box and an unreasonable default everywhere: a session that erases
-  the record of what it did is, afterwards, the same shape as one that was
-  meant to. Off, your commands land in the target's own history file exactly
-  as they would over plain `ssh`.
-
-`hi --doctor` prints any setting that is not at its default, this one
-included, so "what is this install allowed to do to a target" is one command.
+Your commands land in the target's own history file exactly as they would
+over plain `ssh`; nothing hi ships touches it. `hi --doctor` prints any
+setting that is not at its default, so "what is this install allowed to do to
+a target" is one command.
 
 ## Footprint and cleanup on the target
 

@@ -32,20 +32,13 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # off. That polarity is load-bearing twice over - hi.sh's _hi_fallback_rc
   # exports the lot as 0 to give a bash-less target hi's defaults, and
   # paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1 to mean "all of the
-  # above, off here". A setting that ships *off* cannot live in this list: both
-  # of those would read it backwards. Those go in _HI_OPT_INS below.
+  # above, off here". A setting that ships *off* could not live in this list:
+  # both of those would read it backwards.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
     _HI_DISABLE_BAT_ALIAS _HI_DISABLE_EZA_CONFIG _HI_DISABLE_LS_ALIASES)
-  # The other polarity: shipped off, 1 asks for it. Something hi would
-  # otherwise do to a machine that is not yours - take its shell history
-  # somewhere it will be deleted - which is why it is not a default and is
-  # answered per install rather than assumed. Defaulted the same way the
-  # toggles are, so settings/aliases.sh and common/config.fish can keep
-  # reading it bare under `set -u`.
-  _HI_OPT_INS=(_HI_SCRATCH_HISTORY)
-  for _hi_t in "${_HI_TOGGLES[@]}" "${_HI_OPT_INS[@]}"; do
+  for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
   unset _hi_t

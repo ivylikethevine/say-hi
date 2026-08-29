@@ -60,7 +60,6 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.42 recent targets](#hi42-recent-targets)
 - [HI.43 container target grammar](#hi43-container-target-grammar)
 - [HI.44 wire size token](#hi44-wire-size-token)
-- [HI.45 fish history capture](#hi45-fish-history-capture)
 - [HI.46 session rc directory](#hi46-session-rc-directory)
 - [HI.47 what a child inherits](#hi47-what-a-child-inherits)
 
@@ -193,7 +192,7 @@ set. zsh's does not: a trap on `EXIT` (`TRAPEXIT` included) set inside a
 function fires when *that function* returns, not when the shell running it
 eventually does — and since `_hi_on_exit` (`common/core.sh`) is itself a
 function, every caller hit this, silently, the moment a zsh actually exercised
-the branch (nothing had, until `common/history.sh` did). `add-zsh-hook`'s
+the branch (nothing had, until the since-removed scratch-history file did). `add-zsh-hook`'s
 `zshexit` array is the one mechanism exempt from that scoping — it is what
 zsh's own completion system and frameworks use for the same reason — so the
 zsh arm autoloads it and registers a uniquely-named function there instead of
@@ -657,19 +656,6 @@ and the README badge quote — assembles the same script through the same
 summing skips the boilerplate they are wrapped in and reads ~6KB low, and a
 badge has to show the number the user sees. No overlay is counted there, since
 which files ride is a question about a target.
-
-## HI.45 fish history capture
-
-fish has no arbitrary history file path — `fish_history` only picks a
-*session name* suffix under `$XDG_DATA_HOME/fish/`, not a directory — so
-`common/config.fish`'s copy of `_HI_SCRATCH_HISTORY` (mirroring
-`common/history.sh`'s bash/zsh `mktemp`'d, exit-cleaned directory, which fish
-cannot source) does not use fish's own history at all. It logs instead: a
-`fish_postexec` function — the same event `config.fish`'s prompt marks already
-hook — appends each command line to a plain file under `$_HI_TMPDIR`. A
-parallel log, not a substitute for fish's real history: `history` inside that
-shell still reads whatever fish itself recorded, untouched.
-
 
 ## HI.46 session rc directory
 
