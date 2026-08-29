@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The target half (forked from sshrc): header, rc grafts, shell handoff, undo.
+# The target half (forked from sshrc): header, session rc, shell handoff, undo.
 
 # `bash --rcfile` skips the startup chain; restore it before strict mode
 # (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
@@ -49,55 +49,10 @@ source "$_HI_HEADER"
 # GLOSSARY: HI.47
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_unexport
 
-_HI_CONFIG_START="# hi-config-start"
-_HI_CONFIG_END="# hi-config-end"
-
-# rc file <- hi config; fish only when installed (no config dir otherwise).
-# "<dialect>|<hi's rc>|<the user's rc>", from core.sh's _HI_SHELL_TABLE rows
-# flagged `graft` - the same roster scripts/install.sh reads for its local
-# half. The dialect is the table's, not re-derived from the rc's suffix: it
-# picks the guard below, and a graft whose rc is not named *.fish would
-# otherwise get sh syntax appended to a real fish config.
-_HI_CONFIGS=()
-while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
-  _HI_CONFIGS+=("$_hi_dialect|$_hi_tree_rc|$_hi_home_rc")
-done < <(_hi_shell_rows graft)
-unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect
-
-function configure_files() {
-  local row dialect target src body
-  for row in "${_HI_CONFIGS[@]}"; do
-    dialect="${row%%|*}"
-    src="${row#*|}"
-    src="${src%|*}"
-    target="${row##*|}"
-    [ -d "${target%/*}" ] || continue # targets are absolute; no dirname fork
-    # `: >>` creates without truncating or exec'ing touch, and `$(<f)` is the
-    # builtin read where `grep -q` was a second exec - both ran per rc file on
-    # every connect. $(<f) slurps where grep short-circuits: fine for an rc.
-    : >>"$target"
-    case "$(<"$target")" in *"$_HI_CONFIG_START"*) continue ;; esac
-    # core.sh's _hi_rc_guard, in the row's dialect (GLOSSARY: HI.24)
-    body="$(_hi_rc_guard "$dialect" open)"$'\n'"$(<"$src")"$'\n'"$(_hi_rc_guard "$dialect" close)"
-    printf '%s\n' "$_HI_CONFIG_START"$'\n'"$body"$'\n'"$_HI_CONFIG_END" >>"$target"
-  done
-}
-
+# Everything hi put on the target, and nothing the target had: the session
+# rc directory and, on a disposable tree, the tree itself. hi never writes to
+# a target's own login files, so there is nothing to strip back out.
 function clean_all() {
-  local row target pattern
-  for row in "${_HI_CONFIGS[@]}"; do
-    target="${row##*|}"
-    [ -f "$target" ] || continue
-    if grep -q "^$_HI_CONFIG_END" "$target"; then
-      pattern="/^$_HI_CONFIG_START/,/^$_HI_CONFIG_END/d"
-    else
-      pattern="/^$_HI_CONFIG_START/d"
-    fi
-    # core.sh's _hi_rewrite, not `sed -i`: the flag differs BSD/GNU, and -i
-    # would replace a symlinked rc with a regular file - the opposite of what
-    # configure_files did appending through that same link
-    _hi_rewrite "$target" "$pattern"
-  done
   # the session shell's rc directory, which is hi's own and never the target's
   # - nested under $_HI_CLEANUP when there is one, so the line below already
   # covers it; a standalone mktemp on the permanent-install path still needs
@@ -171,17 +126,15 @@ function _hi_fishquote() {
 # the three variables that point the session, and anything started inside it,
 # at them. Idempotent; safe to call more than once.
 #
-# This is the load-bearing half of _HI_GRAFT_RC being optional. `bash --rcfile`
-# in hi.sh starts the *bootloader*, which sources this file and calls load();
-# the shell the user actually types at is started below, and a bare `bash -i`
-# reads ~/.bashrc - so without pointing it here instead, hi's prompt and
-# aliases would reach the session only because the graft had written them
-# into that file. Every mechanism here is one hi already relies on for a
-# bash-less target (hi.sh's _hi_remote_suffix): --rcfile, ZDOTDIR, $ENV and
-# fish's -C.
+# This is how hi's rc reaches the session without a write to the target's own
+# rc files. `bash --rcfile` in hi.sh starts the *bootloader*, which sources
+# this file and calls load(); the shell the user actually types at is started
+# below, and a bare `bash -i` reads ~/.bashrc - so it is pointed here instead.
+# Every mechanism here is one hi already relies on for a bash-less target
+# (hi.sh's _hi_remote_suffix): --rcfile, ZDOTDIR, $ENV and fish's -C.
 #
-# Each file sources the target's own rc *first*, so the ordering the graft
-# produced is preserved exactly: the host's config, then hi's on top of it.
+# Each file sources the target's own rc *first*: the host's config, then hi's
+# on top of it.
 #
 # mktemp rather than a path under $_HI_ROOT: on a target with a *permanent*
 # say-hi that tree is often root-owned and read-only, which is the whole reason
@@ -297,30 +250,6 @@ function load() {
   [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]] &&
     command -v vim &>/dev/null &&
     export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
-  # Opt-in, and off by default. The graft appends a block to the *target's*
-  # ~/.bashrc, ~/.zshrc and fish config so that a shell started inside the
-  # session - a `bash` typed at the prompt, a tmux pane - looks like the
-  # session around it.
-  #
-  # The graft is not what styles the session's *own* shell:
-  # _hi_session_shell_cmd above starts that shell directly against hi's rc
-  # (--rcfile / ZDOTDIR / fish -C), independent of the target's own rc files.
-  # What the graft is for is a shell started *inside* the session - a `bash`
-  # typed at the prompt, a tmux pane - which spawns via the target's own
-  # ~/.bashrc/~/.zshrc/fish config and would otherwise come up unstyled, `hi`
-  # inside it reading as "command not found".
-  #
-  # What it costs is a write to a login file on someone else's machine, twice
-  # per session, for every host anyone ever says hi to: an entry in whatever
-  # file-integrity monitor watches those paths, a window in which another
-  # login on a shared account reads a half-written rc, and a block left behind
-  # whenever the process dies between the write and clean_all. None of that is
-  # a fair price for a convenience most sessions never use, so it is something
-  # a user turns on for the hosts they want it on, rather than a default.
-  #
-  # clean_all stays unconditional: it must still take out a block left by a
-  # session that ran with this on, or by a build that shipped before it existed.
-  [ "${_HI_GRAFT_RC:-0}" = 1 ] && configure_files
   _hi_cecho " | " "$NC" 1
   _hi_cecho "hi loaded with... " "$BRCYAN" 1
 

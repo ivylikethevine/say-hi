@@ -54,7 +54,7 @@ tree, falling back to `xterm-256color`) so it doesn't depend on your terminal.
 | Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash | broad                                                                                           | Linux x86_64                                             | Linux, macOS                    | broad                    |
 | Installs on target                  | nothing                                                   | nothing                                                                                         | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
 | Cleans up on exit                   | yes, automatically                                        | leaves `/tmp` dir                                                                               | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
-| Size ceiling                        | ~32KB gzipped, 64KB budget enforced by CI                 | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
+| Size ceiling                        | ~35KB gzipped, 64KB budget enforced by CI                 | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                            | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                        | no                                                                                              | **yes**                                                  | no                              | no                       |
 | Maturity                            | pre-1.0, not yet published to any channel                 | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
@@ -80,8 +80,7 @@ feature in something that runs on every host you touch. If you just want your
   ~64KB "the server may block your sshrc attempts". say-hi writes it over
   **stdin** of the first of two calls multiplexed on one ssh connection.
 - **Cleanup.** sshrc copies into `/tmp` and leaves it. say-hi's `load.sh` traps
-  on exit, strips its lines back out of the host's rc files and removes the
-  tree.
+  on exit and removes the tree; it never writes into the host's rc files at all.
 - **A designed session, not copied files.** Header, hashed per-host colors, a
   git prompt, aliases, editor configs — degrading in defined tiers when the
   target cannot support all of it.
@@ -161,7 +160,7 @@ side.
 - **[Warp]'s SSH extension and "Warpify"** attack the same pain from the
   terminal side: a persistent remote component under `~/.warp*` plus a hook
   line in the remote's rc files. It ships Warp's features, not your config. The
-  two coexist — say-hi touches only its own marker-delimited lines.
+  two coexist — say-hi writes nothing into the remote's rc files at all.
 - **[chezmoi]/[yadm]/[GNU Stow] as the overlay's keeper.** Keep
   `~/.config/say-hi/` in your dotfile manager and the two compose cleanly: the
   manager versions it, hi ships it to every target per session. Stow's

@@ -19,7 +19,7 @@ end
 # ...and core.sh's _HI_OPT_INS, the settings that ship off. A separate loop
 # because tests/common/paths_test.sh pins the list above to _HI_TOGGLES
 # name-for-name, and because these default to 0 meaning "no", not "yes".
-for _hi_toggle in _HI_GRAFT_RC _HI_SCRATCH_HISTORY
+for _hi_toggle in _HI_SCRATCH_HISTORY
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle

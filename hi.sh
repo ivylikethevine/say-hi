@@ -424,9 +424,10 @@ function _hi_remote_root_probe() {
   # core.sh's _HI_SHELL_TABLE home-rc column with the target's $HOME, plus the
   # packaged snippet
   local rcs="" home_rc
+  # shellcheck disable=SC2119 # no flag: every row of the roster, unfiltered
   while IFS='|' read -r _ _ _ home_rc _; do
     rcs="$rcs \"\$HOME${home_rc#"$HOME"}\""
-  done < <(_hi_shell_rows graft)
+  done < <(_hi_shell_rows)
   printf '_c=$(for _f in%s /etc/profile.d/say-hi.sh; do\n' "$rcs"
   cat <<'PROBE'
   [ -f "$_f" ] && sed -n -e 's/^[[:space:]]*export  *_HI_HOME=//p' -e 's/^[[:space:]]*set -gx  *_HI_HOME  *//p' "$_f"
@@ -704,8 +705,8 @@ REMOTE
 #
 # The `trap ... exit` below is a backstop, not a second owner (D4): load.sh's
 # clean_all is what actually knows how to undo everything hi did on the
-# target - this tree, $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
-# exactly this reason, load.sh:~141), and the opt-in rc graft - and it runs
+# target - this tree and $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
+# exactly this reason) - and it runs
 # on every normal exit and on an abrupt disconnect alike (SIGHUP, tested by
 # tests/targets/ssh_disconnect_test.sh). This trap exists for the one thing
 # clean_all cannot survive: bash killed by a signal nothing can trap. It only

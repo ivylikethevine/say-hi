@@ -251,7 +251,7 @@ function _hi_session_ready() {
 # Like _hi_exec_case, but drives a real *interactive* session instead of a
 # one-off command - the only shape that reaches load.sh's load(). hi.sh's
 # $CMDARG replaces `load` outright in the bootloader (see _hi_bootloader), so a
-# command-shaped case never exercises the header, the rc grafting, the shell
+# command-shaped case never exercises the header, the session rc, the shell
 # handoff or clean_all; this one does. The session is driven by piping a
 # printf and an `exit` into it after a settle, and it asserts both the marker
 # (an interactive shell really came up and ran our line) and load()'s closing

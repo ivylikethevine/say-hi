@@ -66,9 +66,10 @@ Cited once here rather than repeated in every row below:
   attestation (`actions/attest-build-provenance`); `SECURITY.md` states there
   is no `curl | bash` install path.
 - **Credential hygiene** — GitHub secret scanning and push protection are on
-  for the repo (`SECURITY.md#when-a-push-is-refused`); the only handled
-  secrets (`AUR_SSH_KEY`, `HOMEBREW_TAP_TOKEN`) are generated locally, pasted
-  into a settings page, and deleted, per `PACKAGING.md`.
+  for the repo (`SECURITY.md#when-a-push-is-refused`); the four handled
+  credentials (the two signing keys, `AUR_SSH_KEY`, `HOMEBREW_TAP_TOKEN`) are
+  generated locally, pasted into a settings page, and deleted, per
+  `PACKAGING.md`.
 - **Cryptography — almost entirely N/A.** `hi` implements no cryptography of
   its own: it execs `ssh`, `docker exec`, `podman exec`, `nomad alloc exec`,
   `kubectl exec` and lets each transport's own security stand
@@ -230,9 +231,8 @@ against the same registered project.)
 Then:
 
 - Update [`TESTING.md`](TESTING.md#the-score-has-a-ceiling-here)'s
-  `CII-Best-Practices sits at 0` bullet — it currently says "nobody has
-  started it, so it isn't tracked as in-progress anywhere," which stops being
-  true the moment the project is registered.
+  `CII-Best-Practices sits at 0` bullet — it currently says no project is
+  registered yet, which stops being true the moment one is.
 - Update [`ROADMAP.md`](ROADMAP.md#blocked-until-someone-else-moves)'s Best
   Practices sub-bullet to reflect what shipped (this draft, registration) vs.
   what's still blocked (passing, which needs the first release).

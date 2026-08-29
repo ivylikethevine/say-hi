@@ -4,10 +4,9 @@
 # run before either. Sourced by scripts/install.sh after common/core.sh; not
 # an entry point of its own. $_HI_MARKER comes from common/paths.sh.
 #
-# Deliberately not merged with load.sh's configure_files/clean_all: those graft
-# a whole file into a *target's* rc for one session, keyed by start/end block
-# comments. These own individual lines in a permanent local rc, tagged one by
-# one.
+# These own individual lines in a permanent local rc, tagged one by one. A
+# session on a target never writes to its rc files at all - load.sh's session
+# rc directory (GLOSSARY: HI.46) is how a target's shells reach hi's rc.
 
 # Rewrite the hi-managed block (tagged with $_HI_MARKER) in $target to be
 # exactly $@, leaving other content untouched - so this both installs on a fresh
@@ -78,9 +77,7 @@ function tmpdir_line() {
 # disjoint edits.
 #
 # The rows come from core.sh's _HI_SHELL_TABLE, filtered to the ones flagged
-# `local`: a shell that is grafted on targets but not wired up here drops out
-# without being spelled as an absence, and a shell added to the roster cannot
-# reach load.sh's graft and miss this.
+# `local`, so a shell added to the roster cannot miss this half.
 _HI_RC_TABLE=()
 while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
   _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check|$_hi_tree_rc|$_hi_dialect")

@@ -34,8 +34,7 @@ tests/test_runner.sh --group lint
 
 That is what CI runs on every push: the unit suites (side by side, ~40s), then
 the linter sweep (shellcheck, shfmt, checkbashisms, the bash-4 grep and the doc
-drift checks). Both should be green before you open the pull request, and the
-fast group's summary line is what the template asks you to paste.
+drift checks). Both should be green before you open the pull request.
 
 The `e2e` and `backends` groups need real backends (a reachable sshd, a docker
 or podman socket, a nomad agent, a cluster) and stand down **yellow SKIPPED**

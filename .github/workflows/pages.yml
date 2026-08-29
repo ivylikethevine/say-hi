@@ -158,7 +158,7 @@ jobs:
       # None of them is committed any more, so this is the only place they come
       # from and README.md links them at their published URLs. Until a render
       # has landed there is nothing to serve and those links 404 - deliberate,
-      # per docs/ROADMAP.md's Demos entry.
+      # per docs/PACKAGING.md's _Regenerating the demo GIFs_.
       #
       # docs/demos/demo.gif is deliberately not in that artifact - it is the
       # hand-rendered one, still committed, and Jekyll has already copied it

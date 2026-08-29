@@ -41,83 +41,6 @@ function _hi_run_interactive_case() {
   [ "$ok" -eq 1 ]
 }
 
-# A second, plain shell opened *while* a hi session is live reads the same
-# grafted ~/.bashrc with none of the session's env - the exact shape of a VS
-# Code remote terminal or a second plain ssh landing mid-session. The crash
-# guard has to stand the graft down: the bystander asked for the host's own
-# shell, and gets it with zero errors. The session must be *interactive* (a
-# command-shaped one never grafts - $CMDARG replaces load() outright), so the
-# pty feeder holds it open, runs the probe mid-session, and only then types
-# exit. The probe rides docker exec rather than a second ssh: what is under
-# test is the rc read, not the transport.
-function _hi_run_bystander_case() {
-  local name="hi-sshtest-bystander-$$" ok=0
-  local _HI_SSH_PORT=""
-  local out_file="$_HI_WORKDIR/bystander.interactive.out"
-  local by_file="$_HI_WORKDIR/bystander.by.out"
-  local graft_flag="$_HI_WORKDIR/bystander.grafted"
-  _hi_h3 "Testing a bystander shell during a live session"
-  # The graft is opt-in (load.sh's _HI_GRAFT_RC) and this case *is* its
-  # coverage, so it asks for it - through an overlay of its own rather than the
-  # suite's shared $_HI_CONFIG_DIR, which every case running beside this one in
-  # the parallel batch would otherwise read too. _hi_par_case runs each case in
-  # a background subshell, so the export dies with this one.
-  export _HI_CONFIG_DIR="$_HI_WORKDIR/bystander.cfg"
-  mkdir -p "$_HI_CONFIG_DIR"
-  printf 'export _HI_GRAFT_RC=1\n' >"$_HI_CONFIG_DIR/settings.sh"
-  if [ "${#_HI_PTY_FORCED[@]}" -eq 0 ]; then
-    _hi_skip "[bystander]" "no python3 to drive an interactive pty"
-    return 0
-  fi
-  # $_HI_SSHD_IMAGE is tests/lib/ssh.sh's, reached two sources deep through
-  # test_lib.sh - a depth SC2153's misspelling heuristic stops counting
-  # assignments at, so it offers this file's own _HI_SSH_IMAGES instead
-  # shellcheck disable=SC2153
-  _hi_sshd_container "$name" "$_HI_SSHD_IMAGE" -e "LOGIN_SHELL=/bin/bash" || return 1
-  _hi_ssh_launch "$_HI_SSH_PORT"
-  : >"$out_file"
-  rm -f "$by_file" "$graft_flag"
-  # same watch-the-transcript shape as _hi_interactive_case; SC2094 does not
-  # apply for the same reason it states. The grep is the literal marker,
-  # spelled out - this suite doesn't source load.sh, where $_HI_CONFIG_START
-  # has its one definition.
-  # shellcheck disable=SC2094
-  {
-    _hi_poll_bool "$((${_HI_INTERACTIVE_SETTLE:-4} * 4))" 0.25 _hi_session_ready "$out_file" || true
-    if _hi_poll_bool 40 0.25 docker exec "$name" grep -q '^# hi-config-start' /home/hitest/.bashrc; then
-      : >"$graft_flag"
-      docker exec -u hitest -e HOME=/home/hitest "$name" bash -ic 'echo BYSTANDER-OK' >"$by_file" 2>&1 || true
-    fi
-    printf 'exit\n'
-    _hi_poll_bool 20 0.25 grep -q "hi closing" "$out_file" || true
-  } | "${_HI_PTY_FORCED[@]}" "${_HI_SSH_LAUNCH_BARE[@]}" >"$out_file" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_SSH_CASE_TIMEOUT:-90}"
-  # ...and it has to be gone again now the session has ended. This is the only
-  # case that watches a *live* graft, so it is the only one that can prove
-  # clean_all took it back out - the permanent-install case's `! grep` runs
-  # against a session that never grafted at all now that _HI_GRAFT_RC ships off,
-  # and would pass with the removal deleted.
-  local stripped=0
-  docker exec "$name" grep -q '^# hi-config-start' /home/hitest/.bashrc 2>/dev/null || stripped=1
-  # the error sweep is the shared vocabulary plus this case's own tells: a
-  # graft that ran anyway sources a missing tree ("No such file") or leaves
-  # its prompt variable behind (HI_PS1)
-  if [ ! -f "$graft_flag" ]; then
-    _hi_h3 " | [bystander] -- graft never appeared in ~/.bashrc" "$RED"
-  elif [ "$stripped" -ne 1 ]; then
-    _hi_h3 " | [bystander] -- the graft was still in ~/.bashrc after the session ended" "$RED"
-  elif grep -q BYSTANDER-OK "$by_file" &&
-    ! grep -q -e "No such file" -e HI_PS1 "$by_file" &&
-    _hi_transcript_is_clean bystander "$by_file"; then
-    ok=1
-  else
-    _hi_h3 " | [bystander] -- transcript not clean:" "$RED"
-    sed 's/^/      /' "$by_file"
-  fi
-  _hi_rm_container "$name"
-  [ "$ok" -eq 1 ]
-}
-
 function run_ssh_tests() {
   _hi_require_backend docker
 
@@ -161,6 +84,10 @@ function run_ssh_tests() {
   # lands at ~/say-hi in the image
   _HI_INSTALLED_OK=0
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
+    # $_HI_SSHD_IMAGE is tests/lib/ssh.sh's, reached two sources deep through
+    # test_lib.sh - a depth SC2153's misspelling heuristic stops counting
+    # assignments at, so it offers this file's own _HI_SSH_IMAGES instead
+    # shellcheck disable=SC2153
     _hi_build_image debian-installed "hi-sshtest-debian-installed-$$" "the pre-installed case" \
       --build-arg "BASE=$_HI_SSHD_IMAGE" \
       -f "$(_hi_dockerfile installed)" "$_HI_ROOT" && _HI_INSTALLED_OK=1
@@ -222,8 +149,6 @@ function run_ssh_tests() {
         "echo TERMPROBE=\$TERM; echo $_HI_TEST_MARKER" "" "TERMPROBE=$_hi_want"
     done
 
-    _hi_par_case bystander _hi_run_bystander_case
-
     # A starved target: a tenth of a core, 64 MiB, and a link with 300 ms
     # each way at 128 kbit/s - a satellite hop, or a Pi on the far side of a
     # bad hotel wifi. Every other case here measures hi against a container
@@ -253,8 +178,8 @@ function run_ssh_tests() {
   if [ "$_HI_BASH32_OK" -eq 1 ]; then
     _hi_par_case bash32 _hi_run_case bash32 "hi-sshtest-bash32-$$" /usr/local/bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     # The shape that matters for bash 3.2: $CMDARG replaces load() outright in
-    # the bootloader, so a command-shaped case never reaches the header, the rc
-    # graft, the shell handoff or clean_all - which is where every bash-4-only
+    # the bootloader, so a command-shaped case never reaches the header, the
+    # session rc, the shell handoff or clean_all - which is where every bash-4-only
     # builtin hi could reach for actually gets used.
     _hi_par_case bash32-interactive _hi_run_interactive_case bash32-interactive "hi-sshtest-bash32-$$" /usr/local/bin/bash \
       '! ls -d /tmp/*.hi.* >/dev/null 2>&1'
@@ -273,11 +198,10 @@ function run_ssh_tests() {
       'test -f /home/hitest/say-hi/.installed_sentinel'
     # the one case that catches load.sh's clean_all deleting the target's own
     # permanent install: a command-shaped case can't, since $CMDARG means
-    # clean_all never runs at all. The `! grep` is a floor rather than the
-    # graft's coverage - _HI_GRAFT_RC ships off, so this session never wrote
-    # one; the bystander case above is what proves the removal still works.
+    # clean_all never runs at all. The `! grep` pins that a session leaves
+    # the target's ~/.bashrc as it found it.
     _hi_par_case installed-interactive _hi_run_interactive_case installed-interactive "hi-sshtest-debian-installed-$$" /bin/bash \
-      'test -f /home/hitest/say-hi/.installed_sentinel && test -x /home/hitest/say-hi/hi.sh && ! grep -q hi-config-start /home/hitest/.bashrc'
+      'test -f /home/hitest/say-hi/.installed_sentinel && test -x /home/hitest/say-hi/hi.sh && ! grep -q _HI_SESSION_RC /home/hitest/.bashrc'
     # The same permanent install behind a *fish* login shell. _hi_remote_root's
     # probe reaches that shell before any sh does, and `_r="$HOME/say-hi"` is not
     # an assignment in fish - unwrapped, this answered "nothing installed" and

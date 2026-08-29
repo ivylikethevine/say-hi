@@ -18,6 +18,7 @@ tests/test_runner.sh
   - [Coverage and profiling](#coverage-and-profiling)
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
     - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
+  - [The score has a ceiling here](#the-score-has-a-ceiling-here)
 - [The lint gate](#the-lint-gate)
 - [Relaying](#relaying)
 - [Local-only](#local-only)
