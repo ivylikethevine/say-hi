@@ -452,7 +452,7 @@ A pin always beats the hash.
 `hi --color-preview` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:
 
-![hi --color-preview: every ssh host and user, in the colors they resolve to](https://ivylikethevine.github.io/say-hi/docs/demos/color_preview.gif)
+![hi --color-preview: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/demos/colors.gif)
 
 ### Using the hash in your own prompt
 

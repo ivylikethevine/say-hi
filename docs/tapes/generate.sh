@@ -14,7 +14,7 @@
 #      of $PATH *and* $_HI_HOME: two halves of one fix, because hi.sh sources its
 #      libraries from $_HI_HOME, so setting only that pairs the other tree's
 #      hi.sh with this tree's common/.
-#   2. The ssh tape's target image builds from HEAD (fixtures.sh's
+#   2. The sshd target image (colors, run) builds from HEAD (fixtures.sh's
 #      demo_sshd_image) while the *client* side of every tape is the working
 #      tree, so rendering a dirty tree gives a new client talking to an old
 #      target. A dirty tree switches HI_DEMO_SOURCE=worktree here automatically;
@@ -71,24 +71,23 @@ _HI_USAGE="Usage: generate.sh [-l|--list] [--head] [--keep] [--require-run] [--d
 # `Set Shell fish`), and a missing one is a vhs error rather than a clean stand
 # down, so the client shell is listed here too.
 #
-# Order is deliberate at both ends. color_preview needs no backend at all and
-# renders in seconds, so a broken vhs/ttyd/font setup surfaces immediately
-# instead of after a four-minute image build; kube is last because taking the
-# fixtures down deletes the kind cluster, and recreating it is the most
-# expensive fixture there is. complete sits second to last for the same reason
-# from the other side: it is the only tape that wants all four backends at once,
-# so running it after the four single-backend tapes means a failure there is
-# already known to be its own rather than a backend's.
+# Order is deliberate at both ends. demo is docker alone and one image build,
+# so a broken vhs/ttyd/font setup surfaces after a minute instead of after the
+# sshd image; run is last because taking its fixtures down deletes the kind
+# cluster, and recreating it is the most expensive fixture there is. complete
+# sits beside it for the same reason from the other side: it wants every
+# backend at once, so a failure there after the single-backend tapes is
+# already known to be its own rather than a backend's. colors is the first to
+# build the sshd image, so run finds it cached.
 _HI_GEN_TAPES=(
-  "color_preview:colors:"
   "demo:demo:docker"
-  "ssh:ssh:docker ssh ssh-keygen"
-  "docker:docker:docker zsh"
+  "packages:packages:docker"
+  "editors:editors:docker zsh"
   "pick:pick:docker fzf"
-  "podman:podman:podman fish"
-  "nomad:nomad:nomad docker"
+  "overlay:overlay:docker podman fish"
+  "colors:colors:docker ssh ssh-keygen"
   "complete:complete:docker podman nomad kind kubectl fish"
-  "kube:kube:kind kubectl docker zsh"
+  "run:run:docker ssh ssh-keygen nomad kind kubectl zsh"
 )
 
 _HI_GEN_LIST=0
@@ -263,16 +262,16 @@ function gen_preflight() {
   fi
 
   # HEAD vs the working tree. Only demo_sshd_image reads HI_DEMO_SOURCE, so this
-  # changes ssh.gif and nothing else - every other tape's target gets the tree
+  # changes the sshd target (colors, run) and nothing else - every other tape's target gets the tree
   # over the wire from the client, which is the working tree either way.
   dirty="$(git -C "$_HI_ROOT" status --porcelain 2>/dev/null | grep -c . || true)"
   if [ "$_HI_GEN_HEAD" = 1 ]; then
     export HI_DEMO_SOURCE=head
-    gen_row source head "$GREEN" "ssh's target builds from HEAD (--head)"
+    gen_row source head "$GREEN" "the sshd target builds from HEAD (--head)"
   elif [ "${dirty:-0}" -gt 0 ]; then
     export HI_DEMO_SOURCE=worktree
-    gen_row source worktree "$YELLOW" "$dirty local change(s): ssh's target builds from the working tree too"
-    gen_row "" note "$YELLOW" "tracked files only - a new untracked file still misses ssh's image"
+    gen_row source worktree "$YELLOW" "$dirty local change(s): the sshd target builds from the working tree too"
+    gen_row "" note "$YELLOW" "tracked files only - a new untracked file still misses the sshd image"
     gen_row "" note "$YELLOW" "and the client prompt renders its git-dirty markers into every GIF"
   else
     export HI_DEMO_SOURCE=head
@@ -388,7 +387,7 @@ them, cheapest first.
 
 Options:
   -l, --list         the tapes, their fixtures and what each needs, then exit
-      --head         build ssh's target from HEAD even on a dirty tree. A dirty
+      --head         build the sshd target from HEAD even on a dirty tree. A dirty
                      tree otherwise switches to HI_DEMO_SOURCE=worktree, so the
                      client and the target show the same tree
       --keep         leave the last tape's fixtures up, for poking at
@@ -432,7 +431,7 @@ if [ "$_HI_GEN_DOWN" = 1 ]; then
 fi
 
 # Names are validated before anything is built, and the run list is filtered in
-# table order rather than argument order - so `generate.sh kube color_preview`
+# table order rather than argument order - so `generate.sh run demo`
 # still renders the cheap one first and leaves the kind cluster for last.
 _HI_GEN_NAMES=" ${_HI_GEN_TAPES[*]%%:*} "
 for _hi_gen_want in ${_HI_GEN_WANT[@]+"${_HI_GEN_WANT[@]}"}; do

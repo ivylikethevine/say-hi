@@ -8,7 +8,7 @@
 #
 # Every demo renders at this one geometry, and no tape overrides it. The height
 # is the tightest that still fits the tallest thing any demo draws, which is
-# color_preview.tape's table - check that one first if you change it.
+# colors.tape's preview table - check that one first if you change it.
 #
 # Two things vary between the demos, and both mean something. hi's own
 # configuration - the settings.sh each gets from docs/tapes/fixtures.sh - is
@@ -17,13 +17,13 @@
 # **client shell**, so the set has three looks rather than seven and the look
 # tells you which shell you are watching.
 #
-#   bash (no `Set Shell`, the default here)  GruvboxDark
-#   zsh  (docker.tape, kube.tape)            Dracula
-#   fish (podman.tape, complete.tape)        nord
+#   bash (no `Set Shell`, the default here)      GruvboxDark
+#   zsh  (editors.tape, run.tape)                 Dracula
+#   fish (overlay.tape, complete.tape)            nord
 #
 # bash is the warm one on purpose: it is the shell four of the demos use -
-# demo, ssh, nomad and color_preview - so the odd one out in tone is the one
-# you see most, and the two cool themes then read as "not bash" at a glance.
+# demo, packages, colors and pick - so the odd one out in tone is the one you
+# see most, and the two cool themes then read as "not bash" at a glance.
 #
 # The bash one lives here because it is the default; the other two override it
 # immediately after their `Source` line. Adding a demo on a fourth shell means

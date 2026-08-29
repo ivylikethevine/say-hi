@@ -13,7 +13,7 @@
 #
 # Not sourced by anything; invoked from the tapes' Hide blocks:
 #
-#   docs/tapes/fixtures.sh up demo|ssh|docker|podman|nomad|kube|colors
+#   docs/tapes/fixtures.sh up demo|packages|editors|pick|overlay|colors|complete|run
 #   docs/tapes/fixtures.sh down
 set -euo pipefail
 
@@ -59,6 +59,7 @@ function demo_sshd_image() {
   demo_settings "$_HI_DEMO_DIR/ssh-target-settings.sh" <<'EOF'
 export _HI_HEADER_TIMESTAMP='0'
 export _HI_HEADER_SYSINFO='0'
+export _HI_PACKAGES_MIN_PRIORITY='5'
 EOF
 
   mkdir -p "$_HI_DEMO_DIR/base"
@@ -96,22 +97,16 @@ EOF
     -f "$_HI_ROOT/tests/dockerfiles/demo-sshd.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
 }
 
-function up_ssh() {
-  demo_keypair
-  demo_sshd_image
-  docker rm -f web-1 >/dev/null 2>&1 || true
-  # --hostname as well as --name: docker's own default hostname is a random
-  # 12-char hex ID, which makes for an ugly, meaningless color in the header's
-  # user@host line. The two match so the ssh_config Host below, the name the
-  # tape types, and the prompt that answers are all one word.
-  docker run -d --rm --name web-1 --hostname web-1 --label hi.demo=1 \
-    -p 127.0.0.1::22 \
-    -e PUBKEY="$(cat "$_HI_DEMO_DIR/key.pub")" hi-demo-sshd >/dev/null
+# demo_ssh_block <name> - the Host block that reaches the running sshd
+# container <name>: its published port, the demo key, and no known_hosts. The
+# one place the shape is spelled, for both files it lands in (the -F config
+# below, and the throwaway ~/.ssh/config the colors and run demos read).
+function demo_ssh_block() {
   local port
-  port="$(docker port web-1 22/tcp | head -1)"
+  port="$(docker port "$1" 22/tcp | head -1)"
   port="${port##*:}"
-  cat >"$_HI_DEMO_DIR/ssh_config" <<EOF
-Host web-1
+  cat <<EOF
+Host $1
   HostName 127.0.0.1
   Port $port
   User hitest
@@ -120,9 +115,29 @@ Host web-1
   UserKnownHostsFile /dev/null
   LogLevel ERROR
 EOF
-  # wait for sshd to answer before the tape types anything
-  demo_wait_for "sshd on port $port" \
-    ssh -F "$_HI_DEMO_DIR/ssh_config" web-1 true
+}
+
+function up_ssh() { # <name...> - one sshd box per name, off the one image
+  local name
+  demo_keypair
+  demo_sshd_image
+  : >"$_HI_DEMO_DIR/ssh_config"
+  for name in "$@"; do
+    docker rm -f "$name" >/dev/null 2>&1 || true
+    # --hostname as well as --name: docker's own default hostname is a random
+    # 12-char hex ID, which makes for an ugly, meaningless color in the
+    # header's user@host line. The two match so the ssh_config Host, the name
+    # the tape types, and the prompt that answers are all one word.
+    docker run -d --rm --name "$name" --hostname "$name" --label hi.demo=1 \
+      -p 127.0.0.1::22 \
+      -e PUBKEY="$(cat "$_HI_DEMO_DIR/key.pub")" hi-demo-sshd >/dev/null
+    demo_ssh_block "$name" >>"$_HI_DEMO_DIR/ssh_config"
+  done
+  # wait for every sshd to answer before the tape types anything
+  for name in "$@"; do
+    demo_wait_for "sshd for $name" \
+      ssh -F "$_HI_DEMO_DIR/ssh_config" "$name" true
+  done
 }
 
 # a bare shell-only image per flavor, the docker/podman e2e shape. <name> is
@@ -135,6 +150,22 @@ function up_container() { # <backend> <name> <flavor: debian|zsh|fish|ash>
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
   ash) image=alpine:3.24 ;;
+  # the debian with your tools on it - git, nano, vim, bat and a checkout under
+  # /root/app - which is what the feature tapes have to show; the Dockerfile
+  # says what each is for
+  tools)
+    "$backend" build -q -t hi-demo-tools-img \
+      -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    image=hi-demo-tools-img
+    ;;
+  # fish with bash beside it: a box hi can give a *full* session on, in fish,
+  # when _HI_SHELL_PREFERENCE says so - the overlay demo's second target, since
+  # the bash-less aliases-only tier ships hi's own aliases and not the overlay
+  fish-bash)
+    "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
+      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    image=hi-demo-fish-bash-img
+    ;;
   zsh | fish)
     "$backend" build -q -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
@@ -246,6 +277,14 @@ function demo_settings() { # [outfile] - body on stdin
   } >"$out"
 }
 
+# The other overlay files a demo can ship, into the same $_HI_DEMO_DIR/config
+# that settings.sh lands in - hi.sh's _HI_OVERLAY_FILES carries both to the
+# target, which is the point of showing either. Body on stdin.
+function demo_overlay() { # <basename> - body on stdin
+  mkdir -p "$_HI_DEMO_DIR/config"
+  cat >"$_HI_DEMO_DIR/config/$1"
+}
+
 # The rc template's substitutions, in one place rather than once per shell: the
 # three rc *bodies* below differ for real, the sed line never did. Reads
 # client_rc's locals, so it lives with it and nowhere else.
@@ -260,12 +299,15 @@ function client_rc() { # <shell> <user> <hostname>
   home="$(dirname "$_HI_ROOT")"
   # Every up:* calls this before writing its overlay, so this is the one place
   # that can guarantee a demo gets its own configuration and no one else's.
-  # Without it a render of demo.tape straight after docker.tape would inherit
+  # Without it a render of demo.tape straight after packages.tape would inherit
   # docker's overlay from /tmp and quietly stop being the defaults shot. The
   # whole directory, not just settings.sh: `colors` is an overlay file too and
   # would leak the same way.
   rm -rf "$_HI_DEMO_DIR/config"
   mkdir -p "$_HI_DEMO_DIR/config"
+  # the throwaway $HOME every tape stands in (pick.tape says why), whether or
+  # not its fixture puts anything there
+  mkdir -p "$_HI_DEMO_DIR/home"
   # $_HI_HOME/$_HI_ROOT are baked in rather than inherited: vhs starts a bare
   # shell, and on a machine where /usr/bin/hi points at some other install (or
   # a login profile exports its own $_HI_HOME) an inherited one renders the
@@ -361,19 +403,78 @@ Host bastion
 EOF
 }
 
-# ...and the colors overlay that only the color-preview demo wants, which lands
-# somewhere else again: paths.sh:30 reads `colors` out of $_HI_CONFIG_DIR, the
-# same overlay dir every other demo writes its settings.sh into.
+# The same roster with real connection details for the sshd boxes named, for
+# the demos that both *list* hosts and *connect* to one from a throwaway $HOME:
+# the tape types `hi db-prod` bare, so its port and key have to be in the file
+# ssh reads. `# Tags:` stays above each live block - it is what the hosttag
+# pins resolve from, and a live host without one would color by its name hash
+# and quietly stop being the demo.
+function demo_ssh_config_live() { # <name:tag...>
+  local spec name tag
+  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
+  {
+    for spec in "$@"; do
+      name="${spec%%:*}"
+      tag="${spec#*:}"
+      [ -n "$tag" ] && printf '# Tags: %s\n' "$tag"
+      demo_ssh_block "$name"
+      echo
+    done
+    cat <<'EOF'
+# Tags: prod
+Host web-prod
+  User deploy
+
+# Tags: staging
+Host db-staging
+  User deploy
+
+# Tags: desktop
+Host workshop
+  User hitest
+
+Host build-box
+  User ci
+
+Host bastion
+  User root
+EOF
+  } >"$_HI_DEMO_DIR/home/.ssh/config"
+}
+
+# ...and the colors overlay, which lands somewhere else again: paths.sh:30
+# reads `colors` out of $_HI_CONFIG_DIR, the same overlay dir every other demo
+# writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
+# preview's table and the two sessions after it are the same names.
 function up_colors() {
-  demo_ssh_config
-  cat >"$_HI_DEMO_DIR/config/colors" <<'EOF'
+  up_ssh db-prod dev-1 || return 1
+  demo_ssh_config_live db-prod:prod dev-1:dev
+  demo_overlay colors <<'EOF'
 # pins beat the name hash; everything unpinned still resolves on its own
 username,root,red
 hostname,bastion,yellow
 hosttag,prod,red
+hosttag,dev,green
 hosttag,staging,yellow
 hosttag,desktop,green
 EOF
+}
+
+# The recents file (GLOSSARY: HI.42) under the throwaway $HOME, seeded so the
+# picker's first row is settled in advance: <target> used most and last, with
+# two older visits to a roster host behind it. Epochs relative to now, so the
+# "recent" half of the order holds however long the fixture has been up.
+function demo_recents() { # <target>
+  local now
+  now="$(date +%s)"
+  mkdir -p "$_HI_DEMO_DIR/home/.local/state/say-hi"
+  printf '%s\t%s\n' \
+    "$((now - 90000))" bastion \
+    "$((now - 7200))" "$1" \
+    "$((now - 3600))" bastion \
+    "$((now - 600))" "$1" \
+    "$((now - 60))" "$1" \
+    >"$_HI_DEMO_DIR/home/.local/state/say-hi/recent"
 }
 
 # One of everything, at once - the completion demo's whole subject is that
@@ -401,11 +502,26 @@ EOF
 # once docker - reads as a bug rather than as two backends (up_complete makes
 # the same choice, from the same file). `cache-1` is the zsh-only box, so a
 # session landing in it prints the bash-less fallback notice instead of the
-# ordinary greeting: true, and docker.tape's subject, but not this one's.
+# ordinary greeting: true, but not this one's subject.
 # Debian, therefore, under a name that is in no roster.
 function up_pick() {
   demo_ssh_config
+  demo_recents app-1
   up_container docker app-1 debian || return 1
+}
+
+# The run demo's stage: one target per backend, reached from a throwaway $HOME
+# that carries the ssh host's port and key and the kind cluster's kubeconfig -
+# the two things a bare `hi <name> <cmd>` reads out of $HOME. The tools debian
+# rather than a bare one, so one of the four `cat`s renders through bat.
+function up_run() {
+  up_ssh web-1 || return 1
+  demo_ssh_config_live web-1:
+  up_container docker db-prod tools || return 1
+  up_nomad || return 1
+  up_kube || return 1
+  mkdir -p "$_HI_DEMO_DIR/home/.kube"
+  kind get kubeconfig --name hi-demo >"$_HI_DEMO_DIR/home/.kube/config"
 }
 
 function up_complete() {
@@ -463,80 +579,74 @@ case "${1:-}:${2:-}" in
 # spread is the point: every tape but one says hi somewhere it is not. The
 # exception is docker's second target, where client and target are both cache-1
 # - the same box reached two ways, which is worth one frame of the set.
-up:ssh)
-  # No demo_settings here: this demo's trimmed header is baked into the box's
-  # own image, because a permanent install reads its own config and never the
-  # client's overlay. demo_sshd_image says why.
+up:packages)
   client_rc bash ivy workshop
-  up_ssh
-  ;;
-up:docker)
-  client_rc zsh dev cache-1
-  # demo.tape connects to this same debian box, so the difference between the
-  # README's top GIF and this one has to be the *client* - hence a prompt end
-  # of its own and a package floor, neither of which touches the fixture. The
-  # floor rather than _HI_HEADER_CHECK=0, which this was: on a bare debian the
-  # top rank is one line, so the dial shows *and* the check stays short enough
-  # for two sessions to fit one frame.
+  # the check as a diagnosis: a floor of 3 keeps the shipped tiers 0-2 out of
+  # the frame, the overlay below is the list being checked, and the GHz line
+  # is the one header knob no other demo turns on. Two boxes: the tools debian
+  # answers the list quietly, the bare one does not.
   demo_settings <<'EOF'
-export _HI_PROMPT_END_ZSH='❯'
-export _HI_PACKAGES_MIN_PRIORITY='5'
-EOF
-  up_container docker db-prod debian
-  up_container docker cache-1 zsh
-  ;;
-up:podman)
-  client_rc fish ops bastion
-  # fish's own prompt separator. _HI_ENABLE_FISH_ALIAS_ABBR belongs to this
-  # demo on paper - it is the one fish-only knob and this is the only tape with
-  # fish on both ends - but it cannot be shown here: hi is itself an alias, so
-  # the abbr expands the `hi edge-1` the tape types into the shim's
-  # absolute path, rewriting the command the GIF exists to show.
-  demo_settings <<'EOF'
-export _HI_PROMPT_END_FISH='»'
-EOF
-  up_container podman edge-1 fish
-  ;;
-up:nomad)
-  client_rc bash ivy workshop
-  # the header knobs the other demos leave alone. Note what is *not* here:
-  # nomad.tape waits on /Disconnected/, which banner() prints, so this is the
-  # one demo that cannot turn _HI_HEADER_BANNER or _HI_DISABLE_HEADER off
-  # without hanging its own render. The floor is load-bearing for the same
-  # reason - see nomad.tape.
-  demo_settings <<'EOF'
-export _HI_HEADER_IDENTITY='0'
+export _HI_PACKAGES_MIN_PRIORITY='3'
 export _HI_HEADER_GHZ='1'
+EOF
+  demo_overlay packages <<'EOF'
+# the tools you care about, and how loudly to miss them
+vim:5
+nano:5
+batcat:3
+git:3
+rg:3
+htop:3
+EOF
+  up_container docker db-prod tools
+  up_container docker builder debian
+  ;;
+up:editors)
+  client_rc zsh dev cache-1
+  # the header stays one line; the editors get the frame
+  demo_settings <<'EOF'
 export _HI_PACKAGES_MIN_PRIORITY='5'
 EOF
-  up_nomad
+  up_container docker db-prod tools
   ;;
-up:kube)
-  client_rc zsh dev cache-1
-  # the git segment off, and only that. A pod reached through the aliases-only
-  # fallback draws no header at all, so the client prompt is the only surface
-  # this demo can show a knob on - which rules out _HI_DISABLE_PROMPT=1, the
-  # obvious pick: it renders a GIF with nothing of hi left in frame.
+up:overlay)
+  client_rc fish ops bastion
+  # no throwaway $HOME here (podman lives under the real one), so the recents
+  # file is moved out of the renderer's state dir by hand
   demo_settings <<'EOF'
-export _HI_DISABLE_GIT_STATUS='1'
+export _HI_PACKAGES_MIN_PRIORITY='5'
+export _HI_RECENT_FILE='/tmp/hi-demo/home/recent'
+export _HI_SHELL_PREFERENCE='fish'
 EOF
-  up_kube
+  # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
+  # says the file has to stay in, and one of the *_OPTS the shipped `cat` alias
+  # reads. Both are in effect in a bash session and a fish one, which is what
+  # the tape shows. (The fish-only abbr knob was tried here and taken back
+  # out: hi is itself an alias, so the abbr expands the `hi edge-1` the tape
+  # types into the shim's absolute path, rewriting the command the GIF exists
+  # to show.)
+  demo_overlay aliases.sh <<'EOF'
+# ~/.config/say-hi/aliases.sh - sourced on every target, in every shell
+alias dfh='df -h /'
+export _HI_BAT_OPTS='-P --theme Nord --style grid'
+EOF
+  up_container docker db-prod tools
+  up_container podman edge-1 fish-bash
   ;;
 up:pick)
   # Bare `hi` - the picker. Cheap on purpose: this demo's subject is the
   # *choice*, not the roster, so it wants a list with more than one kind of row
   # in it and one row that can actually be connected to. demo_ssh_config's six
   # hosts supply the first (they are read out of a file, so no sshd is built for
-  # them) and one docker container supplies the second.
+  # them) and one docker container supplies the second; demo_recents puts that
+  # container on top.
   #
   # _HI_TARGETS_TTL=0 for up:complete's reason: the sweep is cached for 5s in
   # $XDG_RUNTIME_DIR, which the renderer shares with every other shell on their
   # box, so a stale window would render *their* containers into a committed GIF.
   client_rc bash ivy workshop
-  # ...and a package floor, docker.tape's setting for docker.tape's reason: on
-  # a bare debian the top rank is one line, so the check stays short enough for
-  # the picker and the session it opens to fit the same recording. The header
-  # is not this demo's subject; the choice above it is.
+  # ...and a package floor, so the picker and the session it opens fit one
+  # recording. The header is not this demo's subject; the choice above it is.
   demo_settings <<'EOF'
 export _HI_TARGETS_TTL='0'
 export _HI_PACKAGES_MIN_PRIORITY='5'
@@ -564,20 +674,31 @@ EOF
 up:colors)
   # no settings.sh: this demo's configuration is the `colors` overlay up_colors
   # writes, into the same dir every other demo uses. The tape exports a
-  # throwaway $HOME as well, for the ssh config the preview reads.
+  # throwaway $HOME as well, for the ssh config the preview and the two
+  # sessions read.
   client_rc bash ivy workshop
   up_colors
   ;;
+up:run)
+  client_rc zsh dev cache-1
+  # a one-off command draws no header, so nothing a knob would show; the TTL
+  # is up:complete's, for up:complete's reason
+  demo_settings <<'EOF'
+export _HI_TARGETS_TTL='0'
+EOF
+  up_run
+  ;;
 up:demo)
   client_rc bash ivy workshop
-  # No demo_settings, deliberately. Every other demo turns something off or
-  # swaps something out; the README's top GIF is the one that shows what you
-  # get having configured nothing, which is only legible if it stays stock.
-  up_container docker db-prod debian
+  # No demo_settings, deliberately. Every other demo turns something on or
+  # ships something of its own; the README's top GIF is the one that shows
+  # what you get having configured nothing, which is only legible if it stays
+  # stock. The tools debian, so the defaults have something to work on.
+  up_container docker db-prod tools
   ;;
 down:) demo_down ;;
 *)
-  echo "usage: fixtures.sh up <demo|ssh|docker|podman|nomad|kube|colors|complete> | down" >&2
+  echo "usage: fixtures.sh up <demo|packages|editors|pick|overlay|colors|complete|run> | down" >&2
   exit 1
   ;;
 esac

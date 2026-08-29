@@ -86,6 +86,12 @@ release](#quick-wins), [Homebrew tap](#moderate) and
     Concretely: leave _Do not allow bypassing the above settings_ off. Turning
     it on would cost zero points and lock the only maintainer out of merging
     their own PRs.
+  - `snapshot.yml` already exercises `gh release create`/`upload` and a tag
+    push from a workflow on every push to `main` (the rolling `snapshot`
+    prerelease, [PACKAGING.md](PACKAGING.md#snapshot-builds)), so the token
+    side of publishing is proven before the first tag; what it cannot prove is
+    the environment gate and the manifest PR. Confirm no tag-protection
+    ruleset covers `snapshot`.
   - **Ticks when:** a release has gone out under the rule, manifest PR opened
     rather than a push refused.
 
