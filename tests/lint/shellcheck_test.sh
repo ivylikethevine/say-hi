@@ -631,6 +631,89 @@ function _hi_settings_roster() {
   } | sort -u
 }
 
+# The markdown Jekyll actually turns into a page: every `*.md` in the tree,
+# minus anything under a dotfile directory (`.github`, `.git`, `.claude`, ...)
+# and minus every path `_config.yml`'s `exclude:` block names - directory
+# entries (trailing `/`) as a prefix, file entries as a whole line. Derived
+# rather than hand-kept, so excluding a file from the site (docs/tldr.md,
+# below, is exactly this) drops it from the sweep with no second edit.
+function _hi_jekyll_md_files() {
+  local block file_excl="" dir_excl="" entry file rel skip
+  block="$(awk '/^exclude:/{inside=1; next} /^[A-Za-z]/{inside=0} inside' "$_HI_ROOT/_config.yml" |
+    sed -n 's/^ *- *//p')"
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    case "$entry" in
+    */) dir_excl="$dir_excl$entry"$'\n' ;;
+    *) file_excl="$file_excl$entry"$'\n' ;;
+    esac
+  done <<<"$block"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    rel="${file#"$_HI_ROOT/"}"
+    case "${rel%%/*}" in .*) continue ;; esac
+    case $'\n'"$file_excl" in *$'\n'"$rel"$'\n'*) continue ;; esac
+    skip=""
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      case "$rel" in "$entry"*) skip=1 ;; esac
+    done <<<"$dir_excl"
+    [ -n "$skip" ] && continue
+    printf '%s\n' "$file"
+  done < <(_hi_lint_find -name '*.md')
+}
+
+# Jekyll's Liquid runs over every page's raw text *before* Markdown, so a
+# GitHub Actions `${{ }}` inside a fenced code block gets no shelter from the
+# fence - Liquid opens on the first `{{` or `{%` and raises if the matching
+# close isn't found before EOF. This is what broke the Pages build on
+# docs/SELFHOSTED-RUNNERS.md's `${{ needs.runner.outputs.ubuntu == ... &&
+# format('{0}-{1}', ...) }}`: the inner `{0}` gives Liquid's tokenizer a
+# single `}` to close on, so it raises mid-expression - in CI, with nothing
+# local to catch it first. A doc that means to show `{{ }}`/`{% %}` verbatim
+# has to wrap the span in `{% raw %}` … `{% endraw %}` (that file is now the
+# pattern) or stay off the site (docs/tldr.md's use of `{{placeholder}}` is
+# tldr-pages' own syntax and has to stay byte-for-byte, so it is excluded in
+# `_config.yml` instead of guarded).
+function lint_liquid_docs() {
+  local file rel line raw n filebad bad=0
+  _hi_h2 "Checking docs for Liquid syntax outside {% raw %}"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    rel="${file#"$_HI_ROOT/"}"
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    raw=0
+    n=0
+    filebad=0
+    while IFS= read -r line || [ -n "$line" ]; do
+      n=$((n + 1))
+      case "$line" in
+      *'{% raw %}'*) raw=1 ;;
+      *'{% endraw %}'*) raw=0 ;;
+      *)
+        if [ "$raw" -eq 0 ]; then
+          case "$line" in
+          *'{{'* | *'{%'*)
+            _hi_align " | $rel:$n has {{ or {% outside {% raw %}" "FAILED" "$RED"
+            _hi_note_failure "liquid docs: $rel:$n"
+            filebad=$((filebad + 1))
+            ;;
+          esac
+        fi
+        ;;
+      esac
+    done <"$file"
+    if [ "$raw" -eq 1 ]; then
+      _hi_align " | $rel ends inside an unclosed {% raw %}" "FAILED" "$RED"
+      _hi_note_failure "liquid docs: $rel unclosed {% raw %}"
+      filebad=$((filebad + 1))
+    fi
+    bad=$((bad + filebad))
+  done < <(_hi_jekyll_md_files)
+  [ "$bad" -eq 0 ] && _hi_align " | every page's Liquid is balanced" "OK" "$GREEN"
+  return "$bad"
+}
+
 # A source of the user's config directory with no `# shellcheck source=`
 # directive above it is a machine-killer, not a style nit, and this is what
 # keeps one from landing again. It runs as a *precondition* of run_shellcheck
@@ -962,7 +1045,7 @@ function run_shellcheck() {
   _HI_LINT_FAILED=$_HI_SC_FAILED
   for _hi_lint_half in lint_native lint_fish37 lint_zsh58 lint_bash32 lint_home_default lint_shfmt \
     lint_checkbashisms lint_manpage lint_typos lint_glossary_tags \
-    lint_settings_table lint_dockerfiles lint_image_tags; do
+    lint_settings_table lint_liquid_docs lint_dockerfiles lint_image_tags; do
     "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
   done
   unset _hi_lint_half

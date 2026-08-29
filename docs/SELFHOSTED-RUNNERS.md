@@ -1,5 +1,13 @@
 # Self-hosted runners (retired)
 
+<!-- {% raw %} -->
+<!-- This doc quotes GitHub Actions `${{ }}` expressions, and line 115's has -->
+<!-- an inner `{0}` brace - Jekyll's Liquid opens on the first `{{` and closes -->
+<!-- on the first single `}`, so it raises a syntax error partway through the -->
+<!-- expression rather than rendering it. The {% raw %} above tells Liquid to -->
+<!-- pass this whole file through untouched; on github.com an HTML comment is -->
+<!-- invisible, so the guard changes nothing here. -->
+
 Every job in this tree runs on a GitHub-hosted label
 (`ubuntu-latest`/`macos-latest`/`windows-latest`) as of 2026-08-27. This repo
 used to let ops optionally point a subset of jobs at a self-hosted box instead,
@@ -225,3 +233,5 @@ To reactivate self-hosted support for a job:
    `e2e`, `e2e-backends`, `demos.yml`'s `publish`).
 5. Confirm the two repo settings in [above](#two-repo-settings-the-box-needed)
    are in place before setting the variable for real.
+
+<!-- {% endraw %} -->
