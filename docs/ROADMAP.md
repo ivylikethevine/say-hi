@@ -118,7 +118,28 @@ release](#quick-wins), [Homebrew tap](#moderate) and
       only `v0.0.x`), then cut one and read the run. **Ticks when:** an rc
       has gone through every job `v1.0.0` will, tap PR opened.
 
+- [ ] **Shorthand for `hi --configure`'s preset prompt** — _scope: one
+      function in `scripts/configure.sh` plus a test case; in-repo._
+      `config_preset` reads the full preset name (`everything`, `balanced`,
+      `minimal`); accept the single-letter form too (`e`, `b`, `m`) so the
+      prompt can offer it. **Ticks when:** typing `e`/`b`/`m` at the preset
+      prompt applies the matching preset, and `install_test.sh` covers it.
+
 ## Moderate
+
+- [ ] **Publish the per-OS CI badges from an actual run, not the last
+      dispatch** — _scope: one `pages.yml` job change plus a README badge
+      swap; in-repo._ macOS/Windows/FreeBSD/Windows-client are `workflow_call`
+      targets invoked from `ci.yml`, so each one's own run history is
+      dispatch-only and can lag what CI actually ran against `main` — a status
+      badge in that shape shows the last manual dispatch, not the last CI run.
+      `pages.yml` already has the `badge()` machinery to publish a shields
+      endpoint from CI artifacts the way `tests.json` and `package.json` do;
+      extend it with one endpoint per OS, sourced the same way
+      `fetch-latest-artifact` sources the others, and point README's badges at
+      the new endpoints. **Ticks when:** each OS badge reflects the outcome of
+      the CI run it was actually part of, not its own last independent
+      dispatch.
 
 - [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
       real Mac; outside this checkout._ Create `homebrew-tap` (plain repo,

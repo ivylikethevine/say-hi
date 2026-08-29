@@ -49,3 +49,9 @@ exclude:
   - Gemfile
   - Gemfile.lock
   - vendor/
+  # A draft for an upstream tldr-pages PR (docs/ROADMAP.md's "tldr page"
+  # entry) - it has to stay byte-for-byte in tldr's own style, which uses
+  # `{{placeholder}}` for the same syntax Liquid does. A {% raw %} guard would
+  # have to be stripped before that PR could go out, so the file is kept off
+  # the site instead; nothing links to it with a relative link.
+  - docs/tldr.md
