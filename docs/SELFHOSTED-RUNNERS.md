@@ -120,14 +120,14 @@ guard.
 ## Serialization: job-level `concurrency`, not `needs:`
 
 `bench`, `packaging-smoke`, `e2e` and `e2e-backends` in `ci.yml`, and
-`publish` in `demos.yml`, all landed on the *same* box when `RUNNER_LABEL` was
+`publish` in `demos.yml`, all landed on the _same_ box when `RUNNER_LABEL` was
 set, and needed to never run concurrent checkouts against its shared
 workspace. A `needs:` chain looks like the obvious fix and is wrong twice
 over: on GitHub-hosted runs (every fork PR, and any repo with no
 `RUNNER_LABEL`) it forces jobs that could run in parallel to run one after
 another for no reason, and it still doesn't solve the stated problem —
 `concurrency:` at the workflow level is keyed on `github.ref`, so two
-*different* PRs would still put jobs on the shared box at the same time.
+_different_ PRs would still put jobs on the shared box at the same time.
 
 The actual fix was **job-level `concurrency`**, resolving to one shared group
 when self-hosted and a unique group per job per run otherwise:
@@ -141,13 +141,13 @@ concurrency:
 (`demos.yml`'s `publish` used the simpler `vars.RUNNER_LABEL && 'hi-selfhosted-workspace' || format(...)`,
 since it had no `runner` job to read outputs from.)
 
-This queues self-hosted runs one at a time, across *different* runs as well
+This queues self-hosted runs one at a time, across _different_ runs as well
 as within one, while a hosted run keeps full parallelism. What stayed in
 `needs:` was the real data dependency — `e2e` and `e2e-backends` gated on
 `test` passing (`!cancelled() && needs.test.result == 'success'`), which has
 nothing to do with which machine anything runs on. `test-macos` was never in
 either chain: it read `MACOS_RUNNER_LABEL`, a different box entirely. One
-registered runner *process* per box is what actually made "never two at once"
+registered runner _process_ per box is what actually made "never two at once"
 true — the concurrency group only serializes what GitHub schedules, not what
 a second runner process on the same box would do if one were ever added.
 

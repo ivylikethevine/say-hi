@@ -16,9 +16,8 @@ function header_row() {
   printf '%b\n' "$out$NC"
 }
 
-# hi's version for the header, resolved once per shell (the row prints twice a
-# session). core.sh's ladder answers; only a stampless, gitless install falls
-# through to the bare "unknown" that `hi --version` spells out in full.
+# hi's version for the header, resolved once per shell (the row prints twice
+# a session); a stampless, gitless install gets "unknown".
 function _hi_header_version() {
   if [ -z "${_HI_HEADER_VERSION+x}" ]; then
     _hi_sanitize_var _HI_HEADER_VERSION "$(_hi_release_or_describe)"
@@ -27,11 +26,8 @@ function _hi_header_version() {
   printf '%s\n' "$_HI_HEADER_VERSION"
 }
 
-# UTC | version | local: no "say-hi" label - the banner above already says whose
-#
-# Both clocks are one `|| :` from silence for system_info's reason: a target
-# with no date(1) prints two "command not found" lines across the header
-# otherwise, and an empty cell says the same thing without them.
+# UTC | version | local. `|| :` on both clocks: a target with no date(1)
+# gets an empty cell, not two "command not found" lines across the header.
 function timestamp() {
   local utc local_now
   _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
@@ -44,11 +40,8 @@ function timestamp() {
 
 function system_info() {
   local kernel arch os cpus ram base_mhz boost_mhz
-  # process substitution, not <<<: a here-string is a temp file before bash 5.1.
-  # `|| :` for the same reason every probe below carries one, one rung earlier:
-  # no uname means no kernel and no arch, not a "command not found" in the
-  # middle of the banner - and an unread `read` leaves both empty, which the
-  # cells below already render as "?".
+  # process substitution, not <<<: a here-string is a temp file before bash
+  # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
   _hi_sanitize_var kernel "$kernel"
   _hi_sanitize_var arch "$arch"
@@ -57,20 +50,18 @@ function system_info() {
   local scaling_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
   local amd_floor_path="/sys/devices/system/cpu/cpu0/cpufreq/amd_pstate_lowest_nonlinear_freq"
   if [ -f "$_HI_LINUX_RELEASE" ]; then
-    # also covers WSL - it's a real Linux kernel with its own /etc/os-release
+    # also covers WSL - a real Linux kernel with its own /etc/os-release.
+    # Every probe ends in `|| true`: a stripped-down target falls through to
+    # "?" instead of aborting under set -e.
     os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE" 2>/dev/null || true)
-    # every probe ends in `|| true`: a stripped-down target falls through to
-    # "?" instead of aborting under set -e
     cpus=$(nproc 2>/dev/null || true)
-    # straight at the file free(1) itself reads, rather than free | awk
+    # straight at the file free(1) itself reads
     ram=$(awk '/^MemTotal:/ { printf "%.0fG", $2 / 1048576 }' /proc/meminfo 2>/dev/null || true)
-    # base clock from the model name (eg "... @ 2.80GHz"); AMD chips print none,
-    # so fall back to cpufreq's base_frequency (Intel P-State / amd-pstate only)
+    # base clock from the model name ("... @ 2.80GHz"); AMD chips print none,
+    # so fall back to cpufreq's base_frequency, then amd-pstate-epp's
+    # lowest_nonlinear_freq (the driver's floor, but it beats "?").
+    # `read < file`, not $(cat file): a miss is silent and costs no fork.
     base_mhz=$(awk -F'@ *' '/model name/ && NF>1 { gsub(/GHz.*/, "", $2); printf "%.0f", $2 * 1000; exit }' /proc/cpuinfo 2>/dev/null || true)
-    # `read < file`, not $(cat file): a miss fails silently and costs no fork.
-    # The second path is amd-pstate-epp, which publishes neither of the others;
-    # lowest_nonlinear_freq is the driver's floor rather than the rated base
-    # clock, but it beats "?".
     local khz=0 freq_path
     for freq_path in "$base_freq_path" "$amd_floor_path"; do
       [ -n "$base_mhz" ] && break
@@ -79,9 +70,8 @@ function system_info() {
       base_mhz=$((khz / 1000))
       ((base_mhz)) || base_mhz=""
     done
-    # boost/max clock: cpufreq first, else lscpu. khz is reset because the base
-    # probes above leave their reading in it - a host with base_frequency but no
-    # cpuinfo_max_freq would report its base clock as its own boost.
+    # boost/max clock: cpufreq first, else lscpu. khz reset, or a host with
+    # base_frequency but no cpuinfo_max_freq reports its base as its boost.
     khz=0
     if [ -f "$max_freq_path" ] && [ -f "$scaling_freq_path" ]; then
       read -r khz <"$scaling_freq_path" 2>/dev/null || khz=0
@@ -94,27 +84,26 @@ function system_info() {
     cpus="${NUMBER_OF_PROCESSORS:-?}"
     ram=$(wmic ComputerSystem get TotalPhysicalMemory 2>/dev/null |
       awk 'NR==2 && $1 ~ /^[0-9]+$/ { printf "%.0fG", $1 / 1073741824 }' || true)
-    # wmic only exposes the rated (base) clock; turbo/boost isn't queryable this way
+    # wmic only exposes the rated (base) clock
     base_mhz=$(wmic cpu get MaxClockSpeed 2>/dev/null | awk 'NR==2 && $1 ~ /^[0-9]+$/ { print $1 }' || true)
   elif [ -z "$kernel" ]; then
-    # no /etc/os-release and no uname to ask: the branches below are guesses
-    # from $kernel, and there is nothing to guess from
+    # no /etc/os-release and no uname: nothing to guess from
     os=""
   else
     os="macOS $(sw_vers -productVersion 2>/dev/null || true)"
     cpus=$(sysctl -n hw.ncpu 2>/dev/null || true)
     ram=$(sysctl -n hw.memsize 2>/dev/null | awk '{ printf "%.0fG", $1 / 1073741824 }' || true)
-    # Apple Silicon doesn't expose either clock via sysctl; only Intel Macs get a value here
+    # Apple Silicon exposes neither clock via sysctl; only Intel Macs get a value
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
   fi
   _hi_sanitize_var os "$os"
-  # _HI_HEADER_GHZ=1 (settings.sh) swaps the CPU cell to x.xxx GHz; unset/0
-  # keeps the MHz integers every test and script still pins
+  # _HI_HEADER_GHZ=1 (settings.sh) swaps the CPU cell to x.x GHz; unset/0
+  # keeps the MHz integers the tests pin
   local freq_unit="MHz"
   if [ "${_HI_HEADER_GHZ:-0}" = 1 ]; then
     freq_unit="GHz"
-    # MHz -> x.x GHz with printf, not an awk fork apiece; rounded to tenths
-    # *before* splitting so a carry lands properly (2950 -> 3.0, not "2.10")
+    # printf, not an awk fork apiece; rounded to tenths *before* splitting so
+    # a carry lands properly (2950 -> 3.0, not "2.10")
     local ghz_tenths ghz_var ghz_val
     for ghz_var in base_mhz boost_mhz; do
       eval "ghz_val=\$$ghz_var"
@@ -129,9 +118,8 @@ function system_info() {
 }
 
 # identity()'s backend probes are independent and each capped at
-# $_HI_PROBE_TIMEOUT: run in turn, three wedged daemons cost the *sum* of the
-# ceilings; started together, the longest. Files rather than process
-# substitutions, which would be back to waiting on each in turn.
+# $_HI_PROBE_TIMEOUT: started together they cost the longest, not the sum.
+# Files rather than process substitutions, which would wait on each in turn.
 # `wait <pid>` and never `wait -n`: macOS ships bash 3.2.
 declare -a _HI_PROBE_PIDS=()
 
@@ -155,10 +143,9 @@ function _hi_probe_wait() {
 # so a host answering none of the three pays no mktemp and no rm.
 _HI_PROBE_DIR=""
 
-# Start whichever of the three backends this host can answer, all at once.
-# Split out of identity() so hi_header can start them first: they are the only
-# part of the header bounded by $_HI_PROBE_TIMEOUT, and the other rows then
-# run in their shadow rather than ahead of them.
+# Start whichever backends this host can answer, all at once. Split out of
+# identity() so hi_header can start them first and the other rows run in
+# their shadow.
 function _hi_probe_launch() {
   local container_bin nomad=0 kube=0
   # idempotent: hi_header starts these early, and identity() calls it too so a
@@ -172,8 +159,7 @@ function _hi_probe_launch() {
   [ -n "$container_bin" ] && _hi_probe_start "$_HI_PROBE_DIR/containers" _hi_probe "$container_bin" container ls -q
   ((nomad)) && _hi_probe_start "$_HI_PROBE_DIR/nomad" _hi_probe nomad job status
   # kube counts through targets.sh, whose list_kube owns the "which pods count
-  # as reachable" rule (and brings its own probe timeout). docker/nomad stay
-  # direct: their counts answer a different question than the listers do.
+  # as reachable" rule; docker/nomad counts answer a different question
   ((kube)) && _hi_probe_start "$_HI_PROBE_DIR/kube" sh "$_HI_TARGETS" kube
   return 0
 }
@@ -196,9 +182,8 @@ function identity() {
   _hi_probe_launch
   _hi_probe_wait
 
-  # No temp dir means nothing to read or remove. Below it the probe file's
-  # existence *is* the answer - _hi_probe_start creates it before backgrounding
-  # and the wait is done - so no flags are tracked beside the files.
+  # No temp dir means nothing to read or remove; below it the probe file's
+  # existence *is* the answer, so no flags are tracked beside the files.
   if [ -n "$_HI_PROBE_DIR" ]; then
     if [ -f "$_HI_PROBE_DIR/containers" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/containers"
@@ -207,9 +192,8 @@ function identity() {
     if [ -f "$_HI_PROBE_DIR/nomad" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/nomad"
       lines=("${lines[@]:1}") # drop the header row
-      # zero left is an unreachable/idle nomad the same way it looks to
-      # `nomad job status` itself - nothing to say, so the cell stays hidden
-      # rather than reporting "Jobs: 0"
+      # zero is an unreachable/idle nomad: the cell stays hidden rather than
+      # reporting "Jobs: 0"
       ((${#lines[@]} > 0)) && jobs="Jobs: ${#lines[@]}"
     fi
     if [ -f "$_HI_PROBE_DIR/kube" ]; then
@@ -233,8 +217,7 @@ function identity() {
 function banner() {
   [[ "${_HI_HEADER_BANNER:-1}" == 0 ]] && return 0
   local label="$1" color="${2:-$BRGREEN}" changes="" prefix="${3:-}" changes_w=0
-  # twice a session for a count that cannot change between: ~10ms of
-  # `git status`, computed once and kept
+  # ~10ms of `git status`, computed once and kept for both banners
   if [ -d "$_HI_ROOT/.git" ]; then
     if [ -z "${_HI_BANNER_CHANGES+x}" ]; then
       local -a lines
@@ -249,8 +232,8 @@ function banner() {
     changes="$BRYELLOW$_HI_BANNER_CHANGES $_HI_GLYPH_AHEAD "
     # columns, not ${#} bytes (GLOSSARY: HI.12): the digits, then "␣↑␣"
     changes_w=$((${#_HI_BANNER_CHANGES} + 3))
-    # the Online (local) banner only: a remote session's Connected banner
-    # describes the target, and the disconnect banner stays as-is
+    # the Online (local) banner only: a remote Connected banner describes the
+    # target, and the disconnect banner stays as-is
     if [ "$label" = Online ] && [ -n "${_HI_BANNER_BRANCH:-}" ]; then
       changes+="($_HI_BANNER_BRANCH) "
       changes_w=$((changes_w + ${#_HI_BANNER_BRANCH} + 3))
@@ -277,31 +260,15 @@ function banner() {
   printf '%b\n' " $changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
-# tmux eats the DCS passthrough that common/osc52.sh and common/notify.sh wrap
-# their escapes in unless `allow-passthrough` is on, and it has been off by
-# default since the option arrived in tmux 3.3. Nothing fails when it is off:
-# `hi_copy` exits 0, the escape is swallowed on the way past, and the paste
-# afterwards hands back the previous clipboard. That is the "hi_copy does
-# nothing" report, answered here before it is filed.
-#
-# Three conditions, all of them necessary. A tmux has to be in the way ($TMUX,
-# not $TERM: tmux leaves TERM as screen-*, the same reason osc52.sh tests it
-# first). At least one of the two features it would mute has to be on, since
-# there is nothing to warn a user about who turned both off. And that tmux has
-# to say the option is not set.
-#
-# `show -Apv`, not `show -g`: allow-passthrough is a *pane* option, so the
-# pane's own value is the one that governs and -A includes the global it
-# inherits. A tmux too old to have the option answers nothing at all, and
-# nothing is the right thing to say back - there is no setting to point at, and
-# the line would name a fix that does not exist there. `all` counts as on: it
-# is the wider of the two yes values, allowing passthrough from an invisible
-# pane as well.
-#
-# No _HI_HEADER_* toggle of its own, unlike every row above. This one appears
-# only where something is already broken, so the way to be rid of it is to fix
-# the tmux or to turn off the features it is about - both of which silence it
-# by answering it.
+# tmux swallows the DCS passthrough osc52.sh and notify.sh wrap their escapes
+# in unless `allow-passthrough` is on (off by default since tmux 3.3), and
+# nothing fails visibly - that is the "hi_copy does nothing" report, answered
+# here before it is filed. Three conditions: a tmux in the way ($TMUX, not
+# $TERM), at least one of the two features on, and the option not set.
+# `show -Apv`: allow-passthrough is a *pane* option, -A includes the inherited
+# global; a tmux too old to have it answers nothing, and nothing is the right
+# thing to say back. `all` counts as on. No _HI_HEADER_* toggle: this row only
+# appears where something is broken, and fixing it silences it.
 function passthrough_check() {
   local value
   [ -n "${TMUX:-}" ] || return 0
@@ -324,32 +291,20 @@ function hi_header() {
   [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info
   [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity
   [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check
-  # last, so the one line that says something is wrong is the one left next to
-  # the prompt. Connect only: load.sh's disconnect calls banner directly, and
-  # twice a session is a nag rather than an answer.
+  # last, so the one line that says something is wrong sits next to the
+  # prompt. Connect only: load.sh's disconnect calls banner directly.
   passthrough_check
 }
 
-# package priorities, lowest to highest (more can be added).
-#
-# A priority says how much you want to hear about a tool, and
-# `$_HI_PACKAGES_MIN_PRIORITY` is the dial: it gates display, so raising it
-# trims the decorative tiers before the ones that can tell you something is
-# wrong. Every tier speaks when the tool is missing, which is the point - a
-# target you visit often is exactly where a nudge to install your own
-# preferred tools belongs, and one that stays quiet about them never nudges.
-#
-# The dial ships at 1, not 0: tier 0 is trivia by its own description, and a
-# stock connect is a better length without it. Nothing is lost - a floor of 0
-# is a setting like any other, and asks for the tier back.
-#
-# Tier 4 is the single exception, and the only `hide` left in the table: it is
-# the core-tool tier, where being present is not news and being absent means
-# this box is bare. Printing 57 `ok` rows on every healthy target to catch that
-# is the wrong trade, so it stays silent until it has something to say.
+# Package priorities, lowest to highest. A priority says how much you want to
+# hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and ships at 1,
+# so tier 0 (trivia) is hidden until asked for. Every tier speaks when the
+# tool is missing - a target you visit often is where the nudge belongs.
+# Tier 4 is the exception and the only `hide`: core tools, where present is
+# not news and absent means the box is bare.
 #
 # The numbered lines below are scraped verbatim by scripts/packages_preview.sh
-# (the run immediately above _HI_YES, parentheticals dropped), so keep the
+# (the run directly above _HI_YES, parentheticals dropped): keep the
 # "# <n> <meaning> (<examples>)" shape and add nothing between them and the
 # table.
 # 0 platform and trivia (sw_vers, netstat)
@@ -362,12 +317,12 @@ _HI_YES=("$BLUE" "$BRCYAN" "$GREEN" "$BRGREEN" hide "$BRGREEN")
 _HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRYELLOW" "$YELLOW" "$BRRED")
 
 # For each "cmd:priority[,...]": the highest-priority installed package (or the
-# first, if none), colored and marked per above. The marks themselves live in
-# core.sh's _hi_choose_glyphs, beside the rest of the glyph set.
+# first, if none), colored and marked per above. The marks live in core.sh's
+# _hi_choose_glyphs.
 function check_line() {
   local pair cmd priority color best best_priority best_idx=0 idx=0 found=0 symbol rendered
-  # word-split on the local IFS, not `read -ra <<<`: that here-string is a pipe
-  # (temp file before bash 5.1) per package line, ~30 a header
+  # word-split on the local IFS, not `read -ra <<<`: that here-string is a
+  # temp file before bash 5.1, per package line
   local IFS=','
   # shellcheck disable=SC2206 # deliberate split on IFS; the file has no globs
   local -a pairs=($1)
@@ -401,17 +356,14 @@ function check_line() {
   fi
   rendered="$color $best $symbol"
   # 4 = the "| " lead plus the spaces around the item; the mark's width comes
-  # from the chosen set (ASCII "ok" is two columns, ✓ is one)
+  # from the chosen glyph set (ASCII "ok" is two columns, ✓ is one)
   [[ "$color" == hide ]] || visible+=("$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered")
 }
 
 # print sorted package results limited by _HI_MAX_WIDTH, from
-# $_HI_PACKAGES_MIN_PRIORITY up
-#
-# The floor lives here rather than in check_line on purpose: check_line renders,
-# full_check decides what to print. scripts/packages_preview.sh calls check_line
-# directly and needs the rows the floor hides, so it can say which ranks went
-# quiet instead of dropping them without a word.
+# $_HI_PACKAGES_MIN_PRIORITY up. The floor lives here, not in check_line:
+# scripts/packages_preview.sh calls check_line directly and needs the rows
+# the floor hides.
 function full_check() {
   local line priority width_item rendered count=0 width=0
   local min="${_HI_PACKAGES_MIN_PRIORITY:-1}"
@@ -421,8 +373,8 @@ function full_check() {
   done <"$_HI_PACKAGES"
   ((${#visible[@]})) || return 0
 
-  # GLOSSARY: HI.11 - numeric key over opaque bytes; unpinned, BSD
-  # sort under UTF-8 printed nothing and the check rendered empty.
+  # GLOSSARY: HI.11 - numeric key over opaque bytes; unpinned, BSD sort under
+  # UTF-8 printed nothing.
   while IFS=$'\x1f' read -r priority width_item rendered; do
     ((priority >= min)) || continue
     if ((count == 0)) || ((width + width_item > ${_HI_MAX_WIDTH:-80})); then # start of a row
@@ -434,7 +386,6 @@ function full_check() {
     width=$((width + width_item))
     ((++count))
   done < <(printf '%s\n' "${visible[@]}" | LC_ALL=C sort -t $'\x1f' -k1,1nr -s)
-  # guarded: a floor high enough to hide everything printed a bare newline
-  # otherwise, which is a blank line in the header rather than no check at all
+  # guarded: a floor that hides everything printed a bare newline otherwise
   if ((count)); then printf '\n'; fi
 }

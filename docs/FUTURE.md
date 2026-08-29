@@ -35,7 +35,7 @@ session, delete only on a definitive exit or a configurable timeout.
   weaker — add a case for dropped-with-`--session` keeping the tree.
 - Reaping defaults to zero footprint: a tree older than
   `_HI_PERSIST_TIMEOUT` (unset means keep until `hi --session <name>
-  --end`) is deleted the moment the _next_ `hi` touches that target. A
+--end`) is deleted the moment the _next_ `hi` touches that target. A
   detached watchdog (`sh -c 'sleep N; rm -rf ...' &`) is the stronger
   opt-in. SECURITY.md's _Footprint and cleanup_ needs both modes described.
 - Reattachment rides whatever multiplexer the target already has: `tmux` →

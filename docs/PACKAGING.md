@@ -49,11 +49,11 @@ _new_ process with no tree to derive from — a login shell, tmux's
 `update-environment`, another machine's `hi` probing this one — has nothing
 else to read.
 
-| channel                | tree                   | how `_HI_HOME` gets set                                    |
-| ---------------------- | ---------------------- | ---------------------------------------------------------- |
-| AUR, deb, rpm, apk     | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`      |
-| Homebrew               | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes |
-| devcontainer Feature   | `/usr/share/say-hi`    | the same `/etc/profile.d/say-hi.sh` - it calls `install_tree` too |
+| channel              | tree                   | how `_HI_HOME` gets set                                           |
+| -------------------- | ---------------------- | ----------------------------------------------------------------- |
+| AUR, deb, rpm, apk   | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`             |
+| Homebrew             | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes        |
+| devcontainer Feature | `/usr/share/say-hi`    | the same `/etc/profile.d/say-hi.sh` - it calls `install_tree` too |
 
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this and
 is the single decider of what a packaged install contains —
@@ -64,17 +64,17 @@ prefix; `tests/packaging/packaging_test.sh` fails if that copy drifts.
 
 ## Layout
 
-| path                 | what it is                                                                          |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                       |
-| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it |
-| `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies         |
-| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source              |
-| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes    |
-| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                  |
-| `aur/say-hi-git/`    | the same package built from `main`                                                  |
-| `homebrew/say-hi.rb` | the tap formula                                                                     |
-| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                             |
+| path                 | what it is                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                        |
+| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it  |
+| `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies          |
+| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source               |
+| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes     |
+| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                   |
+| `aur/say-hi-git/`    | the same package built from `main`                                                   |
+| `homebrew/say-hi.rb` | the tap formula                                                                      |
+| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                              |
 | `devcontainer/src/`  | the devcontainer Feature, one directory per feature (the publishing action's layout) |
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the `hi.sh` a
@@ -337,11 +337,11 @@ A user adds it to their `devcontainer.json`:
 }
 ```
 
-| option           | default        | what it does                                                                       |
-| ---------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `version`        | `latest`       | the newest release, a release version like `1.0.0`, or `main` for the branch         |
-| `preset`         | `everything`   | which of [CONFIGURATION.md's presets](CONFIGURATION.md#presets) the user's settings start from |
-| `configureShell` | `true`         | run `hi --install` for `$_REMOTE_USER`; off leaves `/usr/bin/hi` working and the terminal unstyled |
+| option           | default      | what it does                                                                                       |
+| ---------------- | ------------ | -------------------------------------------------------------------------------------------------- |
+| `version`        | `latest`     | the newest release, a release version like `1.0.0`, or `main` for the branch                       |
+| `preset`         | `everything` | which of [CONFIGURATION.md's presets](CONFIGURATION.md#presets) the user's settings start from     |
+| `configureShell` | `true`       | run `hi --install` for `$_REMOTE_USER`; off leaves `/usr/bin/hi` working and the terminal unstyled |
 
 `packaging/devcontainer/src/say-hi/install.sh` is deliberately thin, and the
 packaging suite keeps it that way. It downloads the release source tarball,

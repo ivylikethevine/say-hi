@@ -1,15 +1,14 @@
 #!/bin/fish
 
 # === start required configuration ===
-# The tree from this file's own path, and only when unset. GLOSSARY: HI.33
-# Through `sh`, not fish's `cd`/`pwd`: a builtin-only command substitution runs
-# in the *current* process (so a bare `cd` moves the caller's cwd), and fish's
-# `pwd` is logical where every other dialect here is physical.
+# The tree from this file's own path, only when unset. Through `sh`, not
+# fish's `cd`/`pwd`: a builtin-only command substitution runs in the current
+# process, and fish's `pwd` is logical. GLOSSARY: HI.33
 if not set -q _HI_HOME
   set -gx _HI_HOME (command sh -c 'cd -P "$1/../.." && pwd' sh (status dirname))
 end
-# GLOSSARY: HI.07 - defaulted, never assigned, so bare reads are
-# safe and settings.sh still overrides. Mirrors core.sh's _HI_TOGGLES.
+# GLOSSARY: HI.07 - defaulted, never assigned, so settings.sh still overrides.
+# Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS \
@@ -18,29 +17,27 @@ for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
 end
 set -e _hi_toggle
 # the overlay's home (fish can't expand the XDG default); only when unset, so
-# hi.sh can point a target at its shipped copy.
+# hi.sh can point a target at its shipped copy
 if not set -q _HI_CONFIG_DIR
   set -l _hi_cfg_base ~/.config
   set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
   set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 end
-# settings ahead of paths.sh, whose gate reads them - plain `export NAME=value`
-# lines, which fish parses natively
+# settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
+# lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh
   source $_HI_CONFIG_DIR/settings.sh
 end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
 
-# core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored the way the toggles
-# above are (fish cannot read a bash array); tests/common/exports_test.sh pins
-# both name-for-name. The first is what a child of this shell inherits once
-# the loop at the end of the required block has run. The second is what
-# hi.sh resolved on the client and load.sh wrote into the session rc as plain
-# globals - so the bash this file shells out to for the header and the colours
-# has to be handed them, which is __hi_bash's whole job. `-f` (function
-# scope, fish 3.4+) rather than `-l`: a `-l` inside the `for` is scoped to
-# that block and is gone by the time the command runs. GLOSSARY: HI.47
+# core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored (fish cannot read a
+# bash array); exports_test.sh pins both. The first is what a child inherits
+# after the un-export loop at the end of the required block. The second is
+# what load.sh wrote into the session rc as plain globals, so the bash this
+# file shells out to has to be handed them - __hi_bash's job. `-f` (function
+# scope) rather than `-l`: a `-l` inside the `for` is gone by the time the
+# command runs. GLOSSARY: HI.47
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE
 set -g _HI_SESSION_VARS _HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
@@ -52,11 +49,9 @@ function __hi_bash --description 'bash -c <script>, with the session values hi k
   command bash -c $argv
 end
 
-# settings/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns
-# each into an opaque function with no preview of what it expands to. `alias`
-# with no args lists them as `alias name 'value'`, itself valid fish syntax, so
-# swapping the leading word for `abbr -a --` and eval'ing it reuses fish's own
-# quoting round-trip rather than re-escaping by hand.
+# fish turns each shipped `alias` into an opaque function. `alias` with no
+# args lists them as `alias name 'value'` - valid fish syntax - so swapping the
+# leading word for `abbr -a --` reuses fish's own quoting round-trip.
 function hi_abbr_aliases --description 'add a fish abbr for every alias hi defined, so it expands in place'
   for hi_abbr_line in (alias)
     set -l hi_abbr_name (string match -rg '^alias (\S+) ' -- $hi_abbr_line)
@@ -65,36 +60,21 @@ function hi_abbr_aliases --description 'add a fish abbr for every alias hi defin
     eval "abbr -a -- "(string replace -r '^alias \S+ ' "$hi_abbr_name " -- $hi_abbr_line)
   end
 end
-# Off by default: turning every alias into an abbr changes what your command
-# line and history literally look like. Fish-only, so it is not in core.sh's
-# _HI_TOGGLES; `hi_abbr_aliases` is still there to call by hand.
-#
-# Showing the expansion as autosuggestion text instead - so nothing is
-# rewritten - was investigated and is not available: fish generates
-# autosuggestions from history and completions only. As of 4.8 the surface is
-# `$fish_color_autosuggestion` (styling) and `commandline --showing-suggestion`
-# (a query); there is no setter, so nothing can put arbitrary text there.
-#
-# It is also unnecessary, which is the better half of the answer. fish's own
-# `alias` builtin records the body as the function's description, so the
-# completion pager already prints `hi_copy  alias hi_copy=sh .../osc52.sh` when
-# you TAB the name - the expansion, visible, with the command line untouched.
-# That is the default behaviour for every alias settings/aliases.sh defines; the
-# abbr above is only for people who want the line itself rewritten.
+# Off by default: an abbr rewrites your command line and history. Fish-only,
+# so not in core.sh's _HI_TOGGLES. Showing the expansion as autosuggestion
+# text instead is not possible (fish has no setter for it) and unnecessary:
+# fish's `alias` records the body as the function's description, so the
+# completion pager already shows it on TAB.
 set -q _HI_ENABLE_FISH_ALIAS_ABBR; or set -gx _HI_ENABLE_FISH_ALIAS_ABBR 0
 test "$_HI_ENABLE_FISH_ALIAS_ABBR" = 1; and hi_abbr_aliases
 
-# Both halves carry the opposite condition, so exactly one runs per TAB. The
-# negation is not symmetry for its own sake: without it `hi --<TAB>` fires the
-# target sweep as well, and a flag list must never wait on a docker daemon or
-# an ssh config - the promise targets.sh's own flags branch makes by exiting
-# before the cache and the probes, and the one bash.sh and zsh.zsh keep by
-# answering `-*` words without touching the target cache.
-# -k keeps targets.sh's order - recent targets first - instead of sorting
+# Opposite conditions, so exactly one runs per TAB: without the negation
+# `hi --<TAB>` would fire the target sweep too, and a flag list must never
+# wait on a docker daemon (the promise targets.sh, bash.sh and zsh.zsh keep).
+# -k keeps targets.sh's order - recent targets first - instead of sorting.
 complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
-# hi's own options, from the same file rather than a second list here - the two
-# would drift, and targets.sh is the only one of the three fish can run.
+# hi's own options from the same file, so the two lists cannot drift
 complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags)'
 complete exa --wraps eza
@@ -133,10 +113,9 @@ function sudo
   end
 end
 
-# the prompt's end character, mirroring core.sh's _hi_prompt_end (fish can't
-# call it): fish setting, then all-three, then default. Empty counts as unset.
-# Whether either setting actually spoke is remembered, because root's '#' below
-# replaces the *default* only - the same rule bash's shipped `\$` follows.
+# the prompt's end character, mirroring core.sh's _hi_prompt_end: fish
+# setting, then all-three, then default; empty counts as unset. Whether a
+# setting spoke is remembered, because root's '#' replaces the *default* only.
 set -g _hi_prompt_end '|'
 set -g _hi_prompt_end_explicit 0
 set -q _HI_PROMPT_END; and test -n "$_HI_PROMPT_END"; and set -g _hi_prompt_end $_HI_PROMPT_END; and set -g _hi_prompt_end_explicit 1
@@ -146,15 +125,15 @@ set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_p
 # entirely when disabled, leaving fish's own default prompt in place
 if test "$_HI_DISABLE_PROMPT" != 1
 
-# deference, chosen in settings.sh - core.sh's _hi_wants_starship rule, which
-# fish can't call; a missing starship falls back to hi's prompt below
+# core.sh's _hi_wants_starship rule (fish can't call it); a missing starship
+# falls back to hi's prompt below
 if test "$_HI_PROMPT" = starship; and command -q starship
 starship init fish | source
 else
 
 # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
 # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's
-# own - renders the same prompt with no escapes in it.
+# own - renders with no escapes
 if test -n "$NO_COLOR"
   function set_color
   end
@@ -183,9 +162,8 @@ function fish_prompt --description 'Write out the prompt'
   set -l suffix " $_hi_prompt_end"
   if functions -q fish_is_root_user; and fish_is_root_user
     set -q fish_color_cwd_root; and set color_cwd $fish_color_cwd_root
-    # root's '#' is the *default* giving way, not an override: bash's shipped
-    # `\$` renders as # for root the same way, and an explicit setting still
-    # wins there. A separator somebody chose is honoured for root too.
+    # root's '#' is the *default* giving way (bash's shipped `\$` does the
+    # same); an explicit setting is honoured for root too
     test "$_hi_prompt_end_explicit" = 1; or set suffix ' #'
   end
 
@@ -205,9 +183,8 @@ function fish_prompt --description 'Write out the prompt'
 end
 
 # OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
-# common/bash.sh's ps1() and common/zsh.zsh's precmd emit. fish 4 emits both
-# itself, so only fish 3 gets hi's copy - two sets of marks would confuse the
-# terminal about where a prompt begins.
+# common/bash.sh's ps1() emits. fish 4 emits both itself, so only fish 3 gets
+# hi's copy - two sets of marks would confuse the terminal.
 set -g _hi_marks_a ''
 set -g _hi_marks_b ''
 if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
@@ -231,22 +208,19 @@ end
 end
 
 # The fish half of core.sh's _hi_unexport: every _HI_* name not in
-# _HI_CHILD_ENV loses its export flag, value kept (`set -gu NAME $NAME` -
-# fish has no way to flip the flag alone). Last in the required block, after
-# every alias has expanded its paths and the colour bridge above has run.
-# `string match` with a glob, not -r: a regex match prints the matched text,
-# which for '^_HI_' is four characters and not the name. GLOSSARY: HI.47
+# _HI_CHILD_ENV loses its export flag, value kept (`set -gu NAME $NAME` - fish
+# cannot flip the flag alone). Last in the required block, after every alias
+# has expanded its paths. `string match` with a glob, not -r: a regex match
+# prints only the matched text. GLOSSARY: HI.47
 for __hi_n in (set -n | string match '_HI_*')
   contains -- $__hi_n $_HI_CHILD_ENV; or set -gu $__hi_n $$__hi_n
 end
 set -e __hi_n
 # === end required configuration ===
 
-# hi's git segment: the fish half of what common/git_prompt.sh does for bash
-# and zsh, and tests/hi/prompt_test.sh pins its glyphs and colors against
-# core.sh. Product, not taste, so it is unconditional - there is no toggle
-# for it, the way there is for the other per-shell personal preferences
-# docs/CONFIGURATION.md explains hi stopped shipping.
+# hi's git segment: the fish half of common/git_prompt.sh; prompt_test.sh pins
+# its glyphs and colors against core.sh. Product, not taste, so unconditional
+# (docs/CONFIGURATION.md on what hi stopped shipping).
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes
@@ -261,7 +235,7 @@ set -g __fish_git_prompt_color_invalidstate red
 set -g __fish_git_prompt_color_cleanstate brgreen
 
 # the ASCII fallback _hi_choose_glyphs gives bash/zsh, with _HI_ASCII
-# overriding the locale probe both ways as everywhere else
+# overriding the locale probe both ways
 if test "$_HI_ASCII" = 1
     or begin
         test "$_HI_ASCII" != 0

@@ -2,9 +2,8 @@
 # set -euo pipefail # cannot be enabled: an interactive shell would exit on the first error
 
 # === start required configuration ===
-# $_HI_HOME first, this file's own path as the fallback: hi.sh's preamble and
-# install.sh's rc line both set it before this file is sourced, so the
-# derivation is for a hand-written `source`. GLOSSARY: HI.33
+# $_HI_HOME first, this file's own path as the fallback for a hand-written
+# `source` (hi.sh and install.sh's rc line set it). GLOSSARY: HI.33
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 # shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
@@ -16,14 +15,11 @@ source "$_HI_ALIASES"
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
-# C2: primed unconditionally, not only when hi's own prompt is on, so a
-# custom PS1 in the user's own bash.sh (sourced at the end of hi's,
-# docs/CONFIGURATION.md) can still use hi's per-host/per-user color hashing
-# with _HI_DISABLE_PROMPT=1 - $_HI_HOST_ESC/$_HI_USER_ESC are the ANSI
-# escapes ready to embed, the way this file's own PS1 below does; core.sh's
-# _hi_prime_identity stops at the color names ($_HI_HOST_COLOR/$_HI_USER_COLOR
-# - what zsh's own prompt wants) since zsh never uses the escape form, so bash
-# primes its own on top.
+# C2: primed unconditionally, so a custom PS1 in the user's own bash.sh
+# (sourced at the end of this file) can use hi's per-host/per-user color
+# hashing with _HI_DISABLE_PROMPT=1. $_HI_HOST_ESC/$_HI_USER_ESC are the
+# ready-to-embed escapes; core.sh's _hi_prime_identity stops at the color
+# names (zsh's %F{} wants those), so bash primes its own on top.
 _hi_prime_identity
 _hi_host_escape >/dev/null
 _hi_user_escape >/dev/null
@@ -33,10 +29,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
   HI_PS1_END=""
   _hi_prompt_end BASH HI_PS1_END
   if _hi_has_color; then
-    # the *_var forms, not $( ): both escapes were primed unconditionally
-    # above, so this is a cache read, not a fresh $( ) fork. Spelled empty
-    # first so shellcheck sees the `printf -v` assignment (SC2154); file
-    # scope, so no `local`.
+    # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
+    # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
     _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
     _hi_user_escape_var _hi_ps1_u
     _hi_host_escape_var _hi_ps1_h
@@ -49,28 +43,23 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
 fi
 
 if ! shopt -oq posix; then
-  # $BASH_COMPLETION_VERSINFO is the loader's own sentinel: the host's stock rc
-  # often sourced it before hi's rc runs, and re-parsing the
-  # ~2000-line script costs 20-50ms a shell for nothing
+  # $BASH_COMPLETION_VERSINFO is the loader's own sentinel: the host's stock
+  # rc often sourced it already, and re-parsing costs 20-50ms a shell
   # shellcheck disable=SC1091
   [ -n "${BASH_COMPLETION_VERSINFO-}" ] ||
     source /usr/share/bash-completion/bash_completion 2>/dev/null ||
     source /etc/bash_completion 2>/dev/null
 fi
 
-# complete `hi` from the same target list zsh/fish use, and make `exa` complete
-# the way `eza` does, whatever bash-completion bound to it.
+# complete `hi` from the same target list zsh/fish use, and make `exa`
+# complete the way `eza` does.
 #
 # targets.sh file-caches for $_HI_TARGETS_TTL seconds, but finding that out is
-# still a fork and an exec. Holding the names in the shell for the same window
-# makes it free. Not for the *same* window, though: this one starts when this
-# shell last read the file, and the file's started when it was written, so a
-# memo filled from an already-stale file holds it for a full TTL on top of
-# what it had already spent - worst case is close to twice the TTL, and only
-# _HI_TARGETS_TTL=0 turns both layers off. Nothing invalidates either; a
-# container started inside the window waits for the clock. $SECONDS is the
-# stamp because it is a builtin; -1 is "never filled", and a TTL of 0 refreshes
-# every time, as targets.sh reads it. GLOSSARY: HI.26
+# still a fork; holding the names in the shell for the same window makes it
+# free. The two windows are offset (this one starts at the last read, the
+# file's at its write), so the worst case is close to twice the TTL; only
+# _HI_TARGETS_TTL=0 turns both off. $SECONDS because it is a builtin; -1 is
+# "never filled". GLOSSARY: HI.26
 _HI_TARGET_NAMES=""
 _HI_TARGET_NAMES_AT=-1
 
@@ -86,17 +75,15 @@ function _hi_target_names() {
   _HI_TARGET_NAMES_AT="$SECONDS"
 }
 
-# On a warm cache _hi_target_names does nothing, and `compgen` through a
-# process substitution then cost a fork plus an `eval` per candidate on every
-# TAB; matching in-shell costs neither. targets.sh already drops names carrying
-# `*` or `?`, and `set -f` is belt to that: names are matched, never globbed.
+# Matched in-shell: `compgen` through a process substitution cost a fork plus
+# an `eval` per candidate on every TAB. targets.sh already drops names with
+# `*` or `?`; `set -f` is belt to that.
 function _hi_complete() {
   local cur="${COMP_WORDS[COMP_CWORD]}" n
   COMPREPLY=()
-  # A word starting with `-` is asking for hi's own options, never a target, so
-  # this answers without touching the target cache or its probes. Uncached on
-  # purpose: the roster is a dozen printfs in targets.sh, cheaper than the
-  # bookkeeping a cache would need.
+  # A `-` word asks for hi's own options, never a target, so this answers
+  # without touching the target cache or its probes. Uncached on purpose: the
+  # roster is a dozen printfs in targets.sh.
   if [[ "$cur" == -* ]]; then
     for n in $(sh "$_HI_TARGETS" flags); do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
@@ -129,12 +116,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # GLOSSARY: HI.32
     eval "$(starship init bash)"
   else
-    # Readline counts every character of $PS1 it was not told to ignore, so an
-    # unmarked color escape makes bash believe the line is wider than it prints
-    # - and past the real edge the typed line wraps back over the prompt. \[ \]
-    # says "no width" for the static half; the git segment reaches PS1 through
-    # a variable, expanded *after* bash decodes those escapes, so it carries
-    # the bytes they decode to instead: \001 ... \002.
+    # Readline counts every $PS1 character it was not told to ignore, so an
+    # unmarked color escape makes the typed line wrap back over the prompt.
+    # \[ \] marks the static half; the git segment reaches PS1 through a
+    # variable, expanded *after* bash decodes those, so it carries the bytes
+    # they decode to instead: \001 ... \002.
     function _hi_ps_mark() { # <var>
       local s="${!1}" out="" esc
       while [[ "$s" == *$'\e['* ]]; do
@@ -146,15 +132,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       done
       printf -v "$1" '%s' "$out$s"
     }
-    # Semantic prompt marks (OSC 133) and cwd reporting (OSC 7), for
-    # terminals that read them - kitty, WezTerm, ghostty, foot, iTerm2: jump
-    # between prompts, select one command's output, open a new tab in this
-    # directory. D carries the last status and A opens the prompt, both from
-    # PROMPT_COMMAND; B closes it at the end of PS1; C, "command starts", is
-    # PS0's job and PS0 is bash 4.4 - on 3.2 the marks simply lack it. Raw,
-    # never multiplexer-wrapped: a terminal that does not know an OSC drops
-    # it, and tmux passes 133 through on its own. \[ \] keeps readline from
-    # counting them. _HI_DISABLE_MARKS=1 turns the lot off.
+    # Semantic prompt marks (OSC 133) and cwd reporting (OSC 7) for terminals
+    # that read them (kitty, WezTerm, ghostty, foot, iTerm2). D (last status)
+    # and A from PROMPT_COMMAND, B at the end of PS1, C from PS0 (bash 4.4+;
+    # 3.2 simply lacks it). Raw, never multiplexer-wrapped: an unknown OSC is
+    # dropped, and tmux passes 133 through. _HI_DISABLE_MARKS=1 turns it off.
     _hi_marks_a="" _hi_marks_b=""
     if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
       _hi_marks_a=$'\[\e]133;A\a\]'
@@ -182,23 +164,18 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   fi
 fi
 
-# Last in the required block, once every alias above has expanded its paths:
-# nothing started from this shell inherits hi's namespace beyond core.sh's
-# _HI_CHILD_ENV. The overlay's bash.sh below runs after this and can `export`
-# any name it wants a child to see. GLOSSARY: HI.47
+# Last in the required block, once every alias has expanded its paths:
+# children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.
+# The overlay's bash.sh below can still `export` anything. GLOSSARY: HI.47
 _hi_unexport
 # === end required configuration ===
 
-# The guard is settings/aliases.sh's: $_HI_CONFIG_DIR pointed at common/ would make
-# this file source itself forever, and a hang is worse than an error.
-#
-# The directive is the same hazard seen statically, and it is NOT optional.
-# .shellcheckrc sets source-path=SCRIPTDIR, so under `shellcheck -x` the
-# basename below resolves against this file's own directory - to this file -
-# and shellcheck follows it into itself regardless of the runtime guard above,
-# re-parsing until it is OOM-killed (measured: ~33GB before the kernel stepped
-# in). /dev/null is what stops the follow; common/core.sh:45 does the same for
-# $_HI_CONFIG_DIR/settings.sh.
+# The path test stops $_HI_CONFIG_DIR pointed at common/ from sourcing this
+# file forever (a hang, not an error). The directive is the same hazard seen
+# statically, and it is NOT optional: .shellcheckrc's source-path=SCRIPTDIR
+# makes `shellcheck -x` resolve the basename to this file and follow it into
+# itself until OOM-killed. core.sh and aliases.sh guard their overlay sources
+# the same way.
 # shellcheck source=/dev/null # user config, may not exist
 [[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/common/bash.sh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"

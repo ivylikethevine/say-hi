@@ -75,18 +75,18 @@ run or only reports. Ported from sharerr's `docs/CONTRIBUTING.md`, which keeps
 the same table for the same reason — sixteen workflow files is more than the
 per-job comments in `ci.yml` are convenient to read through by eye.
 
-| Job | Runs on your PR | Gate or advisory? |
-| --- | --- | --- |
-| `fast suites (ubuntu-latest)` (also runs the lint group) | Skipped on a workflow-only diff | Gate |
-| `fast suites (macos-latest)` | Skipped on a workflow-only diff | Gate |
-| `workflow lint` (actionlint + zizmor) | Always | Gate |
-| `advisory lint` (markdownlint, hadolint, demo-staleness) | Always | Advisory — reports, never fails the job |
-| `hot-path benchmarks` | Skipped on a workflow-only diff | Gate |
-| `package build (deb, rpm, apk)` | Skipped on a workflow-only diff | Gate |
-| `e2e (ssh, docker)` | After the ubuntu fast suite passes; skipped on a workflow-only diff | Gate |
-| `e2e (podman, nomad, kube)` | After the ubuntu fast suite passes; skipped on a workflow-only diff | Gate |
-| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)` | Push to `main` only, after both fast-suite jobs pass — never on a PR | Gate |
-| `fast suites (Windows client)` | Push to `main` only — never on a PR | Gate, but see below |
+| Job                                                      | Runs on your PR                                                      | Gate or advisory?                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| `fast suites (ubuntu-latest)` (also runs the lint group) | Skipped on a workflow-only diff                                      | Gate                                    |
+| `fast suites (macos-latest)`                             | Skipped on a workflow-only diff                                      | Gate                                    |
+| `workflow lint` (actionlint + zizmor)                    | Always                                                               | Gate                                    |
+| `advisory lint` (markdownlint, hadolint, demo-staleness) | Always                                                               | Advisory — reports, never fails the job |
+| `hot-path benchmarks`                                    | Skipped on a workflow-only diff                                      | Gate                                    |
+| `package build (deb, rpm, apk)`                          | Skipped on a workflow-only diff                                      | Gate                                    |
+| `e2e (ssh, docker)`                                      | After the ubuntu fast suite passes; skipped on a workflow-only diff  | Gate                                    |
+| `e2e (podman, nomad, kube)`                              | After the ubuntu fast suite passes; skipped on a workflow-only diff  | Gate                                    |
+| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)`        | Push to `main` only, after both fast-suite jobs pass — never on a PR | Gate                                    |
+| `fast suites (Windows client)`                           | Push to `main` only — never on a PR                                  | Gate, but see below                     |
 
 "Skipped on a workflow-only diff" is `changes.yml`: a PR that only touches
 `.github/workflows/**` can't move any of these jobs' results, so they report

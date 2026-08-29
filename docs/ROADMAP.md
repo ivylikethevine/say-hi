@@ -78,10 +78,10 @@ release](#quick-wins), [Homebrew tap](#moderate) and
     is also what Scorecard's Branch-Protection check is waiting on: it scores
     in tiers, and "require ≥1 status check" is the whole of tier 3 (6→8 of
     10). Confirm in _Settings → Branches → Branch protection rules_.
-  - Stop there. Tier 4 needs ≥2 reviewers *and* code-owner review, which a
+  - Stop there. Tier 4 needs ≥2 reviewers _and_ code-owner review, which a
     solo maintainer can't satisfy, and Scorecard requires a tier fully met
-    before the next one scores anything — so tier 5's *dismiss stale
-    reviews*/*include administrators* earns nothing while tier 4 is unmet.
+    before the next one scores anything — so tier 5's _dismiss stale
+    reviews_/_include administrators_ earns nothing while tier 4 is unmet.
     Concretely: leave _Do not allow bypassing the above settings_ off. Turning
     it on would cost zero points and lock the only maintainer out of merging
     their own PRs.
@@ -151,23 +151,18 @@ and none is a v1.0.0 criterion.
 - [ ] **Outside the repo, once a release exists** — _scope: a badge, a
       questionnaire, a toggle and a check; mostly outside this checkout._
       Listed together so they're not forgotten between the tag and the
-      announcement:
-      - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
-        the in-repo half has shipped:
-        [CII-BEST-PRACTICES-DRAFT.md](CII-BEST-PRACTICES-DRAFT.md) answers
-        all 67 passing-level criteria against this tree, and README's badge
-        block carries the two commented-out lines waiting on a project ID.
-        What's left is outside this checkout — register at bestpractices.dev,
-        transcribe the draft, uncomment the badge — and the tick still means
-        *passing*, which stays blocked on three release-shaped MUST criteria
-        until the first tag ships;
-      - a Repology badge — added to README's badge block already (renders
-        empty for now); the tick still means it's carrying a real version,
-        once deb/rpm/apk, the tap and the AUR do;
-      - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`;
-      - a check that `ubi`/`mise use ubi:` finds `hi.sh` in the release
-        tarball, and a PACKAGING.md line if it needs an `--exe` hint;
-      - `actions/attest-sbom` beside the provenance step.
+      announcement: - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
+      the in-repo half has shipped:
+      [CII-BEST-PRACTICES-DRAFT.md](CII-BEST-PRACTICES-DRAFT.md) answers
+      all 67 passing-level criteria against this tree, and README's badge
+      block carries the two commented-out lines waiting on a project ID.
+      What's left is outside this checkout — register at bestpractices.dev,
+      transcribe the draft, uncomment the badge — and the tick still means
+      _passing_, which stays blocked on three release-shaped MUST criteria
+      until the first tag ships; - a Repology badge — added to README's badge block already (renders
+      empty for now); the tick still means it's carrying a real version,
+      once deb/rpm/apk, the tap and the AUR do; - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`; - a check that `ubi`/`mise use ubi:` finds `hi.sh` in the release
+      tarball, and a PACKAGING.md line if it needs an `--exe` hint; - `actions/attest-sbom` beside the provenance step.
 
 - [ ] **AUR** — _scope: nothing actionable until registration reopens; then
       an account, a key, and one manual first push; outside this checkout._
