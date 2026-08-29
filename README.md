@@ -10,21 +10,28 @@ current state is not a representation of final, published quality.
 ---
 
 <!-- CI status. macOS/Windows/FreeBSD/Windows-client are workflow_call targets
-     invoked from ci.yml, so each one's own run history is dispatch-only and
-     can lag what CI actually ran against main - a status badge in this shape
-     shows the last manual dispatch, not the last CI run. pages.yml already
-     has the badge() machinery to publish a shields endpoint from CI
-     artifacts instead, the way tests.json and package.json do, if that gap
-     is worth closing later. -->
+     invoked from ci.yml, so a badge naming the workflow file itself
+     (img.shields.io/github/actions/workflow/status/.../macos-e2e.yml) reads
+     that workflow's own run list - which workflow_call invocations never
+     enter; only that file's stray workflow_dispatch runs do, so the badge
+     shows the last manual dispatch, sometimes months stale, never the last
+     real CI run. Each call still shows up as its own check-run on the commit
+     ci.yml ran against, under "<ci.yml job name> / <called workflow's job
+     name>" (GitHub composes that name; both halves are plain `name:` keys in
+     ci.yml and the called file, so a rename on either side has to be mirrored
+     into the nameFilter below or the badge goes to "no check runs"). The
+     four badges below read that instead: img.shields.io/github/check-runs,
+     filtered by that exact compound name - live per-job status from the
+     actual CI run, not a shields.io feature specific to reusable workflows. -->
 
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
 ![code size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![macOS](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/macos-e2e.yml?branch=main&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/macos-e2e.yml)
-[![FreeBSD](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/freebsd-e2e.yml?branch=main&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/freebsd-e2e.yml)
-[![Windows](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-e2e.yml?branch=main&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-e2e.yml)
-[![Windows MSYS2](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/windows-client.yml?branch=main&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/windows-client.yml)
+[![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)

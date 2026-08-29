@@ -14,7 +14,7 @@ inputs:
     description: name of the artifact to download
     required: true
   dest-subdir:
-    description: destination directory under ${{ runner.temp }}
+    description: destination directory under runner.temp
     required: true
   found-message:
     description: logged as "<found-message> <run_id>" when a run is found

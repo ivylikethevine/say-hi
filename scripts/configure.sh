@@ -407,6 +407,24 @@ function preset_names() {
   for row in "${_HI_PRESETS[@]}"; do printf '%s ' "${row%%|*}"; done
 }
 
+# preset_shorthand <letter> - the one preset whose name starts with <letter>,
+# or failure for anything but a single character or a letter two names share.
+# Ambiguous or unknown falls through to preset_row's own "no such preset"
+# error rather than guessing, so a typo still gets the full name list back.
+function preset_shorthand() {
+  local row name hit="" hits=0
+  [ "${#1}" -eq 1 ] || return 1
+  for row in "${_HI_PRESETS[@]}"; do
+    name="${row%%|*}"
+    if [ "${name:0:1}" = "$1" ]; then
+      hit="$name"
+      hits=$((hits + 1))
+    fi
+  done
+  [ "$hits" -eq 1 ] || return 1
+  printf '%s' "$hit"
+}
+
 # apply_preset <name> - seed this run's answers with the preset's, one per
 # vocabulary variable (empty for "the default"), so everything asked from here
 # on starts there and a non-interactive run writes exactly the preset.
@@ -434,15 +452,16 @@ function apply_preset() {
 # every question keeps the preset's answer, as a --preset run does.
 function config_preset() {
   [ -t 0 ] || return 0
-  local row name desc reply="" names
-  names="$(preset_names)"
+  local row name desc reply="" shorts="" short
   section "Starting point" "A preset answers the feature, header and prompt questions at once; you can still change any of them after."
   for row in "${_HI_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
-    printf '   %-11s %s\n' "$name" "$desc"
+    printf '   %s) %-11s %s\n' "${name:0:1}" "$name" "$desc"
+    shorts="$shorts${name:0:1}/"
   done
-  read -r -p " Start from a preset? (${names% }, or Enter to keep your current settings) [] " reply || reply=""
+  read -r -p " Start from a preset? (${shorts%/} or the full name, or Enter to keep your current settings) [] " reply || reply=""
   [ -n "$reply" ] || return 0
+  short="$(preset_shorthand "$reply")" && reply="$short"
   apply_preset "$reply" || return 0
   read -r -p " Apply it as is, skipping the questions? (Enter to walk through them) [y/N] " reply || reply=""
   [[ "$reply" =~ ^[Yy] ]] && _HI_PRESET_FINAL=1

@@ -1100,6 +1100,24 @@ function test_apply_preset_rejects_a_stranger() {
   ! apply_preset no-such-preset 2>/dev/null
 }
 
+# preset_shorthand is what config_preset's typed reply goes through before
+# reaching apply_preset - unit-tested directly rather than through the prompt
+# loop it feeds, on the same precedent as apply_preset above: config_preset
+# is `[ -t 0 ]`-gated, and the resolution it does has nothing to do with a tty.
+function test_preset_shorthand_resolves_each_first_letter() {
+  [ "$(preset_shorthand e)" = "everything" ] &&
+    [ "$(preset_shorthand b)" = "balanced" ] &&
+    [ "$(preset_shorthand m)" = "minimal" ]
+}
+
+function test_preset_shorthand_rejects_unknown_letter() {
+  ! preset_shorthand z 2>/dev/null
+}
+
+function test_preset_shorthand_rejects_multiple_characters() {
+  ! preset_shorthand ev 2>/dev/null
+}
+
 function test_every_preset_names_only_vocabulary() {
   local row values pair vocab
   vocab="$(_hi_preset_vocab)"
@@ -1232,6 +1250,9 @@ function run_install_tests() {
   _hi_h2 "Testing: presets"
   _hi_check "A preset seeds every answer in its vocabulary" test_apply_preset_seeds_every_answer
   _hi_check "An unknown preset is refused" test_apply_preset_rejects_a_stranger
+  _hi_check "Shorthand resolves each preset's first letter" test_preset_shorthand_resolves_each_first_letter
+  _hi_check "Shorthand rejects an unknown letter" test_preset_shorthand_rejects_unknown_letter
+  _hi_check "Shorthand rejects more than one character" test_preset_shorthand_rejects_multiple_characters
   _hi_check "Every preset stays inside the vocabulary" test_every_preset_names_only_vocabulary
   _hi_check "--preset writes exactly the preset" test_preset_run_writes_the_preset
   _hi_check "install.sh refuses an unknown --preset" test_install_rejects_an_unknown_preset
