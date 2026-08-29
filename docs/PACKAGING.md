@@ -4,10 +4,11 @@ Everything needed to ship `hi` through a package manager, plus two things that
 hang off a release: [checking a download you did not
 build](#verifying-a-release-download) and [regenerating the demo
 GIFs](#regenerating-the-demo-gifs). Nothing here publishes on its own — the
-publishing job waits on a manual approval, and the AUR and Homebrew tap are
-copies you make by hand. Both signing keys are in place; the AUR deploy key
-and the tap token are still one-time setup, with exact commands in
-[docs/ROADMAP.md](ROADMAP.md)'s _Homebrew tap_ and _AUR_ entries.
+publishing job waits on a manual approval, and the AUR and Homebrew tap stay
+hand-copied until their secrets exist. Both signing keys are in place; the AUR
+deploy key and the tap token are still one-time setup, described under
+[AUR](#aur) and [Homebrew tap](#homebrew-tap) below and tracked in
+[docs/ROADMAP.md](ROADMAP.md).
 
 **Runners.** Every job in the tree runs on a plain GitHub-hosted label
 (`ubuntu-latest`, `macos-latest`, `windows-latest`) — no job reads a
@@ -260,8 +261,9 @@ brew audit --strict --new say-hi
 into its `Formula/`, then `brew audit --strict --new ivy/tap/say-hi`.
 
 **What a clean run looks like** — run in the `homebrew/brew` container against
-a local tarball: install and test exit 0, and audit reports only these two,
-which are the unpublished repo and nothing else:
+a local tarball: install and test exit 0, and audit reported only these two,
+both about the repository not being reachable from that container and nothing
+else:
 
 ```text
 * The homepage URL https://github.com/ivylikethevine/say-hi is not reachable (HTTP status code 404)

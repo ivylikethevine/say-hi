@@ -42,7 +42,6 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
     "fast:osc52:common/osc52_test.sh"
     "fast:notify:common/notify_test.sh"
-    "fast:history:common/history_test.sh"
     "fast:install:scripts/install_test.sh"
     "fast:install_location:scripts/install_location_test.sh"
     "fast:packaging:packaging/packaging_test.sh"

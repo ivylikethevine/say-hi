@@ -123,6 +123,35 @@ the other end, as
 [FUTURE.md](FUTURE.md#persistent-sessions-on-a-disposable-target)'s _persistent
 sessions on a disposable target_ entry.
 
+**The rc graft** (`_HI_GRAFT_RC`, `load.sh`'s `configure_files`, the
+`# hi-config-start`/`-end` block and the tree-exists guard around it) was
+removed on 2026-08-29. Opt-in by then, it appended hi's rc to the **target's**
+`~/.bashrc`, `~/.zshrc` and fish config for the session's duration, so that a
+shell nothing typed — a tmux pane, an editor's terminal — came up styled.
+Everything typed was already covered without it: the session rc directory
+([GLOSSARY HI.46](GLOSSARY.md#hi46-session-rc-directory)) reaches zsh through
+`$ZDOTDIR`, POSIX shells through `$ENV`, and bash and fish through a wrapper
+alias. What remained was a write to a login file on a machine that is not
+yours, twice per session, and a hazard class of its own — a block left behind
+by a hard kill, two overlapping sessions stripping each other's, a distrobox
+landing it in the host's own rc — for the one case of an untyped bash or fish
+shell. hi now writes nothing to a target's login files under any setting; a
+bash or fish shell spawned by tmux or an editor inside a session comes up as
+the host's own.
+
+**Scratch history** (`_HI_SCRATCH_HISTORY`, `common/history.sh`, fish's
+`fish_postexec` log and `$_HI_TMPDIR`) was removed on 2026-08-29, the day the
+rc graft went, for the same reason: the other opt-in that shipped off and
+that `SECURITY.md` had to explain. Set, it pointed each shell's history at a
+`mktemp -d` wiped on exit instead of the target's own history file - a
+throwaway-box convenience whose default-off state was the only safe one, since
+a session that erases the record of what it did is afterwards the same shape
+as one that meant to. With it gone hi has no setting that ships off, no
+`_HI_OPT_INS` roster, no inverted rows in the payload trim table, and touches
+no shell's history under any configuration. Want it back for one box: `export
+HISTFILE=$(mktemp -d)/h` in the overlay's `bash.sh` does the bash half in one
+line.
+
 **Three shell tiers existed briefly and were dropped**, each for the reason its
 row above gives: `shells/tcsh.sh` (2026-08-09), `shells/config.nu`
 (2026-08-18) and `shells/ksh.sh` (2026-08-21). The ksh one is the instructive

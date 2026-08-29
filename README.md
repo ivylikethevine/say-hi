@@ -204,15 +204,10 @@ and runs the command anyway. Client: zsh.
   targets. `bash` gets the full experience; without it `hi` lands you in the
   best shell the target has, with a smaller session — see
   [Compatibility](#compatibility).
-- **The other two shells** hi styles have floors of their own, and both are
-  checked on every run rather than claimed. `tests/lint` builds a pinned
-  container for each and re-checks the files that shell reads, because a
-  developer's own shell is newer than the floor and will accept what the floor
-  rejects. **fish 3.7+** (Ubuntu 24.04's, and CI's) is parsed; **zsh 5.8+**
-  (Debian oldstable's) is parsed _and_ sourced, since zsh's risky constructs
-  fail at runtime rather than at parse time — the check asks for a prompt, the
-  aliases, a resolved host color and the prompt separator. See
-  [docs/TESTING.md](docs/TESTING.md).
+- **The other two shells** hi styles have floors of their own — **fish 3.7+**
+  (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) — and the lint gate
+  checks both inside a pinned container on every run rather than claiming
+  them ([docs/TESTING.md](docs/TESTING.md#the-lint-gate)).
 - **bash 3.2** is the floor on both ends (macOS still ships it), so hi uses no
   bash-4-only construct: no `mapfile`/`readarray` (`_hi_read_lines` in
   `common/core.sh` does that job), associative arrays, namerefs or `${x,,}`.
@@ -312,7 +307,8 @@ add a line to `~/.config/say-hi/colors`: `username,root,red`,
 _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. `hi --color-preview` shows the result in the actual
-colors.
+colors. The long version, and using the hash in your own prompt, is
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md#colors).
 
 ## Built from/with/in mind
 
@@ -389,15 +385,11 @@ then `--group lint` is what CI runs on every push/PR. The runbook is
 
 ### Coverage and Profiling
 
-Two coverage tools sit beside the suites, and neither number can be taken at
-face value, which is why README carries no coverage badge and neither gates
-anything: **kcov** loses its `DEBUG` trap the moment
-the harness is sourced, so it counts only what ran while things were loading
-and reads far too low (`common/git_prompt.sh` shows 2.56% with seventeen cases
-passing against it). **bashcov** reads bash's `xtrace` and gets that file
-right at 92.68%, but counts every line of a _heredoc body_ as covered, so
-`hi.sh` — which builds the entire remote script out of heredocs — reads far
-too high.
+Two coverage tools sit beside the suites and disagree — kcov reads far too
+low, bashcov far too high — which is why README carries no coverage badge and
+neither gates anything. Why each is wrong, and the profiler to reach for when
+a bench ceiling trips, is
+[docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## More docs
 

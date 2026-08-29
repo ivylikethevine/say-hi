@@ -42,7 +42,6 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.21 baked prompt](#hi21-baked-prompt)
 - [HI.22 TERM fallback probe](#hi22-term-fallback-probe)
 - [HI.23 bash --rcfile -i](#hi23-bash---rcfile--i)
-- [HI.24 graft crash guard](#hi24-graft-crash-guard)
 - [HI.25 session-shell ranking](#hi25-session-shell-ranking)
 - [HI.26 completion probe knobs](#hi26-completion-probe-knobs)
 - [HI.29 apostrophes in substitution comments](#hi29-apostrophes-in-substitution-comments)
@@ -61,7 +60,6 @@ here is referenced by nothing. This file never ships (`docs/` is not in
 - [HI.42 recent targets](#hi42-recent-targets)
 - [HI.43 container target grammar](#hi43-container-target-grammar)
 - [HI.44 wire size token](#hi44-wire-size-token)
-- [HI.45 fish history capture](#hi45-fish-history-capture)
 - [HI.46 session rc directory](#hi46-session-rc-directory)
 - [HI.47 what a child inherits](#hi47-what-a-child-inherits)
 
@@ -194,7 +192,7 @@ set. zsh's does not: a trap on `EXIT` (`TRAPEXIT` included) set inside a
 function fires when *that function* returns, not when the shell running it
 eventually does — and since `_hi_on_exit` (`common/core.sh`) is itself a
 function, every caller hit this, silently, the moment a zsh actually exercised
-the branch (nothing had, until `common/history.sh` did). `add-zsh-hook`'s
+the branch (nothing had, until the since-removed scratch-history file did). `add-zsh-hook`'s
 `zshexit` array is the one mechanism exempt from that scoping — it is what
 zsh's own completion system and frameworks use for the same reason — so the
 zsh arm autoloads it and registers a uniquely-named function there instead of
@@ -290,17 +288,6 @@ inside a sourced file only unwinds the source, so the fish arm feeds the rc to
 interactive reader when stdin is a tty, so the command from `hi <target> <cmd>`
 rides `-c`, which fish runs after `-C` and then exits from. sh and zsh get the
 command appended to their rc (`_hi_command_append`).
-
-## HI.24 graft crash guard
-
-`clean_all` cannot run after a hard kill, so every rc graft is wrapped in a
-tree-exists guard (`_hi_rc_guard` in `common/core.sh`, in the rc's dialect
-from `_HI_SHELL_TABLE`'s last column) that makes the block vanish on its own
-when the tree it points at is gone — otherwise every shell the user opens from then on errors
-at its first source line, and in a container sharing `$HOME` (distrobox) that
-is the _host's_ rc file. The guard re-resolves at shell start and asks for
-`$_HI_HOME`, stopping when there is none rather than falling back to `$HOME`
-(HI.33).
 
 ## HI.25 session-shell ranking
 
@@ -404,7 +391,7 @@ nothing above them to ask through:
 | `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below |
 | zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d |
 | fish (`common/config.fish`) | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical |
-| `common/bash.sh` | `$_HI_HOME`, not its own path - the one file that cannot self-locate, because `load.sh` grafts its _text_ into someone else's rc (HI.24), where `$BASH_SOURCE` is that rc |
+| `common/bash.sh` | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced |
 
 **The standalone-entry form, and why `$_HI_HOME` wins in it.** A script invoked
 on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
@@ -670,19 +657,6 @@ summing skips the boilerplate they are wrapped in and reads ~6KB low, and a
 badge has to show the number the user sees. No overlay is counted there, since
 which files ride is a question about a target.
 
-## HI.45 fish history capture
-
-fish has no arbitrary history file path — `fish_history` only picks a
-*session name* suffix under `$XDG_DATA_HOME/fish/`, not a directory — so
-`common/config.fish`'s copy of `_HI_SCRATCH_HISTORY` (mirroring
-`common/history.sh`'s bash/zsh `mktemp`'d, exit-cleaned directory, which fish
-cannot source) does not use fish's own history at all. It logs instead: a
-`fish_postexec` function — the same event `config.fish`'s prompt marks already
-hook — appends each command line to a plain file under `$_HI_TMPDIR`. A
-parallel log, not a substitute for fish's real history: `history` inside that
-shell still reads whatever fish itself recorded, untouched.
-
-
 ## HI.46 session rc directory
 
 `load.sh`'s `_hi_session_rc_setup` writes one rc per shell into a `mktemp -d`
@@ -690,14 +664,12 @@ of hi's own and exports `$_HI_SESSION_RC` at it. It exists because the shell a
 user types at is **not** the one `hi.sh` starts: `bash --rcfile hi.bashrc`
 starts the *bootloader*, which sources `load.sh` and calls `load()`, and
 `load()` then starts the session shell. A bare `$shell -i` there reads the
-target's `~/.bashrc` — so without pointing the session shell at hi's own rc
-directly, hi's prompt and aliases would reach the session only as a side
-effect of the `_HI_GRAFT_RC` block having been written into that file.
-Pointing it there directly is what makes the graft optional.
+target's `~/.bashrc` — so the session shell is pointed at hi's own rc
+directly, and the target's own rc files are never written.
 
 Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
 `~/.zshenv` — `ZDOTDIR` moves *all* of zsh's startup files, not just `.zshrc`),
-then hi's on top: the same order the graft produced, since the graft appended.
+then hi's on top, so the host's configuration still applies underneath.
 
 Three variables are exported, and which shell needs which is the whole design:
 
@@ -715,9 +687,11 @@ only), so `settings/aliases.sh` defines a `bash` and a `fish` wrapper off
 `$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
 function of that name, and without it `fish` would call itself forever.
 
-What the wrappers cannot cover is a shell nothing typed — a `tmux` pane
-spawning a login shell, an editor's shell-out. That is the remaining job of
-`_HI_GRAFT_RC`, and the reason it still exists rather than having been deleted.
+What the wrappers cannot cover is a bash or fish shell nothing typed — a
+`tmux` pane spawning a login shell, an editor's shell-out — which comes up as
+the host's own. Writing hi's rc into the target's login files was the rc
+graft's job, removed on 2026-08-29
+([UNSUPPORTED.md](UNSUPPORTED.md#features-that-were-removed)).
 
 
 ## HI.47 what a child inherits

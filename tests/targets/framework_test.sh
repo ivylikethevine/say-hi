@@ -101,7 +101,7 @@ function _hi_type_framework_probe() {
 }
 
 # One interactive session per framework - a command-shaped run replaces load()
-# outright and never reaches the rc graft, which is where collisions live. The
+# outright and never reaches the session rc, which is where collisions live. The
 # probe (a second typed line) rides _hi_interactive_case's feeder hook.
 function _hi_run_framework_case() {
   local label="$1" login_shell="$2" name ok=0

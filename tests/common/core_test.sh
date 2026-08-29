@@ -450,7 +450,7 @@ function test_shell_table_rows_are_wellformed() {
       ;;
     esac
     case ",$flags," in
-    *,local,* | *,graft,*) ;;
+    *,local,*) ;;
     *)
       _hi_cecho " | no known mechanism in flags: $row" "$RED"
       return 1
@@ -460,8 +460,9 @@ function test_shell_table_rows_are_wellformed() {
 }
 
 # The roster is the table; paths.sh is the data. A shell given path vars there
-# and no row here reaches neither install.sh's local half nor load.sh's graft -
-# it just quietly does nothing, which is how the two lists drifted before.
+# and no row here reaches neither install.sh's local half nor hi.sh's remote
+# probe - it just quietly does nothing, which is how the two lists drifted
+# before.
 function test_shell_table_covers_every_rc_path_var() {
   local var value missing=""
   for var in _HI_BASHRC _HI_ZSHRC _HI_FISH_CONFIG \
@@ -483,19 +484,13 @@ function test_shell_table_covers_every_rc_path_var() {
 }
 
 # _hi_shell_rows with no argument is the whole roster; with one, only the rows
-# carrying that flag - and `local` must be a strict subset of `graft`, since a
-# shell wired up on this machine has to be graftable on a target too.
+# carrying that flag.
 function test_shell_rows_filters_by_flag() {
-  local all local_rows graft_rows
+  local all local_rows
   all="$(_hi_shell_rows | wc -l)"
   local_rows="$(_hi_shell_rows local | wc -l)"
-  graft_rows="$(_hi_shell_rows graft | wc -l)"
   [ "$all" -eq "${#_HI_SHELL_TABLE[@]}" ] || return 1
-  [ "$local_rows" -gt 0 ] && [ "$graft_rows" -gt 0 ] || return 1
-  [ "$local_rows" -le "$graft_rows" ] || {
-    _hi_cecho " | more local rows than graft rows" "$RED"
-    return 1
-  }
+  [ "$local_rows" -gt 0 ] && [ "$local_rows" -le "$all" ] || return 1
   [ -z "$(_hi_shell_rows nosuchflag)" ]
 }
 

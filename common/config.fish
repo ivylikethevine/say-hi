@@ -16,12 +16,6 @@ for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_BAT_ALIAS _HI_DISABLE_EZA_CONFIG _HI_DISABLE_LS_ALIASES
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
-# ...and core.sh's _HI_OPT_INS, the settings that ship off. A separate loop
-# because tests/common/paths_test.sh pins the list above to _HI_TOGGLES
-# name-for-name, and because these default to 0 meaning "no", not "yes".
-for _hi_toggle in _HI_GRAFT_RC _HI_SCRATCH_HISTORY
-  set -q $_hi_toggle; or set -gx $_hi_toggle 0
-end
 set -e _hi_toggle
 # the overlay's home (fish can't expand the XDG default); only when unset, so
 # hi.sh can point a target at its shipped copy.
@@ -56,25 +50,6 @@ function __hi_bash --description 'bash -c <script>, with the session values hi k
     set -q $__hi_n; and set -fx $__hi_n $$__hi_n
   end
   command bash -c $argv
-end
-
-# Per-shell scratch history: mirrors common/history.sh's mktemp'd,
-# exit-cleaned directory under the say-hi tree (fish can't source it; the
-# directory sits in $_HI_HOME/say-hi, off the ssh payload's enumerated
-# members, so it is never relayed onward). fish has no arbitrary history path
-# of its own - fish_history only picks a session-name suffix under
-# $XDG_DATA_HOME/fish - so commands land in a plain text log instead, appended
-# by the same postexec event the marks below use. GLOSSARY: HI.45
-if test "$_HI_SCRATCH_HISTORY" = 1
-  if not set -q _HI_TMPDIR
-    set -gx _HI_TMPDIR (command mktemp -d $_HI_HOME/say-hi/hi.history.XXXXXX)
-  end
-  function __hi_history_cleanup --on-event fish_exit
-    command rm -rf $_HI_TMPDIR
-  end
-  function __hi_history_postexec --on-event fish_postexec
-    echo $argv[1] >> $_HI_TMPDIR/fish_history
-  end
 end
 
 # settings/aliases.sh stays `alias` for bash/zsh/fish compatibility, so fish turns

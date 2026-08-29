@@ -46,8 +46,7 @@ it.
 - [ ] **A stability contract is written down**, so "experimental" has an
       opposite: one page (`docs/STABILITY.md`, or a CONTRIBUTING section)
       naming what 1.x won't break — the eighteen `common/flags`, every
-      CONFIGURATION.md row, `$_HI_OVERLAY_FILES`, the
-      `# hi-config-start`/`-end` markers, the `$_HI_HOME/say-hi` +
+      CONFIGURATION.md row, `$_HI_OVERLAY_FILES`, the `$_HI_HOME/say-hi` +
       `/etc/profile.d/say-hi.sh` layout, `_HI_RELEASE` — plus the semver rule
       and how a toggle is retired (warns one minor, then goes). Same commit
       fills SECURITY.md's _Supported versions_ placeholder.
@@ -86,12 +85,11 @@ release](#quick-wins), [Homebrew tap](#moderate) and
     Concretely: leave _Do not allow bypassing the above settings_ off. Turning
     it on would cost zero points and lock the only maintainer out of merging
     their own PRs.
-  - `snapshot.yml` already exercises `gh release create`/`upload` and a tag
-    push from a workflow on every push to `main` (the rolling `snapshot`
-    prerelease, [PACKAGING.md](PACKAGING.md#snapshot-builds)), so the token
-    side of publishing is proven before the first tag; what it cannot prove is
-    the environment gate and the manifest PR. Confirm no tag-protection
-    ruleset covers `snapshot`.
+  - `snapshot.yml` has exercised a tag push and `gh release create`/`upload`
+    from a workflow on a push to `main` (the rolling `snapshot` prerelease,
+    [PACKAGING.md](PACKAGING.md#snapshot-builds)), so the token side of
+    publishing is proven, and no tag-protection ruleset covers `snapshot`.
+    What it cannot prove is the environment gate and the manifest PR.
   - **Ticks when:** a release has gone out under the rule, manifest PR opened
     rather than a push refused.
 
@@ -136,14 +134,9 @@ release](#quick-wins), [Homebrew tap](#moderate) and
 
 - [ ] **A devcontainer Feature** — _scope: one publish to ghcr, which needs a
       release first; the code half has shipped; outside this checkout._
-      `packaging/devcontainer/src/say-hi/` downloads the release tarball,
-      verifies it against `SHA256SUMS`, and calls `scripts/install.sh
-      --prefix /usr/share` + `packaging/stamp.sh` — the same two scripts
-      every other channel calls — then runs `hi --install --yes --preset`.
-      `release.yml`'s `feature` job publishes to ghcr behind the same
-      approval as the tap and the AUR; covered by eight
-      `packaging_test.sh` cases and
-      [PACKAGING.md](PACKAGING.md#devcontainer-feature). Verified end to end
+      `packaging/devcontainer/src/say-hi/` and `release.yml`'s `feature` job
+      are done and described in
+      [PACKAGING.md](PACKAGING.md#devcontainer-feature); verified end to end
       against `version: main`. **Do:** cut the release, let `feature` run,
       install it from a real `devcontainer.json`. **Ticks when:** a
       `features` entry naming `ghcr.io/ivylikethevine/say-hi/say-hi` installs

@@ -35,9 +35,9 @@ the trust boundaries sit, and how to report what slipped through.
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.
 - **Nothing on the target is written outside the session directory, by
-  default.** No login file, no history file, nothing under `$HOME`. The two
-  settings that would change that are opt-in and named in
-  [What hi writes on a target](#what-hi-writes-on-a-target) below.
+  default.** No login file, no history file, nothing under `$HOME`, under any
+  setting - [What hi writes on a target](#what-hi-writes-on-a-target) is the
+  whole list.
 - **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
   so the server's `Banner`, the `Permanently added ... to the list of known
   hosts` line and the host-key fingerprint on a first connection reach your
@@ -56,8 +56,9 @@ the trust boundaries sit, and how to report what slipped through.
 `hi.sh` runs on the client: it parses arguments, picks the backend, tars and
 armors the payload, and pipes it over the transport. On the target a single
 `sh` unpacks it into a temp directory and chainloads `load.sh`, which prints
-the header, grafts hi's marker-delimited blocks onto the host's rc files, and
-hands off to the best shell available. Everything the target executes was
+the header, writes the session's rc files into a scratch directory of its own,
+and hands off to the best shell available. The target's login files are never
+written. Everything the target executes was
 generated on the client.
 
 ## What hi writes on a target
@@ -68,49 +69,28 @@ Default answer: one directory, and only for the life of the session.
 | ------------------------ | -------------------------------------------------- | --------------------------------------- |
 | the session tree         | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`         | always (unless the target has its own permanent say-hi, which is used in place and never written to) |
 | the ssh bootstrap        | `mkdir -m 700` under the target's temp directory   | ssh targets only, removed by the session it starts |
-| the target's rc files    | `~/.bashrc`, `~/.zshrc`, fish's `config.fish`      | **only with `_HI_GRAFT_RC=1`** - off by default |
-| command history          | a `mktemp -d` wiped on exit, instead of the host's | **only with `_HI_SCRATCH_HISTORY=1`** - off by default |
 
-Both of those last two ship **off**, and both are off for a reason a fleet
-operator will recognise:
-
-- The **rc graft** is a write to a login file on a machine that is not yours,
-  twice per session, for every host you visit. Whatever watches those paths -
-  AIDE, Wazuh, osquery, a package manager's own integrity check - sees a
-  modification it will ask you about, and another login on a shared account
-  can read the file mid-write. `_HI_GRAFT_RC=1` turns it on for the hosts
-  where a shell started *inside* the session should match the session.
-- **Scratch history** redirects the session's command history into a directory
-  that is deleted when the shell exits. It is a reasonable thing to want on a
-  throwaway box and an unreasonable default everywhere: a session that erases
-  the record of what it did is, afterwards, the same shape as one that was
-  meant to. Off, your commands land in the target's own history file exactly
-  as they would over plain `ssh`.
-
-`hi --doctor` prints any setting that is not at its default, both of these
-included, so "what is this install allowed to do to a target" is one command.
+Your commands land in the target's own history file exactly as they would
+over plain `ssh`; nothing hi ships touches it. `hi --doctor` prints any
+setting that is not at its default, so "what is this install allowed to do to
+a target" is one command.
 
 ## Footprint and cleanup on the target
 
 - The session tree lives in a `mktemp -d` directory (mode 0700, named
   `<user>.hi.XXXXXX`); the ssh bootstrap directory is `mkdir -m 700`.
-- `load.sh`'s own on-exit hook owns removal - the whole disposable tree, the
-  session-rc directory, and, opt-in, the rc graft - and runs on a clean exit
+- `load.sh`'s own on-exit hook owns removal - the whole disposable tree and
+  the session-rc directory - and runs on a clean exit
   and on an abrupt disconnect alike (`tests/targets/ssh_disconnect_test.sh`
   verifies the latter). The bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is
   a narrower backstop for the one thing the hook cannot survive - bash
   killed by a signal nothing can trap - and only ever needs to remove the
   tree, since the session-rc directory lives inside it.
-- The rc additions - **when `_HI_GRAFT_RC=1` asked for them** - sit between
-  `# hi-config-start` and `# hi-config-end` markers and are stripped by that
-  same hook. Each is also wrapped in a tree-exists guard, so one left behind
-  by a session that was killed between the write and the cleanup is inert
-  rather than an error in every later login.
 - The session tree is **not** added to `$PATH`. `hi` inside a session is an
   alias (`common/paths.sh`) instead, which is what a `$PATH` entry would cost:
   a `/tmp` path on `$PATH`, a finding on any host that is scanned for one.
-- A target with a permanent say-hi is used in place and nothing is deleted; the
-  rc grafts are still cleaned on exit. hi finds that tree by reading the
+- A target with a permanent say-hi is used in place and nothing is deleted. hi
+  finds that tree by reading the
   target's login rc files, then the standard install prefixes, so nothing has to
   be at a fixed path, and the tree never needs to be writable by you — your
   config lives in `~/.config/say-hi/`.

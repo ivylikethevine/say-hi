@@ -32,20 +32,13 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # off. That polarity is load-bearing twice over - hi.sh's _hi_fallback_rc
   # exports the lot as 0 to give a bash-less target hi's defaults, and
   # paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1 to mean "all of the
-  # above, off here". A setting that ships *off* cannot live in this list: both
-  # of those would read it backwards. Those go in _HI_OPT_INS below.
+  # above, off here". A setting that ships *off* could not live in this list:
+  # both of those would read it backwards.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
     _HI_DISABLE_BAT_ALIAS _HI_DISABLE_EZA_CONFIG _HI_DISABLE_LS_ALIASES)
-  # The other polarity: shipped off, 1 asks for them. Both are things hi would
-  # otherwise do to a machine that is not yours - write to the target's rc
-  # files, and take its shell history somewhere it will be deleted - which is
-  # why neither is a default and why they are answered per install rather than
-  # assumed. Defaulted the same way the toggles are, so settings/aliases.sh and
-  # common/config.fish can keep reading every one of these bare under `set -u`.
-  _HI_OPT_INS=(_HI_GRAFT_RC _HI_SCRATCH_HISTORY)
-  for _hi_t in "${_HI_TOGGLES[@]}" "${_HI_OPT_INS[@]}"; do
+  for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
   unset _hi_t
@@ -78,16 +71,16 @@ fi
 # Every shell hi wires up, one row each:
 # <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<flags>.
 # Flags name the mechanism: `local` is install.sh appending to the user's own
-# rc, `graft` is load.sh copying hi's rc into a target's. Only the roster is
-# single-homed; the mechanisms stay separate (see install.sh's config_shell).
-# The last column is the rc's *dialect* - what an `export` line and the graft
-# guard around it have to look like. `sh` covers bash and zsh; a shell whose
-# rc is neither sh nor fish gets a new dialect here and arms in _hi_rc_guard
-# and install.sh's tmpdir_line, not a special case at each consumer.
+# rc (see install.sh's config_shell); the home-rc column is also what hi.sh's
+# _hi_remote_root_probe reads on a target, for every row. The last column is
+# the rc's *dialect* - what an `export` line has to look like. `sh` covers
+# bash and zsh; a shell whose rc is neither sh nor fish gets a new dialect
+# here and an arm in install.sh's tmpdir_line, not a special case at each
+# consumer.
 _HI_SHELL_TABLE=(
-  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local,graft|sh"
-  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local,graft|sh"
-  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local,graft|fish"
+  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local|sh"
+  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local|sh"
+  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local|fish"
 )
 
 # _hi_shell_rows [flag] - the roster, or only rows carrying <flag>. One per
@@ -104,18 +97,6 @@ function _hi_shell_rows() {
     *",$1,"*) printf '%s\n' "$row" ;;
     esac
   done
-}
-
-# _hi_rc_guard <dialect> open|close - the tree-exists guard every rc graft is
-# wrapped in, in that rc's dialect. GLOSSARY: HI.24 - why every graft wraps
-function _hi_rc_guard() {
-  # shellcheck disable=SC2016 # single quotes are the point: the guard expands at shell start, not graft time
-  case "$1:$2" in
-  fish:open) printf '%s' 'if set -q _HI_HOME; and test -f $_HI_HOME/say-hi/common/core.sh' ;;
-  fish:close) printf 'end' ;;
-  *:open) printf '%s' 'if [ -f "${_HI_HOME:-}/say-hi/common/core.sh" ]; then' ;;
-  *:close) printf 'fi' ;;
-  esac
 }
 
 # The one ordering hi resolves shells by, best first, so the two consumers

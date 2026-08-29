@@ -276,11 +276,8 @@ function doctor_config() {
   else
     doctor_row versioning "untracked (hi --overlay-init gives it history)"
   fi
-  # only the non-default settings: a default setup stays one quiet line. Both
-  # rosters read the same way here - 0 is the shipped answer for a _HI_TOGGLES
-  # disable and for a _HI_OPT_INS opt-in alike, so "not 0" is "not default"
-  # whichever list the name came from.
-  for t in "${_HI_TOGGLES[@]}" "${_HI_OPT_INS[@]}"; do
+  # only the non-default settings: a default setup stays one quiet line
+  for t in "${_HI_TOGGLES[@]}"; do
     eval "v=\${$t:-0}"
     [ "$v" = 0 ] && continue
     doctor_row toggle "$t=$v" warn

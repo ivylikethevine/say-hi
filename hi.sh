@@ -108,37 +108,23 @@ function _hi_target_color() {
 
 # <toggle>|<tree files, under $_HI_HOME>|<overlay files>: what each settings.sh
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
-# A leading "!" inverts the row: trim unless the setting is 1. That is what an
-# opt-in wants - _HI_SCRATCH_HISTORY ships off, so common/history.sh stays home
-# unless the user asked for it, where every _HI_DISABLE_* row is the other way
-# round and ships until the user says no.
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
   "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
   "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
   "_HI_DISABLE_EZA_CONFIG|say-hi/settings/theme.yml|"
-  "!_HI_SCRATCH_HISTORY|say-hi/common/history.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
 # whose setting the overlay answers the way the row asks, space-separated, into
 # <outvar>.
 function _hi_trimmed() {
-  local row val out="" name want
+  local row val out=""
   for row in "${_HI_TRIM_TABLE[@]}"; do
-    name="${row%%|*}"
-    want=1
-    case "$name" in
-    '!'*)
-      name="${name#!}"
-      want=0
-      ;;
-    esac
     val=""
-    _hi_overlay_toggle "$name" val
+    _hi_overlay_toggle "${row%%|*}" val
     # anything that is not a literal 1 is "off"; an absent setting reads empty
-    [ "$val" = 1 ] || val=0
-    [ "$val" = "$want" ] || continue
+    [ "$val" = 1 ] || continue
     row="${row#*|}"
     case "$1" in
     tree) out="$out ${row%%|*}" ;;
@@ -424,9 +410,10 @@ function _hi_remote_root_probe() {
   # core.sh's _HI_SHELL_TABLE home-rc column with the target's $HOME, plus the
   # packaged snippet
   local rcs="" home_rc
+  # shellcheck disable=SC2119 # no flag: every row of the roster, unfiltered
   while IFS='|' read -r _ _ _ home_rc _; do
     rcs="$rcs \"\$HOME${home_rc#"$HOME"}\""
-  done < <(_hi_shell_rows graft)
+  done < <(_hi_shell_rows)
   printf '_c=$(for _f in%s /etc/profile.d/say-hi.sh; do\n' "$rcs"
   cat <<'PROBE'
   [ -f "$_f" ] && sed -n -e 's/^[[:space:]]*export  *_HI_HOME=//p' -e 's/^[[:space:]]*set -gx  *_HI_HOME  *//p' "$_f"
@@ -704,8 +691,8 @@ REMOTE
 #
 # The `trap ... exit` below is a backstop, not a second owner (D4): load.sh's
 # clean_all is what actually knows how to undo everything hi did on the
-# target - this tree, $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
-# exactly this reason, load.sh:~141), and the opt-in rc graft - and it runs
+# target - this tree and $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
+# exactly this reason) - and it runs
 # on every normal exit and on an abrupt disconnect alike (SIGHUP, tested by
 # tests/targets/ssh_disconnect_test.sh). This trap exists for the one thing
 # clean_all cannot survive: bash killed by a signal nothing can trap. It only

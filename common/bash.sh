@@ -2,10 +2,9 @@
 # set -euo pipefail # cannot be enabled: an interactive shell would exit on the first error
 
 # === start required configuration ===
-# Through $_HI_HOME, not this file's own path: load.sh grafts this file's *text*
-# into someone else's rc (GLOSSARY: HI.24), where $BASH_SOURCE is that rc. The
-# derivation is for a hand-written `source`; a graft and install.sh's rc line
-# both set $_HI_HOME first. GLOSSARY: HI.33
+# $_HI_HOME first, this file's own path as the fallback: hi.sh's preamble and
+# install.sh's rc line both set it before this file is sourced, so the
+# derivation is for a hand-written `source`. GLOSSARY: HI.33
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 # shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
@@ -29,13 +28,6 @@ _hi_prime_identity
 _hi_host_escape >/dev/null
 _hi_user_escape >/dev/null
 
-if [[ "${_HI_SCRATCH_HISTORY:-0}" = 1 ]]; then
-  # shellcheck source=./history.sh
-  source "$_HI_HOME/say-hi/common/history.sh"
-  export HISTFILE="$_HI_TMPDIR/bash_history"
-  PROMPT_COMMAND="history -a${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
-fi
-
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
   HI_PS1_END=""
@@ -58,7 +50,7 @@ fi
 
 if ! shopt -oq posix; then
   # $BASH_COMPLETION_VERSINFO is the loader's own sentinel: the host's stock rc
-  # often sourced it before hi's grafted block runs, and re-parsing the
+  # often sourced it before hi's rc runs, and re-parsing the
   # ~2000-line script costs 20-50ms a shell for nothing
   # shellcheck disable=SC1091
   [ -n "${BASH_COMPLETION_VERSINFO-}" ] ||

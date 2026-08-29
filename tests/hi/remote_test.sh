@@ -171,7 +171,7 @@ function test_bootloader_calls_load_for_a_session() {
 }
 
 # ...and a one-off command replaces that call outright, so load() - and with
-# it the header, the rc grafting and clean_all - never runs
+# it the header, the session rc and clean_all - never runs
 function test_bootloader_replaces_load_with_the_command() {
   local out
   out="$(CMDARG='echo hi; exit' _hi_bootloader)"

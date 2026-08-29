@@ -70,13 +70,7 @@ function test_payload_ships_everything_by_default() {
     return 1
     ;;
   esac
-  # common/history.sh is deliberately *not* in this list. It rides an opt-in
-  # (_HI_SCRATCH_HISTORY) rather than a disable, so a default client is exactly
-  # the client that should leave it at home - the inverted "!" row in hi.sh's
-  # _HI_TRIM_TABLE, and test_payload_trims_history owns both directions of it.
-  case "$listing" in *say-hi/common/history.sh*) ;; *) return 0 ;; esac
-  _hi_cecho " | a default client shipped common/history.sh, which is opt-in" "$RED"
-  return 1
+  return 0
 }
 
 # The notification emitter is the second file a toggle takes off the wire, on
@@ -95,36 +89,6 @@ function test_payload_trims_the_notifier() {
   # the sibling emitter is not collateral: the two toggles are independent
   case "$listing" in *say-hi/common/osc52.sh*) return 0 ;; esac
   _hi_cecho " | _HI_DISABLE_NOTIFY=1 took common/osc52.sh with it" "$RED"
-  return 1
-}
-
-# common/history.sh is the third file a toggle takes off the wire, same shape
-# as the notifier above.
-function test_payload_trims_history() {
-  local dir="$_HI_WORKDIR/nohistory" listing
-  mkdir -p "$dir"
-  # an overlay that answers nothing: _HI_SCRATCH_HISTORY is an opt-in, so its
-  # absence is what takes common/history.sh off the wire (the "!" row in
-  # hi.sh's _HI_TRIM_TABLE), where every other row needs an explicit 1
-  printf "#!/bin/sh\n" >"$dir/settings.sh"
-  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/common/history.sh*)
-    _hi_cecho " | an unset _HI_SCRATCH_HISTORY still shipped common/history.sh" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/common/notify.sh*) ;;
-  *)
-    _hi_cecho " | trimming common/history.sh took common/notify.sh with it" "$RED"
-    return 1
-    ;;
-  esac
-  # ...and the other direction, which the disable rows have no equivalent of:
-  # asking for it puts the file back
-  printf "#!/bin/sh\nexport _HI_SCRATCH_HISTORY='1'\n" >"$dir/settings.sh"
-  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/common/history.sh*) return 0 ;; esac
-  _hi_cecho " | _HI_SCRATCH_HISTORY=1 did not ship common/history.sh" "$RED"
   return 1
 }
 
@@ -484,7 +448,6 @@ function run_hi_payload_tests() {
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
   _hi_check "_HI_DISABLE_NOTIFY trims notify.sh only" test_payload_trims_the_notifier
-  _hi_check "_HI_SCRATCH_HISTORY gates history.sh both ways" test_payload_trims_history
   _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"
