@@ -7,8 +7,7 @@ title: say-hi
 description: >-
   A greeting, a prompt and your aliases on every machine you ssh, docker,
   podman, nomad or kubectl into - without installing anything there.
-
-theme: jekyll-theme-primer
+theme: minima
 
 # Each of these earns its place against how this repo's markdown is written:
 #
@@ -29,6 +28,25 @@ plugins:
   - jekyll-relative-links
   - jekyll-optional-front-matter
   - jekyll-titles-from-headings
+
+# None of README.md/docs/*.md carry front matter, so without this they render
+# as bare content with no theme chrome (no <head>, no nav, no styling).
+defaults:
+  - scope:
+      path: ''
+    values:
+      layout: default
+
+# Rewrite relative links between docs (e.g. docs/ROADMAP.md -> ../README.md) to
+# the .html permalinks Jekyll actually generates, instead of dead .md links.
+relative_links:
+  enabled: true
+  collections: true
+
+# Serve README.md as the site's index page without needing a separate index.md
+# that would just duplicate it.
+readme_index:
+  with_frontmatter: true
 
 # The site is the prose, not the program. Everything that is code, tooling or
 # packaging is excluded; docs/demos stays for demo.gif, the one still committed
