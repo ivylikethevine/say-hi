@@ -98,7 +98,7 @@ function _hi_lines() {
 
 # The pins, read out of the Dockerfiles rather than repeated here, so an image
 # added, dropped or repinned is covered without anyone remembering this file.
-# The sed is lint_image_tags' (tests/lint/shellcheck_test.sh), widened to keep
+# The sed is lint_image_tags' (tests/lint/drift_test.sh), widened to keep
 # the digest as well as the tag. Naming a tag literally anywhere in this file
 # would both trip that lint and create a second place to edit on every bump.
 # `FROM ${BASE}` lines carry neither tag nor digest and drop out on their own:

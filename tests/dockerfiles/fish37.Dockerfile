@@ -16,6 +16,14 @@
 # meaning inside one, and the file dies with "Mismatched braces", taking every
 # path and alias with it. fish 4 parsed it; 3.7 did not; every fish case in CI
 # failed at once.
+#
+# 24.04 is deliberate, not stale: dependabot's docker group (.github/
+# dependabot.yml) ignores ubuntu's semver-major/minor here for exactly this
+# reason, so the weekly bump to 26.04 (fish 4) does not keep reopening against
+# this file. fish4.Dockerfile is this pin's counterpart, asserting the other
+# direction - constructs 3.7 accepts that fish 4 rejects or has removed -
+# so CI's own runner version (24.04) stays covered by one image and the newer
+# major by the other, rather than either silently going unchecked.
 FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
 # The version is *asserted*, not pinned to an exact `fish=3.7.0-1`. A floor
 # whose version can drift is not a floor - but an exact pin breaks the build

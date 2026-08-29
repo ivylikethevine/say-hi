@@ -1,16 +1,23 @@
 name: Snapshot
 
 # A GitHub release from every push to main - the packages, the source tarball
-# and SHA256SUMS, exactly what release.yml builds, attached to one *rolling*
-# prerelease named `snapshot` whose tag follows main. It reaches no external
-# channel: the AUR, the Homebrew tap, ghcr and the manifest PR are release.yml's
-# and stay behind a hand-pushed v* tag. Nothing here waits on a reviewer - a
-# snapshot that needs approving is a release with a worse name.
+# and SHA256SUMS, exactly what release.yml builds, attached to a prerelease
+# tagged `snapshot-<short-sha>` for the commit it was built from. It reaches no
+# external channel: the AUR, the Homebrew tap, ghcr and the manifest PR are
+# release.yml's and stay behind a hand-pushed v* tag. Nothing here waits on a
+# reviewer - a snapshot that needs approving is a release with a worse name.
 #
-# One rolling release rather than one per commit, so the Releases page and the
-# downloads badge do not fill with a row per push; `--latest=false` keeps the
-# newest v* as "Latest". The tag is `snapshot`, never `main`: a tag spelled like
-# a branch makes every bare `main` ref ambiguous.
+# One snapshot at a time rather than one kept forever, so the Releases page and
+# the downloads badge do not fill with a row per push: the publish job deletes
+# every previous `snapshot-*` release and tag (including a bare `snapshot` this
+# repo may still carry from before this scheme) before tagging its own.
+# `--latest=false` keeps the newest v* as "Latest". The tag is never plain
+# `snapshot` or `main` - a name that does not change with the commit either
+# invites a client to expect it to (fine, until the day it's force-moved out
+# from under a `git pull`) or makes every bare `main` ref ambiguous. Naming it
+# by commit instead means no client ever sees this tag *move* - only get
+# retired and replaced by the next push's own, which a plain `git pull` never
+# objects to.
 #
 # No bump.sh here on purpose. The manifests checksum a tarball at
 # releases/download/v<ver>/, and a snapshot has no such URL - which is the same
@@ -155,19 +162,42 @@ jobs:
             echo "no MINISIGN_SECRET_KEY outside the release environment - SHA256SUMS ships unsigned"
           fi
 
-      - name: Move the snapshot tag to this commit
+      - name: Retire the previous snapshot and tag this commit's own
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f snapshot "$GITHUB_SHA"
-          git push -f origin refs/tags/snapshot
+          tag="snapshot-${GITHUB_SHA::7}"
+          echo "HI_SNAPSHOT_TAG=$tag" >>"$GITHUB_ENV"
+
+          # every prior snapshot goes - this scheme's snapshot-<sha> family,
+          # and the bare `snapshot` a repo may still carry from before it -
+          # so exactly one exists at a time. `|| true` on the grep: pipefail
+          # would otherwise fail the pipeline on the ordinary case of finding
+          # nothing to retire.
+          gh release list --limit 100 --json tagName --jq '.[].tagName' |
+            { grep -E '^snapshot(-|$)' || true; } | while IFS= read -r old; do
+              [ -n "$old" ] && [ "$old" != "$tag" ] || continue
+              gh release delete "$old" --yes || true
+              git push origin ":refs/tags/$old" || true
+            done
+
+          # -f matters only for a same-commit re-run (workflow_dispatch on a
+          # SHA this workflow already tagged): moving a tag to the commit it
+          # already names is a no-op, so this never moves a tag to a
+          # *different* commit - the one thing a client's `git pull` cannot
+          # tolerate, and exactly what the bare `snapshot` tag used to do.
+          git tag -f "$tag" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$tag"
 
       - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          tag="$HI_SNAPSHOT_TAG"
           short="${GITHUB_SHA::7}"
           # what changed since the last real tag, or since the root when there
           # is none yet; the ledger is git history (docs/ROADMAP.md), and a
@@ -196,7 +226,8 @@ jobs:
           body="$(printf '%s\n' \
             "Built from \`main\` @ $short, unattended, on every push. Not a release:" \
             "nothing here reaches the AUR, the Homebrew tap or ghcr - those wait on a" \
-            "hand-pushed \`v*\` tag. Assets are replaced on the next push." \
+            "hand-pushed \`v*\` tag. This snapshot - tag, release and assets - is" \
+            "retired the next time \`main\` is pushed." \
             "" \
             "## Commits $since" \
             "" \
@@ -213,21 +244,24 @@ jobs:
             '```' \
             "" \
             "Full runbook: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#snapshot-builds)")"
-          title="snapshot (main @ $short)"
-          if gh release view snapshot >/dev/null 2>&1; then
-            gh release edit snapshot --title "$title" --notes "$body" \
+          title="snapshot $short"
+          # exists only on a same-commit re-run (the tag step above never
+          # moves this tag onto a commit some other release already owns);
+          # the ordinary case is a fresh tag and this always creates
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$title" --notes "$body" \
               --prerelease --latest=false --target "$GITHUB_SHA"
             # every previous asset goes, so a renamed package never lingers
             # beside its successor; ARTIFACTS is re-uploaded below anyway
-            gh release view snapshot --json assets --jq '.assets[].name' |
+            gh release view "$tag" --json assets --jq '.assets[].name' |
               while IFS= read -r a; do
-                [ -n "$a" ] && gh release delete-asset snapshot "$a" --yes
+                [ -n "$a" ] && gh release delete-asset "$tag" "$a" --yes
               done
           else
-            gh release create snapshot --title "$title" --notes "$body" \
+            gh release create "$tag" --title "$title" --notes "$body" \
               --prerelease --latest=false --target "$GITHUB_SHA"
           fi
           files=()
           while IFS= read -r f; do files+=("dist/$f"); done <dist/ARTIFACTS
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
-          gh release upload snapshot --clobber "${files[@]}"
+          gh release upload "$tag" --clobber "${files[@]}"

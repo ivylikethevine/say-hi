@@ -12,7 +12,7 @@ Every entry carries a stable `HI.NN` code, and a file references it with a
 `common/`, `settings/`, `load.sh` and `hi.sh` — the files a reader meets first.
 Codes are what tags point at, so an entry can be retitled without touching a
 tagged file; codes are never reused once retired. A tag is one code, or two
-joined with ` + `, with optional prose after it. `tests/lint/shellcheck_test.sh`
+joined with ` + `, with optional prose after it. `tests/lint/drift_test.sh`
 fails the build if a tag names a code this file doesn't define, or if an entry
 here is referenced by nothing. This file never ships (`docs/` is not in
 `$_HI_PAYLOAD`).
@@ -433,7 +433,7 @@ to lines that do _not_ begin with a quote (`/^"/!`), and the unquoting second �
 the other order would strip from a `#` inside the quotes. `IFS` is a newline
 for the candidate loop, so an install directory with a space is one candidate.
 
-`tests/lint/shellcheck_test.sh`'s `lint_home_default` greps the tree for the
+`tests/lint/drift_test.sh`'s `lint_home_default` greps the tree for the
 retired spellings — over `.md` too, since docs teaching the old rule are what a
 packager reads.
 

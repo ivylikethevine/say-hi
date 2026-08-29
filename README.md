@@ -24,7 +24,7 @@ current state is not a representation of final, published quality.
      filtered by that exact compound name - live per-job status from the
      actual CI run, not a shields.io feature specific to reusable workflows.
      The release badge deliberately omits include_prereleases: every push to
-     main republishes the rolling `snapshot` prerelease (snapshot.yml), and
+     main publishes its own `snapshot-<sha>` prerelease (snapshot.yml), and
      the badge should name the last real tag, not that. -->
 
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
@@ -211,7 +211,7 @@ and runs the command anyway. Client: zsh.
 - **bash 3.2** is the floor on both ends (macOS still ships it), so hi uses no
   bash-4-only construct: no `mapfile`/`readarray` (`_hi_read_lines` in
   `common/core.sh` does that job), associative arrays, namerefs or `${x,,}`.
-  `tests/lint/shellcheck_test.sh` greps for those, and `tests/targets/ssh_test.sh`
+  `tests/lint/drift_test.sh` greps for those, and `tests/targets/ssh_test.sh`
   runs a real bash 3.2 target.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.

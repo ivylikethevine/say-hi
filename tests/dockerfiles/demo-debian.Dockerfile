@@ -8,7 +8,7 @@
 # flavor `tools`; the same digest pin as the sshd base, so there is one
 # debian pin to bump. Root, on purpose: a container's shell is root's, and
 # `root` is the username whose color the colors overlay pins.
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git nano vim bat ca-certificates \
     && rm -rf /var/lib/apt/lists/*

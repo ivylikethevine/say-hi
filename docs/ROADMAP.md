@@ -86,9 +86,10 @@ release](#quick-wins), [Homebrew tap](#moderate) and
     it on would cost zero points and lock the only maintainer out of merging
     their own PRs.
   - `snapshot.yml` has exercised a tag push and `gh release create`/`upload`
-    from a workflow on a push to `main` (the rolling `snapshot` prerelease,
-    [PACKAGING.md](PACKAGING.md#snapshot-builds)), so the token side of
-    publishing is proven, and no tag-protection ruleset covers `snapshot`.
+    from a workflow on a push to `main` (the per-commit `snapshot-<sha>`
+    prerelease, [PACKAGING.md](PACKAGING.md#snapshot-builds)), so the token
+    side of publishing is proven, and no tag-protection ruleset covers the
+    `snapshot-*` pattern.
     What it cannot prove is the environment gate and the manifest PR.
   - **Ticks when:** a release has gone out under the rule, manifest PR opened
     rather than a push refused.

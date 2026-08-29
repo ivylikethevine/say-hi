@@ -52,4 +52,6 @@ source "$_hi_d/lib/process.sh"
 source "$_hi_d/lib/ssh.sh"
 # shellcheck source=./lib/backend.sh
 source "$_hi_d/lib/backend.sh"
+# shellcheck source=./lib/lint.sh
+source "$_hi_d/lib/lint.sh"
 unset _hi_d

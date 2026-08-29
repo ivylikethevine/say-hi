@@ -100,9 +100,25 @@ updates:
     # nothing it exists to test. Only the semver update-types are ignored, so
     # digest refreshes within 3.2 still arrive: the tag stays put, the layers
     # underneath it stay current.
+    #
+    # ubuntu is pinned twice in this directory - 24.04 the fish floor
+    # (fish37.Dockerfile), 26.04 the fish ceiling (fish4.Dockerfile) - and a
+    # dependency-name ignore can't tell those two pins apart, so this covers
+    # both: a major/minor Ubuntu bump against *either* file would otherwise
+    # move it off the fish major-version it exists to pin, whichever direction
+    # (24.04->26.04 leaves 3.7 for 4.x same as this repo already saw in PR
+    # #53; 26.04->28.04 would do the same to the ceiling later). Same shape as
+    # bash above: only the version-update types are ignored, so a digest
+    # refresh within each pin's major.minor still arrives automatically, and
+    # moving either file to a new Ubuntu release stays a deliberate hand edit
+    # - exactly what both Dockerfiles already ask for ("bump it deliberately").
     ignore:
       - dependency-name: "bash"
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+      - dependency-name: "ubuntu"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
