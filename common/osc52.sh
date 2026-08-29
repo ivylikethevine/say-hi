@@ -13,29 +13,26 @@ if [ "${#_hi_b64}" -gt 100000 ]; then
   exit 1
 fi
 
-# Real bytes, not `\033` for printf %b to expand. This payload is base64 and
-# has no backslash of its own, so %b was safe here (unlike common/notify.sh,
-# which carries a command line) - raw bytes are used anyway so the wrap block
-# below stays byte-for-byte the same as notify.sh's _hi_emit.
+# Real bytes, not `\033` for printf %b. Base64 has no backslash, so %b would
+# be safe here (unlike notify.sh's command line) - raw bytes anyway, so the
+# wrap block below stays byte-for-byte the same as notify.sh's _hi_emit.
 _HI_ESC="$(printf '\033')"
 _HI_BEL="$(printf '\a')"
 
 _hi_esc="$_HI_ESC]52;c;$_hi_b64$_HI_BEL"
 
 # tmux/screen swallow unknown OSCs unless passthrough-wrapped ($TMUX first:
-# tmux leaves TERM as screen-*). zellij is the opposite - it handles OSC 52
-# itself, has no DCS passthrough, and needs the escape raw.
-# Same wrap as common/notify.sh's _hi_emit - read that file for why each arm
-# is there; kept as two copies rather than one sourced file because each has
-# its own _HI_DISABLE_* trim-table row (hi.sh's _HI_TRIM_TABLE, GLOSSARY:
-# HI.39) and a shared file would have to ship whenever either toggle is on.
+# tmux leaves TERM as screen-*); zellij handles OSC 52 itself and needs the
+# escape raw. Kept as a copy of notify.sh's _hi_emit rather than one sourced
+# file: each has its own _HI_DISABLE_* trim-table row (GLOSSARY: HI.39), and a
+# shared file would have to ship whenever either toggle is on.
 if [ -n "${TMUX:-}" ]; then
   _hi_esc="$_HI_ESC""P""tmux;""$_HI_ESC""$_hi_esc""$_HI_ESC""\\" # tmux wants the inner ESC doubled
 elif [ -n "${ZELLIJ:-}" ]; then
   : # raw
 else
-  # `case`, not `${TERM#screen}`: dash enforces `set -u` inside ${var#word}
-  # (bash does not), and TERM is genuinely unset on CI runners
+  # `case`, not `${TERM#screen}`: dash enforces `set -u` inside ${var#word},
+  # and TERM is genuinely unset on CI runners
   case "${TERM:-}" in
   # unchunked: real screen truncates a long DCS, so a big yank there can arrive
   # clipped - visibly, and rarely enough not to earn a rejoin loop

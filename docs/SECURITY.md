@@ -40,7 +40,7 @@ the trust boundaries sit, and how to report what slipped through.
   whole list.
 - **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
   so the server's `Banner`, the `Permanently added ... to the list of known
-  hosts` line and the host-key fingerprint on a first connection reach your
+hosts` line and the host-key fingerprint on a first connection reach your
   terminal exactly as they would without hi in the way. hi captured all of it
   until it was pointed out that this quietly turned trust-on-first-use into
   accepting a fingerprint nobody was shown.
@@ -65,10 +65,10 @@ generated on the client.
 
 Default answer: one directory, and only for the life of the session.
 
-| what                     | where                                              | when                                    |
-| ------------------------ | -------------------------------------------------- | --------------------------------------- |
-| the session tree         | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`         | always (unless the target has its own permanent say-hi, which is used in place and never written to) |
-| the ssh bootstrap        | `mkdir -m 700` under the target's temp directory   | ssh targets only, removed by the session it starts |
+| what              | where                                            | when                                                                                                 |
+| ----------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always (unless the target has its own permanent say-hi, which is used in place and never written to) |
+| the ssh bootstrap | `mkdir -m 700` under the target's temp directory | ssh targets only, removed by the session it starts                                                   |
 
 Your commands land in the target's own history file exactly as they would
 over plain `ssh`; nothing hi ships touches it. `hi --doctor` prints any
@@ -114,7 +114,7 @@ a target" is one command.
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
 - The ssh `ControlMaster` socket lives inside a `mktemp -d` of its own rather
   than at a `mktemp -u` name in a shared temp directory: `ControlMaster=auto`
-  *joins* a socket it finds at the path it was given, and a name that was
+  _joins_ a socket it finds at the path it was given, and a name that was
   merely unused when it was printed is not a guarantee about the moment it is
   used.
 - `hi <TAB>`'s target cache is written to `$XDG_RUNTIME_DIR`, or to a

@@ -48,7 +48,8 @@
 # ...except the typos allowlist, which the lint gate's spelling half reads
 # (tests/lint/shellcheck_test.sh, lint_typos): the same trap as tools.txt above.
 !_typos.toml
-
+# ...except for the moxide.toml file
+!.moxide.toml
 # where packaging/mkpkg.sh stages the tree and drops the built packages.
 # Deliberately a name none of the blanket rules above already cover - a
 # "build/" or "output/" would have been swallowed by **build**/**output** and

@@ -7,10 +7,9 @@ set -euo pipefail # off again at the end: an error must not close an interactive
 if [ -z "${_hi_core_loaded:-}" ]; then
   _hi_core_loaded=1
 
-  # Where the tree is, from this file's own path rather than guessed. Only when
-  # unset, so an outer export (hi.sh, load.sh, install.sh's rc line) survives
-  # and costs no fork. GLOSSARY: HI.33 - why not $HOME, and why zsh's arm is
-  # eval'd
+  # The tree from this file's own path, only when unset (an outer export
+  # survives and costs no fork). GLOSSARY: HI.33 - why not $HOME, why zsh's
+  # arm is eval'd
   if [ -z "${_HI_HOME:-}" ]; then
     if [ -n "${ZSH_VERSION:-}" ]; then
       eval '_hi_self=${(%):-%x}'
@@ -25,15 +24,9 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     unset _hi_self
   fi
   export _HI_HOME
-  # GLOSSARY: HI.07 + HI.04. List shared with
-  # _hi_fallback_rc; config.fish keeps its own copy.
-  #
-  # Everything here is a *disable*: 0 is hi's shipped behaviour and 1 turns it
-  # off. That polarity is load-bearing twice over - hi.sh's _hi_fallback_rc
-  # exports the lot as 0 to give a bash-less target hi's defaults, and
-  # paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1 to mean "all of the
-  # above, off here". A setting that ships *off* could not live in this list:
-  # both of those would read it backwards.
+  # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry is a
+  # *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot as 0
+  # and paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
@@ -42,18 +35,14 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
   unset _hi_t
-  # The overlay's home; an already-set value wins, which is how hi.sh points a
-  # target at its shipped copy.
+  # The overlay's home; an already-set value wins (hi.sh points a target at
+  # its shipped copy).
   if [ -z "${_HI_CONFIG_DIR:-}" ]; then
     _HI_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/say-hi"
   fi
   export _HI_CONFIG_DIR
-  # The four overlay files that get a path variable of their own, and the four
-  # companions paths.sh records its own answer in: defaulted to empty and never
-  # assigned here, so paths.sh's per-file "only when unset" guards can read
-  # them bare under `set -u` - and so an export in settings.sh (sourced just
-  # below) or in the environment is what those guards find.
-  # GLOSSARY: HI.07, the same contract the toggles above are defaulted under.
+  # The per-file overlay paths and their *_AUTO companions, defaulted so
+  # paths.sh's guards can read them bare under `set -u`. GLOSSARY: HI.07
   for _hi_t in _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC \
     _HI_COLORS_AUTO _HI_PACKAGES_AUTO _HI_VIMRC_AUTO _HI_NANORC_AUTO; do
     eval ": \"\${$_hi_t:=}\"; export $_hi_t"
@@ -68,23 +57,19 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   source "$_HI_HOME/say-hi/common/paths.sh"
 fi
 
-# Every shell hi wires up, one row each:
-# <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<flags>.
-# Flags name the mechanism: `local` is install.sh appending to the user's own
-# rc (see install.sh's config_shell); the home-rc column is also what hi.sh's
-# _hi_remote_root_probe reads on a target, for every row. The last column is
-# the rc's *dialect* - what an `export` line has to look like. `sh` covers
-# bash and zsh; a shell whose rc is neither sh nor fish gets a new dialect
-# here and an arm in install.sh's tmpdir_line, not a special case at each
-# consumer.
+# Every shell hi wires up:
+# <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<flags>|<dialect>.
+# `local` = install.sh appends to the user's rc; the dialect is what an
+# `export` line looks like (`sh` covers bash and zsh) - a new one gets an arm
+# in install.sh's tmpdir_line, not a special case per consumer.
 _HI_SHELL_TABLE=(
   "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local|sh"
   "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local|sh"
   "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local|fish"
 )
 
-# _hi_shell_rows [flag] - the roster, or only rows carrying <flag>. One per
-# line, for `while IFS='|' read` callers.
+# _hi_shell_rows [flag] - the roster, or only rows carrying <flag>, one per
+# line for `while IFS='|' read` callers.
 function _hi_shell_rows() {
   local row flags
   for row in "${_HI_SHELL_TABLE[@]}"; do
@@ -99,14 +84,12 @@ function _hi_shell_rows() {
   done
 }
 
-# The one ordering hi resolves shells by, best first, so the two consumers
-# cannot drift: load.sh's _hi_session_shell takes the shells hi styles, and
-# hi.sh's $_HI_SHELL_LADDER is this list minus bash (a missing bash is that
-# ladder's precondition). dash/ash/sh are one tier - named separately to say
-# which `sh` a target gets when it has more than one.
+# The one shell preference order, best first: load.sh's _hi_session_shell and
+# hi.sh's $_HI_SHELL_LADDER (this minus bash) both derive from it. dash/ash/sh
+# are one tier, named separately to say which `sh` a target gets.
 export _HI_SHELL_TREE="fish zsh bash dash ash sh"
 
-# color names match fish's set_color vocabulary; greys are skipped, since fish has none.
+# fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan)
 
 # https://no-color.org: non-empty $NO_COLOR blanks the palette. hi.sh ships it along.
@@ -135,8 +118,8 @@ function _hi_cecho() {
   [ $# -ge 3 ] && printf '%b' "$out" || printf '%b\n' "$out"
 }
 
-# _hi_read_lines <array-name> - stdin into that array, one element per line,
-# used like `_hi_read_lines lines < <(cmd)`. GLOSSARY: HI.02
+# _hi_read_lines <array-name> - stdin into that array, one element per line:
+# `_hi_read_lines lines < <(cmd)`. GLOSSARY: HI.02
 function _hi_read_lines() {
   local _hi_rl_var="$1" _hi_rl_line
   eval "$_hi_rl_var=()"
@@ -146,22 +129,21 @@ function _hi_read_lines() {
 }
 
 # _hi_repeat <var> <count> <char> - $count copies of $char into $var, without
-# the subshell and `tr` a `printf | tr` costs per call.
+# a `printf | tr` subshell per call.
 function _hi_repeat() {
   local _hi_pad=""
   ((${2:-0} > 0)) && printf -v _hi_pad '%*s' "$2" ''
   printf -v "$1" '%s' "${_hi_pad// /$3}"
 }
 
-# _hi_hrule <label> <bar-char> <inset> <color> - the worker behind the three
-# heading levels: a _HI_MAX_WIDTH rule with the label centered
+# _hi_hrule <label> <bar-char> <inset> <color> - a _HI_MAX_WIDTH rule with the
+# label centered; the worker behind the heading levels
 function _hi_hrule() {
   local pad label width=$((${_HI_MAX_WIDTH:-80} - 1)) total left right lbar rbar
   _hi_repeat pad "$3" ' '
   label="$pad$1$pad"
   total=$((width - ${#label}))
-  # a label longer than the width keeps a 4-bar rule each side (same floor as
-  # the banner's tildes) and overflows, rather than losing the rule entirely
+  # an over-wide label keeps a 4-bar rule each side and overflows
   ((total < 8)) && total=8
   left=$((total / 2))
   right=$((total - left))
@@ -178,11 +160,9 @@ function _hi_h2() {
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 
-# $EPOCHREALTIME on bash 5, date(1) on the 3.2 macOS ships, and $SECONDS where
-# there is no date to fork: what this feeds is only ever differenced, so a
-# clock that starts at shell startup still measures the interval - and an
-# empty answer would have made _hi_elapsed print a time for a session it never
-# timed.
+# $EPOCHREALTIME on bash 5, date(1) on 3.2, $SECONDS with no date to fork.
+# Only ever differenced, so any monotonic clock works; an empty answer would
+# make _hi_elapsed print a time for a session it never timed.
 function _hi_now() {
   printf '%s' "${EPOCHREALTIME:-$(date +%s 2>/dev/null || printf '%s' "$SECONDS")}"
 }
@@ -191,9 +171,8 @@ function _hi_elapsed() {
   awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f", b - a }'
 }
 
-# H:MM:SS (or M:SS under an hour) from an _hi_elapsed second count - load.sh's
-# disconnect line, where the same fractional-second precision a sub-second
-# probe wants would be unreadable past a few minutes of session.
+# H:MM:SS (M:SS under an hour) from an _hi_elapsed second count, for load.sh's
+# disconnect line where sub-second precision is unreadable
 function _hi_human_duration() {
   awk -v s="$1" 'BEGIN {
     s = int(s)
@@ -203,8 +182,8 @@ function _hi_human_duration() {
   }'
 }
 
-# total size of the given paths; --apparent-size is GNU-only, so the verdict is
-# taken once per shell - load.sh asks at session close, with the user waiting
+# total size of the given paths; --apparent-size is GNU-only, decided once per
+# shell (load.sh asks at session close, with the user waiting)
 function _hi_du_size() {
   if [ -z "${_HI_DU_FLAGS+x}" ]; then
     _HI_DU_FLAGS=""
@@ -216,15 +195,9 @@ function _hi_du_size() {
   du -shc $_HI_DU_FLAGS "$@" | awk 'END { print $1 }'
 }
 
-# Memoized; the binaries stay authoritative over $HOSTNAME/$USER - the exact
-# string feeds _hi_hash_color, and a different one repaints every unpinned host.
-#
-# Every rung is optional, and the shell's own variable is the floor. A target
-# with bash and nothing else is a shape hi is meant to reach (a scratch or
-# distroless container carries no coreutils, so neither `whoami` nor `uname`
-# is there), and both of these are read for the banner and the prompt on every
-# connect: unguarded, they greet the user with "uname: command not found"
-# twice and then colour the session off an empty string. GLOSSARY: HI.33
+# Memoized; the binaries stay authoritative over $HOSTNAME/$USER (the exact
+# string feeds _hi_hash_color), with the shell variable as the floor for a
+# distroless target that has neither `whoami` nor `uname`. GLOSSARY: HI.33
 function _hi_hostname() {
   if [ -z "${_HI_HOSTNAME_CACHE:-}" ]; then
     _HI_HOSTNAME_CACHE="$(hostname 2>/dev/null || uname -n 2>/dev/null || :)"
@@ -241,10 +214,8 @@ function _hi_whoami() {
   printf '%s\n' "$_HI_WHOAMI_CACHE"
 }
 
-# Fill the memos in the *calling* shell: prompt builders reach them through
-# $( ), where a cache filled inside the subshell dies with it. Colors, not
-# escapes - resolving a color is the expensive half, and zsh.zsh wants only
-# the names, so priming escapes made it pay for answers it throws away.
+# Fill the memos in the *calling* shell (a prompt's $( ) would lose them).
+# Colors only: resolving is the expensive half, and zsh.zsh wants just names.
 function _hi_prime_identity() {
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
@@ -253,8 +224,8 @@ function _hi_prime_identity() {
 }
 
 # Bound a backend CLI so a downed daemon can't hang a waited-on path; bare
-# when GNU `timeout` is absent (stock macOS). targets.sh keeps its own copy,
-# and says why the KILL follows the TERM.
+# without GNU `timeout` (stock macOS). targets.sh keeps its own copy and says
+# why the KILL follows the TERM.
 if command -v timeout >/dev/null 2>&1; then
   function _hi_probe() { timeout -k 0.2 "${_HI_PROBE_TIMEOUT:-2}" "$@"; }
 else
@@ -264,40 +235,27 @@ fi
 # lesspipe + the debian_chroot prompt label, shared by bash.sh and zsh.zsh;
 # sets $debian_chroot in the caller's scope
 function _hi_interactive_extras() {
-  # skipped when a parent shell already exported it: nested shells (tmux
-  # panes, `bash` inside bash) otherwise pay the fork+exec again for nothing
+  # skipped when a parent shell already exported it, so nested shells (tmux
+  # panes, `bash` inside bash) don't pay the fork+exec again
   [ -z "${LESSOPEN:-}" ] && [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
   # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
 }
 
-# What a process started from an interactive hi shell inherits, and nothing
-# else with the prefix: the four-shell dialect of paths.sh can only `export`,
-# so every name it sets reaches the shell exported, and the rc files take the
-# attribute off again once the aliases (which expand at definition time) and
-# the prompt have read them. This roster is the exception list - the names an
-# exec'd child really reads from its environment rather than re-deriving:
-# the tree and overlay pointers (core.sh derives the tree from its own path,
-# but the overlay on a target is wherever hi.sh put it), the remote flag, the
-# session rc directory (HI.46's wrappers, re-defined in every nested shell),
-# and the four knobs `sh targets.sh` reads straight off the environment from
-# a completion. common/config.fish mirrors the list; exports_test.sh pins the
-# two together. GLOSSARY: HI.47
+# The _HI_* names an exec'd child really reads from its environment; the rc
+# files un-export everything else once the aliases and prompt have read it
+# (paths.sh's dialect can only `export`). config.fish mirrors it;
+# exports_test.sh pins the two. GLOSSARY: HI.47
 _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
   _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE)
-# The client's verdicts hi.sh exports into a session (its _hi_session_env,
-# pinned to this list by the same suite). Two name the operator's own
-# workstation, which is why they are not in _HI_CHILD_ENV: load.sh writes them
-# into the session rc files instead, and a nested shell reads them from there.
+# The client's verdicts hi.sh exports into a session (_hi_session_env, same
+# suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
   _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII)
 
-# _hi_unexport - take the export attribute off every _HI_* name not in
-# _HI_CHILD_ENV. The value stays: aliases that expand at use time (`now`) and
-# the prompt read shell variables, and a `$( )` is a fork, not an exec. The
-# enumeration and the attribute flip are the two things bash and zsh spell
-# differently, so both arms are eval'd behind the shell test; zsh's is `-g`
-# because a bare `typeset` inside a function declares a local of that name.
+# _hi_unexport - drop the export attribute from every _HI_* name not in
+# _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
+# because a bare `typeset` in a function is local.
 function _hi_unexport() {
   local _hi_n
   local -a _hi_names
@@ -318,7 +276,7 @@ function _hi_unexport() {
 }
 
 # _hi_sanitize_var <var> <text> - control chars and backslashes out, into
-# <var>; the header reaches it seven times a banner, each a fork through $( ).
+# <var>; out-var form because the header calls it seven times a banner.
 # GLOSSARY: HI.05
 function _hi_sanitize_var() {
   local _hi_s="${2//[[:cntrl:]]/}"
@@ -326,12 +284,9 @@ function _hi_sanitize_var() {
 }
 
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
-# lands on the destination and severs any hardlink/ACL on it. The mode is
-# still captured and reapplied explicitly rather than trusted to the
-# truncate-in-place alone: a real Windows Git Bash run round-tripped a mode
-# through this exact cat that its own `chmod 604` beforehand didn't survive -
-# the GNU/BSD `stat` fallback mirrors config.fish's mtime probe above.
-# GLOSSARY: HI.09
+# lands on the destination and severs any hardlink/ACL. The mode is captured
+# and reapplied too, since truncate-in-place alone did not preserve it on
+# Windows Git Bash. GLOSSARY: HI.09
 function _hi_write_back() {
   local mode=""
   [ -e "$2" ] && mode="$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)"
@@ -342,8 +297,7 @@ function _hi_write_back() {
 
 # _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.
 # A temp file, not `sed -i`: its flag differs BSD/GNU, and -i replaces a
-# *symlinked* rc with a regular file where the append wrote through the link.
-# GLOSSARY: HI.08
+# symlinked rc with a regular file. GLOSSARY: HI.08
 function _hi_rewrite() {
   local file="$1" e tmp
   shift
@@ -354,9 +308,8 @@ function _hi_rewrite() {
   _hi_write_back "$tmp" "$file"
 }
 
-# The version, raw and unpresented: a packager's stamp (or the client's, which
-# the ssh preamble exports) wins, else git describe, else nothing. Callers add
-# their own presentation - the header a short cell, --version a diagnostic.
+# The version, unpresented: a packager's stamp (or the client's, shipped by
+# the ssh preamble) wins, else git describe, else nothing. Callers present it.
 function _hi_release_or_describe() {
   if [ -n "${_HI_RELEASE:-}" ]; then
     printf '%s\n' "$_HI_RELEASE"
@@ -365,11 +318,9 @@ function _hi_release_or_describe() {
   fi
 }
 
-# zsh's `trap ... EXIT` (TRAPEXIT included) fires when the *function it was
-# set inside* returns, not at real shell exit - and _hi_on_exit is itself that
-# function, for every caller. `zshexit`, added through the standard
-# `add-zsh-hook` array, is the one mechanism exempt from that scoping.
-# GLOSSARY: HI.14
+# zsh's `trap ... EXIT` fires when the *function it was set inside* returns -
+# and that is this function. `zshexit` via add-zsh-hook is the one mechanism
+# exempt from that scoping. GLOSSARY: HI.14
 function _hi_on_exit() {
   if [ -n "${ZSH_VERSION:-}" ]; then
     _hi_on_exit_n=$((${_hi_on_exit_n:-0} + 1))
@@ -382,22 +333,12 @@ function _hi_on_exit() {
   fi
 }
 
-# _hi_setting_get <file> <name> [outvar] - what <name> is left holding after
-# sourcing <file>, or rc 1 when it never gets set. One parser: a subshell
-# sources <file> for real - the same interpreter core.sh's own line 72 uses -
-# with only <name> unset going in, so it agrees with whatever install.sh's
-# config_shell wrote or a target sourcing the file for real would see, rather
-# than a second hand-rolled grammar of its own to keep in sync. Every other
-# variable ($_HI_CONFIG_DIR included, which a settings.sh is free to
-# reference) keeps its real ambient value, and the caller's own variables are
-# untouched either way - GLOSSARY: HI.36's "the file, not the environment" is
-# unaffected, since nothing here reads or writes anything outside the
-# subshell. Forks once per call where the old text scan forked never; call
-# volume is a human-paced `hi --configure` and a handful of toggles per
-# connect, so that trade is not worth a cache.
+# _hi_setting_get <file> <name> [outvar] - what <name> holds after sourcing
+# <file>, or rc 1 when it never gets set. A subshell sources the file for real
+# (only <name> unset) rather than a hand-rolled grammar, so it agrees with
+# what a target would see; nothing outside it is touched (GLOSSARY: HI.36).
 function _hi_setting_get() {
-  # prefixed locals: the out-var is written by name into the caller's scope,
-  # and a plain `val` here would shadow a caller's `val` (GLOSSARY: HI.04)
+  # prefixed locals: a plain `val` would shadow the caller's (GLOSSARY: HI.04)
   local _hi_sg_file="$1" _hi_sg_name="$2" _hi_sg_outvar="${3:-}" _hi_sg_val
   [ -f "$_hi_sg_file" ] || return 1
   _hi_sg_val="$(
@@ -415,12 +356,11 @@ function _hi_setting_get() {
 }
 
 # What each shell's prompt ends with unless overridden, <SHELL>:<char>. SH is
-# the sh fallback hi.sh bakes on the client. config.fish keeps its
-# own copy (fish parses no bash); hi_test.sh pins it here.
+# the sh fallback hi.sh bakes on the client. config.fish keeps its own copy;
+# hi_test.sh pins it here.
 _HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:>' 'FISH:|' 'SH:\$')
 
-# _hi_prompt_end_default <SHELL> - the shipped default for one shell, empty if
-# the roster does not name it.
+# _hi_prompt_end_default <SHELL> - the shipped default, empty if not listed
 function _hi_prompt_end_default() {
   local row
   for row in "${_HI_PROMPT_END_DEFAULTS[@]}"; do
@@ -432,11 +372,8 @@ function _hi_prompt_end_default() {
 }
 
 # _hi_prompt_end <SHELL> [outvar] - per-shell setting, then the all-three one,
-# then the roster default. Empty counts as unset (`' '` still means "none");
-# reaches $PS1 unescaped so `%#` and `\$` keep their meaning. The default sits
-# inside the expansion, so an override costs no fork, and the out-var form
-# (GLOSSARY: HI.05) spares the prompt builders a `$( )`. config.fish mirrors
-# this rule.
+# then the default; empty counts as unset (`' '` means "none"). Unescaped, so
+# `%#` and `\$` keep their meaning. config.fish mirrors this. GLOSSARY: HI.05
 function _hi_prompt_end() {
   local _hi_pe
   eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
@@ -448,10 +385,9 @@ function _hi_prompt_end() {
   fi
 }
 
-# Deference: _HI_PROMPT=starship hands the prompt over when the target has it,
-# keeping hi's header and aliases; anything else keeps hi's prompt, and a
-# missing starship falls back to it silently. Never auto-detected - a target
-# that happens to carry starship must not surprise the user.
+# _HI_PROMPT=starship hands the prompt over when the target has it, keeping
+# hi's header and aliases; a missing starship falls back silently. Never
+# auto-detected - a target that happens to carry starship must not surprise.
 function _hi_wants_starship() {
   [ "${_HI_PROMPT:-}" = starship ] && command -v starship >/dev/null 2>&1
 }
@@ -463,7 +399,7 @@ function _hi_has_color() {
 }
 
 # Can this session render multibyte glyphs? The locale says; _HI_ASCII
-# overrides both ways (1 forces ASCII, 0 forces glyphs, else ask the locale).
+# overrides both ways (1 forces ASCII, 0 forces glyphs).
 function _hi_use_ascii() {
   case "${_HI_ASCII:-}" in
   1) return 0 ;;
@@ -507,8 +443,8 @@ function _hi_choose_glyphs() {
 }
 _hi_choose_glyphs
 
-# the ANSI escape for a palette name (see _HI_COLOR_NAMES); unknown names
-# reset, and $NO_COLOR blanks the lot. Every hashed color comes through here.
+# the ANSI escape for a palette name (_HI_COLOR_NAMES); unknown names reset,
+# $NO_COLOR blanks the lot. Every hashed color comes through here.
 function _hi_color_escape() {
   local i=0 name
   if [ -n "${NO_COLOR:-}" ]; then return 0; fi
@@ -524,8 +460,7 @@ function _hi_color_escape() {
 
 # Deterministic name -> palette bucket, right in zsh as well as bash:
 # `${name:$i:1}` needs the `$` (zsh reads `:i` as a history modifier), and the
-# bucket uses the *slice* form, not `${arr[n]}` - zsh indexes arrays from 1,
-# while `${arr[@]:n:1}` counts from 0 in both shells.
+# bucket uses the slice form since zsh indexes `${arr[n]}` from 1.
 function _hi_hash_color() {
   local name="$1" sum=0 i=0 ord
   while [ "$i" -lt "${#name}" ]; do
@@ -537,12 +472,11 @@ function _hi_hash_color() {
 }
 
 # the user/host say-hi is permanently installed on; hi.sh ships these ahead as
-# _HI_LOCAL_USER/_HI_LOCAL_HOSTNAME (see its _hi_remote_preamble)
+# _HI_LOCAL_USER/_HI_LOCAL_HOSTNAME (its _hi_remote_preamble)
 function _hi_local_username() { printf '%s\n' "${_HI_LOCAL_USER:-$(_hi_whoami)}"; }
 function _hi_local_hostname() { printf '%s\n' "${_HI_LOCAL_HOSTNAME:-$(_hi_hostname)}"; }
 
-# The two readers of settings/colors' "<type>,<name>,<color>" lines; everything
-# needing the file goes through them rather than re-deriving the format.
+# The two readers of settings/colors' "<type>,<name>,<color>" lines.
 # _hi_colors_lookup <type> <name> - that pin's color, or 1 if there isn't one
 function _hi_colors_lookup() {
   local cur_type cur_name color
@@ -565,8 +499,8 @@ function _hi_colors_names() {
   done <"$_HI_COLORS" | awk '!seen[$0]++'
 }
 
-# an exact "<type>,<name>,<color>" override; exact matches always win, and
-# most names have none and return 1
+# an exact "<type>,<name>,<color>" override, then the LOCALUSER/LOCALHOSTNAME
+# specials; most names have neither and return 1
 function _hi_override_color() {
   local special=""
   _hi_colors_lookup "$1" "$2" && return 0
@@ -578,9 +512,9 @@ function _hi_override_color() {
   _hi_colors_lookup "$1" "$special"
 }
 
-# _hi_ssh_host_tag <name>, memoized one deep: callers ask about the same host
-# in a row (the connect path reaches it three ways) and each miss walked
-# ~/.ssh/config. The rc carries meaning (see below), so it is remembered too.
+# _hi_ssh_host_tag <name>, memoized one deep: the connect path asks about the
+# same host three ways, and each miss walked ~/.ssh/config. The rc is
+# remembered too, since it carries meaning.
 function _hi_ssh_host_tag() {
   if [ "${_HI_TAG_NAME+x}" != x ] || [ "$_HI_TAG_NAME" != "$1" ]; then
     _HI_TAG_RC=0
@@ -591,19 +525,15 @@ function _hi_ssh_host_tag() {
   return "$_HI_TAG_RC"
 }
 
-# _hi_ssh_pattern_hit <name> <space/comma-separated patterns> - ssh's own Host
-# and Match-host glob syntax (*, ?) is bash and zsh's case-pattern syntax too,
-# so no translation is needed, only a way to try each token that survives
-# being sourced by both shells. GLOSSARY: HI.37 - two zsh divergences, why
-# `${~pat}` and not `setopt globsubst`, and why a leading "!" is inert rather
-# than honored as ssh's own negation.
+# _hi_ssh_pattern_hit <name> <space/comma-separated patterns> - ssh's Host glob
+# syntax (*, ?) is case-pattern syntax too, so each token is tried as one.
+# GLOSSARY: HI.37 - the zsh divergences, and why a leading "!" is inert.
 function _hi_ssh_pattern_hit() {
   local name="$1" pat hit=1
   if [ -n "${ZSH_VERSION:-}" ]; then
     setopt localoptions shwordsplit
-    # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash,
-    # which cannot parse `${~pat}` at all (SC2296) - a string literal is
-    # opaque to it the way the bash branch below, in plain sight, is not
+    # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
+    # and cannot parse `${~pat}` (SC2296)
     for pat in $2; do
       eval 'case "$name" in ${~pat}) hit=0 ;; esac'
     done
@@ -617,11 +547,8 @@ function _hi_ssh_pattern_hit() {
 }
 
 # The "# Tags: a, b" comment directly above a "Host <alias>" or "Match host
-# <pattern>" line in ~/.ssh/config; unknown host returns 1, a known host with
-# no tag returns 2. Both keywords match case-insensitively, the way ssh reads
-# its own. A wildcard Host/Match-host block (`Host prod-*`) tags every name it
-# covers, not just a literal alias - the same convention people already use to
-# group a fleet by environment.
+# <pattern>" line in ~/.ssh/config (case-insensitive, wildcards honoured);
+# unknown host returns 1, known host with no tag returns 2.
 function _hi_ssh_host_tag_walk() {
   local line trimmed rest tag="" patterns
   [ -f "$_HI_SSH_CONFIG" ] || return 1
@@ -644,8 +571,8 @@ function _hi_ssh_host_tag_walk() {
     [Hh][Oo][Ss][Tt][[:space:]]*)
       patterns="${trimmed#[Hh][Oo][Ss][Tt]}"
       patterns="${patterns%%#*}" # a trailing comment is not a pattern
-      # tabs and commas folded to spaces - Host's own syntax is space
-      # separated, but a stray comma is friendlier folded than rejected
+      # tabs and commas folded to spaces: a stray comma is friendlier folded
+      # than rejected
       patterns="${patterns//	/ }"
       patterns="${patterns//,/ }"
       if _hi_ssh_pattern_hit "$1" "$patterns"; then
@@ -661,8 +588,7 @@ function _hi_ssh_host_tag_walk() {
       [Hh][Oo][Ss][Tt][[:space:]]*)
         patterns="${rest#[Hh][Oo][Ss][Tt]}"
         patterns="${patterns%%#*}"
-        # stop at the next Match criterion, so "Match host <pat> user deploy"
-        # only contributes the host half - ssh allows several per line
+        # stop at the next Match criterion - ssh allows several per line
         patterns="${patterns%%[[:space:]][Uu][Ss][Ee][Rr][[:space:]]*}"
         patterns="${patterns%%[[:space:]][Ll][Oo][Cc][Aa][Ll][Uu][Ss][Ee][Rr][[:space:]]*}"
         patterns="${patterns%%[[:space:]][Ee][Xx][Ee][Cc][[:space:]]*}"
@@ -700,11 +626,9 @@ function _hi_resolve_color() {
   _hi_hash_color "$name"
 }
 
-# This machine's own two colors and their escapes. All four are memoized: none
-# can change under a running shell, and one unmemoized escape cost ~7 forks
-# (hostname, up to three reads of settings/colors, a walk of ~/.ssh/config).
-# `+x` tests *set*, not non-empty - a $NO_COLOR shell resolves to empty and
-# must not re-resolve forever.
+# This machine's two colors and their escapes, all memoized: none can change
+# under a running shell, and one unmemoized escape cost ~7 forks. `+x` tests
+# *set*, not non-empty - a $NO_COLOR shell resolves to empty.
 function _hi_host_color() {
   [ "${_HI_HOST_COLOR+x}" = x ] ||
     _HI_HOST_COLOR="${_HI_TARGET_COLOR:-$(_hi_resolve_color hostname "$(_hi_hostname)")}"
@@ -724,8 +648,8 @@ function _hi_user_escape() {
   printf '%s' "$_HI_USER_ESC"
 }
 
-# Out-var forms for the prompt builders: through $( ) the memo above is filled
-# in a subshell and dies with it. GLOSSARY: HI.05
+# Out-var forms for the prompt builders: through $( ) the memo is filled in a
+# subshell and dies with it. GLOSSARY: HI.05
 function _hi_host_escape_var() {
   _hi_host_escape >/dev/null
   printf -v "$1" '%s' "$_HI_HOST_ESC"

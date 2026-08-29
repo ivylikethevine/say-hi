@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared bash/zsh git prompt segment, styled to match fish's fish_vcs_prompt
-# (see config.fish's __fish_git_prompt_* settings). Needs the palette sourced.
+# (config.fish's __fish_git_prompt_* settings). Needs the palette sourced.
 set -euo pipefail # off again at the end: an error must not close an interactive shell
 
 # _hi_git_prompt [outvar] - with outvar the segment lands there instead of
@@ -10,8 +10,7 @@ _hi_git_prompt() {
   [[ -n "${1:-}" ]] && printf -v "$1" ''
   [[ "${_HI_DISABLE_GIT_STATUS:-0}" == 1 ]] && return
 
-  # --no-optional-locks, or `git status` rewrites .git/index per prompt - real
-  # I/O per keystroke on a large checkout, for identical output
+  # --no-optional-locks, or `git status` rewrites .git/index per prompt
   local git_dir ref="" oid="" detached=0
   git_dir=$(LC_ALL=C git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
 
@@ -39,11 +38,9 @@ _hi_git_prompt() {
 
   if [[ -z "$ref" ]]; then
     detached=1
-    # The slowest thing in the file - `describe --contains` walks history - and
-    # a detached HEAD redraws constantly. branch.oid rode the porcelain stream
-    # already, so it is a free invalidation key: HEAD moves, the memo drops
-    # itself. A tag added to the commit you are sitting on shows up next shell
-    # rather than next prompt - worth two forks a draw.
+    # `describe --contains` walks history, the slowest thing here, and a
+    # detached HEAD redraws constantly. branch.oid already rode the porcelain
+    # stream, so it is a free invalidation key: HEAD moves, the memo drops.
     if [[ -n "$oid" && "$oid" == "${_HI_DESC_OID:-}" ]]; then
       ref="$_HI_DESC_REF"
     else
@@ -85,7 +82,7 @@ _hi_git_prompt() {
   if [[ -n "$dir" ]]; then
     state+=" ${step:-?}/${total:-?}"
     # a rebase knows the branch it started from, so show that instead of HEAD;
-    # `read` + expansion, not a `sed` fork per prompt for the whole rebase
+    # `read` + expansion, not a `sed` fork per prompt
     [[ -f "$dir/head-name" ]] && read -r ref <"$dir/head-name" && ref="${ref#refs/heads/}" && detached=0
   fi
 
@@ -96,9 +93,8 @@ _hi_git_prompt() {
   ((ahead > 0)) && upstream+="$_HI_GLYPH_AHEAD${ahead}"
   ((behind > 0)) && upstream+="$_HI_GLYPH_BEHIND${behind}"
 
-  # one line per stash push/apply, the count `rev-list --walk-reflogs` gives;
-  # counted with the read builtin rather than _hi_read_lines, whose two evals a
-  # line are real work per draw on a long reflog
+  # one reflog line per stash; the read builtin, not _hi_read_lines, whose
+  # two evals a line add up on a long reflog every draw
   local stash=0
   if [[ -f "$git_dir/logs/refs/stash" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do

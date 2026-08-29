@@ -316,8 +316,8 @@ checks, four of them:
    digest-pinned **fish 3.7.0** (`tests/dockerfiles/fish37.Dockerfile`, Ubuntu
    24.04's fish, which is CI's). Check 2 cannot cover this: fish 4 accepts
    constructs 3.7 rejects, so a developer on current fish gets a green run and
-   CI does not. The construct that earned this check was a *comment inside a
-   `{ ... }` block* in `common/paths.sh` — `{` opens a brace expansion to fish
+   CI does not. The construct that earned this check was a _comment inside a
+   `{ ... }` block_ in `common/paths.sh` — `{` opens a brace expansion to fish
    and `#` is not a comment inside one, so the file died with "Mismatched
    braces", taking `$_HI_TARGETS`, every path and every alias with it. fish 4.8
    parsed it; 3.7 did not; every fish case in CI failed at once. The rule that
@@ -334,7 +334,7 @@ checks, four of them:
    `${(%):-%x}` the tree is derived with, `${~pat}`, the `KSH_ARRAYS`
    divergence — parse on every zsh and only misbehave on an old one, so a
    `zsh -n` sweep would wave all of them through. This one parses the files and
-   then *sources* `common/zsh.zsh` in a real interactive zsh inside a pinned
+   then _sources_ `common/zsh.zsh` in a real interactive zsh inside a pinned
    **zsh 5.8** (`tests/dockerfiles/zsh58.Dockerfile`, Debian oldstable's), and
    asks for the four things a session depends on: a prompt, the aliases, a
    resolved host color and the prompt separator. 5.8 because bookworm, noble,
@@ -342,7 +342,7 @@ checks, four of them:
    Skips yellow without docker.
 
 The floor and ceiling checks are the exception to the skip rule in one
-direction: with docker *present*, an image that will not build is a
+direction: with docker _present_, an image that will not build is a
 **failure**, not a skip. The base is digest-pinned and the only other thing in
 any of the three files is an apt install with a version assertion on it, so
 "would not build" means the distro moved off the version that check claims to

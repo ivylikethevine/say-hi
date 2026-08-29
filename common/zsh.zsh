@@ -14,11 +14,9 @@ setopt prompt_subst
 
 _hi_interactive_extras
 
-# C2: primed unconditionally, not only when hi's own prompt is on, so a
-# custom PROMPT in the user's own zsh.zsh (sourced at the end of hi's,
-# docs/CONFIGURATION.md) can still use hi's per-host/per-user color hashing
-# with _HI_DISABLE_PROMPT=1 - $_HI_HOST_COLOR/$_HI_USER_COLOR are the color
-# *names* zsh's own %F{} wants, the way this file's own PS1 below uses them.
+# C2: primed unconditionally, so a custom PROMPT in the user's own zsh.zsh
+# (sourced at the end of this file) can use hi's color hashing with
+# _HI_DISABLE_PROMPT=1 - $_HI_HOST_COLOR/$_HI_USER_COLOR are the names %F{} wants.
 _hi_prime_identity
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
@@ -26,13 +24,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # GLOSSARY: HI.32
     eval "$(starship init zsh)"
   else
-    # git info through a precmd out-var reference, never a $( ) in PS1 - the
-    # fork-free, pw3nage-safe form bash.sh's ps1() uses
+    # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
+    # pw3nage-safe form bash.sh's ps1() uses
     __hi_git_precmd() { _hi_git_prompt __hi_git_info; }
     precmd_functions+=(__hi_git_precmd)
     # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
-    # emits them: D (last status) and A from precmd, B at the end of PS1, C
-    # from preexec. Raw, unwrapped; _HI_DISABLE_MARKS=1 turns them off.
+    # emits them; _HI_DISABLE_MARKS=1 turns them off
     _hi_marks_a="" _hi_marks_b=""
     if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
       _hi_marks_a=$'%{\e]133;A\a%}'
@@ -51,8 +48,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     if _hi_has_color; then
       export CLICOLOR=1
       export LSCOLORS=gafacadabaegedabagacad
-      # %F{} has no bright variants, so brred/brblue/... fall back to their base
-      # color. The memos, not $( ): _hi_prime_identity filled both in this shell
+      # %F{} has no bright variants, so brred/brblue/... fall back to their
+      # base color. The memos, not $( ): _hi_prime_identity filled both.
       USER_COLOR="${_HI_USER_COLOR//br/}"
       HOST_COLOR="${_HI_HOST_COLOR//br/}"
       _hi_at_color=plain
@@ -68,13 +65,9 @@ fi
 zmodload zsh/complist
 autoload -Uz compinit promptinit
 # bare `compinit` costs 50-150ms a start; full check once a day, -C between.
-# (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h.
-# -u on the full check: a fresh full compinit runs compaudit, and on a host
-# where anything in $fpath is group/other-writable that means an interactive
-# [y/n] prompt with no controlling terminal to answer it - `hi` piped through
-# something non-interactive (vhs recording a demo included) just hangs, and
-# whatever byte was queued next gets read as the answer instead. -u trusts
-# $fpath the same way -C already implicitly does on the cached path below.
+# (#qN.mh+24): N tolerates a missing dump, .mh+24 = older than 24h. -u on the
+# full check: compaudit's interactive [y/n] on a group-writable $fpath hangs
+# `hi` when piped through something non-interactive (vhs included).
 if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
   compinit -u
   # compinit leaves an unchanged dump's mtime alone, making this branch
@@ -84,9 +77,7 @@ else
   compinit -C
 fi
 promptinit
-# The in-shell TTL cache bash.sh's _hi_complete explains, in zsh's dialect -
-# including the part where this window and the file cache's are offset, so the
-# two stack to nearly twice the TTL.
+# The in-shell TTL cache bash.sh's _hi_complete explains, in zsh's dialect.
 # (( )) rather than [ ]: zsh's SECONDS is a float once anything typeset -F's it.
 # GLOSSARY: HI.26
 _HI_TARGET_ROWS=()
@@ -95,10 +86,8 @@ _HI_TARGET_ROWS_AT=-1
 
 _hi() {
   local name kind
-  # hi's own options when the word is one, targets otherwise - the same split
-  # bash.sh's _hi_complete makes, and for the same reason: a flag list must not
-  # wait on a backend probe. Unlike targets it is not cached; it is a dozen
-  # printfs.
+  # hi's own options when the word is one, targets otherwise - the split
+  # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
   if [[ "${words[CURRENT]}" == -* ]]; then
     local -a flags
     flags=("${(@f)$(sh "$_HI_TARGETS" flags)}")
@@ -114,14 +103,12 @@ _hi() {
     done < <(sh "$_HI_TARGETS")
     _HI_TARGET_ROWS_AT=$SECONDS
   fi
-  # -V: an unsorted group, so the order targets.sh answers in - recent targets
-  # first - is the order the menu offers, rather than alphabetical
+  # -V: an unsorted group, so targets.sh's order (recent first) is the menu's
   compadd -V hi-targets -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
 }
 compdef _hi hi
-# only when something actually completes `eza`: compdef's service form errors
-# out when the right-hand side has no binding, which is every shell without
-# eza. _comps is compinit's own command -> completion map, so no fork.
+# only when something completes `eza`: compdef's service form errors out
+# otherwise. _comps is compinit's own command -> completion map, so no fork.
 (( ${+_comps[eza]} )) && compdef exa=eza
 
 # see common/bash.sh: children inherit core.sh's _HI_CHILD_ENV and nothing

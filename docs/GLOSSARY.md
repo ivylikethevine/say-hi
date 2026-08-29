@@ -12,7 +12,7 @@ Every entry carries a stable `HI.NN` code, and a file references it with a
 `common/`, `settings/`, `load.sh` and `hi.sh` — the files a reader meets first.
 Codes are what tags point at, so an entry can be retitled without touching a
 tagged file; codes are never reused once retired. A tag is one code, or two
-joined with ` + `, with optional prose after it. `tests/lint/drift_test.sh`
+joined with `+`, with optional prose after it. `tests/lint/drift_test.sh`
 fails the build if a tag names a code this file doesn't define, or if an entry
 here is referenced by nothing. This file never ships (`docs/` is not in
 `$_HI_PAYLOAD`).
@@ -181,7 +181,7 @@ Every chain like this sits **above** the user's overlay `aliases.sh` source in
 `settings/aliases.sh`, even though that overlay is otherwise sourced first in
 the file. Reversing the two would let an overlay `alias cat=...` poison the
 chain before it resolves - in zsh and dash (not bash, not fish) `command -v
-name` returns an *alias's* definition once one exists, so `_HI_BATCAT_BIN`
+name` returns an _alias's_ definition once one exists, so `_HI_BATCAT_BIN`
 would end up holding the overlay's alias body instead of a real binary path.
 `alias_fallthrough_test.sh` is the regression test for this.
 
@@ -189,7 +189,7 @@ would end up holding the overlay's alias body instead of a real binary path.
 
 bash's `trap "$cmd" EXIT` fires at real shell exit regardless of where it was
 set. zsh's does not: a trap on `EXIT` (`TRAPEXIT` included) set inside a
-function fires when *that function* returns, not when the shell running it
+function fires when _that function_ returns, not when the shell running it
 eventually does — and since `_hi_on_exit` (`common/core.sh`) is itself a
 function, every caller hit this, silently, the moment a zsh actually exercised
 the branch (nothing had, until the since-removed scratch-history file did). `add-zsh-hook`'s
@@ -383,15 +383,15 @@ unset, so an outer export still wins and costs no fork.
 reaches core.sh through its own path. The files that derive are the ones with
 nothing above them to ask through:
 
-| where | how |
-| --- | --- |
-| `common/core.sh` | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`. Answers for every file sourced through it |
-| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh` | the same, behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and the unresolved path answers `/usr`. Three copies, because each must resolve itself before it can source anything |
-| `load.sh`, `tests/test_runner.sh` | `${BASH_SOURCE[0]}` - entry points that _export_ for children |
-| `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below |
-| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d |
-| fish (`common/config.fish`) | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical |
-| `common/bash.sh` | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced |
+| where                                                                                               | how                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                                                                                    | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`. Answers for every file sourced through it                                                                                               |
+| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                                                   | the same, behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and the unresolved path answers `/usr`. Three copies, because each must resolve itself before it can source anything |
+| `load.sh`, `tests/test_runner.sh`                                                                   | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                           |
+| `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                          |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                                     | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                          |
+| fish (`common/config.fish`)                                                                         | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                     |
+| `common/bash.sh`                                                                                    | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                 |
 
 **The standalone-entry form, and why `$_HI_HOME` wins in it.** A script invoked
 on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
@@ -662,27 +662,27 @@ which files ride is a question about a target.
 `load.sh`'s `_hi_session_rc_setup` writes one rc per shell into a `mktemp -d`
 of hi's own and exports `$_HI_SESSION_RC` at it. It exists because the shell a
 user types at is **not** the one `hi.sh` starts: `bash --rcfile hi.bashrc`
-starts the *bootloader*, which sources `load.sh` and calls `load()`, and
+starts the _bootloader_, which sources `load.sh` and calls `load()`, and
 `load()` then starts the session shell. A bare `$shell -i` there reads the
 target's `~/.bashrc` — so the session shell is pointed at hi's own rc
 directly, and the target's own rc files are never written.
 
 Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
-`~/.zshenv` — `ZDOTDIR` moves *all* of zsh's startup files, not just `.zshrc`),
+`~/.zshenv` — `ZDOTDIR` moves _all_ of zsh's startup files, not just `.zshrc`),
 then hi's on top, so the host's configuration still applies underneath.
 
 Three variables are exported, and which shell needs which is the whole design:
 
-| shell           | reached by                | inherited by a nested shell?     |
-| --------------- | ------------------------- | -------------------------------- |
-| zsh             | `$ZDOTDIR`                | yes — free                       |
-| sh, dash, ash   | `$ENV`                    | yes — free, interactive shells   |
-| bash            | `--rcfile`                | no — needs a wrapper             |
-| fish            | `-C 'source …'`           | no — needs a wrapper             |
+| shell         | reached by      | inherited by a nested shell?   |
+| ------------- | --------------- | ------------------------------ |
+| zsh           | `$ZDOTDIR`      | yes — free                     |
+| sh, dash, ash | `$ENV`          | yes — free, interactive shells |
+| bash          | `--rcfile`      | no — needs a wrapper           |
+| fish          | `-C 'source …'` | no — needs a wrapper           |
 
 `$ZDOTDIR` and `$ENV` are read by any zsh or POSIX shell started inside the
 session however it was started, including by something that is not a shell.
-bash and fish have no equivalent (`$BASH_ENV` is for *non*-interactive bash
+bash and fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash
 only), so `settings/aliases.sh` defines a `bash` and a `fish` wrapper off
 `$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
 function of that name, and without it `fish` would call itself forever.
@@ -692,7 +692,6 @@ What the wrappers cannot cover is a bash or fish shell nothing typed — a
 the host's own. Writing hi's rc into the target's login files was the rc
 graft's job, removed on 2026-08-29
 ([UNSUPPORTED.md](UNSUPPORTED.md#features-that-were-removed)).
-
 
 ## HI.47 what a child inherits
 
@@ -731,7 +730,7 @@ shells out to bash for the header and the colours — hands them to that one
 inside the loop would be block-scoped and gone before the command runs).
 
 What is not covered, and why: a POSIX `sh` started inside a session reads
-`$ENV`, which sources `paths.sh` and exports the roster into *that* shell
+`$ENV`, which sources `paths.sh` and exports the roster into _that_ shell
 again — dash has no un-export. The bash-less fallback rc (HI.20) has the same
 shape for the same reason. Both are the tiers below what `load.sh` styles.
 `tests/common/exports_test.sh` pins the contract: the child environment in
