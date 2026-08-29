@@ -10,6 +10,7 @@ to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
 - [Before you start](#before-you-start)
 - [The gate](#the-gate)
   - [Don't reach for `act`](#dont-reach-for-act)
+- [What CI runs](#what-ci-runs)
 - [What a review will bounce on](#what-a-review-will-bounce-on)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)
@@ -65,6 +66,48 @@ in; `bench`, `packaging-smoke` and the two `e2e` jobs want the Docker socket.
 ```sh
 act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/ubuntu:act-latest
 ```
+
+## What CI runs
+
+"The gate" above is the two commands to run yourself; this is every job
+`ci.yml` runs on your pull request, and whether a red one actually fails the
+run or only reports. Ported from sharerr's `docs/CONTRIBUTING.md`, which keeps
+the same table for the same reason — sixteen workflow files is more than the
+per-job comments in `ci.yml` are convenient to read through by eye.
+
+| Job | Runs on your PR | Gate or advisory? |
+| --- | --- | --- |
+| `fast suites (ubuntu-latest)` (also runs the lint group) | Skipped on a workflow-only diff | Gate |
+| `fast suites (macos-latest)` | Skipped on a workflow-only diff | Gate |
+| `workflow lint` (actionlint + zizmor) | Always | Gate |
+| `advisory lint` (markdownlint, hadolint, demo-staleness) | Always | Advisory — reports, never fails the job |
+| `hot-path benchmarks` | Skipped on a workflow-only diff | Gate |
+| `package build (deb, rpm, apk)` | Skipped on a workflow-only diff | Gate |
+| `e2e (ssh, docker)` | After the ubuntu fast suite passes; skipped on a workflow-only diff | Gate |
+| `e2e (podman, nomad, kube)` | After the ubuntu fast suite passes; skipped on a workflow-only diff | Gate |
+| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)` | Push to `main` only, after both fast-suite jobs pass — never on a PR | Gate |
+| `fast suites (Windows client)` | Push to `main` only — never on a PR | Gate, but see below |
+
+"Skipped on a workflow-only diff" is `changes.yml`: a PR that only touches
+`.github/workflows/**` can't move any of these jobs' results, so they report
+`skipped` instead of re-running. `workflow-lint` and `advisory-lint` are
+deliberately exempt — a workflow-only change is exactly what the first audits,
+and a docs-only change is exactly when the second should run.
+
+"Gate" here means the job itself fails loudly rather than reporting and
+continuing — not that GitHub's merge button is blocked by it. No job on this
+list is a configured required status check yet ([docs/ROADMAP.md](ROADMAP.md)'s
+release-readiness entry has the reasoning); `fast suites (Windows client)` in
+particular carries no `continue-on-error` and a red suite there fails that run,
+but doesn't yet stop a merge either way.
+
+The rest of the workflows in `.github/workflows/` — `release.yml`,
+`snapshot.yml`, `pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,
+`tool-versions.yml`, `link-check.yml` and `demos.yml` — run on a schedule, a
+push to `main`, or a tag, not on your pull request (`demos.yml` is the one
+partial exception: it also runs on a PR that touches `docs/tapes/**`). Most of
+them report through a self-closing tracking issue rather than a red run; see
+each file's own header for why.
 
 ## What a review will bounce on
 

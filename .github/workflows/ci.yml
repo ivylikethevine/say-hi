@@ -30,8 +30,39 @@ concurrency:
 
 jobs:
 
+  # Whether anything besides workflow YAML changed - test, test-macos, bench,
+  # packaging-smoke, e2e and e2e-backends all skip on a workflow-only or
+  # docs-only diff rather than re-running the full suite for a change that
+  # cannot move any of their results. workflow-lint and advisory-lint are
+  # deliberately exempt: a workflow-only change is exactly what workflow-lint
+  # audits, and a docs-only change is exactly when advisory-lint should run.
+  # See changes.yml for the fork-PR-safe mechanics this shares with sharerr.
+  #
+  # Only push and pull_request get filtered. On schedule (the weekly re-test
+  # of the unpinned kind/nomad installs) or workflow_dispatch this job doesn't
+  # even run, and the jobs below treat that skip as "assume yes" - a diff
+  # against the wrong commit must never be the reason a real check goes quiet.
+  changes:
+    name: detect changes
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # changes.yml's own job asks for `pull-requests: read` (dorny/paths-filter
+    # lists a PR's files through the API). A reusable workflow's job cannot
+    # request a scope the calling job does not hold, so granting it here is
+    # what makes the call valid at all.
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/changes.yml
+    with:
+      filters: |
+        code:
+          - '**'
+          - '!.github/workflows/**'
+
   test:
     name: fast suites (ubuntu-latest)
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -98,6 +129,8 @@ jobs:
   # pinned tools, on a runner billed at a tenth of this one's rate.
   test-macos:
     name: fast suites (macos-latest)
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -301,6 +334,8 @@ jobs:
   # numbers into every run's log for eyeballing trends.
   bench:
     name: hot-path benchmarks
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -318,6 +353,8 @@ jobs:
   # the next release tag
   packaging-smoke:
     name: package build (deb, rpm, apk)
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -397,8 +434,10 @@ jobs:
   e2e:
     name: e2e (ssh, docker)
     runs-on: ubuntu-latest
-    needs: test
-    if: ${{ !cancelled() && needs.test.result == 'success' }}
+    needs: [changes, test]
+    if: >-
+      ${{ !cancelled() && needs.test.result == 'success' &&
+      (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -421,8 +460,10 @@ jobs:
   e2e-backends:
     name: e2e (podman, nomad, kube)
     runs-on: ubuntu-latest
-    needs: test
-    if: ${{ !cancelled() && needs.test.result == 'success' }}
+    needs: [changes, test]
+    if: >-
+      ${{ !cancelled() && needs.test.result == 'success' &&
+      (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true') }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

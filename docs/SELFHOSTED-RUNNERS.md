@@ -15,6 +15,20 @@ for speed on apt-installs and Docker-socket work. That support was removed
 from the workflows; this file is what it looked like, kept so it can be
 reactivated without re-deriving any of it.
 
+sharerr's `.github/workflows/runner.yml` is a working self-hosted-runner
+picker doing the same fork-PR-guard job as [The fork-PR
+guard](#the-fork-pr-guard) below, still live there today. The one shape
+difference worth knowing before copying it rather than rederiving this file's
+version: it is a reusable `workflow_call` (one file, `uses:` from every
+caller) rather than a job pasted into `ci.yml` directly, and it resolves a
+single `vars.RUNNER_LABEL` rather than this file's per-OS
+`RUNNER_LABEL`/`MACOS_RUNNER_LABEL`/`WINDOWS_RUNNER_LABEL` trio, since sharerr
+has no macOS/Windows jobs to steer separately. The fork check itself is the
+same pattern shown below - resolved through `env:`, never inlined into the
+`if:` shell logic directly. Start from whichever shape matches how many OSes
+end up needing a variable, and how many workflow files (not just jobs) need
+the guard.
+
 ## Contents
 
 - [The variable pattern](#the-variable-pattern)
@@ -227,7 +241,10 @@ To reactivate self-hosted support for a job:
    macOS/Windows variants) for the specific jobs that benefit — not
    `scorecard.yml`, ever (see [above](#the-variable-pattern)).
 3. If `ci.yml` gets more than one job doing this, bring back the `runner` job
-   from [above](#the-fork-pr-guard) rather than duplicating the fork check.
+   from [above](#the-fork-pr-guard) rather than duplicating the fork check. If
+   more than one _workflow file_ needs it (this repo's old setup only ever
+   needed it inside `ci.yml`), sharerr's `runner.yml` is the reusable
+   `workflow_call` shape for that - see the note in the introduction above.
 4. Set the concurrency group from [above](#serialization-job-level-concurrency-not-needs)
    on any job that shares the box with another (`bench`, `packaging-smoke`,
    `e2e`, `e2e-backends`, `demos.yml`'s `publish`).

@@ -3,16 +3,23 @@
 Conventions for agent sessions in this repo. The README and docs/ describe the
 product; this file is only what a session needs to work here safely.
 
+## Table of contents
+
+- [The one hard rule: `_HI_HOME`](#the-one-hard-rule-_hi_home)
+- [Testing](#testing)
+- [Hard constraints](#hard-constraints)
+- [Workflow](#workflow)
+
 ## The one hard rule: `_HI_HOME`
 
 Always set `_HI_HOME` explicitly — to this checkout's parent,
-`_HI_HOME=/home/ivy/projects/claude` — on every hi.sh, script, or test
+`_HI_HOME=/home/ivy/claude` — on every hi.sh, script, or test
 invocation. Symptom of forgetting: suites report fewer/MISSING cases, or a
 script runs "clean" because it ran against the wrong tree.
 
 There are two say-hi trees on this machine:
 
-- `~/projects/claude/say-hi` — **this dev checkout**, deliberately not
+- `~/claude/say-hi` — **this dev checkout**, deliberately not
   installed, so work here never runs in the user's live shell.
 - `~/projects/say-hi` — the user's real install. Never inspect or touch it,
   even if it looks dirty.
@@ -53,13 +60,13 @@ warns about. Either go through the runner, which sources the harness by
 absolute path and needs no `_HI_TEST_LIB`:
 
 ```sh
-_HI_HOME=/home/ivy/projects/claude tests/test_runner.sh <suite>
+_HI_HOME=/home/ivy/claude tests/test_runner.sh <suite>
 ```
 
 or, when a suite really has to run on its own, set both:
 
 ```sh
-export _HI_HOME=/home/ivy/projects/claude
+export _HI_HOME=/home/ivy/claude
 export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 ```
 
@@ -83,7 +90,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 
   ```sh
   mkdir -p /tmp/dashsh && ln -sf "$(command -v dash)" /tmp/dashsh/sh
-  PATH=/tmp/dashsh:$PATH _HI_HOME=/home/ivy/projects/claude \
+  PATH=/tmp/dashsh:$PATH _HI_HOME=/home/ivy/claude \
     tests/test_runner.sh --group fast
   ```
 
