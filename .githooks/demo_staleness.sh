@@ -72,7 +72,7 @@ esac
 # Last commit to touch a path, as a unix timestamp; empty when git has never
 # seen it (a new file, or no repository at all).
 function _hi_last_commit() {
-  git -C "$_HI_REPO" log -1 --format=%ct -- "$1" 2>/dev/null || :
+  git -C "$_HI_REPO" log -1 --no-show-signature --format=%ct -- "$1" 2>/dev/null || :
 }
 
 function _hi_demo_staleness() {
