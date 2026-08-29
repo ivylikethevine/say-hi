@@ -16,7 +16,7 @@
 # meaning inside one, and the file dies with "Mismatched braces", taking every
 # path and alias with it. fish 4 parsed it; 3.7 did not; every fish case in CI
 # failed at once.
-FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
+FROM ubuntu:26.04@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b
 # The version is *asserted*, not pinned to an exact `fish=3.7.0-1`. A floor
 # whose version can drift is not a floor - but an exact pin breaks the build
 # outright the day noble ships a security update (the package leaves the index),
