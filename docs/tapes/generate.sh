@@ -64,7 +64,7 @@ _HI_USAGE="Usage: generate.sh [-l|--list] [--head] [--keep] [--require-run] [--d
 
 # "<name>:<fixture>:<tool...>", in render order. A string table rather than an
 # associative array: bash 3.2 is the floor (see the lint suite), and the same
-# shape is what tests/lint/shellcheck_test.sh's own tables use.
+# shape is what tests/lint/drift_test.sh's own tables use.
 #
 # The tool column is not a copy of the tape's `Require` lines - those cover the
 # backend only. Nothing declares the tape's own client shell (`Set Shell zsh`,

@@ -417,8 +417,12 @@ function test_snapshot_workflow_only_runs_on_main() {
 function test_snapshot_workflow_reaches_no_channel() {
   [ -f "$_HI_SNAPSHOT_WF" ] || return 0
   local needle bad=0
+  # full-line comments excluded: the file's own header explains bump.sh's
+  # absence by naming it, the same "prose names it while explaining why" case
+  # dependabot.yml's bash:5 comment and lint_image_tags' comment exclusion
+  # already carve out elsewhere in this tree
   for needle in homebrew aur.archlinux devcontainers/action bump.sh 'gh pr create' 'environment: release'; do
-    if grep -qF -- "$needle" "$_HI_SNAPSHOT_WF"; then
+    if grep -vE '^[[:space:]]*#' "$_HI_SNAPSHOT_WF" | grep -qF -- "$needle"; then
       _hi_cecho " | snapshot.yml mentions '$needle' - that belongs behind release.yml's gate" "$RED"
       bad=1
     fi
@@ -426,14 +430,20 @@ function test_snapshot_workflow_reaches_no_channel() {
   [ "$bad" = 0 ]
 }
 
-# ...and it publishes to the one rolling tag, marked as what it is: a
-# prerelease that never becomes "Latest" and whose assets are replaced
-function test_snapshot_workflow_is_a_rolling_prerelease() {
+# ...and it publishes one snapshot at a time, marked as what it is: a
+# prerelease that never becomes "Latest", tagged per commit rather than a fixed
+# name a client's `git pull` could see force-moved, with the previous one
+# retired before this one is created
+function test_snapshot_workflow_is_a_single_current_prerelease() {
   [ -f "$_HI_SNAPSHOT_WF" ] || return 0
-  grep -qF 'gh release create snapshot' "$_HI_SNAPSHOT_WF" &&
-    grep -qF 'gh release edit snapshot' "$_HI_SNAPSHOT_WF" &&
+  # shellcheck disable=SC2016 # matching snapshot.yml's literal source text,
+  # not expanding a variable of this script's own
+  grep -qF 'gh release create "$tag"' "$_HI_SNAPSHOT_WF" &&
+    grep -qF 'gh release edit "$tag"' "$_HI_SNAPSHOT_WF" &&
     grep -qF -- '--prerelease --latest=false' "$_HI_SNAPSHOT_WF" &&
-    grep -qF 'dist/ARTIFACTS' "$_HI_SNAPSHOT_WF"
+    grep -qF 'dist/ARTIFACTS' "$_HI_SNAPSHOT_WF" &&
+    grep -qE 'tag="snapshot-\$\{?GITHUB_SHA' "$_HI_SNAPSHOT_WF" &&
+    grep -qF 'gh release delete "$old"' "$_HI_SNAPSHOT_WF"
 }
 
 # bump.sh --check is the tag/manifest gate; the build must not skip it
@@ -1040,6 +1050,11 @@ function run_packaging_tests() {
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
   _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
+
+  _hi_h2 "Testing: snapshot.yml"
+  _hi_check "Runs on pushes to main only" test_snapshot_workflow_only_runs_on_main
+  _hi_check "Reaches no external channel" test_snapshot_workflow_reaches_no_channel
+  _hi_check "Publishes one current prerelease, tagged per commit" test_snapshot_workflow_is_a_single_current_prerelease
 
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
   _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild

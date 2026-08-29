@@ -67,8 +67,8 @@ function _hi_skip() {
 # runner, so a suite executed on its own is a no-op here. A suite that exits
 # before reporting (_hi_require's skip path) contributes nothing, which is why
 # the runner renders "-" rather than 0 for those. _hi_suite_end calls this for
-# every suite built on the standard counters; shellcheck_test.sh, whose unit
-# is files rather than cases, calls it directly.
+# every suite built on the standard counters; the four tests/lint/*_test.sh
+# suites, whose unit is files rather than cases, call it directly.
 function _hi_report_counts() {
   [ -n "${_HI_COUNTS_FILE:-}" ] || return 0
   printf '%s %s %s\n' "$1" "$2" "${3:-0}" >"$_HI_COUNTS_FILE"

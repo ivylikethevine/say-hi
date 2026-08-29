@@ -59,8 +59,8 @@ Cited once here rather than repeated in every row below:
   fast suites and the lint gate on every push and PR;
   [`TESTING.md`](TESTING.md) is the runbook.
 - **Static analysis** — [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)
-  (CodeQL) plus `tests/test_runner.sh --group lint`'s fourteen-way shellcheck
-  fan-out; both run on every push/PR.
+  (CodeQL) plus `tests/test_runner.sh --group lint`'s four suites (sixteen
+  checks total); both run on every push/PR.
 - **Delivery integrity** — `release.yml`'s `publish` job signs
   `SHA256SUMS.minisig` with minisign and attaches a build-provenance
   attestation (`actions/attest-build-provenance`); `SECURITY.md` states there
@@ -143,7 +143,7 @@ Met or Unmet.
 | `build_floss_tools` | SHOULD | na | Met | Every build tool in the chain (nfpm, shellcheck, shfmt, bash itself) is FLOSS. |
 | `test` | MUST | | Met | `tests/test_runner.sh`; `TESTING.md` is the runbook. |
 | `test_invocation` | SHOULD | | Met | `tests/test_runner.sh <suite>` or `--group fast`, one command, documented in `TESTING.md` and `CONTRIBUTING.md`. |
-| `test_most` | SUGGESTED | | Met | The lint gate's fourteen halves plus the fast suites cover the large majority of `common/`, `hi.sh`, and `scripts/`; `tests/coverage.sh`'s own header cautions its percentage is untrustworthy, so don't cite a number — cite suite breadth instead. |
+| `test_most` | SUGGESTED | | Met | The lint gate's sixteen checks plus the fast suites cover the large majority of `common/`, `hi.sh`, and `scripts/`; `tests/coverage.sh`'s own header cautions its percentage is untrustworthy, so don't cite a number — cite suite breadth instead. |
 | `test_continuous_integration` | SUGGESTED | | Met | `.github/workflows/ci.yml`, every push and PR. |
 | `test_policy` | MUST | | Met | `CONTRIBUTING.md#the-gate` requires the fast + lint groups to pass before a PR is opened. |
 | `tests_are_added` | MUST | | Met | Same gate; `CONTRIBUTING.md#what-a-review-will-bounce-on` calls out missing test coverage as a bounce reason. |
@@ -177,7 +177,7 @@ Met or Unmet.
 
 | criterion | category | na? | answer | evidence / justification |
 |---|---|---|---|---|
-| `static_analysis` | MUST | na | Met | shellcheck (`tests/test_runner.sh --group lint`, fourteen halves) plus CodeQL, both on every push/PR. |
+| `static_analysis` | MUST | na | Met | shellcheck (`tests/test_runner.sh --group lint`, four suites/sixteen checks) plus CodeQL, both on every push/PR. |
 | `static_analysis_common_vulnerabilities` | SUGGESTED | na | Met | CodeQL's default query suite covers this; `codeql.yml`'s header comment notes it exists partly to satisfy this class of check. |
 | `static_analysis_fixed` | MUST | na | Met | CodeQL and shellcheck findings block CI; nothing is merged with an open finding. |
 | `static_analysis_often` | SUGGESTED | na | Met | Both run on every push and PR, not just periodically. |

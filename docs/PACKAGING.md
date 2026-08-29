@@ -147,13 +147,21 @@ under the checklist.
 
 ## Snapshot builds
 
-Every push to `main` also produces a release — one rolling **prerelease**
-named `snapshot`, whose tag [`.github/workflows/snapshot.yml`](../.github/workflows/snapshot.yml)
-force-moves to the pushed commit and whose assets it replaces. It carries what
-a tag release carries — deb/rpm/apk, the source tarball, `SHA256SUMS`,
-`ARTIFACTS`, and a build-provenance attestation over the lot — built by the
-same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>` (which
-is what `hi --version` prints from one), and gated on the fast suites alone.
+Every push to `main` also produces a release — one **prerelease** at a time,
+tagged `snapshot-<short-sha>` for the commit
+[`.github/workflows/snapshot.yml`](../.github/workflows/snapshot.yml) built it
+from. It carries what a tag release carries — deb/rpm/apk, the source
+tarball, `SHA256SUMS`, `ARTIFACTS`, and a build-provenance attestation over the
+lot — built by the same `srctar.sh` → `mkpkg.sh` path, versioned
+`0.0.0-main.<date>.<sha>` (which is what `hi --version` prints from one), and
+gated on the fast suites alone.
+
+Only one exists at a time: the `publish` job deletes every previous
+`snapshot-*` release and tag before creating its own, so the Releases page
+never grows past one row for this channel. Unlike the single rolling tag this
+replaced, no tag is ever moved to a different commit — each push's tag is
+new, and a client that fetched a previous one only ever sees it retired, never
+retargeted.
 
 What it is **not**: it reaches no channel. No `bump.sh` (the manifests
 checksum a `releases/download/v<ver>/` URL a snapshot never has), no manifest
@@ -171,9 +179,16 @@ the newest `v*` stays "Latest"; nothing that installs "the latest release"
 (the devcontainer Feature's default, `brew`, the AUR) ever sees a snapshot.
 
 Two repository settings it depends on: `main` may need no reviewer (there is
-no environment to hold it), and no tag-protection ruleset may cover
-`snapshot` — a rule that forbids force-moving it fails the `publish` job at
-its first step.
+no environment to hold it), and no tag-protection ruleset may cover the
+`snapshot-*` pattern — a rule that blocks creating or deleting a matching tag
+fails the `publish` job.
+
+A repo that carried the old rolling `snapshot` tag from before this scheme
+gets it retired automatically: the first run under the per-commit tag deletes
+any bare `snapshot` release and tag it finds alongside the `snapshot-*`
+family. A clone that had already fetched that tag keeps a harmless local copy
+pointing at whatever commit it last saw — nothing upstream ever asks it to
+move again, so nothing conflicts on the next `git pull`.
 
 ## Publishing each channel
 
