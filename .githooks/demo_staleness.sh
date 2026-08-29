@@ -35,14 +35,16 @@ source "$_HI_REPO/common/core.sh"
 
 _HI_DEMO_GIF="docs/demos/demo.gif"
 
-# What the frame is made of: the tape and its fixtures, plus the tree the
-# session in it actually runs - which is $_HI_PAYLOAD, the same allow list
-# hi.sh ships over the wire. docs/ and tests/ are deliberately not here: they
-# cannot change a pixel.
+# What the frame is made of: the tape and its fixtures (the target's image
+# among them - its tools and its checkout are half of what is on screen), plus
+# the tree the session in it actually runs - which is $_HI_PAYLOAD, the same
+# allow list hi.sh ships over the wire. The rest of docs/ and tests/ is
+# deliberately not here: it cannot change a pixel.
 _HI_DEMO_INPUTS="
 docs/tapes/demo.tape
 docs/tapes/common.tape
 docs/tapes/fixtures.sh
+tests/dockerfiles/demo-debian.Dockerfile
 common
 settings
 load.sh

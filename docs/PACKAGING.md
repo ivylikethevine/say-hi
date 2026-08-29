@@ -23,6 +23,7 @@ in case self-hosted is worth reactivating later.
 - [The one idea](#the-one-idea)
 - [Layout](#layout)
 - [Cutting a release](#cutting-a-release)
+- [Snapshot builds](#snapshot-builds)
 - [Channels weighed and not shipped](#channels-weighed-and-not-shipped)
 - [Publishing each channel](#publishing-each-channel)
   - [AUR](#aur)
@@ -142,6 +143,36 @@ PRs the way you'd want them read, and skim `gh pr list --state merged` before
 tagging. It is composed rather than passed as `--generate-notes --notes`
 because `gh` appends generated notes **after** `--notes`, which would bury them
 under the checklist.
+
+## Snapshot builds
+
+Every push to `main` also produces a release — one rolling **prerelease**
+named `snapshot`, whose tag [`.github/workflows/snapshot.yml`](../.github/workflows/snapshot.yml)
+force-moves to the pushed commit and whose assets it replaces. It carries what
+a tag release carries — deb/rpm/apk, the source tarball, `SHA256SUMS`,
+`ARTIFACTS`, and a build-provenance attestation over the lot — built by the
+same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>` (which
+is what `hi --version` prints from one), and gated on the fast suites alone.
+
+What it is **not**: it reaches no channel. No `bump.sh` (the manifests
+checksum a `releases/download/v<ver>/` URL a snapshot never has), no manifest
+PR, no tap, no AUR, no ghcr — every one of those is `release.yml`'s and waits
+on a `v*` tag pushed by hand, exactly as [Cutting a release](#cutting-a-release)
+describes. `tests/packaging/packaging_test.sh` pins that split: `snapshot.yml`
+may run only on `main`, and may not name a channel, `bump.sh` or the
+`release` environment.
+
+It is also **unsigned**: `MINISIGN_SECRET_KEY` is sealed to the `release`
+environment, which the snapshot job deliberately never enters, so its
+`SHA256SUMS` has no `.minisig` and the release body says so — the attestation
+is a snapshot's provenance. The release is `--prerelease --latest=false`, so
+the newest `v*` stays "Latest"; nothing that installs "the latest release"
+(the devcontainer Feature's default, `brew`, the AUR) ever sees a snapshot.
+
+Two repository settings it depends on: `main` may need no reviewer (there is
+no environment to hold it), and no tag-protection ruleset may cover
+`snapshot` — a rule that forbids force-moving it fails the `publish` job at
+its first step.
 
 ## Publishing each channel
 
@@ -415,14 +446,16 @@ argues against.
 
 By hand it is one `vhs docs/tapes/<name>.tape` per GIF from the repo root, with
 the backend running and `hi` on PATH; `docs/tapes/fixtures.sh` builds every
-target the tapes connect to, `fixtures.sh down` removes them. One more lives in
-[CONFIGURATION.md](CONFIGURATION.md#colors) — `color_preview.tape`, the only
-one needing no backend. Two things to get right that way, which the script
-takes care of: `hi` on `$PATH` must be _this_ checkout (the script shims its
-own onto the front of `$PATH`), and the target image builds from `HEAD`, so
-uncommitted work shows on the client side of the GIF but not the target's —
-render from a commit, or set `HI_DEMO_SOURCE=worktree`, which the script picks
-on a dirty tree.
+target the tapes connect to, `fixtures.sh down` removes them. The set is
+organised by **feature**, not by backend — each tape shows one thing hi brings
+along (the hero, the packages check, the editors, the picker, the overlay, the
+colors, completion, one-off commands), and the backends are spread across
+them so every one is still on screen somewhere. Two things to get right by
+hand, which the script takes care of: `hi` on `$PATH` must be _this_ checkout
+(the script shims its own onto the front of `$PATH`), and the sshd target
+image (`colors`, `run`) builds from `HEAD`, so uncommitted work shows on the
+client side of the GIF but not the target's — render from a commit, or set
+`HI_DEMO_SOURCE=worktree`, which the script picks on a dirty tree.
 
 Both sides of every GIF are staged: each tape sources a small rc `fixtures.sh`
 writes, giving the outside shell hi's own prompt under a chosen `user@host`,

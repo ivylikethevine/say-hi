@@ -1,0 +1,229 @@
+name: Snapshot
+
+# A GitHub release from every push to main - the packages, the source tarball
+# and SHA256SUMS, exactly what release.yml builds, attached to one *rolling*
+# prerelease named `snapshot` whose tag follows main. It reaches no external
+# channel: the AUR, the Homebrew tap, ghcr and the manifest PR are release.yml's
+# and stay behind a hand-pushed v* tag. Nothing here waits on a reviewer - a
+# snapshot that needs approving is a release with a worse name.
+#
+# One rolling release rather than one per commit, so the Releases page and the
+# downloads badge do not fill with a row per push; `--latest=false` keeps the
+# newest v* as "Latest". The tag is `snapshot`, never `main`: a tag spelled like
+# a branch makes every bare `main` ref ambiguous.
+#
+# No bump.sh here on purpose. The manifests checksum a tarball at
+# releases/download/v<ver>/, and a snapshot has no such URL - which is the same
+# reason the channels must never see one.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a burst of pushes ships the newest; the older builds are just wasted minutes
+concurrency:
+  group: snapshot
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install zsh and fish
+        run: sudo apt-get update && sudo apt-get install -y zsh fish
+
+      - uses: ./.github/actions/setup-tool
+        with:
+          tool: shellcheck
+
+      # 0.0.0 is the rehearsal convention (release.yml's dispatch) and the one
+      # every channel job reads as "not for the channels"; the prerelease part
+      # is what `hi --version` and `man hi` print. Semver, which is what
+      # nfpm.yaml's version_schema wants and what sorts below every real tag.
+      - name: Pick the version and build the source tarball
+        run: |
+          set -euo pipefail
+          version="0.0.0-main.$(date -u +%Y%m%d).${GITHUB_SHA::7}"
+          tarball="$RUNNER_TEMP/say-hi-$version.tar.gz"
+          packaging/srctar.sh "$version" HEAD "$tarball"
+          echo "HI_VERSION=$version" >>"$GITHUB_ENV"
+          echo "HI_TARBALL=$tarball" >>"$GITHUB_ENV"
+
+      # the unit suites as the gate; the lint group already ran in ci.yml on
+      # this same push, and a snapshot is not worth running it twice
+      - name: Run fast test suites
+        run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
+
+      - uses: ./.github/actions/setup-tool
+        with:
+          tool: nfpm
+
+      # same repo secret release.yml's build reads; absent, the apk is unsigned
+      - name: Write the apk signing key
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$APK_SIGNING_KEY" ]; then
+            printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi-apk.rsa"
+            chmod 600 "$RUNNER_TEMP/say-hi-apk.rsa"
+            echo "HI_APK_KEY=$RUNNER_TEMP/say-hi-apk.rsa" >>"$GITHUB_ENV"
+          else
+            echo "no APK_SIGNING_KEY secret - the apk will be unsigned"
+          fi
+
+      - name: Build the packages
+        run: packaging/mkpkg.sh --version "$HI_VERSION" --source-tarball "$HI_TARBALL"
+
+      - name: List what the snapshot ships
+        id: artifacts
+        run: |
+          set -euo pipefail
+          {
+            echo 'paths<<HI_ARTIFACTS_EOF'
+            sed 's|^|dist/|' dist/ARTIFACTS
+            echo 'HI_ARTIFACTS_EOF'
+          } >>"$GITHUB_OUTPUT"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.artifacts.outputs.paths }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: snapshot-packages
+          path: |
+            ${{ steps.artifacts.outputs.paths }}
+            dist/ARTIFACTS
+          if-no-files-found: error
+
+  # Unattended by design - no `environment:` and so no reviewer. The only write
+  # it makes is to this repo's own tag and release; it holds no channel secret.
+  publish:
+    name: update the snapshot release
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      # the one checkout that keeps its credentials: the tag push below needs
+      # them (release.yml's manifest-PR checkout has the same exception)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: snapshot-packages
+          path: dist
+
+      - uses: ./.github/actions/setup-tool
+        with:
+          tool: minisign
+
+      # MINISIGN_SECRET_KEY is sealed to the `release` environment, which this
+      # job deliberately does not enter, so this reads empty there and the sums
+      # ship unsigned - the body below says so. Kept rather than dropped so a
+      # repo that keeps the key as a plain secret gets signed snapshots for free.
+      - name: Sign SHA256SUMS
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$MINISIGN_SECRET_KEY" ]; then
+            printf '%s\n' "$MINISIGN_SECRET_KEY" >"$RUNNER_TEMP/minisign.key"
+            minisign -S -s "$RUNNER_TEMP/minisign.key" -m dist/SHA256SUMS \
+              -t "say-hi snapshot $GITHUB_SHA"
+          else
+            echo "no MINISIGN_SECRET_KEY outside the release environment - SHA256SUMS ships unsigned"
+          fi
+
+      - name: Move the snapshot tag to this commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f snapshot "$GITHUB_SHA"
+          git push -f origin refs/tags/snapshot
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA::7}"
+          # what changed since the last real tag, or since the root when there
+          # is none yet; the ledger is git history (docs/ROADMAP.md), and a
+          # snapshot's readers are the ones who want it verbatim
+          last="$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || true)"
+          if [ -n "$last" ]; then
+            since="since $last"
+            log="$(git log --oneline --no-decorate "$last..HEAD" | head -n 50)"
+          else
+            since="on main"
+            log="$(git log --oneline --no-decorate HEAD | head -n 50)"
+          fi
+          pubkey="$(sed -n "s/^minisign -Vm SHA256SUMS -P '\([^']*\)'.*/\1/p" \
+            docs/PACKAGING.md | head -n1)"
+          [ -n "$pubkey" ] ||
+            { echo "no minisign public key in docs/PACKAGING.md - did that section move?" >&2; exit 1; }
+          if [ -f dist/SHA256SUMS.minisig ]; then
+            sigline="minisign -Vm SHA256SUMS -P '$pubkey'"
+          else
+            sigline="# a snapshot's SHA256SUMS is unsigned - the attestation below is its provenance"
+          fi
+          body="$(printf '%s\n' \
+            "Built from \`main\` @ $short, unattended, on every push. Not a release:" \
+            "nothing here reaches the AUR, the Homebrew tap or ghcr - those wait on a" \
+            "hand-pushed \`v*\` tag. Assets are replaced on the next push." \
+            "" \
+            "## Commits $since" \
+            "" \
+            '```' \
+            "$log" \
+            '```' \
+            "" \
+            "## Verifying this download" \
+            "" \
+            '```sh' \
+            "sha256sum -c --ignore-missing SHA256SUMS" \
+            "$sigline" \
+            "gh attestation verify say-hi_*_all.deb --repo $GITHUB_REPOSITORY" \
+            '```' \
+            "" \
+            "Full runbook: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#snapshot-builds)")"
+          title="snapshot (main @ $short)"
+          if gh release view snapshot >/dev/null 2>&1; then
+            gh release edit snapshot --title "$title" --notes "$body" \
+              --prerelease --latest=false --target "$GITHUB_SHA"
+            # every previous asset goes, so a renamed package never lingers
+            # beside its successor; ARTIFACTS is re-uploaded below anyway
+            gh release view snapshot --json assets --jq '.assets[].name' |
+              while IFS= read -r a; do
+                [ -n "$a" ] && gh release delete-asset snapshot "$a" --yes
+              done
+          else
+            gh release create snapshot --title "$title" --notes "$body" \
+              --prerelease --latest=false --target "$GITHUB_SHA"
+          fi
+          files=()
+          while IFS= read -r f; do files+=("dist/$f"); done <dist/ARTIFACTS
+          [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
+          gh release upload snapshot --clobber "${files[@]}"

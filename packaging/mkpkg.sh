@@ -213,7 +213,7 @@ done
 # commit time (on a release checkout, the tag's), respecting a caller's value
 # per the reproducible-builds.org convention; with no git history the build
 # still works but stamps "now", and says so.
-: "${SOURCE_DATE_EPOCH:=$(git -C "$_HI_ROOT" log -1 --format=%ct 2>/dev/null || true)}"
+: "${SOURCE_DATE_EPOCH:=$(git -C "$_HI_ROOT" log -1 --no-show-signature --format=%ct 2>/dev/null || true)}"
 if [ -z "$SOURCE_DATE_EPOCH" ]; then
   SOURCE_DATE_EPOCH="$(date +%s)"
   _hi_cecho " no git history - SOURCE_DATE_EPOCH stamps 'now'; this build is not reproducible" "$YELLOW" >&2

@@ -179,8 +179,11 @@ runs on the push path, where a third-party action cannot.
 
 ## Supported versions
 
-No tagged release yet: the supported version is the tip of `main`. Once v1.0 is
-tagged, this becomes a version table with the latest release supported.
+No tagged release yet: the supported version is the tip of `main`. The
+`snapshot` prerelease is that tip, packaged - unattended, unsigned, and
+replaced on every push ([PACKAGING.md](PACKAGING.md#snapshot-builds)); it is
+a convenience, not a version. Once v1.0 is tagged, this becomes a version
+table with the latest release supported.
 
 ## Reporting a vulnerability
 

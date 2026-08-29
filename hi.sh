@@ -485,10 +485,19 @@ function _hi_remote_root() {
 
 # GLOSSARY: HI.15
 function _hi_bootloader() {
+  local clear=""
+  # The connect marker every arm prints on the way in (" <size>", or
+  # "-> local say-hi install", with no newline) is overwritten by the header's
+  # banner. A command replaces the header, so it clears the marker itself -
+  # a line-clear on a tty, a newline on a pipe, the same two shapes
+  # _hi_report_failure uses - or the command's first line of output lands
+  # glued to it.
+  [ -n "${CMDARG:-}" ] &&
+    clear=$'[ -t 2 ] && printf \'\\r\\033[K\' >&2 || printf \'\\n\' >&2\n'
   cat <<EOF
 source \$_HI_ROOT/load.sh
 set +euo pipefail
-${CMDARG:-load}
+${clear}${CMDARG:-load}
 EOF
 }
 

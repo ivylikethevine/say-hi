@@ -29,6 +29,7 @@ _HI_FEATURE_DIR="$_HI_PKG_DIR/devcontainer/src/say-hi"
 _HI_FEATURE_JSON="$_HI_FEATURE_DIR/devcontainer-feature.json"
 _HI_FEATURE_INSTALL="$_HI_FEATURE_DIR/install.sh"
 _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
+_HI_SNAPSHOT_WF="$_HI_ROOT/.github/workflows/snapshot.yml"
 _HI_TOOLS_TXT="$_HI_ROOT/.github/actions/setup-tool/tools.txt"
 
 # The names SHA256SUMS covers, however the local sha256sum spelled them. GNU
@@ -399,6 +400,40 @@ function test_only_the_gated_job_publishes() {
 
 function test_release_workflow_only_runs_on_tags() {
   grep -qE '^ *- "v\*"' "$_HI_RELEASE_WF" && ! grep -qE '^ *(branches|pull_request):' "$_HI_RELEASE_WF"
+}
+
+# snapshot.yml is the other half of the split: every push to main ships a
+# rolling prerelease from this repo alone. The invariants are that it stays on
+# main (no tag can start it, so it can never race release.yml for a v* push)
+# and that it reaches nothing outside the repo - no channel job, no manifest
+# PR, no bump.sh (whose URLs only a v* asset can satisfy), and no `release`
+# environment, which is the human gate and would make "every push" a lie.
+function test_snapshot_workflow_only_runs_on_main() {
+  [ -f "$_HI_SNAPSHOT_WF" ] || return 0
+  grep -qE '^ *- main$' "$_HI_SNAPSHOT_WF" &&
+    ! grep -qE '^ *(tags|pull_request):' "$_HI_SNAPSHOT_WF"
+}
+
+function test_snapshot_workflow_reaches_no_channel() {
+  [ -f "$_HI_SNAPSHOT_WF" ] || return 0
+  local needle bad=0
+  for needle in homebrew aur.archlinux devcontainers/action bump.sh 'gh pr create' 'environment: release'; do
+    if grep -qF -- "$needle" "$_HI_SNAPSHOT_WF"; then
+      _hi_cecho " | snapshot.yml mentions '$needle' - that belongs behind release.yml's gate" "$RED"
+      bad=1
+    fi
+  done
+  [ "$bad" = 0 ]
+}
+
+# ...and it publishes to the one rolling tag, marked as what it is: a
+# prerelease that never becomes "Latest" and whose assets are replaced
+function test_snapshot_workflow_is_a_rolling_prerelease() {
+  [ -f "$_HI_SNAPSHOT_WF" ] || return 0
+  grep -qF 'gh release create snapshot' "$_HI_SNAPSHOT_WF" &&
+    grep -qF 'gh release edit snapshot' "$_HI_SNAPSHOT_WF" &&
+    grep -qF -- '--prerelease --latest=false' "$_HI_SNAPSHOT_WF" &&
+    grep -qF 'dist/ARTIFACTS' "$_HI_SNAPSHOT_WF"
 }
 
 # bump.sh --check is the tag/manifest gate; the build must not skip it

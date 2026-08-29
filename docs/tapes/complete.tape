@@ -18,7 +18,7 @@
 # cached sweep is the one thing this demo cannot show.
 #
 # The ssh roster comes from $_HI_SSH_CONFIG, set below, and **not** from a
-# throwaway $HOME the way color_preview.tape does it. Same goal - the renderer's
+# throwaway $HOME the way colors.tape does it. Same goal - the renderer's
 # real hostnames must not land in a committed GIF - but $HOME is not available
 # here: podman reads its storage out of $HOME and kubectl reads ~/.kube/config,
 # so faking it silently empties two of the four backends this demo exists to

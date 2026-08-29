@@ -22,7 +22,10 @@ current state is not a representation of final, published quality.
      into the nameFilter below or the badge goes to "no check runs"). The
      four badges below read that instead: img.shields.io/github/check-runs,
      filtered by that exact compound name - live per-job status from the
-     actual CI run, not a shields.io feature specific to reusable workflows. -->
+     actual CI run, not a shields.io feature specific to reusable workflows.
+     The release badge deliberately omits include_prereleases: every push to
+     main republishes the rolling `snapshot` prerelease (snapshot.yml), and
+     the badge should name the last real tag, not that. -->
 
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
@@ -35,7 +38,7 @@ current state is not a representation of final, published quality.
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
-[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi?include_prereleases)](https://github.com/ivylikethevine/say-hi/releases)
+[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
 [![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -46,7 +49,7 @@ current state is not a representation of final, published quality.
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![hi connecting to a container: banner, header, packages check, colored prompt, and the cleanup on exit](docs/demos/demo.gif)
+![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/demos/demo.gif)
 
 ## In sixty seconds
 
@@ -69,14 +72,14 @@ pty-free remote command, that is still `ssh`'s job.
 
 ## Contents
 
-- [Every target, the same session](#every-target-the-same-session)
-  - [ssh, with a permanent install](#ssh-with-a-permanent-install)
-  - [docker](#docker)
-  - [podman](#podman)
-  - [nomad](#nomad)
-  - [kubernetes](#kubernetes)
+- [What comes with you](#what-comes-with-you)
+  - [the header tells you what the box is missing](#the-header-tells-you-what-the-box-is-missing)
+  - [your editors, your clipboard](#your-editors-your-clipboard)
+  - [no target at all — recent first](#no-target-at-all--recent-first)
+  - [one config directory, every host, every shell](#one-config-directory-every-host-every-shell)
+  - [know where you are at a glance](#know-where-you-are-at-a-glance)
   - [completion, every backend at once](#completion-every-backend-at-once)
-  - [no target at all](#no-target-at-all)
+  - [one command, every backend](#one-command-every-backend)
 - [Requirements](#requirements)
 - [Installation/Usage](#installationusage)
 - [Configuration](#configuration)
@@ -93,52 +96,74 @@ pty-free remote command, that is still `ssh`'s job.
 - [More docs](#more-docs)
 - [AI Usage](#ai-usage)
 
-## Every target, the same session
+## What comes with you
 
-`hi` behaves identically whatever is on the other end — an ssh host, a
-container, an allocation, a pod — and whatever shell each side runs. One GIF
-per backend, each with a different knob turned so the set reads as a
-configurable tool; the GIF at the top is the stock defaults. How they are
-rendered is in [docs/PACKAGING.md](docs/PACKAGING.md#regenerating-the-demo-gifs).
+Every GIF here shows one thing hi brings along, not one place it can reach —
+the backends (ssh, docker, podman, nomad, kubernetes) are spread across the
+set so each is still on screen somewhere, and the client shell changes with
+the theme (bash warm, zsh and fish cool). The GIF at the top is the stock
+defaults; each one below turns something on or ships something of its own.
+How they are rendered is in
+[docs/PACKAGING.md](docs/PACKAGING.md#regenerating-the-demo-gifs).
 
-### ssh, with a permanent install
+### the header tells you what the box is missing
 
-The target carries its own `~/say-hi`, so nothing ships over the wire — hi
-loads the tree in place. Client: bash. Showing `_HI_HEADER_TIMESTAMP=0` and
-`_HI_HEADER_SYSINFO=0`, set on the _target_: a permanent install reads its own
-config.
+A `packages` overlay of the tools you care about, with a priority each, and
+the header's check reads it on every target: one quiet line on a box that has
+them, a loud one on a box that does not. Client: bash, into two docker
+containers. Showing a `packages` overlay, `_HI_PACKAGES_MIN_PRIORITY=3` and
+`_HI_HEADER_GHZ=1`.
 
-![hi over ssh into a host with a permanent ~/say-hi](https://ivylikethevine.github.io/say-hi/docs/demos/ssh.gif)
+![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/demos/packages.gif)
 
-### docker
+### your editors, your clipboard
 
-A debian/bash container, then an alpine box whose only real shell is zsh — hi
-probes and falls back without being told. Client: zsh. Showing
-`_HI_PROMPT_END_ZSH` and `_HI_HEADER_CHECK=0`.
+`nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
+neither; `hi_copy` puts a target's output on _your_ clipboard and `hi_notify`
+raises a desktop notification in _your_ terminal when a command finishes —
+both ride the pty back as escapes, so nothing is installed or running on the
+target. Client: zsh, into a docker container. (The two escapes go to the
+terminal emulator, which a recording cannot show — the comments say where
+each landed.)
 
-![hi into a debian container, then an alpine zsh-only container](https://ivylikethevine.github.io/say-hi/docs/demos/docker.gif)
+![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/demos/editors.gif)
 
-### podman
+### no target at all — recent first
 
-A fish-only alpine container from a fish client: no bash anywhere in the loop.
-Showing `_HI_PROMPT_END_FISH`.
+`hi` on its own does not fall through to ssh's usage message: it offers the
+list, backend-tagged and most-used-and-most-recent first, and connects to what
+you pick — so the box you were on last is the top row, and Enter takes it.
+`fzf` or `sk` if you have one, a numbered menu if you do not; it runs on the
+client and never reaches a target, and a `hi` in a script or a CI job still
+fails the way it always has rather than waiting on a menu nobody can answer.
+Client: bash, into a docker container. Showing `_HI_RECENT` (on by default).
 
-![hi from fish into a fish-only alpine container via podman](https://ivylikethevine.github.io/say-hi/docs/demos/podman.gif)
+![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/demos/pick.gif)
 
-### nomad
+### one config directory, every host, every shell
 
-A dev agent, one docker-driver job, and `hi <alloc-id-prefix>` straight into
-the allocation. Client: bash. Showing `_HI_HEADER_GHZ=1` and
-`_HI_HEADER_IDENTITY=0`.
+`~/.config/say-hi/` ships to every target. An alias in its `aliases.sh` works
+in a bash session on a debian container and in a fish session on an alpine
+box — reached through docker and podman, from a fish client, so no two of
+client, target shell and backend match. Client: fish. Showing an `aliases.sh`
+overlay with one alias and `_HI_BAT_OPTS`, and `_HI_SHELL_PREFERENCE=fish` for
+the second target. (A box with no bash at all gets the aliases-only tier,
+which carries hi's own aliases but not the overlay — see
+[Compatibility](#compatibility).)
 
-![hi into a nomad allocation by ID prefix](https://ivylikethevine.github.io/say-hi/docs/demos/nomad.gif)
+![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/demos/overlay.gif)
 
-### kubernetes
+### know where you are at a glance
 
-A kind cluster and a bare alpine pod — busybox ash is all it has, which is hi's
-aliases-only fallback. Client: zsh. Showing `_HI_DISABLE_GIT_STATUS=1`.
+`# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
+`hi --color-preview` to see what every host resolves to — then a prod host
+lands in red and a dev host in green (`-F` for the same reason as the loop
+below: the recording's ssh config is a throwaway). The targets carry their own `~/say-hi`
+(the permanent-install path: nothing ships over the wire, and each reads its
+own config, which is why their headers are shorter). Client: bash, into two
+ssh hosts. Showing a `colors` overlay with `hosttag` pins.
 
-![hi into a kubernetes pod on a kind cluster](https://ivylikethevine.github.io/say-hi/docs/demos/kube.gif)
+![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/demos/colors.gif)
 
 ### completion, every backend at once
 
@@ -147,23 +172,25 @@ running container, allocation and pod, each tagged with its backend.
 Targets you connect to most, and most recently, come first (zsh and fish keep
 that order; `_HI_RECENT=0` turns it off).
 `hi --<TAB>` answers hi's own flags without probing any backend. Client: fish,
-for the description column its pager gives every row.
+for the description column its pager gives every row. Showing
+`_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/demos/complete.gif)
 
 The list stops at eleven rows because fish hands its pager half the screen —
 that is completion behaving normally, not the GIF cut short.
 
-### no target at all
+### one command, every backend
 
-`hi` on its own does not fall through to ssh's usage message: it offers the
-same list, backend-tagged and recently-used first, and connects to what you
-pick. `fzf` or `sk` if you have one, a numbered menu if you do not — nothing
-has to be installed. It runs on the client and never reaches a target, and a
-`hi` in a script or a CI job still fails the way it always has rather than
-waiting on a menu nobody can answer.
+`hi <name> <command>` runs one command inside the session — with hi's aliases
+and environment — and only its output comes back. The same loop over an ssh
+host, a docker container, a nomad allocation and a kubernetes pod (the `-F` is
+ssh's, passed through unchanged, because the recording's ssh config is a
+throwaway rather than the renderer's own). The pod is busybox
+`ash` with no bash at all, which is hi's aliases-only tier — hi says so, once,
+and runs the command anyway. Client: zsh.
 
-![bare hi offering its target list through fzf, then landing a session in the container picked from it](https://ivylikethevine.github.io/say-hi/docs/demos/pick.gif)
+![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/demos/run.gif)
 
 ## Requirements
 
@@ -233,7 +260,7 @@ waiting on a menu nobody can answer.
   cannot drift. GIF above: [completion](#completion-every-backend-at-once).
 - `hi` on its own offers that same list and connects to what you pick — `fzf`
   or `sk` if you have one, a numbered menu if not. GIF above:
-  [no target at all](#no-target-at-all).
+  [no target at all](#no-target-at-all--recent-first).
 - configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
