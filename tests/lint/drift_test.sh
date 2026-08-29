@@ -210,6 +210,56 @@ function lint_image_tags() {
   return 0
 }
 
+# Two Dockerfiles legitimately pin the same image:tag - see lint_image_tags
+# above for why the alpine and debian:bookworm-slim pins each appear twice.
+# What they must not do is disagree about *which* digest that tag resolves to:
+# demo-debian.Dockerfile's header claims "the same digest pin as the sshd
+# base, so there is one debian pin to bump" - true only if the two files are
+# kept in sync by hand, which nothing here checks. lint_image_tags strips the
+# digest before comparing, on purpose (the doc pins two different debians on
+# purpose), so it cannot see two files naming the same image:tag with
+# different digests - the exact way that claim could go quietly false. This
+# check reads the digest back in and catches that.
+function lint_image_digests() {
+  local pins pin image_tag digests dup bad=0
+  _hi_h2 "Checking that every pinned image:tag agrees on one digest"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+
+  # "<image>:<tag> <digest>" per pinned FROM, deduped - two files pinning the
+  # same tag to the same digest collapse to one row and never reach the dup
+  # check below.
+  _hi_read_lines pins < <(
+    sed -n 's/^FROM \([^:@ ]*\):\([^@ ]*\)@\(sha256:[0-9a-f]*\).*/\1:\2 \3/p' \
+      "$_HI_ROOT/tests/dockerfiles"/*.Dockerfile | sort -u
+  )
+
+  # a tag with more than one surviving digest is the drift this exists to
+  # catch
+  _hi_read_lines dup < <(
+    printf '%s\n' ${pins[@]+"${pins[@]}"} | awk '{print $1}' | sort | uniq -d
+  )
+
+  for image_tag in ${dup[@]+"${dup[@]}"}; do
+    [ -n "$image_tag" ] || continue
+    _hi_align " | $image_tag: more than one digest pinned" "FAILED" "$RED"
+    digests=""
+    for pin in ${pins[@]+"${pins[@]}"}; do
+      case "$pin" in "$image_tag "*) digests="$digests${pin#* }
+" ;; esac
+    done
+    while IFS= read -r pin; do
+      [ -n "$pin" ] || continue
+      grep -l "@$pin" "$_HI_ROOT/tests/dockerfiles"/*.Dockerfile |
+        sed "s#^$_HI_ROOT/#      $pin: #"
+    done <<<"$digests"
+    _hi_note_failure "image digest drift: $image_tag"
+    bad=$((bad + 1))
+  done
+
+  [ "$bad" -eq 0 ] && _hi_align " | every pinned image:tag agrees on one digest" "OK" "$GREEN"
+  return "$bad"
+}
+
 # Every GLOSSARY tag in the tree has to name a real `## HI.NN` heading in
 # docs/GLOSSARY.md: the tags are how shipped files point at an explanation
 # without carrying it, and a deleted entry would otherwise strand its tags
@@ -534,7 +584,8 @@ function run_drift() {
 
   local _hi_lint_half
   for _hi_lint_half in lint_bash32 lint_home_default lint_glossary_tags \
-    lint_settings_table lint_liquid_docs lint_dockerfiles lint_image_tags; do
+    lint_settings_table lint_liquid_docs lint_dockerfiles lint_image_tags \
+    lint_image_digests; do
     "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
   done
   unset _hi_lint_half
