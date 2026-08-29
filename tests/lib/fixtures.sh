@@ -372,6 +372,35 @@ function _hi_scratch_tree() {
   printf '%s' "$_HI_WORKDIR/$name"
 }
 
+# _hi_settings_fixture <name> <fn...> - run <fn...> with $_HI_ROOT,
+# $_HI_CONFIG_DIR and $_HI_SETTINGS pointed at throwaway paths under
+# $_HI_WORKDIR/<name>. scripts/install.sh's writers (config_shell,
+# ensure_settings_shebang) and its uninstall half (strip_settings) all reach for
+# those three, which in a real run are this very checkout and the developer's
+# own overlay - the same shadowing load_test.sh's _hi_clean_all wrapper does
+# before letting clean_all near $_HI_ROOT.
+#
+# The scratch overlay is deliberately a *different* directory from the scratch
+# tree's settings/, so "writes land outside the tree" is something the tests can see
+# rather than assume.
+#
+# Shared here rather than living in tests/scripts/install_test.sh, where it was
+# born: tests/scripts/configure_test.sh needs it just as much, for the same
+# reason install.sh's own writers do - GLOSSARY: HI.34 says a suite sources
+# test_lib.sh and nothing else, so a helper more than one suite needs lives in
+# the harness instead of being copied.
+function _hi_settings_fixture() {
+  local dir="$_HI_WORKDIR/$1"
+  local _HI_ROOT="$dir" _HI_CONFIG_DIR="$dir/config"
+  local _HI_SETTINGS="$dir/config/settings.sh"
+  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
+  shift
+  "$@" >/dev/null
+}
+
+# where _hi_settings_fixture's run writes, as the assertions see it
+function _hi_fixture_settings() { printf '%s' "$_HI_WORKDIR/$1/config/settings.sh"; }
+
 # The suites' small <key> -> <value> maps (which shell image built, where a
 # binary is), as a newline-separated "<key>=<value>" string in a plain variable:
 # associative arrays are bash 4 and macOS still ships bash 3.2, where `local -A`

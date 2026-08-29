@@ -314,10 +314,10 @@ function install_tree() {
   _hi_cecho " $profile :)" "$GREEN"
 }
 
-# lets tests/scripts/install_test.sh `source` this file to reach the functions
-# above and in rc.sh/configure.sh without running the real install below -
-# config_hi's and unlink_hi's sudo calls in particular have no business firing
-# from a test
+# lets tests/scripts/install_test.sh and tests/scripts/configure_test.sh
+# `source` this file to reach the functions above and in rc.sh/configure.sh
+# without running the real install below - config_hi's and unlink_hi's sudo
+# calls in particular have no business firing from a test
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
 if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then

@@ -208,7 +208,7 @@ Scorecard's Pinned-Dependencies check reports every line below and will keep
 reporting some of them. The answer, so it is not re-decided each time:
 
 **Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
-`tests/dockerfiles/` that names an upstream image (8 of 16 - alpine, ubuntu,
+`tests/dockerfiles/` that names an upstream image (10 of 18 - alpine, ubuntu,
 debian, fedora, bash) carries a `@sha256:`. A digest is what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
 Dependabot bumps the digests weekly; the Alpine 3.20 → 3.24 upgrade in
