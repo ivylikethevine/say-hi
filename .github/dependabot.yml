@@ -48,6 +48,28 @@ updates:
     # compromised release's window is its first days (zizmor: dependabot-cooldown)
     cooldown:
       default-days: 7
+    # Two groups rather than one PR per action - ported from sharerr's
+    # dependabot.yml, which groups the same way for the same reason (a bump PR
+    # per action per week is noise nobody reads). The split there is
+    # docker/*-vs-everything-else, because that repo's actions are mostly
+    # first-party plus a docker/* cluster used together in one job; this repo
+    # has no docker/* actions at all, so the natural split is the first-party
+    # actions/* namespace (checkout, cache, upload/download-artifact, the
+    # Pages actions, attest-build-provenance - released together often enough
+    # that reviewing five identical version bumps a week added nothing) versus
+    # the third-party actions (codeql-action, scorecard-action,
+    # markdownlint-cli2-action, kind-action, vhs-action, freebsd-vm,
+    # lychee-action, devcontainers/action), which stay together in one PR for
+    # the same "one review beats five" reason rather than getting a group each.
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+      other:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "actions/*"
 
   # The three upstream base images the test fixtures build on, pinned by digest
   # in tests/dockerfiles/*.Dockerfile. A digest never moves, which is the point
@@ -62,6 +84,15 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    # One PR for every digest refresh in this directory (alpine, the three
+    # debian variants, fedora, ubuntu) rather than one per image - they are
+    # all fixture bases used together in the same test suites, never reviewed
+    # any differently from each other. Same reasoning as sharerr's `servarr`
+    # group in its docker-compose block.
+    groups:
+      fixtures:
+        patterns:
+          - "*"
     # bash:3.2 is a constant, not a version to keep current. That image is the
     # bash 3.2 floor - the version macOS still ships and the one every bash 4
     # builtin hi might reach for is missing from (sshd-bash32.Dockerfile says

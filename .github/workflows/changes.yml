@@ -1,0 +1,68 @@
+# Detects whether a push or pull_request touched anything outside
+# `.github/workflows/**`, so ci.yml's expensive jobs can skip on a
+# workflow-only or docs-only change without a `paths:` filter on each job
+# copying the same fileset. Ported from sharerr's identically-named workflow,
+# written for the same problem there first.
+#
+# ci.yml did not have any path filtering before this - every job ran on every
+# PR, including e2e (25 min), e2e-backends (40 min) and test-macos (20 min) on
+# a README-only change. `workflow-lint` (actionlint + zizmor) and
+# `advisory-lint` (markdownlint, hadolint, demo-staleness) are deliberately
+# NOT gated on this - a workflow-only change is exactly what workflow-lint
+# exists to catch, and a docs-only change is exactly when advisory-lint should
+# run. demos.yml already has its own narrower `paths:` filter and is left
+# alone; this is for the jobs a docs- or workflow-only change genuinely cannot
+# move the result of.
+name: Detect changes
+
+on:
+  workflow_call:
+    inputs:
+      filters:
+        description: >
+          `dorny/paths-filter` filter rules (YAML), with a single key "code" —
+          the fileset downstream jobs should treat as "something changed".
+        required: true
+        type: string
+    outputs:
+      code:
+        description: "'true' if a file matching `inputs.filters`'s \"code\" key changed."
+        value: ${{ jobs.changes.outputs.code }}
+
+permissions: {}
+
+jobs:
+  changes:
+    name: detect changes
+    # No `if:` here, deliberately: whether this should run at all (push/
+    # pull_request only, not schedule or workflow_dispatch) is ci.yml's own
+    # call, made on the job that does `uses: ./.github/workflows/
+    # changes.yml` — a skipped *calling* job reports `result: skipped` the
+    # same way any other skipped job does, which is what the downstream
+    # `needs.changes.result == 'skipped'` checks depend on. Putting the
+    # condition in here instead would gate it on this *inner* job's own skip
+    # status propagating back through the reusable-workflow call, which is
+    # unverified and not worth risking against a check every other job's
+    # `if:` relies on.
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # some-with-excludes, not the default `some`: a bare negated pattern
+      # matches nothing on its own (picomatch needs a positive rule to negate
+      # against), and plain `some` would also count workflow files toward a
+      # match since `**` matches those too. This is the combination that
+      # actually means "some changed file lives outside .github/workflows/**".
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: ${{ inputs.filters }}
