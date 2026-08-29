@@ -171,14 +171,18 @@ jobs:
           short="${GITHUB_SHA::7}"
           # what changed since the last real tag, or since the root when there
           # is none yet; the ledger is git history (docs/ROADMAP.md), and a
-          # snapshot's readers are the ones who want it verbatim
+          # snapshot's readers are the ones who want it verbatim.
+          # -n 50 rather than `| head -n 50`: this step is `pipefail`, and on a
+          # history long enough for head to close the pipe early git log dies
+          # of SIGPIPE, which pipefail turns into exit 141 (the one pipeline
+          # here whose writer can outlive its reader)
           last="$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || true)"
           if [ -n "$last" ]; then
             since="since $last"
-            log="$(git log --oneline --no-decorate "$last..HEAD" | head -n 50)"
+            log="$(git log --oneline --no-decorate -n 50 "$last..HEAD")"
           else
             since="on main"
-            log="$(git log --oneline --no-decorate HEAD | head -n 50)"
+            log="$(git log --oneline --no-decorate -n 50 HEAD)"
           fi
           pubkey="$(sed -n "s/^minisign -Vm SHA256SUMS -P '\([^']*\)'.*/\1/p" \
             docs/PACKAGING.md | head -n1)"
