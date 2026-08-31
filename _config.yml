@@ -7,7 +7,8 @@ title: say-hi
 description: >-
   A greeting, a prompt and your aliases on every machine you ssh, docker,
   podman, nomad or kubectl into - without installing anything there.
-theme: minimal
+# theme: minima
+remote_theme: pages-themes/minimal@v0.2.0
 
 # Each of these earns its place against how this repo's markdown is written:
 #
@@ -28,6 +29,7 @@ plugins:
   - jekyll-relative-links
   - jekyll-optional-front-matter
   - jekyll-titles-from-headings
+  - jekyll-remote-theme
 
 # None of README.md/docs/*.md carry front matter, so without this they render
 # as bare content with no theme chrome (no <head>, no nav, no styling).
