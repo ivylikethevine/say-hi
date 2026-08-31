@@ -264,8 +264,8 @@ function test_par_width_one_really_serializes() {
 # a capped run must say it is capped rather than read as "everything at once"
 function test_par_begin_announces_the_width() {
   local wide narrow
-  wide="$( (_HI_PAR_WIDTH=3 _hi_par_begin "probe cases"))"
-  narrow="$( (_HI_PAR_WIDTH=1 _hi_par_begin "probe cases"))"
+  wide="$( (_HI_PAR_WIDTH=3 _hi_par_begin "probe cases") )"
+  narrow="$( (_HI_PAR_WIDTH=1 _hi_par_begin "probe cases") )"
   [[ "$wide" == *"3 at a time"* ]] || return 1
   [[ "$narrow" == *"one at a time"* ]]
 }

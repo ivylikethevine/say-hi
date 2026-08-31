@@ -1143,7 +1143,7 @@ function run_hi_parse_tests() {
   _hi_check "no tty, no -t (hi <target> <cmd> | ...)" test_container_cmds_drop_the_tty_without_one
   _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
 
-  _hi_h2 "Testing: --plain (U6)"
+  _hi_h2 "Testing: --plain"
   _hi_check "Container: attaches with no write, prefers bash" test_plain_container_attaches_with_no_write
   _hi_check "Container: falls back to the ladder without bash" test_plain_container_falls_back_to_the_ladder_without_bash
   _hi_check "Container: runs RAWCMD with -c" test_plain_container_runs_rawcmd_with_dash_c

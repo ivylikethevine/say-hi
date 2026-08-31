@@ -95,24 +95,20 @@ function system_info() {
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
   fi
   _hi_sanitize_var os "$os"
-  # _HI_HEADER_GHZ=1 (settings.sh) swaps the CPU cell to x.x GHz; unset/0
-  # keeps the MHz integers the tests pin
-  local freq_unit="MHz"
-  if [ "${_HI_HEADER_GHZ:-0}" = 1 ]; then
-    freq_unit="GHz"
-    # printf, not an awk fork apiece; rounded to tenths *before* splitting so
-    # a carry lands properly (2950 -> 3.0, not "2.10")
-    local ghz_tenths ghz_var ghz_val
-    for ghz_var in base_mhz boost_mhz; do
-      eval "ghz_val=\$$ghz_var"
-      [ -n "$ghz_val" ] && {
-        ghz_tenths=$(((ghz_val + 50) / 100))
-        printf -v "$ghz_var" '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
-      }
-    done
-  fi
+  # every probe above yields MHz (hence base_mhz/boost_mhz keep their names);
+  # rendered as GHz to tenths. printf, not an awk fork apiece; rounded to
+  # tenths *before* splitting so a carry lands properly (2950 -> 3.0, not
+  # "2.10")
+  local ghz_tenths ghz_var ghz_val
+  for ghz_var in base_mhz boost_mhz; do
+    eval "ghz_val=\$$ghz_var"
+    [ -n "$ghz_val" ] && {
+      ghz_tenths=$(((ghz_val + 50) / 100))
+      printf -v "$ghz_var" '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
+    }
+  done
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
-    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} $freq_unit"
+    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz"
 }
 
 # identity()'s backend probes are independent and each capped at

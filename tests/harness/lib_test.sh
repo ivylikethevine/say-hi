@@ -28,19 +28,19 @@ function test_require_returns_for_an_installed_command() {
 
 function test_require_exits_zero_and_warns_when_missing() {
   local out rc=0
-  out="$( (_hi_require definitely-not-a-real-hi-test-command-xyz))" || rc=$?
+  out="$( (_hi_require definitely-not-a-real-hi-test-command-xyz) )" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"not installed, skipping"* ]]
 }
 
 function test_require_uses_a_custom_reason() {
   local out
-  out="$( (_hi_require definitely-not-a-real-hi-test-command-xyz "unavailable here"))"
+  out="$( (_hi_require definitely-not-a-real-hi-test-command-xyz "unavailable here") )"
   [[ "$out" == *"unavailable here, skipping"* ]]
 }
 
 function test_require_backend_skips_when_the_cli_is_missing() {
   local out rc=0
-  out="$( (_hi_require_backend definitely-not-a-real-hi-test-command-xyz))" || rc=$?
+  out="$( (_hi_require_backend definitely-not-a-real-hi-test-command-xyz) )" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"skipping"* ]]
 }
 

@@ -14,7 +14,7 @@ setopt prompt_subst
 
 _hi_interactive_extras
 
-# C2: primed unconditionally, so a custom PROMPT in the user's own zsh.zsh
+# Primed unconditionally, so a custom PROMPT in the user's own zsh.zsh
 # (sourced at the end of this file) can use hi's color hashing with
 # _HI_DISABLE_PROMPT=1 - $_HI_HOST_COLOR/$_HI_USER_COLOR are the names %F{} wants.
 _hi_prime_identity

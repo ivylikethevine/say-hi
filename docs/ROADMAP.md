@@ -175,3 +175,21 @@ and none is a v1.0.0 criterion.
     `.SRCINFO`); the `aur` job handles the versioned package after.
   - **Ticks when:** both packages are live on the AUR and the `aur` job has
     kept `say-hi` current for one real release.
+
+- [ ] **Bump zizmor past 1.29.0** — _scope: one line in
+      `.github/actions/setup-tool/tools.txt`, once actionlint catches up;
+      in-repo._ zizmor 1.30.0 ships a new `self-repository` audit for GitHub's
+      `$/...` same-repo syntax and flags every `./...` action/workflow
+      reference in the tree (35 of them) as a finding; `ci.yml`'s
+      `workflow-lint` job gates on zizmor with no `--min-severity`, so the pin
+      bump alone breaks CI. actionlint `1.7.12` (also pinned in `tools.txt`,
+      current as of 2026-08-31 — no later release exists) does not recognize
+      `$/...` and fails on the same references, so no version of the pair
+      agrees today. `.github/scripts/check_tool_versions.sh` reports zizmor as
+      the one outdated pin in the meantime.
+
+  - **When actionlint catches up:** a release past `1.7.12` that accepts
+    `$/...`. zizmor's own `--fix=safe` does the `./...` → `$/...` rewrite, so
+    the pin bump and the rewrite land in the same commit.
+  - **Ticks when:** zizmor is back on its latest release and
+    `check_tool_versions.sh` reports every pin current.

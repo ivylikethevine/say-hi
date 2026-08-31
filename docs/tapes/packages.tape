@@ -6,9 +6,9 @@
 #
 # Its configuration: a `packages` overlay of favorites (docs/tapes/fixtures.sh
 # writes it into the same overlay dir every demo uses), a floor of 3 so tiers
-# 0-2 stay out of the frame, and _HI_HEADER_GHZ=1 - the one header line no
-# other tape turns on. The overlay is what rides along: the check on both boxes
-# reads the *client's* file, which is the whole point of showing two.
+# 0-2 stay out of the frame. The overlay is what rides along: the check on
+# both boxes reads the *client's* file, which is the whole point of showing
+# two.
 #
 # `clear` between the sessions is for the frame: two headers plus the overlay
 # listing outrun common.tape's height, and the second header is the shot.

@@ -111,8 +111,7 @@ How they are rendered is in
 A `packages` overlay of the tools you care about, with a priority each, and
 the header's check reads it on every target: one quiet line on a box that has
 them, a loud one on a box that does not. Client: bash, into two docker
-containers. Showing a `packages` overlay, `_HI_PACKAGES_MIN_PRIORITY=3` and
-`_HI_HEADER_GHZ=1`.
+containers. Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/demos/packages.gif)
 

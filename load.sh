@@ -98,7 +98,7 @@ function _hi_session_shell() {
 # the target's $HOME. Made once by _hi_session_rc_setup and removed by clean_all
 # - the *same* exit hook, deliberately, because core.sh's _hi_on_exit is a
 # `trap ... EXIT` in bash and a second call would replace the first rather than
-# adding to it. Nested under $_HI_CLEANUP when there is one (D4: so the
+# adding to it. Nested under $_HI_CLEANUP when there is one (so the
 # bootstrap's own `rm -rf $_HI_CLEANUP` backstop, not just clean_all, sweeps
 # it too), a standalone mktemp on the permanent-install path (no $_HI_CLEANUP
 # to nest under, and clean_all is the only cleanup path there regardless).

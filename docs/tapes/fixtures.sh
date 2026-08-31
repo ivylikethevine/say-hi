@@ -582,12 +582,10 @@ case "${1:-}:${2:-}" in
 up:packages)
   client_rc bash ivy workshop
   # the check as a diagnosis: a floor of 3 keeps everything below the top tier
-  # out of the frame, the overlay below is the list being checked, and the GHz
-  # line is the one header knob no other demo turns on. Two boxes: the tools
-  # debian answers the list quietly, the bare one does not.
+  # out of the frame, and the overlay below is the list being checked. Two
+  # boxes: the tools debian answers the list quietly, the bare one does not.
   demo_settings <<'EOF'
 export _HI_PACKAGES_MIN_PRIORITY='3'
-export _HI_HEADER_GHZ='1'
 EOF
   demo_overlay packages <<'EOF'
 # the tools you care about, and how loudly to miss them

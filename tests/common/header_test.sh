@@ -141,6 +141,14 @@ function test_system_info_includes_static_labels() {
   [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
 }
 
+# GHz is the only format the CPU cell renders now - one pin so a regression
+# back to whole MHz integers is caught
+function test_system_info_cpu_cell_is_ghz() {
+  local out
+  out="$(system_info)"
+  [[ "$out" == *"GHz"* ]]
+}
+
 # A target with a shell and awk and nothing else - core_test.sh's barebones
 # box, one layer up. The header is the first thing a session prints, so a
 # missing uname or date greeting the user with "command not found" across the
@@ -695,6 +703,7 @@ function run_header_tests() {
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
+  _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
 
   _hi_h2 "Testing: a target with no coreutils"
