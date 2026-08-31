@@ -251,19 +251,18 @@ prompt offers to take it as final and skip them. The rows are
 
 Each is **on by default**; set it to `1` to turn that piece off.
 
-| variable                 | turns off                                                                                                                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `_HI_DISABLE_HEADER`     | the whole connect/disconnect header, every line of it                                                                                                        |
-| `_HI_DISABLE_PROMPT`     | the colored `user@host` prompt, leaving your shell's own                                                                                                     |
-| `_HI_DISABLE_GIT_STATUS` | the git segment in the prompt                                                                                                                                |
-| `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                                            |
-| `_HI_DISABLE_BAT_ALIAS`  | rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way                                                |
-| `_HI_DISABLE_EZA_CONFIG` | styling `eza` itself from hi's theme (`EZA_CONFIG_DIR`) - independent of the alias family below, and keeps `settings/theme.yml` off the ssh payload entirely |
-| `_HI_DISABLE_LS_ALIASES` | the styled `exa`/`eza` aliases - the `exa`/`eza` binaries themselves stay available by name either way                                                       |
-| `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                                                |
-| `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely                            |
-| `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                                                  |
-| `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                                              |
+| variable                 | turns off                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `_HI_DISABLE_HEADER`     | the whole connect/disconnect header, every line of it                                                                             |
+| `_HI_DISABLE_PROMPT`     | the colored `user@host` prompt, leaving your shell's own                                                                          |
+| `_HI_DISABLE_GIT_STATUS` | the git segment in the prompt                                                                                                     |
+| `_HI_DISABLE_EDITORS`    | the `vim`/`nano` config overrides                                                                                                 |
+| `_HI_DISABLE_BAT_ALIAS`  | rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way                     |
+| `_HI_DISABLE_LS_ALIASES` | the styled `exa`/`eza` aliases - the `exa`/`eza` binaries themselves stay available by name either way                            |
+| `_HI_DISABLE_OSC52`      | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                     |
+| `_HI_DISABLE_NOTIFY`     | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely |
+| `_HI_DISABLE_MARKS`      | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                       |
+| `_HI_DISABLE_LOCAL`      | all of the above **on this machine only** - hi still styles the hosts you visit                                                   |
 
 ## Header details
 
