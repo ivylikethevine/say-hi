@@ -15,7 +15,7 @@ source "$_HI_ALIASES"
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
-# C2: primed unconditionally, so a custom PS1 in the user's own bash.sh
+# Primed unconditionally, so a custom PS1 in the user's own bash.sh
 # (sourced at the end of this file) can use hi's per-host/per-user color
 # hashing with _HI_DISABLE_PROMPT=1. $_HI_HOST_ESC/$_HI_USER_ESC are the
 # ready-to-embed escapes; core.sh's _hi_prime_identity stops at the color

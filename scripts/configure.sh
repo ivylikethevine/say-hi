@@ -66,8 +66,8 @@ function setting_off() {
 
 # true if $1 is on. Two shapes of setting share this: a default-on toggle is
 # on unless its value is <off> ($3), and an opt-in - one whose on-value <on>
-# ($4) has to be written out, like _HI_HEADER_GHZ=1 or _HI_PROMPT=starship -
-# is on only when its value *is* that.
+# ($4) has to be written out, like _HI_PROMPT=starship - is on only when its
+# value *is* that.
 function setting_on() {
   local var="$1" target="$2" off="${3:-1}" on="${4:-}" answer
   setting_value "$var" "$target" answer
@@ -238,14 +238,6 @@ function _hi_osc52_preview() {
   printf 'hi_copy  -> %s\n' "$_HI_OSC52"
 }
 
-# the CPU line both ways, so the GHz question shows the exact difference
-# rather than describing it. system_info reads the flag on every call, so a
-# prefix assignment is the whole trick, as _hi_packages_floor_preview does.
-function _hi_ghz_preview() {
-  _HI_HEADER_GHZ=0 system_info
-  _HI_HEADER_GHZ=1 system_info
-}
-
 function _hi_starship_preview() {
   if command -v starship >/dev/null 2>&1; then
     printf "starship is installed here (%s); a target without it keeps hi's prompt\n" \
@@ -290,7 +282,6 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?|"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?|"
   "_HI_DISABLE_BAT_ALIAS|1||_hi_bat_alias_preview| Enable the cat -> bat alias (styled output, --tabs 2, changes/grid) when bat is installed?|bat"
-  "_HI_DISABLE_EZA_CONFIG|1||| Style eza itself from hi's theme (EZA_CONFIG_DIR), on top of the ls-family aliases below?|eza"
   "_HI_DISABLE_LS_ALIASES|1||| Enable the styled exa/eza aliases?|eza"
   "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?|"
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?|"
@@ -304,11 +295,6 @@ _HI_HEADER_PROMPTS=(
   "_HI_HEADER_SYSINFO|0||system_info| Show the system info line (OS, CPU, RAM)?|"
   "_HI_HEADER_IDENTITY|0||identity| Show the git identity/docker/ssh key line?|"
   "_HI_HEADER_CHECK|0||full_check| Show the installed-packages check?|"
-)
-
-# asked only while the system info line is on - its one dial
-_HI_SYSINFO_PROMPTS=(
-  "_HI_HEADER_GHZ|0|1|_hi_ghz_preview| Show the CPU speed in GHz rather than whole MHz?|"
 )
 
 # asked only while the prompt is on: whether to hand it to starship where a
@@ -382,7 +368,7 @@ _HI_PRESETS=(
 function _hi_preset_vocab() {
   local row
   for row in "${_HI_FEATURE_PROMPTS[@]}" "${_HI_HEADER_PROMPTS[@]}" \
-    "${_HI_SYSINFO_PROMPTS[@]}" "${_HI_PROMPT_PROMPTS[@]}"; do
+    "${_HI_PROMPT_PROMPTS[@]}"; do
     printf '%s\n' "${row%%|*}"
   done
   printf '%s\n' _HI_PACKAGES_MIN_PRIORITY
@@ -492,15 +478,12 @@ function config_features() {
 # Prompt for the header's optional detail lines. Skipped entirely if the header
 # itself is off, since asking about its pieces would be moot - and that reads
 # the answer config_features just took, not the file, which still holds the old
-# one. The GHz dial follows the same rule one level down: only while the
-# system info line it changes is on.
+# one.
 function config_header_details() {
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
   section "Choosing header details" "Which lines the connect/disconnect header prints."
   _hi_load_preview_sources
   ask_prompt_group _HI_HEADER_PROMPTS
-  setting_off _HI_HEADER_SYSINFO "$_HI_SETTINGS" 0 && return 0
-  ask_prompt_group _HI_SYSINFO_PROMPTS
 }
 
 # The one prompt that loops. Every other question here previews once and takes
@@ -532,7 +515,7 @@ function config_packages_floor() {
       # A failed read is EOF - a closed pipe, ^D, or a driver that ran out of
       # input - and never an answer. Break, and close the prompt line, since
       # read -p leaves the cursor on it.
-      if ! read -r -p " Lowest package priority to show (0-5, higher hides more)? [$_hi_floor_candidate] " reply; then
+      if ! read -r -p " Lowest package priority to show (0-4, 4 turns the check off)? [$_hi_floor_candidate] " reply; then
         printf '\n' >&2
         break
       fi
@@ -543,7 +526,7 @@ function config_packages_floor() {
           _hi_cecho " not a number, leaving it at $_hi_floor_candidate" "$YELLOW"
           break
         fi
-        _hi_cecho " not a number - type 0-5, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
+        _hi_cecho " not a number - type 0-4, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
         continue
       fi
       rejects=0

@@ -117,7 +117,7 @@ function _hi_run_case() {
 function _hi_kube_multi_container_case() {
   local name=hi-kubetest-multi got ok=0
   _hi_h3 "Testing shape: [multi-container]"
-  if ! kubectl apply -f - >"$_HI_WORKDIR/multi.run.log" 2>&1 <<EOF; then
+  if ! kubectl apply -f - >"$_HI_WORKDIR/multi.run.log" 2>&1 <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -131,6 +131,7 @@ spec:
       image: $_HI_PAIR_IMAGE_SH
       command: ["sleep", "infinity"]
 EOF
+  then
     _hi_dump_log "Failed to create the multi-container pod:" "$_HI_WORKDIR/multi.run.log"
     return 1
   fi

@@ -19,5 +19,6 @@ first — before this, README's own "More docs" section was the only index.
 | [Packaging](PACKAGING.md)                                   | The publishing runbook, the reproducibility contract, verifying a download, regenerating the demo GIFs. |
 | [Roadmap](ROADMAP.md)                                       | What is planned and what it is blocked on.                                                              |
 | [Future](FUTURE.md)                                         | Unscheduled research, not queued work.                                                                  |
+| [Evaluation](EVALUATION.md)                                 | A pre-1.0 gap analysis ranked by user impact; complements the roadmap.                                  |
 | [OpenSSF Best Practices draft](CII-BEST-PRACTICES-DRAFT.md) | The questionnaire, answered against this tree — scratch until it's transcribed to bestpractices.dev.    |
 | [Contributing](CONTRIBUTING.md)                             | The gate to run before a pull request, and which doc changes with what.                                 |

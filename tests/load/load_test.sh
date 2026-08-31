@@ -43,7 +43,7 @@ function test_clean_all_removes_disposable_copy() {
   [ ! -e "$root" ]
 }
 
-# D4: clean_all removes the whole $_HI_CLEANUP tree, not just $_HI_ROOT under
+# clean_all removes the whole $_HI_CLEANUP tree, not just $_HI_ROOT under
 # it - a sibling file that landed directly under $_HI_HOME (the ssh arm's
 # $_HI_SESSION_RC_DIR before it was nested under $_HI_CLEANUP, or anything
 # else that might one day) goes with it, not just say-hi/ itself.
@@ -149,7 +149,7 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   return 1
 }
 
-# D4: with $_HI_CLEANUP set (the ephemeral shape), the rc directory nests
+# With $_HI_CLEANUP set (the ephemeral shape), the rc directory nests
 # under it - so the bootstrap's own `rm -rf $_HI_CLEANUP` backstop sweeps it
 # too, not just clean_all - rather than a wholly separate mktemp invisible to
 # that trap.
@@ -173,7 +173,8 @@ function test_session_rc_setup_nests_under_cleanup_when_set() {
 }
 
 # ...and without one (the permanent-install shape), a standalone mktemp -
-# unaffected, and the case this suite already had before D4.
+# unaffected, and the case this suite already had before the whole-tree
+# cleanup above was added.
 function test_session_rc_setup_stands_alone_without_cleanup() {
   local dir
   (
@@ -264,7 +265,7 @@ function run_load_tests() {
   _hi_h2 "Testing: clean_all"
   _hi_check "Keeps \$_HI_ROOT when _HI_CLEANUP is unset" test_clean_all_keeps_permanent_install
   _hi_check "Removes \$_HI_ROOT when _HI_CLEANUP is set" test_clean_all_removes_disposable_copy
-  _hi_check "Removes the whole \$_HI_CLEANUP tree, not just \$_HI_ROOT (D4)" test_clean_all_removes_the_whole_cleanup_tree_not_just_root
+  _hi_check "Removes the whole \$_HI_CLEANUP tree, not just \$_HI_ROOT" test_clean_all_removes_the_whole_cleanup_tree_not_just_root
   _hi_check "Succeeds with nothing to clean" test_clean_all_succeeds_with_nothing_to_do
 
   _hi_h2 "Testing: profile restoration"
@@ -273,7 +274,7 @@ function run_load_tests() {
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc
-  _hi_check "the rc dir nests under \$_HI_CLEANUP when set (D4)" test_session_rc_setup_nests_under_cleanup_when_set
+  _hi_check "the rc dir nests under \$_HI_CLEANUP when set" test_session_rc_setup_nests_under_cleanup_when_set
   _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
 
   _hi_h2 "Testing: _hi_session_shell"

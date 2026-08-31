@@ -689,7 +689,7 @@ REMOTE
 # fresh /tmp root. Reads $hi_esc/$nc_esc/$size and the streams from its caller,
 # so _say_hi and _hi_wire_bytes assemble one shape rather than two kept in step.
 #
-# The `trap ... exit` below is a backstop, not a second owner (D4): load.sh's
+# The `trap ... exit` below is a backstop, not a second owner: load.sh's
 # clean_all is what actually knows how to undo everything hi did on the
 # target - this tree and $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
 # exactly this reason) - and it runs
@@ -953,7 +953,7 @@ function _say_hi_container() {
 
     # the shared fallback rc in its aliases-only shape, plus the POSIX prompt
     # for the shells that can parse it - the ssh path's `*)` rule
-    local -a fish_cmd=()
+    local -a fish_cmd=() st
     {
       _hi_fallback_rc --aliases-only "$root"
       case "$fallback" in
@@ -965,11 +965,28 @@ function _say_hi_container() {
       [ "$fallback" = fish ] || [ -z "${CMDARG:-}" ] || printf '%s\n' "$CMDARG"
     } |
       "${cp[@]}" sh -c "cat > '$root/.hi_fallback_rc'" 2>"$tmp"
+    st=("${PIPESTATUS[@]}")
+    # checked like aliases.sh's copy above, and for the same reason: a miss
+    # here is silent otherwise. The write can succeed at the transport and
+    # still deliver nothing - an exec -i whose stdin closes before the
+    # target's cat drains it - which is why the file is also proven non-empty
+    # on the target, not just assumed from a zero exit; either failure drops
+    # $CMDARG along with the rest of the rc and leaves a bare, uncommanded
+    # shell with no way to tell the two apart from the outside
+    if [ "${st[1]}" != 0 ] || ! "${probe[@]}" sh -c "[ -s '$root/.hi_fallback_rc' ]" 2>"$tmp"; then
+      _hi_fail " failed to write the fallback rc into [$DOMAIN]"
+      "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+      return 1
+    fi
     [ "$fallback" != fish ] || [ -z "${CMDARG:-}" ] || fish_cmd=(-c "$CMDARG")
 
     case "$fallback" in
     zsh)
-      "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp"
+      if ! "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp"; then
+        _hi_fail " failed to write .zshrc into [$DOMAIN]"
+        "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+        return 1
+      fi
       "${attach[@]}" sh -c "export ZDOTDIR='$root'; exec zsh -i"
       ;;
     # the rc through -C and the command through -c, as in _hi_remote_suffix
@@ -1021,7 +1038,7 @@ function _say_hi_container() {
   # exit and no output.
   #
   # _HI_CLEANUP marks the tree disposable for load.sh's clean_all, which owns
-  # undoing everything hi did here (D4). The rm -rf below is a client-side
+  # undoing everything hi did here. The rm -rf below is a client-side
   # backstop for the one thing clean_all cannot survive - bash killed by a
   # signal nothing can trap - not a second place that has to know what to
   # remove: $_HI_SESSION_RC_DIR nests under $_HI_CLEANUP, so this one `rm -rf`

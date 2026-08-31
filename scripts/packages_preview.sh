@@ -31,17 +31,18 @@ taken from your own packages file - then the marks, then the check itself
 exactly as a connect will print it.
 
 Takes no arguments. Reads:
-  settings/packages      the package:priority lines (override with $_HI_PACKAGES;
+  settings/packages      the [-|+]package:priority lines (override with $_HI_PACKAGES;
                      ~/.config/say-hi/packages wins automatically when present)
   common/header.sh   the priority meanings and their two color tables
 
-A cell reading "hidden" is not a color: at that priority the header prints
-nothing for that state, which is why it has no example either. An EXAMPLE cell
-reading "below floor" is the same idea one level up: $_HI_PACKAGES_MIN_PRIORITY
-is at or above that rank, so the header prints nothing for it whatever its
-colors say. That floor defaults to 1, so priority 0 reads "below floor" until
-you set one of your own. A priority with
-no example at all has no package of its own in your file.
+A line's leading mode character decides which states speak at all: `-` only
+when the whole line is missing, `+` only when something on it is installed,
+no flag both ways - the MODE table below the marks spells them out. An
+EXAMPLE cell reading "below floor" means $_HI_PACKAGES_MIN_PRIORITY is above
+that rank, so the header prints nothing for it whatever its colors say. That
+floor defaults to 1, so priority 0 reads "below floor" until you set one of
+your own; anything above 3 mutes the check entirely. A priority with no
+example at all has no package of its own in your file.
 EOF
   exit 0
   ;;
@@ -106,19 +107,6 @@ function _hi_color_name_of() {
   printf 'plain'
 }
 
-# _hi_color_label <escape> - what the table prints for one entry of the header's
-# two color tables: the palette name, or "hidden" for the "hide" sentinel, which
-# is not a color at all but an instruction to print nothing. Measuring and
-# rendering both come through here, so a column cannot be sized to one string
-# and then painted with another.
-function _hi_color_label() {
-  [[ "$1" = hide ]] && {
-    printf 'hidden'
-    return
-  }
-  _hi_color_name_of "$1"
-}
-
 # Filled by _hi_collect_examples, read by the table: per-priority example rows
 # and their printed widths, plus the two totals under the table. Indexed by
 # priority (a plain indexed array - bash 3.2 has no associative ones), and
@@ -132,8 +120,9 @@ _HI_PKG_MIN="${_HI_PACKAGES_MIN_PRIORITY:-1}"
 # Run the real check over the real packages file and keep the first installed
 # and first missing row at each priority. check_line appends what it would print
 # to `visible` (bash's dynamic scoping - full_check calls it exactly this way)
-# and drops hidden rows on the floor, which is the point: a hidden row has no
-# example to show, because it shows nothing.
+# and drops mode-suppressed rows on the floor, which is the point: a `-` line
+# that is installed, or a `+` line that is missing, has no example to show
+# because it shows nothing.
 function _hi_collect_examples() {
   local line entry priority width rendered
   local -a visible=()
@@ -206,14 +195,14 @@ function _hi_print_priorities_table() {
   _hi_read_lines rows < <(_hi_priority_meanings | LC_ALL=C sort -k1,1nr)
 
   # The measure pass keeps what it worked out, indexed by row, so the render
-  # pass below reads it instead of calling _hi_color_label and
+  # pass below reads it instead of calling _hi_color_name_of and
   # _hi_example_cell a second time for every row. Same parallel-array shape as
   # _HI_EX_OK/_HI_EX_OK_W above.
   for entry in ${rows[@]+"${rows[@]}"}; do
     IFS=$'\t' read -r p meaning <<<"$entry"
     _hi_widen w_meaning "$meaning"
-    c_yes[i]="$(_hi_color_label "${_HI_YES[p]:-}")"
-    c_no[i]="$(_hi_color_label "${_HI_NO[p]:-}")"
+    c_yes[i]="$(_hi_color_name_of "${_HI_YES[p]:-}")"
+    c_no[i]="$(_hi_color_name_of "${_HI_NO[p]:-}")"
     _hi_widen w_yes "${c_yes[i]}"
     _hi_widen w_no "${c_no[i]}"
     IFS=$'\t' read -r example ex_width <<<"$(_hi_example_cell "$p")"
@@ -236,10 +225,6 @@ function _hi_print_priorities_table() {
     no_escape="${_HI_NO[p]:-}"
     yes_name="${c_yes[i]}"
     no_name="${c_no[i]}"
-    # the sentinel is not something to paint with, so the cell that says
-    # "hidden" is rendered in no color at all
-    [[ "$yes_escape" = hide ]] && yes_escape=""
-    [[ "$no_escape" = hide ]] && no_escape=""
     example="${c_example[i]}"
     ex_width="${c_ex_width[i]}"
     i=$((i + 1))
@@ -289,6 +274,36 @@ function _hi_print_marks_table() {
   _hi_hbar "$w_mark" "$w_means"
 }
 
+# the third axis of a line: its leading mode character, which decides whether
+# the row speaks at all. No glyph negotiation here - `-` and `+` are the
+# literal characters the packages file uses.
+function _hi_print_modes_table() {
+  local w_mode=4 w_means=5
+  local -a modes=(
+    "-|speaks only when the whole line is missing"
+    "+|speaks only when something on the line is installed"
+    "none|speaks both ways - the default"
+  )
+  local entry flag means
+
+  for entry in "${modes[@]}"; do
+    IFS='|' read -r flag means <<<"$entry"
+    _hi_widen w_mode "$flag"
+    _hi_widen w_means "$means"
+  done
+
+  _hi_hbar "$w_mode" "$w_means"
+  printf '| %-*s | %-*s |\n' "$w_mode" "MODE" "$w_means" "MEANS"
+  _hi_hbar "$w_mode" "$w_means"
+  for entry in "${modes[@]}"; do
+    IFS='|' read -r flag means <<<"$entry"
+    _hi_cell "$w_mode" "" "$flag"
+    _hi_cell "$w_means" "" "$means"
+    printf '|\n'
+  done
+  _hi_hbar "$w_mode" "$w_means"
+}
+
 # same hatch as scripts/color_preview.sh: sourcing this file defines its
 # functions without rendering anything, which is what
 # tests/scripts/packages_preview_test.sh needs
@@ -308,6 +323,8 @@ _hi_collect_examples
 _hi_print_priorities_table
 printf '\n'
 _hi_print_marks_table
+printf '\n'
+_hi_print_modes_table
 printf '\n'
 _hi_h2 "as the header will print it"
 full_check

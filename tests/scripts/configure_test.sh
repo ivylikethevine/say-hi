@@ -574,21 +574,22 @@ function test_ask_setting_default_keeps_disabled() {
 
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
-# (_HI_HEADER_GHZ=1, _HI_PROMPT=starship) is on only when its on-value is.
-# setting_on is the one reader of both, and ask_prompt_group writes both.
+# (_HI_ENABLE_FISH_ALIAS_ABBR=1, _HI_PROMPT=starship) is on only when its
+# on-value is. setting_on is the one reader of both, and ask_prompt_group
+# writes both.
 
 function test_setting_on_opt_in_absent_is_off() {
   local target="$_HI_WORKDIR/opt_in_absent"
   : >"$target"
   _HI_SETTING_PENDING=()
-  ! setting_on _HI_HEADER_GHZ "$target" 0 1
+  ! setting_on _HI_ENABLE_FISH_ALIAS_ABBR "$target" 0 1
 }
 
 function test_setting_on_opt_in_present_is_on() {
   local target="$_HI_WORKDIR/opt_in_present"
-  printf 'export _HI_HEADER_GHZ=1\n' >"$target"
+  printf 'export _HI_ENABLE_FISH_ALIAS_ABBR=1\n' >"$target"
   _HI_SETTING_PENDING=()
-  setting_on _HI_HEADER_GHZ "$target" 0 1
+  setting_on _HI_ENABLE_FISH_ALIAS_ABBR "$target" 0 1
 }
 
 function test_setting_on_toggle_absent_is_on() {
@@ -613,25 +614,9 @@ function _hi_section_lines() {
   printf '%s' "${_HI_SETTING_LINES[*]:-}"
 }
 
-# the GHz dial hangs off the system info line: kept while that line is on
-function test_ghz_kept_while_sysinfo_is_on() {
-  local out
-  out="$(_hi_section_lines ghz_on config_header_details "export _HI_HEADER_GHZ=1")"
-  [[ "$out" == *"export _HI_HEADER_GHZ=1"* ]]
-}
-
-# ...and not restated once it is moot, the way every skipped section behaves
-function test_ghz_dropped_when_sysinfo_is_off() {
-  local out
-  out="$(_hi_section_lines ghz_off config_header_details "export _HI_HEADER_SYSINFO=0" "export _HI_HEADER_GHZ=1")"
-  [[ "$out" != *"_HI_HEADER_GHZ"* ]]
-}
-
 # an opt-in that is off writes nothing - there is no "=0" spelling of it
 function test_opt_in_off_writes_nothing() {
-  local out
-  out="$(_hi_section_lines ghz_default config_header_details)"
-  [[ "$out" != *"_HI_HEADER_GHZ"* ]]
+  [ -z "$(_hi_section_lines prompt_default config_prompt_ends | tr -d ' ')" ]
 }
 
 function test_starship_kept_when_chosen() {
@@ -662,13 +647,13 @@ function test_advanced_defaults_write_nothing() {
 function test_prompt_group_carries_a_row_it_cannot_ask() {
   local out dir="$_HI_WORKDIR/needs"
   local _HI_SETTINGS="$dir/settings.sh"
-  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_HEADER_GHZ|0|1|| moot?|no-such-command-$$")
+  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_ENABLE_FISH_ALIAS_ABBR|0|1|| moot?|no-such-command-$$")
   _HI_SETTING_PENDING=()
   mkdir -p "$dir"
-  printf 'export _HI_HEADER_GHZ=1\n' >"$_HI_SETTINGS"
+  printf 'export _HI_ENABLE_FISH_ALIAS_ABBR=1\n' >"$_HI_SETTINGS"
   ask_prompt_group _HI_NEEDS_PROMPTS </dev/null
   out="${_HI_SETTING_LINES[*]:-}"
-  [[ "$out" == *"export _HI_HEADER_GHZ=1"* ]]
+  [[ "$out" == *"export _HI_ENABLE_FISH_ALIAS_ABBR=1"* ]]
 }
 
 function test_validators_for_the_advanced_values() {
@@ -1009,8 +994,6 @@ function run_configure_tests() {
   _hi_check "An absent opt-in is off" test_setting_on_opt_in_absent_is_off
   _hi_check "A written opt-in is on" test_setting_on_opt_in_present_is_on
   _hi_check "An absent toggle is on" test_setting_on_toggle_absent_is_on
-  _hi_check "GHz is kept while sysinfo is on" test_ghz_kept_while_sysinfo_is_on
-  _hi_check "GHz is dropped once sysinfo is off" test_ghz_dropped_when_sysinfo_is_off
   _hi_check "An opt-in that is off writes nothing" test_opt_in_off_writes_nothing
   _hi_check "starship is kept when chosen" test_starship_kept_when_chosen
   _hi_check "Advanced: declined keeps every value" test_advanced_declined_keeps_every_value

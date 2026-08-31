@@ -111,8 +111,7 @@ How they are rendered is in
 A `packages` overlay of the tools you care about, with a priority each, and
 the header's check reads it on every target: one quiet line on a box that has
 them, a loud one on a box that does not. Client: bash, into two docker
-containers. Showing a `packages` overlay, `_HI_PACKAGES_MIN_PRIORITY=3` and
-`_HI_HEADER_GHZ=1`.
+containers. Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/demos/packages.gif)
 
@@ -261,8 +260,9 @@ and runs the command anyway. Client: zsh.
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
   ssh host and your user resolve to.
 - [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages`
-  and edit; `hi --packages-preview` shows what each priority means and the
-  check as a connect will print it.
+  and edit; `hi --packages-preview` shows what each priority and mode
+  character (`-` speaks only when missing, `+` only when installed) means and
+  the check as a connect will print it.
 - [optional] either of those files can live somewhere else instead —
   `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one file
   without moving the rest of the overlay (`_HI_PACKAGES`, `_HI_VIMRC` and

@@ -7,7 +7,7 @@ title: say-hi
 description: >-
   A greeting, a prompt and your aliases on every machine you ssh, docker,
   podman, nomad or kubectl into - without installing anything there.
-theme: minima
+theme: minimal
 
 # Each of these earns its place against how this repo's markdown is written:
 #

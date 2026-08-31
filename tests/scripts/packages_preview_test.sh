@@ -19,27 +19,29 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../scripts/packages_preview.sh
 source "$_HI_PACKAGES_PREVIEW"
 
-# Six packages that exist and six that do not, one pair per priority, plus one
-# line whose *second* name is the installed one (the ~ mark). Names nothing
-# else answers to: a shell builtin or a real tool of the same name would make
-# "installed" an accident of the machine rather than something set up here.
+# Six packages that exist and seven that do not: one installed/missing pair
+# per priority 0-3, a `-` line each way and a `+` line each way (the two mode
+# characters), plus one line whose *second* name is the installed one (the ~
+# mark). Names nothing else answers to: a shell builtin or a real tool of the
+# same name would make "installed" an accident of the machine rather than
+# something set up here.
 function _hi_write_fixtures() {
   _hi_fake_path pkgbin hialpha hibravo hicharlie hidelta hiecho hifoxtrot >/dev/null
 
   cat >"$_HI_WORKDIR/packages" <<'EOF'
 # a comment, and a blank line, both of which the header skips
-hialpha:5
-highost5:5
-hibravo:4
-highost4:4
-hicharlie:3
+hialpha:3
 highost3:3
-hidelta:2
+hibravo:2
 highost2:2
-hiecho:1
+hicharlie:1
 highost1:1
-hifoxtrot:0
+hidelta:0
 highost0:0
+-hiecho:3
+-highostcore:3
++hifoxtrot:0
++highostplus:0
 highostalt:3,hibravo:3
 EOF
   export _HI_PACKAGES="$_HI_WORKDIR/packages"
@@ -82,7 +84,7 @@ function test_meanings_drop_the_parenthetical() {
 }
 
 function test_meanings_name_the_top_priority() {
-  _hi_priority_meanings | grep -q "^5$(printf '\t')workflow-defining$"
+  _hi_priority_meanings | grep -q "^3$(printf '\t')favorites and core$"
 }
 
 # an unrelated "# 2 ..." comment earlier in header.sh must not join the block
@@ -100,50 +102,39 @@ function test_color_name_of_names_a_palette_entry() {
 function test_color_name_of_names_every_header_color() {
   local escape
   for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-    [ "$escape" = hide ] && continue
     [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
   done
   return 0
-}
-
-# The "hide" sentinel is not a color to be named but an instruction to print
-# nothing, and the label is what the column is *measured* by as well as painted
-# with - naming it through a second path is how a column ends up sized to one
-# string and rendered with another.
-function test_color_label_names_the_hide_sentinel() {
-  [ "$(_hi_color_label hide)" = hidden ] &&
-    [ "$(_hi_color_label "$BRRED")" = brred ]
 }
 
 function test_collect_counts_every_listed_package() {
   [ "$_HI_PKG_LISTED" -eq 13 ]
 }
 
-# priority 2 installed and priorities 4/3/0 missing are hidden, so of the 13
-# lines the header prints 9: both of 5 and 1, the installed 4/3/0, the missing
-# 2, and the alternatives line
+# the installed `-` line and the missing `+` line are the two rows the modes
+# suppress, so of the 13 lines the header prints 11
 function test_collect_counts_only_what_the_header_shows() {
-  [ "$_HI_PKG_SHOWN" -eq 12 ]
+  [ "$_HI_PKG_SHOWN" -eq 11 ]
 }
 
 function test_collect_finds_an_installed_example() {
-  [[ "${_HI_EX_OK[5]:-}" == *hialpha* ]]
+  [[ "${_HI_EX_OK[3]:-}" == *hialpha* ]]
 }
 
 function test_collect_finds_a_missing_example() {
-  [[ "${_HI_EX_NO[5]:-}" == *highost5* ]]
+  [[ "${_HI_EX_NO[3]:-}" == *highost3* ]]
 }
 
-# priority 2 paints installed packages "hide" - there is no example to show,
-# because at that priority an installed package shows nothing
-function test_collect_skips_a_hidden_installed_example() {
-  [ -z "${_HI_EX_OK[4]:-}" ] && [[ "${_HI_EX_NO[4]:-}" == *highost4* ]]
+# an installed `-` line and a missing `+` line show nothing, so neither can be
+# anyone's example - the mode rows in the fixture must not surface anywhere
+function test_collect_skips_a_mode_suppressed_example() {
+  [[ "${_HI_EX_OK[3]:-}" != *hiecho* ]] && [[ "${_HI_EX_NO[0]:-}" != *highostplus* ]]
 }
 
 # The nudge, which is what the table was rebuilt for: a favorite you have not
 # installed is collected and shown rather than silently dropped.
 function test_collect_keeps_a_missing_example_as_a_nudge() {
-  [[ "${_HI_EX_NO[3]:-}" == *highost3* ]] && [[ "${_HI_EX_OK[3]:-}" == *hicharlie* ]]
+  [[ "${_HI_EX_NO[3]:-}" == *highost3* ]] && [[ "${_HI_EX_OK[3]:-}" == *hialpha* ]]
 }
 
 # the installed/missing split reads the mark, so it has to survive a package
@@ -153,15 +144,15 @@ function test_collect_keeps_a_missing_example_as_a_nudge() {
 # name - tier 0 has one installed package and one absent, and each has to land
 # in its own column.
 function test_collect_reads_the_mark_not_the_name() {
-  [[ "${_HI_EX_OK[0]:-}" == *hifoxtrot* ]] && [[ "${_HI_EX_NO[0]:-}" == *highost0* ]]
+  [[ "${_HI_EX_OK[0]:-}" == *hidelta* ]] && [[ "${_HI_EX_NO[0]:-}" == *highost0* ]]
 }
 
 # The cell is nothing but color escapes and text, so its length is not its
 # width; handing the table a measured length is what pushes a column past its
-# own rule. Priority 5 shows both examples: "| hialpha X " and "| highost5 X ".
+# own rule. Priority 3 shows both examples: "| hialpha X " and "| highost3 X ".
 function test_example_cell_reports_its_printed_width() {
   local text width
-  IFS=$'\t' read -r text width <<<"$(_hi_example_cell 5)"
+  IFS=$'\t' read -r text width <<<"$(_hi_example_cell 3)"
   [ "$width" -eq $((7 + 4 + _HI_MARK_OK_W + 8 + 4 + _HI_MARK_NO_W)) ] &&
     [ "$width" -lt "${#text}" ]
 }
@@ -216,12 +207,15 @@ function test_preview_names_every_priority() {
   done
 }
 
-function test_preview_says_hidden_where_the_header_prints_nothing() {
-  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q hidden
+# the MODE table is the only place the two mode characters are explained, so
+# the render has to carry it and the row that says what `-` does
+function test_preview_explains_the_modes() {
+  [[ "$_HI_PREVIEW_OUT" == *MODE* ]] &&
+    printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q 'speaks only when the whole line is missing'
 }
 
 function test_preview_counts_what_it_read() {
-  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q '13 listed, 10 shown, 1 hidden'
+  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q '13 listed, 8 shown, 2 hidden'
 }
 
 # the check itself is the last thing the preview prints, so a package the
@@ -292,14 +286,13 @@ function run_packages_preview_tests() {
   _hi_check "Names every color the header uses" test_color_name_of_names_every_header_color
   # $NC is not a palette color, and neither is anything under $NO_COLOR
   _hi_check_eq "Calls a reset plain" plain _hi_color_name_of "$NC"
-  _hi_check "Names the hide sentinel hidden" test_color_label_names_the_hide_sentinel
 
   _hi_h2 "Testing: examples, via the header's check_line"
   _hi_check "Counts every listed package" test_collect_counts_every_listed_package
   _hi_check "Counts only what the header shows" test_collect_counts_only_what_the_header_shows
   _hi_check "Finds an installed example" test_collect_finds_an_installed_example
   _hi_check "Finds a missing example" test_collect_finds_a_missing_example
-  _hi_check "Skips a hidden installed example" test_collect_skips_a_hidden_installed_example
+  _hi_check "Skips a mode-suppressed example" test_collect_skips_a_mode_suppressed_example
   _hi_check "Keeps a missing example as a nudge" test_collect_keeps_a_missing_example_as_a_nudge
   _hi_check "Reads the mark, not the name" test_collect_reads_the_mark_not_the_name
 
@@ -311,7 +304,7 @@ function run_packages_preview_tests() {
   _hi_h2 "Testing: the rendered preview"
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names every priority" test_preview_names_every_priority
-  _hi_check "Says hidden where the header prints nothing" test_preview_says_hidden_where_the_header_prints_nothing
+  _hi_check "Explains the mode characters" test_preview_explains_the_modes
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" test_tables_are_rectangular

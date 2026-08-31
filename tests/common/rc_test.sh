@@ -47,7 +47,7 @@ function test_bash_prompt_disabled_leaves_ps1_alone() {
   [ -z "$out" ]
 }
 
-# C2: even with hi's own prompt off, the color hashing it would have used is
+# Even with hi's own prompt off, the color hashing it would have used is
 # still primed into plain variables - $_HI_HOST_ESC/$_HI_USER_ESC (the raw
 # ANSI escape, bash's form) and $_HI_HOST_COLOR/$_HI_USER_COLOR (the color
 # name, zsh's %F{} form) - so a custom PS1 in the user's own bash.sh/zsh.zsh
@@ -172,11 +172,15 @@ function test_bash_keeps_hi_prompt_without_the_setting() {
   [[ "$out" == *'\u'* ]]
 }
 
-# asked for, not installed: hi's prompt, and nothing on stderr
+# Asked for, not installed: hi's prompt, and nothing on stderr. "Not
+# installed" has to be manufactured - this machine may well carry starship
+# (an Arch box does), so the case swaps $PATH for a toolbox of the real tools
+# bash.sh needs, minus starship, rather than trusting the box to lack it.
 function test_bash_falls_back_when_starship_is_absent() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
+    PATH="$(_hi_real_path starshipless bash sh sed awk grep tr cut hostname uname cksum git)" \
     _HI_PROMPT=starship 2>&1)"
   [[ "$out" == *'\u'* ]]
 }
@@ -453,7 +457,7 @@ function run_rc_tests() {
   _hi_check "HI_PS1 carries user, host and cwd" test_bash_hi_ps1_contains_user_host_cwd
   _hi_check "Plain HI_PS1 without color" test_bash_hi_ps1_plain_without_color
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
-  _hi_check "...but still primes the color variables (C2, bash)" test_bash_prompt_disabled_still_primes_color_variables
+  _hi_check "...but still primes the color variables (bash)" test_bash_prompt_disabled_still_primes_color_variables
   _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "Key aliases are defined" test_bash_defines_key_aliases

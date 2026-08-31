@@ -26,7 +26,7 @@ command -v shift >/dev/null 2>&1 &&
 [ -z "$_HI_EZA_BIN" ] && export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)" || true
 
 # Your own aliases.sh (~/.config/say-hi/aliases.sh, or the overlay's copy on a
-# target), sourced FIRST so any _HI_*_OPTS, _HI_DISABLE_* or EZA_CONFIG_DIR
+# target), sourced FIRST so any _HI_*_OPTS, or _HI_DISABLE_*
 # you set takes effect below. So an `alias` defined there does NOT win over
 # the same name shipped here: turn the shipped family off with its toggle,
 # then define your own. Same POSIX+fish subset as this file.
@@ -54,10 +54,6 @@ command -v shift >/dev/null 2>&1 &&
 # Opt-in per invocation, never a prompt hook: a notification after every
 # command is noise. Same `[ -f ]` guard as hi_copy.
 [ "$_HI_DISABLE_NOTIFY" != 1 ] && [ -f "$_HI_NOTIFY" ] && alias hi_notify="sh $_HI_NOTIFY" || true
-
-# styles eza itself, not an alias, so a direct `eza` run is themed too. Off on
-# _HI_DISABLE_EZA_CONFIG=1, which also leaves your own EZA_CONFIG_DIR alone.
-[ "$_HI_DISABLE_EZA_CONFIG" != 1 ] && export EZA_CONFIG_DIR="$_HI_THEME_DIR" || true
 
 alias sudo="command sudo " # works in bash/zsh, fish has a sudo wrapper in config.fish
 

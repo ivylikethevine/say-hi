@@ -141,6 +141,14 @@ function test_system_info_includes_static_labels() {
   [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
 }
 
+# GHz is the only format the CPU cell renders now - one pin so a regression
+# back to whole MHz integers is caught
+function test_system_info_cpu_cell_is_ghz() {
+  local out
+  out="$(system_info)"
+  [[ "$out" == *"GHz"* ]]
+}
+
 # A target with a shell and awk and nothing else - core_test.sh's barebones
 # box, one layer up. The header is the first thing a session prints, so a
 # missing uname or date greeting the user with "command not found" across the
@@ -455,24 +463,51 @@ function _hi_assert_contains() {
 
 function test_check_line_found_primary_is_visible_checked() {
   local -a visible=()
-  check_line "$_HI_REAL_CMD:5"
+  check_line "$_HI_REAL_CMD:3"
   [ "${#visible[@]}" -eq 1 ] || return 1
   _hi_contains "${visible[0]}" "$_HI_REAL_CMD" &&
     _hi_assert_contains "${visible[0]}" "$_HI_MARK_OK"
 }
 
-# 4 is the one tier hidden when the tool *is* there: it exists to speak up
+# `-` is the mode hidden when the tool *is* there: it exists to speak up
 # about absence, so a healthy box says nothing.
-function test_check_line_found_priority4_is_hidden() {
+function test_check_line_dash_mode_hides_installed() {
   local -a visible=()
-  check_line "$_HI_REAL_CMD:4"
+  check_line "-$_HI_REAL_CMD:3"
   [ "${#visible[@]}" -eq 0 ]
 }
 
-# Every tier now speaks when the tool is absent - that is the nudge the table
-# exists for, and tier 0, the quietest one there is, is where it is worth
-# pinning: if even trivia reports itself missing, nothing above it can be
-# silently dropped.
+# ...and the same line missing is exactly the alarm the mode exists for - with
+# the mode character stripped from the printed name.
+function test_check_line_dash_mode_missing_is_visible() {
+  local -a visible=()
+  check_line "-$_HI_FAKE_CMD:3"
+  [ "${#visible[@]}" -eq 1 ] || return 1
+  _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" || return 1
+  _hi_assert_contains "${visible[0]}" "$_HI_MARK_NO" || return 1
+  if _hi_contains "${visible[0]}" "-$_HI_FAKE_CMD"; then return 1; fi
+  return 0
+}
+
+# `+` is the mirror: presence is the fact worth a row, absence is noise.
+function test_check_line_plus_mode_shows_installed() {
+  local -a visible=()
+  check_line "+$_HI_REAL_CMD:0"
+  [ "${#visible[@]}" -eq 1 ] || return 1
+  _hi_contains "${visible[0]}" "$_HI_REAL_CMD" &&
+    _hi_assert_contains "${visible[0]}" "$_HI_MARK_OK"
+}
+
+function test_check_line_plus_mode_hides_missing() {
+  local -a visible=()
+  check_line "+$_HI_FAKE_CMD:0"
+  [ "${#visible[@]}" -eq 0 ]
+}
+
+# Every unflagged line speaks when the tool is absent - that is the nudge the
+# table exists for, and tier 0, the quietest one there is, is where it is
+# worth pinning: if even trivia reports itself missing, nothing above it can
+# be silently dropped.
 function test_check_line_missing_priority0_is_visible() {
   local -a visible=()
   check_line "$_HI_FAKE_CMD:0"
@@ -481,17 +516,38 @@ function test_check_line_missing_priority0_is_visible() {
     _hi_assert_contains "${visible[0]}" "$_HI_MARK_NO"
 }
 
-function test_check_line_missing_priority5_is_visible_crossed() {
+function test_check_line_missing_priority3_is_visible_crossed() {
   local -a visible=()
-  check_line "$_HI_FAKE_CMD:5"
+  check_line "$_HI_FAKE_CMD:3"
   [ "${#visible[@]}" -eq 1 ] || return 1
   _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" &&
     _hi_assert_contains "${visible[0]}" "$_HI_MARK_NO"
 }
 
+# an old-format file's 4s and 5s clamp to 3 instead of indexing off the end of
+# the four-entry color tables - the degradation rule for a stale overlay
+function test_check_line_clamps_a_priority_above_three() {
+  local -a visible=()
+  check_line "$_HI_REAL_CMD:5"
+  [ "${#visible[@]}" -eq 1 ] || return 1
+  case "${visible[0]}" in 3$'\x1f'*) return 0 ;; esac
+  return 1
+}
+
+# a line nothing satisfies ranks at the loudest priority it lists, not the
+# first: the unmet need is as important as its best answer
+function test_check_line_missing_ranks_at_max_priority() {
+  local -a visible=()
+  check_line "$_HI_FAKE_CMD:1,${_HI_FAKE_CMD}-alt:3"
+  [ "${#visible[@]}" -eq 1 ] || return 1
+  _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" || return 1
+  case "${visible[0]}" in 3$'\x1f'*) return 0 ;; esac
+  return 1
+}
+
 function test_check_line_fallback_uses_second_alternative() {
   local -a visible=()
-  check_line "$_HI_FAKE_CMD:0,$_HI_REAL_CMD:5"
+  check_line "$_HI_FAKE_CMD:0,$_HI_REAL_CMD:3"
   [ "${#visible[@]}" -eq 1 ] || return 1
   _hi_contains "${visible[0]}" "$_HI_REAL_CMD" &&
     _hi_assert_contains "${visible[0]}" "$_HI_MARK_ALT"
@@ -499,13 +555,13 @@ function test_check_line_fallback_uses_second_alternative() {
 
 function test_check_line_picks_highest_priority_installed() {
   local -a visible=()
-  check_line "$_HI_REAL_CMD:1,bash:5"
+  check_line "$_HI_REAL_CMD:1,bash:3"
   _hi_contains "${visible[0]}" bash
 }
 
 function test_full_check_skips_comments_and_blanks() {
   local pkgfile="$_HI_WORKDIR/comments"
-  printf '# a comment\n\n%s:5\n' "$_HI_REAL_CMD" >"$pkgfile"
+  printf '# a comment\n\n%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   (
     _HI_PACKAGES="$pkgfile"
     full_check
@@ -514,9 +570,9 @@ function test_full_check_skips_comments_and_blanks() {
 
 function test_full_check_empty_when_everything_hidden() {
   local pkgfile="$_HI_WORKDIR/hidden" out
-  # installed at tier 4 is the one cell the table still hides - see the note
+  # an installed `-` line is the one row the check still hides - see the note
   # above _HI_YES. Nothing else renders nothing.
-  printf '%s:4\n' "$_HI_REAL_CMD" >"$pkgfile"
+  printf '%s:3\n' "-$_HI_REAL_CMD" >"$pkgfile"
   out="$(
     _HI_PACKAGES="$pkgfile"
     full_check
@@ -544,13 +600,15 @@ function test_full_check_min_priority_boundary() {
 }
 
 # a floor above every rank prints nothing at all - not a blank line, which in a
-# header reads as a check that ran and found nothing rather than one turned off
+# header reads as a check that ran and found nothing rather than one turned
+# off. 4 is the documented "off" value: priorities clamp to 3, so nothing can
+# ever reach it.
 function test_full_check_min_priority_above_everything_is_silent() {
   local pkgfile="$_HI_WORKDIR/floor-all" out
-  printf '%s:5\n' "$_HI_REAL_CMD" >"$pkgfile"
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(
     _HI_PACKAGES="$pkgfile"
-    _HI_PACKAGES_MIN_PRIORITY=6
+    _HI_PACKAGES_MIN_PRIORITY=4
     full_check
   )"
   [ -z "$out" ]
@@ -574,7 +632,7 @@ function test_full_check_min_priority_defaults_to_one() {
 
 function test_full_check_wraps_at_max_width() {
   local pkgfile="$_HI_WORKDIR/wrap" out lines
-  printf '%s:5\nbash:5\n' "$_HI_REAL_CMD" >"$pkgfile"
+  printf '%s:3\nbash:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(
     _HI_PACKAGES="$pkgfile"
     _HI_MAX_WIDTH=1
@@ -603,7 +661,7 @@ function test_full_check_is_silent_on_stderr() {
 # A visible package must actually reach the output, not just fail to error.
 function test_full_check_emits_a_row_for_an_installed_package() {
   local pkgfile="$_HI_WORKDIR/emits" out
-  printf '%s:5\n' "$_HI_REAL_CMD" >"$pkgfile"
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(
     _HI_PACKAGES="$pkgfile"
     full_check
@@ -645,6 +703,7 @@ function run_header_tests() {
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
+  _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
 
   _hi_h2 "Testing: a target with no coreutils"
@@ -669,9 +728,14 @@ function run_header_tests() {
 
   _hi_h2 "Testing: check_line"
   _hi_check "Found primary -> visible, checked" test_check_line_found_primary_is_visible_checked
-  _hi_check "Found priority 4 -> hidden" test_check_line_found_priority4_is_hidden
+  _hi_check "Installed on a - line -> hidden" test_check_line_dash_mode_hides_installed
+  _hi_check "Missing on a - line -> visible, no leaked flag" test_check_line_dash_mode_missing_is_visible
+  _hi_check "Installed on a + line -> visible" test_check_line_plus_mode_shows_installed
+  _hi_check "Missing on a + line -> hidden" test_check_line_plus_mode_hides_missing
   _hi_check "Missing priority 0 -> visible" test_check_line_missing_priority0_is_visible
-  _hi_check "Missing priority 5 -> visible, crossed" test_check_line_missing_priority5_is_visible_crossed
+  _hi_check "Missing priority 3 -> visible, crossed" test_check_line_missing_priority3_is_visible_crossed
+  _hi_check "A priority above 3 clamps to 3" test_check_line_clamps_a_priority_above_three
+  _hi_check "Missing line ranks at its max priority" test_check_line_missing_ranks_at_max_priority
   _hi_check "Fallback alternative used" test_check_line_fallback_uses_second_alternative
   _hi_check_requires bash "Picks the highest-priority installed alternative" test_check_line_picks_highest_priority_installed
 

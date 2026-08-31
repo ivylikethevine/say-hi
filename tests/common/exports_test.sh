@@ -150,7 +150,7 @@ function test_session_env_names_match_the_roster() {
   }
 }
 
-# The two names S5 was about are exactly the ones the roster must never grow.
+# The two workstation names are exactly the ones the roster must never grow.
 function test_roster_never_names_the_workstation() {
   case " ${_HI_CHILD_ENV[*]} " in
   *" _HI_LOCAL_USER "* | *" _HI_LOCAL_HOSTNAME "*)

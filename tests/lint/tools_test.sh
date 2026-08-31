@@ -13,7 +13,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # The formatter as a lint: shfmt -d over the same file list shellcheck reads
 # (so dist/ stays excluded). The 2-space style comes from .editorconfig, which
 # shfmt picks up when invoked with no style flags. Skips yellow when shfmt is
-# absent; CI pins one via .github/actions/setup-shfmt so the gate runs there.
+# absent; CI pins one via .github/actions/setup-tool so the gate runs there.
 function lint_shfmt() {
   local out
   _hi_h2 "Checking formatting (shfmt -d, style from .editorconfig)"
@@ -37,7 +37,7 @@ function lint_shfmt() {
 # common/paths.sh really is sourced by dash/busybox sh on minimal targets -
 # checkbashisms covers exactly that shebang list (first line only: the test
 # files embed '#!/bin/sh' inside the shim scripts they generate). Skips yellow
-# when absent; CI installs a pinned copy via .github/actions/setup-checkbashisms.
+# when absent; CI installs a pinned copy via .github/actions/setup-tool.
 function lint_checkbashisms() {
   local file rel out shebang bad=0
   _hi_h2 "Checking the #!/bin/sh files for bashisms (checkbashisms)"

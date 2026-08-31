@@ -59,7 +59,7 @@ function demo_sshd_image() {
   demo_settings "$_HI_DEMO_DIR/ssh-target-settings.sh" <<'EOF'
 export _HI_HEADER_TIMESTAMP='0'
 export _HI_HEADER_SYSINFO='0'
-export _HI_PACKAGES_MIN_PRIORITY='5'
+export _HI_HEADER_CHECK='0'
 EOF
 
   mkdir -p "$_HI_DEMO_DIR/base"
@@ -581,18 +581,16 @@ case "${1:-}:${2:-}" in
 # - the same box reached two ways, which is worth one frame of the set.
 up:packages)
   client_rc bash ivy workshop
-  # the check as a diagnosis: a floor of 3 keeps the shipped tiers 0-2 out of
-  # the frame, the overlay below is the list being checked, and the GHz line
-  # is the one header knob no other demo turns on. Two boxes: the tools debian
-  # answers the list quietly, the bare one does not.
+  # the check as a diagnosis: a floor of 3 keeps everything below the top tier
+  # out of the frame, and the overlay below is the list being checked. Two
+  # boxes: the tools debian answers the list quietly, the bare one does not.
   demo_settings <<'EOF'
 export _HI_PACKAGES_MIN_PRIORITY='3'
-export _HI_HEADER_GHZ='1'
 EOF
   demo_overlay packages <<'EOF'
 # the tools you care about, and how loudly to miss them
-vim:5
-nano:5
+vim:3
+nano:3
 batcat:3
 git:3
 rg:3
@@ -605,7 +603,7 @@ up:editors)
   client_rc zsh dev cache-1
   # the header stays one line; the editors get the frame
   demo_settings <<'EOF'
-export _HI_PACKAGES_MIN_PRIORITY='5'
+export _HI_HEADER_CHECK='0'
 EOF
   up_container docker db-prod tools
   ;;
@@ -614,7 +612,7 @@ up:overlay)
   # no throwaway $HOME here (podman lives under the real one), so the recents
   # file is moved out of the renderer's state dir by hand
   demo_settings <<'EOF'
-export _HI_PACKAGES_MIN_PRIORITY='5'
+export _HI_HEADER_CHECK='0'
 export _HI_RECENT_FILE='/tmp/hi-demo/home/recent'
 export _HI_SHELL_PREFERENCE='fish'
 EOF
@@ -645,11 +643,11 @@ up:pick)
   # $XDG_RUNTIME_DIR, which the renderer shares with every other shell on their
   # box, so a stale window would render *their* containers into a committed GIF.
   client_rc bash ivy workshop
-  # ...and a package floor, so the picker and the session it opens fit one
+  # ...and no package check, so the picker and the session it opens fit one
   # recording. The header is not this demo's subject; the choice above it is.
   demo_settings <<'EOF'
 export _HI_TARGETS_TTL='0'
-export _HI_PACKAGES_MIN_PRIORITY='5'
+export _HI_HEADER_CHECK='0'
 EOF
   up_pick
   ;;

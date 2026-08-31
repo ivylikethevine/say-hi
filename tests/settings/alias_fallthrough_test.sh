@@ -85,13 +85,6 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
       alias eza >/dev/null 2>&1 && { echo "expected no eza alias, but found one" >&2; fail=1; }
     fi
   fi
-  if [ -n "${_HI_EXPECT_EZA_CONFIG:-}" ]; then
-    if [ "$_HI_EXPECT_EZA_CONFIG" = 1 ]; then
-      [ -n "${EZA_CONFIG_DIR:-}" ] || { echo "expected EZA_CONFIG_DIR set, missing" >&2; fail=1; }
-    else
-      [ -z "${EZA_CONFIG_DIR:-}" ] || { echo "expected EZA_CONFIG_DIR unset, got [$EZA_CONFIG_DIR]" >&2; fail=1; }
-    fi
-  fi
 fi
 
 exit $fail
@@ -146,13 +139,6 @@ if set -q _HI_CHECK_FLAGS
       functions -q -- eza; or begin; echo "expected eza alias, missing" >&2; set fail 1; end
     else
       functions -q -- eza; and begin; echo "expected no eza alias, but found one" >&2; set fail 1; end
-    end
-  end
-  if set -q _HI_EXPECT_EZA_CONFIG
-    if test "$_HI_EXPECT_EZA_CONFIG" = 1
-      set -q EZA_CONFIG_DIR; and test -n "$EZA_CONFIG_DIR"; or begin; echo "expected EZA_CONFIG_DIR set, missing" >&2; set fail 1; end
-    else
-      not set -q EZA_CONFIG_DIR; or test -z "$EZA_CONFIG_DIR"; or begin; echo "expected EZA_CONFIG_DIR unset, got [$EZA_CONFIG_DIR]" >&2; set fail 1; end
     end
   end
 end
@@ -299,7 +285,6 @@ function _hi_run_scenario() {
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
-    _HI_THEME_DIR="$_HI_WORKDIR/theme" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS:-0}" \
     _HI_DISABLE_EZA_CONFIG="${_HI_DISABLE_EZA_CONFIG:-0}" \
@@ -385,27 +370,6 @@ function run_bat_alias_flag_tests() {
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
         "_HI_DISABLE_BAT_ALIAS=$dba" \
         _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want_cat"
-    done
-  done
-}
-
-# Styling eza itself is independent of the alias family below it, so this
-# checks EZA_CONFIG_DIR alone - the ls-family aliases stay on either way.
-function run_eza_config_flag_tests() {
-  _hi_h1 "_HI_DISABLE_EZA_CONFIG guard"
-  local shell fakepath
-  fakepath="$(_hi_fake_path fp_ezacfg cat vi eza)"
-
-  for combo in "0 1" "1 0"; do
-    # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
-    set -- $combo
-    local dec="$1" want_eza_config="$2"
-    for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_EZA_CONFIG="$dec" \
-        _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_EZA_CONFIG=$dec" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS=1 \
-        _HI_EXPECT_EZA_CONFIG="$want_eza_config"
     done
   done
 }

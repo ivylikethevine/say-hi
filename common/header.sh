@@ -33,9 +33,7 @@ function timestamp() {
   _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
   utc="$(date -u "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
   local_now="$(date "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
-  header_row "$BRBLUE${utc:-?} " \
-    "$GREEN$_HI_HEADER_VERSION" \
-    " $BRYELLOW${local_now:-?}"
+  header_row "$BRBLUE${utc:-?}" "$GREEN$_HI_HEADER_VERSION" "$BRYELLOW${local_now:-?}"
 }
 
 function system_info() {
@@ -97,24 +95,20 @@ function system_info() {
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
   fi
   _hi_sanitize_var os "$os"
-  # _HI_HEADER_GHZ=1 (settings.sh) swaps the CPU cell to x.x GHz; unset/0
-  # keeps the MHz integers the tests pin
-  local freq_unit="MHz"
-  if [ "${_HI_HEADER_GHZ:-0}" = 1 ]; then
-    freq_unit="GHz"
-    # printf, not an awk fork apiece; rounded to tenths *before* splitting so
-    # a carry lands properly (2950 -> 3.0, not "2.10")
-    local ghz_tenths ghz_var ghz_val
-    for ghz_var in base_mhz boost_mhz; do
-      eval "ghz_val=\$$ghz_var"
-      [ -n "$ghz_val" ] && {
-        ghz_tenths=$(((ghz_val + 50) / 100))
-        printf -v "$ghz_var" '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
-      }
-    done
-  fi
+  # every probe above yields MHz (hence base_mhz/boost_mhz keep their names);
+  # rendered as GHz to tenths. printf, not an awk fork apiece; rounded to
+  # tenths *before* splitting so a carry lands properly (2950 -> 3.0, not
+  # "2.10")
+  local ghz_tenths ghz_var ghz_val
+  for ghz_var in base_mhz boost_mhz; do
+    eval "ghz_val=\$$ghz_var"
+    [ -n "$ghz_val" ] && {
+      ghz_tenths=$(((ghz_val + 50) / 100))
+      printf -v "$ghz_var" '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
+    }
+  done
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
-    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} $freq_unit"
+    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz"
 }
 
 # identity()'s backend probes are independent and each capped at
@@ -296,43 +290,55 @@ function hi_header() {
   passthrough_check
 }
 
-# Package priorities, lowest to highest. A priority says how much you want to
-# hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and ships at 1,
-# so tier 0 (trivia) is hidden until asked for. Every tier speaks when the
-# tool is missing - a target you visit often is where the nudge belongs.
-# Tier 4 is the exception and the only `hide`: core tools, where present is
-# not news and absent means the box is bare.
+# Package priorities, lowest to highest, 0-3. A priority says how loudly you
+# want to hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and
+# ships at 1, so tier 0 (trivia) is hidden until asked for, and anything above
+# 3 mutes the check entirely. Direction is a separate axis, one leading
+# character per line: `-` speaks only when the tool is missing (core tools,
+# where present is not news and absent means the box is bare), `+` only when
+# it is installed (platform facts, where absent is noise); no flag speaks
+# both ways. Priorities above 3 clamp to 3, so an old-format file still
+# renders.
 #
 # The numbered lines below are scraped verbatim by scripts/packages_preview.sh
 # (the run directly above _HI_YES, parentheticals dropped): keep the
 # "# <n> <meaning> (<examples>)" shape and add nothing between them and the
 # table.
-# 0 platform and trivia (sw_vers, netstat)
-# 1 optional extras (zoxide, navi)
-# 2 system and package tools (flatpak, yay)
-# 3 favorites (eza, bat)
-# 4 expected on any box (awk, curl, tar)
-# 5 workflow-defining (asdf, direnv)
-_HI_YES=("$BLUE" "$BRCYAN" "$GREEN" "$BRGREEN" hide "$BRGREEN")
-_HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRYELLOW" "$YELLOW" "$BRRED")
+# 0 platform trivia (sw_vers, kitty)
+# 1 optional extras (gping, navi)
+# 2 useful tools (make, vim, python3)
+# 3 favorites and core (bat, fzf, awk)
+_HI_YES=("$BLUE" "$BRCYAN" "$GREEN" "$BRGREEN")
+_HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRRED")
 
-# For each "cmd:priority[,...]": the highest-priority installed package (or the
-# first, if none), colored and marked per above. The marks live in core.sh's
-# _hi_choose_glyphs.
+# For each "[-|+]cmd:priority[,...]": the highest-priority installed package
+# (or the first, if none) — a fully-missing line ranks at the max priority
+# among its alternatives — colored and marked per above. `-` drops the row
+# when something is installed, `+` when nothing is. The marks live in
+# core.sh's _hi_choose_glyphs.
 function check_line() {
-  local pair cmd priority color best best_priority best_idx=0 idx=0 found=0 symbol rendered
+  local pair cmd priority color best best_priority max_priority best_idx=0 idx=0 found=0 symbol rendered
+  local mode=both line=$1
+  case "$line" in
+  -*) mode=miss line="${line#-}" ;;
+  +*) mode=have line="${line#+}" ;;
+  esac
   # word-split on the local IFS, not `read -ra <<<`: that here-string is a
   # temp file before bash 5.1, per package line
   local IFS=','
   # shellcheck disable=SC2206 # deliberate split on IFS; the file has no globs
-  local -a pairs=($1)
+  local -a pairs=($line)
   unset IFS
   best="${pairs[0]%:*}"
   best_priority="${pairs[0]#*:}"
+  if ((best_priority > 3)); then best_priority=3; fi
+  max_priority=$best_priority
 
   for pair in "${pairs[@]}"; do
     cmd="${pair%:*}"
     priority="${pair#*:}"
+    if ((priority > 3)); then priority=3; fi
+    if ((priority > max_priority)); then max_priority=$priority; fi
     if command -v "$cmd" &>/dev/null && ((found == 0 || priority > best_priority)); then
       best="$cmd"
       best_priority="$priority"
@@ -344,6 +350,7 @@ function check_line() {
 
   local mark_w
   if ((found)); then
+    [[ "$mode" == miss ]] && return 0
     color="${_HI_YES[best_priority]:-$NC}"
     if ((best_idx == 0)); then
       symbol="$GREEN$_HI_MARK_OK" mark_w="$_HI_MARK_OK_W"
@@ -351,13 +358,15 @@ function check_line() {
       symbol="$YELLOW$_HI_MARK_ALT$NC" mark_w="$_HI_MARK_ALT_W"
     fi
   else
+    [[ "$mode" == have ]] && return 0
+    best_priority=$max_priority
     color="${_HI_NO[best_priority]:-$NC}"
     symbol="$RED$_HI_MARK_NO" mark_w="$_HI_MARK_NO_W"
   fi
   rendered="$color $best $symbol"
   # 4 = the "| " lead plus the spaces around the item; the mark's width comes
   # from the chosen glyph set (ASCII "ok" is two columns, ✓ is one)
-  [[ "$color" == hide ]] || visible+=("$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered")
+  visible+=("$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered")
 }
 
 # print sorted package results limited by _HI_MAX_WIDTH, from
