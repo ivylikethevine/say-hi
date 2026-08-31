@@ -430,8 +430,8 @@ function _hi_jekyll_md_files() {
 # Jekyll's Liquid runs over every page's raw text *before* Markdown, so a
 # GitHub Actions `${{ }}` inside a fenced code block gets no shelter from the
 # fence - Liquid opens on the first `{{` or `{%` and raises if the matching
-# close isn't found before EOF. This is what broke the Pages build once, on a
-# since-retired doc's fenced `${{ needs.runner.outputs.ubuntu == ... &&
+# close isn't found before EOF. The construct that does it is a fenced
+# `${{ needs.runner.outputs.ubuntu == ... &&
 # format('{0}-{1}', ...) }}`: the inner `{0}` gives Liquid's tokenizer a
 # single `}` to close on, so it raises mid-expression - in CI, with nothing
 # local to catch it first. A doc that means to show `{{ }}`/`{% %}` verbatim

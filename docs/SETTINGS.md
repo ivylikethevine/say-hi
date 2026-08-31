@@ -352,14 +352,12 @@ underneath. The mechanism is [HI.46](GLOSSARY.md#hi46-session-rc-directory).
 What no wrapper can reach is a bash or fish shell nothing typed - a `tmux`
 pane spawning a login shell, an editor shelling out - which comes up as the
 host's own. hi writes nothing to any login file on any host you visit, under
-any setting: the rc graft that once covered that case was removed
-([SUPPORT.md](SUPPORT.md#features-that-were-removed)).
+any setting ([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the
+reasoning).
 
-Earlier versions shipped one person's shell preferences (history sizing,
-keybindings, `zstyle` rules, fish's palette) in `settings/*_personal.*` files
-behind a `_HI_DISABLE_PERSONAL` toggle; neither the files nor the toggle
-exist anymore. What remains in each rc is the prompt, the completions and the
-git segment, which are the product. Your own
+hi ships nobody's shell preferences — no history sizing, keybindings,
+`zstyle` rules or fish palette of its own. Each rc carries the prompt, the
+completions and the git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
 the end of hi's, in the same dialect, and wins - your own `HISTFILE`
 included; hi sets none.

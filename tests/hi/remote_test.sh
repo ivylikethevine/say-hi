@@ -375,13 +375,13 @@ function test_fallback_rc_points_config_dir_at_the_overlay() {
   [[ "$(CMDARG="" _hi_fallback_rc)" == *'export _HI_CONFIG_DIR=$_HI_ROOT/config'* ]]
 }
 
-# The bootstrap directory is the *target's* to name. This was a client-side
-# `mktemp -u -t`, whose answer is a path in the client's $TMPDIR - identical to
+# The bootstrap directory is the *target's* to name. A client-side
+# `mktemp -u -t` answers with a path in the client's $TMPDIR - identical to
 # the target's while both are /tmp, and a path that does not exist there at all
 # the moment the client has $TMPDIR set. Every macOS login shell does
-# (/var/folders/../T), so a Mac talking to a Linux box had the mkdir fail and
+# (/var/folders/../T), so a Mac talking to a Linux box has the mkdir fail and
 # the session fall through to the PowerShell branch on a host running bash.
-# Neither platform job could see it: the macOS e2e only ever connects to
+# Neither platform job can see it: the macOS e2e only ever connects to
 # 127.0.0.1, where the client's path is also the target's.
 function test_boot_probe_is_target_side() {
   local probe

@@ -116,8 +116,8 @@ jobs:
     # Every one of these seven tapes needs docker, podman, nomad or kind. A hosted
     # ubuntu runner carries docker and this job installs the other three below
     # (the same steps ci.yml's e2e-backends job runs), so this is a working
-    # renderer and not, as it once was, a job that installed for five minutes
-    # and died inside vhs. --require-run below keeps the other guarantee: a
+    # renderer rather than a job that installs for five minutes and dies
+    # inside vhs. --require-run below keeps the other guarantee: a
     # tape that stands down for a missing backend is a failure, never a green
     # run that rendered nothing (pages.yml serves the last *successful* run's
     # artifact).

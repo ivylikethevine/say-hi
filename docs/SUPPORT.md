@@ -175,7 +175,7 @@ tier in the fallback ladder in `hi.sh`'s `_hi_remote_suffix` and `load.sh`'s
 | `xonsh`      | **decided against** | Python — a third implementation, on the same terms as elvish                                                                                                                                                              |
 | `tcsh`/`csh` | **decided against** | different rc syntax _and_ no `$ENV` equivalent, so there is no hook to land on: it would need its own rc and its own delivery mechanism                                                                                   |
 | `nushell`    | **decided against** | Nu is not POSIX, so it can source none of `common/`                                                                                                                                                                       |
-| `ksh`/`mksh` | **decided against** | they land in the `sh` tier like any other bash-less shell — aliases and the colored prompt, no header. A ksh-specific tier once existed for a live git segment and was removed as not worth a second POSIX implementation |
+| `ksh`/`mksh` | **decided against** | they land in the `sh` tier like any other bash-less shell — aliases and the colored prompt, no header. A ksh-specific tier for a live git segment is not worth a second POSIX implementation |
 | PowerShell   | not a POSIX shell   | the greeting hi prints there is the whole extent of it                                                                                                                                                                    |
 
 Using one of these as a _login_ shell still works — hi lands you in the best
@@ -248,7 +248,7 @@ alias. What remained was a write to a login file on a machine that is not
 yours, twice per session, and a hazard class of its own — a block left behind
 by a hard kill, two overlapping sessions stripping each other's, a distrobox
 landing it in the host's own rc — for the one case of an untyped bash or fish
-shell. hi now writes nothing to a target's login files under any setting; a
+shell. hi writes nothing to a target's login files under any setting; a
 bash or fish shell spawned by tmux or an editor inside a session comes up as
 the host's own.
 

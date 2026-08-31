@@ -10,7 +10,7 @@
 # removed, the same way fish37.Dockerfile catches the other direction (see its
 # header for the brace-comment case that motivated the pair). Bumping this
 # image bumps the ceiling - do it deliberately, and expect the half to start
-# rejecting constructs it used to accept.
+# rejecting constructs the version behind it accepts.
 #
 # ubuntu's major/minor updates are ignored for this whole directory
 # (.github/dependabot.yml can't tell this pin apart from fish37.Dockerfile's),

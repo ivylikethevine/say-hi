@@ -151,7 +151,7 @@ EOF
 # exists, so any _HI_*_OPTS or _HI_DISABLE_* toggle it sets lands ahead of
 # the shipped aliases being built. One case per shell proves a new overlay
 # alias (one the shipped file never touches) still arrives; one proves the
-# opposite of the old contract - an overlay `alias` of a name the shipped
+# other direction - an overlay `alias` of a name the shipped
 # file *also* defines does NOT win, since the shipped definition runs after
 # it and overwrites it (docs/SETTINGS.md describes this trade-off; the
 # way to keep an overlay alias of a shipped name is the matching
@@ -327,11 +327,8 @@ function run_fallthrough_tests() {
   done
 }
 
-# A _HI_DISABLE_ALIASES toggle once gated `sudo` in a settings/personal.sh of
-# its own, making this a 2x2 table over both toggles; neither the file nor
-# that toggle exist anymore, and the convenience aliases are now the tail of
-# settings/aliases.sh and unconditional, so `sudo` is asserted *present* on
-# both rows. It stays in the table rather than being dropped from it: it is
+# The convenience aliases are the tail of settings/aliases.sh and
+# unconditional, so `sudo` is asserted *present* on both rows. It stays in the table rather than being dropped from it: it is
 # the cheapest pin on the merged tail being reached at all in three dialects,
 # and the shape that would regress is it quietly acquiring a guard.
 function run_flag_tests() {

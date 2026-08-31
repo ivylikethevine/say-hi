@@ -5,7 +5,6 @@
 # after. What differs per framework is data, not structure - PKGS names the apt
 # packages and FRAMEWORK names the script under frameworks/, so the roster in
 # tests/targets/framework_test.sh is the one place a framework is described.
-# Nine copies of this file used to differ by exactly those two things.
 #
 # hitest keeps the base image's login shell; the entrypoint's usermod sets the
 # one each case asks for.

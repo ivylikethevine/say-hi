@@ -129,7 +129,7 @@ its cleanup hook purges, the one fixture in the tree that is not case-scoped.
 runs one install against every login shell; `install_methods` runs one login
 shell against every way say-hi gets onto a machine — the `.deb`, `.rpm`,
 `.apk`, a Homebrew-shaped keg, a system-wide `install.sh --prefix`, and a tree
-whose `/etc/profile.d` announcement has been removed. They share the case
+with no `/etc/profile.d` announcement. They share the case
 runner in `tests/lib/ssh.sh`.
 
 Every case asserts the same thing: `$_HI_ROOT` is the path the installer left,
@@ -390,9 +390,9 @@ what the tree does.
     from `_config.yml`'s `exclude:` block, not hand-kept) may not carry a raw
     Liquid delimiter outside a guarded span — Liquid tokenizes the page before
     Markdown, so a fenced GitHub Actions expression gets no shelter from the
-    fence. This broke the Pages build once already, on a fenced Actions
-    expression whose `format('{0}-{1}', …)` handed Liquid's tokenizer a lone
-    closing brace mid-expression. A page that means to show a Liquid delimiter
+    fence. The construct that does it is a fenced Actions expression whose
+    `format('{0}-{1}', …)` hands Liquid's tokenizer a lone closing brace
+    mid-expression. A page that means to show a Liquid delimiter
     verbatim wraps the span in a raw/endraw guard, each half inside an HTML
     comment so the guard itself never renders; otherwise it stays off the
     site. The check's header comment in `tests/lint/drift_test.sh` spells the

@@ -206,9 +206,9 @@ function test_fish_registers_hi_completion() {
 # condition: an unconditional one fires the whole backend sweep alongside the
 # flags on every `hi --<TAB>`.
 # The two cases below actually *run* a completion rather than reading the
-# registration back. Both shells reach the same roster bash.sh does, and both
-# had only structural coverage until now - fish's guard was grepped for as a
-# string, zsh's dash branch was not covered at all.
+# registration back. Both shells reach the same roster bash.sh does, and
+# reading the registration back is only structural coverage - fish's guard
+# grepped for as a string, zsh's dash branch not exercised at all.
 #
 # zsh's `compadd` needs a real completion context, so it is stubbed: `-a` is
 # handed the array's *name*, which is what ${(P)} dereferences. zsh's locals
@@ -389,15 +389,13 @@ function test_fish_config_dir_explicit_value_wins() {
 }
 
 #
-# Earlier versions shipped one person's taste per shell - history sizing,
-# keybindings, completion and color styling - in settings/<shell>_personal.*
-# behind $_HI_DISABLE_PERSONAL; neither the files nor that toggle exist
-# anymore. What is left is the hook they were built against: the user's own
-# file in $_HI_CONFIG_DIR, named for the *shell file* it extends (bash.sh,
-# zsh.zsh, config.fish) rather than for the defaults hi no longer ships.
+# hi ships nobody's taste per shell - no history sizing, keybindings,
+# completion or color styling of its own. What it ships is the hook for yours:
+# the user's own file in $_HI_CONFIG_DIR, named for the *shell file* it
+# extends (bash.sh, zsh.zsh, config.fish).
 #
 # Two things have to stay true per shell, and the second is why the first is
-# worth asserting: hi ships no default of its own for these settings any more,
+# worth asserting: hi ships no default of its own for these settings,
 # and the user's file is sourced and applies. The no-file case is the regression
 # guard on the removal - a preference creeping back into a shipped rc shows up
 # here as a probe that stopped agreeing with a bare shell's.

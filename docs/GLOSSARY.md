@@ -434,7 +434,7 @@ the other order would strip from a `#` inside the quotes. `IFS` is a newline
 for the candidate loop, so an install directory with a space is one candidate.
 
 `tests/lint/drift_test.sh`'s `lint_home_default` greps the tree for the
-retired spellings — over `.md` too, since docs teaching the old rule are what a
+retired spellings — over `.md` too, since docs teaching a retired spelling are what a
 packager reads.
 
 ## HI.34 test suite preamble
@@ -689,9 +689,8 @@ function of that name, and without it `fish` would call itself forever.
 
 What the wrappers cannot cover is a bash or fish shell nothing typed — a
 `tmux` pane spawning a login shell, an editor's shell-out — which comes up as
-the host's own. Writing hi's rc into the target's login files was the rc
-graft's job, removed on 2026-08-29
-([SUPPORT.md](SUPPORT.md#features-that-were-removed)).
+the host's own. hi writes nothing into a target's login files
+([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the reasoning).
 
 ## HI.47 what a child inherits
 

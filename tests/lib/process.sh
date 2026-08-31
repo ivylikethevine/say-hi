@@ -151,7 +151,7 @@ function _hi_poll_value() {
 # sleep 0.25 only equals timeout_s when nothing else is competing for the
 # machine, and stretches without bound when something is - which is exactly
 # when an e2e suite is most likely to need the timeout. _hi_poll_bool and
-# _hi_poll_value already use this deadline; this now matches them.
+# _hi_poll_value use the same deadline; this matches them.
 function _hi_wait_pid() {
   local pid="$1" timeout_s="$2" deadline
   shift 2

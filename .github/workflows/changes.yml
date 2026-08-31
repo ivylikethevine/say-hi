@@ -1,12 +1,10 @@
 # Detects whether a push or pull_request touched anything outside
 # `.github/workflows/**`, so ci.yml's expensive jobs can skip on a
 # workflow-only or docs-only change without a `paths:` filter on each job
-# copying the same fileset. Ported from sharerr's identically-named workflow,
-# written for the same problem there first.
+# copying the same fileset.
 #
-# ci.yml did not have any path filtering before this - every job ran on every
-# PR, including e2e (25 min), e2e-backends (40 min) and test-macos (20 min) on
-# a README-only change. `workflow-lint` (actionlint + zizmor) and
+# Without it every job runs on every PR, including e2e (25 min), e2e-backends
+# (40 min) and test-macos (20 min) on a README-only change. `workflow-lint` (actionlint + zizmor) and
 # `advisory-lint` (markdownlint, hadolint, demo-staleness) are deliberately
 # NOT gated on this - a workflow-only change is exactly what workflow-lint
 # exists to catch, and a docs-only change is exactly when advisory-lint should

@@ -36,7 +36,7 @@ jobs:
   # cannot move any of their results. workflow-lint and advisory-lint are
   # deliberately exempt: a workflow-only change is exactly what workflow-lint
   # audits, and a docs-only change is exactly when advisory-lint should run.
-  # See changes.yml for the fork-PR-safe mechanics this shares with sharerr.
+  # See changes.yml for the fork-PR-safe mechanics.
   #
   # Only push and pull_request get filtered. On schedule (the weekly re-test
   # of the unpinned kind/nomad installs) or workflow_dispatch this job doesn't

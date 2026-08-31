@@ -12,12 +12,7 @@ deploy key and the tap token are still one-time setup, described under
 
 **Runners.** Every job in the tree runs on a plain GitHub-hosted label
 (`ubuntu-latest`, `macos-latest`, `windows-latest`) — no job reads a
-repo/org Actions variable to substitute a machine of its own. Self-hosted
-runners were retired on 2026-08-27; the pattern that ran them — the
-`vars.RUNNER_LABEL` substitution, the fork-PR guard, the job-level
-`concurrency` serialization and the workspace-ownership hook — is in git
-history (`git log --all -- docs/SELFHOSTED-RUNNERS.md`) if it is ever wanted
-back.
+repo/org Actions variable to substitute a machine of its own.
 
 ## Contents
 
@@ -183,8 +178,8 @@ no environment to hold it), and no tag-protection ruleset may cover the
 `snapshot-*` pattern — a rule that blocks creating or deleting a matching tag
 fails the `publish` job.
 
-A repo that carried the old rolling `snapshot` tag from before this scheme
-gets it retired automatically: the first run under the per-commit tag deletes
+A repo carrying a bare rolling `snapshot` tag gets it retired
+automatically: the first run under the per-commit tag deletes
 any bare `snapshot` release and tag it finds alongside the `snapshot-*`
 family. A clone that had already fetched that tag keeps a harmless local copy
 pointing at whatever commit it last saw — nothing upstream ever asks it to

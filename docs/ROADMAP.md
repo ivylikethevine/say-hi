@@ -37,7 +37,8 @@ it.
 
 - [ ] **A release has gone out under branch protection**, manifest step
       green — [Get a release out under branch protection](#quick-wins).
-      `tap`/`aur` are `needs: publish`, so they can't start before this.
+      `tap`, `aur`, `feature` and `brew` are `needs: publish`, so none can
+      start before this.
 - [ ] **Every publishable channel has been published once by hand**, before
       the automation is trusted with it: deb/rpm/apk and the Homebrew tap,
       per [PACKAGING.md](PACKAGING.md)'s _Publishing each channel_. The tap
@@ -55,13 +56,13 @@ spam problem; see [Blocked until someone else moves](#blocked-until-someone-else
 
 ## Quick wins
 
-The first entry gates the rest of this tier: [Say what changed in a
-release](#quick-wins), [Homebrew tap](#moderate) and
-[AUR](#blocked-until-someone-else-moves) all wait on it.
+The first entry gates [Say what changed in a release](#quick-wins),
+[Homebrew tap](#moderate) and [AUR](#blocked-until-someone-else-moves); the
+rest of the tier is independent of it.
 
 - [ ] **Get a release out under branch protection** — _scope: one real
       release, plus one repository setting to confirm first; outside this
-      checkout._ `main` requires a PR now, closing Scorecard's
+      checkout._ `main` requires a PR, closing Scorecard's
       highest-severity finding — but no release has gone out under it yet.
 
   - `publish` opens a PR onto a `manifests-<tag>` branch instead of pushing to
@@ -97,30 +98,103 @@ release](#quick-wins), [Homebrew tap](#moderate) and
       release to prove it; in-repo._ `release.yml`'s `publish` job composes
       the body from GitHub's `releases/generate-notes` plus the verification
       checklist (minisign key from
-      [PACKAGING.md](PACKAGING.md#verifying-a-release-download)), appended
-      after `--notes` since `gh` puts generated notes last. `CHANGELOG.md`
+      [PACKAGING.md](PACKAGING.md#verifying-a-release-download)) into one
+      `--notes` body, generated notes first — `gh --generate-notes` would
+      put its own after `--notes`. `CHANGELOG.md`
       stays out unless that turns out not to be enough. **Ticks when:** a
       release body names what changed and how to check it, unattended.
 
 - [ ] **tldr page** — _scope: one upstream pull request; the gate it waited
       on has lifted; outside this checkout._ CLI surface is frozen (eighteen
-      flags, CI-enforced both ways by `parse_test.sh`/`targets_test.sh`).
+      flags; the set is CI-enforced both ways by `tests/hi/parse_test.sh` and
+      `tests/common/targets_test.sh`).
       Draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
       against tldr-pages. **Ticks when:** merged upstream.
 
 - [ ] **Flip to stable** — _scope: one commit at tag time, listed now so
       nothing is missed; in-repo._ The EXPERIMENTAL banner has echoes:
-      README's banner and anchor, ALTERNATIVES.md's pre-1.0 cell, SECURITY.md's
+      README's banner and its anchor (CONTRIBUTING.md's first paragraph links
+      that anchor by name), ALTERNATIVES.md's maturity cell, SECURITY.md's
       _Supported versions_. **Ticks when:** every one reads as a released
       project in the same commit the tag points at.
 
 - [ ] **A release candidate before the tag** — _scope: one `v1.0.0-rc.1` tag
       and one decision; in-repo then outside it._ `v0.0.x` tags skip
       `tap`/`aur` by design, so `v1.0.0` would be the first tag to walk
-      `bump.sh` → manifests PR → tap PR → `brew audit` untested. Decide
+      `bump.sh` → manifests PR → tap PR → `brew audit` untested — no `v*`
+      tag has ever been cut, which makes this the highest-value entry on the
+      page. Decide
       whether `-rc` tags should reach the tap (`release.yml` special-cases
       only `v0.0.x`), then cut one and read the run. **Ticks when:** an rc
       has gone through every job `v1.0.0` will, tap PR opened.
+
+- [ ] **Untrack `.claude/RESUME.md`** — _scope: one `git rm` and a
+      `.gitignore` line; in-repo._ It is an agent-session checkpoint, not
+      project material. **Ticks when:** it is out of the tree and ignored.
+
+- [ ] **A code of conduct** — _scope: one file; in-repo._ GitHub reads
+      CONTRIBUTING and SECURITY from `docs/`, and reads a code of conduct
+      from the root, `.github/` or `docs/` — there is none anywhere, and the
+      community-health checklist (and Discussions, once enabled) points at
+      the hole. **Ticks when:** `CODE_OF_CONDUCT.md` exists where GitHub
+      finds it.
+
+- [ ] **Decide between the two coverage tools** — _scope: one decision and
+      a paragraph; in-repo._ `tests/coverage.sh` (kcov) and
+      `tests/coverage_v2.sh` (bashcov) are two implementations of one
+      undecided question; TESTING.md says why each number is wrong but not
+      why both stay. **Ticks when:** one is gone, or TESTING.md says both
+      stay and why.
+
+- [ ] **Say what a dropped connection does** — _scope: one sentence; in-repo._
+      The tree is deleted on exit by design, so a Wi-Fi blip or a laptop lid
+      ends the session with no way back in, and nothing says so where a user
+      would look first. One line in README (or SETTINGS.md's _How it works_):
+      a dropped connection ends the session and cleans up; run under
+      `tmux`/`screen` on the client to survive drops; persistent sessions are
+      [not scheduled](#not-scheduled). **Ticks when:** the sentence exists.
+
+- [ ] **Document the Arch path** — _scope: a few lines in README's install
+      section, or in PACKAGING.md linked from it; in-repo._ The AUR is
+      externally blocked ([below](#blocked-until-someone-else-moves)), yet
+      `packaging/aur/say-hi-git/` builds with one `makepkg -si` and nobody is
+      told. Until a release exists only the `-git` package builds — the
+      versioned `PKGBUILD` points at a release tarball. **Ticks when:** an
+      Arch user reading the README knows the command.
+
+- [ ] **Tell package users how to upgrade** — _scope: a README section and
+      two message strings in a shipped file; in-repo._ No apt/dnf/apk
+      repository exists to subscribe to (PACKAGING.md's "No `apt upgrade`"
+      trade), so a `.deb`/`.rpm`/`.apk` user upgrades by re-downloading the
+      next release asset — stated once, in a PACKAGING.md aside. Worse,
+      `hi --update` on a packaged install prints `_HI_NO_GIT`
+      (`common/paths.sh:89`): "if a package manager installed say-hi, update
+      it there" — a channel that cannot update it — and `hi --test` prints
+      `_HI_NO_CHECKOUT` (`:87`), which names only the session case and
+      dead-ends on a packaged install without saying where a checkout comes
+      from.
+
+  - An **Upgrading** section in README's Installation/Usage: checkout →
+    `hi --update`; package → re-download from the releases page, linking
+    [verifying a release download](PACKAGING.md#verifying-a-release-download).
+  - Reword `_HI_NO_GIT` so the packaged arm points at the releases page, and
+    give `_HI_NO_CHECKOUT` a clause saying where a checkout comes from.
+    `common/paths.sh` ships in the payload (check both size numbers) and
+    suites may pin the message text.
+  - **Ticks when:** README says how each kind of install upgrades, and both
+    messages point somewhere that can.
+
+- [ ] **Guard `$remote_root` in the remote-script assembly** — _scope: one
+      `case` guard, or one sentence in SECURITY.md; in-repo._ The `HIBOOT:`
+      path the target reports is refused unless absolute and drawn from a
+      temp-path charset before it is interpolated (`hi.sh:807-822`);
+      `$remote_root` — also target-supplied (`hi.sh:742-750`) — is
+      interpolated unvalidated into the script sent back to that same
+      target. No privilege is gained (the target attacks only itself), but
+      symmetry costs one guard, or a "reviewed, accepted" note in SECURITY.md
+      costs one sentence; do it before a stability contract makes promises.
+      `/security-review` over `_say_hi`'s assembly is the cheap version.
+      **Ticks when:** the guard exists, or SECURITY.md says why it need not.
 
 ## Moderate
 
@@ -150,18 +224,23 @@ and none is a v1.0.0 criterion.
 - [ ] **Outside the repo, once a release exists** — _scope: a badge, a
       questionnaire, a toggle and a check; mostly outside this checkout._
       Listed together so they're not forgotten between the tag and the
-      announcement: - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
-      the in-repo half has shipped:
-      [CII-BEST-PRACTICES-DRAFT.md](CII-BEST-PRACTICES-DRAFT.md) answers
-      all 67 passing-level criteria against this tree, and README's badge
-      block carries the two commented-out lines waiting on a project ID.
-      What's left is outside this checkout — register at bestpractices.dev,
-      transcribe the draft, uncomment the badge — and the tick still means
-      _passing_, which stays blocked on three release-shaped MUST criteria
-      until the first tag ships; - a Repology badge — added to README's badge block already (renders
-      empty for now); the tick still means it's carrying a real version,
-      once deb/rpm/apk, the tap and the AUR do; - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`; - a check that `ubi`/`mise use ubi:` finds `hi.sh` in the release
-      tarball, and a PACKAGING.md line if it needs an `--exe` hint; - `actions/attest-sbom` beside the provenance step.
+      announcement:
+
+  - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge — the
+    in-repo half has shipped:
+    [CII-BEST-PRACTICES-DRAFT.md](CII-BEST-PRACTICES-DRAFT.md) answers all 67
+    passing-level criteria against this tree, and README's badge block carries
+    the two commented-out lines waiting on a project ID. What's left is outside
+    this checkout — register at bestpractices.dev, transcribe the draft,
+    uncomment the badge — and the tick still means _passing_, which stays
+    blocked on three release-shaped MUST criteria until the first tag ships;
+  - a Repology badge — in README's badge block already (renders empty for
+    now); the tick still means it's carrying a real version, once deb/rpm/apk,
+    the tap and the AUR do;
+  - GitHub Discussions, linked from `ISSUE_TEMPLATE/config.yml`;
+  - a check that `ubi`/`mise use ubi:` finds `hi.sh` in the release tarball,
+    and a PACKAGING.md line if it needs an `--exe` hint;
+  - `actions/attest-sbom` beside the provenance step.
 
 - [ ] **AUR** — _scope: nothing actionable until registration reopens; then
       an account, a key, and one manual first push; outside this checkout._
@@ -179,7 +258,7 @@ and none is a v1.0.0 criterion.
       `.github/actions/setup-tool/tools.txt`, once actionlint catches up;
       in-repo._ zizmor 1.30.0 ships a new `self-repository` audit for GitHub's
       `$/...` same-repo syntax and flags every `./...` action/workflow
-      reference in the tree (35 of them) as a finding; `ci.yml`'s
+      reference in the tree (38 of them) as a finding; `ci.yml`'s
       `workflow-lint` job gates on zizmor with no `--min-severity`, so the pin
       bump alone breaks CI. actionlint `1.7.12` (also pinned in `tools.txt`,
       current as of 2026-08-31 — no later release exists) does not recognize
@@ -217,7 +296,7 @@ and one decided against is deleted, the same as anywhere else on this page.
     weaker — add a case for dropped-with-`--session` keeping the tree.
   - Reaping defaults to zero footprint: a tree older than
     `_HI_PERSIST_TIMEOUT` (unset means keep until `hi --session <name>
-    --end`) is deleted the moment the _next_ `hi` touches that target. A
+--end`) is deleted the moment the _next_ `hi` touches that target. A
     detached watchdog (`sh -c 'sleep N; rm -rf ...' &`) is the stronger
     opt-in. SECURITY.md's _Footprint and cleanup_ needs both modes described.
   - Reattachment rides whatever multiplexer the target already has: `tmux` →
@@ -231,12 +310,21 @@ and one decided against is deleted, the same as anywhere else on this page.
 - [ ] **Raise the client's bash floor to 4, keep 3.2 only for the target** —
       _scope: reshapes the eval/table plumbing across `common/`; in-repo._ No
       associative arrays, `mapfile`, or namerefs under bash 3.2, so tables are
-      `|`-joined strings read back with `IFS='|' read` (`_HI_SHELL_TABLE`,
-      `_HI_BACKENDS`, `_HI_TRIM_TABLE`, `common/flags`) and arrays are filled
-      through `eval` (`_hi_read_lines`, `core.sh:159-165`) — safe, but every
+      `|`-joined strings read back with `IFS='|' read` (`_HI_SHELL_TABLE` in
+      `common/core.sh`, `_HI_BACKENDS` and `_HI_TRIM_TABLE` in `hi.sh`,
+      `common/flags`) and arrays are filled
+      through `eval` (`_hi_read_lines`, `common/core.sh:123-127`) — safe, but every
       reader has to check it. The floor only matters for the macOS _client_
       (Homebrew bash is the norm there already; `#!/usr/bin/env bash` picks it
       up); target-only code could stay at 3.2. **Ticks when:** the decision is
       written down, and — if raising the floor — client-side tables move to
       bash 4 associative arrays/`mapfile` and the lint suite's 3.2-floor grep
       is scoped to target-only files.
+
+- [ ] **A subscribable package repository** — _scope: a decision, then an
+      OBS project or a PPA and a fourth manifest to keep current; outside
+      this checkout._ PACKAGING.md's trade — no `apt upgrade` for not
+      maintaining a repository — stands until people ask; this is where the
+      asking lands, so it is revisited rather than re-argued. **Ticks when:**
+      a decision is written down, and — if yes — one `.deb` or `.rpm` user
+      gets a new release through their package manager.

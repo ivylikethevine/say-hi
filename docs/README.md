@@ -3,9 +3,7 @@
 Reference material that doesn't fit in [the README](../README.md)'s
 walkthrough. Each doc says at the top what it covers versus the README (or
 opens with a `## Contents` that makes it obvious), so this page is
-deliberately just a map, not a summary. Ported from sharerr's identically-named
-index, which solved the same "the list only lives in one place" problem there
-first — before this, README's own "More docs" section was the only index.
+deliberately just a map, not a summary.
 
 | Doc                                                         | Covers                                                                                                            |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -17,6 +15,5 @@ first — before this, README's own "More docs" section was the only index.
 | [Security policy](SECURITY.md)                              | What hi touches on a target, and how to report a vulnerability.                                                   |
 | [Packaging](PACKAGING.md)                                   | The publishing runbook, the reproducibility contract, verifying a download, regenerating the demo GIFs.           |
 | [Roadmap](ROADMAP.md)                                       | What is planned, what it is blocked on, and what is research only.                                                |
-| [Evaluation](EVALUATION.md)                                 | A pre-1.0 gap analysis ranked by user impact; complements the roadmap.                                            |
 | [OpenSSF Best Practices draft](CII-BEST-PRACTICES-DRAFT.md) | The questionnaire, answered against this tree — scratch until it's transcribed to bestpractices.dev.              |
 | [Contributing](CONTRIBUTING.md)                             | The gate to run before a pull request, and which doc changes with what.                                           |

@@ -71,9 +71,8 @@ act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/u
 
 "The gate" above is the two commands to run yourself; this is every job
 `ci.yml` runs on your pull request, and whether a red one actually fails the
-run or only reports. Ported from sharerr's `docs/CONTRIBUTING.md`, which keeps
-the same table for the same reason — sixteen workflow files is more than the
-per-job comments in `ci.yml` are convenient to read through by eye.
+run or only reports — sixteen workflow files is more than the per-job
+comments in `ci.yml` are convenient to read through by eye.
 
 | Job                                                      | Runs on your PR                                                      | Gate or advisory?                       |
 | -------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |

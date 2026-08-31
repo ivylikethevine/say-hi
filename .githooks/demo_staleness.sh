@@ -12,8 +12,8 @@
 # straight through nfpm.yaml's one-level apk globs (packaging_test.sh fails on
 # it).
 #
-# Only the topmost README demo, on purpose - and it is now the only demo this
-# could apply to. It is the one GIF that claims to be the stock defaults with
+# Only the topmost README demo, on purpose - the only demo this could apply
+# to. It is the one GIF that claims to be the stock defaults with
 # nothing turned off, so it is the one that goes quietly wrong when the header,
 # the prompt or the tape changes, and the one a person still renders by hand.
 # The other seven each advertise a knob and are rendered by CI on a cadence

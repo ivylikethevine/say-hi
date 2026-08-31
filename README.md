@@ -38,9 +38,10 @@ current state is not a representation of final, published quality.
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
-[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
-[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
-[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
+<!--[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)-->
+<!--[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)-->
+<!--[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)-->
+
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 <!-- [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<ID>/badge)](https://www.bestpractices.dev/projects/<ID>) -->
 <!-- [![OpenSSF Baseline](https://www.bestpractices.dev/projects/<ID>/baseline)](https://www.bestpractices.dev/projects/<ID>) -->

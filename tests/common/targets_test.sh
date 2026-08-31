@@ -584,7 +584,7 @@ function test_complete_still_answers_from_the_cache() {
 }
 
 # The drift check the roster exists for. hi.sh's --help heredoc and docs/hi.1
-# both spell these out; targets.sh is now a third copy, and the only one a
+# both spell these out; targets.sh is a third copy, and the only one a
 # completion reads - so a flag that stops agreeing with --help is a flag the
 # user is offered and hi then rejects.
 function test_flags_all_appear_in_help() {
