@@ -8,10 +8,9 @@ What's left, sorted into four tiers by **how hard the work is**:
   plus a test or budget to satisfy on the way out.
 - **[Blocked until someone else moves](#blocked-until-someone-else-moves)** —
   externally gated. Tracked, not actionable.
-
-Research and undecided questions — nothing scheduled, nothing gating a
-release — live in [FUTURE.md](FUTURE.md) instead of here; an entry moves over
-once someone commits to it.
+- **[Not scheduled](#not-scheduled)** — research and decisions nobody has
+  made yet. Nothing there gates a release; an entry moves up a tier once
+  someone commits to it.
 
 Each entry opens with its **scope** in italics — what the work _is_, not how
 long it takes — closing with _in-repo_ or _outside this checkout_. Ordering
@@ -26,13 +25,13 @@ questions decided against are **deleted**: git history is the ledger.
 - [Quick wins](#quick-wins)
 - [Moderate](#moderate)
 - [Blocked until someone else moves](#blocked-until-someone-else-moves)
+- [Not scheduled](#not-scheduled)
 
 ## What v1.0.0 means
 
 A **gate, not a wish list**: anything merely nice by v1 stays an ordinary
 entry below, and the one piece of product work left
-(_[persistent sessions](FUTURE.md#persistent-sessions-on-a-disposable-target)_)
-is deferred past the tag, tracked in [FUTURE.md](FUTURE.md) rather than here.
+(_[persistent sessions](#not-scheduled)_) is deferred past the tag.
 What's left is a single chain — the release below unblocks the channels after
 it.
 
@@ -46,7 +45,7 @@ it.
 - [ ] **A stability contract is written down**, so "experimental" has an
       opposite: one page (`docs/STABILITY.md`, or a CONTRIBUTING section)
       naming what 1.x won't break — the eighteen `common/flags`, every
-      CONFIGURATION.md row, `$_HI_OVERLAY_FILES`, the `$_HI_HOME/say-hi` +
+      SETTINGS.md row, `$_HI_OVERLAY_FILES`, the `$_HI_HOME/say-hi` +
       `/etc/profile.d/say-hi.sh` layout, `_HI_RELEASE` — plus the semver rule
       and how a toggle is retired (warns one minor, then goes). Same commit
       fills SECURITY.md's _Supported versions_ placeholder.
@@ -193,3 +192,51 @@ and none is a v1.0.0 criterion.
     the pin bump and the rewrite land in the same commit.
   - **Ticks when:** zizmor is back on its latest release and
     `check_tool_versions.sh` reports every pin current.
+
+## Not scheduled
+
+Research and decisions nobody has made yet. Nothing here gates a release and
+nothing here is queued; an entry moves up a tier when someone commits to it,
+and one decided against is deleted, the same as anywhere else on this page.
+
+- [ ] **Persistent sessions on a disposable target** — _scope: the largest
+      entry here — cleanup semantics on both paths, a findable tree path and
+      something to reap it, and SECURITY.md's footprint promise rewritten;
+      in-repo._ A dropped connection loses the session outright today (the
+      tree is deleted on exit). Goal: keep the tree across a drop, reconnect
+      into the same session, delete only on a definitive exit or a
+      configurable timeout. **Opt-in, not the default** — a bare
+      `hi <target>` stays disposable.
+
+  - `hi --session <name> <target>` writes a deterministic tree
+    (`${TMPDIR:-/tmp}/$(_hi_whoami).hi.session.<name>`, mode 0700, `<name>`
+    restricted to alnum/`-`/`_`) instead of `mktemp`'s random one; a second
+    call finds it, skips re-copying an unchanged payload, and reattaches.
+  - `load.sh`'s on-exit hook (proven by
+    `tests/targets/ssh_disconnect_test.sh`) needs to become conditional, not
+    weaker — add a case for dropped-with-`--session` keeping the tree.
+  - Reaping defaults to zero footprint: a tree older than
+    `_HI_PERSIST_TIMEOUT` (unset means keep until `hi --session <name>
+    --end`) is deleted the moment the _next_ `hi` touches that target. A
+    detached watchdog (`sh -c 'sleep N; rm -rf ...' &`) is the stronger
+    opt-in. SECURITY.md's _Footprint and cleanup_ needs both modes described.
+  - Reattachment rides whatever multiplexer the target already has: `tmux` →
+    `screen` → `dtach`, in that order; a target with none declines
+    persistence with a clear message rather than pretending.
+  - **Ticks when:** `--session` survives a dropped connection and reattaches,
+    a bare `hi <target>` is unchanged, the timeout and watchdog are
+    documented settings, SECURITY.md describes both cleanup modes, and the
+    disconnect suite covers both paths.
+
+- [ ] **Raise the client's bash floor to 4, keep 3.2 only for the target** —
+      _scope: reshapes the eval/table plumbing across `common/`; in-repo._ No
+      associative arrays, `mapfile`, or namerefs under bash 3.2, so tables are
+      `|`-joined strings read back with `IFS='|' read` (`_HI_SHELL_TABLE`,
+      `_HI_BACKENDS`, `_HI_TRIM_TABLE`, `common/flags`) and arrays are filled
+      through `eval` (`_hi_read_lines`, `core.sh:159-165`) — safe, but every
+      reader has to check it. The floor only matters for the macOS _client_
+      (Homebrew bash is the norm there already; `#!/usr/bin/env bash` picks it
+      up); target-only code could stay at 3.2. **Ticks when:** the decision is
+      written down, and — if raising the floor — client-side tables move to
+      bash 4 associative arrays/`mapfile` and the lint suite's 3.2-floor grep
+      is scoped to target-only files.

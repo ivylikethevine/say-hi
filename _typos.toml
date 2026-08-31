@@ -13,5 +13,5 @@ darcula = "darcula"            # the IntelliJ theme, named as a vim colorscheme
 unparseable = "unparseable"    # a spelling, not a typo
 
 [default.extend-identifiers]
-ACI = "ACI"                    # Azure Container Instances, docs/UNSUPPORTED.md
+ACI = "ACI"                    # Azure Container Instances, docs/SUPPORT.md
 BRE = "BRE"                    # POSIX basic regular expressions, docs/GLOSSARY.md

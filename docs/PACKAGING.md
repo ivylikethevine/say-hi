@@ -13,11 +13,11 @@ deploy key and the tap token are still one-time setup, described under
 **Runners.** Every job in the tree runs on a plain GitHub-hosted label
 (`ubuntu-latest`, `macos-latest`, `windows-latest`) — no job reads a
 repo/org Actions variable to substitute a machine of its own. Self-hosted
-runner support existed here before and is documented, unused, in
-[docs/SELFHOSTED-RUNNERS.md](SELFHOSTED-RUNNERS.md) — the variable pattern to
-restore, the fork-PR safety logic it needs, the job-level `concurrency`
-serialization, and the workspace-ownership wedge its job-started hook fixed —
-in case self-hosted is worth reactivating later.
+runners were retired on 2026-08-27; the pattern that ran them — the
+`vars.RUNNER_LABEL` substitution, the fork-PR guard, the job-level
+`concurrency` serialization and the workspace-ownership hook — is in git
+history (`git log --all -- docs/SELFHOSTED-RUNNERS.md`) if it is ever wanted
+back.
 
 ## Contents
 
@@ -91,8 +91,8 @@ one. `packaging_test.sh` guards all of it.
 nix is the one looked at and answered no for now. The reasoning — the
 derivation shape, why it would ship as a flake first, the drift guard that has
 to grow a case, and what `/etc/profile.d` has no store-path equivalent for —
-lives in [UNSUPPORTED.md's _packaging channels_
-section](UNSUPPORTED.md#packaging-channels-weighed-and-not-shipped).
+lives in [SUPPORT.md's _packaging channels_
+section](SUPPORT.md#packaging-channels-weighed-and-not-shipped).
 
 ## Cutting a release
 
@@ -323,7 +323,7 @@ people ask for a repo to subscribe to.
 
 **The one channel that installs say-hi on the far side.** Every other one
 packages it for a machine you own and then say `hi` _from_.
-[SUPPORTED.md](SUPPORTED.md) already reaches a devcontainer from outside — it
+[SUPPORT.md](SUPPORT.md) already reaches a devcontainer from outside — it
 is a docker container like any other — but a Codespace or a _Reopen in
 Container_ has no client at all: the terminal that opens is already standing on
 the target. So this Feature puts say-hi _inside_ the image, and the terminal is
@@ -340,7 +340,7 @@ A user adds it to their `devcontainer.json`:
 | option           | default      | what it does                                                                                       |
 | ---------------- | ------------ | -------------------------------------------------------------------------------------------------- |
 | `version`        | `latest`     | the newest release, a release version like `1.0.0`, or `main` for the branch                       |
-| `preset`         | `everything` | which of [CONFIGURATION.md's presets](CONFIGURATION.md#presets) the user's settings start from     |
+| `preset`         | `everything` | which of [SETTINGS.md's presets](SETTINGS.md#presets) the user's settings start from               |
 | `configureShell` | `true`       | run `hi --install` for `$_REMOTE_USER`; off leaves `/usr/bin/hi` working and the terminal unstyled |
 
 `packaging/devcontainer/src/say-hi/install.sh` is deliberately thin, and the
@@ -442,8 +442,8 @@ crashed run.
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
 but `demo` in CI — installing podman, nomad and kind on a hosted runner the way
 `ci.yml`'s `e2e-backends` job does — on a tape change, weekly, or on dispatch,
-and hands the GIFs to the Pages build,
-which lays them over the committed copies at the same paths. Nothing is
+and hands the GIFs to the Pages build, which serves them from `docs/tapes/`,
+beside the tape that made each one and the committed `demo.gif`. Nothing is
 committed back: branch protection refuses a bot commit, the same reason the
 tests badge is published rather than written into README.
 

@@ -54,7 +54,7 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # checked where it is made.
 set -uo pipefail
 
-# Every tape's `Output docs/demos/<name>.gif`, its `Source docs/tapes/common.tape`
+# Every tape's `Output docs/tapes/<name>.gif`, its `Source docs/tapes/common.tape`
 # and every Hide block's `docs/tapes/fixtures.sh up ...` is relative to wherever
 # vhs was started, so the render has to happen from the checkout root - not from
 # wherever the caller happened to be standing.
@@ -309,7 +309,7 @@ function gen_preflight() {
 function gen_render() { # <name> <requires>
   local name="$1" tape gif log stamp missing rc t0 secs size was
   tape="docs/tapes/$name.tape"
-  gif="docs/demos/$name.gif"
+  gif="docs/tapes/$name.gif"
   log="$_HI_GEN_SHIM/$name.log"
   stamp="$_HI_GEN_SHIM/$name.stamp"
 
@@ -381,7 +381,7 @@ while [ $# -gt 0 ]; do
     cat <<'EOF'
 Usage: generate.sh [options] [name ...]
 
-Renders docs/demos/<name>.gif from docs/tapes/<name>.tape with vhs, one tape at
+Renders docs/tapes/<name>.gif from docs/tapes/<name>.tape with vhs, one tape at
 a time, taking the fixtures down in between. With no names it renders all of
 them, cheapest first.
 
@@ -466,5 +466,5 @@ gen_run
 _hi_h2 "Summary"
 _hi_cecho " | $_HI_GEN_OK rendered, $_HI_GEN_SKIPPED skipped, $_HI_GEN_FAILED failed" \
   "$([ "$_HI_GEN_FAILED" -eq 0 ] && printf '%s' "$GREEN" || printf '%s' "$RED")"
-[ "$_HI_GEN_OK" -gt 0 ] && _hi_cecho " | look at them before committing: git status docs/demos" "$BLUE"
+[ "$_HI_GEN_OK" -gt 0 ] && _hi_cecho " | look at them before committing: git status docs/tapes" "$BLUE"
 [ "$_HI_GEN_FAILED" -eq 0 ]

@@ -46,7 +46,7 @@ Named so the evaluation is fair, and so nobody "fixes" one of these sideways:
 - reproducible, minisign-signed, provenance-attested deb/rpm/apk, with CI
   proving byte-identical rebuilds
 - zero `TODO`/`FIXME`/`XXX` markers in the tree; open questions live in
-  [ROADMAP.md](ROADMAP.md)/[FUTURE.md](FUTURE.md) instead
+  [ROADMAP.md](ROADMAP.md) instead
 
 ## Tier 1 — will bite the named audience
 
@@ -72,7 +72,7 @@ update it.
       instead of a package manager with no upgrade channel. Mind that
       `common/paths.sh` ships in the payload (check both size numbers) and
       that suites may pin the message text.
-- [ ] A [FUTURE.md](FUTURE.md) entry weighing a subscribable repo (OBS or a
+- [ ] A [ROADMAP.md](ROADMAP.md#not-scheduled) entry weighing a subscribable repo (OBS or a
       PPA) post-1.0, so the trade is revisited if people ask — PACKAGING.md
       already says "revisit OBS only if people ask"; give that sentence a
       place where decisions live.
@@ -94,16 +94,16 @@ one command and nobody is told about it.
 
 The tree is deleted on exit by design, so a Wi-Fi blip or a laptop lid ends
 the session with no way back in. Persistent sessions are deliberately deferred
-past 1.0 ([FUTURE.md](FUTURE.md#persistent-sessions-on-a-disposable-target) —
+past 1.0 ([ROADMAP.md](ROADMAP.md#not-scheduled) —
 a sound call), and mosh cannot be the transport
 ([ALTERNATIVES.md](ALTERNATIVES.md#adjacent-tools-and-how-they-compose)
 documents why). What is missing is one sentence of expectation-setting where a
 user would look before being surprised.
 
-- [ ] One line in README (or CONFIGURATION.md's _How it works_): a dropped
+- [ ] One line in README (or SETTINGS.md's _How it works_): a dropped
       connection ends the session and cleans up; run under `tmux`/`screen` on
       the client if you need to survive drops; persistent sessions are future
-      work (link the FUTURE.md entry).
+      work (link the ROADMAP.md entry).
 
 ## Tier 2 — release process, already owned by the roadmap
 
@@ -150,11 +150,11 @@ First-impression and diligence items; none blocks a user, all are cheap.
 ## Decisions already made, acknowledged here
 
 Weighed, answered, and documented — listed so nobody re-litigates them from
-this page: no nix packaging ([UNSUPPORTED.md](UNSUPPORTED.md)), no mosh
+this page: no nix packaging ([SUPPORT.md](SUPPORT.md)), no mosh
 transport ([ALTERNATIVES.md](ALTERNATIVES.md#adjacent-tools-and-how-they-compose)),
 no shipping a shell the target lacks (xxh's niche,
 [ALTERNATIVES.md](ALTERNATIVES.md#xxh--the-one-that-solves-a-harder-problem)),
 no `CHANGELOG.md` while generated release notes suffice
 ([ROADMAP.md](ROADMAP.md#quick-wins)), persistent sessions after 1.0
-([FUTURE.md](FUTURE.md#persistent-sessions-on-a-disposable-target)), and the
+([ROADMAP.md](ROADMAP.md#not-scheduled)), and the
 AUR excluded from the v1 gate ([ROADMAP.md](ROADMAP.md#what-v100-means)).

@@ -18,9 +18,9 @@ to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
 
 ## Before you start
 
-**Check it isn't already decided.** [docs/UNSUPPORTED.md](UNSUPPORTED.md) holds
-a verdict and a reason for every runtime, shell, packaging channel and feature
-answered no; [docs/SUPPORTED.md](SUPPORTED.md) covers everything hi does reach;
+**Check it isn't already decided.** [docs/SUPPORT.md](SUPPORT.md) covers
+everything hi does reach and holds a verdict and a reason for every runtime,
+shell, packaging channel and feature answered no;
 [docs/ALTERNATIVES.md](ALTERNATIVES.md) does the same for the tools say-hi is
 not trying to be. A "no" there is settled, not an oversight — though a reason
 that has stopped being true is worth an issue, and a good implementation would
@@ -140,15 +140,15 @@ These are constraints the tree enforces, not requests:
 | you changed                           | update                                        |
 | ------------------------------------- | --------------------------------------------- |
 | a flag, or `_hi_parse`                | `docs/hi.1` and `docs/tldr.md`                |
-| an environment variable or toggle     | `docs/CONFIGURATION.md` (enforced, see below) |
+| an environment variable or toggle     | `docs/SETTINGS.md` (enforced, see below)      |
 | what hi leaves on a target            | `docs/SECURITY.md`                            |
-| a target hi does or doesn't answer to | `docs/SUPPORTED.md`, or `docs/UNSUPPORTED.md` |
+| a target hi does or doesn't answer to | `docs/SUPPORT.md`                             |
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag  |
 | a release channel or the release flow | `docs/PACKAGING.md`                           |
 
 Two rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
 entry fails, and so does a toggle in `common/core.sh` with no row in
-[CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table. The rest are on
+[SETTINGS.md](SETTINGS.md)'s _Every setting_ table. The rest are on
 your honour and on review.
 
 `docs/ROADMAP.md` is a to-do list, not a changelog: finishing an entry means

@@ -293,7 +293,7 @@ jobs:
             reason per silenced rule; anything reaching here is deliberately left visible.
           report-file: ${{ runner.temp }}/hadolint.truncated
 
-      # docs/demos/demo.gif is the one hand-rendered GIF, and .githooks/
+      # docs/tapes/demo.gif is the one hand-rendered GIF, and .githooks/
       # demo_staleness.sh is what says when the tape, the fixtures or the
       # shipped tree moved after it was last rendered. As a git hook it only
       # speaks on a machine that opted in (`git config core.hooksPath
@@ -321,7 +321,7 @@ jobs:
         if: steps.demo-staleness.outputs.stale == '1'
         with:
           title: demo.gif
-          warning-body: docs/demos/demo.gif is older than something it renders - advisory, not blocking
+          warning-body: docs/tapes/demo.gif is older than something it renders - advisory, not blocking
           heading: demo.gif may be out of date
           body: |
             Advisory only: this job never blocks a merge. Re-render with

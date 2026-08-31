@@ -153,7 +153,7 @@ EOF
 # alias (one the shipped file never touches) still arrives; one proves the
 # opposite of the old contract - an overlay `alias` of a name the shipped
 # file *also* defines does NOT win, since the shipped definition runs after
-# it and overwrites it (docs/CONFIGURATION.md describes this trade-off; the
+# it and overwrites it (docs/SETTINGS.md describes this trade-off; the
 # way to keep an overlay alias of a shipped name is the matching
 # `_HI_DISABLE_*` toggle); one per shell proves a config-dir-less run (the
 # container fallback's shape) stays silent.

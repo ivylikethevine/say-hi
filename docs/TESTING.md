@@ -382,7 +382,7 @@ what the tree does.
 13. **The settings roster**: every name the tree treats as a setting
     (`_HI_TOGGLES` in `common/core.sh`, the variable column of
     every `_HI_*_PROMPTS` table in `scripts/configure.sh`) has
-    a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table, and
+    a row in [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and
     every row there names a variable the tree still reads. Only that section is
     matched. A name assembled at run time (`_HI_PROMPT_END_$SHELL`) is matched
     by its literal prefix.
@@ -390,9 +390,13 @@ what the tree does.
     from `_config.yml`'s `exclude:` block, not hand-kept) may not carry a raw
     Liquid delimiter outside a guarded span — Liquid tokenizes the page before
     Markdown, so a fenced GitHub Actions expression gets no shelter from the
-    fence. This is what broke the Pages build on
-    `docs/SELFHOSTED-RUNNERS.md` once already; that file's own comment names
-    the exact construct and the guard around it.
+    fence. This broke the Pages build once already, on a fenced Actions
+    expression whose `format('{0}-{1}', …)` handed Liquid's tokenizer a lone
+    closing brace mid-expression. A page that means to show a Liquid delimiter
+    verbatim wraps the span in a raw/endraw guard, each half inside an HTML
+    comment so the guard itself never renders; otherwise it stays off the
+    site. The check's header comment in `tests/lint/drift_test.sh` spells the
+    construct out.
 15. **tests/dockerfiles/**: every image definition has a caller and vice versa.
 16. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`debian:bullseye-slim`/`bash:3.2`/`ubuntu:24.04`/`ubuntu:26.04` named
     as a plain tag in shell or YAML agrees with the digest-pinned version in

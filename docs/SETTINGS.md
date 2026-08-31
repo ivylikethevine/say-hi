@@ -1,4 +1,4 @@
-# Configuration
+# Settings
 
 Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` (`$_HI_CONFIG_DIR`). `colors` and
@@ -9,7 +9,8 @@ toggle you set there takes effect before hi builds anything from it; an
 `alias` you define there does not win over the same name shipped after it —
 turn the shipped family off with its toggle and define your own instead.
 `settings.sh` has no in-tree counterpart: `hi --configure` only ever writes it
-here.
+here. (The tree's own `settings/` directory is the shipped defaults those
+files override; this page is what _you_ can set, and what each setting does.)
 
 Four of those files can also live somewhere else entirely — see
 [Pointing one file somewhere else](#pointing-one-file-somewhere-else).
@@ -223,7 +224,7 @@ survive; point `$_HI_HOME` or `$HOME` elsewhere if you need them elsewhere.
 `$_HI_CONFIG_DIR` is also the answer to "I want my config somewhere else":
 exporting it moves the whole overlay, which is why a proposal to rename the
 directory was declined —
-[UNSUPPORTED.md](UNSUPPORTED.md#changes-proposed-and-not-made) has the
+[SUPPORT.md](SUPPORT.md#changes-proposed-and-not-made) has the
 reasoning. Everything else beginning `_HI_` is internal state, named that way
 to stay out of your namespace.
 
@@ -352,7 +353,7 @@ What no wrapper can reach is a bash or fish shell nothing typed - a `tmux`
 pane spawning a login shell, an editor shelling out - which comes up as the
 host's own. hi writes nothing to any login file on any host you visit, under
 any setting: the rc graft that once covered that case was removed
-([UNSUPPORTED.md](UNSUPPORTED.md#features-that-were-removed)).
+([SUPPORT.md](SUPPORT.md#features-that-were-removed)).
 
 Earlier versions shipped one person's shell preferences (history sizing,
 keybindings, `zstyle` rules, fish's palette) in `settings/*_personal.*` files
@@ -407,7 +408,7 @@ A pin always beats the hash.
 `hi --color-preview` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:
 
-![hi --color-preview: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/demos/colors.gif)
+![hi --color-preview: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### Using the hash in your own prompt
 

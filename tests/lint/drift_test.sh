@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The repo-consistency sweeps: checks that something written down elsewhere
-# (a bash-4 floor, a retired default, docs/GLOSSARY.md, docs/CONFIGURATION.md,
+# (a bash-4 floor, a retired default, docs/GLOSSARY.md, docs/SETTINGS.md,
 # _config.yml's Liquid rule, tests/dockerfiles/'s own pins) still agrees with
 # what the tree actually does. None of these wrap an external tool - every one
 # is a grep, a build-list comparison, or a small parser over files already in
@@ -324,7 +324,7 @@ function lint_glossary_tags() {
 # `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS` are the
 # questions `hi --configure` asks and the lines it writes. A name goes into any
 # of the three without a thought for the docs, which is how "what can I set?"
-# stopped being answerable from one place; this is what makes CONFIGURATION.md's
+# stopped being answerable from one place; this is what makes SETTINGS.md's
 # roster derived rather than hand-kept.
 #
 # Only the `## Every setting` section counts, not every backticked `_HI_` name
@@ -332,9 +332,9 @@ function lint_glossary_tags() {
 # document would go green on a name mentioned in passing three sections away -
 # which is the state this check exists to end.
 function lint_settings_table() {
-  local doc="$_HI_ROOT/docs/CONFIGURATION.md"
+  local doc="$_HI_ROOT/docs/SETTINGS.md"
   local documented names name bad=0
-  _hi_h2 "Checking hi's settings against docs/CONFIGURATION.md"
+  _hi_h2 "Checking hi's settings against docs/SETTINGS.md"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   documented="$(_hi_settings_documented "$doc")"
   _hi_read_lines names < <(_hi_settings_roster)
@@ -430,13 +430,14 @@ function _hi_jekyll_md_files() {
 # Jekyll's Liquid runs over every page's raw text *before* Markdown, so a
 # GitHub Actions `${{ }}` inside a fenced code block gets no shelter from the
 # fence - Liquid opens on the first `{{` or `{%` and raises if the matching
-# close isn't found before EOF. This is what broke the Pages build on
-# docs/SELFHOSTED-RUNNERS.md's `${{ needs.runner.outputs.ubuntu == ... &&
+# close isn't found before EOF. This is what broke the Pages build once, on a
+# since-retired doc's fenced `${{ needs.runner.outputs.ubuntu == ... &&
 # format('{0}-{1}', ...) }}`: the inner `{0}` gives Liquid's tokenizer a
 # single `}` to close on, so it raises mid-expression - in CI, with nothing
 # local to catch it first. A doc that means to show `{{ }}`/`{% %}` verbatim
-# has to wrap the span in `{% raw %}` … `{% endraw %}` (that file is now the
-# pattern) or stay off the site (docs/tldr.md's use of `{{placeholder}}` is
+# has to wrap the span in `{% raw %}` … `{% endraw %}`, each inside an HTML
+# comment so the guard itself never renders, or stay off the site
+# (docs/tldr.md's use of `{{placeholder}}` is
 # tldr-pages' own syntax and has to stay byte-for-byte, so it is excluded in
 # `_config.yml` instead of guarded).
 function lint_liquid_docs() {

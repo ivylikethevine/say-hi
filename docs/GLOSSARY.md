@@ -691,7 +691,7 @@ What the wrappers cannot cover is a bash or fish shell nothing typed — a
 `tmux` pane spawning a login shell, an editor's shell-out — which comes up as
 the host's own. Writing hi's rc into the target's login files was the rc
 graft's job, removed on 2026-08-29
-([UNSUPPORTED.md](UNSUPPORTED.md#features-that-were-removed)).
+([SUPPORT.md](SUPPORT.md#features-that-were-removed)).
 
 ## HI.47 what a child inherits
 

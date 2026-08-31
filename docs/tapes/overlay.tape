@@ -24,7 +24,7 @@
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
 # matching its own sentinel. Visible sleeps are reading time only.
 
-Output docs/demos/overlay.gif
+Output docs/tapes/overlay.gif
 
 Set Shell fish
 Source docs/tapes/common.tape

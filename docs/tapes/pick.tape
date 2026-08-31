@@ -36,7 +36,7 @@
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
 # matching its own sentinel. Visible sleeps are reading time only.
 
-Output docs/demos/pick.gif
+Output docs/tapes/pick.gif
 
 Source docs/tapes/common.tape
 

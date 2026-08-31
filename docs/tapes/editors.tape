@@ -16,7 +16,7 @@
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
 # matching its own sentinel. Visible sleeps are reading time only.
 
-Output docs/demos/editors.gif
+Output docs/tapes/editors.gif
 
 Set Shell zsh
 Source docs/tapes/common.tape

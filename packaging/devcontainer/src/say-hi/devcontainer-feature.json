@@ -14,7 +14,7 @@
       "type": "string",
       "proposals": ["everything", "balanced", "minimal"],
       "default": "everything",
-      "description": "The feature preset hi --configure writes for the remote user. See docs/CONFIGURATION.md's Presets."
+      "description": "The feature preset hi --configure writes for the remote user. See docs/SETTINGS.md's Presets."
     },
     "configureShell": {
       "type": "boolean",

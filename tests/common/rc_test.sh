@@ -51,7 +51,7 @@ function test_bash_prompt_disabled_leaves_ps1_alone() {
 # still primed into plain variables - $_HI_HOST_ESC/$_HI_USER_ESC (the raw
 # ANSI escape, bash's form) and $_HI_HOST_COLOR/$_HI_USER_COLOR (the color
 # name, zsh's %F{} form) - so a custom PS1 in the user's own bash.sh/zsh.zsh
-# can still use it, per docs/CONFIGURATION.md.
+# can still use it, per docs/SETTINGS.md.
 function test_bash_prompt_disabled_still_primes_color_variables() {
   local out host_esc user_esc host_color user_color
   out="$(_HI_DISABLE_PROMPT=1 _hi_rc_shell xterm-256color bash \

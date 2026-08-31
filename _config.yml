@@ -51,9 +51,9 @@ readme_index:
   with_frontmatter: true
 
 # The site is the prose, not the program. Everything that is code, tooling or
-# packaging is excluded; docs/demos stays for demo.gif, the one still committed
-# - the other six are rendered by demos.yml and laid over this site by
-# pages.yml, and README.md links them at their published URLs.
+# packaging is excluded, docs/tapes/ with it: the one committed GIF there
+# (demo.gif) and the seven demos.yml renders are laid over this site by
+# pages.yml at docs/tapes/, and README.md links them at their published URLs.
 exclude:
   - bin/
   - common/
