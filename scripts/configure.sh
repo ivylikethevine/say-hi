@@ -531,7 +531,7 @@ function config_packages_floor() {
       # A failed read is EOF - a closed pipe, ^D, or a driver that ran out of
       # input - and never an answer. Break, and close the prompt line, since
       # read -p leaves the cursor on it.
-      if ! read -r -p " Lowest package priority to show (0-5, higher hides more)? [$_hi_floor_candidate] " reply; then
+      if ! read -r -p " Lowest package priority to show (0-4, 4 turns the check off)? [$_hi_floor_candidate] " reply; then
         printf '\n' >&2
         break
       fi
@@ -542,7 +542,7 @@ function config_packages_floor() {
           _hi_cecho " not a number, leaving it at $_hi_floor_candidate" "$YELLOW"
           break
         fi
-        _hi_cecho " not a number - type 0-5, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
+        _hi_cecho " not a number - type 0-4, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
         continue
       fi
       rejects=0

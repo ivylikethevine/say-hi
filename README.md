@@ -261,8 +261,9 @@ and runs the command anyway. Client: zsh.
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
   ssh host and your user resolve to.
 - [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages`
-  and edit; `hi --packages-preview` shows what each priority means and the
-  check as a connect will print it.
+  and edit; `hi --packages-preview` shows what each priority and mode
+  character (`-` speaks only when missing, `+` only when installed) means and
+  the check as a connect will print it.
 - [optional] either of those files can live somewhere else instead —
   `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one file
   without moving the rest of the overlay (`_HI_PACKAGES`, `_HI_VIMRC` and

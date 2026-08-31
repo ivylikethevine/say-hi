@@ -172,11 +172,15 @@ function test_bash_keeps_hi_prompt_without_the_setting() {
   [[ "$out" == *'\u'* ]]
 }
 
-# asked for, not installed: hi's prompt, and nothing on stderr
+# Asked for, not installed: hi's prompt, and nothing on stderr. "Not
+# installed" has to be manufactured - this machine may well carry starship
+# (an Arch box does), so the case swaps $PATH for a toolbox of the real tools
+# bash.sh needs, minus starship, rather than trusting the box to lack it.
 function test_bash_falls_back_when_starship_is_absent() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
+    PATH="$(_hi_real_path starshipless bash sh sed awk grep tr cut hostname uname cksum git)" \
     _HI_PROMPT=starship 2>&1)"
   [[ "$out" == *'\u'* ]]
 }
