@@ -6,13 +6,9 @@
 # want to hear about. It ships at 1, so tier 0 is hidden.
 
 #group,package:priority,package2:priority2...
-# 5: bright green installed, bright red missing - the tools whose absence
-#    changes how you work
-bash:5
+# 5: bright green installed, bright red missing
 
-# 4: hidden installed, yellow missing - the tools any working box has, hi's
-#    own dependencies among them. A healthy target says nothing here; a bare
-#    one says exactly what it is missing
+# 4: hidden installed, yellow missing
 # needed: the payload, load.sh, install.sh and the suites all break without these
 awk:4
 base64:4
@@ -66,9 +62,9 @@ timeout:4,gtimeout:4
 lscpu:4,nproc:4,sysctl:4
 df:4
 stat:4
+bash:4
 
-# 3: bright green installed, bright yellow missing - favorites, which is where
-#    the "you meant to install this here" nudge lands
+# 3: bright green installed, bright yellow missing
 eza:3,exa:3,lsd:3
 just:3,task:3
 hi:3
@@ -81,9 +77,7 @@ python3:3,python2:3,python:3
 tldr:3,tlrc:3,tealdeer:3,man:2
 act:3
 
-# 2: green installed, yellow missing - system and package tools
-# One line per *question*, not per tool, wherever the answers are mutually
-# exclusive: check_line renders the first name on the line that resolves
+# 2: green installed, yellow missing
 apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,chocolatey:2,yay:2,paru:2,rpm:2,mas:2
 flatpak:2,snap:2,nix:2,guix:2,appimage:2
 sshfs:2,rclone:1
@@ -91,46 +85,43 @@ sshm:2
 nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2,hx:2,helix:2,kak:2
 zeditor:2,zed:2,code:2
 
-# 1: bright cyan installed, bright magenta missing - optional extras
-golang:1,go:1
-scc:1,cloc:1
-tmux:1,zellij:1,screen:0,dtach:0
-dog:1,doggo:1,dig:0
-fzf:1,sk:1,skim:1
-zsh:1,fish:1
-asdf:1,mise:1
-direnv:1
-sshpass:1
-atuin:1,mcfly:0
-dua:1
-duf:1
-zoxide:1,autojump:0
-symlinks:1
-fdupes:1
-rg:1,ag:1,ugrep:1,ack:0
-stow:1
-dust:1,ncdu:1
-procs:1,pstree:0
-ctop:1,lazydocker:1
-lazygit:1,tig:1
-navi:1,cheat:0
-hyperfine:1
-pv:1
-progress:1
-starship:1
+# 1: bright cyan installed, bright magenta missing
+golang:0,go:0
+scc:0,cloc:0
+tmux:0,zellij:0,screen:0,dtach:0
+dog:0,doggo:0,dig:0
+fzf:0,sk:0,skim:0
+zsh:0,fish:0
+asdf:0,mise:0
+direnv:0
+sshpass:0
+atuin:0,mcfly:0
+dua:0
+duf:0
+zoxide:0,autojump:0
+symlinks:0
+fdupes:0
+rg:0,ag:0,ugrep:0,ack:0
+stow:0
+dust:0,ncdu:0
+procs:0,pstree:0
+ctop:0,lazydocker:0
+lazygit:0,tig:0
+navi:0,cheat:0
+hyperfine:0
+pv:0
+progress:0
+starship:0
 
-# 0: blue installed, bright blue missing - platform-specific or trivia. The
-#    bottom tier, and the one the shipped floor of 1 already leaves out: a
-#    Linux box does report `sw_vers` missing now, and $_HI_PACKAGES_MIN_PRIORITY
-#    of 0 is how you say you wanted to hear about it after all
+# 0: blue installed, bright blue missing
 cosign:0
 whois:0
 pkgconf:0
 fusermount:0
 dotnet:0
 php:0
-ffmpeg:0
-rust:0,rustc:4,rustup:4
+ffmpeg:1
+rust:1,rustc:4,rustup:4
 pip:0,pyenv:0,pyvenv:0
 n:0,npx:0,npm:0,nvm:0,node:0
 netstat:0,bandwhich:0,iftop:0,nethogs:0

@@ -33,9 +33,7 @@ function timestamp() {
   _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
   utc="$(date -u "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
   local_now="$(date "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
-  header_row "$BRBLUE${utc:-?} " \
-    "$GREEN$_HI_HEADER_VERSION" \
-    " $BRYELLOW${local_now:-?}"
+  header_row "$BRBLUE${utc:-?}" "$GREEN$_HI_HEADER_VERSION" "$BRYELLOW${local_now:-?}"
 }
 
 function system_info() {
