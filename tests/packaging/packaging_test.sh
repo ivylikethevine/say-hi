@@ -390,6 +390,26 @@ function test_release_workflow_gates_publishing() {
   grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
 }
 
+# `gate` runs on a dispatch only, so on a tag push it is skipped - and a
+# job-level `if` with no status function gets an implicit success() that is
+# false when any ancestor in the needs chain was skipped. Every job below the
+# gate must therefore name its `needs` result explicitly, or the publish and
+# every channel job skip on every release while the run reports green (which
+# is how v0.0.1-rc and v0.0.2-rc.1 shipped no packages).
+function test_release_jobs_under_the_gate_check_their_needs() {
+  local name need job bad=0
+  while read -r name; do
+    job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
+    need="$(printf '%s\n' "$job" | sed -n 's/^    needs: //p' | head -1)"
+    [ -n "$need" ] || continue
+    if ! printf '%s\n' "$job" | grep -qF "needs.$need.result"; then
+      _hi_cecho " | release.yml's $name job needs $need but never checks needs.$need.result" "$RED"
+      bad=1
+    fi
+  done < <(sed -n '/^jobs:/,$s/^  \([a-z]*\):$/\1/p' "$_HI_RELEASE_WF")
+  [ "$bad" = 0 ]
+}
+
 # ...and nothing outside that gated job may touch `gh release`
 function test_only_the_gated_job_publishes() {
   local before
@@ -1070,6 +1090,7 @@ function run_packaging_tests() {
   _hi_h2 "Testing: release.yml"
   _hi_check "Publishing sits behind an environment" test_release_workflow_gates_publishing
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
+  _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
   _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
   _hi_check "...and reaches no channel, opens no manifest PR" test_prerelease_tags_reach_no_channel

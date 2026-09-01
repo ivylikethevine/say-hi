@@ -8,6 +8,11 @@ name: Release
 # pushes and PRs are ci.yml's. Needs the `release` environment with a required
 # reviewer (docs/PACKAGING.md); APK_SIGNING_KEY, MINISIGN_SECRET_KEY,
 # HOMEBREW_TAP_TOKEN and AUR_SSH_KEY are each optional and skip loudly.
+#
+# Every job below `gate` names its `needs` result in its `if`: `gate` is
+# skipped on the tag path, and a job-level `if` with no status function gets
+# an implicit success() that looks at the whole needs chain - a skipped
+# ancestor two jobs up skips the publish, with the run still green.
 on:
   push:
     tags:
@@ -190,8 +195,11 @@ jobs:
     name: publish to the release (manual approval)
     needs: build
     # hard gate on top of the environment: a rehearsal dispatch must never
-    # publish, however the environment happens to be configured
-    if: github.event_name == 'push'
+    # publish, however the environment happens to be configured. The explicit
+    # build result rather than a bare event check: the implicit success()
+    # sees the skipped `gate` above build and skips this on every tag push
+    # (v0.0.1-rc and v0.0.2-rc.1 shipped no packages that way).
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -359,7 +367,7 @@ jobs:
     # name): a candidate is a GitHub Release only, and its version is not a
     # legal pkgver besides. A missing token would skip this too, but that is
     # a fact about which secrets exist; this line is the promise.
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -426,7 +434,7 @@ jobs:
     needs: publish
     # a v0.0.x debug tag or a prerelease tag reaches no external channel, on
     # the tap job's reasoning above
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -489,7 +497,7 @@ jobs:
     name: publish the devcontainer Feature to ghcr
     needs: publish
     # not on a v0.0.x or a prerelease tag, on the tap job's reasoning
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -526,7 +534,7 @@ jobs:
     name: brew install, test and audit the formula (macOS)
     needs: publish
     # not on a v0.0.x or a prerelease tag, on the tap job's reasoning
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: macos-latest
     timeout-minutes: 20
     permissions:
