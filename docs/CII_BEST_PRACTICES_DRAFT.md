@@ -182,7 +182,7 @@ allows an N/A answer for; elsewhere the row must resolve to Met or Unmet.
 ## Not Met today, and what closes each one
 
 - **`version_unique`, `version_tags`** — need the first git tag:
-  [ROADMAP.md's "Get a release out under branch protection"](ROADMAP.md#quick-wins).
+  [ROADMAP.md's "Get a release out"](ROADMAP.md#quick-wins).
 - **`release_notes`, `release_notes_vulns`** — the mechanism shipped in
   `release.yml`; one real release through it proves both. No code change.
 - **`report_responses`, `vulnerability_report_response`** — both want a

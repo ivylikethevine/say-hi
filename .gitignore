@@ -45,7 +45,7 @@
 *.sql
 *.toml
 # the typos allowlist, read by the lint gate (tests/lint/tools_test.sh)
-!_typos.toml
+!.typos.toml
 !.moxide.toml
 # packaging/mkpkg.sh's staging and output directory. Not "build/" or
 # "output/": the blanket rules above would swallow those.

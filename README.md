@@ -404,7 +404,7 @@ anything. Why each is wrong, and the profiler for a tripped bench ceiling, is
   OpenSSF Best Practices questionnaire, answered against this tree, scratch
   until it's transcribed to bestpractices.dev
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
-  request, and which doc changes with what
+  request, what 1.x will not break, and which doc changes with what
 - [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
   in issues, pull requests and discussions, and where to report a breach
 

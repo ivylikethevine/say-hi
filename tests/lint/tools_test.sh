@@ -90,21 +90,21 @@ function lint_manpage() {
 }
 
 # Spelling, over everything git tracks (typos honours .gitignore, so dist/ and
-# the like stay out). The allowlist is _typos.toml at the root - a term it
+# the like stay out). The allowlist is .typos.toml at the root - a term it
 # reads wrong goes there with a word on what it is, not into a wider ignore.
 # Skips yellow when typos is absent; CI pins one via tools.txt.
 function lint_typos() {
   local out
-  _hi_h2 "Checking spelling (typos, allowlist in _typos.toml)"
+  _hi_h2 "Checking spelling (typos, allowlist in .typos.toml)"
   if ! command -v typos >/dev/null 2>&1; then
     _hi_skip "typos" "not installed"
     return 0
   fi
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(cd "$_HI_ROOT" && typos --format brief --config _typos.toml . 2>&1)"; then
+  if out="$(cd "$_HI_ROOT" && typos --format brief --config .typos.toml . 2>&1)"; then
     _hi_align " | typos $(typos --version | awk '{print $2}'): nothing misspelt" "OK" "$GREEN"
   else
-    _hi_align " | typos: misspellings below (a term that is right goes in _typos.toml)" "FAILED" "$RED"
+    _hi_align " | typos: misspellings below (a term that is right goes in .typos.toml)" "FAILED" "$RED"
     printf '%s
 ' "$out" | sed 's/^/      /'
     _hi_note_failure "spelling (typos)"

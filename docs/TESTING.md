@@ -265,7 +265,7 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   Scorecard hasn't seen a release yet. `release.yml` already ships
   `dist/SHA256SUMS.minisig` and a build-provenance attestation, and `.minisig`
   is an extension the check recognizes, so this resolves on its own once
-  [a release ships under branch protection](ROADMAP.md#quick-wins).
+  [a release ships](ROADMAP.md#quick-wins).
 
 ## The lint gate
 
@@ -334,7 +334,7 @@ skipping yellow when its tool isn't installed locally (CI has all four):
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`): the page ships
   in every package, and a roff mistake renders as garbage on `man hi` while
   failing nothing else.
-- **9. typos** over the whole tree; the allowlist is `_typos.toml` at the root,
+- **9. typos** over the whole tree; the allowlist is `.typos.toml` at the root,
   one commented line per term the checker reads wrong.
 
 **`drift`** (`tests/lint/drift_test.sh`) — eight repo-consistency sweeps, each

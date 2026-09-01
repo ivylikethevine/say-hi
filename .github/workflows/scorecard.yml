@@ -22,7 +22,7 @@ jobs:
     # webapp re-fetch this file and check `runs-on:` with a static parser that
     # never evaluates expressions, so an expression fails its
     # ^ubuntu-(latest|NN.NN)(-arm)?$ check and the submission is rejected
-    # while the job itself goes green (docs/ROADMAP.md).
+    # while the job itself goes green (docs/TESTING.md).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Deliberately no `environment:` gate: a schedule cannot pass a required

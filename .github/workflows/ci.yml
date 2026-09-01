@@ -175,7 +175,7 @@ jobs:
   # diff) and ./.github/actions/advisory-note restates it as a warning in the
   # run summary; `continue-on-error` on the *job* would paint it green and hide
   # the result. Keep this job off branch protection's required checks when
-  # they are set (docs/ROADMAP.md) - it is designed to be ignorable.
+  # they are set (docs/CONTRIBUTING.md) - it is designed to be ignorable.
   # fetch-depth 0 is for the demo-staleness step alone: it compares commit
   # dates with `git log`, and a shallow clone answers with the clone's own date
   # for every path; markdownlint and hadolint share the checkout and its cost.

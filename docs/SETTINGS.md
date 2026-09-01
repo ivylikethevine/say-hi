@@ -89,7 +89,8 @@ which, and why). A setting a child must see — a script of your own reading
    scratch rc directory. It runs on `SIGHUP` too, so a dropped connection
    cleans up the same way, with nothing left to reconnect to. Run `hi` inside
    `tmux` or `screen` on the _client_ to survive drops; persistent sessions
-   on the target are [not scheduled](ROADMAP.md#not-scheduled).
+   on the target were
+   [decided against](SUPPORT.md#what-would-change-an-answer).
 6. `hi <target> 'some command'` skips the session and runs the command there,
    the way `ssh` does.
 

@@ -5,8 +5,8 @@
 # entry is docs/TESTING.md, "What is pinned, and what deliberately is not".
 #
 # code-review is deliberately not annotated: the 0/9 finding is accurate (no
-# second reviewer) and no reason code says so truthfully; docs/ROADMAP.md's
-# Scorecard ceiling note covers it.
+# second reviewer) and no reason code says so truthfully; docs/TESTING.md's
+# _The score has a ceiling here_ covers it.
 annotations:
   - checks:
       - pinned-dependencies

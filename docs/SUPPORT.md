@@ -195,6 +195,12 @@ The useful shape of the argument: who is in these, how often, and what they do
 today instead.
 
 **Nothing is pending.** Every candidate anyone has raised is on a table above
-with a verdict and a reason. A runtime that appears here for the first time
+with a verdict and a reason. Two proposals about hi itself were weighed and
+declined without shipping: **persistent sessions on a target**
+(`hi --session <name>`, a tree that outlives a dropped connection) — `tmux`
+or `screen` on the client already survives a drop, and a tree that outlives
+its session breaks [SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)'s
+footprint promise; and **a bash 4 floor for the client** — the 3.2 plumbing
+is tested on both ends, and a split floor is two dialects in one tree. A runtime that appears here for the first time
 is read against [What a "yes" costs](#what-a-yes-costs), and lands as a row
 either way.

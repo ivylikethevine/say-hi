@@ -12,6 +12,7 @@ to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
   - [Don't reach for `act`](#dont-reach-for-act)
 - [What CI runs](#what-ci-runs)
 - [What a review will bounce on](#what-a-review-will-bounce-on)
+- [What 1.x will not break](#what-1x-will-not-break)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
@@ -86,8 +87,10 @@ docs-only change is exactly when the second should run.
 
 "Gate" means the job itself fails loudly rather than reporting and continuing
 — not that GitHub's merge button is blocked by it. No job on this list is a
-configured required status check yet ([docs/ROADMAP.md](ROADMAP.md)'s
-release-readiness entry has the reasoning); `fast suites (Windows client)`
+configured required status check yet — requiring `fast suites
+(ubuntu-latest)` would lift Scorecard's Branch-Protection score from 6 to 8 of
+10, and its higher tiers need two reviewers a solo maintainer can't supply;
+`fast suites (Windows client)`
 carries no `continue-on-error`, so a red suite there fails that run, but it
 doesn't stop a merge either way.
 
@@ -126,6 +129,34 @@ These are constraints the tree enforces, not requests:
   else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS` table.
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
+
+## What 1.x will not break
+
+The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
+interfaces a 1.x release keeps, and a change to any of them is a 2.0.
+
+- **The eighteen flags in `common/flags`** — name, argument shape and what
+  each needs (`-`, `scripts`, `tests`, `git`). New flags may arrive; none is
+  renamed or removed. Anything hi does not answer still passes to `ssh`.
+- **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
+  type and default. A toggle that has to go **warns for one minor release**
+  (`hi --doctor` and the session header both say so), then is removed in the
+  next.
+- **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
+  `vim.rc`, `nano.rc`, `aliases.sh` and the per-shell rc files), their
+  formats, the XDG path and the `_HI_CONFIG_DIR` / `_HI_COLORS` /
+  `_HI_PACKAGES` / `_HI_VIMRC` / `_HI_NANORC` overrides.
+- **The installed layout** — `$_HI_HOME/say-hi` and
+  `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
+  and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.
+- **Target behaviour** — nothing written outside the session directory by
+  default, and the directory removed on any exit
+  ([SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)).
+
+Versioning is semver: a fix is a patch, an addition a minor, a break to the
+list above a major. Not covered: the exact header and prompt text, colors,
+completion ordering, `--doctor`'s report shape, and anything under `tests/` or
+`scripts/` a package does not ship.
 
 ## Which docs change with what
 

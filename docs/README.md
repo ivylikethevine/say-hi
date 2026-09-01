@@ -15,4 +15,4 @@ walkthrough.
 | [Packaging](PACKAGING.md)                                   | The publishing runbook, the reproducibility contract, verifying a download, regenerating the demo GIFs.  |
 | [Roadmap](ROADMAP.md)                                       | What is planned, what it is blocked on, and what is research only.                                       |
 | [OpenSSF Best Practices draft](CII_BEST_PRACTICES_DRAFT.md) | The questionnaire, answered against this tree — scratch until it's transcribed to bestpractices.dev.     |
-| [Contributing](CONTRIBUTING.md)                             | The gate to run before a pull request, and which doc changes with what.                                  |
+| [Contributing](CONTRIBUTING.md)                             | The gate to run before a pull request, what 1.x will not break, and which doc changes with what.         |
