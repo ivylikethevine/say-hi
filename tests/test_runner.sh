@@ -121,6 +121,7 @@ _HI_TESTS_DIR="${_HI_TESTS_DIR:-$_HI_ROOT/tests}"
 # and rejected as unknown. The suite list comes from $_HI_TESTS rather than
 # being spelled out again, so it can't drift.
 _HI_GROUP=""
+_HI_SHARD=""
 _HI_LIST=0
 _HI_LIST_PATHS=0
 _HI_REQUIRE_RUN=0
@@ -147,6 +148,8 @@ single case inside it - and --require-run turns both into failures.
   --group <group>  every suite in one group: $(_hi_test_groups)
                    fast is the unit suites, lint the linter sweep (CI runs the
                    two as separate steps; a platform job runs fast alone)
+  --shard <i>/<n>  the i-th of n slices of the selection, every n-th suite in
+                   table order - one group split across CI runners
   --list           print "<group> <name>" per suite and exit
   --list-paths     the same, plus each suite's absolute path as a third column
   --require-run    treat SKIPPED suites *and* skipped cases as failures - for
@@ -211,6 +214,15 @@ EOF
     shift
     ;;
   --group=*) _HI_GROUP="${1#--group=}" ;;
+  --shard)
+    [ "$#" -ge 2 ] || {
+      _hi_cecho "test_runner.sh: --shard needs a value" "$RED" >&2
+      exit 1
+    }
+    _HI_SHARD="$2"
+    shift
+    ;;
+  --shard=*) _HI_SHARD="${1#--shard=}" ;;
   *) _HI_ARGS+=("$1") ;;
   esac
   shift
@@ -241,6 +253,48 @@ else
     _hi_cecho "no test suite matches: ${_HI_ARGS[*]} (known: $(_hi_test_names))" "$RED"
     exit 1
   fi
+fi
+
+# --shard i/n keeps every n-th selected suite from the i-th on, in table order:
+# the n slices are disjoint and together are the selection, and interleaving
+# the table spreads its slow harness suites (at the end) across them rather
+# than handing one runner all of them. Applied after the group/name selection
+# and before --list, so `--group fast --shard 2/2 --list` shows what a CI
+# shard will run. windows-client.yml is the caller: the fast group takes about
+# seven minutes under Git Bash, where backgrounded suites barely overlap
+# (tests/lib/fixtures.sh's fork_concurrency), so two runners halve it where a
+# wider run would not.
+if [ -n "$_HI_SHARD" ]; then
+  _hi_shard_i="${_HI_SHARD%%/*}"
+  _hi_shard_n="${_HI_SHARD#*/}"
+  # digits, one slash, digits - and nothing else: a bare "2" would otherwise
+  # read as 2/2 and quietly run half the table
+  _hi_shard_ok=1
+  case "$_HI_SHARD" in [0-9]*/[0-9]*) ;; *) _hi_shard_ok=0 ;; esac
+  case "$_hi_shard_i$_hi_shard_n" in *[!0-9]*) _hi_shard_ok=0 ;; esac
+  [ "$_hi_shard_ok" != 1 ] || [ "$_hi_shard_n" -ge 1 ] || _hi_shard_ok=0
+  # on stdout like the selection errors above: the runner's own suite reads
+  # a nested run's stdout
+  if [ "$_hi_shard_ok" != 1 ]; then
+    _hi_cecho "test_runner.sh: --shard wants <i>/<n>, got: $_HI_SHARD" "$RED"
+    exit 1
+  fi
+  if [ "$_hi_shard_i" -lt 1 ] || [ "$_hi_shard_i" -gt "$_hi_shard_n" ]; then
+    _hi_cecho "test_runner.sh: --shard $_HI_SHARD is out of range (1/$_hi_shard_n to $_hi_shard_n/$_hi_shard_n)" "$RED"
+    exit 1
+  fi
+  declare -a _hi_sharded=()
+  _hi_k=0
+  for _hi_t in "${_HI_SELECTED[@]}"; do
+    [ $((_hi_k % _hi_shard_n)) -eq $((_hi_shard_i - 1)) ] && _hi_sharded+=("$_hi_t")
+    _hi_k=$((_hi_k + 1))
+  done
+  # more shards than suites: a slice that runs nothing must not report green
+  if [ "${#_hi_sharded[@]}" -eq 0 ]; then
+    _hi_cecho "test_runner.sh: shard $_HI_SHARD selects nothing (${#_HI_SELECTED[@]} suite(s) selected)" "$RED"
+    exit 1
+  fi
+  _HI_SELECTED=("${_hi_sharded[@]}")
 fi
 
 # "<group> <name>" per selected suite - the machine-readable view of the table,

@@ -1,0 +1,54 @@
+name: Cancel a closed PR's runs
+
+# A merged (or closed) pull request's in-flight runs finish anyway: ci.yml's
+# `cancel-in-progress` cancels a run superseded by another push to the same
+# PR, and a merge pushes nothing to refs/pull/N/merge. Those runs then keep
+# their runners for minutes after the merge and compete for slots with the
+# push-to-main run that starts the same second - one such run queued
+# e2e-backends for nine minutes. So: the moment a PR closes, cancel every
+# queued or running run on its head commit, whichever workflow (ci.yml,
+# codeql.yml, demos.yml) owns it. This run is on that commit too and is
+# skipped by id.
+#
+# Same-repo PRs only. A fork's pull_request token is read-only and cannot
+# cancel anything, and dependabot's is read-only by default; both stand down
+# with a message rather than a red run. No checkout: nothing here runs
+# repository code, and `gh` is on every hosted runner.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+
+jobs:
+  cancel:
+    name: cancel the closed PR's runs
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel queued and running runs on the head commit
+        # via env, never inline ${{ }} in the run block (zizmor:
+        # template-injection); a branch name is attacker-chosen text
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          n=0
+          for status in queued in_progress waiting pending requested; do
+            while read -r id name; do
+              [ -n "$id" ] || continue
+              echo "cancelling $name run $id ($status) for PR #$PR"
+              gh run cancel --repo "$GITHUB_REPOSITORY" "$id" ||
+                echo "::warning title=cancel::could not cancel run $id ($name) - a read-only token?"
+              n=$((n + 1))
+            done <<EOF_RUNS
+          $(gh run list --repo "$GITHUB_REPOSITORY" --commit "$HEAD_SHA" --status "$status" \
+              --json databaseId,workflowName \
+              --jq ".[] | select(.databaseId != $GITHUB_RUN_ID) | \"\(.databaseId) \(.workflowName)\"")
+          EOF_RUNS
+          done
+          echo "PR #$PR closed: $n run(s) cancelled"

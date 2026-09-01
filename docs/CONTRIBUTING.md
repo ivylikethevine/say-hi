@@ -74,10 +74,10 @@ comments are convenient to read through by eye.
 | `advisory lint` (markdownlint, hadolint, demo-staleness) | Always                                                               | Advisory — reports, never fails the job |
 | `hot-path benchmarks`                                    | Skipped on a workflow-only diff                                      | Gate                                    |
 | `package build (deb, rpm, apk)`                          | Skipped on a workflow-only diff                                      | Gate                                    |
-| `e2e (ssh, docker)`                                      | After the ubuntu fast suite passes; skipped on a workflow-only diff  | Gate                                    |
-| `e2e (podman, nomad, kube)`                              | After the ubuntu fast suite passes; skipped on a workflow-only diff  | Gate                                    |
+| `e2e (ssh, docker)`                                      | Beside the fast suites; skipped on a workflow-only diff              | Gate                                    |
+| `e2e (podman, nomad, kube)`                              | Beside the fast suites; skipped on a workflow-only diff              | Gate                                    |
 | `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)`        | Push to `main` only, after both fast-suite jobs pass — never on a PR | Gate                                    |
-| `fast suites (Windows client)`                           | Push to `main` only — never on a PR                                  | Gate, but see below                     |
+| `fast suites (Windows client)`                           | Push to `main` only — never on a PR; two runners, half the table     | Gate, but see below                     |
 
 "Skipped on a workflow-only diff" is `changes.yml`: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
@@ -102,7 +102,8 @@ published as shields endpoints) — run on a schedule, a push to `main`, a tag
 or a manual dispatch, not on your pull request. `demos.yml` is the one partial
 exception: it also runs on a PR that touches `docs/tapes/**`. Most report
 through a self-closing tracking issue rather than a red run; each file's
-header says why.
+header says why. `cancel-closed-pr.yml` runs once your PR is merged or
+closed and cancels whatever of the above is still in flight for it.
 
 ## What a review will bounce on
 

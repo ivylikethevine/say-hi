@@ -4,8 +4,15 @@ name: Windows client
 # runner's own Git Bash, proving hi.sh works when the machine you are sitting
 # at is Windows. windows-e2e.yml is the target-side half; README's
 # compatibility table rests on both. Called by ci.yml on every push to main
-# beside `e2e-windows` as a real gate (a failing suite fails the push, no
-# continue-on-error); dispatch runs it on its own.
+# as a real gate (a failing suite fails the push, no continue-on-error);
+# dispatch runs it on its own.
+#
+# Two runners, half the table each: the fast group takes about seven minutes
+# under Git Bash - backgrounded suites barely overlap there (tests/lib/
+# fixtures.sh's fork_concurrency), so the runner's width-4 run is close to
+# serial and only more machines shorten it. The `fast-suites` job below folds
+# the shards back into the one check name README's badge and CONTRIBUTING's
+# table know, "fast suites (Windows client) / fast suites (Git Bash)".
 on:
   workflow_call:
   workflow_dispatch:
@@ -14,10 +21,14 @@ permissions:
   contents: read
 
 jobs:
-  fast-suites:
-    name: fast suites (Git Bash)
+  shard:
+    name: fast suites (Git Bash, shard ${{ matrix.shard }} of 2)
     runs-on: windows-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -29,8 +40,14 @@ jobs:
       # --totals-file either: skips are expected (no zsh or fish here), and
       # README's tests badge is the ubuntu count on purpose, per the note above
       # ci.yml's fast-totals upload.
-      - name: Run the fast suites under Git Bash
+      - name: Run this shard of the fast suites under Git Bash
         shell: bash
+        # HI_SHARDS is the divisor and the matrix above lists one entry per
+        # shard; runner_test.sh checks the two agree and that the slices are
+        # exactly the fast group
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          HI_SHARDS: 2
         run: |
           set -euo pipefail
           # hi.sh derives its own tree (GLOSSARY: HI.33), so this export is
@@ -42,4 +59,22 @@ jobs:
           # because $GITHUB_WORKSPACE is a backslashed path bash cannot walk.
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          ./tests/test_runner.sh --verbose --host-report --group fast
+          ./tests/test_runner.sh --verbose --host-report --group fast --shard "$HI_SHARD/$HI_SHARDS"
+
+  # The one check the shards roll up into. `!cancelled()` so it reports on a
+  # red shard rather than being skipped past; the explicit result is the
+  # verdict (a skipped or failed shard is a failed check).
+  fast-suites:
+    name: fast suites (Git Bash)
+    needs: shard
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every shard green
+        env:
+          RESULT: ${{ needs.shard.result }}
+        run: |
+          set -euo pipefail
+          echo "shards: $RESULT"
+          [ "$RESULT" = success ]

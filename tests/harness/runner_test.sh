@@ -121,6 +121,53 @@ function test_unknown_suite_name_lists_the_known_ones() {
   [[ "$_HI_RUN_OUT" == *"alpha"* && "$_HI_RUN_OUT" == *"beta"* ]]
 }
 
+# --shard i/n is how windows-client.yml splits the fast group across two
+# runners, so the slices have to be disjoint, add up to the selection and keep
+# table order - or a suite silently runs twice on CI, or never.
+function test_shards_partition_the_selection_in_table_order() {
+  local table=$'a:green.sh\nb:green.sh\nc:green.sh\nd:green.sh\ne:green.sh' one two
+  _hi_run_runner "$table" --shard 1/2 --list
+  one="$_HI_RUN_OUT"
+  _hi_run_runner "$table" --shard 2/2 --list
+  two="$_HI_RUN_OUT"
+  [ "$one" = $'fast a\nfast c\nfast e' ] && [ "$two" = $'fast b\nfast d' ]
+}
+
+function test_a_shard_runs_only_its_own_suites() {
+  _hi_run_runner $'a:green.sh\nb:green.sh\nc:green.sh' --shard 2/2
+  [ "$_HI_RUN_EXIT" -eq 0 ] && [[ "$_HI_RUN_OUT" == *"Running 1 test suite(s)"* ]] &&
+    [[ "$_HI_RUN_OUT" == *"Running b"* ]] && [[ "$_HI_RUN_OUT" != *"Running a"* ]] &&
+    [[ "$_HI_RUN_OUT" != *"Running c"* ]]
+}
+
+# sliced after --group, not before: the slice is of what CI asked for
+function test_shards_slice_the_selected_group() {
+  _hi_run_runner $'fast:a:green.sh\nlint:b:green.sh\nfast:c:green.sh\nfast:d:green.sh' --group fast --shard 2/2 --list
+  [ "$_HI_RUN_OUT" = "fast c" ]
+}
+
+function test_a_malformed_or_out_of_range_shard_is_an_error() {
+  local bad
+  for bad in 3/2 0/2 2 a/b 1/0 /2 2/ 1/2/3; do
+    _hi_run_runner $'a:green.sh' --shard "$bad"
+    [ "$_HI_RUN_EXIT" -eq 1 ] && [[ "$_HI_RUN_OUT" == *"--shard"* ]] || {
+      _hi_cecho " | --shard $bad was accepted (exit $_HI_RUN_EXIT)" "$RED"
+      return 1
+    }
+  done
+}
+
+# more shards than suites is a CI misconfiguration, and an empty slice that
+# exits green would hide it
+function test_an_empty_shard_is_an_error() {
+  _hi_run_runner $'a:green.sh' --shard 2/2
+  [ "$_HI_RUN_EXIT" -eq 1 ] && [[ "$_HI_RUN_OUT" == *"selects nothing"* ]]
+}
+
+function test_shard_is_listed_in_help() {
+  "$_HI_TEST_RUN" --help | grep -q -- '--shard'
+}
+
 function test_all_passing_exits_zero_with_a_green_summary() {
   _hi_run_runner $'a:green.sh\nb:green.sh'
   [ "$_HI_RUN_EXIT" -eq 0 ] && [[ "$_HI_RUN_OUT" == *"2/2 test suites passed"* ]]
@@ -586,6 +633,31 @@ function test_ci_runs_every_group_in_the_table() {
 # are what makes `--group` a safe thing for CI to depend on.
 # --group is what ci.yml invokes, so every group the table uses has to select
 # at least one suite - and only suites of that group
+# The shipped table through the same slicer: the two halves CI runs on
+# Windows are exactly the fast group. And the count is a contract with
+# windows-client.yml - its matrix lists one entry per shard and the run passes
+# HI_SHARDS as the divisor; the two have to agree or a slice never runs.
+function test_windows_client_shards_cover_the_fast_group() {
+  local workflow="$_HI_ROOT/.github/workflows/windows-client.yml" shards i halves
+  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
+  shards="$(sed -n 's/^ *HI_SHARDS: *//p' "$workflow" | head -1)"
+  [ -n "$shards" ] && [ "$shards" -ge 2 ] || {
+    _hi_cecho " | windows-client.yml sets no HI_SHARDS" "$RED"
+    return 1
+  }
+  [ "$(sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' "$workflow" | tr ',' '\n' | grep -c '[0-9]')" -eq "$shards" ] || {
+    _hi_cecho " | windows-client.yml's shard matrix does not list $shards entries" "$RED"
+    return 1
+  }
+  i=1
+  halves=""
+  while [ "$i" -le "$shards" ]; do
+    halves="$halves$("$_HI_TEST_RUN" --group fast --shard "$i/$shards" --list 2>/dev/null)"$'\n'
+    i=$((i + 1))
+  done
+  [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group fast --list 2>/dev/null | sort)" ]
+}
+
 function test_every_group_selects_only_its_own_suites() {
   local group rows
   while read -r group; do
@@ -641,6 +713,12 @@ function run_runner_tests() {
   _hi_check "Keeps table order regardless of argument order" test_selecting_several_suites_keeps_table_order
   _hi_check "An unknown name is an error" test_unknown_suite_name_is_an_error
   _hi_check "An unknown name lists the known ones" test_unknown_suite_name_lists_the_known_ones
+  _hi_check "--shard slices are a partition in table order" test_shards_partition_the_selection_in_table_order
+  _hi_check "A shard runs only its own suites" test_a_shard_runs_only_its_own_suites
+  _hi_check "--shard slices the selected group" test_shards_slice_the_selected_group
+  _hi_check "A malformed or out-of-range --shard is an error" test_a_malformed_or_out_of_range_shard_is_an_error
+  _hi_check "An empty shard is an error" test_an_empty_shard_is_an_error
+  _hi_check "--shard appears in --help" test_shard_is_listed_in_help
 
   _hi_h2 "Testing: results and exit codes"
   _hi_check "All passing -> exit 0, green summary" test_all_passing_exits_zero_with_a_green_summary
@@ -712,6 +790,7 @@ function run_runner_tests() {
   _hi_check "Lists a group and name per suite" test_shipped_table_lists_a_group_and_name_per_suite
   _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
+  _hi_check "The Windows client's shards cover the fast group" test_windows_client_shards_cover_the_fast_group
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites

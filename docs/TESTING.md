@@ -32,6 +32,7 @@ a colored pass/fail summary:
 tests/test_runner.sh                    # every suite
 tests/test_runner.sh aliases shellcheck # just the named suite(s)
 tests/test_runner.sh --group fast       # what CI runs on every push/PR
+tests/test_runner.sh --group fast --shard 1/2 # half of it, as a CI shard runs
 tests/test_runner.sh --host-report      # ...prefixed with what this machine is
 tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 ```
@@ -62,7 +63,10 @@ Five groups (`--group <name>`; `--list` prints the membership):
   files, transcripts replayed in table order, so the run reads like a serial
   one and takes about as long as its slowest suite. `_HI_RUNNER_WIDTH=1` puts
   it back to one at a time; `--verbose` implies that, since two live
-  transcripts would interleave.
+  transcripts would interleave. `--shard <i>/<n>` keeps every n-th suite of
+  the selection from the i-th on, so one group can be split across runners:
+  the Windows client job runs `fast` as two shards, because backgrounded
+  suites barely overlap under MSYS and only more machines shorten that run.
 - **`lint`** — [The lint gate](#the-lint-gate), run once as its own CI step on
   the ubuntu job against pinned tool versions. The macOS, Windows and FreeBSD
   jobs run `fast` alone: linting text does not depend on the userland.
