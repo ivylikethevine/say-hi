@@ -258,9 +258,9 @@ Usage: `hi foo` (just like ssh!)
 ### Upgrading
 
 - a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
-- a `.deb`/`.rpm`/`.apk`: no repository exists to subscribe to
-  ([docs/PACKAGING.md](docs/PACKAGING.md#deb--rpm--apk)); install the next
-  release's package from
+- a `.deb`/`.rpm`/`.apk`: subscribe to
+  [the package repository](docs/PACKAGING.md#package-repository) and let
+  `apt`/`dnf`/`apk` upgrade it; or install the next release's package from
   [the releases page](https://github.com/ivylikethevine/say-hi/releases) as
   you did this one, after
   [verifying the download](docs/PACKAGING.md#verifying-a-release-download).

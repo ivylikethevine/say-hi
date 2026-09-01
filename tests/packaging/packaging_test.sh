@@ -25,11 +25,11 @@ _HI_NFPM="$_HI_PKG_DIR/nfpm/nfpm.yaml"
 _HI_FORMULA="$_HI_PKG_DIR/homebrew/say-hi.rb"
 _HI_PKGBUILD="$_HI_PKG_DIR/aur/say-hi/PKGBUILD"
 _HI_PKGBUILD_GIT="$_HI_PKG_DIR/aur/say-hi-git/PKGBUILD"
-_HI_FEATURE_DIR="$_HI_PKG_DIR/devcontainer/src/say-hi"
-_HI_FEATURE_JSON="$_HI_FEATURE_DIR/devcontainer-feature.json"
-_HI_FEATURE_INSTALL="$_HI_FEATURE_DIR/install.sh"
 _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
 _HI_SNAPSHOT_WF="$_HI_ROOT/.github/workflows/snapshot.yml"
+_HI_PAGES_WF="$_HI_ROOT/.github/workflows/pages.yml"
+_HI_CI_WF="$_HI_ROOT/.github/workflows/ci.yml"
+_HI_MKREPO="$_HI_PKG_DIR/mkrepo.sh"
 _HI_TOOLS_TXT="$_HI_ROOT/.github/actions/setup-tool/tools.txt"
 
 # The names SHA256SUMS covers, however the local sha256sum spelled them. GNU
@@ -191,103 +191,26 @@ function test_formula_caveats_use_no_link() {
   grep -qF 'install.sh --no-link' "$_HI_FORMULA"
 }
 
-# The devcontainer Feature. It is the one channel that installs say-hi on the
-# far side - inside the image, for a terminal that is already standing on the
-# target - so it is also the one with no packaged artifact for the other guards
-# here to inspect. What is left to hold is that it stays *thin*: a download,
-# a check, and a handoff to the same two scripts every other channel calls.
-#
-# The publishing action reads a directory per feature under `base-path`, and
-# the id has to be the directory's name, so the layout is load-bearing rather
-# than tidy.
-function test_feature_has_the_publishable_layout() {
-  [ -f "$_HI_FEATURE_JSON" ] && [ -x "$_HI_FEATURE_INSTALL" ]
+# The rpm's signature block, on the apk's pattern: the key file from the env,
+# unset for a keyless local build, set by release.yml's build from the same
+# GPG key the package repository is signed with
+# shellcheck disable=SC2016 # ${HI_GPG_KEY} is nfpm's to expand, quoted as literal text
+function test_nfpm_declares_the_rpm_signature() {
+  sed -n '/^rpm:/,/^[a-z]/p' "$_HI_NFPM" | grep -qF 'key_file: ${HI_GPG_KEY}'
 }
 
-# ...and the id agrees with the directory, or `devcontainer features publish`
-# pushes it under a name nobody's devcontainer.json names
-function test_feature_id_matches_its_directory() {
-  local id
-  id="$(sed -n 's/^ *"id" *: *"\([^"]*\)".*/\1/p' "$_HI_FEATURE_JSON")"
-  [ "$id" = "$(basename "$_HI_FEATURE_DIR")" ]
+# Nothing under packaging/ may be a private key: the public halves live there
+# (packaging/apk/say-hi.rsa.pub, packaging/gpg/say-hi.asc), the secrets in
+# GitHub. A slip here ships the signing key in every source tarball.
+function test_no_private_key_is_committed() {
+  ! grep -rlE 'PRIVATE KEY( BLOCK)?-----' "$_HI_PKG_DIR" 2>/dev/null | grep -q .
 }
 
-# every option the install script reads has to be declared, or the devcontainer
-# CLI never puts it in the environment and the default in the script is the
-# only value it ever takes - silently
-function test_feature_options_are_all_declared() {
-  local var
-  for var in VERSION PRESET CONFIGURESHELL; do
-    # the spec upper-cases an option id to make the variable name, so the
-    # declared ids are matched case-insensitively against what the script reads
-    grep -qi "\"${var}\" *:" "$_HI_FEATURE_JSON" || {
-      _hi_cecho " | the Feature reads \$$var with no option declaring it" "$RED"
-      return 1
-    }
-  done
-}
-
-# ...and nothing is declared that the script never reads, which is the half
-# that rots quietly: an option a user sets and nothing acts on
-function test_feature_declares_no_unread_option() {
-  local id
-  while IFS= read -r id; do
-    [ -n "$id" ] || continue
-    grep -qiF "$id" "$_HI_FEATURE_INSTALL" || {
-      _hi_cecho " | the Feature declares '$id', which install.sh never reads" "$RED"
-      return 1
-    }
-  done < <(sed -n '/"options"/,/^  }/p' "$_HI_FEATURE_JSON" |
-    sed -n 's/^    "\([A-Za-z]*\)" *: *{.*/\1/p')
-}
-
-# The point of the whole file: what a packaged install contains is
-# scripts/install.sh's business, and the version stamp is packaging/stamp.sh's.
-# A Feature that grew its own copy of either would be a second answer free to
-# drift from the four channels above - which is the same thing
-# test_every_channel_stamps_through_stamp_sh guards from the other side.
-function test_feature_hands_off_to_install_sh_and_stamp() {
-  local body
-  body="$(grep -v '^[[:space:]]*#' "$_HI_FEATURE_INSTALL")"
-  [[ "$body" == *'scripts/install.sh" --prefix'* ]] || {
-    _hi_cecho " | the Feature does not call scripts/install.sh --prefix" "$RED"
-    return 1
-  }
-  [[ "$body" == *'packaging/stamp.sh'* ]] || {
-    _hi_cecho " | the Feature does not stamp through packaging/stamp.sh" "$RED"
-    return 1
-  }
-}
-
-# install.sh derives $_HI_HOME as <checkout>/.. and looks for $_HI_HOME/say-hi,
-# but a release tarball unpacks to say-hi-<version>/. Every channel that starts
-# from a tarball makes the same link; forgetting it fails at the user's image
-# build, which is the worst place to find out.
-# shellcheck disable=SC2016 # the Feature's own variables, as literal text
-function test_feature_renames_the_unpacked_tree() {
-  grep -v '^[[:space:]]*#' "$_HI_FEATURE_INSTALL" | grep -qF 'ln -sfn "$src" "$work/say-hi"'
-}
-
-# the rc half runs as the container's user, never as root: a root-owned
-# ~/.bashrc in a devcontainer is a broken devcontainer
-# shellcheck disable=SC2016 # $USERNAME is the Feature's, matched literally
-function test_feature_configures_as_the_remote_user() {
-  local body
-  body="$(grep -v '^[[:space:]]*#' "$_HI_FEATURE_INSTALL")"
-  [[ "$body" == *'_REMOTE_USER'* ]] && [[ "$body" == *'su - "$USERNAME"'* ]]
-}
-
-# ...and the release job that pushes it, on the tap and aur jobs' precedent: a
-# v0.0.x debug tag must reach no external channel, and a Feature on ghcr is as
-# external as a tap.
-function test_release_workflow_publishes_the_feature() {
-  local job
-  job="$(sed -n '/^  feature:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
-  [ -n "$job" ] || return 1
-  [[ "$job" == *"needs: publish"* ]] || return 1
-  [[ "$job" == *"!startsWith(github.ref_name, 'v0.0.')"* ]] || return 1
-  [[ "$job" == *"packages: write"* ]] || return 1
-  [[ "$job" == *"packaging/devcontainer/src"* ]]
+# ...and the committed GPG half, when it exists, is a public key block
+function test_committed_gpg_key_is_public() {
+  local asc="$_HI_PKG_DIR/gpg/say-hi.asc"
+  [ -f "$asc" ] || return 0 # not generated yet - docs/PACKAGING.md's runbook
+  grep -qF -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$asc"
 }
 
 # The needles below are makepkg's variables ($pkgdir, $srcdir, $pkgver) quoted
@@ -420,8 +343,8 @@ function test_only_the_gated_job_publishes() {
 
 # A prerelease tag (a `-` in the name: v1.0.0-rc.1) is a GitHub Release and
 # nothing more. It is created as a prerelease that never becomes "Latest" -
-# the devcontainer Feature's `latest` default and README's badge read that
-# pointer - and it reaches no channel and opens no manifest PR: `0.1.0-rc.1`
+# README's badge and pages.yml's package repository read that pointer - and
+# it reaches no channel and opens no manifest PR: `0.1.0-rc.1`
 # is not a makepkg-legal pkgver, and the AUR is the one place it would go.
 function test_release_workflow_marks_prerelease_tags() {
   local job
@@ -434,7 +357,7 @@ function test_release_workflow_marks_prerelease_tags() {
 
 function test_prerelease_tags_reach_no_channel() {
   local name job bad=0 guard="!contains(github.ref_name, '-')"
-  for name in tap aur feature brew; do
+  for name in tap aur brew; do
     job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
     if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
       _hi_cecho " | release.yml's $name job runs on a prerelease tag" "$RED"
@@ -474,7 +397,7 @@ function test_snapshot_workflow_reaches_no_channel() {
   # absence by naming it, the same "prose names it while explaining why" case
   # dependabot.yml's bash:5 comment and lint_image_tags' comment exclusion
   # already carve out elsewhere in this tree
-  for needle in homebrew aur.archlinux devcontainers/action bump.sh 'gh pr create' 'environment: release'; do
+  for needle in homebrew aur.archlinux bump.sh 'gh pr create' 'environment: release'; do
     if grep -vE '^[[:space:]]*#' "$_HI_SNAPSHOT_WF" | grep -qF -- "$needle"; then
       _hi_cecho " | snapshot.yml mentions '$needle' - that belongs behind release.yml's gate" "$RED"
       bad=1
@@ -513,6 +436,51 @@ function test_publish_job_signs_the_sums() {
   printf '%s' "$publish" | grep -qF 'MINISIGN_SECRET_KEY' &&
     printf '%s' "$publish" | grep -qF 'minisign -S' &&
     printf '%s' "$publish" | grep -qF 'tool: minisign'
+}
+
+# The package repository (docs/PACKAGING.md's _Package repository_), in four
+# places that have to agree. build signs the rpm with the GPG key after
+# checking it is the one packaging/gpg/say-hi.asc names; publish builds the
+# repository with mkrepo.sh under the same check and ships it as
+# package-repo.tar.gz; pages.yml serves that asset from the latest release
+# via `gh release download`, never a run artifact; and ci.yml's
+# packaging-smoke builds one on every PR.
+function test_build_job_signs_the_rpm() {
+  local build
+  build="$(sed -n '/^  build:/,/^  publish:/p' "$_HI_RELEASE_WF")"
+  printf '%s' "$build" | grep -qF 'GPG_SIGNING_KEY' &&
+    printf '%s' "$build" | grep -qF 'HI_GPG_KEY=' &&
+    printf '%s' "$build" | grep -qF 'packaging/gpg/say-hi.asc'
+}
+
+# shellcheck disable=SC2016 # matching release.yml's literal source text
+function test_publish_job_ships_the_package_repository() {
+  local publish
+  publish="$(sed -n '/^  publish:/,/^  tap:/p' "$_HI_RELEASE_WF")"
+  printf '%s' "$publish" | grep -qF 'packaging/mkrepo.sh' &&
+    printf '%s' "$publish" | grep -qF -- '--public-key packaging/gpg/say-hi.asc' &&
+    printf '%s' "$publish" | grep -qF 'gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz'
+}
+
+function test_pages_workflow_serves_the_package_repository() {
+  [ -f "$_HI_PAGES_WF" ] || return 0
+  grep -qE '^ *workflows: \[CI, Release\]' "$_HI_PAGES_WF" &&
+    grep -qF 'gh release download' "$_HI_PAGES_WF" &&
+    grep -qF 'package-repo.tar.gz' "$_HI_PAGES_WF" &&
+    grep -qF -- '-C _site' "$_HI_PAGES_WF"
+}
+
+function test_packaging_smoke_builds_the_package_repository() {
+  [ -f "$_HI_CI_WF" ] || return 0
+  sed -n '/^  packaging-smoke:/,/^  [a-z-]*:$/p' "$_HI_CI_WF" | grep -qF 'packaging/mkrepo.sh'
+}
+
+# mkrepo.sh answers --help before it asks for docker, so the flags the
+# workflows pass can be checked without a daemon
+function test_mkrepo_documents_the_flags_the_workflows_pass() {
+  local help
+  help="$("$_HI_MKREPO" --help 2>/dev/null)" || return 1
+  [[ "$help" == *"--gpg-key"* && "$help" == *"--public-key"* && "$help" == *"--apk-key"* && "$help" == *"--tarball"* ]]
 }
 
 # release.yml's offline verification leans on minisign being pinned *and*
@@ -1059,6 +1027,9 @@ function run_packaging_tests() {
   _hi_check "apk entries match _HI_PACKAGE_CONTENTS" test_nfpm_apk_entries_match_package_contents
   _hi_check "apk globs cover the staged depth" test_nfpm_apk_globs_cover_the_staged_depth
   _hi_check "apk signature block is declared" test_nfpm_declares_the_apk_signature
+  _hi_check "rpm signature block is declared" test_nfpm_declares_the_rpm_signature
+  _hi_check "No private key under packaging/" test_no_private_key_is_committed
+  _hi_check "The committed GPG key is the public half" test_committed_gpg_key_is_public
 
   _hi_h2 "Testing: the Homebrew formula"
   _hi_check "File list matches _HI_PACKAGE_CONTENTS" test_formula_file_list_matches_package_contents
@@ -1070,16 +1041,6 @@ function run_packaging_tests() {
   _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh
   _hi_check "Both give it a say-hi-named checkout" test_pkgbuilds_give_install_sh_a_say_hi_named_checkout
   _hi_check "say-hi-git provides/conflicts say-hi" test_git_pkgbuild_provides_and_conflicts
-
-  _hi_h2 "Testing: the devcontainer Feature"
-  _hi_check "Has the publishable layout" test_feature_has_the_publishable_layout
-  _hi_check "The id matches its directory" test_feature_id_matches_its_directory
-  _hi_check "Every option it reads is declared" test_feature_options_are_all_declared
-  _hi_check "...and every declared option is read" test_feature_declares_no_unread_option
-  _hi_check "Hands off to install.sh and stamp.sh" test_feature_hands_off_to_install_sh_and_stamp
-  _hi_check "Renames the unpacked tree to say-hi" test_feature_renames_the_unpacked_tree
-  _hi_check "Configures as the remote user" test_feature_configures_as_the_remote_user
-  _hi_check "release.yml publishes it to ghcr" test_release_workflow_publishes_the_feature
 
   _hi_h2 "Testing: versions agree"
   _hi_check "PKGBUILD and formula agree" test_pkgbuild_and_formula_agree_on_the_version
@@ -1159,6 +1120,11 @@ function run_packaging_tests() {
   _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
   _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
   _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
+  _hi_check "build signs the rpm with the checked GPG key" test_build_job_signs_the_rpm
+  _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
+  _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
+  _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
+  _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
 
   _hi_suite_end "packaging"
 }

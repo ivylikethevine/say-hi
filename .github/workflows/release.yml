@@ -138,7 +138,50 @@ jobs:
             echo "HI_APK_KEY=$RUNNER_TEMP/say-hi-apk.rsa" >>"$GITHUB_ENV"
           else
             echo "no APK_SIGNING_KEY secret - the apk will be unsigned"
+            exit 0
           fi
+          # the committed public half is what the runbook tells Alpine users
+          # to trust and what mkrepo.sh serves; a secret that is another key
+          # would sign an apk no client can verify
+          if ! openssl rsa -in "$RUNNER_TEMP/say-hi-apk.rsa" -pubout 2>/dev/null | diff -q - packaging/apk/say-hi.rsa.pub >/dev/null; then
+            echo "::error title=APK_SIGNING_KEY::the secret is not the key packaging/apk/say-hi.rsa.pub is the public half of"
+            exit 1
+          fi
+
+      # The GPG key that signs the rpm here (nfpm, via HI_GPG_KEY) and, in
+      # publish, the package repository's indexes. A plain repo secret like the
+      # apk key, on the same reasoning: this job is ungated and only signs what
+      # publish still has to approve. Its fingerprint has to match the
+      # committed public half, packaging/gpg/say-hi.asc - the key every apt and
+      # dnf client is told to trust (docs/PACKAGING.md's _Package repository_).
+      # Absent, the rpm builds unsigned and publish ships no repository, both
+      # loudly.
+      - name: Write the GPG signing key
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GPG_SIGNING_KEY" ]; then
+            echo "no GPG_SIGNING_KEY secret - the rpm builds unsigned and no package repository is published"
+            exit 0
+          fi
+          printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
+          chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
+          home="$(mktemp -d)"
+          chmod 700 "$home"
+          gpg --batch --quiet --homedir "$home" --import "$RUNNER_TEMP/say-hi.gpg.key"
+          have="$(gpg --batch --homedir "$home" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
+          want="$(gpg --batch --quiet --homedir "$home" --with-colons --show-keys packaging/gpg/say-hi.asc 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')"
+          [ -n "$want" ] || {
+            echo "::error title=GPG_SIGNING_KEY::packaging/gpg/say-hi.asc is missing or not a key - commit the public half of the secret there"
+            exit 1
+          }
+          [ "$have" = "$want" ] || {
+            echo "::error title=GPG_SIGNING_KEY::the secret ($have) is not the key packaging/gpg/say-hi.asc names ($want)"
+            exit 1
+          }
+          echo "HI_GPG_KEY=$RUNNER_TEMP/say-hi.gpg.key" >>"$GITHUB_ENV"
+          echo "signing the rpm with $have"
 
       # asserts one artifact per format, adds the source tarball, and writes
       # dist/SHA256SUMS and dist/ARTIFACTS - which is how the tarball reaches
@@ -285,9 +328,9 @@ jobs:
             "" \
             "Full runbook: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#verifying-a-release-download)")"
           # A prerelease tag (anything with a `-`: v1.0.0-rc.1) is marked as
-          # one and never becomes "Latest" - the devcontainer Feature's
-          # `version: latest` default and README's release badge both read
-          # that pointer, and neither should land on a candidate.
+          # one and never becomes "Latest" - README's release badge and
+          # pages.yml's package repository both read that pointer, and
+          # neither should land on a candidate.
           extra=()
           case "$GITHUB_REF_NAME" in *-*) extra=(--prerelease --latest=false) ;; esac
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
@@ -299,6 +342,38 @@ jobs:
           files+=(dist/manifests/*)
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
           gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
+
+      # The subscribable repository (docs/PACKAGING.md's _Package repository_):
+      # apt, rpm and apk indexes over the packages just uploaded, signed with
+      # the GPG key the rpm was and the apk index with the apk's key, shipped
+      # as one asset that pages.yml unpacks from the newest non-prerelease
+      # release. After the upload, so a failure here still leaves a complete
+      # release. Skips loudly without GPG_SIGNING_KEY: an unsigned repository
+      # is nothing to subscribe to. mkrepo.sh checks the key against
+      # packaging/gpg/say-hi.asc, as build did before signing the rpm.
+      - name: Build and attach the package repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GPG_SIGNING_KEY" ]; then
+            echo "no GPG_SIGNING_KEY secret - no package repository for this release"
+            exit 0
+          fi
+          printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
+          chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
+          set -- --gpg-key "$RUNNER_TEMP/say-hi.gpg.key" --public-key packaging/gpg/say-hi.asc
+          if [ -n "$APK_SIGNING_KEY" ]; then
+            printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.rsa"
+            chmod 600 "$RUNNER_TEMP/say-hi.rsa"
+            set -- "$@" --apk-key "$RUNNER_TEMP/say-hi.rsa"
+          else
+            echo "no APK_SIGNING_KEY secret - the APKINDEX files ship unsigned"
+          fi
+          packaging/mkrepo.sh "$@" --tarball dist/package-repo.tar.gz
+          gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz
 
       # The regenerated manifests come back here, after the human gate, so the
       # tag stays put: they are consumed from the AUR/tap repos, not from the
@@ -484,39 +559,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -am "say-hi $GITHUB_REF_NAME"
           git push origin master
-
-  # The devcontainer Feature, published to ghcr as an OCI artifact behind the
-  # same gate and v0.0.x skip as the channels above. Its version is not the
-  # release's: devcontainer-feature.json carries its own `version`, the
-  # registry refuses a re-push of one, and the say-hi it installs is chosen by
-  # its `version` option at container-build time - so it needs no bump.sh
-  # pass. No secret to skip on: ghcr takes the workflow's own GITHUB_TOKEN, so
-  # `packages: write` is all it wants. See docs/PACKAGING.md's devcontainer
-  # Feature section.
-  feature:
-    name: publish the devcontainer Feature to ghcr
-    needs: publish
-    # not on a v0.0.x or a prerelease tag, on the tap job's reasoning
-    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: release
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Publish
-        uses: devcontainers/action@1082abd5d2bf3a11abccba70eef98df068277772 # v1.4.3
-        with:
-          publish-features: "true"
-          base-path-to-features: packaging/devcontainer/src
-          generate-docs: "false"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # The three commands docs/PACKAGING.md's "Homebrew tap" section asks for by
   # hand before a tap PR is merged, run on a hosted mac against the tarball

@@ -75,6 +75,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "e2e:ssh_relay:targets/ssh_relay_test.sh"
     "e2e:ssh_wire:targets/ssh_wire_test.sh"
     "e2e:install_methods:targets/install_methods_test.sh"
+    "e2e:repo:packaging/repo_test.sh"
     "e2e:docker:targets/docker_test.sh"
     "e2e:framework:targets/framework_test.sh"
     "backends:podman:targets/podman_test.sh"

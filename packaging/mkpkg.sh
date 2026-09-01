@@ -10,12 +10,14 @@
 # Arch is deliberately not built here even though nfpm can: packaging/aur/ makes
 # a better Arch package (real optdepends, a -git variant, AUR updates), and two
 # Arch packages for one project would only conflict.
-set -euo pipefail
 
 # the locator, core.sh, and the shared primitives (sha256_lines/
 # pkgbuild_version) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# after the source, not before: core.sh (which lib.sh pulls in) ends with
+# `set +euo pipefail`, so an earlier line here would be undone by it
+set -euo pipefail
 
 _HI_PACKAGERS=(deb rpm apk)
 _HI_NFPM_CONFIG="$_HI_ROOT/packaging/nfpm/nfpm.yaml"

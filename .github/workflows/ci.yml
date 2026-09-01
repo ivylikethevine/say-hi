@@ -385,6 +385,27 @@ jobs:
           path: ${{ runner.temp }}/sizes
           retention-days: 14
 
+      # The repository the release publishes, from a third build signed with a
+      # throwaway GPG key (the rpm signature carries its signing time, which is
+      # why the byte-identical check above stays on unsigned builds): every
+      # index mkrepo.sh writes, on the runner's own docker, on the PR that
+      # breaks it. Installing from the result is tests/packaging/repo_test.sh's
+      # job, in the e2e group.
+      - name: Build the package repository
+        run: |
+          set -euo pipefail
+          gnupg="$RUNNER_TEMP/gnupg"
+          mkdir -p "$gnupg"
+          chmod 700 "$gnupg"
+          GNUPGHOME="$gnupg" gpg --batch --quiet --passphrase '' \
+            --quick-generate-key 'say-hi smoke <smoke@example.invalid>' rsa4096 sign never
+          GNUPGHOME="$gnupg" gpg --batch --quiet --armor --export-secret-keys >"$RUNNER_TEMP/smoke.gpg.key"
+          mv dist dist.unsigned
+          HI_GPG_KEY="$RUNNER_TEMP/smoke.gpg.key" packaging/mkpkg.sh
+          packaging/mkrepo.sh --gpg-key "$RUNNER_TEMP/smoke.gpg.key" --apk-key "$RUNNER_TEMP/smoke.rsa" \
+            --tarball "$RUNNER_TEMP/package-repo.tar.gz"
+          echo "package-repo.tar.gz: $(tar -tzf "$RUNNER_TEMP/package-repo.tar.gz" | grep -c '[^/]$') files"
+
   # Beside the fast suites, not after them: this and e2e-backends each take
   # about three minutes, so waiting on `test` to spare a runner on a red unit
   # test cost every green PR three minutes of wall clock - half its run. A red

@@ -24,7 +24,7 @@ Actions variable.
   - [AUR](#aur)
   - [Homebrew tap](#homebrew-tap)
   - [deb / rpm / apk](#deb--rpm--apk)
-  - [devcontainer Feature](#devcontainer-feature)
+  - [Package repository](#package-repository)
 - [Verifying a packaged build locally](#verifying-a-packaged-build-locally)
   - [Reproducibility](#reproducibility)
 - [After installing from a package](#after-installing-from-a-package)
@@ -46,7 +46,6 @@ one) has nothing else to read.
 | -------------------- | ---------------------- | ----------------------------------------------------------------- |
 | AUR, deb, rpm, apk   | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`             |
 | Homebrew             | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes        |
-| devcontainer Feature | `/usr/share/say-hi`    | the same `/etc/profile.d/say-hi.sh` - it calls `install_tree` too |
 
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this;
 its `_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
@@ -68,7 +67,6 @@ repeats the list, because `install_tree` hardcodes `/usr/bin` and
 | `aur/say-hi-git/`    | the same package built from `main`                                                   |
 | `homebrew/say-hi.rb` | the tap formula                                                                      |
 | `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                              |
-| `devcontainer/src/`  | the devcontainer Feature, one directory per feature (the publishing action's layout) |
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the installed
 `hi.sh` and the version into the man page's `.TH` line. It cannot live in git:
@@ -135,8 +133,9 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 
 **A release candidate is a GitHub Release and nothing more.** A prerelease
 tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-3 unchanged and
-is created `--prerelease --latest=false`, so "the latest release" (the
-devcontainer Feature's default, README's badge) never resolves to a candidate.
+is created `--prerelease --latest=false`, so "the latest release" (README's
+badge, the [package repository](#package-repository)) never resolves to a
+candidate.
 The packages, the source tarball, `SHA256SUMS` and the manifests are attached
 as on any release, but no manifest PR opens and no channel job runs:
 `0.1.0-rc.1` is valid semver (nfpm's `version_schema` accepts it; the deb
@@ -163,7 +162,7 @@ generated notes **after** `--notes`, burying them under the checklist.
 Two repository settings under _Settings → Environments_ that no file in the
 tree can set; `release.yml` only names them.
 
-- **`release`** — what `publish`, `tap`, `aur` and `feature` run in.
+- **`release`** — what `publish`, `tap` and `aur` run in.
   _Required reviewers_: you; that is the approval `publish` pauses for, and
   without it the job publishes unattended. _Deployment branches and tags_: a
   **tag** rule, `v*`. The job runs on the tag ref, so a policy listing only
@@ -213,7 +212,7 @@ by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
   an old one keeps a harmless local copy nothing upstream asks to move.
 - **It reaches no channel.** No `bump.sh` (the manifests checksum a
   `releases/download/v<ver>/` URL a snapshot never has), no manifest PR, no
-  tap, no AUR, no ghcr; all of that is `release.yml`'s and waits on a `v*` tag
+  tap, no AUR; all of that is `release.yml`'s and waits on a `v*` tag
   pushed by hand ([Cutting a release](#cutting-a-release)).
   `tests/packaging/packaging_test.sh` pins the split: `snapshot.yml` may run
   only on `main` and may not name a channel, `bump.sh` or the `release`
@@ -223,8 +222,8 @@ by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
   `.minisig` and the release body says so; the attestation is its provenance.
 - **It is `--prerelease --latest=false`**, as a release candidate is, so the
   newest final `v*` stays "Latest" and nothing that installs "the latest
-  release" (the devcontainer Feature's default, `brew`, the AUR) sees a
-  snapshot or a candidate.
+  release" (the package repository, `brew`, the AUR) sees a snapshot or a
+  candidate.
 - **Two repository settings:** `main` may need no reviewer (no environment
   holds it), and no tag-protection ruleset may cover `snapshot-*`; a rule
   blocking creation or deletion of a matching tag fails `publish`.
@@ -333,7 +332,8 @@ before the first publish: the container exercises Linuxbrew's paths, not
 
 ### deb / rpm / apk
 
-Built by `mkpkg.sh` and attached to the GitHub Release. Users install the file:
+Built by `mkpkg.sh` and attached to the GitHub Release. Users subscribe to
+the [package repository](#package-repository) or install the file:
 
 ```bash
 sudo apt install ./say-hi_1.0.0_all.deb
@@ -354,55 +354,72 @@ nfpm 2.47.0's tree walker writes directory modes apk-tools rejects. The
 packaging suite keeps that copy honest, and CI's packaging-smoke installs the
 signed apk on Alpine every PR.
 
-No `apt upgrade`: the trade for not maintaining a repository. Revisit
-[OBS](https://en.opensuse.org/openSUSE:Build_Service_Debian_builds) only if
-people ask for a repo to subscribe to.
+### Package repository
 
-### devcontainer Feature
+The same deb, rpm and apk, served as an apt, a dnf and an apk repository from
+the Pages site, so a package manager upgrades say-hi like anything else:
 
-**The one channel that installs say-hi on the far side.** Every other one
-packages it for a machine you say `hi` _from_. From outside a devcontainer is
-a docker container like any other ([SUPPORT.md](SUPPORT.md)), but a Codespace
-or a _Reopen in Container_ has no client: the terminal that opens is already
-standing on the target. So this Feature puts say-hi _inside_ the image, and
-the terminal is styled with nothing connecting to it.
+```sh
+# Debian, Ubuntu
+sudo curl -fsSLo /etc/apt/keyrings/say-hi.asc https://ivylikethevine.github.io/say-hi/say-hi.asc
+echo 'deb [signed-by=/etc/apt/keyrings/say-hi.asc] https://ivylikethevine.github.io/say-hi/apt stable main' |
+  sudo tee /etc/apt/sources.list.d/say-hi.list
+sudo apt update && sudo apt install say-hi
 
-A user adds it to their `devcontainer.json`:
+# Fedora, RHEL and derivatives
+sudo curl -fsSLo /etc/yum.repos.d/say-hi.repo https://ivylikethevine.github.io/say-hi/say-hi.repo
+sudo dnf install say-hi
 
-```jsonc
-"features": {
-  "ghcr.io/ivylikethevine/say-hi/say-hi:0": {}
-}
+# Alpine
+wget -O /etc/apk/keys/say-hi.rsa.pub https://ivylikethevine.github.io/say-hi/say-hi.rsa.pub
+echo https://ivylikethevine.github.io/say-hi/apk >>/etc/apk/repositories
+apk add say-hi
 ```
 
-| option           | default      | what it does                                                                                       |
-| ---------------- | ------------ | -------------------------------------------------------------------------------------------------- |
-| `version`        | `latest`     | the newest release, a release version like `1.0.0`, or `main` for the branch                       |
-| `preset`         | `everything` | which of [SETTINGS.md's presets](SETTINGS.md#presets) the user's settings start from               |
-| `configureShell` | `true`       | run `hi --install` for `$_REMOTE_USER`; off leaves `/usr/bin/hi` working and the terminal unstyled |
+**How it is built.** `packaging/mkrepo.sh` turns the packages `mkpkg.sh`
+built into `dist/repo/` - `apt/` (`dists/stable`, `pool/`), `rpm/`
+(`repodata/`), `apk/{x86_64,aarch64}/`, plus `say-hi.asc`, `say-hi.rsa.pub`
+and `say-hi.repo`. The apt indexes it writes itself (`apt-ftparchive` is
+Debian-only and the format is small); `createrepo_c` and `apk index` run in
+throwaway containers, so a dev box needs docker and gpg and nothing else.
+`release.yml`'s `publish` job runs it after the upload, behind the same
+approval, and attaches the tree as `package-repo.tar.gz`; `pages.yml` unpacks
+that asset from the newest **non-prerelease** release into the site. Only the
+latest release is in the repository - older packages stay on their release
+pages - and a candidate never reaches a subscriber. `ci.yml`'s packaging-smoke
+builds a repository on every PR, and `tests/packaging/repo_test.sh` (the
+`e2e` group) installs from one as all three clients, signatures verified.
 
-`packaging/devcontainer/src/say-hi/install.sh` is deliberately thin, and the
-packaging suite keeps it so. It downloads the release source tarball, checks
-it against the release's own `SHA256SUMS`, links the unpacked directory to the
-name `say-hi` (`install.sh` derives `$_HI_HOME` as `<checkout>/..` and looks
-for `$_HI_HOME/say-hi`; the AUR's `prepare()` makes the same link), and hands
-over to `scripts/install.sh --prefix /usr/share` and `packaging/stamp.sh`, so
-what a packaged install _contains_ stays `_HI_PACKAGE_CONTENTS`' business.
-Then the half a package manager cannot do: `hi --install --yes --preset`, as
-`$_REMOTE_USER` rather than root, so the rc files it writes belong to the
-person who will open the terminal; `--preset` is the one way to answer every
-feature question with no terminal to ask on.
+**What signs what.** One GPG key, the `GPG_SIGNING_KEY` repository secret:
+`build` signs the rpm with it through nfpm (`HI_GPG_KEY`, checked by
+`dnf gpgcheck=1`), and `publish` signs the apt `Release` (`InRelease`,
+`Release.gpg`) and the rpm `repomd.xml` (`repo_gpgcheck=1`). Its public half
+is committed as `packaging/gpg/say-hi.asc` and served as `say-hi.asc`; both
+jobs refuse a secret whose fingerprint is not that file's, so the key a
+client is told to trust is always the one that signed. The `APKINDEX` is
+signed with the apk's own key (`APK_SIGNING_KEY`), whose public half the
+repository serves as `say-hi.rsa.pub`. A repository secret rather than one
+sealed to the `release` environment, for the apk key's reason: `build` is
+ungated and only signs what `publish` still has to approve. Without the
+secret the rpm builds unsigned and `publish` ships no repository, both
+loudly; a signed rpm is the one artifact that is not byte-reproducible
+([Reproducibility](#reproducibility)).
 
-**`version: main` is the unverified arm** and says so on the way past: there
-is no `SHA256SUMS` for a branch, the same trade the `say-hi-git` AUR package
-makes. A release version is the default and the checked path.
+**Setting it up, once:**
 
-**Publishing is `release.yml`'s `feature` job**, behind the same approval as
-the tap and the AUR, pushing to ghcr with the workflow's own `GITHUB_TOKEN`;
-no secret to create. **The Feature's `version` is its own**, not the
-release's: the registry refuses a re-push of a version, so it moves when
-`devcontainer-feature.json` changes, not when say-hi does; the Feature's
-`version` option picks a say-hi version at container-build time.
+```sh
+gpg --batch --passphrase '' --quick-generate-key 'say-hi packages <ivylikethevine@gmail.com>' rsa4096 sign never
+gpg --armor --export-secret-keys 'say-hi packages' >say-hi.gpg.key # -> GPG_SIGNING_KEY, the whole file
+gpg --armor --export 'say-hi packages' >packaging/gpg/say-hi.asc    # -> commit
+```
+
+RSA 4096 rather than ed25519 because every rpm a supported distro ships
+verifies RSA, and EdDSA needs rpm 4.18 (RHEL 8 and 9 have older). No
+passphrase, as with the minisign key: nothing at the runner can type one.
+Then cut a release and, once Pages has deployed, run the three subscriptions
+above from a clean box. Locally, `packaging/mkpkg.sh && packaging/mkrepo.sh`
+builds an unsigned `dist/repo/` for a look (`--gpg-key`/`--apk-key` sign it),
+and `tests/test_runner.sh repo` is the full proof with throwaway keys.
 
 ## Verifying a packaged build locally
 
@@ -435,6 +452,12 @@ packaging/mkpkg.sh && diff dist.first/SHA256SUMS dist/SHA256SUMS
 CI pins nfpm 2.47.0 (`.github/actions/setup-tool/tools.txt`); `mkpkg.sh`
 takes whatever nfpm is on PATH, so a different local nfpm can produce
 different (still internally reproducible) bytes.
+
+The signed rpm is the exception: a GPG signature carries its signing time, so
+two builds with `HI_GPG_KEY` set differ in that header alone. The
+packaging-smoke double build is unsigned for that reason, and a third, signed
+build feeds `mkrepo.sh`. The released rpm's provenance is the attestation and
+the signature itself, not a rebuild.
 
 The end-to-end check for the `/etc/profile.d` snippet, which no unit test can
 prove:
