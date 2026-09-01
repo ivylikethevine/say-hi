@@ -209,6 +209,44 @@ function test_overlay_init_is_idempotent() {
     [ "$(_hi_overlay_commits "$dir")" = 1 ]
 }
 
+# The input validators guarding what ask_value will write into settings.sh -
+# the single-quote one is what keeps a typed value from ending the sh word the
+# written `export NAME='value'` line wraps it in.
+function test_validators_hold_their_grammars() {
+  _hi_is_number 42 || return 1
+  ! _hi_is_number 4.2 || return 1
+  ! _hi_is_number '' || return 1
+  ! _hi_is_number 4x || return 1
+  _hi_is_seconds 2 || return 1
+  _hi_is_seconds 0.25 || return 1
+  ! _hi_is_seconds .5 || return 1
+  ! _hi_is_seconds 2s || return 1
+  _hi_has_no_single_quote "plain value" || return 1
+  ! _hi_has_no_single_quote "don't" || return 1
+  _hi_is_shell_list "login fish bash" || return 1
+  _hi_is_shell_list zsh || return 1
+  ! _hi_is_shell_list "" || return 1
+  ! _hi_is_shell_list "fish csh"
+}
+
+function test_pending_answer_reads_this_runs_answers() {
+  (
+    _HI_SETTING_PENDING=("_HI_A=1" "_HI_B=two words")
+    [ "$(pending_answer _HI_A)" = 1 ] &&
+      [ "$(pending_answer _HI_B)" = "two words" ] &&
+      ! pending_answer _HI_C
+  )
+}
+
+# non-interactive ask_value never prompts: it keeps the current value, and an
+# answer equal to the default comes back empty - "write nothing, the default
+# applies" is the contract the settings writer relies on
+function test_ask_value_non_interactive_keeps_current() {
+  [ "$(ask_value "width?" 100 80 _hi_is_number "not a number" </dev/null)" = 100 ] || return 1
+  [ -z "$(ask_value "width?" "" 80 _hi_is_number "not a number" </dev/null)" ] || return 1
+  [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
+}
+
 # the seed half: a fresh init copies the four shipped defaults in for the
 # files the user has none of, byte for byte and tracked from the first commit
 function test_overlay_init_seeds_the_shipped_defaults() {
@@ -970,6 +1008,11 @@ function run_configure_tests() {
   _hi_check "An existing override is kept" test_prompt_ends_keeps_an_existing_override
   _hi_check "Written values are quoted" test_prompt_ends_quotes_what_it_writes
   _hi_check "Skipped when the prompt is off" test_prompt_ends_skipped_when_the_prompt_is_off
+
+  _hi_h2 "Testing: the answer plumbing"
+  _hi_check "The input validators hold their grammars" test_validators_hold_their_grammars
+  _hi_check "pending_answer reads this run's answers" test_pending_answer_reads_this_runs_answers
+  _hi_check "ask_value: non-interactive keeps current, blanks defaults" test_ask_value_non_interactive_keeps_current
 
   _hi_h2 "Testing: overlay_init / overlay_commit"
   _hi_check_requires git "Init makes a repo with a first commit" test_overlay_init_creates_a_repo_with_a_first_commit

@@ -107,7 +107,8 @@ callers keep the stdout form.
 tail: sourcing the file defines its functions and stops there, which is how
 the test suites reach the functions without running an install/bump/render.
 `scripts/install.sh`, `packaging/bump.sh`, `packaging/mkpkg.sh`,
-`scripts/color_preview.sh` and `scripts/packages_preview.sh` all carry it.
+`packaging/mkrepo.sh`, `scripts/color_preview.sh` and
+`scripts/packages_preview.sh` all carry it.
 
 ## HI.07 toggle defaulting
 

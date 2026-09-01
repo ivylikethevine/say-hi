@@ -344,6 +344,10 @@ function build_apk() {
 
 # --- main -----------------------------------------------------------------
 
+# sourcing this file defines its functions without building anything, which is
+# how the offline packaging suite reaches the index builders. GLOSSARY: HI.06
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
 need docker "createrepo_c and apk-tools run in $_HI_ALPINE_IMAGE"
 docker info >/dev/null 2>&1 || {
   _hi_cecho " docker is installed but not reachable" "$RED" >&2
