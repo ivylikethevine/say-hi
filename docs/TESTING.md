@@ -166,12 +166,13 @@ neither is right:
 The dispatch-only `coverage.yml` and `coverage-v2.yml` publish the two
 aggregates as shields endpoints (`badges/coverage.json`,
 `badges/coverage-v2.json`) via `pages.yml`, labelled `load-time` /
-`heredoc-inflated` rather than `coverage`. README does not show them — a badge
-whose own docs say to ignore it costs the row beside it credibility — and
-neither gates anything. Both stay: kcov cannot over-count and bashcov cannot
-under-count, so a file that reads low in bashcov is genuinely uncovered and a
-line that reads covered in kcov genuinely ran. `coverage.sh`'s header is the
-measured record of _why_ kcov cannot be the tool.
+`heredoc-inflated` rather than `coverage`. README shows them under an explicit
+disclaimer — the labels say what each number actually is, never a green
+"coverage: N%" — and neither gates anything. Both stay: kcov cannot over-count
+and bashcov cannot under-count, so a file that reads low in bashcov is
+genuinely uncovered and a line that reads covered in kcov genuinely ran.
+`coverage.sh`'s header is the measured record of _why_ kcov cannot be the
+tool.
 
 `tests/profile.sh` is for a tripped `--group bench` ceiling: `_hi_bench` says
 _whether_ a path got slower, this says _which command in it_ did. It profiles

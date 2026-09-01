@@ -11,7 +11,7 @@ name: Demos
 # renderable tapes. demo.gif is hand-rendered, reviewed by eye and committed in
 # its own commit: it is the one GIF claiming stock defaults, it goes quietly
 # wrong when the header, the prompt or the tape moves, and only a person can
-# tell (.githooks/demo_staleness.sh says when). The other seven each advertise
+# tell (.github/hooks/demo_staleness.sh says when). The other seven each advertise
 # one feature, which a machine can render honestly, so `publish` renders them.
 #
 # generate.sh rather than vhs directly: `Require hi` in a tape is satisfied by
@@ -27,7 +27,7 @@ on:
       - ".github/workflows/demos.yml"
   # What re-renders the published set: a tape landing on main certainly moved a
   # demo; the weekly run is for changes that move one without touching a tape
-  # (header, prompt, anything in the shipped tree - .githooks/demo_staleness.sh
+  # (header, prompt, anything in the shipped tree - .github/hooks/demo_staleness.sh
   # lists them as $_HI_DEMO_INPUTS). Rendering seven of the eight renderable
   # tapes stands a kind cluster up and tears it down: a cadence, not a gate.
   push:

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Warn-only hook; enable with `git config core.hooksPath .githooks`. One line
+# Warn-only hook; enable with `git config core.hooksPath .github/hooks`. One line
 # on purpose: git demands this filename, and the lint suite only reads *.sh,
 # so the logic lives in demo_staleness.sh where shellcheck sees it.
 exec "$(dirname "$0")/demo_staleness.sh"

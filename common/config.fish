@@ -124,87 +124,84 @@ set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_p
 # prompt: "<chroot> user@host cwd (git) [status] |", @ yellow over ssh; skipped
 # entirely when disabled, leaving fish's own default prompt in place
 if test "$_HI_DISABLE_PROMPT" != 1
+  # core.sh's _hi_wants_starship rule (fish can't call it); a missing starship
+  # falls back to hi's prompt below
+  if test "$_HI_PROMPT" = starship; and command -q starship
+    starship init fish | source
+  else
+    # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
+    # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's
+    # own - renders with no escapes
+    if test -n "$NO_COLOR"
+      function set_color
+      end
+    end
 
-# core.sh's _hi_wants_starship rule (fish can't call it); a missing starship
-# falls back to hi's prompt below
-if test "$_HI_PROMPT" = starship; and command -q starship
-starship init fish | source
-else
+    function prompt_login --description "display user name for the prompt"
+      if not set -q __fish_machine
+        set -g __fish_machine ""
+        test -r /etc/debian_chroot; and set -g __fish_machine "(chroot:"(cat /etc/debian_chroot)") "
+      end
+      set -l color_at normal
+      set -q SSH_TTY; and set color_at yellow
+      echo -ns (set_color yellow) "$__fish_machine" \
+        (set_color $fish_color_user) " $USER" \
+        (set_color $color_at) @ \
+        (set_color $fish_color_host) (prompt_hostname) (set_color normal)
+    end
 
-# https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
-# shadows set_color with a no-op, so every call below - and fish_vcs_prompt's
-# own - renders with no escapes
-if test -n "$NO_COLOR"
-  function set_color
+    # copied + modified from Lilly Ballard, fish default
+    function fish_prompt --description 'Write out the prompt'
+      set -l last_pipestatus $pipestatus
+      set -lx __fish_last_status $status
+      set -l normal (set_color normal)
+
+      set -l color_cwd $fish_color_cwd
+      set -l suffix " $_hi_prompt_end"
+      if functions -q fish_is_root_user; and fish_is_root_user
+        set -q fish_color_cwd_root; and set color_cwd $fish_color_cwd_root
+        # root's '#' is the *default* giving way (bash's shipped `\$` does the
+        # same); an explicit setting is honoured for root too
+        test "$_hi_prompt_end_explicit" = 1; or set suffix ' #'
+      end
+
+      # bold the status only when it changed since the last prompt
+      set -l bold_flag --bold
+      set -q __fish_prompt_status_generation; or set -g __fish_prompt_status_generation $status_generation
+      test $__fish_prompt_status_generation = $status_generation; and set bold_flag
+      set __fish_prompt_status_generation $status_generation
+
+      # quoted so an empty set_color (no colour on this TERM) still counts as an
+      # argument - fish 3 otherwise reports "missing argument" on every prompt
+      set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
+        "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
+
+      echo -n -s $_hi_marks_a (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
+        (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $_hi_marks_b
+    end
+
+    # OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
+    # common/bash.sh's ps1() emits. fish 4 emits both itself, so only fish 3 gets
+    # hi's copy - two sets of marks would confuse the terminal.
+    set -g _hi_marks_a ''
+    set -g _hi_marks_b ''
+    if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
+      set -g _hi_marks_a \e']133;A'\a
+      set -g _hi_marks_b \e']133;B'\a
+      function __hi_marks_preexec --on-event fish_preexec
+        printf '\e]133;C\a'
+      end
+      function __hi_marks_postexec --on-event fish_postexec
+        printf '\e]133;D;%s\a' $status
+      end
+      # only an interactive fish owns a terminal to report to: `fish -c` and the
+      # suites' captured runs would otherwise get the escape ahead of their output
+      function __hi_marks_cwd --on-variable PWD
+        status is-interactive; and printf '\e]7;file://%s%s\a' (hostname) $PWD
+      end
+      __hi_marks_cwd
+    end
   end
-end
-
-function prompt_login --description "display user name for the prompt"
-  if not set -q __fish_machine
-    set -g __fish_machine ""
-    test -r /etc/debian_chroot; and set -g __fish_machine "(chroot:"(cat /etc/debian_chroot)") "
-  end
-  set -l color_at normal
-  set -q SSH_TTY; and set color_at yellow
-  echo -ns (set_color yellow) "$__fish_machine" \
-    (set_color $fish_color_user) " $USER" \
-    (set_color $color_at) @ \
-    (set_color $fish_color_host) (prompt_hostname) (set_color normal)
-end
-
-# copied + modified from Lilly Ballard, fish default
-function fish_prompt --description 'Write out the prompt'
-  set -l last_pipestatus $pipestatus
-  set -lx __fish_last_status $status
-  set -l normal (set_color normal)
-
-  set -l color_cwd $fish_color_cwd
-  set -l suffix " $_hi_prompt_end"
-  if functions -q fish_is_root_user; and fish_is_root_user
-    set -q fish_color_cwd_root; and set color_cwd $fish_color_cwd_root
-    # root's '#' is the *default* giving way (bash's shipped `\$` does the
-    # same); an explicit setting is honoured for root too
-    test "$_hi_prompt_end_explicit" = 1; or set suffix ' #'
-  end
-
-  # bold the status only when it changed since the last prompt
-  set -l bold_flag --bold
-  set -q __fish_prompt_status_generation; or set -g __fish_prompt_status_generation $status_generation
-  test $__fish_prompt_status_generation = $status_generation; and set bold_flag
-  set __fish_prompt_status_generation $status_generation
-
-  # quoted so an empty set_color (no colour on this TERM) still counts as an
-  # argument - fish 3 otherwise reports "missing argument" on every prompt
-  set -l prompt_status (__fish_print_pipestatus "[" "]" "|" \
-    "$(set_color $fish_color_status)" "$(set_color $bold_flag $fish_color_status)" $last_pipestatus)
-
-  echo -n -s $_hi_marks_a (prompt_login)' ' (set_color $color_cwd) (prompt_pwd) $normal \
-    (test "$_HI_DISABLE_GIT_STATUS" != 1; and fish_vcs_prompt) $normal " "$prompt_status $suffix " " $_hi_marks_b
-end
-
-# OSC 133 prompt marks and OSC 7 cwd reporting, the fish half of what
-# common/bash.sh's ps1() emits. fish 4 emits both itself, so only fish 3 gets
-# hi's copy - two sets of marks would confuse the terminal.
-set -g _hi_marks_a ''
-set -g _hi_marks_b ''
-if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
-  set -g _hi_marks_a \e']133;A'\a
-  set -g _hi_marks_b \e']133;B'\a
-  function __hi_marks_preexec --on-event fish_preexec
-    printf '\e]133;C\a'
-  end
-  function __hi_marks_postexec --on-event fish_postexec
-    printf '\e]133;D;%s\a' $status
-  end
-  # only an interactive fish owns a terminal to report to: `fish -c` and the
-  # suites' captured runs would otherwise get the escape ahead of their output
-  function __hi_marks_cwd --on-variable PWD
-    status is-interactive; and printf '\e]7;file://%s%s\a' (hostname) $PWD
-  end
-  __hi_marks_cwd
-end
-
-end
 end
 
 # The fish half of core.sh's _hi_unexport: every _HI_* name not in

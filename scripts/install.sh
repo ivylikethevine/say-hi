@@ -156,6 +156,9 @@ export _HI_HOME
 
 # shellcheck source=../common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
+# the heading rules and _hi_rewrite; deliberately outside the shipped common/
+# shellcheck source=./lib.sh
+source "$_HI_HOME/say-hi/scripts/lib.sh"
 # the measure-then-render primitives; deliberately outside the shipped common/
 # shellcheck source=./table.sh
 source "$_HI_HOME/say-hi/scripts/table.sh"

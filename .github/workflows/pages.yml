@@ -206,8 +206,8 @@ jobs:
             echo "::warning::no package-sizes to read - package badge published as unknown"
           fi
 
-          # The kcov endpoint. Published for anyone who wants it, but not in
-          # README - README.md's Coverage and Profiling section says why not.
+          # The kcov endpoint. Shown in README under an explicit accuracy
+          # disclaimer - README.md's Coverage and Profiling section has the story.
           # Grey and labelled "load-time", never green and
           # never "coverage": tests/coverage.sh's header explains at length that
           # kcov loses its DEBUG trap once the harness is sourced, so this
@@ -228,8 +228,8 @@ jobs:
             echo "kcov badge: no figure published yet"
           fi
 
-          # The bashcov endpoint. Same deal as the kcov one above - published,
-          # not in README. Grey and labelled "heredoc-inflated" for the
+          # The bashcov endpoint. Same deal as the kcov one above - shown in
+          # README under the same disclaimer. Grey and labelled "heredoc-inflated" for the
           # mirror-image reason kcov's says "load-time": bashcov reads xtrace
           # rather than a DEBUG trap, so it does not lose the suites (
           # common/git_prompt.sh reads 92.68% here against kcov's 2.56%), but it

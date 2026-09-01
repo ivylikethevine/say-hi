@@ -254,9 +254,9 @@ jobs:
             reason per silenced rule; anything reaching here is deliberately left visible.
           report-file: ${{ runner.temp }}/hadolint.truncated
 
-      # .githooks/demo_staleness.sh says when the tape, fixtures or shipped tree
+      # .github/hooks/demo_staleness.sh says when the tape, fixtures or shipped tree
       # moved after docs/tapes/demo.gif (hand-rendered) was last rendered. As a
-      # hook it only speaks where `git config core.hooksPath .githooks` is set;
+      # hook it only speaks where `git config core.hooksPath .github/hooks` is set;
       # here it speaks on every pull request - not on a push to main, where
       # there is nobody left to warn. It always exits 0, so the verdict is read
       # out of its output.
@@ -265,7 +265,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          .githooks/demo_staleness.sh | tee "$RUNNER_TEMP/staleness.out"
+          .github/hooks/demo_staleness.sh | tee "$RUNNER_TEMP/staleness.out"
           if grep -q 'may be out of date' "$RUNNER_TEMP/staleness.out"; then
             echo "stale=1" >>"$GITHUB_OUTPUT"
           else

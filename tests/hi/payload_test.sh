@@ -428,12 +428,54 @@ function test_strip_spares_heredoc_bodies() {
   grep -q 'Everything else is passed to ssh' "$dir/say-hi/hi.sh"
 }
 
+# The data files' prose headers document the *installed* copies a user reads,
+# so they ship stripped too: flags/colors/packages/nano.rc through the same
+# `#` rule as the shell, vim.rc through its own rule for vim's `"`.
+function test_strip_covers_the_data_files() {
+  local dir f n bad=0
+  dir="$(_hi_strip_unpack stripped)"
+  for f in common/flags settings/colors settings/packages settings/nano.rc; do
+    n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
+    [ "$n" -eq 0 ] || {
+      _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
+      bad=1
+    }
+  done
+  n="$(grep -cE '^[[:space:]]*"' "$dir/say-hi/settings/vim.rc" || true)"
+  [ "$n" -eq 0 ] || {
+    _hi_cecho " | settings/vim.rc kept $n vim comment line(s)" "$RED"
+    bad=1
+  }
+  [ "$bad" -eq 0 ]
+}
+
+# ...and stripping is all it does: every data line survives byte for byte
+function test_strip_keeps_every_data_line() {
+  local dir f bad=0
+  dir="$(_hi_strip_unpack stripped)"
+  for f in common/flags settings/colors settings/packages settings/nano.rc; do
+    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f") \
+      <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f") >/dev/null || {
+      _hi_cecho " | $f lost or changed a data line" "$RED"
+      bad=1
+    }
+  done
+  diff <(grep -vE '^[[:space:]]*"|^$' "$_HI_ROOT/settings/vim.rc") \
+    <(grep -vE '^[[:space:]]*"|^$' "$dir/say-hi/settings/vim.rc") >/dev/null || {
+    _hi_cecho " | settings/vim.rc lost or changed a line" "$RED"
+    bad=1
+  }
+  [ "$bad" -eq 0 ]
+}
+
 function test_keep_comments_ships_the_tree_verbatim() {
   local dir
   dir="$_HI_WORKDIR/verbatim"
   mkdir -p "$dir"
   _HI_KEEP_COMMENTS=1 _hi_payload_tar | tar xzf - -C "$dir"
-  diff "$_HI_ROOT/common/core.sh" "$dir/say-hi/common/core.sh" >/dev/null
+  diff "$_HI_ROOT/common/core.sh" "$dir/say-hi/common/core.sh" >/dev/null &&
+    diff "$_HI_ROOT/settings/colors" "$dir/say-hi/settings/colors" >/dev/null &&
+    diff "$_HI_ROOT/settings/vim.rc" "$dir/say-hi/settings/vim.rc" >/dev/null
 }
 
 function run_hi_payload_tests() {
@@ -456,6 +498,8 @@ function run_hi_payload_tests() {
   _hi_check "The result is still valid shell" test_strip_leaves_valid_shell
   _hi_check "hi.sh stays executable" test_strip_keeps_hi_sh_executable
   _hi_check "Heredoc bodies are spared" test_strip_spares_heredoc_bodies
+  _hi_check "The data-file headers strip too" test_strip_covers_the_data_files
+  _hi_check "Every data line survives" test_strip_keeps_every_data_line
   _hi_check "_HI_KEEP_COMMENTS=1 ships verbatim" test_keep_comments_ships_the_tree_verbatim
 
   _hi_h2 "Testing: the config overlay stream"

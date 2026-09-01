@@ -462,10 +462,12 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment strip
 
-Every `*.sh`, `*.zsh` and `*.fish` file is comment-stripped on its way into the
-payload (`_hi_strip_awk` and `_hi_payload_tar` in `hi.sh`) — about 40% of the
-shipped shell is comment. `bench_payload_readme_badge` checks README's badge
-against the result.
+Every `*.sh`, `*.zsh` and `*.fish` file — and the `flags`/`colors`/`packages`/
+`vim.rc`/`nano.rc` data files, whose prose headers document the *installed*
+copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
+`_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
+vim.rc's comment character is `"`, its own rule in the stripper.
+`bench_payload_readme_badge` checks README's badge against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
 told from `${x#y}`, `$#` or a `#` in a string without a real parser. **Never

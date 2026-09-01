@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # The connect/disconnect banner, one implementation for every shell (fish
 # shells out here); the packages check (full_check) lives at the bottom too.
-set -euo pipefail
+#
+# No strict-mode bracket of its own: core.sh's tail releases `set -euo
+# pipefail` on every source (an error must not close an interactive shell),
+# so a bracket opened here was dead the moment core.sh below loaded. The
+# `|| true` guards through this file protect a *caller* running under its own
+# strict mode (scripts/configure.sh's previews do).
 
 # core.sh through this file's own path; it derives the tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"
@@ -43,14 +48,15 @@ function system_info() {
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
   _hi_sanitize_var kernel "$kernel"
   _hi_sanitize_var arch "$arch"
-  local base_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/base_frequency"
-  local max_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
-  local scaling_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-  local amd_floor_path="/sys/devices/system/cpu/cpu0/cpufreq/amd_pstate_lowest_nonlinear_freq"
   if [ -f "$_HI_LINUX_RELEASE" ]; then
+    local base_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/base_frequency"
+    local max_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
+    local scaling_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
+    local amd_floor_path="/sys/devices/system/cpu/cpu0/cpufreq/amd_pstate_lowest_nonlinear_freq"
     # also covers WSL - a real Linux kernel with its own /etc/os-release.
     # Every probe ends in `|| true`: a stripped-down target falls through to
-    # "?" instead of aborting under set -e.
+    # "?" - and a caller under its own `set -e` (see the top of the file)
+    # must not abort on a missing probe.
     os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE" 2>/dev/null || true)
     cpus=$(nproc 2>/dev/null || true)
     # straight at the file free(1) itself reads
@@ -70,6 +76,9 @@ function system_info() {
     done
     # boost/max clock: cpufreq first, else lscpu. khz reset, or a host with
     # base_frequency but no cpuinfo_max_freq reports its base as its boost.
+    # cpuinfo_max_freq's *presence* gates the read (its value is never used):
+    # scaling_max_freq alone, without the hardware figure beside it, is a
+    # policy clamp with nothing to say it means "max".
     khz=0
     if [ -f "$max_freq_path" ] && [ -f "$scaling_freq_path" ]; then
       read -r khz <"$scaling_freq_path" 2>/dev/null || khz=0
@@ -99,14 +108,15 @@ function system_info() {
   # rendered as GHz to tenths. printf, not an awk fork apiece; rounded to
   # tenths *before* splitting so a carry lands properly (2950 -> 3.0, not
   # "2.10")
-  local ghz_tenths ghz_var ghz_val
-  for ghz_var in base_mhz boost_mhz; do
-    eval "ghz_val=\$$ghz_var"
-    [ -n "$ghz_val" ] && {
-      ghz_tenths=$(((ghz_val + 50) / 100))
-      printf -v "$ghz_var" '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
-    }
-  done
+  local ghz_tenths
+  if [ -n "${base_mhz:-}" ]; then
+    ghz_tenths=$(((base_mhz + 50) / 100))
+    printf -v base_mhz '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
+  fi
+  if [ -n "${boost_mhz:-}" ]; then
+    ghz_tenths=$(((boost_mhz + 50) / 100))
+    printf -v boost_mhz '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
+  fi
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
     "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz"
 }

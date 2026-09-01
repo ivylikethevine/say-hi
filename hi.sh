@@ -63,8 +63,7 @@ _HI_SIZE_TOKEN="@@SIZE@@"
 # `tr` fold $_HI_UNARMOR puts in front of the decode (armor that arrived as an
 # argv word could be space-folded; the stdin transport needs no fold)
 _HI_ARMOR="base64"
-_HI_UNARMOR_RAW="{ base64 -d 2>/dev/null || base64 -D; }"
-_HI_UNARMOR="tr -s ' ' '\n' | $_HI_UNARMOR_RAW"
+_HI_UNARMOR="tr -s ' ' '\n' | { base64 -d 2>/dev/null || base64 -D; }"
 
 function _hi_armored_line() {
   printf 'echo "%s" | %s %s %s' "$($_HI_ARMOR)" "$_HI_UNARMOR" "$1" "$2"
@@ -176,12 +175,16 @@ function _hi_overlay_toggle() {
   _hi_setting_get "$_HI_CONFIG_DIR/settings.sh" "$@"
 }
 
-# The comment stripper every shell file takes on its way into the payload.
+# The comment stripper every shell file - and the settings/flags data files,
+# whose prose headers are for the *installed* copy a user reads, not the wire
+# - takes on its way into the payload. vim.rc's comment character is `"`; the
+# `#` rule already covers the rest of the data files.
 # GLOSSARY: HI.35 - the three rules, and why their order is the whole argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0 }
+FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/) }
 FNR == 1 && /^#!/ { print > out; next }
+vim && /^[ \t]*"/ { next }
 tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)
@@ -252,7 +255,8 @@ function _hi_payload_tar() {
       tar xf - -C "$stage" || exit 1
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file; _hi_write_back keeps hi.sh's mode. GLOSSARY: HI.09
-    find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \) \
+    find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \
+      -o -name flags -o -name colors -o -name packages -o -name vim.rc -o -name nano.rc \) \
       -exec awk -f "$stage/strip.awk" {} + || exit 1
     while IFS= read -r f; do
       _hi_write_back "$f" "${f%.strip}"
@@ -263,8 +267,9 @@ function _hi_payload_tar() {
 
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
 function _hi_is_ssh_host() {
-  _hi_ssh_host_tag "$1" >/dev/null 2>&1
-  [ $? -ne 1 ]
+  local rc=0
+  _hi_ssh_host_tag "$1" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 1 ]
 }
 
 function _hi_is_container_running() {
@@ -479,6 +484,32 @@ function _hi_trusted_path() {
   printf '%s' "$1"
 }
 
+# _hi_safe_path <path> <bracket-class> - <path> when it is absolute and built
+# only from the class's characters, nothing otherwise. The whitelist twin of
+# _hi_trusted_path's blacklist, for the scratch directories a target names:
+# the value is interpolated into commands run back on that target (`rm -rf`
+# among them), so it can only be a path mktemp just made, and anything that is
+# not one is refused rather than escaped. The class varies per caller; the
+# rule does not. Always returns 0: an empty answer is the verdict.
+function _hi_safe_path() {
+  case "$1" in
+  /*) ;;
+  *) return 0 ;;
+  esac
+  case "$1" in
+  *[!$2]*) return 0 ;;
+  esac
+  printf '%s' "$1"
+}
+
+# The one tty decision, as a 1/0 flag. $_HI_TTY answers for `[ -t 0 ]` when it
+# is set: hi's own suites have no tty and need a deterministic answer to
+# assert either arm against, and it is the escape hatch for a wrapper that
+# knows better than the probe does.
+function _hi_tty() {
+  printf '%s' "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}"
+}
+
 # Prints the path of a permanent say-hi on $DOMAIN, if any.
 #
 # stderr is deliberately *not* redirected. This is the first of the two calls,
@@ -647,18 +678,16 @@ function _hi_env_each() {
   done < <(_hi_session_env)
 }
 
-function _hi_env_exports() {
-  _hi_env_each '      export %s=%s\n'
-}
-
 # The bit both _say_hi branches need first. Everything expands on the client:
-# no backtick or unescaped $( ) below, not even inside a comment.
+# no backtick or unescaped $( ) below, not even inside a comment. The TERM
+# case swaps an unknown TERM for xterm-256color when the target's terminfo
+# has no entry for it (GLOSSARY: HI.22) - noted here rather than in the
+# heredoc, whose every byte rides the wire on every connect.
 function _hi_remote_preamble() {
   cat <<REMOTE
       _hi_now() { d=\$(date +%s.%N 2>/dev/null); case "\$d" in *N*|'') date +%s ;; *) printf '%s' "\$d" ;; esac; }
       _hi_t0=\$(_hi_now)
-$(_hi_env_exports)
-      # GLOSSARY: HI.22 - unknown TERM swapped for xterm-256color
+$(_hi_env_each '      export %s=%s\n')
       case "\${_HI_TERM_FALLBACK:-1}:\$TERM" in
       0:* | 1:xterm | 1:xterm-256color | 1:xterm-color | 1:screen | 1:screen-256color | 1:tmux | 1:tmux-256color | 1:linux | 1:vt100 | 1:vt220 | 1:dumb | 1:) ;;
       *)
@@ -681,7 +710,10 @@ REMOTE
 # What both _say_hi branches need once their setup is done: report copy time,
 # then hand off to bash or to the best fallback shell. Expects \$_hi_rc_dir to
 # point at wherever hi.bashrc/.hi_fallback_rc lives.
-# GLOSSARY: HI.23 - the flag order, and fish's -C arm
+# GLOSSARY: HI.23 - the flag order, and fish's -C arm (its rc goes through -C
+# and the command through -c). The `*)` arm (sh/dash/ash) appends the prompt
+# there rather than in the shared rc, which also feeds fish (no PS1) and zsh
+# (a different \$ escape).
 function _hi_remote_suffix() {
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
@@ -698,10 +730,7 @@ function _hi_remote_suffix() {
           $(_hi_command_append '"$_hi_rc_dir/.zshrc"')
           ZDOTDIR="\$_hi_rc_dir" zsh -i
           ;;
-        # the rc through -C and the command through -c - GLOSSARY: HI.23
         fish) fish -C "\$(cat "\$_hi_rc_dir/.hi_fallback_rc")"$(_hi_command_fish_flag) ;;
-        # sh/dash/ash; the prompt is appended here, not in the shared rc,
-        # which also feeds fish (no PS1) and zsh (different \$ escape)
         *)
           $(_hi_fallback_prompt | _hi_armored_line '>>' '"$_hi_rc_dir/.hi_fallback_rc"')
           $(_hi_command_append '"$_hi_rc_dir/.hi_fallback_rc"')
@@ -838,17 +867,9 @@ $(_hi_remote_suffix)"
     ;;
   esac
   # ...and it is a string from the target being interpolated into a command run
-  # back on that target, `rm -rf` among them. It can only be a path mktemp just
-  # made, so anything that is not one is refused rather than escaped: absolute,
-  # and drawn from the characters a temp path is built out of ("+" included -
-  # macOS's /var/folders names use it).
-  case "$boot_tmp" in
-  /*) ;;
-  *) boot_tmp="" ;;
-  esac
-  case "$boot_tmp" in
-  *[!A-Za-z0-9._/+-]*) boot_tmp="" ;;
-  esac
+  # back on that target - _hi_safe_path's rule, drawn from the characters a
+  # temp path is built out of ("+" included: macOS's /var/folders names use it)
+  boot_tmp="$(_hi_safe_path "$boot_tmp" 'A-Za-z0-9._/+-')"
 
   # `-t` only when there is a terminal to ask for. ssh already declines to
   # allocate a pty when stdin is not one, so this changes no behaviour - it
@@ -857,7 +878,7 @@ $(_hi_remote_suffix)"
   # container arms have to make the same decision for a harder reason
   # (_hi_container_cmds).
   local -a tflag=()
-  [ "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}" = 1 ] && tflag=(-t)
+  [ "$(_hi_tty)" = 1 ] && tflag=(-t)
   # An empty $boot_tmp has four causes, and only one of them is the host with
   # no `sh` the PowerShell notice exists for. Told apart by the write's
   # status and what came back (GLOSSARY: HI.19): the probe's own two codes;
@@ -916,15 +937,14 @@ function _hi_container_cmds() {
   # TTY-enabled container because stdin is not a terminal"), so
   # `hi <container> <cmd> | ...` failed at the transport before the command
   # ever ran. ssh -t merely warns and carries on, which is why only the
-  # container arms had this.
-  #
-  # $_HI_TTY answers for `[ -t 0 ]` when it is set: hi's own suites have no tty
-  # and need a deterministic answer to assert either arm against, and it is the
-  # escape hatch for a wrapper that knows better than the probe does.
-  local tty="${_HI_TTY:-}"
-  if [ -z "$tty" ]; then
-    tty=0
-    [ -t 0 ] && tty=1
+  # container arms had this. The `-i`/`-it` split below is the same decision
+  # in each backend's spelling (nomad wants it explicit either way: its
+  # stdin-is-a-tty guess lands wrong on a wrapped pty and hangs the exec).
+  local tty it=-i nt=-t=false
+  tty="$(_hi_tty)"
+  if [ "$tty" = 1 ]; then
+    it=-it
+    nt=-t=true
   fi
   case "$1" in
   docker | podman)
@@ -936,24 +956,13 @@ function _hi_container_cmds() {
     fi
     probe=("$1" exec "$target")
     cp=("$1" exec -i "$target")
-    if [ "$tty" = 1 ]; then
-      attach=("$1" exec -it "$target")
-    else
-      attach=("$1" exec -i "$target")
-    fi
+    attach=("$1" exec "$it" "$target")
     ;;
   nomad)
     [ -n "$inner" ] && pick=(-task "$inner")
     probe=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=false -t=false "$outer")
     cp=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=false "$outer")
-    # explicit -t either way: nomad's stdin-is-a-tty guess lands wrong on a
-    # wrapped pty and then hangs the exec outright, so the answer is spelled
-    # out rather than left to it
-    if [ "$tty" = 1 ]; then
-      attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=true "$outer")
-    else
-      attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true -t=false "$outer")
-    fi
+    attach=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=true "$nt" "$outer")
     ;;
   kube)
     # the context/namespace prefixes, if any, ride every kubectl call
@@ -961,13 +970,34 @@ function _hi_container_cmds() {
     [ -n "$inner" ] && pick=(-c "$inner")
     probe=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     cp=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -i "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
-    if [ "$tty" = 1 ]; then
-      attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -it "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
-    else
-      attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -i "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
-    fi
+    attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$it" "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     ;;
   esac
+}
+
+# The client-side sweep of the scratch tree on every early exit and after the
+# session. Reads $root and the probe array from its caller's scope
+# (_say_hi_container's locals), the way _hi_remote_middle reads _say_hi's.
+function _hi_container_cleanup() {
+  "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+  return 0
+}
+
+# _hi_container_fallback_shell [errlog] - the no-bash fallback, probed and
+# validated. The answer is a *word read back from the container* that gets
+# interpolated into an attach command, and the probe only ever echoes one of
+# $_HI_SHELL_LADDER's own names - so anything else means the answer did not
+# come from the probe (a busybox `echo` with a mind of its own, or a shell
+# that wrote something extra on the way past), and nothing is printed:
+# checked against the fixed list of right answers rather than sanitized.
+# Reads the probe array from its caller's scope.
+function _hi_container_fallback_shell() {
+  local fallback
+  fallback="$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>"${1:-/dev/null}")"
+  case " $_HI_SHELL_LADDER " in
+  *" $fallback "*) printf '%s' "$fallback" ;;
+  esac
+  return 0
 }
 
 # _say_hi_container <label> <errlog> - the container arm, across docker,
@@ -994,13 +1024,8 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     _hi_fail " no writable temp directory ($(cat "$tmp")) in [$DOMAIN] - --plain needs none"
     return 1
   }
-  case "$root" in
-  /*) ;;
-  *) root="" ;;
-  esac
-  case "$root" in
-  *[!A-Za-z0-9._/+@-]*) root="" ;;
-  esac
+  # the class adds "@" to boot_tmp's: the directory name embeds _hi_whoami
+  root="$(_hi_safe_path "$root" 'A-Za-z0-9._/+@-')"
   if [ -z "$root" ]; then
     _hi_fail " [$DOMAIN] named a scratch directory hi will not use"
     return 1
@@ -1009,26 +1034,16 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 
   # no bash on the target means no fancy stuff, just our aliases
   if ! "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>"$tmp"; then
-    fallback=$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>"$tmp")
-    # $fallback is a *word read back from the container* and it is interpolated
-    # into `sh -c "... exec $fallback -i"` below. The probe only ever echoes one
-    # of $_HI_SHELL_LADDER's own names, so anything else means the answer did not
-    # come from the probe - a busybox `echo` with a mind of its own, or a shell
-    # that wrote something extra on the way past. Checked against the ladder
-    # rather than sanitized: there is a fixed list of right answers, and a
-    # target that gives a wrong one has told us the probe does not work there.
-    case " $_HI_SHELL_LADDER " in
-    *" $fallback "*) ;;
-    *)
+    fallback="$(_hi_container_fallback_shell "$tmp")"
+    if [ -z "$fallback" ]; then
       _hi_fail " [$DOMAIN] named no shell hi asked about - not falling back"
       return 1
-      ;;
-    esac
+    fi
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
 
     if ! "${cp[@]}" sh -c "cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
       _hi_fail " failed to copy aliases.sh into [$DOMAIN]"
-      "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+      _hi_container_cleanup
       "${attach[@]}" "$fallback"
       return $?
     fi
@@ -1057,7 +1072,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     # shell with no way to tell the two apart from the outside
     if [ "${st[1]}" != 0 ] || ! "${probe[@]}" sh -c "[ -s '$root/.hi_fallback_rc' ]" 2>"$tmp"; then
       _hi_fail " failed to write the fallback rc into [$DOMAIN]"
-      "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+      _hi_container_cleanup
       return 1
     fi
     [ "$fallback" != fish ] || [ -z "${CMDARG:-}" ] || fish_cmd=(-c "$CMDARG")
@@ -1066,7 +1081,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     zsh)
       if ! "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp"; then
         _hi_fail " failed to write .zshrc into [$DOMAIN]"
-        "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+        _hi_container_cleanup
         return 1
       fi
       "${attach[@]}" sh -c "export ZDOTDIR='$root'; exec zsh -i"
@@ -1076,7 +1091,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     *) "${attach[@]}" sh -c "export ENV='$root/.hi_fallback_rc'; exec $fallback -i" ;;
     esac
     exit_code=$?
-    "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+    _hi_container_cleanup
     return $exit_code
   fi
 
@@ -1089,12 +1104,12 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
   # just the size, the way the ssh path's prefix reads
   prefix=" $size"
-  echo -ne " $size" >&2
+  printf '%s' " $size" >&2
 
   if ! "${cp[@]}" sh -c "tar mxzf - -C '$root'" <"$tarball"; then
     rm -f "$tarball"
     _hi_fail " failed to copy say-hi into [$DOMAIN]"
-    "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+    _hi_container_cleanup
     return 1
   fi
   rm -f "$tarball"
@@ -1129,7 +1144,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
-  "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
+  _hi_container_cleanup
   return $exit_code
 }
 
@@ -1141,7 +1156,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 # which is when the ControlMaster options arrive in "$@".
 function _say_hi_plain() {
   local -a tflag=()
-  [ "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}" = 1 ] && tflag=(-t)
+  [ "$(_hi_tty)" = 1 ] && tflag=(-t)
   ssh ${tflag[@]+"${tflag[@]}"} "$@" "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
 }
 
@@ -1157,14 +1172,10 @@ function _say_hi_container_plain() {
   if "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>&1; then
     shell=bash
   else
-    # same probe-and-validate shape as the full path's no-bash fallback
-    # (above): a fixed list of right answers, so a target that gives a wrong
-    # one has told us the probe does not work there rather than named a shell
-    shell="$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>/dev/null)"
-    case " $_HI_SHELL_LADDER " in
-    *" $shell "*) ;;
-    *) shell="sh" ;;
-    esac
+    # a probe that answers nothing usable still gets a bare `sh` here - the
+    # full path refuses instead, since it has a payload at stake
+    shell="$(_hi_container_fallback_shell)"
+    [ -n "$shell" ] || shell="sh"
   fi
   if [ -n "${RAWCMD:-}" ]; then
     "${attach[@]}" "$shell" -c "$RAWCMD"
@@ -1246,13 +1257,15 @@ function _hi_parse() {
     # to report. Only ahead of the target - one already chosen means this is
     # the remote command's own word, not hi's.
     -*)
-      if [ -z "${DOMAIN:-}" ] && backend_word="$(_hi_backend_flag "$1")"; then
+      if [ -n "${DOMAIN:-}" ]; then
+        SSHARGS+=("$1")
+      elif backend_word="$(_hi_backend_flag "$1")"; then
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
           _hi_cecho "hi: $1 and --$BACKEND both name a backend; pick one" "$RED" >&2
           exit 1
         fi
         BACKEND="$backend_word"
-      elif [ -z "${DOMAIN:-}" ] && [ "$1" = --plain ]; then
+      elif [ "$1" = --plain ]; then
         PLAIN=1
       else
         SSHARGS+=("$1")
@@ -1450,9 +1463,8 @@ unset _hi_row
 function _hi_dispatch_subcommand() {
   local row flag var arg
   for row in "${_HI_FLAGS[@]}"; do
-    flag="${row%%|*}"
-    [ "$flag" = "${1:-}" ] || continue
     IFS='|' read -r flag _ var arg _ <<<"$row"
+    [ "$flag" = "${1:-}" ] || continue
     [ -n "$var" ] || return 1
     shift
     _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} "$@"

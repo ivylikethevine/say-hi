@@ -77,6 +77,8 @@ fi
 export _HI_HOME
 # shellcheck source=../common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
+# shellcheck source=../scripts/lib.sh
+source "$_HI_HOME/say-hi/scripts/lib.sh"
 
 # The targets, as parallel arrays sharing one index: bash 3.2 has no
 # associative arrays (GLOSSARY: HI.03). The body is the string a child bash

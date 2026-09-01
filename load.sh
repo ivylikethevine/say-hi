@@ -53,14 +53,10 @@ source "$_HI_HEADER"
 # rc directory and, on a disposable tree, the tree itself. hi never writes to
 # a target's own login files, so there is nothing to strip back out.
 function clean_all() {
-  # the session shell's rc directory, which is hi's own and never the target's
-  # - nested under $_HI_CLEANUP when there is one, so the line below already
-  # covers it; a standalone mktemp on the permanent-install path still needs
-  # this explicit removal
+  # the session rc directory nests under $_HI_CLEANUP when there is one; the
+  # explicit removal is for the permanent-install path, which has no $_HI_CLEANUP
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
-  # the whole disposable tree, not just $_HI_ROOT: $_HI_CLEANUP is $_HI_HOME,
-  # $_HI_ROOT's parent, so this is a strict superset - anything else that ever
-  # lands directly under $_HI_HOME goes with it, not just say-hi/ itself
+  # $_HI_CLEANUP is $_HI_HOME, $_HI_ROOT's parent - the whole disposable tree
   [ -n "${_HI_CLEANUP:-}" ] && rm -rf "$_HI_CLEANUP"
   return 0
 }
@@ -94,14 +90,10 @@ function _hi_session_shell() {
   printf 'bash'
 }
 
-# Where the session shell's rc files are written: a directory of hi's own, never
-# the target's $HOME. Made once by _hi_session_rc_setup and removed by clean_all
-# - the *same* exit hook, deliberately, because core.sh's _hi_on_exit is a
-# `trap ... EXIT` in bash and a second call would replace the first rather than
-# adding to it. Nested under $_HI_CLEANUP when there is one (so the
-# bootstrap's own `rm -rf $_HI_CLEANUP` backstop, not just clean_all, sweeps
-# it too), a standalone mktemp on the permanent-install path (no $_HI_CLEANUP
-# to nest under, and clean_all is the only cleanup path there regardless).
+# Where the session shell's rc files are written: a directory of hi's own,
+# never the target's $HOME. Made once by _hi_session_rc_setup, removed by
+# clean_all - the *same* exit hook, since core.sh's _hi_on_exit is a
+# `trap ... EXIT` in bash and a second call would replace the first.
 _HI_SESSION_RC_DIR=""
 
 # _hi_fishquote <var> <value> - <value> as one single-quoted fish word, into
@@ -136,16 +128,27 @@ function _hi_fishquote() {
 # Each file sources the target's own rc *first*: the host's config, then hi's
 # on top of it.
 #
-# mktemp rather than a path under $_HI_ROOT: on a target with a *permanent*
-# say-hi that tree is often root-owned and read-only, which is the whole reason
-# your config lives elsewhere. %q on every interpolated path, since $TMPDIR is
-# the target's to choose. $_HI_CLEANUP, when set, is always writable - it is
-# the ephemeral tree hi itself just made - so nesting under it there costs
-# nothing and is never the read-only-tree case this paragraph is about.
+# mktemp rather than a path under $_HI_ROOT: a *permanent* say-hi tree is
+# often root-owned and read-only. %q on every interpolated path, since
+# $TMPDIR is the target's to choose.
 #
 # shellcheck disable=SC2016 # the single quotes are the point: $HOME is the
 # *target's* to expand when it reads these files, not this script's to expand
 # while writing them
+function _hi_session_sh_rc() {
+  # the sh-dialect shape bash and zsh share: the target's own rc first, the
+  # client's verdicts ($sh_vars, the caller's local), then hi's rc on top
+  local q
+  printf -v q '%q' "$2"
+  {
+    printf '[ -r "$HOME/%s" ] && . "$HOME/%s"\n' "$1" "$1"
+    printf '%s' "$sh_vars"
+    printf '. %s\n' "$q"
+  } >"$3"
+}
+
+# shellcheck disable=SC2016 # same rule as _hi_session_sh_rc's: the target
+# expands $HOME, not this script
 function _hi_session_rc_setup() {
   [ -z "$_HI_SESSION_RC_DIR" ] || return 0
   if [ -n "${_HI_CLEANUP:-}" ]; then
@@ -171,23 +174,13 @@ function _hi_session_rc_setup() {
     fish_vars="${fish_vars}set -g $v $q"$'\n'
   done
 
-  printf -v q '%q' "$_HI_BASHRC"
-  {
-    printf '[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n'
-    printf '%s' "$sh_vars"
-    printf '. %s\n' "$q"
-  } >"$dir/bashrc"
+  _hi_session_sh_rc .bashrc "$_HI_BASHRC" "$dir/bashrc"
 
   # ZDOTDIR moves *all* of zsh's startup files, not just .zshrc, so the
   # target's .zshenv needs a shim of its own or the environment it sets is
   # simply lost. .zprofile/.zlogin are login-shell only, and this is `zsh -i`.
-  printf -v q '%q' "$_HI_ZSHRC"
   printf '[ -r "$HOME/.zshenv" ] && . "$HOME/.zshenv"\n' >"$dir/.zshenv"
-  {
-    printf '[ -r "$HOME/.zshrc" ] && . "$HOME/.zshrc"\n'
-    printf '%s' "$sh_vars"
-    printf '. %s\n' "$q"
-  } >"$dir/.zshrc"
+  _hi_session_sh_rc .zshrc "$_HI_ZSHRC" "$dir/.zshrc"
 
   # fish reads its own config.fish before -C runs, so the host's fish config is
   # already in place by the time this is sourced - the same order as above, for
@@ -221,14 +214,14 @@ function _hi_session_rc_setup() {
 
 # _hi_session_shell_cmd <shell> <outvar> - how to start the session's shell so
 # that it reads hi's rc without hi's rc having been written into the target's
-# $HOME first. _hi_session_rc_setup has already exported ZDOTDIR, so zsh needs
-# nothing here.
+# $HOME first.
 function _hi_session_shell_cmd() {
   local shell="$1" out="$2" dir="$_HI_SESSION_RC_DIR"
   case "$shell" in
   bash) eval "$out=(bash --rcfile \"\$dir/bashrc\" -i)" ;;
-  zsh) eval "$out=(zsh -i)" ;;
   fish) eval "$out=(fish -C \"source \$dir/fish.config\" -i)" ;;
+  # zsh included: _hi_session_rc_setup already exported ZDOTDIR, so `zsh -i`
+  # needs nothing more than any other shell here
   *) eval "$out=(\"\$shell\" -i)" ;;
   esac
 }

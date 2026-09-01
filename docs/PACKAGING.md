@@ -512,13 +512,13 @@ published rather than written into README.
 
 The top-of-README `demo.gif` claims to be the stock defaults, so it is stale
 the moment the header, the prompt or the tape changes.
-[`.githooks/demo_staleness.sh`](../.githooks/demo_staleness.sh) compares its
+[`.github/hooks/demo_staleness.sh`](../.github/hooks/demo_staleness.sh) compares its
 last commit against the tape, the fixtures and the shipped tree; `ci.yml`'s
 `advisory-lint` job runs it on every pull request as a warning, and it only
 ever warns. To hear it before the push:
 
 ```sh
-git config core.hooksPath .githooks
+git config core.hooksPath .github/hooks
 ```
 
 By hand it is one `vhs docs/tapes/<name>.tape` per GIF from the repo root,
