@@ -85,6 +85,18 @@ of it.
 
 ## Moderate
 
+- [ ] **Seed a new overlay with the shipped defaults** — _scope: one copy
+      step in `overlay_init` (scripts/configure.sh), a SETTINGS.md sentence;
+      in-repo._ `hi --overlay-init` versions the overlay directory (a
+      `git init` plus a first commit) but leaves it as it found it, so a
+      fresh overlay starts empty and editing means digging the shipped
+      `settings/colors`/`packages`/`vim.rc`/`nano.rc` out of the tree to copy
+      from by hand. Copying those defaults into an _empty_ overlay before the
+      first commit gives real files to edit in place, with their headers
+      ("copy this file to ~/.config/say-hi/...") already satisfied; files
+      already present are never touched. Open: whether `settings.sh` gets a
+      commented all-defaults template too.
+
 - [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
       real Mac; outside this checkout._ Create `homebrew-tap` (plain repo,
       `Formula/` dir), add a fine-grained PAT (contents + PRs write) as
@@ -116,12 +128,6 @@ Tracked, not actionable; none is a v1.0.0 criterion.
 - [ ] **Outside the repo, once a release exists** — _scope: a badge, a
       questionnaire, a toggle and a check; mostly outside this checkout._
 
-  - the [OpenSSF Best Practices](https://www.bestpractices.dev/) badge —
-    [CII_BEST_PRACTICES_DRAFT.md](CII_BEST_PRACTICES_DRAFT.md) answers all 67
-    passing-level criteria and README's badge block carries two commented-out
-    lines waiting on a project ID. Left: register at bestpractices.dev,
-    transcribe the draft, uncomment the badge. The tick means _passing_,
-    blocked on three release-shaped MUST criteria until the first tag ships;
   - a Repology badge — in README's badge block already (renders empty for
     now); ticks once it carries a real version, after deb/rpm/apk, the tap
     and the AUR do;
@@ -174,6 +180,17 @@ Research and decisions nobody has made yet; nothing here gates a release.
       host gets the base overlay or nothing. Until decided, an admin with
       prod and customer hosts keeps the overlay empty or runs two
       `XDG_CONFIG_HOME`s.
+
+- [ ] **Subnet-style tags for hosttag colors** — _scope: one matcher in
+      core.sh's color resolution, a SETTINGS.md paragraph; in-repo._ A
+      `hosttag` row in the colors overlay colors every host carrying that
+      `# Tags:` word, but hosts addressed by IP need an ssh-config entry
+      apiece before any tag applies. A subnet-shaped name in the colors file
+      — `hosttag,10.0.1.*,red`, or a CIDR — matched against the target the
+      way `_hi_ssh_pattern_hit` already matches `Host` globs would color a
+      whole network at once. Open: glob vs CIDR grammar, whether it matches
+      resolved hostnames or only bare IPs, and precedence against an exact
+      hostname pin.
 
 - [ ] **A system-wide settings layer** — _scope: one file, one source line;
       in-repo._ A root-owned tree (`install.sh --prefix`) serves every user,

@@ -15,7 +15,7 @@ current state is not a representation of final, published quality.
      include_prereleases: each push to main publishes a snapshot prerelease. -->
 
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
-![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
+![ssh payload](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
 ![code size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
@@ -25,13 +25,20 @@ current state is not a representation of final, published quality.
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
-<!--[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)-->
-<!--[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)-->
-<!--[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)-->
+[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
+[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
+[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
+
+_Both coverage figures below are known-inaccurate — kcov reads far too low,
+bashcov far too high — and neither gates anything;
+[why](docs/TESTING.md#coverage-and-profiling)._
+
+[![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
+[![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
-<!-- [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<ID>/badge)](https://www.bestpractices.dev/projects/<ID>) -->
-<!-- [![OpenSSF Baseline](https://www.bestpractices.dev/projects/<ID>/baseline)](https://www.bestpractices.dev/projects/<ID>) -->
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
 
 **One config directory to rule them all, uniting all shells from all hosts!**
 
@@ -293,9 +300,8 @@ every toggle and every environment variable are in
 `hi` to, so a token, an internal hostname or a private path in your
 `aliases.sh` lands on each of them. See [docs/SECURITY.md](docs/SECURITY.md)._**
 
-By default hi writes nothing to a target outside its own temp directory — not
-your login files, not your shell history. The two opt-in settings that change
-that are in
+By default hi writes nothing to a target outside its own temp directory.
+The two opt-in settings that change that are in
 [What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, username, and group/tag colors
@@ -384,8 +390,10 @@ side) then `--group lint` on every push/PR. Runbook:
 ### Coverage and Profiling
 
 Two coverage tools sit beside the suites and disagree — kcov reads far too
-low, bashcov far too high — so there is no coverage badge and neither gates
-anything. Why each is wrong, and the profiler for a tripped bench ceiling, is
+low, bashcov far too high — so the two badges up top sit under a disclaimer,
+keep their self-describing labels (`load-time`, `heredoc-inflated`) instead of
+claiming to be coverage, and neither gates anything. Why each is wrong, and
+the profiler for a tripped bench ceiling, is
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## More docs
@@ -407,8 +415,7 @@ anything. Why each is wrong, and the profiler for a tripped bench ceiling, is
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned, what it is blocked on,
   and what is research only
 - [docs/CII_BEST_PRACTICES_DRAFT.md](docs/CII_BEST_PRACTICES_DRAFT.md) — the
-  OpenSSF Best Practices questionnaire, answered against this tree, scratch
-  until it's transcribed to bestpractices.dev
+  OpenSSF Best Practices questionnaire, answered against this tree.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
   request, what 1.x will not break, and which doc changes with what
 - [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour

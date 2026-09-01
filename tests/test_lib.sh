@@ -35,6 +35,9 @@ _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
+# the heading rules the harness and the suites print with
+# shellcheck source=../scripts/lib.sh
+source "$_hi_d/../scripts/lib.sh"
 
 # shellcheck source=./lib/workdir.sh
 source "$_hi_d/lib/workdir.sh"

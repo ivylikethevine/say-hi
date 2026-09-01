@@ -11,6 +11,8 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
+# shellcheck source=./lib.sh
+source "$_hi_d/scripts/lib.sh"
 unset _hi_d
 # The renderer this previews, reused rather than reimplemented - check_line is
 # what paints every row below, so the preview cannot drift from the header.

@@ -500,6 +500,108 @@ function test_shell_table_covers_every_rc_path_var() {
   }
 }
 
+function test_repeat_makes_count_copies() {
+  local out
+  _hi_repeat out 4 '='
+  [ "$out" = "====" ] || return 1
+  _hi_repeat out 0 '='
+  [ -z "$out" ]
+}
+
+function test_human_duration_formats() {
+  [ "$(_hi_human_duration 59)" = "0:59" ] &&
+    [ "$(_hi_human_duration 61.9)" = "1:01" ] &&
+    [ "$(_hi_human_duration 3661)" = "1:01:01" ]
+}
+
+function test_du_size_answers_for_a_real_path() {
+  local dir="$_HI_WORKDIR/du.probe" out
+  mkdir -p "$dir"
+  printf '%2048s' '' >"$dir/two-k"
+  out="$(_hi_du_size "$dir")"
+  [ -n "$out" ] || return 1
+  case "$out" in [0-9]*) ;; *) return 1 ;; esac
+}
+
+# the shipped verdicts win; the local binaries are only the fallback
+function test_local_identity_prefers_the_shipped_verdict() {
+  [ "$(_HI_LOCAL_USER=shipped-user _hi_local_username)" = shipped-user ] || return 1
+  [ "$(_HI_LOCAL_HOSTNAME=shipped-host _hi_local_hostname)" = shipped-host ] || return 1
+  (
+    unset _HI_LOCAL_USER _HI_LOCAL_HOSTNAME
+    [ "$(_hi_local_username)" = "$(_hi_whoami)" ] &&
+      [ "$(_hi_local_hostname)" = "$(_hi_hostname)" ]
+  )
+}
+
+function test_ascii_flag_ships_the_verdict() {
+  (
+    _HI_ASCII=1
+    [ "$(_hi_ascii_flag)" = 1 ]
+  ) && (
+    _HI_ASCII=0
+    [ "$(_hi_ascii_flag)" = 0 ]
+  )
+}
+
+# never auto-detected: the setting and the binary both have to say yes
+function test_wants_starship_needs_both_halves() {
+  (
+    unset _HI_PROMPT
+    ! _hi_wants_starship
+  ) || return 1
+  ! _HI_PROMPT=starship PATH="$_HI_WORKDIR/empty.path" _hi_wants_starship || return 1
+  mkdir -p "$_HI_WORKDIR/empty.path"
+  _HI_PROMPT=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_wants_starship
+}
+
+function test_colors_lookup_verdicts() {
+  local colors="$_HI_WORKDIR/colors.lookup"
+  printf 'username,alice,red\nhostname,box,blue\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_lookup hostname box)" = blue ] || return 1
+  ! _HI_COLORS="$colors" _hi_colors_lookup hostname nobox || return 1
+  ! _HI_COLORS="$_HI_WORKDIR/colors.absent" _hi_colors_lookup hostname box
+}
+
+function test_colors_names_dedupes_and_skips() {
+  local colors="$_HI_WORKDIR/colors.names" out
+  printf 'hostname,a,red\nhostname,b,blue\nhostname,a,green\nusername,c,red\n' >"$colors"
+  out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
+  [ "$out" = "a
+b" ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ]
+}
+
+# the memo pair: a shipped _HI_TARGET_COLOR wins outright, and the escape is
+# the escape of whatever the color half answered
+function test_host_color_memo_and_escape_agree() {
+  (
+    unset _HI_HOST_COLOR _HI_HOST_ESC
+    _HI_TARGET_COLOR=blue
+    [ "$(_hi_host_color)" = blue ] || exit 1
+    [ "$(_hi_host_escape)" = "$(_hi_color_escape blue)" ]
+  )
+}
+
+function test_user_color_resolves_like_resolve_color() {
+  (
+    unset _HI_USER_COLOR _HI_TARGET_TAG
+    [ "$(_hi_user_color)" = "$(_hi_resolve_color username "$(_hi_whoami)")" ]
+  )
+}
+
+# the out-var forms exist so a prompt builder keeps the memo out of a $( )
+# subshell; the answer must match the stdout form's
+function test_escape_var_forms_fill_the_caller() {
+  (
+    unset _HI_HOST_ESC _HI_USER_ESC
+    local h u
+    _hi_host_escape_var h
+    _hi_user_escape_var u
+    [ "$h" = "$(_hi_host_escape)" ] && [ "$u" = "$(_hi_user_escape)" ]
+  )
+}
+
 # _hi_shell_rows with no argument is the whole roster; with one, only the rows
 # carrying that flag.
 function test_shell_rows_filters_by_flag() {
@@ -564,6 +666,25 @@ function run_core_tests() {
   _hi_check "Every row is six well-formed fields" test_shell_table_rows_are_wellformed
   _hi_check "Every paths.sh rc var has a row" test_shell_table_covers_every_rc_path_var
   _hi_check "_hi_shell_rows filters by flag" test_shell_rows_filters_by_flag
+
+  _hi_h2 "Testing: the small formatters"
+  _hi_check "_hi_repeat makes count copies" test_repeat_makes_count_copies
+  _hi_check "_hi_human_duration's three shapes" test_human_duration_formats
+  _hi_check "_hi_du_size answers for a real path" test_du_size_answers_for_a_real_path
+
+  _hi_h2 "Testing: the shipped verdicts"
+  _hi_check "Local identity prefers the shipped verdict" test_local_identity_prefers_the_shipped_verdict
+  _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
+  _hi_check "_hi_wants_starship needs setting and binary" test_wants_starship_needs_both_halves
+
+  _hi_h2 "Testing: the colors file readers"
+  _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts
+  _hi_check "_hi_colors_names dedupes and skips" test_colors_names_dedupes_and_skips
+
+  _hi_h2 "Testing: the identity memos"
+  _hi_check "Host memo honors \$_HI_TARGET_COLOR; escape agrees" test_host_color_memo_and_escape_agree
+  _hi_check "User color resolves like _hi_resolve_color" test_user_color_resolves_like_resolve_color
+  _hi_check "The out-var escape forms fill the caller" test_escape_var_forms_fill_the_caller
 
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple

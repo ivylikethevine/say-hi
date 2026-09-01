@@ -13,7 +13,7 @@
 # which needs the checkout to be named exactly say-hi. That holds for mkpkg and
 # both PKGBUILDs (the AUR recipe symlinks $srcdir/say-hi in prepare()), but
 # Homebrew unpacks to say-hi-<version>, where sourcing lib.sh would abort before
-# this script ran. The `rewrite` below is core.sh's _hi_rewrite, copied for that
+# this script ran. The `rewrite` below is scripts/lib.sh's _hi_rewrite, copied for that
 # reason - the same boundary that makes this script carry its own locator.
 set -euo pipefail
 
@@ -114,9 +114,9 @@ if [ -z "$_HI_DATE" ]; then
     date -u -r "$SOURCE_DATE_EPOCH" +%Y-%m-%d)"
 fi
 
-# rewrite <file> <sed-expr>... - the third copy of core.sh's _hi_rewrite, and
-# the only one that has to exist: lib.sh's is a one-line call into core.sh,
-# but this script can source neither (see the header). A temp file rather than
+# rewrite <file> <sed-expr>... - a copy of scripts/lib.sh's _hi_rewrite, and
+# the copy has to exist: this script sources nothing (see the header). A temp
+# file rather than
 # `sed -i` (whose in-place flag differs BSD/GNU), written back with cat, not mv
 # - mv would put mktemp's 0600 on the target, losing the launcher's exec bit.
 function rewrite() {

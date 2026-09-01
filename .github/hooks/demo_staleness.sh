@@ -3,7 +3,7 @@
 # shows. Warn, never block: demo.gif is a manual artifact reviewed by eye
 # (docs/tapes/generate.sh), so exit status is always 0. Run by hand, as the
 # pre-commit hook beside it, or by ci.yml's advisory-lint job - see
-# docs/PACKAGING.md's "Regenerating the demo GIFs". Lives in .githooks/ because
+# docs/PACKAGING.md's "Regenerating the demo GIFs". Lives in .github/hooks/ because
 # scripts/ is in $_HI_PACKAGE_CONTENTS (a hook has no business in
 # /usr/share/say-hi, and a subdirectory there falls through nfpm.yaml's
 # one-level apk globs).
@@ -21,7 +21,7 @@ _HI_REPO="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$_HI_REPO" ] || exit 0
 # ...and if that repository is not say-hi, there is nothing here to check.
 [ -f "$_HI_REPO/common/core.sh" ] || exit 0
-# shellcheck source=../common/core.sh
+# shellcheck source=../../common/core.sh
 source "$_HI_REPO/common/core.sh"
 
 _HI_DEMO_GIF="docs/tapes/demo.gif"

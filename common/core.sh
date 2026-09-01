@@ -145,29 +145,9 @@ function _hi_repeat() {
   printf -v "$1" '%s' "${_hi_pad// /$3}"
 }
 
-# _hi_hrule <label> <bar-char> <inset> <color> - a _HI_MAX_WIDTH rule with the
-# label centered; the worker behind the heading levels
-function _hi_hrule() {
-  local pad label width=$((${_HI_MAX_WIDTH:-80} - 1)) total left right lbar rbar
-  _hi_repeat pad "$3" ' '
-  label="$pad$1$pad"
-  total=$((width - ${#label}))
-  # an over-wide label keeps a 4-bar rule each side and overflows
-  ((total < 8)) && total=8
-  left=$((total / 2))
-  right=$((total - left))
-  _hi_repeat lbar "$left" "$2"
-  _hi_repeat rbar "$right" "$2"
-  _hi_cecho " $lbar$label$rbar" "$4"
-}
-
-function _hi_h1() {
-  _hi_hrule "$1" '=' 1 "${2:-$BRBLUE}"
-}
-
-function _hi_h2() {
-  _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
-}
+# The heading rules (_hi_hrule/_hi_h1/_hi_h2) and _hi_rewrite live in
+# scripts/lib.sh: they are tooling, and common/ ships in the ssh payload
+# under a size budget nothing a target runs should spend.
 
 # $EPOCHREALTIME on bash 5, date(1) on 3.2, $SECONDS with no date to fork.
 # Only ever differenced, so any monotonic clock works; an empty answer would
@@ -304,19 +284,6 @@ function _hi_write_back() {
   command rm -f "$1"
 }
 
-# _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.
-# A temp file, not `sed -i`: its flag differs BSD/GNU, and -i replaces a
-# symlinked rc with a regular file. GLOSSARY: HI.08
-function _hi_rewrite() {
-  local file="$1" e tmp
-  shift
-  local -a exprs=()
-  for e in "$@"; do exprs+=(-e "$e"); done
-  tmp="$(mktemp -t hi.rewrite.XXXXXX)"
-  sed "${exprs[@]}" "$file" >"$tmp"
-  _hi_write_back "$tmp" "$file"
-}
-
 # The version, unpresented: a packager's stamp (or the client's, shipped by
 # the ssh preamble) wins, else git describe, else nothing. Callers present it.
 function _hi_release_or_describe() {
@@ -422,7 +389,7 @@ function _hi_use_ascii() {
 
 # the same decision as a 1/0 flag, for shipping: glyphs render in the
 # *client's* terminal, so the client's verdict is the one the target honors
-function _hi_ascii_flag() { _hi_use_ascii && echo 1 || echo 0; }
+function _hi_ascii_flag() { _hi_use_ascii && printf '1\n' || printf '0\n'; }
 
 # One glyph set per session, decided at source time so hot paths read plain
 # variables; tests flip _HI_ASCII and re-call. The _W widths are visible
@@ -555,11 +522,25 @@ function _hi_ssh_pattern_hit() {
   return "$hit"
 }
 
+# The shared tail of both walker arms below: strip a trailing comment (not a
+# pattern), fold tabs and commas to spaces (a stray comma is friendlier
+# folded than rejected), then try the patterns. The walker's own contract on
+# the way out: 0 tagged (printed), 2 known-but-untagged, 1 no hit here.
+function _hi_ssh_try_patterns() {
+  local patterns="$1" name="$2" tag="$3"
+  patterns="${patterns%%#*}"
+  patterns="${patterns//	/ }"
+  patterns="${patterns//,/ }"
+  _hi_ssh_pattern_hit "$name" "$patterns" || return 1
+  [ -n "$tag" ] && printf '%s\n' "$tag" && return 0
+  return 2
+}
+
 # The "# Tags: a, b" comment directly above a "Host <alias>" or "Match host
 # <pattern>" line in ~/.ssh/config (case-insensitive, wildcards honoured);
 # unknown host returns 1, known host with no tag returns 2.
 function _hi_ssh_host_tag_walk() {
-  local line trimmed rest tag="" patterns
+  local line trimmed rest tag="" patterns rc
   [ -f "$_HI_SSH_CONFIG" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     # leading whitespace off, once, for every branch below
@@ -578,16 +559,9 @@ function _hi_ssh_host_tag_walk() {
       esac
       ;;
     [Hh][Oo][Ss][Tt][[:space:]]*)
-      patterns="${trimmed#[Hh][Oo][Ss][Tt]}"
-      patterns="${patterns%%#*}" # a trailing comment is not a pattern
-      # tabs and commas folded to spaces: a stray comma is friendlier folded
-      # than rejected
-      patterns="${patterns//	/ }"
-      patterns="${patterns//,/ }"
-      if _hi_ssh_pattern_hit "$1" "$patterns"; then
-        [ -n "$tag" ] && printf '%s\n' "$tag" && return 0
-        return 2
-      fi
+      rc=0
+      _hi_ssh_try_patterns "${trimmed#[Hh][Oo][Ss][Tt]}" "$1" "$tag" || rc=$?
+      [ "$rc" -eq 1 ] || return "$rc"
       tag=""
       ;;
     [Mm][Aa][Tt][Cc][Hh][[:space:]]*)
@@ -596,19 +570,15 @@ function _hi_ssh_host_tag_walk() {
       case "$rest" in
       [Hh][Oo][Ss][Tt][[:space:]]*)
         patterns="${rest#[Hh][Oo][Ss][Tt]}"
-        patterns="${patterns%%#*}"
         # stop at the next Match criterion - ssh allows several per line
         patterns="${patterns%%[[:space:]][Uu][Ss][Ee][Rr][[:space:]]*}"
         patterns="${patterns%%[[:space:]][Ll][Oo][Cc][Aa][Ll][Uu][Ss][Ee][Rr][[:space:]]*}"
         patterns="${patterns%%[[:space:]][Ee][Xx][Ee][Cc][[:space:]]*}"
         patterns="${patterns%%[[:space:]][Cc][Aa][Nn][Oo][Nn][Ii][Cc][Aa][Ll]*}"
         patterns="${patterns%%[[:space:]][Ff][Ii][Nn][Aa][Ll]*}"
-        patterns="${patterns//	/ }"
-        patterns="${patterns//,/ }"
-        if _hi_ssh_pattern_hit "$1" "$patterns"; then
-          [ -n "$tag" ] && printf '%s\n' "$tag" && return 0
-          return 2
-        fi
+        rc=0
+        _hi_ssh_try_patterns "$patterns" "$1" "$tag" || rc=$?
+        [ "$rc" -eq 1 ] || return "$rc"
         ;;
       esac
       tag=""

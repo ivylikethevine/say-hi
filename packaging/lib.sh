@@ -25,6 +25,8 @@ export _HI_HOME
 
 # shellcheck source=../common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
+# shellcheck source=../scripts/lib.sh
+source "$_HI_HOME/say-hi/scripts/lib.sh"
 
 # sha256 lines ("<sum>  <file>" per argument) and single-file sha256/blake2b,
 # each with a non-coreutils fallback so these also run on a mac (no sha256sum,
