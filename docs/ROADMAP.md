@@ -77,8 +77,10 @@ of it.
 - [ ] **Flip to stable** — _scope: one commit at tag time; in-repo._ The
       EXPERIMENTAL banner has echoes: README's banner and its anchor
       (CONTRIBUTING.md's first paragraph links it by name), ALTERNATIVES.md's
-      maturity cell, and SECURITY.md's _Supported versions_, which becomes the
-      version table it promises. **Ticks when:** every one reads as a released
+      maturity cell, SECURITY.md's _Supported versions_, which becomes the
+      version table it promises, and the _what works today_ notes at the top
+      of README's install section and PACKAGING.md, which go once the channels
+      they name are live. **Ticks when:** every one reads as a released
       project in the commit the tag points at.
 
 ## Moderate
@@ -160,4 +162,22 @@ Tracked, not actionable; none is a v1.0.0 criterion.
 ## Not scheduled
 
 Research and decisions nobody has made yet; nothing here gates a release.
-Empty today — a proposal lands here when it is raised and not yet decided.
+
+- [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
+      SETTINGS.md section; in-repo._ One overlay ships to every target
+      (README's _Configuration_ warning, SECURITY.md's _Trust boundaries_);
+      the only per-host lever is a color. `_HI_TARGET_TAG` already resolves
+      the leftmost `# Tags:` word before the payload is built, so
+      `~/.config/say-hi/tags/<tag>/` holding the same `$_HI_OVERLAY_FILES` —
+      shipped instead of, or layered after, the base overlay — needs no new
+      probe. Open: precedence (replace vs. layer) and whether an untagged
+      host gets the base overlay or nothing. Until decided, an admin with
+      prod and customer hosts keeps the overlay empty or runs two
+      `XDG_CONFIG_HOME`s.
+
+- [ ] **A system-wide settings layer** — _scope: one file, one source line;
+      in-repo._ A root-owned tree (`install.sh --prefix`) serves every user,
+      but every setting lives in each user's `settings.sh`; there is no
+      `/etc/say-hi/settings.sh` for a platform team's defaults, and no way to
+      share an alias set short of a dotfiles repo. Whether that is wanted at
+      all, and whether it ships to targets, is the question.

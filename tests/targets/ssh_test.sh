@@ -41,6 +41,22 @@ function _hi_run_interactive_case() {
   [ "$ok" -eq 1 ]
 }
 
+# The transcript of a forced-command case, read after the batch: the marker
+# hi's command would have printed has to be *absent*, since the session
+# handed over is the host's own program and not a shell that ran anything.
+# The mirror of every other case's marker check, which is why it cannot be
+# asserted inside _hi_run_case.
+function _hi_forced_session_is_the_hosts() {
+  local label="$1" file="$2"
+  if [ -f "$file" ] && ! grep -qF "$_HI_TEST_MARKER" "$file"; then
+    _hi_align " | [$label] -- the host's own session, not hi's command" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_h3 " | [$label] -- FAILED: hi's command ran on a forced-command host" "$RED"
+  _hi_note_failure "[$label] forced command not detected"
+  return 1
+}
+
 function run_ssh_tests() {
   _hi_require_backend docker
 
@@ -165,6 +181,32 @@ function run_ssh_tests() {
       _HI_SSH_SHAPE_CMD="tc qdisc add dev eth0 root netem delay 300ms rate 128kbit" \
       _HI_SSH_CASE_TIMEOUT=300 \
       _hi_par_case starved _hi_run_case starved "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+
+    # sshd shapes that never hand the command to the user's shell, or hand
+    # it to a restricted one. `ForceCommand` (and a `command=` on the key,
+    # the same mechanism) runs its own program whatever the client asked:
+    # hi's bootstrap never runs, and what comes back is that program's status
+    # and output. Two shapes - one silent and exiting 0 (`true`, which hi
+    # used to take for a session that worked, exiting 0 with nothing said)
+    # and one that prints (`id`) - both have to be named in the transcript
+    # (the marker, overridden for these two), and the session handed over is
+    # the host's own, so the command's own marker must not appear: the serial
+    # check after the batch. rbash forbids `/` in a command name and little
+    # else; `sh` has no slash, so rbash runs hi's bootstrap unrestricted and
+    # the session is a full one - asserted so SUPPORT.md's row stays true.
+    # `MaxSessions 1` caps *concurrent* channels per connection; the probe's
+    # has closed before the session's opens, so the multiplexed pair fits.
+    # Attached `-o` forms: $_HI_SSH_RUN_ARGS is word-split, so an option and
+    # its value cannot be two words.
+    _hi_forced_cmd="echo $_HI_TEST_MARKER"
+    for _hi_forced in true id; do
+      _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oForceCommand=/usr/bin/$_hi_forced" \
+        _HI_TEST_MARKER="a forced command answered" \
+        _hi_par_case "forced-$_hi_forced" _hi_run_case "forced-$_hi_forced" "$_HI_SSHD_IMAGE" /bin/bash "$_hi_forced_cmd"
+    done
+    _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oMaxSessions=1" \
+      _hi_par_case maxsessions1 _hi_run_case maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    _hi_par_case rbash _hi_run_case rbash "$_HI_SSHD_IMAGE" /bin/rbash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
   fi
 
   for _hi_case_spec in nobash:alpine:ssh_fallback nobash-zsh:alpine-zsh:ssh_fallback \
@@ -239,6 +281,13 @@ function run_ssh_tests() {
   fi
 
   _hi_par_wait
+
+  # the forced-command cases' other half - see _hi_forced_session_is_the_hosts
+  if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
+    for _hi_forced in true id; do
+      _hi_case _hi_forced_session_is_the_hosts "forced-$_hi_forced" "$_HI_WORKDIR/forced-$_hi_forced.ssh.out"
+    done
+  fi
 
   # The one ordering this suite has. A bash-4-ism on bash 3.2 mostly *doesn't*
   # break the session - it prints "mapfile: command not found" and carries on

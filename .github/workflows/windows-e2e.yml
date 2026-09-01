@@ -2,8 +2,10 @@ name: Windows e2e
 
 # The target-side half of the Windows story, which README promises and nothing
 # else tests: a stock Windows OpenSSH target (DefaultShell = cmd, no bash on
-# the sshd PATH) must land in the PowerShell fallback via the cmd-compatible
-# `||` - not hang, not error out. The client is the runner's own Git Bash;
+# the sshd PATH) must land in the PowerShell fallback - not hang, not error
+# out, and not be mistaken for a Linux host missing base64 (cmd honours `||`,
+# which is why hi's probe keeps it off the lines whose exit codes it reads).
+# The client is the runner's own Git Bash;
 # windows-client.yml is the client-side half. ci.yml calls this on every push
 # to main once both fast-suite jobs are green; dispatch runs it on its own.
 on:
@@ -50,8 +52,10 @@ jobs:
           Set-Content -Path $file -Value $key
           icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
 
-      # cmd runs hi's first command, its mkdir chokes on the POSIX path, `||`
-      # falls through, and PowerShell greets - that whole ladder is the case.
+      # cmd cannot run `sh`, so hi's bootstrap write comes back non-zero with
+      # nothing on stdout - the one shape hi reads as "no POSIX shell at all"
+      # (a forced command exits 0 or prints; a Linux host without base64 says
+      # 64) - and PowerShell greets. That whole ladder is the case.
       # -NoExit holds the session open, so an `exit` is piped in and a timeout
       # backstops it; the marker in the transcript is the assertion either way.
       - name: Say hi (expect the PowerShell fallback)

@@ -436,6 +436,33 @@ function test_boot_probe_bakes_no_client_path() {
   return 1
 }
 
+# Once `sh` is running, the probe's two failures each say which in the exit
+# status - 64 with no base64 on PATH, 65 with nowhere to mktemp - so _say_hi
+# can name the reason rather than hand a Linux host the PowerShell notice.
+# Both run the real probe under the local sh: a PATH with no base64 on it,
+# and a $TMPDIR that does not exist. The success shape is the third, with a
+# bootloader on stdin, pinning that neither code leaks into it. The sh is
+# resolved first: a temporary PATH would hide it from bash's own lookup.
+function test_boot_probe_says_no_base64() {
+  local ec=0 sh_bin
+  sh_bin="$(command -v sh)"
+  PATH=/nonexistent "$sh_bin" -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
+  [ "$ec" -eq 64 ]
+}
+
+function test_boot_probe_says_no_scratch_dir() {
+  local ec=0
+  TMPDIR=/nonexistent/hi sh -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
+  [ "$ec" -eq 65 ]
+}
+
+function test_boot_probe_reports_its_dir_on_success() {
+  local out dir
+  out="$(printf 'echo boot\n' | TMPDIR="$_HI_WORKDIR" sh -c "$(_hi_boot_probe)" 2>/dev/null)" || return 1
+  dir="${out##*HIBOOT:}"
+  [ -f "$dir/bootloader" ] && rm -rf "$dir"
+}
+
 function run_hi_remote_tests() {
   _hi_workdir hiremotetest
 
@@ -446,6 +473,9 @@ function run_hi_remote_tests() {
   _hi_h2 "Testing: bootloader / fallback rc"
   _hi_check "The boot probe makes its scratch dir on the target" test_boot_probe_is_target_side
   _hi_check "...and bakes in no client path" test_boot_probe_bakes_no_client_path
+  _hi_check "...and says 64 with no base64" test_boot_probe_says_no_base64
+  _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
+  _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session
   _hi_check "A command replaces load" test_bootloader_replaces_load_with_the_command
   _hi_check "Bootloader drops strict mode before the command" test_bootloader_drops_strict_mode_before_the_command

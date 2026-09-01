@@ -40,6 +40,7 @@ function _hi_probe_cmd() {
   installed) printf '%s%s' 'test "$_HI_ROOT" = "$HOME/say-hi" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
   installed_nested) printf '%s%s' 'test "$_HI_ROOT" = "$HOME/opt/nested/say-hi" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
   installed_at) printf 'test "$_HI_ROOT" = "%s" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo %s' "$3" "$marker" ;;
+  rooted_under) printf 'case "$_HI_ROOT" in %s/*) source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo %s ;; esac' "$3" "$marker" ;;
   *)
     _hi_cecho "unknown probe shape: $2" "$RED" >&2
     return 1

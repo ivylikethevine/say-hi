@@ -341,6 +341,12 @@ host's own. hi writes nothing to any login file on any host you visit, under
 any setting ([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the
 reasoning).
 
+Nor can a change of user. `sudo -i`, `sudo -s`, `su -` and `doas -s` start
+_that_ user's login shell from _that_ user's rc files, and hi's session rc is
+neither — root's `.bashrc` is not hi's to touch, for the same reason. What
+survives is `sudo <command>`: `settings/aliases.sh` wraps `sudo` so hi's
+aliases expand in the one command it runs, and nothing past it.
+
 hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
 rules or fish palette. Each rc carries the prompt, the completions and the git
 segment, which are the product. Your own `bash.sh`, `zsh.zsh` or `config.fish`

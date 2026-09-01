@@ -8,6 +8,13 @@ hand-copied until their secrets exist. Both signing keys are in place; the AUR
 deploy key and the tap token are one-time setup ([AUR](#aur), [Homebrew
 tap](#homebrew-tap)), tracked in [docs/ROADMAP.md](ROADMAP.md).
 
+**What is live today: none of it.** Every channel on this page is built and
+tested in CI on each push and has not been published: there is no stable tag,
+no release asset, no package repository, no AUR package and no tap. Until
+[What v1.0.0 means](ROADMAP.md#what-v100-means) is ticked, the install is the
+checkout ([README](../README.md#installationusage)); this page describes the
+channels as they will ship.
+
 **Runners.** Every job runs on a plain GitHub-hosted label (`ubuntu-latest`,
 `macos-latest`, `windows-latest`); none substitutes a machine from a repo/org
 Actions variable.
@@ -42,10 +49,10 @@ directory's **parent**, because a _new_ process with no tree to derive from (a
 login shell, tmux's `update-environment`, another machine's `hi` probing this
 one) has nothing else to read.
 
-| channel              | tree                   | how `_HI_HOME` gets set                                           |
-| -------------------- | ---------------------- | ----------------------------------------------------------------- |
-| AUR, deb, rpm, apk   | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`             |
-| Homebrew             | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes        |
+| channel            | tree                   | how `_HI_HOME` gets set                                    |
+| ------------------ | ---------------------- | ---------------------------------------------------------- |
+| AUR, deb, rpm, apk | `/usr/share/say-hi`    | `/etc/profile.d/say-hi.sh`, written by `install_tree`      |
+| Homebrew           | `<keg>/libexec/say-hi` | the `bin/hi` wrapper, plus the rc line `install.sh` writes |
 
 `scripts/install.sh --prefix /usr/share` (with `$DESTDIR`) does all of this;
 its `_HI_PACKAGE_CONTENTS` and `install_tree()` decide what a packaged install
@@ -56,17 +63,17 @@ repeats the list, because `install_tree` hardcodes `/usr/bin` and
 
 ## Layout
 
-| path                 | what it is                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                        |
-| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it  |
-| `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies          |
-| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source               |
-| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes     |
-| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                   |
-| `aur/say-hi-git/`    | the same package built from `main`                                                   |
-| `homebrew/say-hi.rb` | the tap formula                                                                      |
-| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                              |
+| path                 | what it is                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                       |
+| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it |
+| `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies         |
+| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source              |
+| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes    |
+| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                  |
+| `aur/say-hi-git/`    | the same package built from `main`                                                  |
+| `homebrew/say-hi.rb` | the tap formula                                                                     |
+| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                             |
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the installed
 `hi.sh` and the version into the man page's `.TH` line. It cannot live in git:
@@ -167,7 +174,7 @@ tree can set; `release.yml` only names them.
   without it the job publishes unattended. _Deployment branches and tags_: a
   **tag** rule, `v*`. The job runs on the tag ref, so a policy listing only
   `main` refuses every release with `Tag "v1.0.0" is not allowed to deploy to
-  release due to environment protection rules` — `build` green, `publish`
+release due to environment protection rules` — `build` green, `publish`
   failed, the tag page showing source archives alone. The rule is checked
   when the job starts, so once it exists _Re-run failed jobs_ on that run
   goes on to the approval; no new tag is needed.
@@ -177,13 +184,13 @@ tree can set; `release.yml` only names them.
 - **`MINISIGN_SECRET_KEY`** — an environment secret on `release` (an
   environment secret shadows a repository one of the same name; edit the one
   that exists). Its value is the **whole** `minisign.key` file `minisign -G
-  -W` writes: line 1 `untrusted comment: …`, line 2 a 212-character base64
+-W` writes: line 1 `untrusted comment: …`, line 2 a 212-character base64
   string. Nothing else works — the `.pub` (57 characters), the base64 line
   alone, or that line truncated, wrapped or indented all fail the signing
   step with `base64 conversion failed - was an actual secret key given?` or
   `Error while loading the secret key file`; a key generated without `-W`
   stops at `Password:` because the runner has no tty (`minisign -C -W -s
-  minisign.key` strips the passphrase and keeps the pair). Before pasting,
+minisign.key` strips the passphrase and keeps the pair). Before pasting,
   check the file signs and matches the public key this runbook publishes:
 
   ```sh

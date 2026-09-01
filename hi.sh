@@ -441,11 +441,21 @@ PROBE
 # the client's $TMPDIR and then asks the target to mkdir it - fine while both
 # are /tmp, and a session that silently falls through to the PowerShell branch
 # the moment the client has $TMPDIR set, which is every macOS login shell.
-# GLOSSARY: HI.19
+#
+# The two ways it can fail once `sh` is running each say which in the exit
+# status - 64 for no base64, 65 for no scratch directory - so _say_hi can name
+# the reason and hand over the host's own session. The PowerShell notice is
+# for the other shape, where `sh` never ran at all - and telling the two apart
+# is why those two lines are `if`s rather than `|| exit N`: stock Windows
+# OpenSSH hands the command to cmd.exe, which cannot run `sh` but *does*
+# honour `||`, so a `|| exit 64` would have cmd itself exit 64 and hi call a
+# Windows box "a host with no base64". As an argument to `sh`, the `if` is
+# nothing cmd acts on, and what comes back is cmd's own "not recognized" -
+# non-zero with nothing on stdout. GLOSSARY: HI.19
 function _hi_boot_probe() {
   cat <<'PROBE'
-command -v base64 >/dev/null 2>&1 || exit 1
-d=$(mktemp -d -t hi.boot.XXXXXX) || exit 1
+if ! command -v base64 >/dev/null 2>&1; then exit 64; fi
+if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
 printf "\nHIBOOT:%s\n" "$d"
 PROBE
@@ -815,8 +825,8 @@ $(_hi_remote_suffix)"
   #
   # `mktemp -d` also creates at 0700 itself, so no separate mkdir flag is
   # needed for the mode. Six X exactly: busybox mktemp accepts no other count.
-  local boot_out
-  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_out=""
+  local boot_out boot_ec=0
+  boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_ec=$?
 
   # Tagged rather than taken whole: a target whose sh writes anything of its own
   # to stdout would otherwise prepend it to the path. Everything after the last
@@ -848,9 +858,39 @@ $(_hi_remote_suffix)"
   # (_hi_container_cmds).
   local -a tflag=()
   [ "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}" = 1 ] && tflag=(-t)
+  # An empty $boot_tmp has four causes, and only one of them is the host with
+  # no `sh` the PowerShell notice exists for. Told apart by the write's
+  # status and what came back (GLOSSARY: HI.19): the probe's own two codes;
+  # a path hi refused above; and a *forced command* - sshd's `ForceCommand`,
+  # or a `command=` on the key - which runs its own program whatever the
+  # client asked, so `sh -c` never ran and the status and output are that
+  # program's. A forced command that exits 0, or prints anything, cannot be
+  # a host with no shell (cmd.exe and PowerShell both fail `sh` non-zero and
+  # say so on stderr). Each of the three gets a line naming it and the host's
+  # own session, which is what `ssh` would have given - and for a forced
+  # command, the only session the host offers. One that exits non-zero and
+  # prints nothing to stdout is indistinguishable from a missing `sh` and
+  # gets the PowerShell notice, which it ignores like every other command.
+  local why=""
+  if [ -z "$boot_tmp" ]; then
+    case "$boot_out" in
+    *HIBOOT:*) why="[$DOMAIN] named a scratch directory hi will not use" ;;
+    *)
+      case "$boot_ec" in
+      64) why="no base64 on [$DOMAIN]" ;;
+      65) why="no writable temp directory on [$DOMAIN]" ;;
+      0) why="a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
+      *) [ -z "$boot_out" ] || why="a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
+      esac
+      ;;
+    esac
+  fi
   if [ -n "$boot_tmp" ]; then
     ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
       "sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
+  elif [ -n "$why" ]; then
+    _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
+    _say_hi_plain "${ctl_opts[@]}" || ec=$?
   else
     ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
       powershell -NoLogo -NoExit -Command \
@@ -939,9 +979,32 @@ function _say_hi_container() {
   _hi_require tar "to pack the payload" || return 1
   _hi_container_cmds "$label"
 
-  # a literal /tmp: created inside the *container*, so the client's $TMPDIR has
-  # nothing to say about it. Mode 700 at creation, like the ssh path's boot_tmp
-  root="/tmp/$(_hi_whoami).hi.log.$$"
+  # The tree's parent is the *target's* `${TMPDIR:-/tmp}`, expanded on the
+  # target - the client's $TMPDIR has nothing to say about it - so a pod with
+  # a read-only root and an emptyDir wherever its $TMPDIR points still has
+  # somewhere to land. Mode 700 at creation and no -p, like the ssh path's
+  # boot_tmp: a directory that already exists is not adopted. The path comes
+  # back from the target and is interpolated into every command run there, so
+  # it is checked the way boot_tmp is - absolute, and drawn from the characters
+  # a temp path is built from - and refused rather than escaped. A target
+  # with nowhere writable says so here, naming the directory it tried, rather
+  # than at the copy with a message about the copy; --plain needs no tree.
+  root="$("${probe[@]}" sh -c 'd="${TMPDIR:-/tmp}"; d="${d%/}/'"$(_hi_whoami).hi.log.$$"'"
+if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMPDIR:-/tmp}" >&2; exit 1; fi' 2>"$tmp")" || {
+    _hi_fail " no writable temp directory ($(cat "$tmp")) in [$DOMAIN] - --plain needs none"
+    return 1
+  }
+  case "$root" in
+  /*) ;;
+  *) root="" ;;
+  esac
+  case "$root" in
+  *[!A-Za-z0-9._/+@-]*) root="" ;;
+  esac
+  if [ -z "$root" ]; then
+    _hi_fail " [$DOMAIN] named a scratch directory hi will not use"
+    return 1
+  fi
   shell_end="$(_hi_now)"
 
   # no bash on the target means no fancy stuff, just our aliases
@@ -963,8 +1026,9 @@ function _say_hi_container() {
     esac
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
 
-    if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
+    if ! "${cp[@]}" sh -c "cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
       _hi_fail " failed to copy aliases.sh into [$DOMAIN]"
+      "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
       "${attach[@]}" "$fallback"
       return $?
     fi
@@ -1027,7 +1091,7 @@ function _say_hi_container() {
   prefix=" $size"
   echo -ne " $size" >&2
 
-  if ! "${cp[@]}" sh -c "mkdir -m 700 -p '$root' && tar mxzf - -C '$root'" <"$tarball"; then
+  if ! "${cp[@]}" sh -c "tar mxzf - -C '$root'" <"$tarball"; then
     rm -f "$tarball"
     _hi_fail " failed to copy say-hi into [$DOMAIN]"
     "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
@@ -1069,14 +1133,16 @@ function _say_hi_container() {
   return $exit_code
 }
 
-# _say_hi_plain - --plain over ssh: no bootstrap, no local-install probe, no
-# payload - just ssh handing over the target's own login shell, the way it
-# always would with no target-side config to try. Needs nothing beyond sshd
-# and a shell: no tar, no base64, no writable /tmp, no $HOME.
+# _say_hi_plain [ssh-opts...] - --plain over ssh: no bootstrap, no
+# local-install probe, no payload - just ssh handing over the target's own
+# login shell, the way it always would with no target-side config to try.
+# Needs nothing beyond sshd and a shell: no tar, no base64, no writable /tmp,
+# no $HOME. Also where _say_hi lands when the target refused its bootstrap,
+# which is when the ControlMaster options arrive in "$@".
 function _say_hi_plain() {
   local -a tflag=()
   [ "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}" = 1 ] && tflag=(-t)
-  ssh ${tflag[@]+"${tflag[@]}"} "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
+  ssh ${tflag[@]+"${tflag[@]}"} "$@" "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
 }
 
 # _say_hi_container_plain <label> - --plain over a container backend: no

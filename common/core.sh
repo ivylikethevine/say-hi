@@ -113,9 +113,18 @@ else
 fi
 
 # _hi_cecho <text> [color] [no_newline]
+#
+# %b for the palette - the colors are '\e[..m' strings until printf expands
+# them - and %s for the text. The text is not always hi's own: _hi_report_failure
+# feeds a connect errlog through here, so a backslash in a target's banner or
+# a Windows path is printed as a backslash, and a literal `\e]0;` a target
+# wrote is text rather than a title change on the client's terminal.
 function _hi_cecho() {
-  local out="${2:-}${1:-}$NC"
-  [ $# -ge 3 ] && printf '%b' "$out" || printf '%b\n' "$out"
+  if [ $# -ge 3 ]; then
+    printf '%b%s%b' "${2:-}" "${1:-}" "$NC"
+  else
+    printf '%b%s%b\n' "${2:-}" "${1:-}" "$NC"
+  fi
 }
 
 # _hi_read_lines <array-name> - stdin into that array, one element per line:
