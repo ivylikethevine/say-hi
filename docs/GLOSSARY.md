@@ -4,18 +4,16 @@ say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
 **fish** (which parses `common/paths.sh`, `settings/aliases.sh` and
 `settings.sh` natively). Targets also split between **GNU and BSD userlands**.
-Each entry below is a construct that looks odd until you know which master it
-serves.
+Each entry is a construct that looks odd until you know which master it serves.
 
-Every entry carries a stable `HI.NN` code, and a file references it with a
-`# GLOSSARY: HI.NN` tag instead of re-explaining. The tag is _mandatory_ in
-`common/`, `settings/`, `load.sh` and `hi.sh` — the files a reader meets first.
-Codes are what tags point at, so an entry can be retitled without touching a
-tagged file; codes are never reused once retired. A tag is one code, or two
-joined with `+`, with optional prose after it. `tests/lint/drift_test.sh`
-fails the build if a tag names a code this file doesn't define, or if an entry
-here is referenced by nothing. This file never ships (`docs/` is not in
-`$_HI_PAYLOAD`).
+Every entry carries a stable `HI.NN` code; a file references it with a
+`# GLOSSARY: HI.NN` tag — one code, or two joined with `+`, optional prose
+after — instead of re-explaining. The tag is _mandatory_ in `common/`,
+`settings/`, `load.sh` and `hi.sh`. Tags point at codes, so an entry can be
+retitled without touching a tagged file; codes are never reused once retired.
+`tests/lint/drift_test.sh` fails the build if a tag names a code this file
+doesn't define, or if an entry here is referenced by nothing. This file never
+ships (`docs/` is not in `$_HI_PAYLOAD`).
 
 ## Contents
 
@@ -115,12 +113,11 @@ the test suites reach the functions without running an install/bump/render.
 
 fish has no `${X:-0}`, and it sources `aliases.sh`/`paths.sh`/`settings.sh`
 natively — so every `_HI_DISABLE_*` toggle is read _bare_, and a bare read of
-an unset variable is fatal under bash's `set -u`. The toggles must therefore
-always exist: `common/core.sh` defaults the `_HI_TOGGLES` list (defaulted,
-never assigned, so settings.sh and paths.sh's gate still win),
-`common/config.fish` mirrors it with `set -q X; or set -gx X 0`, and `hi.sh`'s
-`_hi_fallback_rc` emits `export X=0` lines from the same list for bash-less
-targets.
+an unset variable is fatal under bash's `set -u`. The toggles must always
+exist: `common/core.sh` defaults the `_HI_TOGGLES` list (defaulted, never
+assigned, so settings.sh and paths.sh's gate still win), `common/config.fish`
+mirrors it with `set -q X; or set -gx X 0`, and `hi.sh`'s `_hi_fallback_rc`
+emits `export X=0` lines from the same list for bash-less targets.
 
 ## HI.08 sed tempfile rewrite
 
@@ -129,21 +126,19 @@ Rewrites go `sed > tmpfile` then write back — see HI.09 for why with `cat`.
 
 ## HI.09 cat-over-mv
 
-Writing a tempfile back over an existing file goes through the existing inode:
+A tempfile goes back over an existing file through the existing inode:
 `cat "$tmp" > "$target"; rm -f "$tmp"` (`_hi_write_back` in `common/core.sh`;
 `rewrite` in `packaging/stamp.sh` is the boundary-forced copy). `mv` would
 transplant mktemp's 0600 mode onto the target and sever any hardlink/ACL — a
 dotfile manager's hardlinked `~/.bashrc` must see the new content, and `hi.sh`
-must stay executable in the payload. Non-atomicity is acceptable for
-single-user rc files; `common/targets.sh`'s cache swap keeps `mv` deliberately,
-for atomicity over a file it owns.
+must stay executable in the payload. Non-atomicity is fine for single-user rc
+files; `common/targets.sh`'s cache swap keeps `mv` for atomicity over a file
+it owns.
 
-`_hi_write_back` additionally reads the target's mode before the `cat` and
-`chmod`s it back after, rather than trusting the truncate-in-place alone to
-carry it: a real Windows Git Bash run lost a `604` mode across this exact
-rewrite despite going through the existing inode. The `stat -c`/`stat -f`
-fallback is the same GNU/BSD split `common/config.fish`'s mtime probe already
-uses.
+`_hi_write_back` also reads the target's mode before the `cat` and `chmod`s it
+back after: a Windows Git Bash run lost a `604` mode across this exact rewrite
+despite going through the existing inode. The `stat -c`/`stat -f` fallback is
+the GNU/BSD split `common/config.fish`'s mtime probe already uses.
 
 ## HI.10 strftime %e over %-e
 
@@ -171,33 +166,30 @@ fish, and never leaves the alias pointing at a missing binary. The
 `|| command -v echo` tail keeps `set -u`/`set -e` shells alive when nothing
 matches.
 
-A second, **narrower** chain over the same family is how flags reach only the
+A second, **narrower** chain over the same family delivers flags only to the
 tier that parses them: `$_HI_BAT_REAL` is `bat || batcat` where
 `$_HI_BATCAT_BIN` is `bat || batcat || ccat || cat`, so bat-syntax options
-attach behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and leave ccat and
-coreutils `cat` the bare binary.
+attach behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and ccat and
+coreutils `cat` get the bare binary.
 
-Every chain like this sits **above** the user's overlay `aliases.sh` source in
-`settings/aliases.sh`, even though that overlay is otherwise sourced first in
-the file. Reversing the two would let an overlay `alias cat=...` poison the
-chain before it resolves - in zsh and dash (not bash, not fish) `command -v
-name` returns an _alias's_ definition once one exists, so `_HI_BATCAT_BIN`
-would end up holding the overlay's alias body instead of a real binary path.
-`alias_fallthrough_test.sh` is the regression test for this.
+Every such chain sits **above** the user's overlay `aliases.sh` source in
+`settings/aliases.sh`, though the overlay is otherwise sourced first: in zsh
+and dash (not bash, not fish) `command -v name` returns an _alias's_
+definition once one exists, so an overlay `alias cat=...` sourced first would
+leave `_HI_BATCAT_BIN` holding the alias body instead of a binary path.
+`alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
 
-bash's `trap "$cmd" EXIT` fires at real shell exit regardless of where it was
-set. zsh's does not: a trap on `EXIT` (`TRAPEXIT` included) set inside a
-function fires when _that function_ returns, not when the shell running it
-eventually does — and since `_hi_on_exit` (`common/core.sh`) is itself a
-function, every caller hit this, silently, the moment a zsh actually exercised
-the branch (nothing had, until the since-removed scratch-history file did). `add-zsh-hook`'s
-`zshexit` array is the one mechanism exempt from that scoping — it is what
-zsh's own completion system and frameworks use for the same reason — so the
-zsh arm autoloads it and registers a uniquely-named function there instead of
-touching `trap`/`TRAPEXIT` directly. `_hi_on_exit` is the only way cleanup
-traps are registered in shared code.
+bash's `trap "$cmd" EXIT` fires at real shell exit wherever it was set. zsh's
+does not: an `EXIT` trap (`TRAPEXIT` included) set inside a function fires
+when _that function_ returns — and `_hi_on_exit` (`common/core.sh`) is itself
+a function, so every caller's cleanup fired at once, silently. `add-zsh-hook`'s
+`zshexit` array is the one mechanism exempt from that scoping (zsh's own
+completion system uses it for the same reason), so the zsh arm autoloads it
+and registers a uniquely-named function there instead of touching
+`trap`/`TRAPEXIT`. `_hi_on_exit` is the only way shared code registers a
+cleanup trap.
 
 ## HI.15 strict-mode bracketing
 
@@ -205,8 +197,8 @@ Files that run inside an interactive shell (`common/core.sh`, `hi.sh`,
 `common/bash.sh`, `common/git_prompt.sh`, ...) set `set -euo pipefail` at the
 top _and disable it at the end of their own code_: left on, any later non-zero
 status or unset variable kills the user's session. The bootloader and fallback
-rc do the same on targets — forgetting it there once broke
-`hi <target> <command>` outright.
+rc do the same on targets — forgetting it there breaks `hi <target> <command>`
+outright.
 
 ## HI.16 no-fork reads
 
@@ -228,24 +220,23 @@ shell never parses its braces (fish couldn't).
 
 ## HI.18 sh -c wrapping
 
-Every command hi sends meets the target's _login_ shell first, and that shell
-may be fish, which parses neither `x=1` nor `{ ...; }` nor `||` as sh does.
+Every command hi sends meets the target's _login_ shell first, which may be
+fish — and fish parses neither `x=1` nor `{ ...; }` nor `||` as sh does.
 Wrapping everything in `sh -c '...'` is the transport's job, not per-site care
-(the install probe answered "nothing installed" on every fish-login host until
-it was wrapped). Quoting is single-quote-and-escape rather than `printf %q`,
-which escapes every space with a backslash — readable in neither the code nor
-an `ssh -v` log, and one more thing for fish to differ about.
+(unwrapped, the install probe answers "nothing installed" on every fish-login
+host). Quoting is single-quote-and-escape rather than `printf %q`, which
+backslash-escapes every space — unreadable in the code and in an `ssh -v`
+log, and one more thing for fish to differ about.
 
 ## HI.19 stdin transport
 
 The bootloader travels over **stdin of the first of two ssh calls multiplexed
-on one connection** (still one authentication), never as an argument: Linux
-caps a _single_ argv entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX`
-is, and the payload had grown within a few KB of it. It has to be two calls
-because the second one's stdin belongs to the interactive session. The script
-goes as plain text and is `cat` into place; only the three streams _inside_ it
-are armored, because only they are binary — armoring the whole script (which
-the argv era needed) spent a third of every session's bytes re-encoding ASCII.
+on one connection** (one authentication), never as an argument: Linux caps a
+_single_ argv entry at 128KB (`MAX_ARG_STRLEN`) however large `ARG_MAX` is,
+and the payload is within a few KB of it. Two calls because the second's stdin
+belongs to the interactive session. The script goes as plain text and is `cat`
+into place; only the three binary streams _inside_ it are armored — armoring
+the whole script spent a third of every session's bytes re-encoding ASCII.
 The write doubles as the probe: a target where `sh -c` won't run has no POSIX
 shell (stock Windows OpenSSH), and one without `base64` cannot unpack; either
 way the session falls through to the PowerShell branch rather than
@@ -299,43 +290,43 @@ not a literal: `_hi_session_shell` walks `common/core.sh`'s `$_HI_SHELL_TREE`
 _missing_, leaving `fish > zsh > bash`; `hi.sh`'s `$_HI_SHELL_LADDER` is the
 same tree with bash removed. One list, two consumers.
 
-`login` leads for a reason found by the framework matrix: a ranking that leads
-with fish hands it to anyone whose box has it, so a user whose login shell is
-zsh-with-oh-my-zsh never sees their own setup.
+`login` leads because a ranking that leads with fish hands it to anyone whose
+box has it, so a user whose login shell is zsh-with-oh-my-zsh would never see
+their own setup.
 
 ## HI.26 completion probe knobs
 
-`targets.sh` runs on every TAB after `hi` and a space — the most
-latency-sensitive path in say-hi and the slowest (four of five backends are a
-subprocess each). Two knobs keep it honest.
+`targets.sh` runs on every TAB after `hi` and a space — say-hi's most
+latency-sensitive path and its slowest (four of five backends are a subprocess
+each). Two knobs keep it honest.
 
-`_HI_PROBE_TIMEOUT` is the seconds a backend CLI gets (default 2, needs GNU
-or busybox `timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds
-the **whole sweep**: the backends are started together and read back in
-roster order, so four wedged daemons cost one ceiling rather than four. A host
-with no writable scratch directory falls back to the in-turn sweep, which is
-slow, not wrong. The cap is a SIGTERM with a SIGKILL 200ms behind it
-(`timeout -k 0.2`): a CLI may defer a TERM while it finishes something —
-rootless podman does, for the whole of its runtime setup, which on a fresh
-`$HOME` can outlast the cap — and without the KILL the ceiling is a request.
+`_HI_PROBE_TIMEOUT` — seconds a backend CLI gets (default 2; needs GNU or
+busybox `timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds the
+**whole sweep**: backends start together and are read back in roster order,
+so four wedged daemons cost one ceiling. A host with no writable scratch
+directory falls back to the in-turn sweep — slow, not wrong. The cap is a
+SIGTERM with a SIGKILL 200ms behind it (`timeout -k 0.2`): a CLI may defer a
+TERM while it finishes something — rootless podman does for the whole of its
+runtime setup, which on a fresh `$HOME` can outlast the cap — and without the
+KILL the ceiling is a request.
 
-`_HI_TARGETS_TTL` is the seconds a result is reused (default 5, 0 disables) —
-a just-started container may not appear until it expires. **Nothing
-invalidates it**; only the clock. Two windows stack and are offset: the file
-cache in `targets.sh` stamps when it was written, the in-shell memo in
-`common/bash.sh`/`common/zsh.zsh` stamps when that shell last read the file,
-so worst-case staleness is close to **twice** the TTL. Only
-`_HI_TARGETS_TTL=0` turns both off.
+`_HI_TARGETS_TTL` — seconds a result is reused (default 5, 0 disables); a
+just-started container may not appear until it expires. **Nothing invalidates
+it** but the clock. Two offset windows stack — the file cache in `targets.sh`
+stamps when it was written, the in-shell memo in
+`common/bash.sh`/`common/zsh.zsh` when that shell last read the file — so
+worst-case staleness is close to **twice** the TTL. Only `_HI_TARGETS_TTL=0`
+turns both off.
 
-Past the TTL the file is not discarded at once. For ten minutes after it
-expires (`stale_for` in `targets.sh`) a TAB is answered **from the stale
-copy, immediately**, and the sweep that replaces it runs behind the TAB with
-every descriptor on `/dev/null` — so no TAB inside a working session waits on
-a daemon, and the one after a refresh is current. A lock directory beside the
-cache keeps it to one refresh at a time; a lock older than any sweep runs is a
-dead refresher's and is taken over. After ten idle minutes the sweep is waited
-on again, the way a first TAB is: one pause rather than a page of names that
-no longer exist. `_HI_TARGETS_TTL=0` skips the file, and so this, entirely.
+Past the TTL the file is not discarded at once. For ten minutes after expiry
+(`stale_for` in `targets.sh`) a TAB is answered **from the stale copy,
+immediately**, and the replacing sweep runs behind it with every descriptor on
+`/dev/null` — no TAB inside a working session waits on a daemon, and the next
+one is current. A lock directory beside the cache allows one refresh at a
+time; a lock older than any sweep runs is a dead refresher's and is taken
+over. After ten idle minutes the sweep is waited on again, like a first TAB:
+one pause rather than a page of names that no longer exist.
+`_HI_TARGETS_TTL=0` skips the file, and so this, entirely.
 
 ## HI.29 apostrophes in substitution comments
 
@@ -351,8 +342,8 @@ in a real 3.2 container.
 
 Test suites hand their case functions to `_hi_check`/`_hi_case`/`_hi_par_case`
 as `"$@"`, or register them as trap hooks, so nothing in the file calls them by
-name. shellcheck reads that as dead code (SC2329), which is why every suite
-carries a file-level `# shellcheck disable=SC2329`.
+name. shellcheck reads that as dead code (SC2329), so every suite carries a
+file-level `# shellcheck disable=SC2329`.
 
 ## HI.31 porcelain branch.oid
 
@@ -371,29 +362,28 @@ behind it. Absent starship, the setting is ignored silently.
 
 ## HI.33 derived tree location
 
-`$_HI_HOME` is the directory _containing_ `say-hi`, and every file that needs
-the tree derives it from its own path rather than defaulting to `$HOME`. The
-default was a guess that was right for a standard install and wrong everywhere
-else — and when wrong it did not fail, it silently read _another tree_ (both
-platform e2e jobs spent their first real run sourcing a tree under
-`/Users/runner` that was never there). Each file asks only when `$_HI_HOME` is
-unset, so an outer export still wins and costs no fork.
+`$_HI_HOME` is the directory _containing_ `say-hi`. Every file that needs the
+tree derives it from its own path rather than defaulting to `$HOME`: the
+default was right for a standard install and wrong everywhere else, and when
+wrong it silently read _another tree_ (the platform e2e jobs sourced a tree
+under `/Users/runner` that was never there). Each file asks only when
+`$_HI_HOME` is unset, so an outer export still wins and costs no fork.
 
-`common/core.sh` owns the answer, and everything that merely _needs_ the tree
-reaches core.sh through its own path. The files that derive are the ones with
-nothing above them to ask through:
+`common/core.sh` owns the answer; everything that merely _needs_ the tree
+reaches core.sh through its own path. The files that derive have nothing above
+them to ask through:
 
-| where                                                                                               | how                                                                                                                                                                                     |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `common/core.sh`                                                                                    | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`. Answers for every file sourced through it                                                                                               |
-| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                                                   | the same, behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and the unresolved path answers `/usr`. Three copies, because each must resolve itself before it can source anything |
-| `load.sh`, `tests/test_runner.sh`                                                                   | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                           |
-| `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                          |
-| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                                     | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                          |
-| fish (`common/config.fish`)                                                                         | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                     |
-| `common/bash.sh`                                                                                    | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                 |
+| where                                                                                               | how                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `common/core.sh`                                                                                    | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                |
+| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                                                   | the same behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and unresolved it answers `/usr`. Three copies: each must resolve itself before it can source anything |
+| `load.sh`, `tests/test_runner.sh`                                                                   | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                            |
+| `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                           |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                                     | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                           |
+| fish (`common/config.fish`)                                                                         | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical      |
+| `common/bash.sh`                                                                                    | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                  |
 
-**The standalone-entry form, and why `$_HI_HOME` wins in it.** A script invoked
+**The standalone-entry form, and why `$_HI_HOME` wins in it.** A script run
 on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
 
 ```sh
@@ -402,13 +392,13 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
 ```
 
-When `$_HI_HOME` is set, _everything_ has to come from there, core.sh included:
+With `$_HI_HOME` set, _everything_ comes from there, core.sh included:
 reaching core.sh through the script's own path while `$_HI_ROOT` came from
 `$_HI_HOME` runs two trees in one process, silently.
 
 Two places keep a fallback, and both say so out loud. `hi.sh` prints
 `set _HI_HOME to the directory that holds it` and exits when the derived path
-holds no tree. And on a _target_ — the one machine with no checkout to derive
+holds no tree. On a _target_ — the one machine with no checkout to derive
 from — `_hi_remote_root`'s probe asks in order:
 
 1. `export _HI_HOME=` / `set -gx _HI_HOME` in `~/.bashrc`, `~/.zshrc`,
@@ -420,27 +410,31 @@ from — `_hi_remote_root`'s probe asks in order:
    `/usr/local/share`, `/opt`, `/usr/share`, and Homebrew's four default keg
    prefixes (`~/.linuxbrew`, `/home/linuxbrew/.linuxbrew`, `/opt/homebrew`,
    `/usr/local`, each under `opt/say-hi/libexec`). Homebrew's formula writes no
-   rc line, so a brew-installed target was invisible to tiers 1 and 2 and got
-   the payload copied over a tree already sitting there. Best-effort by
-   construction, strictly a fallback, two builtins per candidate and no forks.
+   rc line, so without this tier a brew-installed target gets the payload
+   copied over a tree already there. Best-effort, strictly a fallback, two
+   builtins per candidate and no forks.
 
-Each candidate is tried as `<home>/say-hi`. The probe's `sed` uses separate
-`-e` expressions rather than `\(a\|b\)` (BRE alternation is a GNU extension),
-and a second `sed` unwraps the value, because `config_shell` writes the path
-quoted _and_ pads a `# added by hi during install` marker onto every line it
-owns. Its expressions are **ordered**: the comment strip runs first, addressed
-to lines that do _not_ begin with a quote (`/^"/!`), and the unquoting second —
-the other order would strip from a `#` inside the quotes. `IFS` is a newline
-for the candidate loop, so an install directory with a space is one candidate.
+Each candidate is tried as `<home>/say-hi`. The probe's `sed`:
 
-`tests/lint/drift_test.sh`'s `lint_home_default` greps the tree for the
-retired spellings — over `.md` too, since docs teaching a retired spelling are what a
-packager reads.
+- uses separate `-e` expressions, not `\(a\|b\)` — BRE alternation is a GNU
+  extension;
+- is followed by a second `sed` that unwraps the value, because
+  `config_shell` writes the path quoted _and_ pads a
+  `# added by hi during install` marker onto every line it owns;
+- is **ordered**: the comment strip first, addressed to lines that do _not_
+  begin with a quote (`/^"/!`), the unquoting second — the other order would
+  strip from a `#` inside the quotes;
+- loops over candidates with `IFS` set to a newline, so an install directory
+  with a space is one candidate.
+
+`tests/lint/drift_test.sh`'s `lint_home_default` greps the tree, `.md`
+included, for the retired spellings — a doc teaching a retired spelling is
+what a packager reads.
 
 ## HI.34 test suite preamble
 
-Every suite under `tests/` opens with the same four lines, four separate
-mechanisms rather than boilerplate:
+Every suite under `tests/` opens with the same four lines — four separate
+mechanisms, not boilerplate:
 
 ```sh
 # GLOSSARY: HI.30 + HI.34
@@ -456,68 +450,65 @@ harness is found through the tree the runner resolved. The `${...:-}` tail is
 the fallback for running a suite directly; its `../` depth is the suite's
 distance from `tests/`, so a suite that moves has to have it re-counted.
 
-`test_lib.sh` sources `common/core.sh` itself. A suite sources the harness and
-never core.sh: doing both runs core.sh's initialisation twice, the second time
-after the harness has moved `$XDG_CONFIG_HOME` into the scratch dir. The
-`# shellcheck source=` line is a directive the linter follows, and
-`# shellcheck disable=SC2329` is HI.30. Both stay verbatim above their
-statement.
+`test_lib.sh` sources `common/core.sh` itself; a suite sources the harness and
+never core.sh, or core.sh initialises twice, the second time after the harness
+has moved `$XDG_CONFIG_HOME` into the scratch dir. The `# shellcheck source=`
+line is a directive the linter follows, and `# shellcheck disable=SC2329` is
+HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment strip
 
 Every `*.sh`, `*.zsh` and `*.fish` file is comment-stripped on its way into the
 payload (`_hi_strip_awk` and `_hi_payload_tar` in `hi.sh`) — about 40% of the
-shipped shell is comment. `bench_payload_readme_badge` keeps README's badge
-honest against the result.
+shipped shell is comment. `bench_payload_readme_badge` checks README's badge
+against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
 told from `${x#y}`, `$#` or a `#` in a string without a real parser. **Never
-inside a heredoc**: those bodies are data the target reads, and one of them is
-`hi --help`. The comment test runs _before_ the heredoc-open test, on purpose: a
-comment mentioning `<<WORD` would otherwise open a heredoc that never closes
-and silently stop stripping the rest of the file.
+inside a heredoc**: those bodies are data the target reads, one of them
+`hi --help`. The comment test runs _before_ the heredoc-open test: a comment
+mentioning `<<WORD` would otherwise open a heredoc that never closes and
+silently stop stripping the rest of the file.
 
 `_HI_KEEP_COMMENTS=1` ships the tree verbatim. `tests/hi/payload_test.sh` pins
 the rest: no full-line comment survives outside `hi.sh`'s heredocs, every code
 line survives byte for byte, the result still parses, and `hi.sh` keeps its
-exec bit — which is why the write-back is HI.09's `cat`, the target's probe
-testing `[ -x .../hi.sh ]` before it trusts a tree.
+exec bit — hence HI.09's `cat` for the write-back; the target's probe tests
+`[ -x .../hi.sh ]` before it trusts a tree.
 
 ## HI.36 overlay toggle source
 
 `_hi_overlay_toggle` (`hi.sh`, over `common/core.sh`'s `_hi_setting_get`)
-reads `$_HI_CONFIG_DIR/settings.sh` as a _file_ rather than off the exported
-environment, and that distinction is the whole point: settings.sh rides along
-and is sourced on the target, so it is the value that will apply there. The
-client's exported copy means something else — `_HI_DISABLE_LOCAL=1` is "leave
-my machine alone but style the hosts I visit", and trimming the payload on it
-would stop shipping files to targets that never disabled them.
-`_hi_setting_get` gets there by sourcing the file in a subshell and reading
-one name back, so it sees exactly what a real `.` of it would - quoted or
-bare values, the install marker padded after a bare one, last assignment
-wins - with nothing that happens inside the subshell reaching the caller.
+reads `$_HI_CONFIG_DIR/settings.sh` as a _file_, not off the exported
+environment: settings.sh rides along and is sourced on the target, so the file
+holds the value that will apply there. The client's exported copy means
+something else — `_HI_DISABLE_LOCAL=1` is "leave my machine alone but style
+the hosts I visit", and trimming the payload on it would stop shipping files
+to targets that never disabled them. `_hi_setting_get` sources the file in a
+subshell and reads one name back, so it sees what a real `.` would — quoted or
+bare values, the install marker after a bare one, last assignment wins — and
+nothing in the subshell reaches the caller.
 
 ## HI.37 zsh pattern-in-variable
 
 `_hi_ssh_pattern_hit` (`common/core.sh`) matches a name against `Host`/`Match
-host` glob patterns read out of `~/.ssh/config` — `*` and `?` mean the same in
-ssh's syntax as in a `case` pattern, so only a way to try each pattern that
-survives both bash and zsh is needed.
+host` glob patterns from `~/.ssh/config`. `*` and `?` mean the same in ssh's
+syntax as in a `case` pattern; the difficulty is trying each pattern in a way
+that survives both bash and zsh.
 
-Two zsh divergences stack. First, zsh does not word-split an unquoted
-variable, so `for pat in $patterns` never iterates; `setopt localoptions
-shwordsplit` fixes that, scoped to the function. Second — same symptom, a
-`case` that never matches — zsh does not treat `*` in a _variable's_ value as
-an active wildcard unless `GLOB_SUBST` is set. The tempting `setopt globsubst`
-breaks the first fix: splitting `$patterns` then also glob-expands each token
-against real files, and a pattern matching nothing on disk errors the loop out.
-`${~pat}` is the escape: a per-expansion toggle asking zsh to treat that one
-substitution as a pattern. Bash does not understand it, so the function
-branches on `$ZSH_VERSION`.
+Two zsh divergences stack. zsh does not word-split an unquoted variable, so
+`for pat in $patterns` never iterates; `setopt localoptions shwordsplit` fixes
+that, scoped to the function. And zsh does not treat `*` in a _variable's_
+value as an active wildcard unless `GLOB_SUBST` is set — same symptom, a
+`case` that never matches. The tempting `setopt globsubst` breaks the first
+fix: the split tokens are then also glob-expanded against real files, and a
+pattern matching nothing on disk errors the loop out. `${~pat}` is the escape,
+a per-expansion toggle treating that one substitution as a pattern; bash does
+not understand it, so the function branches on `$ZSH_VERSION`.
 
 A `!`-prefixed token (ssh's per-pattern negation) is not honored as exclusion —
 it survives as a literal pattern nothing is ever named, so it is inert rather
-than wrong; the cost is a wrongly-colored excluded host, which is cosmetic.
+than wrong; the cost, a wrongly-colored excluded host, is cosmetic.
 
 ## HI.38 split tar and gzip
 
@@ -526,97 +517,93 @@ two userlands pad differently, and only one pads something that survives
 compression: GNU tar rounds the _uncompressed_ archive up to the 10240-byte
 blocking factor and then gzips it, so its trailing NULs cost about thirty
 bytes; bsdtar — macOS's `/usr/bin/tar` — pads the _compressed output stream_,
-appending raw NULs after the gzip member. Every payload a BSD client built was
-therefore a multiple of 10240: about 27% waste on a stock payload and a flat
-54× on a two-file overlay (189 B against 10240). Splitting the steps agrees
-with GNU tar to within a few bytes under both userlands and is byte-stable run
-to run.
+appending raw NULs after the gzip member, so every payload a BSD client built
+was a multiple of 10240: about 27% waste on a stock payload and a flat 54× on
+a two-file overlay (189 B against 10240). Split, the steps agree with GNU tar
+to within a few bytes under both userlands and are byte-stable run to run.
 
-Two details ride along. `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail`
-back off for interactive sourcing, so a failing tar would otherwise hide
-behind a successful gzip and ship a truncated payload — both halves are
-checked. And a client with no `gzip` degrades to `tar czf -` rather than
-failing: padded again on bsdtar, but a working payload, the right trade on a
-client that lean.
+`${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail` back off for
+interactive sourcing, so a failing tar would otherwise hide behind a
+successful gzip and ship a truncated payload — both halves are checked. A
+client with no `gzip` degrades to `tar czf -` rather than failing: padded
+again on bsdtar, but a working payload.
 
 ## HI.39 payload staging
 
 `_hi_payload_tar` (`hi.sh`) ships the tree minus whatever the overlay has
-switched off, and comment-stripped (HI.35). Three things about how.
+switched off, comment-stripped (HI.35).
 
 **Trimmed by toggle, on the client.** `$_HI_PAYLOAD` is whole directories, so
 without `_HI_TRIM_TABLE` a session ships files it has been told not to use;
 the client reads `settings.sh` (HI.36) before building the tar, so this costs
-no probe. One table feeds both halves — the tree files and the overlay files a
+no probe. One table feeds both halves — tree files and the overlay files a
 toggle takes off — because off has to take _both_ off or a switched-off toggle
 still ships a file. `settings/aliases.sh` is never trimmed: it carries the
-whole alias set and every consumer of `common/osc52.sh` and `common/notify.sh`
-tests the file exists first, so trimming the emitters is safe.
+whole alias set, and every consumer of `common/osc52.sh` and
+`common/notify.sh` tests the file exists first, so trimming the emitters is
+safe.
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
-(reusing the exclusion list exactly; `-h` resolves symlinks so the stage holds
-real files). The whole thing runs in a subshell so cleanup can be an `EXIT`
-trap rather than an `rm` on each way out — a ^C during a slow payload build
-would otherwise skip that `rm` and leave the stage behind in the client's
+(same exclusion list; `-h` resolves symlinks so the stage holds real files).
+The subshell lets cleanup be an `EXIT` trap rather than an `rm` on each way
+out — a ^C during a slow build would otherwise leave the stage in the client's
 tmp. `INT` and `TERM` are trapped explicitly to `exit`, since a signal that
 kills the subshell outright never reaches the `EXIT` trap; set in the
 function's own shell the trap would replace the one `_hi` installed for its
 error log.
 
-**One awk, then `_hi_write_back`.** Every file is stripped by a single awk
-invocation (each lands in `<file>.strip`), and the result goes back with HI.09's
-`cat`, not `mv`: the strip file's mode would otherwise land on the target and
+**One awk, then `_hi_write_back`.** A single awk invocation strips every file
+(each lands in `<file>.strip`), and the result goes back with HI.09's `cat`,
+not `mv`: the strip file's mode would otherwise land on the target, and
 `hi.sh` has to stay executable — the install probe tests `[ -x .../hi.sh ]`.
 
 ## HI.40 hand-rolled sh quoting
 
 `_hi_shquote` (`hi.sh`) turns a value into one single-quoted `sh` word by
 walking it with prefix/suffix removal rather than the obvious
-`${2//\'/\'\\\'\'}`: bash 3.2 — the floor, and the bash macOS ships —
-leaves the quoting of the replacement word in the result, so that spelling
-emits a word no `sh` can parse. Prefix and suffix removal answer the same on
-every bash there is.
+`${2//\'/\'\\\'\'}`: bash 3.2 — the floor, and the bash macOS ships — leaves
+the quoting of the replacement word in the result, so that spelling emits a
+word no `sh` can parse. Prefix and suffix removal answer the same on every
+bash.
 
-It exists because everything `hi.sh` bakes into a script for the target is
-text the target's shell will parse, and some of it is data: `$DOMAIN` off
-argv, `$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE`
-off `git describe --dirty`. A `$`, a quote or a backtick in any of them,
-unescaped, breaks the bootloader's parse and lets the target run a command
-substitution it should not. `_hi_ssh_sh` quotes its `sh -c` word
-through the same function, so the transports cannot drift into two dialects,
-and `_hi_env_each` takes values already quoted (`%s=%s`, never `%s="%s"`) so
-quoting is one decision rather than one per transport.
+Everything `hi.sh` bakes into a script for the target is text the target's
+shell will parse, and some of it is data: `$DOMAIN` off argv,
+`$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE` off
+`git describe --dirty`. An unescaped `$`, quote or backtick in any of them
+breaks the bootloader's parse and lets the target run a command substitution
+it should not. `_hi_ssh_sh` quotes its `sh -c` word through the same function,
+so the transports cannot drift into two dialects, and `_hi_env_each` takes
+values already quoted (`%s=%s`, never `%s="%s"`), so quoting is one decision
+rather than one per transport.
 
 ## HI.41 overlay stream
 
-The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) travels as a
-second, much smaller archive rather than inside the payload, because it lives
-outside the tree. It lands in a `config/` of its own beside `settings/`, with
-`$_HI_CONFIG_DIR` pointing there, rather than over `settings/`:
-`settings/aliases.sh` sources `$_HI_CONFIG_DIR/aliases.sh` last, so one
-directory would make it source itself forever. It is omitted entirely when
-there is nothing to send.
+The user's config overlay (`$_HI_OVERLAY_FILES` in `hi.sh`) lives outside the
+tree, so it travels as a second, much smaller archive rather than inside the
+payload. It lands in a `config/` of its own beside `settings/`, with
+`$_HI_CONFIG_DIR` pointing there, never over `settings/`: `settings/aliases.sh`
+sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
+source itself forever. It is omitted when there is nothing to send.
 
 `vim.rc` and `nano.rc` ride it for the same reason `colors` and `packages` do:
-the tree copy is a default and `common/paths.sh` points `$_HI_VIMRC` /
-`$_HI_NANORC` at the overlay's when there is one. Without them in the stream
-that guard could only fire on the client, so an editor override worked locally
-and silently reverted on every target — the asymmetry `paths_test.sh`'s
+the tree copy is a default, and `common/paths.sh` points `$_HI_VIMRC` /
+`$_HI_NANORC` at the overlay's when there is one. Left out of the stream, that
+guard could only fire on the client — an editor override working locally and
+silently reverting on every target, the asymmetry `paths_test.sh`'s
 guard/roster pin catches one layer up.
 
 ## HI.42 recent targets
 
 `_hi_record_recent` (`hi.sh`) appends one `<epoch>\t<target>` line to the
-recent-targets file after a session that ended cleanly, and
-`common/targets.sh` ranks completion by it (frecency: what you connect to most,
-and most recently, is offered first). Client-side only: a session's own `hi` (a
-relay hop) writes nothing, so nothing about a client's habits lands on a
-target, and the file is not in `$_HI_PAYLOAD`. `_HI_RECENT=0` turns off both
-halves. Every write may fail quietly — a read-only `$HOME` is not a reason to
-fail a session that already ended well. The file is trimmed in place past 500
-lines to the newest 300, so it stays a few KB however long a machine is used
-and the rank cost stays flat.
+recent-targets file after a session that ended cleanly; `common/targets.sh`
+ranks completion by it (frecency: most and most recently connected first).
+Client-side only: a session's own `hi` (a relay hop) writes nothing, so
+nothing about a client's habits lands on a target, and the file is not in
+`$_HI_PAYLOAD`. `_HI_RECENT=0` turns off both halves. Every write may fail
+quietly — a read-only `$HOME` is no reason to fail a session that already
+ended well. Past 500 lines the file is trimmed in place to the newest 300, so
+it stays a few KB and the rank cost flat.
 
 ## HI.43 container target grammar
 
@@ -633,45 +620,43 @@ one, so a prefixed name can only mean a pod; no prefix means whatever kubectl
 points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
 pods outside the current namespace. A multi-container pod resolves on the pod
 half; kubectl checks the container half when the session runs and fails loudly
-on a name that is not there — better than declining silently and falling
-through to ssh.
+on a missing name — better than declining silently and falling through to ssh.
 
-docker alone also answers to a compose service name (`_hi_compose_container`),
-when exactly one running container carries that label. Ambiguous (two projects,
-same service) and absent both fail rather than guess — a wrong guess would land
-a session in someone else's container — and the lookup runs only when the
-literal name does not already resolve, so the common case pays for one
-inspect, not two.
+docker alone also answers to a compose service name (`_hi_compose_container`)
+when exactly one running container carries that label. Ambiguous (two
+projects, same service) and absent both fail rather than guess — a wrong guess
+lands a session in someone else's container — and the lookup runs only when
+the literal name does not resolve, so the common case pays one inspect.
 
 ## HI.44 wire size token
 
-The connect line prints the size of the script the session sent, but that
-script cannot know its own size while it is being assembled. `_say_hi`
-(`hi.sh`) builds it with `$_HI_SIZE_TOKEN` (`@@SIZE@@`, wider than any figure)
-standing in, measures `${#script}`, and substitutes the human figure back —
-honest to a few bytes, since the streams inside are already armored and the
-script goes over the wire as it stands. `_hi_wire_bytes` — what `hi --doctor`
-and the README badge quote — assembles the same script through the same
+The connect line prints the size of the script the session sent, but the
+script cannot know its own size while being assembled. `_say_hi` (`hi.sh`)
+builds it with `$_HI_SIZE_TOKEN` (`@@SIZE@@`, wider than any figure) standing
+in, measures `${#script}`, and substitutes the human figure back — honest to a
+few bytes, since the streams inside are already armored and the script goes
+over the wire as it stands. `_hi_wire_bytes` — what `hi --doctor` and the
+README badge quote — assembles the same script through the same
 `_preamble`/`_middle`/`_suffix` rather than summing the armored streams:
-summing skips the boilerplate they are wrapped in and reads ~6KB low, and a
-badge has to show the number the user sees. No overlay is counted there, since
-which files ride is a question about a target.
+summing skips the boilerplate around them and reads ~6KB low, and a badge has
+to show the number the user sees. No overlay is counted, since which files
+ride is a question about a target.
 
 ## HI.46 session rc directory
 
 `load.sh`'s `_hi_session_rc_setup` writes one rc per shell into a `mktemp -d`
-of hi's own and exports `$_HI_SESSION_RC` at it. It exists because the shell a
-user types at is **not** the one `hi.sh` starts: `bash --rcfile hi.bashrc`
-starts the _bootloader_, which sources `load.sh` and calls `load()`, and
-`load()` then starts the session shell. A bare `$shell -i` there reads the
-target's `~/.bashrc` — so the session shell is pointed at hi's own rc
-directly, and the target's own rc files are never written.
+of hi's own and exports `$_HI_SESSION_RC` at it. The shell a user types at is
+**not** the one `hi.sh` starts: `bash --rcfile hi.bashrc` starts the
+_bootloader_, which sources `load.sh` and calls `load()`, which starts the
+session shell. A bare `$shell -i` there would read the target's `~/.bashrc`,
+so the session shell is pointed at hi's own rc and the target's rc files are
+never written.
 
 Each generated rc sources the target's own first (`~/.bashrc`, `~/.zshrc`, and
 `~/.zshenv` — `ZDOTDIR` moves _all_ of zsh's startup files, not just `.zshrc`),
 then hi's on top, so the host's configuration still applies underneath.
 
-Three variables are exported, and which shell needs which is the whole design:
+Three variables are exported; which shell needs which is the design:
 
 | shell         | reached by      | inherited by a nested shell?   |
 | ------------- | --------------- | ------------------------------ |
@@ -680,58 +665,60 @@ Three variables are exported, and which shell needs which is the whole design:
 | bash          | `--rcfile`      | no — needs a wrapper           |
 | fish          | `-C 'source …'` | no — needs a wrapper           |
 
-`$ZDOTDIR` and `$ENV` are read by any zsh or POSIX shell started inside the
-session however it was started, including by something that is not a shell.
-bash and fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash
-only), so `settings/aliases.sh` defines a `bash` and a `fish` wrapper off
+`$ZDOTDIR` and `$ENV` reach any zsh or POSIX shell started inside the session,
+however it was started, including by something that is not a shell. bash and
+fish have no equivalent (`$BASH_ENV` is for _non_-interactive bash only), so
+`settings/aliases.sh` defines a `bash` and a `fish` wrapper off
 `$_HI_SESSION_RC`. Both bodies begin with `command`: fish's `alias` builds a
 function of that name, and without it `fish` would call itself forever.
 
-What the wrappers cannot cover is a bash or fish shell nothing typed — a
-`tmux` pane spawning a login shell, an editor's shell-out — which comes up as
-the host's own. hi writes nothing into a target's login files
+The wrappers cannot cover a bash or fish shell nothing typed — a `tmux` pane
+spawning a login shell, an editor's shell-out — which comes up as the host's
+own. hi writes nothing into a target's login files
 ([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the reasoning).
 
 ## HI.47 what a child inherits
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
-core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The
-roster is eight names: the tree and overlay pointers (`$_HI_HOME`,
-`$_HI_CONFIG_DIR` — the overlay on a target is wherever `hi.sh` put it, and
-cannot be re-derived), `$_HI_REMOTE_SESSION`, `$_HI_SESSION_RC` (HI.46's
-wrappers are re-defined in every nested shell), and the four knobs
-`sh targets.sh` reads straight off its environment from a completion
-(`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_RECENT`, `_HI_RECENT_FILE`).
+core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
+is eight names:
 
-It works by taking the attribute off, not by never setting it.
-`common/paths.sh` is parsed by fish as well as sh, zsh and bash, and that
-dialect has exactly one assignment all four accept — `export NAME=value` — so
-every name it sets arrives exported, sixty-odd of them. Each interactive rc
-(`bash.sh`, `zsh.zsh`, `config.fish`) then un-exports the lot as the last thing
-in its required block: `_hi_unexport` in core.sh (bash `export -n`, zsh
-`typeset -g +x` — a bare `typeset` inside a function declares a local), and a
-`set -gu NAME $NAME` loop in config.fish. The values stay, as shell variables:
-`now` expands `$_HI_HUMAN_SHORT_DATE` when it is typed, the prompt reads the
-colour memos every render, and a `$( )` is a fork rather than an exec. Every
-alias that names a path expanded it at definition time and never needed the
-variable to survive at all. Last in the block on purpose: the overlay's
-per-shell rc runs after it, and can `export` whatever it wants a child to see.
+- `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
+  `hi.sh` put it, and cannot be re-derived;
+- `$_HI_REMOTE_SESSION`;
+- `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_RECENT`, `_HI_RECENT_FILE` —
+  the knobs `sh targets.sh` reads straight off its environment from a
+  completion.
 
-The client's verdicts — `hi.sh`'s `_hi_session_env`, pinned to core.sh's
-`_HI_SESSION_VARS` — are the reason the flip is not enough on its own. Two of
-them (`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) name the operator's workstation,
-which is the one thing a target's process table should never learn from hi;
-they are not in the roster, so a nested shell cannot inherit them. `load.sh`'s
+It works by taking the attribute off, not by never setting it. fish parses
+`common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
+accept is `export NAME=value`, so every name it sets arrives exported —
+sixty-odd. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
+un-exports the lot as the last thing in its required block: `_hi_unexport` in
+core.sh (bash `export -n`, zsh `typeset -g +x` — a bare `typeset` inside a
+function declares a local), and a `set -gu NAME $NAME` loop in config.fish.
+The values stay as shell variables: `now` expands `$_HI_HUMAN_SHORT_DATE` when
+typed, the prompt reads the colour memos every render, and a `$( )` is a fork
+rather than an exec; an alias that names a path expanded it at definition
+time. Last in the block so the overlay's per-shell rc, which runs after it,
+can `export` whatever it wants a child to see.
+
+The flip alone is not enough because of the client's verdicts — `hi.sh`'s
+`_hi_session_env`, pinned to core.sh's `_HI_SESSION_VARS`. Two of them
+(`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) name the operator's workstation, the
+one thing a target's process table should never learn from hi; they are not in
+the roster, so a nested shell cannot inherit them. `load.sh`'s
 `_hi_session_rc_setup` writes them into each session rc instead (HI.46), as
-plain assignments between the target's own rc and hi's, and fish — which
-shells out to bash for the header and the colours — hands them to that one
-`bash -c` through `__hi_bash`'s function-scoped exports (`set -fx`; a `-l`
-inside the loop would be block-scoped and gone before the command runs).
+plain assignments between the target's own rc and hi's; fish, which shells out
+to bash for the header and the colours, hands them to that one `bash -c`
+through `__hi_bash`'s function-scoped exports (`set -fx`; a `-l` inside the
+loop would be block-scoped and gone before the command runs).
 
-What is not covered, and why: a POSIX `sh` started inside a session reads
-`$ENV`, which sources `paths.sh` and exports the roster into _that_ shell
-again — dash has no un-export. The bash-less fallback rc (HI.20) has the same
-shape for the same reason. Both are the tiers below what `load.sh` styles.
+Not covered: a POSIX `sh` started inside a session reads `$ENV`, which sources
+`paths.sh` and exports the roster into _that_ shell again — dash has no
+un-export. The bash-less fallback rc (HI.20) has the same shape for the same
+reason. Both are tiers below what `load.sh` styles.
 `tests/common/exports_test.sh` pins the contract: the child environment in
 all three shells, config.fish's two mirrors against core.sh, `_hi_session_env`
 against `_HI_SESSION_VARS`, every env read in targets.sh against the roster,

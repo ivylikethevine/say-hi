@@ -1,0 +1,6 @@
+# docs/tldr.md is a tldr-pages draft and has to stay byte-for-byte in that
+# project's style; everything else prettier could format is either generated
+# (dist/) or not markdown.
+docs/tldr.md
+dist/
+.claude/

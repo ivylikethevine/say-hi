@@ -3,10 +3,10 @@ contact_links:
   - name: Report a vulnerability
     url: https://github.com/ivylikethevine/say-hi/security/advisories/new
     about: >-
-      Anything exploitable goes here privately, never in a public issue.
-      docs/SECURITY.md also lists an email address.
+      Anything exploitable goes here privately, never in a public issue
+      (docs/SECURITY.md).
   - name: What hi does on a target
     url: https://github.com/ivylikethevine/say-hi/blob/main/docs/SECURITY.md
     about: >-
-      What it copies, what it appends to which rc files, and what it removes on
-      exit — worth reading before deciding something is a bug.
+      What it copies, where it writes, and what it removes on exit — worth
+      reading before deciding something is a bug.

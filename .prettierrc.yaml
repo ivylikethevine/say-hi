@@ -1,0 +1,15 @@
+# Prettier is what Zed formats Markdown with on save; this pins its defaults so
+# a hand run (`npx prettier --write '**/*.md'`) produces the same bytes and
+# agrees with .markdownlint.yaml, .editorconfig and .moxide.toml:
+#   - proseWrap preserve: the docs are hand-wrapped at ~80 columns and MD013 is
+#     off, so line breaks are the author's, not the formatter's
+#   - tabWidth 2 / lf: .editorconfig's values, restated so prettier needs no
+#     editorconfig lookup
+#   - emphasis is not configurable: prettier writes `_italic_` and `**bold**`,
+#     which is exactly what MD049 (underscore) and MD050 (asterisk) require
+#   - tables are re-padded to aligned pipes, which is MD060's "aligned" style
+proseWrap: preserve
+printWidth: 80
+tabWidth: 2
+useTabs: false
+endOfLine: lf

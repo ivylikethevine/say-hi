@@ -1,31 +1,22 @@
 #!/usr/bin/env bash
 # Warn when docs/tapes/demo.gif is older than the things that decide what it
 # shows. Warn, never block: demo.gif is a manual artifact reviewed by eye
-# (docs/tapes/generate.sh says so at the top), and a check that refused a
-# commit would be making that call for you. Exit status is always 0.
+# (docs/tapes/generate.sh), so exit status is always 0. Run by hand, as the
+# pre-commit hook beside it, or by ci.yml's advisory-lint job - see
+# docs/PACKAGING.md's "Regenerating the demo GIFs". Lives in .githooks/ because
+# scripts/ is in $_HI_PACKAGE_CONTENTS (a hook has no business in
+# /usr/share/say-hi, and a subdirectory there falls through nfpm.yaml's
+# one-level apk globs).
 #
-# Run by hand, as the pre-commit hook beside it, or by ci.yml's advisory-lint
-# job on every pull request - see docs/PACKAGING.md's "Regenerating the demo
-# GIFs". It lives in .githooks/ rather than scripts/
-# because scripts/ is in $_HI_PACKAGE_CONTENTS: a contributor's git hook has no
-# business in /usr/share/say-hi, and a subdirectory under scripts/ also falls
-# straight through nfpm.yaml's one-level apk globs (packaging_test.sh fails on
-# it).
-#
-# Only the topmost README demo, on purpose - the only demo this could apply
-# to. It is the one GIF that claims to be the stock defaults with
-# nothing turned off, so it is the one that goes quietly wrong when the header,
-# the prompt or the tape changes, and the one a person still renders by hand.
-# The other seven each advertise a knob and are rendered by CI on a cadence
-# (.github/workflows/demos.yml), so nothing here has to watch them.
+# Only the topmost README demo: it is the one GIF that claims the stock
+# defaults and the one still rendered by hand. The other seven each advertise
+# a knob and are rendered by CI (.github/workflows/demos.yml).
 set -euo pipefail
 
-# Deliberately NOT the standalone-entry form of GLOSSARY: HI.33. That form lets
-# $_HI_HOME win, which is correct for a hi entry point and wrong for a git hook:
-# a hook has exactly one honest subject, the repository it was invoked in. An
-# inherited _HI_ROOT - a long-lived shell still carrying a whole _HI_* set from
-# some other checkout - would otherwise silently point every `git log` below at
-# that tree and report on it instead, which is a check that always passes.
+# Deliberately NOT the standalone-entry form of GLOSSARY: HI.33, which lets
+# $_HI_HOME win: a hook's only honest subject is the repository it was invoked
+# in, and an inherited _HI_ROOT from another checkout would silently point
+# every `git log` below at that tree - a check that always passes.
 _HI_REPO="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$_HI_REPO" ] || exit 0
 # ...and if that repository is not say-hi, there is nothing here to check.
@@ -35,11 +26,9 @@ source "$_HI_REPO/common/core.sh"
 
 _HI_DEMO_GIF="docs/tapes/demo.gif"
 
-# What the frame is made of: the tape and its fixtures (the target's image
-# among them - its tools and its checkout are half of what is on screen), plus
-# the tree the session in it actually runs - which is $_HI_PAYLOAD, the same
-# allow list hi.sh ships over the wire. The rest of docs/ and tests/ is
-# deliberately not here: it cannot change a pixel.
+# What the frame is made of: the tape, its fixtures (the target's image among
+# them) and the tree the session runs - $_HI_PAYLOAD, the allow list hi.sh
+# ships. The rest of docs/ and tests/ cannot change a pixel.
 _HI_DEMO_INPUTS="
 docs/tapes/demo.tape
 docs/tapes/common.tape

@@ -1,20 +1,14 @@
-# Source - https://stackoverflow.com/a/74551354
-# Posted by Gabriel M. Silva
-# Retrieved 2026-08-14, License - CC BY-SA 4.0
-
-# Default state for all rules
+# Source - https://stackoverflow.com/a/74551354 (Gabriel M. Silva, retrieved
+# 2026-08-14, CC BY-SA 4.0)
 default: true
 
-# MD013/line-length - Line length
-# MD049 defaults to "consistent", which infers the style from whichever
-# emphasis a file happens to use first - so the same text is a violation in one
-# file and correct in the next, and a generated or pasted paragraph flips a
-# whole file's expectation. Naming the style is what makes the answer the same
-# everywhere. Underscore because that is what the docs already overwhelmingly
-# use; `**bold**` is MD050's business and stays asterisks.
+# MD049 "consistent" would infer the emphasis style per file; naming it makes
+# the answer the same everywhere. Underscore is what the docs already use;
+# **bold** is MD050's business and stays asterisks.
 MD049:
   style: underscore
 
+# MD013/line-length
 MD013:
   line_length: 9999
   tables: false

@@ -1,54 +1,37 @@
 name: Scorecard
 
-# OpenSSF Scorecard. It has been run and the first report read (docs/ROADMAP.md
-# records what it found), so it is on a schedule now rather than dispatch-only -
-# a supply-chain score is only useful as a trend, and the checks it grades move
-# when dependabot bumps an action, not when anyone remembers to press a button.
-#
-# The results are shown in two places, which answer different questions.
-# Privately, the SARIF is uploaded to code scanning, so findings land in the
-# repo's Security tab with file and line rather than inside an artifact nobody
-# downloads. Publicly, publish_results puts the score on the OpenSSF API that
-# README's Scorecard badge reads.
-#
-# publish_results takes effect on a workflow_dispatch too, not only the
-# schedule - the action's own gate is just "not a pull_request event" - so a
-# manual run is enough to confirm a fix without waiting for Tuesday. The cron
-# above is what keeps the badge current day to day, not what makes it work.
+# OpenSSF Scorecard, weekly: a supply-chain score is only useful as a trend,
+# and the checks it grades move when dependabot bumps an action. The SARIF
+# goes to code scanning (findings in the Security tab with file and line) and
+# publish_results puts the score on the OpenSSF API README's badge reads.
+# publish_results fires on workflow_dispatch too (the action's gate is only
+# "not a pull_request"), so a manual run confirms a fix without waiting.
 on:
   schedule:
     - cron: "41 7 * * 2"
   workflow_dispatch:
 
-# read-all is the floor; the analysis job takes the two write scopes it needs
-# below. Job-level permissions replace the workflow-level block rather than
-# adding to it, which is why that job spells out its read scopes again.
+# read-all is the floor; job-level permissions replace this block rather than
+# adding to it, which is why the job spells out its read scopes again.
 permissions: read-all
 
 jobs:
   analysis:
     name: supply-chain scorecard
-    # Not vars.RUNNER_LABEL, and not because of what machine runs the job:
-    # publish_results has the scorecard webapp re-fetch this file at the run's
-    # commit and check `runs-on:` with a static parser (actionlint) that never
-    # evaluates expressions. It saw the literal text
-    # "${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}", failed its
-    # ^ubuntu-(latest|NN.NN)(-arm)?$ check, and rejected the submission -
-    # while the job itself still landed on a hosted ubuntu-latest runner and
-    # went green regardless (docs/ROADMAP.md). The literal string below is
-    # load-bearing; an expression that evaluates to the same runner is not
-    # the same thing to this check.
+    # A literal, not vars.RUNNER_LABEL: publish_results has the scorecard
+    # webapp re-fetch this file and check `runs-on:` with a static parser that
+    # never evaluates expressions, so an expression fails its
+    # ^ubuntu-(latest|NN.NN)(-arm)?$ check and the submission is rejected
+    # while the job itself goes green (docs/ROADMAP.md).
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Deliberately no `environment:` gate: this runs on a schedule, and a
-    # schedule cannot pass one - a required reviewer would leave every weekly
-    # run queued for an approval nobody is waiting to give. release.yml's
-    # `release` environment is the one that matters.
+    # Deliberately no `environment:` gate: a schedule cannot pass a required
+    # reviewer, so every weekly run would sit queued. release.yml's `release`
+    # environment is the one that matters.
     permissions:
       contents: read
-      # the two the analysis needs, and the only write scopes in this file:
-      # code scanning takes the SARIF, and publish_results signs the score it
-      # sends to the OpenSSF API with an OIDC token
+      # the only write scopes in this file: code scanning takes the SARIF, and
+      # publish_results signs the score it sends with an OIDC token
       security-events: write
       id-token: write
       # Dangerous-Workflow and Token-Permissions read workflow definitions
@@ -64,10 +47,9 @@ jobs:
           results_format: sarif
           publish_results: true
 
-      # kept alongside the code-scanning upload rather than replaced by it: the
-      # artifact is the whole report as the tool emitted it, which is what you
-      # want when reading a run by hand (the local-mode notes in ROADMAP came
-      # from one). Code scanning keeps only what it can map to a line.
+      # kept alongside the code-scanning upload: the artifact is the whole
+      # report as the tool emitted it, for reading a run by hand; code scanning
+      # keeps only what it can map to a line.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: scorecard-results

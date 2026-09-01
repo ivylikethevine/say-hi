@@ -1,19 +1,11 @@
 name: Tool versions
 
 # Weekly drift check over the curl-installed tools in setup-tool's tools.txt,
-# plus the couple of pins (bashcov, currently) that live inline in a workflow
-# instead - the one class of pin dependabot cannot see (its own config says
-# so). The signal is one tracking issue, kept current: opened when a pin is
-# behind, rewritten with the current table on every later run, closed by the
-# run that finds everything current - image-scan.yml's shape, and for its
-# reason: a stale pin is a standing state, not an event, and a ::warning in a
-# scheduled run that nobody opens is a signal only in the sense that a tree
-# falling in a forest is. The annotations stay too, for whoever does open the
-# run. The bump itself stays a one-line edit at wherever the row says it lives.
-#
-# An issue, not a pull request, is also why this workflow still exists rather
-# than being folded into Renovate, which could watch the same pins: the
-# reasoning is in .github/dependabot.yml's header, and the answer there is no.
+# plus the pins that live inline in a workflow (bashcov, currently) - the one
+# class of pin dependabot cannot see. The signal is one tracking issue, kept
+# current: opened when a pin is behind, rewritten on every later run, closed
+# when everything is current, on image-scan.yml's shape. An issue, not a PR,
+# is why this is not folded into Renovate: .github/dependabot.yml's header.
 on:
   schedule:
     - cron: "23 7 * * 1"
@@ -34,16 +26,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # The script exits with the number of outdated pins; captured as an
-      # output rather than failing the step, so the issue below can be closed
-      # on the zero and opened on the rest. A missing upstream answer prints
-      # a row and counts as current, which is the script's own call.
+      # The script exits with the number of outdated pins, captured as an
+      # output rather than failing the step so the issue below closes on zero
+      # and opens on the rest; a missing upstream answer counts as current.
       - id: check
         name: Compare pinned defaults to upstream releases
         env:
-          # raises the GitHub releases API rate limit well above the roster
-          # size - unauthenticated it is 60/hour per IP, shared with every
-          # other job on the runner pool
+          # raises the releases API rate limit above the roster size -
+          # unauthenticated it is 60/hour per IP, shared across the runner pool
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail

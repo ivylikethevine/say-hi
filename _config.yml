@@ -1,29 +1,20 @@
-# Jekyll config for the GitHub Pages site (.github/workflows/pages.yml).
-# Nothing else in the repo reads this file, and no Ruby is a dependency here:
-# actions/jekyll-build-pages brings the github-pages gem, which is where the
-# theme and every plugin below come from.
+# Jekyll config for the GitHub Pages site (.github/workflows/pages.yml). Nothing
+# else reads it, and no Ruby is a dependency here: actions/jekyll-build-pages
+# supplies the github-pages gem, the theme and every plugin below.
 
 title: say-hi
 description: >-
   A greeting, a prompt and your aliases on every machine you ssh, docker,
   podman, nomad or kubectl into - without installing anything there.
-# theme: minima
 remote_theme: pages-themes/minimal@v0.2.0
 
-# Each of these earns its place against how this repo's markdown is written:
-#
-#   readme-index         - README.md becomes the site index. It is the front
-#                          door on github.com and it should be the front door
-#                          here; there is no index.md and there should not be.
-#   relative-links       - rewrites in-repo links like docs/GLOSSARY.md to the
-#                          pages they render as. Without it every cross-link in
-#                          the docs 404s on the site while staying correct in
-#                          the repo, which is the worst of both.
-#   optional-front-matter - none of these files carry YAML front matter, and
-#                          they must not have to: they are read in the repo
-#                          first and on the site second.
-#   titles-from-headings - so each page's <title> is its own H1 rather than the
-#                          site title repeated.
+# readme-index: README.md is the site index; there is no index.md and there
+#   should not be.
+# relative-links: rewrites in-repo links like docs/GLOSSARY.md to the pages
+#   they render as; without it every cross-link 404s on the site.
+# optional-front-matter: no file here carries front matter, and none must -
+#   they are read in the repo first and on the site second.
+# titles-from-headings: each page's <title> is its own H1.
 plugins:
   - jekyll-readme-index
   - jekyll-relative-links
@@ -31,31 +22,29 @@ plugins:
   - jekyll-titles-from-headings
   - jekyll-remote-theme
 
-# None of README.md/docs/*.md carry front matter, so without this they render
-# as bare content with no theme chrome (no <head>, no nav, no styling).
+# Without a layout, front-matter-less pages render with no theme chrome.
 defaults:
   - scope:
       path: ''
     values:
       layout: default
 
-# Rewrite relative links between docs (e.g. docs/ROADMAP.md -> ../README.md) to
-# the .html permalinks Jekyll actually generates, instead of dead .md links.
 relative_links:
   enabled: true
   collections: true
 
-# Serve README.md as the site's index page without needing a separate index.md
-# that would just duplicate it.
 readme_index:
   with_frontmatter: true
 
-# The site is the prose, not the program. Everything that is code, tooling or
-# packaging is excluded, docs/tapes/ with it: the one committed GIF there
-# (demo.gif) and the seven demos.yml renders are laid over this site by
-# pages.yml at docs/tapes/, and README.md links them at their published URLs.
+# The site is the prose: code, tooling and packaging stay off it. docs/tapes/
+# is laid over the built site by pages.yml (the committed demo.gif plus the
+# demos.yml renders), and README.md links the GIFs at their published URLs.
+# docs/tldr.md is a draft for an upstream tldr-pages PR and has to keep tldr's
+# `{{placeholder}}` syntax byte-for-byte, which Liquid would parse, so it is
+# kept off the site rather than guarded; nothing links to it relatively.
+# tests/lint/drift_test.sh derives its Liquid sweep from this block: one bare
+# `- path` per line, comments on their own lines.
 exclude:
-  - bin/
   - common/
   - scripts/
   - tests/
@@ -66,12 +55,4 @@ exclude:
   - hi.sh
   - load.sh
   - CLAUDE.md
-  - Gemfile
-  - Gemfile.lock
-  - vendor/
-  # A draft for an upstream tldr-pages PR (docs/ROADMAP.md's "tldr page"
-  # entry) - it has to stay byte-for-byte in tldr's own style, which uses
-  # `{{placeholder}}` for the same syntax Liquid does. A {% raw %} guard would
-  # have to be stripped before that PR could go out, so the file is kept off
-  # the site instead; nothing links to it with a relative link.
   - docs/tldr.md

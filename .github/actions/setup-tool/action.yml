@@ -1,8 +1,8 @@
 name: Setup tool
 # One action for every pinned CI tool. The roster - version, download URL,
-# archive shape, verify flag - lives in ./tools.txt rather than in eight
-# near-identical action.yml files, and .github/scripts/check_tool_versions.sh
-# reads the same rows, so a pin cannot go undrift-checked.
+# archive shape, verify flag - lives in ./tools.txt, and
+# .github/scripts/check_tool_versions.sh reads the same rows, so a pin cannot
+# go undrift-checked.
 description: Install one of the pinned CI tools listed in ./tools.txt, with caching
 
 inputs:
@@ -22,9 +22,8 @@ outputs:
 runs:
   using: composite
   steps:
-    # actions/cache needs the version as an expression, and the pin lives in
-    # tools.txt rather than in this file - so resolve it in a prior step and
-    # read it back as an output. That is what keeps the roster out of YAML.
+    # actions/cache needs the version as an expression and the pin lives in
+    # tools.txt, so a prior step resolves it and hands it back as an output.
     - name: Resolve the pin for ${{ inputs.tool }}
       id: resolve
       shell: bash
@@ -33,9 +32,8 @@ runs:
         HI_TOOL_VERSION: ${{ inputs.version }}
       run: '"$GITHUB_ACTION_PATH/install.sh" resolve'
 
-    # runner.os/runner.arch on every tool rather than only shellcheck (the one
-    # installed on macOS): for the Linux-only seven the suffix is a constant,
-    # and one key shape beats a per-tool column a single row would ever use.
+    # runner.os/runner.arch on every tool, not only shellcheck (the one
+    # installed on macOS): one key shape beats a per-tool column.
     - name: Cache ${{ inputs.tool }}
       id: cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

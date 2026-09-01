@@ -1,16 +1,11 @@
 name: Windows e2e
 
-# The case the README promises and nothing tests: a stock Windows OpenSSH
-# target (DefaultShell = cmd, no bash on the sshd PATH) must land in the
-# PowerShell fallback via the cmd-compatible `||` - not hang, not error out.
-# The client is the runner's own Git Bash. Dispatch-only and frankly
-# experimental, so red runs here are information, not noise. Note this is the
-# target-side job: the client-side half - the fast suites run under Git Bash,
-# proving hi.sh works when the machine you are sitting at is Windows - is
-# windows-client.yml, and README's compatibility table names both.
-#
-# ci.yml calls this on every push to main, once both fast-suite jobs are green.
-# Dispatch still works for running it on its own.
+# The target-side half of the Windows story, which README promises and nothing
+# else tests: a stock Windows OpenSSH target (DefaultShell = cmd, no bash on
+# the sshd PATH) must land in the PowerShell fallback via the cmd-compatible
+# `||` - not hang, not error out. The client is the runner's own Git Bash;
+# windows-client.yml is the client-side half. ci.yml calls this on every push
+# to main once both fast-suite jobs are green; dispatch runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -23,8 +18,8 @@ jobs:
     name: hi at stock Windows OpenSSH (PowerShell fallback)
     runs-on: windows-latest
     timeout-minutes: 20
-    # No `environment:` here any more - see the note in macos-e2e.yml. ci.yml
-    # calls this only on `push`, so a fork PR never reaches it.
+    # No `environment:` - see macos-e2e.yml; ci.yml calls this only on `push`,
+    # so a fork PR never reaches it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

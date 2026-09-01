@@ -1,22 +1,11 @@
 name: Coverage
 
 # kcov over the fast suites, published as an artifact - visibility, never a
-# gate: no PR waits on this and no threshold fails it.
-#
-# Dispatch-only, and deliberately so rather than on a schedule. tests/coverage.sh
-# opens with a section headed READ THIS BEFORE BELIEVING A NUMBER THIS PRINTS:
-# kcov loses its DEBUG trap once test_lib.sh is sourced, so the percentages
-# describe what runs at load time and understate real coverage by a wide, uneven
-# margin. A monthly 45-minute run that mints a 90-day artifact nobody should act
-# on is the one kind of automation worth removing. Put the schedule back the day
-# the numbers mean something - the topology in coverage.sh is already right.
-#
-# The run does publish a figure for README's badge (pages.yml turns it into
-# badges/coverage.json), and that badge says `load-time` in grey rather than
-# `coverage` in green for the same reason this workflow has no schedule: it
-# measures what executes while the harness loads, not what the suites cover.
-# Nobody should read it as a quality gate, and the badge is written so nobody
-# can.
+# gate: no PR waits on this and no threshold fails it. Dispatch-only: kcov
+# loses its DEBUG trap once test_lib.sh is sourced (tests/coverage.sh's READ
+# THIS BEFORE BELIEVING A NUMBER THIS PRINTS), so the figure understates real
+# coverage by a wide, uneven margin and README's badge says `load-time` in
+# grey. Put the schedule back the day the numbers mean something.
 on:
   workflow_dispatch:
 
@@ -40,19 +29,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zsh fish libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
-      # kcov is pinned and built from its GitHub source tarball like every
-      # other tool here: it publishes no binary asset, and it reaches Debian
-      # and Ubuntu only through a PPA - so `apt-get install kcov` is not a
-      # thing this runner (or a contributor's machine) can rely on.
+      # built from its GitHub source tarball like every other tool here: kcov
+      # publishes no binary asset and reaches Debian/Ubuntu only through a PPA
       - uses: ./.github/actions/setup-tool
         with:
           tool: kcov
 
-      # No shellcheck/shfmt/checkbashisms here on purpose: tests/coverage.sh
-      # drops the `shellcheck` suite from the sweep (it is a linter run over
-      # the tree, not a path through hi's bash), so nothing left in the group
-      # invokes them. The host report names them and prints "(absent)", which
-      # is not a failure.
+      # No shellcheck/shfmt/checkbashisms on purpose: tests/coverage.sh drops
+      # the `shellcheck` suite from the sweep, so the host report's "(absent)"
+      # for them is not a failure.
       - name: Run the fast suites under kcov
         run: tests/coverage.sh coverage-report
 
@@ -63,18 +48,11 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # One line for pages.yml to turn into README's kcov badge. Separate from
-      # the report above because the two have different lifetimes: the report
-      # is a 90-day artifact somebody downloads, this is a number the site
-      # re-reads on every deploy until the next coverage run replaces it.
-      #
-      # sed, not jq: one dependency fewer for the same job. The anchor is
-      # load-bearing - kcov writes "percent_covered" nineteen times
-      # in this file, once per traced file inline inside a `{...}`, and once
-      # for the whole run on a line of its own. Only the aggregate starts a
-      # line, so `^[[:space:]]*` is what picks it out; without it the first
-      # per-file figure wins and the badge shows whichever file kcov happened
-      # to list first.
+      # One line pages.yml turns into README's badge (badges/coverage.json),
+      # separate from the report because the site re-reads it on every deploy.
+      # The `^[[:space:]]*` anchor is load-bearing: kcov writes percent_covered
+      # once per traced file inline inside a `{...}` and once for the whole run
+      # on a line of its own; without it the first per-file figure wins.
       - name: Write the badge figure
         run: |
           set -euo pipefail

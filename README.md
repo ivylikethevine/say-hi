@@ -9,23 +9,10 @@ current state is not a representation of final, published quality.
 
 ---
 
-<!-- CI status. macOS/Windows/FreeBSD/Windows-client are workflow_call targets
-     invoked from ci.yml, so a badge naming the workflow file itself
-     (img.shields.io/github/actions/workflow/status/.../macos-e2e.yml) reads
-     that workflow's own run list - which workflow_call invocations never
-     enter; only that file's stray workflow_dispatch runs do, so the badge
-     shows the last manual dispatch, sometimes months stale, never the last
-     real CI run. Each call still shows up as its own check-run on the commit
-     ci.yml ran against, under "<ci.yml job name> / <called workflow's job
-     name>" (GitHub composes that name; both halves are plain `name:` keys in
-     ci.yml and the called file, so a rename on either side has to be mirrored
-     into the nameFilter below or the badge goes to "no check runs"). The
-     four badges below read that instead: img.shields.io/github/check-runs,
-     filtered by that exact compound name - live per-job status from the
-     actual CI run, not a shields.io feature specific to reusable workflows.
-     The release badge deliberately omits include_prereleases: every push to
-     main publishes its own `snapshot-<sha>` prerelease (snapshot.yml), and
-     the badge should name the last real tag, not that. -->
+<!-- The check-runs badges filter on the compound check name "<ci.yml job
+     name> / <called workflow job name>": mirror a rename on either side into
+     nameFilter or the badge reads "no check runs". The release badge omits
+     include_prereleases: each push to main publishes a snapshot prerelease. -->
 
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![ssh payload](https://img.shields.io/badge/ssh_payload-48KB_per_session-4c1)
@@ -66,10 +53,10 @@ container, a nomad allocation or a kubernetes pod by name — lands you in a
 session that looks like your own shell, and removes every trace when you
 leave. `hi <TAB>` lists all of them. Nothing is installed on the far end.
 
-`hi <name> <command ...>` runs one command instead, **inside** that session —
-so it has hi's aliases and environment, and it runs on a pty when your stdin is
-one. Only the command's output goes to stdout. When you want a plain,
-pty-free remote command, that is still `ssh`'s job.
+`hi <name> <command ...>` runs one command **inside** that session — with hi's
+aliases and environment, on a pty when your stdin is one — and only the
+command's output goes to stdout. A plain, pty-free remote command is still
+`ssh`'s job.
 
 ## Contents
 
@@ -100,20 +87,19 @@ pty-free remote command, that is still `ssh`'s job.
 
 ## What comes with you
 
-Every GIF here shows one thing hi brings along, not one place it can reach —
-the backends (ssh, docker, podman, nomad, kubernetes) are spread across the
-set so each is still on screen somewhere, and the client shell changes with
-the theme (bash warm, zsh and fish cool). The GIF at the top is the stock
-defaults; each one below turns something on or ships something of its own.
-How they are rendered is in
+Each GIF shows one thing hi brings along, not one place it can reach; the
+backends (ssh, docker, podman, nomad, kubernetes) are spread across the set,
+and the client shell follows the theme (bash warm, zsh and fish cool). The GIF
+at the top is the stock defaults; each below turns something on or ships
+something of its own. Rendering them:
 [docs/PACKAGING.md](docs/PACKAGING.md#regenerating-the-demo-gifs).
 
 ### the header tells you what the box is missing
 
-A `packages` overlay of the tools you care about, with a priority each, and
-the header's check reads it on every target: one quiet line on a box that has
-them, a loud one on a box that does not. Client: bash, into two docker
-containers. Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
+A `packages` overlay of the tools you care about, each with a priority; the
+header reads it on every target — one quiet line on a box that has them, a
+loud one on a box that does not. Client: bash, into two docker containers.
+Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
@@ -121,36 +107,31 @@ containers. Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
 `nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
 neither; `hi_copy` puts a target's output on _your_ clipboard and `hi_notify`
-raises a desktop notification in _your_ terminal when a command finishes —
-both ride the pty back as escapes, so nothing is installed or running on the
-target. Client: zsh, into a docker container. (The two escapes go to the
-terminal emulator, which a recording cannot show — the comments say where
-each landed.)
+raises a desktop notification in _your_ terminal when a command finishes.
+Both ride the pty back as escapes: nothing is installed or running on the
+target. Client: zsh, into a docker container.
 
 ![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
 ### no target at all — recent first
 
-`hi` on its own does not fall through to ssh's usage message: it offers the
-list, backend-tagged and most-used-and-most-recent first, and connects to what
-you pick — so the box you were on last is the top row, and Enter takes it.
-`fzf` or `sk` if you have one, a numbered menu if you do not; it runs on the
-client and never reaches a target, and a `hi` in a script or a CI job still
-fails the way it always has rather than waiting on a menu nobody can answer.
-Client: bash, into a docker container. Showing `_HI_RECENT` (on by default).
+`hi` on its own offers the target list, backend-tagged and
+most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
+if you have one, a numbered menu if not. It runs on the client, never reaches
+a target, and a `hi` in a script or CI job still fails rather than wait on a
+menu. Client: bash, into a docker container. Showing `_HI_RECENT` (on by
+default).
 
 ![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
 
 ### one config directory, every host, every shell
 
-`~/.config/say-hi/` ships to every target. An alias in its `aliases.sh` works
-in a bash session on a debian container and in a fish session on an alpine
-box — reached through docker and podman, from a fish client, so no two of
-client, target shell and backend match. Client: fish. Showing an `aliases.sh`
+`~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
+bash session on a debian container and a fish session on an alpine box,
+reached through docker and podman. Client: fish. Showing an `aliases.sh`
 overlay with one alias and `_HI_BAT_OPTS`, and `_HI_SHELL_PREFERENCE=fish` for
-the second target. (A box with no bash at all gets the aliases-only tier,
-which carries hi's own aliases but not the overlay — see
-[Compatibility](#compatibility).)
+the second target. A box with no bash gets the aliases-only tier — hi's own
+aliases, not the overlay ([Compatibility](#compatibility)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
@@ -158,144 +139,131 @@ which carries hi's own aliases but not the overlay — see
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --color-preview` to see what every host resolves to — then a prod host
-lands in red and a dev host in green (`-F` for the same reason as the loop
-below: the recording's ssh config is a throwaway). The targets carry their own `~/say-hi`
-(the permanent-install path: nothing ships over the wire, and each reads its
-own config, which is why their headers are shorter). Client: bash, into two
-ssh hosts. Showing a `colors` overlay with `hosttag` pins.
+lands in red and a dev host in green. The targets carry their own `~/say-hi`
+(the permanent-install path, hence their shorter headers). Client: bash, into
+two ssh hosts. Showing a `colors` overlay with `hosttag` pins.
 
 ![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### completion, every backend at once
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
-running container, allocation and pod, each tagged with its backend.
-Targets you connect to most, and most recently, come first (zsh and fish keep
-that order; `_HI_RECENT=0` turns it off).
-`hi --<TAB>` answers hi's own flags without probing any backend. Client: fish,
-for the description column its pager gives every row. Showing
-`_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
+running container, allocation and pod, each tagged with its backend; the
+targets you use most, and most recently, come first (zsh and fish keep that
+order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
+without probing any backend. Client: fish, for its pager's description
+column. Showing `_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
-The list stops at eleven rows because fish hands its pager half the screen —
-that is completion behaving normally, not the GIF cut short.
-
 ### one command, every backend
 
-`hi <name> <command>` runs one command inside the session — with hi's aliases
-and environment — and only its output comes back. The same loop over an ssh
-host, a docker container, a nomad allocation and a kubernetes pod (the `-F` is
-ssh's, passed through unchanged, because the recording's ssh config is a
-throwaway rather than the renderer's own). The pod is busybox
-`ash` with no bash at all, which is hi's aliases-only tier — hi says so, once,
-and runs the command anyway. Client: zsh.
+`hi <name> <command>` runs one command inside the session and only its output
+comes back: the same loop over an ssh host, a docker container, a nomad
+allocation and a kubernetes pod (`-F` is ssh's, passed through unchanged; the
+recording's ssh config is a throwaway). The pod is busybox `ash` with no bash
+— the aliases-only tier — and hi says so, once, and runs the command anyway.
+Client: zsh.
 
 ![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
 ## Requirements
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
-  shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), plus
-  `ssh` itself for ssh targets and
-  `docker`/`podman`/`nomad`/`kubectl` for those backends. hi never speaks a
-  protocol of its own — `ssh` is the transport, and `base64` is armor, not
+  shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), `ssh` for
+  ssh targets, `docker`/`podman`/`nomad`/`kubectl` for those backends. hi has
+  no protocol of its own: `ssh` is the transport, `base64` is armor, not
   crypto ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod
-  targets. `bash` gets the full experience; without it `hi` lands you in the
-  best shell the target has, with a smaller session — see
-  [Compatibility](#compatibility).
-- **The other two shells** hi styles have floors of their own — **fish 3.7+**
-  (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) — and the lint gate
-  checks both inside a pinned container on every run rather than claiming
-  them ([docs/TESTING.md](docs/TESTING.md#the-lint-gate)).
-- **bash 3.2** is the floor on both ends (macOS still ships it), so hi uses no
-  bash-4-only construct: no `mapfile`/`readarray` (`_hi_read_lines` in
-  `common/core.sh` does that job), associative arrays, namerefs or `${x,,}`.
-  `tests/lint/drift_test.sh` greps for those, and `tests/targets/ssh_test.sh`
-  runs a real bash 3.2 target.
+  targets. `bash` gets the full experience; without it you land in the best
+  shell the target has, with a smaller session
+  ([Compatibility](#compatibility)).
+- **fish 3.7+** (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) are the
+  floors for the other two shells hi styles; the lint gate checks both in a
+  pinned container on every run
+  ([docs/TESTING.md](docs/TESTING.md#the-lint-gate)).
+- **bash 3.2** is the floor on both ends (macOS still ships it): no
+  `mapfile`/`readarray` (`_hi_read_lines` in `common/core.sh` does that job),
+  associative arrays, namerefs or `${x,,}`. `tests/lint/drift_test.sh` greps
+  for those; `tests/targets/ssh_test.sh` runs a real bash 3.2 target.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
 
 ## Installation/Usage
 
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
-  Before touching `~/.bashrc`, `~/.zshrc` or `~/.config/fish/config.fish` it
-  validates each with that shell's own syntax checker and asks whether to
-  continue if any has issues.
+  It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
+  each shell's own syntax checker first and asks before continuing if any has
+  issues.
 - on Arch, a package from the same checkout: `makepkg -si` in
   `say-hi/packaging/aur/say-hi-git` (the versioned `say-hi` package needs a
-  release tarball, so before one exists `-git` is the one that builds). The
-  AUR itself waits on registration reopening —
+  release tarball, so `-git` is the one that builds until one exists). The AUR
+  itself waits on registration reopening —
   [docs/PACKAGING.md](docs/PACKAGING.md#aur).
 - reload your shell!
-- `hi --configure` revisits the settings in short sections, starting from a
-  preset if you like (`everything`, `balanced`, `minimal`;
-  `--preset <name>` applies one without asking) — features (header,
-  prompt, git status, editors, clipboard, notifications, prompt marks, and
-  whether hi styles this machine too), header details, package-check depth,
-  terminal width, the prompt (starship deference, separators), and an
-  _advanced_ section you can skip with one Enter (session shell, glyphs vs
-  ASCII, TERM fallback, recent targets, completion timing) — without touching
-  the rc wiring. Every question says what it is set to now and previews what
-  it decides where it can; Enter keeps the current answer; nothing is written
-  until the end, and the run closes with what changed. Answers land in
-  `~/.config/say-hi/settings.sh` (see [Configuration](#configuration)).
-- `hi --check-configs` re-runs just the rc validation, and parses the overlay's
-  shell files too (`aliases.sh` under both `sh` and `fish`, since every target
-  sources it in whichever shell it lands in).
+- `hi --configure` revisits the settings in short sections — features (header,
+  prompt, git status, editors, clipboard, notifications, prompt marks, whether
+  hi styles this machine too), header details, package-check depth, terminal
+  width, the prompt (starship deference, separators), and an _advanced_
+  section one Enter skips (session shell, glyphs vs ASCII, TERM fallback,
+  recent targets, completion timing) — starting from a preset if you like
+  (`everything`, `balanced`, `minimal`; `--preset <name>` applies one without
+  asking). Each question shows its current value, previews where it can, and
+  keeps the answer on Enter; nothing is written until the end, the run closes
+  with what changed, and the rc wiring is never touched. Answers land in
+  `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --check-configs` re-runs just the rc validation, plus the overlay's
+  shell files (`aliases.sh` under both `sh` and `fish`, since a target sources
+  it in whichever shell it lands in).
 - `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
-  on `hi --configure` commits its own writes. Optional — see
+  on `hi --configure` commits its own writes. Optional —
   [docs/SETTINGS.md](docs/SETTINGS.md).
 - `hi --help` (or `-h`): the synopsis, the target resolution order, and every
-  flag hi answers itself; `man hi` is the long version. Anything hi does not
-  answer passes to `ssh` unchanged.
+  flag hi answers itself; `man hi` is the long version. Anything else passes
+  to `ssh` unchanged.
 - `hi --version`: the packaged version, or `git describe` in a checkout.
 - `hi --doctor [<target>]` when something is slow or failing: the tree, the
-  config overlay, every backend probed and timed with the same ceilings the
-  header and completion use, and — with a target — which backend it resolves
-  to plus an ssh reachability check. All read-only. `--json` prints the same
-  rows as one JSON document — what a bug report should carry.
+  config overlay, every backend probed and timed with the header's and
+  completion's ceilings, and — with a target — its backend plus an ssh
+  reachability check. Read-only; `--json` prints the same rows as one JSON
+  document, what a bug report should carry.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags.
-  bash, zsh and fish read the same list (`common/targets.sh`), so the three
-  cannot drift. GIF above: [completion](#completion-every-backend-at-once).
-- `hi` on its own offers that same list and connects to what you pick — `fzf`
-  or `sk` if you have one, a numbered menu if not. GIF above:
+  bash, zsh and fish read the same list (`common/targets.sh`), so they cannot
+  drift. GIF: [completion](#completion-every-backend-at-once).
+- `hi` on its own offers that list and connects to what you pick — `fzf` or
+  `sk` if you have one, a numbered menu if not. GIF:
   [no target at all](#no-target-at-all--recent-first).
 - configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
   ssh host and your user resolve to.
 - [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages`
-  and edit; `hi --packages-preview` shows what each priority and mode
-  character (`-` speaks only when missing, `+` only when installed) means and
-  the check as a connect will print it.
-- [optional] either of those files can live somewhere else instead —
-  `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one file
-  without moving the rest of the overlay (`_HI_PACKAGES`, `_HI_VIMRC` and
-  `_HI_NANORC` likewise); see
+  and edit; `hi --packages-preview` explains each priority and mode character
+  (`-` speaks only when missing, `+` only when installed) and prints the check
+  as a connect would.
+- [optional] either file can live elsewhere:
+  `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one
+  file and nothing else (`_HI_PACKAGES`, `_HI_VIMRC` and `_HI_NANORC`
+  likewise) —
   [docs/SETTINGS.md](docs/SETTINGS.md#pointing-one-file-somewhere-else).
-- a dropped connection ends the session: the tree on the target is removed on
-  any exit, a lost link included, so there is nothing to reconnect to. Run `hi`
-  inside `tmux` or `screen` on this machine if you need to survive drops
-  ([how it works](docs/SETTINGS.md#how-it-works)).
+- a dropped connection ends the session — the target's tree is removed on any
+  exit, a lost link included — so run `hi` inside `tmux` or `screen` on this
+  machine to survive drops ([how it works](docs/SETTINGS.md#how-it-works)).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
-  unlinks `/usr/bin/hi`. It leaves the `say-hi` directory and your
-  `colors`/`packages` alone.
+  unlinks `/usr/bin/hi`. Your `say-hi` directory and `colors`/`packages` stay.
 
 Usage: `hi foo` (just like ssh!)
 
 ### Upgrading
 
 - a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
-- a `.deb`/`.rpm`/`.apk`: no repository exists to subscribe to — the trade for
-  not maintaining one ([docs/PACKAGING.md](docs/PACKAGING.md#deb--rpm--apk)) —
-  so install the next release's package from
-  [the releases page](https://github.com/ivylikethevine/say-hi/releases) the
-  same way you installed this one;
-  [verifying a release download](docs/PACKAGING.md#verifying-a-release-download)
-  is the checklist.
+- a `.deb`/`.rpm`/`.apk`: no repository exists to subscribe to
+  ([docs/PACKAGING.md](docs/PACKAGING.md#deb--rpm--apk)); install the next
+  release's package from
+  [the releases page](https://github.com/ivylikethevine/say-hi/releases) as
+  you did this one, after
+  [verifying the download](docs/PACKAGING.md#verifying-a-release-download).
 - an Arch package built from the checkout: `git pull`, then `makepkg -si` again.
 - Homebrew: `brew upgrade say-hi`, once the tap exists.
 - inside a `hi` session there is nothing to update — the session is a copy;
@@ -307,22 +275,21 @@ Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
 say `hi` to. `colors` and `packages` overlay the tree's copies, `aliases.sh`
 adds to the shipped alias set, and a `bash.sh`/`zsh.zsh`/`config.fish` there
-is sourced at the end of hi's own per-shell rc so yours win. `settings.sh`
-(what `hi --configure` writes) has no in-tree counterpart. The overlay file
-table, every toggle and every environment variable hi reads are in
-[docs/SETTINGS.md](docs/SETTINGS.md); how a session gets to the
-target is [How it works](docs/SETTINGS.md#how-it-works) there.
+is sourced last in hi's per-shell rc so yours win. `settings.sh` (what
+`hi --configure` writes) has no in-tree counterpart. The overlay file table,
+every toggle and every environment variable are in
+[docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
+[How it works](docs/SETTINGS.md#how-it-works).
 
 **_IMPORTANT: Local-only changes MUST stay in `~/.bashrc`, `~/.zshrc`,
-`~/.config/fish/config.fish`, etc. — anything in
+`~/.config/fish/config.fish`, etc. — everything in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` is copied to every host you say
-`hi` to. Treat every file in it as readable by every host you visit: a token,
-an internal hostname or a private path in your `aliases.sh` lands on each of
-them. See [docs/SECURITY.md](docs/SECURITY.md)._**
+`hi` to, so a token, an internal hostname or a private path in your
+`aliases.sh` lands on each of them. See [docs/SECURITY.md](docs/SECURITY.md)._**
 
 By default hi writes nothing to a target outside its own temp directory — not
-your login files, not your shell history. The two settings that change that
-are opt-in and spelled out in
+your login files, not your shell history. The two opt-in settings that change
+that are in
 [What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, username, and group/tag colors
@@ -333,7 +300,7 @@ add a line to `~/.config/say-hi/colors`: `username,root,red`,
 _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. `hi --color-preview` shows the result in the actual
-colors. The long version, and using the hash in your own prompt, is
+colors; the long version, and using the hash in your own prompt, is
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
@@ -350,10 +317,10 @@ colors. The long version, and using the hash in your own prompt, is
 
 If `<name>` isn't a `Host` in `~/.ssh/config` but is a running container (by
 name or ID, docker checked first), `hi` copies its tree in and chainloads
-`load.sh` exactly as the ssh path does. No armoring is needed (`exec -i` passes
-stdin as raw bytes), and cleanup happens on exit. Without `bash` in the
-container `hi` drops you into the best plain shell `$_HI_SHELL_LADDER` finds,
-with the aliases and a warning.
+`load.sh` as the ssh path does. No armoring is needed (`exec -i` passes stdin
+as raw bytes), and cleanup happens on exit. Without `bash` in the container
+`hi` drops you into the best plain shell `$_HI_SHELL_LADDER` finds, with the
+aliases and a warning.
 
 ### Nomad allocations
 
@@ -381,7 +348,7 @@ namespace.
   path as any other ssh host.
 - **Stock Windows OpenSSH with no `bash`**: `hi` falls back to a plain
   interactive PowerShell session (no styling) rather than failing. It costs
-  one authentication: hi writes its bootloader over the first of two calls
+  one authentication: the bootloader write is the first of two calls
   multiplexed on the _same ssh connection_, and a target where that write
   cannot run `sh -c` has no POSIX shell, which is what the fallback is for.
   `DefaultShell` set to PowerShell lands in the same place.
@@ -398,31 +365,29 @@ How say-hi compares to similar tools, and when to use something else:
 
 Two questions, answered at two moments: **can hi land a session on that OS at
 all**, and **what shell do you end up in**. Both tables, with a legend and what
-proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md) — along with
-everything weighed and answered **no**, with the argument attached.
+proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md), along with
+everything weighed and answered **no**, and why.
 
 ## Testing
 
-`tests/test_runner.sh` (`hi --test` once installed) runs the suite and prints
-a colored pass/fail summary; `--group fast` (the unit suites, side by side)
-then `--group lint` is what CI runs on every push/PR. The runbook is
+`tests/test_runner.sh` (`hi --test` once installed) runs the suite with a
+colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
+side) then `--group lint` on every push/PR. Runbook:
 [docs/TESTING.md](docs/TESTING.md).
 
 ### Coverage and Profiling
 
 Two coverage tools sit beside the suites and disagree — kcov reads far too
-low, bashcov far too high — which is why README carries no coverage badge and
-neither gates anything. Why each is wrong, and the profiler to reach for when
-a bench ceiling trips, is
+low, bashcov far too high — so there is no coverage badge and neither gates
+anything. Why each is wrong, and the profiler for a tripped bench ceiling, is
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## More docs
 
 - [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
   environment variable hi reads
-- [docs/SUPPORT.md](docs/SUPPORT.md) — every target hi answers to, which OSes
-  land a full session, which shell you end up in, and every runtime, shell,
-  channel and feature answered **no**, and why
+- [docs/SUPPORT.md](docs/SUPPORT.md) — every target, OS and shell hi answers
+  to, and every runtime, shell and feature answered **no**, and why
 - [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
   homeshick side by side
 - [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
@@ -435,11 +400,13 @@ a bench ceiling trips, is
   reproducibility contract, verifying a download, regenerating the demo GIFs
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned, what it is blocked on,
   and what is research only
-- [docs/CII-BEST-PRACTICES-DRAFT.md](docs/CII-BEST-PRACTICES-DRAFT.md) — the
+- [docs/CII_BEST_PRACTICES_DRAFT.md](docs/CII_BEST_PRACTICES_DRAFT.md) — the
   OpenSSF Best Practices questionnaire, answered against this tree, scratch
   until it's transcribed to bestpractices.dev
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
   request, and which doc changes with what
+- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
+  in issues, pull requests and discussions, and where to report a breach
 
 ## AI Usage
 

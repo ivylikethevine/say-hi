@@ -1,11 +1,8 @@
 name: Advisory note
-# The tail every advisory (never-blocking) check in this tree ends with: a
-# ::warning annotation plus a $GITHUB_STEP_SUMMARY section restating that it
-# never blocks a merge. markdownlint, hadolint, demo-staleness and lychee all
-# had this written out by hand, word for word in three of the four cases.
-# What stays at the call site: the tool-specific `if:` that decides whether
-# this even runs, and (for hadolint/demo-staleness) any ANSI-stripping or
-# truncation of the report before it's handed here.
+# The tail every advisory (never-blocking) check ends with: a ::warning
+# annotation plus a $GITHUB_STEP_SUMMARY section saying it never blocks a
+# merge. The call site keeps the tool-specific `if:` and any ANSI-stripping or
+# truncation of the report before it is handed here.
 description: Emit a ::warning annotation and a step-summary section for a non-blocking finding
 
 inputs:

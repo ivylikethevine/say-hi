@@ -1,40 +1,27 @@
 name: Pages
 
-# The repo's markdown as a site: README.md as the index (it carries the demos,
-# the comparison, the architecture, packaging and Windows material inline),
-# plus what is left in docs/ - SETTINGS, SUPPORT, TESTING, GLOSSARY, SECURITY,
-# PACKAGING and ROADMAP - which interlink with relative links link-check.yml keeps
-# honest. docs/tldr.md is excluded (_config.yml) - it is a byte-for-byte draft
-# for an upstream PR, not site prose.
+# The repo's markdown as a site - README.md as the index, docs/ (minus
+# docs/tldr.md, a byte-for-byte upstream draft _config.yml excludes) - plus
+# badges/*.json, the shields endpoint README's badges read. Runs after every
+# green CI run on main, or on dispatch. Needs Settings -> Pages -> Source set
+# to GitHub Actions, so deploy-pages has somewhere to put the site.
 #
-# It also carries files Jekyll never sees: badges/*.json, the shields
-# endpoint README's tests badge reads. Publishing the figure here rather than
-# sed'ing it into README.md and committing it back keeps the number generated
-# and keeps every push free of a bot commit on top of the author's - which is
-# also what lets main take branch protection.
+# With that setting off the build still passes and only the deploy has nothing
+# to write to; the README badge then renders `inaccessible`, which is the
+# symptom to recognise. Publishing the badge figure rather than committing it
+# into README.md keeps every push free of a bot commit on top of the author's,
+# which is what lets main take branch protection.
 #
-# Publishing is live: Settings -> Pages -> Source is set to GitHub Actions, so
-# deploy-pages has somewhere to put the site and the badge endpoint answers. If
-# that setting is ever turned off the build half here still passes and only the
-# deploy has nothing to write to - at which point the README badge goes back to
-# rendering `inaccessible`, which is the symptom to recognise.
+# zizmor flags workflow_run because the usual mistake is a privileged run
+# checking out the head SHA of whatever triggered it. This one checks out the
+# default ref, takes the count from an API query for the newest green CI run on
+# `main` rather than the triggering run's artifact, and `build`'s `if` takes
+# only pushes - a fork PR on a branch named `main` cannot reach it.
 #
-# zizmor flags workflow_run as a dangerous trigger, and it is right about the
-# usual shape of the mistake: a privileged run that checks out the head SHA of
-# whatever it was triggered by. This one does not. It checks out the default
-# ref, the count comes from an API query for the newest green CI run on `main`
-# rather than from the triggering run's own artifact, and the `if` on `build`
-# takes only pushes - a fork PR whose branch happens to be named `main` cannot
-# reach it. Nothing here reads a single attacker-controlled byte.
-#
-# After CI, and only after CI - `workflow_run` is the single trigger, on
-# purpose. A `push` trigger on the markdown paths would let prose publish
-# without waiting out the suite, but ci.yml runs on *every* push to main with
-# no path filter, so `workflow_run` already covers every commit such a trigger
-# would catch; all it adds is a duplicate build and deploy on any push touching
-# a .md, which is most of them. The cost is latency - the site lands when CI
-# goes green rather than a couple of minutes in - and the gain is that it never
-# publishes docs from a commit whose tests failed.
+# `workflow_run` is the single trigger on purpose: ci.yml runs on every push to
+# main with no path filter, so a `push` trigger on the markdown paths would add
+# only a duplicate build and deploy, and would publish docs from a commit whose
+# tests failed. The cost is latency - the site lands when CI goes green.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -46,8 +33,7 @@ permissions:
   contents: read
 
 # Pages deploys are not cancellable half-done: a superseded run finishes rather
-# than leaving the site mid-swap. (Note the difference from ci.yml, where
-# cancelling a superseded PR run is exactly right.)
+# than leaving the site mid-swap (unlike ci.yml, where cancelling is right).
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -55,10 +41,9 @@ concurrency:
 jobs:
   build:
     name: build (jekyll)
-    # This job runs jekyll-build-pages, which is a container action, and then
-    # has to chown its root-owned output - which is why it carries no
-    # `Reclaim the workspace` step, unlike every other checkout in this repo.
-    # It could never fire on a self-hosted runner.
+    # jekyll-build-pages is a container action whose root-owned output gets
+    # chown'd below, so this job has no `Reclaim the workspace` step and could
+    # never run on a self-hosted runner.
     runs-on: ubuntu-latest
     # a red CI must not publish, and neither may a fork's PR run - `event`
     # pins it to a push to `main`. The other two triggers have no run to judge.
@@ -79,25 +64,21 @@ jobs:
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      # the github-pages gem, i.e. the same Jekyll and the same plugin set
-      # github.com would run itself - see _config.yml for which of them the
-      # site actually leans on
+      # the github-pages gem: the same Jekyll and plugin set github.com runs
+      # itself - _config.yml says which of them the site leans on
       - uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
         with:
           source: ./
           destination: ./_site
 
-      # The tests badge, in three steps, all of them after Jekyll has run: the
-      # file is written straight into _site, so it needs no front matter and no
-      # _config.yml exclusion to survive the build untouched.
-      #
-      # Each lookup below is by query rather than off the workflow_run payload
-      # on purpose - the newest green run on main *is* the triggering run when
-      # that is the event, so one code path serves push and dispatch too. The
-      # lookup-then-download pair is ./.github/actions/fetch-latest-artifact;
-      # totals and package sizes both come from ci.yml's newest run, so they
-      # look it up twice rather than sharing a step - a second `gh api` call
-      # is cheap and keeps every one of the five below the same shape.
+      # The badge files are written straight into _site after Jekyll has run,
+      # so they need no front matter and no _config.yml exclusion. Each lookup
+      # is by query rather than off the workflow_run payload: the newest green
+      # run on main *is* the triggering run for that event, so one code path
+      # serves push and dispatch. The lookup-then-download pair is
+      # ./.github/actions/fetch-latest-artifact; totals and package sizes both
+      # come from ci.yml's newest run and look it up twice to keep all five
+      # steps the same shape.
       - name: Fetch CI's totals
         uses: ./.github/actions/fetch-latest-artifact
         with:
@@ -108,9 +89,8 @@ jobs:
           missing-message: no successful CI run on main to read a count from
           warn-on-missing: "true"
 
-      # the same run totals came from - separate artifacts because they come
-      # from different jobs: the count from `test`, the sizes from
-      # `packaging-smoke`.
+      # separate artifacts from the same run: the count comes from `test`, the
+      # sizes from `packaging-smoke`
       - name: Fetch CI's package sizes
         uses: ./.github/actions/fetch-latest-artifact
         with:
@@ -121,13 +101,10 @@ jobs:
           missing-message: no successful CI run on main to read package sizes from
           warn-on-missing: "true"
 
-      # Coverage is its own lookup, not the CI run above: coverage.yml is
-      # dispatch-only and slow, so its newest successful run is almost never
-      # the run that triggered this deploy. The badge therefore shows the last
-      # figure anyone measured and keeps showing it until somebody measures
-      # again - which is the honest behaviour for a number nobody runs weekly.
-      # warn-on-missing stays off here (and below): a dispatch-only workflow
-      # with no run yet is the normal state, not something to flag.
+      # Coverage is its own lookup: coverage.yml is dispatch-only and slow, so
+      # the badge shows the last figure anyone measured until somebody measures
+      # again. warn-on-missing stays off here and below - a dispatch-only
+      # workflow with no run yet is the normal state.
       - name: Fetch the last coverage run's kcov figure
         uses: ./.github/actions/fetch-latest-artifact
         with:
@@ -137,9 +114,8 @@ jobs:
           found-message: kcov figure from coverage run
           missing-message: no successful coverage run on main - the kcov badge stays grey
 
-      # The bashcov figure, looked up exactly as the kcov one above is and for
-      # the same reason: coverage-v2.yml is dispatch-only, so its newest
-      # successful run is almost never the run that triggered this deploy.
+      # The bashcov figure, looked up as the kcov one is: coverage-v2.yml is
+      # dispatch-only too.
       - name: Fetch the last coverage-v2 run's bashcov figure
         uses: ./.github/actions/fetch-latest-artifact
         with:
@@ -149,21 +125,14 @@ jobs:
           found-message: bashcov figure from coverage-v2 run
           missing-message: no successful coverage-v2 run on main - the bashcov badge stays grey
 
-      # The autogenerated demos, on the coverage badge's pattern rather than the
-      # tests badge's: demos.yml's render is slow and does not run on every
-      # push, so its newest successful run is almost never the run that
-      # triggered this deploy. The site therefore carries the last GIFs anyone
-      # rendered and keeps carrying them until somebody renders again.
-      #
-      # None of them is committed any more, so this is the only place they come
-      # from and README.md links them at their published URLs. Until a render
-      # has landed there is nothing to serve and those links 404 - deliberate,
-      # per docs/PACKAGING.md's _Regenerating the demo GIFs_.
-      #
-      # docs/tapes/demo.gif is deliberately not in that artifact - it is the
-      # hand-rendered one, still committed. docs/tapes/ is excluded from the
-      # Jekyll build (_config.yml), so the copy step below carries it into
-      # _site alongside the rendered ones.
+      # The autogenerated demos, on the coverage pattern: demos.yml's render is
+      # slow and not per-push, so the site carries the last GIFs anyone made.
+      # None is committed, so this is their only source and README.md links
+      # their published URLs; until a render lands those links 404, per
+      # docs/PACKAGING.md's _Regenerating the demo GIFs_. docs/tapes/demo.gif
+      # is not in the artifact - it is the hand-rendered, committed one, and
+      # docs/tapes/ is excluded from the Jekyll build (_config.yml), so the
+      # copy step below carries it into _site beside the rendered ones.
       - name: Fetch the last demo render's GIFs
         uses: ./.github/actions/fetch-latest-artifact
         with:
