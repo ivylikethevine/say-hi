@@ -93,7 +93,11 @@ child to see - a script of your own reading `$_HI_COLORS`, say - is an
    as a setting. With no bash at all the choice comes from `$_HI_SHELL_LADDER`,
    the same list without bash.
 5. On exit, `load.sh`'s on-exit hook removes the `/tmp` directory, the scratch
-   rc directory.
+   rc directory. A dropped connection is an exit: the hook runs on `SIGHUP`
+   too, so a Wi-Fi blip or a closed laptop lid ends the session and cleans
+   up, with nothing left to reconnect to. Run `hi` inside `tmux` or `screen`
+   on the _client_ if you need to survive drops; persistent sessions on the
+   target are [not scheduled](ROADMAP.md#not-scheduled).
 6. `hi <target> 'some command'` skips the session and runs the command there,
    the way `ssh` does.
 

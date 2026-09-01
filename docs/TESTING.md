@@ -170,6 +170,13 @@ aggregates as shields endpoints (`badges/coverage.json`,
 them: a badge whose own docs say to ignore it costs the row beside it
 credibility. Neither gates anything.
 
+Both stay, on purpose. They fail in opposite directions — kcov cannot
+over-count and bashcov cannot under-count — so together they bracket the
+figure either alone would be believed for: a file that reads low in bashcov
+is genuinely uncovered, a line that reads covered in kcov genuinely ran.
+`coverage.sh`'s header is also the measured record of _why_ kcov cannot be the
+tool; keeping the script keeps that from being rediscovered.
+
 `tests/profile.sh` is what to run when a `--group bench` ceiling trips:
 `_hi_bench` says _whether_ a path got slower, this says _which command in it_
 did. It profiles the four bash paths the bench guards through

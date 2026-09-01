@@ -84,9 +84,9 @@ export _HI_HUMAN_SHORT_DATE="+%b %e %y %H:%M %Z"
 
 # What hi.sh's local sub-commands say when they cannot run: the payload ships
 # no scripts/, tests/ or .git. Exported from here so the wording has one home.
-export _HI_NO_CHECKOUT="needs the full say-hi checkout - not available in a hi session"
+export _HI_NO_CHECKOUT="needs the full say-hi checkout - not in a package or a hi session; git clone https://github.com/ivylikethevine/say-hi has one"
 # one message for both no-.git shapes
-export _HI_NO_GIT="no .git in $_HI_ROOT - if a package manager installed say-hi, update it there; if this is a hi session, update on the machine say-hi lives on"
+export _HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates by installing the next release from https://github.com/ivylikethevine/say-hi/releases; a hi session updates on the machine say-hi lives on"
 alias hi="$_HI_LAUNCHER"
 # The only hi_* alias left (the rest became `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

@@ -198,7 +198,11 @@ GitHub Release is still created, with the packages attached.
 ### AUR
 
 Not currently doable: AUR registration is closed to new accounts because of
-spam. Everything below is ready for the day it reopens. Run the gate for
+spam. Everything below is ready for the day it reopens. Until then an Arch
+user installs from a checkout — `makepkg -si` in `packaging/aur/say-hi-git`;
+the versioned `say-hi` package needs a release tarball, so before one exists
+`-git` is the one that builds — and upgrades with `git pull` and the same
+command. Run the gate for
 **each** package — `aur/say-hi-git` today, `aur/say-hi` once v1.0.0 exists.
 namcap is the hard step: push nothing while either its `PKGBUILD` or its
 built-package run has complaints.

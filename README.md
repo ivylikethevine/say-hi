@@ -83,6 +83,7 @@ pty-free remote command, that is still `ssh`'s job.
   - [one command, every backend](#one-command-every-backend)
 - [Requirements](#requirements)
 - [Installation/Usage](#installationusage)
+  - [Upgrading](#upgrading)
 - [Configuration](#configuration)
   - [Hostname, username, and group/tag colors](#hostname-username-and-grouptag-colors)
 - [Built from/with/in mind](#built-fromwithin-mind)
@@ -222,6 +223,11 @@ and runs the command anyway. Client: zsh.
   Before touching `~/.bashrc`, `~/.zshrc` or `~/.config/fish/config.fish` it
   validates each with that shell's own syntax checker and asks whether to
   continue if any has issues.
+- on Arch, a package from the same checkout: `makepkg -si` in
+  `say-hi/packaging/aur/say-hi-git` (the versioned `say-hi` package needs a
+  release tarball, so before one exists `-git` is the one that builds). The
+  AUR itself waits on registration reopening —
+  [docs/PACKAGING.md](docs/PACKAGING.md#aur).
 - reload your shell!
 - `hi --configure` revisits the settings in short sections, starting from a
   preset if you like (`everything`, `balanced`, `minimal`;
@@ -269,12 +275,31 @@ and runs the command anyway. Client: zsh.
   without moving the rest of the overlay (`_HI_PACKAGES`, `_HI_VIMRC` and
   `_HI_NANORC` likewise); see
   [docs/SETTINGS.md](docs/SETTINGS.md#pointing-one-file-somewhere-else).
+- a dropped connection ends the session: the tree on the target is removed on
+  any exit, a lost link included, so there is nothing to reconnect to. Run `hi`
+  inside `tmux` or `screen` on this machine if you need to survive drops
+  ([how it works](docs/SETTINGS.md#how-it-works)).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. It leaves the `say-hi` directory and your
   `colors`/`packages` alone.
 
 Usage: `hi foo` (just like ssh!)
+
+### Upgrading
+
+- a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
+- a `.deb`/`.rpm`/`.apk`: no repository exists to subscribe to — the trade for
+  not maintaining one ([docs/PACKAGING.md](docs/PACKAGING.md#deb--rpm--apk)) —
+  so install the next release's package from
+  [the releases page](https://github.com/ivylikethevine/say-hi/releases) the
+  same way you installed this one;
+  [verifying a release download](docs/PACKAGING.md#verifying-a-release-download)
+  is the checklist.
+- an Arch package built from the checkout: `git pull`, then `makepkg -si` again.
+- Homebrew: `brew upgrade say-hi`, once the tap exists.
+- inside a `hi` session there is nothing to update — the session is a copy;
+  update on the machine say-hi lives on.
 
 ## Configuration
 

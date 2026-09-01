@@ -452,6 +452,24 @@ printf "\nHIBOOT:%s\n" "$d"
 PROBE
 }
 
+# A path the target reported, or nothing. What comes back from a target is
+# interpolated into a script run back on that same target, so it is refused
+# rather than escaped, on the bootstrap directory's rule: absolute, and free of
+# anything a double-quoted heredoc expands or closes on. A refusal takes the
+# disposable path, which trusts the target for nothing. A space is not hostile
+# - an install directory may carry one. Always returns 0: an empty answer is
+# the verdict, not an error.
+function _hi_trusted_path() {
+  case "$1" in
+  /*) ;;
+  *) return 0 ;;
+  esac
+  case "$1" in
+  *[\"\$\`\\]* | *$'\n'*) return 0 ;;
+  esac
+  printf '%s' "$1"
+}
+
 # Prints the path of a permanent say-hi on $DOMAIN, if any.
 #
 # stderr is deliberately *not* redirected. This is the first of the two calls,
@@ -740,6 +758,7 @@ function _say_hi() {
   # multiplex the install-probe and the real session over one ssh connection
   _hi_ctl_open 30
   remote_root="$(_hi_remote_root "${ctl_opts[@]}")"
+  remote_root="$(_hi_trusted_path "$remote_root")"
 
   if [ -n "$remote_root" ]; then
     # $remote_root is always <home>/<tree>

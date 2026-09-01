@@ -322,6 +322,27 @@ function _hi_preamble_env_value() { # <name> - what the preamble delivers, via s
 printf %s "$'"$1"'"' 2>/dev/null
 }
 
+# The install path a target reports is interpolated into a script run on that
+# same target, so it is refused rather than escaped: relative, or carrying
+# anything a double-quoted heredoc expands or closes on, comes back empty and
+# the session takes the disposable path. A space is not hostile - an install
+# directory may carry one.
+function test_remote_root_is_refused_when_hostile() {
+  local ok bad
+  for ok in /usr/share/say-hi '/home/a user/say-hi' /opt/say-hi.v2+x; do
+    [ "$(_hi_trusted_path "$ok")" = "$ok" ] || {
+      _hi_cecho "   refused a legitimate path: $ok" "$RED"
+      return 1
+    }
+  done
+  for bad in 'relative/say-hi' '/tmp/x"; rm -rf /; echo "' '/tmp/$(id)' '/tmp/`id`' '/tmp/a\\b' "$(printf '/tmp/a\nrm -rf /')"; do
+    [ -z "$(_hi_trusted_path "$bad")" ] || {
+      _hi_cecho "   accepted a hostile path: $bad" "$RED"
+      return 1
+    }
+  done
+}
+
 function test_preamble_quotes_a_hostile_target_name() {
   [ "$(_hi_preamble_env_value _HI_TARGET)" = "$_HI_MEAN" ]
 }
@@ -498,6 +519,7 @@ EOF
   _hi_check "A hostile target name survives the ssh preamble" test_preamble_quotes_a_hostile_target_name
   _hi_check "...and the container transport's export line" test_container_env_quotes_a_hostile_target_name
   _hi_check "...and the sh-tier prompt renders it literally" test_fallback_prompt_escapes_a_hostile_host
+  _hi_check "A hostile install path from the target is refused" test_remote_root_is_refused_when_hostile
 
   _hi_h2 "Testing: the preamble's TERM fallback"
   _hi_check_eq "Unknown TERM becomes xterm-256color" xterm-256color _hi_preamble_final_term TERM=hi-test-no-such-term

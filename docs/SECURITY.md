@@ -106,10 +106,13 @@ a target" is one command.
   session could do so without hi in it.
 - A malicious target gets what any interactive session gives it: your payload
   and a terminal. Treat every overlay file as public to every host you visit.
-  Nothing a target sends back is executed on the client — the one string hi
-  reads back (the probe for an existing say-hi tree) is only interpolated into
-  the script sent back to that same target. Escape sequences in session output
-  remain possible, exactly as with plain `ssh`.
+  Nothing a target sends back is executed on the client — the two strings hi
+  reads back (the probe for an existing say-hi tree, and the bootstrap
+  directory the target made) are only interpolated into the script sent back
+  to that same target, and only after a check: absolute, and free of anything
+  a double-quoted heredoc expands or closes on, else refused and the session
+  takes the disposable path. Escape sequences in session output remain
+  possible, exactly as with plain `ssh`.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
 - The ssh `ControlMaster` socket lives inside a `mktemp -d` of its own rather
