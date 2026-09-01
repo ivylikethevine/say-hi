@@ -132,6 +132,17 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    sections below.
 5. Merge the manifest PR.
 
+**A release candidate is a GitHub Release and nothing more.** A prerelease
+tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-3 unchanged and
+is created `--prerelease --latest=false`, so "the latest release" (the
+devcontainer Feature's default, README's badge) never resolves to a candidate.
+The packages, the source tarball, `SHA256SUMS` and the manifests are attached
+as on any release, but no manifest PR opens and no channel job runs:
+`0.1.0-rc.1` is valid semver (nfpm's `version_schema` accepts it; the deb
+sorts as `0.1.0~rc.1`) and not a legal `pkgver` (`-` is makepkg's
+`pkgver-pkgrel` separator), and the AUR is where the manifests go. The final
+tag is the first to walk the tap, the AUR and `brew audit`.
+
 `bump.sh 1.0.0` works by hand if CI is unavailable: with the tag in your
 checkout it builds the identical tarball itself, `--tarball <file>` takes one
 you have, and it downloads the published asset only when neither is available
@@ -170,9 +181,10 @@ by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
 - **It is unsigned.** `MINISIGN_SECRET_KEY` is sealed to the `release`
   environment, which the snapshot job never enters, so its `SHA256SUMS` has no
   `.minisig` and the release body says so; the attestation is its provenance.
-- **It is `--prerelease --latest=false`**, so the newest `v*` stays "Latest"
-  and nothing that installs "the latest release" (the devcontainer Feature's
-  default, `brew`, the AUR) sees a snapshot.
+- **It is `--prerelease --latest=false`**, as a release candidate is, so the
+  newest final `v*` stays "Latest" and nothing that installs "the latest
+  release" (the devcontainer Feature's default, `brew`, the AUR) sees a
+  snapshot or a candidate.
 - **Two repository settings:** `main` may need no reviewer (no environment
   holds it), and no tag-protection ruleset may cover `snapshot-*`; a rule
   blocking creation or deletion of a matching tag fails `publish`.
@@ -183,9 +195,10 @@ Every channel below is gated on the manual approval in `release.yml`; CI
 pushes the AUR and the tap once their secrets exist, but each section's checks
 are still yours to run first.
 
-**A `v0.0.x` tag reaches none of them.** Those are debug tags for exercising
-the release path; the `tap` and `aur` jobs skip on the tag name, and the
-GitHub Release is still created with the packages attached.
+**A `v0.0.x` tag reaches none of them, and neither does a prerelease tag.**
+`v0.0.x` are debug tags for exercising the release path and a `-` in the name
+(`v1.0.0-rc.1`) is a candidate; every channel job skips on the tag name, and
+the GitHub Release is still created with the packages attached.
 
 ### AUR
 

@@ -45,6 +45,10 @@ entry below. The release unblocks the channels after it.
       SECURITY.md's _Supported versions_ prose into the version table it
       promises ([Flip to stable](#quick-wins)).
 
+- [ ] **A subscribable package repository is live**, so a `.deb`/`.rpm`/`.apk`
+      user gets the next release through their package manager —
+      [Package repository on the Pages site](#moderate).
+
 **The AUR is excluded on purpose** — v1 shouldn't wait on somebody else's
 spam problem; see [Blocked until someone else moves](#blocked-until-someone-else-moves).
 
@@ -54,34 +58,32 @@ The first entry gates [Homebrew tap](#moderate) and
 [AUR](#blocked-until-someone-else-moves); the rest of the tier is independent
 of it.
 
-- [ ] **Get a release out** — _scope: one tag and one repository setting;
-      outside this checkout._ Push a `v*` tag; `publish` opens a manifest PR
-      onto a `manifests-<tag>` branch (`tap`/`aur` read the manifests out of
-      the `packages` artifact, so the release doesn't wait on the merge).
-      Confirm _Settings → Actions → General → Allow GitHub Actions to create
-      and approve pull requests_ first: off, `gh pr create` fails at the last
-      step with the packages already published. Three things ride on the same
-      run and are proven by it, not by more code:
+- [ ] **Get a release out** — _scope: one tag; outside this checkout._ Push
+      a `v*` tag and approve the `release` environment when `publish` pauses;
+      it opens a manifest PR onto a `manifests-<tag>` branch (`tap`/`aur` read
+      the manifests out of the `packages` artifact, so the release doesn't
+      wait on the merge; a PR opened with `GITHUB_TOKEN` gets no CI run of its
+      own, so read it before merging). Then check the two things only a real
+      run can prove:
 
-  - the release body — `publish` composes `releases/generate-notes` plus the
-    verification checklist
-    ([PACKAGING.md](PACKAGING.md#verifying-a-release-download)) into one
-    `--notes` body; `CHANGELOG.md` stays out unless that proves not enough;
-  - the devcontainer Feature — `packaging/devcontainer/src/say-hi/` and the
-    `feature` job are done ([PACKAGING.md](PACKAGING.md#devcontainer-feature));
-    install it from a real `devcontainer.json` naming
-    `ghcr.io/ivylikethevine/say-hi/say-hi` and run `hi`;
-  - **Ticks when:** the manifest PR opened, the release body names what
-    changed and how to check it, and the Feature installs a working `hi` in
-    a fresh devcontainer.
+  - the release body names what changed and how to verify the download
+    ([PACKAGING.md](PACKAGING.md#verifying-a-release-download)); add a
+    `CHANGELOG.md` only if it doesn't;
+  - the devcontainer Feature installs from a real `devcontainer.json` naming
+    `ghcr.io/ivylikethevine/say-hi/say-hi` and `hi` runs in it
+    ([PACKAGING.md](PACKAGING.md#devcontainer-feature)).
+  - **Ticks when:** manifest PR opened, release body right, Feature installs
+    a working `hi`.
 
-- [ ] **A release candidate before the tag** — _scope: one `v1.0.0-rc.1` tag;
-      outside this checkout._ No `v*` tag has ever walked `bump.sh` →
-      manifests PR → tap PR → `brew audit` (`v0.0.x` tags skip the channels by
-      design). Decided: `-rc` tags reach the tap and every other channel —
-      `release.yml` special-cases only `v0.0.x`, so nothing to change. Cut the
-      rc and read the run. **Ticks when:** an rc has gone through every job
-      `v1.0.0` will, tap PR opened.
+- [ ] **A release candidate before the tag** — _scope: one `v0.1.0-rc.1` tag;
+      outside this checkout._ Cut `v0.1.0-rc.1` and read the run: it walks
+      the tag → `build` → `release` gate → `publish` for the first time, and
+      the release must come out marked _Pre-release_, not _Latest_, with
+      every artifact attached and the body right. A candidate reaches no
+      channel and opens no manifest PR (`0.1.0-rc.1` is not a legal
+      `pkgver`), so the tap PR, the AUR push and `brew audit` wait for the
+      final tag. **Ticks when:** the rc is published as a prerelease with
+      packages, tarball, `SHA256SUMS` and manifests attached.
 
 - [ ] **tldr page** — _scope: one upstream pull request; outside this
       checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
@@ -105,6 +107,50 @@ of it.
       an actual Mac (`/opt/homebrew`, not the Linuxbrew prefix used so far).
       **Ticks when:** `brew install ivy/tap/say-hi` works, from a release the
       `tap` job opened a PR for.
+
+- [ ] **Package repository on the Pages site** — _scope: one new secret, a
+      step in `release.yml`'s `build` and `publish` jobs, a trigger and a copy
+      step in `pages.yml`, three runbook sections, and their drift guards;
+      in-repo, then one key outside it._ Serves `apt`, `dnf` and `apk` from
+      `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}` out of the
+      packages nfpm already builds; no second packaging description.
+
+  - **Key:** a GPG key as a repository secret (`GPG_SIGNING_KEY`, beside
+    `APK_SIGNING_KEY`, not sealed to the `release` environment): `dnf
+gpgcheck=1` verifies the RPMs themselves, and nfpm signs them in `build`
+    (`rpm.signature.key_file`, env-expanded like the apk key) before
+    `SHA256SUMS` and the attestation are computed. The same key signs the
+    apt and rpm indexes in `publish`. Its public half and fingerprint go in
+    PACKAGING.md next to the minisign key and are drift-checked the same
+    way; the apk index reuses `packaging/apk/say-hi.rsa.pub`.
+  - **`publish`:** after the upload, build `dist/repo/` from this release's
+    packages — `apt/` (`apt-ftparchive packages`/`release`, `InRelease` +
+    `Release.gpg`, pool under `pool/main/s/say-hi/`), `rpm/` (`createrepo_c`,
+    `repodata/repomd.xml.asc`), `apk/x86_64/` and `apk/aarch64/` (the noarch
+    apk in each, `apk index` + `abuild-sign` inside `alpine:3.24`), plus the
+    public keys and a ready `say-hi.repo` — then `gh release upload` it as one
+    asset, `package-repo.tar.gz`. `apt-utils`, `createrepo-c` and `gpg` are on
+    the ubuntu runner; alpine comes from docker. Snapshots stay out: they are
+    unsigned and replaced on every push.
+  - **`pages.yml`:** add `Release` to the `workflow_run` list (the `if`
+    already accepts a push event, which a tag push is), download
+    `package-repo.tar.gz` from the latest `v*` release with
+    `gh release download`, unpack into `_site/`. Release assets, not a run
+    artifact, so the repo survives the 90-day artifact expiry and any later
+    docs-only rebuild. Only the latest release is in the repo; older packages
+    stay on their release pages.
+  - **Docs:** PACKAGING.md's _deb / rpm / apk_ section gains the three
+    sources lines (`deb [signed-by=/etc/apt/keyrings/say-hi.gpg] … stable
+main`, the `.repo` file, the `/etc/apk/repositories` line); README's
+    _Upgrading_ bullet stops saying there is no repository.
+  - **Guards:** `packaging_test.sh` asserts the `build` signing block, the
+    `publish` repo step and the `package-repo.tar.gz` upload, `pages.yml`'s
+    download, and the GPG pin in PACKAGING.md; `packaging-smoke` in `ci.yml`
+    adds `apt-get install` from a throwaway local copy of the generated `apt/`
+    tree with a throwaway key, the way it already installs the apk.
+  - **Ticks when:** `apt install say-hi`, `dnf install say-hi` and
+    `apk add say-hi` each work from the published URL after a release, and a
+    second release upgrades one of them in place.
 
 ## Blocked until someone else moves
 
@@ -158,43 +204,5 @@ Tracked, not actionable; none is a v1.0.0 criterion.
 
 ## Not scheduled
 
-Research and decisions nobody has made yet; nothing here gates a release or
-is queued.
-
-- [ ] **A subscribable package repository** — _scope: a decision, then one
-      hosted repository and a fourth manifest to keep current; outside this
-      checkout._ PACKAGING.md's trade — no `apt upgrade` for not maintaining
-      a repository — stands until people ask; this is where the asking lands.
-      Every option below has to be fed from `release.yml`'s `publish` job,
-      signed with a key that lives in Actions secrets, and added to the drift
-      guard in `tests/packaging/packaging_test.sh` beside the formula.
-
-  - **A static repo on the existing Pages site** (`reprepro`/`apt-ftparchive`
-    for deb, `createrepo_c` for rpm, an `APKINDEX` for apk) — _scope: a
-    publish step and three index generators._ Pro: consumes the `.deb`/`.rpm`/
-    `.apk` nfpm already builds, covers all three formats, no third party, no
-    new account. Con: the site build gains a signing key and a hundred MB of
-    packages over time, index generation is ours to keep correct, and Pages
-    has a 1GB soft limit — the closest fit, and the one most work to own.
-  - **openSUSE Build Service (OBS)** — _scope: an account, a project, and a
-    `.spec` + `.dsc` source layout beside nfpm's._ Pro: one project builds and
-    hosts signed deb and rpm repos for Debian, Ubuntu, Fedora, openSUSE and
-    more, with per-distro `apt`/`dnf` instructions generated for you. Con:
-    OBS builds from _sources_, so the nfpm packages are not reusable — a
-    second packaging description to keep in step with `install.sh`'s file
-    list; no apk; a web UI and `osc` CLI to learn.
-  - **Launchpad PPA** — _scope: a Launchpad account, a GPG key, `dput` from
-    `publish`._ Pro: the channel Ubuntu users already know how to add. Con:
-    Ubuntu-only and deb-only, a signed source package rather than nfpm's
-    binary, one series per supported Ubuntu release to build for.
-  - **Fedora COPR** — _scope: an account and a `.spec`._ Pro: the rpm
-    equivalent of a PPA, free, well understood. Con: rpm-only, Fedora/EL
-    only, a `.spec` to maintain.
-  - **A hosted service (packagecloud, Cloudsmith, Gemfury)** — _scope: an
-    account, an API token, one upload step._ Pro: takes nfpm's deb/rpm/apk
-    as-is, generates and signs the indexes, all three formats. Con: a
-    third-party account and free-tier limits (storage, bandwidth, repo count)
-    that a hobby project can outgrow or that can change under it; users add a
-    vendor hostname to their sources.
-  - **Ticks when:** a decision is written down, and — if yes — one `.deb` or
-    `.rpm` user gets a new release through their package manager.
+Research and decisions nobody has made yet; nothing here gates a release.
+Empty today — a proposal lands here when it is raised and not yet decided.
