@@ -19,7 +19,7 @@ on:
     types: [closed]
 
 permissions:
-  actions: write
+  contents: read
 
 jobs:
   cancel:
@@ -27,6 +27,9 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # job-scoped, not workflow-level, for Scorecard's Token-Permissions check
+    permissions:
+      actions: write
     steps:
       - name: Cancel queued and running runs on the head commit
         # via env, never inline ${{ }} in the run block (zizmor:
