@@ -1,13 +1,11 @@
 name: Link check
 
-# Advisory, exactly as ci.yml's markdownlint job is: a rotted external URL in
-# the docs is worth seeing and has never shipped a bug, so this reports and
-# never blocks - and it is scheduled rather than per-PR, because link rot
-# happens on the internet's clock, not this repo's. Before the repo is public
-# the in-repo github.com/... links all 404; the day it flips, a dispatch of
-# this confirms they went live.
-#
-# Same corollary as markdownlint: never add this to required checks.
+# Advisory, exactly as ci.yml's markdownlint job is: a rotted external URL is
+# worth seeing and has never shipped a bug, so this reports and never blocks -
+# never add it to required checks. Scheduled rather than per-PR because link
+# rot happens on the internet's clock. Before the repo is public the in-repo
+# github.com/... links all 404; a dispatch the day it flips confirms they went
+# live.
 on:
   schedule:
     - cron: "23 8 * * 1"

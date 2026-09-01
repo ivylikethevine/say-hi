@@ -4,18 +4,13 @@ on:
   pull_request:
   push:
     branches: [main]
-  # Weekly, so the parts of e2e that track upstream are re-tested without a
-  # push: the kind and nomad binaries e2e-backends installs, both still
-  # unpinned (nomad rides whatever's current in HashiCorp's apt repo; kind's
-  # own version isn't pinned by helm/kind-action's install_only, only the
-  # action's own SHA is). The three `curl | sh` framework installers
-  # (tests/dockerfiles/frameworks/{atuin,mise,starship}.sh) were this list's
-  # other members until they were pinned to a specific release each - bump
-  # those by hand when a framework's own bugs are the thing worth chasing,
-  # not by this schedule. Dependabot's digest bumps exercise the same jobs,
-  # but only when a base image moved. Wednesday, after the Monday
-  # dependabot/tool-versions and Tuesday codeql/scorecard crons, so a red run
-  # here follows a fresh dependency sweep rather than preceding one.
+  # Weekly re-test of what e2e-backends installs unpinned: nomad from
+  # HashiCorp's apt repo, kind via helm/kind-action's install_only (only the
+  # action's SHA is pinned). The framework installers under
+  # tests/dockerfiles/frameworks/ are pinned per release and bumped by hand,
+  # not by this schedule; dependabot's digest bumps run the same jobs only when
+  # a base image moved. Wednesday, after the Monday dependabot/tool-versions
+  # and Tuesday codeql/scorecard crons, so a red run follows a fresh sweep.
   schedule:
     - cron: '17 6 * * 3'
   workflow_dispatch:
@@ -30,25 +25,20 @@ concurrency:
 
 jobs:
 
-  # Whether anything besides workflow YAML changed - test, test-macos, bench,
-  # packaging-smoke, e2e and e2e-backends all skip on a workflow-only or
-  # docs-only diff rather than re-running the full suite for a change that
-  # cannot move any of their results. workflow-lint and advisory-lint are
-  # deliberately exempt: a workflow-only change is exactly what workflow-lint
-  # audits, and a docs-only change is exactly when advisory-lint should run.
-  # See changes.yml for the fork-PR-safe mechanics.
-  #
-  # Only push and pull_request get filtered. On schedule (the weekly re-test
-  # of the unpinned kind/nomad installs) or workflow_dispatch this job doesn't
-  # even run, and the jobs below treat that skip as "assume yes" - a diff
-  # against the wrong commit must never be the reason a real check goes quiet.
+  # Whether anything besides workflow YAML changed: test, test-macos, bench,
+  # packaging-smoke, e2e and e2e-backends skip on a workflow-only or docs-only
+  # diff. workflow-lint and advisory-lint are exempt - a workflow-only change
+  # is what workflow-lint audits and a docs-only one is when advisory-lint
+  # should run. Fork-PR-safe mechanics are in changes.yml. Only push and
+  # pull_request are filtered; on schedule or workflow_dispatch this job does
+  # not run and the jobs below treat the skip as "assume yes" - a diff against
+  # the wrong commit must never be why a real check goes quiet.
   changes:
     name: detect changes
     if: github.event_name == 'push' || github.event_name == 'pull_request'
-    # changes.yml's own job asks for `pull-requests: read` (dorny/paths-filter
-    # lists a PR's files through the API). A reusable workflow's job cannot
-    # request a scope the calling job does not hold, so granting it here is
-    # what makes the call valid at all.
+    # changes.yml asks for `pull-requests: read` (dorny/paths-filter lists a
+    # PR's files via the API); a reusable workflow cannot request a scope its
+    # caller does not hold, so it has to be granted here.
     permissions:
       contents: read
       pull-requests: read
@@ -98,35 +88,26 @@ jobs:
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast --totals-file ${{ runner.temp }}/totals"
 
-      # The lint group, once, here: linting text does not depend on the
-      # userland underneath it, so the macOS, Windows and FreeBSD jobs run
-      # `--group fast` alone and this step - against the pinned tools above -
-      # is where the gate is enforced.
+      # The lint group runs once, here: text linting does not depend on the
+      # userland, so the macOS, Windows and FreeBSD jobs run `--group fast`
+      # alone and this step, against the pinned tools above, is the gate.
       - name: Run the lint group
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --group lint --require-run"
 
-      # The tests badge's number, published rather than committed: pages.yml
-      # picks this artifact up and writes it into the site as a shields
-      # endpoint, so the figure stays generated without a bot commit landing on
-      # main ahead of the author's. Generated rather than gated because a
-      # hand-maintained number goes stale, and failing the run over it told
-      # contributors their change was wrong when the only wrong thing was a
-      # README line. The ubuntu count on purpose: macOS legitimately skips a
-      # handful of cases and lints fewer files, so there is no single figure
-      # both jobs could carry.
-      #
-      # 14 days rather than 1: Pages normally consumes this minutes later, but
-      # a workflow_dispatch of pages.yml has to still find a run's totals.
+      # The tests badge's number: pages.yml reads this artifact and publishes it
+      # as a shields endpoint, so the figure stays generated with no bot commit
+      # on main and never fails a run over a stale README line. The ubuntu
+      # count on purpose: macOS skips a handful of cases and lints fewer files.
+      # 14 days, not 1: a workflow_dispatch of pages.yml must still find totals.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: fast-totals
           path: ${{ runner.temp }}/totals
           retention-days: 14
 
-  # The same suites on macOS: /bin/bash 3.2, BSD userland. The %e/width/sort
-  # fixes in common/ came out of this job, so it gates for real now. The lint
-  # group is not run here: it is the ubuntu job's separate step, against
-  # pinned tools, on a runner billed at a tenth of this one's rate.
+  # The same suites on macOS: /bin/bash 3.2, BSD userland - a real gate (the
+  # %e/width/sort fixes in common/ came out of it). No lint group here: that is
+  # the ubuntu job's step, against pinned tools, on a runner a tenth the price.
   test-macos:
     name: fast suites (macos-latest)
     needs: changes
@@ -144,15 +125,11 @@ jobs:
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast"
 
-  # bad `needs`, invalid contexts, shellcheck over every run: block - the
-  # workflows and composite actions are code too, so they get a linter.
-  # zizmor is the GitHub Actions security audit, promoted to CI once the SHA
-  # pinning made it quiet, per the roadmap's condition; the one deliberate
-  # exception (the credentialed release checkout) is suppressed inline where
-  # it happens. Both run as steps in one job rather than two: each carries
-  # continue-on-error so a finding in one doesn't stop the other from
-  # reporting, and the trailing step fails the job if either did - one check
-  # instead of two, with both tools still always running and still gating.
+  # actionlint (bad `needs`, invalid contexts, shellcheck over every run:) and
+  # zizmor (the Actions security audit; its one deliberate exception, the
+  # credentialed release checkout, is suppressed inline). One job, two steps
+  # each with continue-on-error so a finding in one does not stop the other
+  # from reporting; the trailing step fails the job if either did.
   workflow-lint:
     name: workflow lint
     runs-on: ubuntu-latest
@@ -192,23 +169,16 @@ jobs:
         if: steps.actionlint.outcome == 'failure' || steps.zizmor.outcome == 'failure'
         run: exit 1
 
-  # Advisory, not a gate, for all three checks in this job. A heading level, a
-  # dockerfile nit or a stale GIF is worth seeing and has never shipped a bug,
-  # so this job reports and does not block: each lint step keeps its exit code
-  # (`continue-on-error` on the *step*, or an output read afterwards, so
-  # findings still annotate the diff), and ./.github/actions/advisory-note
-  # restates them as a warning in the run summary. Note the difference from
-  # `continue-on-error` on the job, which would paint the job green and hide
-  # the result entirely.
-  #
-  # The corollary, now that branch protection is on (see docs/ROADMAP.md): its
-  # required checks are still unset, and this job must stay off that list when
-  # they go on - it is designed to be ignorable.
-  #
-  # One checkout for all three, at fetch-depth 0: only the demo-staleness step
-  # needs full history (it compares commit dates with `git log`, and a shallow
-  # clone answers that with the clone's own date for every path), but a
-  # shared checkout means markdownlint and hadolint carry that cost too.
+  # Advisory, not a gate: a heading level, a dockerfile nit or a stale GIF has
+  # never shipped a bug. Each lint step keeps its exit code (`continue-on-error`
+  # on the *step*, or an output read afterwards, so findings still annotate the
+  # diff) and ./.github/actions/advisory-note restates it as a warning in the
+  # run summary; `continue-on-error` on the *job* would paint it green and hide
+  # the result. Keep this job off branch protection's required checks when
+  # they are set (docs/CONTRIBUTING.md) - it is designed to be ignorable.
+  # fetch-depth 0 is for the demo-staleness step alone: it compares commit
+  # dates with `git log`, and a shallow clone answers with the clone's own date
+  # for every path; markdownlint and hadolint share the checkout and its cost.
   advisory-lint:
     name: advisory lint
     runs-on: ubuntu-latest
@@ -223,12 +193,9 @@ jobs:
         continue-on-error: true
         uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
         with:
-          # .claude/ is an agent scratch directory - plans and notes an
-          # assistant writes while working here. It is gitignored, so CI never
-          # sees it and this negation changes nothing about a run; it is here so
-          # the command the summary below tells you to run locally reports the
-          # same findings CI did, instead of thirty from files that are not the
-          # project's.
+          # .claude/ is gitignored agent scratch, so this negation changes
+          # nothing in CI; it keeps the local command in the summary below
+          # reporting the same findings CI did.
           globs: |
             **/*.md
             !.claude/**
@@ -244,23 +211,17 @@ jobs:
             Advisory only: this job never blocks a merge. See the step above for the findings,
             or run `markdownlint-cli2 '**/*.md' '!.claude/**'` locally.
 
-      # The fixture Dockerfiles, which nothing linted before. Advisory for
-      # the same reason markdownlint is: what is left after .hadolint.yaml's
-      # ignores is DL3009 and DL3015 - apt lists and --no-install-recommends,
-      # both image size on a fixture built once and thrown away. Worth
-      # seeing, never worth reddening somebody's PR over.
-      #
-      # The one finding worth a hard failure is fixed in the fixtures rather
-      # than ignored here: DL4006, a framework fixture piping curl into sh
-      # with no pipefail, where a 404 builds a green image with the
-      # framework missing.
+      # Advisory like markdownlint: what .hadolint.yaml leaves is DL3009 and
+      # DL3015 (apt lists, --no-install-recommends), image size on a throwaway
+      # fixture. DL4006 - curl piped into sh with no pipefail, where a 404
+      # builds a green image with the framework missing - is fixed in the
+      # fixtures rather than ignored here.
       - uses: ./.github/actions/setup-tool
         with:
           tool: hadolint
 
-      # `|| true` on the loop and the verdict re-read afterwards, rather than
-      # continue-on-error: hadolint exits non-zero per file, and this has to
-      # lint every one before deciding, not stop at the first.
+      # `|| true` and a verdict read afterwards rather than continue-on-error:
+      # hadolint exits non-zero per file and every one must be linted first.
       - id: hadolint
         name: Lint the fixture Dockerfiles
         run: |
@@ -293,13 +254,12 @@ jobs:
             reason per silenced rule; anything reaching here is deliberately left visible.
           report-file: ${{ runner.temp }}/hadolint.truncated
 
-      # docs/tapes/demo.gif is the one hand-rendered GIF, and .githooks/
-      # demo_staleness.sh is what says when the tape, the fixtures or the
-      # shipped tree moved after it was last rendered. As a git hook it only
-      # speaks on a machine that opted in (`git config core.hooksPath
-      # .githooks`); here it speaks on every pull request. Pull requests
-      # only - on a push to main there is nobody left to warn. The script
-      # always exits 0, so its verdict is read out of its output.
+      # .githooks/demo_staleness.sh says when the tape, fixtures or shipped tree
+      # moved after docs/tapes/demo.gif (hand-rendered) was last rendered. As a
+      # hook it only speaks where `git config core.hooksPath .githooks` is set;
+      # here it speaks on every pull request - not on a push to main, where
+      # there is nobody left to warn. It always exits 0, so the verdict is read
+      # out of its output.
       - id: demo-staleness
         name: Compare demo.gif against what it renders
         if: github.event_name == 'pull_request'
@@ -329,9 +289,9 @@ jobs:
             in its own commit - see docs/PACKAGING.md, _Regenerating the demo GIFs_.
           report-file: ${{ runner.temp }}/staleness.plain
 
-  # Hot-path timings against generous ceilings - catches an order-of-magnitude
-  # regression (a fork in a loop, a probe losing its timeout), and prints the
-  # numbers into every run's log for eyeballing trends.
+  # Hot-path timings against generous ceilings: catches an order-of-magnitude
+  # regression (a fork in a loop, a probe losing its timeout) and logs the
+  # numbers for eyeballing trends.
   bench:
     name: hot-path benchmarks
     needs: changes
@@ -379,10 +339,10 @@ jobs:
       - name: Build the packages
         run: packaging/mkpkg.sh
 
-      # the check that catches "apk-tools rejects what nfpm built" (it happened:
-      # nfpm 2.47.0's tree entries) and proves the signature chain: the pubkey
-      # lands in /etc/apk/keys under the name nfpm.yaml stamps into the
-      # signature, and apk add must accept the package with NO --allow-untrusted
+      # Catches "apk-tools rejects what nfpm built" (nfpm 2.47.0's tree entries
+      # did) and proves the signature chain: the pubkey lands in /etc/apk/keys
+      # under the name nfpm.yaml stamps into the signature, and apk add must
+      # accept the package with NO --allow-untrusted.
       - name: Install the signed apk on Alpine
         run: |
           set -euo pipefail
@@ -390,26 +350,20 @@ jobs:
             -v "$RUNNER_TEMP/smoke.rsa.pub:/etc/apk/keys/say-hi.rsa.pub:ro" \
             alpine:3.24 sh -c 'apk add /dist/say-hi_*_noarch.apk && sh -lc "hi --version" && ls /usr/share/say-hi/common/core.sh'
 
-      # the reproducibility contract: the same commit builds byte-identical
-      # deb/rpm/apk (SOURCE_DATE_EPOCH from HEAD plus clamped staging mtimes),
-      # so SHA256SUMS means the artifact, not the build that happened to make
-      # it. nfpm.yaml hardcodes ./dist/staging, so the runs are sequential
-      # with the first moved aside rather than parallel via --outdir.
+      # The reproducibility contract: the same commit builds byte-identical
+      # deb/rpm/apk (SOURCE_DATE_EPOCH from HEAD plus clamped staging mtimes).
+      # nfpm.yaml hardcodes ./dist/staging, so the builds are sequential with
+      # the first moved aside rather than parallel via --outdir.
       - name: Build again and require byte-identical packages
         run: |
           mv dist dist.first
           packaging/mkpkg.sh
           diff dist.first/SHA256SUMS dist/SHA256SUMS
 
-      # README's package badge, the same way the tests badge works: this job is
-      # the only place the real numbers exist, so it writes them down and
-      # pages.yml publishes them as a shields endpoint. Measured after the
-      # second build, which is the one dist/ holds.
-      #
-      # Two numbers, because "how big is it" has two honest answers and the
-      # payload badge already answers a third. The deb is what you download; the
-      # staging tree is what lands on disk, and is the larger figure - packages
-      # compress, installed files do not.
+      # README's package badge, published by pages.yml as a shields endpoint
+      # like the tests badge; measured after the second build, the one dist/
+      # holds. Two numbers: the deb is the download, the staging tree is what
+      # lands on disk (packages compress, installed files do not).
       - name: Measure what the packages actually cost
         run: |
           set -euo pipefail
@@ -444,11 +398,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # install_methods_test.sh installs a real .deb/.rpm/.apk on its targets,
-      # and builds them with the same mkpkg.sh the release runs. Without nfpm
-      # those three cases stand down yellow per case - caught by --require-run
-      # like any other stand-down, but the pin is still what makes them
-      # actually run here rather than fail the gate by standing down.
+      # install_methods_test.sh builds real .deb/.rpm/.apk with mkpkg.sh and
+      # installs them on its targets; without nfpm those cases stand down and
+      # --require-run fails the gate, so the pin is what makes them run.
       - uses: ./.github/actions/setup-tool
         with:
           tool: nfpm
@@ -495,14 +447,11 @@ jobs:
       - name: Run backend end-to-end suites
         run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --require-run --group backends"
 
-  # The two platform e2e workflows, promoted out of dispatch-only. `push` only:
-  # both stand up an sshd and authorize a throwaway key, which is not something
-  # to hand a fork's pull request, and the runner job's fork guard covers only
-  # the jobs that name it. Gated on both fast-suite jobs so a red unit test
-  # doesn't cost a 15-minute macOS runner.
-  #
-  # One gate job rather than the same needs/if repeated on all four callers
-  # below - a single place to read or change the condition instead of four.
+  # `push` only: both platform e2e workflows stand up an sshd and authorize a
+  # throwaway key, not something to hand a fork's pull request, and the runner
+  # job's fork guard covers only the jobs that name it. Gated on both fast-suite
+  # jobs so a red unit test does not cost a 15-minute macOS runner. One gate
+  # job rather than the same needs/if on all four callers below.
   e2e-gate:
     name: e2e gate
     needs: [test, test-macos]
@@ -540,11 +489,10 @@ jobs:
     if: needs.e2e-gate.outputs.ok == 'true'
     uses: ./.github/workflows/freebsd-e2e.yml
 
-  # The client-side half of the Windows story, on the same gate. A real check,
-  # not advisory - windows-client.yml carries no continue-on-error, so a red
-  # suite there fails this job and the push. Not yet on the required-checks
-  # list (docs/ROADMAP.md's release-readiness entry), so a red run here
-  # doesn't block a merge yet, only shows red on the push.
+  # The client-side half of Windows, on the same gate. A real check, not
+  # advisory: windows-client.yml carries no continue-on-error, so a red suite
+  # fails the push. Not yet on the required-checks list (docs/ROADMAP.md's
+  # release-readiness entry), so it does not block a merge yet.
   e2e-windows-client:
     name: fast suites (Windows client)
     needs: e2e-gate

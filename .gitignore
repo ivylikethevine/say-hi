@@ -37,28 +37,19 @@
 *.jpeg
 *.log
 *.txt
-# ...except setup-tool's roster, which the blanket *.txt above swallowed: the
-# action and the drift checker both read it, so an unignored copy is the only
-# way CI has ever seen it. Same trap as dist/ below, from the other side.
+# setup-tool's roster, which the blanket *.txt above would swallow; the action
+# and the drift checker both read it
 !.github/actions/setup-tool/tools.txt
 *.tsv
 *.csv
 *.sql
 *.toml
-# ...except the typos allowlist, which the lint gate's spelling half reads
-# (tests/lint/shellcheck_test.sh, lint_typos): the same trap as tools.txt above.
-!_typos.toml
-# ...except for the moxide.toml file
+# the typos allowlist, read by the lint gate (tests/lint/tools_test.sh)
+!.typos.toml
 !.moxide.toml
-# where packaging/mkpkg.sh stages the tree and drops the built packages.
-# Deliberately a name none of the blanket rules above already cover - a
-# "build/" or "output/" would have been swallowed by **build**/**output** and
-# looked like it was working right up until someone cloned the repo.
+# packaging/mkpkg.sh's staging and output directory. Not "build/" or
+# "output/": the blanket rules above would swallow those.
 dist/
 
-# specific exemptions for this projects own publishing keys
+# this project's own publishing keys
 !packaging/apk/*.rsa.pub
-
-# per-shell scratch history dirs (_HI_SCRATCH_HISTORY); created in-tree, wiped
-# on shell exit, and never part of the ssh payload
-hi.history.*

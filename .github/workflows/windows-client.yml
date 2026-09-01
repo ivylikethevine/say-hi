@@ -1,15 +1,11 @@
 name: Windows client
 
 # The client-side half of the Windows story: the fast suites under the
-# runner's own Git Bash, proving hi.sh works when the machine you are
-# *sitting at* is Windows. windows-e2e.yml is the other half - it stands up
-# sshd and drives `hi localhost` into a stock Windows OpenSSH *target*.
-# README's compatibility table rests on both.
-#
-# Called by ci.yml on every push to main beside `e2e-windows`, and a real gate
-# like every other job there: a failing suite fails this job and the push's
-# overall status, no continue-on-error. Dispatch still works for running it on
-# its own.
+# runner's own Git Bash, proving hi.sh works when the machine you are sitting
+# at is Windows. windows-e2e.yml is the target-side half; README's
+# compatibility table rests on both. Called by ci.yml on every push to main
+# beside `e2e-windows` as a real gate (a failing suite fails the push, no
+# continue-on-error); dispatch runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -27,16 +23,12 @@ jobs:
         with:
           persist-credentials: false
 
-      # Deliberately no `uses: ./.github/actions/setup-tool` in this job: that
-      # action resolves linux.x86_64/darwin.* asset slugs and caches into
-      # /usr/local/bin, and neither is a Windows shape. The lint group is not
-      # run here for that reason - ci.yml's ubuntu job is where it is enforced,
-      # against pinned versions.
-      #
-      # No --require-run and no --totals-file either. Skips are the expected
-      # shape here - there is no zsh or fish on the runner - and README's tests
-      # badge is the ubuntu count on purpose, per the note above ci.yml's
-      # fast-totals upload.
+      # No `uses: ./.github/actions/setup-tool`: it resolves linux/darwin asset
+      # slugs and caches into /usr/local/bin, neither a Windows shape, so the
+      # lint group is enforced on ci.yml's ubuntu job only. No --require-run or
+      # --totals-file either: skips are expected (no zsh or fish here), and
+      # README's tests badge is the ubuntu count on purpose, per the note above
+      # ci.yml's fast-totals upload.
       - name: Run the fast suites under Git Bash
         shell: bash
         run: |

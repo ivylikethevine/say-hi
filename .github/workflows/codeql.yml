@@ -1,44 +1,21 @@
 name: CodeQL
 
-# CodeQL over the one language in this repo it can read: GitHub Actions.
-#
-# **It cannot analyse the product.** say-hi is bash, and CodeQL has no shell
-# analyser - not a gap in this config, a gap in CodeQL. The shell is covered by
-# shellcheck, checkbashisms, the bash-3.2 grep and `zsh -n`/`fish --no-execute`,
-# all of them inside `--group fast` (docs/TESTING.md). Nothing here changes
-# that, and nothing here should be read as "the code is scanned now".
-#
-# What it does cover is real: ten workflows and a composite action, where the
-# interesting bugs are expression injection into `run:`, an untrusted checkout
-# feeding a privileged job, and artifact or cache poisoning. That is the set
-# CodeQL's `actions` pack asks about.
-#
-# It overlaps with zizmor, which already gates every PR in ci.yml, and the
-# overlap is the point rather than an accident: zizmor is a fast opinionated
-# linter that fails the build, CodeQL is a slower dataflow analysis whose
-# findings land in the Security tab with a trace. Where they agree, a finding
-# is cheap to trust; where only one fires, it is worth reading. Neither
-# replaces the other, and zizmor stays the gate.
-#
-# Scorecard's SAST check counts this and does not count shellcheck, actionlint
-# or zizmor - a real reason to run it, and a bad reason to believe the score.
-#
-# No `paths:` filter, deliberately - one scoped to `.github/workflows/**`
-# and `.github/actions/**` makes the score worse than not running this at
-# all. Scorecard's SAST check doesn't ask
-# whether CodeQL is configured; it walks the merged PRs behind the last 30
-# commits on the default branch and counts how many carry a completed
-# check run from it. Most merges into `main` here are dev->main PRs that
-# touch no workflow file, so a path-filtered trigger skips them - no run,
-# nothing to count - and the check read as if CodeQL only sometimes existed.
-# Running the `actions` pack over an unchanged workflow set on every PR costs
-# a minute or two of CI; that's what buys a real count.
+# CodeQL over the one language here it can read: GitHub Actions. It cannot
+# analyse the product - CodeQL has no shell analyser; the bash is covered by
+# `--group fast` (docs/TESTING.md). The overlap with zizmor is the point:
+# zizmor is the fast gate in ci.yml, CodeQL the slower dataflow pass whose
+# findings land in the Security tab with a trace, and Scorecard's SAST check
+# counts only this one. Runs on push to main, every PR, weekly and on dispatch.
 on:
   push:
     branches: [main]
+  # no `paths:` filter, deliberately: Scorecard's SAST check counts completed
+  # CodeQL runs on the merged PRs behind the last 30 default-branch commits,
+  # and most dev->main PRs touch no workflow file, so a scoped trigger reads
+  # as if CodeQL only sometimes existed
   pull_request:
-  # the default-branch baseline code scanning diffs a PR against. Without a
-  # scheduled run the first PR to touch a workflow has nothing to compare to.
+  # the default-branch baseline code scanning diffs a PR against; without it
+  # the first PR to touch a workflow has nothing to compare to
   schedule:
     - cron: "17 6 * * 2"
   workflow_dispatch:
@@ -65,8 +42,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # `actions` is the whole matrix on purpose - see the header. build-mode
-      # none is the only mode it has: there is nothing to compile.
+      # `actions` is the whole matrix on purpose (see the header); build-mode
+      # none is the only mode it has, there being nothing to compile
       - name: Initialize CodeQL
         uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:

@@ -1,62 +1,31 @@
-# hadolint's rules for tests/dockerfiles - the only Dockerfiles here, and all
-# of them throwaway test fixtures rather than anything shipped. That distinction
-# is what the ignores below turn on: a rule that protects a production image can
-# be exactly wrong for a fixture whose whole job is to be a disposable, slightly
-# broken machine.
-#
-# Every entry names why. A rule silenced without one is a rule nobody can put
-# back.
+# hadolint rules for tests/dockerfiles - throwaway test fixtures, not shipped
+# images, which is what every ignore below turns on. Each names its reason; a
+# rule silenced without one is a rule nobody can put back.
 ignored:
-  # Pin versions in apt-get / apk add.
-  #
-  # The pinning argument is settled the other way round here, deliberately: the
-  # base image is pinned by digest (see tests/dockerfiles/*.Dockerfile and the
-  # docker ecosystem in .github/dependabot.yml), which fixes the whole package
-  # set at once and is maintainable because dependabot watches it. Pinning every
-  # apt and apk package individually would freeze dozens of versions nothing
-  # watches, and each one is a package these fixtures install only so a target
-  # has an sshd or a curl - never something hi's behaviour depends on the
-  # version of.
+  # DL3008/DL3018: pin apt/apk versions. The base image is digest-pinned
+  # instead (dependabot watches it); per-package pins would freeze dozens of
+  # versions nothing watches, for packages hi's behaviour never depends on.
   - DL3008
   - DL3018
 
-  # Last USER should not be root.
-  #
-  # These images run sshd. The framework fixture deliberately ends on `USER
-  # root` after dropping to hitest to run the framework's setup script,
-  # because the entrypoint has to run ssh-keygen and bind a privileged port. A
-  # fixture that ended as hitest would not start.
+  # DL3002: last USER should not be root. The framework fixture ends on `USER
+  # root` because its entrypoint runs ssh-keygen and binds a privileged port.
   - DL3002
 
-  # Non-numeric user-id may not be resolvable by the host.
-  #
-  # `hitest` is the point: the demos and the session header render a real
-  # username, and a numeric uid would put a number in a committed GIF. Nothing
-  # here shares a uid namespace with a host that would care.
+  # DL3066: non-numeric user id. `hitest` is the point - the demos render a
+  # real username - and nothing shares a uid namespace with a host that cares.
   - DL3066
 
-  # Expressions don't expand in single quotes.
-  #
-  # Where a RUN writes a line like `eval "$(starship init bash)"` into a
-  # dotfile with printf and single quotes, that is the entire intent: the
-  # *target's* shell expands it at session time, and double quotes would
-  # expand it at build time against a shell with no framework loaded and bake
-  # the empty result into the image. Those lines live in
-  # tests/dockerfiles/frameworks/*.sh now, where shellcheck sees them with a
-  # per-line disable; the ignore stays for the sed in installed-pkg and for
-  # whatever the next fixture writes.
+  # SC2016: expressions in single quotes. Lines like `eval "$(starship init
+  # bash)"` are written into dotfiles for the *target's* shell to expand;
+  # double quotes would expand them at build time. Most moved to
+  # tests/dockerfiles/frameworks/*.sh with per-line disables; the ignore stays
+  # for the sed in installed-pkg.
   - SC2016
 
-# What is NOT ignored, and why it is worth knowing:
-#
-#   DL3009 (apt lists left in the layer) and DL3015 (no --no-install-recommends)
-#   are real and unfixed. They cost image size on fixtures that are built once
-#   and thrown away, so they are low priority - but they are honest findings,
-#   and leaving them visible is what keeps this file a list of decisions rather
-#   than a mute button. This job is advisory, so they do not block anything.
-#
-#   DL4006 (a piped RUN with no pipefail) was real and IS fixed - three
-#   framework setup scripts pipe curl into sh, where a 404 still built a green
-#   image with the framework missing. framework.Dockerfile carries `SHELL -o
-#   pipefail` and every script sets it itself.
+# Not ignored: DL3009 (apt lists left in the layer) and DL3015 (no
+# --no-install-recommends) are real, low priority on fixtures built once and
+# thrown away, and left visible on purpose - the job is advisory. DL4006 (piped
+# RUN without pipefail) was real and is fixed: framework.Dockerfile sets
+# `SHELL -o pipefail` and every script sets it itself.
 failure-threshold: error

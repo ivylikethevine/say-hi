@@ -1,50 +1,13 @@
 name: Image scan
 
-# The severity half of digest-pinning, and the gate dependabot cannot offer.
-#
-# tests/dockerfiles pins its base images by digest, which is what makes a
-# fixture build reproducible and also what freezes whatever was in those layers
-# that day. Dependabot opens a bump PR weekly, but it bumps on release, not on
-# severity - nothing else here would say "the digest you are pinned to now has a
-# fixable hole". Nor can dependabot be asked to: its docker ecosystem is
-# version-updates-only, because GHSA carries no container ecosystem for alerts
-# to come from. .github/dependabot.yml's docker block records that.
-#
-# So the question dependabot cannot answer is answered here instead, by
-# measuring both sides rather than assuming: scan the pinned digest, scan what
-# the tag points at now, and speak only when the second is verifiably better.
-# The state machine lives in .github/scripts/scan_pinned_images.sh's header.
-#
-# --ignore-unfixed is the whole design, not a flag. Measured on the current
-# pins, debian:bookworm-slim reports 17 HIGH and 5 CRITICAL and every one of the
-# 22 has no fix available - Debian won't-fix entries, eight of them perl-base.
-# A job that counts those is red forever and teaches everyone to skip it. It is
-# also what makes the comparison above mean anything: two piles of permanent
-# won't-fix findings differ by noise rather than by severity. Measured Aug 2026,
-# four of the five pins report zero fixable findings this way and
-# debian:trixie-slim reports four (a util-linux TOCTOU set) with no rebuilt tag
-# to move to - the "finding, but no repin helps yet" verdict below.
-# timep.Dockerfile, the only file on that pin, takes the fix from the archive
-# instead and says so, so this job will keep naming the pin until Debian
-# rebuilds it. That is the honest answer: the *pin* still has the hole.
-#
-# One of those zeroes is not a clean bill of health. trivy identifies fedora and
-# then declines it ("Unsupported os"), so that image is never actually scanned;
-# the script tells the two apart - a declined scan comes back with a null
-# .Results rather than an empty finding list - and reports it as unscanned
-# instead of counting it clean.
-#
-# The output is an issue, not a pull request. Dependabot already opens the repin
-# PR; what is missing is the reason to prioritise it over everything else in the
-# queue, and an issue naming the CVEs a merge would close is exactly that. A PR
-# from here would duplicate dependabot's, need contents: write, and - because a
-# GITHUB_TOKEN-authored PR triggers no workflows - arrive without the docker e2e
-# run that is the only thing proving the new digest still builds.
-#
-# Advisory, like markdownlint and link-check: a CVE landing upstream is not a
-# reason to redden somebody's unrelated PR. Scheduled rather than per-PR for the
-# same reason those two are - this tracks upstream's clock, not the diff's.
+# Weekly trivy scan of tests/dockerfiles' digest-pinned base images: the
+# severity half of digest-pinning, which dependabot cannot offer (its docker
+# ecosystem is version-updates-only - .github/dependabot.yml's docker block).
+# Scans the pinned digest and what the tag points at now, and speaks only when
+# the second is verifiably better; --ignore-unfixed is the whole design (the
+# scan step says why) and the state machine is scan_pinned_images.sh's header.
 on:
+  # scheduled rather than per-PR: this tracks upstream's clock, not the diff's
   schedule:
     - cron: "37 6 * * 3"
   workflow_dispatch:
@@ -68,12 +31,20 @@ jobs:
         with:
           tool: trivy
 
-      # The three advisory verdicts (0 clean, 1 a finding with no better image
-      # to move to, 2 a repin that demonstrably helps) are all green here - the
-      # header says why. Captured as an output rather than left to
-      # continue-on-error, which collapses them all to "failure" and would lose
-      # the distinction the next step is built on; anything else really is a
-      # broken job (127 is a missing trivy or jq) and still fails loudly.
+      # Advisory, like markdownlint and link-check: a CVE landing upstream is no
+      # reason to redden an unrelated PR, so never make this a required check.
+      # The three verdicts (0 clean, 1 a finding with no better image to move
+      # to, 2 a repin that demonstrably helps) are all green and captured as an
+      # output - continue-on-error would collapse them to "failure" - while
+      # anything else (127 is a missing trivy or jq) still fails loudly.
+      # --ignore-unfixed is the whole design: debian:bookworm-slim carries 22
+      # HIGH/CRITICAL won't-fix findings (eight of them perl-base), a job that
+      # counts those is red forever, and two piles of permanent findings differ
+      # by noise. debian:trixie-slim's util-linux TOCTOU set has no rebuilt tag
+      # yet, so verdict 1 naming that pin is expected until Debian rebuilds it
+      # (timep.Dockerfile takes the fix from the archive). A zero is not always
+      # clean either: trivy declines fedora ("Unsupported os"), and the script
+      # reports its null .Results as unscanned rather than counting it clean.
       - id: scan
         env:
           HI_SCAN_REPORT: ${{ runner.temp }}/image-scan-report.md
@@ -98,6 +69,9 @@ jobs:
           printf '\nFound by [`image-scan`](%s). Closed automatically once the pins no longer need it.\n' \
             "$RUN_URL" >>"$REPORT"
 
+      # An issue, not a pull request: dependabot already opens the repin PR, and
+      # one from here would need contents: write and, being GITHUB_TOKEN-
+      # authored, trigger no docker e2e run to prove the new digest builds.
       - uses: ./.github/actions/upsert-tracking-issue
         with:
           label: image-scan

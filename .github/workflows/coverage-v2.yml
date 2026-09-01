@@ -1,22 +1,11 @@
 name: Coverage (bashcov)
 
 # bashcov over the fast suites, published as an artifact - visibility, never a
-# gate: no PR waits on this and no threshold fails it. The sibling of
-# coverage.yml, which does the same job with kcov.
-#
-# Dispatch-only, on coverage.yml's reasoning and one of its own. tests/
-# coverage_v2.sh opens with WHY A SECOND COVERAGE SCRIPT: bashcov reads bash's
-# own xtrace instead of driving a DEBUG trap, so it does not lose the suites the
-# way kcov does - common/git_prompt.sh reads 92.68% here against kcov's 2.56%,
-# from the same seventeen cases. That half is trustworthy.
-#
-# The half that is not: bashcov marks every line of a *heredoc body* as covered,
-# including lines that are pure text. hi.sh builds the entire remote script out
-# of heredocs, and its two connect functions - _say_hi and _say_hi_container,
-# 182 lines that nothing in --group fast executes - report 100%. So the figure
-# this publishes is an over-count where kcov's is an under-count, and the badge
-# says `heredoc-inflated` in grey for the same reason kcov's says `load-time`.
-# Put a schedule here the day that is fixed.
+# gate; coverage.yml's sibling. Dispatch-only until the over-count is fixed
+# (tests/coverage_v2.sh's WHY A SECOND COVERAGE SCRIPT): bashcov reads bash's
+# xtrace, so it keeps the suites kcov loses (git_prompt.sh 92.68% vs 2.56%),
+# but marks every heredoc-body line covered - hi.sh's two connect functions,
+# 182 lines --group fast never runs, report 100% (badge: `heredoc-inflated`).
 on:
   workflow_dispatch:
 
@@ -38,20 +27,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zsh fish
 
-      # No setup-tool step and nothing built from source: bashcov is a rubygem,
-      # which is the one practical advantage it has over kcov here - kcov ships
-      # no binary asset and reaches Debian/Ubuntu only through a PPA, so
-      # coverage.yml has to compile it. ruby is preinstalled on the hosted
-      # images, so the install below is a defensive fallback that should never
-      # actually run.
-      #
-      # The version is pinned by hand here rather than in setup-tool's
-      # tools.txt, which is the roster for everything else: every `kind` that
-      # file knows (raw, tar.gz, tar.xz, cmake) fetches a GitHub release asset,
-      # and a gem is none of those - adding it would mean teaching install.sh
-      # about rubygems for one dispatch-only workflow. The cost of the
-      # exception is that bashcov is the one tool check_tool_versions.sh cannot
-      # report drift on, so this pin is bumped by hand or not at all.
+      # No setup-tool step: bashcov is a rubygem, and every `kind` tools.txt
+      # knows fetches a GitHub release asset, so the pin lives here by hand -
+      # which makes bashcov the one tool check_tool_versions.sh cannot report
+      # drift on. ruby is preinstalled on the hosted images; the apt install
+      # below is a fallback that should never run.
       - name: Install ruby and bashcov
         env:
           BASHCOV_VERSION: "4.0.0"
@@ -76,11 +56,9 @@ jobs:
       - name: Show the bashcov version
         run: bashcov --version
 
-      # No shellcheck/shfmt/checkbashisms here on purpose: tests/coverage_v2.sh
-      # drops the `shellcheck` suite from the sweep (it is a linter run over the
-      # tree, not a path through hi's bash), so nothing left in the group
-      # invokes them. The host report names them and prints "(absent)", which is
-      # not a failure.
+      # No shellcheck/shfmt/checkbashisms on purpose: tests/coverage_v2.sh
+      # drops the `shellcheck` suite from the sweep, so the host report's
+      # "(absent)" for them is not a failure.
       - name: Run the fast suites under bashcov
         run: tests/coverage_v2.sh coverage-v2-report
 
@@ -91,17 +69,10 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # One line for pages.yml to turn into README's bashcov badge, on the same
-      # split coverage.yml uses: the report above is a 90-day artifact somebody
-      # downloads, this is a number the site re-reads on every deploy until the
-      # next run replaces it.
-      #
-      # ruby, not sed: SimpleCov's .resultset.json is nested arrays (one entry
-      # per source line, null where the line is not executable, otherwise a hit
-      # count), so there is no aggregate percentage in the file to grep for - it
-      # has to be computed. ruby is guaranteed present here, bashcov being a
-      # gem. The filters coverage_v2.sh applies are already baked into the
-      # resultset, so this sums exactly the files the table printed.
+      # One line for pages.yml to turn into README's bashcov badge, on
+      # coverage.yml's split. ruby, not sed: SimpleCov's .resultset.json has no
+      # aggregate percentage, only per-line hit arrays, so it is computed here;
+      # the filters coverage_v2.sh applies are already baked into the resultset.
       - name: Write the badge figure
         run: |
           set -euo pipefail

@@ -1,8 +1,7 @@
 # Security Policy
 
-The threat model for a tool people run against every host they touch: what hi
-does and deliberately doesn't, what runs where, what it leaves behind, where
-the trust boundaries sit, and how to report what slipped through.
+The threat model for a tool people run against every host they touch, and how
+to report what slipped through it.
 
 ## Contents
 
@@ -11,6 +10,7 @@ the trust boundaries sit, and how to report what slipped through.
 - [What hi writes on a target](#what-hi-writes-on-a-target)
 - [Footprint and cleanup on the target](#footprint-and-cleanup-on-the-target)
 - [Trust boundaries](#trust-boundaries)
+  - [What a process started from a session inherits](#what-a-process-started-from-a-session-inherits)
 - [When a push is refused](#when-a-push-is-refused)
 - [Supported versions](#supported-versions)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
@@ -30,7 +30,7 @@ the trust boundaries sit, and how to report what slipped through.
   a session can say `hi` onward. Your overlay is a second, smaller allow list,
   `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`, `vim.rc`,
   `nano.rc`, `aliases.sh`, `bash.sh`, `zsh.zsh`, `config.fish` from
-  `~/.config/say-hi/`), so anything else in that directory stays on the client.
+  `~/.config/say-hi/`); anything else in that directory stays on the client.
 - **base64 is armor, not crypto.** It gets the payload through the target's
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.
@@ -41,15 +41,13 @@ the trust boundaries sit, and how to report what slipped through.
 - **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
   so the server's `Banner`, the `Permanently added ... to the list of known
 hosts` line and the host-key fingerprint on a first connection reach your
-  terminal exactly as they would without hi in the way. hi captured all of it
-  until it was pointed out that this quietly turned trust-on-first-use into
-  accepting a fingerprint nobody was shown.
+  terminal exactly as they would without hi. Capturing them would turn
+  trust-on-first-use into accepting a fingerprint nobody was shown.
 - **`hi --update` is an unsigned `git pull`.** There are no signed tags yet
-  (there is no tagged release yet at all - see
-  [Supported versions](#supported-versions)), so what it verifies is what
-  `git` verifies: the transport to the remote, and nothing about the commits.
-  A packaged install updates through its package manager instead, which has
-  its own signing story.
+  (no tagged release at all - see [Supported versions](#supported-versions)),
+  so it verifies what `git` verifies: the transport to the remote, and nothing
+  about the commits. A packaged install updates through its package manager,
+  which has its own signing story.
 
 ## What runs where
 
@@ -58,8 +56,7 @@ armors the payload, and pipes it over the transport. On the target a single
 `sh` unpacks it into a temp directory and chainloads `load.sh`, which prints
 the header, writes the session's rc files into a scratch directory of its own,
 and hands off to the best shell available. The target's login files are never
-written. Everything the target executes was
-generated on the client.
+written; everything the target executes was generated on the client.
 
 ## What hi writes on a target
 
@@ -77,23 +74,20 @@ a target" is one command.
 
 ## Footprint and cleanup on the target
 
-- The session tree lives in a `mktemp -d` directory (mode 0700, named
-  `<user>.hi.XXXXXX`); the ssh bootstrap directory is `mkdir -m 700`.
-- `load.sh`'s own on-exit hook owns removal - the whole disposable tree and
-  the session-rc directory - and runs on a clean exit
-  and on an abrupt disconnect alike (`tests/targets/ssh_disconnect_test.sh`
-  verifies the latter). The bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is
-  a narrower backstop for the one thing the hook cannot survive - bash
-  killed by a signal nothing can trap - and only ever needs to remove the
-  tree, since the session-rc directory lives inside it.
-- The session tree is **not** added to `$PATH`. `hi` inside a session is an
-  alias (`common/paths.sh`) instead, which is what a `$PATH` entry would cost:
-  a `/tmp` path on `$PATH`, a finding on any host that is scanned for one.
+- `load.sh`'s own on-exit hook removes the whole disposable tree and the
+  session-rc directory, on a clean exit and on an abrupt disconnect alike
+  (`tests/targets/ssh_disconnect_test.sh` verifies the latter). The
+  bootstrap's `trap 'rm -rf $_HI_CLEANUP' exit` is a narrower backstop for the
+  one thing the hook cannot survive - bash killed by a signal nothing can
+  trap - and only needs to remove the tree, since the session-rc directory
+  lives inside it.
+- The session tree is **not** added to `$PATH`; `hi` inside a session is an
+  alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
+  any host that is scanned for one.
 - A target with a permanent say-hi is used in place and nothing is deleted. hi
-  finds that tree by reading the
-  target's login rc files, then the standard install prefixes, so nothing has to
-  be at a fixed path, and the tree never needs to be writable by you — your
-  config lives in `~/.config/say-hi/`.
+  finds that tree by reading the target's login rc files, then the standard
+  install prefixes, so nothing has to be at a fixed path, and the tree never
+  needs to be writable by you — your config lives in `~/.config/say-hi/`.
   `tests/targets/install_methods_test.sh` drives one target per install method.
 - On the client, `install.sh` validates your rc files with each shell's own
   syntax checker before touching them, and `--uninstall` removes exactly what
@@ -106,25 +100,24 @@ a target" is one command.
   session could do so without hi in it.
 - A malicious target gets what any interactive session gives it: your payload
   and a terminal. Treat every overlay file as public to every host you visit.
-  Nothing a target sends back is executed on the client — the two strings hi
+  Nothing a target sends back is executed on the client: the two strings hi
   reads back (the probe for an existing say-hi tree, and the bootstrap
   directory the target made) are only interpolated into the script sent back
-  to that same target, and only after a check: absolute, and free of anything
-  a double-quoted heredoc expands or closes on, else refused and the session
-  takes the disposable path. Escape sequences in session output remain
-  possible, exactly as with plain `ssh`.
+  to that same target, and only if absolute and free of anything a
+  double-quoted heredoc expands or closes on; else the session takes the
+  disposable path. Escape sequences in session output remain possible, exactly
+  as with plain `ssh`.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
 - The ssh `ControlMaster` socket lives inside a `mktemp -d` of its own rather
   than at a `mktemp -u` name in a shared temp directory: `ControlMaster=auto`
   _joins_ a socket it finds at the path it was given, and a name that was
-  merely unused when it was printed is not a guarantee about the moment it is
-  used.
+  merely unused when printed is no guarantee about the moment it is used.
 - `hi <TAB>`'s target cache is written to `$XDG_RUNTIME_DIR`, or to a
   per-uid directory hi creates with `mkdir -m 700`. The name is predictable —
   the next TAB has to find it — so if that path already exists and is not
-  owned by you, or is a symlink, the cache is skipped rather than adopted.
-  Completion falls back to sweeping the backends, which is slower and correct.
+  owned by you, or is a symlink, the cache is skipped and completion falls
+  back to sweeping the backends: slower, and correct.
 
 ### What a process started from a session inherits
 
@@ -132,19 +125,19 @@ Eight `_HI_*` names, and nothing else with the prefix: the tree and overlay
 pointers, the remote-session flag, the session rc directory, and the four
 completion knobs `targets.sh` reads from its environment. Everything else hi
 sets — sixty-odd paths and toggles — stays a shell variable in the session
-shell and stops there, so a service started by hand, a `sudo -E`, or a cron
-line pasted at the prompt sees an ordinary environment. In particular the
-two values that name your workstation (`_HI_LOCAL_USER`,
-`_HI_LOCAL_HOSTNAME`) are never in a child's environment; a shell started
-inside the session reads them from hi's own rc directory instead. The
-mechanism and the roster are [HI.47](GLOSSARY.md#hi47-what-a-child-inherits);
-`tests/common/exports_test.sh` pins both. The one tier this does not reach is
-a POSIX `sh` started inside a session (and the bash-less fallback), where
-`$ENV` sources `paths.sh` again and dash has no un-export.
+shell, so a service started by hand, a `sudo -E`, or a cron line pasted at the
+prompt sees an ordinary environment. In particular the two values that name
+your workstation (`_HI_LOCAL_USER`, `_HI_LOCAL_HOSTNAME`) are never in a
+child's environment; a shell started inside the session reads them from hi's
+own rc directory instead. The mechanism and the roster are
+[HI.47](GLOSSARY.md#hi47-what-a-child-inherits); `tests/common/exports_test.sh`
+pins both. The one tier this does not reach is a POSIX `sh` started inside a
+session (and the bash-less fallback), where `$ENV` sources `paths.sh` again
+and dash has no un-export.
 
 ## When a push is refused
 
-Secret scanning and push protection are on for this repository. Push
+Secret scanning and push protection are on for this repository; push
 protection refuses the push outright, so the first thing you see is GitHub's
 own error.
 
@@ -154,11 +147,11 @@ bypass and clean up later: a secret that reaches the remote for even one push
 is a secret to rotate. For a false positive, GitHub's error links the bypass
 flow, which records why; take that route rather than reshaping the string.
 
-It is reachable at all because four credentials are handled by hand — the two
-signing keys, `AUR_SSH_KEY` and `HOMEBREW_TAP_TOKEN`, each generated locally,
-pasted into a settings page and deleted. [PACKAGING.md](PACKAGING.md) walks
-each. GitHub's scanner is used rather than gitleaks or trufflehog because it
-runs on the push path, where a third-party action cannot.
+Four credentials are handled by hand — the two signing keys, `AUR_SSH_KEY` and
+`HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page and
+deleted; [PACKAGING.md](PACKAGING.md) walks each. GitHub's scanner is used
+rather than gitleaks or trufflehog because it runs on the push path, where a
+third-party action cannot.
 
 ## Supported versions
 
@@ -166,7 +159,8 @@ No tagged release yet: the supported version is the tip of `main`. The
 `snapshot` prerelease is that tip, packaged - unattended, unsigned, and
 replaced on every push ([PACKAGING.md](PACKAGING.md#snapshot-builds)); it is
 a convenience, not a version. Once v1.0 is tagged, this becomes a version
-table with the latest release supported.
+table with the latest release supported; what a 1.x release keeps stable is
+[CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
 
 ## Reporting a vulnerability
 

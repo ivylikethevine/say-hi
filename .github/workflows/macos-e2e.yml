@@ -3,10 +3,9 @@ name: macOS e2e
 # The BSD path end-to-end: the runner ssh's to itself, so one job covers
 # client AND target - macOS userland (`sed -i ''`, BSD mktemp, `base64 -D`)
 # and /bin/bash 3.2 on both ends, which the fast suites can only imitate.
-#
-# ci.yml calls this on every push to main, once both fast-suite jobs are green -
-# there is no point burning a 15-minute macOS runner on a tree whose unit tests
-# are already red. Dispatch still works for running it on its own.
+# ci.yml calls this on every push to main once both fast-suite jobs are green
+# (no point burning a 15-minute macOS runner on a tree whose unit tests are
+# already red); dispatch runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -19,10 +18,9 @@ jobs:
     name: hi localhost (BSD both ends)
     runs-on: macos-latest
     timeout-minutes: 15
-    # Deliberately no `environment:`. A required reviewer on it would stall
-    # every push to main waiting for a human. The gate instead is the caller:
-    # ci.yml calls this only on `push`, which is to say only on a branch someone
-    # could already write to - a fork PR never reaches it.
+    # Deliberately no `environment:`: a required reviewer would stall every
+    # push to main. The gate is the caller - ci.yml calls this only on `push`,
+    # so a fork PR never reaches it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

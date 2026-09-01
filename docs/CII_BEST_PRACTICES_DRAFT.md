@@ -1,0 +1,224 @@
+# OpenSSF Best Practices badge — questionnaire draft
+
+Working notes for the [OpenSSF Best Practices badge](https://www.bestpractices.dev/)
+(formerly the CII Best Practices badge — "CII" retired when the Core
+Infrastructure Initiative folded into OpenSSF; site, criteria and badge are
+the same lineage). Scratch, not a shipped artifact: delete it once the project
+is registered and the answers below are in the questionnaire.
+
+Tracked as an open gap in [TESTING.md](TESTING.md#the-score-has-a-ceiling-here)
+and [ROADMAP.md](ROADMAP.md#blocked-until-someone-else-moves).
+
+## Contents
+
+- [Registering](#registering)
+- [What's already true, in one place](#whats-already-true-in-one-place)
+- [The passing-level criteria](#the-passing-level-criteria)
+  - [Basics](#basics)
+  - [Change Control](#change-control)
+  - [Reporting](#reporting)
+  - [Quality](#quality)
+  - [Security](#security)
+  - [Analysis](#analysis)
+- [Not Met today, and what closes each one](#not-met-today-and-what-closes-each-one)
+- [Once the project ID exists](#once-the-project-id-exists)
+
+## Registering
+
+1. Sign in at <https://www.bestpractices.dev> with GitHub.
+2. Add project, repo URL `https://github.com/ivylikethevine/say-hi`.
+3. The site issues a numeric project ID immediately and starts the badge at
+   `in progress 0%` — a real, displayable state; nothing needs filling in
+   before saving. It autofills some criteria from the GitHub API (license,
+   HTTPS site, public repo); the tables below only need attention where
+   autofill can't reach.
+4. Work through the six sections below in order; each maps onto a
+   `bestpractices.dev` tab of the same name.
+
+The criterion list and category (MUST / SHOULD / SUGGESTED) come from
+[`criteria/criteria.yml`](https://github.com/ossf/best-practices-badge/blob/main/criteria/criteria.yml)
+in the badge project's repo — re-pull it if this file is more than a few
+months old, since criteria change between releases. The passing level has 67
+criteria; the tables cover all 67.
+
+## What's already true, in one place
+
+Cited once here rather than in every row:
+
+- **License** — [`LICENSE.md`](../LICENSE.md), MIT, at the repo root so both
+  GitHub's and the badge's license detection find it; it ships in the
+  package via `_HI_PACKAGE_CONTENTS` in `scripts/install.sh`.
+- **Contribution guide** — [`CONTRIBUTING.md`](CONTRIBUTING.md): the gate to
+  run, what a review bounces on, which docs change with what.
+- **Vulnerability reporting** — [`SECURITY.md`](SECURITY.md#reporting-a-vulnerability):
+  GitHub private vulnerability reporting, linked directly.
+- **CI** — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the
+  fast suites and the lint gate on every push and PR;
+  [`TESTING.md`](TESTING.md) is the runbook.
+- **Static analysis** — [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)
+  (CodeQL) plus `tests/test_runner.sh --group lint`'s four suites (seventeen
+  checks); both run on every push/PR.
+- **Delivery integrity** — `release.yml`'s `publish` job signs
+  `SHA256SUMS.minisig` with minisign and attaches a build-provenance
+  attestation (`actions/attest-build-provenance`); `SECURITY.md` states there
+  is no `curl | bash` install path.
+- **Credential hygiene** — GitHub secret scanning and push protection are on
+  (`SECURITY.md#when-a-push-is-refused`); the four handled credentials (the
+  two signing keys, `AUR_SSH_KEY`, `HOMEBREW_TAP_TOKEN`) are generated
+  locally, pasted into a settings page, and deleted, per `PACKAGING.md`.
+- **Cryptography — almost entirely N/A.** `hi` implements no cryptography:
+  it execs `ssh`, `docker exec`, `podman exec`, `nomad alloc exec`,
+  `kubectl exec` and lets each transport's own security stand
+  (`SECURITY.md#what-hi-does---and-deliberately-doesnt`). The payload is
+  armored with `base64`, never `openssl`
+  ([GLOSSARY.md HI.17](GLOSSARY.md#hi17-base64-armor)) — transport encoding,
+  not encryption. This paragraph justifies every `crypto_*` row below.
+- **Issue tracker** — GitHub Issues is on (`.github/ISSUE_TEMPLATE/` carries
+  bug/feature/config templates); an `open_issues_count` of 0 does not mean
+  the tracker is unused.
+
+## The passing-level criteria
+
+Answer legend: **Met** / **Unmet** / **N/A**. `na?` marks criteria the site
+allows an N/A answer for; elsewhere the row must resolve to Met or Unmet.
+
+### Basics
+
+| criterion                   | category  | na? | answer | evidence / justification                                                                                                                                                                                                                    |
+| --------------------------- | --------- | --- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description_good`          | MUST      |     | Met    | README opens with what `hi` is in the first paragraph.                                                                                                                                                                                      |
+| `interact`                  | MUST      |     | Met    | README's "In sixty seconds" section covers install; `CONTRIBUTING.md` covers the contribution path.                                                                                                                                         |
+| `contribution`              | MUST      |     | Met    | `CONTRIBUTING.md`, linked from README's docs index.                                                                                                                                                                                         |
+| `contribution_requirements` | SHOULD    |     | Met    | `CONTRIBUTING.md#the-gate` and `#what-a-review-will-bounce-on`.                                                                                                                                                                             |
+| `floss_license`             | MUST      |     | Met    | MIT, `LICENSE.md`.                                                                                                                                                                                                                          |
+| `floss_license_osi`         | SUGGESTED |     | Met    | MIT is OSI-approved.                                                                                                                                                                                                                        |
+| `license_location`          | MUST      |     | Met    | `LICENSE.md` at repo root.                                                                                                                                                                                                                  |
+| `documentation_basics`      | MUST      | na  | Met    | README plus `docs/hi.1` (man page) plus `docs/SETTINGS.md`.                                                                                                                                                                                 |
+| `documentation_interface`   | MUST      | na  | Met    | `docs/hi.1` and `docs/SETTINGS.md`'s per-setting table document every flag and variable.                                                                                                                                                    |
+| `sites_https`               | MUST      |     | Met    | Repo, Pages site (`https://ivylikethevine.github.io/say-hi/`) and downloads are all `https://`.                                                                                                                                             |
+| `discussion`                | MUST      |     | Met    | GitHub Issues is on and is where discussion happens; the criterion accepts an issue tracker as the mechanism. Discussions itself is off (`has_discussions: false`) and queued on `ROADMAP.md` — enabling it makes the answer uncontestable. |
+| `english`                   | SHOULD    |     | Met    | All docs are English.                                                                                                                                                                                                                       |
+| `maintained`                | MUST      |     | Met    | Active commit history; one maintainer is fine — the criterion asks for activity, not headcount.                                                                                                                                             |
+
+### Change Control
+
+| criterion             | category  | na? | answer                | evidence / justification                                                                                                                                           |
+| --------------------- | --------- | --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `repo_public`         | MUST      |     | Met                   | Public GitHub repo, full history.                                                                                                                                  |
+| `repo_track`          | MUST      |     | Met                   | Git; every commit carries author and date.                                                                                                                         |
+| `repo_interim`        | MUST      |     | Met                   | `main` carries commits between releases; having no release yet doesn't fail this — it asks whether interim states are visible.                                     |
+| `repo_distributed`    | SUGGESTED |     | Met                   | Git is inherently distributed.                                                                                                                                     |
+| `version_unique`      | MUST      |     | **Unmet — see below** | No tag exists yet.                                                                                                                                                 |
+| `version_semver`      | SUGGESTED |     | Unmet (for now)       | `ROADMAP.md` names "the semver rule" as part of the unwritten stability contract. Answer Unmet or Unknown until that lands; SUGGESTED, not a blocker.              |
+| `version_tags`        | SUGGESTED |     | **Unmet — see below** | No tag exists yet.                                                                                                                                                 |
+| `release_notes`       | MUST      | na  | **Unmet — see below** | Mechanism exists (`release.yml`'s `publish` job composes notes via `releases/generate-notes` plus a verification checklist) but no release has shipped through it. |
+| `release_notes_vulns` | MUST      | na  | **Unmet — see below** | Same mechanism, also unproven.                                                                                                                                     |
+
+### Reporting
+
+| criterion                       | category | na? | answer        | evidence / justification                                                                    |
+| ------------------------------- | -------- | --- | ------------- | ------------------------------------------------------------------------------------------- |
+| `report_process`                | MUST     |     | Met           | GitHub Issues, with templates at `.github/ISSUE_TEMPLATE/`.                                 |
+| `report_tracker`                | SHOULD   |     | Met           | GitHub Issues is the tracker.                                                               |
+| `report_responses`              | MUST     |     | **see below** | Process exists; no published response-time commitment yet.                                  |
+| `enhancement_responses`         | SHOULD   |     | Met           | Feature requests go through the same Issues process (`feature_request.yml` template).       |
+| `report_archive`                | MUST     |     | Met           | GitHub Issues archives and is searchable by default.                                        |
+| `vulnerability_report_process`  | MUST     |     | Met           | `SECURITY.md#reporting-a-vulnerability`.                                                    |
+| `vulnerability_report_private`  | MUST     | na  | Met           | GitHub private vulnerability reporting, linked directly from `SECURITY.md`.                 |
+| `vulnerability_report_response` | MUST     | na  | **see below** | Process exists; no published response-time commitment yet — same gap as `report_responses`. |
+
+### Quality
+
+| criterion                     | category  | na? | answer | evidence / justification                                                                                                                                                                                          |
+| ----------------------------- | --------- | --- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build`                       | MUST      | na  | Met    | `packaging/nfpm/nfpm.yaml` plus `packaging/mkpkg.sh`/`bump.sh` build the deb/rpm/apk; `scripts/install.sh` is the from-source path. Both are one-command.                                                         |
+| `build_common_tools`          | SUGGESTED | na  | Met    | nfpm and standard shell tooling — nothing bespoke.                                                                                                                                                                |
+| `build_floss_tools`           | SHOULD    | na  | Met    | Every build tool in the chain (nfpm, shellcheck, shfmt, bash itself) is FLOSS.                                                                                                                                    |
+| `test`                        | MUST      |     | Met    | `tests/test_runner.sh`; `TESTING.md` is the runbook.                                                                                                                                                              |
+| `test_invocation`             | SHOULD    |     | Met    | `tests/test_runner.sh <suite>` or `--group fast`, one command, documented in `TESTING.md` and `CONTRIBUTING.md`.                                                                                                  |
+| `test_most`                   | SUGGESTED |     | Met    | The lint gate's seventeen checks plus the fast suites cover most of `common/`, `hi.sh`, and `scripts/`; `tests/coverage.sh`'s own header calls its percentage untrustworthy, so cite suite breadth, not a number. |
+| `test_continuous_integration` | SUGGESTED |     | Met    | `.github/workflows/ci.yml`, every push and PR.                                                                                                                                                                    |
+| `test_policy`                 | MUST      |     | Met    | `CONTRIBUTING.md#the-gate` requires the fast + lint groups to pass before a PR is opened.                                                                                                                         |
+| `tests_are_added`             | MUST      |     | Met    | Same gate; `CONTRIBUTING.md#what-a-review-will-bounce-on` names missing test coverage as a bounce reason.                                                                                                         |
+| `tests_documented_added`      | SUGGESTED |     | Met    | `TESTING.md`'s layout rule: a suite lives in `tests/<the directory it tests>/`, documented and enforced by the lint suite.                                                                                        |
+| `warnings`                    | MUST      | na  | Met    | `set -euo pipefail` throughout; shellcheck runs at the default (non-silenced) warning level.                                                                                                                      |
+| `warnings_fixed`              | MUST      | na  | Met    | The lint suite fails the build on any shellcheck finding — nothing is suppressed wholesale.                                                                                                                       |
+| `warnings_strict`             | SUGGESTED | na  | Met    | shellcheck, the bash-4-isms grep and checkbashisms all run as hard gates, not advisory.                                                                                                                           |
+
+### Security
+
+| criterion                        | category | na? | answer | evidence / justification                                                                                                                                         |
+| -------------------------------- | -------- | --- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `know_secure_design`             | MUST     |     | Met    | `SECURITY.md`'s "What hi does — and deliberately doesn't" and "Trust boundaries" sections show the threat model is understood; single maintainer, self-attested. |
+| `know_common_errors`             | MUST     |     | Met    | Same self-attestation; shellcheck's default rule set catches the shell-specific common-error class (unquoted expansion, word splitting) as a backstop.           |
+| `crypto_published`               | MUST     | na  | N/A    | See "Cryptography — almost entirely N/A" above.                                                                                                                  |
+| `crypto_call`                    | SHOULD   | na  | N/A    | ditto                                                                                                                                                            |
+| `crypto_floss`                   | MUST     | na  | N/A    | ditto                                                                                                                                                            |
+| `crypto_keylength`               | MUST     | na  | N/A    | ditto                                                                                                                                                            |
+| `crypto_working`                 | MUST     | na  | N/A    | ditto                                                                                                                                                            |
+| `crypto_weaknesses`              | SHOULD   | na  | N/A    | ditto                                                                                                                                                            |
+| `crypto_pfs`                     | SHOULD   | na  | N/A    | ditto                                                                                                                                                            |
+| `crypto_password_storage`        | MUST     | na  | N/A    | ditto — `hi` stores no passwords.                                                                                                                                |
+| `crypto_random`                  | MUST     | na  | N/A    | ditto                                                                                                                                                            |
+| `delivery_mitm`                  | MUST     |     | Met    | HTTPS everywhere (repo, Pages, release downloads over GitHub's CDN).                                                                                             |
+| `delivery_unsigned`              | MUST     |     | Met    | `release.yml`'s minisign-signed `SHA256SUMS.minisig` plus build-provenance attestation; verification steps in `PACKAGING.md#verifying-a-release-download`.       |
+| `vulnerabilities_fixed_60_days`  | MUST     |     | Met    | No unaddressed public vulnerability report exists; policy is to fix promptly (self-attested, revisit if one is ever filed).                                      |
+| `vulnerabilities_critical_fixed` | SHOULD   |     | Met    | Same.                                                                                                                                                            |
+| `no_leaked_credentials`          | MUST     |     | Met    | `SECURITY.md#when-a-push-is-refused`: secret scanning and push protection are on; the four handled credentials never touch the repo.                             |
+
+### Analysis
+
+| criterion                                | category  | na? | answer | evidence / justification                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------- | --------- | --- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `static_analysis`                        | MUST      | na  | Met    | shellcheck (`tests/test_runner.sh --group lint`, four suites/seventeen checks) plus CodeQL, both on every push/PR.                                                                                                                                                                                                              |
+| `static_analysis_common_vulnerabilities` | SUGGESTED | na  | Met    | CodeQL's default query suite covers this; `codeql.yml`'s header comment notes it exists partly to satisfy this class of check.                                                                                                                                                                                                  |
+| `static_analysis_fixed`                  | MUST      | na  | Met    | CodeQL and shellcheck findings block CI; nothing is merged with an open finding.                                                                                                                                                                                                                                                |
+| `static_analysis_often`                  | SUGGESTED | na  | Met    | Both run on every push and PR, not just periodically.                                                                                                                                                                                                                                                                           |
+| `dynamic_analysis`                       | SUGGESTED |     | Unmet  | No sanitizer/fuzzer story exists for shell (also why Scorecard's Fuzzing check is `not-applicable` in `.scorecard.yml`). The e2e suites (ssh/docker/podman/nomad/kube, macOS/Windows/FreeBSD) exercise real runtime behaviour, but that is testing, not dynamic analysis in the site's sense; SUGGESTED, so Unmet costs little. |
+| `dynamic_analysis_unsafe`                | SUGGESTED | na  | N/A    | No memory-unsafe language in the tree (bash only).                                                                                                                                                                                                                                                                              |
+| `dynamic_analysis_enable_assertions`     | SUGGESTED |     | N/A    | No assertion mechanism in the relevant sense for shell.                                                                                                                                                                                                                                                                         |
+| `dynamic_analysis_fixed`                 | MUST      | na  | N/A    | Follows from `dynamic_analysis` being Unmet: nothing to have fixed.                                                                                                                                                                                                                                                             |
+
+## Not Met today, and what closes each one
+
+- **`version_unique`, `version_tags`** — need the first git tag:
+  [ROADMAP.md's "Get a release out"](ROADMAP.md#quick-wins).
+- **`release_notes`, `release_notes_vulns`** — the mechanism shipped in
+  `release.yml`; one real release through it proves both. No code change.
+- **`report_responses`, `vulnerability_report_response`** — both want a
+  stated response-time commitment; `SECURITY.md` publishes the _process_ but
+  names no window. One line in `SECURITY.md#reporting-a-vulnerability` (an
+  acknowledgment-within-N-days commitment; the OpenSSF site suggests 14 days
+  for a solo-maintainer project) closes both.
+- **`dynamic_analysis`** (and its dependents) — SUGGESTED, not MUST; stays
+  Unmet unless a shell-appropriate dynamic-analysis tool appears.
+- **`version_semver`** — SUGGESTED; waits on the stability contract
+  `ROADMAP.md` queues.
+
+None of the MUST-level gaps blocks _registering_ or a meaningful
+`in progress` percentage — only `version_unique`, `release_notes` and
+`release_notes_vulns` are release-gated; everything else above is already
+Met or a one-line doc fix.
+
+## Once the project ID exists
+
+Uncomment the two placeholder badge lines in `README.md`'s badge block and
+fill in the ID:
+
+```markdown
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<ID>/badge)](https://www.bestpractices.dev/projects/<ID>)
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/<ID>/baseline)](https://www.bestpractices.dev/projects/<ID>)
+```
+
+(Same numeric ID for both — Baseline is a second, shorter self-assessment
+against the same registered project.)
+
+Then:
+
+- Update [`TESTING.md`](TESTING.md#the-score-has-a-ceiling-here)'s
+  `CII-Best-Practices sits at 0` bullet — it says no project is registered,
+  which stops being true the moment one is.
+- Update [`ROADMAP.md`](ROADMAP.md#blocked-until-someone-else-moves)'s Best
+  Practices sub-bullet: what shipped (this draft, registration) vs. what is
+  still blocked (passing, which needs the first release).
+- Delete this file — its answers live on `bestpractices.dev` from then on.

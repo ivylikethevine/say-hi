@@ -1,13 +1,11 @@
 name: FreeBSD e2e
 
-# The BSD-userland path on a BSD that is not macOS: a FreeBSD VM (vmactions
-# boots one on the hosted ubuntu runner) runs the fast suites and then ssh's
-# to itself, so one job covers client AND target - BSD sed/sort/date/mktemp,
-# `base64` without `-d`, and a pkg-installed bash rather than /bin/sh. This is
-# what turns SUPPORT.md's "*BSD" row from expected-to-work into proven.
-#
-# ci.yml calls this on every push to main once the fast-suite jobs are green;
-# dispatch still works for running it on its own.
+# The BSD-userland path on a BSD that is not macOS: a vmactions FreeBSD VM on
+# the hosted ubuntu runner runs the fast suites and then ssh's to itself, so
+# one job covers client AND target - BSD sed/sort/date/mktemp, `base64`
+# without `-d`, a pkg-installed bash rather than /bin/sh. This is what proves
+# SUPPORT.md's "*BSD" row. ci.yml calls it on every push to main once the
+# fast-suite jobs are green; dispatch runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -26,10 +24,10 @@ jobs:
           persist-credentials: false
 
       # The VM shares the checkout over rsync, so ./hi.sh inside it is this
-      # tree. `--group fast` and not lint: the lint group is enforced once, on
-      # the ubuntu job, against pinned tool versions.
+      # tree. `--group fast`, not lint: lint is enforced once, on the ubuntu
+      # job, against pinned tool versions.
       - name: Fast suites, then say hi to ourselves
-        uses: vmactions/freebsd-vm@d0518f912576ae759075aa00fb9fe27037940271 # v1.5.4
+        uses: vmactions/freebsd-vm@f0552d3b69211736abd97f02ff3d4674c56b73b1 # v1.5.5
         with:
           release: "14.2"
           usesh: true

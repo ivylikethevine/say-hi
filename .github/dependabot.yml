@@ -1,41 +1,23 @@
-# Keeps the SHA-pinned `uses:` in the workflows, the setup-tool action AND the
-# digest-pinned base images in tests/dockerfiles moving via PRs instead of
-# memory. What this does not cover: the curl-installed tool versions in
-# .github/actions/setup-tool/tools.txt (shellcheck, shfmt, checkbashisms,
-# actionlint, zizmor, nfpm, minisign, kcov) - those move by editing that file's
-# version column, and dependabot has no ecosystem for them; the tool-versions
-# workflow watches that drift instead.
+# Keeps the SHA-pinned `uses:` in the workflows and the setup-tool action, and
+# the digest-pinned base images in tests/dockerfiles, moving via PRs. Not
+# covered: the curl-installed tool versions in
+# .github/actions/setup-tool/tools.txt - dependabot has no ecosystem for them;
+# tool-versions.yml watches that drift.
 #
-# Renovate was weighed as a replacement for both, and the answer is no - written
-# here so the question stops being reopened. It would genuinely cover all three
-# classes: `customManagers` match arbitrary files by regex, so tools.txt's
-# version column and the plain image tags in shell (tests/lib/backend.sh,
-# docs/tapes/fixtures.sh, ci.yml) would become managed dependencies that get
-# *bumped* rather than merely guarded by lint_image_tags. What it costs is worse
-# than what it buys at this size: a second bot app on the repo, a renovate.json
-# that is its own dialect to learn, and - the deciding one - tool-versions.yml
-# keeps one tracking issue current (plus ::warning annotations in the run)
-# where Renovate opens pull requests. For ten curl-installed pins, trading one
-# issue for a PR stream is a downgrade in signal. Revisit if that roster grows
-# several times over.
+# Renovate was weighed as a replacement and declined: it would cover tools.txt
+# and the plain image tags in shell via customManagers, but costs a second bot
+# app, its own config dialect, and a PR stream where tool-versions.yml keeps
+# one tracking issue current. For ten curl-installed pins that is a downgrade
+# in signal; revisit if the roster grows several times over.
 #
-# The other question that keeps coming back: can dependabot open a PR only when
-# the bump reduces the number of known vulnerabilities? No. That is a separate
-# feature - dependabot *security* updates, driven by alerts against the GitHub
-# Advisory Database and toggled in repo settings rather than configured here.
-# Nothing in this file gates version updates on severity; `applies-to:
-# security-updates` groups security PRs, it does not create them.
-#
-# The nearest lever is `open-pull-requests-limit: 0`, which disables version
-# updates for one ecosystem while leaving security updates untouched - and it is
-# the wrong answer for both blocks below, for different reasons. github-actions
-# would freeze between the rare published action advisory, when what the
-# cooldown below guards is release freshness rather than advisories. docker
-# would go silent outright: it is version-updates-only, because GHSA has no
-# container ecosystem for an alert to come from, so there is no security-update
-# half to fall back on. The severity question for the base images is answered by
-# image-scan.yml instead, which measures it with trivy rather than asking for it
-# here.
+# Dependabot cannot open a PR only when a bump reduces known vulnerabilities:
+# that is dependabot *security* updates, toggled in repo settings, and
+# `applies-to: security-updates` only groups those PRs. The nearest lever,
+# `open-pull-requests-limit: 0`, is wrong for both blocks below: github-actions
+# would freeze between rare action advisories when the cooldown guards release
+# freshness, and docker would go silent outright (GHSA has no container
+# ecosystem, so there is no security-update half). Base-image severity is
+# image-scan.yml's job, measured with trivy.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -44,20 +26,13 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: weekly
-    # let a new action release age before a bump PR shows up - a freshly
-    # compromised release's window is its first days (zizmor: dependabot-cooldown)
+    # let a release age before its bump PR - a freshly compromised release's
+    # window is its first days (zizmor: dependabot-cooldown)
     cooldown:
       default-days: 7
-    # Two groups rather than one PR per action: a bump PR per action per week
-    # is noise nobody reads. This repo has no docker/* actions, so the natural
-    # split is the first-party
-    # actions/* namespace (checkout, cache, upload/download-artifact, the
-    # Pages actions, attest-build-provenance - released together often enough
-    # that reviewing five identical version bumps a week added nothing) versus
-    # the third-party actions (codeql-action, scorecard-action,
-    # markdownlint-cli2-action, kind-action, vhs-action, freebsd-vm,
-    # lychee-action, devcontainers/action), which stay together in one PR for
-    # the same "one review beats five" reason rather than getting a group each.
+    # Two groups, not one PR per action: first-party actions/* release
+    # together often enough that five identical bumps a week added nothing;
+    # the third-party rest stay together for the same one-review reason.
     groups:
       actions:
         patterns:
@@ -68,46 +43,33 @@ updates:
         exclude-patterns:
           - "actions/*"
 
-  # The three upstream base images the test fixtures build on, pinned by digest
-  # in tests/dockerfiles/*.Dockerfile. A digest never moves, which is the point
-  # and also the hazard: without this, `alpine:3.24` would keep meaning whatever
-  # it meant the day it was pinned, security fixes included, and nothing would
-  # say so. The `docker` ecosystem reads Dockerfiles specifically - the same
-  # images named in shell (tests/test_lib.sh, docs/tapes/fixtures.sh) are out of
-  # its reach, which is why those stay on tags.
+  # The upstream base images the fixtures build on, digest-pinned in
+  # tests/dockerfiles/*.Dockerfile. A digest never moves, security fixes
+  # included, and nothing would say so without this. The docker ecosystem
+  # reads Dockerfiles only; the same images named in shell (tests/test_lib.sh,
+  # docs/tapes/fixtures.sh) are out of its reach, so those stay on tags.
   - package-ecosystem: docker
     directory: "/tests/dockerfiles"
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
-    # One PR for every digest refresh in this directory (alpine, the three
-    # debian variants, fedora, ubuntu) rather than one per image - they are
-    # all fixture bases used together in the same test suites, never reviewed
-    # any differently from each other.
+    # One PR per digest refresh round: all fixture bases, reviewed together.
     groups:
       fixtures:
         patterns:
           - "*"
-    # bash:3.2 is a constant, not a version to keep current. That image is the
-    # bash 3.2 floor - the version macOS still ships and the one every bash 4
-    # builtin hi might reach for is missing from (sshd-bash32.Dockerfile says
-    # so) - and a bump to bash:5 would leave the suite green while testing
-    # nothing it exists to test. Only the semver update-types are ignored, so
-    # digest refreshes within 3.2 still arrive: the tag stays put, the layers
-    # underneath it stay current.
+    # bash:3.2 is the floor (what macOS ships), not a version to keep current:
+    # a bump to bash:5 would leave the suite green while testing nothing it
+    # exists to test. Only semver update-types are ignored, so digest refreshes
+    # within 3.2 still arrive.
     #
-    # ubuntu is pinned twice in this directory - 24.04 the fish floor
-    # (fish37.Dockerfile), 26.04 the fish ceiling (fish4.Dockerfile) - and a
-    # dependency-name ignore can't tell those two pins apart, so this covers
-    # both: a major/minor Ubuntu bump against *either* file would otherwise
-    # move it off the fish major-version it exists to pin, whichever direction
-    # (24.04->26.04 leaves 3.7 for 4.x same as this repo already saw in PR
-    # #53; 26.04->28.04 would do the same to the ceiling later). Same shape as
-    # bash above: only the version-update types are ignored, so a digest
-    # refresh within each pin's major.minor still arrives automatically, and
-    # moving either file to a new Ubuntu release stays a deliberate hand edit
-    # - exactly what both Dockerfiles already ask for ("bump it deliberately").
+    # ubuntu is pinned twice here - 24.04 the fish floor (fish37.Dockerfile),
+    # 26.04 the fish ceiling (fish4.Dockerfile) - and a dependency-name ignore
+    # cannot tell them apart, so this covers both: a major/minor bump against
+    # either would move it off the fish major it exists to pin (24.04->26.04
+    # swapped 3.7 for 4.x in PR #53). Digest refreshes within each major.minor
+    # still arrive; moving either file to a new release stays a hand edit.
     ignore:
       - dependency-name: "bash"
         update-types:

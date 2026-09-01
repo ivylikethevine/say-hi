@@ -1,9 +1,7 @@
 name: Fetch latest artifact
-# pages.yml looks up the newest successful run of a workflow, then downloads
-# one named artifact from it - four times over (CI's totals, CI's package
-# sizes, coverage's pct, coverage-v2's pct, demos' GIFs). Each pair was
-# written out by hand with only the workflow filename, the artifact name,
-# the destination and the two log lines actually varying.
+# pages.yml's lookup of the newest successful run of a workflow and one named
+# artifact from it - CI's totals and package sizes, coverage's and
+# coverage-v2's pct, demos' GIFs.
 description: Find the newest successful run of a workflow and download one artifact from it
 
 inputs:
@@ -35,9 +33,9 @@ outputs:
 runs:
   using: composite
   steps:
-    # The lookup is by query rather than off a workflow_run payload on
-    # purpose - the newest green run on main *is* the triggering run when
-    # that is the event, so one code path serves push and dispatch too.
+    # By query rather than off a workflow_run payload: the newest green run on
+    # main *is* the triggering run when that is the event, so one code path
+    # serves push and dispatch too.
     - id: find
       shell: bash
       env:

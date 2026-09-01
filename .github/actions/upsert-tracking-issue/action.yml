@@ -1,11 +1,8 @@
 name: Upsert tracking issue
 # One labeled, reused issue per standing finding - opened when actionable,
 # rewritten on every later run while it stays actionable, closed the run it
-# clears. image-scan.yml and tool-versions.yml both had this exact create/
-# list/close/edit/create sequence written out by hand; this is that sequence,
-# parameterized. What each caller still owns: composing the report body
-# (a trivy scan's markdown vs. a tools.txt drift table are nothing alike) and
-# deciding `resolved` from its own tool's verdict.
+# clears. Callers (image-scan.yml, tool-versions.yml) still compose the report
+# body and decide `resolved` from their own tool's verdict.
 description: Create, update, or close one labeled GitHub issue tracking a standing finding
 
 inputs:
