@@ -2,7 +2,9 @@ name: Release
 
 # Builds and publishes a release. Runs on a pushed v* tag, or by hand as a
 # rehearsal: the dispatch runs the whole build job against a HEAD archive and
-# a fake version, and the publish job is hard-gated to tag pushes. Branch
+# a fake version, and the publish job is hard-gated to tag pushes. A
+# prerelease tag (a `-` in the name, v1.0.0-rc.1) is a GitHub Release only,
+# marked as a prerelease; the channel jobs and the manifest PR skip it. Branch
 # pushes and PRs are ci.yml's. Needs the `release` environment with a required
 # reviewer (docs/PACKAGING.md); APK_SIGNING_KEY, MINISIGN_SECRET_KEY,
 # HOMEBREW_TAP_TOKEN and AUR_SSH_KEY are each optional and skip loudly.
@@ -274,8 +276,14 @@ jobs:
             '```' \
             "" \
             "Full runbook: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#verifying-a-release-download)")"
+          # A prerelease tag (anything with a `-`: v1.0.0-rc.1) is marked as
+          # one and never becomes "Latest" - the devcontainer Feature's
+          # `version: latest` default and README's release badge both read
+          # that pointer, and neither should land on a candidate.
+          extra=()
+          case "$GITHUB_REF_NAME" in *-*) extra=(--prerelease --latest=false) ;; esac
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
-            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$body"
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$body" "${extra[@]}"
           # the manifests ride along so updating the AUR and the tap is a copy,
           # not a re-derivation; read line by line, not mapfile (bash 4)
           files=()
@@ -291,14 +299,20 @@ jobs:
       # `packages` artifact; the PR only keeps the in-repo copy current for the
       # next release to diff against.
       #
+      # Not on a prerelease tag: `0.1.0-rc.1` is not a makepkg-legal pkgver
+      # (the `-` is makepkg's pkgver-pkgrel separator), so the rc's manifests
+      # ride on the release as files and never come back to main.
+      #
       # the one checkout that keeps its credentials: the step below pushes a
       # branch with them (every other checkout sets persist-credentials: false)
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
+        if: ${{ !contains(github.ref_name, '-') }}
         with:
           ref: main
           path: main
 
       - name: Open the manifest PR against main
+        if: ${{ !contains(github.ref_name, '-') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -341,9 +355,11 @@ jobs:
     name: open a PR against the Homebrew tap
     needs: publish
     # never on a v0.0.x tag: those are debug tags, pushed to exercise the
-    # release path rather than to ship. A missing token would skip this too,
-    # but that is a fact about which secrets exist; this line is the promise.
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
+    # release path rather than to ship. Nor on a prerelease tag (a `-` in the
+    # name): a candidate is a GitHub Release only, and its version is not a
+    # legal pkgver besides. A missing token would skip this too, but that is
+    # a fact about which secrets exist; this line is the promise.
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -408,9 +424,9 @@ jobs:
   aur:
     name: push the AUR package
     needs: publish
-    # a v0.0.x debug tag reaches no external channel, on the tap job's
-    # reasoning above
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
+    # a v0.0.x debug tag or a prerelease tag reaches no external channel, on
+    # the tap job's reasoning above
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -472,7 +488,8 @@ jobs:
   feature:
     name: publish the devcontainer Feature to ghcr
     needs: publish
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
+    # not on a v0.0.x or a prerelease tag, on the tap job's reasoning
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
@@ -508,7 +525,8 @@ jobs:
   brew:
     name: brew install, test and audit the formula (macOS)
     needs: publish
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.')
+    # not on a v0.0.x or a prerelease tag, on the tap job's reasoning
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: macos-latest
     timeout-minutes: 20
     permissions:

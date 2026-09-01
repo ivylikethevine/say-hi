@@ -398,6 +398,39 @@ function test_only_the_gated_job_publishes() {
   ! printf '%s' "$before" | grep -qE 'gh release (create|upload)'
 }
 
+# A prerelease tag (a `-` in the name: v1.0.0-rc.1) is a GitHub Release and
+# nothing more. It is created as a prerelease that never becomes "Latest" -
+# the devcontainer Feature's `latest` default and README's badge read that
+# pointer - and it reaches no channel and opens no manifest PR: `0.1.0-rc.1`
+# is not a makepkg-legal pkgver, and the AUR is the one place it would go.
+function test_release_workflow_marks_prerelease_tags() {
+  local job
+  job="$(sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
+  [ -n "$job" ] || return 1
+  # shellcheck disable=SC2016 # matching release.yml's literal source text
+  [[ "$job" == *'case "$GITHUB_REF_NAME" in *-*)'* ]] &&
+    [[ "$job" == *"--prerelease --latest=false"* ]]
+}
+
+function test_prerelease_tags_reach_no_channel() {
+  local name job bad=0 guard="!contains(github.ref_name, '-')"
+  for name in tap aur feature brew; do
+    job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
+    if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
+      _hi_cecho " | release.yml's $name job runs on a prerelease tag" "$RED"
+      bad=1
+    fi
+  done
+  # the manifest PR too: both its steps, the credentialed checkout and the
+  # push, carry the guard
+  job="$(sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
+  if [ "$(printf '%s\n' "$job" | grep -cF "if: \${{ $guard }}")" -lt 2 ]; then
+    _hi_cecho " | release.yml opens a manifest PR on a prerelease tag" "$RED"
+    bad=1
+  fi
+  [ "$bad" = 0 ]
+}
+
 function test_release_workflow_only_runs_on_tags() {
   grep -qE '^ *- "v\*"' "$_HI_RELEASE_WF" && ! grep -qE '^ *(branches|pull_request):' "$_HI_RELEASE_WF"
 }
@@ -1038,6 +1071,8 @@ function run_packaging_tests() {
   _hi_check "Publishing sits behind an environment" test_release_workflow_gates_publishing
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
   _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
+  _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
+  _hi_check "...and reaches no channel, opens no manifest PR" test_prerelease_tags_reach_no_channel
   _hi_check "Verifies the manifests against the tag" test_release_workflow_verifies_the_manifests
   _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
   _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
