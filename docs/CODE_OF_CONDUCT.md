@@ -1,4 +1,4 @@
-# Code of conduct
+# Code of Conduct
 
 A small project with one maintainer, and the ordinary bar: be decent to the
 people you meet here.

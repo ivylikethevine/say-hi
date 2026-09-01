@@ -48,6 +48,14 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     eval ": \"\${$_hi_t:=}\"; export $_hi_t"
   done
   unset _hi_t
+  # A platform team's defaults, below the user's settings.sh (sourced next,
+  # so the user wins). Local machines only: a visiting session is configured
+  # by the visitor, and a target's /etc has no say in it. $_HI_SYSTEM_SETTINGS
+  # overrides the path - the suites' knob, not a setting. config.fish mirrors.
+  # shellcheck source=/dev/null # admin config, may not exist
+  if [ "${_HI_REMOTE_SESSION:-0}" != 1 ] && [ -f "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}" ]; then
+    . "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}"
+  fi
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
@@ -475,6 +483,26 @@ function _hi_colors_names() {
   done <"$_HI_COLORS" | awk '!seen[$0]++'
 }
 
+# _hi_colors_pattern <type> <name> - the first row of <type> whose name field
+# is a glob (* or ?) matching <name>; file order wins. Exact rows are
+# _hi_colors_lookup's and never match here, so an exact pin beats a pattern
+# whatever the file order - and _hi_resolve_color consults this after the
+# hosttag, so a tag beats a pattern too. GLOSSARY: HI.37
+function _hi_colors_pattern() {
+  local cur_type cur_name color
+  [[ -f "$_HI_COLORS" ]] || return 1
+  while IFS=',' read -r cur_type cur_name color; do
+    [[ "$cur_type" = "$1" ]] || continue
+    case "$cur_name" in
+    *[\*\?]*) _hi_ssh_pattern_hit "$2" "$cur_name" || continue ;;
+    *) continue ;;
+    esac
+    printf '%s\n' "$color"
+    return 0
+  done <"$_HI_COLORS"
+  return 1
+}
+
 # an exact "<type>,<name>,<color>" override, then the LOCALUSER/LOCALHOSTNAME
 # specials; most names have neither and return 1
 function _hi_override_color() {
@@ -599,7 +627,11 @@ function _hi_resolve_color() {
   local type="$1" name="$2" tag="${3:-}"
   _hi_override_color "$type" "$name" && return
   case "$type" in
-  hostname) _hi_ssh_tag_color "$name" && return ;;
+  hostname)
+    _hi_ssh_tag_color "$name" && return
+    # subnet-style pins: hostname rows whose name field is a glob
+    _hi_colors_pattern hostname "$name" && return
+    ;;
   username) [[ -n "$tag" ]] && _hi_override_color usertag "$tag" && return ;;
   esac
   _hi_hash_color "$name"

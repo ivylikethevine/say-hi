@@ -35,14 +35,50 @@ EOF
   ;;
 esac
 
+# _hi_pattern_for <name> - the subnet-style pin (hostname row whose name field
+# is a glob) that would color <name>, printed as the glob itself; core.sh's
+# _hi_colors_pattern answers with the color, but the source cell wants the why
+function _hi_pattern_for() {
+  local cur_type cur_name _
+  [[ -f "$_HI_COLORS" ]] || return 1
+  while IFS=',' read -r cur_type cur_name _; do
+    [[ "$cur_type" = hostname ]] || continue
+    case "$cur_name" in
+    *[\*\?]*) _hi_ssh_pattern_hit "$1" "$cur_name" || continue ;;
+    *) continue ;;
+    esac
+    printf '%s' "$cur_name"
+    return 0
+  done <"$_HI_COLORS"
+  return 1
+}
+
+# every subnet-style pin, deduped in file order - each gets an example row in
+# the hosts table, since a globbed name never appears in targets.sh's list
+function _hi_pattern_pins() {
+  local cur_type cur_name _
+  [[ -f "$_HI_COLORS" ]] || return 0
+  while IFS=',' read -r cur_type cur_name _; do
+    [[ "$cur_type" = hostname ]] || continue
+    case "$cur_name" in
+    *[\*\?]*) printf '%s\n' "$cur_name" ;;
+    esac
+  done <"$_HI_COLORS" | awk '!seen[$0]++'
+}
+
 function _hi_color_source() {
-  local type="$1" name="$2" tag
+  local type="$1" name="$2" tag pat
   if _hi_override_color "$type" "$name" >/dev/null 2>&1; then
     printf 'override:%s' "$type"
     return
   fi
   if [[ "$type" = hostname ]] && tag=$(_hi_ssh_host_tag "$name") && _hi_override_color hosttag "$tag" >/dev/null 2>&1; then
     printf 'tag:%s' "$tag"
+    return
+  fi
+  # after the tag, before the hash - _hi_resolve_color's order
+  if [[ "$type" = hostname ]] && pat=$(_hi_pattern_for "$name"); then
+    printf 'pattern:%s' "$pat"
     return
   fi
   printf 'default'
@@ -194,6 +230,21 @@ function _hi_print_hosts_table() {
     group_tag+=("")
     group_hosts+=("$local_hostname")
   fi
+
+  # Each subnet-style pin as its own example row, seeded with the glob itself
+  # as the "host": the glob matches itself through _hi_ssh_pattern_hit, so
+  # resolving it yields the pin's color, and a real ssh host the pin covers
+  # joins this same group through the key below.
+  local pat
+  while IFS= read -r pat; do
+    [[ -n "$pat" ]] || continue
+    color_name=$(_hi_resolve_color hostname "$pat")
+    group_order+=("pattern:$pat"$'\x1f'"$color_name"$'\x1f')
+    group_source+=("pattern:$pat")
+    group_color+=("$color_name")
+    group_tag+=("")
+    group_hosts+=("$pat")
+  done < <(_hi_pattern_pins)
 
   # group hosts that share a type+source AND the actual resolved color, so
   # only hosts that would render identically collapse into one row

@@ -239,6 +239,45 @@ function test_overlay_tar_carries_only_what_exists() {
   [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)" = "colors" ]
 }
 
+# The overlay stream ships comment-stripped the way the payload does (the
+# same strip.awk): a seeded default is mostly header, and every byte rides
+# each connect. settings.sh keeps its shebang; vim.rc loses its `"` lines.
+function test_overlay_strip_removes_comments() {
+  local dir="$_HI_WORKDIR/ovl-strip" out
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
+  cp "$_HI_ROOT/settings/colors" "$dir/colors"
+  cp "$_HI_ROOT/settings/vim.rc" "$dir/vim.rc"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar xzOf - settings.sh)"
+  [ "$out" = '#!/bin/sh
+export _HI_MAX_WIDTH=72' ] || {
+    _hi_cecho " | settings.sh arrived as: [$out]" "$RED"
+    return 1
+  }
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar xzOf - colors)"
+  [ -n "$out" ] || return 1
+  case "$out" in *'#'*)
+    _hi_cecho " | colors kept a comment line through the strip" "$RED"
+    return 1
+    ;;
+  esac
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar xzOf - vim.rc)"
+  case "$out" in '"'* | *$'\n"'*)
+    _hi_cecho " | vim.rc kept a vim comment line through the strip" "$RED"
+    return 1
+    ;;
+  esac
+  return 0
+}
+
+function test_overlay_keep_comments_ships_verbatim() {
+  local dir="$_HI_WORKDIR/ovl-verbatim" out
+  mkdir -p "$dir"
+  cp "$_HI_ROOT/settings/colors" "$dir/colors"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_KEEP_COMMENTS=1 _hi_overlay_tar | tar xzOf - colors)"
+  [ "$out" = "$(cat "$_HI_ROOT/settings/colors")" ]
+}
+
 # the user's own aliases ride the same stream under their bare name,
 # which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
@@ -508,6 +547,8 @@ function run_hi_payload_tests() {
   _hi_check "Members are bare names" test_overlay_tar_members_are_bare_names
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
+  _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
+  _hi_check "_HI_KEEP_COMMENTS=1 ships the overlay verbatim" test_overlay_keep_comments_ships_verbatim
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster

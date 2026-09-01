@@ -161,11 +161,37 @@ function _hi_tar_gz() {
 
 # _hi_overlay_tar [file...] - the overlay archive over the given members, or
 # over _hi_overlay_files when called bare; nothing at all when there are none.
+# Comment-stripped through a staging copy the way the payload is (the same
+# strip.awk, GLOSSARY: HI.35; _HI_KEEP_COMMENTS=1 ships the files verbatim):
+# the overlay is the user's prose-heavy files - a seeded default is mostly
+# header - and every byte rides each connect. The first tar's -h is what
+# resolves a dotfile manager's symlinks into content, as before; the final
+# tar names the members, so strip.awk itself never ships.
 function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
-  _hi_tar_gz -h -C "$_HI_CONFIG_DIR" "${present[@]}"
+  if [ "${_HI_KEEP_COMMENTS:-0}" = 1 ]; then
+    _hi_tar_gz -h -C "$_HI_CONFIG_DIR" "${present[@]}"
+    return 0
+  fi
+  local stage f
+  (
+    stage="$(mktemp -d -t hi.ostage.XXXXXX)" || exit 1
+    trap 'rm -rf "$stage"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    tar cf - -h -C "$_HI_CONFIG_DIR" "${present[@]}" |
+      tar xf - -C "$stage" || exit 1
+    _hi_strip_awk >"$stage/strip.awk"
+    find "$stage" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \
+      -o -name colors -o -name packages -o -name vim.rc -o -name nano.rc \) \
+      -exec awk -f "$stage/strip.awk" {} + || exit 1
+    while IFS= read -r f; do
+      _hi_write_back "$f" "${f%.strip}"
+    done < <(find "$stage" -type f -name '*.strip')
+    _hi_tar_gz -C "$stage" "${present[@]}"
+  )
 }
 
 # _hi_overlay_toggle <name> [outvar] - what the overlay's settings.sh sets it

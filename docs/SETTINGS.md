@@ -26,10 +26,15 @@ Configuring say-hi never dirties the checkout, so `git pull` applies cleanly
 and the tree can be root-owned, installed by a package manager. All of it
 rides along to every host you say `hi` to, in its own small archive.
 
-`hi --overlay-init` makes `~/.config/say-hi` a git repo _in place_: from then
-on `hi --configure` commits its own writes, `hi --doctor` reports the commit
-count, and a push remote is one `git remote add` away. If you already keep
-dotfiles in chezmoi, yadm, GNU Stow or a bare repo,
+`hi --overlay-init` seeds the overlay with the shipped
+`colors`/`packages`/`vim.rc`/`nano.rc` defaults — only for the files you have
+none of; a file already there is never touched — then makes `~/.config/say-hi`
+a git repo _in place_: from then on `hi --configure` commits its own writes,
+`hi --doctor` reports the commit count, and a push remote is one
+`git remote add` away. A seeded copy stops tracking what `hi --update`
+delivers for that file (it is yours now), and costs almost nothing on the
+wire: the overlay ships comment-stripped, the way the tree does. If you
+already keep dotfiles in chezmoi, yadm, GNU Stow or a bare repo,
 [that directory is the whole integration](#keeping-the-overlay-in-a-dotfile-manager).
 
 Every setting below is an environment variable, checked where it is used.
@@ -49,6 +54,7 @@ which, and why). A setting a child must see — a script of your own reading
 - [Every setting](#every-setting)
   - [Pointing one file somewhere else](#pointing-one-file-somewhere-else)
   - [Not settings](#not-settings)
+- [System-wide settings](#system-wide-settings)
 - [Presets](#presets)
 - [Features](#features)
 - [Header details](#header-details)
@@ -215,6 +221,21 @@ point `$_HI_HOME` or `$HOME` elsewhere instead. `$_HI_CONFIG_DIR` moves the
 whole overlay, so the directory itself stays at the XDG path. Everything else
 beginning `_HI_` is internal state, named that way to stay out of your
 namespace.
+
+## System-wide settings
+
+`/etc/say-hi/settings.sh`, when it exists, is sourced **before** each user's
+own `settings.sh` — a platform team's defaults, in the same
+sh-and-fish-parseable dialect (`export NAME=value` lines only; `hi --doctor`
+parse-checks it both ways). Precedence, lowest to highest: the shipped
+defaults, `/etc/say-hi/settings.sh`, the user's `settings.sh`, then a value
+exported by hand in the running shell.
+
+It applies to **this machine only**: a remote hi session is configured by the
+visitor's own overlay, and the target's `/etc` has no say in it. No package
+ships the file — an administrator creates it, and removing it restores
+per-user settings everywhere at the next shell. (`$_HI_SYSTEM_SETTINGS`
+points the read somewhere else; it exists for the test suites.)
 
 ## Presets
 
@@ -391,7 +412,11 @@ ones that matter in `~/.config/say-hi/colors`: `username,root,red`,
 `hostname,bastion,yellow`, or `hosttag,prod,red` to color every host carrying a
 `# Tags: prod` comment above its `Host` or `Match host` line in
 `~/.ssh/config` — a wildcard block (`Host prod-*`) colors every name it covers.
-A pin always beats the hash.
+A `hostname` row whose name holds `*` or `?` is a pattern:
+`hostname,10.0.1.*,red` or `hostname,*.prod.example.com,red` colors a whole
+subnet or domain at once, no ssh-config entry needed — the first matching
+pattern in the file wins. Precedence, highest first: an exact pin, then a
+hosttag, then a pattern, then the hash; a pin always beats the hash.
 
 `hi --color-preview` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:

@@ -1,15 +1,30 @@
 name: Scorecard
 
-# OpenSSF Scorecard, weekly: a supply-chain score is only useful as a trend,
-# and the checks it grades move when dependabot bumps an action. The SARIF
-# goes to code scanning (findings in the Security tab with file and line) and
+# OpenSSF Scorecard: a supply-chain score is only useful as a trend, and the
+# checks it grades move when dependabot bumps an action. The SARIF goes to
+# code scanning (findings in the Security tab with file and line) and
 # publish_results puts the score on the OpenSSF API README's badge reads.
-# publish_results fires on workflow_dispatch too (the action's gate is only
-# "not a pull_request"), so a manual run confirms a fix without waiting.
-on:
+# publish_results fires on every non-pull_request event (that is the action's
+# only gate), so the workflow_run chain and a manual dispatch both publish.
+#
+# workflow_run so a green push to main refreshes the score without waiting on
+# the weekly cron (kept: a quiet week still re-grades against upstream's
+# moving checks); the job gates on the run's conclusion and event the way
+# pages.yml does, and checkout uses the default ref, never the triggering
+# run's payload.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "41 7 * * 2"
   workflow_dispatch:
+
+# pushes to main can stack; only the newest score matters
+concurrency:
+  group: scorecard
+  cancel-in-progress: true
 
 # read-all is the floor; job-level permissions replace this block rather than
 # adding to it, which is why the job spells out its read scopes again.
@@ -18,6 +33,12 @@ permissions: read-all
 jobs:
   analysis:
     name: supply-chain scorecard
+    # only a green push to main gets a fresh score; the schedule and a manual
+    # dispatch pass the first clause
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     # A literal, not vars.RUNNER_LABEL: publish_results has the scorecard
     # webapp re-fetch this file and check `runs-on:` with a static parser that
     # never evaluates expressions, so an expression fails its

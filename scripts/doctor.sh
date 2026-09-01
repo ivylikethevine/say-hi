@@ -261,6 +261,20 @@ function doctor_config() {
   else
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
   fi
+  # the system-wide layer, parse-checked the way settings.sh is; absent is
+  # the norm (a platform team's file, never shipped by a package)
+  local sys="${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}"
+  if [ -f "$sys" ]; then
+    if ! sh -n "$sys" 2>/dev/null; then
+      doctor_row system "$sys does NOT parse as sh" bad
+    elif command -v fish >/dev/null 2>&1 && ! fish --no-execute "$sys" 2>/dev/null; then
+      doctor_row system "$sys parses as sh but NOT as fish" bad
+    else
+      doctor_row system "$sys present, parses" ok
+    fi
+  else
+    doctor_row system "none - per-user settings only (/etc/say-hi/settings.sh)"
+  fi
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do

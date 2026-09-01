@@ -709,13 +709,19 @@ function settings_diff_report() {
   return 0
 }
 
-# `hi --overlay-init` - version the overlay where it lives. A repo *in*
-# $_HI_CONFIG_DIR versions exactly the files that are the user's, and dodges
-# the checkout's own .git (hi --update reads $_HI_ROOT/.git as "this is a
-# checkout"). Owns init-and-commit and no more: sync, merge and secrets are a
-# dotfile manager's job, and the README's alternatives section says so. The
-# initial commit is --allow-empty on purpose - an unconfigured overlay still
-# starts tracking.
+# `hi --overlay-init` - seed and version the overlay where it lives. A repo
+# *in* $_HI_CONFIG_DIR versions exactly the files that are the user's, and
+# dodges the checkout's own .git (hi --update reads $_HI_ROOT/.git as "this is
+# a checkout"). Owns seed-init-and-commit and no more: sync, merge and secrets
+# are a dotfile manager's job, and the README's alternatives section says so.
+# The initial commit keeps --allow-empty for the tree a packager stripped the
+# defaults from - an unconfigured overlay still starts tracking.
+#
+# The seed copies the shipped defaults in for the files the user has none of,
+# so a fresh overlay starts with real files to edit rather than a scavenger
+# hunt through the tree; a file already present is never touched, and re-runs
+# never reach the loop (the already-tracked return above it). The copies stop
+# tracking what `hi --update` delivers - SETTINGS.md says so.
 function overlay_init() {
   command -v git >/dev/null 2>&1 || {
     _hi_cecho " git is not installed - nothing to init with" "$RED"
@@ -726,6 +732,13 @@ function overlay_init() {
     _hi_cecho " $_HI_CONFIG_DIR is already tracked ($(git -C "$_HI_CONFIG_DIR" rev-list --count HEAD 2>/dev/null || echo 0) commits) :)" "$GREEN"
     return 0
   fi
+  local _hi_seed seeded=""
+  for _hi_seed in colors packages vim.rc nano.rc; do
+    [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
+    [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
+    cp "$_HI_ROOT/settings/$_hi_seed" "$_HI_CONFIG_DIR/$_hi_seed" && seeded="$seeded $_hi_seed"
+  done
+  [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults:$seeded" "$BLUE"
   git -C "$_HI_CONFIG_DIR" init -q || return 1
   # a repo-local identity only when the user has none - a committed overlay
   # must not fail on a fresh machine that never ran `git config`

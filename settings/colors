@@ -4,6 +4,8 @@
 #
 # type  = hosttag | username | hostname | usertag
 # color = red, green, yellow, blue, magenta, cyan, brred, brgreen, bryellow, brblue, brmagenta, brcyan
+# a hostname name holding * or ? is a pattern: "hostname,10.0.1.*,red" colors
+# a whole subnet or domain at once. An exact pin and a hosttag both beat it.
 # LOCALUSER and LOCALHOSTNAME are special username/hostname names that match
 # the user/host of the machine say-hi is installed on, wherever that user/host
 # shows up - e.g. "username,LOCALUSER,green" colors your own username green

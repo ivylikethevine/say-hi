@@ -1,13 +1,26 @@
 name: Coverage (bashcov)
 
 # bashcov over the fast suites, published as an artifact - visibility, never a
-# gate; coverage.yml's sibling. Dispatch-only until the over-count is fixed
+# gate; coverage.yml's sibling, chained the same way. The over-count stands
 # (tests/coverage_v2.sh's WHY A SECOND COVERAGE SCRIPT): bashcov reads bash's
 # xtrace, so it keeps the suites kcov loses (git_prompt.sh 92.68% vs 2.56%),
 # but marks every heredoc-body line covered - hi.sh's two connect functions,
-# 182 lines --group fast never runs, report 100% (badge: `heredoc-inflated`).
-on:
+# 182 lines --group fast never runs, report 100% - so the README badge says
+# `heredoc-inflated` in grey, under an accuracy disclaimer.
+#
+# workflow_run for the same reason as coverage.yml's, with the same
+# conclusion/event gate and the same one-deploy badge lag.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
+
+# pushes to main can stack; only the newest figure matters
+concurrency:
+  group: coverage-v2
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,6 +28,12 @@ permissions:
 jobs:
   bashcov:
     name: bashcov over the fast suites
+    # only a green push to main measures; a manual dispatch passes the first
+    # clause
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

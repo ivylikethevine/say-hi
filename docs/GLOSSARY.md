@@ -1,4 +1,4 @@
-# Glossary of deliberate oddities
+# Glossary of Deliberate Oddities
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
@@ -463,7 +463,7 @@ HI.30. Both stay verbatim above their statement.
 ## HI.35 payload comment strip
 
 Every `*.sh`, `*.zsh` and `*.fish` file — and the `flags`/`colors`/`packages`/
-`vim.rc`/`nano.rc` data files, whose prose headers document the *installed*
+`vim.rc`/`nano.rc` data files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
 vim.rc's comment character is `"`, its own rule in the stripper.

@@ -262,13 +262,13 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
 - **Contributors sits at 3** — the check wants ≥2 contributing organizations
   among recent contributors; there's one. `not-applicable` in
   `.scorecard.yml` too.
-- **CII-Best-Practices sits at 0** — nothing is registered yet at
+- **CII-Best-Practices** — the project is registered at
   [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
-  Practices badge, a self-assessment questionnaire separate from Scorecard).
-  The answers are drafted in
-  [CII_BEST_PRACTICES_DRAFT.md](CII_BEST_PRACTICES_DRAFT.md); registering and
-  transcribing the draft moves the score off 0 with no code change. Passing
-  still waits on the first release — three MUST criteria are release-shaped.
+  Practices badge in README's badge block, a self-assessment questionnaire
+  separate from Scorecard), and the answers live there now; the draft that
+  used to sit in docs/ is git history. The score reflects registration the
+  next time Scorecard runs. _Passing_ still waits on the first release —
+  three MUST criteria are release-shaped.
 - **Signed-Releases reads -1 (excluded from the average)**, not a fixable 0 —
   Scorecard hasn't seen a release yet. `release.yml` already ships
   `dist/SHA256SUMS.minisig` and a build-provenance attestation, and `.minisig`

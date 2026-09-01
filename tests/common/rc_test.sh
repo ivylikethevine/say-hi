@@ -389,6 +389,28 @@ function test_fish_config_dir_explicit_value_wins() {
 }
 
 #
+# core.sh's system-settings layer, hand-mirrored in config.fish - the same
+# fish-vs-bash drift risk as the overlay-directory resolution above. bash's
+# half is pinned in core_test.sh; these pin fish's.
+function test_fish_system_settings_apply_locally() {
+  local sys="$_HI_WORKDIR/fish.sys.settings.sh"
+  printf 'export _HI_PROBE=system\n' >"$sys"
+  [ "$(env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
+    _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$_HI_WORKDIR/fishsys.a" \
+    _HI_SYSTEM_SETTINGS="$sys" \
+    fish -c 'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s $_HI_PROBE' </dev/null)" = system ]
+}
+
+function test_fish_system_settings_skipped_remotely() {
+  local sys="$_HI_WORKDIR/fish.sys.settings.sh"
+  printf 'export _HI_PROBE=system\n' >"$sys"
+  [ -z "$(env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
+    _HI_HOME="$_HI_HOME" XDG_CONFIG_HOME="$_HI_WORKDIR/fishsys.b" \
+    _HI_SYSTEM_SETTINGS="$sys" _HI_REMOTE_SESSION=1 \
+    fish -c 'source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; printf %s $_HI_PROBE' </dev/null)" ]
+}
+
+#
 # hi ships nobody's taste per shell - no history sizing, keybindings,
 # completion or color styling of its own. What it ships is the hook for yours:
 # the user's own file in $_HI_CONFIG_DIR, named for the *shell file* it
@@ -486,6 +508,8 @@ function run_rc_tests() {
   _hi_check_requires fish "fish flag TAB completes hi's options" test_fish_flag_completion_offers_hi_options
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
+  _hi_check_requires fish "fish sources the system layer locally" test_fish_system_settings_apply_locally
+  _hi_check_requires fish "...and skips it in a remote session" test_fish_system_settings_skipped_remotely
 
   _hi_h2 "Testing: the prompt separator"
   # the shells install.sh wires up locally, and their shipped defaults, both

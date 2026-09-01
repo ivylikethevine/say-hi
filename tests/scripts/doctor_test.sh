@@ -163,6 +163,28 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
 }
 
+# the system-wide layer's row: parse-checked when present, quiet when absent
+function test_config_reports_the_system_layer() {
+  local dir sys out
+  dir="$(mktemp -d "$_HI_WORKDIR/sysrow.XXXXXX")"
+  sys="$_HI_WORKDIR/system.settings.sh"
+  printf 'export _HI_MAX_WIDTH=100\n' >"$sys"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_SYSTEM_SETTINGS="$sys"
+    doctor_config
+  )"
+  [[ "$out" == *"system"*"present, parses"* ]] || return 1
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_SYSTEM_SETTINGS="$_HI_WORKDIR/absent.settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"per-user settings only"* ]]
+}
+
 function test_target_resolves_a_running_container() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
@@ -369,6 +391,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check "The system layer gets a row" test_config_reports_the_system_layer
 
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
