@@ -1,8 +1,8 @@
 name: Demos
 
 # Proof that the tapes still render, on the pull request that changes one.
-# docs/demos/*.gif are manual artifacts - rendered by hand, reviewed by eye,
-# committed in their own commit - so nothing here writes one back. What this
+# docs/tapes/demo.gif is a manual artifact - rendered by hand, reviewed by eye,
+# committed in its own commit - so nothing here writes one back. What this
 # catches is the other failure: a tape that quietly stopped working, which today
 # is found months later by whoever next runs docs/tapes/generate.sh.
 #
@@ -37,6 +37,8 @@ on:
   pull_request:
     paths:
       - "docs/tapes/**"
+      # a re-rendered demo.gif landing beside its tape is not a tape change
+      - "!docs/tapes/*.gif"
       - ".github/workflows/demos.yml"
   # What re-renders the published set. A tape landing on main is the change that
   # certainly moved a demo; the weekly run is for the changes that move one
@@ -48,6 +50,8 @@ on:
     branches: [main]
     paths:
       - "docs/tapes/**"
+      # a re-rendered demo.gif landing beside its tape is not a tape change
+      - "!docs/tapes/*.gif"
       - ".github/workflows/demos.yml"
   schedule:
     - cron: "17 5 * * 1"
@@ -102,7 +106,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-demo
-          path: docs/demos/packages.gif
+          path: docs/tapes/packages.gif
           # a review aid for one pull request, not a release artifact
           retention-days: 7
           if-no-files-found: error
@@ -112,8 +116,8 @@ jobs:
     # Every one of these seven tapes needs docker, podman, nomad or kind. A hosted
     # ubuntu runner carries docker and this job installs the other three below
     # (the same steps ci.yml's e2e-backends job runs), so this is a working
-    # renderer and not, as it once was, a job that installed for five minutes
-    # and died inside vhs. --require-run below keeps the other guarantee: a
+    # renderer rather than a job that installs for five minutes and dies
+    # inside vhs. --require-run below keeps the other guarantee: a
     # tape that stands down for a missing backend is a failure, never a green
     # run that rendered nothing (pages.yml serves the last *successful* run's
     # artifact).
@@ -197,7 +201,7 @@ jobs:
           # the committed hand-rendered one and must not ride along as though
           # it were fresh
           path: |
-            docs/demos/*.gif
-            !docs/demos/demo.gif
+            docs/tapes/*.gif
+            !docs/tapes/demo.gif
           retention-days: 90
           if-no-files-found: error

@@ -438,11 +438,11 @@ PROBE
 # _hi_remote_root_probe is one.
 #
 # Every path in it is the *target's*. Nothing here interpolates a client-side
-# value, and that is the whole point: this was a client `mktemp -u -t`, which
-# names a path in the client's $TMPDIR and then asks the target to mkdir it -
-# fine while both are /tmp, and a session that silently fell through to the
-# PowerShell branch the moment the client had $TMPDIR set, which is every macOS
-# login shell. GLOSSARY: HI.19
+# value, and that is the whole point: a client `mktemp -u -t` names a path in
+# the client's $TMPDIR and then asks the target to mkdir it - fine while both
+# are /tmp, and a session that silently falls through to the PowerShell branch
+# the moment the client has $TMPDIR set, which is every macOS login shell.
+# GLOSSARY: HI.19
 function _hi_boot_probe() {
   cat <<'PROBE'
 command -v base64 >/dev/null 2>&1 || exit 1
@@ -450,6 +450,24 @@ d=$(mktemp -d -t hi.boot.XXXXXX) || exit 1
 cat > "$d/bootloader" || exit 1
 printf "\nHIBOOT:%s\n" "$d"
 PROBE
+}
+
+# A path the target reported, or nothing. What comes back from a target is
+# interpolated into a script run back on that same target, so it is refused
+# rather than escaped, on the bootstrap directory's rule: absolute, and free of
+# anything a double-quoted heredoc expands or closes on. A refusal takes the
+# disposable path, which trusts the target for nothing. A space is not hostile
+# - an install directory may carry one. Always returns 0: an empty answer is
+# the verdict, not an error.
+function _hi_trusted_path() {
+  case "$1" in
+  /*) ;;
+  *) return 0 ;;
+  esac
+  case "$1" in
+  *[\"\$\`\\]* | *$'\n'*) return 0 ;;
+  esac
+  printf '%s' "$1"
 }
 
 # Prints the path of a permanent say-hi on $DOMAIN, if any.
@@ -696,7 +714,7 @@ REMOTE
 # on every normal exit and on an abrupt disconnect alike (SIGHUP, tested by
 # tests/targets/ssh_disconnect_test.sh). This trap exists for the one thing
 # clean_all cannot survive: bash killed by a signal nothing can trap. It only
-# ever needs to remove the tree, since $_HI_SESSION_RC_DIR now lives inside
+# ever needs to remove the tree, since $_HI_SESSION_RC_DIR lives inside
 # it - kept out of the heredoc itself, since every byte here rides the wire
 # on every connect.
 function _hi_remote_middle() {
@@ -740,6 +758,7 @@ function _say_hi() {
   # multiplex the install-probe and the real session over one ssh connection
   _hi_ctl_open 30
   remote_root="$(_hi_remote_root "${ctl_opts[@]}")"
+  remote_root="$(_hi_trusted_path "$remote_root")"
 
   if [ -n "$remote_root" ]; then
     # $remote_root is always <home>/<tree>

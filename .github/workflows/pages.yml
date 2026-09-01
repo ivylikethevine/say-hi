@@ -2,8 +2,8 @@ name: Pages
 
 # The repo's markdown as a site: README.md as the index (it carries the demos,
 # the comparison, the architecture, packaging and Windows material inline),
-# plus what is left in docs/ - CONFIGURATION, TESTING, GLOSSARY, SECURITY, PACKAGING,
-# ROADMAP and FUTURE - which interlink with relative links link-check.yml keeps
+# plus what is left in docs/ - SETTINGS, SUPPORT, TESTING, GLOSSARY, SECURITY,
+# PACKAGING and ROADMAP - which interlink with relative links link-check.yml keeps
 # honest. docs/tldr.md is excluded (_config.yml) - it is a byte-for-byte draft
 # for an upstream PR, not site prose.
 #
@@ -58,7 +58,7 @@ jobs:
     # This job runs jekyll-build-pages, which is a container action, and then
     # has to chown its root-owned output - which is why it carries no
     # `Reclaim the workspace` step, unlike every other checkout in this repo.
-    # It could never fire on a self-hosted runner (docs/SELFHOSTED-RUNNERS.md).
+    # It could never fire on a self-hosted runner.
     runs-on: ubuntu-latest
     # a red CI must not publish, and neither may a fork's PR run - `event`
     # pins it to a push to `main`. The other two triggers have no run to judge.
@@ -160,9 +160,10 @@ jobs:
       # has landed there is nothing to serve and those links 404 - deliberate,
       # per docs/PACKAGING.md's _Regenerating the demo GIFs_.
       #
-      # docs/demos/demo.gif is deliberately not in that artifact - it is the
-      # hand-rendered one, still committed, and Jekyll has already copied it
-      # into _site, which is exactly where it should come from.
+      # docs/tapes/demo.gif is deliberately not in that artifact - it is the
+      # hand-rendered one, still committed. docs/tapes/ is excluded from the
+      # Jekyll build (_config.yml), so the copy step below carries it into
+      # _site alongside the rendered ones.
       - name: Fetch the last demo render's GIFs
         uses: ./.github/actions/fetch-latest-artifact
         with:
@@ -186,13 +187,15 @@ jobs:
           # seam the workspace-reclaim step above exists for, reached a
           # different way, so it gets the same one-line answer.
           sudo chown -R "$(id -u):$(id -g)" _site
-          # The rendered GIFs land beside the one committed GIF Jekyll copied,
-          # at the very path README.md's and docs/CONFIGURATION.md's published
-          # URLs resolve to - so a fresh render reaches the site with no link
-          # anywhere having to change.
+          # Every GIF is served from _site/docs/tapes/: the committed demo.gif
+          # first (Jekyll excludes docs/tapes/, so nothing else puts it there),
+          # then the rendered ones beside it, at the very path README.md's and
+          # docs/SETTINGS.md's published URLs resolve to - so a fresh render
+          # reaches the site with no link anywhere having to change.
+          mkdir -p _site/docs/tapes
+          cp docs/tapes/demo.gif _site/docs/tapes/
           if [ -d "$RUNNER_TEMP/demos" ]; then
-            mkdir -p _site/docs/demos
-            cp "$RUNNER_TEMP/demos"/*.gif _site/docs/demos/ 2>/dev/null || true
+            cp "$RUNNER_TEMP/demos"/*.gif _site/docs/tapes/ 2>/dev/null || true
             echo "published $(find "$RUNNER_TEMP/demos" -name '*.gif' | wc -l) rendered demo(s)"
           fi
           mkdir -p _site/badges

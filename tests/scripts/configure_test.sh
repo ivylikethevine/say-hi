@@ -320,9 +320,8 @@ function test_packages_floor_does_not_write_the_default() {
   [ -z "$(_hi_floor_lines floor_default | tr -d '[:space:]')" ]
 }
 
-# ...and the other side of that rule, which only became a case when the default
-# moved off 0: 0 is now an answer like any other - "put the trivia tier back" -
-# so it has to survive as a line rather than being elided as the default.
+# ...and the other side of that rule: 0 is an answer like any other - "put the
+# trivia tier back" - so it has to survive as a line rather than being elided as the default.
 function test_packages_floor_writes_a_zero() {
   _hi_settings_fixture floor_zero _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=0'
   [ "$(_hi_floor_lines floor_zero)" = "export _HI_PACKAGES_MIN_PRIORITY=0" ]
@@ -522,8 +521,8 @@ function test_setting_get_reads_a_computed_value() {
   [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
 }
 
-# ...and a two-statement assignment, which never matched the old parser's
-# `export NAME=` line-start check at all
+# ...and a two-statement assignment, which a bare `export NAME=` line-start
+# check would never match
 function test_setting_get_reads_a_two_statement_assignment() {
   local target="$_HI_WORKDIR/twostatement"
   printf '_HI_DISABLE_FOO=1\nexport _HI_DISABLE_FOO\n' >"$target"

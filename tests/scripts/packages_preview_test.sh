@@ -228,7 +228,7 @@ function test_preview_ends_with_the_real_check() {
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
 # $_HI_PACKAGES is cleared for the child, and has to be: the suite exports its
-# own fixture into this shell, and an exported value is now an *override* that
+# own fixture into this shell, and an exported value is an *override* that
 # paths.sh keeps rather than something the next source overwrites. Leaving it
 # set would point the script at a file that exists and prove nothing.
 function test_preview_reports_a_missing_packages_file() {

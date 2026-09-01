@@ -36,11 +36,11 @@ docs/CONTRIBUTING.md has the long version of all of this. Base the PR on `dev`;
 ## Docs
 
 - [ ] the docs that were affected are updated — CONTRIBUTING's "which docs
-      change with what" table; `docs/CONFIGURATION.md`'s _Every setting_ table
+      change with what" table; `docs/SETTINGS.md`'s _Every setting_ table
       and `docs/GLOSSARY.md` are drift-checked, the rest are on your honour
 - [ ] `docs/ROADMAP.md`: a finished entry is **deleted**, not ticked
 - [ ] `common/`, `settings/`, `load.sh`, `hi.sh` or the demo tape changed:
-      `docs/demos/demo.gif` re-rendered (`docs/tapes/generate.sh demo`) and
+      `docs/tapes/demo.gif` re-rendered (`docs/tapes/generate.sh demo`) and
       looked at, or the staleness warning is called out below as deliberate
 
 ## AI (if applicable)

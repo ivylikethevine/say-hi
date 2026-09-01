@@ -115,7 +115,7 @@ if [ -z "$_HI_DATE" ]; then
 fi
 
 # rewrite <file> <sed-expr>... - the third copy of core.sh's _hi_rewrite, and
-# the only one that has to exist: lib.sh's is now a one-line call into core.sh,
+# the only one that has to exist: lib.sh's is a one-line call into core.sh,
 # but this script can source neither (see the header). A temp file rather than
 # `sed -i` (whose in-place flag differs BSD/GNU), written back with cat, not mv
 # - mv would put mktemp's 0600 on the target, losing the launcher's exec bit.

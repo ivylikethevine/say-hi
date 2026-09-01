@@ -122,7 +122,7 @@ function test_overlay_tar_carries_shell_files() {
 #
 # The overlay is a plain directory of plain files, which is the whole
 # integration story for chezmoi, yadm, GNU Stow and bare-repo setups
-# (docs/CONFIGURATION.md says so). Two properties make that claim true rather
+# (docs/SETTINGS.md says so). Two properties make that claim true rather
 # than merely hopeful, and neither is obvious from reading _hi_overlay_tar.
 
 # Stow does not copy, it symlinks - so a Stow user's overlay is a directory of

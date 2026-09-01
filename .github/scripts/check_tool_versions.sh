@@ -15,9 +15,7 @@
 # was judged not worth it) - its pin lives inline in the workflow that
 # installs it instead. _WORKFLOW_ROSTER is that second list: one row per pin
 # that lives in a `run:` line rather than tools.txt, naming the file and the
-# regex that extracts it - ported from sharerr's check_tool_versions.sh, which
-# used this shape for its own tool pins before they moved into its own
-# tools.txt. A tool whose row stops matching is reported as an error rather
+# regex that extracts it. A tool whose row stops matching is reported as an error rather
 # than silently skipped, same reasoning as tools.txt's own "-" opt-out: a
 # roster that quietly covers nothing is worse than no roster.
 set -euo pipefail

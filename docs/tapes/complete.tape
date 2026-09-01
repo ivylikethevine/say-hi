@@ -57,7 +57,7 @@
 # fixture that brings up all four backends, and it builds two images and a kind
 # cluster before it answers. Visible sleeps are reading time only.
 
-Output docs/demos/complete.gif
+Output docs/tapes/complete.gif
 
 Set Shell fish
 Source docs/tapes/common.tape

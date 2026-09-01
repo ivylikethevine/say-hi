@@ -88,5 +88,5 @@ body:
           required: true
         - label: >-
             If this is about a target hi does not answer to, I checked
-            docs/UNSUPPORTED.md — it may already carry a verdict and a reason.
+            docs/SUPPORT.md — it may already carry a verdict and a reason.
           required: false

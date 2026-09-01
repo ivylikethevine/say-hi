@@ -220,7 +220,7 @@ set -e __hi_n
 
 # hi's git segment: the fish half of common/git_prompt.sh; prompt_test.sh pins
 # its glyphs and colors against core.sh. Product, not taste, so unconditional
-# (docs/CONFIGURATION.md on what hi stopped shipping).
+# (docs/SETTINGS.md on what hi stopped shipping).
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes

@@ -7,7 +7,7 @@
 # alpine tracks fish 4.x and debian bookworm ships 3.6.0, while noble's
 # fish 3.7.0-1 is the exact build tests/lint's fish-floor half is pinning
 # against. Bumping this image is bumping the floor - do it deliberately, and
-# expect the half to start accepting constructs it used to reject.
+# expect the half to start accepting constructs the version behind it rejects.
 #
 # Why a floor check exists at all: fish 4 accepts things 3.7 does not, so a
 # developer whose fish is current cannot tell by running it. The construct that

@@ -29,8 +29,8 @@
 FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 # 2026-08-24 rebuild (tag, 13-slim and 13.6-slim all resolve to it). It ships
 # util-linux 2.41.5-0+deb13u1, which already carries the fix for the four HIGH
-# mount TOCTOU findings CVE-2026-53612 through 53615 - the prior pin's `apt-get
-# upgrade` workaround to pull that fix from the archive is no longer needed.
+# mount TOCTOU findings CVE-2026-53612 through 53615 - so no `apt-get
+# upgrade` step is needed to pull the fix from the archive.
 #
 # The installs below are unversioned on purpose (.hadolint.yaml's DL3008 note
 # settles that for the fixtures) and timep is fetched at run time, so the image

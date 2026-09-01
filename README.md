@@ -38,9 +38,10 @@ current state is not a representation of final, published quality.
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
-[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
-[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
-[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
+<!--[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)-->
+<!--[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)-->
+<!--[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)-->
+
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 <!-- [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<ID>/badge)](https://www.bestpractices.dev/projects/<ID>) -->
 <!-- [![OpenSSF Baseline](https://www.bestpractices.dev/projects/<ID>/baseline)](https://www.bestpractices.dev/projects/<ID>) -->
@@ -49,7 +50,7 @@ current state is not a representation of final, published quality.
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
-![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/demos/demo.gif)
+![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
 ## In sixty seconds
 
@@ -82,6 +83,7 @@ pty-free remote command, that is still `ssh`'s job.
   - [one command, every backend](#one-command-every-backend)
 - [Requirements](#requirements)
 - [Installation/Usage](#installationusage)
+  - [Upgrading](#upgrading)
 - [Configuration](#configuration)
   - [Hostname, username, and group/tag colors](#hostname-username-and-grouptag-colors)
 - [Built from/with/in mind](#built-fromwithin-mind)
@@ -113,7 +115,7 @@ the header's check reads it on every target: one quiet line on a box that has
 them, a loud one on a box that does not. Client: bash, into two docker
 containers. Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
-![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/demos/packages.gif)
+![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
 ### your editors, your clipboard
 
@@ -125,7 +127,7 @@ target. Client: zsh, into a docker container. (The two escapes go to the
 terminal emulator, which a recording cannot show — the comments say where
 each landed.)
 
-![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/demos/editors.gif)
+![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
 ### no target at all — recent first
 
@@ -137,7 +139,7 @@ client and never reaches a target, and a `hi` in a script or a CI job still
 fails the way it always has rather than waiting on a menu nobody can answer.
 Client: bash, into a docker container. Showing `_HI_RECENT` (on by default).
 
-![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/demos/pick.gif)
+![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
 
 ### one config directory, every host, every shell
 
@@ -150,7 +152,7 @@ the second target. (A box with no bash at all gets the aliases-only tier,
 which carries hi's own aliases but not the overlay — see
 [Compatibility](#compatibility).)
 
-![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/demos/overlay.gif)
+![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
 ### know where you are at a glance
 
@@ -162,7 +164,7 @@ below: the recording's ssh config is a throwaway). The targets carry their own `
 own config, which is why their headers are shorter). Client: bash, into two
 ssh hosts. Showing a `colors` overlay with `hosttag` pins.
 
-![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/demos/colors.gif)
+![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### completion, every backend at once
 
@@ -174,7 +176,7 @@ that order; `_HI_RECENT=0` turns it off).
 for the description column its pager gives every row. Showing
 `_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
 
-![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/demos/complete.gif)
+![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
 The list stops at eleven rows because fish hands its pager half the screen —
 that is completion behaving normally, not the GIF cut short.
@@ -189,7 +191,7 @@ throwaway rather than the renderer's own). The pod is busybox
 `ash` with no bash at all, which is hi's aliases-only tier — hi says so, once,
 and runs the command anyway. Client: zsh.
 
-![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/demos/run.gif)
+![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
 ## Requirements
 
@@ -221,6 +223,11 @@ and runs the command anyway. Client: zsh.
   Before touching `~/.bashrc`, `~/.zshrc` or `~/.config/fish/config.fish` it
   validates each with that shell's own syntax checker and asks whether to
   continue if any has issues.
+- on Arch, a package from the same checkout: `makepkg -si` in
+  `say-hi/packaging/aur/say-hi-git` (the versioned `say-hi` package needs a
+  release tarball, so before one exists `-git` is the one that builds). The
+  AUR itself waits on registration reopening —
+  [docs/PACKAGING.md](docs/PACKAGING.md#aur).
 - reload your shell!
 - `hi --configure` revisits the settings in short sections, starting from a
   preset if you like (`everything`, `balanced`, `minimal`;
@@ -239,7 +246,7 @@ and runs the command anyway. Client: zsh.
   sources it in whichever shell it lands in).
 - `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
   on `hi --configure` commits its own writes. Optional — see
-  [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+  [docs/SETTINGS.md](docs/SETTINGS.md).
 - `hi --help` (or `-h`): the synopsis, the target resolution order, and every
   flag hi answers itself; `man hi` is the long version. Anything hi does not
   answer passes to `ssh` unchanged.
@@ -267,13 +274,32 @@ and runs the command anyway. Client: zsh.
   `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one file
   without moving the rest of the overlay (`_HI_PACKAGES`, `_HI_VIMRC` and
   `_HI_NANORC` likewise); see
-  [docs/CONFIGURATION.md](docs/CONFIGURATION.md#pointing-one-file-somewhere-else).
+  [docs/SETTINGS.md](docs/SETTINGS.md#pointing-one-file-somewhere-else).
+- a dropped connection ends the session: the tree on the target is removed on
+  any exit, a lost link included, so there is nothing to reconnect to. Run `hi`
+  inside `tmux` or `screen` on this machine if you need to survive drops
+  ([how it works](docs/SETTINGS.md#how-it-works)).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. It leaves the `say-hi` directory and your
   `colors`/`packages` alone.
 
 Usage: `hi foo` (just like ssh!)
+
+### Upgrading
+
+- a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
+- a `.deb`/`.rpm`/`.apk`: no repository exists to subscribe to — the trade for
+  not maintaining one ([docs/PACKAGING.md](docs/PACKAGING.md#deb--rpm--apk)) —
+  so install the next release's package from
+  [the releases page](https://github.com/ivylikethevine/say-hi/releases) the
+  same way you installed this one;
+  [verifying a release download](docs/PACKAGING.md#verifying-a-release-download)
+  is the checklist.
+- an Arch package built from the checkout: `git pull`, then `makepkg -si` again.
+- Homebrew: `brew upgrade say-hi`, once the tap exists.
+- inside a `hi` session there is nothing to update — the session is a copy;
+  update on the machine say-hi lives on.
 
 ## Configuration
 
@@ -284,8 +310,8 @@ adds to the shipped alias set, and a `bash.sh`/`zsh.zsh`/`config.fish` there
 is sourced at the end of hi's own per-shell rc so yours win. `settings.sh`
 (what `hi --configure` writes) has no in-tree counterpart. The overlay file
 table, every toggle and every environment variable hi reads are in
-[docs/CONFIGURATION.md](docs/CONFIGURATION.md); how a session gets to the
-target is [How it works](docs/CONFIGURATION.md#how-it-works) there.
+[docs/SETTINGS.md](docs/SETTINGS.md); how a session gets to the
+target is [How it works](docs/SETTINGS.md#how-it-works) there.
 
 **_IMPORTANT: Local-only changes MUST stay in `~/.bashrc`, `~/.zshrc`,
 `~/.config/fish/config.fish`, etc. — anything in
@@ -308,7 +334,7 @@ _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. `hi --color-preview` shows the result in the actual
 colors. The long version, and using the hash in your own prompt, is
-[docs/CONFIGURATION.md](docs/CONFIGURATION.md#colors).
+[docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
 
@@ -372,9 +398,8 @@ How say-hi compares to similar tools, and when to use something else:
 
 Two questions, answered at two moments: **can hi land a session on that OS at
 all**, and **what shell do you end up in**. Both tables, with a legend and what
-proves each row, are in [docs/SUPPORTED.md](docs/SUPPORTED.md). Everything
-weighed and answered **no**, with the argument attached, is
-[docs/UNSUPPORTED.md](docs/UNSUPPORTED.md).
+proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md) — along with
+everything weighed and answered **no**, with the argument attached.
 
 ## Testing
 
@@ -393,12 +418,11 @@ a bench ceiling trips, is
 
 ## More docs
 
-- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — the config overlay, every
-  toggle and environment variable hi reads
-- [docs/SUPPORTED.md](docs/SUPPORTED.md) — every target hi answers to, which
-  OSes land a full session, and which shell you end up in
-- [docs/UNSUPPORTED.md](docs/UNSUPPORTED.md) — every runtime, shell, channel
-  and feature answered **no**, and why
+- [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
+  environment variable hi reads
+- [docs/SUPPORT.md](docs/SUPPORT.md) — every target hi answers to, which OSes
+  land a full session, which shell you end up in, and every runtime, shell,
+  channel and feature answered **no**, and why
 - [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
   homeshick side by side
 - [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
@@ -409,8 +433,8 @@ a bench ceiling trips, is
   target
 - [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
   reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned and what it is blocked on
-- [docs/FUTURE.md](docs/FUTURE.md) — unscheduled research, not queued work
+- [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned, what it is blocked on,
+  and what is research only
 - [docs/CII-BEST-PRACTICES-DRAFT.md](docs/CII-BEST-PRACTICES-DRAFT.md) — the
   OpenSSF Best Practices questionnaire, answered against this tree, scratch
   until it's transcribed to bestpractices.dev

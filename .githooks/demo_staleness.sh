@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Warn when docs/demos/demo.gif is older than the things that decide what it
+# Warn when docs/tapes/demo.gif is older than the things that decide what it
 # shows. Warn, never block: demo.gif is a manual artifact reviewed by eye
 # (docs/tapes/generate.sh says so at the top), and a check that refused a
 # commit would be making that call for you. Exit status is always 0.
@@ -12,8 +12,8 @@
 # straight through nfpm.yaml's one-level apk globs (packaging_test.sh fails on
 # it).
 #
-# Only the topmost README demo, on purpose - and it is now the only demo this
-# could apply to. It is the one GIF that claims to be the stock defaults with
+# Only the topmost README demo, on purpose - the only demo this could apply
+# to. It is the one GIF that claims to be the stock defaults with
 # nothing turned off, so it is the one that goes quietly wrong when the header,
 # the prompt or the tape changes, and the one a person still renders by hand.
 # The other seven each advertise a knob and are rendered by CI on a cadence
@@ -33,7 +33,7 @@ _HI_REPO="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # shellcheck source=../common/core.sh
 source "$_HI_REPO/common/core.sh"
 
-_HI_DEMO_GIF="docs/demos/demo.gif"
+_HI_DEMO_GIF="docs/tapes/demo.gif"
 
 # What the frame is made of: the tape and its fixtures (the target's image
 # among them - its tools and its checkout are half of what is on screen), plus
@@ -56,7 +56,7 @@ case "${1:-}" in
   cat <<'EOF'
 Usage: demo_staleness.sh
 
-Says whether docs/demos/demo.gif is older than the tape, the fixtures, or the
+Says whether docs/tapes/demo.gif is older than the tape, the fixtures, or the
 shipped tree the demo renders - by commit date, not mtime, since a fresh clone
 gives every file the same mtime. Also flags a staged commit that changes one of
 those inputs without re-rendering.

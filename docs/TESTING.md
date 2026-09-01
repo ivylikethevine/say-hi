@@ -129,7 +129,7 @@ its cleanup hook purges, the one fixture in the tree that is not case-scoped.
 runs one install against every login shell; `install_methods` runs one login
 shell against every way say-hi gets onto a machine — the `.deb`, `.rpm`,
 `.apk`, a Homebrew-shaped keg, a system-wide `install.sh --prefix`, and a tree
-whose `/etc/profile.d` announcement has been removed. They share the case
+with no `/etc/profile.d` announcement. They share the case
 runner in `tests/lib/ssh.sh`.
 
 Every case asserts the same thing: `$_HI_ROOT` is the path the installer left,
@@ -169,6 +169,13 @@ aggregates as shields endpoints (`badges/coverage.json`,
 `heredoc-inflated` rather than `coverage`. README deliberately does not show
 them: a badge whose own docs say to ignore it costs the row beside it
 credibility. Neither gates anything.
+
+Both stay, on purpose. They fail in opposite directions — kcov cannot
+over-count and bashcov cannot under-count — so together they bracket the
+figure either alone would be believed for: a file that reads low in bashcov
+is genuinely uncovered, a line that reads covered in kcov genuinely ran.
+`coverage.sh`'s header is also the measured record of _why_ kcov cannot be the
+tool; keeping the script keeps that from being rediscovered.
 
 `tests/profile.sh` is what to run when a `--group bench` ceiling trips:
 `_hi_bench` says _whether_ a path got slower, this says _which command in it_
@@ -382,7 +389,7 @@ what the tree does.
 13. **The settings roster**: every name the tree treats as a setting
     (`_HI_TOGGLES` in `common/core.sh`, the variable column of
     every `_HI_*_PROMPTS` table in `scripts/configure.sh`) has
-    a row in [CONFIGURATION.md](CONFIGURATION.md)'s _Every setting_ table, and
+    a row in [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and
     every row there names a variable the tree still reads. Only that section is
     matched. A name assembled at run time (`_HI_PROMPT_END_$SHELL`) is matched
     by its literal prefix.
@@ -390,9 +397,13 @@ what the tree does.
     from `_config.yml`'s `exclude:` block, not hand-kept) may not carry a raw
     Liquid delimiter outside a guarded span — Liquid tokenizes the page before
     Markdown, so a fenced GitHub Actions expression gets no shelter from the
-    fence. This is what broke the Pages build on
-    `docs/SELFHOSTED-RUNNERS.md` once already; that file's own comment names
-    the exact construct and the guard around it.
+    fence. The construct that does it is a fenced Actions expression whose
+    `format('{0}-{1}', …)` hands Liquid's tokenizer a lone closing brace
+    mid-expression. A page that means to show a Liquid delimiter
+    verbatim wraps the span in a raw/endraw guard, each half inside an HTML
+    comment so the guard itself never renders; otherwise it stays off the
+    site. The check's header comment in `tests/lint/drift_test.sh` spells the
+    construct out.
 15. **tests/dockerfiles/**: every image definition has a caller and vice versa.
 16. **Image tags**: every `alpine:3.24`/`debian:bookworm-slim`/`debian:bullseye-slim`/`bash:3.2`/`ubuntu:24.04`/`ubuntu:26.04` named
     as a plain tag in shell or YAML agrees with the digest-pinned version in

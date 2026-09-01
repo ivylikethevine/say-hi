@@ -48,12 +48,9 @@ updates:
     # compromised release's window is its first days (zizmor: dependabot-cooldown)
     cooldown:
       default-days: 7
-    # Two groups rather than one PR per action - ported from sharerr's
-    # dependabot.yml, which groups the same way for the same reason (a bump PR
-    # per action per week is noise nobody reads). The split there is
-    # docker/*-vs-everything-else, because that repo's actions are mostly
-    # first-party plus a docker/* cluster used together in one job; this repo
-    # has no docker/* actions at all, so the natural split is the first-party
+    # Two groups rather than one PR per action: a bump PR per action per week
+    # is noise nobody reads. This repo has no docker/* actions, so the natural
+    # split is the first-party
     # actions/* namespace (checkout, cache, upload/download-artifact, the
     # Pages actions, attest-build-provenance - released together often enough
     # that reviewing five identical version bumps a week added nothing) versus
@@ -87,8 +84,7 @@ updates:
     # One PR for every digest refresh in this directory (alpine, the three
     # debian variants, fedora, ubuntu) rather than one per image - they are
     # all fixture bases used together in the same test suites, never reviewed
-    # any differently from each other. Same reasoning as sharerr's `servarr`
-    # group in its docker-compose block.
+    # any differently from each other.
     groups:
       fixtures:
         patterns:

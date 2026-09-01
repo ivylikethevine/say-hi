@@ -1,7 +1,7 @@
 # The README demo, as a script instead of a stale recording: render with
 # `vhs docs/tapes/demo.tape` (https://github.com/charmbracelet/vhs) from the
 # repo root, with docker running and hi installed on PATH. Regenerate whenever
-# the header or prompt changes. Not rendered in CI - docs/demos/demo.gif is a
+# the header or prompt changes. Not rendered in CI - docs/tapes/demo.gif is a
 # manual artifact, reviewed by eye before committing.
 #
 # The pitch in one frame: your shell follows you. Every other tape turns a knob
@@ -23,7 +23,7 @@
 # "hi closing!": the teardown reliably beats vhs's scrape to that line and the
 # wait times out, on every backend and not only nomad's.
 
-Output docs/demos/demo.gif
+Output docs/tapes/demo.gif
 
 Source docs/tapes/common.tape
 

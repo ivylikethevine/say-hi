@@ -167,7 +167,7 @@ side.
   symlinks are dereferenced on the way out, and only the overlay's own files
   travel. The one thing to decide is who owns `settings.sh`, since
   `hi --configure` writes the live copy —
-  [CONFIGURATION.md](CONFIGURATION.md#keeping-the-overlay-in-a-dotfile-manager)
+  [SETTINGS.md](SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)
   has the two ways to settle that.
 
 ## What actually makes say-hi different
@@ -182,7 +182,7 @@ or a pod in the namespace your `kubectl` points at. Nothing else in this space
 does it.
 
 **2. It degrades in stated tiers rather than failing or lying.** The
-[compatibility tables](SUPPORTED.md) answer two questions — can hi land a
+[compatibility tables](SUPPORT.md) answer two questions — can hi land a
 session here at all, and what shell do you end up in — and mark every cell
 proven-by-a-suite, expected, reduced, or unsupported. A target with no bash
 gets aliases, a colored prompt and a warning; a Windows OpenSSH host with no

@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Two files answer most of these before they are asked:
-        [docs/UNSUPPORTED.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/UNSUPPORTED.md)
+        [docs/SUPPORT.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/SUPPORT.md)
         carries a verdict and a reason for everything weighed and answered no —
         runtimes, shells, packaging channels, removed features — and
         [docs/ROADMAP.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/ROADMAP.md)
@@ -38,7 +38,7 @@ body:
     attributes:
       label: If this is a new target
       description: >-
-        The bar docs/SUPPORTED.md sets is whether it is something people **sit in**,
+        The bar docs/SUPPORT.md sets is whether it is something people **sit in**,
         not merely something reachable: every backend on the roster costs a fork
         on every `hi <target>` and every TAB, on machines that have none of it.
         Name the CLI, how it execs an interactive shell, and how a file gets in.
@@ -54,5 +54,5 @@ body:
     attributes:
       label: Before you send it
       options:
-        - label: I checked docs/UNSUPPORTED.md and docs/ROADMAP.md for an existing answer.
+        - label: I checked docs/SUPPORT.md and docs/ROADMAP.md for an existing answer.
           required: true

@@ -1,4 +1,4 @@
-# Configuration
+# Settings
 
 Your config lives **outside the checkout**, in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` (`$_HI_CONFIG_DIR`). `colors` and
@@ -9,7 +9,8 @@ toggle you set there takes effect before hi builds anything from it; an
 `alias` you define there does not win over the same name shipped after it —
 turn the shipped family off with its toggle and define your own instead.
 `settings.sh` has no in-tree counterpart: `hi --configure` only ever writes it
-here.
+here. (The tree's own `settings/` directory is the shipped defaults those
+files override; this page is what _you_ can set, and what each setting does.)
 
 Four of those files can also live somewhere else entirely — see
 [Pointing one file somewhere else](#pointing-one-file-somewhere-else).
@@ -92,7 +93,11 @@ child to see - a script of your own reading `$_HI_COLORS`, say - is an
    as a setting. With no bash at all the choice comes from `$_HI_SHELL_LADDER`,
    the same list without bash.
 5. On exit, `load.sh`'s on-exit hook removes the `/tmp` directory, the scratch
-   rc directory.
+   rc directory. A dropped connection is an exit: the hook runs on `SIGHUP`
+   too, so a Wi-Fi blip or a closed laptop lid ends the session and cleans
+   up, with nothing left to reconnect to. Run `hi` inside `tmux` or `screen`
+   on the _client_ if you need to survive drops; persistent sessions on the
+   target are [not scheduled](ROADMAP.md#not-scheduled).
 6. `hi <target> 'some command'` skips the session and runs the command there,
    the way `ssh` does.
 
@@ -223,7 +228,7 @@ survive; point `$_HI_HOME` or `$HOME` elsewhere if you need them elsewhere.
 `$_HI_CONFIG_DIR` is also the answer to "I want my config somewhere else":
 exporting it moves the whole overlay, which is why a proposal to rename the
 directory was declined —
-[UNSUPPORTED.md](UNSUPPORTED.md#changes-proposed-and-not-made) has the
+[SUPPORT.md](SUPPORT.md#changes-proposed-and-not-made) has the
 reasoning. Everything else beginning `_HI_` is internal state, named that way
 to stay out of your namespace.
 
@@ -351,14 +356,12 @@ underneath. The mechanism is [HI.46](GLOSSARY.md#hi46-session-rc-directory).
 What no wrapper can reach is a bash or fish shell nothing typed - a `tmux`
 pane spawning a login shell, an editor shelling out - which comes up as the
 host's own. hi writes nothing to any login file on any host you visit, under
-any setting: the rc graft that once covered that case was removed
-([UNSUPPORTED.md](UNSUPPORTED.md#features-that-were-removed)).
+any setting ([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the
+reasoning).
 
-Earlier versions shipped one person's shell preferences (history sizing,
-keybindings, `zstyle` rules, fish's palette) in `settings/*_personal.*` files
-behind a `_HI_DISABLE_PERSONAL` toggle; neither the files nor the toggle
-exist anymore. What remains in each rc is the prompt, the completions and the
-git segment, which are the product. Your own
+hi ships nobody's shell preferences — no history sizing, keybindings,
+`zstyle` rules or fish palette of its own. Each rc carries the prompt, the
+completions and the git segment, which are the product. Your own
 `bash.sh`, `zsh.zsh` or `config.fish` in the config directory is sourced at
 the end of hi's, in the same dialect, and wins - your own `HISTFILE`
 included; hi sets none.
@@ -407,7 +410,7 @@ A pin always beats the hash.
 `hi --color-preview` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:
 
-![hi --color-preview: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/demos/colors.gif)
+![hi --color-preview: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### Using the hash in your own prompt
 

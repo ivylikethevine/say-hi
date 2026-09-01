@@ -4,7 +4,7 @@ name: FreeBSD e2e
 # boots one on the hosted ubuntu runner) runs the fast suites and then ssh's
 # to itself, so one job covers client AND target - BSD sed/sort/date/mktemp,
 # `base64` without `-d`, and a pkg-installed bash rather than /bin/sh. This is
-# what turns SUPPORTED.md's "*BSD" row from expected-to-work into proven.
+# what turns SUPPORT.md's "*BSD" row from expected-to-work into proven.
 #
 # ci.yml calls this on every push to main once the fast-suite jobs are green;
 # dispatch still works for running it on its own.
@@ -54,8 +54,8 @@ jobs:
             # `timeout` bounds the suites rather than the job: a run that
             # wedges dies in minutes with its transcript in the log, instead
             # of sitting on the 30-minute job timeout and being cancelled with
-            # no verdict at all (which is what a forced-interactive bash
-            # stopping its own process group used to do here). FreeBSD ships
+            # no verdict at all (a forced-interactive bash stopping its own
+            # process group does exactly that). FreeBSD ships
             # timeout(1) in base.
             #
             # </dev/null here and below is structural, not caution: vmactions
