@@ -128,7 +128,6 @@ cannot land without a row here.
 | `_HI_DISABLE_GIT_STATUS`     | `0`                                                  | `hi --configure`          | [Features](#features) - the git segment in the prompt                                                      |
 | `_HI_DISABLE_EDITORS`        | `0`                                                  | `hi --configure`          | [Features](#features) - the `vim`/`nano` config overrides                                                  |
 | `_HI_DISABLE_BAT_ALIAS`      | `0`                                                  | `hi --configure`          | [Features](#features) - rebinding `cat`/`catn` to a styled `bat`                                           |
-| `_HI_DISABLE_EZA_CONFIG`     | `0`                                                  | `hi --configure`          | [Features](#features) - styling `eza` itself from hi's theme                                               |
 | `_HI_DISABLE_LS_ALIASES`     | `0`                                                  | `hi --configure`          | [Features](#features) - the `exa`/`eza` ls-family aliases                                                  |
 | `_HI_DISABLE_OSC52`          | `0`                                                  | `hi --configure`          | [Features](#features) - the OSC 52 clipboard                                                               |
 | `_HI_DISABLE_NOTIFY`         | `0`                                                  | `hi --configure`          | [Features](#features) - the `hi_notify` desktop-notification alias                                         |
@@ -341,6 +340,12 @@ pane spawning a login shell, an editor shelling out - which comes up as the
 host's own. hi writes nothing to any login file on any host you visit, under
 any setting ([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the
 reasoning).
+
+Nor can a change of user. `sudo -i`, `sudo -s`, `su -` and `doas -s` start
+_that_ user's login shell from _that_ user's rc files, and hi's session rc is
+neither — root's `.bashrc` is not hi's to touch, for the same reason. What
+survives is `sudo <command>`: `settings/aliases.sh` wraps `sudo` so hi's
+aliases expand in the one command it runs, and nothing past it.
 
 hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
 rules or fish palette. Each rc carries the prompt, the completions and the git

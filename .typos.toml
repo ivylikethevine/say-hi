@@ -5,6 +5,7 @@
 extend-ignore-re = [
   "\\[Tt\\]ags",  # core.sh's case pattern for Tags:/tags:, split as `ags`
   "mis-parse",    # the hyphenated form, split at the hyphen
+  "\"fpr\"",      # gpg --with-colons' fingerprint record type, mkrepo.sh's awk
 ]
 
 [default.extend-words]

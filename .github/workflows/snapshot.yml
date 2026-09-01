@@ -2,7 +2,7 @@ name: Snapshot
 
 # A prerelease from every push to main: the packages, source tarball and
 # SHA256SUMS release.yml builds, attached to a `snapshot-<short-sha>` release.
-# It reaches no external channel - the AUR, the Homebrew tap, ghcr and the
+# It reaches no external channel - the AUR, the Homebrew tap and the
 # manifest PR stay behind release.yml's hand-pushed v* tag - and waits on no
 # reviewer. No bump.sh: the manifests checksum a tarball at
 # releases/download/v<ver>/, and a snapshot has no such URL.
@@ -205,7 +205,7 @@ jobs:
           fi
           body="$(printf '%s\n' \
             "Built from \`main\` @ $short, unattended, on every push. Not a release:" \
-            "nothing here reaches the AUR, the Homebrew tap or ghcr - those wait on a" \
+            "nothing here reaches the AUR or the Homebrew tap - those wait on a" \
             "hand-pushed \`v*\` tag. This snapshot - tag, release and assets - is" \
             "retired the next time \`main\` is pushed." \
             "" \

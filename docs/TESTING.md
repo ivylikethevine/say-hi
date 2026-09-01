@@ -73,11 +73,14 @@ Five groups (`--group <name>`; `--list` prints the membership):
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
   budgets. Serial, since it measures.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,
-  `install_methods`, `docker`, `framework`: throwaway containers driving
-  `hi.sh`'s actual connection paths (`_say_hi` and `_say_hi_container`).
-  `ssh_wire` measures: a session to a bare target and to one with say-hi
-  installed, each through a byte-counting `ProxyCommand`, checked against the
-  figure hi prints on its connect line.
+  `install_methods`, `repo`, `docker`, `framework`: throwaway containers
+  driving `hi.sh`'s actual connection paths (`_say_hi` and
+  `_say_hi_container`). `ssh_wire` measures: a session to a bare target and
+  to one with say-hi installed, each through a byte-counting `ProxyCommand`,
+  checked against the figure hi prints on its connect line. `repo` is the
+  one suite about packaging rather than sessions: it builds the package
+  repository with throwaway keys and installs from it as an apt, a dnf and an
+  apk client, signatures verified.
 - **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
   need extra runner setup; a separate, slower CI job. `e2e` and `backends`
   run one suite at a time — they contend on one container daemon.

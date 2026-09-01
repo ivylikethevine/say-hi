@@ -53,6 +53,15 @@ apk:
     key_file: ${HI_APK_KEY}
     key_name: say-hi.rsa.pub
 
+# The rpm the same way, with the GPG key the package repository is signed by
+# (mkrepo.sh): HI_GPG_KEY is an armored, passphrase-free secret key, exported
+# by release.yml's build from the GPG_SIGNING_KEY repo secret and unset
+# everywhere else, where the rpm builds unsigned. `dnf gpgcheck=1` verifies
+# this signature; the repository's own is over repomd.xml.
+rpm:
+  signature:
+    key_file: ${HI_GPG_KEY}
+
 contents:
   # deb and rpm take the whole staged tree in one entry. The apk cannot: nfpm
   # 2.47.0's tree walker leaks Go's ModeDir bit (0o20000000000) into the tar

@@ -237,10 +237,14 @@ and the payload is within a few KB of it. Two calls because the second's stdin
 belongs to the interactive session. The script goes as plain text and is `cat`
 into place; only the three binary streams _inside_ it are armored — armoring
 the whole script spent a third of every session's bytes re-encoding ASCII.
-The write doubles as the probe: a target where `sh -c` won't run has no POSIX
-shell (stock Windows OpenSSH), and one without `base64` cannot unpack; either
-way the session falls through to the PowerShell branch rather than
-half-landing.
+The write doubles as the probe, and its status says what happened: the
+directory came back and the session runs; `sh` ran but found no `base64`
+(exit 64) or nowhere to `mktemp` (65), and hi names the missing piece and hands
+over the host's own session; something that was not `sh` answered — a
+`ForceCommand` or a `command=` key, told by an exit of 0 or any stdout,
+neither of which a missing `sh` produces — and hi says so and hands over the
+same; or nothing ran at all (stock Windows OpenSSH), and the session falls
+through to the PowerShell branch rather than half-landing.
 
 ## HI.20 fallback rc
 

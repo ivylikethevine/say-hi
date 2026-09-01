@@ -30,7 +30,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
-    _HI_DISABLE_BAT_ALIAS _HI_DISABLE_EZA_CONFIG _HI_DISABLE_LS_ALIASES)
+    _HI_DISABLE_BAT_ALIAS _HI_DISABLE_LS_ALIASES)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -113,9 +113,18 @@ else
 fi
 
 # _hi_cecho <text> [color] [no_newline]
+#
+# %b for the palette - the colors are '\e[..m' strings until printf expands
+# them - and %s for the text. The text is not always hi's own: _hi_report_failure
+# feeds a connect errlog through here, so a backslash in a target's banner or
+# a Windows path is printed as a backslash, and a literal `\e]0;` a target
+# wrote is text rather than a title change on the client's terminal.
 function _hi_cecho() {
-  local out="${2:-}${1:-}$NC"
-  [ $# -ge 3 ] && printf '%b' "$out" || printf '%b\n' "$out"
+  if [ $# -ge 3 ]; then
+    printf '%b%s%b' "${2:-}" "${1:-}" "$NC"
+  else
+    printf '%b%s%b\n' "${2:-}" "${1:-}" "$NC"
+  fi
 }
 
 # _hi_read_lines <array-name> - stdin into that array, one element per line:

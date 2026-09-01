@@ -22,9 +22,11 @@ name: Pages
 # main with no path filter, so a `push` trigger on the markdown paths would add
 # only a duplicate build and deploy, and would publish docs from a commit whose
 # tests failed. The cost is latency - the site lands when CI goes green.
+# Release is the second workflow: a green tag run means a new
+# package-repo.tar.gz to serve (below), and its event is a push too.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Release]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -247,6 +249,31 @@ jobs:
             badge coverage-v2.json bashcov inactive "not measured"
             echo "bashcov badge: no figure published yet"
           fi
+
+      # The package repository, out of the newest non-prerelease release's
+      # package-repo.tar.gz (docs/PACKAGING.md's _Package repository_) - a
+      # release asset rather than a run artifact, so it outlives the 90-day
+      # artifact expiry and every docs-only rebuild, and a candidate never
+      # reaches a subscriber. Only the latest release is served; older packages
+      # stay on their release pages. No release yet, or one shipped without the
+      # asset (no GPG_SIGNING_KEY), is the normal state before v1: the site
+      # goes out without the apt/, rpm/ and apk/ directories.
+      - name: Unpack the package repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)"
+          if [ -z "$tag" ]; then
+            echo "no release yet - no package repository to serve"
+            exit 0
+          fi
+          if ! gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern package-repo.tar.gz --dir "$RUNNER_TEMP/repo" 2>/dev/null; then
+            echo "::warning title=package repository::release $tag carries no package-repo.tar.gz - the repository is not served"
+            exit 0
+          fi
+          tar -xzf "$RUNNER_TEMP/repo/package-repo.tar.gz" -C _site
+          echo "package repository from $tag: $(find _site/apt _site/rpm _site/apk -type f | wc -l) files"
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
 

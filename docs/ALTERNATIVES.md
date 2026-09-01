@@ -49,10 +49,10 @@ to `xterm-256color`) rather than depending on your terminal.
 | ----------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------- | ------------------------ |
 | Written in                          | POSIX/bash shell                                                                     | shell                                                                                           | Python                                                   | bash                            | shell                    |
 | Client needs                        | `bash` 3.2+, `base64`                                                                | bash, ssh                                                                                       | a Python install (pip/pipx/conda) or the portable binary | `bash` **≥ 4.0**, GNU coreutils | shell, ssh               |
-| Target needs                        | `base64`; `bash` for the full session                                                | shell                                                                                           | Linux **x86_64 only**                                    | shell                           | shell                    |
+| Target needs                        | `base64`; `bash` for the full session                                                | `openssl` (its base64), `tar`, `bash`                                                           | Linux **x86_64 only**                                    | shell                           | shell                    |
 | Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash                            | broad                                                                                           | Linux x86_64                                             | Linux, macOS                    | broad                    |
 | Installs on target                  | nothing                                                                              | nothing                                                                                         | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
-| Cleans up on exit                   | yes, automatically                                                                   | leaves `/tmp` dir                                                                               | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
+| Cleans up on exit                   | yes, automatically                                                                   | yes, on exit (a hard kill leaves it, as with hi)                                                | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
 | Size ceiling                        | ~48KB wire script, CI-held within 5% of README's badge; gzipped tar budgeted at 64KB | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                                                       | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                                                   | no                                                                                              | **yes**                                                  | no                              | no                       |
@@ -78,8 +78,15 @@ that runs on every host you touch. If you just want your `.bashrc` and
   one at 128KB regardless of `ARG_MAX`, and sshrc's own README warns that past
   ~64KB "the server may block your sshrc attempts". say-hi writes it over
   **stdin** of the first of two calls multiplexed on one ssh connection.
-- **Cleanup.** sshrc copies into `/tmp` and leaves it. say-hi's `load.sh` traps
-  on exit and removes the tree, and never writes into the host's rc files.
+- **Cleanup, proven for the dropped link.** sshrc removes its `/tmp` tree on
+  exit too — a `trap … 0` in the script. What say-hi adds is the case where
+  there is no exit: `load.sh`'s hook fires on `SIGHUP`, a `trap … exit`
+  backstops a signal nothing traps, and
+  `tests/targets/ssh_disconnect_test.sh` proves the tree is gone after a
+  yanked connection. Neither writes into the host's rc files.
+- **What the target needs.** sshrc decodes with `openssl` and wants `tar` and
+  `bash` there; say-hi needs `base64`, and lands an aliases-only tier where
+  bash is missing.
 - **A designed session, not copied files.** Header, hashed per-host colors, a
   git prompt, aliases, editor configs — degrading in defined tiers when the
   target cannot support all of it.

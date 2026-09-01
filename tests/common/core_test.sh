@@ -86,6 +86,23 @@ function test_no_color_blanks_the_palette_at_source_time() {
   [ -z "$out" ]
 }
 
+# _hi_cecho's %b is for the palette; the text goes through %s. What it prints
+# is a target's or ssh's words as often as hi's - _hi_report_failure feeds a
+# connect errlog through it - so a backslash a target wrote has to come out a
+# backslash, and a literal `\e]0;` in a banner has to stay text rather than
+# retitle the client's terminal. The colors, still '\e' strings, still expand.
+function test_cecho_prints_the_text_verbatim() {
+  local in='C:\Users\new \e]0;x\a %s' out
+  out="$(_hi_cecho "$in" "" 1)"
+  [ "$out" = "$in$(printf '%b' "$NC")" ]
+}
+
+function test_cecho_still_expands_the_palette() {
+  local out
+  out="$(_hi_cecho x "$RED" 1)"
+  [ "$out" = "$(printf '%b' "$RED")x$(printf '%b' "$NC")" ]
+}
+
 #
 # hi is meant to reach a scratch or distroless container: bash and no
 # coreutils at all, so `hostname`, `uname`, `whoami` and `id` are none of them
@@ -521,6 +538,10 @@ function run_core_tests() {
   _hi_check "Beats the terminal's yes" test_no_color_beats_the_terminal
   _hi_check "Empty means on (non-empty rule)" test_no_color_empty_means_on
   _hi_check "Blanks the palette at source time" test_no_color_blanks_the_palette_at_source_time
+
+  _hi_h2 "Testing: _hi_cecho"
+  _hi_check "Prints the text verbatim" test_cecho_prints_the_text_verbatim
+  _hi_check "...and still expands the palette" test_cecho_still_expands_the_palette
 
   _hi_h2 "Testing: _hi_hash_color"
   _hi_check_eq "Deterministic across calls" "$(_hi_hash_color someuser)" _hi_hash_color someuser

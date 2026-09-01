@@ -113,6 +113,5 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_NOTIFY=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_BAT_ALIAS=1
-  export _HI_DISABLE_EZA_CONFIG=1
   export _HI_DISABLE_LS_ALIASES=1
 } || true

@@ -58,6 +58,20 @@ the header, writes the session's rc files into a scratch directory of its own,
 and hands off to the best shell available. The target's login files are never
 written; everything the target executes was generated on the client.
 
+Three sshd shapes change that picture, and hi names each. A `ForceCommand` in
+`sshd_config`, or a `command=` on the key in `authorized_keys`, runs its own
+program whatever the client asked: hi's bootstrap never runs, and hi says so
+and hands over the host's own session — the forced program, the only session
+such a host offers — rather than reporting a success it never had. (A forced
+program that exits non-zero and prints nothing is indistinguishable from a
+host with no `sh`, and gets the PowerShell notice instead.) A restricted
+login shell (`rbash`) forbids a `/` in a command name and little else; `sh`
+has no slash, so hi's bootstrap runs unrestricted and the session is a full
+one — rbash is not a boundary hi respects, and a host whose restriction
+matters wants `ForceCommand`. And `MaxSessions 1` fits: hi's two calls share
+one connection, but the probe's channel has closed before the session's
+opens. All three are `tests/targets/ssh_test.sh` cases.
+
 ## What hi writes on a target
 
 Default answer: one directory, and only for the life of the session.
@@ -106,13 +120,18 @@ a target" is one command.
   to that same target, and only if absolute and free of anything a
   double-quoted heredoc expands or closes on; else the session takes the
   disposable path. Escape sequences in session output remain possible, exactly
-  as with plain `ssh`.
+  as with plain `ssh`; hi's own connect-failure report prints a target's
+  stderr as text, never expanding it, so a backslash sequence a target wrote
+  stays one.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
 - The ssh `ControlMaster` socket lives inside a `mktemp -d` of its own rather
   than at a `mktemp -u` name in a shared temp directory: `ControlMaster=auto`
   _joins_ a socket it finds at the path it was given, and a name that was
   merely unused when printed is no guarantee about the moment it is used.
+  Passed as `-o` on the command line, it also outranks a `ControlMaster no`
+  in your `~/.ssh/config`: the socket is hi's own for the length of the
+  connect, and closed after.
 - `hi <TAB>`'s target cache is written to `$XDG_RUNTIME_DIR`, or to a
   per-uid directory hi creates with `mkdir -m 700`. The name is predictable —
   the next TAB has to find it — so if that path already exists and is not

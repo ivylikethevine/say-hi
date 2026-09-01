@@ -191,6 +191,12 @@ Client: zsh.
 
 ## Installation/Usage
 
+- **What works today: the checkout above.** The `.deb`/`.rpm`/`.apk`, the
+  package repository, the AUR package and the Homebrew tap are built and
+  tested in CI on every push and have not been published yet — no stable tag,
+  no release asset. [docs/PACKAGING.md](docs/PACKAGING.md) describes each
+  channel as it will ship; [docs/ROADMAP.md](docs/ROADMAP.md#what-v100-means)
+  tracks what remains.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has
@@ -258,9 +264,9 @@ Usage: `hi foo` (just like ssh!)
 ### Upgrading
 
 - a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
-- a `.deb`/`.rpm`/`.apk`: no repository exists to subscribe to
-  ([docs/PACKAGING.md](docs/PACKAGING.md#deb--rpm--apk)); install the next
-  release's package from
+- a `.deb`/`.rpm`/`.apk`: subscribe to
+  [the package repository](docs/PACKAGING.md#package-repository) and let
+  `apt`/`dnf`/`apk` upgrade it; or install the next release's package from
   [the releases page](https://github.com/ivylikethevine/say-hi/releases) as
   you did this one, after
   [verifying the download](docs/PACKAGING.md#verifying-a-release-download).

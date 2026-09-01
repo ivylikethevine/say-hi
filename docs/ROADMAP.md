@@ -31,8 +31,8 @@ A **gate, not a wish list**: anything merely nice by v1 stays an ordinary
 entry below. The release unblocks the channels after it.
 
 - [ ] **A release has gone out** and proved the whole path —
-      [Get a release out](#quick-wins). `tap`, `aur`, `feature` and `brew`
-      are `needs: publish`, so none can start before it.
+      [Get a release out](#quick-wins). `tap`, `aur` and `brew` are
+      `needs: publish`, so none can start before it.
 - [ ] **Every publishable channel has been published once by hand**, before
       the automation is trusted with it: deb/rpm/apk and the Homebrew tap,
       per [PACKAGING.md](PACKAGING.md)'s _Publishing each channel_. The tap
@@ -63,36 +63,10 @@ of it.
       it opens a manifest PR onto a `manifests-<tag>` branch (`tap`/`aur` read
       the manifests out of the `packages` artifact, so the release doesn't
       wait on the merge; a PR opened with `GITHUB_TOKEN` gets no CI run of its
-      own, so read it before merging). Then check the two things only a real
-      run can prove:
-
-  - the release body names what changed and how to verify the download
-    ([PACKAGING.md](PACKAGING.md#verifying-a-release-download)); add a
-    `CHANGELOG.md` only if it doesn't;
-  - the devcontainer Feature installs from a real `devcontainer.json` naming
-    `ghcr.io/ivylikethevine/say-hi/say-hi` and `hi` runs in it
-    ([PACKAGING.md](PACKAGING.md#devcontainer-feature)).
-  - **Ticks when:** manifest PR opened, release body right, Feature installs
-    a working `hi`.
-
-- [ ] **A release candidate before the tag** — _scope: one rc tag; outside
-      this checkout._ `v0.0.2-rc.1` and `-rc.2` proved tag → `build`: packages
-      built and attested, run green — and `publish` skipped. Its bare
-      `if: github.event_name == 'push'` carried an implicit `success()`, which
-      saw the dispatch-only `gate` job skipped two levels up; a final tag
-      would have lost every channel job the same way. Fixed on `main` since
-      `5e44370` (every job below `gate` names its `needs` result;
-      `packaging_test.sh` guards it). `v0.0.2-rc.3` then reached `publish`
-      and was refused by the `release` environment's deployment rule, which
-      allowed the branch `main` and no tag. **Do:** add the `v*` tag rule
-      ([PACKAGING.md](PACKAGING.md#the-release-environment)), _Re-run failed
-      jobs_ on that run, approve `publish` when it pauses. The release must
-      come out marked
-      _Pre-release_, not _Latest_; a candidate reaches no channel and opens no
-      manifest PR (`0.1.0-rc.1` is not a legal `pkgver`), so the tap PR, the
-      AUR push and `brew audit` wait for the final tag. **Ticks when:** the rc
-      is published as a prerelease with packages, tarball, `SHA256SUMS` and
-      manifests attached and the body right.
+      own, so read it before merging). `v0.0.2-rc.4` proved everything up to
+      there - build, gate, signed sums, the body's notes and checklist - so a
+      `CHANGELOG.md` stays out. **Ticks when:** a final tag's manifest PR is
+      opened.
 
 - [ ] **tldr page** — _scope: one upstream pull request; outside this
       checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
@@ -103,8 +77,10 @@ of it.
 - [ ] **Flip to stable** — _scope: one commit at tag time; in-repo._ The
       EXPERIMENTAL banner has echoes: README's banner and its anchor
       (CONTRIBUTING.md's first paragraph links it by name), ALTERNATIVES.md's
-      maturity cell, and SECURITY.md's _Supported versions_, which becomes the
-      version table it promises. **Ticks when:** every one reads as a released
+      maturity cell, SECURITY.md's _Supported versions_, which becomes the
+      version table it promises, and the _what works today_ notes at the top
+      of README's install section and PACKAGING.md, which go once the channels
+      they name are live. **Ticks when:** every one reads as a released
       project in the commit the tag points at.
 
 ## Moderate
@@ -117,49 +93,21 @@ of it.
       **Ticks when:** `brew install ivy/tap/say-hi` works, from a release the
       `tap` job opened a PR for.
 
-- [ ] **Package repository on the Pages site** — _scope: one new secret, a
-      step in `release.yml`'s `build` and `publish` jobs, a trigger and a copy
-      step in `pages.yml`, three runbook sections, and their drift guards;
-      in-repo, then one key outside it._ Serves `apt`, `dnf` and `apk` from
-      `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}` out of the
-      packages nfpm already builds; no second packaging description.
-
-  - **Key:** a GPG key as a repository secret (`GPG_SIGNING_KEY`, beside
-    `APK_SIGNING_KEY`, not sealed to the `release` environment): `dnf
-gpgcheck=1` verifies the RPMs themselves, and nfpm signs them in `build`
-    (`rpm.signature.key_file`, env-expanded like the apk key) before
-    `SHA256SUMS` and the attestation are computed. The same key signs the
-    apt and rpm indexes in `publish`. Its public half and fingerprint go in
-    PACKAGING.md next to the minisign key and are drift-checked the same
-    way; the apk index reuses `packaging/apk/say-hi.rsa.pub`.
-  - **`publish`:** after the upload, build `dist/repo/` from this release's
-    packages — `apt/` (`apt-ftparchive packages`/`release`, `InRelease` +
-    `Release.gpg`, pool under `pool/main/s/say-hi/`), `rpm/` (`createrepo_c`,
-    `repodata/repomd.xml.asc`), `apk/x86_64/` and `apk/aarch64/` (the noarch
-    apk in each, `apk index` + `abuild-sign` inside `alpine:3.24`), plus the
-    public keys and a ready `say-hi.repo` — then `gh release upload` it as one
-    asset, `package-repo.tar.gz`. `apt-utils`, `createrepo-c` and `gpg` are on
-    the ubuntu runner; alpine comes from docker. Snapshots stay out: they are
-    unsigned and replaced on every push.
-  - **`pages.yml`:** add `Release` to the `workflow_run` list (the `if`
-    already accepts a push event, which a tag push is), download
-    `package-repo.tar.gz` from the latest `v*` release with
-    `gh release download`, unpack into `_site/`. Release assets, not a run
-    artifact, so the repo survives the 90-day artifact expiry and any later
-    docs-only rebuild. Only the latest release is in the repo; older packages
-    stay on their release pages.
-  - **Docs:** PACKAGING.md's _deb / rpm / apk_ section gains the three
-    sources lines (`deb [signed-by=/etc/apt/keyrings/say-hi.gpg] … stable
-main`, the `.repo` file, the `/etc/apk/repositories` line); README's
-    _Upgrading_ bullet stops saying there is no repository.
-  - **Guards:** `packaging_test.sh` asserts the `build` signing block, the
-    `publish` repo step and the `package-repo.tar.gz` upload, `pages.yml`'s
-    download, and the GPG pin in PACKAGING.md; `packaging-smoke` in `ci.yml`
-    adds `apt-get install` from a throwaway local copy of the generated `apt/`
-    tree with a throwaway key, the way it already installs the apk.
-  - **Ticks when:** `apt install say-hi`, `dnf install say-hi` and
-    `apk add say-hi` each work from the published URL after a release, and a
-    second release upgrades one of them in place.
+- [ ] **Package repository on the Pages site** — _scope: one key, one secret,
+      one committed file, one release; outside this checkout._ The code half
+      shipped: `packaging/mkrepo.sh` builds the apt, rpm and apk repositories
+      out of `mkpkg.sh`'s packages, `release.yml` signs the rpm in `build` and
+      attaches `package-repo.tar.gz` in `publish`, `pages.yml` serves it from
+      the newest non-prerelease release at
+      `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, packaging-smoke
+      builds one per PR and `tests/packaging/repo_test.sh` installs from one
+      as all three clients. Every step skips loudly until the key exists.
+      **Do:** generate the GPG key, add `GPG_SIGNING_KEY`, commit
+      `packaging/gpg/say-hi.asc`
+      ([PACKAGING.md](PACKAGING.md#package-repository)), cut a release.
+      **Ticks when:** `apt install say-hi`, `dnf install say-hi` and
+      `apk add say-hi` each work from the published URL, and a second release
+      upgrades one of them in place.
 
 ## Blocked until someone else moves
 
@@ -214,4 +162,22 @@ Tracked, not actionable; none is a v1.0.0 criterion.
 ## Not scheduled
 
 Research and decisions nobody has made yet; nothing here gates a release.
-Empty today — a proposal lands here when it is raised and not yet decided.
+
+- [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
+      SETTINGS.md section; in-repo._ One overlay ships to every target
+      (README's _Configuration_ warning, SECURITY.md's _Trust boundaries_);
+      the only per-host lever is a color. `_HI_TARGET_TAG` already resolves
+      the leftmost `# Tags:` word before the payload is built, so
+      `~/.config/say-hi/tags/<tag>/` holding the same `$_HI_OVERLAY_FILES` —
+      shipped instead of, or layered after, the base overlay — needs no new
+      probe. Open: precedence (replace vs. layer) and whether an untagged
+      host gets the base overlay or nothing. Until decided, an admin with
+      prod and customer hosts keeps the overlay empty or runs two
+      `XDG_CONFIG_HOME`s.
+
+- [ ] **A system-wide settings layer** — _scope: one file, one source line;
+      in-repo._ A root-owned tree (`install.sh --prefix`) serves every user,
+      but every setting lives in each user's `settings.sh`; there is no
+      `/etc/say-hi/settings.sh` for a platform team's defaults, and no way to
+      share an alias set short of a dotfiles repo. Whether that is wanted at
+      all, and whether it ships to targets, is the question.

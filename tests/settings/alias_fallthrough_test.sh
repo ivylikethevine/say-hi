@@ -287,7 +287,6 @@ function _hi_run_scenario() {
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS:-0}" \
-    _HI_DISABLE_EZA_CONFIG="${_HI_DISABLE_EZA_CONFIG:-0}" \
     _HI_DISABLE_LS_ALIASES="${_HI_DISABLE_LS_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
@@ -466,7 +465,6 @@ function run_alias_fallthrough_test() {
   run_fallthrough_tests
   run_flag_tests
   run_bat_alias_flag_tests
-  run_eza_config_flag_tests
   run_ls_aliases_flag_tests
   run_overlay_tests
   run_overlay_poisoning_test
