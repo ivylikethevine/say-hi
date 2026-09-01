@@ -18,6 +18,7 @@ Actions variable.
 - [Layout](#layout)
 - [Channels weighed and not shipped](#channels-weighed-and-not-shipped)
 - [Cutting a release](#cutting-a-release)
+  - [The release environment](#the-release-environment)
 - [Snapshot builds](#snapshot-builds)
 - [Publishing each channel](#publishing-each-channel)
   - [AUR](#aur)
@@ -156,6 +157,45 @@ checklist](#verifying-a-release-download) below. Title PRs the way you'd want
 them read; skim `gh pr list --state merged` before tagging. The body is
 composed rather than passed as `--generate-notes --notes` because `gh` appends
 generated notes **after** `--notes`, burying them under the checklist.
+
+### The release environment
+
+Two repository settings under _Settings → Environments_ that no file in the
+tree can set; `release.yml` only names them.
+
+- **`release`** — what `publish`, `tap`, `aur` and `feature` run in.
+  _Required reviewers_: you; that is the approval `publish` pauses for, and
+  without it the job publishes unattended. _Deployment branches and tags_: a
+  **tag** rule, `v*`. The job runs on the tag ref, so a policy listing only
+  `main` refuses every release with `Tag "v1.0.0" is not allowed to deploy to
+  release due to environment protection rules` — `build` green, `publish`
+  failed, the tag page showing source archives alone. The rule is checked
+  when the job starts, so once it exists _Re-run failed jobs_ on that run
+  goes on to the approval; no new tag is needed.
+- **`manual-dispatch`** — the rehearsal gate. _Required reviewers_: you, or a
+  rehearsal's `build` reaches `APK_SIGNING_KEY` with nobody asked. A branch
+  rule `main` fits here: a dispatch runs on a branch.
+- **`MINISIGN_SECRET_KEY`** — an environment secret on `release` (an
+  environment secret shadows a repository one of the same name; edit the one
+  that exists). Its value is the **whole** `minisign.key` file `minisign -G
+  -W` writes: line 1 `untrusted comment: …`, line 2 a 212-character base64
+  string. Nothing else works — the `.pub` (57 characters), the base64 line
+  alone, or that line truncated, wrapped or indented all fail the signing
+  step with `base64 conversion failed - was an actual secret key given?` or
+  `Error while loading the secret key file`; a key generated without `-W`
+  stops at `Password:` because the runner has no tty (`minisign -C -W -s
+  minisign.key` strips the passphrase and keeps the pair). Before pasting,
+  check the file signs and matches the public key this runbook publishes:
+
+  ```sh
+  minisign -R -s minisign.key -p /tmp/check.pub &&
+    diff <(sed -n 2p /tmp/check.pub) \
+      <(sed -n "s/^minisign -Vm SHA256SUMS -P '\([^']*\)'.*/\1/p" docs/PACKAGING.md)
+  ```
+
+  A different pair means a new line under
+  [Verifying a release download](#verifying-a-release-download) in the same
+  commit, since `publish` reads the key out of it.
 
 ## Snapshot builds
 
@@ -476,7 +516,7 @@ offline half — no `gh`, no network, one static public key):
 
 ```sh
 sha256sum -c --ignore-missing SHA256SUMS                        # the bytes match the release
-minisign -Vm SHA256SUMS -P 'RWTDcJ3LGWayrAxK6mbMysyOF8mNLOmMUGRl4YSWk5KIoayS+lW0Fy1L'
+minisign -Vm SHA256SUMS -P 'RWR2I3MAqExrIMvAdepnWzlWlaWyvb6bEJiFmsU6lAoE10FnZPSizkAA'
 gh attestation verify say-hi_*_all.deb --repo ivylikethevine/say-hi # which CI run built them
 ```
 

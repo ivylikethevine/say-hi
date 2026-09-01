@@ -75,15 +75,24 @@ of it.
   - **Ticks when:** manifest PR opened, release body right, Feature installs
     a working `hi`.
 
-- [ ] **A release candidate before the tag** — _scope: one `v0.1.0-rc.1` tag;
-      outside this checkout._ Cut `v0.1.0-rc.1` and read the run: it walks
-      the tag → `build` → `release` gate → `publish` for the first time, and
-      the release must come out marked _Pre-release_, not _Latest_, with
-      every artifact attached and the body right. A candidate reaches no
-      channel and opens no manifest PR (`0.1.0-rc.1` is not a legal
-      `pkgver`), so the tap PR, the AUR push and `brew audit` wait for the
-      final tag. **Ticks when:** the rc is published as a prerelease with
-      packages, tarball, `SHA256SUMS` and manifests attached.
+- [ ] **A release candidate before the tag** — _scope: one rc tag; outside
+      this checkout._ `v0.0.2-rc.1` and `-rc.2` proved tag → `build`: packages
+      built and attested, run green — and `publish` skipped. Its bare
+      `if: github.event_name == 'push'` carried an implicit `success()`, which
+      saw the dispatch-only `gate` job skipped two levels up; a final tag
+      would have lost every channel job the same way. Fixed on `main` since
+      `5e44370` (every job below `gate` names its `needs` result;
+      `packaging_test.sh` guards it). `v0.0.2-rc.3` then reached `publish`
+      and was refused by the `release` environment's deployment rule, which
+      allowed the branch `main` and no tag. **Do:** add the `v*` tag rule
+      ([PACKAGING.md](PACKAGING.md#the-release-environment)), _Re-run failed
+      jobs_ on that run, approve `publish` when it pauses. The release must
+      come out marked
+      _Pre-release_, not _Latest_; a candidate reaches no channel and opens no
+      manifest PR (`0.1.0-rc.1` is not a legal `pkgver`), so the tap PR, the
+      AUR push and `brew audit` wait for the final tag. **Ticks when:** the rc
+      is published as a prerelease with packages, tarball, `SHA256SUMS` and
+      manifests attached and the body right.
 
 - [ ] **tldr page** — _scope: one upstream pull request; outside this
       checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
