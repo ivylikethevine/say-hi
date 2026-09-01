@@ -451,9 +451,16 @@ function test_boot_probe_says_no_base64() {
 }
 
 function test_boot_probe_says_no_scratch_dir() {
-  local ec=0
-  TMPDIR=/nonexistent/hi sh -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
-  [ "$ec" -eq 65 ]
+  local ec=0 out md mec=0
+  out="$(TMPDIR=/nonexistent/hi sh -c "$(_hi_boot_probe)" </dev/null 2>&1)" || ec=$?
+  [ "$ec" -eq 65 ] && return 0
+  _hi_cecho " | the probe exited $ec, not 65" "$RED"
+  _hi_cecho " | probe said: $(printf '%s' "$out" | tr '\n' ' ')" "$RED"
+  md="$(TMPDIR=/nonexistent/hi mktemp -d -t hi.boot.XXXXXX 2>&1)" || mec=$?
+  _hi_cecho " | mktemp exited $mec, said: $md" "$RED"
+  [ -d "$md" ] && rm -rf "$md"
+  case "$out" in *HIBOOT:*) rm -rf "${out##*HIBOOT:}" ;; esac
+  return 1
 }
 
 function test_boot_probe_reports_its_dir_on_success() {
