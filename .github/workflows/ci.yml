@@ -385,13 +385,15 @@ jobs:
           path: ${{ runner.temp }}/sizes
           retention-days: 14
 
+  # Beside the fast suites, not after them: this and e2e-backends each take
+  # about three minutes, so waiting on `test` to spare a runner on a red unit
+  # test cost every green PR three minutes of wall clock - half its run. A red
+  # unit test and a red e2e now show up together.
   e2e:
     name: e2e (ssh, docker)
     runs-on: ubuntu-latest
-    needs: [changes, test]
-    if: >-
-      ${{ !cancelled() && needs.test.result == 'success' &&
-      (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true') }}
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -412,10 +414,8 @@ jobs:
   e2e-backends:
     name: e2e (podman, nomad, kube)
     runs-on: ubuntu-latest
-    needs: [changes, test]
-    if: >-
-      ${{ !cancelled() && needs.test.result == 'success' &&
-      (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true') }}
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -451,7 +451,7 @@ jobs:
   # throwaway key, not something to hand a fork's pull request, and the runner
   # job's fork guard covers only the jobs that name it. Gated on both fast-suite
   # jobs so a red unit test does not cost a 15-minute macOS runner. One gate
-  # job rather than the same needs/if on all four callers below.
+  # job rather than the same needs/if on all three callers below.
   e2e-gate:
     name: e2e gate
     needs: [test, test-macos]
@@ -489,12 +489,17 @@ jobs:
     if: needs.e2e-gate.outputs.ok == 'true'
     uses: ./.github/workflows/freebsd-e2e.yml
 
-  # The client-side half of Windows, on the same gate. A real check, not
-  # advisory: windows-client.yml carries no continue-on-error, so a red suite
-  # fails the push. Not yet on the required-checks list (docs/ROADMAP.md's
-  # release-readiness entry), so it does not block a merge yet.
+  # The client-side half of Windows. Not behind e2e-gate: it is the fast
+  # suites on another client, not an e2e that wants green targets first, and
+  # at seven minutes (now two shards of half that) it was the long pole of
+  # every push when it also waited for `test`. Still push-only, as the gate
+  # kept it, and gated on `changes` like the other fast-suite jobs. A real
+  # check, not advisory: windows-client.yml carries no continue-on-error, so
+  # a red suite fails the push. Not yet on the required-checks list
+  # (docs/ROADMAP.md's release-readiness entry), so it does not block a merge
+  # yet.
   e2e-windows-client:
     name: fast suites (Windows client)
-    needs: e2e-gate
-    if: needs.e2e-gate.outputs.ok == 'true'
+    needs: changes
+    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/windows-client.yml
