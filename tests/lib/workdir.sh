@@ -67,6 +67,11 @@ function _hi_track_container() { _hi_ledger container "$1"; }
 # can only go after the containers on it (hence the sweep order below).
 function _hi_track_network() { _hi_ledger network "$1"; }
 
+# ...and for a directory a suite creates *outside* its workdir - the package
+# suites' $_HI_ROOT/dist. Registered only when the suite is the one creating
+# it, so a developer's own mkpkg.sh build survives a test run.
+function _hi_track_dir() { _hi_ledger dir "$1"; }
+
 # Every step is guarded and the whole thing ends in `return 0`: this runs as
 # an exit trap under `set -e`, where one failing step would otherwise skip
 # every step after it - leaving containers or the scratch dir behind.
@@ -93,6 +98,9 @@ function _hi_test_cleanup() {
   done
   for c in $(_hi_ledger_rows network); do
     "${_HI_BACKEND:-docker}" network rm "$c" >/dev/null 2>&1 || true
+  done
+  for c in $(_hi_ledger_rows dir); do
+    rm -rf "$c" 2>/dev/null || true
   done
   if [ -n "$_HI_WORKDIR" ]; then
     rm -rf "$_HI_WORKDIR" || true

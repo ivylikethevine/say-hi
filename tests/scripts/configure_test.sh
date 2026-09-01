@@ -209,6 +209,34 @@ function test_overlay_init_is_idempotent() {
     [ "$(_hi_overlay_commits "$dir")" = 1 ]
 }
 
+# the seed half: a fresh init copies the four shipped defaults in for the
+# files the user has none of, byte for byte and tracked from the first commit
+function test_overlay_init_seeds_the_shipped_defaults() {
+  local dir="$_HI_WORKDIR/ovl-seed" f
+  mkdir -p "$dir"
+  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) || return 1
+  for f in colors packages vim.rc nano.rc; do
+    cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
+      _hi_cecho " | $f was not seeded from the tree" "$RED"
+      return 1
+    }
+    git -C "$dir" ls-files | grep -qx "$f" || {
+      _hi_cecho " | $f is not in the first commit" "$RED"
+      return 1
+    }
+  done
+}
+
+function test_overlay_init_never_overwrites_a_present_file() {
+  local dir="$_HI_WORKDIR/ovl-noclobber"
+  mkdir -p "$dir"
+  printf 'hostname,mine,red\n' >"$dir/colors"
+  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) || return 1
+  [ "$(cat "$dir/colors")" = "hostname,mine,red" ] || return 1
+  # the gaps still fill in around it
+  cmp -s "$_HI_ROOT/settings/packages" "$dir/packages"
+}
+
 function test_overlay_commit_records_a_change_when_tracked() {
   local dir="$_HI_WORKDIR/ovl-commit"
   mkdir -p "$dir"
@@ -946,6 +974,8 @@ function run_configure_tests() {
   _hi_h2 "Testing: overlay_init / overlay_commit"
   _hi_check_requires git "Init makes a repo with a first commit" test_overlay_init_creates_a_repo_with_a_first_commit
   _hi_check_requires git "Init is idempotent" test_overlay_init_is_idempotent
+  _hi_check_requires git "Init seeds the shipped defaults" test_overlay_init_seeds_the_shipped_defaults
+  _hi_check_requires git "...and never overwrites a present file" test_overlay_init_never_overwrites_a_present_file
   _hi_check_requires git "A tracked overlay commits settings writes" test_overlay_commit_records_a_change_when_tracked
   _hi_check_requires git "Nothing new, no commit" test_overlay_commit_is_a_noop_with_nothing_new
   _hi_check_requires git "An untracked overlay never hears about git" test_overlay_commit_never_creates_a_repo

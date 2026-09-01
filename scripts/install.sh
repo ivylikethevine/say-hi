@@ -88,11 +88,14 @@ its current setting when there is no tty to answer on.
                    the shell files in your config overlay (aliases.sh under
                    both sh and fish) - skip everything else. This is what
                    \`hi --check-configs\` calls.
-  --overlay-init   Version the config overlay: \`git init\` plus a first
-                   commit in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi, in
-                   place. From then on \`hi --configure\` commits its own
-                   settings writes; an overlay you never init never hears
-                   about git. This is what \`hi --overlay-init\` calls.
+  --overlay-init   Seed and version the config overlay: copy the shipped
+                   colors/packages/vim.rc/nano.rc defaults in for the files
+                   you have none of (a file already there is never touched),
+                   then \`git init\` plus a first commit in
+                   \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi, in place. From
+                   then on \`hi --configure\` commits its own settings writes;
+                   an overlay you never init never hears about git. This is
+                   what \`hi --overlay-init\` calls.
   --uninstall      The inverse: strip hi's lines back out of those three rc
                    files, remove the settings.sh this wrote, and unlink
                    /usr/bin/hi if it points at this say-hi. Safe to re-run.

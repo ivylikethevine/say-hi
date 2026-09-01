@@ -58,6 +58,9 @@ function _hi_pkg_context() {
 function _hi_build_packages() {
   _hi_h2 "Building the packages to install"
   _HI_PKG_DIST="$_HI_ROOT/dist"
+  # registered before the build (the ledger's rule): the exit trap removes
+  # dist/ only when this suite is the one that created it
+  [ -d "$_HI_PKG_DIST" ] || _hi_track_dir "$_HI_PKG_DIST"
   if ! (cd "$_HI_ROOT" && packaging/mkpkg.sh) >"$_HI_WORKDIR/mkpkg.log" 2>&1; then
     _hi_dump_log "mkpkg.sh failed, skipping the package cases:" "$_HI_WORKDIR/mkpkg.log" "$YELLOW"
     return 1

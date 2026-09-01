@@ -103,10 +103,11 @@ jobs:
           missing-message: no successful CI run on main to read package sizes from
           warn-on-missing: "true"
 
-      # Coverage is its own lookup: coverage.yml is dispatch-only and slow, so
-      # the badge shows the last figure anyone measured until somebody measures
-      # again. warn-on-missing stays off here and below - a dispatch-only
-      # workflow with no run yet is the normal state.
+      # Coverage is its own lookup: coverage.yml is slow and chained off the
+      # same CI event as this deploy, so the badge shows the last figure
+      # anyone measured - at most one push behind. warn-on-missing stays off
+      # here and below - a workflow with no successful run yet is a normal
+      # state.
       - name: Fetch the last coverage run's kcov figure
         uses: ./.github/actions/fetch-latest-artifact
         with:

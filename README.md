@@ -200,10 +200,12 @@ Client: zsh.
 
 - **What works today: the checkout above.** The `.deb`/`.rpm`/`.apk`, the
   package repository, the AUR package and the Homebrew tap are built and
-  tested in CI on every push and have not been published yet — no stable tag,
-  no release asset. [docs/PACKAGING.md](docs/PACKAGING.md) describes each
-  channel as it will ship; [docs/ROADMAP.md](docs/ROADMAP.md#what-v100-means)
-  tracks what remains.
+  tested in CI on every push, and the packages ride the rolling
+  `snapshot-*` prerelease and the `v*-rc` prereleases — but no stable tag
+  exists and no channel (package repository, tap, AUR) is live yet.
+  [docs/PACKAGING.md](docs/PACKAGING.md) describes each channel as it will
+  ship; [docs/ROADMAP.md](docs/ROADMAP.md#what-v100-means) tracks what
+  remains.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has
@@ -311,8 +313,10 @@ add a line to `~/.config/say-hi/colors`: `username,root,red`,
 `hostname,prod-db,yellow` or `hosttag,desktop,green`. `hosttag` matches the
 _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
-every name it covers. `hi --color-preview` shows the result in the actual
-colors; the long version, and using the hash in your own prompt, is
+every name it covers. A `hostname` pin holding `*` or `?` is a pattern —
+`hostname,10.0.1.*,red` colors a whole subnet with no ssh-config entry at
+all. `hi --color-preview` shows the result in the actual colors; the long
+version, and using the hash in your own prompt, is
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
@@ -412,10 +416,8 @@ the profiler for a tripped bench ceiling, is
   target
 - [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
   reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/ROADMAP.md](docs/ROADMAP.md) — what is planned, what it is blocked on,
-  and what is research only
-- [docs/CII_BEST_PRACTICES_DRAFT.md](docs/CII_BEST_PRACTICES_DRAFT.md) — the
-  OpenSSF Best Practices questionnaire, answered against this tree.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — every open item, smallest scope first,
+  and what each one waits on
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
   request, what 1.x will not break, and which doc changes with what
 - [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour

@@ -25,6 +25,7 @@ username,LOCALUSER,brgreen
 usertag,ops,brred
 hostname,pinned,brcyan
 hosttag,work,bryellow
+hostname,pat-*,brblue
 EOF
 
   cat >"$_HI_WORKDIR/ssh_config" <<'EOF'
@@ -40,6 +41,9 @@ Host tagged
 
 # Tags: unlisted
 Host othertag
+  User nobody
+
+Host pat-1
   User nobody
 
 # longer than the HOST column's own floor, and grouped with `tagged`, so the
@@ -74,6 +78,11 @@ function test_source_agrees_with_resolve_color_on_overrides() {
 function test_source_agrees_with_resolve_color_on_tags() {
   [ "$(_hi_resolve_color hostname tagged)" = bryellow ] &&
     [ "$(_hi_color_source hostname tagged)" = "tag:work" ]
+}
+
+function test_source_agrees_with_resolve_color_on_patterns() {
+  [ "$(_hi_resolve_color hostname pat-1)" = brblue ] &&
+    [ "$(_hi_color_source hostname pat-1)" = "pattern:pat-*" ]
 }
 
 function test_default_source_still_resolves_to_a_palette_color() {
@@ -128,8 +137,11 @@ function test_group_preview_width_sums_its_hosts() {
 # time it's sourced, so the only way to point the script at fixtures is to
 # give it a scratch tree and a scratch $HOME to derive them from.
 function _hi_render_preview() {
+  # _HI_TARGETS_TTL=0: targets.sh's sweep cache is keyed by kind alone
+  # (hi.targets.ssh under $XDG_RUNTIME_DIR), so within the TTL a render here
+  # would happily reuse the host list a *previous* run's fixtures produced
   HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    _HI_LOCAL_USER=localdev _HI_LOCAL_HOSTNAME=localbox \
+    _HI_LOCAL_USER=localdev _HI_LOCAL_HOSTNAME=localbox _HI_TARGETS_TTL=0 \
     "$_HI_WORKDIR/tree/say-hi/scripts/color_preview.sh" 2>&1
 }
 
@@ -168,6 +180,13 @@ function test_tables_name_the_matching_tag() {
   printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q 'tag:work'
 }
 
+# a pattern pin gets an example row (its glob never appears in targets.sh's
+# list), and a real host it covers joins that same group
+function test_tables_show_a_pattern_pin_example_row() {
+  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q 'pattern:pat-\*' || return 1
+  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q 'pat-1'
+}
+
 # Not the exact shape the comment above declines to assert - just that each
 # table *is* one: every cell is padded to its column's width, so every line of
 # a table has to come out the same printed width once the color escapes are
@@ -202,12 +221,14 @@ Falls back to default|hostname|plain|default
 # a host carrying a tag with no hosttag entry has nothing to inherit, so it
 # must read as default rather than claiming a tag it can't resolve
 Ignores a tag with no override|hostname|othertag|default
+Subnet pattern names its glob|hostname|pat-1|pattern:pat-*
 EOF
   _hi_check "Never reports a tag for a username" test_source_never_reports_a_tag_for_a_username
 
   _hi_h2 "Testing: agreement with _hi_resolve_color"
   _hi_check "Agrees on overrides" test_source_agrees_with_resolve_color_on_overrides
   _hi_check "Agrees on tags" test_source_agrees_with_resolve_color_on_tags
+  _hi_check "Agrees on patterns" test_source_agrees_with_resolve_color_on_patterns
   _hi_check "Default still resolves to a palette color" test_default_source_still_resolves_to_a_palette_color
 
   _hi_h2 "Testing: table inputs"
@@ -230,6 +251,7 @@ EOF
   _hi_check "Render without error" test_tables_render_without_error
   _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
+  _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
   _hi_check "Every line of a table is the same width" test_tables_are_rectangular
 
   _hi_suite_end "color_preview.sh"

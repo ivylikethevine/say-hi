@@ -16,7 +16,7 @@
 --uninstall|scripts|_HI_INSTALL|--uninstall|take those lines back out again
 --configure|scripts|_HI_INSTALL|--features-only|revisit the feature toggles, leaving the rc wiring be
 --check-configs|scripts|_HI_INSTALL|--check-configs|re-run just the shell rc syntax validation
---overlay-init|scripts|_HI_INSTALL|--overlay-init|make the config overlay a git repo, in place
+--overlay-init|scripts|_HI_INSTALL|--overlay-init|seed the config overlay with the shipped defaults and git it, in place
 --color-preview|scripts|_HI_COLOR_PREVIEW||what every ssh host and your user resolve to, in color
 --update|git|||git pull in the say-hi checkout (needs its .git)
 --test|tests|_HI_TEST_RUN||run the test suite (needs the full checkout)

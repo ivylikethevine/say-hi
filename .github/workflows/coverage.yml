@@ -1,13 +1,29 @@
 name: Coverage
 
 # kcov over the fast suites, published as an artifact - visibility, never a
-# gate: no PR waits on this and no threshold fails it. Dispatch-only: kcov
-# loses its DEBUG trap once test_lib.sh is sourced (tests/coverage.sh's READ
-# THIS BEFORE BELIEVING A NUMBER THIS PRINTS), so the figure understates real
-# coverage by a wide, uneven margin and README's badge says `load-time` in
-# grey. Put the schedule back the day the numbers mean something.
-on:
+# gate: no PR waits on this and no threshold fails it. The figure itself is
+# still not to be believed - kcov loses its DEBUG trap once test_lib.sh is
+# sourced (tests/coverage.sh's READ THIS BEFORE BELIEVING A NUMBER THIS
+# PRINTS), so it understates real coverage by a wide, uneven margin and the
+# README badge says `load-time` in grey, under an accuracy disclaimer.
+#
+# workflow_run so every green push to main refreshes the figure without a
+# manual dispatch; the job gates on the run's conclusion and event the way
+# pages.yml does, and checkout uses the default ref, never the triggering
+# run's payload. pages.yml deploys off the same CI event, so the badge shows
+# the *previous* push's figure until the next deploy - the documented "last
+# figure anyone measured" design, now at most one push behind.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
+
+# pushes to main can stack; only the newest figure matters
+concurrency:
+  group: coverage
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,6 +31,12 @@ permissions:
 jobs:
   kcov:
     name: kcov over the fast suites
+    # only a green push to main measures; a manual dispatch passes the first
+    # clause
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

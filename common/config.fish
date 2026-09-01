@@ -23,6 +23,16 @@ if not set -q _HI_CONFIG_DIR
   set -q XDG_CONFIG_HOME; and set _hi_cfg_base $XDG_CONFIG_HOME
   set -gx _HI_CONFIG_DIR $_hi_cfg_base/say-hi
 end
+# core.sh's system layer, mirrored: a platform team's defaults below the
+# user's own settings.sh - local machines only, and the user file (sourced
+# next) wins. $_HI_SYSTEM_SETTINGS overrides the path (the suites' knob).
+if test "$_HI_REMOTE_SESSION" != 1
+  if set -q _HI_SYSTEM_SETTINGS
+    test -f "$_HI_SYSTEM_SETTINGS"; and source "$_HI_SYSTEM_SETTINGS"
+  else if test -f /etc/say-hi/settings.sh
+    source /etc/say-hi/settings.sh
+  end
+end
 # settings ahead of paths.sh, whose gate reads them (plain `export NAME=value`
 # lines, which fish parses natively)
 if test -f $_HI_CONFIG_DIR/settings.sh

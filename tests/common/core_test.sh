@@ -330,6 +330,54 @@ function test_resolve_color_falls_back_to_hash() {
   [ "$(_HI_COLORS="$colors" _hi_resolve_color username unknownxyz)" = "$(_hi_hash_color unknownxyz)" ]
 }
 
+# Subnet-style pins: a hostname row whose name field holds * or ? matches the
+# target through _hi_ssh_pattern_hit. Structural precedence: exact pin >
+# hosttag > pattern > hash.
+function test_pattern_pin_colors_a_subnet() {
+  local colors="$_HI_WORKDIR/colors.pattern"
+  printf 'hostname,10.0.1.*,red\nhostname,*.prod.example,blue\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = red ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname db.prod.example)" = blue ] || return 1
+  ! _HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.2.7
+}
+
+function test_pattern_first_row_wins() {
+  local colors="$_HI_WORKDIR/colors.patorder"
+  printf 'hostname,10.0.*,green\nhostname,10.0.1.*,red\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = green ]
+}
+
+function test_exact_pin_beats_pattern() {
+  local colors="$_HI_WORKDIR/colors.patexact"
+  printf 'hostname,10.0.1.*,red\nhostname,10.0.1.7,cyan\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname 10.0.1.7)" = cyan ]
+}
+
+function test_hosttag_beats_pattern() {
+  local f colors
+  f="$(_hi_ssh_tag_fixture)"
+  colors="$_HI_WORKDIR/colors.pattag"
+  printf 'hostname,myhost*,red\nhosttag,prod,blue\n' >"$colors"
+  [ "$(_HI_SSH_CONFIG="$f" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = blue ]
+}
+
+function test_pattern_beats_hash() {
+  local colors="$_HI_WORKDIR/colors.pathash"
+  printf 'hostname,unhashed-*,brred\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname unhashed-9)" = brred ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname other-9)" = "$(_hi_hash_color other-9)" ]
+}
+
+# the pattern walk rides _hi_ssh_pattern_hit, whose zsh divergences are HI.37's
+function test_zsh_pattern_pins_agree_with_bash() {
+  local colors="$_HI_WORKDIR/colors.zshpat" a b script
+  printf 'hostname,10.0.1.*,red\n' >"$colors"
+  script='printf "%s|%s" "$(_hi_resolve_color hostname 10.0.1.7)" "$(_hi_resolve_color hostname 10.0.2.7)"'
+  a="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" bash -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
+  b="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" zsh -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
+  [ -n "$a" ] && [ "$a" = "$b" ]
+}
+
 # core.sh's preamble runs once per shell and is guarded by $_hi_core_loaded,
 # so there is no function to call: the case is a fresh bash sourcing core.sh
 # against a scratch $_HI_CONFIG_DIR whose settings.sh claims $_HI_PROBE.
@@ -340,6 +388,35 @@ function test_settings_sh_is_sourced() {
   printf 'export _HI_PROBE=global\n' >"$dir/settings.sh"
   [ "$(env -u _hi_core_loaded -u _HI_PROBE _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$dir" \
     bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = global ]
+}
+
+# The system-wide layer: sourced before the user's settings.sh (so the user
+# wins), and only on the machine say-hi is installed on. $_HI_SYSTEM_SETTINGS
+# stands in for /etc/say-hi/settings.sh so the cases need no root.
+function test_system_settings_apply_locally() {
+  local sys="$_HI_WORKDIR/sys.settings.sh"
+  printf 'export _HI_PROBE=system\n' >"$sys"
+  [ "$(env -u _hi_core_loaded -u _HI_PROBE -u _HI_REMOTE_SESSION _HI_HOME="$_HI_HOME" \
+    _HI_SYSTEM_SETTINGS="$sys" \
+    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = system ]
+}
+
+function test_user_settings_beat_system() {
+  local sys="$_HI_WORKDIR/sys2.settings.sh" dir="$_HI_WORKDIR/sys-user-overlay"
+  mkdir -p "$dir"
+  printf 'export _HI_PROBE=system\n' >"$sys"
+  printf 'export _HI_PROBE=user\n' >"$dir/settings.sh"
+  [ "$(env -u _hi_core_loaded -u _HI_PROBE -u _HI_REMOTE_SESSION _HI_HOME="$_HI_HOME" \
+    _HI_SYSTEM_SETTINGS="$sys" _HI_CONFIG_DIR="$dir" \
+    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = user ]
+}
+
+function test_system_settings_skipped_remotely() {
+  local sys="$_HI_WORKDIR/sys3.settings.sh"
+  printf 'export _HI_PROBE=system\n' >"$sys"
+  [ "$(env -u _hi_core_loaded -u _HI_PROBE _HI_REMOTE_SESSION=1 _HI_HOME="$_HI_HOME" \
+    _HI_SYSTEM_SETTINGS="$sys" \
+    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = unset ]
 }
 
 #
@@ -704,9 +781,18 @@ function run_core_tests() {
   _hi_check "Hosttag via ssh config" test_resolve_color_hosttag_via_ssh_config
   _hi_check "Usertag when no exact override" test_resolve_color_usertag_when_no_exact_override
   _hi_check "Falls back to the hash" test_resolve_color_falls_back_to_hash
+  _hi_check "A pattern pin colors a subnet" test_pattern_pin_colors_a_subnet
+  _hi_check "First matching pattern wins" test_pattern_first_row_wins
+  _hi_check "An exact pin beats a pattern" test_exact_pin_beats_pattern
+  _hi_check "A hosttag beats a pattern" test_hosttag_beats_pattern
+  _hi_check "A pattern beats the hash" test_pattern_beats_hash
+  _hi_check_requires zsh "Pattern pins agree in zsh" test_zsh_pattern_pins_agree_with_bash
 
   _hi_h2 "Testing: the settings overlay"
   _hi_check "settings.sh is sourced" test_settings_sh_is_sourced
+  _hi_check "The system layer applies locally" test_system_settings_apply_locally
+  _hi_check "...the user's settings.sh beats it" test_user_settings_beat_system
+  _hi_check "...and a remote session skips it" test_system_settings_skipped_remotely
   _hi_check_eq "Defaults to ~/.config/say-hi" say-hi _hi_cfg_answer neither
   _hi_check_eq "Uses say-hi when it exists" say-hi _hi_cfg_answer new
   _hi_check "An explicit \$_HI_CONFIG_DIR wins" test_config_dir_explicit_value_wins

@@ -53,6 +53,9 @@ function _hi_repo_build() {
     return 1
   }
   _hi_h2 "Building the packages, signed"
+  # registered before the build (the ledger's rule): the exit trap removes
+  # dist/ only when this suite is the one that created it
+  [ -d "$_HI_ROOT/dist" ] || _hi_track_dir "$_HI_ROOT/dist"
   if ! (cd "$_HI_ROOT" && HI_GPG_KEY="$_HI_WORKDIR/gpg.key" HI_APK_KEY="$_HI_WORKDIR/apk.rsa" packaging/mkpkg.sh) >"$_HI_WORKDIR/mkpkg.log" 2>&1; then
     _hi_dump_log "mkpkg.sh failed:" "$_HI_WORKDIR/mkpkg.log" "$RED"
     return 1

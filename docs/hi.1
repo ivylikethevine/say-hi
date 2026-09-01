@@ -237,8 +237,9 @@ shell rc files, and the overlay's own shell files (\fBaliases.sh\fR under both
 \fBsh\fR and \fBfish\fR, since a target sources it in whichever it has).
 .TP
 .B \-\-overlay\-init
-make the config overlay at
+seed the config overlay at
 .B ~/.config/say-hi/
+with the shipped defaults (files already there are never touched) and make it
 a git repo, in place, so it carries history.
 .TP
 .B \-\-update
@@ -328,6 +329,11 @@ works identically).
 .B ~/.config/say-hi/settings.sh
 feature toggles, written by
 .BR "hi \-\-configure" .
+.TP
+.B /etc/say-hi/settings.sh
+a platform team's defaults, sourced below each user's
+.BR settings.sh ;
+this machine only, never a target's.
 .TP
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.

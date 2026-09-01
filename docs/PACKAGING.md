@@ -1,4 +1,4 @@
-# Packaging & releases
+# Packaging & Releases
 
 How `hi` ships through a package manager, plus [checking a download you did
 not build](#verifying-a-release-download) and [regenerating the demo
