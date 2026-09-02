@@ -5,7 +5,7 @@
 # say-hi-git/ is the same package built from the branch instead.
 
 pkgname=say-hi
-pkgver=0.0.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="sshrc supercharged - your shell config, on every host you say hi to"
 arch=('any')
@@ -27,7 +27,7 @@ optdepends=('zsh: zsh support on the client'
 # provenance. It is already named $pkgname-$pkgver.tar.gz, so no `::` rename.
 source=("$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
 # never submit with SKIP - packaging/bump.sh <version> fills in the real sum
-b2sums=('SKIP')
+b2sums=('3d651340a40b698667a65881b01537f06eff45d3dc33061f69b74213b20f56dc8c1997b3b71b30e044761195fc48d5b03dd2cdd50472772770f54490391c2992')
 
 prepare() {
   # scripts/install.sh derives $_HI_HOME as <checkout>/.. and then looks for
