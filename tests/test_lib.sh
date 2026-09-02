@@ -57,4 +57,12 @@ source "$_hi_d/lib/ssh.sh"
 source "$_hi_d/lib/backend.sh"
 # shellcheck source=./lib/lint.sh
 source "$_hi_d/lib/lint.sh"
+
+# The standalone-run half of the runner's tree check: with an inherited
+# $_HI_TEST_LIB this file can come off a different checkout than the
+# $_HI_ROOT core.sh resolved above, and a suite run on its own then
+# half-succeeds against two trees with nothing saying so. The runner makes
+# this check once per run; a suite reaching here any other way gets the same
+# one yellow line. A warning, not a failure, for _hi_host_tree_check's reason.
+_hi_host_tree_check "$(_hi_host_resolve "$_hi_d/..")" || true
 unset _hi_d

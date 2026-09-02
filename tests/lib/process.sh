@@ -31,16 +31,19 @@
 # shellcheck disable=SC2016 # these expand later, on the target
 function _hi_probe_cmd() {
   local marker="$1"
+  # the tail every rooted shape shares: prove the aliases really loaded, then
+  # say the marker
+  local probe='source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo '
   case "$2" in
-  bash) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
+  bash) printf 'test -f "$_HI_ROOT/hi.sh" && %s%s' "$probe" "$marker" ;;
   fallback) printf '%s%s' 'alias sudo >/dev/null 2>&1 && echo ' "$marker" ;;
   fallback_fish) printf '%s%s' 'functions -q sudo; and echo ' "$marker" ;;
   ssh_fallback) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
   ssh_fallback_fish) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh"; and functions -q hi_info; and echo ' "$marker" ;;
-  installed) printf '%s%s' 'test "$_HI_ROOT" = "$HOME/say-hi" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
-  installed_nested) printf '%s%s' 'test "$_HI_ROOT" = "$HOME/opt/nested/say-hi" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
-  installed_at) printf 'test "$_HI_ROOT" = "%s" && source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo %s' "$3" "$marker" ;;
-  rooted_under) printf 'case "$_HI_ROOT" in %s/*) source "$_HI_ALIASES" && alias hi_info >/dev/null 2>&1 && echo %s ;; esac' "$3" "$marker" ;;
+  installed) printf 'test "$_HI_ROOT" = "$HOME/say-hi" && %s%s' "$probe" "$marker" ;;
+  installed_nested) printf 'test "$_HI_ROOT" = "$HOME/opt/nested/say-hi" && %s%s' "$probe" "$marker" ;;
+  installed_at) printf 'test "$_HI_ROOT" = "%s" && %s%s' "$3" "$probe" "$marker" ;;
+  rooted_under) printf 'case "$_HI_ROOT" in %s/*) %s%s ;; esac' "$3" "$probe" "$marker" ;;
   *)
     _hi_cecho "unknown probe shape: $2" "$RED" >&2
     return 1
@@ -268,8 +271,12 @@ function _hi_exec_case() {
 # Both shapes count: load()'s full path announces the shell it picked, and the
 # no-bash fallback says so instead - a readiness check that only knew about
 # the first would hang out the full timeout on any target without bash.
+# The full-load banner is a named constant because ssh_relay_test.sh counts
+# sessions by it too: a reword of load()'s banner has to move this one string,
+# not this grep plus a stray one in a suite.
+_HI_SESSION_LOADED_RE='hi loaded with'
 function _hi_session_ready() {
-  grep -qE 'hi loaded with|aliases only' "$1" 2>/dev/null
+  grep -qE "$_HI_SESSION_LOADED_RE|aliases only" "$1" 2>/dev/null
 }
 
 # Like _hi_exec_case, but drives a real *interactive* session instead of a

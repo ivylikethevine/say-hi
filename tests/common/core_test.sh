@@ -184,6 +184,11 @@ function test_override_color_localhostname_special_case() {
   [ "$(_HI_COLORS="$colors" _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost)" = "magenta" ]
 }
 
+# The one ssh_config every tag case reads. Built once by run_core_tests, and
+# $_HI_SSH_TAG_FIXTURE holds the path from then on - the zsh-agreement cases
+# reach the same file through _hi_in_shell's constant _HI_SSH_CONFIG.
+_HI_SSH_TAG_FIXTURE=""
+
 function _hi_ssh_tag_fixture() {
   local f="$_HI_WORKDIR/ssh_config"
   cat >"$f" <<'EOF'
@@ -221,77 +226,59 @@ EOF
 }
 
 function test_ssh_host_tag_leftmost_of_multiple() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag myhost)" = "prod" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag myhost)" = "prod" ]
 }
 
 function test_ssh_host_tag_untagged_host_fails() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  ! _HI_SSH_CONFIG="$f" _hi_ssh_host_tag untaggedhost
+  ! _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag untaggedhost
 }
 
 function test_ssh_host_tag_equals_syntax_and_multialias() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag devhost)" = "dev" ] || return 1
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag otheralias)" = "dev" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag devhost)" = "dev" ] || return 1
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag otheralias)" = "dev" ]
 }
 
 function test_ssh_host_tag_unknown_host_fails() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  ! _HI_SSH_CONFIG="$f" _hi_ssh_host_tag no-such-host
+  ! _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag no-such-host
 }
 
 # ssh reads its keywords case-insensitively, and targets.sh's awk agrees - a
 # lowercase `host` entry once completed and dispatched as ssh while its tag
 # was silently never found
 function test_ssh_host_tag_matches_lowercase_host_keyword() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag lowerhost)" = "lower" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag lowerhost)" = "lower" ]
 }
 
 # the walker's rc is a three-way contract: 0 tagged, 2 known-but-untagged,
 # 1 unknown - rc 2 is what hi.sh's _hi_is_ssh_host dispatches on
 function test_ssh_host_tag_return_codes() {
-  local f rc
-  f="$(_hi_ssh_tag_fixture)"
-  _HI_SSH_CONFIG="$f" _hi_ssh_host_tag untaggedhost >/dev/null
+  local rc
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag untaggedhost >/dev/null
   rc=$?
   [ "$rc" -eq 2 ] || return 1
-  _HI_SSH_CONFIG="$f" _hi_ssh_host_tag no-such-host >/dev/null
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag no-such-host >/dev/null
   rc=$?
   [ "$rc" -eq 1 ]
 }
 
 function test_ssh_host_tag_wildcard_host_block() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag prod-web1)" = "prod" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag prod-web1)" = "prod" ]
 }
 
 # "prod" alone is not "prod-anything" - a bare miss must not fall through to
 # the wildcard block that happens to share its prefix
 function test_ssh_host_tag_wildcard_requires_the_dash() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  ! _HI_SSH_CONFIG="$f" _hi_ssh_host_tag prod
+  ! _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag prod
 }
 
 function test_ssh_host_tag_match_host_comma_patterns() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag staging-db1)" = "staging" ] || return 1
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag staging2-x)" = "staging" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag staging-db1)" = "staging" ] || return 1
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag staging2-x)" = "staging" ]
 }
 
 function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
-  local f rc
-  f="$(_hi_ssh_tag_fixture)"
-  _HI_SSH_CONFIG="$f" _hi_ssh_host_tag wilduntagged-abc >/dev/null
+  local rc
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag wilduntagged-abc >/dev/null
   rc=$?
   [ "$rc" -eq 2 ]
 }
@@ -300,9 +287,7 @@ function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
 # ssh's own negation, so web-99 still inherits the block's tag despite being
 # explicitly excluded there. Pinned so a future change to this is deliberate.
 function test_ssh_host_tag_negation_token_is_inert_not_exclusionary() {
-  local f
-  f="$(_hi_ssh_tag_fixture)"
-  [ "$(_HI_SSH_CONFIG="$f" _hi_ssh_host_tag web-99)" = "excluded" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag web-99)" = "excluded" ]
 }
 
 function test_resolve_color_override_wins() {
@@ -312,11 +297,9 @@ function test_resolve_color_override_wins() {
 }
 
 function test_resolve_color_hosttag_via_ssh_config() {
-  local f colors
-  f="$(_hi_ssh_tag_fixture)"
-  colors="$_HI_WORKDIR/colors.resolve2"
+  local colors="$_HI_WORKDIR/colors.resolve2"
   printf 'hosttag,prod,blue\n' >"$colors"
-  [ "$(_HI_SSH_CONFIG="$f" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = "blue" ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = "blue" ]
 }
 
 function test_resolve_color_usertag_when_no_exact_override() {
@@ -354,11 +337,9 @@ function test_exact_pin_beats_pattern() {
 }
 
 function test_hosttag_beats_pattern() {
-  local f colors
-  f="$(_hi_ssh_tag_fixture)"
-  colors="$_HI_WORKDIR/colors.pattag"
+  local colors="$_HI_WORKDIR/colors.pattag"
   printf 'hostname,myhost*,red\nhosttag,prod,blue\n' >"$colors"
-  [ "$(_HI_SSH_CONFIG="$f" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = blue ]
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _HI_COLORS="$colors" _hi_resolve_color hostname myhost)" = blue ]
 }
 
 function test_pattern_beats_hash() {
@@ -474,7 +455,6 @@ function _hi_shell_agrees() {
 }
 
 function test_zsh_hash_color_agrees_with_bash() {
-  _hi_ssh_tag_fixture >/dev/null
   _hi_shell_agrees 'printf "%s,%s,%s" "$(_hi_hash_color alice)" "$(_hi_hash_color prod-db)" "$(_hi_hash_color x)"'
 }
 
@@ -485,7 +465,6 @@ function test_zsh_host_tag_agrees_with_bash() {
 # GLOSSARY: HI.37 - the two zsh divergences _hi_ssh_pattern_hit works around
 # (word-splitting, then GLOB_SUBST) are each invisible to a bash-only suite
 function test_zsh_host_tag_wildcard_agrees_with_bash() {
-  _hi_ssh_tag_fixture >/dev/null
   _hi_shell_agrees 'printf "%s|%s" "$(_hi_ssh_host_tag prod-web1)" "$(_hi_ssh_host_tag staging2-x)"'
 }
 
@@ -683,6 +662,7 @@ function test_shell_rows_filters_by_flag() {
 
 function run_core_tests() {
   _hi_workdir sharedtest
+  _HI_SSH_TAG_FIXTURE="$(_hi_ssh_tag_fixture)"
 
   _hi_h1 "Testing common/core.sh"
 

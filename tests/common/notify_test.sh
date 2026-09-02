@@ -21,25 +21,8 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
-_HI_ESC=$'\033'
-_HI_BEL=$'\a'
-
-# Same gate as the sibling suite: with a tty present the emitter prefers
-# /dev/tty, so an interactive run has to be detached or the escapes land on the
-# tester's screen instead of the pipe. Skips yellow on a box with no setsid.
-if { : </dev/tty; } 2>/dev/null; then
-  _HI_EMIT_GATE="setsid"
-else
-  _HI_EMIT_GATE="sh"
-fi
-
-function _hi_detached() {
-  if [ "$_HI_EMIT_GATE" = setsid ]; then
-    setsid -w "$@"
-  else
-    "$@"
-  fi
-}
+# $_HI_ESC/$_HI_BEL, the $_HI_EMIT_GATE tty gate and _hi_detached are the
+# harness's (tests/lib/fixtures.sh), shared with the osc52 sibling suite.
 
 # the emitter, run with a clean-ish env and its output captured. Everything
 # before the `--` is NAME=VALUE for the run (TMUX, TERM, ...); everything after
@@ -186,33 +169,6 @@ function _hi_refuses_with_no_command() {
   return 1
 }
 
-# Every shell aliases.sh has to parse, since the alias line sits in that file's
-# POSIX+fish subset - test_lib.sh's _hi_alias_probe holds the two dialects.
-function _hi_alias_defined_in() {
-  [ "$(_hi_alias_probe "$1" hi_notify _HI_DISABLE_NOTIFY="$2")" = "$3" ]
-}
-
-# The container fallback path copies aliases.sh alone, with no paths.sh to
-# define $_HI_NOTIFY. A bare `alias hi_notify="sh "` there would drop the user
-# into an interactive shell on their own terminal, so the alias must not exist.
-function _hi_no_alias_without_paths() {
-  [ "$(_hi_alias_probe_bare hi_notify _HI_NOTIFY)" = no ]
-}
-
-function _hi_toggle_in_core_list() {
-  case " ${_HI_TOGGLES[*]} " in
-  *" _HI_DISABLE_NOTIFY "*) return 0 ;;
-  esac
-  return 1
-}
-
-# config.fish keeps its own copy of the toggle list (fish can't read core.sh's
-# array); a toggle added to one and not the other is the exact drift this
-# catches.
-function _hi_toggle_in_fish_list() {
-  grep -q '_HI_DISABLE_NOTIFY' "$_HI_FISH_CONFIG"
-}
-
 # _HI_DISABLE_NOTIFY=1 has to keep the emitter off the wire as well as unalias
 # it - the same guarantee _HI_DISABLE_OSC52 already makes for the clipboard
 # half. hi/payload_test.sh owns the trimming cases; this one is the claim that
@@ -253,14 +209,17 @@ function run_notify_test() {
   _hi_h2 "the hi_notify alias"
   local shell
   for shell in sh bash zsh fish; do
-    _hi_check_requires "$shell" "[$shell] defined by default" _hi_alias_defined_in "$shell" 0 yes
-    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_NOTIFY=1" _hi_alias_defined_in "$shell" 1 no
+    _hi_check_requires "$shell" "[$shell] defined by default" \
+      _hi_alias_defined_in "$shell" hi_notify _HI_DISABLE_NOTIFY=0 yes
+    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_NOTIFY=1" \
+      _hi_alias_defined_in "$shell" hi_notify _HI_DISABLE_NOTIFY=1 no
   done
-  _hi_check "absent without paths.sh (container fallback)" _hi_no_alias_without_paths
+  _hi_check "absent without paths.sh (container fallback)" \
+    _hi_no_alias_without_paths hi_notify _HI_NOTIFY
 
   _hi_h2 "the toggle"
-  _hi_check "_HI_DISABLE_NOTIFY in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list
-  _hi_check "_HI_DISABLE_NOTIFY in config.fish's copy" _hi_toggle_in_fish_list
+  _hi_check "_HI_DISABLE_NOTIFY in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list _HI_DISABLE_NOTIFY
+  _hi_check "_HI_DISABLE_NOTIFY in config.fish's copy" _hi_toggle_in_fish_list _HI_DISABLE_NOTIFY
   _hi_check "hi.sh trims common/notify.sh when it is off" _hi_payload_trims_the_emitter
 
   _hi_suite_end "notify"

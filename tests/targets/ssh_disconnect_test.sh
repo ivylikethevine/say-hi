@@ -16,10 +16,6 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
-function _hi_ready_dir() {
-  grep -oE 'READY:[^[:space:]]*' "$1" 2>/dev/null | sed 's/^READY://' | head -1
-}
-
 function _hi_cleanup_dir_gone() {
   ! docker exec "$_HI_CONTAINER" test -d "$1" 2>/dev/null
 }
@@ -32,7 +28,7 @@ function test_clean_exit_removes_cleanup_dir() {
   # shellcheck disable=SC2016 # $_HI_CLEANUP expands on the target, not here
   "${_HI_SSH_LAUNCH[@]}" 'echo READY:$_HI_CLEANUP' >"$out_file" 2>&1 || true
 
-  cleanup_dir="$(_hi_ready_dir "$out_file")"
+  cleanup_dir="$(_hi_ready_dir READY "$out_file")"
   [ -n "$cleanup_dir" ] || return 1
   ! docker exec "$_HI_CONTAINER" test -d "$cleanup_dir" 2>/dev/null
 }
@@ -52,11 +48,10 @@ function test_sudden_disconnect_removes_cleanup_dir() {
 
   # generous: this covers the whole connect + install-probe + tar copy of say-hi,
   # which is slow on a cold, small CI runner
-  cleanup_dir="$(_hi_poll_value 60 0.5 _hi_ready_dir "$out_file")" || cleanup_dir=""
+  cleanup_dir="$(_hi_poll_value 60 0.5 _hi_ready_dir READY "$out_file")" || cleanup_dir=""
   if [ -z "$cleanup_dir" ] || ! docker exec "$_HI_CONTAINER" test -d "$cleanup_dir" 2>/dev/null; then
     if [ -z "$cleanup_dir" ]; then
-      _hi_cecho " | session never printed READY:\$_HI_CLEANUP - it never came up" "$RED"
-      sed 's/^/      /' "$out_file" 2>/dev/null
+      _hi_dump_log "session never printed READY:\$_HI_CLEANUP - it never came up" "$out_file"
     else
       _hi_cecho " | cleanup dir $cleanup_dir was never created on the target" "$RED"
     fi

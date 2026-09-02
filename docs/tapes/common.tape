@@ -31,13 +31,13 @@
 # not picking a new one.
 
 Set FontSize 16
-Set Width 1280
-Set Height 720
+Set Width 1120
+Set Height 800
 Set Padding 10
-Set Margin 10
-Set TypingSpeed 50ms
+# Set Margin 10
+Set TypingSpeed 40ms
 Set BorderRadius 10
-Set WindowBar Colorful
+# Set WindowBar Colorful
 
 # The bash default - overridden by the non-bash tapes. Names come from
 # `vhs themes`; see https://github.com/charmbracelet/vhs/blob/main/THEMES.md

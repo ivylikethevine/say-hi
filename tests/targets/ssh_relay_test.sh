@@ -132,7 +132,7 @@ function _hi_relay_count() {
   [ "${n:-0}" -ge "$2" ]
 }
 
-function _hi_relay_sessions() { _hi_relay_count 'hi loaded with' "$1"; }
+function _hi_relay_sessions() { _hi_relay_count "$_HI_SESSION_LOADED_RE" "$1"; }
 function _hi_relay_closings() { _hi_relay_count 'hi closing' "$1"; }
 
 # What the far end has to say for itself: _hi_probe_cmd's `bash` shape - the
@@ -233,12 +233,8 @@ function _hi_relay_case() {
 # sit still while the test does its work. The second hop goes through
 # $_HI_LAUNCHER rather than the `hi` alias because alias *expansion* is off in
 # a non-interactive shell - the alias itself is what the case above exercises.
-function _hi_relay_dir() {
-  grep -oE "$1:[^[:space:]]*" "$2" 2>/dev/null | sed "s/^$1://" | head -1
-}
-
-function _hi_relay_b_dir() { _hi_relay_dir READY "$1"; }
-function _hi_relay_c_dir() { _hi_relay_dir READYC "$1"; }
+function _hi_relay_b_dir() { _hi_ready_dir READY "$1"; }
+function _hi_relay_c_dir() { _hi_ready_dir READYC "$1"; }
 
 function _hi_relay_dirs_gone() {
   ! docker exec "$_HI_RELAY_B" test -d "$1" 2>/dev/null &&
@@ -269,8 +265,7 @@ function _hi_relay_disconnect_case() {
   b_dir="$(_hi_poll_value 120 0.5 _hi_relay_b_dir "$out_file")" || b_dir=""
   c_dir="$(_hi_poll_value 120 0.5 _hi_relay_c_dir "$out_file")" || c_dir=""
   if [ -z "$b_dir" ] || [ -z "$c_dir" ]; then
-    _hi_cecho " | [relay-disconnect] -- the relay never came up (B: ${b_dir:-none}, C: ${c_dir:-none})" "$RED"
-    sed 's/^/      /' "$out_file" 2>/dev/null
+    _hi_dump_log "[relay-disconnect] -- the relay never came up (B: ${b_dir:-none}, C: ${c_dir:-none})" "$out_file"
     kill -9 "$launcher_pid" 2>/dev/null || true
     _hi_note_failure "[relay-disconnect] the relay never came up"
     return 1

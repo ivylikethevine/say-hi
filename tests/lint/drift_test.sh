@@ -166,7 +166,7 @@ function lint_home_default() {
 # The Dockerfiles are excluded too: they carry the digest, and they are what
 # everything else is compared against.
 function lint_image_tags() {
-  local image tag ref pinned images hit bad=0 hits line
+  local image tag ref re pinned images hit bad=0 hits line
   _hi_h2 "Checking image tags against the tests/dockerfiles pins"
 
   # "<image>:<tag>" per pinned FROM, and the distinct image names among them
@@ -182,10 +182,14 @@ function lint_image_tags() {
     [ -n "$image" ] || continue
     _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
     hits=""
+    re="[ =\"']${image}:[A-Za-z0-9][A-Za-z0-9._-]*"
     while IFS= read -r line; do
       [ -n "$line" ] || continue
-      # the tag as written, off the end of the matched reference
-      ref="$(printf '%s' "$line" | grep -oE "[ =\"']${image}:[A-Za-z0-9][A-Za-z0-9._-]*" | head -1)"
+      # the tag as written, off the end of the matched reference - bash's own
+      # =~ rather than a printf|grep|head pipeline, which was three forks per
+      # matched line in a loop that grows with every new tag reference
+      ref=""
+      [[ "$line" =~ $re ]] && ref="${BASH_REMATCH[0]}"
       tag="${ref#*:}"
       case "$pinned" in *" $image:$tag "*) continue ;; esac
       hits="$hits$line
@@ -574,32 +578,15 @@ function lint_dockerfiles() {
 }
 
 function run_drift() {
-  _HI_LINT_TOTAL=0
-  _HI_LINT_FAILED=0
-  _HI_SKIPPED=0
-  _HI_T0="$(_hi_now)"
-  _hi_h1 "Checking repo-consistency drift"
+  _hi_lint_suite_begin "Checking repo-consistency drift"
 
   # _hi_lint_mirror blanks the tree under $_HI_WORKDIR/lintmirror
   _hi_workdir drifttest
 
-  local _hi_lint_half
-  for _hi_lint_half in lint_bash32 lint_home_default lint_glossary_tags \
+  _hi_lint_halves lint_bash32 lint_home_default lint_glossary_tags \
     lint_settings_table lint_liquid_docs lint_dockerfiles lint_image_tags \
-    lint_image_digests; do
-    "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
-  done
-  unset _hi_lint_half
-  _hi_report_counts "$_HI_LINT_TOTAL" "$_HI_LINT_FAILED" "$_HI_SKIPPED"
-
-  local skipped=""
-  [ "$_HI_SKIPPED" -gt 0 ] && skipped=", $_HI_SKIPPED skipped"
-  if [ "$_HI_LINT_FAILED" -eq 0 ]; then
-    _hi_h1 "Found no issues ($_HI_LINT_TOTAL files$skipped, $(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$BRGREEN"
-  else
-    _hi_h1 "Found issues: $_HI_LINT_FAILED/$_HI_LINT_TOTAL files$skipped ($(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$RED"
-    exit "$_HI_LINT_FAILED"
-  fi
+    lint_image_digests
+  _hi_lint_suite_end
 }
 
 run_drift

@@ -68,7 +68,8 @@ function _hi_skip() {
 # before reporting (_hi_require's skip path) contributes nothing, which is why
 # the runner renders "-" rather than 0 for those. _hi_suite_end calls this for
 # every suite built on the standard counters; the four tests/lint/*_test.sh
-# suites, whose unit is files rather than cases, call it directly.
+# suites, whose unit is files rather than cases, report through
+# _hi_lint_suite_end (tests/lib/lint.sh) instead.
 function _hi_report_counts() {
   [ -n "${_HI_COUNTS_FILE:-}" ] || return 0
   printf '%s %s %s\n' "$1" "$2" "${3:-0}" >"$_HI_COUNTS_FILE"

@@ -144,7 +144,7 @@ _HI_WIRE_MARGIN=5
 # after it cannot be read as the figure. The line is colored, with a reset
 # between its leading space and the figure, so the escapes come off first.
 function _hi_wire_transcript_figure() {
-  sed 's/\x1b\[[0-9;]*m//g' "$1" |
+  _hi_strip_ansi "$(<"$1")" |
     grep -oE '(^| )[0-9]+(\.[0-9])?[BKMG]' | head -1 | tr -d ' '
 }
 
@@ -159,17 +159,6 @@ function _hi_wire_figure_bytes() {
     for (i = 1; i < u; i++) n *= 1024
     printf "%d", n
   }'
-}
-
-# _hi_wire_within <got> <want> - is <got> inside $_HI_WIRE_MARGIN% of <want>?
-# Integer arithmetic throughout, and 0 (the "no figure at all" case) is never
-# within anything.
-function _hi_wire_within() {
-  local got="$1" want="$2" delta
-  [ "$got" -gt 0 ] || return 1
-  delta=$((got - want))
-  [ "$delta" -lt 0 ] && delta=$((-delta))
-  [ "$((delta * 100))" -le "$((want * _HI_WIRE_MARGIN))" ]
 }
 
 function _hi_wire_counted() {
@@ -258,7 +247,7 @@ function _hi_wire_case() {
     _hi_assert "[$label] the wire carried at least the claimed script" [ "$up" -ge "$floor" ] || ok=0
     _hi_assert "[$label] the overhead beyond the claim is bounded" [ "$overhead" -le "$limit" ] || ok=0
     _hi_assert "[$label] the connect line's figure is within $_HI_WIRE_MARGIN% of the claim ($human)" \
-      _hi_wire_within "$printed_bytes" "$claim" || ok=0
+      _hi_within_percent "$printed_bytes" "$claim" "$_HI_WIRE_MARGIN" || ok=0
     ;;
   installed)
     # no tree crosses: the bootloader, the probe and the handshake are all

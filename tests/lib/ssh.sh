@@ -268,6 +268,15 @@ function _hi_thaw_frozen() {
   return 0
 }
 
+# _hi_ready_dir <tag> <file> - the "<tag>:<path>" marker back out of a
+# session transcript. A command-shaped session that must sit still while the
+# test works prints the tree it made first (`echo READY:$_HI_CLEANUP` and
+# friends); ssh_disconnect_test.sh and ssh_relay_test.sh both drive that
+# idiom, so the extractor lives here with the freezing they pair it with.
+function _hi_ready_dir() {
+  grep -oE "$1:[^[:space:]]*" "$2" 2>/dev/null | sed "s/^$1://" | head -1
+}
+
 # _hi_freeze_session - freezes the live session's client *and* its mux master,
 # named for the report if either is missing. Returns 1 without freezing
 # anything when there is nothing to freeze, or when hi has stopped
@@ -293,13 +302,17 @@ function _hi_freeze_session() {
 
 # The client-side launcher invocation both ssh suites make: hi.sh pointed at
 # the throwaway sshd on 127.0.0.1:$1, with the keypair and flags the fixtures
-# above set up. Left in the array $_HI_SSH_LAUNCH rather than run here, since
-# the callers redirect and background it differently - append the remote
-# command and go. Call it *after* _hi_pty_wrap, whose result it captures.
-# $_HI_SSH_LAUNCH_BARE is the same command without that prefix, for
+# above set up. Anything after the port is spliced in ahead of the destination
+# (ssh_wire_test.sh rides its counting ProxyCommand in this way), so the flag
+# roster lives here once. Left in the array $_HI_SSH_LAUNCH rather than run
+# here, since the callers redirect and background it differently - append the
+# remote command and go. Call it *after* _hi_pty_wrap, whose result it
+# captures. $_HI_SSH_LAUNCH_BARE is the same command without that prefix, for
 # _hi_interactive_case, which brings its own (see _HI_PTY_FORCED).
 function _hi_ssh_launch() {
-  _HI_SSH_LAUNCH_BARE=("$_HI_LAUNCHER" -p "$1" -i "$_HI_WORKDIR/id"
-    "${_HI_SSH_OPTS[@]}" -o ConnectTimeout=5 hitest@127.0.0.1)
+  local port="$1"
+  shift
+  _HI_SSH_LAUNCH_BARE=("$_HI_LAUNCHER" -p "$port" -i "$_HI_WORKDIR/id"
+    "${_HI_SSH_OPTS[@]}" -o ConnectTimeout=5 "$@" hitest@127.0.0.1)
   _HI_SSH_LAUNCH=(${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} "${_HI_SSH_LAUNCH_BARE[@]}")
 }

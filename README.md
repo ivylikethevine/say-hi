@@ -2,10 +2,7 @@
 
 ---
 
-## EXPERIMENTAL UNTIL v1.0.0-stable RELEASES
-
-A hobby project in active development: interfaces can still move, and the
-current state is not a representation of final, published quality.
+## EXPERIMENTAL UNTIL v1.0.0
 
 ---
 
@@ -17,29 +14,34 @@ current state is not a representation of final, published quality.
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![ssh payload](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
 ![code size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
+
+Clients:
+
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/codeql.yml?branch=main&label=CodeQL)](https://github.com/ivylikethevine/say-hi/actions/workflows/codeql.yml)
-![license](https://img.shields.io/badge/license-MIT-blue)
-[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
-[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
-[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
+
+OpenSSF:
+
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
 
-_Both coverage figures below are known-inaccurate — kcov reads far too low,
-bashcov far too high — and neither gates anything;
-[why](docs/TESTING.md#coverage-and-profiling)._
+Releases/Downloads:
 
+[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
+[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
+[![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
+
+Testing:
+
+_Both coverage figures below are known-inaccurate; see
+[why](docs/TESTING.md#coverage-and-profiling)._
+[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
-
-**One config directory to rule them all, uniting all shells from all hosts!**
 
 _Don't `ssh`ush your hosts, say `hi`!_
 
@@ -195,25 +197,11 @@ Client: zsh.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
 
-## Installation/Usage
+## Installation
 
-- **What works today: the checkout above.** The `.deb`/`.rpm`/`.apk`, the
-  package repository, the AUR package and the Homebrew tap are built and
-  tested in CI on every push, and the packages ride the rolling
-  `snapshot-*` prerelease and the `v*-rc` prereleases — but no stable tag
-  exists and no channel (package repository, tap, AUR) is live yet.
-  [docs/PACKAGING.md](docs/PACKAGING.md) describes each channel as it will
-  ship; [docs/ROADMAP.md](docs/ROADMAP.md#what-v100-means) tracks what
-  remains.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
-  each shell's own syntax checker first and asks before continuing if any has
-  issues.
-- on Arch, a package from the same checkout: `makepkg -si` in
-  `say-hi/packaging/aur/say-hi-git` (the versioned `say-hi` package needs a
-  release tarball, so `-git` is the one that builds until one exists). The AUR
-  itself waits on registration reopening —
-  [docs/PACKAGING.md](docs/PACKAGING.md#aur).
+  each shell's own syntax checker first and asks before continuing if any has issues.
 - reload your shell!
 - `hi --configure` revisits the settings in short sections — features (header,
   prompt, git status, editors, clipboard, notifications, prompt marks, whether
@@ -226,16 +214,12 @@ Client: zsh.
   keeps the answer on Enter; nothing is written until the end, the run closes
   with what changed, and the rc wiring is never touched. Answers land in
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- `hi --check-configs` re-runs just the rc validation, plus the overlay's
-  shell files (`aliases.sh` under both `sh` and `fish`, since a target sources
-  it in whichever shell it lands in).
 - `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
   on `hi --configure` commits its own writes. Optional —
   [docs/SETTINGS.md](docs/SETTINGS.md).
 - `hi --help` (or `-h`): the synopsis, the target resolution order, and every
   flag hi answers itself; `man hi` is the long version. Anything else passes
   to `ssh` unchanged.
-- `hi --version`: the packaged version, or `git describe` in a checkout.
 - `hi --doctor [<target>]` when something is slow or failing: the tree, the
   config overlay, every backend probed and timed with the header's and
   completion's ceilings, and — with a target — its backend plus an ssh
@@ -251,23 +235,12 @@ Client: zsh.
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
   ssh host and your user resolve to.
-- [optional] copy `say-hi/settings/packages` to `~/.config/say-hi/packages`
-  and edit; `hi --packages-preview` explains each priority and mode character
-  (`-` speaks only when missing, `+` only when installed) and prints the check
-  as a connect would.
-- [optional] either file can live elsewhere:
-  `export _HI_COLORS=~/dotfiles/hi-colors` in `settings.sh` moves that one
-  file and nothing else (`_HI_PACKAGES`, `_HI_VIMRC` and `_HI_NANORC`
-  likewise) —
-  [docs/SETTINGS.md](docs/SETTINGS.md#pointing-one-file-somewhere-else).
 - a dropped connection ends the session — the target's tree is removed on any
   exit, a lost link included — so run `hi` inside `tmux` or `screen` on this
   machine to survive drops ([how it works](docs/SETTINGS.md#how-it-works)).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. Your `say-hi` directory and `colors`/`packages` stay.
-
-Usage: `hi foo` (just like ssh!)
 
 ### Upgrading
 

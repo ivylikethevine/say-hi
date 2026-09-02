@@ -26,6 +26,24 @@ function _hi_strip_ansi() {
   printf '%s' "$out"
 }
 
+# _hi_within_percent <got> <want> <pct> - is <got> within <pct>% of <want>?
+# The one drift band the wire figures (targets/ssh_wire_test.sh) and the
+# README payload badge (bench/bench_test.sh) are both held to, kept here so
+# the two gates cannot quietly diverge. The allowance is <pct>% of <want>
+# rounded up and never less than one unit - nothing these gates measure is
+# byte-stable, and a band that rounds to zero would turn jitter into a red
+# gate. It lands in $_HI_WITHIN_SLACK for a caller that prints the band.
+# 0 (the "no figure at all" case) is never within anything.
+function _hi_within_percent() {
+  local got="$1" want="$2" delta
+  _HI_WITHIN_SLACK=$(((want * $3 + 99) / 100))
+  [ "$_HI_WITHIN_SLACK" -gt 0 ] || _HI_WITHIN_SLACK=1
+  [ "$got" -gt 0 ] || return 1
+  delta=$((got - want))
+  [ "$delta" -lt 0 ] && delta=$((-delta))
+  [ "$delta" -le "$_HI_WITHIN_SLACK" ]
+}
+
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one
 # function, so they cannot segment tables differently. A table is a run of
@@ -62,6 +80,18 @@ function _hi_check_requires() {
   shift
   if command -v "$bin" >/dev/null 2>&1; then
     _hi_check "$@"
+  else
+    _hi_skip "$1" "no $bin"
+  fi
+}
+
+# _hi_check_requires_eq <bin> <label> <want> <cmd...> - the _hi_expect_eq arm
+# of the same guard, the serial twin of _hi_par_check_requires_eq.
+function _hi_check_requires_eq() {
+  local bin="$1"
+  shift
+  if command -v "$bin" >/dev/null 2>&1; then
+    _hi_check_eq "$@"
   else
     _hi_skip "$1" "no $bin"
   fi
@@ -358,6 +388,61 @@ function _hi_alias_probe_bare() {
   for var in "$@"; do scrub+=(-u "$var"); done
   env ${scrub[@]+"${scrub[@]}"} sh -c \
     ". $_HI_ALIASES; alias $name >/dev/null 2>&1 && echo yes || echo no" 2>/dev/null
+}
+
+# The escape-emitter suite family. tests/common/osc52_test.sh and
+# tests/common/notify_test.sh test sibling features with the same shape - an
+# emitter whose output is exact bytes, an alias over it, a toggle mirrored
+# into config.fish - so what both suites need lives here once (HI.34) rather
+# than copied between them.
+_HI_ESC=$'\033'
+_HI_BEL=$'\a'
+
+# What detaches an emitter from the controlling terminal. With a tty present
+# that has to be setsid, so the byte checks are gated on it (a skip, on the
+# rare interactive box without one - stock macOS). Without a tty there is
+# nothing to detach from, and gating on `sh` just means "always run".
+if { : </dev/tty; } 2>/dev/null; then
+  _HI_EMIT_GATE="setsid"
+else
+  _HI_EMIT_GATE="sh"
+fi
+
+function _hi_detached() {
+  if [ "$_HI_EMIT_GATE" = setsid ]; then
+    setsid -w "$@"
+  else
+    "$@"
+  fi
+}
+
+# _hi_alias_defined_in <shell> <name> <TOGGLE=value> <want> - the alias half
+# of the family: every shell aliases.sh has to parse, with the feature's
+# toggle set as given. _hi_alias_probe holds the two dialects.
+function _hi_alias_defined_in() {
+  [ "$(_hi_alias_probe "$1" "$2" "$3")" = "$4" ]
+}
+
+# _hi_no_alias_without_paths <name> <path-var> - the container fallback path
+# copies aliases.sh alone, with no paths.sh to define <path-var>. A bare
+# `alias <name>="sh "` there would drop the user into an interactive shell on
+# their own terminal, so the alias must not exist.
+function _hi_no_alias_without_paths() {
+  [ "$(_hi_alias_probe_bare "$1" "$2")" = no ]
+}
+
+function _hi_toggle_in_core_list() {
+  case " ${_HI_TOGGLES[*]} " in
+  *" $1 "*) return 0 ;;
+  esac
+  return 1
+}
+
+# config.fish keeps its own copy of the toggle list (fish can't read core.sh's
+# array); a toggle added to one and not the other is the exact drift this
+# catches.
+function _hi_toggle_in_fish_list() {
+  grep -q "$1" "$_HI_FISH_CONFIG"
 }
 
 # _hi_scratch_tree <name> <dir...> - a throwaway say-hi under $_HI_WORKDIR/<name>

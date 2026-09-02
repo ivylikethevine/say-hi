@@ -45,6 +45,15 @@ function _hi_write_check_scripts() {
 . "$_HI_ALIASES" || exit 1
 fail=0
 
+# check_alias <name> <1|0> - the alias must exist (1) or must not (0)
+check_alias() {
+  if [ "$2" = 1 ]; then
+    alias "$1" >/dev/null 2>&1 || { echo "expected $1 alias, missing" >&2; fail=1; }
+  else
+    alias "$1" >/dev/null 2>&1 && { echo "expected no $1 alias, but found one" >&2; fail=1; }
+  fi
+}
+
 if [ -n "${_HI_CHECK_VAR:-}" ]; then
   case "$_HI_CHECK_VAR" in
   BATCAT_BIN) actual=$_HI_BATCAT_BIN ;;
@@ -63,27 +72,11 @@ if [ -n "${_HI_CHECK_BAT_OPTS:-}" ]; then
 fi
 
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
-  if [ "$_HI_EXPECT_NANO" = 1 ]; then
-    alias nano >/dev/null 2>&1 || { echo "expected nano alias, missing" >&2; fail=1; }
-  else
-    alias nano >/dev/null 2>&1 && { echo "expected no nano alias, but found one" >&2; fail=1; }
-  fi
-  if [ "$_HI_EXPECT_SUDO" = 1 ]; then
-    alias sudo >/dev/null 2>&1 || { echo "expected sudo alias, missing" >&2; fail=1; }
-  else
-    alias sudo >/dev/null 2>&1 && { echo "expected no sudo alias, but found one" >&2; fail=1; }
-  fi
-  if [ "$_HI_EXPECT_CAT_ALIAS" = 1 ]; then
-    alias cat >/dev/null 2>&1 || { echo "expected cat alias, missing" >&2; fail=1; }
-  else
-    alias cat >/dev/null 2>&1 && { echo "expected no cat alias, but found one" >&2; fail=1; }
-  fi
+  check_alias nano "$_HI_EXPECT_NANO"
+  check_alias sudo "$_HI_EXPECT_SUDO"
+  check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
-    if [ "$_HI_EXPECT_LS_ALIAS" = 1 ]; then
-      alias eza >/dev/null 2>&1 || { echo "expected eza alias, missing" >&2; fail=1; }
-    else
-      alias eza >/dev/null 2>&1 && { echo "expected no eza alias, but found one" >&2; fail=1; }
-    fi
+    check_alias eza "$_HI_EXPECT_LS_ALIAS"
   fi
 fi
 
@@ -93,6 +86,17 @@ EOF
   cat >"$_HI_FISH_CHECK" <<'EOF'
 source "$_HI_ALIASES"; or exit 1
 set fail 0
+
+# check_alias <name> <1|0> - the alias must exist (1) or must not (0). `set
+# fail` without a scope flag writes the script-level variable above, since it
+# already exists when the function runs.
+function check_alias
+  if test "$argv[2]" = 1
+    functions -q -- $argv[1]; or begin; echo "expected $argv[1] alias, missing" >&2; set fail 1; end
+  else
+    functions -q -- $argv[1]; and begin; echo "expected no $argv[1] alias, but found one" >&2; set fail 1; end
+  end
+end
 
 if set -q _HI_CHECK_VAR
   switch "$_HI_CHECK_VAR"
@@ -119,27 +123,11 @@ if set -q _HI_CHECK_BAT_OPTS
 end
 
 if set -q _HI_CHECK_FLAGS
-  if test "$_HI_EXPECT_NANO" = 1
-    functions -q -- nano; or begin; echo "expected nano alias, missing" >&2; set fail 1; end
-  else
-    functions -q -- nano; and begin; echo "expected no nano alias, but found one" >&2; set fail 1; end
-  end
-  if test "$_HI_EXPECT_SUDO" = 1
-    functions -q -- sudo; or begin; echo "expected sudo alias, missing" >&2; set fail 1; end
-  else
-    functions -q -- sudo; and begin; echo "expected no sudo alias, but found one" >&2; set fail 1; end
-  end
-  if test "$_HI_EXPECT_CAT_ALIAS" = 1
-    functions -q -- cat; or begin; echo "expected cat alias, missing" >&2; set fail 1; end
-  else
-    functions -q -- cat; and begin; echo "expected no cat alias, but found one" >&2; set fail 1; end
-  end
+  check_alias nano "$_HI_EXPECT_NANO"
+  check_alias sudo "$_HI_EXPECT_SUDO"
+  check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if set -q _HI_EXPECT_LS_ALIAS
-    if test "$_HI_EXPECT_LS_ALIAS" = 1
-      functions -q -- eza; or begin; echo "expected eza alias, missing" >&2; set fail 1; end
-    else
-      functions -q -- eza; and begin; echo "expected no eza alias, but found one" >&2; set fail 1; end
-    end
+    check_alias eza "$_HI_EXPECT_LS_ALIAS"
   end
 end
 
@@ -392,37 +380,20 @@ function run_ls_aliases_flag_tests() {
   done
 }
 
-# settings/aliases.sh resolves `vim` through `command -v nvim || command -v vim`,
-# and scripts/configure.sh's _hi_editors_preview spells the same ladder a second
-# time to show the answer before the toggle is set. Neither can source the
-# other (see the note above the alias), so nothing but this pins them: a
-# preview that disagrees with the alias it previews is a lie told during
-# install, and the only place it would surface is a user's screen.
-function test_vim_ladder_matches_the_install_preview() {
-  local from_aliases from_install
-  from_aliases="$(grep -o 'command -v nvim || command -v vim' "$_HI_ALIASES" | head -1)"
-  from_install="$(grep -o 'command -v nvim || command -v vim' "$_HI_ROOT/scripts/configure.sh" | head -1)"
+# settings/aliases.sh resolves vim through `command -v nvim || command -v vim`
+# and bat through `command -v bat || command -v batcat`, and scripts/
+# configure.sh's previews (_hi_editors_preview, _hi_bat_alias_preview) spell
+# the same ladders a second time to show the answer before the toggle is set.
+# Neither file can source the other (see the note above the alias), so nothing
+# but this pins them: a preview that disagrees with the alias it previews is a
+# lie told during install, and the only place it would surface is a user's
+# screen.
+function test_ladder_matches_the_install_preview() {
+  local ladder="$1" from_aliases from_install
+  from_aliases="$(grep -o "$ladder" "$_HI_ALIASES" | head -1)"
+  from_install="$(grep -o "$ladder" "$_HI_ROOT/scripts/configure.sh" | head -1)"
   [ -n "$from_aliases" ] || {
-    _hi_cecho " | no nvim/vim ladder found in settings/aliases.sh" "$RED"
-    return 1
-  }
-  [ "$from_aliases" = "$from_install" ] || {
-    _hi_cecho " | aliases.sh: [$from_aliases]" "$RED"
-    _hi_cecho " | configure.sh: [$from_install]" "$RED"
-    return 1
-  }
-}
-
-# settings/aliases.sh resolves bat through `command -v bat || command -v batcat`,
-# and scripts/configure.sh's _hi_bat_alias_preview spells the same ladder a
-# second time to show the answer before the toggle is set. Same reasoning as
-# the vim ladder pin above - neither file can source the other.
-function test_bat_ladder_matches_the_install_preview() {
-  local from_aliases from_install
-  from_aliases="$(grep -o 'command -v bat || command -v batcat' "$_HI_ALIASES" | head -1)"
-  from_install="$(grep -o 'command -v bat || command -v batcat' "$_HI_ROOT/scripts/configure.sh" | head -1)"
-  [ -n "$from_aliases" ] || {
-    _hi_cecho " | no bat/batcat ladder found in settings/aliases.sh" "$RED"
+    _hi_cecho " | ladder not found in settings/aliases.sh: [$ladder]" "$RED"
     return 1
   }
   [ "$from_aliases" = "$from_install" ] || {
@@ -459,9 +430,9 @@ function run_alias_fallthrough_test() {
 
   _hi_suite_begin
   _hi_check "The vim ladder matches install.sh's preview" \
-    test_vim_ladder_matches_the_install_preview
+    test_ladder_matches_the_install_preview 'command -v nvim || command -v vim'
   _hi_check "The bat ladder matches install.sh's preview" \
-    test_bat_ladder_matches_the_install_preview
+    test_ladder_matches_the_install_preview 'command -v bat || command -v batcat'
   run_fallthrough_tests
   run_flag_tests
   run_bat_alias_flag_tests

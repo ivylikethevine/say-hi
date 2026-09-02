@@ -81,6 +81,7 @@ function _hi_method_case() {
     "$post" 'local say-hi install'
 }
 
+# shellcheck disable=SC2034 # the <method>_ok flags are read as ${!okvar} at the dispatch loop
 function run_install_methods_tests() {
   _hi_require_backend docker
 
@@ -165,53 +166,33 @@ function run_install_methods_tests() {
   # catch - a green session over a wastefully copied tree.
   local no_copy='! ls -d /tmp/*.hi.* >/dev/null 2>&1 && ! test -e /home/hitest/say-hi'
 
-  if [ "$deb_ok" -eq 1 ]; then
-    _hi_par_case deb _hi_method_case deb "$_HI_SSH_CASE_PREFIX-deb-img-$$" /bin/bash \
-      /usr/share/say-hi "$no_copy"
-  else
-    _hi_skip "[deb]" "no nfpm to build the .deb, or the image failed"
-  fi
+  # <label>:<suffix>:<remote root>:<skip reason>:<extra post-check>. The
+  # suffix names both the <suffix>_ok flag the build phase above set and the
+  # $_HI_SSH_CASE_PREFIX-<suffix>-img-$$ image it built; the extra post-check
+  # (last field, so its spaces survive the split) joins $no_copy with &&. The
+  # brew, prefix and unannounced tiers-of-last-resort each carry the sentinel
+  # their fixture planted, so the post-check proves the session landed in
+  # *that* tree rather than in one hi built at the same path.
+  local -a methods=(
+    "deb:deb:/usr/share/say-hi:no nfpm to build the .deb, or the image failed:"
+    "rpm:rpm:/usr/share/say-hi:no nfpm to build the .rpm, or the fedora image failed:"
+    "apk:apk:/usr/share/say-hi:no nfpm to build the .apk, or the alpine image failed:"
+    "brew:brew:/home/linuxbrew/.linuxbrew/opt/say-hi/libexec/say-hi:the sshd image failed:test -f /home/linuxbrew/.linuxbrew/opt/say-hi/libexec/say-hi/.installed_sentinel"
+    "prefix:prefix:/usr/local/share/say-hi:the sshd image failed:test -f /usr/local/share/say-hi/.installed_sentinel"
+    "unannounced:unann:/usr/local/share/say-hi:the --prefix image it builds on is missing:test -f /usr/local/share/say-hi/.installed_sentinel && ! test -e /etc/profile.d/say-hi.sh"
+  )
 
-  if [ "$rpm_ok" -eq 1 ]; then
-    _hi_par_case rpm _hi_method_case rpm "$_HI_SSH_CASE_PREFIX-rpm-img-$$" /bin/bash \
-      /usr/share/say-hi "$no_copy"
-  else
-    _hi_skip "[rpm]" "no nfpm to build the .rpm, or the fedora image failed"
-  fi
-
-  if [ "$apk_ok" -eq 1 ]; then
-    _hi_par_case apk _hi_method_case apk "$_HI_SSH_CASE_PREFIX-apk-img-$$" /bin/bash \
-      /usr/share/say-hi "$no_copy"
-  else
-    _hi_skip "[apk]" "no nfpm to build the .apk, or the alpine image failed"
-  fi
-
-  # The two tiers-of-last-resort cases. Both carry the sentinel their fixture
-  # planted, so the post-check proves the session landed in *that* tree rather
-  # than in one hi built at the same path.
-  if [ "$brew_ok" -eq 1 ]; then
-    _hi_par_case brew _hi_method_case brew "$_HI_SSH_CASE_PREFIX-brew-img-$$" /bin/bash \
-      /home/linuxbrew/.linuxbrew/opt/say-hi/libexec/say-hi \
-      "$no_copy && test -f /home/linuxbrew/.linuxbrew/opt/say-hi/libexec/say-hi/.installed_sentinel"
-  else
-    _hi_skip "[brew]" "the sshd image failed"
-  fi
-
-  if [ "$prefix_ok" -eq 1 ]; then
-    _hi_par_case prefix _hi_method_case prefix "$_HI_SSH_CASE_PREFIX-prefix-img-$$" /bin/bash \
-      /usr/local/share/say-hi \
-      "$no_copy && test -f /usr/local/share/say-hi/.installed_sentinel"
-  else
-    _hi_skip "[prefix]" "the sshd image failed"
-  fi
-
-  if [ "$unann_ok" -eq 1 ]; then
-    _hi_par_case unannounced _hi_method_case unannounced "$_HI_SSH_CASE_PREFIX-unann-img-$$" /bin/bash \
-      /usr/local/share/say-hi \
-      "$no_copy && test -f /usr/local/share/say-hi/.installed_sentinel && ! test -e /etc/profile.d/say-hi.sh"
-  else
-    _hi_skip "[unannounced]" "the --prefix image it builds on is missing"
-  fi
+  local spec label suffix root reason extra okvar
+  for spec in "${methods[@]}"; do
+    IFS=: read -r label suffix root reason extra <<<"$spec"
+    okvar="${suffix}_ok" # ${!okvar} is bash 2, not a bash-4 form
+    if [ "${!okvar}" -eq 1 ]; then
+      _hi_par_case "$label" _hi_method_case "$label" "$_HI_SSH_CASE_PREFIX-$suffix-img-$$" /bin/bash \
+        "$root" "$no_copy${extra:+ && $extra}"
+    else
+      _hi_skip "[$label]" "$reason"
+    fi
+  done
 
   _hi_par_wait
 

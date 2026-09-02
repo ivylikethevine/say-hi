@@ -54,12 +54,10 @@
 # harness has no business on a target.
 set -euo pipefail
 
-if [ -z "${_HI_HOME:-}" ]; then
-  _HI_HOME="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-fi
-export _HI_HOME
-# shellcheck source=../common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+# tree resolution, suite selection, the tally files and the trace loop are
+# shared with tests/coverage_v2.sh
+# shellcheck source=lib/coverage.sh
+source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"
 
 if ! command -v kcov >/dev/null 2>&1; then
   _hi_cecho " | coverage: kcov not installed - skipping (a dev-only tool, and outside a PPA Debian/Ubuntu do not carry it: build it from github.com/SimonKagstrom/kcov, as CI does)" "$YELLOW"
@@ -68,70 +66,29 @@ fi
 
 _HI_COV_DIR="${1:-${TMPDIR:-/tmp}/say-hi-coverage}"
 shift 2>/dev/null || true
-_HI_RUNNER="$_HI_HOME/say-hi/tests/test_runner.sh"
 
 rm -rf "$_HI_COV_DIR"
 mkdir -p "$_HI_COV_DIR/parts"
 
-# The runner owns the suite table, so ask it rather than keeping a second copy
-# here - the same reason .github/workflows/ci.yml stopped spelling the suites
-# out. `--list-paths` exists for this caller: kcov has to launch the suite
-# script itself, so the name alone is not enough.
-# `shellcheck` is dropped from whatever the selection resolves to. It is a
-# linter sweep, not a code path: it shells out to shellcheck, shfmt and
-# checkbashisms over every file in the tree and runs almost none of hi's own
-# bash, so it traces nothing this report is asking about - while being the
-# slowest suite in its group by an order of magnitude, and slower again under
-# kcov's DEBUG trap. Dropped by name, so a groupless run (the default, every
-# suite including the lint group) does not sweep it back in.
-declare -a _HI_NAMES=()
-declare -a _HI_PATHS=()
-while read -r _hi_group _hi_name _hi_path; do
-  [ -n "${_hi_path:-}" ] || continue
-  [ "$_hi_name" = shellcheck ] && continue
-  _HI_NAMES+=("$_hi_name")
-  _HI_PATHS+=("$_hi_path")
-done < <("$_HI_RUNNER" "$@" --list-paths)
-
-if [ "${#_HI_PATHS[@]}" -eq 0 ]; then
-  _hi_cecho " | coverage: no suites selected by: $*" "$RED" >&2
-  exit 1
-fi
+_hi_cov_select_suites "$@"
+_hi_cov_counts_files cov
 
 # The suite script is what kcov launches - not test_runner.sh with the suite
 # named, which puts the suite back in a child process and traces nothing (see
-# the header). The two files the runner would otherwise export are made here so
-# _hi_suite_end has somewhere to write its tally; everything else a suite needs
-# it derives from $_HI_HOME through common/paths.sh.
-#
-# tests/ itself is excluded from the report - the product is the subject, not
-# the harness. A suite that fails does not stop the sweep: a red suite still
-# traced everything it reached on the way down, and losing the whole report to
-# one environment-specific failure (no fish, no docker) is the opposite of
-# useful. The tally is printed at the end instead.
-_HI_COUNTS_FILE="$(mktemp -t hi.cov.counts.XXXXXX)"
-_HI_FAILS_FILE="$(mktemp -t hi.cov.fails.XXXXXX)"
-export _HI_COUNTS_FILE _HI_FAILS_FILE
-# shellcheck disable=SC2064 # the paths are fixed by now; expand them here
-trap "rm -f '$_HI_COUNTS_FILE' '$_HI_FAILS_FILE'" EXIT
-
-_HI_FAILED=""
-for _hi_i in $(seq 0 $((${#_HI_PATHS[@]} - 1))); do
-  _hi_suite="${_HI_NAMES[$_hi_i]}"
-  _hi_path="${_HI_PATHS[$_hi_i]}"
-  _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"
+# the header). tests/ itself is excluded from the report - the product is the
+# subject, not the harness.
+function _hi_cov_trace_one() {
   kcov --include-path="$_HI_HOME/say-hi" \
     --exclude-path="$_HI_HOME/say-hi/tests" \
-    "$_HI_COV_DIR/parts/$_hi_suite" \
-    "$_hi_path" >/dev/null 2>&1 ||
-    _HI_FAILED="$_HI_FAILED $_hi_suite"
-done
+    "$_HI_COV_DIR/parts/$1" \
+    "$2"
+}
+_hi_cov_trace_all _hi_cov_trace_one
 
 kcov --merge "$_HI_COV_DIR/merged" "$_HI_COV_DIR"/parts/* >/dev/null 2>&1
 
 _hi_cecho " | coverage: report in $_HI_COV_DIR/merged/index.html" "$GREEN"
-[ -z "$_HI_FAILED" ] ||
-  _hi_cecho " | coverage: these suites failed while being traced (their coverage still counts):$_HI_FAILED" "$YELLOW"
+_hi_cov_report_failed
 
 # Every file kcov traced, worst first - the ranking is the point, since the
 # question this answers is "which arms does nothing reach", and the answer moves

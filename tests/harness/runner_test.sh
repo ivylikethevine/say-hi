@@ -165,7 +165,7 @@ function test_an_empty_shard_is_an_error() {
 }
 
 function test_shard_is_listed_in_help() {
-  "$_HI_TEST_RUN" --help | grep -q -- '--shard'
+  printf '%s\n' "$_HI_HELP_OUT" | grep -q -- '--shard'
 }
 
 function test_all_passing_exits_zero_with_a_green_summary() {
@@ -442,7 +442,7 @@ function test_case_skips_are_not_failures_by_default() {
 }
 
 function test_require_run_is_listed_in_help() {
-  "$_HI_TEST_RUN" --help | grep -q -- '--require-run'
+  printf '%s\n' "$_HI_HELP_OUT" | grep -q -- '--require-run'
 }
 
 # The block itself is test_lib.sh's, and lib_test.sh pins its contents; these
@@ -477,7 +477,7 @@ function test_host_report_prints_once_per_run() {
 }
 
 function test_host_report_is_listed_in_help() {
-  "$_HI_TEST_RUN" --help | grep -q -- '--host-report'
+  printf '%s\n' "$_HI_HELP_OUT" | grep -q -- '--host-report'
 }
 
 # The tree check rides every run, flagged or not - but it says nothing when
@@ -562,8 +562,15 @@ function test_a_green_run_has_no_recap() {
 # from --list rather than hardcoded here and scraped out of the runner's error
 # message: a copy of the roster in the drift test is a copy that can drift, and
 # a UI string is not an API.
+#
+# --list, --list-paths and --help print constants, and each direct launch
+# sources the whole nine-part harness, so run_runner_tests captures each once
+# ($_HI_LIST_OUT and friends) and every case reads the capture - the same
+# reasoning as the nested-run memo above. The sharded and per-group listings
+# still launch: their output varies with the slice, which is the thing under
+# test.
 function _hi_runner_list() {
-  "$_HI_TEST_RUN" --list 2>/dev/null
+  printf '%s\n' "$_HI_LIST_OUT"
 }
 
 function test_shipped_table_lists_a_group_and_name_per_suite() {
@@ -594,15 +601,14 @@ function test_list_paths_adds_a_readable_path_per_suite() {
       return 1
     }
     count=$((count + 1))
-  done < <("$_HI_TEST_RUN" --list-paths 2>/dev/null)
+  done < <(printf '%s\n' "$_HI_LIST_PATHS_OUT")
   [ "$count" -gt 0 ]
 }
 
 # the two listings have to describe the same table, or coverage.sh and CI are
 # reading different things
 function test_list_paths_matches_list() {
-  [ "$("$_HI_TEST_RUN" --list-paths 2>/dev/null | awk '{print $1, $2}')" = \
-    "$("$_HI_TEST_RUN" --list 2>/dev/null)" ]
+  [ "$(printf '%s\n' "$_HI_LIST_PATHS_OUT" | awk '{print $1, $2}')" = "$_HI_LIST_OUT" ]
 }
 
 # Every suite has to be in a group CI actually runs, or it never runs on a push
@@ -633,46 +639,29 @@ function test_ci_runs_every_group_in_the_table() {
 # are what makes `--group` a safe thing for CI to depend on.
 # --group is what ci.yml invokes, so every group the table uses has to select
 # at least one suite - and only suites of that group
-# The shipped table through the same slicer: the two halves CI runs on
-# Windows are exactly the fast group. And the count is a contract with
-# windows-client.yml - its matrix lists one entry per shard and the run passes
-# HI_SHARDS as the divisor; the two have to agree or a slice never runs.
-function test_windows_client_shards_cover_the_fast_group() {
-  local workflow="$_HI_ROOT/.github/workflows/windows-client.yml" shards i halves
+#
+# One check for every sharded workflow job: its HI_SHARDS divisor, its shard
+# matrix and the runner's --shard slices all have to agree, or a slice never
+# runs. <job> scopes the sed extraction to that job's own block (through to
+# the next top-level key) when several sharded jobs share a file (ci.yml);
+# "-" reads the whole file (windows-client.yml holds just the one).
+function _hi_shards_cover_group() {
+  local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
+  local where="$1" block shards i halves
+  [ "$job" = - ] || where="$1's $job"
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  shards="$(sed -n 's/^ *HI_SHARDS: *//p' "$workflow" | head -1)"
-  [ -n "$shards" ] && [ "$shards" -ge 2 ] || {
-    _hi_cecho " | windows-client.yml sets no HI_SHARDS" "$RED"
-    return 1
-  }
-  [ "$(sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' "$workflow" | tr ',' '\n' | grep -c '[0-9]')" -eq "$shards" ] || {
-    _hi_cecho " | windows-client.yml's shard matrix does not list $shards entries" "$RED"
-    return 1
-  }
-  i=1
-  halves=""
-  while [ "$i" -le "$shards" ]; do
-    halves="$halves$("$_HI_TEST_RUN" --group fast --shard "$i/$shards" --list 2>/dev/null)"$'\n'
-    i=$((i + 1))
-  done
-  [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group fast --list 2>/dev/null | sort)" ]
-}
-
-# windows-client.yml's check, generalized for ci.yml: two sharded jobs live
-# in the one file, so the job name scopes the sed extraction to that job's
-# own block (through to the next top-level key) rather than the whole file.
-function _hi_ci_shards_cover_group() {
-  local job="$1" group="$2" workflow="$_HI_ROOT/.github/workflows/ci.yml"
-  local block shards i halves
-  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
-  block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
+  if [ "$job" = - ]; then
+    block="$(<"$workflow")"
+  else
+    block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
+  fi
   shards="$(printf '%s\n' "$block" | sed -n 's/^ *HI_SHARDS: *//p' | head -1)"
   [ -n "$shards" ] && [ "$shards" -ge 2 ] || {
-    _hi_cecho " | ci.yml's $job sets no HI_SHARDS" "$RED"
+    _hi_cecho " | $where sets no HI_SHARDS" "$RED"
     return 1
   }
   [ "$(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',' '\n' | grep -c '[0-9]')" -eq "$shards" ] || {
-    _hi_cecho " | ci.yml's $job shard matrix does not list $shards entries" "$RED"
+    _hi_cecho " | $where shard matrix does not list $shards entries" "$RED"
     return 1
   }
   i=1
@@ -684,8 +673,15 @@ function _hi_ci_shards_cover_group() {
   [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ]
 }
 
+# The count is a contract with windows-client.yml - its matrix lists one
+# entry per shard and the run passes HI_SHARDS as the divisor; the two halves
+# CI runs on Windows are exactly the fast group.
+function test_windows_client_shards_cover_the_fast_group() {
+  _hi_shards_cover_group windows-client.yml - fast
+}
+
 function test_ci_e2e_shards_cover_the_e2e_group() {
-  _hi_ci_shards_cover_group e2e e2e
+  _hi_shards_cover_group ci.yml e2e e2e
 }
 
 # Also the shape "one backend per runner" depends on: three suites, three
@@ -694,7 +690,7 @@ function test_ci_e2e_shards_cover_the_e2e_group() {
 # that ever drifted from the group's suite count would fail this the same
 # way a missing HI_SHARDS or an incomplete matrix would.
 function test_ci_e2e_backends_shards_cover_the_backends_group() {
-  _hi_ci_shards_cover_group e2e-backends backends
+  _hi_shards_cover_group ci.yml e2e-backends backends
 }
 
 function test_every_group_selects_only_its_own_suites() {
@@ -732,6 +728,31 @@ function test_every_shipped_suite_script_exists_and_is_executable() {
   done
 }
 
+# The reverse direction, which is the one that rots quietly: a
+# tests/*/foo_test.sh on disk but missing from the table never runs anywhere,
+# and nothing else would say so. Same parse of the table as the check above,
+# diffed against what the tree actually holds.
+function test_every_suite_script_on_disk_is_in_the_table() {
+  local path rel missing=""
+  local -a entries=()
+  _hi_read_lines entries < <(grep -oE '^[[:space:]]*"[^":]+:[^":]+:[^"]+\.sh"$' "$_HI_TEST_RUN" | tr -d '" ')
+  [ "${#entries[@]}" -gt 0 ] || {
+    _hi_cecho " | parsed no table entries out of $_HI_TEST_RUN" "$RED"
+    return 1
+  }
+  for path in "$_HI_ROOT"/tests/*/*_test.sh; do
+    rel="${path#"$_HI_ROOT/tests/"}"
+    case " ${entries[*]} " in
+    *":$rel "*) ;;
+    *) missing="$missing $rel" ;;
+    esac
+  done
+  [ -z "$missing" ] || {
+    _hi_cecho " | suites on disk but not in the runner's table:$missing" "$RED"
+    return 1
+  }
+}
+
 function run_runner_tests() {
   _hi_workdir runnertest
 
@@ -741,6 +762,11 @@ function run_runner_tests() {
   _hi_fixture green 0
   _hi_fixture red 3
   _hi_fixture amber 1
+
+  # the invariant listings, captured once - see _hi_runner_list
+  _HI_LIST_OUT="$("$_HI_TEST_RUN" --list 2>/dev/null)"
+  _HI_LIST_PATHS_OUT="$("$_HI_TEST_RUN" --list-paths 2>/dev/null)"
+  _HI_HELP_OUT="$("$_HI_TEST_RUN" --help)"
 
   _hi_suite_begin
 
@@ -833,6 +859,7 @@ function run_runner_tests() {
   _hi_check "ci.yml's e2e shards cover the e2e group" test_ci_e2e_shards_cover_the_e2e_group
   _hi_check "ci.yml's e2e-backends shards cover the backends group" test_ci_e2e_backends_shards_cover_the_backends_group
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
+  _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
 

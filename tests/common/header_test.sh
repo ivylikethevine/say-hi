@@ -336,17 +336,28 @@ function test_banner_omits_the_count_without_a_git_dir() {
 # test_lib.sh's _hi_git_fixture (one commit on main), so HEAD can be moved to
 # a working branch or detached per case.
 
+# _hi_fixture_banner <dir> <label> - banner, run against the fixture checkout
+# rather than this repo, with its memoized state cleared so every case
+# computes fresh. _HI_BANNER_HOST is unset alongside the change/branch caches
+# for the same reason the sibling at the top of this file pins the hostname:
+# banner memoizes it, and a real host name long enough to floor the padding
+# (macOS CI) makes every call print 4 tildes, which reads as a padding bug and
+# is really an uncontrolled fixture. Runs in a subshell, so nothing leaks.
+function _hi_fixture_banner() {
+  (
+    _HI_ROOT="$1"
+    unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH _HI_BANNER_HOST
+    banner "$2"
+  )
+}
+
 # the roadmap contract: the Online banner on a working branch names it, in
 # parentheses, right after the change count
 function test_banner_online_names_an_off_main_branch() {
   local dir out
   dir="$(_hi_git_fixture)"
   git -C "$dir" checkout -qb feature-x
-  out="$(
-    _HI_ROOT="$dir"
-    unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH
-    banner Online
-  )"
+  out="$(_hi_fixture_banner "$dir" Online)"
   [[ "$out" == *"(feature-x)"* ]]
 }
 
@@ -354,11 +365,7 @@ function test_banner_online_names_an_off_main_branch() {
 function test_banner_online_stays_quiet_on_main() {
   local dir out
   dir="$(_hi_git_fixture)"
-  out="$(
-    _HI_ROOT="$dir"
-    unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH
-    banner Online
-  )"
+  out="$(_hi_fixture_banner "$dir" Online)"
   [[ "$out" == *"↑"* && "$out" != *"("* ]]
 }
 
@@ -367,11 +374,7 @@ function test_banner_online_stays_quiet_when_detached() {
   local dir out
   dir="$(_hi_git_fixture)"
   git -C "$dir" checkout -q --detach
-  out="$(
-    _HI_ROOT="$dir"
-    unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH
-    banner Online
-  )"
+  out="$(_hi_fixture_banner "$dir" Online)"
   [[ "$out" == *"↑"* && "$out" != *"("* ]]
 }
 
@@ -382,36 +385,20 @@ function test_banner_branch_stays_out_of_remote_banners() {
   dir="$(_hi_git_fixture)"
   git -C "$dir" checkout -qb feature-x
   for label in Connected Disconnected; do
-    out="$(
-      _HI_ROOT="$dir"
-      unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH
-      banner "$label"
-    )"
+    out="$(_hi_fixture_banner "$dir" "$label")"
     [[ "$out" == *"↑"* && "$out" != *"("* ]] || return 1
   done
 }
 
 # the branch spends the tilde budget, not line width: same label, same repo,
-# fewer tildes once the indicator is on the line
-#
-# _HI_BANNER_HOST is unset alongside the rest for the same reason the sibling at
-# the top of this file pins the hostname: banner memoizes it, and a real host
-# name long enough to floor the padding (macOS CI) makes both calls print 4
-# tildes, which reads as a padding bug and is really an uncontrolled fixture.
+# fewer tildes once the indicator is on the line - the hostname pinned so the
+# padding being compared is a controlled fixture (see _hi_fixture_banner)
 function test_banner_branch_shrinks_padding() {
   local dir plain branched _HI_HOSTNAME_CACHE="pinned-host"
   dir="$(_hi_git_fixture)"
-  plain="$(
-    _HI_ROOT="$dir"
-    unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH _HI_BANNER_HOST
-    banner Online
-  )"
+  plain="$(_hi_fixture_banner "$dir" Online)"
   git -C "$dir" checkout -qb feature-x
-  branched="$(
-    _HI_ROOT="$dir"
-    unset _HI_BANNER_CHANGES _HI_BANNER_BRANCH _HI_BANNER_HOST
-    banner Online
-  )"
+  branched="$(_hi_fixture_banner "$dir" Online)"
   [ "$(tr -dc '~' <<<"$branched" | wc -c)" -lt "$(tr -dc '~' <<<"$plain" | wc -c)" ]
 }
 
@@ -461,47 +448,57 @@ function _hi_assert_contains() {
   return 1
 }
 
-function test_check_line_found_primary_is_visible_checked() {
+# The scaffold every check_line case shares: run one spec against a fresh row
+# sink and assert how many rows it left visible. check_line appends to the
+# `visible` these declare (bash's dynamic scoping), and the single row - when
+# there is one - lands in the caller's `row`, ready for content checks.
+function _hi_one_visible_row() {
   local -a visible=()
-  check_line "$_HI_REAL_CMD:3"
+  check_line "$1"
   [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_REAL_CMD" &&
-    _hi_assert_contains "${visible[0]}" "$_HI_MARK_OK"
+  row="${visible[0]}"
+}
+
+function _hi_no_visible_row() {
+  local -a visible=()
+  check_line "$1"
+  [ "${#visible[@]}" -eq 0 ]
+}
+
+function test_check_line_found_primary_is_visible_checked() {
+  local row
+  _hi_one_visible_row "$_HI_REAL_CMD:3" || return 1
+  _hi_contains "$row" "$_HI_REAL_CMD" &&
+    _hi_assert_contains "$row" "$_HI_MARK_OK"
 }
 
 # `-` is the mode hidden when the tool *is* there: it exists to speak up
 # about absence, so a healthy box says nothing.
 function test_check_line_dash_mode_hides_installed() {
-  local -a visible=()
-  check_line "-$_HI_REAL_CMD:3"
-  [ "${#visible[@]}" -eq 0 ]
+  _hi_no_visible_row "-$_HI_REAL_CMD:3"
 }
 
 # ...and the same line missing is exactly the alarm the mode exists for - with
 # the mode character stripped from the printed name.
 function test_check_line_dash_mode_missing_is_visible() {
-  local -a visible=()
-  check_line "-$_HI_FAKE_CMD:3"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" || return 1
-  _hi_assert_contains "${visible[0]}" "$_HI_MARK_NO" || return 1
-  if _hi_contains "${visible[0]}" "-$_HI_FAKE_CMD"; then return 1; fi
+  local row
+  _hi_one_visible_row "-$_HI_FAKE_CMD:3" || return 1
+  _hi_contains "$row" "$_HI_FAKE_CMD" || return 1
+  _hi_assert_contains "$row" "$_HI_MARK_NO" || return 1
+  if _hi_contains "$row" "-$_HI_FAKE_CMD"; then return 1; fi
   return 0
 }
 
 # `+` is the mirror: presence is the fact worth a row, absence is noise.
 function test_check_line_plus_mode_shows_installed() {
-  local -a visible=()
-  check_line "+$_HI_REAL_CMD:0"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_REAL_CMD" &&
-    _hi_assert_contains "${visible[0]}" "$_HI_MARK_OK"
+  local row
+  _hi_one_visible_row "+$_HI_REAL_CMD:0" || return 1
+  _hi_contains "$row" "$_HI_REAL_CMD" &&
+    _hi_assert_contains "$row" "$_HI_MARK_OK"
 }
 
 function test_check_line_plus_mode_hides_missing() {
-  local -a visible=()
-  check_line "+$_HI_FAKE_CMD:0"
-  [ "${#visible[@]}" -eq 0 ]
+  _hi_no_visible_row "+$_HI_FAKE_CMD:0"
 }
 
 # Every unflagged line speaks when the tool is absent - that is the nudge the
@@ -509,48 +506,43 @@ function test_check_line_plus_mode_hides_missing() {
 # worth pinning: if even trivia reports itself missing, nothing above it can
 # be silently dropped.
 function test_check_line_missing_priority0_is_visible() {
-  local -a visible=()
-  check_line "$_HI_FAKE_CMD:0"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" &&
-    _hi_assert_contains "${visible[0]}" "$_HI_MARK_NO"
+  local row
+  _hi_one_visible_row "$_HI_FAKE_CMD:0" || return 1
+  _hi_contains "$row" "$_HI_FAKE_CMD" &&
+    _hi_assert_contains "$row" "$_HI_MARK_NO"
 }
 
 function test_check_line_missing_priority3_is_visible_crossed() {
-  local -a visible=()
-  check_line "$_HI_FAKE_CMD:3"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" &&
-    _hi_assert_contains "${visible[0]}" "$_HI_MARK_NO"
+  local row
+  _hi_one_visible_row "$_HI_FAKE_CMD:3" || return 1
+  _hi_contains "$row" "$_HI_FAKE_CMD" &&
+    _hi_assert_contains "$row" "$_HI_MARK_NO"
 }
 
 # an old-format file's 4s and 5s clamp to 3 instead of indexing off the end of
 # the four-entry color tables - the degradation rule for a stale overlay
 function test_check_line_clamps_a_priority_above_three() {
-  local -a visible=()
-  check_line "$_HI_REAL_CMD:5"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  case "${visible[0]}" in 3$'\x1f'*) return 0 ;; esac
+  local row
+  _hi_one_visible_row "$_HI_REAL_CMD:5" || return 1
+  case "$row" in 3$'\x1f'*) return 0 ;; esac
   return 1
 }
 
 # a line nothing satisfies ranks at the loudest priority it lists, not the
 # first: the unmet need is as important as its best answer
 function test_check_line_missing_ranks_at_max_priority() {
-  local -a visible=()
-  check_line "$_HI_FAKE_CMD:1,${_HI_FAKE_CMD}-alt:3"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_FAKE_CMD" || return 1
-  case "${visible[0]}" in 3$'\x1f'*) return 0 ;; esac
+  local row
+  _hi_one_visible_row "$_HI_FAKE_CMD:1,${_HI_FAKE_CMD}-alt:3" || return 1
+  _hi_contains "$row" "$_HI_FAKE_CMD" || return 1
+  case "$row" in 3$'\x1f'*) return 0 ;; esac
   return 1
 }
 
 function test_check_line_fallback_uses_second_alternative() {
-  local -a visible=()
-  check_line "$_HI_FAKE_CMD:0,$_HI_REAL_CMD:3"
-  [ "${#visible[@]}" -eq 1 ] || return 1
-  _hi_contains "${visible[0]}" "$_HI_REAL_CMD" &&
-    _hi_assert_contains "${visible[0]}" "$_HI_MARK_ALT"
+  local row
+  _hi_one_visible_row "$_HI_FAKE_CMD:0,$_HI_REAL_CMD:3" || return 1
+  _hi_contains "$row" "$_HI_REAL_CMD" &&
+    _hi_assert_contains "$row" "$_HI_MARK_ALT"
 }
 
 function test_check_line_picks_highest_priority_installed() {

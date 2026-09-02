@@ -337,10 +337,6 @@ function _hi_bsdtar_shim() {
 
 function test_payload_is_not_block_padded_under_bsdtar() {
   local shim n
-  command -v bsdtar >/dev/null 2>&1 || {
-    _hi_skip "[bsdtar payload]" "no bsdtar to stand in for macOS's tar"
-    return 0
-  }
   shim="$(_hi_bsdtar_shim)" || return 1
   n="$(PATH="$shim:$PATH" _hi_payload_tar | wc -c)"
   [ "$n" -gt 0 ] && [ "$((n % _HI_BLOCK))" -ne 0 ]
@@ -348,10 +344,6 @@ function test_payload_is_not_block_padded_under_bsdtar() {
 
 function test_overlay_is_not_block_padded_under_bsdtar() {
   local shim dir n
-  command -v bsdtar >/dev/null 2>&1 || {
-    _hi_skip "[bsdtar overlay]" "no bsdtar to stand in for macOS's tar"
-    return 0
-  }
   shim="$(_hi_bsdtar_shim)" || return 1
   dir="$(_hi_overlay_fixture blockcheck_bsd colors)"
   n="$(PATH="$shim:$PATH" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | wc -c)"
@@ -572,8 +564,8 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded
   _hi_check "A small overlay is well under a block" test_overlay_is_well_under_one_block
-  _hi_check "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
-  _hi_check "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
+  _hi_check_requires bsdtar "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
+  _hi_check_requires bsdtar "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
 
   _hi_h2 "Testing: _hi_tar_gz's no-gzip fallback"
   _hi_check "Falls back to tar's own -z" test_tar_gz_falls_back_to_tars_own_z_without_gzip

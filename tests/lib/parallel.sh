@@ -29,8 +29,10 @@
 _HI_PAR_DIR=""
 _HI_PAR_N=0
 _HI_PAR_SLOTS=1
-declare -a _HI_PAR_PIDS=()
 declare -a _HI_PAR_LABELS=()
+# every pid not yet reaped - _hi_par_slot prunes it as cases finish, so what
+# is left is exactly what _hi_par_wait must wait on and _hi_par_kill may kill
+# (a reaped pid could already belong to somebody else's new process)
 declare -a _HI_PAR_RUNNING=()
 
 # How wide to fan out. Unbounded is the wrong answer on a laptop: twenty sshd
@@ -61,7 +63,6 @@ function _hi_par_begin() {
   rm -rf "$_HI_PAR_DIR"
   mkdir -p "$_HI_PAR_DIR"
   _HI_PAR_N=0
-  _HI_PAR_PIDS=()
   _HI_PAR_LABELS=()
   _HI_PAR_RUNNING=()
   _HI_PAR_SLOTS="$(_hi_par_width)"
@@ -122,7 +123,6 @@ function _hi_par_case() {
     printf '%s %s\n' "$_hi_par_rc" "${_HI_SKIPPED:-0}" >"$res"
   ) >"$out" 2>&1 &
   _HI_PAR_RUNNING+=("$!")
-  _HI_PAR_PIDS+=("$!")
   return 0
 }
 
@@ -193,7 +193,7 @@ function _hi_par_requires_body() {
 # Waits out the batch, then replays and tallies it in submission order.
 function _hi_par_wait() {
   local pid i=0 label rc skipped
-  for pid in ${_HI_PAR_PIDS[@]+"${_HI_PAR_PIDS[@]}"}; do wait "$pid" 2>/dev/null || true; done
+  for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do wait "$pid" 2>/dev/null || true; done
   for label in ${_HI_PAR_LABELS[@]+"${_HI_PAR_LABELS[@]}"}; do
     i=$((i + 1))
     [ -f "$_HI_PAR_DIR/$i.out" ] && cat "$_HI_PAR_DIR/$i.out"
@@ -222,7 +222,6 @@ function _hi_par_wait() {
     # shellcheck disable=SC2031 # this is the parent's copy, which is the point
     _HI_SKIPPED=$((${_HI_SKIPPED:-0} + skipped))
   done
-  _HI_PAR_PIDS=()
   _HI_PAR_LABELS=()
   _HI_PAR_RUNNING=()
   _HI_PAR_N=0
@@ -234,14 +233,13 @@ function _hi_par_wait() {
 # behind it. TERM first so a case's own traps get their chance, KILL after.
 function _hi_par_kill() {
   local pid
-  for pid in ${_HI_PAR_PIDS[@]+"${_HI_PAR_PIDS[@]}"}; do
+  for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do
     kill -TERM "$pid" 2>/dev/null || true
   done
-  for pid in ${_HI_PAR_PIDS[@]+"${_HI_PAR_PIDS[@]}"}; do
+  for pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do
     kill -9 "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
   done
-  _HI_PAR_PIDS=()
   _HI_PAR_RUNNING=()
   return 0
 }
