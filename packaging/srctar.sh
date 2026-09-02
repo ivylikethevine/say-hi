@@ -7,10 +7,6 @@
 # implementation in packaging/lib.sh (src_tarball), two callers, no `git archive`
 # invocation spelled twice with a prefix that has to match by luck.
 #
-# It also cannot be `source packaging/lib.sh` in the workflow: lib.sh locates the
-# tree from ${BASH_SOURCE[1]}, which in a `run:` block is a temp file somewhere
-# under $RUNNER_TEMP rather than a file in packaging/.
-#
 # Usage: srctar.sh <version> <ref> <outfile>
 set -euo pipefail
 
