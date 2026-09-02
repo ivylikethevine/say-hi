@@ -50,7 +50,7 @@ function _hi_ghz() {
 }
 
 function system_info() {
-  local kernel arch os cpus ram base_mhz boost_mhz uptime_s="" up=""
+  local kernel arch os cpus ram base_mhz boost_mhz uptime_s="" up="" load=""
   # process substitution, not <<<: a here-string is a temp file before bash
   # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
@@ -64,8 +64,19 @@ function system_info() {
     # must not abort on a missing probe.
     os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE" 2>/dev/null || true)
     cpus=$(nproc 2>/dev/null || true)
-    # straight at the file free(1) itself reads
-    ram=$(awk '/^MemTotal:/ { printf "%.0fG", $2 / 1048576 }' /proc/meminfo 2>/dev/null || true)
+    # straight at the files free(1) and uptime(1) themselves read. Used is
+    # MemTotal - MemAvailable (the "how much could a new process actually get"
+    # figure free -h reports, not the naive MemTotal - MemFree); MemAvailable
+    # predates nothing this project targets but a pre-3.14 kernel, where the
+    # END block still has a total to print.
+    ram=$(awk '
+      /^MemTotal:/     { total = $2 }
+      /^MemAvailable:/ { avail = $2 }
+      END {
+        if (avail != "") printf "%.0fG/%.0fG", (total - avail) / 1048576, total / 1048576
+        else if (total != "") printf "%.0fG", total / 1048576
+      }' /proc/meminfo 2>/dev/null || true)
+    load=$(awk '{ printf "%s", $1 }' /proc/loadavg 2>/dev/null || true)
     # base clock from the model name ("... @ 2.80GHz"); AMD chips print none,
     # so fall back to cpufreq's base_frequency, then amd-pstate-epp's
     # lowest_nonlinear_freq (the driver's floor, but it beats "?").
@@ -105,7 +116,26 @@ function system_info() {
   else
     os="macOS $(sw_vers -productVersion 2>/dev/null || true)"
     cpus=$(sysctl -n hw.ncpu 2>/dev/null || true)
-    ram=$(sysctl -n hw.memsize 2>/dev/null | awk '{ printf "%.0fG", $1 / 1073741824 }' || true)
+    # total from sysctl, used from vm_stat: active + wired + compressed pages,
+    # at vm_stat's own page size (its "(page size of N bytes)" header, not the
+    # hardcoded 4096 that stopped being universal on Apple Silicon) - matched
+    # by line prefix rather than a fixed field index, since a line's label
+    # width varies by macOS version.
+    ram=$(
+      total_b=$(sysctl -n hw.memsize 2>/dev/null)
+      vm_stat 2>/dev/null | awk -v total="$total_b" '
+        /page size of/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) page = $i }
+        /^Pages active/          { gsub(/\.$/, "", $NF); active = $NF }
+        /^Pages wired down/      { gsub(/\.$/, "", $NF); wired = $NF }
+        /^Pages occupied by compressor/ { gsub(/\.$/, "", $NF); compressed = $NF }
+        END {
+          if (page != "" && total != "")
+            printf "%.0fG/%.0fG", (active + wired + compressed) * page / 1073741824, total / 1073741824
+          else if (total != "")
+            printf "%.0fG", total / 1073741824
+        }' || true
+    )
+    load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ printf "%s", $2 }' || true)
     # Apple Silicon exposes neither clock via sysctl; only Intel Macs get a value
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
     # kern.boottime prints "{ sec = <epoch>, usec = ... } <date>"; the split on
@@ -117,6 +147,9 @@ function system_info() {
   # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)
   [ -n "${base_mhz:-}" ] && _hi_ghz base_mhz "$base_mhz"
   [ -n "${boost_mhz:-}" ] && _hi_ghz boost_mhz "$boost_mhz"
+  # the same non-numeric guard as uptime below - a stripped-down awk or a
+  # locale that prints a comma decimal both fail closed to "?", not a garbled cell
+  case "$load" in '' | *[!0-9.]*) load="" ;; esac
   # humanized to two units at most - a header cell, not a stopwatch; the guard
   # drops anything non-numeric (a skewed clock can make the macOS probe negative)
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
@@ -130,7 +163,7 @@ function system_info() {
     fi
   fi
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
-    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz" \
+    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz${load:+ ($load)}" \
     "${BRPURPLE}Up: ${up:-?}"
 }
 
@@ -302,18 +335,41 @@ function passthrough_check() {
     "${BRYELLOW}set -g allow-passthrough on"
 }
 
+# hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
+# per row, naming the same rows its $_HI_HEADER_* toggle does. Named here
+# rather than only in the case below, so a doc or test can read the default
+# without parsing the dispatch.
+_HI_HEADER_ORDER_DEFAULT="timestamp sysinfo identity check"
+
+# One named row of hi_header's dispatch, behind the same toggle the fixed
+# order used - so a row hidden by its toggle stays hidden whatever order it's
+# named in. An unknown word is silently skipped: _HI_HEADER_ORDER is a reorder,
+# not a second way to spell a typo into an error.
+function _hi_header_row() {
+  case "$1" in
+  timestamp) [[ "${_HI_HEADER_TIMESTAMP:-1}" == 0 ]] || timestamp ;;
+  sysinfo) [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info ;;
+  identity) [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity ;;
+  check) [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check ;;
+  esac
+}
+
 function hi_header() {
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && return 0
   banner "$@"
   # ahead of the fork-only rows, so their ~30ms runs inside the probes' wall
-  # clock; same toggle, so a hidden identity row still starts nothing
+  # clock; same toggle, so a hidden identity row still starts nothing. Always
+  # first regardless of $_HI_HEADER_ORDER - a latency optimization, not a row.
   [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || _hi_probe_launch
-  [[ "${_HI_HEADER_TIMESTAMP:-1}" == 0 ]] || timestamp
-  [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info
-  [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity
-  [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check
+  local row
+  # shellcheck disable=SC2086 # the split is the point: one word per row
+  for row in ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT}; do
+    _hi_header_row "$row"
+  done
   # last, so the one line that says something is wrong sits next to the
-  # prompt. Connect only: load.sh's disconnect calls banner directly.
+  # prompt. Connect only: load.sh's disconnect calls banner directly. No
+  # _HI_HEADER_ORDER word of its own - like passthrough_check always was,
+  # this is not a row a reorder moves.
   passthrough_check
 }
 
@@ -335,8 +391,39 @@ function hi_header() {
 # 1 optional extras (gping, navi)
 # 2 useful tools (make, vim, python3)
 # 3 favorites and core (bat, fzf, awk)
-_HI_YES=("$BLUE" "$BRCYAN" "$GREEN" "$BRGREEN")
+_HI_YES=("$CYAN" "$BRCYAN" "$GREEN" "$BRGREEN")
 _HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRRED")
+
+# $_HI_PACKAGES_PALETTE picks one of the named ramps below over the two
+# tables just assigned - packages_preview.sh's scrape (above) stops at the
+# first line starting "_HI_YES=", so that assignment has to stay exactly
+# there and cannot move into the case. Every value is one of
+# _HI_COLOR_NAMES (core.sh), the vocabulary settings/colors and fish's
+# set_color both use, so packages_preview.sh's _hi_color_name_of can always
+# name it. Each ramp is meant to read monotonic 0->3 in both directions - a
+# missing favorite the loudest thing on screen, installed trivia the
+# quietest - and legible on light and dark terminals alike; judge a
+# candidate with `hi --packages-preview`. "cool" is the shipped default:
+# _HI_YES/_HI_NO as assigned just above, unchanged from a fresh source so
+# the common case (no override, no palette function call yet) costs nothing
+# extra to read.
+function _hi_packages_palette() {
+  case "${_HI_PACKAGES_PALETTE:-cool}" in
+  warm)
+    _HI_YES=("$YELLOW" "$BRYELLOW" "$GREEN" "$BRGREEN")
+    _HI_NO=("$PURPLE" "$BRPURPLE" "$RED" "$BRRED")
+    ;;
+  mono)
+    _HI_YES=("$BLUE" "$CYAN" "$BRBLUE" "$BRCYAN")
+    _HI_NO=("$YELLOW" "$BRYELLOW" "$RED" "$BRRED")
+    ;;
+  *)
+    _HI_YES=("$CYAN" "$BRCYAN" "$GREEN" "$BRGREEN")
+    _HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRRED")
+    ;;
+  esac
+}
+_hi_packages_palette
 
 # For each "[-|+]cmd:priority[,...]": the highest-priority installed package
 # (or the first, if none) — a fully-missing line ranks at the max priority
@@ -403,6 +490,10 @@ function full_check() {
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
   local -a visible=() # appended to by check_line
+  # re-resolved here, not just at source time: a caller that changes
+  # $_HI_PACKAGES_PALETTE after header.sh loaded (configure.sh's preview does)
+  # needs the next full_check to see it. A bare case, no fork either way.
+  _hi_packages_palette
   while IFS=$' ' read -r line; do
     [[ "$line" == *#* || -z "$line" ]] || check_line "$line"
   done <"$_HI_PACKAGES"

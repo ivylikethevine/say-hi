@@ -1,47 +1,72 @@
 # hi.sh -> sshrc supercharged
 
-## EXPERIMENTAL UNTIL v1.0.0
+> EXPERIMENTAL UNTIL v1.0.0
+
+_Don't `ssh`ush your hosts, say `hi`!_
 
 <!-- The check-runs badges filter on the compound check name "<ci.yml job
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". The release badge omits
      include_prereleases: each push to main publishes a snapshot prerelease. -->
 
-Project Stats:
-
-![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
-![ssh payload](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
-![code size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
-
-Clients:
-
-[![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-
-OpenSSF:
-
+![Payload Size](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
+![Code Size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
-
-Releases/Downloads:
-
-[![release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
-[![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
+[![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
+[![Downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
 [![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
 
-Testing: known-inaccurate; see [why](docs/TESTING.md#coverage-and-profiling)._
-
-[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
-[![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
-
-_Don't `ssh`ush your hosts, say `hi`!_
-
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
+
+## Contents
+
+- [More docs](#more-docs)
+- [In sixty seconds](#in-sixty-seconds)
+- [What comes with you](#what-comes-with-you)
+  - [the header tells you what the box is missing](#the-header-tells-you-what-the-box-is-missing)
+  - [your editors, your clipboard](#your-editors-your-clipboard)
+  - [no target at all — recent first](#no-target-at-all--recent-first)
+  - [one config directory, every host, every shell](#one-config-directory-every-host-every-shell)
+  - [know where you are at a glance](#know-where-you-are-at-a-glance)
+  - [completion, every backend at once](#completion-every-backend-at-once)
+  - [one command, every backend](#one-command-every-backend)
+- [Requirements](#requirements)
+- [Installation](#installation)
+  - [Upgrading](#upgrading)
+- [Configuration](#configuration)
+  - [Hostname, username, and group/tag colors](#hostname-username-and-grouptag-colors)
+- [Built from/with/in mind](#built-fromwithin-mind)
+- [say-hi and the alternatives](#say-hi-and-the-alternatives)
+- [Testing](#testing)
+  - [Coverage and Profiling](#coverage-and-profiling)
+- [AI Usage](#ai-usage)
+
+## More docs
+
+- [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
+  environment variable hi reads
+- [docs/SUPPORT.md](docs/SUPPORT.md) — every target, OS and shell hi answers
+  to, and every runtime, shell and feature answered **no**, and why
+- [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
+  homeshick side by side
+- [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
+  cases, the lint gate, relaying
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — the named idioms the code's
+  `GLOSSARY:` tags point at; drift-checked by the lint suite
+- [docs/SECURITY.md](docs/SECURITY.md) — reporting, and what hi touches on a
+  target
+- [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
+  reproducibility contract, verifying a download, regenerating the demo GIFs
+- [docs/ROADMAP.md](docs/ROADMAP.md) — every open item, smallest scope first,
+  and what each one waits on
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
+  request, what 1.x will not break, and which doc changes with what
+- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
+  in issues, pull requests and discussions, and where to report a breach
+
+---
 
 ## In sixty seconds
 
@@ -61,33 +86,6 @@ leave. `hi <TAB>` lists all of them. Nothing is installed on the far end.
 aliases and environment, on a pty when your stdin is one — and only the
 command's output goes to stdout. A plain, pty-free remote command is still
 `ssh`'s job.
-
-## Contents
-
-- [What comes with you](#what-comes-with-you)
-  - [the header tells you what the box is missing](#the-header-tells-you-what-the-box-is-missing)
-  - [your editors, your clipboard](#your-editors-your-clipboard)
-  - [no target at all — recent first](#no-target-at-all--recent-first)
-  - [one config directory, every host, every shell](#one-config-directory-every-host-every-shell)
-  - [know where you are at a glance](#know-where-you-are-at-a-glance)
-  - [completion, every backend at once](#completion-every-backend-at-once)
-  - [one command, every backend](#one-command-every-backend)
-- [Requirements](#requirements)
-- [Installation](#installation)
-  - [Upgrading](#upgrading)
-- [Configuration](#configuration)
-  - [Hostname, username, and group/tag colors](#hostname-username-and-grouptag-colors)
-- [Built from/with/in mind](#built-fromwithin-mind)
-  - [Docker / Podman containers](#docker--podman-containers)
-  - [Nomad allocations](#nomad-allocations)
-  - [Kubernetes pods](#kubernetes-pods)
-  - [Windows hosts](#windows-hosts)
-- [say-hi and the alternatives](#say-hi-and-the-alternatives)
-  - [Compatibility](#compatibility)
-- [Testing](#testing)
-  - [Coverage and Profiling](#coverage-and-profiling)
-- [More docs](#more-docs)
-- [AI Usage](#ai-usage)
 
 ## What comes with you
 
@@ -135,7 +133,8 @@ bash session on a debian container and a fish session on an alpine box,
 reached through docker and podman. Client: fish. Showing an `aliases.sh`
 overlay with one alias and `_HI_BAT_OPTS`, and `_HI_SHELL_PREFERENCE=fish` for
 the second target. A box with no bash gets the aliases-only tier — hi's own
-aliases, not the overlay ([Compatibility](#compatibility)).
+aliases, not the overlay
+([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
@@ -173,6 +172,18 @@ Client: zsh.
 
 ## Requirements
 
+![Requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
+[![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20MSYS2%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20MSYS2)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+
+Two questions, answered at two moments: **can hi land a session on that OS at
+all**, and **what shell do you end up in**. Both tables, with a legend and what
+proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md), along with
+everything weighed and answered **no**, and why.
+
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
   shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), `ssh` for
   ssh targets, `docker`/`podman`/`nomad`/`kubectl` for those backends. hi has
@@ -181,7 +192,7 @@ Client: zsh.
 - **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod
   targets. `bash` gets the full experience; without it you land in the best
   shell the target has, with a smaller session
-  ([Compatibility](#compatibility)).
+  ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 - **fish 3.7+** (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) are the
   floors for the other two shells hi styles; the lint gate checks both in a
   pinned container on every run
@@ -304,62 +315,16 @@ version, and using the hash in your own prompt, is
 - [fish](https://github.com/fish-shell/fish-shell) — _with_ — (my preferred
   shell: its defaults/built-ins are easy to understand, but it is not POSIX)
 
-### Docker / Podman containers
-
-If `<name>` isn't a `Host` in `~/.ssh/config` but is a running container (by
-name or ID, docker checked first), `hi` copies its tree in and chainloads
-`load.sh` as the ssh path does. No armoring is needed (`exec -i` passes stdin
-as raw bytes), and cleanup happens on exit. Without `bash` in the container
-`hi` drops you into the best plain shell `$_HI_SHELL_LADDER` finds, with the
-aliases and a warning.
-
-### Nomad allocations
-
-`hi <alloc-id>` matches a running allocation by ID/prefix, after the ssh-host
-and container checks. `nomad alloc exec` has no `docker cp`/`-e` equivalent,
-so files stream in with `exec -i` + `cat >` and env vars go through a
-`sh -c "export ...; exec ..."` wrapper. `hi <alloc-id>/<task>` picks a task in
-a multi-task allocation (`nomad alloc exec -task <name>`); completion offers
-the pairs for any allocation that has more than one.
-
-### Kubernetes pods
-
-`hi <pod-name>` is checked last, using `kubectl exec` against whatever
-context/namespace your `kubectl` currently points at; `hi <ns>:<pod>` and
-`hi <context>:<ns>:<pod>` reach one elsewhere (the prefixes become
-`--namespace`/`--context`). `hi <pod>/<container>` picks a container
-(`kubectl exec -c <name>`); without the suffix `kubectl` falls back to the
-pod's first container with a warning. Completion offers `pod/container` for
-every pod that has more than one, and `ns:pod` for pods outside the current
-namespace.
-
-### Windows hosts
-
-- **WSL, Git Bash, Cygwin or MSYS2 on `PATH`**: the full experience, same code
-  path as any other ssh host.
-- **Stock Windows OpenSSH with no `bash`**: `hi` falls back to a plain
-  interactive PowerShell session (no styling) rather than failing. It costs
-  one authentication: the bootloader write is the first of two calls
-  multiplexed on the _same ssh connection_, and a target where that write
-  cannot run `sh -c` has no POSIX shell, which is what the fallback is for.
-  `DefaultShell` set to PowerShell lands in the same place.
-
-**Installing hi _on_ Windows:** use WSL. The `.deb` installs into a WSL
-distribution unchanged.
-
 ## say-hi and the alternatives
 
 How say-hi compares to similar tools, and when to use something else:
 [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md).
 
-### Compatibility
-
-Two questions, answered at two moments: **can hi land a session on that OS at
-all**, and **what shell do you end up in**. Both tables, with a legend and what
-proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md), along with
-everything weighed and answered **no**, and why.
-
 ## Testing
+
+![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
+[![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
+[![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
 `tests/test_runner.sh` (`hi --test` once installed) runs the suite with a
 colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
@@ -374,29 +339,6 @@ keep their self-describing labels (`load-time`, `heredoc-inflated`) instead of
 claiming to be coverage, and neither gates anything. Why each is wrong, and
 the profiler for a tripped bench ceiling, is
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
-
-## More docs
-
-- [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
-  environment variable hi reads
-- [docs/SUPPORT.md](docs/SUPPORT.md) — every target, OS and shell hi answers
-  to, and every runtime, shell and feature answered **no**, and why
-- [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
-  homeshick side by side
-- [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
-  cases, the lint gate, relaying
-- [docs/GLOSSARY.md](docs/GLOSSARY.md) — the named idioms the code's
-  `GLOSSARY:` tags point at; drift-checked by the lint suite
-- [docs/SECURITY.md](docs/SECURITY.md) — reporting, and what hi touches on a
-  target
-- [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
-  reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/ROADMAP.md](docs/ROADMAP.md) — every open item, smallest scope first,
-  and what each one waits on
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
-  request, what 1.x will not break, and which doc changes with what
-- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
-  in issues, pull requests and discussions, and where to report a breach
 
 ## AI Usage
 

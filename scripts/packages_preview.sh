@@ -36,6 +36,8 @@ Takes no arguments. Reads:
   settings/packages      the [-|+]package:priority lines (override with $_HI_PACKAGES;
                      ~/.config/say-hi/packages wins automatically when present)
   common/header.sh   the priority meanings and their two color tables
+  $_HI_PACKAGES_PALETTE   which of the named color tables is active (cool, the
+                     default; warm; mono) - printed above the legend
 
 A line's leading mode character decides which states speak at all: `-` only
 when the whole line is missing, `+` only when something on it is installed,
@@ -320,6 +322,7 @@ if [[ ! -f "$_HI_PACKAGES" ]]; then
 fi
 
 _hi_cecho " | reading $_HI_PACKAGES"
+_hi_cecho " | palette: ${_HI_PACKAGES_PALETTE:-cool}"
 printf '\n'
 _hi_collect_examples
 _hi_print_priorities_table

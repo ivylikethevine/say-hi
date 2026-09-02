@@ -26,6 +26,7 @@ _HI_FORMULA="$_HI_PKG_DIR/homebrew/say-hi.rb"
 _HI_PKGBUILD="$_HI_PKG_DIR/aur/say-hi/PKGBUILD"
 _HI_PKGBUILD_GIT="$_HI_PKG_DIR/aur/say-hi-git/PKGBUILD"
 _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
+_HI_PUBLISH_EXTERNAL_WF="$_HI_ROOT/.github/workflows/publish-external.yml"
 _HI_SNAPSHOT_WF="$_HI_ROOT/.github/workflows/snapshot.yml"
 _HI_PAGES_WF="$_HI_ROOT/.github/workflows/pages.yml"
 _HI_CI_WF="$_HI_ROOT/.github/workflows/ci.yml"
@@ -356,14 +357,12 @@ function test_release_workflow_marks_prerelease_tags() {
 }
 
 function test_prerelease_tags_reach_no_channel() {
-  local name job bad=0 guard="!contains(github.ref_name, '-')"
-  for name in tap aur brew; do
-    job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
-    if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
-      _hi_cecho " | release.yml's $name job runs on a prerelease tag" "$RED"
-      bad=1
-    fi
-  done
+  local job bad=0 guard="!contains(github.ref_name, '-')"
+  job="$(sed -n "/^  brew:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
+  if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
+    _hi_cecho " | release.yml's brew job runs on a prerelease tag" "$RED"
+    bad=1
+  fi
   # the manifest PR too: both its steps, the credentialed checkout and the
   # push, carry the guard
   job="$(sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
@@ -372,6 +371,43 @@ function test_prerelease_tags_reach_no_channel() {
     bad=1
   fi
   [ "$bad" = 0 ]
+}
+
+# tap/aur's own guard, in publish-external.yml: no release.event to read a tag
+# from (this is a workflow_dispatch, not a push), so it is the same skip
+# spelled off the tag input instead
+function test_prerelease_tags_reach_no_external_channel() {
+  [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
+  local name job bad=0 guard="!contains(github.event.inputs.tag, '-')"
+  for name in tap aur; do
+    job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_PUBLISH_EXTERNAL_WF")"
+    if [[ "$job" != *"$guard"* ]]; then
+      _hi_cecho " | publish-external.yml's $name job runs on a prerelease tag" "$RED"
+      bad=1
+    fi
+  done
+  [ "$bad" = 0 ]
+}
+
+# tap and aur no longer run off a tag push at all - a v0.0.x/prerelease skip
+# on `github.ref_name` alone, with no workflow_dispatch guard beside it, would
+# read as "still automatic" and silently reintroduce the coupling this split
+# exists to remove
+function test_tap_and_aur_are_dispatch_only() {
+  [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
+  grep -qE '^ *workflow_dispatch:' "$_HI_PUBLISH_EXTERNAL_WF" &&
+    ! grep -qE '^ *(push|pull_request):' "$_HI_PUBLISH_EXTERNAL_WF" &&
+    ! grep -q "tap:" "$_HI_RELEASE_WF" &&
+    ! grep -q "aur:" "$_HI_RELEASE_WF"
+}
+
+# each job's manifest comes off the release itself, never a same-run build
+# artifact - the whole point of decoupling this from release.yml's build/
+# publish jobs is that it can run any time after a tag has published
+function test_publish_external_reads_manifests_from_the_release() {
+  [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
+  grep -qF 'gh release download' "$_HI_PUBLISH_EXTERNAL_WF" &&
+    ! grep -q 'download-artifact' "$_HI_PUBLISH_EXTERNAL_WF"
 }
 
 function test_release_workflow_only_runs_on_tags() {
@@ -1392,6 +1428,11 @@ function run_packaging_tests() {
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
   _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
+
+  _hi_h2 "Testing: publish-external.yml"
+  _hi_check "tap/aur are dispatch-only, not in release.yml" test_tap_and_aur_are_dispatch_only
+  _hi_check "...and skip a prerelease tag" test_prerelease_tags_reach_no_external_channel
+  _hi_check "...reading their manifests off the release" test_publish_external_reads_manifests_from_the_release
 
   _hi_h2 "Testing: snapshot.yml"
   _hi_check "Runs on pushes to main only" test_snapshot_workflow_only_runs_on_main

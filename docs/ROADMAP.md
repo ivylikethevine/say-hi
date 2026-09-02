@@ -121,8 +121,9 @@ spam problem; see the **AUR** entry below.
        PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
        `brew install`/`test`/`audit` gate on an actual Mac (`/opt/homebrew`,
        not the Linuxbrew prefix used so far). **Ticks when:**
-       `brew install ivy/tap/say-hi` works, from a release the `tap` job
-       opened a PR for.
+       `brew install ivy/tap/say-hi` works, from a release
+       `publish-external.yml`'s `tap` job (dispatched by hand against that
+       tag) opened a PR for.
 
 8. [ ] **Package repository on the Pages site** — _scope: one key, one
        secret, one committed file, one release; outside this checkout._ The
@@ -153,11 +154,12 @@ spam problem; see the **AUR** entry below.
 
 10. [ ] **AUR** — _scope: nothing until registration reopens; then an
         account, a key, and one manual first push; outside this checkout._
-        Registration is closed to new accounts (spam), and `release.yml`'s
-        `aur` job stays written and unexercised until it reopens. **When it
-        reopens:** register; generate an ed25519 key, add the private half
-        as the `AUR_SSH_KEY` repo secret; the first push per package is
-        manual (namcap gate against the published source, then only
-        `PKGBUILD` + `.SRCINFO`), and the `aur` job handles the versioned
-        package after. **Ticks when:** both packages are live on the AUR and
-        the `aur` job has kept `say-hi` current for one real release.
+        Registration is closed to new accounts (spam), and
+        `publish-external.yml`'s `aur` job stays written and unexercised
+        until it reopens. **When it reopens:** register; generate an ed25519
+        key, add the private half as the `AUR_SSH_KEY` repo secret; the first
+        push per package is manual (namcap gate against the published
+        source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
+        `publish-external.yml` handles the versioned package after.
+        **Ticks when:** both packages are live on the AUR and a dispatch has
+        kept `say-hi` current for one real release.

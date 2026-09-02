@@ -4,8 +4,9 @@ How `hi` ships through a package manager, plus [checking a download you did
 not build](#verifying-a-release-download) and [regenerating the demo
 GIFs](#regenerating-the-demo-gifs). Nothing publishes on its own: the
 publishing job waits on a manual approval, and the AUR and Homebrew tap stay
-hand-copied until their secrets exist. Both signing keys are in place; the AUR
-deploy key and the tap token are one-time setup ([AUR](#aur), [Homebrew
+hand-copied until their secrets exist - and, once they do, until someone
+dispatches `publish-external.yml` by hand. Both signing keys are in place; the
+AUR deploy key and the tap token are one-time setup ([AUR](#aur), [Homebrew
 tap](#homebrew-tap)), tracked in [docs/ROADMAP.md](ROADMAP.md).
 
 **What is live today: none of it.** Every channel on this page is built and
@@ -132,10 +133,13 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    and manifests land on the release; the regenerated manifests come back to
    `main` as a `manifests-v1.0.0` **pull request**, since `main` refuses a
    direct push.
-4. Once their secrets exist, the tap gets a PR (`HOMEBREW_TAP_TOKEN`) and the
-   AUR a push (`AUR_SSH_KEY`); **neither waits on the manifest PR**, both read
-   the `packages` artifact. Until then, copy the manifests by hand per the
-   sections below.
+4. Once their secrets exist, dispatch `publish-external.yml` with `tag:
+v1.0.0` to open the tap PR (`HOMEBREW_TAP_TOKEN`) and push the AUR
+   (`AUR_SSH_KEY`) — a separate, later, manual step so nothing reaches either
+   channel just because a tag was pushed. **Neither waits on the manifest
+   PR**; both read the manifests off the release itself
+   (`gh release download`). Until the secrets exist, copy the manifests by
+   hand per the sections below.
 5. Merge the manifest PR.
 
 **A release candidate is a GitHub Release and nothing more.** A prerelease
@@ -169,15 +173,18 @@ generated notes **after** `--notes`, burying them under the checklist.
 Two repository settings under _Settings → Environments_ that no file in the
 tree can set; `release.yml` only names them.
 
-- **`release`** — what `publish`, `tap` and `aur` run in.
-  _Required reviewers_: you; that is the approval `publish` pauses for, and
-  without it the job publishes unattended. _Deployment branches and tags_: a
-  **tag** rule, `v*`. The job runs on the tag ref, so a policy listing only
-  `main` refuses every release with `Tag "v1.0.0" is not allowed to deploy to
-release due to environment protection rules` — `build` green, `publish`
-  failed, the tag page showing source archives alone. The rule is checked
-  when the job starts, so once it exists _Re-run failed jobs_ on that run
-  goes on to the approval; no new tag is needed.
+- **`release`** — what `release.yml`'s `publish` and `publish-external.yml`'s
+  `tap`/`aur` all run in. _Required reviewers_: you; that is the approval
+  `publish` pauses for, and without it the job publishes unattended.
+  _Deployment branches and tags_: a **tag** rule, `v*`, for `publish` running
+  on the tag ref - a policy listing only `main` refuses every release with
+  `Tag "v1.0.0" is not allowed to deploy to release due to environment
+protection rules` — `build` green, `publish` failed, the tag page showing
+  source archives alone. The rule is checked when the job starts, so once it
+  exists _Re-run failed jobs_ on that run goes on to the approval; no new tag
+  is needed. `tap`/`aur` run on `workflow_dispatch`, not a tag ref, so add
+  `main` (or wherever the dispatch is run from) to the same rule or they hit
+  the identical refusal.
 - **`manual-dispatch`** — the rehearsal gate. _Required reviewers_: you, or a
   rehearsal's `build` reaches `APK_SIGNING_KEY` with nobody asked. A branch
   rule `main` fits here: a dispatch runs on a branch.
@@ -219,8 +226,9 @@ by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
   an old one keeps a harmless local copy nothing upstream asks to move.
 - **It reaches no channel.** No `bump.sh` (the manifests checksum a
   `releases/download/v<ver>/` URL a snapshot never has), no manifest PR, no
-  tap, no AUR; all of that is `release.yml`'s and waits on a `v*` tag
-  pushed by hand ([Cutting a release](#cutting-a-release)).
+  tap, no AUR; all of that starts with a `v*` tag pushed by hand
+  ([Cutting a release](#cutting-a-release)) and, for the tap and the AUR, a
+  further manual dispatch of `publish-external.yml` after.
   `tests/packaging/packaging_test.sh` pins the split: `snapshot.yml` may run
   only on `main` and may not name a channel, `bump.sh` or the `release`
   environment.
@@ -237,13 +245,16 @@ by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
 
 ## Publishing each channel
 
-Every channel below is gated on the manual approval in `release.yml`; CI
-pushes the AUR and the tap once their secrets exist, but each section's checks
-are still yours to run first.
+The AUR and the tap are behind the manual approval on `publish-external.yml`,
+which you dispatch by hand against an already-published tag (`gh workflow run
+publish-external.yml -f tag=v1.0.0`, or the Actions UI) once their secrets
+exist - never automatically from a tag push, so the release and reaching
+these two channels are two separate decisions. Each section's checks are
+still yours to run first.
 
 **A `v0.0.x` tag reaches none of them, and neither does a prerelease tag.**
 `v0.0.x` are debug tags for exercising the release path and a `-` in the name
-(`v1.0.0-rc.1`) is a candidate; every channel job skips on the tag name, and
+(`v1.0.0-rc.1`) is a candidate; `tap` and `aur` both skip on the tag name, and
 the GitHub Release is still created with the packages attached.
 
 ### AUR
@@ -290,10 +301,10 @@ Arch container, exercised, and removed with nothing left behind.
 Then push `PKGBUILD` + `.SRCINFO`, only those two, to
 `ssh://aur@aur.archlinux.org/say-hi-git.git`, `say-hi-git` first since it
 needs no tag. **That first push is the manual one**, where namcap gates. After
-it, `release.yml`'s `aur` job pushes the versioned `say-hi` on every release
-but a `v0.0.x` tag; `say-hi-git` has no version to bump and CI never touches
-it. Never submit the versioned package with `b2sums=('SKIP')`; `SKIP` is
-correct only on `say-hi-git`.
+it, dispatching `publish-external.yml` pushes the versioned `say-hi` for any
+release but a `v0.0.x` or prerelease tag; `say-hi-git` has no version to bump
+and no workflow ever touches it. Never submit the versioned package with
+`b2sums=('SKIP')`; `SKIP` is correct only on `say-hi-git`.
 
 ### Homebrew tap
 
@@ -302,15 +313,19 @@ A tap is a GitHub repo named `homebrew-tap` with a `Formula/` directory. Copy
 `brew install ivy/tap/say-hi` works, with no review and no approval, which is
 why `brew audit --strict` is a hard gate here.
 
-**The copy and the checks are automated; the merge is not.** `release.yml`'s
-`tap` job (behind the same approval as `publish`) opens a PR against
+**The copy and the checks are automated; opening the PR and merging it are
+not.** `publish-external.yml`'s `tap` job (behind the same `release`
+environment approval `publish` uses, dispatched by hand with `tag: v1.0.0`
+against an already-published release) opens a PR against
 `<owner>/homebrew-tap` with the regenerated formula and the three commands
 below as its checklist. It needs a `HOMEBREW_TAP_TOKEN` repo secret (a
 fine-grained PAT scoped to that repo with contents + pull-requests write) and
-without it says so and does nothing. Its sibling `brew` job runs the three
-commands on a hosted mac against the published tarball, filtering out the two
-expected findings below, and records the verdict in its run summary. Merging
-the PR is yours, as is repeating these on a mac of your own:
+without it says so and does nothing. `release.yml`'s `brew` job runs the same
+three commands on a hosted mac against the published tarball automatically,
+right after `publish`, filtering out the two expected findings below and
+recording the verdict in its run summary - read that summary before
+dispatching `tap`, since its PR checklist points back to it. Merging the PR
+is yours, as is repeating these on a mac of your own:
 
 ```bash
 brew install --build-from-source ./packaging/homebrew/say-hi.rb

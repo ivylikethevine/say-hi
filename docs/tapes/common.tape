@@ -33,7 +33,7 @@
 Set FontSize 16
 Set Width 1120
 Set Height 800
-Set Padding 10
+Set Padding 20
 # Set Margin 10
 Set TypingSpeed 40ms
 Set BorderRadius 10
