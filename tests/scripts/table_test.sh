@@ -10,6 +10,8 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../scripts/table.sh
 source "$_HI_ROOT/scripts/table.sh"
+# shellcheck source=../../scripts/lib.sh
+source "$_HI_ROOT/scripts/lib.sh"
 
 function test_visible_len_counts_plain_text() {
   local n
@@ -85,6 +87,36 @@ function test_cell_raw_pads_by_the_declared_width() {
   [ "$(_hi_cell_raw 6 2 "$text")" = "$want" ]
 }
 
+# _hi_hrule/_hi_h1/_hi_h2 (scripts/lib.sh) draw every section heading
+# everywhere; nothing asserts their own shape anywhere else, since every
+# caller's own output is what gets checked, not the heading around it.
+function test_hrule_spans_max_width() {
+  local out n
+  out="$(_HI_MAX_WIDTH=40 _hi_hrule "label" '-' 2 "$BRCYAN")"
+  _hi_visible_len n "$out"
+  [ "$n" -eq 40 ]
+}
+
+function test_h1_and_h2_span_max_width_too() {
+  local out n
+  out="$(_HI_MAX_WIDTH=50 _hi_h1 "Heading")"
+  _hi_visible_len n "$out"
+  [ "$n" -eq 50 ] || return 1
+  out="$(_HI_MAX_WIDTH=50 _hi_h2 "Heading")"
+  _hi_visible_len n "$out"
+  [ "$n" -eq 50 ]
+}
+
+# a label wider than the rule clamps the bar split to 8 rather than going
+# negative - the overlong label then overflows the line instead of crashing
+function test_hrule_clamps_and_overflows_for_a_wide_label() {
+  local out n label
+  label="$(printf 'x%.0s' $(seq 1 100))"
+  out="$(_HI_MAX_WIDTH=40 _hi_hrule "$label" '=' 1 "$BRBLUE")"
+  _hi_visible_len n "$out"
+  [ "$n" -gt 40 ]
+}
+
 function run_table_tests() {
   _hi_h1 "Testing scripts/table.sh"
   _hi_workdir table
@@ -107,6 +139,11 @@ function run_table_tests() {
   _hi_check "Visible width is width + frame" test_cell_visible_width_is_stable
   _hi_check "Empty cell is the continuation blank" test_cell_empty_renders_the_continuation_blank
   _hi_check "_hi_cell_raw pads by the declared width" test_cell_raw_pads_by_the_declared_width
+
+  _hi_h2 "Testing: _hi_hrule / _hi_h1 / _hi_h2 (scripts/lib.sh)"
+  _hi_check "Spans _HI_MAX_WIDTH" test_hrule_spans_max_width
+  _hi_check "_hi_h1/_hi_h2 span it too" test_h1_and_h2_span_max_width_too
+  _hi_check "A wide label clamps and overflows" test_hrule_clamps_and_overflows_for_a_wide_label
 
   _hi_suite_end "table.sh"
 }

@@ -634,6 +634,19 @@ function _hi_bump_check_rejects() {
   )
 }
 
+# pkgbuild_version's own refusal (no pkgver= line at all) has to come back as
+# a clean red mismatch row, not an unhandled `set -e` abort part way through
+# the check - check_manifests's own comment says as much (`2>/dev/null ||
+# true`), but nothing exercised the case that comment is for.
+function test_bump_check_handles_a_pkgbuild_missing_pkgver() {
+  bump_fixture
+  (
+    _hi_bump_written
+    _hi_rewrite "$_HI_PKGBUILD" '/^pkgver=/d'
+    ! check_manifests >/dev/null 2>&1
+  )
+}
+
 function test_bump_check_catches_stale_srcinfo_b2sums() {
   _hi_bump_check_rejects 's/^\([[:space:]]*\)b2sums = .*/\1b2sums = 1111/'
 }
@@ -766,6 +779,25 @@ function test_write_checksums_lists_the_artifacts() {
   # ...and it agrees with what SHA256SUMS covers
   diff <(awk "$_HI_SUMS_NAMES" "$d/SHA256SUMS" | sort) \
     <(grep -v '^SHA256SUMS$' "$d/ARTIFACTS" | sort)
+}
+
+# Every existing fixture pre-creates all three artifact types; a wrong glob
+# here would silently ship an incomplete release with no signal, since
+# write_checksums otherwise just sums whatever it happens to find.
+function test_write_checksums_reports_a_missing_artifact_type() {
+  local d="$_HI_WORKDIR/artifacts-missing" out rc=0
+  mkdir -p "$d"
+  : >"$d/say-hi_1.0.0_amd64.deb"
+  : >"$d/say-hi-1.0.0.apk"
+  out="$(
+    # shellcheck source=../../packaging/mkpkg.sh
+    source "$_HI_PKG_DIR/mkpkg.sh"
+    _HI_DIST="$d"
+    write_checksums 2>&1
+  )" || rc=$?
+  [ "$rc" -ne 0 ] || return 1
+  case "$out" in *"nfpm exited 0 but built no .rpm"*) return 0 ;; esac
+  return 1
 }
 
 # The source tarball rides the same list, which is the whole mechanism: being in
@@ -931,6 +963,38 @@ function test_stamp_fails_on_a_missing_release_line() {
   local d
   d="$(_hi_stamp_fixture)"
   printf '#!/bin/bash\necho hi\n' >"$d/usr/share/say-hi/hi.sh"
+  _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 && return 1
+  return 0
+}
+
+# no launcher at all at the given path - the guard ahead of require_one_match,
+# which would otherwise report "found 0" for a file that isn't there
+function test_stamp_fails_on_no_launcher_at_the_given_path() {
+  local d out
+  d="$(_hi_stamp_fixture)"
+  out="$("$_HI_PKG_DIR/stamp.sh" --version 1.0.0 --date 2026-01-02 \
+    --launcher "$d/usr/share/say-hi/nonexistent.sh" \
+    --man "$d/usr/share/man/man1/hi.1.gz" 2>&1)" && return 1
+  case "$out" in *"no launcher at"*) return 0 ;; esac
+  return 1
+}
+
+# require_one_match's other failure shape: more than one match is just as
+# unsafe as zero (bump.sh would rewrite the wrong occurrence, or both)
+function test_stamp_fails_on_a_duplicated_release_line() {
+  local d
+  d="$(_hi_stamp_fixture)"
+  printf '#!/bin/bash\n_HI_RELEASE=""\n_HI_RELEASE=""\n' >"$d/usr/share/say-hi/hi.sh"
+  _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 && return 1
+  return 0
+}
+
+# a man page present but with no .TH line at all - require_one_match's other
+# caller, not just the launcher's
+function test_stamp_fails_on_a_man_page_with_no_th_line() {
+  local d
+  d="$(_hi_stamp_fixture plain)"
+  printf '.SH NAME\nhi - say hi\n' >"$d/usr/share/man/man1/hi.1"
   _hi_stamp --root "$d" --version 1.0.0 --date 2026-01-02 >/dev/null 2>&1 && return 1
   return 0
 }
@@ -1322,6 +1386,7 @@ function run_packaging_tests() {
   _hi_check "Every setup-tool call names a row" test_every_setup_tool_call_names_a_manifest_row
   _hi_check "release.yml reads dist/ARTIFACTS" test_release_workflow_reads_the_artifact_list
   _hi_check "write_checksums lists the artifacts" test_write_checksums_lists_the_artifacts
+  _hi_check "...and reports a missing artifact type" test_write_checksums_reports_a_missing_artifact_type
   _hi_check "...and ships the source tarball with them" test_write_checksums_ships_the_source_tarball
   _hi_check "...taking one already in the outdir" test_write_checksums_takes_a_tarball_already_in_the_outdir
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
@@ -1342,6 +1407,7 @@ function run_packaging_tests() {
   _hi_check "Rewrites formula url and sha256" test_bump_write_rewrites_formula_url_and_sha256
   _hi_check ".SRCINFO fallback rewrites all three lines" test_bump_srcinfo_fallback_rewrites_the_three_lines
   _hi_check "--check passes after a write" test_bump_check_passes_after_a_write
+  _hi_check "Handles a PKGBUILD missing pkgver=" test_bump_check_handles_a_pkgbuild_missing_pkgver
   _hi_check "--check catches stale .SRCINFO b2sums" test_bump_check_catches_stale_srcinfo_b2sums
   _hi_check "--check catches a stale .SRCINFO source" test_bump_check_catches_stale_srcinfo_source
   _hi_check "sha256 matches a known vector" test_bump_sha256_matches_a_known_vector
@@ -1370,6 +1436,9 @@ function run_packaging_tests() {
   _hi_check "Is idempotent" test_stamp_is_idempotent
   _hi_check "Keeps the launcher exec bit" test_stamp_keeps_the_launcher_exec_bit
   _hi_check "Fails on a missing release line" test_stamp_fails_on_a_missing_release_line
+  _hi_check "Fails when there is no launcher at all" test_stamp_fails_on_no_launcher_at_the_given_path
+  _hi_check "Fails on a duplicated release line" test_stamp_fails_on_a_duplicated_release_line
+  _hi_check "Fails on a man page with no .TH line" test_stamp_fails_on_a_man_page_with_no_th_line
   _hi_check "Takes explicit launcher/man paths" test_stamp_takes_explicit_paths
   _hi_check "Skips a missing man page" test_stamp_skips_a_missing_man_page
 

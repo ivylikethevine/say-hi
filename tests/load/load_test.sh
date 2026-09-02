@@ -149,6 +149,31 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
   return 1
 }
 
+# Only the *set* session vars are written - an unset one is skipped rather
+# than landing as an empty assignment, in both the bashrc and fish.config
+# copies. HI.47's other half: the content of the lines, not just that the
+# files exist.
+function test_session_rc_setup_writes_only_the_set_vars() {
+  local dir bashrc fish_config ok=1
+  (
+    local _HI_SESSION_RC_DIR="" _HI_TARGET=myhost _HI_TARGET_COLOR=blue
+    unset _HI_TARGET_TAG _HI_LOCAL_USER _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII
+    _hi_session_rc_setup || exit 1
+    printf '%s\n' "$_HI_SESSION_RC_DIR"
+  ) >"$_HI_WORKDIR/onlyset_out"
+  dir="$(cat "$_HI_WORKDIR/onlyset_out")"
+  bashrc="$(cat "$dir/bashrc")"
+  fish_config="$(cat "$dir/fish.config")"
+  rm -rf "$dir"
+  case "$bashrc" in *'_HI_TARGET=myhost'*) ;; *) ok=0 ;; esac
+  case "$bashrc" in *'_HI_TARGET_COLOR=blue'*) ;; *) ok=0 ;; esac
+  case "$bashrc" in *_HI_TARGET_TAG*) ok=0 ;; esac
+  case "$fish_config" in *"set -g _HI_TARGET 'myhost'"*) ;; *) ok=0 ;; esac
+  case "$fish_config" in *"set -g _HI_TARGET_COLOR 'blue'"*) ;; *) ok=0 ;; esac
+  case "$fish_config" in *_HI_TARGET_TAG*) ok=0 ;; esac
+  [ "$ok" -eq 1 ]
+}
+
 # With $_HI_CLEANUP set (the ephemeral shape), the rc directory nests
 # under it - so the bootstrap's own `rm -rf $_HI_CLEANUP` backstop sweeps it
 # too, not just clean_all - rather than a wholly separate mktemp invisible to
@@ -287,6 +312,42 @@ function _hi_shell_case() {
   _hi_shell_answer "$installed" "$@"
 }
 
+# $SHELL unset - _hi_login_shell falls back to getent, then to a direct
+# /etc/passwd read. Both rungs are checked against this box's own real entry
+# (no way to fake /etc/passwd's fixed path) rather than a fixture answer.
+function _hi_login_shell_answer() {
+  env -i PATH="$1" HOME="$_HI_WORKDIR" _HI_HOME="$_HI_HOME" "$BASH" -c '
+    unset SHELL
+    _HI_LOAD_NO_INIT=1
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/load.sh"
+    _hi_login_shell' 2>/dev/null
+}
+
+function test_login_shell_falls_back_to_getent_when_shell_unset() {
+  local want got
+  want="$(getent passwd "$(id -un)" | awk -F: '{ print $NF }')"
+  want="${want##*/}"
+  [ -n "$want" ] || return 1
+  got="$(_hi_login_shell_answer "$(_hi_real_path shell-tools-getent id awk getent sh)")"
+  [ "$got" = "$want" ]
+}
+
+function test_login_shell_falls_back_to_etc_passwd_without_getent() {
+  local want got
+  want="$(awk -F: -v u="$(id -un)" '$1 == u { print $NF }' /etc/passwd 2>/dev/null)"
+  want="${want##*/}"
+  # No presence check on $want: macOS's /etc/passwd carries only its legacy
+  # system accounts, not Directory Services users (a CI runner's included),
+  # so this is legitimately empty on that platform - and the function is
+  # supposed to come back empty too, not invent an answer. Either way, the
+  # assertion is the same: whatever this box's own /etc/passwd says is what
+  # the fallback rung has to say, with no getent on this PATH at all to
+  # answer for it.
+  got="$(_hi_login_shell_answer "$(_hi_real_path shell-tools-nogetent id awk sh)")"
+  [ "$got" = "$want" ]
+}
+
 function run_load_tests() {
   _hi_workdir loadtest
 
@@ -305,11 +366,16 @@ function run_load_tests() {
   _hi_check "_HI_LOAD_NO_INIT=1 skips it" test_no_init_guard_skips_profile
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
+  _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars
   _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc
   _hi_check "the rc dir nests under \$_HI_CLEANUP when set" test_session_rc_setup_nests_under_cleanup_when_set
   _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
   _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
+
+  _hi_h2 "Testing: _hi_login_shell"
+  _hi_check_requires getent "Falls back to getent when \$SHELL is unset" test_login_shell_falls_back_to_getent_when_shell_unset
+  _hi_check "Falls back to /etc/passwd without getent" test_login_shell_falls_back_to_etc_passwd_without_getent
 
   _hi_h2 "Testing: _hi_session_shell"
   # <label>|<installed shells>|<env pairs>|<want>. Six cases, three of which
