@@ -1,0 +1,4 @@
+# One maintainer (docs/CONTRIBUTING.md's "One maintainer" entry). A global
+# rule rather than per-path entries: with one owner they would all name the
+# same person. Only takes effect where branch protection requires review.
+*  @ivylikethevine

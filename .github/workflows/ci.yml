@@ -54,12 +54,59 @@ jobs:
     needs: changes
     if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      - name: Install zsh and fish
+        run: sudo apt-get update && sudo apt-get install -y zsh fish
+
+      # No --verbose: dropping it lets the runner's own suite-level fan-out
+      # run several suites side by side (test_runner.sh:493-505 caps it at
+      # four or the core count) instead of forcing width 1 for live
+      # streaming. A passing suite's transcript still folds into a
+      # ::group:: block and a failing one still replays in full and gets an
+      # ::error annotation (test_runner.sh:360-366) - collapsed mode loses
+      # nothing on Actions, only the live stream.
+      - name: Run fast test suites
+        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast --totals-file ${{ runner.temp }}/totals"
+
+      # The tests badge's number: pages.yml reads this artifact and publishes it
+      # as a shields endpoint, so the figure stays generated with no bot commit
+      # on main and never fails a run over a stale README line. The ubuntu
+      # count on purpose: macOS skips a handful of cases and lints fewer files.
+      # 14 days, not 1: a workflow_dispatch of pages.yml must still find totals.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fast-totals
+          path: ${{ runner.temp }}/totals
+          retention-days: 14
+
+  # The lint group's four suites (shellcheck, dialects, tools, drift), against
+  # the pinned tools below - text linting does not depend on the userland, so
+  # the macOS, Windows and FreeBSD jobs run `--group fast` alone and this is
+  # the one gate. Its own job, not a step of `test`: the two groups now run
+  # side by side instead of one after the other, and `test` no longer installs
+  # five tools it never calls. Not in e2e-gate's `needs:` - a red lint has no
+  # bearing on whether an ssh session works, and gating on it would only make
+  # the platform e2e jobs wait on tool installs they don't use. That is a
+  # deliberate loosening from when lint lived inside `test`; add `lint` to
+  # e2e-gate's `needs:` to restore the old "lint blocks e2e" behaviour.
+  lint:
+    name: lint suites (ubuntu-latest)
+    needs: changes
+    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # dialects_test.sh's native roster runs `zsh -n` / `fish --no-execute`;
+      # its three floor-image checks use docker, preinstalled on this runner
       - name: Install zsh and fish
         run: sudo apt-get update && sudo apt-get install -y zsh fish
 
@@ -85,29 +132,12 @@ jobs:
         with:
           tool: typos
 
-      - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast --totals-file ${{ runner.temp }}/totals"
-
-      # The lint group runs once, here: text linting does not depend on the
-      # userland, so the macOS, Windows and FreeBSD jobs run `--group fast`
-      # alone and this step, against the pinned tools above, is the gate.
       - name: Run the lint group
-        run: "${{ github.workspace }}/tests/test_runner.sh --verbose --group lint --require-run"
-
-      # The tests badge's number: pages.yml reads this artifact and publishes it
-      # as a shields endpoint, so the figure stays generated with no bot commit
-      # on main and never fails a run over a stale README line. The ubuntu
-      # count on purpose: macOS skips a handful of cases and lints fewer files.
-      # 14 days, not 1: a workflow_dispatch of pages.yml must still find totals.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: fast-totals
-          path: ${{ runner.temp }}/totals
-          retention-days: 14
+        run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
   # The same suites on macOS: /bin/bash 3.2, BSD userland - a real gate (the
   # %e/width/sort fixes in common/ came out of it). No lint group here: that is
-  # the ubuntu job's step, against pinned tools, on a runner a tenth the price.
+  # its own ubuntu job, against pinned tools, on a runner a tenth the price.
   test-macos:
     name: fast suites (macos-latest)
     needs: changes
@@ -122,8 +152,9 @@ jobs:
       - name: Install fish
         run: brew install fish
 
+      # No --verbose - see the `test` job's comment on the same flag.
       - name: Run fast test suites
-        run: "${{ github.workspace }}/tests/test_runner.sh --verbose --host-report --group fast"
+        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
   # actionlint (bad `needs`, invalid contexts, shellcheck over every run:) and
   # zizmor (the Actions security audit; its one deliberate exception, the

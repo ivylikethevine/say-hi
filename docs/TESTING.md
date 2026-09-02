@@ -67,9 +67,10 @@ Five groups (`--group <name>`; `--list` prints the membership):
   the selection from the i-th on, so one group can be split across runners:
   the Windows client job runs `fast` as two shards, because backgrounded
   suites barely overlap under MSYS and only more machines shorten that run.
-- **`lint`** — [The lint gate](#the-lint-gate), run once as its own CI step on
-  the ubuntu job against pinned tool versions. The macOS, Windows and FreeBSD
-  jobs run `fast` alone: linting text does not depend on the userland.
+- **`lint`** — [The lint gate](#the-lint-gate), run once as its own CI job on
+  ubuntu against pinned tool versions, side by side with `fast`'s job. The
+  macOS, Windows and FreeBSD jobs run `fast` alone: linting text does not
+  depend on the userland.
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
   budgets. Serial, since it measures.
 - **`e2e`** — `ssh`, `ssh_disconnect`, `ssh_relay`, `ssh_wire`,

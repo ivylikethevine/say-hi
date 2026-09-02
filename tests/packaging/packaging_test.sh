@@ -1089,7 +1089,13 @@ function _hi_fake_deb() {
     cd "$dir" || exit 1
     printf '2.0\n' >debian-binary
     tar -czf data.tar.gz -T /dev/null
-    ar rc say-hi_9.9.9_all.deb debian-binary control.tar.gz data.tar.gz
+    # S: no symbol table. Without it, macOS's ar (cctools, not GNU) treats
+    # a fresh archive as a static library and runs an implicit ranlib pass -
+    # "ranlib: warning: archive member 'debian-binary' not a mach-o file" on
+    # stderr - which breaks deb_control's read of control.tar.gz back out
+    # (deb_control reads the control paragraph, build_apt writes a whole apt
+    # tree both failed on it). S skips that pass, on both GNU and BSD ar.
+    ar rcS say-hi_9.9.9_all.deb debian-binary control.tar.gz data.tar.gz
   ) || return 1
   printf '%s' "$dir/say-hi_9.9.9_all.deb"
 }
@@ -1168,7 +1174,11 @@ function _hi_mkrepo_keys() {
   for hd in main other; do
     mkdir -p "$kd/$hd.home"
     chmod 700 "$kd/$hd.home"
-    gpg --batch --quiet --homedir "$kd/$hd.home" --passphrase '' \
+    # --pinentry-mode loopback: --batch --passphrase '' alone still has
+    # gpg-agent try to confirm the (empty) passphrase through a pinentry
+    # program on some GnuPG builds, which a headless runner has none of.
+    # loopback keeps the confirmation inside gpg itself.
+    gpg --batch --quiet --homedir "$kd/$hd.home" --pinentry-mode loopback --passphrase '' \
       --quick-generate-key "say-hi suite $hd" ed25519 sign never 2>/dev/null || return 1
     gpg --batch --quiet --homedir "$kd/$hd.home" --armor \
       --export-secret-keys >"$kd/$hd.key" 2>/dev/null || return 1

@@ -117,8 +117,8 @@ jobs:
           found-message: kcov figure from coverage run
           missing-message: no successful coverage run on main - the kcov badge stays grey
 
-      # The bashcov figure, looked up as the kcov one is: coverage-v2.yml is
-      # dispatch-only too.
+      # The bashcov figure, looked up as the kcov one is: coverage-v2.yml
+      # chains off the same CI event too.
       - name: Fetch the last coverage-v2 run's bashcov figure
         uses: ./.github/actions/fetch-latest-artifact
         with:
@@ -217,8 +217,8 @@ jobs:
           # (common/git_prompt.sh reads 2.56% with seventeen cases passing
           # against it). A green "coverage: 60%" here would be a false claim on
           # the front page, so the badge is written to be unmistakable instead.
-          # No warning on the empty branch: no coverage run yet is the normal
-          # state for a dispatch-only workflow, not something to flag.
+          # No warning on the empty branch: no successful coverage run yet is
+          # a normal state, not something to flag.
           pct=""
           [ -f "$COVPCT" ] && read -r pct <"$COVPCT" || true
           if [ -n "$pct" ]; then
@@ -239,8 +239,8 @@ jobs:
           # connect functions --group fast never calls. An over-count where
           # kcov's is an under-count, so it gets the same unmistakable
           # treatment rather than a green percentage.
-          # No warning on the empty branch: no run yet is the normal state for a
-          # dispatch-only workflow, not something to flag.
+          # No warning on the empty branch: no successful run yet is a normal
+          # state, not something to flag.
           pct2=""
           [ -f "$COVPCT2" ] && read -r pct2 <"$COVPCT2" || true
           if [ -n "$pct2" ]; then

@@ -66,8 +66,9 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 ## Testing
 
 - `tests/test_runner.sh` runs everything; the CI gate is `--group fast` (the
-  unit suites, side by side, ~40s) then `--group lint` (shellcheck, shfmt,
-  checkbashisms, the bash-4 grep and the doc drift checks, ~40s). Run both.
+  unit suites, side by side, ~40s) and `--group lint` (shellcheck, shfmt,
+  checkbashisms, the bash-4 grep and the doc drift checks, ~40s), as two CI
+  jobs running side by side rather than in sequence. Run both.
 - Run the suite at the **end** of a multi-step change — a structural refactor
   breaks loudly at source time.
 - Layout, the lint gate's four suites/seventeen checks and the coverage caveat

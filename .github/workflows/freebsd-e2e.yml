@@ -62,7 +62,7 @@ jobs:
             # as its own stdin. A child that reads to EOF eats the rest of the
             # script, and sh - which had buffered exactly 1024 bytes - resumes
             # at EOF mid-word. That is what `sh: ssh-k: not found` was.
-            timeout 900 bash ./tests/test_runner.sh --verbose --host-report --group fast </dev/null
+            timeout 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
 
             # a throwaway key, and sshd is already up in the vmactions image
             ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
