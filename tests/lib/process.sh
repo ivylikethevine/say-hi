@@ -224,18 +224,41 @@ function _hi_case_result() {
   return 1
 }
 
+# _HI_EXEC_ATTEMPTS (default 1) - how many times to run the command before
+# handing the transcript to _hi_case_result. A kube CI run once saw the [sh]
+# shape (alpine, ash, the no-bash fallback) fail with no ash startup banner
+# and no marker, just kubectl's own "command terminated with exit code 1" - a
+# transient no local run could reproduce, including under sustained CPU
+# saturation against a real kind cluster. The target is already up by the
+# time this runs, so a retry costs one more round trip against a target
+# already proven reachable, not a fresh boot. A timeout (124) breaks instead
+# of retrying: that is a slow, real failure (or the podman/fish shape
+# _hi_case_result's own comment describes - a session that echoed the marker
+# and then sat at a prompt), not the fast, markerless failure the retry
+# exists for. $out_file is truncated fresh each attempt, so only the final
+# attempt's transcript is dumped on a failure, and _hi_case_result is reached
+# once, so a retried failure never prints as two separate results.
 function _hi_exec_case() {
   local label="$1" what="$2" marker="$3" timeout_s="$4" target="$5" cmd="$6" hook="${7:-}"
   local out_file="$_HI_WORKDIR/$label.out" exit_code t0 t1
+  local attempt attempts="${_HI_EXEC_ATTEMPTS:-1}"
 
-  _hi_cecho " | Running: $_HI_LAUNCHER $target $cmd"
   t0="$(_hi_now)"
-  # ${a[@]+"${a[@]}"}: _HI_PTY_WRAP is empty whenever we already have a real
-  # tty, and on bash 3.2 (macOS) expanding an empty array under `set -u` is fatal
-  ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} "$_HI_LAUNCHER" "$target" "$cmd" <&3 >"$out_file" 2>&1 &
-  _hi_wait_pid "$!" "$timeout_s" _hi_timed_out "$label" "$timeout_s" "$hook"
-  exit_code="$_HI_WAIT_EXIT"
-  t1="$(_hi_now)"
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    _hi_cecho " | Running: $_HI_LAUNCHER $target $cmd"
+    # ${a[@]+"${a[@]}"}: _HI_PTY_WRAP is empty whenever we already have a real
+    # tty, and on bash 3.2 (macOS) expanding an empty array under `set -u` is fatal
+    ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} "$_HI_LAUNCHER" "$target" "$cmd" <&3 >"$out_file" 2>&1 &
+    _hi_wait_pid "$!" "$timeout_s" _hi_timed_out "$label" "$timeout_s" "$hook"
+    exit_code="$_HI_WAIT_EXIT"
+    t1="$(_hi_now)"
+    [ "$exit_code" = 124 ] && break
+    grep -qF "$marker" "$out_file" 2>/dev/null && break
+    # `x || notice`, never `x && notice`: as the loop body's last statement the
+    # && form would leave a non-zero status on the final pass and errexit
+    # would kill this function before _hi_case_result runs
+    [ "$attempt" -eq "$attempts" ] || _hi_cecho " | [$label] no marker on attempt $attempt, retrying" "$YELLOW"
+  done
 
   _hi_case_result "$label" "$what" "$exit_code" "$t0" "$t1" "$out_file" "$marker"
 }
