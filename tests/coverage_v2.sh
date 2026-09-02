@@ -6,10 +6,11 @@
 #
 # Usage: tests/coverage_v2.sh [outdir] [runner args...]
 #   outdir       where the report is written (default: $TMPDIR/say-hi-coverage-v2)
-#   runner args  passed straight to test_runner.sh (default: --group fast -
-#                the e2e groups need real backends and add little coverage of
-#                the client-side scripts). The `shellcheck` suite is dropped
-#                from whatever this selects; see $_HI_COV_SKIP below.
+#   runner args  passed straight to test_runner.sh (default: none - the same
+#                "every suite" test_runner.sh itself defaults to, e2e and
+#                backends groups included; pass e.g. --group fast to narrow
+#                it). The `shellcheck` suite is dropped from whatever this
+#                selects, wherever it appears - see the loop below.
 #
 # ---------------------------------------------------------------------------
 # WHY A SECOND COVERAGE SCRIPT
@@ -63,7 +64,6 @@ fi
 
 _HI_COV_DIR="${1:-${TMPDIR:-/tmp}/say-hi-coverage-v2}"
 shift 2>/dev/null || true
-[ $# -gt 0 ] || set -- --group fast
 _HI_RUNNER="$_HI_HOME/say-hi/tests/test_runner.sh"
 _HI_COV_ROOT="$_HI_HOME/say-hi"
 
@@ -107,12 +107,14 @@ trap "rm -f '$_HI_SIMPLECOV'" EXIT
 # `shellcheck` is dropped from whatever the selection resolves to, for the
 # reason coverage.sh gives: it is a linter sweep that shells out to shellcheck,
 # shfmt and checkbashisms over the whole tree and runs almost none of hi's own
-# bash, while being the slowest suite in the group by an order of magnitude -
-# and slower again under xtrace.
+# bash, while being the slowest suite in its group by an order of magnitude -
+# and slower again under xtrace. Dropped by name, so a groupless run (the
+# default, every suite including the lint group) does not sweep it back in.
 declare -a _HI_NAMES=()
 declare -a _HI_PATHS=()
 while read -r _hi_group _hi_name _hi_path; do
   [ -n "${_hi_path:-}" ] || continue
+  [ "$_hi_name" = shellcheck ] && continue
   _HI_NAMES+=("$_hi_name")
   _HI_PATHS+=("$_hi_path")
 done < <("$_HI_RUNNER" "$@" --list-paths)

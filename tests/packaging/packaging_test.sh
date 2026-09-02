@@ -1165,33 +1165,55 @@ function test_mkrepo_build_apt_offline() {
 }
 
 # _hi_mkrepo_keys - two throwaway GPG keys (main + imposter) into
-# $_HI_WORKDIR/gpg, once; gpg_setup's identity check needs a real mismatch
+# $_HI_WORKDIR/gpg, once; gpg_setup's identity check needs a real mismatch.
+# The homedirs live under a short base on /tmp, not $_HI_WORKDIR:
+# --quick-generate-key and --export-secret-keys both talk to gpg-agent over a
+# socket that is a sockaddr_un, capped near 104-108 bytes (hi.sh's ssh
+# ControlPath hits the same cap), and $_HI_WORKDIR's own mktemp -d -t already
+# spends most of that under macOS's long per-user $TMPDIR, which has no
+# /run/user for gpg-agent to fall back to the way it does on Linux.
 function _hi_mkrepo_keys() {
   local kd="$_HI_WORKDIR/gpg"
   [ -f "$kd/main.key" ] && return 0
   mkdir -p "$kd"
-  local hd
+  local hd hb err="$_HI_WORKDIR/gpg.err"
+  hb="$(mktemp -d /tmp/hi.gpg.XXXXXX)" || return 1
+  _hi_track_dir "$hb"
   for hd in main other; do
-    mkdir -p "$kd/$hd.home"
-    chmod 700 "$kd/$hd.home"
+    mkdir -p "$hb/$hd"
+    chmod 700 "$hb/$hd"
     # --pinentry-mode loopback: --batch --passphrase '' alone still has
     # gpg-agent try to confirm the (empty) passphrase through a pinentry
     # program on some GnuPG builds, which a headless runner has none of.
     # loopback keeps the confirmation inside gpg itself.
-    gpg --batch --quiet --homedir "$kd/$hd.home" --pinentry-mode loopback --passphrase '' \
-      --quick-generate-key "say-hi suite $hd" ed25519 sign never 2>/dev/null || return 1
-    gpg --batch --quiet --homedir "$kd/$hd.home" --armor \
-      --export-secret-keys >"$kd/$hd.key" 2>/dev/null || return 1
-    gpg --batch --quiet --homedir "$kd/$hd.home" --armor \
-      --export >"$kd/$hd.asc" 2>/dev/null || return 1
+    if ! gpg --batch --quiet --homedir "$hb/$hd" --pinentry-mode loopback --passphrase '' \
+      --quick-generate-key "say-hi suite $hd" ed25519 sign never 2>"$err"; then
+      _hi_dump_log "gpg --quick-generate-key ($hd) failed" "$err"
+      return 1
+    fi
+    if ! gpg --batch --quiet --homedir "$hb/$hd" --armor \
+      --export-secret-keys >"$kd/$hd.key" 2>"$err"; then
+      _hi_dump_log "gpg --export-secret-keys ($hd) failed" "$err"
+      return 1
+    fi
+    if ! gpg --batch --quiet --homedir "$hb/$hd" --armor \
+      --export >"$kd/$hd.asc" 2>"$err"; then
+      _hi_dump_log "gpg --export ($hd) failed" "$err"
+      return 1
+    fi
+    gpgconf --homedir "$hb/$hd" --kill gpg-agent >/dev/null 2>&1 || true
   done
+  rm -rf "$hb"
 }
 
 function test_mkrepo_gpg_setup_verdicts() {
-  local d="$_HI_WORKDIR/gpg-setup"
+  local d="$_HI_WORKDIR/gpg-setup" err="$_HI_WORKDIR/gpg-setup.err"
   mkdir -p "$d/repo"
   # keyless is a quiet no-op...
-  _hi_in_mkrepo "$d" "$d/repo" gpg_setup || return 1
+  _hi_in_mkrepo "$d" "$d/repo" gpg_setup || {
+    _hi_cecho " | a keyless gpg_setup should be a no-op" "$RED"
+    return 1
+  }
   # ...a named-but-missing key is a refusal...
   ! (
     set -- # mkrepo.sh parses "$@" at source time; hand it none
@@ -1200,9 +1222,15 @@ function test_mkrepo_gpg_setup_verdicts() {
     _HI_OUT="$d/repo"
     _HI_GPG_KEY="$d/absent.key"
     gpg_setup
-  ) 2>/dev/null || return 1
+  ) 2>/dev/null || {
+    _hi_cecho " | a missing --gpg-key should have been refused" "$RED"
+    return 1
+  }
   _hi_mkrepo_keys || return 1
-  # ...the real key exports its public half beside the repo...
+  # ...the real key exports its public half beside the repo. gpg_setup's own
+  # $_HI_GNUPGHOME (mkrepo.sh) talks to gpg-agent too, and its trap cleanup
+  # sits below the HI.06 source guard, so sourcing it here never runs it -
+  # kill the agent and remove the homedir ourselves.
   (
     set -- # mkrepo.sh parses "$@" at source time; hand it none
     # shellcheck source=../../packaging/mkrepo.sh
@@ -1210,8 +1238,17 @@ function test_mkrepo_gpg_setup_verdicts() {
     _HI_OUT="$d/repo"
     _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
     _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/main.asc"
-    gpg_setup >/dev/null && [ -s "$d/repo/say-hi.asc" ]
-  ) || return 1
+    gpg_setup >/dev/null
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    [ "$st" -eq 0 ] && [ -s "$d/repo/say-hi.asc" ]
+  ) 2>"$err" || {
+    _hi_dump_log "the real key should have exported say-hi.asc" "$err"
+    return 1
+  }
   # ...and a key that is not the one --public-key names is refused
   ! (
     set -- # mkrepo.sh parses "$@" at source time; hand it none
@@ -1221,7 +1258,16 @@ function test_mkrepo_gpg_setup_verdicts() {
     _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
     _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/other.asc"
     gpg_setup >/dev/null
-  ) 2>/dev/null
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    exit "$st"
+  ) 2>/dev/null || {
+    _hi_cecho " | a mismatched --public-key should have been refused" "$RED"
+    return 1
+  }
 }
 
 function run_packaging_tests() {
