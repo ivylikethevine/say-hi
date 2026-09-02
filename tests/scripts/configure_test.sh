@@ -363,11 +363,11 @@ function test_packages_floor_keeps_a_configured_value() {
   [ "$(_hi_floor_lines floor_keep)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
-# 1 is header.sh's own default via ${_HI_PACKAGES_MIN_PRIORITY:-1}, so writing
+# 2 is header.sh's own default via ${_HI_PACKAGES_MIN_PRIORITY:-2}, so writing
 # it out would be a line that means nothing - the same rule config_max_width
 # has for 80.
 function test_packages_floor_does_not_write_the_default() {
-  _hi_settings_fixture floor_default _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=1'
+  _hi_settings_fixture floor_default _hi_floor_run 'export _HI_PACKAGES_MIN_PRIORITY=2'
   [ -f "$_HI_WORKDIR/floor_default/config/lines.out" ] || return 1
   [ -z "$(_hi_floor_lines floor_default | tr -d '[:space:]')" ]
 }
@@ -460,10 +460,12 @@ function test_packages_floor_ends_on_eof() {
 }
 
 # a rejected answer must not poison the ones after it - the reject count
-# resets, so this still lands on 2 rather than giving up first.
+# resets, so this still lands on 3 rather than giving up first. 3, not the
+# default: the default is cleared rather than written, which would leave this
+# case nothing to see.
 function test_packages_floor_takes_a_number_after_a_rejection() {
-  _hi_floor_pty floor_recover 'zz\n2\n2\n' || return 1
-  [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=2" ]
+  _hi_floor_pty floor_recover 'zz\n3\n3\n' || return 1
+  [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
 # same mode-preservation contract as config_shell, and the same reason its own

@@ -42,8 +42,8 @@ when the whole line is missing, `+` only when something on it is installed,
 no flag both ways - the MODE table below the marks spells them out. An
 EXAMPLE cell reading "below floor" means $_HI_PACKAGES_MIN_PRIORITY is above
 that rank, so the header prints nothing for it whatever its colors say. That
-floor defaults to 1, so priority 0 reads "below floor" until you set one of
-your own; anything above 3 mutes the check entirely. A priority with no
+floor defaults to 2, so priorities 0-1 read "below floor" until you set one
+of your own; anything above 3 mutes the check entirely. A priority with no
 example at all has no package of its own in your file.
 EOF
   exit 0
@@ -117,7 +117,7 @@ _HI_EX_OK=() _HI_EX_OK_W=() _HI_EX_NO=() _HI_EX_NO_W=()
 _HI_PKG_LISTED=0 _HI_PKG_SHOWN=0 _HI_PKG_FLOORED=0
 # read once, here, rather than at each use: full_check reads the same setting
 # and this preview has to answer for the floor the header will actually apply
-_HI_PKG_MIN="${_HI_PACKAGES_MIN_PRIORITY:-1}"
+_HI_PKG_MIN="${_HI_PACKAGES_MIN_PRIORITY:-2}"
 
 # Run the real check over the real packages file and keep the first installed
 # and first missing row at each priority. check_line appends what it would print

@@ -164,8 +164,9 @@ function test_example_cell_marks_a_priority_with_nothing_to_show() {
 }
 
 # The other reason a cell shows no example, and the one every stock config now
-# hits: the floor defaults to 1, so priority 0 has examples collected but never
-# printed, and the cell says why instead of showing one the header will not.
+# hits: the floor defaults to 2, so priorities 0-1 have examples collected but
+# never printed, and the cell says why instead of showing one the header will
+# not.
 function test_example_cell_marks_a_priority_below_the_floor() {
   local text width
   IFS=$'\t' read -r text width <<<"$(_hi_example_cell 0)"
@@ -215,7 +216,9 @@ function test_preview_explains_the_modes() {
 }
 
 function test_preview_counts_what_it_read() {
-  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q '13 listed, 8 shown, 2 hidden'
+  # 6 shown: the default floor of 2 keeps the mode-visible rows of rank 2-3;
+  # the three rank-0 and two rank-1 rows sit below it
+  printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q '13 listed, 6 shown, 2 hidden'
 }
 
 # the check itself is the last thing the preview prints, so a package the

@@ -138,7 +138,7 @@ function test_timestamp_version_falls_back_without_a_stamp() {
 function test_system_info_includes_static_labels() {
   local out
   out="$(system_info)"
-  [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
+  [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* && "$out" == *"Up:"* ]]
 }
 
 # GHz is the only format the CPU cell renders now - one pin so a regression
@@ -147,6 +147,14 @@ function test_system_info_cpu_cell_is_ghz() {
   local out
   out="$(system_info)"
   [[ "$out" == *"GHz"* ]]
+}
+
+# at most two units, largest first, or "?" where no probe answers - the shape
+# is pinned rather than a value, which moves by the second
+function test_system_info_uptime_cell_is_humanized() {
+  local out
+  out="$(system_info)"
+  [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
 # A target with a shell and awk and nothing else - core_test.sh's barebones
@@ -606,12 +614,12 @@ function test_full_check_min_priority_above_everything_is_silent() {
   [ -z "$out" ]
 }
 
-# unset behaves as 1, not 0: rank 1 prints and rank 0 does not. Both halves
+# unset behaves as 2, not 0: rank 2 prints and rank 1 does not. Both halves
 # again, for the reason the boundary case above gives - a default that hid
 # everything would pass a test that only checked the hidden side.
-function test_full_check_min_priority_defaults_to_one() {
+function test_full_check_min_priority_defaults_to_two() {
   local pkgfile="$_HI_WORKDIR/floor-default" out
-  printf '%s:1\nbash:0\n' "$_HI_REAL_CMD" >"$pkgfile"
+  printf '%s:2\nbash:1\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(
     _HI_PACKAGES="$pkgfile"
     unset _HI_PACKAGES_MIN_PRIORITY
@@ -696,6 +704,7 @@ function run_header_tests() {
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
+  _hi_check "System_info's uptime cell is humanized" test_system_info_uptime_cell_is_humanized
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
 
   _hi_h2 "Testing: a target with no coreutils"
@@ -736,7 +745,7 @@ function run_header_tests() {
   _hi_check "Empty output when everything is hidden" test_full_check_empty_when_everything_hidden
   _hi_check_requires bash "Min priority: at the floor shows, below is gone" test_full_check_min_priority_boundary
   _hi_check "Min priority above every rank prints nothing" test_full_check_min_priority_above_everything_is_silent
-  _hi_check_requires bash "Min priority unset floors at 1" test_full_check_min_priority_defaults_to_one
+  _hi_check_requires bash "Min priority unset floors at 2" test_full_check_min_priority_defaults_to_two
   _hi_check_requires bash "Wraps rows at _HI_MAX_WIDTH" test_full_check_wraps_at_max_width
   _hi_check "Real settings/packages file parses cleanly" test_full_check_reads_real_packages_file_without_erroring
   _hi_check "Writes nothing to stderr" test_full_check_is_silent_on_stderr

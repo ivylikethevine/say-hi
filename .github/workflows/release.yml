@@ -227,6 +227,10 @@ jobs:
             ${{ steps.artifacts.outputs.paths }}
             dist/manifests/*
             dist/ARTIFACTS
+          # .SRCINFO and .SRCINFO.git: the action drops hidden files by
+          # default, which is how v0.1.0's manifest-PR step found no .SRCINFO
+          # to cp - the failure surfaced two jobs later, in publish
+          include-hidden-files: true
           if-no-files-found: error
 
   # The only job that publishes. `environment: release` makes GitHub hold it
@@ -311,6 +315,12 @@ jobs:
           else
             sigline="# SHA256SUMS is unsigned for this release - no minisign check"
           fi
+          # The repository links: derived from $GITHUB_REPOSITORY rather than
+          # a third literal copy of the Pages URL (mkrepo.sh's --base-url
+          # default and docs/PACKAGING.md hold the other two). The apt and apk
+          # rows are config values, not pages - GitHub Pages has no directory
+          # index, so only the two key files and say-hi.repo are fetchable.
+          pages="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}"
           # printf rather than a heredoc: a heredoc body would have to be
           # unindented, which ends the YAML block scalar
           body="$(printf '%s\n' \
@@ -326,7 +336,15 @@ jobs:
             "gh attestation verify say-hi_*_all.deb --repo $GITHUB_REPOSITORY" \
             '```' \
             "" \
-            "Full runbook: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#verifying-a-release-download)")"
+            "Full runbook: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#verifying-a-release-download)" \
+            "" \
+            "## Package repositories" \
+            "" \
+            "Subscribe once and \`apt\`, \`dnf\` or \`apk\` upgrades say-hi from here on; the repositories always serve the newest stable release. Setup: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#package-repository)." \
+            "" \
+            "- apt: \`$pages/apt\` (suite \`stable\`, component \`main\`, key [say-hi.asc]($pages/say-hi.asc))" \
+            "- dnf: [say-hi.repo]($pages/say-hi.repo)" \
+            "- apk: \`$pages/apk\` (key [say-hi.rsa.pub]($pages/say-hi.rsa.pub))")"
           # A prerelease tag (anything with a `-`: v1.0.0-rc.1) is marked as
           # one and never becomes "Latest" - README's release badge and
           # pages.yml's package repository both read that pointer, and
@@ -336,10 +354,14 @@ jobs:
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$body" "${extra[@]}"
           # the manifests ride along so updating the AUR and the tap is a copy,
-          # not a re-derivation; read line by line, not mapfile (bash 4)
+          # not a re-derivation; read line by line, not mapfile (bash 4).
+          # dotglob, or the two .SRCINFO manifests stay behind: a bare * never
+          # matches a dotfile
           files=()
           while IFS= read -r f; do files+=("dist/$f"); done <dist/ARTIFACTS
+          shopt -s dotglob
           files+=(dist/manifests/*)
+          shopt -u dotglob
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
           gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
 
