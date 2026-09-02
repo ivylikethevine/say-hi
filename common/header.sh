@@ -41,6 +41,14 @@ function timestamp() {
   header_row "$BRBLUE${utc:-?}" "$GREEN$_HI_HEADER_VERSION" "$BRYELLOW${local_now:-?}"
 }
 
+# _hi_ghz <var> <mhz> - <var> as "<n>.<tenth>" GHz; printf, not an awk fork
+# apiece, rounded to tenths *before* splitting so a carry lands properly
+# (2950 -> 3.0, not "2.10")
+function _hi_ghz() {
+  local t=$((($2 + 50) / 100))
+  printf -v "$1" '%d.%d' "$((t / 10))" "$((t % 10))"
+}
+
 function system_info() {
   local kernel arch os cpus ram base_mhz boost_mhz
   # process substitution, not <<<: a here-string is a temp file before bash
@@ -49,10 +57,7 @@ function system_info() {
   _hi_sanitize_var kernel "$kernel"
   _hi_sanitize_var arch "$arch"
   if [ -f "$_HI_LINUX_RELEASE" ]; then
-    local base_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/base_frequency"
-    local max_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
-    local scaling_freq_path="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-    local amd_floor_path="/sys/devices/system/cpu/cpu0/cpufreq/amd_pstate_lowest_nonlinear_freq"
+    local cpufreq=/sys/devices/system/cpu/cpu0/cpufreq
     # also covers WSL - a real Linux kernel with its own /etc/os-release.
     # Every probe ends in `|| true`: a stripped-down target falls through to
     # "?" - and a caller under its own `set -e` (see the top of the file)
@@ -66,8 +71,8 @@ function system_info() {
     # lowest_nonlinear_freq (the driver's floor, but it beats "?").
     # `read < file`, not $(cat file): a miss is silent and costs no fork.
     base_mhz=$(awk -F'@ *' '/model name/ && NF>1 { gsub(/GHz.*/, "", $2); printf "%.0f", $2 * 1000; exit }' /proc/cpuinfo 2>/dev/null || true)
-    local khz=0 freq_path
-    for freq_path in "$base_freq_path" "$amd_floor_path"; do
+    local khz freq_path
+    for freq_path in "$cpufreq/base_frequency" "$cpufreq/amd_pstate_lowest_nonlinear_freq"; do
       [ -n "$base_mhz" ] && break
       [ -f "$freq_path" ] || continue
       read -r khz <"$freq_path" 2>/dev/null || khz=0
@@ -80,8 +85,8 @@ function system_info() {
     # scaling_max_freq alone, without the hardware figure beside it, is a
     # policy clamp with nothing to say it means "max".
     khz=0
-    if [ -f "$max_freq_path" ] && [ -f "$scaling_freq_path" ]; then
-      read -r khz <"$scaling_freq_path" 2>/dev/null || khz=0
+    if [ -f "$cpufreq/cpuinfo_max_freq" ] && [ -f "$cpufreq/scaling_max_freq" ]; then
+      read -r khz <"$cpufreq/scaling_max_freq" 2>/dev/null || khz=0
     fi
     boost_mhz=$((khz / 1000))
     ((boost_mhz)) || boost_mhz=$(lscpu 2>/dev/null | awk -F: '/CPU max MHz/ { gsub(/ /, "", $2); printf "%.0f", $2 }' || true)
@@ -104,19 +109,9 @@ function system_info() {
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
   fi
   _hi_sanitize_var os "$os"
-  # every probe above yields MHz (hence base_mhz/boost_mhz keep their names);
-  # rendered as GHz to tenths. printf, not an awk fork apiece; rounded to
-  # tenths *before* splitting so a carry lands properly (2950 -> 3.0, not
-  # "2.10")
-  local ghz_tenths
-  if [ -n "${base_mhz:-}" ]; then
-    ghz_tenths=$(((base_mhz + 50) / 100))
-    printf -v base_mhz '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
-  fi
-  if [ -n "${boost_mhz:-}" ]; then
-    ghz_tenths=$(((boost_mhz + 50) / 100))
-    printf -v boost_mhz '%d.%d' "$((ghz_tenths / 10))" "$((ghz_tenths % 10))"
-  fi
+  # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)
+  [ -n "${base_mhz:-}" ] && _hi_ghz base_mhz "$base_mhz"
+  [ -n "${boost_mhz:-}" ] && _hi_ghz boost_mhz "$boost_mhz"
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
     "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz"
 }
@@ -155,7 +150,11 @@ function _hi_probe_launch() {
   # idempotent: hi_header starts these early, and identity() calls it too so a
   # direct `identity` (the suites, hi --doctor) still probes
   [ -z "$_HI_PROBE_DIR" ] || return 0
-  container_bin="$(command -v docker || command -v podman || true)"
+  if command -v docker &>/dev/null; then
+    container_bin=docker
+  elif command -v podman &>/dev/null; then
+    container_bin=podman
+  fi
   command -v nomad &>/dev/null && nomad=1
   command -v kubectl &>/dev/null && kube=1
   [ -n "$container_bin" ] || ((nomad || kube)) || return 0
@@ -248,11 +247,11 @@ function banner() {
   [ -n "${_HI_BANNER_HOST+x}" ] || _hi_sanitize_var _HI_BANNER_HOST "$(_hi_hostname)"
   host="$_HI_BANNER_HOST"
   width=${_HI_MAX_WIDTH:-80}
-  tildes=$((width - 6 - changes_w - ${#label} - ${#host} - ${#prefix}))
-  ((tildes < 4)) && tildes=4
   # split so "label [host]" lands at the center with at least 1 tilde on the left
   left=$((${#prefix} + 1 + changes_w))
   core=$((${#label} + ${#host} + 4))
+  tildes=$((width - left - core - 1))
+  ((tildes < 4)) && tildes=4
   start_len=$((width / 2 - left - core / 2))
   ((start_len < 1)) && start_len=1
   ((start_len > tildes - 1)) && start_len=$((tildes - 1))
@@ -260,7 +259,7 @@ function banner() {
   _hi_repeat start_tildes "$start_len" '~'
   _hi_repeat end_tildes "$end_len" '~'
   local host_esc=""
-  _hi_host_escape_var host_esc
+  _hi_host_escape host_esc
   printf '%b\n' " $changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
@@ -340,9 +339,7 @@ function check_line() {
   local -a pairs=($line)
   unset IFS
   best="${pairs[0]%:*}"
-  best_priority="${pairs[0]#*:}"
-  if ((best_priority > 3)); then best_priority=3; fi
-  max_priority=$best_priority
+  max_priority=0
 
   for pair in "${pairs[@]}"; do
     cmd="${pair%:*}"
@@ -384,7 +381,8 @@ function check_line() {
 # scripts/packages_preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local line priority width_item rendered count=0 width=0
+  local line priority width_item rendered count=0 max=${_HI_MAX_WIDTH:-80}
+  local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-1}"
   local -a visible=() # appended to by check_line
   while IFS=$' ' read -r line; do
@@ -396,7 +394,7 @@ function full_check() {
   # UTF-8 printed nothing.
   while IFS=$'\x1f' read -r priority width_item rendered; do
     ((priority >= min)) || continue
-    if ((count == 0)) || ((width + width_item > ${_HI_MAX_WIDTH:-80})); then # start of a row
+    if ((width + width_item > max)); then # start of a row
       ((count == 0)) || printf '\n'
       printf ' '
       width=1

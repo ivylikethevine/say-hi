@@ -32,8 +32,8 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
     # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
     # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
     _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
-    _hi_user_escape_var _hi_ps1_u
-    _hi_host_escape_var _hi_ps1_h
+    _hi_user_escape _hi_ps1_u
+    _hi_host_escape _hi_ps1_h
     [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
     HI_PS1=" ${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
     unset _hi_ps1_u _hi_ps1_h _hi_ps1_at

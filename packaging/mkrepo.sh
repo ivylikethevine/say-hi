@@ -190,17 +190,34 @@ function gpg_sign() {
 # deb_control <deb> - the package's control paragraph, straight out of the
 # archive: ar and tar are everywhere, dpkg-deb is not
 function deb_control() {
-  local member
-  member="$(ar t "$1" | grep '^control\.tar' | head -1)"
+  local deb="$1" member scratch rc
+  member="$(ar t "$deb" | grep '^control\.tar' | head -1)"
   case "$member" in
-  control.tar.gz) ar p "$1" "$member" | gzip -dc | tar -xOf - ./control ;;
-  control.tar.xz) ar p "$1" "$member" | xz -dc | tar -xOf - ./control ;;
-  control.tar) ar p "$1" "$member" | tar -xOf - ./control ;;
+  control.tar.gz | control.tar.xz | control.tar) : ;;
   *)
-    _hi_cecho " unexpected control member in $1: '$member'" "$RED" >&2
+    _hi_cecho " unexpected control member in $deb: '$member'" "$RED" >&2
     return 1
     ;;
   esac
+  case "$deb" in /*) : ;; *) deb="$PWD/$deb" ;; esac
+  # `ar x` to a scratch file, not `ar p` through a pipe: some Windows ar
+  # builds default their stdout stream to text mode, which turns any \n byte
+  # inside the binary member into \r\n and reads downstream as corrupt
+  # gzip/xz data - ar's own file write, the code path `ar x` takes, does not
+  # go through that stream.
+  scratch="$(mktemp -d -t hi.debctl.XXXXXX)" || return 1
+  if ! (cd "$scratch" && ar x "$deb" "$member"); then
+    rm -rf "$scratch"
+    return 1
+  fi
+  case "$member" in
+  control.tar.gz) gzip -dc "$scratch/$member" | tar -xOf - ./control ;;
+  control.tar.xz) xz -dc "$scratch/$member" | tar -xOf - ./control ;;
+  control.tar) tar -xOf "$scratch/$member" ./control ;;
+  esac
+  rc=$?
+  rm -rf "$scratch"
+  return "$rc"
 }
 
 function build_apt() {

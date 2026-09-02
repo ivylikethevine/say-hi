@@ -635,6 +635,7 @@ function _hi_fallback_prompt() {
   # _hi_color_escape already emits real escapes; only $NC is a literal to expand
   printf -v nc '%b' "$NC"
   printf '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}")\n'
+  # shellcheck disable=SC2119 # stdout form on purpose
   printf 'PS1=" %s${_hi_u}%s@%s%s%s %s "\n' \
     "$(_hi_user_escape)" "$nc" "$(_hi_color_escape "$(_hi_target_color)")" \
     "$host" "$nc" "$(_hi_prompt_end SH)"

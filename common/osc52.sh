@@ -28,11 +28,10 @@ _hi_esc="$_HI_ESC]52;c;$_hi_b64$_HI_BEL"
 # shared file would have to ship whenever either toggle is on.
 if [ -n "${TMUX:-}" ]; then
   _hi_esc="$_HI_ESC""P""tmux;""$_HI_ESC""$_hi_esc""$_HI_ESC""\\" # tmux wants the inner ESC doubled
-elif [ -n "${ZELLIJ:-}" ]; then
-  : # raw
-else
-  # `case`, not `${TERM#screen}`: dash enforces `set -u` inside ${var#word},
-  # and TERM is genuinely unset on CI runners
+elif [ -z "${ZELLIJ:-}" ]; then
+  # raw under zellij (it handles OSC 52 itself); `case`, not `${TERM#screen}`:
+  # dash enforces `set -u` inside ${var#word}, and TERM is genuinely unset on
+  # CI runners
   case "${TERM:-}" in
   # unchunked: real screen truncates a long DCS, so a big yank there can arrive
   # clipped - visibly, and rarely enough not to earn a rejoin loop

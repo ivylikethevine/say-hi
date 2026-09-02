@@ -34,16 +34,11 @@ if [ "$kind" = flags ]; then
   esac
   while IFS='|' read -r flag needs _rest; do
     case "$flag" in '#'* | '') continue ;; esac
+    [ "$needs" = - ] || [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
     case "$needs" in
-    -) ;;
-    *)
-      [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
-      case "$needs" in
-      scripts) [ -d "$hi_tree/scripts" ] || continue ;;
-      tests) [ -f "$hi_tree/tests/test_runner.sh" ] || continue ;;
-      git) [ -d "$hi_tree/.git" ] || continue ;;
-      esac
-      ;;
+    scripts) [ -d "$hi_tree/scripts" ] || continue ;;
+    tests) [ -f "$hi_tree/tests/test_runner.sh" ] || continue ;;
+    git) [ -d "$hi_tree/.git" ] || continue ;;
     esac
     printf '%s\n' "$flag"
   done <"$hi_tree/common/flags"
@@ -51,6 +46,7 @@ if [ "$kind" = flags ]; then
 fi
 
 ttl="${_HI_TARGETS_TTL:-5}"
+now="$(date +%s 2>/dev/null || echo 0)"
 
 # `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
 # cap is a SIGTERM, which rootless podman defers while its runtime initialises
@@ -65,14 +61,10 @@ fi
 # Everything below the first line of $1, fork-free: faster than a `tail` exec
 # at this size, and works on a PATH with no coreutils.
 cache_body() {
-  _hi_first=1
-  while IFS= read -r _hi_line || [ -n "$_hi_line" ]; do
-    if [ "$_hi_first" = 1 ]; then
-      _hi_first=0
-      continue
-    fi
-    printf '%s\n' "$_hi_line"
-  done <"$1"
+  {
+    IFS= read -r _hi_line # the stamp
+    while IFS= read -r _hi_line || [ -n "$_hi_line" ]; do printf '%s\n' "$_hi_line"; done
+  } <"$1"
 }
 
 # The roster, "<label>:<bin>", in the order the rows are emitted.
@@ -110,13 +102,14 @@ emit_targets() {
   # ssh first and in line: a local file read and one awk, faster than the
   # bookkeeping of backgrounding it
   if [ "$kind" = ssh ] || [ "$kind" = all ]; then
-    [ -f "${_HI_SSH_CONFIG:-$HOME/.ssh/config}" ] &&
+    _hi_ssh_config="${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
+    [ -f "$_hi_ssh_config" ] &&
       awk 'tolower($1) == "host" {
         for (i = 2; i <= NF; i++) {
           if ($i ~ /^#/) break
           if ($i !~ /[*?]/) printf "%s\tssh\n", $i
         }
-      }' "${_HI_SSH_CONFIG:-$HOME/.ssh/config}"
+      }' "$_hi_ssh_config"
   fi
 
   wanted="" n_wanted=0
@@ -130,16 +123,16 @@ emit_targets() {
   # worth its two forks only where something fans out: two or more backends,
   # or nomad/kube alone, whose own calls fan out inside the lane
   if [ "$n_wanted" -ge 2 ] || [ "$wanted" = nomad ] || [ "$wanted" = kube ]; then
-    scratch_dir || :
+    scratch_dir
   fi
 
   if [ "$n_wanted" -ge 2 ] && [ -n "$scratch" ]; then
+    files=""
     for label in $wanted; do
       run_lister "$label" >"$scratch/$label" 2>/dev/null &
+      files="$files $scratch/$label"
     done
     wait
-    files=""
-    for label in $wanted; do files="$files $scratch/$label"; done
     # shellcheck disable=SC2086 # deliberate split: the roster-ordered file list
     cat $files 2>/dev/null
   else
@@ -147,7 +140,6 @@ emit_targets() {
   fi
 
   [ -n "$scratch" ] && rm -rf "$scratch" 2>/dev/null
-  scratch=""
   return 0
 }
 
@@ -218,16 +210,18 @@ list_nomad() {
 # (hi.sh's _hi_kube_split). The namespace comes from the kubeconfig (empty
 # means `default`); still a large exec, so with a scratch dir it runs beside
 # the pod listing rather than ahead of it - this lane is the longest one.
+kube_ns() { run_backend kubectl config view --minify -o jsonpath='{..namespace}'; }
+
 list_kube() {
   if [ -n "$scratch" ]; then
-    run_backend kubectl config view --minify -o jsonpath='{..namespace}' >"$scratch/kube.ns" 2>/dev/null &
+    kube_ns >"$scratch/kube.ns" 2>/dev/null &
     kube_pods >"$scratch/kube.pods" 2>/dev/null
     wait
     IFS= read -r _hi_ns <"$scratch/kube.ns" 2>/dev/null || _hi_ns=""
     [ -n "$_hi_ns" ] || _hi_ns=default
     kube_rows <"$scratch/kube.pods"
   else
-    _hi_ns="$(run_backend kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null)"
+    _hi_ns="$(kube_ns 2>/dev/null)"
     [ -n "$_hi_ns" ] || _hi_ns=default
     kube_pods 2>/dev/null | kube_rows
   fi
@@ -266,7 +260,7 @@ rank_recent() {
     while IFS= read -r _hi_line || [ -n "$_hi_line" ]; do printf '%s\n' "$_hi_line"; done
     return 0
   fi
-  awk -F '\t' -v now="$(date +%s 2>/dev/null || echo 0)" '
+  awk -F '\t' -v now="$now" '
     FNR == NR {
       if ($2 == "") next
       age = now - $1
@@ -337,20 +331,16 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   fi
 fi
 cache="$cache_dir/hi.targets.$kind"
-now="$(date +%s 2>/dev/null || echo 0)"
 
 # Written whole (temp-file-and-mv, so a mid-refresh reader sees old or new,
 # never half) and stamped with the run's *start* time, so a row is never read
 # as younger than it is. A cache that can't be written is not an error.
 write_cache() {
   _hi_tmp="$cache.$$"
-  if {
-    printf '%s\n' "$now"
-    [ -n "$1" ] && printf '%s\n' "$1"
-    true
-    # stderr first: a 2>/dev/null after the redirection that fails comes too
-    # late to catch the shell's own message
-  } 2>/dev/null >"$_hi_tmp"; then
+  # stderr first: a 2>/dev/null after the redirection that fails comes too
+  # late to catch the shell's own message
+  # shellcheck disable=SC2086 # ${1:+"$1"} - vanishes when empty, one word when not
+  if printf '%s\n' "$now" ${1:+"$1"} 2>/dev/null >"$_hi_tmp"; then
     mv "$_hi_tmp" "$cache" 2>/dev/null || rm -f "$_hi_tmp" 2>/dev/null
   else
     rm -f "$_hi_tmp" 2>/dev/null

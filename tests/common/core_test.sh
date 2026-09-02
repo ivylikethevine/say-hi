@@ -640,15 +640,6 @@ function test_colors_lookup_verdicts() {
   ! _HI_COLORS="$_HI_WORKDIR/colors.absent" _hi_colors_lookup hostname box
 }
 
-function test_colors_names_dedupes_and_skips() {
-  local colors="$_HI_WORKDIR/colors.names" out
-  printf 'hostname,a,red\nhostname,b,blue\nhostname,a,green\nusername,c,red\n' >"$colors"
-  out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
-  [ "$out" = "a
-b" ] || return 1
-  [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ]
-}
-
 # the memo pair: a shipped _HI_TARGET_COLOR wins outright, and the escape is
 # the escape of whatever the color half answered
 function test_host_color_memo_and_escape_agree() {
@@ -673,8 +664,8 @@ function test_escape_var_forms_fill_the_caller() {
   (
     unset _HI_HOST_ESC _HI_USER_ESC
     local h u
-    _hi_host_escape_var h
-    _hi_user_escape_var u
+    _hi_host_escape h
+    _hi_user_escape u
     [ "$h" = "$(_hi_host_escape)" ] && [ "$u" = "$(_hi_user_escape)" ]
   )
 }
@@ -756,7 +747,6 @@ function run_core_tests() {
 
   _hi_h2 "Testing: the colors file readers"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts
-  _hi_check "_hi_colors_names dedupes and skips" test_colors_names_dedupes_and_skips
 
   _hi_h2 "Testing: the identity memos"
   _hi_check "Host memo honors \$_HI_TARGET_COLOR; escape agrees" test_host_color_memo_and_escape_agree

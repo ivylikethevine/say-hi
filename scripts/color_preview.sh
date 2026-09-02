@@ -84,7 +84,19 @@ function _hi_color_source() {
   printf 'default'
 }
 
-# both read settings/colors through common/core.sh's _hi_colors_names
+# _hi_colors_names <type> [skip-name] - deduped pinned names of that type.
+# Not in core.sh: color_preview.sh is its only caller, and core.sh ships in
+# the ssh payload under a size budget nothing a target runs should spend.
+function _hi_colors_names() {
+  local cur_type cur_name
+  [[ -f "$_HI_COLORS" ]] || return 0
+  while IFS=',' read -r cur_type cur_name _; do
+    [[ "$cur_type" = "$1" && "$cur_name" != "${2:-}" ]] || continue
+    printf '%s\n' "$cur_name"
+  done <"$_HI_COLORS" | awk '!seen[$0]++'
+}
+
+# both read settings/colors through the _hi_colors_names above
 function _hi_known_users() {
   {
     _hi_whoami

@@ -92,6 +92,15 @@ function test_default_source_still_resolves_to_a_palette_color() {
     printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qxF "$color"
 }
 
+function test_colors_names_dedupes_and_skips() {
+  local colors="$_HI_WORKDIR/colors.names" out
+  printf 'hostname,a,red\nhostname,b,blue\nhostname,a,green\nusername,c,red\n' >"$colors"
+  out="$(_HI_COLORS="$colors" _hi_colors_names hostname)"
+  [ "$out" = "a
+b" ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_colors_names hostname a)" = b ]
+}
+
 function test_known_users_includes_the_current_user() {
   _hi_known_users | grep -qxF "$(whoami)"
 }
@@ -232,6 +241,7 @@ EOF
   _hi_check "Default still resolves to a palette color" test_default_source_still_resolves_to_a_palette_color
 
   _hi_h2 "Testing: table inputs"
+  _hi_check "_hi_colors_names dedupes and skips" test_colors_names_dedupes_and_skips
   _hi_check "Known users include the current user" test_known_users_includes_the_current_user
   _hi_check "Known users include override names" test_known_users_includes_override_names
   _hi_check "Known users exclude the LOCALUSER placeholder" test_known_users_excludes_the_localuser_placeholder
