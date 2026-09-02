@@ -181,7 +181,7 @@ function bench_payload_size() {
 # 5% of slack, so ordinary drift in a PR that never touched the payload cannot
 # fail it, while a real jump still does.
 function bench_payload_readme_badge() {
-  local bytes kb badge slack
+  local bytes kb badge
   set -- # hi.sh reads "$@"; make sure it sees none (same as hi_test.sh)
   # shellcheck source=../../hi.sh
   source "$_HI_LAUNCHER"
@@ -192,11 +192,10 @@ function bench_payload_readme_badge() {
     _hi_cecho " | README payload badge: MISSING (expected ssh_payload-<n>KB_per_session in README.md)" "$RED"
     return 1
   fi
-  # 5% of the true figure, rounded up, and never less than 1KB
-  slack=$(((kb * 5 + 99) / 100))
-  ((slack)) || slack=1
-  if ((badge >= kb - slack && badge <= kb + slack)); then
-    _hi_align " | README payload badge: says ${badge}KB, a session sends ${kb}KB (±${slack}KB)" "OK" "$GREEN"
+  # 5% of the true figure, rounded up, and never less than 1KB - the same band
+  # ssh_wire_test.sh holds the connect line to, through the same helper
+  if _hi_within_percent "$badge" "$kb" 5; then
+    _hi_align " | README payload badge: says ${badge}KB, a session sends ${kb}KB (±${_HI_WITHIN_SLACK}KB)" "OK" "$GREEN"
   else
     _hi_cecho " | README payload badge says ${badge}KB but a session sends ${kb}KB - update the badge" "$RED"
     return 1

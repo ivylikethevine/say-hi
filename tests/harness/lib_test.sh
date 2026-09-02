@@ -100,8 +100,15 @@ function test_probe_cmd_fish_shapes_run_under_fish() {
 # $_HI_ROOT is read at call time, so a case can point the tree check anywhere
 # from inside a subshell without disturbing this suite's own environment.
 
+# The plain report is deterministic within a run and costs ~0.4s (a docker and
+# a podman probe plus a dozen --version forks), and five read-only cases ask
+# for the same one - so run_lib_process_tests captures it once (eagerly: a
+# case body runs in a command substitution, where a lazy fill would die with
+# the subshell). A case probing a different tree or environment (the mismatch
+# and PATH="" cases) calls _hi_host_report itself.
+_HI_HOST_REPORT_OUT=""
 function _hi_host_report_out() {
-  _hi_host_report "${1:-$_HI_ROOT}" 2>&1
+  printf '%s\n' "$_HI_HOST_REPORT_OUT"
 }
 
 function test_host_report_names_this_bash_and_kernel() {
@@ -562,9 +569,24 @@ function test_capable_rejects_an_unknown_capability() {
 function run_lib_process_tests() {
   _hi_workdir libprocesstest
 
+  # see _hi_host_report_out
+  _HI_HOST_REPORT_OUT="$(_hi_host_report "$_HI_ROOT" 2>&1)"
+
   _hi_suite_begin
 
   _hi_h1 "Testing tests/lib/: probes, polling and fixtures"
+
+  # The cases whose whole cost is waiting out a timeout or poll budget, fanned
+  # out together so the suite pays the longest wait once instead of the sum -
+  # each is self-contained (its own marker files, its own background pids).
+  _hi_h2 "Testing: the timeout and budget paths"
+  _hi_par_begin "timeout cases"
+  _hi_par_check "Poll_bool stops at the wall-clock budget" test_poll_bool_stops_at_the_wall_clock_budget
+  _hi_par_check "Kills and reports 124 on timeout" test_wait_pid_kills_and_reports_124_on_timeout
+  _hi_par_check "Runs the timeout hook before killing" test_wait_pid_runs_the_timeout_hook_before_killing
+  _hi_par_check "A timed-out attempt is never treated as success, and is not retried" test_exec_case_never_retries_a_timeout
+  _hi_par_check_requires ssh "Reachability probe fails on a dead port" test_ssh_reachable_fails_against_a_dead_port
+  _hi_par_wait
 
   _hi_h2 "Testing: _hi_require / _hi_require_backend"
   _hi_check "Returns for an installed command" test_require_returns_for_an_installed_command
@@ -598,7 +620,6 @@ function run_lib_process_tests() {
   _hi_check "Rejects an unknown shape" test_probe_cmd_rejects_an_unknown_shape
 
   _hi_h2 "Testing: _hi_poll_bool / _hi_poll_value"
-  _hi_check "Poll_bool stops at the wall-clock budget" test_poll_bool_stops_at_the_wall_clock_budget
   _hi_check "Poll_bool returns 0 when already true" test_poll_bool_returns_zero_when_already_true
   _hi_check "Poll_bool returns 1 when never true" test_poll_bool_returns_one_when_never_true
   _hi_check "Poll_bool succeeds on a later attempt" test_poll_bool_succeeds_on_a_later_attempt
@@ -612,8 +633,6 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_wait_pid"
   _hi_check "Reports a clean exit" test_wait_pid_reports_a_clean_exit
   _hi_check "Reports the real exit code" test_wait_pid_reports_the_real_exit_code
-  _hi_check "Kills and reports 124 on timeout" test_wait_pid_kills_and_reports_124_on_timeout
-  _hi_check "Runs the timeout hook before killing" test_wait_pid_runs_the_timeout_hook_before_killing
   _hi_check "Case result fails a timed-out case despite its marker" test_case_result_fails_a_timed_out_case_despite_its_marker
   _hi_check "Case result keeps OK on an odd exit with the marker" test_case_result_keeps_ok_on_an_odd_exit_with_the_marker
   _hi_check "Case result names a timeout" test_case_result_says_timed_out_by_name
@@ -622,7 +641,6 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_exec_case retries"
   _hi_check "A markerless first attempt succeeds on the retry" test_exec_case_retries_a_markerless_first_attempt
   _hi_check "Two markerless attempts stop retrying and report failure" test_exec_case_exhausts_retries_and_fails
-  _hi_check "A timed-out attempt is never treated as success, and is not retried" test_exec_case_never_retries_a_timeout
 
   _hi_h2 "Testing: _hi_pty_wrap"
   _hi_check "Force wraps regardless of the fd" test_pty_wrap_force_wraps_even_on_a_tty
@@ -643,7 +661,6 @@ function run_lib_process_tests() {
   _hi_check "Sshd entrypoint honours runtime \$SSHD_OPTS" test_sshd_entrypoint_body_passes_runtime_opts_to_sshd
   _hi_check "Sshd entrypoint unlocks the test account" test_sshd_entrypoint_body_unlocks_the_test_account
   _hi_check_requires ssh-keygen "Keypair lands in the workdir" test_ssh_keypair_writes_a_usable_key
-  _hi_check_requires ssh "Reachability probe fails on a dead port" test_ssh_reachable_fails_against_a_dead_port
   _hi_suite_end "tests/lib/ (probes, polling and fixtures)"
 }
 

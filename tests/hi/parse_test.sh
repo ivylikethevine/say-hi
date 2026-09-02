@@ -386,15 +386,24 @@ function test_backend_flag_rejects_a_stranger() {
   ! _hi_backend_flag --frobnicate >/dev/null 2>&1
 }
 
-# BACKEND is _hi_parse's other output, alongside DOMAIN/CMDARG/SSHARGS -
-# _hi_parse_out predates it and pins an exact line count, so this reads it
-# through its own helper instead of disturbing that one.
-function _hi_backend_parse_out() {
+# BACKEND and PLAIN are _hi_parse's other outputs, alongside DOMAIN/CMDARG/
+# SSHARGS - _hi_parse_out predates them and pins an exact line count, so each
+# reads through this helper instead of disturbing that one. Never folded into
+# SSHARGS either way: _hi_parse_out's exact-output form would catch an extra
+# line if one leaked through. ${!var}, not a nameref - the bash 3.2 floor has
+# none.
+function _hi_var_parse_out() { # <var> <default> <args...>
+  local var="$1" default="$2"
+  shift 2
   (
-    unset DOMAIN CMDARG BACKEND
+    unset DOMAIN CMDARG "$var"
     _hi_parse "$@" >/dev/null 2>&1
-    printf '%s\n%s\n' "${DOMAIN:-}" "${BACKEND:-}"
+    printf '%s\n%s\n' "${DOMAIN:-}" "${!var:-$default}"
   )
+}
+
+function _hi_backend_parse_out() {
+  _hi_var_parse_out BACKEND "" "$@"
 }
 
 function test_parse_backend_flags_set_backend_for_every_name() {
@@ -435,15 +444,8 @@ function test_parse_backend_flag_after_the_target_is_not_claimed() {
   [ "$(_hi_backend_parse_out myhost --docker)" = "$(printf 'myhost\n\n')" ]
 }
 
-# _hi_parse's third output, alongside DOMAIN/CMDARG/BACKEND: whether --plain
-# was given, and never folded into SSHARGS - _hi_parse_out's exact-output
-# form would catch an extra line if it leaked through.
 function _hi_plain_parse_out() {
-  (
-    unset DOMAIN CMDARG PLAIN
-    _hi_parse "$@" >/dev/null 2>&1
-    printf '%s\n%s\n' "${DOMAIN:-}" "${PLAIN:-0}"
-  )
+  _hi_var_parse_out PLAIN 0 "$@"
 }
 
 function test_parse_plain_sets_plain_not_sshargs() {
@@ -534,6 +536,31 @@ function test_report_failure_has_no_carriage_return_off_a_tty() {
   [[ "$(_hi_report_failure 255 "" "$f" 2>&1)" != *$'\r'* ]]
 }
 
+# _hi_attach_is <backend> <domain> <want-glob> - run _hi_container_cmds for
+# <backend> against <domain> and match the attach line against <want-glob>
+# (a leading ! inverts the match). DOMAIN and the command arrays land in the
+# caller's own locals through bash's dynamic scoping, so a case can still
+# read cp or probe after its last run.
+function _hi_attach_is() {
+  local want="$3" negate=0 why="want"
+  case "$want" in !*)
+    negate=1
+    why="did not want"
+    want="${want#!}"
+    ;;
+  esac
+  DOMAIN="$2"
+  _hi_container_cmds "$1"
+  # SC2254: the unquoted expansion is the point - $want is a glob
+  # shellcheck disable=SC2254
+  case "${attach[*]}" in
+  $want) [ "$negate" -eq 0 ] && return 0 ;;
+  *) [ "$negate" -eq 1 ] && return 0 ;;
+  esac
+  _hi_cecho " | $1 $2: attach was '${attach[*]}', $why '$want'" "$RED"
+  return 1
+}
+
 # `pod/container` and `alloc/task`: one spelling for both, because a task and a
 # container are the same idea. The plain form has to stay byte-identical - this
 # syntax is additive or it breaks every existing target.
@@ -544,43 +571,12 @@ function test_container_cmds_pick_the_inner_unit() {
   # they would be asserting the tty probe's answer by accident
   local DOMAIN _HI_TTY=1
 
-  DOMAIN=mypod
-  _hi_container_cmds kube
-  case "${attach[*]}" in *" -c "*)
-    _hi_cecho " | a plain pod grew a -c flag" "$RED"
-    return 1
-    ;;
-  esac
-
-  DOMAIN=mypod/sidecar
-  _hi_container_cmds kube
-  case "${attach[*]}" in
-  *"exec -it mypod -c sidecar --") ;;
-  *)
-    _hi_cecho " | kube: expected 'exec -it mypod -c sidecar --', got '${attach[*]}'" "$RED"
-    return 1
-    ;;
-  esac
-
-  DOMAIN=685afd67/worker
-  _hi_container_cmds nomad
-  case "${attach[*]}" in
-  *"-task worker"*"685afd67") ;;
-  *)
-    _hi_cecho " | nomad: expected '-task worker ... 685afd67', got '${attach[*]}'" "$RED"
-    return 1
-    ;;
-  esac
-
+  _hi_attach_is kube mypod '!* -c *' || return 1
+  _hi_attach_is kube mypod/sidecar '*exec -it mypod -c sidecar --' || return 1
+  _hi_attach_is nomad 685afd67/worker '*-task worker*685afd67' || return 1
   # docker has no inner unit and `/` is legal in a container name, so it is
   # taken whole - splitting one would break a real target
-  DOMAIN=some/name
-  _hi_container_cmds docker
-  case "${attach[*]}" in
-  *"exec -it some/name") return 0 ;;
-  esac
-  _hi_cecho " | docker split a name it should have taken whole: '${attach[*]}'" "$RED"
-  return 1
+  _hi_attach_is docker some/name '*exec -it some/name'
 }
 
 # The other arm of that probe, which is the one `hi <target> <cmd> | ...` takes:
@@ -593,35 +589,9 @@ function test_container_cmds_drop_the_tty_without_one() {
   local -a probe cp attach
   local DOMAIN _HI_TTY=0
 
-  DOMAIN=mypod
-  _hi_container_cmds kube
-  case "${attach[*]}" in
-  *"exec -i mypod --") ;;
-  *)
-    _hi_cecho " | kube kept a tty without one: '${attach[*]}'" "$RED"
-    return 1
-    ;;
-  esac
-
-  DOMAIN=somebox
-  _hi_container_cmds docker
-  case "${attach[*]}" in
-  *"exec -i somebox") ;;
-  *)
-    _hi_cecho " | docker kept a tty without one: '${attach[*]}'" "$RED"
-    return 1
-    ;;
-  esac
-
-  DOMAIN=685afd67
-  _hi_container_cmds nomad
-  case "${attach[*]}" in
-  *"-i=true -t=false"*) ;;
-  *)
-    _hi_cecho " | nomad did not spell -t=false: '${attach[*]}'" "$RED"
-    return 1
-    ;;
-  esac
+  _hi_attach_is kube mypod '*exec -i mypod --' || return 1
+  _hi_attach_is docker somebox '*exec -i somebox' || return 1
+  _hi_attach_is nomad 685afd67 '*-i=true -t=false*' || return 1
 
   # ...and the copy stream never wanted a tty in the first place, either way.
   # Matched on the *enabled* spellings, not a bare "-t": nomad's cp line says
@@ -644,23 +614,10 @@ function test_kube_prefixes_become_kubectl_flags() {
   # they would be asserting the tty probe's answer by accident
   local DOMAIN _HI_TTY=1
 
-  DOMAIN=staging:web
-  _hi_container_cmds kube
-  case "${attach[*]}" in
-  "kubectl --namespace staging exec -it web --") ;;
-  *)
-    _hi_cecho " | namespace:pod gave '${attach[*]}'" "$RED"
-    return 1
-    ;;
-  esac
-
-  DOMAIN=prod:staging:web/sidecar
-  _hi_container_cmds kube
-  case "${attach[*]}" in
-  "kubectl --context prod --namespace staging exec -it web -c sidecar --") return 0 ;;
-  esac
-  _hi_cecho " | context:namespace:pod/container gave '${attach[*]}'" "$RED"
-  return 1
+  _hi_attach_is kube staging:web \
+    'kubectl --namespace staging exec -it web --' || return 1
+  _hi_attach_is kube prod:staging:web/sidecar \
+    'kubectl --context prod --namespace staging exec -it web -c sidecar --'
 }
 
 # A docker shim scoped to --plain: exec-only, and it refuses (exit 9) any
@@ -746,13 +703,9 @@ EOF
 }
 
 function test_plain_ssh_with_no_command_passes_none() {
+  # the same argv-echoing shim, written by the RAWCMD case above - the two
+  # run in registration order
   local dir="$_HI_WORKDIR/plainssh"
-  [ -d "$dir" ] || mkdir -p "$dir"
-  cat >"$dir/ssh" <<'EOF'
-#!/bin/sh
-echo "SSH:$*"
-EOF
-  chmod +x "$dir/ssh"
   local out
   out="$(
     DOMAIN=myhost SSHARGS=() _HI_TTY=0

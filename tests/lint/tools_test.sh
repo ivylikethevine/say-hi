@@ -113,32 +113,15 @@ function lint_typos() {
 }
 
 function run_tools() {
-  _HI_LINT_TOTAL=0
-  _HI_LINT_FAILED=0
-  _HI_SKIPPED=0
-  _HI_T0="$(_hi_now)"
-  _hi_h1 "Checking external-tool lints (shfmt, checkbashisms, mandoc, typos)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, typos)"
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
   # and checkbashisms are separate processes and cannot read its variable
   local -a _HI_SH_FILES=()
   _hi_read_lines _HI_SH_FILES < <(_hi_lint_find -name '*.sh')
 
-  local _hi_lint_half
-  for _hi_lint_half in lint_shfmt lint_checkbashisms lint_manpage lint_typos; do
-    "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
-  done
-  unset _hi_lint_half
-  _hi_report_counts "$_HI_LINT_TOTAL" "$_HI_LINT_FAILED" "$_HI_SKIPPED"
-
-  local skipped=""
-  [ "$_HI_SKIPPED" -gt 0 ] && skipped=", $_HI_SKIPPED skipped"
-  if [ "$_HI_LINT_FAILED" -eq 0 ]; then
-    _hi_h1 "Found no issues ($_HI_LINT_TOTAL files$skipped, $(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$BRGREEN"
-  else
-    _hi_h1 "Found issues: $_HI_LINT_FAILED/$_HI_LINT_TOTAL files$skipped ($(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$RED"
-    exit "$_HI_LINT_FAILED"
-  fi
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_typos
+  _hi_lint_suite_end
 }
 
 run_tools

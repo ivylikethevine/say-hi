@@ -294,74 +294,18 @@ function _hi_prompt_tail() {
     sed -e $'s/\x1b\\][^\x07]*\x07//g' -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g'
 }
 
-# the shipped defaults, one per shell: bash's `\$` (which bash itself renders as
-# $ for a user and # for root), zsh's `>`, fish's `|`
-function test_prompt_end_default() {
-  local shell="$1" want="$2" out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell")"
+# _hi_prompt_ends <as_root> <shell> <want> [NAME=VALUE ...] - does the prompt
+# the shell builds with those pairs set end with <want>? The trailing space
+# every separator carries comes off before the tail is compared. The one
+# predicate behind every separator case; the scenarios live with their
+# registrations.
+function _hi_prompt_ends() {
+  local as_root="$1" shell="$2" want="$3" out
+  shift 3
+  out="$(_HI_AS_ROOT="$as_root" _hi_prompt_tail "$shell" "$@")"
   case "${out% }" in
   *"$want") return 0 ;;
   esac
-  return 1
-}
-
-function test_prompt_end_shell_specific() {
-  local shell="$1" var="$2" out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" "$var=@@")"
-  case "${out% }" in
-  *@@) return 0 ;;
-  esac
-  return 1
-}
-
-# the one setting that covers all three, for people who want the same character
-# everywhere - the shell-specific one still wins over it
-function test_prompt_end_global_fallback() {
-  local shell="$1" out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" _HI_PROMPT_END=%%)"
-  case "${out% }" in
-  *%%) return 0 ;;
-  esac
-  return 1
-}
-
-function test_prompt_end_specific_beats_global() {
-  local shell="$1" var="$2" out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" _HI_PROMPT_END=%% "$var=@@")"
-  case "${out% }" in
-  *@@) return 0 ;;
-  esac
-  return 1
-}
-
-# an empty value is "unset", not "no separator": a prompt ending in a bare space
-# is never what someone meant, and ' ' still expresses it
-function test_prompt_end_empty_falls_back() {
-  local shell="$1" var="$2" want="$3" out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail "$shell" "$var=")"
-  case "${out% }" in
-  *"$want") return 0 ;;
-  esac
-  return 1
-}
-
-# Root gets '#' - but as the *default* giving way, never as an override, which
-# is the rule bash's shipped `\$` follows (it renders as # for root, and an
-# explicit _HI_PROMPT_END_BASH still wins). fish is the only shell where that
-# decision is made in hi's own code rather than by the shell, so it is the only
-# one with a case. Run through the shadow, so it covers the branch on a
-# non-root box too.
-function test_prompt_end_root_takes_the_default() {
-  local out
-  out="$(_HI_AS_ROOT=yes _hi_prompt_tail fish)"
-  case "${out% }" in *'#') return 0 ;; esac
-  return 1
-}
-
-function test_prompt_end_root_keeps_an_explicit_one() {
-  local out
-  out="$(_HI_AS_ROOT=yes _hi_prompt_tail fish _HI_PROMPT_END_FISH=@@)"
-  case "${out% }" in *@@) return 0 ;; esac
   return 1
 }
 
@@ -527,8 +471,13 @@ function run_rc_tests() {
   _hi_check_requires fish "...and skips it in a remote session" test_fish_system_settings_skipped_remotely
 
   _hi_h2 "Testing: the prompt separator"
-  # the shells install.sh wires up locally, and their shipped defaults, both
-  # read off core.sh's rosters rather than spelled again here
+  # The shells install.sh wires up locally, and their shipped defaults, both
+  # read off core.sh's rosters rather than spelled again here. Per shell: the
+  # shipped default lands, the shell-specific setting wins, the global
+  # _HI_PROMPT_END covers it (for people who want the same character
+  # everywhere) with the specific one still beating it, and an empty value is
+  # "unset", not "no separator" - a prompt ending in a bare space is never
+  # what someone meant, and ' ' still expresses it.
   local shell upper var default
   for shell in $(_hi_shell_rows local | cut -d'|' -f1); do
     upper="$(printf '%s' "$shell" | tr '[:lower:]' '[:upper:]')"
@@ -538,14 +487,20 @@ function run_rc_tests() {
     # backslash comes off before comparing against a rendered prompt.
     default="$(_hi_prompt_end_default "$upper")"
     default="${default#\\}"
-    _hi_check_requires "$shell" "[$shell] default is '$default'" test_prompt_end_default "$shell" "$default"
-    _hi_check_requires "$shell" "[$shell] $var wins" test_prompt_end_shell_specific "$shell" "$var"
-    _hi_check_requires "$shell" "[$shell] _HI_PROMPT_END covers it" test_prompt_end_global_fallback "$shell"
-    _hi_check_requires "$shell" "[$shell] the specific one beats it" test_prompt_end_specific_beats_global "$shell" "$var"
-    _hi_check_requires "$shell" "[$shell] empty falls back to '$default'" test_prompt_end_empty_falls_back "$shell" "$var" "$default"
+    _hi_check_requires "$shell" "[$shell] default is '$default'" _hi_prompt_ends no "$shell" "$default"
+    _hi_check_requires "$shell" "[$shell] $var wins" _hi_prompt_ends no "$shell" @@ "$var=@@"
+    _hi_check_requires "$shell" "[$shell] _HI_PROMPT_END covers it" _hi_prompt_ends no "$shell" %% _HI_PROMPT_END=%%
+    _hi_check_requires "$shell" "[$shell] the specific one beats it" _hi_prompt_ends no "$shell" @@ _HI_PROMPT_END=%% "$var=@@"
+    _hi_check_requires "$shell" "[$shell] empty falls back to '$default'" _hi_prompt_ends no "$shell" "$default" "$var="
   done
-  _hi_check_requires fish "[fish] root takes '#' over the default" test_prompt_end_root_takes_the_default
-  _hi_check_requires fish "[fish] root keeps an explicit one" test_prompt_end_root_keeps_an_explicit_one
+  # Root gets '#' - but as the *default* giving way, never as an override,
+  # which is the rule bash's shipped `\$` follows (it renders as # for root,
+  # and an explicit _HI_PROMPT_END_BASH still wins). fish is the only shell
+  # where that decision is made in hi's own code rather than by the shell, so
+  # it is the only one with a case. Run through the shadow, so it covers the
+  # branch on a non-root box too.
+  _hi_check_requires fish "[fish] root takes '#' over the default" _hi_prompt_ends yes fish '#'
+  _hi_check_requires fish "[fish] root keeps an explicit one" _hi_prompt_ends yes fish @@ _HI_PROMPT_END_FISH=@@
 
   _hi_suite_end "rc"
 }

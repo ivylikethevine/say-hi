@@ -31,6 +31,10 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 
 # group:name:path (relative to this directory), in the order they run - fast
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
+# Within the fast section the slowest suites lead: the parallel runner starts
+# suites in table order, so a heavy suite starting last is the whole group's
+# scheduling tail (leading with the six heaviest takes a width-4 run from
+# ~20s wall to near its packing bound).
 #
 # The group is here rather than in .github/workflows/ci.yml: with CI spelling
 # out which suites are fast and which are e2e, a suite added to this table but
@@ -38,16 +42,20 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # list, so the two cannot disagree.
 if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
+    "fast:test_lib:harness/lib_test.sh"
+    "fast:test_runner:harness/runner_test.sh"
+    "fast:doctor:scripts/doctor_test.sh"
+    "fast:install_location:scripts/install_location_test.sh"
+    "fast:packaging:packaging/packaging_test.sh"
+    "fast:packages_preview:scripts/packages_preview_test.sh"
     "fast:aliases:settings/alias_test.sh"
     "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
     "fast:osc52:common/osc52_test.sh"
     "fast:notify:common/notify_test.sh"
     "fast:install:scripts/install_test.sh"
     "fast:configure:scripts/configure_test.sh"
-    "fast:install_location:scripts/install_location_test.sh"
     "fast:rc_lines:scripts/rc_test.sh"
     "fast:table:scripts/table_test.sh"
-    "fast:packaging:packaging/packaging_test.sh"
     "fast:hi:hi/parse_test.sh"
     "fast:hi_remote:hi/remote_test.sh"
     "fast:hi_payload:hi/payload_test.sh"
@@ -60,14 +68,10 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:paths:common/paths_test.sh"
     "fast:exports:common/exports_test.sh"
     "fast:color_preview:scripts/color_preview_test.sh"
-    "fast:packages_preview:scripts/packages_preview_test.sh"
-    "fast:doctor:scripts/doctor_test.sh"
     "fast:load:load/load_test.sh"
     "fast:rc:common/rc_test.sh"
-    "fast:test_lib:harness/lib_test.sh"
     "fast:test_lib_report:harness/lib_report_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"
-    "fast:test_runner:harness/runner_test.sh"
     "lint:shellcheck:lint/shellcheck_test.sh"
     "lint:dialects:lint/dialects_test.sh"
     "lint:tools:lint/tools_test.sh"
@@ -505,8 +509,15 @@ done
   _hi_cecho " | $_HI_RUNNER_WIDTH suites at a time, transcripts replayed in table order (_HI_RUNNER_WIDTH=1 for one by one)" "$BLUE"
 
 declare -a _HI_RUN_NAMES=()
-declare -a _HI_RUN_PIDS=()
 declare -a _hi_running=()
+
+# the one spelling of a suite invocation, for all three paths below - the
+# tally files and --require-run ride the environment; reads the loop's
+# current $_hi_counts/$_hi_fails/$_hi_path
+function _hi_run_suite() {
+  _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
+}
+
 _hi_i=0
 for _hi_t in "${_HI_SELECTED[@]}"; do
   # the accessors' own expansions, inlined: this runs once per selected suite
@@ -523,7 +534,6 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
   _HI_RUN_NAMES+=("$_hi_name")
 
   if [ ! -f "$_hi_path" ]; then
-    _HI_RUN_PIDS+=("")
     printf 'MISSING 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
     printf '%s' "$_hi_path" >"$_hi_log"
     [ "$_HI_RUNNER_WIDTH" -gt 1 ] || _hi_collect_suite "$_hi_name" MISSING 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
@@ -542,34 +552,33 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
     done
     (
       _hi_t0="$(_hi_now)"
-      if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+      if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
       printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
     ) &
     _hi_running+=("$!")
-    _HI_RUN_PIDS+=("$!")
     continue
   fi
 
-  _HI_RUN_PIDS+=("")
   _hi_h2 "Running $_hi_name"
   _hi_t0="$(_hi_now)"
   if [ "$_HI_VERBOSE" = 1 ]; then
-    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"; then _hi_code=0; else _hi_code=$?; fi
+    if _hi_run_suite; then _hi_code=0; else _hi_code=$?; fi
   else
-    if _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path" >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+    if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
   fi
   _hi_restore_tty
   _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
 done
 
-# the parallel run's collection pass, in table order: wait for each, then
-# tally and replay it exactly as the serial loop above would have
+# the parallel run's collection pass, in table order: wait out every suite
+# subshell at once (each wrote its verdict to its own .rc file, so per-pid
+# bookkeeping buys nothing), then tally and replay each exactly as the serial
+# loop above would have
 if [ "$_HI_RUNNER_WIDTH" -gt 1 ]; then
+  wait
   _hi_i=0
   for _hi_name in "${_HI_RUN_NAMES[@]}"; do
     _hi_i=$((_hi_i + 1))
-    _hi_pid="${_HI_RUN_PIDS[$((_hi_i - 1))]}"
-    [ -z "$_hi_pid" ] || wait "$_hi_pid" 2>/dev/null || true
     _hi_code=1 _hi_dur=0
     [ -f "$_HI_RUN_DIR/$_hi_i.rc" ] && read -r _hi_code _hi_dur <"$_HI_RUN_DIR/$_hi_i.rc"
     _hi_h2 "Running $_hi_name"

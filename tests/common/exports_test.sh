@@ -53,32 +53,11 @@ function test_fish_child_sees_only_the_roster() {
 }
 
 # The value has to survive the flip: `now` expands $_HI_HUMAN_SHORT_DATE when
-# it is typed, and the prompt reads the colour memos every render.
-function test_bash_keeps_the_values_as_shell_variables() {
-  local out
-  out="$(HOME="$_HI_WORKDIR/home" bash -c "source $_HI_BASHRC; printf '%s|%s' \"\$_HI_ROOT\" \"\$_HI_HUMAN_SHORT_DATE\"" 2>/dev/null)"
-  [ "$out" = "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" ] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
-}
-
-function test_zsh_keeps_the_values_as_shell_variables() {
-  local out
-  out="$(HOME="$_HI_WORKDIR/home" zsh -c "source $_HI_ZSHRC; printf '%s|%s' \"\$_HI_ROOT\" \"\$_HI_HUMAN_SHORT_DATE\"" 2>/dev/null)"
-  [ "$out" = "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" ] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
-}
-
-function test_fish_keeps_the_values_as_shell_variables() {
-  local out
-  out="$(HOME="$_HI_WORKDIR/home" fish -c "source $_HI_FISH_CONFIG; printf '%s|%s' \"\$_HI_ROOT\" \"\$_HI_HUMAN_SHORT_DATE\"" 2>/dev/null)"
-  [ "$out" = "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" ] || {
-    _hi_cecho " | got: $out" "$RED"
-    return 1
-  }
+# it is typed, and the prompt reads the colour memos every render. One body
+# for all three shells - the shell and its rc are the only difference - run
+# through _hi_check_eq so a failure prints want and got alike.
+function _hi_shell_keeps_values() { # <shell> <rc>
+  HOME="$_HI_WORKDIR/home" "$1" -c "source $2; printf '%s|%s' \"\$_HI_ROOT\" \"\$_HI_HUMAN_SHORT_DATE\"" 2>/dev/null
 }
 
 # The roster is what the child gets, so a name in it must still be exported
@@ -260,9 +239,9 @@ function run_exports_tests() {
   _hi_check_requires zsh "zsh: a child sees only \$_HI_CHILD_ENV" test_zsh_child_sees_only_the_roster
   _hi_check_requires fish "fish: a child sees only \$_HI_CHILD_ENV" test_fish_child_sees_only_the_roster
   _hi_check "bash: the roster itself is still exported" test_bash_child_still_sees_the_roster
-  _hi_check "bash: the values stay as shell variables" test_bash_keeps_the_values_as_shell_variables
-  _hi_check_requires zsh "zsh: the values stay as shell variables" test_zsh_keeps_the_values_as_shell_variables
-  _hi_check_requires fish "fish: the values stay as shell variables" test_fish_keeps_the_values_as_shell_variables
+  _hi_check_eq "bash: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" _hi_shell_keeps_values bash "$_HI_BASHRC"
+  _hi_check_requires_eq zsh "zsh: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" _hi_shell_keeps_values zsh "$_HI_ZSHRC"
+  _hi_check_requires_eq fish "fish: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" _hi_shell_keeps_values fish "$_HI_FISH_CONFIG"
   _hi_check_requires fish "fish: __hi_bash passes session values without exporting them" test_fish_bridge_passes_session_values_without_exporting_them
 
   _hi_h2 "Testing: the rosters cannot drift"

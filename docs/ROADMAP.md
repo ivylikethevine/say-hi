@@ -71,22 +71,13 @@ spam problem; see the **AUR** entry below.
        the **Outside the repo** bundle. **Ticks when:** a final tag's manifest
        PR is opened.
 
-3. [ ] **Flip to stable** — _scope: one commit at tag time; in-repo._ The
-       EXPERIMENTAL banner has echoes: README's banner and its anchor
-       (CONTRIBUTING.md's first paragraph links it by name), ALTERNATIVES.md's
-       maturity cell, SECURITY.md's _Supported versions_, which becomes the
-       version table it promises, and the _what works today_ notes at the top
-       of README's install section and PACKAGING.md, which go once the channels
-       they name are live. **Ticks when:** every one reads as a released
-       project in the commit the tag points at.
-
-4. [ ] **tldr page** — _scope: one upstream pull request; outside this
+3. [ ] **tldr page** — _scope: one upstream pull request; outside this
        checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-5. [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
+4. [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
        SETTINGS.md section; in-repo._ One overlay ships to every target
        (README's _Configuration_ warning, SECURITY.md's _Trust boundaries_);
        the only per-host lever is a color. `_HI_TARGET_TAG` already resolves
@@ -98,7 +89,7 @@ spam problem; see the **AUR** entry below.
        prod and customer hosts keeps the overlay empty or runs two
        `XDG_CONFIG_HOME`s.
 
-6. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
+5. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
        real Mac; outside this checkout._ Waits on **Get a release out**.
        Create `homebrew-tap` (plain repo, `Formula/` dir), add a fine-grained
        PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
@@ -107,7 +98,7 @@ spam problem; see the **AUR** entry below.
        `brew install ivy/tap/say-hi` works, from a release the `tap` job
        opened a PR for.
 
-7. [ ] **Package repository on the Pages site** — _scope: one key, one secret,
+6. [ ] **Package repository on the Pages site** — _scope: one key, one secret,
        one committed file, one release; outside this checkout._ The code half
        shipped: `packaging/mkrepo.sh` builds the apt, rpm and apk repositories
        out of `mkpkg.sh`'s packages, `release.yml` signs the rpm in `build` and
@@ -115,15 +106,15 @@ spam problem; see the **AUR** entry below.
        the newest non-prerelease release at
        `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, packaging-smoke
        builds one per PR and `tests/packaging/repo_test.sh` installs from one
-       as all three clients. Every step skips loudly until the key exists.
-       **Do:** generate the GPG key, add `GPG_SIGNING_KEY`, commit
-       `packaging/gpg/say-hi.asc`
-       ([PACKAGING.md](PACKAGING.md#package-repository)), cut a release.
+       as all three clients. The key half shipped too: `GPG_SIGNING_KEY` is
+       set in the release environment and `packaging/gpg/say-hi.asc` is
+       committed ([PACKAGING.md](PACKAGING.md#package-repository)).
+       **Do:** cut a release from a tag that carries `say-hi.asc`.
        **Ticks when:** `apt install say-hi`, `dnf install say-hi` and
        `apk add say-hi` each work from the published URL, and a second release
        upgrades one of them in place.
 
-8. [ ] **Outside the repo, once a release exists** — _scope: a badge, a
+7. [ ] **Outside the repo, once a release exists** — _scope: a badge, a
        toggle and two checks; mostly outside this checkout._ Waits on
        **Get a release out**. Four small pieces: a Repology badge (in
        README's badge block already, rendering empty; ticks once it carries
@@ -133,7 +124,7 @@ spam problem; see the **AUR** entry below.
        PACKAGING.md line if it needs an `--exe` hint; and
        `actions/attest-sbom` beside the provenance step.
 
-9. [ ] **AUR** — _scope: nothing until registration reopens; then an
+8. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and `release.yml`'s
        `aur` job stays written and unexercised until it reopens. **When it
@@ -143,3 +134,11 @@ spam problem; see the **AUR** entry below.
        `PKGBUILD` + `.SRCINFO`), and the `aur` job handles the versioned
        package after. **Ticks when:** both packages are live on the AUR and
        the `aur` job has kept `say-hi` current for one real release.
+
+### Miscellaneous
+
+1. Add uptime to header
+2. Allow header items to be rearranged
+3. Ship default package floor at 2
+4. Improve default package colors
+5. Add ram usage, similar to CPU usage

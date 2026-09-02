@@ -1,6 +1,6 @@
 # Contributing to say-hi
 
-say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md#experimental-until-v100-stable-releases):
+say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md#experimental-until-v100):
 interfaces can still move, and [docs/ROADMAP.md](ROADMAP.md) is what is left
 to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
 [docs/GLOSSARY.md](GLOSSARY.md).

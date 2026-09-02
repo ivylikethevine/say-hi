@@ -41,12 +41,10 @@
 # harness has no business on a target.
 set -euo pipefail
 
-if [ -z "${_HI_HOME:-}" ]; then
-  _HI_HOME="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-fi
-export _HI_HOME
-# shellcheck source=../common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
+# tree resolution, suite selection, the tally files and the trace loop are
+# shared with tests/coverage.sh
+# shellcheck source=lib/coverage.sh
+source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"
 
 # `gem install --user-install bashcov` puts the binary somewhere not on the
 # default PATH, which is a confusing way to be told a gem is missing. Look
@@ -64,7 +62,6 @@ fi
 
 _HI_COV_DIR="${1:-${TMPDIR:-/tmp}/say-hi-coverage-v2}"
 shift 2>/dev/null || true
-_HI_RUNNER="$_HI_HOME/say-hi/tests/test_runner.sh"
 _HI_COV_ROOT="$_HI_HOME/say-hi"
 
 rm -rf "$_HI_COV_DIR"
@@ -97,66 +94,25 @@ SimpleCov.merge_timeout(3600)
 SimpleCov.add_filter(%r{^/tests/})
 SimpleCov.add_filter(%r{^/docs/})
 SIMPLECOV
-# shellcheck disable=SC2064 # the path is fixed by now; expand it here
-trap "rm -f '$_HI_SIMPLECOV'" EXIT
+_HI_COV_TRASH+=("$_HI_SIMPLECOV")
 
-# The runner owns the suite table, so ask it rather than keeping a second copy
-# here. `--list-paths` exists for this caller: bashcov has to launch the suite
-# script itself, so the name alone is not enough.
-#
-# `shellcheck` is dropped from whatever the selection resolves to, for the
-# reason coverage.sh gives: it is a linter sweep that shells out to shellcheck,
-# shfmt and checkbashisms over the whole tree and runs almost none of hi's own
-# bash, while being the slowest suite in its group by an order of magnitude -
-# and slower again under xtrace. Dropped by name, so a groupless run (the
-# default, every suite including the lint group) does not sweep it back in.
-declare -a _HI_NAMES=()
-declare -a _HI_PATHS=()
-while read -r _hi_group _hi_name _hi_path; do
-  [ -n "${_hi_path:-}" ] || continue
-  [ "$_hi_name" = shellcheck ] && continue
-  _HI_NAMES+=("$_hi_name")
-  _HI_PATHS+=("$_hi_path")
-done < <("$_HI_RUNNER" "$@" --list-paths)
-
-if [ "${#_HI_PATHS[@]}" -eq 0 ]; then
-  _hi_cecho " | coverage: no suites selected by: $*" "$RED" >&2
-  exit 1
-fi
-
-# The two files the runner would otherwise export are made here so
-# _hi_suite_end has somewhere to write its tally; everything else a suite needs
-# it derives from $_HI_HOME through common/paths.sh.
-#
-# A suite that fails does not stop the sweep: a red suite still traced
-# everything it reached on the way down, and losing the whole report to one
-# environment-specific failure (no fish, no docker) is the opposite of useful.
-# The tally is printed at the end instead.
-_HI_COUNTS_FILE="$(mktemp -t hi.covv2.counts.XXXXXX)"
-_HI_FAILS_FILE="$(mktemp -t hi.covv2.fails.XXXXXX)"
-export _HI_COUNTS_FILE _HI_FAILS_FILE
-# shellcheck disable=SC2064 # the paths are fixed by now; expand them here
-trap "rm -f '$_HI_SIMPLECOV' '$_HI_COUNTS_FILE' '$_HI_FAILS_FILE'" EXIT
+_hi_cov_select_suites "$@"
+_hi_cov_counts_files covv2
 
 export _HI_COV_OUT="$_HI_COV_DIR"
 
-_HI_FAILED=""
-for _hi_i in $(seq 0 $((${#_HI_PATHS[@]} - 1))); do
-  _hi_suite="${_HI_NAMES[$_hi_i]}"
-  _hi_path="${_HI_PATHS[$_hi_i]}"
-  _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"
-  # --command-name is what keeps one suite's result from replacing the last
-  # one's: SimpleCov merges results under distinct names and overwrites under
-  # equal ones. --root is the tree, which is what makes its files discoverable
-  # at all; without it SimpleCov reports the suite script and nothing else.
-  _HI_COV_NAME="$_hi_suite" bashcov --mute --root "$_HI_COV_ROOT" \
-    --command-name "$_hi_suite" -- "$_hi_path" >/dev/null 2>&1 ||
-    _HI_FAILED="$_HI_FAILED $_hi_suite"
-done
+# --command-name is what keeps one suite's result from replacing the last
+# one's: SimpleCov merges results under distinct names and overwrites under
+# equal ones. --root is the tree, which is what makes its files discoverable
+# at all; without it SimpleCov reports the suite script and nothing else.
+function _hi_cov_trace_one() {
+  _HI_COV_NAME="$1" bashcov --mute --root "$_HI_COV_ROOT" \
+    --command-name "$1" -- "$2"
+}
+_hi_cov_trace_all _hi_cov_trace_one
 
 _hi_cecho " | coverage: report in $_HI_COV_DIR/index.html" "$GREEN"
-[ -z "$_HI_FAILED" ] ||
-  _hi_cecho " | coverage: these suites failed while being traced (their coverage still counts):$_HI_FAILED" "$YELLOW"
+_hi_cov_report_failed
 
 # Every file bashcov traced, worst first - the ranking is the point, since the
 # question this answers is "which arms does nothing reach", and the answer moves

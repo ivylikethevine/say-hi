@@ -387,16 +387,26 @@ function test_help_exits_zero() {
   "$_HI_DOCTOR" --help >/dev/null
 }
 
-# the whole report, end to end, on the restricted PATH: sections present and
-# the exit code is the red-finding count (0 here - nothing is broken, only
-# absent, and absent is not an error)
+# The whole plain report, end to end, on the restricted PATH. Two cases
+# assert against it with identical inputs, so it runs once and the transcript
+# and exit code are memoized here.
+_HI_DOC_PLAIN_OUT=""
+_HI_DOC_PLAIN_RC=""
+
+function _hi_doctor_plain_report() {
+  [ -n "$_HI_DOC_PLAIN_RC" ] && return 0
+  _HI_DOC_PLAIN_RC=0
+  _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
+}
+
+# sections present and the exit code is the red-finding count (0 here -
+# nothing is broken, only absent, and absent is not an error)
 function test_full_report_runs_clean() {
-  local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || rc=$?
-  [ "$rc" -eq 0 ] &&
-    [[ "$out" == *"The local tree"* && "$out" == *"Backends"* &&
-      "$out" == *"Nothing looks broken"* ]]
+  _hi_doctor_plain_report
+  [ "$_HI_DOC_PLAIN_RC" -eq 0 ] &&
+    [[ "$_HI_DOC_PLAIN_OUT" == *"The local tree"* && "$_HI_DOC_PLAIN_OUT" == *"Backends"* &&
+      "$_HI_DOC_PLAIN_OUT" == *"Nothing looks broken"* ]]
 }
 
 # --json: the same report as one document. Parsed by python3's json module
@@ -483,10 +493,9 @@ assert len(bad) == 1 and "no base64" in bad[0]["text"], bad
 # unparseable, which the three above already check, but the plain-text
 # report must also still be exactly what it was
 function test_json_is_off_by_default() {
-  local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || return 1
-  [[ "$out" != *'"rows"'* && "$out" == *"hi doctor"* ]]
+  _hi_doctor_plain_report
+  [ "$_HI_DOC_PLAIN_RC" -eq 0 ] || return 1
+  [[ "$_HI_DOC_PLAIN_OUT" != *'"rows"'* && "$_HI_DOC_PLAIN_OUT" == *"hi doctor"* ]]
 }
 
 function run_doctor_tests() {

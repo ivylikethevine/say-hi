@@ -129,17 +129,21 @@ function _hi_floor_files() {
   done
 }
 
-function lint_fish37() {
+# One body for the fish floor and the fish ceiling - including the embedded
+# container script, which is exactly where the two checks could otherwise
+# drift into parsing different things.
+function _hi_lint_fish_parse() {
+  local build="$1" image="$2" what="$3"
   local out rc=0 backend="${_HI_BACKEND:-docker}"
   local -a files=()
-  _hi_h2 "Checking the fish files against the fish 3.7 floor"
-  _hi_floor_ready fish37 hi-fish37 "fish 3.7 floor" || return $(($? == 2 ? 1 : 0))
+  _hi_h2 "Checking the fish files against the $what"
+  _hi_floor_ready "$build" "$image" "$what" || return $(($? == 2 ? 1 : 0))
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   _hi_floor_files fish
   # the paths ride as arguments rather than spliced into the script, so nothing
   # here depends on how a filename quotes
   # shellcheck disable=SC2016 # $f and $@ belong to the sh inside the container
-  out="$("$backend" run --rm -v "$_HI_ROOT":/w:ro hi-fish37 sh -c '
+  out="$("$backend" run --rm -v "$_HI_ROOT":/w:ro "$image" sh -c '
     rc=0
     for f in "$@"; do
       fish --no-execute "/w/$f" || rc=1
@@ -150,43 +154,20 @@ function lint_fish37() {
     _hi_align " | $(printf '%s' "$out" | tail -n1): every fish file parses" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | the fish files do not parse under the 3.7 floor" "FAILED" "$RED"
+  _hi_align " | the fish files do not parse under the $what" "FAILED" "$RED"
   printf '%s\n' "$out" | sed 's/^/      /'
-  _hi_note_failure "fish 3.7 floor: $(printf '%s' "$out" | grep -c 'Mismatched\|error\|Error' || true) complaint(s)"
+  _hi_note_failure "$what: $(printf '%s' "$out" | grep -c 'Mismatched\|error\|Error' || true) complaint(s)"
   return 1
 }
+
+function lint_fish37() { _hi_lint_fish_parse fish37 hi-fish37 "fish 3.7 floor"; }
 
 # fish37's counterpart: the same files, parsed again inside a digest-pinned
 # fish 4 (tests/dockerfiles/fish4.Dockerfile, Ubuntu 26.04's fish), catching a
 # construct 3.7 accepts that fish 4 rejects or has removed - the direction
 # lint_fish37 cannot cover, for the same reason it exists at all: CI's runners
 # are 24.04, so nothing else in CI ever parses these files under fish 4.
-function lint_fish4() {
-  local out rc=0 backend="${_HI_BACKEND:-docker}"
-  local -a files=()
-  _hi_h2 "Checking the fish files against the fish 4 ceiling"
-  _hi_floor_ready fish4 hi-fish4 "fish 4 ceiling" || return $(($? == 2 ? 1 : 0))
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  _hi_floor_files fish
-  # the paths ride as arguments rather than spliced into the script, so nothing
-  # here depends on how a filename quotes
-  # shellcheck disable=SC2016 # $f and $@ belong to the sh inside the container
-  out="$("$backend" run --rm -v "$_HI_ROOT":/w:ro hi-fish4 sh -c '
-    rc=0
-    for f in "$@"; do
-      fish --no-execute "/w/$f" || rc=1
-    done
-    fish --version
-    exit $rc' sh "${files[@]}" 2>&1)" || rc=$?
-  if [ "$rc" -eq 0 ]; then
-    _hi_align " | $(printf '%s' "$out" | tail -n1): every fish file parses" "OK" "$GREEN"
-    return 0
-  fi
-  _hi_align " | the fish files do not parse under the 4 ceiling" "FAILED" "$RED"
-  printf '%s\n' "$out" | sed 's/^/      /'
-  _hi_note_failure "fish 4 ceiling: $(printf '%s' "$out" | grep -c 'Mismatched\|error\|Error' || true) complaint(s)"
-  return 1
-}
+function lint_fish4() { _hi_lint_fish_parse fish4 hi-fish4 "fish 4 ceiling"; }
 
 # zsh's floor gets a second stage fish's does not need, because zsh's failure
 # modes here are *runtime*: `add-zsh-hook zshexit`, `${(%):-%x}`, `${~pat}` and
@@ -232,30 +213,13 @@ function lint_zsh58() {
 }
 
 function run_dialects() {
-  _HI_LINT_TOTAL=0
-  _HI_LINT_FAILED=0
-  _HI_SKIPPED=0
-  _HI_T0="$(_hi_now)"
-  _hi_h1 "Checking shell-dialect syntax (native, floor, ceiling)"
+  _hi_lint_suite_begin "Checking shell-dialect syntax (native, floor, ceiling)"
 
   # _hi_build_image (the floor/ceiling builds) logs to $_HI_WORKDIR/<label>.log
   _hi_workdir dialectstest
 
-  local _hi_lint_half
-  for _hi_lint_half in lint_native lint_fish37 lint_fish4 lint_zsh58; do
-    "$_hi_lint_half" || _HI_LINT_FAILED=$((_HI_LINT_FAILED + $?))
-  done
-  unset _hi_lint_half
-  _hi_report_counts "$_HI_LINT_TOTAL" "$_HI_LINT_FAILED" "$_HI_SKIPPED"
-
-  local skipped=""
-  [ "$_HI_SKIPPED" -gt 0 ] && skipped=", $_HI_SKIPPED skipped"
-  if [ "$_HI_LINT_FAILED" -eq 0 ]; then
-    _hi_h1 "Found no issues ($_HI_LINT_TOTAL files$skipped, $(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$BRGREEN"
-  else
-    _hi_h1 "Found issues: $_HI_LINT_FAILED/$_HI_LINT_TOTAL files$skipped ($(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$RED"
-    exit "$_HI_LINT_FAILED"
-  fi
+  _hi_lint_halves lint_native lint_fish37 lint_fish4 lint_zsh58
+  _hi_lint_suite_end
 }
 
 run_dialects

@@ -142,28 +142,14 @@ function test_fish_config_sources_settings_first() {
 # a file four shells source. Every case runs non-interactive (`</dev/null`, no
 # tty), which is the path that keeps whatever is already configured.
 
-# _hi_prompt_ends_lines [existing-settings-line ...] - what config_prompt_ends
-# would write, as one string
-function _hi_prompt_ends_lines() {
-  local dir="$_HI_WORKDIR/promptends"
-  local _HI_SETTINGS="$dir/settings.sh"
-  local -a _HI_SETTING_LINES=()
-  mkdir -p "$dir"
-  [ "$#" -eq 0 ] && : >"$_HI_SETTINGS" || printf '%s\n' "$@" >"$_HI_SETTINGS"
-  # >/dev/null: the section heading is stdout, the lines are the array
-  config_prompt_ends </dev/null >/dev/null
-  printf '%s' "${_HI_SETTING_LINES[*]}"
-}
-
-# the shipped defaults are core.sh's own, so writing them out would be noise
-# that then has to be kept in sync - the same rule config_max_width has for 80
-function test_prompt_ends_writes_nothing_for_the_defaults() {
-  [ -z "$(_hi_prompt_ends_lines | tr -d ' ')" ]
-}
+# Each case reads what config_prompt_ends would write through _hi_section_lines
+# (defined further down, with the sections it serves). The
+# defaults-write-nothing direction is pinned there too, by
+# test_opt_in_off_writes_nothing.
 
 function test_prompt_ends_keeps_an_existing_override() {
   local out
-  out="$(_hi_prompt_ends_lines "export _HI_PROMPT_END_ZSH='::'")"
+  out="$(_hi_section_lines prompt_keep config_prompt_ends "export _HI_PROMPT_END_ZSH='::'")"
   [[ "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]]
 }
 
@@ -171,7 +157,7 @@ function test_prompt_ends_keeps_an_existing_override() {
 # the file is sourced by sh, bash, zsh and fish alike
 function test_prompt_ends_quotes_what_it_writes() {
   local out
-  out="$(_hi_prompt_ends_lines "export _HI_PROMPT_END_BASH='>'")"
+  out="$(_hi_section_lines prompt_quote config_prompt_ends "export _HI_PROMPT_END_BASH='>'")"
   [[ "$out" == *"_HI_PROMPT_END_BASH='>'"* ]]
 }
 
@@ -179,7 +165,7 @@ function test_prompt_ends_quotes_what_it_writes() {
 # config_header_details makes when the header itself is off
 function test_prompt_ends_skipped_when_the_prompt_is_off() {
   local out
-  out="$(_hi_prompt_ends_lines "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
+  out="$(_hi_section_lines prompt_off config_prompt_ends "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
 }
 
@@ -410,8 +396,9 @@ function test_packages_floor_is_skipped_when_the_check_is_off() {
 # show up as more prompts, not as a slower suite.
 #
 # $_HI_PTY_FORCED is empty when there is no usable pty - no python3 at all, or
-# a python3 without the Unix-only `pty` module - which is what makes these skip
-# yellow rather than fail: the backend suites' doctrine, for the same reason.
+# a python3 without the Unix-only `pty` module - which is why these register
+# through `_hi_check_capable pty` and skip yellow rather than fail: the
+# backend suites' doctrine, for the same reason.
 # shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
 # is the child shell's to make, after the pty has put it on the other side
 _HI_FLOOR_CHILD='
@@ -460,10 +447,6 @@ function _hi_floor_pty_lines() {
 
 # eight junk answers, three prompts: the bound, not the patience.
 function test_packages_floor_stops_asking_for_a_number() {
-  [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_junk]" "no usable pty to drive an interactive case"
-    return 0
-  }
   _hi_floor_pty floor_junk 'zz\nyy\nxx\nww\nvv\nuu\ntt\nss\n' || return 1
   _hi_floor_finished floor_junk || return 1
   [ "$(_hi_floor_prompts floor_junk)" -le 3 ]
@@ -471,10 +454,6 @@ function test_packages_floor_stops_asking_for_a_number() {
 
 # EOF is not an answer: one prompt, then out.
 function test_packages_floor_ends_on_eof() {
-  [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_eof]" "no usable pty to drive an interactive case"
-    return 0
-  }
   _hi_floor_pty floor_eof '\004' || return 1
   _hi_floor_finished floor_eof || return 1
   [ "$(_hi_floor_prompts floor_eof)" -le 1 ]
@@ -483,10 +462,6 @@ function test_packages_floor_ends_on_eof() {
 # a rejected answer must not poison the ones after it - the reject count
 # resets, so this still lands on 2 rather than giving up first.
 function test_packages_floor_takes_a_number_after_a_rejection() {
-  [ "${#_HI_PTY_FORCED[@]}" -eq 0 ] && {
-    _hi_skip "[floor_recover]" "no usable pty to drive an interactive case"
-    return 0
-  }
   _hi_floor_pty floor_recover 'zz\n2\n2\n' || return 1
   [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=2" ]
 }
@@ -679,7 +654,9 @@ function _hi_section_lines() {
   printf '%s' "${_HI_SETTING_LINES[*]:-}"
 }
 
-# an opt-in that is off writes nothing - there is no "=0" spelling of it
+# an opt-in that is off writes nothing - there is no "=0" spelling of it, and
+# the shipped defaults are core.sh's own, so writing them out would be noise
+# that then has to be kept in sync - the same rule config_max_width has for 80
 function test_opt_in_off_writes_nothing() {
   [ -z "$(_hi_section_lines prompt_default config_prompt_ends | tr -d ' ')" ]
 }
@@ -1004,7 +981,6 @@ function run_configure_tests() {
   _hi_check "common/config.fish" test_fish_config_sources_settings_first
 
   _hi_h2 "Testing: config_prompt_ends"
-  _hi_check "Defaults write nothing" test_prompt_ends_writes_nothing_for_the_defaults
   _hi_check "An existing override is kept" test_prompt_ends_keeps_an_existing_override
   _hi_check "Written values are quoted" test_prompt_ends_quotes_what_it_writes
   _hi_check "Skipped when the prompt is off" test_prompt_ends_skipped_when_the_prompt_is_off
@@ -1031,9 +1007,9 @@ function run_configure_tests() {
   _hi_check "Packages floor: the default is not written" test_packages_floor_does_not_write_the_default
   _hi_check "Packages floor: a zero is written out" test_packages_floor_writes_a_zero
   _hi_check "Packages floor: skipped when the check is off" test_packages_floor_is_skipped_when_the_check_is_off
-  _hi_check "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
-  _hi_check "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
-  _hi_check "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
+  _hi_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
+  _hi_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
+  _hi_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 

@@ -162,7 +162,11 @@ function gpg_setup() {
   gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --import "$_HI_GPG_KEY"
   have="$(gpg --batch --homedir "$_HI_GNUPGHOME" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
   if [ -n "$_HI_GPG_PUBLIC" ]; then
-    want="$(gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --with-colons --show-keys "$_HI_GPG_PUBLIC" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')"
+    # `|| true`: a missing/unreadable file makes gpg exit 2 with its stderr
+    # discarded, and under `set -e` + pipefail that kills the whole script
+    # inside the substitution - silently, before the guard below can name the
+    # problem (how release.yml's publish job died on a tag without the file)
+    want="$(gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --with-colons --show-keys "$_HI_GPG_PUBLIC" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }' || true)"
     [ -n "$want" ] || {
       _hi_cecho " $_HI_GPG_PUBLIC is missing or not a key" "$RED" >&2
       return 1

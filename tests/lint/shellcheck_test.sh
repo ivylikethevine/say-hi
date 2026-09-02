@@ -48,7 +48,7 @@ function lint_config_dir_sources() {
   _hi_h2 "Checking config-dir sources carry a shellcheck directive"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   for file in "${_HI_SH_FILES[@]}"; do
-    case "$(cat "$file")" in *"$needle"*) ;; *) continue ;; esac
+    case "$(<"$file")" in *"$needle"*) ;; *) continue ;; esac
     _hi_read_lines lines <"$file"
     total="${#lines[@]}"
     for ((i = 0; i < total; i++)); do
@@ -247,16 +247,7 @@ function run_shellcheck() {
   fi
 
   _HI_LINT_FAILED=$_HI_SC_FAILED
-  _hi_report_counts "$_HI_LINT_TOTAL" "$_HI_LINT_FAILED" "$_HI_SKIPPED"
-
-  local skipped=""
-  [ "$_HI_SKIPPED" -gt 0 ] && skipped=", $_HI_SKIPPED skipped"
-  if [ "$_HI_LINT_FAILED" -eq 0 ]; then
-    _hi_h1 "Found no issues ($_HI_LINT_TOTAL files$skipped, $(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$BRGREEN"
-  else
-    _hi_h1 "Found issues: $_HI_LINT_FAILED/$_HI_LINT_TOTAL files$skipped ($(_hi_elapsed "$_HI_T0" "$(_hi_now)")s)" "$RED"
-    exit "$_HI_LINT_FAILED"
-  fi
+  _hi_lint_suite_end
 }
 
 run_shellcheck

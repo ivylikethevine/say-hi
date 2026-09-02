@@ -16,26 +16,8 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
-_HI_ESC=$'\033'
-_HI_BEL=$'\a'
-
-# What detaches the emitter from the controlling terminal. With a tty present
-# that has to be setsid, so the byte checks are gated on it (a skip, on the
-# rare interactive box without one - stock macOS). Without a tty there is
-# nothing to detach from, and gating on `sh` just means "always run".
-if { : </dev/tty; } 2>/dev/null; then
-  _HI_EMIT_GATE="setsid"
-else
-  _HI_EMIT_GATE="sh"
-fi
-
-function _hi_detached() {
-  if [ "$_HI_EMIT_GATE" = setsid ]; then
-    setsid -w "$@"
-  else
-    "$@"
-  fi
-}
+# $_HI_ESC/$_HI_BEL, the $_HI_EMIT_GATE tty gate and _hi_detached are the
+# harness's (tests/lib/fixtures.sh), shared with the notify sibling suite.
 
 # the emitter, run with a clean-ish env, no controlling terminal, and its
 # output captured. $1 is the text to copy; anything after is NAME=VALUE for
@@ -130,35 +112,6 @@ function _hi_refuses_oversize() {
   return 1
 }
 
-# Every shell aliases.sh has to parse, since the alias line sits in that file's
-# POSIX+fish subset - test_lib.sh's _hi_alias_probe holds the two dialects.
-function _hi_alias_defined_in() {
-  [ "$(_hi_alias_probe "$1" hi_copy _HI_DISABLE_OSC52="$2")" = "$3" ]
-}
-
-# The container fallback path copies aliases.sh alone, with no paths.sh to
-# define $_HI_OSC52. A bare `alias hi_copy="sh "` there would drop the user
-# into an interactive shell on their own terminal, so the alias must not exist.
-function _hi_no_alias_without_paths() {
-  local out
-  out="$(_hi_alias_probe_bare hi_copy _HI_OSC52)"
-  [ "$out" = no ]
-}
-
-function _hi_toggle_in_core_list() {
-  case " ${_HI_TOGGLES[*]} " in
-  *" _HI_DISABLE_OSC52 "*) return 0 ;;
-  esac
-  return 1
-}
-
-# config.fish keeps its own copy of the toggle list (fish can't read core.sh's
-# array); a toggle added to one and not the other is the exact drift this
-# catches.
-function _hi_toggle_in_fish_list() {
-  grep -q '_HI_DISABLE_OSC52' "$_HI_FISH_CONFIG"
-}
-
 # vim.rc's autocmd, asked of a real vim rather than grepped: the four
 # conditions it is guarded by are the whole point of the block.
 function _hi_vim_autocmd() {
@@ -190,14 +143,17 @@ function run_osc52_test() {
   _hi_h2 "the hi_copy alias"
   local shell
   for shell in sh bash zsh fish; do
-    _hi_check_requires "$shell" "[$shell] defined by default" _hi_alias_defined_in "$shell" 0 yes
-    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_OSC52=1" _hi_alias_defined_in "$shell" 1 no
+    _hi_check_requires "$shell" "[$shell] defined by default" \
+      _hi_alias_defined_in "$shell" hi_copy _HI_DISABLE_OSC52=0 yes
+    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_OSC52=1" \
+      _hi_alias_defined_in "$shell" hi_copy _HI_DISABLE_OSC52=1 no
   done
-  _hi_check "absent without paths.sh (container fallback)" _hi_no_alias_without_paths
+  _hi_check "absent without paths.sh (container fallback)" \
+    _hi_no_alias_without_paths hi_copy _HI_OSC52
 
   _hi_h2 "the toggle"
-  _hi_check "_HI_DISABLE_OSC52 in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list
-  _hi_check "_HI_DISABLE_OSC52 in config.fish's copy" _hi_toggle_in_fish_list
+  _hi_check "_HI_DISABLE_OSC52 in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list _HI_DISABLE_OSC52
+  _hi_check "_HI_DISABLE_OSC52 in config.fish's copy" _hi_toggle_in_fish_list _HI_DISABLE_OSC52
 
   _hi_h2 "the vim autocmd"
   _hi_check_requires vim "registered in a hi session" \
