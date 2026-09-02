@@ -152,7 +152,12 @@ function gpg_setup() {
     return 1
   }
   need gpg
-  _HI_GNUPGHOME="$(mktemp -d -t hi.gnupg.XXXXXX)"
+  # /tmp, not `-t` ($TMPDIR): --import of a secret key and --export-secret-keys
+  # both talk to gpg-agent over a socket that is a sockaddr_un, capped near
+  # 104-108 bytes (hi.sh's ssh ControlPath hits the same cap) - and macOS's
+  # per-user $TMPDIR already spends ~50 of them, with no /run/user for
+  # gpg-agent to fall back to the way it does on Linux.
+  _HI_GNUPGHOME="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
   chmod 700 "$_HI_GNUPGHOME"
   gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --import "$_HI_GPG_KEY"
   have="$(gpg --batch --homedir "$_HI_GNUPGHOME" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
@@ -344,6 +349,10 @@ function build_apk() {
 
 # --- main -----------------------------------------------------------------
 
+# sourcing this file defines its functions without building anything, which is
+# how the offline packaging suite reaches the index builders. GLOSSARY: HI.06
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
 need docker "createrepo_c and apk-tools run in $_HI_ALPINE_IMAGE"
 docker info >/dev/null 2>&1 || {
   _hi_cecho " docker is installed but not reachable" "$RED" >&2
@@ -356,7 +365,8 @@ _hi_h1 "Building the package repository"
 _hi_cecho " | packages: $_HI_DIST | repo: $_HI_OUT" "$BLUE"
 rm -rf "$_HI_OUT"
 mkdir -p "$_HI_OUT"
-# single quotes on purpose: $_HI_GNUPGHOME is set by gpg_setup, after this
+# a named function, not `trap '...' EXIT`: $_HI_GNUPGHOME is read when the
+# trap fires, not when it's set - gpg_setup (below) hasn't run yet
 function cleanup() { [ -z "$_HI_GNUPGHOME" ] || rm -rf "$_HI_GNUPGHOME"; }
 trap cleanup EXIT
 gpg_setup

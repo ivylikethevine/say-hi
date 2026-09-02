@@ -15,6 +15,7 @@ to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
 - [What 1.x will not break](#what-1x-will-not-break)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)
+- [Governance](#governance)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
 
 ## Before you start
@@ -192,6 +193,29 @@ Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
 - **Say if AI wrote part of it.** [README's AI Usage](../README.md#ai-usage) is
   the standard, and it applies to contributions: the tool is fine, and the code
   is still yours to have understood, reviewed and stood behind.
+
+## Governance
+
+Small on purpose, and written down so nobody has to guess:
+
+- **One maintainer** — [ivylikethevine](https://github.com/ivylikethevine)
+  owns the repository, reviews and merges every change, holds the release
+  and signing keys, and makes final decisions on scope and direction (the
+  model usually filed under BDFL). There are no other roles today; a
+  recurring contributor who wants one starts a conversation in an issue.
+- **Continuity** — everything needed to carry the project on is public: the
+  tree is MIT-licensed, releases are reproducible from it
+  ([PACKAGING.md](PACKAGING.md)), and nothing load-bearing lives outside
+  this repository. If the maintainer goes permanently quiet, fork and carry
+  on — the license is the succession plan.
+- **Your certification** — by opening a pull request you certify that you
+  wrote the contribution or otherwise have the right to submit it under the
+  MIT license (the
+  [Developer Certificate of Origin](https://developercertificate.org/), in
+  spirit; no `Signed-off-by` line is required).
+- **Sensitive access** — repository settings, secrets (signing and
+  publishing keys) and the `release` environment are reachable by the
+  maintainer alone; two-factor authentication is enabled on that account.
 
 ## Reporting a vulnerability
 

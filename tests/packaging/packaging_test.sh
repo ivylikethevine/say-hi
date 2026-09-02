@@ -998,6 +998,8 @@ function test_staged_launcher_shims_a_misnamed_checkout() {
     set -- # mkpkg.sh reads "$@" when executed; make sure sourcing sees none
     # shellcheck source=../../packaging/mkpkg.sh
     source "$_HI_PKG_DIR/mkpkg.sh"
+    # shellcheck disable=SC2030 # local to the subshell on purpose: the
+    # fixture _HI_ROOT must not leak into the rest of the suite
     _HI_ROOT="$_HI_WORKDIR/checkout"
     _HI_DIST="$_HI_WORKDIR/pkgdist3"
     out="$(staged_launcher)"
@@ -1010,6 +1012,262 @@ function test_release_workflow_uploads_sha256sums() {
   # has to carry it as an artifact and attach it to the release
   grep -q 'SHA256SUMS' "$_HI_PKG_DIR/mkpkg.sh" &&
     [ "$(grep -c 'SHA256SUMS' "$_HI_RELEASE_WF")" -ge 2 ]
+}
+
+# --- packaging/lib.sh's primitives, at suite level via a subshell source ----
+
+# _hi_in_pkglib <fn> [args...] - one lib.sh function in a subshell (the suite
+# already sources install.sh at the top; lib.sh re-derives $_HI_HOME from its
+# sourcer, which is this file - two levels under the home, like packaging/)
+function _hi_in_pkglib() {
+  (
+    # shellcheck source=../../packaging/lib.sh
+    source "$_HI_PKG_DIR/lib.sh"
+    "$@"
+  )
+}
+
+function test_lib_sha256_agrees_with_openssl() {
+  local f="$_HI_WORKDIR/sum.probe"
+  printf 'hash me\n' >"$f"
+  [ "$(_hi_in_pkglib sha256_of "$f")" = "$(openssl dgst -sha256 -r "$f" | cut -d' ' -f1)" ] || return 1
+  # the multi-file form keeps sha256sum's "<sum>  <file>" shape mkpkg depends on
+  _hi_in_pkglib sha256_lines "$f" "$f" | grep -cE "^[0-9a-f]{64}  " | grep -qx 2
+}
+
+function test_lib_b2_matches_makepkg_expectation() {
+  local f="$_HI_WORKDIR/b2.probe" out
+  printf 'hash me\n' >"$f"
+  out="$(_hi_in_pkglib b2_of "$f")"
+  # BLAKE2b-512: 128 hex chars, and both impls agree where both exist
+  [ "${#out}" -eq 128 ] || return 1
+  [ "$out" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ]
+}
+
+function test_lib_pkgbuild_version_reads_and_refuses() {
+  local f="$_HI_WORKDIR/PKGBUILD.probe"
+  printf 'pkgname=say-hi\npkgver=1.2.3\npkgrel=1\n' >"$f"
+  [ "$(_hi_in_pkglib pkgbuild_version "$f")" = 1.2.3 ] || return 1
+  printf 'pkgname=say-hi\n' >"$f"
+  ! _hi_in_pkglib pkgbuild_version "$f" 2>/dev/null
+}
+
+function test_lib_src_tarball_carries_the_versioned_prefix() {
+  local out="$_HI_WORKDIR/src.tar.gz"
+  _hi_in_pkglib src_tarball 9.9.9 HEAD "$out" || return 1
+  tar -tzf "$out" | grep -qx 'say-hi-9.9.9/hi.sh'
+}
+
+# --- mkrepo.sh's offline half (the docker-free index builders) --------------
+
+# _hi_in_mkrepo <dist> <out> <fn> [args...] - one mkrepo.sh function in a
+# subshell, through its HI.06 source guard, with the dist/out dirs pointed at
+# fixtures. stderr kept: a refusal's message is part of some assertions.
+function _hi_in_mkrepo() {
+  local dist="$1" out="$2"
+  shift 2
+  (
+    _hi_argv=("$@")
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_DIST="$dist"
+    _HI_OUT="$out"
+    "${_hi_argv[@]}"
+  )
+}
+
+# _hi_fake_deb <dir> - a structurally real .deb (ar of debian-binary +
+# control.tar.gz + data.tar.gz), enough for deb_control and build_apt; prints
+# its path
+function _hi_fake_deb() {
+  local dir="$1" sub="$1/ctl"
+  mkdir -p "$sub"
+  printf 'Package: say-hi\nVersion: 9.9.9\nArchitecture: all\nMaintainer: suite <test@localhost>\nDescription: fake deb for the packaging suite\n' >"$sub/control"
+  (cd "$sub" && tar -czf ../control.tar.gz ./control) || return 1
+  (
+    cd "$dir" || exit 1
+    printf '2.0\n' >debian-binary
+    tar -czf data.tar.gz -T /dev/null
+    # S: no symbol table. Without it, macOS's ar (cctools, not GNU) treats
+    # a fresh archive as a static library and runs an implicit ranlib pass -
+    # "ranlib: warning: archive member 'debian-binary' not a mach-o file" on
+    # stderr - which breaks deb_control's read of control.tar.gz back out
+    # (deb_control reads the control paragraph, build_apt writes a whole apt
+    # tree both failed on it). S skips that pass, on both GNU and BSD ar.
+    ar rcS say-hi_9.9.9_all.deb debian-binary control.tar.gz data.tar.gz
+  ) || return 1
+  printf '%s' "$dir/say-hi_9.9.9_all.deb"
+}
+
+function test_mkrepo_one_package_rule() {
+  local d="$_HI_WORKDIR/one-pkg"
+  mkdir -p "$d"
+  ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null || return 1
+  : >"$d/a.deb"
+  [ "$(_hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null)" = "$d/a.deb" ] || return 1
+  : >"$d/b.deb"
+  ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null
+}
+
+function test_mkrepo_deb_control_reads_the_paragraph() {
+  local d="$_HI_WORKDIR/deb-ctl" deb out
+  mkdir -p "$d"
+  deb="$(_hi_fake_deb "$d")" || return 1
+  out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb")" || return 1
+  case "$out" in *'Package: say-hi'*'Version: 9.9.9'*) return 0 ;; esac
+  _hi_cecho " | deb_control read: [$out]" "$RED"
+  return 1
+}
+
+function test_mkrepo_release_hashes_shape() {
+  local d="$_HI_WORKDIR/rel-hash" out
+  mkdir -p "$d/dists/main/binary-amd64"
+  printf 'Package: say-hi\n' >"$d/dists/main/binary-amd64/Packages"
+  gzip -9 -n -c "$d/dists/main/binary-amd64/Packages" >"$d/dists/main/binary-amd64/Packages.gz"
+  out="$(_hi_in_mkrepo "$d" "$d/repo" release_hashes "$d/dists" SHA256 sha256)" || return 1
+  printf '%s\n' "$out" | head -1 | grep -qx 'SHA256:' || return 1
+  printf '%s\n' "$out" | grep -qE '^ [0-9a-f]{64} +[0-9]+ main/binary-amd64/Packages$'
+}
+
+# The whole apt half, offline: build_apt needs ar, openssl and gzip and no
+# docker, so the index format apt actually parses is testable in the fast
+# group. The unsigned arm is the one a keyless dev box exercises.
+function test_mkrepo_build_apt_offline() {
+  local d="$_HI_WORKDIR/apt-build" out arch
+  mkdir -p "$d/dist" "$d/repo"
+  _hi_fake_deb "$d/dist" >/dev/null || return 1
+  _hi_in_mkrepo "$d/dist" "$d/repo" build_apt >/dev/null 2>&1 || return 1
+  [ -f "$d/repo/apt/pool/main/s/say-hi/say-hi_9.9.9_all.deb" ] || return 1
+  for arch in amd64 arm64 all; do
+    [ -f "$d/repo/apt/dists/stable/main/binary-$arch/Packages" ] || return 1
+    [ -f "$d/repo/apt/dists/stable/main/binary-$arch/Packages.gz" ] || return 1
+  done
+  out="$(cat "$d/repo/apt/dists/stable/main/binary-amd64/Packages")"
+  case "$out" in
+  *'Package: say-hi'*'Filename: pool/main/s/say-hi/say-hi_9.9.9_all.deb'*) ;;
+  *)
+    _hi_cecho " | Packages paragraph is missing fields: [$out]" "$RED"
+    return 1
+    ;;
+  esac
+  printf '%s\n' "$out" | grep -qE '^SHA256: [0-9a-f]{64}$' || return 1
+  out="$(cat "$d/repo/apt/dists/stable/Release")"
+  case "$out" in
+  *'Suite: stable'*'Architectures: amd64 arm64 all'*'MD5Sum:'*'SHA256:'*) ;;
+  *)
+    _hi_cecho " | Release file is missing blocks" "$RED"
+    return 1
+    ;;
+  esac
+  # keyless: unsigned on purpose, and loud about it
+  [ ! -e "$d/repo/apt/dists/stable/InRelease" ]
+}
+
+# _hi_mkrepo_keys - two throwaway GPG keys (main + imposter) into
+# $_HI_WORKDIR/gpg, once; gpg_setup's identity check needs a real mismatch.
+# The homedirs live under a short base on /tmp, not $_HI_WORKDIR:
+# --quick-generate-key and --export-secret-keys both talk to gpg-agent over a
+# socket that is a sockaddr_un, capped near 104-108 bytes (hi.sh's ssh
+# ControlPath hits the same cap), and $_HI_WORKDIR's own mktemp -d -t already
+# spends most of that under macOS's long per-user $TMPDIR, which has no
+# /run/user for gpg-agent to fall back to the way it does on Linux.
+function _hi_mkrepo_keys() {
+  local kd="$_HI_WORKDIR/gpg"
+  [ -f "$kd/main.key" ] && return 0
+  mkdir -p "$kd"
+  local hd hb err="$_HI_WORKDIR/gpg.err"
+  hb="$(mktemp -d /tmp/hi.gpg.XXXXXX)" || return 1
+  _hi_track_dir "$hb"
+  for hd in main other; do
+    mkdir -p "$hb/$hd"
+    chmod 700 "$hb/$hd"
+    # --pinentry-mode loopback: --batch --passphrase '' alone still has
+    # gpg-agent try to confirm the (empty) passphrase through a pinentry
+    # program on some GnuPG builds, which a headless runner has none of.
+    # loopback keeps the confirmation inside gpg itself.
+    if ! gpg --batch --quiet --homedir "$hb/$hd" --pinentry-mode loopback --passphrase '' \
+      --quick-generate-key "say-hi suite $hd" ed25519 sign never 2>"$err"; then
+      _hi_dump_log "gpg --quick-generate-key ($hd) failed" "$err"
+      return 1
+    fi
+    if ! gpg --batch --quiet --homedir "$hb/$hd" --armor \
+      --export-secret-keys >"$kd/$hd.key" 2>"$err"; then
+      _hi_dump_log "gpg --export-secret-keys ($hd) failed" "$err"
+      return 1
+    fi
+    if ! gpg --batch --quiet --homedir "$hb/$hd" --armor \
+      --export >"$kd/$hd.asc" 2>"$err"; then
+      _hi_dump_log "gpg --export ($hd) failed" "$err"
+      return 1
+    fi
+    gpgconf --homedir "$hb/$hd" --kill gpg-agent >/dev/null 2>&1 || true
+  done
+  rm -rf "$hb"
+}
+
+function test_mkrepo_gpg_setup_verdicts() {
+  local d="$_HI_WORKDIR/gpg-setup" err="$_HI_WORKDIR/gpg-setup.err"
+  mkdir -p "$d/repo"
+  # keyless is a quiet no-op...
+  _hi_in_mkrepo "$d" "$d/repo" gpg_setup || {
+    _hi_cecho " | a keyless gpg_setup should be a no-op" "$RED"
+    return 1
+  }
+  # ...a named-but-missing key is a refusal...
+  ! (
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_OUT="$d/repo"
+    _HI_GPG_KEY="$d/absent.key"
+    gpg_setup
+  ) 2>/dev/null || {
+    _hi_cecho " | a missing --gpg-key should have been refused" "$RED"
+    return 1
+  }
+  _hi_mkrepo_keys || return 1
+  # ...the real key exports its public half beside the repo. gpg_setup's own
+  # $_HI_GNUPGHOME (mkrepo.sh) talks to gpg-agent too, and its trap cleanup
+  # sits below the HI.06 source guard, so sourcing it here never runs it -
+  # kill the agent and remove the homedir ourselves.
+  (
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_OUT="$d/repo"
+    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
+    _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/main.asc"
+    gpg_setup >/dev/null
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    [ "$st" -eq 0 ] && [ -s "$d/repo/say-hi.asc" ]
+  ) 2>"$err" || {
+    _hi_dump_log "the real key should have exported say-hi.asc" "$err"
+    return 1
+  }
+  # ...and a key that is not the one --public-key names is refused
+  ! (
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_OUT="$d/repo"
+    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
+    _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/other.asc"
+    gpg_setup >/dev/null
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    exit "$st"
+  ) 2>/dev/null || {
+    _hi_cecho " | a mismatched --public-key should have been refused" "$RED"
+    return 1
+  }
 }
 
 function run_packaging_tests() {
@@ -1125,6 +1383,19 @@ function run_packaging_tests() {
   _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
   _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
   _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
+
+  _hi_h2 "Testing: packaging/lib.sh's primitives"
+  _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
+  _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_matches_makepkg_expectation
+  _hi_check "pkgbuild_version reads pkgver= and refuses none" test_lib_pkgbuild_version_reads_and_refuses
+  _hi_check_requires git "src_tarball carries the versioned prefix" test_lib_src_tarball_carries_the_versioned_prefix
+
+  _hi_h2 "Testing: mkrepo.sh (offline half)"
+  _hi_check "one_package enforces exactly one artifact" test_mkrepo_one_package_rule
+  _hi_check_requires ar "deb_control reads the control paragraph" test_mkrepo_deb_control_reads_the_paragraph
+  _hi_check_requires openssl "release_hashes writes apt's hash block shape" test_mkrepo_release_hashes_shape
+  _hi_check_requires ar "build_apt writes a whole apt tree, no docker" test_mkrepo_build_apt_offline
+  _hi_check_requires gpg "gpg_setup's four verdicts" test_mkrepo_gpg_setup_verdicts
 
   _hi_suite_end "packaging"
 }

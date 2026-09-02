@@ -14,6 +14,7 @@ to report what slipped through it.
 - [When a push is refused](#when-a-push-is-refused)
 - [Supported versions](#supported-versions)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
+  - [What happens to a report](#what-happens-to-a-report)
 
 ## What hi does - and deliberately doesn't
 
@@ -187,3 +188,21 @@ Please don't open a public issue for anything exploitable. Instead:
 
 - report privately via
   [GitHub private vulnerability reporting](https://github.com/ivylikethevine/say-hi/security/advisories/new)
+
+### What happens to a report
+
+- **Acknowledgement within 14 days**, usually much sooner — this is a
+  one-maintainer project, and the private report reaches that maintainer
+  directly.
+- **Coordinated disclosure.** A confirmed vulnerability is fixed before it is
+  discussed publicly; the aim is a fix within 60 days of the report
+  (the test suites and the release pipeline make a same-week patch the
+  normal case). Reporters are kept in the loop from acknowledgement to
+  advisory, and nothing about a report is published before the fix ships
+  unless the reporter and maintainer agree otherwise.
+- **Advisories are public.** Every fixed vulnerability gets a
+  [GitHub Security Advisory](https://github.com/ivylikethevine/say-hi/security/advisories)
+  naming the affected versions and the fix, and the fixing release's notes
+  reference it. None have been reported to date.
+- **Credit.** Reporters are credited in the advisory and the release notes
+  unless they ask not to be.

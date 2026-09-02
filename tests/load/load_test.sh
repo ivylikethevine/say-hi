@@ -221,6 +221,38 @@ function test_this_checkout_was_never_touched() {
   [ -f "$_HI_ROOT/load.sh" ] && [ -f "$_HI_ROOT/hi.sh" ] && [ -d "$_HI_ROOT/common" ]
 }
 
+# _hi_fishquote's contract is "one fish word, byte-identical after fish
+# unquotes it" - proven through a real fish, the same way hi_helpers proves
+# _hi_shquote through a real sh. Backslash and single quote are fish's only
+# two escapes, so they are the round trip that matters.
+function _hi_fishquote_roundtrip() {
+  local q out
+  _hi_fishquote q "$1"
+  out="$(fish -c "printf %s $q" </dev/null)"
+  [ "$out" = "$1" ]
+}
+
+function test_fishquote_roundtrips_the_hard_cases() {
+  _hi_fishquote_roundtrip "plain" &&
+    _hi_fishquote_roundtrip "with space" &&
+    _hi_fishquote_roundtrip "don't" &&
+    _hi_fishquote_roundtrip 'back\slash' &&
+    _hi_fishquote_roundtrip "a\\'mix\\\\of'both"
+}
+
+# the sh-dialect session rc shape bash and zsh share: the target's own rc
+# first, this run's verdicts, then hi's rc - in that order
+function test_session_sh_rc_writes_the_three_layers() {
+  local out="$_HI_WORKDIR/session.rc" sh_vars=$'_HI_TARGET=probe\n'
+  _hi_session_sh_rc .proberc "/some tree/rc file.sh" "$out" || return 1
+  diff "$out" - <<'EOF' || return 1
+[ -r "$HOME/.proberc" ] && . "$HOME/.proberc"
+_HI_TARGET=probe
+. /some\ tree/rc\ file.sh
+EOF
+  return 0
+}
+
 # Which shell the session runs in - $_HI_SHELL_PREFERENCE is the whole rule, and
 # load.sh's own comment says why `login` leads its default.
 
@@ -276,6 +308,8 @@ function run_load_tests() {
   _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc
   _hi_check "the rc dir nests under \$_HI_CLEANUP when set" test_session_rc_setup_nests_under_cleanup_when_set
   _hi_check "...and stands alone without one" test_session_rc_setup_stands_alone_without_cleanup
+  _hi_check_requires fish "_hi_fishquote round-trips through a real fish" test_fishquote_roundtrips_the_hard_cases
+  _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
 
   _hi_h2 "Testing: _hi_session_shell"
   # <label>|<installed shells>|<env pairs>|<want>. Six cases, three of which

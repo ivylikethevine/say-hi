@@ -163,6 +163,82 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
 }
 
+# _hi_json_str is what makes --json parseable whatever a target wrote into a
+# row: quotes and backslashes escaped, control characters flattened to spaces
+function test_json_str_escapes_and_flattens() {
+  [ "$(_hi_json_str 'plain text')" = '"plain text"' ] || return 1
+  [ "$(_hi_json_str 'a "quoted" \path')" = '"a \"quoted\" \\path"' ] || return 1
+  [ "$(_hi_json_str $'two\nlines\tand tab')" = '"two lines and tab"' ]
+}
+
+# severity is doctor_row's own argument: bad counts as a finding, the rest
+# never do, and under --json the row is collected rather than printed
+function test_doctor_row_counts_only_bad() {
+  local out
+  out="$(
+    _HI_DOC_BAD=0
+    doctor_row a "fine" ok
+    doctor_row b "meh" warn
+    doctor_row c "broken" bad
+    doctor_row d "plain"
+    echo "bad=$_HI_DOC_BAD"
+  )"
+  case "$out" in *'bad=1'*) ;; *) return 1 ;; esac
+  out="$(
+    _HI_DOC_JSON=1
+    _HI_DOC_ROWS=""
+    _HI_DOC_SECTION=probe
+    doctor_row label 'text with "quotes"' bad
+    printf '%s' "$_HI_DOC_ROWS"
+  )"
+  case "$out" in
+  *'"section": "probe"'*'"label": "label"'*'"text": "text with \"quotes\""'*'"severity": "bad"'*) return 0 ;;
+  esac
+  _hi_cecho " | json row was: [$out]" "$RED"
+  return 1
+}
+
+function test_missing_tools_lists_only_the_absent() {
+  local out
+  out="$(PATH="$(_hi_fake_path doctools sh present-tool)" _hi_missing_tools present-tool absent-tool-9x other-absent-8y)"
+  [ "$out" = "absent-tool-9x other-absent-8y" ]
+}
+
+function test_ladder_first_picks_in_ladder_order() {
+  local have=" dash zsh fish " want=""
+  for s in $_HI_SHELL_LADDER; do
+    case "$have" in *" $s "*)
+      want="$s"
+      break
+      ;;
+    esac
+  done
+  [ -n "$want" ] || return 1
+  [ "$(_hi_ladder_first "dash zsh fish")" = "$want" ] || return 1
+  [ -z "$(_hi_ladder_first "nothing known")" ]
+}
+
+# the probe snippet is sh the target runs; here the target is this box
+function test_doctor_probe_snippet_runs_under_sh() {
+  local out
+  out="$(sh -c "$(_hi_doctor_probe_snippet)")" || return 1
+  case " $out " in *' bash '*) return 0 ;; esac
+  return 1
+}
+
+# both arms, driven by explicit byte counts so no wire assembly runs: the
+# stock figure comes from a real _hi_wire_bytes against no overlay, and the
+# floor hides small deltas
+function test_doctor_payload_diff_arms() {
+  local stock out
+  stock="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
+  out="$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))"
+  case "$out" in *'lighter than the stock default'*) ;; *) return 1 ;; esac
+  out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
+  case "$out" in *'heavier than the stock default'*) ;; *) return 1 ;; esac
+  [ -z "$(doctor_payload_diff "$stock")" ]
+}
+
 # the system-wide layer's row: parse-checked when present, quiet when absent
 function test_config_reports_the_system_layer() {
   local dir sys out
@@ -392,6 +468,14 @@ function run_doctor_tests() {
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "The system layer gets a row" test_config_reports_the_system_layer
+
+  _hi_h2 "Testing: the report primitives"
+  _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
+  _hi_check "doctor_row: only bad counts; --json collects" test_doctor_row_counts_only_bad
+  _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
+  _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
+  _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
+  _hi_check "doctor_payload_diff: both arms and the floor" test_doctor_payload_diff_arms
 
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
