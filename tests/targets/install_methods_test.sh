@@ -169,7 +169,7 @@ function run_install_methods_tests() {
   # <label>:<suffix>:<remote root>:<skip reason>:<extra post-check>. The
   # suffix names both the <suffix>_ok flag the build phase above set and the
   # $_HI_SSH_CASE_PREFIX-<suffix>-img-$$ image it built; the extra post-check
-  # (last field, so its spaces survive the split) is ANDed onto $no_copy. The
+  # (last field, so its spaces survive the split) joins $no_copy with &&. The
   # brew, prefix and unannounced tiers-of-last-resort each carry the sentinel
   # their fixture planted, so the post-check proves the session landed in
   # *that* tree rather than in one hi built at the same path.
