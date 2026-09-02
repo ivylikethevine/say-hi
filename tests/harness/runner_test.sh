@@ -658,6 +658,45 @@ function test_windows_client_shards_cover_the_fast_group() {
   [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group fast --list 2>/dev/null | sort)" ]
 }
 
+# windows-client.yml's check, generalized for ci.yml: two sharded jobs live
+# in the one file, so the job name scopes the sed extraction to that job's
+# own block (through to the next top-level key) rather than the whole file.
+function _hi_ci_shards_cover_group() {
+  local job="$1" group="$2" workflow="$_HI_ROOT/.github/workflows/ci.yml"
+  local block shards i halves
+  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
+  block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
+  shards="$(printf '%s\n' "$block" | sed -n 's/^ *HI_SHARDS: *//p' | head -1)"
+  [ -n "$shards" ] && [ "$shards" -ge 2 ] || {
+    _hi_cecho " | ci.yml's $job sets no HI_SHARDS" "$RED"
+    return 1
+  }
+  [ "$(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',' '\n' | grep -c '[0-9]')" -eq "$shards" ] || {
+    _hi_cecho " | ci.yml's $job shard matrix does not list $shards entries" "$RED"
+    return 1
+  }
+  i=1
+  halves=""
+  while [ "$i" -le "$shards" ]; do
+    halves="$halves$("$_HI_TEST_RUN" --group "$group" --shard "$i/$shards" --list 2>/dev/null)"$'\n'
+    i=$((i + 1))
+  done
+  [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ]
+}
+
+function test_ci_e2e_shards_cover_the_e2e_group() {
+  _hi_ci_shards_cover_group e2e e2e
+}
+
+# Also the shape "one backend per runner" depends on: three suites, three
+# shards, so every shard really is exactly one backend - not asserted here
+# (that's install-step reasoning, not a suite-list one), but a shard count
+# that ever drifted from the group's suite count would fail this the same
+# way a missing HI_SHARDS or an incomplete matrix would.
+function test_ci_e2e_backends_shards_cover_the_backends_group() {
+  _hi_ci_shards_cover_group e2e-backends backends
+}
+
 function test_every_group_selects_only_its_own_suites() {
   local group rows
   while read -r group; do
@@ -791,6 +830,8 @@ function run_runner_tests() {
   _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
   _hi_check "The Windows client's shards cover the fast group" test_windows_client_shards_cover_the_fast_group
+  _hi_check "ci.yml's e2e shards cover the e2e group" test_ci_e2e_shards_cover_the_e2e_group
+  _hi_check "ci.yml's e2e-backends shards cover the backends group" test_ci_e2e_backends_shards_cover_the_backends_group
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites

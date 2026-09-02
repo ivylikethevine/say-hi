@@ -9,13 +9,13 @@
 #
 # Two rosters, because two pins live in two different places. Most tools are
 # in setup-tool's tools.txt, read here rather than copied, so a tool cannot be
-# pinned and go unchecked. bashcov is the one exception (coverage-v2.yml's
-# own comment says why: it is a rubygem, and none of tools.txt's kinds fetch
-# one, so teaching install.sh about gems for a single dispatch-only workflow
-# was judged not worth it) - its pin lives inline in the workflow that
-# installs it instead. _WORKFLOW_ROSTER is that second list: one row per pin
-# that lives in a `run:` line rather than tools.txt, naming the file and the
-# regex that extracts it. A tool whose row stops matching is reported as an error rather
+# pinned and go unchecked. bashcov is the one exception (coverage.yml's own
+# comment says why: it is a rubygem, and none of tools.txt's kinds fetch one,
+# so teaching install.sh about gems for a single dispatch-only workflow was
+# judged not worth it) - its pin lives inline in the workflow that installs
+# it instead. _WORKFLOW_ROSTER is that second list: one row per pin that
+# lives in a `run:` line rather than tools.txt, naming the file and the regex
+# that extracts it. A tool whose row stops matching is reported as an error rather
 # than silently skipped, same reasoning as tools.txt's own "-" opt-out: a
 # roster that quietly covers nothing is worse than no roster.
 set -euo pipefail
@@ -28,7 +28,7 @@ source .github/actions/setup-tool/lib.sh
 #   name|file|extract-regex|check
 _WORKFLOW_ROSTER=$(
   cat <<'ROWS'
-bashcov|.github/workflows/coverage-v2.yml|BASHCOV_VERSION: "\([0-9][0-9.]*\)"|github:infertux/bashcov
+bashcov|.github/workflows/coverage.yml|BASHCOV_VERSION: "\([0-9][0-9.]*\)"|github:infertux/bashcov
 ROWS
 )
 

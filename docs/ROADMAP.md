@@ -60,26 +60,7 @@ spam problem; see the **AUR** entry below.
    - **Ticks when:** zizmor is back on its latest release and
      `check_tool_versions.sh` reports every pin current.
 
-2. [ ] **Fan out e2e and merge the coverage workflows** — _scope: three
-       workflow files; in-repo._ `e2e-backends` (`ci.yml`) installs podman,
-       nomad and kind once and runs `podman`/`nomad`/`kube` serially inside
-       forty minutes on one runner, because `test_runner.sh`'s suite-level
-       width pins to 1 whenever a `backends` suite is selected - they share
-       one container daemon. A three-way matrix job, one backend per runner,
-       sidesteps that: separate runners are separate daemons. `e2e` (eight
-       suites, twenty-five minutes) has the same shape, and the runner's own
-       `--shard i/n` (already used by `windows-client.yml`) is the tool for
-       it. `coverage.yml` and `coverage-v2.yml` are also identical in shape -
-       the same `workflow_run` + `workflow_dispatch` trigger, the same
-       push/success gate, the same `cancel-in-progress: true` concurrency -
-       differing only in which tool (kcov vs. bashcov) runs over the fast
-       suites; one workflow with a two-job matrix replaces both.
-
-   - **Ticks when:** `e2e-backends` and `e2e` are each a matrix/shard of
-     several runners instead of one, and `coverage.yml`/`coverage-v2.yml`
-     are one workflow.
-
-3. [ ] **Get a release out** — _scope: one tag; outside this checkout._ Push
+2. [ ] **Get a release out** — _scope: one tag; outside this checkout._ Push
        a `v*` tag and approve the `release` environment when `publish` pauses;
        it opens a manifest PR onto a `manifests-<tag>` branch (`tap`/`aur` read
        the manifests out of the `packages` artifact, so the release doesn't
@@ -90,7 +71,7 @@ spam problem; see the **AUR** entry below.
        the **Outside the repo** bundle. **Ticks when:** a final tag's manifest
        PR is opened.
 
-4. [ ] **Flip to stable** — _scope: one commit at tag time; in-repo._ The
+3. [ ] **Flip to stable** — _scope: one commit at tag time; in-repo._ The
        EXPERIMENTAL banner has echoes: README's banner and its anchor
        (CONTRIBUTING.md's first paragraph links it by name), ALTERNATIVES.md's
        maturity cell, SECURITY.md's _Supported versions_, which becomes the
@@ -99,13 +80,13 @@ spam problem; see the **AUR** entry below.
        they name are live. **Ticks when:** every one reads as a released
        project in the commit the tag points at.
 
-5. [ ] **tldr page** — _scope: one upstream pull request; outside this
+4. [ ] **tldr page** — _scope: one upstream pull request; outside this
        checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-6. [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
+5. [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
        SETTINGS.md section; in-repo._ One overlay ships to every target
        (README's _Configuration_ warning, SECURITY.md's _Trust boundaries_);
        the only per-host lever is a color. `_HI_TARGET_TAG` already resolves
@@ -117,7 +98,7 @@ spam problem; see the **AUR** entry below.
        prod and customer hosts keeps the overlay empty or runs two
        `XDG_CONFIG_HOME`s.
 
-7. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
+6. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
        real Mac; outside this checkout._ Waits on **Get a release out**.
        Create `homebrew-tap` (plain repo, `Formula/` dir), add a fine-grained
        PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
@@ -126,7 +107,7 @@ spam problem; see the **AUR** entry below.
        `brew install ivy/tap/say-hi` works, from a release the `tap` job
        opened a PR for.
 
-8. [ ] **Package repository on the Pages site** — _scope: one key, one secret,
+7. [ ] **Package repository on the Pages site** — _scope: one key, one secret,
        one committed file, one release; outside this checkout._ The code half
        shipped: `packaging/mkrepo.sh` builds the apt, rpm and apk repositories
        out of `mkpkg.sh`'s packages, `release.yml` signs the rpm in `build` and
@@ -142,7 +123,7 @@ spam problem; see the **AUR** entry below.
        `apk add say-hi` each work from the published URL, and a second release
        upgrades one of them in place.
 
-9. [ ] **Outside the repo, once a release exists** — _scope: a badge, a
+8. [ ] **Outside the repo, once a release exists** — _scope: a badge, a
        toggle and two checks; mostly outside this checkout._ Waits on
        **Get a release out**. Four small pieces: a Repology badge (in
        README's badge block already, rendering empty; ticks once it carries
@@ -152,7 +133,7 @@ spam problem; see the **AUR** entry below.
        PACKAGING.md line if it needs an `--exe` hint; and
        `actions/attest-sbom` beside the provenance step.
 
-10. [ ] **AUR** — _scope: nothing until registration reopens; then an
+9. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and `release.yml`'s
        `aur` job stays written and unexercised until it reopens. **When it
