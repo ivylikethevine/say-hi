@@ -1,18 +1,40 @@
 name: Coverage
 
-# kcov over the fast suites, published as an artifact - visibility, never a
-# gate: no PR waits on this and no threshold fails it. The figure itself is
-# still not to be believed - kcov loses its DEBUG trap once test_lib.sh is
-# sourced (tests/coverage.sh's READ THIS BEFORE BELIEVING A NUMBER THIS
-# PRINTS), so it understates real coverage by a wide, uneven margin and the
-# README badge says `load-time` in grey, under an accuracy disclaimer.
+# kcov and bashcov, each over the fast suites, published as artifacts -
+# visibility, never a gate: no PR waits on either and no threshold fails one.
+# One workflow, a two-entry matrix, because the two are identical in shape -
+# same workflow_run + workflow_dispatch trigger, same push/success gate, same
+# per-tool concurrency - and differed before only in which tool ran.
 #
-# workflow_run so every green push to main refreshes the figure without a
-# manual dispatch; the job gates on the run's conclusion and event the way
+# Neither figure is to be believed on its own, and they disagree in opposite
+# directions:
+#   - kcov loses its DEBUG trap once test_lib.sh is sourced (tests/coverage.sh's
+#     READ THIS BEFORE BELIEVING A NUMBER THIS PRINTS), so it understates real
+#     coverage by a wide, uneven margin and the README badge says `load-time`
+#     in grey, under an accuracy disclaimer.
+#   - bashcov reads bash's xtrace, so it keeps the suites kcov loses
+#     (git_prompt.sh 92.68% vs. 2.56%), but marks every heredoc-body line
+#     covered - hi.sh's two connect functions, 182 lines --group fast never
+#     runs, report 100% - so its badge says `heredoc-inflated` in grey, under
+#     the same disclaimer.
+#
+# workflow_run so every green push to main refreshes both figures without a
+# manual dispatch; each job gates on the run's conclusion and event the way
 # pages.yml does, and checkout uses the default ref, never the triggering
-# run's payload. pages.yml deploys off the same CI event, so the badge shows
+# run's payload. pages.yml deploys off the same CI event, so a badge shows
 # the *previous* push's figure until the next deploy - the documented "last
 # figure anyone measured" design, now at most one push behind.
+#
+# job-level continue-on-error, not workflow-level: pages.yml looks up "the
+# newest run of this workflow with status=success" once per badge, and that
+# status is the *whole run's* conclusion - which a two-job matrix would
+# otherwise couple, one tool's failure graying out the other's badge too
+# (they were fully independent workflows before this merge). continue-on-error
+# keeps a failed leg from failing the run, so the other badge still updates;
+# the cost is that the failed tool's own badge goes stale (it needs a run
+# where *both* legs pass to find a newer artifact) rather than the fully
+# independent search two separate workflows gave it - an acceptable trade for
+# an advisory-only figure that already carries a "not to be believed" label.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -20,17 +42,12 @@ on: # zizmor: ignore[dangerous-triggers]
     branches: [main]
   workflow_dispatch:
 
-# pushes to main can stack; only the newest figure matters
-concurrency:
-  group: coverage
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
 jobs:
-  kcov:
-    name: kcov over the fast suites
+  coverage:
+    name: ${{ matrix.tool }} over the fast suites
     # only a green push to main measures; a manual dispatch passes the first
     # clause
     if: >-
@@ -39,63 +56,158 @@ jobs:
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # pushes to main can stack; only the newest figure per tool matters, and
+    # kcov's queue must not wait behind bashcov's or vice versa
+    concurrency:
+      group: coverage-${{ matrix.tool }}
+      cancel-in-progress: true
+    # see the header comment above for what this buys and what it costs
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: kcov
+            script: tests/coverage.sh
+            report_dir: coverage-report
+            pct_dir: coverage-pct
+          - tool: bashcov
+            script: tests/coverage_v2.sh
+            report_dir: coverage-v2-report
+            pct_dir: coverage-v2-pct
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # the libs after fish are kcov's runtime ones: setup-tool caches the
-      # built binary, so on a cache hit nothing else pulls them in
-      - name: Install zsh, fish and kcov's runtime libraries
+      # kcov's runtime libraries ride along on its own leg; bashcov needs
+      # nothing past zsh and fish
+      - name: Install zsh, fish, and this leg's other OS packages
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y zsh fish libdw1 libelf1 libcurl4 zlib1g libstdc++6
+          if [ "${{ matrix.tool }}" = kcov ]; then
+            sudo apt-get install -y zsh fish libdw1 libelf1 libcurl4 zlib1g libstdc++6
+          else
+            sudo apt-get install -y zsh fish
+          fi
 
-      # built from its GitHub source tarball like every other tool here: kcov
-      # publishes no binary asset and reaches Debian/Ubuntu only through a PPA
-      - uses: ./.github/actions/setup-tool
+      # built from its GitHub source tarball like every other tool setup-tool
+      # knows: kcov publishes no binary asset and reaches Debian/Ubuntu only
+      # through a PPA
+      - if: matrix.tool == 'kcov'
+        uses: ./.github/actions/setup-tool
         with:
           tool: kcov
 
-      # No shellcheck/shfmt/checkbashisms on purpose: tests/coverage.sh drops
-      # the `shellcheck` suite from the sweep, so the host report's "(absent)"
-      # for them is not a failure.
-      - name: Run the fast suites under kcov
-        run: tests/coverage.sh coverage-report
+      # bashcov is a rubygem, and none of tools.txt's kinds fetch one, so the
+      # pin lives here by hand - which makes it the one tool
+      # check_tool_versions.sh cannot report drift on through tools.txt; its
+      # own row in _WORKFLOW_ROSTER points at this file instead. ruby is
+      # preinstalled on the hosted images; the apt install below is a
+      # fallback that should never run.
+      - if: matrix.tool == 'bashcov'
+        name: Install ruby and bashcov
+        env:
+          BASHCOV_VERSION: "4.0.0"
+        run: | # zizmor: ignore[adhoc-packages]
+          set -euo pipefail
+          command -v ruby >/dev/null 2>&1 || sudo apt-get install -y ruby-full
+          # zizmor flags this as an ad-hoc install, and the ignore rides on
+          # the `run:` line above - a comment in here is shell text, not YAML,
+          # and the audit never sees it. The version pin is the answer to the
+          # finding: the lockfile it would rather see is a Gemfile for a single
+          # gem in a job that installs nothing else. ci.yml audits with no
+          # --min-severity, so even a low finding exits 12 - the suppression
+          # has to be written down rather than assumed.
+          gem install --user-install bashcov -v "$BASHCOV_VERSION"
+          # --user-install puts the binary somewhere off the default PATH;
+          # coverage_v2.sh looks there itself, but exporting it here keeps the
+          # step below readable and lets `bashcov --version` be the smoke test
+          for d in "$HOME"/.local/share/gem/ruby/*/bin; do
+            [ -x "$d/bashcov" ] && echo "$d" >>"$GITHUB_PATH"
+          done
+
+      - if: matrix.tool == 'bashcov'
+        name: Show the bashcov version
+        run: bashcov --version
+
+      # No shellcheck/shfmt/checkbashisms on purpose: both coverage scripts
+      # drop the `shellcheck` suite from the sweep, so the host report's
+      # "(absent)" for them is not a failure.
+      - name: Run the fast suites under ${{ matrix.tool }}
+        run: "${{ matrix.script }} ${{ matrix.report_dir }}"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-report
-          path: coverage-report
+          name: ${{ matrix.report_dir }}
+          path: ${{ matrix.report_dir }}
           if-no-files-found: error
           retention-days: 90
 
-      # One line pages.yml turns into README's badge (badges/coverage.json),
-      # separate from the report because the site re-reads it on every deploy.
-      # The `^[[:space:]]*` anchor is load-bearing: kcov writes percent_covered
-      # once per traced file inline inside a `{...}` and once for the whole run
-      # on a line of its own; without it the first per-file figure wins.
+      # One line pages.yml turns into README's badge (badges/coverage.json or
+      # badges/coverage-v2.json), separate from the report because the site
+      # re-reads it on every deploy. kcov's `^[[:space:]]*` anchor is
+      # load-bearing: it writes percent_covered once per traced file inline
+      # inside a `{...}` and once for the whole run on a line of its own;
+      # without it the first per-file figure wins. bashcov's SimpleCov
+      # .resultset.json has no aggregate percentage at all, only per-line hit
+      # arrays, so ruby computes it - the filters coverage_v2.sh applies are
+      # already baked into the resultset.
       - name: Write the badge figure
+        env:
+          TOOL: ${{ matrix.tool }}
+          REPORT_DIR: ${{ matrix.report_dir }}
+          PCT_DIR: ${{ matrix.pct_dir }}
         run: |
           set -euo pipefail
-          src=coverage-report/merged/kcov-merged/coverage.json
-          if [ ! -f "$src" ]; then
-            echo "::warning::$src is missing - no badge figure to publish"
-            exit 0
+          if [ "$TOOL" = kcov ]; then
+            src="$REPORT_DIR/merged/kcov-merged/coverage.json"
+            if [ ! -f "$src" ]; then
+              echo "::warning::$src is missing - no badge figure to publish"
+              exit 0
+            fi
+            pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$src" | tail -1)"
+            case "$pct" in '' | *[!0-9.]*)
+              echo "::warning::could not read percent_covered out of $src"
+              exit 0
+              ;;
+            esac
+          else
+            src="$REPORT_DIR/.resultset.json"
+            if [ ! -f "$src" ]; then
+              echo "::warning::$src is missing - no badge figure to publish"
+              exit 0
+            fi
+            pct="$(ruby -rjson -e '
+              merged = {}
+              JSON.parse(File.read(ARGV[0])).each_value do |payload|
+                (payload["coverage"] || {}).each do |file, data|
+                  lines = data.is_a?(Hash) ? data["lines"] : data
+                  if merged[file]
+                    merged[file] = merged[file].each_with_index.map do |v, i|
+                      [v, lines[i]].compact.sum if v || lines[i]
+                    end
+                  else
+                    merged[file] = lines.dup
+                  end
+                end
+              end
+              relevant = merged.values.flatten.compact
+              exit 1 if relevant.empty?
+              printf("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
+            ' "$src")" || {
+              echo "::warning::could not compute a percentage out of $src"
+              exit 0
+            }
           fi
-          pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$src" | tail -1)"
-          case "$pct" in '' | *[!0-9.]*)
-            echo "::warning::could not read percent_covered out of $src"
-            exit 0
-            ;;
-          esac
-          mkdir -p coverage-pct
-          printf '%s\n' "$pct" >coverage-pct/pct
-          echo "kcov reports ${pct}% of lines executed"
+          mkdir -p "$PCT_DIR"
+          printf '%s\n' "$pct" >"$PCT_DIR/pct"
+          echo "$TOOL reports ${pct}% of lines executed"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: hashFiles('coverage-pct/pct') != ''
+        if: hashFiles(format('{0}/pct', matrix.pct_dir)) != ''
         with:
-          name: coverage-pct
-          path: coverage-pct
+          name: ${{ matrix.pct_dir }}
+          path: ${{ matrix.pct_dir }}
           if-no-files-found: error

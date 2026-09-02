@@ -164,8 +164,8 @@ neither is right:
   `$PATH`, writes a `.simplecov` into the checkout for the run, removes it
   after, and refuses to start rather than overwrite one you have.
 
-The dispatch-only `coverage.yml` and `coverage-v2.yml` publish the two
-aggregates as shields endpoints (`badges/coverage.json`,
+The dispatch-only `coverage.yml` (a two-job matrix, kcov and bashcov) publishes
+both aggregates as shields endpoints (`badges/coverage.json`,
 `badges/coverage-v2.json`) via `pages.yml`, labelled `load-time` /
 `heredoc-inflated` rather than `coverage`. README shows them under an explicit
 disclaimer — the labels say what each number actually is, never a green

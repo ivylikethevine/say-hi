@@ -366,6 +366,48 @@ function test_case_result_says_timed_out_by_name() {
   [[ "$(_HI_FAILS_FILE="" _hi_case_result probe "a case" 124 0 1 "$out" HI_MARK 2>&1 || true)" == *'TIMED OUT'* ]]
 }
 
+# _hi_retry_run <label> <timeout_s> <shim line>... - one _hi_exec_case run
+# against a fake launcher, proving _HI_EXEC_ATTEMPTS directly rather than only
+# through kube's happy path, which never exercises the retry branch at all
+# when the target answers first try. _HI_PTY_WRAP=() skips pty wrapping (there
+# is nothing to spawn one for); fd 3 is the stdin _hi_exec_case reads via <&3
+# (see _hi_pty_stdin); _HI_FAILS_FILE is emptied so the FAILED verdicts these
+# tests provoke don't land in this suite's own recap, the same trick
+# test_case_result_fails_a_timed_out_case_despite_its_marker uses above.
+function _hi_retry_run() {
+  local label="$1" timeout_s="$2" fake="$_HI_WORKDIR/$1.sh"
+  shift 2
+  printf '%s\n' '#!/bin/sh' "$@" >"$fake"
+  chmod +x "$fake"
+  _HI_RETRY_RC=0
+  _HI_RETRY_OUT="$(
+    local _HI_PTY_WRAP=()
+    exec 3<&0
+    _HI_FAILS_FILE="" _HI_LAUNCHER="$fake" _HI_EXEC_ATTEMPTS=2 \
+      _hi_exec_case "$label" "$label" HI_RETRY_TEST_OK "$timeout_s" t c 2>&1
+  )" || _HI_RETRY_RC=$?
+}
+
+function test_exec_case_retries_a_markerless_first_attempt() {
+  local seen="$_HI_WORKDIR/retry-succeeds.seen"
+  rm -f "$seen"
+  _hi_retry_run retrysucceed 10 \
+    "[ -e \"$seen\" ] && echo HI_RETRY_TEST_OK" \
+    "touch \"$seen\"" \
+    "exit 0"
+  [ "$_HI_RETRY_RC" -eq 0 ] && [[ "$_HI_RETRY_OUT" == *"retrying"* ]]
+}
+
+function test_exec_case_exhausts_retries_and_fails() {
+  _hi_retry_run retryexhaust 10 'echo not-the-marker' 'exit 0'
+  [ "$_HI_RETRY_RC" -eq 1 ] && [ "$(grep -c retrying <<<"$_HI_RETRY_OUT" || true)" -eq 1 ]
+}
+
+function test_exec_case_never_retries_a_timeout() {
+  _hi_retry_run retrytimeout 2 'echo HI_RETRY_TEST_OK' 'sleep 5'
+  [ "$_HI_RETRY_RC" -eq 1 ] && [[ "$_HI_RETRY_OUT" == *'TIMED OUT'* ]] && [[ "$_HI_RETRY_OUT" != *"retrying"* ]]
+}
+
 function test_pty_wrap_force_wraps_even_on_a_tty() {
   _hi_pty_wrap 0 force "no python3" >/dev/null
   # _HI_PTY_OK, not `command -v python3`: Windows ships python3 but its `pty`
@@ -576,6 +618,11 @@ function run_lib_process_tests() {
   _hi_check "Case result keeps OK on an odd exit with the marker" test_case_result_keeps_ok_on_an_odd_exit_with_the_marker
   _hi_check "Case result names a timeout" test_case_result_says_timed_out_by_name
   _hi_check "Skips the hook on a clean exit" test_wait_pid_skips_the_hook_on_a_clean_exit
+
+  _hi_h2 "Testing: _hi_exec_case retries"
+  _hi_check "A markerless first attempt succeeds on the retry" test_exec_case_retries_a_markerless_first_attempt
+  _hi_check "Two markerless attempts stop retrying and report failure" test_exec_case_exhausts_retries_and_fails
+  _hi_check "A timed-out attempt is never treated as success, and is not retried" test_exec_case_never_retries_a_timeout
 
   _hi_h2 "Testing: _hi_pty_wrap"
   _hi_check "Force wraps regardless of the fd" test_pty_wrap_force_wraps_even_on_a_tty

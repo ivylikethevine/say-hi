@@ -259,6 +259,12 @@ function run_kube_test() {
 
   _HI_TEST_MARKER="HI_KUBE_TEST_OK"
 
+  # a real CI run saw the [sh] shape fail once with no marker and no ash
+  # startup banner - a transient this tree could not reproduce locally; see
+  # _hi_exec_case in tests/lib/process.sh for what the retry does and doesn't
+  # cover
+  _HI_EXEC_ATTEMPTS=2
+
   _hi_pty_stdin auto "no tty and no python3 to fake one - kubectl exec -it will fail outright, results may be unreliable"
 
   _hi_backend_pair_cases kube "shape" _hi_kube_multi_container_case _hi_kube_namespace_case
