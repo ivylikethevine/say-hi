@@ -40,6 +40,20 @@ function test_bash_hi_ps1_plain_without_color() {
   [[ "$out" == *'\u@\h:\w' ]]
 }
 
+# readline counts every $PS1 byte it isn't told to ignore; an unmarked escape
+# makes a typed line wrap back over the prompt. _hi_ps_mark wraps each
+# \e[...m run in \001...\002 - only defined on the color branch, so xterm.
+function test_bash_ps_mark_wraps_color_escapes() {
+  local out want
+  out="$(_hi_rc_shell xterm-256color bash \
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+     x="$(printf "\033[31mred\033[0m")"
+     _hi_ps_mark x
+     printf %s "$x"')"
+  want=$'\001\e[31m\002red\001\e[0m\002'
+  [ "$out" = "$want" ]
+}
+
 function test_bash_prompt_disabled_leaves_ps1_alone() {
   local out
   out="$(_HI_DISABLE_PROMPT=1 _hi_rc_shell xterm-256color bash \
@@ -476,6 +490,7 @@ function run_rc_tests() {
   _hi_h2 "Testing: bash"
   _hi_check "HI_PS1 carries user, host and cwd" test_bash_hi_ps1_contains_user_host_cwd
   _hi_check "Plain HI_PS1 without color" test_bash_hi_ps1_plain_without_color
+  _hi_check "_hi_ps_mark wraps color escapes for readline" test_bash_ps_mark_wraps_color_escapes
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
   _hi_check "...but still primes the color variables (bash)" test_bash_prompt_disabled_still_primes_color_variables
   _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables

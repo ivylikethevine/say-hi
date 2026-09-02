@@ -121,6 +121,24 @@ function test_local_omits_payload_diff_at_stock_defaults() {
   [[ "$out" != *"payload_diff"* ]]
 }
 
+# The tool-floor branches: only the happy path (everything present) is ever
+# exercised elsewhere, so a machine that cannot ship a payload at all - or
+# only a bigger one - would go unreported by a broken _hi_missing_tools call.
+function test_local_reports_missing_floor_tools() {
+  local out
+  out="$(PATH="$(_hi_real_path nofloor sh bash awk grep sed printf mktemp rm cat wc tr \
+    sleep timeout du date find git zsh fish)" doctor_local)"
+  [[ "$out" == *"MISSING locally: base64 tar"* ]] || return 1
+  [[ "$out" == *"unknown - needs base64 tar to measure"* ]]
+}
+
+function test_local_warns_without_gzip() {
+  local out
+  out="$(PATH="$(_hi_real_path nogzip sh bash awk grep sed printf mktemp rm cat wc tr \
+    sleep timeout du date base64 tar find git zsh fish)" doctor_local)"
+  [[ "$out" == *"base64 tar present, no gzip (a bigger payload, not a broken one)"* ]]
+}
+
 function test_backend_missing_reports_not_installed() {
   local out
   out="$(PATH="$(_hi_doctor_path)" doctor_backend docker docker ps -q)"
@@ -341,6 +359,30 @@ function test_ssh_target_flags_a_missing_bash() {
   [[ "$out" == *"no bash"* && "$out" == *"aliases only"* ]]
 }
 
+# The connect-FAILED branch itself - every case above uses _hi_doctor_shims'
+# always-succeeding ssh, so nothing exercises the row this section exists for
+# most: "why won't ssh connect". A dedicated failing ssh, not the shared shim.
+function test_ssh_target_reports_a_connect_failure() {
+  local bin="$_HI_WORKDIR/sshfail.bin" out
+  mkdir -p "$bin"
+  cat >"$bin/ssh" <<'SHIM'
+#!/bin/sh
+echo "Permission denied (publickey)." >&2
+exit 255
+SHIM
+  chmod +x "$bin/ssh"
+  out="$(
+    PATH="$bin:$(_hi_real_path sshfail-tools mktemp date rm cat sh bash awk grep sed printf wc tr sleep)"
+    _HI_DOC_BAD=0
+    doctor_ssh_target somewhere
+    echo "bad=$_HI_DOC_BAD"
+  )"
+  [[ "$out" == *"FAILED after"* ]] || return 1
+  [[ "$out" == *"Permission denied"* ]] || return 1
+  case "$out" in *'bad=1'*) return 0 ;; esac
+  return 1
+}
+
 function test_help_exits_zero() {
   "$_HI_DOCTOR" --help >/dev/null
 }
@@ -458,6 +500,8 @@ function run_doctor_tests() {
   _hi_check "Reports the version" test_local_reports_the_version
   _hi_check "Payload diff shown when a toggle trims the wire" test_local_reports_payload_diff_when_toggled
   _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
+  _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
+  _hi_check "Warns without gzip" test_local_warns_without_gzip
 
   _hi_h2 "Testing: doctor_backend"
   _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
@@ -486,6 +530,7 @@ function run_doctor_tests() {
   _hi_check "Reports a permanent install" test_ssh_target_reports_a_permanent_install
   _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
   _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
+  _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
   _hi_h2 "Testing: the report"
   _hi_check "--help exits zero" test_help_exits_zero

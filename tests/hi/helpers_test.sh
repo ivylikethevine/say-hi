@@ -180,6 +180,34 @@ FIXTURE
   case "$out" in *"inside a heredoc, this line is data"*) ;; *) return 1 ;; esac
 }
 
+# _hi_safe_path is the whitelist gate on a scratch dir a target reports back -
+# accepted paths are interpolated straight into commands run against that
+# target (`rm -rf` among them)
+function test_safe_path_accepts_absolute_paths_in_class() {
+  [ "$(_hi_safe_path /tmp/hi.scratch.XXXX A-Za-z0-9/._-)" = /tmp/hi.scratch.XXXX ]
+}
+
+function test_safe_path_rejects_relative_paths() {
+  [ -z "$(_hi_safe_path tmp/relative A-Za-z0-9/._-)" ]
+}
+
+function test_safe_path_rejects_chars_outside_the_class() {
+  [ -z "$(_hi_safe_path '/tmp/x;rm -rf ~' A-Za-z0-9/._-)" ] &&
+    [ -z "$(_hi_safe_path '/tmp/`whoami`' A-Za-z0-9/._-)" ]
+}
+
+# _hi_require is the missing-tool refusal every transport leans on
+function test_require_finds_an_installed_tool() {
+  _hi_require sh "for this case" 2>/dev/null
+}
+
+function test_require_refuses_and_names_a_missing_tool() {
+  local out rc=0
+  out="$(_hi_require definitely-not-a-real-hi-helpers-tool-xyz "to do the thing" 2>&1 >/dev/null)" || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  case "$out" in *"requires definitely-not-a-real-hi-helpers-tool-xyz"*"to do the thing"*"not installed"*) ;; *) return 1 ;; esac
+}
+
 function run_hi_helpers_test() {
   _hi_h1 "Testing hi.sh's pure helpers"
   _hi_workdir hi_helpers
@@ -215,6 +243,15 @@ function run_hi_helpers_test() {
 
   _hi_h2 "Testing: the comment stripper"
   _hi_check "Shebang, comments, heredoc bodies" test_strip_awk_rules
+
+  _hi_h2 "Testing: _hi_safe_path's whitelist gate"
+  _hi_check "Accepts an absolute path built from the class" test_safe_path_accepts_absolute_paths_in_class
+  _hi_check "Rejects a relative path" test_safe_path_rejects_relative_paths
+  _hi_check "Rejects a char outside the class" test_safe_path_rejects_chars_outside_the_class
+
+  _hi_h2 "Testing: _hi_require"
+  _hi_check "Finds an installed tool" test_require_finds_an_installed_tool
+  _hi_check "Refuses and names a missing tool" test_require_refuses_and_names_a_missing_tool
 
   _hi_suite_end "hi.sh helpers"
 }

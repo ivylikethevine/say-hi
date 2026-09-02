@@ -55,6 +55,26 @@ function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
   [ "$(_hi_parse_out myhost | sed -n 2p)" = "" ]
 }
 
+# ssh itself takes no "--" option (the loop's own comment says so), so "--"
+# just falls into the -* arm like any other unrecognized flag: it does not end
+# option parsing, and the word after it is still read as a flag, not a target.
+# With no DOMAIN set and SSHARGS non-empty, _hi_parse skips the picker and
+# execs a real ssh, then exits 1 unconditionally - it never returns to
+# _hi_parse_out, so this shims ssh to log its argv and asserts that instead.
+function test_parse_dashdash_does_not_end_option_parsing() {
+  local bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
+  mkdir -p "$bin"
+  cat >"$bin/ssh" <<SHIM
+#!/bin/sh
+printf '%s\n' "\$*" >"$log"
+exit 0
+SHIM
+  chmod +x "$bin/ssh"
+  (PATH="$bin:$PATH" _hi_parse -- -oddtarget >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  [ "$(cat "$log")" = "-- -oddtarget" ]
+}
+
 # a value-taking flag with nothing after it must report itself, not die on an
 # unbound $2 or swallow the next argument
 function test_parse_rejects_a_flag_missing_its_value() {
@@ -1081,6 +1101,7 @@ function run_hi_parse_tests() {
   _hi_check_eq "-J's value is not mistaken for the target" "$(printf 'myhost\n\n-J\nbastion\n')" _hi_parse_out -J bastion myhost
   _hi_check_eq "-B's value is not mistaken for the target" "$(printf 'myhost\n\n-B\neth0\n')" _hi_parse_out -B eth0 myhost
   _hi_check "Several flags before the target" test_parse_handles_several_flags_before_the_target
+  _hi_check "'--' does not end option parsing" test_parse_dashdash_does_not_end_option_parsing
 
   _hi_h2 "Testing: _hi_parse (commands and errors)"
   _hi_check "Trailing words become a command" test_parse_turns_trailing_words_into_a_command

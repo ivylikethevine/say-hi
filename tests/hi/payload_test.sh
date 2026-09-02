@@ -517,6 +517,22 @@ function test_keep_comments_ships_the_tree_verbatim() {
     diff "$_HI_ROOT/settings/vim.rc" "$dir/say-hi/settings/vim.rc" >/dev/null
 }
 
+# _hi_tar_gz's fallback when gzip is absent: tar's own -z instead of piping
+# through a second gzip process. A tar shim (rather than a real archive)
+# isolates the branch choice from whether this box's tar can gzip on its own.
+function test_tar_gz_falls_back_to_tars_own_z_without_gzip() {
+  local bin="$_HI_WORKDIR/nogzip.bin" log="$_HI_WORKDIR/nogzip.tar.log"
+  mkdir -p "$bin"
+  cat >"$bin/tar" <<SHIM
+#!/bin/sh
+printf '%s\n' "\$*" >"$log"
+exit 0
+SHIM
+  chmod +x "$bin/tar"
+  PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || return 1
+  case "$(cat "$log")" in czf*) ;; *) return 1 ;; esac
+}
+
 function run_hi_payload_tests() {
   _hi_workdir hipayloadtest
 
@@ -558,6 +574,9 @@ function run_hi_payload_tests() {
   _hi_check "A small overlay is well under a block" test_overlay_is_well_under_one_block
   _hi_check "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
   _hi_check "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
+
+  _hi_h2 "Testing: _hi_tar_gz's no-gzip fallback"
+  _hi_check "Falls back to tar's own -z" test_tar_gz_falls_back_to_tars_own_z_without_gzip
 
   _hi_h2 "Testing: the size hi reports"
   _hi_check "_hi_human_bytes matches du's shapes" test_human_bytes_matches_du_shapes

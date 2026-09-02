@@ -149,6 +149,17 @@ function _hi_body_strips_real_control_bytes() {
   [ "$body" = "ok: echo " ]
 }
 
+# the reported command line is cut at 120 characters - a regression losing
+# the `cut` would leak an arbitrarily long argument into the notification
+function _hi_body_truncates_at_120_chars() {
+  local long body out
+  long="$(printf 'x%.0s' $(seq 1 200))"
+  out="$(_hi_notify -- echo "$long")"
+  body="${out#*]9;ok: }"
+  body="${body%%"$_HI_BEL"*}"
+  [ "${#body}" -eq 120 ]
+}
+
 #
 # hi_notify wraps a command, so it has to be transparent: dropping the status
 # would break every `hi_notify make && ...` written with it.
@@ -231,6 +242,8 @@ function run_notify_test() {
     _hi_body_survives_a_literal_escape_sequence
   _hi_check_requires "$_HI_EMIT_GATE" "a real ESC/BEL in an argument is stripped" \
     _hi_body_strips_real_control_bytes
+  _hi_check_requires "$_HI_EMIT_GATE" "truncated at 120 characters" \
+    _hi_body_truncates_at_120_chars
 
   _hi_h2 "the exit status"
   _hi_check "exits with the command's status" _hi_exits_with_the_command_status

@@ -160,6 +160,33 @@ function test_rebase_interactive_shows_state() {
   _hi_rebase_case interactive-branch "REBASE-i 1/1" rebase -i main
 }
 
+# git am reuses rebase-apply/ with its own marker file (rebasing/AM's twin);
+# a patch that conflicts with the diverged main pauses it mid-apply
+function test_am_conflict_shows_state() {
+  local dir out
+  dir="$(_hi_git_fixture)"
+  _hi_git_diverge "$dir" am-branch
+  git -C "$dir" format-patch -1 am-branch --stdout >"$_HI_WORKDIR/am.patch" 2>/dev/null
+  git -C "$dir" am "$_HI_WORKDIR/am.patch" >/dev/null 2>&1 || true
+  out="$(cd "$dir" && _hi_git_prompt)"
+  git -C "$dir" am --abort >/dev/null 2>&1 || true
+  [[ "$out" == *"|AM"* ]]
+}
+
+# neither marker file present in rebase-apply/ - a state git itself does not
+# leave behind in normal use, built directly to prove the third rung of the
+# if/elif/else actually renders something rather than falling through empty
+function test_am_rebase_with_neither_marker_shows_state() {
+  local dir out
+  dir="$(_hi_git_fixture)"
+  mkdir -p "$dir/.git/rebase-apply"
+  printf '1\n' >"$dir/.git/rebase-apply/next"
+  printf '1\n' >"$dir/.git/rebase-apply/last"
+  out="$(cd "$dir" && _hi_git_prompt)"
+  rm -rf "$dir/.git/rebase-apply"
+  [[ "$out" == *"|AM/REBASE"* ]]
+}
+
 function test_cherry_pick_conflict_shows_state() {
   local dir out target_sha
   dir="$(_hi_git_fixture)"
@@ -241,6 +268,8 @@ function run_git_prompt_tests() {
   _hi_h2 "Use-Case: in-progress operations"
   _hi_check "Rebase (apply backend) + source branch" test_rebase_apply_backend_shows_state_and_source_branch
   _hi_check "Rebase (interactive)" test_rebase_interactive_shows_state
+  _hi_check "git am, conflicting" test_am_conflict_shows_state
+  _hi_check "rebase-apply with neither marker" test_am_rebase_with_neither_marker_shows_state
   _hi_check "Cherry-pick conflict" test_cherry_pick_conflict_shows_state
   _hi_check "Revert conflict" test_revert_conflict_shows_state
   _hi_check "Bisect" test_bisect_shows_state

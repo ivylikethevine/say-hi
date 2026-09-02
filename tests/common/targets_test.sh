@@ -405,6 +405,49 @@ function test_cache_does_not_leak_its_timestamp() {
   ! printf '%s\n' "$out" | grep -qE '^[0-9]+$'
 }
 
+# The hijack defense only runs on the $TMPDIR/hi-<uid> fallback (every case
+# above sets XDG_RUNTIME_DIR to a case-owned dir, which skips this whole
+# block) - so these clear it and use TMPDIR instead. A directory somebody else
+# got to first is never trusted: the sweep runs and nothing is read from or
+# written to the hijacked path.
+function test_cache_dir_symlink_is_not_trusted() {
+  local tmp="$_HI_WORKDIR/symlink-hijack" elsewhere out uid
+  mkdir -p "$tmp"
+  elsewhere="$_HI_WORKDIR/symlink-hijack-target"
+  mkdir -p "$elsewhere"
+  uid="$(id -u)"
+  ln -s "$elsewhere" "$tmp/hi-$uid"
+  out="$(PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
+    XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
+  _hi_has_row "$out" alpha docker || return 1
+  [ -z "$(ls -A "$elsewhere" 2>/dev/null)" ]
+}
+
+# No root here to actually own a directory as somebody else, so `ls -ld` is
+# shimmed to answer the one call this defense makes as though it did - every
+# other invocation (there is exactly one real `ls` in targets.sh) falls
+# through to the real binary.
+function test_cache_dir_wrong_owner_is_not_trusted() {
+  local tmp="$_HI_WORKDIR/owner-hijack" bin="$_HI_WORKDIR/owner-hijack-bin" uid out
+  mkdir -p "$bin"
+  uid="$(id -u)"
+  mkdir -m 700 "$tmp"
+  mkdir -m 700 "$tmp/hi-$uid"
+  cat >"$bin/ls" <<SHIM
+#!/bin/sh
+if [ "\$*" = "-ld $tmp/hi-$uid" ]; then
+  printf 'drwx------ 2 nobody nobody 4096 Jan  1 00:00 %s\n' "$tmp/hi-$uid"
+else
+  exec $(command -v ls) "\$@"
+fi
+SHIM
+  chmod +x "$bin/ls"
+  out="$(PATH="$bin:$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
+    XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
+  _hi_has_row "$out" alpha docker || return 1
+  [ ! -e "$tmp/hi-$uid/hi.targets.docker" ]
+}
+
 function test_absent_backends_leave_only_ssh_rows() {
   local out
   out="$(PATH="$_HI_TOOLBOX_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" sh "$_HI_TARGETS")" || return 1
@@ -763,6 +806,8 @@ function run_targets_tests() {
   _hi_check "A dead refresher's lock is taken over" test_stale_cache_dead_lock_is_taken_over
   _hi_check "A file with no timestamp is re-derived" test_cache_ignores_a_file_with_no_timestamp
   _hi_check "The timestamp never reaches completion" test_cache_does_not_leak_its_timestamp
+  _hi_check "A symlinked cache dir is swept, not trusted" test_cache_dir_symlink_is_not_trusted
+  _hi_check "A wrong-owner cache dir is swept, not trusted" test_cache_dir_wrong_owner_is_not_trusted
 
   _hi_h2 "Testing: common/bash.sh's _hi_complete"
   _hi_check "Offers every target" test_complete_offers_every_target

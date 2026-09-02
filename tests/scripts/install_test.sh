@@ -222,10 +222,25 @@ function test_unlink_hi_skips_when_link_points_elsewhere() {
   ) | grep -q "leaving it alone"
 }
 
-# the shim is the only reason `hi --uninstall` and the documented
-# scripts/uninstall.sh path still work, so assert it points at the flag
+# The shim is the only reason `hi --uninstall` and the documented
+# scripts/uninstall.sh path still work - a text grep proves the words are in
+# the file, not that `$(dirname "$0")/install.sh` actually resolves and runs,
+# so these run it for real.
 function test_uninstall_shim_delegates_to_install() {
-  grep -qF -- '--uninstall' "$_HI_UNINSTALL" && grep -qF 'install.sh' "$_HI_UNINSTALL"
+  local out
+  out="$("$_HI_UNINSTALL" --help 2>&1)" || return 1
+  case "$out" in "Usage: install.sh"*) ;; *) return 1 ;; esac
+  case "$out" in *--uninstall*) ;; *) return 1 ;; esac
+}
+
+# $(dirname "$0") is resolved from argv0, not the caller's cwd - a relative
+# invocation from elsewhere is the case that would break if that ever
+# regressed to reading cwd instead
+function test_uninstall_shim_resolves_from_a_relative_invocation() {
+  local out rc=0
+  out="$(cd "$_HI_ROOT" && sh scripts/uninstall.sh --help 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || return 1
+  case "$out" in "Usage: install.sh"*) ;; *) return 1 ;; esac
 }
 
 function run_install_tests() {
@@ -265,6 +280,7 @@ function run_install_tests() {
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
   _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
   _hi_check "uninstall.sh shims onto --uninstall" test_uninstall_shim_delegates_to_install
+  _hi_check "...resolves from a relative invocation" test_uninstall_shim_resolves_from_a_relative_invocation
 
   _hi_suite_end "install.sh logic"
 }
