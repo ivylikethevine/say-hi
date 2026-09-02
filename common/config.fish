@@ -207,7 +207,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       # only an interactive fish owns a terminal to report to: `fish -c` and the
       # suites' captured runs would otherwise get the escape ahead of their output
       function __hi_marks_cwd --on-variable PWD
-        status is-interactive; and printf '\e]7;file://%s%s\a' (hostname) $PWD
+        status is-interactive; and printf '\e]7;file://%s%s\a' (prompt_hostname) $PWD
       end
       __hi_marks_cwd
     end

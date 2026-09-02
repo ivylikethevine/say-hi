@@ -44,7 +44,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     fi
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment
-    HI_PS1_END="$(_hi_prompt_end ZSH)"
+    _hi_prompt_end ZSH HI_PS1_END
     if _hi_has_color; then
       export CLICOLOR=1
       export LSCOLORS=gafacadabaegedabagacad

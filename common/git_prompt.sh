@@ -108,7 +108,7 @@ _hi_git_prompt() {
   ((dirty > 0)) && flags+="${RED}${_HI_GLYPH_DIRTY}${dirty}${NC}"
   ((invalid > 0)) && flags+="${RED}${_HI_GLYPH_INVALID}${invalid}${NC}"
   ((untracked > 0)) && flags+="${BRBLUE}${_HI_GLYPH_UNTRACKED}${untracked}${NC}"
-  ((${stash:-0} > 0)) && flags+="${BRBLUE}${_HI_GLYPH_STASH}${stash}${NC}"
+  ((stash > 0)) && flags+="${BRBLUE}${_HI_GLYPH_STASH}${stash}${NC}"
   [[ -z "$flags" ]] && flags="${BRGREEN}${_HI_GLYPH_CLEAN}${NC}"
 
   local branch_color="$BRPURPLE"

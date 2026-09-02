@@ -37,9 +37,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   unset _hi_t
   # The overlay's home; an already-set value wins (hi.sh points a target at
   # its shipped copy).
-  if [ -z "${_HI_CONFIG_DIR:-}" ]; then
-    _HI_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/say-hi"
-  fi
+  : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
   # The per-file overlay paths and their *_AUTO companions, defaulted so
   # paths.sh's guards can read them bare under `set -u`. GLOSSARY: HI.07
@@ -53,7 +51,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # by the visitor, and a target's /etc has no say in it. $_HI_SYSTEM_SETTINGS
   # overrides the path - the suites' knob, not a setting. config.fish mirrors.
   # shellcheck source=/dev/null # admin config, may not exist
-  if [ "${_HI_REMOTE_SESSION:-0}" != 1 ] && [ -f "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}" ]; then
+  if [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}" ]; then
     . "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}"
   fi
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
@@ -79,13 +77,13 @@ _HI_SHELL_TABLE=(
 # _hi_shell_rows [flag] - the roster, or only rows carrying <flag>, one per
 # line for `while IFS='|' read` callers.
 function _hi_shell_rows() {
+  [ -n "${1:-}" ] || {
+    printf '%s\n' "${_HI_SHELL_TABLE[@]}"
+    return 0
+  }
   local row flags
   for row in "${_HI_SHELL_TABLE[@]}"; do
-    if [ -z "${1:-}" ]; then
-      printf '%s\n' "$row"
-      continue
-    fi
-    IFS='|' read -r _ _ _ _ _ flags _ <<<"$row"
+    flags="${row#*|*|*|*|*|}" flags="${flags%%|*}"
     case ",$flags," in
     *",$1,"*) printf '%s\n' "$row" ;;
     esac
@@ -128,11 +126,8 @@ fi
 # a Windows path is printed as a backslash, and a literal `\e]0;` a target
 # wrote is text rather than a title change on the client's terminal.
 function _hi_cecho() {
-  if [ $# -ge 3 ]; then
-    printf '%b%s%b' "${2:-}" "${1:-}" "$NC"
-  else
-    printf '%b%s%b\n' "${2:-}" "${1:-}" "$NC"
-  fi
+  printf '%b%s%b' "${2:-}" "${1:-}" "$NC"
+  [ $# -ge 3 ] || printf '\n'
 }
 
 # _hi_read_lines <array-name> - stdin into that array, one element per line:
@@ -254,16 +249,17 @@ _HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
 # because a bare `typeset` in a function is local.
 function _hi_unexport() {
-  local _hi_n
+  local _hi_n _hi_zsh=0
   local -a _hi_names
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
+    _hi_zsh=1
   else
     eval '_hi_names=("${!_HI_@}")'
   fi
   for _hi_n in "${_hi_names[@]}"; do
     case " ${_HI_CHILD_ENV[*]} " in *" $_hi_n "*) continue ;; esac
-    if [ -n "${ZSH_VERSION:-}" ]; then
+    if [ "$_hi_zsh" = 1 ]; then
       typeset -g +x "$_hi_n"
     else
       # shellcheck disable=SC2163 # un-exporting the name held in $_hi_n is the point
@@ -473,16 +469,6 @@ function _hi_colors_lookup() {
   return 1
 }
 
-# _hi_colors_names <type> [skip-name] - deduped pinned names of that type
-function _hi_colors_names() {
-  local cur_type cur_name
-  [[ -f "$_HI_COLORS" ]] || return 0
-  while IFS=',' read -r cur_type cur_name _; do
-    [[ "$cur_type" = "$1" && "$cur_name" != "${2:-}" ]] || continue
-    printf '%s\n' "$cur_name"
-  done <"$_HI_COLORS" | awk '!seen[$0]++'
-}
-
 # _hi_colors_pattern <type> <name> - the first row of <type> whose name field
 # is a glob (* or ?) matching <name>; file order wins. Exact rows are
 # _hi_colors_lookup's and never match here, so an exact pin beats a pattern
@@ -512,8 +498,7 @@ function _hi_override_color() {
   username) [[ "$2" = "$(_hi_local_username)" ]] && special="LOCALUSER" ;;
   hostname) [[ "$2" = "$(_hi_local_hostname)" ]] && special="LOCALHOSTNAME" ;;
   esac
-  [[ -n "$special" ]] || return 1
-  _hi_colors_lookup "$1" "$special"
+  [ -n "$special" ] && _hi_colors_lookup "$1" "$special"
 }
 
 # _hi_ssh_host_tag <name>, memoized one deep: the connect path asks about the
@@ -650,24 +635,15 @@ function _hi_user_color() {
     _HI_USER_COLOR="$(_hi_resolve_color username "$(_hi_whoami)" "${_HI_TARGET_TAG:-}")"
   printf '%s\n' "$_HI_USER_COLOR"
 }
+# [outvar]: through $( ) the memo would be filled in a subshell and die with
+# it, so the prompt builders pass one instead. GLOSSARY: HI.05
 function _hi_host_escape() {
   [ "${_HI_HOST_ESC+x}" = x ] || _HI_HOST_ESC="$(_hi_color_escape "$(_hi_host_color)")"
-  printf '%s' "$_HI_HOST_ESC"
+  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_HOST_ESC"; else printf '%s' "$_HI_HOST_ESC"; fi
 }
 function _hi_user_escape() {
   [ "${_HI_USER_ESC+x}" = x ] || _HI_USER_ESC="$(_hi_color_escape "$(_hi_user_color)")"
-  printf '%s' "$_HI_USER_ESC"
-}
-
-# Out-var forms for the prompt builders: through $( ) the memo is filled in a
-# subshell and dies with it. GLOSSARY: HI.05
-function _hi_host_escape_var() {
-  _hi_host_escape >/dev/null
-  printf -v "$1" '%s' "$_HI_HOST_ESC"
-}
-function _hi_user_escape_var() {
-  _hi_user_escape >/dev/null
-  printf -v "$1" '%s' "$_HI_USER_ESC"
+  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_USER_ESC"; else printf '%s' "$_HI_USER_ESC"; fi
 }
 
 set +euo pipefail # see the top of the file

@@ -28,9 +28,8 @@ _hi_emit() {
   if [ -n "${TMUX:-}" ]; then
     # tmux wants the inner ESC doubled
     _hi_esc="$_HI_ESC""P""tmux;""$_HI_ESC""$_hi_esc""$_HI_ESC""\\"
-  elif [ -n "${ZELLIJ:-}" ]; then
-    : # raw - zellij passes these through itself and has no DCS passthrough
-  else
+  elif [ -z "${ZELLIJ:-}" ]; then
+    # raw under zellij (it passes these through itself, no DCS passthrough);
     # `case`, not `${TERM#screen}`: dash enforces `set -u` inside ${var#word},
     # and TERM is genuinely unset on CI runners
     case "${TERM:-}" in
@@ -51,11 +50,8 @@ _hi_what="$(printf '%s' "$*" | tr -d '\033\a\r\n' | cut -c1-120)"
 "$@"
 _hi_rc=$?
 
-if [ "$_hi_rc" -eq 0 ]; then
-  _hi_body="ok: $_hi_what"
-else
-  _hi_body="failed ($_hi_rc): $_hi_what"
-fi
+_hi_body="ok: $_hi_what"
+[ "$_hi_rc" -eq 0 ] || _hi_body="failed ($_hi_rc): $_hi_what"
 
 # Both escapes: OSC 9 is what most emulators implement, OSC 777 is iTerm2's
 # spelling (and the only one with a title field), and which one the *client*
