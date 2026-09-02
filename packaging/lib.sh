@@ -5,11 +5,13 @@
 # *without* packaging/, so it cannot source this file; that boundary-forced
 # copy is documented there, as is hi.sh's - the third copy, for the same reason.
 
-# Locate say-hi relative to the script that sourced this file, resolving
-# symlinks - BASH_SOURCE[1] is that script, and packaging/ is one level down
-# from the tree root, so the home is its ../../.
+# Locate say-hi relative to this file's own path, resolving symlinks -
+# packaging/ is one level down from the tree root, so the home is its ../../.
+# Self-relative rather than off the sourcer (BASH_SOURCE[1]) so this resolves
+# the same way whoever sources it, wherever they are - a test harness in
+# tests/packaging/ included.
 # The same walk as hi.sh's and scripts/install.sh's: fix one, fix all three.
-_HI_SELF="${BASH_SOURCE[1]}"
+_HI_SELF="${BASH_SOURCE[0]}"
 while [ -L "$_HI_SELF" ]; do
   _HI_SELF_LINK="$(readlink "$_HI_SELF")"
   case "$_HI_SELF_LINK" in

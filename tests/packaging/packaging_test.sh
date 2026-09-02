@@ -1017,8 +1017,8 @@ function test_release_workflow_uploads_sha256sums() {
 # --- packaging/lib.sh's primitives, at suite level via a subshell source ----
 
 # _hi_in_pkglib <fn> [args...] - one lib.sh function in a subshell (the suite
-# already sources install.sh at the top; lib.sh re-derives $_HI_HOME from its
-# sourcer, which is this file - two levels under the home, like packaging/)
+# already sources install.sh at the top; lib.sh locates its own tree from its
+# own path, so a plain subshell source is enough regardless of who sources it)
 function _hi_in_pkglib() {
   (
     # shellcheck source=../../packaging/lib.sh
@@ -1031,8 +1031,10 @@ function test_lib_sha256_agrees_with_openssl() {
   local f="$_HI_WORKDIR/sum.probe"
   printf 'hash me\n' >"$f"
   [ "$(_hi_in_pkglib sha256_of "$f")" = "$(openssl dgst -sha256 -r "$f" | cut -d' ' -f1)" ] || return 1
-  # the multi-file form keeps sha256sum's "<sum>  <file>" shape mkpkg depends on
-  _hi_in_pkglib sha256_lines "$f" "$f" | grep -cE "^[0-9a-f]{64}  " | grep -qx 2
+  # the multi-file form keeps sha256sum's "<sum><sep><file>" shape mkpkg
+  # depends on; the separator is two spaces on GNU and " *" where the tool
+  # opened the file binary - see the note above $_HI_SUMS_NAMES
+  _hi_in_pkglib sha256_lines "$f" "$f" | grep -cE "^[0-9a-f]{64} [ *]" | grep -qx 2
 }
 
 function test_lib_b2_matches_makepkg_expectation() {
