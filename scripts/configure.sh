@@ -254,7 +254,7 @@ function _hi_starship_preview() {
 # show_preview a blank string, which it would drop on the floor.
 function _hi_packages_floor_preview() {
   local out
-  out="$(_HI_PACKAGES_MIN_PRIORITY="${_hi_floor_candidate:-1}" full_check)"
+  out="$(_HI_PACKAGES_MIN_PRIORITY="${_hi_floor_candidate:-2}" full_check)"
   if [ -n "$out" ]; then
     printf '%s\n' "$out"
   else
@@ -507,7 +507,7 @@ function config_packages_floor() {
   local current reply rejects=0 max_rejects=3
   current=""
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" current
-  _hi_floor_candidate="${current:-1}"
+  _hi_floor_candidate="${current:-2}"
   if [ -t 0 ]; then
     _hi_load_preview_sources
     while :; do
@@ -534,10 +534,10 @@ function config_packages_floor() {
       _hi_floor_candidate="$reply"
     done
   fi
-  # 1 is common/header.sh's own default, so it clears the override rather than
-  # restating it - config_max_width does the same with 80. 0 gets written out:
-  # it is a real answer (rank 0 back on), not the default.
-  [ "$_hi_floor_candidate" = 1 ] && _hi_floor_candidate=""
+  # 2 is common/header.sh's own default, so it clears the override rather than
+  # restating it - config_max_width does the same with 80. 0 and 1 get written
+  # out: each is a real answer (lower tiers back on), not the default.
+  [ "$_hi_floor_candidate" = 2 ] && _hi_floor_candidate=""
   _HI_SETTING_LINES+=("${_hi_floor_candidate:+export _HI_PACKAGES_MIN_PRIORITY=$_hi_floor_candidate}")
 }
 

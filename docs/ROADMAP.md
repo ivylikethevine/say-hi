@@ -77,19 +77,45 @@ spam problem; see the **AUR** entry below.
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-4. [ ] **A per-tag overlay** — _scope: a directory convention, one tar, one
-       SETTINGS.md section; in-repo._ One overlay ships to every target
-       (README's _Configuration_ warning, SECURITY.md's _Trust boundaries_);
-       the only per-host lever is a color. `_HI_TARGET_TAG` already resolves
-       the leftmost `# Tags:` word before the payload is built, so
-       `~/.config/say-hi/tags/<tag>/` holding the same `$_HI_OVERLAY_FILES` —
-       shipped instead of, or layered after, the base overlay — needs no new
-       probe. Open: precedence (replace vs. layer) and whether an untagged
-       host gets the base overlay or nothing. Until decided, an admin with
-       prod and customer hosts keeps the overlay empty or runs two
-       `XDG_CONFIG_HOME`s.
+4. [ ] **Retune the default package colors** — _scope: two color tables and
+       an eyeball pass; in-repo._ The check colors every line from
+       `_HI_YES`/`_HI_NO` in `common/header.sh` — one installed and one
+       missing color per priority 0-3 — and `hi --packages-preview` renders
+       the full legend with real examples, which is the tool to judge a
+       candidate set with. The ramp should read monotonic in both
+       directions: a missing favorite (priority 3) the loudest thing in the
+       check, installed trivia the quietest, every pair legible on light
+       and dark terminals. **Ticks when:** the preview reads that way on
+       both backgrounds and any suite pinning the tables moved with them.
 
-5. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
+5. [ ] **Memory usage in the header** — _scope: one probe beside the RAM
+       cell; in-repo._ `system_info`'s RAM cell prints capacity alone;
+       used/total is the number a session actually acts on. Same probe
+       shape as the rest of the row: `MemAvailable` out of `/proc/meminfo`
+       on Linux, `vm_stat` arithmetic on macOS, `?` where neither answers.
+       Open: whether a CPU load figure joins it — the CPU cell today shows
+       clocks, not usage, and the row is already the widest in the header.
+       `common/header.sh` ships in the ssh payload, so `bench_payload_size`
+       and the README badge bound the addition. **Ticks when:** the cell
+       renders used/total on Linux and macOS and the header suite pins it.
+
+6. [ ] **Reorder the header rows** — _scope: one setting and a dispatch
+       loop; in-repo._ `hi_header` runs its rows in a fixed order —
+       timestamp, system info, identity, the packages check — each behind
+       its own `_HI_HEADER_*` switch; rearranging is one order setting
+       (say `_HI_HEADER_ORDER`, naming rows top to bottom) driving a
+       dispatch loop over the same functions. Two placements are
+       load-bearing and stay fixed: the banner first, and
+       `passthrough_check` last (the line that says something is wrong sits
+       next to the prompt); `_hi_probe_launch` still starts before the
+       first row, so identity's backend probes keep running inside the
+       other rows' wall clock. A new setting means a drift-checked
+       SETTINGS.md row and a `hi --configure` prompt roster entry.
+       **Ticks when:** a reordered setting renders the rows in that order
+       under `tests/common/header_test.sh` and the default order is what
+       today ships.
+
+7. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
        real Mac; outside this checkout._ Waits on **Get a release out**.
        Create `homebrew-tap` (plain repo, `Formula/` dir), add a fine-grained
        PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
@@ -98,23 +124,24 @@ spam problem; see the **AUR** entry below.
        `brew install ivy/tap/say-hi` works, from a release the `tap` job
        opened a PR for.
 
-6. [ ] **Package repository on the Pages site** — _scope: one key, one secret,
-       one committed file, one release; outside this checkout._ The code half
-       shipped: `packaging/mkrepo.sh` builds the apt, rpm and apk repositories
-       out of `mkpkg.sh`'s packages, `release.yml` signs the rpm in `build` and
-       attaches `package-repo.tar.gz` in `publish`, `pages.yml` serves it from
-       the newest non-prerelease release at
-       `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, packaging-smoke
-       builds one per PR and `tests/packaging/repo_test.sh` installs from one
-       as all three clients. The key half shipped too: `GPG_SIGNING_KEY` is
-       set in the release environment and `packaging/gpg/say-hi.asc` is
-       committed ([PACKAGING.md](PACKAGING.md#package-repository)).
+8. [ ] **Package repository on the Pages site** — _scope: one key, one
+       secret, one committed file, one release; outside this checkout._ The
+       code half shipped: `packaging/mkrepo.sh` builds the apt, rpm and apk
+       repositories out of `mkpkg.sh`'s packages, `release.yml` signs the
+       rpm in `build` and attaches `package-repo.tar.gz` in `publish`,
+       `pages.yml` serves it from the newest non-prerelease release at
+       `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`,
+       packaging-smoke builds one per PR and `tests/packaging/repo_test.sh`
+       installs from one as all three clients. The key half shipped too:
+       `GPG_SIGNING_KEY` is set in the release environment and
+       `packaging/gpg/say-hi.asc` is committed
+       ([PACKAGING.md](PACKAGING.md#package-repository)).
        **Do:** cut a release from a tag that carries `say-hi.asc`.
        **Ticks when:** `apt install say-hi`, `dnf install say-hi` and
-       `apk add say-hi` each work from the published URL, and a second release
-       upgrades one of them in place.
+       `apk add say-hi` each work from the published URL, and a second
+       release upgrades one of them in place.
 
-7. [ ] **Outside the repo, once a release exists** — _scope: a badge, a
+9. [ ] **Outside the repo, once a release exists** — _scope: a badge, a
        toggle and two checks; mostly outside this checkout._ Waits on
        **Get a release out**. Four small pieces: a Repology badge (in
        README's badge block already, rendering empty; ticks once it carries
@@ -124,21 +151,13 @@ spam problem; see the **AUR** entry below.
        PACKAGING.md line if it needs an `--exe` hint; and
        `actions/attest-sbom` beside the provenance step.
 
-8. [ ] **AUR** — _scope: nothing until registration reopens; then an
-       account, a key, and one manual first push; outside this checkout._
-       Registration is closed to new accounts (spam), and `release.yml`'s
-       `aur` job stays written and unexercised until it reopens. **When it
-       reopens:** register; generate an ed25519 key, add the private half
-       as the `AUR_SSH_KEY` repo secret; the first push per package is
-       manual (namcap gate against the published source, then only
-       `PKGBUILD` + `.SRCINFO`), and the `aur` job handles the versioned
-       package after. **Ticks when:** both packages are live on the AUR and
-       the `aur` job has kept `say-hi` current for one real release.
-
-### Miscellaneous
-
-1. Add uptime to header
-2. Allow header items to be rearranged
-3. Ship default package floor at 2
-4. Improve default package colors
-5. Add ram usage, similar to CPU usage
+10. [ ] **AUR** — _scope: nothing until registration reopens; then an
+        account, a key, and one manual first push; outside this checkout._
+        Registration is closed to new accounts (spam), and `release.yml`'s
+        `aur` job stays written and unexercised until it reopens. **When it
+        reopens:** register; generate an ed25519 key, add the private half
+        as the `AUR_SSH_KEY` repo secret; the first push per package is
+        manual (namcap gate against the published source, then only
+        `PKGBUILD` + `.SRCINFO`), and the `aur` job handles the versioned
+        package after. **Ticks when:** both packages are live on the AUR and
+        the `aur` job has kept `say-hi` current for one real release.

@@ -50,7 +50,7 @@ function _hi_ghz() {
 }
 
 function system_info() {
-  local kernel arch os cpus ram base_mhz boost_mhz
+  local kernel arch os cpus ram base_mhz boost_mhz uptime_s="" up=""
   # process substitution, not <<<: a here-string is a temp file before bash
   # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
@@ -90,6 +90,7 @@ function system_info() {
     fi
     boost_mhz=$((khz / 1000))
     ((boost_mhz)) || boost_mhz=$(lscpu 2>/dev/null | awk -F: '/CPU max MHz/ { gsub(/ /, "", $2); printf "%.0f", $2 }' || true)
+    uptime_s=$(awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null || true)
   elif [[ "$kernel" == MINGW* || "$kernel" == MSYS* || "$kernel" == CYGWIN* ]]; then
     # git-bash/MSYS2/Cygwin on native Windows - no /etc/os-release, no sysctl
     os="Windows ($kernel)"
@@ -107,13 +108,30 @@ function system_info() {
     ram=$(sysctl -n hw.memsize 2>/dev/null | awk '{ printf "%.0fG", $1 / 1073741824 }' || true)
     # Apple Silicon exposes neither clock via sysctl; only Intel Macs get a value
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
+    # kern.boottime prints "{ sec = <epoch>, usec = ... } <date>"; the split on
+    # "sec = " makes $2 lead with the epoch, which awk's coercion reads whole
+    uptime_s=$(sysctl -n kern.boottime 2>/dev/null |
+      awk -v now="$(date +%s)" -F'sec = ' '{ printf "%d", now - $2; exit }' || true)
   fi
   _hi_sanitize_var os "$os"
   # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)
   [ -n "${base_mhz:-}" ] && _hi_ghz base_mhz "$base_mhz"
   [ -n "${boost_mhz:-}" ] && _hi_ghz boost_mhz "$boost_mhz"
+  # humanized to two units at most - a header cell, not a stopwatch; the guard
+  # drops anything non-numeric (a skewed clock can make the macOS probe negative)
+  case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
+  if [ -n "$uptime_s" ]; then
+    if [ "$uptime_s" -ge 86400 ]; then
+      up="$((uptime_s / 86400))d $((uptime_s % 86400 / 3600))h"
+    elif [ "$uptime_s" -ge 3600 ]; then
+      up="$((uptime_s / 3600))h $((uptime_s % 3600 / 60))m"
+    else
+      up="$((uptime_s / 60))m"
+    fi
+  fi
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
-    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz"
+    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz" \
+    "${BRPURPLE}Up: ${up:-?}"
 }
 
 # identity()'s backend probes are independent and each capped at
@@ -301,8 +319,8 @@ function hi_header() {
 
 # Package priorities, lowest to highest, 0-3. A priority says how loudly you
 # want to hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and
-# ships at 1, so tier 0 (trivia) is hidden until asked for, and anything above
-# 3 mutes the check entirely. Direction is a separate axis, one leading
+# ships at 2, so tiers 0-1 (trivia and optional extras) are hidden until asked
+# for, and anything above 3 mutes the check entirely. Direction is a separate axis, one leading
 # character per line: `-` speaks only when the tool is missing (core tools,
 # where present is not news and absent means the box is bare), `+` only when
 # it is installed (platform facts, where absent is noise); no flag speaks
@@ -383,7 +401,7 @@ function check_line() {
 function full_check() {
   local line priority width_item rendered count=0 max=${_HI_MAX_WIDTH:-80}
   local width=$max
-  local min="${_HI_PACKAGES_MIN_PRIORITY:-1}"
+  local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
   local -a visible=() # appended to by check_line
   while IFS=$' ' read -r line; do
     [[ "$line" == *#* || -z "$line" ]] || check_line "$line"

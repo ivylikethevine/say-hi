@@ -3,7 +3,7 @@
 # `hi --packages-preview` renders what the priorities below do: each one's
 # colors, a real example of each from this file, then the check itself.
 # _HI_PACKAGES_MIN_PRIORITY is the dial that decides how far down the list you
-# want to hear about. It ships at 1, so tier 0 is hidden; above 3 mutes all.
+# want to hear about. It ships at 2, so tiers 0-1 are hidden; above 3 mutes all.
 
 #[-|+]group,package:priority,package2:priority2...
 # a leading `-` speaks only when the whole line is missing, `+` only when one

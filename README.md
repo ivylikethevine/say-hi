@@ -1,15 +1,13 @@
 # hi.sh -> sshrc supercharged
 
----
-
 ## EXPERIMENTAL UNTIL v1.0.0
-
----
 
 <!-- The check-runs badges filter on the compound check name "<ci.yml job
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". The release badge omits
      include_prereleases: each push to main publishes a snapshot prerelease. -->
+
+Project Stats:
 
 ![requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 ![ssh payload](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
@@ -25,8 +23,8 @@ Clients:
 
 OpenSSF:
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
 
 Releases/Downloads:
@@ -35,10 +33,8 @@ Releases/Downloads:
 [![downloads](https://img.shields.io/github/downloads/ivylikethevine/say-hi/total)](https://github.com/ivylikethevine/say-hi/releases)
 [![Repology](https://repology.org/badge/tiny-repos/say-hi.svg)](https://repology.org/project/say-hi/versions)
 
-Testing:
+Testing: known-inaccurate; see [why](docs/TESTING.md#coverage-and-profiling)._
 
-_Both coverage figures below are known-inaccurate; see
-[why](docs/TESTING.md#coverage-and-profiling)._
 [![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
@@ -77,7 +73,7 @@ command's output goes to stdout. A plain, pty-free remote command is still
   - [completion, every backend at once](#completion-every-backend-at-once)
   - [one command, every backend](#one-command-every-backend)
 - [Requirements](#requirements)
-- [Installation/Usage](#installationusage)
+- [Installation](#installation)
   - [Upgrading](#upgrading)
 - [Configuration](#configuration)
   - [Hostname, username, and group/tag colors](#hostname-username-and-grouptag-colors)
@@ -199,6 +195,13 @@ Client: zsh.
 
 ## Installation
 
+- prefer a package to the clone above? The `.deb`/`.rpm`/`.apk` are on
+  [the releases page](https://github.com/ivylikethevine/say-hi/releases), and
+  [the package repository](docs/PACKAGING.md#package-repository) serves them
+  subscribable — apt at `https://ivylikethevine.github.io/say-hi/apt`, dnf
+  via [say-hi.repo](https://ivylikethevine.github.io/say-hi/say-hi.repo), apk
+  at `https://ivylikethevine.github.io/say-hi/apk` — so upgrades ride your
+  package manager.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has issues.
