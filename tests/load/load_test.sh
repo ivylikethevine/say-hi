@@ -337,8 +337,13 @@ function test_login_shell_falls_back_to_etc_passwd_without_getent() {
   local want got
   want="$(awk -F: -v u="$(id -un)" '$1 == u { print $NF }' /etc/passwd 2>/dev/null)"
   want="${want##*/}"
-  [ -n "$want" ] || return 1
-  # no getent on this PATH at all - the second rung has to answer on its own
+  # No presence check on $want: macOS's /etc/passwd carries only its legacy
+  # system accounts, not Directory Services users (a CI runner's included),
+  # so this is legitimately empty on that platform - and the function is
+  # supposed to come back empty too, not invent an answer. Either way, the
+  # assertion is the same: whatever this box's own /etc/passwd says is what
+  # the fallback rung has to say, with no getent on this PATH at all to
+  # answer for it.
   got="$(_hi_login_shell_answer "$(_hi_real_path shell-tools-nogetent id awk sh)")"
   [ "$got" = "$want" ]
 }
