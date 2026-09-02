@@ -1,6 +1,6 @@
 pkgbase = say-hi
 	pkgdesc = sshrc supercharged - your shell config, on every host you say hi to
-	pkgver = 0.0.0
+	pkgver = 0.1.1
 	pkgrel = 1
 	url = https://github.com/ivylikethevine/say-hi
 	arch = any
@@ -13,7 +13,7 @@ pkgbase = say-hi
 	optdepends = podman: container targets
 	optdepends = nomad: allocation targets
 	optdepends = kubectl: pod targets
-	source = https://github.com/ivylikethevine/say-hi/releases/download/v0.0.0/say-hi-0.0.0.tar.gz
-	b2sums = SKIP
+	source = https://github.com/ivylikethevine/say-hi/releases/download/v0.1.1/say-hi-0.1.1.tar.gz
+	b2sums = 3d651340a40b698667a65881b01537f06eff45d3dc33061f69b74213b20f56dc8c1997b3b71b30e044761195fc48d5b03dd2cdd50472772770f54490391c2992
 
 pkgname = say-hi
