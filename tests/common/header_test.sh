@@ -157,6 +157,26 @@ function test_system_info_uptime_cell_is_humanized() {
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
+# used/total, one unit at the end, or total alone when only that probe
+# answers, or "?" when neither does - the shape is pinned, not a value, since
+# this box's own usage moves between runs
+function test_system_info_ram_cell_is_used_over_total() {
+  local out
+  out="$(system_info)"
+  [[ "$out" =~ RAM:\ ([0-9]+G/[0-9]+G|[0-9]+G|\?) ]]
+}
+
+# the load figure, when a probe answers, rides in parens right after "GHz" -
+# optional, since a stripped target has no /proc/loadavg or vm.loadavg; a
+# figure that showed up would have to be a plain decimal, never garbage from
+# an unguarded parse
+function test_system_info_load_rides_the_cpu_cell() {
+  local out load
+  out="$(system_info)"
+  load="$(printf '%s' "$out" | sed -n 's/.*GHz (\([^)]*\)).*/\1/p')"
+  [[ -z "$load" || "$load" =~ ^[0-9]+\.[0-9]+$ ]]
+}
+
 # A target with a shell and awk and nothing else - core_test.sh's barebones
 # box, one layer up. The header is the first thing a session prints, so a
 # missing uname or date greeting the user with "command not found" across the
@@ -434,6 +454,52 @@ function test_hi_header_enabled_prints_banner() {
 _HI_REAL_CMD=sh
 _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
 
+# hi_header's default row order: timestamp, then sysinfo, then identity, then
+# the packages check - each pinned by a marker unique to it, checked in the
+# order they appear in the joined output. $_HI_HEADER_VERSION is `local`-
+# shadowed (bash's dynamic scope reaches into every row function hi_header
+# calls) so timestamp's marker is a literal instead of whatever this
+# checkout's git describe happens to say, and the packages fixture (the
+# _hi_pos helper's own pattern, from test_full_check_emits_a_row_for_an_
+# installed_package) guarantees full_check has something to print regardless
+# of what is actually installed on the box running this suite.
+function test_hi_header_default_order() {
+  local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-default" out
+  local ts si id ck
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  out="$(_HI_PACKAGES="$pkgfile" hi_header Connected)"
+  ts="$(_hi_pos "$out" orderprobe)"
+  si="$(_hi_pos "$out" "Cores:")"
+  id="$(_hi_pos "$out" "Auth:")"
+  ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
+  [ -n "$ts" ] && [ -n "$si" ] && [ -n "$id" ] && [ -n "$ck" ] &&
+    ((ts < si)) && ((si < id)) && ((id < ck))
+}
+
+# a reordered $_HI_HEADER_ORDER moves the rows to match, and a row left out of
+# it is not printed at all - a second way to hide a row alongside its own
+# $_HI_HEADER_* toggle
+function test_hi_header_order_setting_reorders_and_can_omit() {
+  local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-custom" out
+  local ck id si
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="check identity sysinfo" hi_header Connected)"
+  ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
+  id="$(_hi_pos "$out" "Auth:")"
+  si="$(_hi_pos "$out" "Cores:")"
+  [[ "$out" != *orderprobe* ]] &&
+    [ -n "$ck" ] && [ -n "$id" ] && [ -n "$si" ] &&
+    ((ck < id)) && ((id < si))
+}
+
+# an unknown word in $_HI_HEADER_ORDER is ignored rather than erroring or
+# printing anything for it
+function test_hi_header_order_ignores_an_unknown_word() {
+  local out
+  out="$(_HI_HEADER_ORDER="bogus sysinfo" hi_header Connected)"
+  [[ "$out" == *"Cores:"* ]]
+}
+
 # Does $1 contain the bytes of $2? A byte-exact `grep -F` under LC_ALL=C rather
 # than `[[ $1 == *"$2"* ]]`, because two of the three marks are multibyte and
 # bash's pattern engine consults the locale to decide what a character even is.
@@ -454,6 +520,18 @@ function _hi_assert_contains() {
   _hi_cecho "   expected to find: $(printf '%s' "$2" | od -An -tx1 | tr -d ' \n')" "$RED"
   _hi_cecho "   in: $(printf '%s' "$1" | od -An -tx1 | tr -d ' \n')" "$RED"
   return 1
+}
+
+# _hi_pos <haystack> <needle> - the byte offset of the first match, or empty
+# if absent; prefix-stripping rather than a fork, for the row-order tests
+# below, which only care which of several markers comes first.
+function _hi_pos() {
+  case "$1" in
+  *"$2"*)
+    local before="${1%%"$2"*}"
+    printf '%s' "${#before}"
+    ;;
+  esac
 }
 
 # The scaffold every check_line case shares: run one spec against a fresh row
@@ -669,6 +747,52 @@ function test_full_check_emits_a_row_for_an_installed_package() {
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
 }
 
+# _hi_packages_palette's contract: each named ramp is exactly four entries -
+# one per priority 0-3 - in both tables. `VAR=val func` on a shell function
+# (not an external command) reverts VAR once the call returns, so this leaves
+# no _HI_PACKAGES_PALETTE behind for a case after it.
+function test_packages_palette_each_name_has_four_entries() {
+  local name
+  for name in cool warm mono; do
+    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+    [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ] || return 1
+  done
+}
+
+# an unrecognized name falls back to the same tables an unset one resolves to
+# (cool) - checked by content, not by name, since header.sh's own comment
+# above _HI_YES is the only place "cool" is defined as those four escapes
+function test_packages_palette_unknown_falls_back_to_cool() {
+  local -a cool_yes cool_no
+  unset _HI_PACKAGES_PALETTE
+  _hi_packages_palette
+  cool_yes=("${_HI_YES[@]}") cool_no=("${_HI_NO[@]}")
+  _HI_PACKAGES_PALETTE=bogus _hi_packages_palette
+  [ "${_HI_YES[*]}" = "${cool_yes[*]}" ] && [ "${_HI_NO[*]}" = "${cool_no[*]}" ]
+}
+
+# every escape in every named palette has to name a real _HI_COLOR_NAMES
+# entry, or a candidate ramp would paint the header with something
+# packages_preview.sh's _hi_color_name_of could never look up. Both sides go
+# through `printf '%b'` before comparing, packages_preview.sh's own
+# _hi_color_name_of shape: core.sh's palette variables hold the literal two
+# characters `\e`, while _hi_color_escape's format string interprets `\e` as
+# the real ESC byte - unexpanded, every comparison here would silently miss.
+function test_packages_palette_escapes_are_all_named_colors() {
+  local name escape found candidate want
+  for name in cool warm mono; do
+    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+    for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
+      want="$(printf '%b' "$escape")"
+      found=""
+      for candidate in "${_HI_COLOR_NAMES[@]}"; do
+        [ "$(printf '%b' "$(_hi_color_escape "$candidate")")" = "$want" ] && found=1 && break
+      done
+      [ -n "$found" ] || return 1
+    done
+  done
+}
+
 function run_header_tests() {
   _hi_workdir headertest
 
@@ -705,6 +829,8 @@ function run_header_tests() {
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
   _hi_check "System_info's uptime cell is humanized" test_system_info_uptime_cell_is_humanized
+  _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
+  _hi_check "System_info's load figure rides the CPU cell" test_system_info_load_rides_the_cpu_cell
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
 
   _hi_h2 "Testing: a target with no coreutils"
@@ -716,6 +842,9 @@ function run_header_tests() {
   _hi_check "No output when disabled" test_hi_header_disabled_produces_no_output
   _hi_check "Prints the banner when enabled" test_hi_header_enabled_prints_banner
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
+  _hi_check "Default row order: timestamp, sysinfo, identity, check" test_hi_header_default_order
+  _hi_check "_HI_HEADER_ORDER reorders, and omitting a row hides it" test_hi_header_order_setting_reorders_and_can_omit
+  _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
 
   _hi_h2 "Testing: passthrough_check"
   _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off
@@ -750,6 +879,11 @@ function run_header_tests() {
   _hi_check "Real settings/packages file parses cleanly" test_full_check_reads_real_packages_file_without_erroring
   _hi_check "Writes nothing to stderr" test_full_check_is_silent_on_stderr
   _hi_check "Emits a row for an installed package" test_full_check_emits_a_row_for_an_installed_package
+
+  _hi_h2 "Testing: _hi_packages_palette"
+  _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
+  _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
+  _hi_check "Every escape names a real color" test_packages_palette_escapes_are_all_named_colors
 
   _hi_suite_end "header.sh"
 }

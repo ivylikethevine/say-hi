@@ -98,12 +98,21 @@ function test_color_name_of_names_a_palette_entry() {
 }
 
 # every escape in the header's two tables has to name something, or the legend
-# prints a color the user cannot look up in settings/colors
+# prints a color the user cannot look up in settings/colors - checked for
+# every named palette, not just whichever one is active when the suite runs,
+# since _HI_YES/_HI_NO are _hi_packages_palette's output and this suite never
+# sets $_HI_PACKAGES_PALETTE itself
 function test_color_name_of_names_every_header_color() {
-  local escape
-  for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-    [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
+  local name escape
+  for name in cool warm mono; do
+    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+    for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
+      [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
+    done
   done
+  # back to whatever the suite's own fixtures assume elsewhere
+  unset _HI_PACKAGES_PALETTE
+  _hi_packages_palette
   return 0
 }
 
@@ -198,6 +207,12 @@ _HI_PREVIEW_OUT=""
 function test_preview_renders_without_error() {
   _HI_PREVIEW_OUT="$(_hi_render_preview)" || return 1
   [[ "$_HI_PREVIEW_OUT" == *PRIORITY* && "$_HI_PREVIEW_OUT" == *MARK* ]]
+}
+
+# the eyeball pass _HI_PACKAGES_PALETTE's roadmap entry leans on: the legend
+# has to say which named ramp is on screen, not just render one
+function test_preview_names_the_active_palette() {
+  [[ "$_HI_PREVIEW_OUT" == *"palette: cool"* ]]
 }
 
 function test_preview_names_every_priority() {
@@ -306,6 +321,7 @@ function run_packages_preview_tests() {
 
   _hi_h2 "Testing: the rendered preview"
   _hi_check "Renders without error" test_preview_renders_without_error
+  _hi_check "Names the active palette" test_preview_names_the_active_palette
   _hi_check "Names every priority" test_preview_names_every_priority
   _hi_check "Explains the mode characters" test_preview_explains_the_modes
   _hi_check "Counts what it read" test_preview_counts_what_it_read

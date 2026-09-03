@@ -152,6 +152,23 @@ function _hi_is_glyph_choice() {
   case "$1" in auto | glyphs | ascii) ;; *) return 1 ;; esac
 }
 
+# $_HI_PACKAGES_PALETTE's vocabulary: the names header.sh's
+# _hi_packages_palette case understands
+function _hi_is_packages_palette() {
+  case "$1" in cool | warm | mono) ;; *) return 1 ;; esac
+}
+
+# $_HI_HEADER_ORDER's vocabulary: the words header.sh's _hi_header_row case
+# understands, any order, space-separated, a row skippable by leaving it out
+function _hi_is_header_order() {
+  local word
+  [ -n "$1" ] || return 1
+  # shellcheck disable=SC2086 # the split is the point: one word per row
+  for word in $1; do
+    case "$word" in timestamp | sysinfo | identity | check) ;; *) return 1 ;; esac
+  done
+}
+
 # A section heading plus one line saying what the questions under it decide,
 # so a section reads as a unit before its first question does.
 function section() {
@@ -259,6 +276,22 @@ function _hi_packages_floor_preview() {
     printf '%s\n' "$out"
   else
     _hi_cecho " nothing - the check is off at this floor" "$YELLOW"
+  fi
+}
+
+# The palette's preview, shown once before the question rather than re-rendered
+# per keystroke the way the floor's loop does: the answer here is a word from a
+# closed set (cool/warm/mono), not a dial. Renders under whatever
+# $_HI_PACKAGES_PALETTE is configured right now - full_check resolves it itself
+# - so cool/warm/mono are compared by eye against the shipped default before
+# picking a name, not only by reading which is which.
+function _hi_packages_palette_preview() {
+  local out
+  out="$(full_check)"
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out"
+  else
+    _hi_cecho " nothing - the package check is off (\$_HI_PACKAGES_MIN_PRIORITY)" "$YELLOW"
   fi
 }
 
@@ -484,6 +517,23 @@ function config_header_details() {
   section "Choosing header details" "Which lines the connect/disconnect header prints."
   _hi_load_preview_sources
   ask_prompt_group _HI_HEADER_PROMPTS
+  config_header_order
+}
+
+# The row order: a space-separated $_HI_HEADER_ORDER word list, one free-text
+# answer like config_prompt_ends' rather than a preview loop - seeing the
+# effect means running hi_header itself (identity's backend probes among its
+# rows), not a one-line render like the floor's. Defaults to header.sh's own
+# $_HI_HEADER_ORDER_DEFAULT, loaded by _hi_load_preview_sources just above,
+# rather than a second copy of the word list here.
+function config_header_order() {
+  local current="" value
+  setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" current
+  value="$(ask_value "Order the header's rows print in (words: $_HI_HEADER_ORDER_DEFAULT)?" \
+    "$current" "$_HI_HEADER_ORDER_DEFAULT" _hi_is_header_order \
+    "only timestamp, sysinfo, identity and check are understood")"
+  # shellcheck disable=SC2016 # quoted for the file: the value has spaces
+  _HI_SETTING_LINES+=("${value:+export _HI_HEADER_ORDER='$value'}")
 }
 
 # The one prompt that loops. Every other question here previews once and takes
@@ -539,6 +589,27 @@ function config_packages_floor() {
   # out: each is a real answer (lower tiers back on), not the default.
   [ "$_hi_floor_candidate" = 2 ] && _hi_floor_candidate=""
   _HI_SETTING_LINES+=("${_hi_floor_candidate:+export _HI_PACKAGES_MIN_PRIORITY=$_hi_floor_candidate}")
+}
+
+# Which of header.sh's named color ramps the packages check paints with - a
+# word from a closed set (cool/warm/mono), so ask_value rather than the
+# floor's re-rendering loop; the preview above still shows the check as it
+# renders right now, for a by-eye comparison against the name being typed.
+# Same shape and skip as config_packages_floor: moot with the header or the
+# check itself off.
+function config_packages_palette() {
+  setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
+  setting_off _HI_HEADER_CHECK "$_HI_SETTINGS" 0 && return 0
+  section "Choosing the package check's colors" "Which named color ramp the check paints installed/missing packages with."
+  local current="" value
+  setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" current
+  if [ -t 0 ]; then
+    _hi_load_preview_sources
+    show_preview _hi_packages_palette_preview
+  fi
+  value="$(ask_value "Package check palette: cool, warm, or mono?" \
+    "$current" cool _hi_is_packages_palette "answer cool, warm or mono")"
+  _HI_SETTING_LINES+=("${value:+export _HI_PACKAGES_PALETTE=$value}")
 }
 
 # Ask for the header/banner's terminal width. Entering 80 (common/core.sh's
@@ -797,6 +868,7 @@ function configure_sections() {
   config_features
   config_header_details
   config_packages_floor
+  config_packages_palette
   config_max_width
   config_prompt_ends
   config_advanced

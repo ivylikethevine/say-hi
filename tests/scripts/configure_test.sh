@@ -169,6 +169,46 @@ function test_prompt_ends_skipped_when_the_prompt_is_off() {
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
 }
 
+function test_packages_palette_keeps_an_existing_override() {
+  local out
+  out="$(_hi_section_lines palette_keep config_packages_palette "export _HI_PACKAGES_PALETTE=warm")"
+  [[ "$out" == *"export _HI_PACKAGES_PALETTE=warm"* ]]
+}
+
+# cool is header.sh's own default, so writing it out would be a line that
+# means nothing - the same rule config_max_width and config_packages_floor use
+function test_packages_palette_does_not_write_the_default() {
+  local out
+  out="$(_hi_section_lines palette_default config_packages_palette)"
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+}
+
+# the check itself is off, so which colors it would use is moot - the same
+# skip config_packages_floor makes
+function test_packages_palette_skipped_when_the_check_is_off() {
+  local out
+  out="$(_hi_section_lines palette_off config_packages_palette \
+    "export _HI_HEADER_CHECK=0" "export _HI_PACKAGES_PALETTE=warm")"
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+}
+
+function test_header_order_keeps_an_existing_override() {
+  local out
+  out="$(_hi_section_lines order_keep config_header_order "export _HI_HEADER_ORDER='check identity'")"
+  [[ "$out" == *"export _HI_HEADER_ORDER='check identity'"* ]]
+}
+
+# header.sh's own default order, so writing it out would be a line that means
+# nothing - _hi_load_preview_sources first, since config_header_details is
+# what ordinarily sources header.sh (and $_HI_HEADER_ORDER_DEFAULT with it)
+# ahead of calling this
+function test_header_order_does_not_write_the_default() {
+  local out
+  _hi_load_preview_sources
+  out="$(_hi_section_lines order_default config_header_order)"
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+}
+
 # The versioning contract: init makes a repo with one (possibly empty) first
 # commit and is idempotent; overlay_commit turns settings writes into history
 # only where a repo already exists, and never creates one. Each case gets a
@@ -212,7 +252,16 @@ function test_validators_hold_their_grammars() {
   _hi_is_shell_list "login fish bash" || return 1
   _hi_is_shell_list zsh || return 1
   ! _hi_is_shell_list "" || return 1
-  ! _hi_is_shell_list "fish csh"
+  ! _hi_is_shell_list "fish csh" || return 1
+  _hi_is_packages_palette cool || return 1
+  _hi_is_packages_palette warm || return 1
+  _hi_is_packages_palette mono || return 1
+  ! _hi_is_packages_palette bogus || return 1
+  _hi_is_header_order "timestamp sysinfo identity check" || return 1
+  _hi_is_header_order "check identity" || return 1
+  _hi_is_header_order timestamp || return 1
+  ! _hi_is_header_order "" || return 1
+  ! _hi_is_header_order "timestamp bogus"
 }
 
 function test_pending_answer_reads_this_runs_answers() {
@@ -789,6 +838,17 @@ function test_every_preset_names_only_vocabulary() {
   done
 }
 
+# _HI_PACKAGES_PALETTE and _HI_HEADER_ORDER stay out of the vocabulary on
+# purpose, on the same reasoning _HI_MAX_WIDTH and the prompt separators
+# already follow: a preset is an absolute answer for every var it names, so
+# either one joining the vocabulary would make every preset silently reset it
+function test_preset_vocab_excludes_palette_and_order() {
+  local vocab
+  vocab="$(_hi_preset_vocab)"
+  ! grep -qx _HI_PACKAGES_PALETTE <<<"$vocab" &&
+    ! grep -qx _HI_HEADER_ORDER <<<"$vocab"
+}
+
 # the whole run with --preset, no tty: exactly the preset's lines land in the
 # block, a value outside the vocabulary survives, and one inside it that the
 # preset does not name is gone. The fixture is written through config_shell,
@@ -987,6 +1047,13 @@ function run_configure_tests() {
   _hi_check "Written values are quoted" test_prompt_ends_quotes_what_it_writes
   _hi_check "Skipped when the prompt is off" test_prompt_ends_skipped_when_the_prompt_is_off
 
+  _hi_h2 "Testing: config_packages_palette / config_header_order"
+  _hi_check "Palette: an existing override is kept" test_packages_palette_keeps_an_existing_override
+  _hi_check "Palette: the default writes nothing" test_packages_palette_does_not_write_the_default
+  _hi_check "Palette: skipped when the check is off" test_packages_palette_skipped_when_the_check_is_off
+  _hi_check "Order: an existing override is kept" test_header_order_keeps_an_existing_override
+  _hi_check "Order: the default writes nothing" test_header_order_does_not_write_the_default
+
   _hi_h2 "Testing: the answer plumbing"
   _hi_check "The input validators hold their grammars" test_validators_hold_their_grammars
   _hi_check "pending_answer reads this run's answers" test_pending_answer_reads_this_runs_answers
@@ -1060,6 +1127,7 @@ function run_configure_tests() {
   _hi_check "Shorthand rejects an unknown letter" test_preset_shorthand_rejects_unknown_letter
   _hi_check "Shorthand rejects more than one character" test_preset_shorthand_rejects_multiple_characters
   _hi_check "Every preset stays inside the vocabulary" test_every_preset_names_only_vocabulary
+  _hi_check "The vocabulary excludes the palette and the order" test_preset_vocab_excludes_palette_and_order
   _hi_check "--preset writes exactly the preset" test_preset_run_writes_the_preset
   _hi_check "install.sh refuses an unknown --preset" test_install_rejects_an_unknown_preset
 
