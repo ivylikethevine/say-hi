@@ -76,6 +76,42 @@ function test_header_row_width_ignores_color_escape_bytes() {
   [ "$lines" -eq 1 ]
 }
 
+# _hi_draw_width's own contract: captured output (this whole suite runs
+# inside command substitution, never a tty) stays at $_HI_MAX_WIDTH exactly,
+# so every width test above is unaffected by whatever terminal runs it
+function test_hi_draw_width_defaults_to_max_width_when_captured() {
+  local n
+  n="$(_HI_MAX_WIDTH=42 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
+  [ "$n" = 42 ]
+}
+
+# $_HI_TERM_COLS is a deliberate override - it wins whether or not stdout is
+# a tty, which is what lets a suite pin a narrow width the same way it
+# already pins $_HI_MAX_WIDTH
+function test_hi_draw_width_honors_an_explicit_override() {
+  local n
+  n="$(_HI_MAX_WIDTH=80 _HI_TERM_COLS=30 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
+  [ "$n" = 30 ]
+}
+
+# the terminal only ever narrows the draw width, never widens it past
+# $_HI_MAX_WIDTH
+function test_hi_draw_width_never_widens_past_max_width() {
+  local n
+  n="$(_HI_MAX_WIDTH=40 _HI_TERM_COLS=200 bash -c 'source "$_HI_HEADER"; _hi_draw_width n; printf %s "$n"')"
+  [ "$n" = 40 ]
+}
+
+# header_row wraps at the narrower of the two - the point of the whole
+# change: a real terminal narrower than $_HI_MAX_WIDTH breaks at the '|', not
+# wherever the terminal itself would hard-wrap mid-cell
+function test_header_row_wraps_at_hi_term_cols_override() {
+  local out lines
+  out="$(_HI_MAX_WIDTH=80 _HI_TERM_COLS=10 header_row alpha beta gamma)"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  [ "$lines" -eq 3 ]
+}
+
 function test_banner_includes_label_and_host() {
   local out host
   host="$(_hi_hostname)"
@@ -182,15 +218,16 @@ function test_timestamp_version_falls_back_without_a_stamp() {
   [ -n "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" ]
 }
 
-# _hi_shorten_describe's own contract - git describe's shapes, trimmed to a
-# 4-char hash, and everything else (an exact tag, a plain $_HI_RELEASE,
-# "unknown") left alone since there is no hash in them to shorten
-function test_hi_shorten_describe_trims_the_hash_after_g() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f)" = "v1.0.0-5-g9c1d" ]
+# _hi_shorten_describe's own contract - git describe's shapes, folded to at
+# most 5 columns of tag plus a 4-column hash (10 total), -dirty always
+# dropped, and a tag with no hash (an exact tag, a plain $_HI_RELEASE,
+# "unknown") just truncated to 10 since there is nothing to join it to
+function test_hi_shorten_describe_folds_tag_and_hash() {
+  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f)" = "v1.0.9c1d" ]
 }
 
-function test_hi_shorten_describe_keeps_the_dirty_suffix() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty)" = "v1.0.0-5-g9c1d-dirty" ]
+function test_hi_shorten_describe_drops_the_dirty_suffix() {
+  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty)" = "v1.0.9c1d" ]
 }
 
 function test_hi_shorten_describe_trims_a_bare_hash() {
@@ -209,13 +246,18 @@ function test_hi_shorten_describe_leaves_unknown_alone() {
   [ "$(_hi_shorten_describe unknown)" = "unknown" ]
 }
 
+function test_hi_shorten_describe_caps_a_long_tag_at_ten() {
+  [ "$(_hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty)" = "snaps.200c" ]
+}
+
 # the header cell itself carries the shortened form, not just the helper in
 # isolation - this checkout's own git describe is what timestamp renders
 function test_timestamp_version_cell_is_shortened() {
   local out version
   out="$(NC='' GREEN='' BRBLUE='' BRYELLOW='' _HI_RELEASE="" timestamp)"
   version="$(cut -d'|' -f3 <<<"$out" | tr -d ' ')"
-  [[ "$version" != *-g[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]* ]]
+  [[ "$version" != *-g[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]* && "$version" != *-dirty ]] &&
+    [ "${#version}" -le 10 ]
 }
 
 function test_system_info_includes_static_labels() {
@@ -224,7 +266,7 @@ function test_system_info_includes_static_labels() {
   [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
 }
 
-# uptime_row is its own row now - system_info must not carry it too
+# the uptime cell lives in identity() now - system_info must not carry it too
 function test_system_info_no_longer_shows_uptime() {
   local out
   out="$(system_info)"
@@ -274,11 +316,11 @@ function test_hi_cpu_clocks_question_mark_when_both_missing() {
   [ "$(_hi_cpu_clocks "" "")" = "?" ]
 }
 
-# uptime_row: at most two units, largest first, or "?" where no probe
+# _hi_uptime_cell: at most two units, largest first, or "?" where no probe
 # answers - the shape is pinned rather than a value, which moves by the second
-function test_uptime_row_cell_is_humanized() {
+function test_uptime_cell_is_humanized() {
   local out
-  out="$(uptime_row)"
+  _hi_uptime_cell out
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
@@ -342,14 +384,15 @@ function test_timestamp_without_date_says_unknown() {
   [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
-# unlike system_info's other cells, uptime_row's only external dependency on
-# Linux is awk - which "stripped" still carries, since most probes need it -
+# unlike system_info's other cells, _hi_uptime_cell's only external dependency
+# on Linux is awk - which "stripped" still carries, since most probes need it -
 # so this stays a smoke test for "no raw shell error leaks out", not a claim
 # that the cell renders "?": a real /proc/uptime under a real Linux kernel
 # answers it regardless of what else is missing.
-function test_uptime_row_survives_a_stripped_environment() {
+# shellcheck disable=SC2016 # $u expands in the stripped child bash, not here
+function test_uptime_cell_survives_a_stripped_environment() {
   local out
-  out="$(_hi_stripped_header uptime_row)"
+  out="$(_hi_stripped_header '_hi_uptime_cell u; printf "%s" "$u"')"
   [[ "$out" == *"Up: "* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
@@ -454,6 +497,18 @@ function test_identity_includes_static_labels() {
   local out
   out="$(identity)"
   [[ "$out" == *"Auth:"* && "$out" == *"Pub:"* ]]
+}
+
+# uptime rides at the end of the identity row now, after Auth:/Pub: - not a
+# row of its own
+function test_identity_includes_uptime_cell_last() {
+  local out auth_pos pub_pos up_pos
+  out="$(identity)"
+  auth_pos="$(_hi_pos "$out" "Auth:")"
+  pub_pos="$(_hi_pos "$out" "Pub:")"
+  up_pos="$(_hi_pos "$out" "Up:")"
+  [ -n "$auth_pos" ] && [ -n "$pub_pos" ] && [ -n "$up_pos" ] &&
+    ((auth_pos < pub_pos)) && ((pub_pos < up_pos))
 }
 
 # A restricted PATH with just what identity()/_hi_probe_launch need, and none
@@ -718,32 +773,33 @@ function test_hi_header_enabled_prints_banner() {
 _HI_REAL_CMD=sh
 _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
 
-# hi_header's default row order: timestamp, then sysinfo, then uptime, then
-# identity, then the packages check - each pinned by a marker unique to it,
-# checked in the order they appear in the joined output. $_HI_HEADER_VERSION
-# is `local`-shadowed (bash's dynamic scope reaches into every row function
-# hi_header calls) so timestamp's marker is a literal instead of whatever this
-# checkout's git describe happens to say, and the packages fixture (the
-# _hi_pos helper's own pattern, from test_full_check_emits_a_row_for_an_
-# installed_package) guarantees full_check has something to print regardless
-# of what is actually installed on the box running this suite.
+# hi_header's default row order: timestamp, then sysinfo, then identity
+# (uptime's cell rides inside it), then the packages check - each pinned by a
+# marker unique to it, checked in the order they appear in the joined output.
+# $_HI_HEADER_VERSION is `local`-shadowed (bash's dynamic scope reaches into
+# every row function hi_header calls) so timestamp's marker is a literal
+# instead of whatever this checkout's git describe happens to say, and the
+# packages fixture (the _hi_pos helper's own pattern, from
+# test_full_check_emits_a_row_for_an_installed_package) guarantees full_check
+# has something to print regardless of what is actually installed on the box
+# running this suite.
 function test_hi_header_default_order() {
   local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-default" out
-  local ts si up id ck
+  local ts si id ck
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(_HI_PACKAGES="$pkgfile" hi_header Connected)"
   ts="$(_hi_pos "$out" orderprobe)"
   si="$(_hi_pos "$out" "Cores:")"
-  up="$(_hi_pos "$out" "Up:")"
   id="$(_hi_pos "$out" "Auth:")"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
-  [ -n "$ts" ] && [ -n "$si" ] && [ -n "$up" ] && [ -n "$id" ] && [ -n "$ck" ] &&
-    ((ts < si)) && ((si < up)) && ((up < id)) && ((id < ck))
+  [ -n "$ts" ] && [ -n "$si" ] && [ -n "$id" ] && [ -n "$ck" ] &&
+    ((ts < si)) && ((si < id)) && ((id < ck))
 }
 
 # a reordered $_HI_HEADER_ORDER moves the rows to match, and a row left out of
 # it is not printed at all - a second way to hide a row alongside its own
-# $_HI_HEADER_* toggle
+# $_HI_HEADER_* toggle. identity is in this order, so its uptime cell still
+# rides along with it.
 function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-custom" out
   local ck id si
@@ -753,37 +809,32 @@ function test_hi_header_order_setting_reorders_and_can_omit() {
   id="$(_hi_pos "$out" "Auth:")"
   si="$(_hi_pos "$out" "Cores:")"
   [[ "$out" != *orderprobe* ]] &&
-    [[ "$out" != *"Up:"* ]] &&
+    [[ "$out" == *"Up:"* ]] &&
     [ -n "$ck" ] && [ -n "$id" ] && [ -n "$si" ] &&
     ((ck < id)) && ((id < si))
 }
 
-# uptime is a $_HI_HEADER_ORDER word like any other row's - movable ahead of
-# sysinfo, not just omittable
-function test_hi_header_order_can_move_uptime() {
-  local pkgfile="$_HI_WORKDIR/order-uptime" out
-  local up si
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="uptime sysinfo" hi_header Connected)"
-  up="$(_hi_pos "$out" "Up:")"
-  si="$(_hi_pos "$out" "Cores:")"
-  [ -n "$up" ] && [ -n "$si" ] && ((up < si))
-}
-
-# an unknown word in $_HI_HEADER_ORDER is ignored rather than erroring or
-# printing anything for it
+# "uptime" left $_HI_HEADER_ORDER's vocabulary along with the row - an unknown
+# word is ignored rather than erroring or printing anything for it, and that
+# is what a word this list no longer understands falls back to
 function test_hi_header_order_ignores_an_unknown_word() {
   local out
   out="$(_HI_HEADER_ORDER="bogus sysinfo" hi_header Connected)"
   [[ "$out" == *"Cores:"* ]]
 }
 
-# _HI_HEADER_UPTIME=0 hides just the uptime row, the same shape as every
-# other _HI_HEADER_* toggle
-function test_hi_header_uptime_toggle_hides_the_row() {
+function test_hi_header_order_uptime_is_no_longer_a_word() {
+  local out
+  out="$(_HI_HEADER_ORDER="uptime sysinfo" hi_header Connected)"
+  [[ "$out" != *"Up:"* && "$out" == *"Cores:"* ]]
+}
+
+# _HI_HEADER_UPTIME=0 hides just the uptime cell, the identity row's other
+# cells stay
+function test_hi_header_uptime_toggle_hides_the_cell() {
   local out
   out="$(_HI_HEADER_UPTIME=0 hi_header Connected)"
-  [[ "$out" != *"Up:"* && "$out" == *"Cores:"* ]]
+  [[ "$out" != *"Up:"* && "$out" == *"Auth:"* ]]
 }
 
 # Does $1 contain the bytes of $2? A byte-exact `grep -F` under LC_ALL=C rather
@@ -1095,6 +1146,10 @@ function run_header_tests() {
   _hi_check "_hi_visible_width strips a leading color" test_hi_visible_width_strips_a_leading_color
   _hi_check "...plain text is unchanged" test_hi_visible_width_plain_text_unchanged
   _hi_check "Wrap math ignores color escape bytes" test_header_row_width_ignores_color_escape_bytes
+  _hi_check "_hi_draw_width defaults to _HI_MAX_WIDTH when captured" test_hi_draw_width_defaults_to_max_width_when_captured
+  _hi_check "_hi_draw_width honors an explicit _HI_TERM_COLS override" test_hi_draw_width_honors_an_explicit_override
+  _hi_check "_hi_draw_width never widens past _HI_MAX_WIDTH" test_hi_draw_width_never_widens_past_max_width
+  _hi_check "Wraps at a _HI_TERM_COLS override" test_header_row_wraps_at_hi_term_cols_override
 
   _hi_h2 "Testing: banner"
   _hi_check "Includes label and hostname" test_banner_includes_label_and_host
@@ -1118,12 +1173,13 @@ function run_header_tests() {
   _hi_check "Timestamp prints three cells" test_timestamp_runs_and_has_three_cells
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
-  _hi_check "Shortens a describe hash after -g" test_hi_shorten_describe_trims_the_hash_after_g
-  _hi_check "...keeps a -dirty suffix" test_hi_shorten_describe_keeps_the_dirty_suffix
+  _hi_check "Folds a tag and its hash together" test_hi_shorten_describe_folds_tag_and_hash
+  _hi_check "...drops the -dirty suffix" test_hi_shorten_describe_drops_the_dirty_suffix
   _hi_check "...trims a bare hash too" test_hi_shorten_describe_trims_a_bare_hash
   _hi_check "...leaves an exact tag alone" test_hi_shorten_describe_leaves_an_exact_tag_alone
   _hi_check "...leaves a release stamp alone" test_hi_shorten_describe_leaves_a_release_stamp_alone
   _hi_check "...leaves 'unknown' alone" test_hi_shorten_describe_leaves_unknown_alone
+  _hi_check "...caps a long tag+hash at 10 columns" test_hi_shorten_describe_caps_a_long_tag_at_ten
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info no longer shows uptime" test_system_info_no_longer_shows_uptime
@@ -1136,11 +1192,12 @@ function run_header_tests() {
   _hi_check "...? when both are missing" test_hi_cpu_clocks_question_mark_when_both_missing
   _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
   _hi_check "System_info's load figure rides the CPU cell" test_system_info_load_rides_the_cpu_cell
-  _hi_check "Uptime_row's cell is humanized" test_uptime_row_cell_is_humanized
+  _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
   _hi_check "_hi_humanize_uptime: days and hours" test_hi_humanize_uptime_days_and_hours
   _hi_check "_hi_humanize_uptime: hours and minutes" test_hi_humanize_uptime_hours_and_minutes
   _hi_check "_hi_humanize_uptime: minutes only" test_hi_humanize_uptime_minutes_only
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
+  _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found
   _hi_check "Containers: 0 when docker is found but empty" test_identity_shows_containers_zero_when_docker_found_but_empty
   _hi_check "Containers count when docker is found" test_identity_shows_containers_count_when_docker_found
@@ -1152,18 +1209,18 @@ function run_header_tests() {
   _hi_h2 "Testing: a target with no coreutils"
   _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown
   _hi_check "Timestamp says ? without date" test_timestamp_without_date_says_unknown
-  _hi_check "Uptime_row survives a stripped environment" test_uptime_row_survives_a_stripped_environment
+  _hi_check "The uptime cell survives a stripped environment" test_uptime_cell_survives_a_stripped_environment
   _hi_check "The banner still renders" test_banner_renders_without_coreutils
 
   _hi_h2 "Testing: hi_header"
   _hi_check "No output when disabled" test_hi_header_disabled_produces_no_output
   _hi_check "Prints the banner when enabled" test_hi_header_enabled_prints_banner
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
-  _hi_check "Default row order: timestamp, sysinfo, uptime, identity, check" test_hi_header_default_order
+  _hi_check "Default row order: timestamp, sysinfo, identity, check" test_hi_header_default_order
   _hi_check "_HI_HEADER_ORDER reorders, and omitting a row hides it" test_hi_header_order_setting_reorders_and_can_omit
-  _hi_check "_HI_HEADER_ORDER can move uptime too" test_hi_header_order_can_move_uptime
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
-  _hi_check "_HI_HEADER_UPTIME=0 hides just the uptime row" test_hi_header_uptime_toggle_hides_the_row
+  _hi_check "'uptime' is no longer an order word" test_hi_header_order_uptime_is_no_longer_a_word
+  _hi_check "_HI_HEADER_UPTIME=0 hides just the uptime cell" test_hi_header_uptime_toggle_hides_the_cell
 
   _hi_h2 "Testing: passthrough_check"
   _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off
