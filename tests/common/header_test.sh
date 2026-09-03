@@ -1097,12 +1097,25 @@ function test_header_word_alt_is_defined_for_every_order_word() {
   done
 }
 
+# <var> gets $2's leading `\e[<bold>;3<n>m` escape, or "" when there is none.
+# The same anchored, validated match _hi_cell_hue and _hi_collect_header_word
+# use (common/header.sh:39-43, :798) - the palette stores a literal `\e`, not
+# an ESC byte, and an unanchored cut would read a stray "m" out of plain text.
+function _hi_lead_escape() {
+  local s="$2" re='^(\\e\[[01];3[1-6]m)'
+  printf -v "$1" '%s' ""
+  [[ "$s" =~ $re ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+}
+
 # The default order is the actual bug report: today's word list should never
-# need its own resolver - every cell should come out exactly as
+# need its own resolver - every cell's *color* should come out exactly as
 # _hi_header_word_cell renders it on its own, unresolved. This is the case
-# that would have caught the shipped jobs/pods collision.
+# that would have caught the shipped jobs/pods collision. Compared by leading
+# escape, not the whole cell: utc/localtime re-render from `date` with `%S`
+# (common/header.sh:229,240), so a byte-exact compare fails on a second tick
+# between the two passes below rather than on an actual substitution.
 function test_header_default_order_needs_no_alternate() {
-  local words w raw i=0
+  local words w raw want got i=0
   local -a _HI_PENDING_CELLS=()
   local _HI_PREV_HUE=""
   words="${_HI_HEADER_ORDER_DEFAULT% check}"
@@ -1111,7 +1124,9 @@ function test_header_default_order_needs_no_alternate() {
     raw=""
     _hi_header_word_cell "$w" raw
     [ -n "$raw" ] || continue
-    [ "${_HI_PENDING_CELLS[$i]}" = "$raw" ] || return 1
+    _hi_lead_escape want "$raw"
+    _hi_lead_escape got "${_HI_PENDING_CELLS[$i]}"
+    [ "$got" = "$want" ] || return 1
     i=$((i + 1))
   done
 }
