@@ -2,10 +2,10 @@ name: Snapshot
 
 # A prerelease from every push to main: the packages, source tarball and
 # SHA256SUMS release.yml builds, attached to a `snapshot-<short-sha>` release.
-# It reaches no external channel - the AUR, the Homebrew tap and the
-# manifest PR stay behind release.yml's hand-pushed v* tag - and waits on no
-# reviewer. No bump.sh: the manifests checksum a tarball at
-# releases/download/v<ver>/, and a snapshot has no such URL.
+# It reaches no external channel - the AUR and the Homebrew tap stay behind
+# release.yml's hand-pushed v* tag - and waits on no reviewer. No bump.sh: the
+# manifests checksum a tarball at releases/download/v<ver>/, and a snapshot
+# has no such URL.
 on:
   push:
     branches:

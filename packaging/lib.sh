@@ -70,9 +70,11 @@ function src_tarball() {
   git -C "$_HI_ROOT" archive --prefix "say-hi-$version/" -o "$out" "$ref"
 }
 
-# The version of record lives in the versioned PKGBUILD (bump.sh writes it
-# there); reading it back rather than keeping copies is what stops the
-# channels disagreeing. Reads $1, defaulting to the caller's $_HI_PKGBUILD.
+# The version of record lives in the versioned PKGBUILD (a release's build
+# writes it there, in its own disposable checkout - never committed back, see
+# bump.sh's header); reading it back rather than keeping copies is what stops
+# the channels disagreeing within one build. Reads $1, defaulting to the
+# caller's $_HI_PKGBUILD.
 function pkgbuild_version() {
   local file="${1:-$_HI_PKGBUILD}" v
   v="$(sed -n 's/^pkgver=//p' "$file" | head -1)"
@@ -81,4 +83,26 @@ function pkgbuild_version() {
     return 1
   }
   printf '%s' "$v"
+}
+
+# What a build defaults to when nobody named one. The committed PKGBUILD is a
+# template (pkgver=0.0.0) outside a release's own bump, so pkgbuild_version()
+# alone would default every local and per-PR build to 0.0.0; fall through to
+# this checkout's newest tag instead, and only settle for 0.0.0 when neither
+# answers (a shallow clone, a checkout with no tags at all).
+function default_version() {
+  local v
+  v="$(pkgbuild_version 2>/dev/null || true)"
+  if [ -n "$v" ] && [ "$v" != 0.0.0 ]; then
+    printf '%s' "$v"
+    return 0
+  fi
+  # --match 'v*': this tree also carries snapshot-<sha> tags (snapshot.yml),
+  # which are not release versions and must never win here.
+  v="$(git -C "$_HI_ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+  if [ -n "$v" ]; then
+    printf '%s' "${v#v}"
+    return 0
+  fi
+  printf '0.0.0'
 }

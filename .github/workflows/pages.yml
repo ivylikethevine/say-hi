@@ -18,15 +18,20 @@ name: Pages
 # `main` rather than the triggering run's artifact, and `build`'s `if` takes
 # only pushes - a fork PR on a branch named `main` cannot reach it.
 #
-# `workflow_run` is the single trigger on purpose: ci.yml runs on every push to
+# `workflow_run` off CI is the automatic trigger: ci.yml runs on every push to
 # main with no path filter, so a `push` trigger on the markdown paths would add
 # only a duplicate build and deploy, and would publish docs from a commit whose
 # tests failed. The cost is latency - the site lands when CI goes green.
-# Release is the second workflow: a green tag run means a new
-# package-repo.tar.gz to serve (below), and its event is a push too.
+#
+# Release is not a workflow_run trigger here, on purpose: this filters
+# branches: [main], and a tag push's head_branch is the tag - which never
+# matches, so naming Release above would claim a trigger that can never fire.
+# A green tag run means a new package-repo.tar.gz to serve (below), so
+# release.yml's publish job asks for a redeploy itself instead
+# (`gh workflow run pages.yml`), which is what workflow_dispatch is for here.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
-    workflows: [CI, Release]
+    workflows: [CI]
     types: [completed]
     branches: [main]
   workflow_dispatch:
