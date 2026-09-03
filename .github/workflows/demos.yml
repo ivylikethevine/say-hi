@@ -1,30 +1,25 @@
 name: Demos
 
-# Renders the demo tapes. `render` proves the docker-only packages tape still
-# renders, on every pull request touching a tape, and attaches the GIF for a
-# person to look at; `publish` renders every tape but demo on a push to main,
-# weekly, or on dispatch, and ships the GIFs as an artifact pages.yml serves.
-# Nothing is committed back - a bot commit on top of the author's is what
-# branch protection refuses. Needs docker; publish installs podman, nomad, kind.
+# Renders the demo tapes and ships them as an artifact pages.yml serves - on
+# a push to main, weekly, or on dispatch. Never on a pull request: a PR must
+# not re-render the packages preview (or any tape) for its own sake, only a
+# push to main refreshes what the README and Pages actually show. Nothing is
+# committed back - a bot commit on top of the author's is what branch
+# protection refuses. Needs docker, podman, nomad and kind.
 #
 # Of the nine .tape files, common.tape is the shared include, leaving eight
 # renderable tapes. demo.gif is hand-rendered, reviewed by eye and committed in
 # its own commit: it is the one GIF claiming stock defaults, it goes quietly
 # wrong when the header, the prompt or the tape moves, and only a person can
-# tell (.github/hooks/demo_staleness.sh says when). The other seven each advertise
-# one feature, which a machine can render honestly, so `publish` renders them.
+# tell (.github/hooks/demo_staleness.sh says when). The other seven each
+# advertise one feature, which a machine can render honestly, so `publish`
+# renders them.
 #
 # generate.sh rather than vhs directly: `Require hi` in a tape is satisfied by
 # *any* hi on $PATH, so a runner with one installed would record the wrong
 # tree. generate.sh's preflight puts a shim for this checkout's hi.sh on the
 # front of $PATH and tears the fixtures down afterwards.
 on:
-  pull_request:
-    paths:
-      - "docs/tapes/**"
-      # a re-rendered demo.gif landing beside its tape is not a tape change
-      - "!docs/tapes/*.gif"
-      - ".github/workflows/demos.yml"
   # What re-renders the published set: a tape landing on main certainly moved a
   # demo; the weekly run is for changes that move one without touching a tape
   # (header, prompt, anything in the shipped tree - .github/hooks/demo_staleness.sh
@@ -44,51 +39,12 @@ on:
 permissions:
   contents: read
 
-# superseded PR pushes cancel their in-flight run; a dispatch never cancels
+# no pull_request trigger, so nothing here ever runs twice for one push
 concurrency:
   group: demos-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
-  render:
-    name: render packages (ubuntu-latest)
-    # No backend needed, so it renders on every pull request, a fork's
-    # included; the backend tapes are `publish`'s, which never runs on a PR.
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # No `path:` input - that would run one tape and skip generate.sh's shim;
-      # this step is for the toolchain only (vhs, ttyd, ffmpeg). `version` is
-      # left at the action's default on purpose: a pinned vhs would hide the
-      # upstream break this job exists to catch, and the action's own SHA is
-      # the supply-chain half of the pin.
-      - name: Install vhs, ttyd and ffmpeg
-        uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1
-        with:
-          # the tapes render at common.tape's geometry in vhs's default font,
-          # so the artifact is only worth looking at if that font is here
-          install-fonts: "true"
-
-      - name: Render the docker-only tape
-        # --require-run: this tape needs only the docker every hosted runner
-        # has, so a stand-down can only mean the toolchain did not land, and a
-        # green run that rendered nothing must not happen.
-        run: docs/tapes/generate.sh --require-run packages
-
-      # Attached rather than committed: a person looks at a GIF before it lands
-      # in the tree, and a PR artifact is where that look happens.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: packages-demo
-          path: docs/tapes/packages.gif
-          # a review aid for one pull request, not a release artifact
-          retention-days: 7
-          if-no-files-found: error
-
   publish:
     name: render every tape but demo
     # Every one of these seven tapes needs docker, podman, nomad or kind; the
@@ -142,9 +98,9 @@ jobs:
         if: ${{ always() }}
         run: docs/tapes/generate.sh --down || true
 
-      # pages.yml collects this into the site. Kept longer than the PR artifact
-      # because the site reads the newest successful run, which may be older
-      # than the deploy that wants it (the coverage badge's shape).
+      # pages.yml collects this into the site. 90 days because the site reads
+      # the newest successful run, which may be older than the deploy that
+      # wants it (the coverage badge's shape).
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: demo-gifs
