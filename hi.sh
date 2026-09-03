@@ -1027,11 +1027,31 @@ function _hi_container_fallback_shell() {
   return 0
 }
 
+# _hi_container_put <local-file> <target-path> - one local file onto the
+# target, proven to have landed rather than assumed from a zero exit: the
+# write can succeed at the transport and still deliver nothing, e.g. an
+# `exec -i` whose stdin closes before the target's cat drains it. $src has to
+# be a regular file, never a pipe - that race has only ever been seen on a
+# piped writer's stdin, not this shape's - so a caller building its content on
+# the fly stages it to a file first. Retried a few times rather than failing
+# on the first empty landing, since the race is transient. Reads cp/probe/tmp
+# from the caller's scope, as _hi_container_fallback_shell does above.
+function _hi_container_put() {
+  local src="$1" dest="$2" try
+  # shellcheck disable=SC2034 # try only bounds the retry count, never read
+  for try in 1 2 3; do
+    "${cp[@]}" sh -c "cat > '$dest'" <"$src" 2>"$tmp" &&
+      "${probe[@]}" sh -c "[ -s '$dest' ]" 2>"$tmp" && return 0
+  done
+  return 1
+}
+
 # _say_hi_container <label> <errlog> - the container arm, across docker,
 # podman, nomad and kube.
 function _say_hi_container() {
   local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
+  local rc_stage="$tmp.rc"
   local -a probe cp attach overlay=()
   _hi_require tar "to pack the payload" || return 1
   _hi_container_cmds "$label"
@@ -1068,7 +1088,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     fi
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
 
-    if ! "${cp[@]}" sh -c "cat > '$root/aliases.sh'" <"$_HI_ALIASES" 2>"$tmp"; then
+    if ! _hi_container_put "$_HI_ALIASES" "$root/aliases.sh"; then
       _hi_fail " failed to copy aliases.sh into [$DOMAIN]"
       _hi_container_cleanup
       "${attach[@]}" "$fallback"
@@ -1076,8 +1096,13 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     fi
 
     # the shared fallback rc in its aliases-only shape, plus the POSIX prompt
-    # for the shells that can parse it - the ssh path's `*)` rule
-    local -a fish_cmd=() st
+    # for the shells that can parse it - the ssh path's `*)` rule. Staged to a
+    # file rather than piped straight into _hi_container_put: its retry needs
+    # to replay the same bytes on a second try, which a pipe cannot do twice,
+    # and a regular-file $src is the shape the transport race doesn't hit -
+    # dropping $CMDARG along with the rest of the rc would otherwise leave a
+    # bare, uncommanded shell with no way to tell that from the ordinary kind
+    local -a fish_cmd=()
     {
       _hi_fallback_rc --aliases-only "$root"
       case "$fallback" in
@@ -1087,21 +1112,14 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
       # the command last, for the shells that read the file to its end; fish
       # takes it as -c below instead (GLOSSARY: HI.23)
       [ "$fallback" = fish ] || [ -z "${CMDARG:-}" ] || printf '%s\n' "$CMDARG"
-    } |
-      "${cp[@]}" sh -c "cat > '$root/.hi_fallback_rc'" 2>"$tmp"
-    st=("${PIPESTATUS[@]}")
-    # checked like aliases.sh's copy above, and for the same reason: a miss
-    # here is silent otherwise. The write can succeed at the transport and
-    # still deliver nothing - an exec -i whose stdin closes before the
-    # target's cat drains it - which is why the file is also proven non-empty
-    # on the target, not just assumed from a zero exit; either failure drops
-    # $CMDARG along with the rest of the rc and leaves a bare, uncommanded
-    # shell with no way to tell the two apart from the outside
-    if [ "${st[1]}" != 0 ] || ! "${probe[@]}" sh -c "[ -s '$root/.hi_fallback_rc' ]" 2>"$tmp"; then
+    } >"$rc_stage"
+    if ! _hi_container_put "$rc_stage" "$root/.hi_fallback_rc"; then
+      rm -f "$rc_stage"
       _hi_fail " failed to write the fallback rc into [$DOMAIN]"
       _hi_container_cleanup
       return 1
     fi
+    rm -f "$rc_stage"
     [ "$fallback" != fish ] || [ -z "${CMDARG:-}" ] || fish_cmd=(-c "$CMDARG")
 
     case "$fallback" in

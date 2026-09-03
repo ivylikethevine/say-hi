@@ -41,17 +41,7 @@ spam problem; see the **AUR** entry below.
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **Retune the default package colors** — _scope: an eyeball pass; in-repo._
-       Both `common/header.sh` color tables now order `_HI_YES`/`_HI_NO`
-       intensity-major (normal, normal, bright, bright per priority 0-3)
-       instead of the old hue-major order, which zigzagged - priority 1
-       rendered louder than priority 2. `hi --packages-preview` renders the
-       full legend with real examples, which is the tool to judge it with.
-       **Ticks when:** the preview has been read on both a light and a dark
-       terminal and holds up - a missing favorite (priority 3) the loudest
-       thing in the check, installed trivia the quietest.
-
-3. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
+2. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
        real Mac; outside this checkout._ Create `homebrew-tap` (plain repo,
        `Formula/` dir), add a fine-grained
        PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
@@ -61,7 +51,7 @@ spam problem; see the **AUR** entry below.
        `publish-external.yml`'s `tap` job (dispatched by hand against that
        tag) opened a PR for.
 
-4. [ ] **AUR** — _scope: nothing until registration reopens; then an
+3. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
