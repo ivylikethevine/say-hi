@@ -266,8 +266,7 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
 - **CII-Best-Practices** — the project is registered at
   [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
   Practices badge in README's badge block, a self-assessment questionnaire
-  separate from Scorecard), and the answers live there now; the draft that
-  used to sit in docs/ is git history. The score reflects registration the
+  separate from Scorecard). The score reflects registration the
   next time Scorecard runs. _Passing_ still waits on the first release —
   three MUST criteria are release-shaped.
 - **Signed-Releases reads -1 (excluded from the average)**, not a fixable 0 —

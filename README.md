@@ -20,31 +20,30 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ## Contents
 
-- [More docs](#more-docs)
+- [Additional Documentation](#additional-documentation)
 - [In sixty seconds](#in-sixty-seconds)
-- [What comes with you](#what-comes-with-you)
-  - [the header tells you what the box is missing](#the-header-tells-you-what-the-box-is-missing)
-  - [your editors, your clipboard](#your-editors-your-clipboard)
-  - [no target at all — recent first](#no-target-at-all--recent-first)
-  - [one config directory, every host, every shell](#one-config-directory-every-host-every-shell)
-  - [know where you are at a glance](#know-where-you-are-at-a-glance)
-  - [completion, every backend at once](#completion-every-backend-at-once)
-  - [one command, every backend](#one-command-every-backend)
-- [Requirements](#requirements)
+- [What You Get](#what-you-get)
+  - [Connect via more than SSH](#connect-via-more-than-ssh)
+  - [The Header Tells You What's Missing](#the-header-tells-you-whats-missing)
+  - [One Config Directory, Every Host, Every Shell](#one-config-directory-every-host-every-shell)
+  - [Your Editors & Clipboard](#your-editors--clipboard)
+  - [Know Where You Are at a Glance](#know-where-you-are-at-a-glance)
+  - [One Command, Any Backend](#one-command-any-backend)
+  - [No Target at All?](#no-target-at-all)
+- [Target Requirements](#target-requirements)
 - [Installation](#installation)
-  - [Upgrading](#upgrading)
 - [Configuration](#configuration)
-  - [Hostname, username, and group/tag colors](#hostname-username-and-grouptag-colors)
+  - [Hostname, Username, and Group/Tag Colors](#hostname-username-and-grouptag-colors)
 - [Built from/with/in mind](#built-fromwithin-mind)
 - [say-hi and the alternatives](#say-hi-and-the-alternatives)
+- [Upgrading](#upgrading)
 - [Testing](#testing)
-  - [Coverage and Profiling](#coverage-and-profiling)
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 means](#what-v100-means)
   - [By scope](#by-scope)
 
-## More docs
+### Additional Documentation
 
 - [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
   environment variable hi reads
@@ -76,19 +75,29 @@ exec $SHELL                    # reload
 hi some-host                   # ssh, with your prompt, aliases and editors along
 ```
 
-`hi <name>` takes anything `ssh` takes — plus a running docker/podman
-container, a nomad allocation or a kubernetes pod by name — lands you in a
-session that looks like your own shell, and removes every trace when you
-leave. `hi <TAB>` lists all of them. Nothing is installed on the far end.
+`hi <target>` to anything you need to run some commands in & land in a
+session with your essential aliases, immediately check your essential packages,
+color-code your remotes, carry your editor configurations, and more.
+Do it all via `ssh`, `docker`, `podman`, `nomad`, or `kube` with `hi <TAB>`. No
+fancy requirements on any target. Even an `alpine` container with `sh` will still
+respect your `ls` alias.
 
-`hi <name> <command ...>` runs one command **inside** that session — with hi's
-aliases and environment, on a pty when your stdin is one — and only the
-command's output goes to stdout. A plain, pty-free remote command is still
-`ssh`'s job.
+![Requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 
-## What comes with you
+## What You Get
 
-### the header tells you what the box is missing
+### Connect via more than SSH
+
+`hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
+running container, allocation and pod, each tagged with its backend; the
+targets you use most, and most recently, come first (zsh and fish keep that
+order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
+without probing any backend. Client: fish, for its pager's description
+column. Showing `_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
+
+![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
+
+### The Header Tells You What's Missing
 
 A `packages` overlay of the tools you care about, each with a priority; the
 header reads it on every target — one quiet line on a box that has them, a
@@ -97,28 +106,7 @@ Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
-### your editors, your clipboard
-
-`nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
-neither; `hi_copy` puts a target's output on _your_ clipboard and `hi_notify`
-raises a desktop notification in _your_ terminal when a command finishes.
-Both ride the pty back as escapes: nothing is installed or running on the
-target. Client: zsh, into a docker container.
-
-![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
-
-### no target at all — recent first
-
-`hi` on its own offers the target list, backend-tagged and
-most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
-if you have one, a numbered menu if not. It runs on the client, never reaches
-a target, and a `hi` in a script or CI job still fails rather than wait on a
-menu. Client: bash, into a docker container. Showing `_HI_RECENT` (on by
-default).
-
-![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
-
-### one config directory, every host, every shell
+### One Config Directory, Every Host, Every Shell
 
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
 bash session on a debian container and a fish session on an alpine box,
@@ -130,7 +118,17 @@ aliases, not the overlay
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
-### know where you are at a glance
+### Your Editors & Clipboard
+
+`nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
+neither; `hi_copy` puts a target's output on _your_ clipboard and `hi_notify`
+raises a desktop notification in _your_ terminal when a command finishes.
+Both ride the pty back as escapes: nothing is installed or running on the
+target. Client: zsh, into a docker container.
+
+![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
+
+### Know Where You Are at a Glance
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --color-preview` to see what every host resolves to — then a prod host
@@ -140,18 +138,7 @@ two ssh hosts. Showing a `colors` overlay with `hosttag` pins.
 
 ![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
-### completion, every backend at once
-
-`hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
-running container, allocation and pod, each tagged with its backend; the
-targets you use most, and most recently, come first (zsh and fish keep that
-order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
-without probing any backend. Client: fish, for its pager's description
-column. Showing `_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
-
-![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
-
-### one command, every backend
+### One Command, Any Backend
 
 `hi <name> <command>` runs one command inside the session and only its output
 comes back: the same loop over an ssh host, a docker container, a nomad
@@ -162,9 +149,19 @@ Client: zsh.
 
 ![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
-## Requirements
+### No Target at All?
 
-![Requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
+`hi` on its own offers the target list, backend-tagged and
+most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
+if you have one, a numbered menu if not. It runs on the client, never reaches
+a target, and a `hi` in a script or CI job still fails rather than wait on a
+menu. Client: bash, into a docker container. Showing `_HI_RECENT` (on by
+default).
+
+![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
+
+## Target Requirements
+
 [![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
@@ -198,12 +195,10 @@ everything weighed and answered **no**, and why.
 
 ## Installation
 
-- prefer a package to the clone above? The `.deb`/`.rpm`/`.apk` are on
+- The `.deb`/`.rpm`/`.apk` are on
   [the releases page](https://github.com/ivylikethevine/say-hi/releases), and
   [the package repository](docs/PACKAGING.md#package-repository) serves them
-  subscribable — apt at `https://ivylikethevine.github.io/say-hi/apt`, dnf
-  via [say-hi.repo](https://ivylikethevine.github.io/say-hi/say-hi.repo), apk
-  at `https://ivylikethevine.github.io/say-hi/apk` — so upgrades ride your
+  subscribable so upgrades ride your
   package manager.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
@@ -231,12 +226,10 @@ everything weighed and answered **no**, and why.
   completion's ceilings, and — with a target — its backend plus an ssh
   reachability check. Read-only; `--json` prints the same rows as one JSON
   document, what a bug report should carry.
-- TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags.
-  bash, zsh and fish read the same list (`common/targets.sh`), so they cannot
-  drift. GIF: [completion](#completion-every-backend-at-once).
+- TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
   `sk` if you have one, a numbered menu if not. GIF:
-  [no target at all](#no-target-at-all--recent-first).
+  [no target at all](#no-target-at-all).
 - configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
@@ -246,25 +239,11 @@ everything weighed and answered **no**, and why.
   machine to survive drops ([how it works](docs/SETTINGS.md#how-it-works)).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
-  unlinks `/usr/bin/hi`. Your `say-hi` directory and `colors`/`packages` stay.
-
-### Upgrading
-
-- a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
-- a `.deb`/`.rpm`/`.apk`: subscribe to
-  [the package repository](docs/PACKAGING.md#package-repository) and let
-  `apt`/`dnf`/`apk` upgrade it; or install the next release's package from
-  [the releases page](https://github.com/ivylikethevine/say-hi/releases) as
-  you did this one, after
-  [verifying the download](docs/PACKAGING.md#verifying-a-release-download).
-- an Arch package built from the checkout: `git pull`, then `makepkg -si` again.
-- Homebrew: `brew upgrade say-hi`, once the tap exists.
-- inside a `hi` session there is nothing to update — the session is a copy;
-  update on the machine say-hi lives on.
+  unlinks `/usr/bin/hi`. Then remove `/usr/bin/say-hi`, or uninstall via package manager (and `~/.config/say-hi`).
 
 ## Configuration
 
-Your config lives **outside the checkout**, in
+Your config lives in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
 say `hi` to. `colors` and `packages` overlay the tree's copies, `aliases.sh`
 adds to the shipped alias set, and a `bash.sh`/`zsh.zsh`/`config.fish` there
@@ -284,7 +263,7 @@ By default hi writes nothing to a target outside its own temp directory.
 The two opt-in settings that change that are in
 [What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
 
-### Hostname, username, and group/tag colors
+### Hostname, Username, and Group/Tag Colors
 
 Every username and hostname gets a color derived from its name. To pin one,
 add a line to `~/.config/say-hi/colors`: `username,root,red`,
@@ -312,18 +291,26 @@ version, and using the hash in your own prompt, is
 How say-hi compares to similar tools, and when to use something else:
 [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md).
 
-## Testing
+## Upgrading
 
-![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
-[![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
-[![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
+- a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
+- a `.deb`/`.rpm`/`.apk`: subscribe to
+  [the package repository](docs/PACKAGING.md#package-repository) and let
+  `apt`/`dnf`/`apk` upgrade it; or install the next release's package from
+  [the releases page](https://github.com/ivylikethevine/say-hi/releases)
+- an Arch package built from the checkout: `git pull`, then `makepkg -si` again.
+- Homebrew: `brew upgrade say-hi`, once the tap exists.
+
+## Testing
 
 `tests/test_runner.sh` (`hi --test` once installed) runs the suite with a
 colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
 side) then `--group lint` on every push/PR. Runbook:
 [docs/TESTING.md](docs/TESTING.md).
 
-### Coverage and Profiling
+![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
+[![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
+[![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
 Two coverage tools sit beside the suites and disagree — kcov reads far too
 low, bashcov far too high — so the two badges up top sit under a disclaimer,
@@ -341,23 +328,18 @@ This started as code written entirely by
 [me](https://github.com/ivylikethevine), but I have used generative AI to write
 large parts of it. All of the code here is my _responsibility_ regardless: AI
 is a tool, not an owner of a project. I have personally understood, reviewed
-and approved all of the AI-generated code in this repository, and _mainline
-releases_ carry the same accountability to me as anything I write and publish
+and approved all of the AI-generated code in this repository, and **mainline
+releases** carry the same accountability to me as anything I write and publish
 myself.
 
 ## Roadmap
 
 What's left, in one list ordered by **ascending scope** — the smallest work
 first. Every entry is open for consideration; nothing here is parked or
-descoped. Each opens with its scope in italics, ending _in-repo_ or _outside
-this checkout_; an externally gated entry says what it waits on where it
-sits. Nothing is wired up until its checkbox is ticked. Finished entries and
+descoped. Finished entries and
 questions decided against are **deleted**: git history is the ledger.
 
 ### What v1.0.0 means
-
-A **gate, not a wish list**: anything merely nice by v1 stays an ordinary
-entry below. The release unblocks the channels after it.
 
 - [ ] **Every publishable channel has been published once by hand**, before
       the automation is trusted with it: deb/rpm/apk and the Homebrew tap,
@@ -372,9 +354,6 @@ entry below. The release unblocks the channels after it.
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises (the **Flip to stable** entry).
-
-**The AUR is excluded on purpose** — v1 shouldn't wait on somebody else's
-spam problem; see the **AUR** entry below.
 
 ### By scope
 
