@@ -1115,8 +1115,10 @@ function test_floor_preview_says_off_at_the_top_floor() {
 # between escapes anyway.
 function test_palette_preview_renders_the_real_check() {
   _hi_load_preview_sources
-  local out
-  out="$(_HI_PACKAGES_MIN_PRIORITY=0 _hi_packages_palette_preview)"
+  local dir out
+  dir="$(_hi_fake_path preview_palette bat)"
+  # shellcheck disable=SC2031 # the swap lives and dies in its own $( )
+  out="$(PATH="$dir:$PATH" _HI_PACKAGES_MIN_PRIORITY=0 _hi_packages_palette_preview)"
   [[ "$out" == *" bat "* && "$out" != *"nothing -"* ]]
 }
 

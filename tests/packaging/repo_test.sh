@@ -45,9 +45,13 @@ function _hi_repo_keys() {
 # the same note); the repository itself lands in the workdir.
 function _hi_repo_build() {
   _HI_REPO="$_HI_WORKDIR/repo"
-  # the version mkpkg.sh stamps by default - the PKGBUILD's, the one version
-  # of record - is what every client's `hi --version` has to print back
-  _HI_REPO_VERSION="$(sed -n 's/^pkgver=//p' "$_HI_ROOT/packaging/aur/say-hi/PKGBUILD" | head -1)"
+  # the version mkpkg.sh stamps by default is what every client's
+  # `hi --version` has to print back - through mkpkg.sh's own
+  # default_version(), not a bare PKGBUILD grep: outside a release, pkgver=
+  # is the committed 0.0.0 template, and default_version() falls through to
+  # this checkout's newest tag (packaging/lib.sh) the same way mkpkg.sh does.
+  # shellcheck source=../../packaging/lib.sh
+  _HI_REPO_VERSION="$(source "$_HI_ROOT/packaging/lib.sh" && default_version)"
   [ -n "$_HI_REPO_VERSION" ] || {
     _hi_cecho " | no pkgver in packaging/aur/say-hi/PKGBUILD" "$RED"
     return 1
