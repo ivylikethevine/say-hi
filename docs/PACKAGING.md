@@ -30,7 +30,6 @@ Actions variable.
 - [Channels weighed and not shipped](#channels-weighed-and-not-shipped)
 - [Cutting a release](#cutting-a-release)
   - [The release environment](#the-release-environment)
-- [Snapshot builds](#snapshot-builds)
 - [Publishing each channel](#publishing-each-channel)
   - [AUR](#aur)
   - [Homebrew tap](#homebrew-tap)
@@ -215,39 +214,6 @@ minisign.key` strips the passphrase and keeps the pair). Before pasting,
   A different pair means a new line under
   [Verifying a release download](#verifying-a-release-download) in the same
   commit, since `publish` reads the key out of it.
-
-## Snapshot builds
-
-Every push to `main` produces one **prerelease**, tagged
-`snapshot-<short-sha>` for the commit
-[`.github/workflows/snapshot.yml`](../.github/workflows/snapshot.yml) built it
-from. It carries what a tag release carries (deb/rpm/apk, the source tarball,
-`SHA256SUMS`, `ARTIFACTS`, a build-provenance attestation over the lot), built
-by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
-(what `hi --version` prints from one), and gated on the fast suites alone.
-
-- **Only one exists at a time.** `publish` deletes every previous `snapshot-*`
-  release and tag, and any bare rolling `snapshot` one, before creating its
-  own. No tag is ever retargeted: each push's tag is new, so a clone holding
-  an old one keeps a harmless local copy nothing upstream asks to move.
-- **It reaches no channel.** No `bump.sh` (the manifests checksum a
-  `releases/download/v<ver>/` URL a snapshot never has), no Pages redeploy, no
-  tap, no AUR; all of that starts with a `v*` tag pushed by hand
-  ([Cutting a release](#cutting-a-release)) and, for the tap and the AUR, a
-  further manual dispatch of `publish-external.yml` after.
-  `tests/packaging/packaging_test.sh` pins the split: `snapshot.yml` may run
-  only on `main` and may not name a channel, `bump.sh` or the `release`
-  environment.
-- **It is unsigned.** `MINISIGN_SECRET_KEY` is sealed to the `release`
-  environment, which the snapshot job never enters, so its `SHA256SUMS` has no
-  `.minisig` and the release body says so; the attestation is its provenance.
-- **It is `--prerelease --latest=false`**, as a release candidate is, so the
-  newest final `v*` stays "Latest" and nothing that installs "the latest
-  release" (the package repository, `brew`, the AUR) sees a snapshot or a
-  candidate.
-- **Two repository settings:** `main` may need no reviewer (no environment
-  holds it), and no tag-protection ruleset may cover `snapshot-*`; a rule
-  blocking creation or deletion of a matching tag fails `publish`.
 
 ## Publishing each channel
 

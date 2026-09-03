@@ -1,0 +1,30 @@
+name: Setup backends
+# The podman/nomad/kind install that ci.yml's e2e-backends job and demos.yml's
+# publish job both need. The HashiCorp keyring fetch is the one
+# security-relevant download in either job, so it lives here once: a key or
+# URL change, or a fix to the gpg pipeline, is one edit. Neither caller may
+# assume the other ran on the machine, and apt is idempotent when it has.
+description: Install the backends the e2e suites and demo renders drive (podman, nomad, kind), plus any extra apt packages
+
+inputs:
+  extra-packages:
+    description: additional apt packages to install alongside podman and nomad
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # the shell lives in ./install.sh, where the lint gate's shellcheck and
+    # shfmt sweep it; the input arrives unquoted on purpose - a word list,
+    # one apt name each
+    - name: Install podman and nomad
+      shell: bash
+      env:
+        HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+      run: '"$GITHUB_ACTION_PATH/install.sh" $HI_EXTRA_PACKAGES'
+
+    - name: Install kind
+      uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+      with:
+        install_only: true

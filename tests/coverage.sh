@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Line coverage for the bash suites via kcov - a dev tool to run occasionally,
-# deliberately not wired into CI. The point is finding which arms of
-# scripts/install.sh and packaging/bump.sh the ~670 fast cases never touch,
-# not gating on a number.
+# Line coverage for the bash suites via kcov - run by hand, and by
+# coverage.yml after every green push to main. The point is finding which
+# arms of scripts/install.sh and packaging/bump.sh the ~1,400 cases never
+# touch, not gating on a number.
 #
 # Usage: tests/coverage.sh [outdir] [runner args...]
 #   outdir       where kcov writes its report (default: $TMPDIR/say-hi-coverage)
@@ -13,40 +13,36 @@
 #                selects, wherever it appears - see the loop below.
 #
 # ---------------------------------------------------------------------------
-# READ THIS BEFORE BELIEVING A NUMBER THIS PRINTS
+# HOW FAR TO TRUST A NUMBER THIS PRINTS
 #
-# kcov stops recording the moment tests/test_lib.sh finishes being sourced.
-# Everything a suite does after that - which is every case it runs - is
-# invisible to the report. So these percentages are NOT "the arms the suites
-# never reach". They are much closer to "the lines that ran before the harness
-# finished loading", and they understate real coverage by a wide, uneven margin.
+# With the current kcov pin and the full-sweep default, this lands within a
+# few points of bashcov's figure (coverage_v2.sh), so the numbers are usable:
+# for finding untested arms and watching the trend - still never as a gate.
+# That sentence has to be re-earned whenever the two badges diverge, because
+# an earlier kcov lost the plot entirely, and the measured record of how is
+# kept here so the next person can rerun it instead of rediscovering it:
 #
-# How that was established, so the next person doesn't have to redo it. Take one
-# script that sources core.sh, sources git_prompt.sh, makes a git repo and calls
-# _hi_git_prompt once, and trace it under kcov:
+# That kcov stopped recording the moment tests/test_lib.sh finished being
+# sourced - everything a suite did after that was invisible, and the
+# percentages described "what ran while the harness loaded", not coverage.
+# The probe: one script that sources core.sh, sources git_prompt.sh, makes a
+# git repo and calls _hi_git_prompt once, traced under kcov:
 #
 #   no test_lib.sh sourced at all ................ git_prompt.sh  59.15%
 #   test_lib.sh sourced BEFORE the call .......... git_prompt.sh   2.82%
 #   test_lib.sh sourced BEFORE git_prompt.sh ..... git_prompt.sh  ABSENT
 #
-# 2.82% is 2 lines of 71: `set -euo pipefail` on line 5 and `set +euo pipefail`
-# on line 116, the two statements that run at *source* time. The whole function
-# body - called immediately after, successfully, with its output asserted - is
-# recorded as never executed. That 2.82% is also exactly what a full
-# `--group fast` run reports for the file, while its 17 cases pass. The cause is
-# inside kcov's bash instrumentation (it drives a DEBUG trap; something in
-# test_lib.sh's source-time work loses it), not in test_lib.sh or in the suites,
-# and it is not say-hi's to fix. Nothing here is a code smell to go chasing.
+# 2.82% was 2 lines of 71: the `set -euo pipefail`/`set +euo pipefail` pair
+# that runs at *source* time, with the whole asserted function body recorded
+# as never executed. The cause was inside kcov's bash instrumentation (it
+# drives a DEBUG trap; something in test_lib.sh's source-time work lost it),
+# not in test_lib.sh or the suites. If kcov's badge ever sags far under
+# bashcov's again, rerun that probe before believing either figure.
 #
-# What that means in practice: a low number here is not evidence that tests are
-# missing, and a high one is not evidence that they are not. Do not write tests
-# to move these figures. Until kcov is fixed or replaced, treat the output as a
-# rough map of what executes at load time and nothing more.
-#
-# The topology below is still the correct one, and is kept for when the tool
-# works again: one kcov per suite with the suite script as the *top-level*
-# process, merged at the end. Wrapping test_runner.sh instead would put every
-# suite in a child process and lose even the load-time lines.
+# The topology below is what makes the trace work at all: one kcov per suite
+# with the suite script as the *top-level* process, merged at the end.
+# Wrapping test_runner.sh instead would put every suite in a child process
+# and lose even the load-time lines.
 # ---------------------------------------------------------------------------
 #
 # Lives in tests/ on purpose: tests/ ships in neither the ssh payload

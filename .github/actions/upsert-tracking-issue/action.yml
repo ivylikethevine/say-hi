@@ -2,7 +2,9 @@ name: Upsert tracking issue
 # One labeled, reused issue per standing finding - opened when actionable,
 # rewritten on every later run while it stays actionable, closed the run it
 # clears. Callers (image-scan.yml, tool-versions.yml) still compose the report
-# body and decide `resolved` from their own tool's verdict.
+# body and decide `resolved` from their own tool's verdict; the "Found by"
+# footer and the close comment's run link are composed here, so every
+# tracking issue phrases them the same way.
 description: Create, update, or close one labeled GitHub issue tracking a standing finding
 
 inputs:
@@ -22,8 +24,12 @@ inputs:
     description: "'true' when this run found nothing actionable - closes any open issue instead of upserting"
     required: true
   close-comment:
-    description: comment left on the issue when it's closed
+    description: comment left on the issue when it's closed; a "[Latest run](...)" link is appended
     required: true
+  resolved-when:
+    description: completes the body footer "Closed automatically once <resolved-when>." on a non-resolved upsert; empty skips the footer
+    required: false
+    default: ""
   body-file:
     description: path to the fully-composed markdown issue body; required unless resolved is 'true'
     required: false
@@ -53,12 +59,14 @@ runs:
         TITLE: ${{ inputs.title }}
         RESOLVED: ${{ inputs.resolved }}
         CLOSE_COMMENT: ${{ inputs.close-comment }}
+        RESOLVED_WHEN: ${{ inputs.resolved-when }}
         BODY_FILE: ${{ inputs.body-file }}
         WRITE_SUMMARY_ON_RESOLVED: ${{ inputs.write-summary-on-resolved }}
         WARNING_TITLE: ${{ inputs.warning-title }}
         WARNING_BODY: ${{ inputs.warning-body }}
       run: |
         set -euo pipefail
+        run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
         # --force is create-or-update, so a deleted label heals itself rather
         # than turning every later `issue create` into a hard failure
@@ -74,10 +82,19 @@ runs:
             cat "$BODY_FILE" >>"$GITHUB_STEP_SUMMARY"
           fi
           if [ -n "$open" ]; then
-            gh issue close "$open" --comment "$CLOSE_COMMENT"
+            gh issue close "$open" --comment "$CLOSE_COMMENT [Latest run]($run_url)."
           fi
           echo "nothing actionable"
           exit 0
+        fi
+
+        # the footer names this action's run and the condition that will
+        # close the issue - composed here, not by each caller, so every
+        # tracking issue says it the same way (the backticks are a markdown
+        # code span, not a substitution)
+        if [ -n "$RESOLVED_WHEN" ]; then
+          printf '\nFound by [`%s`](%s). Closed automatically once %s.\n' \
+            "$LABEL" "$run_url" "$RESOLVED_WHEN" >>"$BODY_FILE"
         fi
 
         # --body-file, not --body: these bodies are markdown with blank lines

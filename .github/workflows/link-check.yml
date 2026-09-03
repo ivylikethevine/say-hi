@@ -2,14 +2,25 @@ name: Link check
 
 # Advisory, exactly as ci.yml's markdownlint job is: a rotted external URL is
 # worth seeing and has never shipped a bug, so this reports and never blocks -
-# never add it to required checks. Scheduled rather than per-PR because link
-# rot happens on the internet's clock. Before the repo is public the in-repo
-# github.com/... links all 404; a dispatch the day it flips confirms they went
-# live.
-on:
+# never add it to required checks. Runs after every green CI battery on a
+# push to main (the batch scorecard, coverage and tool-versions share) and
+# weekly as a backstop, since link rot happens on the internet's clock with
+# no push here; never per-PR. Before the repo is public the in-repo
+# github.com/... links all 404; a dispatch the day it flips confirms they
+# went live.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "23 8 * * 1"
   workflow_dispatch:
+
+# pushes to main can stack; only the newest sweep matters
+concurrency:
+  group: link-check
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -17,6 +28,12 @@ permissions:
 jobs:
   lychee:
     name: lychee (advisory)
+    # only a green push to main gets a fresh sweep; the schedule and a manual
+    # dispatch pass the first clause
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

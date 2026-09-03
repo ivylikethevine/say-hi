@@ -29,11 +29,10 @@
 #   apk/{x86_64,aarch64}/{<apk>,APKINDEX.tar.gz}
 #   say-hi.asc  say-hi.rsa.pub  say-hi.repo
 
+# the locator, core.sh, strict mode and the shared primitives (need/gpg_fpr/
+# sha256_of) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-# after the source, not before: core.sh (which lib.sh pulls in) ends with
-# `set +euo pipefail`, so an earlier line here would be undone by it
-set -euo pipefail
 
 _HI_DIST="$_HI_ROOT/dist"
 _HI_OUT=""
@@ -72,6 +71,8 @@ EOF
 }
 
 while [ $# -gt 0 ]; do
+  # --x=y becomes --x y first, so each flag below is spelled once
+  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   --dist | --outdir | --gpg-key | --public-key | --apk-key | --base-url | --tarball)
     [ $# -ge 2 ] || {
@@ -89,13 +90,6 @@ while [ $# -gt 0 ]; do
     esac
     shift
     ;;
-  --dist=*) _HI_DIST="${1#*=}" ;;
-  --outdir=*) _HI_OUT="${1#*=}" ;;
-  --gpg-key=*) _HI_GPG_KEY="${1#*=}" ;;
-  --public-key=*) _HI_GPG_PUBLIC="${1#*=}" ;;
-  --apk-key=*) _HI_APK_KEY="${1#*=}" ;;
-  --base-url=*) _HI_BASE_URL="${1#*=}" ;;
-  --tarball=*) _HI_TARBALL="${1#*=}" ;;
   -h | --help)
     usage
     exit 0
@@ -123,13 +117,6 @@ function one_package() {
   printf '%s' "${found[0]}"
 }
 
-function need() {
-  command -v "$1" >/dev/null 2>&1 || {
-    _hi_cecho " $1 is not installed${2:+ - $2}" "$RED" >&2
-    return 1
-  }
-}
-
 # in_container <image> <mounted-dir> <sh -c script> - run one script in a
 # throwaway container with <dir> at /work, handing the files back owned by
 # the caller rather than root. Network is needed for the package install
@@ -137,7 +124,7 @@ function need() {
 function in_container() {
   local image="$1" dir="$2" script="$3"
   docker run --rm -v "$dir:/work" -w /work \
-    -e "HI_UID=$(id -u)" -e "HI_GID=$(id -g)" -e "HI_ARCH=${HI_ARCH:-}" "$image" \
+    -e "HI_UID=$(id -u)" -e "HI_GID=$(id -g)" -e "HI_ARCHES=${HI_ARCHES:-}" "$image" \
     sh -ec "$script"$'\n''chown -R "$HI_UID:$HI_GID" /work'
 }
 
@@ -160,13 +147,11 @@ function gpg_setup() {
   _HI_GNUPGHOME="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
   chmod 700 "$_HI_GNUPGHOME"
   gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --import "$_HI_GPG_KEY"
-  have="$(gpg --batch --homedir "$_HI_GNUPGHOME" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
+  have="$(gpg_fpr --homedir "$_HI_GNUPGHOME" --list-secret-keys)"
   if [ -n "$_HI_GPG_PUBLIC" ]; then
-    # `|| true`: a missing/unreadable file makes gpg exit 2 with its stderr
-    # discarded, and under `set -e` + pipefail that kills the whole script
-    # inside the substitution - silently, before the guard below can name the
-    # problem (how release.yml's publish job died on a tag without the file)
-    want="$(gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --with-colons --show-keys "$_HI_GPG_PUBLIC" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }' || true)"
+    # gpg_fpr comes back empty (never fatal) on a missing/unreadable file, so
+    # the guard below gets to name the problem
+    want="$(gpg_fpr --homedir "$_HI_GNUPGHOME" --quiet --show-keys "$_HI_GPG_PUBLIC")"
     [ -n "$want" ] || {
       _hi_cecho " $_HI_GPG_PUBLIC is missing or not a key" "$RED" >&2
       return 1
@@ -196,13 +181,6 @@ function gpg_sign() {
 function deb_control() {
   local deb="$1" member scratch rc
   member="$(ar t "$deb" | grep '^control\.tar' | head -1)"
-  case "$member" in
-  control.tar.gz | control.tar.xz | control.tar) : ;;
-  *)
-    _hi_cecho " unexpected control member in $deb: '$member'" "$RED" >&2
-    return 1
-    ;;
-  esac
   case "$deb" in /*) : ;; *) deb="$PWD/$deb" ;; esac
   # `ar x` to a scratch file, not `ar p` through a pipe: some Windows ar
   # builds default their stdout stream to text mode, which turns any \n byte
@@ -218,6 +196,11 @@ function deb_control() {
   control.tar.gz) gzip -dc "$scratch/$member" | tar -xOf - ./control ;;
   control.tar.xz) xz -dc "$scratch/$member" | tar -xOf - ./control ;;
   control.tar) tar -xOf "$scratch/$member" ./control ;;
+  *)
+    _hi_cecho " unexpected control member in $deb: '$member'" "$RED" >&2
+    rm -rf "$scratch"
+    return 1
+    ;;
   esac
   rc=$?
   rm -rf "$scratch"
@@ -313,13 +296,16 @@ EOF
 # --- apk ------------------------------------------------------------------
 
 function build_apk() {
-  local apk name arch dir keydir="" pkgname pkgver
+  local apk name arch keydir="" pkginfo pkgname pkgver
   apk="$(one_package apk)"
   # apk-tools fetches <pkgname>-<pkgver>.apk, whatever the file was called
   # when it was built, so the repository copy takes that name; both fields
-  # come out of the package's own .PKGINFO
-  pkgname="$(gzip -dc "$apk" | tar -xOf - .PKGINFO 2>/dev/null | sed -n 's/^pkgname = //p' | head -1)"
-  pkgver="$(gzip -dc "$apk" | tar -xOf - .PKGINFO 2>/dev/null | sed -n 's/^pkgver = //p' | head -1)"
+  # come out of the package's own .PKGINFO - extracted once, read twice.
+  # `|| true`: a package with no .PKGINFO reads as empty here, so the guard
+  # below gets to name the problem instead of a silent `set -e` abort.
+  pkginfo="$(gzip -dc "$apk" | tar -xOf - .PKGINFO 2>/dev/null || true)"
+  pkgname="$(printf '%s\n' "$pkginfo" | sed -n 's/^pkgname = //p' | head -1)"
+  pkgver="$(printf '%s\n' "$pkginfo" | sed -n 's/^pkgver = //p' | head -1)"
   [ -n "$pkgname" ] && [ -n "$pkgver" ] || {
     _hi_cecho " no pkgname/pkgver in $apk's .PKGINFO" "$RED" >&2
     return 1
@@ -340,32 +326,40 @@ function build_apk() {
     _hi_cecho " | no --apk-key: the APKINDEX files are unsigned (a client needs --allow-untrusted)" "$YELLOW"
   fi
   for arch in $_HI_APK_ARCHES; do
-    dir="$_HI_OUT/apk/$arch"
-    mkdir -p "$dir"
-    cp -p "$apk" "$dir/$name"
-    if [ -n "$_HI_APK_KEY" ]; then
-      # abuild-sign names the signature after the key file plus .pub, and
-      # apk-tools looks that name up in /etc/apk/keys - so the key is staged
-      # under the name nfpm.yaml's key_name promises, minus the .pub. The
-      # public half goes into the container's keyring first: `apk index`
-      # refuses a package it cannot verify, which is the check that the apk
-      # was signed by this very key.
-      keydir="$dir/.keys"
-      mkdir -p "$keydir"
-      cp "$_HI_APK_KEY" "$keydir/say-hi.rsa"
-      cp "$_HI_OUT/say-hi.rsa.pub" "$keydir/say-hi.rsa.pub"
-      chmod 600 "$keydir/say-hi.rsa"
-      # shellcheck disable=SC2016 # the container's shell expands these
-      HI_ARCH="$arch" in_container "$_HI_ALPINE_IMAGE" "$dir" 'cp /work/.keys/say-hi.rsa.pub /etc/apk/keys/
-        apk add --no-cache -q abuild >/dev/null
-        apk index --quiet --rewrite-arch "$HI_ARCH" -o APKINDEX.tar.gz ./*.apk
-        abuild-sign -q -k /work/.keys/say-hi.rsa APKINDEX.tar.gz'
-      rm -rf "$keydir"
-    else
-      # shellcheck disable=SC2016 # the container's shell expands these
-      HI_ARCH="$arch" in_container "$_HI_ALPINE_IMAGE" "$dir" 'apk index --quiet --allow-untrusted --rewrite-arch "$HI_ARCH" -o APKINDEX.tar.gz ./*.apk'
-    fi
+    mkdir -p "$_HI_OUT/apk/$arch"
+    cp -p "$apk" "$_HI_OUT/apk/$arch/$name"
   done
+  # one container for every arch: the same .apk is indexed per architecture
+  # (only --rewrite-arch and the output directory differ), so the loop runs
+  # inside a single alpine - one start, one abuild install - rather than
+  # paying the container and network cost once per arch
+  if [ -n "$_HI_APK_KEY" ]; then
+    # abuild-sign names the signature after the key file plus .pub, and
+    # apk-tools looks that name up in /etc/apk/keys - so the key is staged
+    # under the name nfpm.yaml's key_name promises, minus the .pub. The
+    # public half goes into the container's keyring first: `apk index`
+    # refuses a package it cannot verify, which is the check that the apk
+    # was signed by this very key.
+    keydir="$_HI_OUT/apk/.keys"
+    mkdir -p "$keydir"
+    cp "$_HI_APK_KEY" "$keydir/say-hi.rsa"
+    cp "$_HI_OUT/say-hi.rsa.pub" "$keydir/say-hi.rsa.pub"
+    chmod 600 "$keydir/say-hi.rsa"
+    # shellcheck disable=SC2016 # the container's shell expands these
+    HI_ARCHES="$_HI_APK_ARCHES" in_container "$_HI_ALPINE_IMAGE" "$_HI_OUT/apk" 'cp /work/.keys/say-hi.rsa.pub /etc/apk/keys/
+      apk add --no-cache -q abuild >/dev/null
+      for a in $HI_ARCHES; do
+        (cd "/work/$a" &&
+          apk index --quiet --rewrite-arch "$a" -o APKINDEX.tar.gz ./*.apk &&
+          abuild-sign -q -k /work/.keys/say-hi.rsa APKINDEX.tar.gz)
+      done'
+    rm -rf "$keydir"
+  else
+    # shellcheck disable=SC2016 # the container's shell expands these
+    HI_ARCHES="$_HI_APK_ARCHES" in_container "$_HI_ALPINE_IMAGE" "$_HI_OUT/apk" 'for a in $HI_ARCHES; do
+      (cd "/work/$a" && apk index --quiet --allow-untrusted --rewrite-arch "$a" -o APKINDEX.tar.gz ./*.apk)
+    done'
+  fi
 }
 
 # --- main -----------------------------------------------------------------
@@ -386,10 +380,9 @@ _hi_h1 "Building the package repository"
 _hi_cecho " | packages: $_HI_DIST | repo: $_HI_OUT" "$BLUE"
 rm -rf "$_HI_OUT"
 mkdir -p "$_HI_OUT"
-# a named function, not `trap '...' EXIT`: $_HI_GNUPGHOME is read when the
-# trap fires, not when it's set - gpg_setup (below) hasn't run yet
-function cleanup() { [ -z "$_HI_GNUPGHOME" ] || rm -rf "$_HI_GNUPGHOME"; }
-trap cleanup EXIT
+# shellcheck disable=SC2016 # single-quoted so $_HI_GNUPGHOME is read when
+# the trap fires, not when it's set - gpg_setup (below) hasn't run yet
+_hi_on_exit '[ -z "$_HI_GNUPGHOME" ] || rm -rf "$_HI_GNUPGHOME"'
 gpg_setup
 build_apt
 build_rpm

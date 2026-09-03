@@ -112,8 +112,13 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   run here (the sandbox allows the docker socket). A suite that stands down
   reports yellow **SKIPPED**, never green; `--require-run` turns skips into
   failures. Try e2e first and read the STATUS/SKIP columns.
-- `tests/coverage.sh`'s numbers are untrustworthy — its header says why. Don't
-  write tests to move them.
+- Coverage figures are usable since the 2026-09 full-sweep + product-only
+  badge fix (kcov and bashcov land within a few points of each other).
+  Per-file skews remain — bashcov marks heredoc bodies covered and loses
+  `env -i` children and in-container lines; kcov's DEBUG-trap history is
+  `tests/coverage.sh`'s header, and is what to re-check if the two badges
+  diverge again. Write tests for behavior the per-file report shows
+  untested, never bare line-executions to move a number.
 
 ## Hard constraints
 

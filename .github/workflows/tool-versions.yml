@@ -1,15 +1,27 @@
 name: Tool versions
 
-# Weekly drift check over the curl-installed tools in setup-tool's tools.txt,
-# plus the pins that live inline in a workflow (bashcov, currently) - the one
-# class of pin dependabot cannot see. The signal is one tracking issue, kept
-# current: opened when a pin is behind, rewritten on every later run, closed
-# when everything is current, on image-scan.yml's shape. An issue, not a PR,
-# is why this is not folded into Renovate: .github/dependabot.yml's header.
-on:
+# Drift check over the curl-installed tools in setup-tool's tools.txt, plus
+# the pins that live inline in a workflow (bashcov, currently) - the one
+# class of pin dependabot cannot see. Runs after every green CI battery on a
+# push to main (the batch scorecard.yml and coverage.yml share) and weekly as
+# a backstop, since upstream releases land without a push here. The signal is
+# one tracking issue, kept current: opened when a pin is behind, rewritten on
+# every later run, closed when everything is current, on image-scan.yml's
+# shape. An issue, not a PR, is why this is not folded into Renovate:
+# .github/dependabot.yml's header.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "23 7 * * 1"
   workflow_dispatch:
+
+# pushes to main can stack; only the newest drift report matters
+concurrency:
+  group: tool-versions
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -19,6 +31,12 @@ permissions:
 jobs:
   check:
     name: composite-action tool pins vs upstream
+    # only a green push to main gets a fresh report; the schedule and a manual
+    # dispatch pass the first clause
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -45,7 +63,6 @@ jobs:
         if: steps.check.outputs.outdated != 0
         env:
           OUTDATED: ${{ steps.check.outputs.outdated }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           {
@@ -56,8 +73,6 @@ jobs:
             echo '```'
             cat "$RUNNER_TEMP/tools.txt"
             echo '```'
-            echo
-            echo "Found by [\`tool-versions\`]($RUN_URL). Closed automatically once every pin is current."
           } >"$RUNNER_TEMP/report.md"
 
       - uses: $/.github/actions/upsert-tracking-issue
@@ -67,5 +82,6 @@ jobs:
           label-description: A tools.txt pin in .github/actions/setup-tool is behind upstream
           title: Pinned CI tools are behind their upstream releases
           resolved: ${{ steps.check.outputs.outdated == 0 && 'true' || 'false' }}
-          close-comment: Every pin is current again. [Latest run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          close-comment: Every pin is current again.
+          resolved-when: every pin is current
           body-file: ${{ runner.temp }}/report.md

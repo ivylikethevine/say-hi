@@ -5,10 +5,10 @@
 extend-ignore-re = [
   "\\[Tt\\]ags",  # core.sh's case pattern for Tags:/tags:, split as `ags`
   "mis-parse",    # the hyphenated form, split at the hyphen
-  "\"fpr\"",      # gpg --with-colons' fingerprint record type, mkrepo.sh's awk
 ]
 
 [default.extend-words]
+fpr = "fpr"                    # gpg --with-colons' fingerprint record type (packaging/lib.sh's gpg_fpr)
 tre = "tre"                    # the package (a `tree` alternative), settings/packages
 darcula = "darcula"            # the IntelliJ theme, named as a vim colorscheme
 unparseable = "unparseable"    # a spelling, not a typo

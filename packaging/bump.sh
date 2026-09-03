@@ -19,10 +19,9 @@
 # --check is what CI runs right after a bump, in the same job: it confirms the
 # rewrite actually landed a real version and real checksums (not the template
 # sentinels) before the build goes any further.
-set -euo pipefail
 
-# the locator, core.sh, and the shared primitives (sha256_of/b2_of/
-# pkgbuild_version) all come from lib.sh, found beside this script
+# the locator, core.sh, strict mode and the shared primitives (sha256_of/
+# b2_of/pkgbuild_version) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -32,7 +31,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 _HI_PKGBUILD="$_HI_PKG_DIR/aur/say-hi/PKGBUILD"
 _HI_SRCINFO="$_HI_PKG_DIR/aur/say-hi/.SRCINFO"
 _HI_FORMULA="$_HI_PKG_DIR/homebrew/say-hi.rb"
-_HI_REPO_URL="https://github.com/ivylikethevine/say-hi"
 # what a manifest reads before any release has been cut; --check rejects both
 _HI_PLACEHOLDER_SHA="0000000000000000000000000000000000000000000000000000000000000000"
 _HI_USAGE="Usage: bump.sh [--check] [--tarball <file>] <version>"
@@ -42,8 +40,11 @@ _HI_USAGE="Usage: bump.sh [--check] [--tarball <file>] <version>"
 # it is in SHA256SUMS and under the build-provenance attestation, which the
 # auto-generated archive never was. The filename is $pkgname-$pkgver.tar.gz, so
 # the AUR source= needs no `::` rename to get the name prepare() expects.
+# The repo half comes from the PKGBUILD's url= (lib.sh's pkgbuild_url), the
+# same line makepkg expands into source= - a private copy here would drift on
+# a repo rename with --check still green on the no-makepkg release runner.
 function asset_url() {
-  printf '%s/releases/download/v%s/say-hi-%s.tar.gz' "$_HI_REPO_URL" "$1" "$1"
+  printf '%s/releases/download/v%s/say-hi-%s.tar.gz' "$(pkgbuild_url)" "$1" "$1"
 }
 
 # One verify-and-report row of --check: <ok-msg> <fail-msg> <predicate...>.
@@ -186,17 +187,18 @@ function rewrite_srcinfo_lines() {
 _HI_CHECK_ONLY=""
 _HI_TARBALL=""
 while [ $# -gt 0 ]; do
+  # --x=y becomes --x y first, so each flag below is spelled once
+  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   --check) _HI_CHECK_ONLY=1 ;;
   --tarball)
     [ $# -ge 2 ] || {
-      echo "bump.sh: --tarball requires a path" >&2
+      echo "bump.sh: $1 requires a value" >&2
       exit 1
     }
     _HI_TARBALL="$2"
     shift
     ;;
-  --tarball=*) _HI_TARBALL="${1#--tarball=}" ;;
   -h | --help)
     cat <<EOF
 $_HI_USAGE

@@ -243,6 +243,214 @@ function test_uninstall_shim_resolves_from_a_relative_invocation() {
   case "$out" in "Usage: install.sh"*) ;; *) return 1 ;; esac
 }
 
+# The real-run half: the flag errors, the mode banners and the locator walk
+# can only be seen by executing install.sh as a program, the way a user does.
+# Every run gets the scratch tree run_install_tests stands up (never this
+# checkout: the rc writers and unlink_hi must have nothing of the
+# developer's within reach) and a fabricated $HOME under env -i -
+# install_location_test.sh's isolation in miniature, minus the fresh-shell
+# read-back that suite exists for.
+_HI_RUN_TREE=""
+
+# _hi_run_env <home-name> <cmd...> - <cmd> against $_HI_WORKDIR/<home-name>
+# as $HOME, with only what a login shell has. stdin closed so no prompt can
+# hang; $SHELL because install.sh reports ${SHELL##*/} under `set -u`.
+function _hi_run_env() {
+  local home="$_HI_WORKDIR/$1"
+  shift
+  mkdir -p "$home"
+  env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
+    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" "$@" </dev/null
+}
+
+# _hi_run_install <home-name> <flag...> - the scratch tree's install.sh
+function _hi_run_install() {
+  local home="$1"
+  shift
+  _hi_run_env "$home" bash "$_HI_RUN_TREE/scripts/install.sh" "$@"
+}
+
+# the three argument errors: each has to stop before anything is sourced,
+# written or asked, with the message naming what was missing
+function test_prefix_flag_requires_a_path() {
+  local out rc=0
+  out="$(bash "$_HI_RUN_TREE/scripts/install.sh" --prefix 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix requires a path"* ]]
+}
+
+function test_preset_flag_requires_a_name() {
+  local out rc=0
+  out="$(bash "$_HI_RUN_TREE/scripts/install.sh" --preset 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--preset requires a name"* ]]
+}
+
+function test_an_unknown_argument_gets_the_usage() {
+  local out rc=0
+  out="$(bash "$_HI_RUN_TREE/scripts/install.sh" --bogus 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"unrecognized argument: --bogus"* && "$out" == *"Usage: install.sh"* ]]
+}
+
+# --check-configs is the pre-install validation alone: a clean home is a zero
+# exit, and a .bashrc that does not parse turns into a non-zero one - the
+# contract anything scripting `hi --check-configs` reads
+function test_check_configs_mode_passes_a_clean_home() {
+  local out rc=0
+  out="$(_hi_run_install cc-clean --check-configs 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Checking existing shell configs!"* ]]
+}
+
+function test_check_configs_mode_fails_on_a_broken_bashrc() {
+  local home="$_HI_WORKDIR/cc-broken" rc=0
+  mkdir -p "$home"
+  printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc" # unterminated if
+  _hi_run_install cc-broken --check-configs >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 1 ]
+}
+
+# --overlay-init end to end, against a home git has never seen: the seed,
+# the repo and the identity fallback all have to land for the first commit
+# to exist at all
+function test_overlay_init_mode_versions_the_overlay() {
+  local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0
+  out="$(_hi_run_install ovl-mode --overlay-init 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Versioning the config overlay!"* ]] &&
+    [ -d "$ovl/.git" ] &&
+    [ "$(git -C "$ovl" rev-list --count HEAD)" = 1 ]
+}
+
+# --uninstall against a home that never installed: every half reports clean
+# and the run still closes with its banner - the safe-to-re-run contract
+function test_uninstall_mode_is_safe_on_a_fresh_home() {
+  local out rc=0
+  out="$(_hi_run_install un-fresh --uninstall 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Uninstalled!"* && "$out" == *"no settings.sh to remove"* ]]
+}
+
+# --features-only (the `hi --configure` shape) writes the overlay's settings
+# and nothing else: no rc file appears, and the run says which mode it was.
+# --preset=<name> is the one-token spelling of the flag.
+function test_features_only_writes_settings_and_no_rc() {
+  local home="$_HI_WORKDIR/feat" out rc=0
+  out="$(_hi_run_install feat --features-only --preset=minimal 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Features updated!"* ]] &&
+    grep -qF "export _HI_DISABLE_HEADER=1" "$home/.config/say-hi/settings.sh" &&
+    [ ! -e "$home/.bashrc" ]
+}
+
+# the validation gate, both ways: a broken .bashrc stops a non-interactive
+# install cold with nothing written, and --yes overrides it into a full
+# install that still wires that same .bashrc
+function test_install_aborts_on_broken_configs_without_yes() {
+  local home="$_HI_WORKDIR/gate-abort" out rc=0
+  mkdir -p "$home"
+  printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
+  out="$(_hi_run_install gate-abort --no-link 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
+    ! grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
+function test_install_with_yes_continues_over_broken_configs() {
+  local home="$_HI_WORKDIR/gate-yes" out rc=0
+  mkdir -p "$home"
+  printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
+  out="$(_hi_run_install gate-yes --no-link --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"continuing anyway"* && "$out" == *"Installed!"* ]] &&
+    grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
+# --prefix=<dir> (the one-token spelling) enters packaging mode: the tree
+# lands under $DESTDIR<dir>, and the profile.d snippet names the prefix -
+# not the staging root, which is gone at runtime, and not the build tree
+function test_prefix_equals_spelling_stages_under_destdir() {
+  local stage="$_HI_WORKDIR/stage" out rc=0
+  out="$(_hi_run_env pack env DESTDIR="$stage" \
+    bash "$_HI_RUN_TREE/scripts/install.sh" --prefix=/opt 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Packaged!"* ]] &&
+    [ -f "$stage/opt/say-hi/hi.sh" ] &&
+    grep -qF 'export _HI_HOME="/opt"' "$stage/etc/profile.d/say-hi.sh"
+}
+
+# The locator walk (GLOSSARY: HI.33), driven for real through each symlink
+# shape readlink can hand back: an absolute target, a relative one with a
+# slash, and a bare name (which resolves in the link's own directory, so it
+# is invoked from there the way argv0 would arrive). In all three the run's
+# own banner has to name the scratch tree as hi_home - resolving the link
+# rather than the link's directory is the whole point.
+function _hi_run_named_the_tree() {
+  [[ "$1" == *"hi_home: ${_HI_RUN_TREE%/say-hi}"* ]]
+}
+
+function test_locator_walks_an_absolute_symlink() {
+  local out
+  mkdir -p "$_HI_WORKDIR/loc-bin"
+  ln -sfn "$_HI_RUN_TREE/scripts/install.sh" "$_HI_WORKDIR/loc-bin/hi-install"
+  out="$(_hi_run_env loc-abs bash "$_HI_WORKDIR/loc-bin/hi-install" --check-configs 2>&1)" || true
+  _hi_run_named_the_tree "$out"
+}
+
+function test_locator_walks_a_relative_symlink() {
+  local parent="${_HI_RUN_TREE%/say-hi}" out
+  mkdir -p "$parent/bin"
+  ln -sfn ../say-hi/scripts/install.sh "$parent/bin/hi-install"
+  out="$(_hi_run_env loc-rel bash "$parent/bin/hi-install" --check-configs 2>&1)" || true
+  _hi_run_named_the_tree "$out"
+}
+
+function test_locator_walks_a_bare_name_symlink() {
+  local out
+  ln -sfn install.sh "$_HI_RUN_TREE/scripts/reinstall.sh"
+  out="$(cd "$_HI_RUN_TREE/scripts" &&
+    _hi_run_env loc-bare bash reinstall.sh --check-configs 2>&1)" || true
+  _hi_run_named_the_tree "$out"
+}
+
+# unlink_hi's removal ladder, staged like configure_test.sh's config_hi
+# cases: a writable bindir needs nothing, and both sudo failures (refused,
+# absent) end in instructions rather than a `set -e` death - with the link
+# still in place for the instructions to be about
+function test_unlink_hi_removes_its_own_link() {
+  local dir="$_HI_WORKDIR/unlink-mine"
+  mkdir -p "$dir"
+  ln -sfn "$_HI_LAUNCHER" "$dir/hi"
+  (
+    _HI_LINK="$dir/hi"
+    unlink_hi
+  ) | grep -q "removed $dir/hi" &&
+    [ ! -e "$dir/hi" ]
+}
+
+function test_unlink_hi_instructs_when_sudo_is_refused() {
+  local dir="$_HI_WORKDIR/unlink-refused" out rc=0
+  mkdir -p "$dir/bin"
+  ln -sfn "$_HI_LAUNCHER" "$dir/bin/hi"
+  chmod 555 "$dir/bin"
+  out="$(
+    function sudo() { return 1; }
+    _HI_LINK="$dir/bin/hi"
+    unlink_hi
+  )" || rc=$?
+  chmod 755 "$dir/bin"
+  [ "$rc" -eq 0 ] && [[ "$out" == *"couldn't remove it"* ]] && [ -L "$dir/bin/hi" ]
+}
+
+# readlink and dirname ride along as real binaries: swapping PATH to lose
+# sudo takes the whole toolbox with it
+function test_unlink_hi_instructs_with_no_sudo_at_all() {
+  local dir="$_HI_WORKDIR/unlink-none" farm out rc=0
+  farm="$(_hi_real_path unlink_tools readlink dirname)"
+  mkdir -p "$dir/bin"
+  ln -sfn "$_HI_LAUNCHER" "$dir/bin/hi"
+  chmod 555 "$dir/bin"
+  out="$(
+    hash -r
+    PATH="$farm"
+    _HI_LINK="$dir/bin/hi"
+    unlink_hi
+  )" || rc=$?
+  chmod 755 "$dir/bin"
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no sudo here"* ]] && [ -L "$dir/bin/hi" ]
+}
+
 function run_install_tests() {
   _hi_workdir installtest
 
@@ -281,6 +489,33 @@ function run_install_tests() {
   _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
   _hi_check "uninstall.sh shims onto --uninstall" test_uninstall_shim_delegates_to_install
   _hi_check "...resolves from a relative invocation" test_uninstall_shim_resolves_from_a_relative_invocation
+
+  _hi_h2 "Testing: unlink_hi (the removal ladder)"
+  _hi_check_capable symlink "Removes its own link from a writable bindir" test_unlink_hi_removes_its_own_link
+  _hi_check_capable lockout "Instructs when sudo is refused" test_unlink_hi_instructs_when_sudo_is_refused
+  _hi_check_capable lockout "Instructs with no sudo at all" test_unlink_hi_instructs_with_no_sudo_at_all
+
+  # the scratch tree every real run below executes out of
+  _HI_RUN_TREE="$(_hi_scratch_tree realrun common settings scripts hi.sh load.sh)/say-hi"
+  chmod +x "$_HI_RUN_TREE/hi.sh"
+
+  _hi_h2 "Testing: install.sh run for real (flags and modes)"
+  _hi_check "--prefix requires a path" test_prefix_flag_requires_a_path
+  _hi_check "--preset requires a name" test_preset_flag_requires_a_name
+  _hi_check "An unknown argument gets the usage" test_an_unknown_argument_gets_the_usage
+  _hi_check "--check-configs passes a clean home" test_check_configs_mode_passes_a_clean_home
+  _hi_check "--check-configs fails on a broken .bashrc" test_check_configs_mode_fails_on_a_broken_bashrc
+  _hi_check_requires git "--overlay-init versions the overlay" test_overlay_init_mode_versions_the_overlay
+  _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
+  _hi_check "--features-only writes settings and no rc" test_features_only_writes_settings_and_no_rc
+  _hi_check "No --yes over broken configs aborts" test_install_aborts_on_broken_configs_without_yes
+  _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
+  _hi_check "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
+
+  _hi_h2 "Testing: the locator walk through a symlink"
+  _hi_check_capable symlink "An absolute link target" test_locator_walks_an_absolute_symlink
+  _hi_check_capable symlink "A relative one with a slash" test_locator_walks_a_relative_symlink
+  _hi_check_capable symlink "A bare name in the link's own directory" test_locator_walks_a_bare_name_symlink
 
   _hi_suite_end "install.sh logic"
 }

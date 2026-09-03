@@ -139,21 +139,22 @@ jobs:
           APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
         run: |
           set -euo pipefail
-          if [ -n "$APK_SIGNING_KEY" ]; then
-            printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi-apk.rsa"
-            chmod 600 "$RUNNER_TEMP/say-hi-apk.rsa"
-            echo "HI_APK_KEY=$RUNNER_TEMP/say-hi-apk.rsa" >>"$GITHUB_ENV"
-          else
+          if [ -z "$APK_SIGNING_KEY" ]; then
             echo "no APK_SIGNING_KEY secret - the apk will be unsigned"
             exit 0
           fi
+          printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi-apk.rsa"
+          chmod 600 "$RUNNER_TEMP/say-hi-apk.rsa"
           # the committed public half is what the runbook tells Alpine users
-          # to trust and what mkrepo.sh serves; a secret that is another key
-          # would sign an apk no client can verify
-          if ! openssl rsa -in "$RUNNER_TEMP/say-hi-apk.rsa" -pubout 2>/dev/null | diff -q - packaging/apk/say-hi.rsa.pub >/dev/null; then
+          # to trust and what mkrepo.sh serves; packaging/lib.sh's
+          # verify_signing_key is the one implementation of "the secret is
+          # the key the committed public half names"
+          source packaging/lib.sh
+          verify_signing_key rsa "$RUNNER_TEMP/say-hi-apk.rsa" packaging/apk/say-hi.rsa.pub || {
             echo "::error title=APK_SIGNING_KEY::the secret is not the key packaging/apk/say-hi.rsa.pub is the public half of"
             exit 1
-          fi
+          }
+          echo "HI_APK_KEY=$RUNNER_TEMP/say-hi-apk.rsa" >>"$GITHUB_ENV"
 
       # The GPG key that signs the rpm here (nfpm, via HI_GPG_KEY) and, in
       # publish, the package repository's indexes. A plain repo secret like the
@@ -174,21 +175,16 @@ jobs:
           fi
           printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
           chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
-          home="$(mktemp -d)"
-          chmod 700 "$home"
-          gpg --batch --quiet --homedir "$home" --import "$RUNNER_TEMP/say-hi.gpg.key"
-          have="$(gpg --batch --homedir "$home" --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
-          want="$(gpg --batch --quiet --homedir "$home" --with-colons --show-keys packaging/gpg/say-hi.asc 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }')"
-          [ -n "$want" ] || {
-            echo "::error title=GPG_SIGNING_KEY::packaging/gpg/say-hi.asc is missing or not a key - commit the public half of the secret there"
-            exit 1
-          }
-          [ "$have" = "$want" ] || {
-            echo "::error title=GPG_SIGNING_KEY::the secret ($have) is not the key packaging/gpg/say-hi.asc names ($want)"
+          # packaging/lib.sh's verify_signing_key is the one implementation
+          # of this check, shared with mkrepo.sh's gpg_setup; its own stderr
+          # names which half is missing or mismatched
+          source packaging/lib.sh
+          fpr="$(verify_signing_key gpg "$RUNNER_TEMP/say-hi.gpg.key" packaging/gpg/say-hi.asc)" || {
+            echo "::error title=GPG_SIGNING_KEY::the secret is not the key packaging/gpg/say-hi.asc names - the log line above has the detail"
             exit 1
           }
           echo "HI_GPG_KEY=$RUNNER_TEMP/say-hi.gpg.key" >>"$GITHUB_ENV"
-          echo "signing the rpm with $have"
+          echo "signing the rpm with $fpr"
 
       # asserts one artifact per format, adds the source tarball, and writes
       # dist/SHA256SUMS and dist/ARTIFACTS - which is how the tarball reaches
@@ -348,11 +344,15 @@ jobs:
             sigline="# SHA256SUMS is unsigned for this release - no minisign check"
           fi
           # The repository links: derived from $GITHUB_REPOSITORY rather than
-          # a third literal copy of the Pages URL (mkrepo.sh's --base-url
-          # default and docs/PACKAGING.md hold the other two). The apt and apk
-          # rows are config values, not pages - GitHub Pages has no directory
-          # index, so only the two key files and say-hi.repo are fetchable.
+          # another literal copy of the Pages URL (mkrepo's local-build
+          # default and docs/PACKAGING.md hold the remaining literals), and
+          # derived once - the package-repository step below feeds the same
+          # value to mkrepo.sh's --base-url, and the two must never disagree.
+          # The apt and apk rows are config values, not pages - GitHub Pages
+          # has no directory index, so only the two key files and say-hi.repo
+          # are fetchable.
           pages="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}"
+          echo "HI_PAGES_URL=$pages" >>"$GITHUB_ENV"
           # printf rather than a heredoc: a heredoc body would have to be
           # unindented, which ends the YAML block scalar
           body="$(printf '%s\n' \
@@ -420,6 +420,11 @@ jobs:
           printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
           chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
           set -- --gpg-key "$RUNNER_TEMP/say-hi.gpg.key" --public-key packaging/gpg/say-hi.asc
+          # the served URL, the one the release-notes step derived and put in
+          # $GITHUB_ENV: left off, say-hi.repo and the rpm baseurl would bake
+          # in mkrepo.sh's default - a literal that goes stale on a fork or
+          # an owner/repo rename while the notes above it stay correct
+          set -- "$@" --base-url "$HI_PAGES_URL"
           if [ -n "$APK_SIGNING_KEY" ]; then
             printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.rsa"
             chmod 600 "$RUNNER_TEMP/say-hi.rsa"

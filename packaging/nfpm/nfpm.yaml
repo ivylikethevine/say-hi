@@ -29,9 +29,9 @@ description: |
   Copies your shell configuration to ssh hosts, docker/podman containers,
   nomad allocations and kubernetes pods, and takes it back out on exit.
 
-# Debian names. No base64 dependency needed: hi armors the ssh bootstrap with
-# `base64`, which every base system already carries (coreutils on deb/rpm,
-# busybox on apk).
+# Debian names, which the apk shares; only the rpm override renames. No
+# base64 dependency needed: hi armors the ssh bootstrap with `base64`, which
+# every base system already carries (coreutils on deb/rpm, busybox on apk).
 depends:
   - bash
   - openssh-client
@@ -40,10 +40,6 @@ overrides:
     depends:
       - bash
       - openssh-clients
-  apk:
-    depends:
-      - bash
-      - openssh-client
 
 # The apk is signed when mkpkg.sh exports HI_APK_KEY (CI does, from the
 # APK_SIGNING_KEY repo secret); with it unset nfpm builds the same apk

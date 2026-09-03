@@ -182,6 +182,107 @@ function test_example_cell_marks_a_priority_below_the_floor() {
   [ "$text" = "below floor" ] && [ "$width" -eq 11 ]
 }
 
+# One in-process render of the legend (the source hatch hands the function
+# over without running it), shared like _HI_PREVIEW_OUT below and for the same
+# SIGPIPE reason. In-process rather than through the child render so a failure
+# points at the table code, not at whatever the child's environment did.
+_HI_PRIO_OUT=""
+
+function test_priorities_table_renders_all_columns() {
+  _HI_PRIO_OUT="$(_hi_print_priorities_table)" || return 1
+  local stripped
+  stripped="$(_hi_strip_ansi "$_HI_PRIO_OUT")"
+  [[ "$stripped" == *"| PRIORITY "* && "$stripped" == *"| MEANING "* ]] &&
+    [[ "$stripped" == *"| INSTALLED "* && "$stripped" == *"| MISSING "* ]] &&
+    [[ "$stripped" == *"| EXAMPLE "* ]]
+}
+
+# highest first - the order full_check sorts its own output into, so the two
+# halves of the preview read in the same direction
+function test_priorities_table_sorts_highest_first() {
+  local stripped top bottom
+  stripped="$(_hi_strip_ansi "$_HI_PRIO_OUT")"
+  top="$(printf '%s\n' "$stripped" | grep -n 'favorites and core' | head -1 | cut -d: -f1)"
+  bottom="$(printf '%s\n' "$stripped" | grep -n 'platform trivia' | head -1 | cut -d: -f1)"
+  [ -n "$top" ] && [ -n "$bottom" ] && [ "$top" -lt "$bottom" ]
+}
+
+# the INSTALLED/MISSING cells name the active ramp's colors - cool is the
+# default, whose priority-3 pair is brgreen/brred (header.sh's tables)
+function test_priorities_table_names_the_ramp_colors() {
+  local row
+  row="$(_hi_strip_ansi "$_HI_PRIO_OUT" | grep '^| 3 ')"
+  [[ "$row" == *brgreen* && "$row" == *brred* ]]
+}
+
+# the EXAMPLE column shows the fixture's own rows, and "below floor" where the
+# default floor of 2 keeps a rank off the header entirely
+function test_priorities_table_shows_the_real_examples() {
+  local stripped
+  stripped="$(_hi_strip_ansi "$_HI_PRIO_OUT")"
+  [[ "$(printf '%s\n' "$stripped" | grep '^| 3 ')" == *hialpha*highost3* ]] &&
+    [[ "$(printf '%s\n' "$stripped" | grep '^| 0 ')" == *"below floor"* ]]
+}
+
+# the two lines under the table: the tally, and the floor note naming the
+# setting responsible - the same numbers the child render asserts, proved here
+# to come from the table code itself
+function test_priorities_table_counts_below_the_table() {
+  [[ "$_HI_PRIO_OUT" == *"13 listed, 6 shown, 2 hidden"* ]] &&
+    [[ "$_HI_PRIO_OUT" == *"\$_HI_PACKAGES_MIN_PRIORITY=2"* ]]
+}
+
+# a floor of 0 floors nothing: every rank shows its example and the note has
+# nothing to explain. The tally pair is overridden too - the script sets both
+# from the same floor before collecting, so a render at floor 0 sees 0 floored.
+function test_priorities_table_drops_the_floor_note_at_zero() {
+  local out
+  out="$(_HI_PKG_MIN=0 _HI_PKG_FLOORED=0 _hi_print_priorities_table)" || return 1
+  [[ "$out" != *"below floor"* && "$out" != *_HI_PACKAGES_MIN_PRIORITY* ]] &&
+    [[ "$out" == *hidelta* && "$out" == *"13 listed, 11 shown, 2 hidden"* ]]
+}
+
+function test_priorities_table_is_rectangular() {
+  _hi_table_is_rectangular "$_HI_PRIO_OUT"
+}
+
+function test_marks_table_explains_every_mark() {
+  local out
+  out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
+  [[ "$out" == *"| MARK "* && "$out" == *"| MEANS "* ]] &&
+    [[ "$out" == *"installed, under the first name the line lists"* ]] &&
+    [[ "$out" == *"installed, but via one of the alternatives after it"* ]] &&
+    [[ "$out" == *"not installed - no name on the line resolved"* ]]
+}
+
+# each glyph is painted in the color the header paints it - the raw render has
+# to carry the resolved escape directly ahead of the mark
+function test_marks_table_paints_each_glyph() {
+  local out
+  out="$(_hi_print_marks_table)" || return 1
+  [[ "$out" == *"$(printf '%b' "$GREEN")$_HI_MARK_OK"* ]] &&
+    [[ "$out" == *"$(printf '%b' "$RED")$_HI_MARK_NO"* ]]
+}
+
+function test_marks_table_is_rectangular() {
+  _hi_table_is_rectangular "$(_hi_print_marks_table)"
+}
+
+# all three modes, not just the `-` row the child render checks; `none` is a
+# literal cell, not a mode character
+function test_modes_table_explains_every_mode() {
+  local out
+  out="$(_hi_strip_ansi "$(_hi_print_modes_table)")" || return 1
+  [[ "$out" == *"| MODE "* ]] &&
+    [[ "$out" == *"speaks only when the whole line is missing"* ]] &&
+    [[ "$out" == *"speaks only when something on the line is installed"* ]] &&
+    [[ "$(printf '%s\n' "$out" | grep '^| none ')" == *"speaks both ways - the default"* ]]
+}
+
+function test_modes_table_is_rectangular() {
+  _hi_table_is_rectangular "$(_hi_print_modes_table)"
+}
+
 # Running the real script through a scratch tree rather than through the
 # exported fixture above, and still deliberately: $_HI_PACKAGES does now reach a
 # child (paths.sh keeps a value it did not derive - the per-file override), and
@@ -196,6 +297,26 @@ function _hi_write_preview_tree() {
   local home
   home="$(_hi_scratch_tree tree common settings scripts)"
   cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages"
+}
+
+# the help path: same tree and PATH as the render, plus the one argument
+function _hi_render_help() {
+  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
+    "$_HI_WORKDIR/tree/say-hi/scripts/packages_preview.sh" "$1" 2>&1
+}
+
+# --help exits 0 before any table renders: usage text, the files it reads, and
+# nothing of the legend itself
+function test_help_prints_usage_and_stops() {
+  local out
+  out="$(_hi_render_help --help)" || return 1
+  [[ "$out" == *"Usage: packages_preview.sh"* ]] &&
+    [[ "$out" == *"Takes no arguments"* ]] &&
+    [[ "$out" != *"| PRIORITY"* ]]
+}
+
+function test_short_help_matches_long() {
+  [ "$(_hi_render_help -h)" = "$(_hi_render_help --help)" ]
 }
 
 # One render (the slowest thing this suite does) shared by the cases below;
@@ -304,6 +425,9 @@ function run_packages_preview_tests() {
   _hi_check "Names every color the header uses" test_color_name_of_names_every_header_color
   # $NC is not a palette color, and neither is anything under $NO_COLOR
   _hi_check_eq "Calls a reset plain" plain _hi_color_name_of "$NC"
+  # ...and under $NO_COLOR every escape *is* the empty string - the short-
+  # circuit branch, not the table walk
+  _hi_check_eq "Calls an empty escape plain" plain _hi_color_name_of ""
 
   _hi_h2 "Testing: examples, via the header's check_line"
   _hi_check "Counts every listed package" test_collect_counts_every_listed_package
@@ -319,7 +443,23 @@ function run_packages_preview_tests() {
   _hi_check "Marks a priority with nothing to show" test_example_cell_marks_a_priority_with_nothing_to_show
   _hi_check "Marks a priority below the floor" test_example_cell_marks_a_priority_below_the_floor
 
+  _hi_h2 "Testing: the tables, rendered in-process"
+  _hi_check "Legend renders all five columns" test_priorities_table_renders_all_columns
+  _hi_check "Legend sorts highest priority first" test_priorities_table_sorts_highest_first
+  _hi_check "Legend names the ramp's colors" test_priorities_table_names_the_ramp_colors
+  _hi_check "Legend shows the real examples" test_priorities_table_shows_the_real_examples
+  _hi_check "Legend counts below the table" test_priorities_table_counts_below_the_table
+  _hi_check "Floor note vanishes at floor 0" test_priorities_table_drops_the_floor_note_at_zero
+  _hi_check "Legend is rectangular" test_priorities_table_is_rectangular
+  _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
+  _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
+  _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
+  _hi_check "Modes table explains every mode" test_modes_table_explains_every_mode
+  _hi_check "Modes table is rectangular" test_modes_table_is_rectangular
+
   _hi_h2 "Testing: the rendered preview"
+  _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops
+  _hi_check "-h matches --help" test_short_help_matches_long
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
   _hi_check "Names every priority" test_preview_names_every_priority

@@ -30,6 +30,66 @@ source "$_HI_HOME/say-hi/common/core.sh"
 # shellcheck source=../scripts/lib.sh
 source "$_HI_HOME/say-hi/scripts/lib.sh"
 
+# need <tool> [hint] - the tool-missing refusal every entry point spells the
+# same way; the optional hint says where the tool comes from.
+function need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    _hi_cecho " $1 is not installed${2:+ - $2}" "$RED" >&2
+    return 1
+  }
+}
+
+# gpg_fpr <gpg args...> - the first fingerprint in gpg's --with-colons output,
+# or empty. The `|| true` matters: gpg failing inside a caller's command
+# substitution would otherwise kill a `set -e` + pipefail script silently,
+# before the caller's guard can name the problem (a missing public-key file
+# once took out release.yml's publish job exactly this way).
+function gpg_fpr() {
+  gpg --batch --with-colons "$@" 2>/dev/null |
+    awk -F: '$1 == "fpr" { print $10; exit }' || true
+}
+
+# verify_signing_key <gpg|rsa> <secret-key-file> <public-half-file> - refuse a
+# secret signing key that is not the one the committed public half names: a
+# secret that is another key signs artifacts no client can verify. gpg mode
+# prints the matching fingerprint on success; rsa mode compares the derived
+# public key byte-for-byte against <public-half-file>. release.yml's build
+# job runs both before letting a key anywhere near a package.
+function verify_signing_key() {
+  local mode="$1" secret="$2" public="$3" home have want
+  case "$mode" in
+  gpg)
+    # /tmp, not `-t`: gpg-agent's socket path cap - see mkrepo.sh's gpg_setup
+    home="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
+    chmod 700 "$home"
+    if ! gpg --batch --quiet --homedir "$home" --import "$secret" 2>/dev/null; then
+      rm -rf "$home"
+      _hi_cecho " could not import the secret key $secret" "$RED" >&2
+      return 1
+    fi
+    have="$(gpg_fpr --homedir "$home" --list-secret-keys)"
+    want="$(gpg_fpr --homedir "$home" --quiet --show-keys "$public")"
+    gpgconf --homedir "$home" --kill gpg-agent >/dev/null 2>&1 || true
+    rm -rf "$home"
+    [ -n "$want" ] || {
+      _hi_cecho " $public is missing or not a key" "$RED" >&2
+      return 1
+    }
+    [ "$have" = "$want" ] || {
+      _hi_cecho " the secret key is $have, not the key $public names ($want)" "$RED" >&2
+      return 1
+    }
+    printf '%s' "$have"
+    ;;
+  rsa)
+    openssl rsa -in "$secret" -pubout 2>/dev/null | diff -q - "$public" >/dev/null || {
+      _hi_cecho " the secret key is not the one $public is the public half of" "$RED" >&2
+      return 1
+    }
+    ;;
+  esac
+}
+
 # sha256 lines ("<sum>  <file>" per argument) and single-file sha256/blake2b,
 # each with a non-coreutils fallback so these also run on a mac (no sha256sum,
 # no b2sum) rather than only on the Linux CI box.
@@ -85,6 +145,22 @@ function pkgbuild_version() {
   printf '%s' "$v"
 }
 
+# The URL of record the same way: the PKGBUILD's url= is what makepkg expands
+# into source=, so every other place an asset URL is written (the formula, the
+# no-makepkg .SRCINFO fallback) must derive from the same line - a private
+# copy drifts on a repo rename with nothing red on the release runner, where
+# no makepkg exists to expand the real one. Reads $1, defaulting to the
+# caller's $_HI_PKGBUILD.
+function pkgbuild_url() {
+  local file="${1:-$_HI_PKGBUILD}" u
+  u="$(sed -n 's/^url="\(.*\)"/\1/p' "$file" | head -1)"
+  [ -n "$u" ] || {
+    _hi_cecho " no url= in $file" "$RED" >&2
+    return 1
+  }
+  printf '%s' "$u"
+}
+
 # What a build defaults to when nobody named one. The committed PKGBUILD is a
 # template (pkgver=0.0.0) outside a release's own bump, so pkgbuild_version()
 # alone would default every local and per-PR build to 0.0.0; fall through to
@@ -97,8 +173,9 @@ function default_version() {
     printf '%s' "$v"
     return 0
   fi
-  # --match 'v*': this tree also carries snapshot-<sha> tags (snapshot.yml),
-  # which are not release versions and must never win here.
+  # --match 'v*': clones can still carry snapshot-<sha> tags (from the
+  # retired per-push snapshot builds), which are not release versions and
+  # must never win here.
   v="$(git -C "$_HI_ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
   if [ -n "$v" ]; then
     printf '%s' "${v#v}"
@@ -106,3 +183,8 @@ function default_version() {
   fi
   printf '0.0.0'
 }
+
+# Strict mode for every consumer, here rather than at the top of each script:
+# core.sh (sourced above) ends with `set +euo pipefail`, so a `set` line
+# placed before a script's own `source lib.sh` is silently undone.
+set -euo pipefail

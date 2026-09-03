@@ -109,32 +109,18 @@ jobs:
           persist-credentials: false
 
       # generate.sh's roster (top of that file) names what each tape needs, and
-      # not only backends: `Set Shell zsh` wants that shell on the *renderer*,
-      # and a missing one is a vhs error rather than a clean stand-down, so the
-      # shells go in too (editors and run want zsh, overlay and complete want
-      # fish) and --require-run turns each missing one into a failed tape. fzf
-      # is here because pick.tape records the picker bare `hi` reaches for
-      # first, and `Require fzf` would stand it down on a runner without one.
-      # Same packages and route as ci.yml's e2e-backends job: neither job may
-      # assume the other ran on the machine, and apt is idempotent when it has.
-      - name: Install zsh, fish, fzf, podman and nomad
-        run: |
-          set -euo pipefail
-          # gpg unprivileged, `sudo` only for the write - see the identical
-          # step in ci.yml for why `sudo gpg` cannot work in an Actions step
-          curl -sSfL https://apt.releases.hashicorp.com/gpg |
-            gpg --batch --yes --dearmor |
-            sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" |
-            sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
-          sudo apt-get update && sudo apt-get install -y zsh fish fzf podman nomad
-          nomad version
-
-      # kind, and the kubectl it brings along, for the run and complete tapes
-      - name: Install kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+      # The backends composite ci.yml's e2e-backends job shares (podman,
+      # nomad, and kind with the kubectl it brings for the run and complete
+      # tapes) - plus renderer packages: `Set Shell zsh` wants that shell on
+      # the *renderer*, and a missing one is a vhs error rather than a clean
+      # stand-down, so the shells go in too (editors and run want zsh, overlay
+      # and complete want fish) and --require-run turns each missing one into
+      # a failed tape. fzf is here because pick.tape records the picker bare
+      # `hi` reaches for first, and `Require fzf` would stand it down on a
+      # runner without one.
+      - uses: $/.github/actions/setup-backends
         with:
-          install_only: true
+          extra-packages: zsh fish fzf
 
       - name: Install vhs, ttyd and ffmpeg
         uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1

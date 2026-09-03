@@ -6,8 +6,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 <!-- The check-runs badges filter on the compound check name "<ci.yml job
      name> / <called workflow job name>": mirror a rename on either side into
-     nameFilter or the badge reads "no check runs". The release badge omits
-     include_prereleases: each push to main publishes a snapshot prerelease. -->
+     nameFilter or the badge reads "no check runs". -->
 
 ![Payload](https://img.shields.io/badge/ssh_payload-46KB-4c1)
 ![Code](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
@@ -21,9 +20,9 @@ _Don't `ssh`ush your hosts, say `hi`!_
 ## Contents
 
 - [Additional Documentation](#additional-documentation)
-- [In sixty seconds](#in-sixty-seconds)
+- [In Sixty Seconds](#in-sixty-seconds)
 - [What You Get](#what-you-get)
-  - [Connect via more than SSH](#connect-via-more-than-ssh)
+  - [Connect Via More Than SSH](#connect-via-more-than-ssh)
   - [The Header Tells You What's Missing](#the-header-tells-you-whats-missing)
   - [One Config Directory, Every Host, Every Shell](#one-config-directory-every-host-every-shell)
   - [Your Editors & Clipboard](#your-editors--clipboard)
@@ -36,7 +35,6 @@ _Don't `ssh`ush your hosts, say `hi`!_
   - [Hostname, Username, and Group/Tag Colors](#hostname-username-and-grouptag-colors)
 - [Built from/with/in mind](#built-fromwithin-mind)
 - [say-hi and the alternatives](#say-hi-and-the-alternatives)
-- [Upgrading](#upgrading)
 - [Testing](#testing)
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
@@ -45,24 +43,24 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ### Additional Documentation
 
+- [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
+  homeshick side by side
+- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
+  in issues, pull requests and discussions, and where to report a breach
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
+  request, what 1.x will not break, and which doc changes with what
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — the named idioms the code's
+  `GLOSSARY:` tags point at; drift-checked by the lint suite
+- [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
+  reproducibility contract, verifying a download, regenerating the demo GIFs
+- [docs/SECURITY.md](docs/SECURITY.md) — reporting, and what hi touches on a
+  target
 - [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
   environment variable hi reads
 - [docs/SUPPORT.md](docs/SUPPORT.md) — every target, OS and shell hi answers
   to, and every runtime, shell and feature answered **no**, and why
-- [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
-  homeshick side by side
 - [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
   cases, the lint gate, relaying
-- [docs/GLOSSARY.md](docs/GLOSSARY.md) — the named idioms the code's
-  `GLOSSARY:` tags point at; drift-checked by the lint suite
-- [docs/SECURITY.md](docs/SECURITY.md) — reporting, and what hi touches on a
-  target
-- [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
-  reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
-  request, what 1.x will not break, and which doc changes with what
-- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
-  in issues, pull requests and discussions, and where to report a breach
 
 ---
 
@@ -72,21 +70,20 @@ _Don't `ssh`ush your hosts, say `hi`!_
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi
 ~/say-hi/scripts/install.sh    # wires your rc files, asks about each feature
 exec $SHELL                    # reload
-hi some-host                   # ssh, with your prompt, aliases and editors along
+hi <anything>                   # ssh, with your prompt, aliases and editors along
 ```
 
-`hi <target>` to anything you need to run some commands in & land in a
-session with your essential aliases, immediately check your essential packages,
-color-code your remotes, carry your editor configurations, and more.
+`hi <anything>` & land in a session with your essential aliases, your essential
+packages checked, a color-coded prompt, your editor configured, and more.
 Do it all via `ssh`, `docker`, `podman`, `nomad`, or `kube` with `hi <TAB>`. No
 fancy requirements on any target. Even an `alpine` container with `sh` will still
-respect your `ls` alias.
+respect your `ls` alias flags.
 
 ![Requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 
 ## What You Get
 
-### Connect via more than SSH
+### Connect Via More Than SSH
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
 running container, allocation and pod, each tagged with its backend; the
@@ -162,11 +159,11 @@ default).
 
 ## Target Requirements
 
-[![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)
+![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)
+![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)
+![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)
+![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)
 
 Two questions, answered at two moments: **can hi land a session on that OS at
 all**, and **what shell do you end up in**. Both tables, with a legend and what
@@ -204,33 +201,18 @@ everything weighed and answered **no**, and why.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has issues.
 - reload your shell!
-- `hi --configure` revisits the settings in short sections — features (header,
-  prompt, git status, editors, clipboard, notifications, prompt marks, whether
-  hi styles this machine too), header details, package-check depth, terminal
-  width, the prompt (starship deference, separators), and an _advanced_
-  section one Enter skips (session shell, glyphs vs ASCII, TERM fallback,
-  recent targets, completion timing) — starting from a preset if you like
-  (`everything`, `balanced`, `minimal`; `--preset <name>` applies one without
-  asking). Each question shows its current value, previews where it can, and
-  keeps the answer on Enter; nothing is written until the end, the run closes
-  with what changed, and the rc wiring is never touched. Answers land in
+- `hi --configure` revisits the settings in short sections, and an _advanced_
+  section. Start from a preset if you like
+  (`everything`, `balanced`, `minimal`; `--preset <name>`). Answers land in
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
-  on `hi --configure` commits its own writes. Optional —
-  [docs/SETTINGS.md](docs/SETTINGS.md).
-- `hi --help` (or `-h`): the synopsis, the target resolution order, and every
-  flag hi answers itself; `man hi` is the long version. Anything else passes
-  to `ssh` unchanged.
-- `hi --doctor [<target>]` when something is slow or failing: the tree, the
-  config overlay, every backend probed and timed with the header's and
-  completion's ceilings, and — with a target — its backend plus an ssh
-  reachability check. Read-only; `--json` prints the same rows as one JSON
-  document, what a bug report should carry.
+- [optional] `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
+  on `hi --configure` commits its own writes. [docs/SETTINGS.md](docs/SETTINGS.md).
+- `hi --doctor [<target>]` when something is slow or failing to help diagnose.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
   `sk` if you have one, a numbered menu if not. GIF:
   [no target at all](#no-target-at-all).
-- configure `~/.ssh/config` tags via sshm
+- [optional] configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
   ssh host and your user resolve to.
@@ -291,16 +273,6 @@ version, and using the hash in your own prompt, is
 How say-hi compares to similar tools, and when to use something else:
 [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md).
 
-## Upgrading
-
-- a checkout: `hi --update` (a `git pull` of the tree), then reload your shell.
-- a `.deb`/`.rpm`/`.apk`: subscribe to
-  [the package repository](docs/PACKAGING.md#package-repository) and let
-  `apt`/`dnf`/`apk` upgrade it; or install the next release's package from
-  [the releases page](https://github.com/ivylikethevine/say-hi/releases)
-- an Arch package built from the checkout: `git pull`, then `makepkg -si` again.
-- Homebrew: `brew upgrade say-hi`, once the tap exists.
-
 ## Testing
 
 `tests/test_runner.sh` (`hi --test` once installed) runs the suite with a
@@ -312,11 +284,12 @@ side) then `--group lint` on every push/PR. Runbook:
 [![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-Two coverage tools sit beside the suites and disagree — kcov reads far too
-low, bashcov far too high — so the two badges up top sit under a disclaimer,
-keep their self-describing labels (`load-time`, `heredoc-inflated`) instead of
-claiming to be coverage, and neither gates anything. Why each is wrong, and
-the profiler for a tripped bench ceiling, is
+Two coverage tools sit beside the suites — kcov and bashcov, each sweeping
+every suite the coverage runner can host, measured over the shipped product
+only. They cannot err in the same direction, so their landing within a few
+points of each other is what makes the number worth reading; each badge
+names its measurer, and neither gates anything. The residual per-file skews,
+and the profiler for a tripped bench ceiling, are
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## AI Usage
@@ -339,7 +312,7 @@ first. Every entry is open for consideration; nothing here is parked or
 descoped. Finished entries and
 questions decided against are **deleted**: git history is the ledger.
 
-### What v1.0.0 means
+### What v1.0.0 Means
 
 - [ ] **Every publishable channel has been published once by hand**, before
       the automation is trusted with it: deb/rpm/apk and the Homebrew tap,
@@ -355,7 +328,7 @@ questions decided against are **deleted**: git history is the ledger.
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises (the **Flip to stable** entry).
 
-### By scope
+### By Scope
 
 1. [ ] **tldr page** — _scope: one upstream pull request; outside this
        checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
@@ -384,3 +357,9 @@ questions decided against are **deleted**: git history is the ledger.
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release.
+
+#### Miscellaneous
+
+Added randomly, to be filled out later.
+
+1. Add ability to remove the initial space on most items (prompt, header, etc.)
