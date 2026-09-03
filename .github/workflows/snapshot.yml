@@ -94,12 +94,29 @@ jobs:
         with:
           subject-path: ${{ steps.artifacts.outputs.paths }}
 
+      # release.yml's own SBOM step, header comment and all - every snapshot
+      # gets the same attestation a tagged release does
+      - name: Generate an SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/say-hi.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.artifacts.outputs.paths }}
+          sbom-path: dist/say-hi.spdx.json
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: snapshot-packages
           path: |
             ${{ steps.artifacts.outputs.paths }}
             dist/ARTIFACTS
+            dist/say-hi.spdx.json
           if-no-files-found: error
 
   # Unattended by design - no `environment:`, so no reviewer; the only write is
@@ -118,8 +135,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      # the one checkout that keeps its credentials: the tag push below needs
-      # them (release.yml's manifest-PR checkout has the same exception)
+      # the one checkout in either release workflow that keeps its
+      # credentials: the tag push below needs them, and release.yml has
+      # nothing comparable - its tag already exists, pushed by hand
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
@@ -243,4 +261,5 @@ jobs:
           files=()
           while IFS= read -r f; do files+=("dist/$f"); done <dist/ARTIFACTS
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
+          files+=(dist/say-hi.spdx.json)
           gh release upload "$tag" --clobber "${files[@]}"

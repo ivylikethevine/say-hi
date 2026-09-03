@@ -165,7 +165,7 @@ function _hi_is_header_order() {
   [ -n "$1" ] || return 1
   # shellcheck disable=SC2086 # the split is the point: one word per row
   for word in $1; do
-    case "$word" in timestamp | sysinfo | identity | check) ;; *) return 1 ;; esac
+    case "$word" in timestamp | sysinfo | uptime | identity | check) ;; *) return 1 ;; esac
   done
 }
 
@@ -326,6 +326,7 @@ _HI_HEADER_PROMPTS=(
   "_HI_HEADER_BANNER|0||_hi_banner_preview| Show the connect/disconnect banner line?|"
   "_HI_HEADER_TIMESTAMP|0||timestamp| Show the timestamp line?|"
   "_HI_HEADER_SYSINFO|0||system_info| Show the system info line (OS, CPU, RAM)?|"
+  "_HI_HEADER_UPTIME|0||uptime_row| Show the uptime line?|"
   "_HI_HEADER_IDENTITY|0||identity| Show the git identity/docker/ssh key line?|"
   "_HI_HEADER_CHECK|0||full_check| Show the installed-packages check?|"
 )

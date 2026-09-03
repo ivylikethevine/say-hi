@@ -228,6 +228,28 @@ jobs:
         with:
           subject-path: ${{ steps.artifacts.outputs.paths }}
 
+      # What's in the box: a project with no package.json/Cargo.toml/go.mod
+      # (say-hi vendors nothing - README's own claim) gets a near-empty SBOM,
+      # which is itself the useful, accurate answer rather than a reason to
+      # skip generating one. Scans the checkout, not a staged/packaged tree:
+      # every channel installs the same shell scripts, so one SBOM over the
+      # source describes them all. Uploads disabled - dist/say-hi.spdx.json
+      # rides the packages artifact below and publish's own upload instead,
+      # the same one-place-uploads-it shape as SHA256SUMS.minisig.
+      - name: Generate an SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/say-hi.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: ${{ steps.artifacts.outputs.paths }}
+          sbom-path: dist/say-hi.spdx.json
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages
@@ -235,6 +257,7 @@ jobs:
             ${{ steps.artifacts.outputs.paths }}
             dist/manifests/*
             dist/ARTIFACTS
+            dist/say-hi.spdx.json
           # .SRCINFO and .SRCINFO.git: the action drops hidden files by
           # default, which is how v0.1.0's manifest-PR step found no .SRCINFO
           # to cp - the failure surfaced two jobs later, in publish
@@ -372,6 +395,7 @@ jobs:
           files+=(dist/manifests/*)
           shopt -u dotglob
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
+          files+=(dist/say-hi.spdx.json)
           gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
 
       # The subscribable repository (docs/PACKAGING.md's _Package repository_):

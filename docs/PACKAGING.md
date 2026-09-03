@@ -395,6 +395,23 @@ nfpm 2.47.0's tree walker writes directory modes apk-tools rejects. The
 packaging suite keeps that copy honest, and CI's packaging-smoke installs the
 signed apk on Alpine every PR.
 
+### ubi / mise
+
+Neither is a channel this project publishes to - both just point at the
+GitHub release. `ubi`'s own auto-detection looks in the source tarball for a
+file named exactly `say-hi`, or one starting with it; the entry point is
+`hi.sh`, which matches neither, so it needs an explicit hint:
+
+```bash
+ubi --project ivylikethevine/say-hi --exe hi.sh
+# or, through mise's ubi backend:
+mise use "ubi:ivylikethevine/say-hi[exe=hi.sh]"
+```
+
+`tests/packaging/packaging_test.sh`'s `test_src_tarball_ships_an_executable_hi_sh`
+is the half of this that lives in the tree: `hi.sh` at the tarball root, with
+its executable bit intact, is what that hint actually needs to find.
+
 ### Package repository
 
 The same deb, rpm and apk, served as an apt, a dnf and an apk repository from

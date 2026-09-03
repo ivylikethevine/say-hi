@@ -936,6 +936,20 @@ function test_src_tarball_is_byte_stable() {
   cmp -s "$a" "$b"
 }
 
+# ubi (and mise's `ubi:` backend) finds an in-archive executable by exact or
+# prefix name match against the project name ("say-hi") - neither matches
+# hi.sh, so both need an explicit --exe hi.sh hint (docs/PACKAGING.md's ubi
+# / mise section). What this checks is the half that actually lives in the
+# tree: hi.sh has to be there, at the tarball root, and executable, or the
+# hint would point at nothing.
+function test_src_tarball_ships_an_executable_hi_sh() {
+  local out="$_HI_WORKDIR/srctar-ubi.tar.gz" dir="$_HI_WORKDIR/srctar-ubi-extract"
+  src_tarball 9.9.9 HEAD "$out" || return 1
+  mkdir -p "$dir"
+  tar -xzf "$out" -C "$dir" || return 1
+  [ -x "$dir/say-hi-9.9.9/hi.sh" ]
+}
+
 # release.yml builds that tarball on the tag path too, not only on a rehearsal:
 # a tag that fell back to fetching GitHub's /archive/ would put the released
 # bytes back outside the provenance chain, silently and only on real releases.
@@ -1461,6 +1475,7 @@ function run_packaging_tests() {
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
   _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
+  _hi_check "src_tarball ships an executable hi.sh" test_src_tarball_ships_an_executable_hi_sh
 
   _hi_h2 "Testing: publish-external.yml"
   _hi_check "tap/aur are dispatch-only, not in release.yml" test_tap_and_aur_are_dispatch_only

@@ -15,10 +15,57 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
 source "$_hi_d/core.sh"
 unset _hi_d
 
+# <var> gets $2's visible column width - one leading color-var prefix
+# stripped first, since a header_row cell never carries more than the one its
+# caller opens it with (the reset between cells is header_row's own, added
+# below, never the caller's). The color vars hold the literal two characters
+# `\e`, not a real escape byte (core.sh assigns them single-quoted; only
+# header_row's own final `printf '%b'` interprets it), so the pattern matches
+# that literal prefix rather than $'\e'.
+function _hi_visible_width() {
+  local s="$2" re='^\\e\[[0-9;]*m(.*)$'
+  [[ "$s" =~ $re ]] && s="${BASH_REMATCH[1]}"
+  printf -v "$1" '%d' "${#s}"
+}
+
+# Wraps between cells at $_HI_MAX_WIDTH, never within one - full_check's own
+# wrap loop (below), reused here rather than duplicated: `width` starts at
+# `max` so the very first cell always looks like an overflow and takes the
+# same branch a real wrap does, minus the leading newline `count == 0` skips.
+# Every cell keeps its own trailing reset before a line break, since a
+# color left open would otherwise bleed onto the next physical line.
 function header_row() {
-  local cell out=""
-  for cell in "$@"; do out+="$NC | $cell"; done
+  local cell out="" max=${_HI_MAX_WIDTH:-80} vislen count=0
+  local width=$max
+  for cell in "$@"; do
+    _hi_visible_width vislen "$cell"
+    vislen=$((vislen + 3)) # " | " - the join this has always used
+    if ((width + vislen > max)); then
+      ((count == 0)) || out+="$NC"$'\n'
+      width=0
+    fi
+    out+="$NC | $cell"
+    width=$((width + vislen))
+    ((++count))
+  done
   printf '%b\n' "$out$NC"
+}
+
+# The header's version cell is a glance value, not a lookup key - git
+# describe's own hash (7 hex digits, either after "-g" or bare when no tag is
+# reachable at all) is more precision than a header row has room for, so this
+# trims it to 4. Never touches $_HI_RELEASE or `hi --version`'s answer
+# (hi.sh's _hi_version calls _hi_release_or_describe directly): those stay
+# the full string, this is a display-only shortening of the header's copy.
+function _hi_shorten_describe() {
+  local v="$1" re_g='^(.*-g)([0-9a-f]{5,})(-dirty)?$' re_bare='^([0-9a-f]{5,})(-dirty)?$'
+  if [[ "$v" =~ $re_g ]]; then
+    printf '%s%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]:0:4}" "${BASH_REMATCH[3]:-}"
+  elif [[ "$v" =~ $re_bare ]]; then
+    printf '%s%s' "${BASH_REMATCH[1]:0:4}" "${BASH_REMATCH[2]:-}"
+  else
+    printf '%s' "$v"
+  fi
 }
 
 # hi's version for the header, resolved once per shell (the row prints twice
@@ -27,6 +74,7 @@ function _hi_header_version() {
   if [ -z "${_HI_HEADER_VERSION+x}" ]; then
     _hi_sanitize_var _HI_HEADER_VERSION "$(_hi_release_or_describe)"
     [ -n "$_HI_HEADER_VERSION" ] || _HI_HEADER_VERSION="unknown"
+    _HI_HEADER_VERSION="$(_hi_shorten_describe "$_HI_HEADER_VERSION")"
   fi
   printf '%s\n' "$_HI_HEADER_VERSION"
 }
@@ -49,8 +97,39 @@ function _hi_ghz() {
   printf -v "$1" '%d.%d' "$((t / 10))" "$((t % 10))"
 }
 
+# One or two clocks, folded to one when there is nothing worth a second
+# number: no boost probe answered, or it answered the same as base (no real
+# turbo range) - a real base/boost pair is the only case worth "<n>/<n> GHz"
+# rather than one.
+function _hi_cpu_clocks() {
+  local base="$1" boost="$2"
+  if [ -n "$base" ] && [ -n "$boost" ] && [ "$base" != "$boost" ]; then
+    printf '%s/%s' "$base" "$boost"
+  elif [ -n "$base" ]; then
+    printf '%s' "$base"
+  elif [ -n "$boost" ]; then
+    printf '%s' "$boost"
+  else
+    printf '?'
+  fi
+}
+
+# <seconds> humanized to at most two units, largest first - a header cell,
+# not a stopwatch. Shared by uptime_row and nothing else; system_info no
+# longer touches uptime at all.
+function _hi_humanize_uptime() {
+  local s="$1"
+  if ((s >= 86400)); then
+    printf '%dd %dh' "$((s / 86400))" "$((s % 86400 / 3600))"
+  elif ((s >= 3600)); then
+    printf '%dh %dm' "$((s / 3600))" "$((s % 3600 / 60))"
+  else
+    printf '%dm' "$((s / 60))"
+  fi
+}
+
 function system_info() {
-  local kernel arch os cpus ram base_mhz boost_mhz uptime_s="" up="" load=""
+  local kernel arch os cpus ram base_mhz boost_mhz load=""
   # process substitution, not <<<: a here-string is a temp file before bash
   # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
@@ -101,7 +180,6 @@ function system_info() {
     fi
     boost_mhz=$((khz / 1000))
     ((boost_mhz)) || boost_mhz=$(lscpu 2>/dev/null | awk -F: '/CPU max MHz/ { gsub(/ /, "", $2); printf "%.0f", $2 }' || true)
-    uptime_s=$(awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null || true)
   elif [[ "$kernel" == MINGW* || "$kernel" == MSYS* || "$kernel" == CYGWIN* ]]; then
     # git-bash/MSYS2/Cygwin on native Windows - no /etc/os-release, no sysctl
     os="Windows ($kernel)"
@@ -138,33 +216,43 @@ function system_info() {
     load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ printf "%s", $2 }' || true)
     # Apple Silicon exposes neither clock via sysctl; only Intel Macs get a value
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
-    # kern.boottime prints "{ sec = <epoch>, usec = ... } <date>"; the split on
-    # "sec = " makes $2 lead with the epoch, which awk's coercion reads whole
-    uptime_s=$(sysctl -n kern.boottime 2>/dev/null |
-      awk -v now="$(date +%s)" -F'sec = ' '{ printf "%d", now - $2; exit }' || true)
   fi
   _hi_sanitize_var os "$os"
   # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)
   [ -n "${base_mhz:-}" ] && _hi_ghz base_mhz "$base_mhz"
   [ -n "${boost_mhz:-}" ] && _hi_ghz boost_mhz "$boost_mhz"
-  # the same non-numeric guard as uptime below - a stripped-down awk or a
-  # locale that prints a comma decimal both fail closed to "?", not a garbled cell
+  # a stripped-down awk or a locale that prints a comma decimal both fail
+  # closed to "?", not a garbled cell
   case "$load" in '' | *[!0-9.]*) load="" ;; esac
-  # humanized to two units at most - a header cell, not a stopwatch; the guard
-  # drops anything non-numeric (a skewed clock can make the macOS probe negative)
-  case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
-  if [ -n "$uptime_s" ]; then
-    if [ "$uptime_s" -ge 86400 ]; then
-      up="$((uptime_s / 86400))d $((uptime_s % 86400 / 3600))h"
-    elif [ "$uptime_s" -ge 3600 ]; then
-      up="$((uptime_s / 3600))h $((uptime_s % 3600 / 60))m"
-    else
-      up="$((uptime_s / 60))m"
-    fi
-  fi
   header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
-    "${CYAN}RAM: ${ram:-?}" "${BRBLUE}CPU: ${base_mhz:-?}/${boost_mhz:-?} GHz${load:+ ($load)}" \
-    "${BRPURPLE}Up: ${up:-?}"
+    "${BRBLUE}CPU: $(_hi_cpu_clocks "${base_mhz:-}" "${boost_mhz:-}") GHz${load:+ ($load)}" \
+    "${CYAN}RAM: ${ram:-?}"
+}
+
+# The uptime row, split out of system_info so $_HI_HEADER_ORDER can move or
+# hide it independently. Its own minimal probe rather than sharing
+# system_info's: only the kernel branch (which command answers "how long has
+# this box been up") is common to both, and duplicating that one `uname` call
+# is cheaper than making the two rows share state across a $_HI_HEADER_ORDER
+# that might put other rows, or nothing at all, between them.
+function uptime_row() {
+  local kernel uptime_s="" up=""
+  read -r kernel _ < <(uname -sm 2>/dev/null || :)
+  _hi_sanitize_var kernel "$kernel"
+  if [ -f "$_HI_LINUX_RELEASE" ]; then
+    uptime_s=$(awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null || true)
+  elif [[ "$kernel" != MINGW* && "$kernel" != MSYS* && "$kernel" != CYGWIN* && -n "$kernel" ]]; then
+    # kern.boottime prints "{ sec = <epoch>, usec = ... } <date>"; the split on
+    # "sec = " makes $2 lead with the epoch, which awk's coercion reads whole.
+    # Not probed on Windows: git-bash/MSYS2/Cygwin have no sysctl.
+    uptime_s=$(sysctl -n kern.boottime 2>/dev/null |
+      awk -v now="$(date +%s)" -F'sec = ' '{ printf "%d", now - $2; exit }' || true)
+  fi
+  # the guard drops anything non-numeric - a skewed clock can make the macOS
+  # probe negative, and a stripped-down awk fails closed the same way
+  case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
+  [ -n "$uptime_s" ] && up="$(_hi_humanize_uptime "$uptime_s")"
+  header_row "${BRPURPLE}Up: ${up:-?}"
 }
 
 # identity()'s backend probes are independent and each capped at
@@ -221,7 +309,7 @@ function _hi_probe_launch() {
 # git identity (domain masked), containers/jobs/pods, ssh key counts. Reads
 # what _hi_probe_launch started; calls it itself if nobody did.
 function identity() {
-  local email="" domain user_part bullets containers="No docker/podman :(" jobs="" pods="" authorized=0 public=0
+  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0
   local -a lines cells
   command -v git &>/dev/null && email=$(git config --get user.email 2>/dev/null || true)
   _hi_sanitize_var email "$email"
@@ -236,8 +324,12 @@ function identity() {
   _hi_probe_launch
   _hi_probe_wait
 
-  # No temp dir means nothing to read or remove; below it the probe file's
-  # existence *is* the answer, so no flags are tracked beside the files.
+  # One rule for all three backends: a cell appears only when its binary was
+  # found and its probe actually ran - the file's existence is that signal,
+  # never its content - and once it has, the count prints as-is, zero
+  # included. A reachable-but-idle nomad or kube used to render exactly like
+  # an absent one; a probed-and-empty docker/podman already didn't, and this
+  # brings the other two in line with it rather than the other way round.
   if [ -n "$_HI_PROBE_DIR" ]; then
     if [ -f "$_HI_PROBE_DIR/containers" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/containers"
@@ -246,20 +338,19 @@ function identity() {
     if [ -f "$_HI_PROBE_DIR/nomad" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/nomad"
       lines=("${lines[@]:1}") # drop the header row
-      # zero is an unreachable/idle nomad: the cell stays hidden rather than
-      # reporting "Jobs: 0"
-      ((${#lines[@]} > 0)) && jobs="Jobs: ${#lines[@]}"
+      jobs="Jobs: ${#lines[@]}"
     fi
     if [ -f "$_HI_PROBE_DIR/kube" ]; then
       _hi_read_lines lines <"$_HI_PROBE_DIR/kube"
-      ((${#lines[@]} > 0)) && pods="Pods: ${#lines[@]}"
+      pods="Pods: ${#lines[@]}"
     fi
     command rm -rf "$_HI_PROBE_DIR"
     _HI_PROBE_DIR=""
   fi
   [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_read_lines lines <"$_HI_SSH_AUTHORIZED_KEYS" && authorized=${#lines[@]}
   [ -d "$_HI_SSH_DIR" ] && _hi_read_lines lines < <(find "$_HI_SSH_DIR" -type f -name "*.pub") && public=${#lines[@]}
-  cells=("$user_part" "$BLUE$containers")
+  cells=("$user_part")
+  [ -n "$containers" ] && cells+=("$BLUE$containers")
   [ -n "$jobs" ] && cells+=("$BRCYAN$jobs")
   [ -n "$pods" ] && cells+=("$CYAN$pods")
   cells+=("${RED}Auth: $authorized" "${PURPLE}Pub: $public")
@@ -338,8 +429,9 @@ function passthrough_check() {
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
 # per row, naming the same rows its $_HI_HEADER_* toggle does. Named here
 # rather than only in the case below, so a doc or test can read the default
-# without parsing the dispatch.
-_HI_HEADER_ORDER_DEFAULT="timestamp sysinfo identity check"
+# without parsing the dispatch. uptime sits right after sysinfo, where its
+# cell used to live before it became its own row.
+_HI_HEADER_ORDER_DEFAULT="timestamp sysinfo uptime identity check"
 
 # One named row of hi_header's dispatch, behind the same toggle the fixed
 # order used - so a row hidden by its toggle stays hidden whatever order it's
@@ -349,6 +441,7 @@ function _hi_header_row() {
   case "$1" in
   timestamp) [[ "${_HI_HEADER_TIMESTAMP:-1}" == 0 ]] || timestamp ;;
   sysinfo) [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info ;;
+  uptime) [[ "${_HI_HEADER_UPTIME:-1}" == 0 ]] || uptime_row ;;
   identity) [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity ;;
   check) [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check ;;
   esac
