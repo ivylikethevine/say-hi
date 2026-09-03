@@ -9,12 +9,12 @@ _Don't `ssh`ush your hosts, say `hi`!_
      nameFilter or the badge reads "no check runs". The release badge omits
      include_prereleases: each push to main publishes a snapshot prerelease. -->
 
-![Payload Size](https://img.shields.io/badge/ssh_payload-46KB_per_session-4c1)
+![Payload Size](https://img.shields.io/badge/ssh_payload-46KB-4c1)
 ![Code Size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
+[![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
-[![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
@@ -86,13 +86,6 @@ command's output goes to stdout. A plain, pty-free remote command is still
 `ssh`'s job.
 
 ## What comes with you
-
-Each GIF shows one thing hi brings along, not one place it can reach; the
-backends (ssh, docker, podman, nomad, kubernetes) are spread across the set,
-and the client shell follows the theme (bash warm, zsh and fish cool). The GIF
-at the top is the stock defaults; each below turns something on or ships
-something of its own. Rendering them:
-[docs/PACKAGING.md](docs/PACKAGING.md#regenerating-the-demo-gifs).
 
 ### the header tells you what the box is missing
 

@@ -64,28 +64,73 @@ function _hi_draw_width() {
   printf -v "$1" '%d' "$_hi_dw_max"
 }
 
-# Wraps between cells at _hi_draw_width, never within one - full_check's own
-# wrap loop (below), reused here rather than duplicated: `width` starts at
-# `max` so the very first cell always looks like an overflow and takes the
-# same branch a real wrap does, minus the leading newline `count == 0` skips.
-# Every cell keeps its own trailing reset before a line break, since a
-# color left open would otherwise bleed onto the next physical line.
-function header_row() {
-  local cell out="" max vislen count=0
+# A row's overflow cells, handed to the next row instead of costing a line of
+# their own - the point of this whole cascade. Armed only for the span of
+# hi_header's row loop, the one caller with a "next row" to hand cells to;
+# every other caller (configure.sh's previews, `hi --doctor`, a suite calling
+# header_row/system_info/identity directly) stays unarmed, and unarmed
+# header_row drains its own carry before returning - so standalone output is
+# unchanged from before this cascade existed.
+_HI_ROW_CARRY_ARMED=0
+declare -a _HI_ROW_CARRY=()
+
+# Fills exactly one line at _hi_draw_width from <cells...>, prints it, and
+# leaves whatever didn't fit in $_HI_ROW_CARRY (reset on entry) for a caller
+# to hand to the next row. `width` starts at `max` so the first cell always
+# looks like an overflow and takes the same branch a real wrap does, minus
+# the `count == 0` guard that places it anyway - the first cell is always
+# placed even when it alone exceeds the width. Stops at the first cell that
+# doesn't fit and carries the rest wholesale, rather than scanning for a
+# smaller cell further along that would still fit - that would reorder the
+# header. Every cell keeps its own trailing reset before a line break, since
+# a color left open would otherwise bleed onto the next physical line.
+# Returns 1 and prints nothing for zero cells.
+function _hi_row_line() {
+  local cell out="" max vislen count=0 width i n
   _hi_draw_width max
-  local width=$max
-  for cell in "$@"; do
+  width=$max
+  _HI_ROW_CARRY=()
+  local -a args=("$@")
+  n=${#args[@]}
+  for ((i = 0; i < n; i++)); do
+    cell="${args[$i]}"
     _hi_visible_width vislen "$cell"
     vislen=$((vislen + 3)) # " | " - the join this has always used
-    if ((width + vislen > max)); then
-      ((count == 0)) || out+="$NC"$'\n'
-      width=0
+    if ((count > 0 && width + vislen > max)); then
+      _HI_ROW_CARRY=("${args[@]:$i}")
+      break
     fi
+    ((count == 0)) && width=0
     out+="$NC | $cell"
     width=$((width + vislen))
     ((++count))
   done
+  ((count)) || return 1
   printf '%b\n' "$out$NC"
+}
+
+# Drains $_HI_ROW_CARRY a line at a time until empty - terminates because
+# _hi_row_line always places at least one cell per call.
+function _hi_header_flush() {
+  while ((${#_HI_ROW_CARRY[@]})); do
+    _hi_row_line "${_HI_ROW_CARRY[@]}"
+  done
+}
+
+# One row's cells, prepended with whatever an earlier row's line couldn't
+# fit. Unarmed (every caller but hi_header's own loop), a row still wraps
+# fully within itself via _hi_header_flush, so standalone output matches
+# what this function always printed. Armed, the leftover rides in
+# $_HI_ROW_CARRY for the next header_row call instead.
+function header_row() {
+  local -a cells=(${_HI_ROW_CARRY[@]+"${_HI_ROW_CARRY[@]}"} "$@")
+  _HI_ROW_CARRY=()
+  if ((${#cells[@]})); then
+    _hi_row_line "${cells[@]}"
+  else
+    printf '%b\n' "$NC"
+  fi
+  ((_HI_ROW_CARRY_ARMED)) || _hi_header_flush
 }
 
 # The header's version cell is a glance value, not a lookup key - git
@@ -512,10 +557,19 @@ function hi_header() {
   # first regardless of $_HI_HEADER_ORDER - a latency optimization, not a row.
   [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || _hi_probe_launch
   local row
+  # armed for the span of this loop only - every row's overflow cascades into
+  # the next row's line instead of costing one of its own. Reset per call:
+  # hi_header runs twice a session (connect, disconnect).
+  _HI_ROW_CARRY=() _HI_ROW_CARRY_ARMED=1
   # shellcheck disable=SC2086 # the split is the point: one word per row
   for row in ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT}; do
     _hi_header_row "$row"
   done
+  _HI_ROW_CARRY_ARMED=0
+  # whatever the last enabled row's line couldn't fit, printed as its own
+  # line rather than dropped - a no-op when that row was "check", since
+  # full_check absorbs the carry itself and leaves none behind.
+  _hi_header_flush
   # last, so the one line that says something is wrong sits next to the
   # prompt. Connect only: load.sh's disconnect calls banner directly. No
   # _HI_HEADER_ORDER word of its own - like passthrough_check always was,
@@ -636,33 +690,56 @@ function check_line() {
 # scripts/packages_preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local line priority width_item rendered count=0 max
+  local line priority width_item rendered count=0 max cell vislen piece i
   _hi_draw_width max
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
-  local -a visible=() # appended to by check_line
+  local -a visible=() row_widths=() row_pieces=() # visible appended to by check_line
   # re-resolved here, not just at source time: a caller that changes
   # $_HI_PACKAGES_PALETTE after header.sh loaded (configure.sh's preview does)
   # needs the next full_check to see it. A bare case, no fork either way.
   _hi_packages_palette
+
+  # a carry from an earlier row (hi_header's cascade) opens this row's first
+  # line, in the same "| <cell> " shape header_row's own cells use - both
+  # sources measure "|", a space, the text and a trailing space, so the wrap
+  # loop below treats them alike. Absorbed here rather than left for the
+  # caller: full_check is the variable-length block, the one row that can
+  # always make room for one more cell.
+  for cell in ${_HI_ROW_CARRY[@]+"${_HI_ROW_CARRY[@]}"}; do
+    _hi_visible_width vislen "$cell"
+    row_widths+=("$((vislen + 3))")
+    row_pieces+=("| $cell ")
+  done
+  _HI_ROW_CARRY=()
+
   while IFS=$' ' read -r line; do
     [[ "$line" == *#* || -z "$line" ]] || check_line "$line"
   done <"$_HI_PACKAGES"
-  ((${#visible[@]})) || return 0
 
-  # GLOSSARY: HI.11 - numeric key over opaque bytes; unpinned, BSD sort under
-  # UTF-8 printed nothing.
-  while IFS=$'\x1f' read -r priority width_item rendered; do
-    ((priority >= min)) || continue
+  if ((${#visible[@]})); then
+    # GLOSSARY: HI.11 - numeric key over opaque bytes; unpinned, BSD sort
+    # under UTF-8 printed nothing.
+    while IFS=$'\x1f' read -r priority width_item rendered; do
+      ((priority >= min)) || continue
+      row_widths+=("$width_item")
+      row_pieces+=("|${rendered} ")
+    done < <(printf '%s\n' "${visible[@]}" | LC_ALL=C sort -t $'\x1f' -k1,1nr -s)
+  fi
+  ((${#row_widths[@]})) || return 0
+
+  for ((i = 0; i < ${#row_widths[@]}; i++)); do
+    width_item="${row_widths[$i]}"
+    piece="${row_pieces[$i]}"
     if ((width + width_item > max)); then # start of a row
       ((count == 0)) || printf '\n'
       printf ' '
       width=1
     fi
-    printf '%b' "$NC|${rendered} $NC"
+    printf '%b' "$NC$piece$NC"
     width=$((width + width_item))
     ((++count))
-  done < <(printf '%s\n' "${visible[@]}" | LC_ALL=C sort -t $'\x1f' -k1,1nr -s)
+  done
   # guarded: a floor that hides everything printed a bare newline otherwise
   if ((count)); then printf '\n'; fi
 }
