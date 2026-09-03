@@ -301,6 +301,12 @@ its own `_HI_HEADER_UPTIME` toggle. Defaults to
 `timestamp sysinfo identity check`, today's fixed order, so an unset override
 changes nothing.
 
+A row that overflows `_HI_MAX_WIDTH` no longer wraps within itself: whatever
+does not fit on its one line opens the next row's line instead, cascading
+forward through the order above until the packages check (the one
+variable-length row) absorbs the rest, or - with `check` hidden or left out -
+prints as its own trailing line.
+
 ### Others
 
 `_HI_DISABLE_LOCAL` is "leave my own machine alone, but give me hi everywhere I

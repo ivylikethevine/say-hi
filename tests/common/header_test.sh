@@ -112,6 +112,43 @@ function test_header_row_wraps_at_hi_term_cols_override() {
   [ "$lines" -eq 3 ]
 }
 
+# Armed (hi_header's own row loop), a row that overflows hands the rest
+# straight to $_HI_ROW_CARRY instead of wrapping within itself - the point of
+# the cascade. _HI_ROW_CARRY_ARMED and _HI_ROW_CARRY are `local`-shadowed
+# (the same dynamic-scope trick $_HI_HEADER_VERSION uses elsewhere in this
+# file), and the call is not wrapped in $(...) - a command substitution forks
+# a subshell, and the assignments header_row makes to the shadowed globals
+# would never reach back out to this function.
+function test_header_row_armed_carries_overflow_to_the_next_call() {
+  local _HI_ROW_CARRY_ARMED=1 outfile="$_HI_WORKDIR/row-carry-armed" out
+  local -a _HI_ROW_CARRY=()
+  _HI_MAX_WIDTH=10 header_row alpha beta gamma >"$outfile"
+  out="$(cat "$outfile")"
+  [[ "$out" == *alpha* ]] && [[ "$out" != *beta* ]] && [[ "$out" != *gamma* ]] &&
+    [ "${#_HI_ROW_CARRY[@]}" -eq 2 ] &&
+    [ "${_HI_ROW_CARRY[0]}" = beta ] && [ "${_HI_ROW_CARRY[1]}" = gamma ]
+}
+
+# ...and the carried cells reach the very next header_row call, prepended
+# ahead of its own - nothing is dropped between rows.
+function test_header_row_armed_carry_opens_the_next_row() {
+  local _HI_ROW_CARRY_ARMED=1 out
+  local -a _HI_ROW_CARRY=()
+  _HI_MAX_WIDTH=10 header_row alpha beta gamma >/dev/null
+  out="$(header_row delta)"
+  [[ "$out" == *beta* ]] && [[ "$out" == *gamma* ]] && [[ "$out" == *delta* ]]
+}
+
+# unarmed - every caller but hi_header's own loop - a row still drains
+# whatever it couldn't fit on its own, so no carry is left lying around for
+# the next unrelated call to inherit
+function test_header_row_unarmed_leaves_no_carry_behind() {
+  local _HI_ROW_CARRY_ARMED=0
+  local -a _HI_ROW_CARRY=()
+  _HI_MAX_WIDTH=5 header_row alpha beta gamma >/dev/null
+  [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
+}
+
 function test_banner_includes_label_and_host() {
   local out host
   host="$(_hi_hostname)"
@@ -837,6 +874,36 @@ function test_hi_header_uptime_toggle_hides_the_cell() {
   [[ "$out" != *"Up:"* && "$out" == *"Auth:"* ]]
 }
 
+# End to end: hi_header arms the cascade for its own row loop, so identity's
+# overflow (its Up: cell, guaranteed last) rides into the packages row's
+# first line instead of standing alone. A restricted PATH (no docker/podman/
+# nomad/kubectl, the same fixture identity()'s own backend-cell tests use via
+# _hi_identity_path) keeps identity's cells short and deterministic; one
+# priority-3 package guarantees full_check has something to open with.
+function test_hi_header_cascades_identity_overflow_into_check() {
+  local pkgfile="$_HI_WORKDIR/cascade-into-check" out line
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_PACKAGES="$pkgfile" \
+  _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="identity check" \
+    bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
+  [[ "$out" == *"Up:"* && "$out" == *"$_HI_REAL_CMD"* ]] || return 1
+  while IFS= read -r line; do
+    case "$line" in *"Up:"*) [[ "$line" == *"$_HI_REAL_CMD"* ]] && return 0 ;; esac
+  done <<<"$out"
+  return 1
+}
+
+# ...and when "check" is left out of the order entirely, the same leftover
+# still reaches the header as its own line instead of vanishing - hi_header's
+# post-loop flush, not full_check, is what catches it here.
+function test_hi_header_flushes_leftover_when_check_is_absent() {
+  local out
+  out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
+  _HI_MAX_WIDTH=20 _HI_HEADER_ORDER="identity" \
+    bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
+  [[ "$out" == *"Auth:"* && "$out" == *"Up:"* ]]
+}
+
 # Does $1 contain the bytes of $2? A byte-exact `grep -F` under LC_ALL=C rather
 # than `[[ $1 == *"$2"* ]]`, because two of the three marks are multibyte and
 # bash's pattern engine consults the locale to decide what a character even is.
@@ -1061,6 +1128,52 @@ function test_full_check_reads_real_packages_file_without_erroring() {
   full_check >/dev/null
 }
 
+# full_check is the cascade's landing point: it absorbs an incoming
+# $_HI_ROW_CARRY as its own first cells, ahead of the packages it reads
+# itself, rather than leaving it for a caller that has nowhere left to send
+# it. `local -a _HI_ROW_CARRY` shadows the global the same way other cases in
+# this file shadow $_HI_HEADER_VERSION, and the call is not wrapped in
+# $(...) where inspecting its post-call state is needed.
+function test_full_check_absorbs_an_incoming_carry() {
+  local pkgfile="$_HI_WORKDIR/carry-absorb" out
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local -a _HI_ROW_CARRY=(carriedcell)
+  out="$(_HI_PACKAGES="$pkgfile" full_check)"
+  [[ "$out" == *carriedcell* ]] && [[ "$out" == *"$_HI_REAL_CMD"* ]] &&
+    [ -n "$(_hi_pos "$out" carriedcell)" ] && [ -n "$(_hi_pos "$out" "$_HI_REAL_CMD")" ] &&
+    [ "$(_hi_pos "$out" carriedcell)" -lt "$(_hi_pos "$out" "$_HI_REAL_CMD")" ]
+}
+
+# ...and takes ownership of it: nothing is left for a caller after it to
+# flush a second time.
+function test_full_check_consumes_the_carry() {
+  local pkgfile="$_HI_WORKDIR/carry-consume"
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  local -a _HI_ROW_CARRY=(carriedcell)
+  _HI_PACKAGES="$pkgfile" full_check >/dev/null
+  [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
+}
+
+# a carry still has to print even when the packages file itself yields
+# nothing visible - guards the floor check that used to be `return 0` the
+# moment $visible was empty, before it had a second source to consider
+function test_full_check_prints_carry_even_with_no_visible_packages() {
+  local pkgfile="$_HI_WORKDIR/carry-no-packages" out
+  : >"$pkgfile"
+  local -a _HI_ROW_CARRY=(onlycell)
+  out="$(_HI_PACKAGES="$pkgfile" full_check)"
+  [[ "$out" == *onlycell* ]]
+}
+
+# ...and the original guard still holds with nothing on either side
+function test_full_check_empty_carry_and_no_packages_prints_nothing() {
+  local pkgfile="$_HI_WORKDIR/carry-empty-none" out
+  : >"$pkgfile"
+  local -a _HI_ROW_CARRY=()
+  out="$(_HI_PACKAGES="$pkgfile" full_check)"
+  [ -z "$out" ]
+}
+
 # The assertion that would have caught the BSD-sort bug where it happened. That
 # sort ran under the ambient locale, and on macOS it exited with "Illegal byte
 # sequence" and printed nothing - so full_check rendered an empty check while
@@ -1150,6 +1263,9 @@ function run_header_tests() {
   _hi_check "_hi_draw_width honors an explicit _HI_TERM_COLS override" test_hi_draw_width_honors_an_explicit_override
   _hi_check "_hi_draw_width never widens past _HI_MAX_WIDTH" test_hi_draw_width_never_widens_past_max_width
   _hi_check "Wraps at a _HI_TERM_COLS override" test_header_row_wraps_at_hi_term_cols_override
+  _hi_check "Armed, overflow carries to the next call" test_header_row_armed_carries_overflow_to_the_next_call
+  _hi_check "...and opens the next row" test_header_row_armed_carry_opens_the_next_row
+  _hi_check "Unarmed, a row leaves no carry behind" test_header_row_unarmed_leaves_no_carry_behind
 
   _hi_h2 "Testing: banner"
   _hi_check "Includes label and hostname" test_banner_includes_label_and_host
@@ -1221,6 +1337,8 @@ function run_header_tests() {
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
   _hi_check "'uptime' is no longer an order word" test_hi_header_order_uptime_is_no_longer_a_word
   _hi_check "_HI_HEADER_UPTIME=0 hides just the uptime cell" test_hi_header_uptime_toggle_hides_the_cell
+  _hi_check "A row's overflow cascades into the packages row" test_hi_header_cascades_identity_overflow_into_check
+  _hi_check "...and still flushes when 'check' is left out" test_hi_header_flushes_leftover_when_check_is_absent
 
   _hi_h2 "Testing: passthrough_check"
   _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off
@@ -1255,6 +1373,10 @@ function run_header_tests() {
   _hi_check "Real settings/packages file parses cleanly" test_full_check_reads_real_packages_file_without_erroring
   _hi_check "Writes nothing to stderr" test_full_check_is_silent_on_stderr
   _hi_check "Emits a row for an installed package" test_full_check_emits_a_row_for_an_installed_package
+  _hi_check "Absorbs an incoming carry ahead of its own cells" test_full_check_absorbs_an_incoming_carry
+  _hi_check "...and consumes it" test_full_check_consumes_the_carry
+  _hi_check "A carry still prints with no visible packages" test_full_check_prints_carry_even_with_no_visible_packages
+  _hi_check "Empty carry, no packages: still silent" test_full_check_empty_carry_and_no_packages_prints_nothing
 
   _hi_h2 "Testing: _hi_packages_palette"
   _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries

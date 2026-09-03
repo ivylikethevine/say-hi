@@ -115,7 +115,7 @@ function bench_git_prompt() {
 # longest of them rather than the sum - but a daemon that is installed and not
 # answering costs that whole cap, and a hosted runner hands this job two of
 # them (docker and podman both wedged), so $_HI_BENCH_PROBE seconds is the
-# floor this number cannot go under however parallel the sweep is. The +600ms
+# floor this number cannot go under however parallel the sweep is. The +800ms
 # is everything around it: the 200ms KILL grace behind the cap's TERM (a
 # rootless podman on a fresh $HOME defers the TERM through its whole runtime
 # setup, and a hosted runner has been seen to take a second over that - the
@@ -123,14 +123,15 @@ function bench_git_prompt() {
 # turn), then `env -i`, `sh`, the scratch mkdir, and one `timeout`+CLI exec
 # per backend, which are large Go binaries. A contended 4-core hosted runner
 # spends ~285ms on those; a developer machine with a docker that answers,
-# ~90ms for the whole run.
+# ~90ms for the whole run. The extra 200ms over that sum is slack for a
+# noisier runner than any of the above.
 #
 # In turn on that same host would be two caps and change, so this still tells
 # the two apart - but it is a wall clock on somebody else's machine and it is
 # not what guards the fan-out. tests/common/targets_test.sh's "Backends are
 # swept together, not in turn" does that, deterministically, in the fast group.
 function bench_targets_cold() {
-  _hi_bench "targets.sh, cold cache" $((_HI_BENCH_PROBE * 1000 + 600)) 3 \
+  _hi_bench "targets.sh, cold cache" $((_HI_BENCH_PROBE * 1000 + 800)) 3 \
     _hi_bench_env env _HI_TARGETS_TTL=0 sh "$_HI_TARGETS"
 }
 
@@ -187,9 +188,9 @@ function bench_payload_readme_badge() {
   source "$_HI_LAUNCHER"
   bytes="$(_hi_wire_bytes)"
   kb=$(((bytes + 512) / 1024))
-  badge="$(sed -n 's/.*ssh_payload-\([0-9]*\)KB_per_session.*/\1/p' "$_HI_ROOT/README.md" | head -1)"
+  badge="$(sed -n 's/.*ssh_payload-\([0-9]*\)KB.*/\1/p' "$_HI_ROOT/README.md" | head -1)"
   if [ -z "$badge" ]; then
-    _hi_cecho " | README payload badge: MISSING (expected ssh_payload-<n>KB_per_session in README.md)" "$RED"
+    _hi_cecho " | README payload badge: MISSING (expected ssh_payload-<n>KB in README.md)" "$RED"
     return 1
   fi
   # 5% of the true figure, rounded up, and never less than 1KB - the same band
