@@ -660,6 +660,59 @@ function test_shell_rows_filters_by_flag() {
   [ -z "$(_hi_shell_rows nosuchflag)" ]
 }
 
+# the version, unpresented: a packager's stamp wins outright, else git
+# describe against $_HI_ROOT, else empty. header.sh's version cell and hi.sh's
+# --version both go through this.
+function test_release_or_describe_prefers_the_stamp() {
+  (
+    _HI_RELEASE=1.2.3
+    [ "$(_hi_release_or_describe)" = 1.2.3 ]
+  )
+}
+
+function test_release_or_describe_falls_back_to_git() {
+  (
+    unset _HI_RELEASE
+    [ -d "$_HI_ROOT/.git" ] || return 0 # nothing to fall back to in a tarball checkout
+    [ -n "$(_hi_release_or_describe)" ]
+  )
+}
+
+function test_release_or_describe_empty_without_either() {
+  local dir
+  dir="$(mktemp -d "$_HI_WORKDIR/norelease.XXXXXX")"
+  (
+    unset _HI_RELEASE
+    _HI_ROOT="$dir"
+    [ -z "$(_hi_release_or_describe)" ]
+  )
+}
+
+# lesspipe/debian_chroot both read hardcoded absolute paths
+# (/usr/bin/lesspipe, /etc/debian_chroot) rather than anything on $PATH, so
+# there is no fixture-able way to force either arm on a box that lacks them
+# (this one does) short of writing outside the checkout - only the
+# already-exported skip is portable.
+function test_interactive_extras_skips_lesspipe_when_already_set() {
+  (
+    LESSOPEN=already-set
+    _hi_interactive_extras
+    [ "$LESSOPEN" = already-set ]
+  )
+}
+
+# the memos land in the *calling* shell - the entire point (a prompt's $( )
+# would lose them, same as _hi_git_prompt's out-var form) - so this has to run
+# without a subshell around the call itself.
+function test_prime_identity_fills_every_memo_in_the_caller() {
+  unset _HI_HOSTNAME_CACHE _HI_WHOAMI_CACHE _HI_HOST_COLOR _HI_USER_COLOR
+  _hi_prime_identity
+  [ -n "${_HI_HOSTNAME_CACHE:-}" ] &&
+    [ -n "${_HI_WHOAMI_CACHE:-}" ] &&
+    [ "${_HI_HOST_COLOR+x}" = x ] &&
+    [ "${_HI_USER_COLOR+x}" = x ]
+}
+
 function run_core_tests() {
   _hi_workdir sharedtest
   _HI_SSH_TAG_FIXTURE="$(_hi_ssh_tag_fixture)"
@@ -732,6 +785,15 @@ function run_core_tests() {
   _hi_check "Host memo honors \$_HI_TARGET_COLOR; escape agrees" test_host_color_memo_and_escape_agree
   _hi_check "User color resolves like _hi_resolve_color" test_user_color_resolves_like_resolve_color
   _hi_check "The out-var escape forms fill the caller" test_escape_var_forms_fill_the_caller
+  _hi_check "_hi_prime_identity fills every memo in the caller" test_prime_identity_fills_every_memo_in_the_caller
+
+  _hi_h2 "Testing: _hi_release_or_describe"
+  _hi_check "A shipped \$_HI_RELEASE wins outright" test_release_or_describe_prefers_the_stamp
+  _hi_check "Falls back to git describe against \$_HI_ROOT" test_release_or_describe_falls_back_to_git
+  _hi_check "Empty with neither a stamp nor a .git" test_release_or_describe_empty_without_either
+
+  _hi_h2 "Testing: _hi_interactive_extras"
+  _hi_check "Skips the lesspipe fork when LESSOPEN is already set" test_interactive_extras_skips_lesspipe_when_already_set
 
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple

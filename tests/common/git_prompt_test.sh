@@ -233,6 +233,144 @@ function test_stash_shows_flag_count() {
   _hi_has_rendered "$out" "${BRBLUE}⚑1${NC}"
 }
 
+# rebase-merge/ with no interactive marker - the REBASE-m rung of the state
+# if/elif/else chain. Built by hand rather than through a real `git rebase
+# --merge`: on current git that backend runs through the same interactive
+# machinery as `-i` and always drops rebase-merge/interactive too, so REBASE-m
+# is unreachable via any live rebase the way test_am_rebase_with_neither_marker
+# above already has to build its AM/REBASE case directly.
+function test_rebase_merge_backend_shows_state() {
+  local dir out
+  dir="$(_hi_git_fixture)"
+  mkdir -p "$dir/.git/rebase-merge"
+  printf '1\n' >"$dir/.git/rebase-merge/msgnum"
+  printf '1\n' >"$dir/.git/rebase-merge/end"
+  out="$(cd "$dir" && _hi_git_prompt)"
+  rm -rf "$dir/.git/rebase-merge"
+  [[ "$out" == *"|REBASE-m 1/1"* ]]
+}
+
+# Both production callers (common/bash.sh's PROMPT_COMMAND, common/zsh.zsh's
+# precmd) use the out-var form specifically to skip the $( ) fork per prompt -
+# every case above only exercises the stdout form the comment at the top of
+# this file calls out. These prove the two forms actually agree.
+function test_out_var_form_fills_variable_not_stdout() {
+  local dir out captured
+  dir="$(_hi_git_fixture)"
+  out="$(
+    cd "$dir" && _hi_git_prompt captured
+    printf '%s' "$captured"
+  )"
+  # nothing on stdout from the _hi_git_prompt call itself, then the captured
+  # var's value printed by hand - so a non-empty $out here can only be the var
+  [[ "$out" == *"main"* ]]
+}
+
+function test_out_var_and_stdout_form_agree() {
+  local dir stdout_form outvar_form
+  dir="$(_hi_git_fixture)"
+  stdout_form="$(cd "$dir" && _hi_git_prompt)"
+  outvar_form="$(
+    cd "$dir"
+    _hi_git_prompt captured
+    printf '%s' "$captured"
+  )"
+  [ "$stdout_form" = "$outvar_form" ]
+}
+
+# line 10 clears the out-var unconditionally, before either early return
+# (disabled / outside a repo) - a stale value from a previous prompt draw
+# must not survive into a draw that has nothing to say.
+function test_out_var_is_precleared_when_disabled() {
+  local dir out
+  dir="$(_hi_git_fixture)"
+  out="$(
+    cd "$dir"
+    captured=stale
+    _HI_DISABLE_GIT_STATUS=1 _hi_git_prompt captured
+    printf '%s' "$captured"
+  )"
+  [ -z "$out" ]
+}
+
+function test_out_var_is_precleared_outside_a_repo() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/plain.XXXXXX")"
+  out="$(
+    cd "$dir"
+    # shellcheck disable=SC2030 # the write and the read below both live in
+    # this same subshell - the round-trip through captured is the point
+    captured=stale
+    _hi_git_prompt captured
+    printf '%s' "$captured"
+  )"
+  [ -z "$out" ]
+}
+
+# _HI_DESC_OID/_HI_DESC_REF memoize the detached-HEAD describe walk (the
+# slowest call in the file) keyed on branch.oid, so it only re-runs once HEAD
+# actually moves. Every case above captures output via $( _hi_git_prompt ),
+# which forks a subshell per call and throws the global-var assignment away
+# before it returns - so the memo has never actually fired under test. These
+# two use the out-var form instead (no fork), which is the only way to
+# observe it, and also happens to be the form both production callers use
+# (common/bash.sh, common/zsh.zsh) specifically to skip that per-prompt fork.
+function test_detached_head_reuses_the_describe_memo() {
+  local dir sha describe_calls before after captured out1 out2
+  dir="$(_hi_git_fixture)"
+  sha="$(git -C "$dir" rev-parse HEAD)"
+  git -C "$dir" -c advice.detachedHead=false checkout -q "$sha"
+  describe_calls="$(mktemp "$_HI_WORKDIR/describe_calls.XXXXXX")"
+  : >"$describe_calls"
+  (
+    cd "$dir"
+    function git() {
+      [[ "$1" == describe ]] && printf 'x\n' >>"$describe_calls"
+      command git "$@"
+    }
+    _hi_git_prompt captured
+    # SC2031 x2 below: captured, out1 and out2 are read here, still inside the
+    # same subshell that writes them - nothing crosses the subshell boundary
+    # shellcheck disable=SC2031
+    out1="$captured"
+    before="$(wc -l <"$describe_calls")"
+    _hi_git_prompt captured
+    # shellcheck disable=SC2031
+    out2="$captured"
+    after="$(wc -l <"$describe_calls")"
+    [[ "$out1" == "$out2" ]] && [ "$before" -gt 0 ] && [ "$after" -eq "$before" ]
+  )
+}
+
+function test_a_new_commit_drops_the_describe_memo() {
+  local dir sha describe_calls before after captured out1 out2
+  dir="$(_hi_git_fixture)"
+  sha="$(git -C "$dir" rev-parse HEAD)"
+  git -C "$dir" -c advice.detachedHead=false checkout -q "$sha"
+  describe_calls="$(mktemp "$_HI_WORKDIR/describe_calls.XXXXXX")"
+  : >"$describe_calls"
+  (
+    cd "$dir"
+    function git() {
+      [[ "$1" == describe ]] && printf 'x\n' >>"$describe_calls"
+      command git "$@"
+    }
+    _hi_git_prompt captured
+    # SC2031 x2 below: captured, out1 and out2 are read here, still inside the
+    # same subshell that writes them - nothing crosses the subshell boundary
+    # shellcheck disable=SC2031
+    out1="$captured"
+    before="$(wc -l <"$describe_calls")"
+    printf 'again\n' >>file.txt
+    git commit -qam again
+    _hi_git_prompt captured
+    # shellcheck disable=SC2031
+    out2="$captured"
+    after="$(wc -l <"$describe_calls")"
+    [[ "$out1" != "$out2" ]] && [ "$after" -gt "$before" ]
+  )
+}
+
 function run_git_prompt_tests() {
   _hi_require git
 
@@ -273,9 +411,20 @@ function run_git_prompt_tests() {
   _hi_check "Cherry-pick conflict" test_cherry_pick_conflict_shows_state
   _hi_check "Revert conflict" test_revert_conflict_shows_state
   _hi_check "Bisect" test_bisect_shows_state
+  _hi_check "Rebase (merge backend)" test_rebase_merge_backend_shows_state
 
   _hi_h2 "Use-Case: stash"
   _hi_check "Stash -> flag count" test_stash_shows_flag_count
+
+  _hi_h2 "Use-Case: the out-var form (what bash.sh/zsh.zsh actually call)"
+  _hi_check "Fills the var, not stdout" test_out_var_form_fills_variable_not_stdout
+  _hi_check "Agrees with the stdout form" test_out_var_and_stdout_form_agree
+  _hi_check "Pre-cleared when disabled" test_out_var_is_precleared_when_disabled
+  _hi_check "Pre-cleared outside a repo" test_out_var_is_precleared_outside_a_repo
+
+  _hi_h2 "Use-Case: the detached-HEAD describe memo"
+  _hi_check "Reused across calls at the same oid" test_detached_head_reuses_the_describe_memo
+  _hi_check "Dropped once HEAD moves" test_a_new_commit_drops_the_describe_memo
 
   _hi_suite_end "git_prompt.sh"
 }

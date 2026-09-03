@@ -43,6 +43,37 @@
 # with the suite script as the *top-level* process, merged at the end.
 # Wrapping test_runner.sh instead would put every suite in a child process
 # and lose even the load-time lines.
+#
+# FILES THAT READ LOW HERE ON PURPOSE - NOT A GAP, DON'T ADD TESTS
+#
+# The DEBUG trap above is lost specifically at test_lib.sh's *source* time; it
+# is equally lost inside any `$( )`, `( )`, `&` or child process launched
+# anywhere after, for the rest of that suite's run. bashcov's xtrace has no
+# such hole (SHELLOPTS carries `xtrace` into every child bash), so the two
+# tools' figures are read together per docs/TESTING.md, and where they
+# disagree this wide it is this file's instrumentation, confirmed against
+# coverage_v2.sh's numbers on the same suites, both measured 2026-09-03:
+#
+#   common/git_prompt.sh   57.69% here, 100.00%  under coverage_v2.sh - every
+#     case in git_prompt_test.sh calls _hi_git_prompt inside $( ), the
+#     original instance of this bug (the probe above is this file).
+#   common/targets.sh      ABSENT here, 95.29%   under coverage_v2.sh
+#   common/notify.sh       ABSENT here, 100.00%  under coverage_v2.sh
+#   common/osc52.sh        ABSENT here, 100.00%  under coverage_v2.sh
+#     all three are `#!/bin/sh` scripts their suites *execute* as children
+#     (targets_test.sh, notify_test.sh, osc52_test.sh) rather than source -
+#     common/paths.sh is also `#!/bin/sh` and reads 100% here only because
+#     core.sh sources it into the traced process instead.
+#   hi.sh                  64.77% here under --group fast, 84.56% under the
+#     full sweep, 97.80% under coverage_v2.sh's full sweep - the e2e/backends
+#     suites reach _say_hi/_say_hi_container/_hi themselves only inside a
+#     backgrounded child (tests/lib/process.sh) or a parallel-case subshell
+#     (tests/lib/backend.sh), both invisible here for the same reason.
+#
+# Confirmed real rather than an artifact: every one of these reads >=70%
+# under coverage_v2.sh's full sweep too, which is what settled it - don't
+# re-add tests here on the strength of this file's number alone; rerun both
+# sweeps and compare.
 # ---------------------------------------------------------------------------
 #
 # Lives in tests/ on purpose: tests/ ships in neither the ssh payload

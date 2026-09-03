@@ -149,6 +149,28 @@ function test_header_row_unarmed_leaves_no_carry_behind() {
   [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
 }
 
+# _hi_row_line's own documented contract: zero cells is a no-op, not an empty
+# line - nothing reaches this arm through header_row (it always has at least
+# the un-carried "$@"), so only a direct call exercises it.
+function test_row_line_returns_1_and_prints_nothing_for_zero_cells() {
+  local out ec=0
+  out="$(_hi_row_line)" || ec=$?
+  [ "$ec" -eq 1 ] && [ -z "$out" ]
+}
+
+# _hi_header_flush's termination argument, proven rather than assumed: three
+# cells at a width that fits exactly one per line takes three rounds of the
+# while loop, and every cell still reaches output with the carry left empty.
+function test_header_flush_drains_across_multiple_overflow_rounds() {
+  local outfile="$_HI_WORKDIR/header-flush-multi" out lines
+  local -a _HI_ROW_CARRY=(alpha beta gamma)
+  _HI_MAX_WIDTH=5 _hi_header_flush >"$outfile"
+  out="$(cat "$outfile")"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  [[ "$out" == *alpha* && "$out" == *beta* && "$out" == *gamma* ]] &&
+    [ "$lines" -eq 3 ] && [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
+}
+
 function test_banner_includes_label_and_host() {
   local out host
   host="$(_hi_hostname)"
@@ -255,6 +277,32 @@ function test_timestamp_version_falls_back_without_a_stamp() {
   [ -n "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" ]
 }
 
+# _hi_header_version's own memo - "resolved once per shell (the row prints
+# twice a session)" - captured by direct call rather than $( ), which would
+# fork away the assignment to $_HI_HEADER_VERSION before it ever landed.
+function test_header_version_resolves_once_per_shell() {
+  (
+    unset _HI_HEADER_VERSION
+    _HI_RELEASE=1.0.0
+    _hi_header_version >/dev/null
+    local first="$_HI_HEADER_VERSION"
+    _HI_RELEASE=2.0.0 # a later change must not reach an already-memoized version
+    _hi_header_version >/dev/null
+    [ "$_HI_HEADER_VERSION" = "$first" ] && [ "$first" = 1.0.0 ]
+  )
+}
+
+function test_header_version_is_unknown_without_a_stamp_or_git() {
+  local dir
+  dir="$(mktemp -d "$_HI_WORKDIR/noversion.XXXXXX")"
+  (
+    unset _HI_HEADER_VERSION
+    _HI_RELEASE=""
+    _HI_ROOT="$dir"
+    [ "$(_hi_header_version)" = unknown ]
+  )
+}
+
 # _hi_shorten_describe's own contract - git describe's shapes, folded to at
 # most 5 columns of tag plus a 4-column hash (10 total), -dirty always
 # dropped, and a tag with no hash (an exact tag, a plain $_HI_RELEASE,
@@ -351,6 +399,20 @@ function test_hi_cpu_clocks_falls_back_to_boost_when_base_missing() {
 
 function test_hi_cpu_clocks_question_mark_when_both_missing() {
   [ "$(_hi_cpu_clocks "" "")" = "?" ]
+}
+
+# _hi_ghz's own contract, from its comment: rounded to tenths *before*
+# splitting, so a carry lands in the whole-GHz digit (2950 -> 3.0) rather than
+# spilling into a second decimal (2.10) - _hi_cpu_clocks' cases above only
+# ever see the already-rounded strings this produces.
+function test_ghz_rounds_the_carry_into_the_whole_digit() {
+  local out
+  _hi_ghz out 2950
+  [ "$out" = 3.0 ] || return 1
+  _hi_ghz out 2949
+  [ "$out" = 2.9 ] || return 1
+  _hi_ghz out 2100
+  [ "$out" = 2.1 ]
 }
 
 # _hi_load_pct's own contract: load divided by cores, rounded to a whole
@@ -1317,6 +1379,8 @@ function run_header_tests() {
   _hi_check "Armed, overflow carries to the next call" test_header_row_armed_carries_overflow_to_the_next_call
   _hi_check "...and opens the next row" test_header_row_armed_carry_opens_the_next_row
   _hi_check "Unarmed, a row leaves no carry behind" test_header_row_unarmed_leaves_no_carry_behind
+  _hi_check "Zero cells: returns 1, prints nothing" test_row_line_returns_1_and_prints_nothing_for_zero_cells
+  _hi_check "_hi_header_flush drains multiple overflow rounds" test_header_flush_drains_across_multiple_overflow_rounds
 
   _hi_h2 "Testing: banner"
   _hi_check "Includes label and hostname" test_banner_includes_label_and_host
@@ -1340,6 +1404,8 @@ function run_header_tests() {
   _hi_check "Timestamp prints three cells" test_timestamp_runs_and_has_three_cells
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
+  _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
+  _hi_check "...and is \"unknown\" without a stamp or git" test_header_version_is_unknown_without_a_stamp_or_git
   _hi_check "Folds a tag and its hash together" test_hi_shorten_describe_folds_tag_and_hash
   _hi_check "...drops the -dirty suffix" test_hi_shorten_describe_drops_the_dirty_suffix
   _hi_check "...trims a bare hash too" test_hi_shorten_describe_trims_a_bare_hash
@@ -1357,6 +1423,7 @@ function run_header_tests() {
   _hi_check "...collapses when boost is missing" test_hi_cpu_clocks_collapses_when_boost_missing
   _hi_check "...falls back to boost when base is missing" test_hi_cpu_clocks_falls_back_to_boost_when_base_missing
   _hi_check "...? when both are missing" test_hi_cpu_clocks_question_mark_when_both_missing
+  _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
   _hi_check "...rounds to a whole percent" test_hi_load_pct_rounds_to_a_whole_percent
   _hi_check "...empty without a load figure" test_hi_load_pct_empty_without_a_load_figure
