@@ -105,7 +105,7 @@ function test_nfpm_symlink_matches_install_tree() {
 # Only the symlink entry's own src line is checked: the apk workaround ships
 # legitimate staged hi.sh/load.sh file entries elsewhere in the manifest.
 function test_nfpm_symlink_target_is_absolute_and_unstaged() {
-  ! grep -B1 'dst: /usr/bin/hi' "$_HI_NFPM" | grep -q 'dist/staging'
+  ! grep -B1 'dst: /usr/bin/hi' "$_HI_NFPM" | grep 'dist/staging' >/dev/null
 }
 
 # The apk cannot use the tree entry (nfpm 2.47.0 mode-bit bug, see nfpm.yaml),
@@ -183,7 +183,7 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
   # string reads its own documentation as a violation.
   grep -qF '(bin/"hi").write' "$_HI_FORMULA" &&
     grep -qF 'export _HI_HOME="#{libexec}"' "$_HI_FORMULA" &&
-    ! grep -vE '^\s*#' "$_HI_FORMULA" | grep -qF 'bin.install_symlink'
+    ! grep -vE '^\s*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null
 }
 
 # the caveats must not tell people to run an install that will fail on macOS
@@ -203,7 +203,7 @@ function test_nfpm_declares_the_rpm_signature() {
 # (packaging/apk/say-hi.rsa.pub, packaging/gpg/say-hi.asc), the secrets in
 # GitHub. A slip here ships the signing key in every source tarball.
 function test_no_private_key_is_committed() {
-  ! grep -rlE 'PRIVATE KEY( BLOCK)?-----' "$_HI_PKG_DIR" 2>/dev/null | grep -q .
+  ! grep -rlE 'PRIVATE KEY( BLOCK)?-----' "$_HI_PKG_DIR" 2>/dev/null | grep . >/dev/null
 }
 
 # ...and the committed GPG half, when it exists, is a public key block
@@ -926,8 +926,11 @@ function test_every_channel_stamps_through_stamp_sh() {
   for f in "$_HI_PKG_DIR/mkpkg.sh" "$_HI_PKGBUILD" "$_HI_PKGBUILD_GIT" "$_HI_FORMULA"; do
     # comment lines dropped first: every one of these files *mentions*
     # stamp.sh in the prose explaining why it calls it, so grepping the whole
-    # file would pass on a channel that had quietly stopped calling it
-    grep -v '^[[:space:]]*#' "$f" | grep -qF 'packaging/stamp.sh' || {
+    # file would pass on a channel that had quietly stopped calling it.
+    # no -q on the reader, same reason as src_tarball's tar|grep below: an
+    # early exit would SIGPIPE the first grep mid-file, which reads as a red
+    # 141 under the suite's pipefail (this is what actually flaked in CI).
+    grep -v '^[[:space:]]*#' "$f" | grep -F 'packaging/stamp.sh' >/dev/null || {
       _hi_cecho " | $f does not call packaging/stamp.sh" "$RED"
       return 1
     }
