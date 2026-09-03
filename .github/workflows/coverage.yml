@@ -96,7 +96,7 @@ jobs:
       # knows: kcov publishes no binary asset and reaches Debian/Ubuntu only
       # through a PPA
       - if: matrix.tool == 'kcov'
-        uses: ./.github/actions/setup-tool
+        uses: $/.github/actions/setup-tool
         with:
           tool: kcov
 

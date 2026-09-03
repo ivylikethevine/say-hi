@@ -40,7 +40,7 @@ jobs:
             './**/*.md'
           fail: true
 
-      - uses: ./.github/actions/advisory-note
+      - uses: $/.github/actions/advisory-note
         if: steps.lychee.outcome == 'failure'
         with:
           title: lychee

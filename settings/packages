@@ -68,7 +68,7 @@ asdf:3,mise:3
 direnv:3
 hi:3
 
-# 2: green installed, yellow missing
+# 2: bright cyan installed, bright yellow missing
 # useful tools: good to know either way
 apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,chocolatey:2,yay:2,paru:2,rpm:2,mas:2
 flatpak:2,snap:2,nix:2,guix:2,appimage:2
@@ -95,7 +95,7 @@ sshfs:2,rclone:1
 sshm:2
 -gpg:2
 
-# 1: bright cyan installed, bright magenta missing
+# 1: green installed, magenta missing
 # optional extras: nice, not load-bearing
 gping:1,prettyping:1
 navi:1,cheat:1
@@ -115,7 +115,7 @@ rust:1,rustc:1,rustup:1
 act:1
 gh:1
 
-# 0: blue installed, bright blue missing
+# 0: cyan installed, blue missing
 # platform trivia; `+` where a presence is a fact and an absence is noise
 cosign:0
 whois:0

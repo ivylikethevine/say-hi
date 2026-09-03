@@ -348,7 +348,7 @@ function _hi_uptime_cell() {
   # probe negative, and a stripped-down awk fails closed the same way
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
   [ -n "$uptime_s" ] && up="$(_hi_humanize_uptime "$uptime_s")"
-  printf -v "$1" '%s' "${BRPURPLE}Up: ${up:-?}"
+  printf -v "$1" '%s' "${BRCYAN}Up: ${up:-?}"
 }
 
 # identity()'s backend probes are independent and each capped at
@@ -587,6 +587,11 @@ function hi_header() {
 # both ways. Priorities above 3 clamp to 3, so an old-format file still
 # renders.
 #
+# Each ramp is ordered intensity-major, not hue-major: both normal
+# intensities first, then both bright, so the loudness step from one
+# priority to the next never reverses direction. A ramp that alternates
+# normal/bright/normal/bright reads a lower priority as louder than the one
+# above it - what "monotonic in both directions" below is guarding against.
 # The numbered lines below are scraped verbatim by scripts/packages_preview.sh
 # (the run directly above _HI_YES, parentheticals dropped): keep the
 # "# <n> <meaning> (<examples>)" shape and add nothing between them and the
@@ -595,8 +600,8 @@ function hi_header() {
 # 1 optional extras (gping, navi)
 # 2 useful tools (make, vim, python3)
 # 3 favorites and core (bat, fzf, awk)
-_HI_YES=("$CYAN" "$BRCYAN" "$GREEN" "$BRGREEN")
-_HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRRED")
+_HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
+_HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
 
 # $_HI_PACKAGES_PALETTE picks one of the named ramps below over the two
 # tables just assigned - packages_preview.sh's scrape (above) stops at the
@@ -622,8 +627,8 @@ function _hi_packages_palette() {
     _HI_NO=("$YELLOW" "$BRYELLOW" "$RED" "$BRRED")
     ;;
   *)
-    _HI_YES=("$CYAN" "$BRCYAN" "$GREEN" "$BRGREEN")
-    _HI_NO=("$BRBLUE" "$BRPURPLE" "$YELLOW" "$BRRED")
+    _HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
+    _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
     ;;
   esac
 }

@@ -27,7 +27,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: trivy
 
@@ -72,7 +72,7 @@ jobs:
       # An issue, not a pull request: dependabot already opens the repin PR, and
       # one from here would need contents: write and, being GITHUB_TOKEN-
       # authored, trigger no docker e2e run to prove the new digest builds.
-      - uses: ./.github/actions/upsert-tracking-issue
+      - uses: $/.github/actions/upsert-tracking-issue
         with:
           label: image-scan
           label-color: D93F0B

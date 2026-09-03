@@ -81,7 +81,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y zsh fish
 
       # same pinned upstream binary ci.yml uses - the distro package lags badly
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: shellcheck
 
@@ -126,7 +126,7 @@ jobs:
       - name: Run the lint group
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint"
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: nfpm
 
@@ -295,7 +295,7 @@ jobs:
           name: packages
           path: dist
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: minisign
 
