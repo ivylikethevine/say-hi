@@ -526,12 +526,14 @@ function test_load_cleans_up_its_session_rc_dir() {
 }
 
 # The disconnect footer: tree size and whole-session duration on the banner
-# line, then the timestamp row. The connect header is trimmed to its banner
-# (no rows, no probes) so the case measures load(), not system_info.
+# line, then the timestamp cells. The connect header is trimmed to its
+# banner (an empty-but-set $_HI_HEADER_ORDER word-splits to nothing, so no
+# features and no probe-launch either) so the case measures load(), not
+# system_info.
 function test_load_prints_the_disconnect_banner_and_footer() {
   local out
   out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash \
-    "_HI_HEADER_ORDER= " _HI_HEADER_IDENTITY=0)" || return 1
+    "_HI_HEADER_ORDER= ")" || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"| session: "*" Disconnected ["*) return 0 ;;
   esac

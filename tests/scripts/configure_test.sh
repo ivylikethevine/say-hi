@@ -188,14 +188,14 @@ function test_packages_palette_does_not_write_the_default() {
 function test_packages_palette_skipped_when_the_check_is_off() {
   local out
   out="$(_hi_section_lines palette_off config_packages_palette \
-    "export _HI_HEADER_CHECK=0" "export _HI_PACKAGES_PALETTE=warm")"
+    "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_PALETTE=warm")"
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
 }
 
 function test_header_order_keeps_an_existing_override() {
   local out
-  out="$(_hi_section_lines order_keep config_header_order "export _HI_HEADER_ORDER='check identity'")"
-  [[ "$out" == *"export _HI_HEADER_ORDER='check identity'"* ]]
+  out="$(_hi_section_lines order_keep config_header_order "export _HI_HEADER_ORDER='check gitid'")"
+  [[ "$out" == *"export _HI_HEADER_ORDER='check gitid'"* ]]
 }
 
 # header.sh's own default order, so writing it out would be a line that means
@@ -257,11 +257,11 @@ function test_validators_hold_their_grammars() {
   _hi_is_packages_palette warm || return 1
   _hi_is_packages_palette mono || return 1
   ! _hi_is_packages_palette bogus || return 1
-  _hi_is_header_order "timestamp sysinfo identity check" || return 1
-  _hi_is_header_order "check identity" || return 1
-  _hi_is_header_order timestamp || return 1
+  _hi_is_header_order "utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime check" || return 1
+  _hi_is_header_order "check gitid" || return 1
+  _hi_is_header_order utc || return 1
   ! _hi_is_header_order "" || return 1
-  ! _hi_is_header_order "timestamp bogus"
+  ! _hi_is_header_order "utc bogus"
 }
 
 function test_pending_answer_reads_this_runs_answers() {
@@ -429,7 +429,7 @@ function test_packages_floor_writes_a_zero() {
 }
 
 function test_packages_floor_is_skipped_when_the_check_is_off() {
-  _hi_settings_fixture floor_off _hi_floor_run 'export _HI_HEADER_CHECK=0'
+  _hi_settings_fixture floor_off _hi_floor_run "export _HI_HEADER_ORDER='gitid'"
   # the file has to exist - a skip that never ran the function at all would
   # leave no file and pass the emptiness check for the wrong reason
   [ -f "$_HI_WORKDIR/floor_off/config/lines.out" ] || return 1
@@ -548,7 +548,7 @@ function test_settings_shebang_preserves_mode() {
 # because one config_shell call per group against one file would have each
 # wipe the other two's lines
 function _hi_settings_one_write() {
-  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_HEADER_CHECK=0")
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_HEADER_BANNER=0")
   mkdir -p "$_HI_CONFIG_DIR"
   config_shell settings "$_HI_SETTINGS" "${_HI_SETTING_LINES[@]}"
 }
@@ -557,7 +557,7 @@ function test_config_settings_writes_every_group_at_once() {
   _hi_settings_fixture onewrite _hi_settings_one_write
   local f
   f="$(_hi_fixture_settings onewrite)"
-  grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_HEADER_CHECK=0" "$f"
+  grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_HEADER_BANNER=0" "$f"
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
@@ -590,8 +590,8 @@ function test_setting_off_true_when_off_present() {
 
 function test_setting_off_respects_custom_off_value() {
   local target="$_HI_WORKDIR/customoff"
-  printf 'export _HI_HEADER_TIMESTAMP=0\n' >"$target"
-  setting_off _HI_HEADER_TIMESTAMP "$target" 0
+  printf 'export _HI_HEADER_BANNER=0\n' >"$target"
+  setting_off _HI_HEADER_BANNER "$target" 0
 }
 
 # the line as config_shell really writes it: marker-padded, unquoted - the
@@ -760,7 +760,7 @@ function test_validators_for_the_advanced_values() {
 function _hi_diff_run() {
   local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "export _HI_MAX_WIDTH=120")
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1" "export _HI_HEADER_CHECK=0"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1" "export _HI_HEADER_BANNER=0"
   settings_diff_before
   settings_diff_report >"$_HI_CONFIG_DIR/diff.out"
 }
@@ -769,7 +769,7 @@ function test_settings_diff_reports_added_and_removed() {
   local out
   _hi_settings_fixture diff _hi_diff_run
   out="$(cat "$_HI_WORKDIR/diff/config/diff.out")"
-  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_HEADER_CHECK=0"* &&
+  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_HEADER_BANNER=0"* &&
     "$out" != *"_HI_DISABLE_PROMPT"* ]]
 }
 
@@ -866,8 +866,7 @@ function test_preset_run_writes_the_preset() {
   local block
   _hi_settings_fixture preset_run _hi_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings preset_run)")"
-  [[ "$block" == *"export _HI_HEADER_TIMESTAMP=0"* && "$block" == *"export _HI_HEADER_IDENTITY=0"* &&
-    "$block" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* && "$block" == *"export _HI_DISABLE_NOTIFY=1"* &&
+  [[ "$block" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* && "$block" == *"export _HI_DISABLE_NOTIFY=1"* &&
     "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_DISABLE_EDITORS"* ]]
 }
 
@@ -1282,10 +1281,11 @@ function test_palette_asked_interactively_takes_a_word() {
     [ "$(_hi_cfg_lines pal_typed)" = "export _HI_PACKAGES_PALETTE=warm" ]
 }
 
-# the six header rows answered with Enter, then the order typed: one word is
-# a valid order (a row left out is skipped), quoted on the way to the file
+# the one surviving header row (banner) answered with Enter, then the
+# feature order typed: one word is a valid order (everything else left out
+# is skipped), quoted on the way to the file
 function test_header_order_typed_interactively() {
-  _hi_cfg_pty order_typed '\n\n\n\n\n\ncheck\n' '' config_header_details || return 1
+  _hi_cfg_pty order_typed '\ncheck\n' '' config_header_details || return 1
   [[ "$(_hi_cfg_lines order_typed)" == *"export _HI_HEADER_ORDER='check'"* ]]
 }
 

@@ -100,8 +100,19 @@ function _hi_row_line() {
       _HI_ROW_CARRY=("${args[@]:$i}")
       break
     fi
-    ((count == 0)) && width=0
-    out+="$NC | $cell"
+    if ((count == 0)); then
+      width=0
+      # $_HI_NO_LEAD_SPACE drops just this one leading space - the "| "
+      # between later cells is the structural separator, not "the initial
+      # space", and stays either way
+      if [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]]; then
+        out+="$NC| $cell"
+      else
+        out+="$NC | $cell"
+      fi
+    else
+      out+="$NC | $cell"
+    fi
     width=$((width + vislen))
     ((++count))
   done
@@ -177,12 +188,46 @@ function _hi_header_version() {
 
 # UTC | version | local. `|| :` on both clocks: a target with no date(1)
 # gets an empty cell, not two "command not found" lines across the header.
-function timestamp() {
-  local utc local_now
+# <var> gets one of timestamp()'s three cells - a pure getter, no header_row
+# call of its own. $_HI_HEADER_ORDER's flattened dispatch (_hi_collect_header_word,
+# below full_check's neighbor _hi_header_row) needs the *text*, not a line
+# printed on the spot: header_row always ends its own call with a newline
+# (_hi_row_line's final printf), so a getter that called it directly would
+# put every cell on its own line instead of letting several pack onto one -
+# exactly the row concept this flattening is supposed to remove, not
+# reintroduce one cell at a time. timestamp() below still calls header_row
+# itself, once, with the getters' three answers together - unchanged output
+# for load.sh's disconnect banner and any other direct caller.
+function _hi_cell_utc() {
+  # not "utc": timestamp() below passes that exact name as $1, and this
+  # getter's own local of the same name would shadow it right back -
+  # printf -v resolves the nearest scope, which by then is this function's
+  # own frame, not the caller's.
+  local _hi_utc_raw
+  _hi_utc_raw="$(date -u "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
+  printf -v "$1" '%s' "$BRBLUE${_hi_utc_raw:-?}"
+}
+
+function _hi_cell_version() {
   _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
-  utc="$(date -u "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
+  printf -v "$1" '%s' "$GREEN$_HI_HEADER_VERSION"
+}
+
+function _hi_cell_localtime() {
+  local local_now
   local_now="$(date "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
-  header_row "$BRBLUE${utc:-?}" "$GREEN$_HI_HEADER_VERSION" "$BRYELLOW${local_now:-?}"
+  printf -v "$1" '%s' "$BRYELLOW${local_now:-?}"
+}
+
+# The group wrapper, kept for load.sh's disconnect banner and any direct
+# caller (hi --doctor, a suite) that wants the bundle rather than picking
+# individual words.
+function timestamp() {
+  local utc version localtime
+  _hi_cell_utc utc
+  _hi_cell_version version
+  _hi_cell_localtime localtime
+  header_row "$utc" "$version" "$localtime"
 }
 
 # _hi_ghz <var> <mhz> - <var> as "<n>.<tenth>" GHz; printf, not an awk fork
@@ -237,7 +282,14 @@ function _hi_humanize_uptime() {
   fi
 }
 
-function system_info() {
+# The detection system_info()'s five cells share, run once per shell and
+# memoized into $_HI_SI_* (fully rendered, colored cell text - the same
+# memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells into
+# independently orderable/toggleable $_HI_HEADER_ORDER words costs nothing
+# extra: arch alone still pays for exactly one probe, not five.
+function _hi_system_info_probe() {
+  [ -z "${_HI_SI_PROBED:-}" ] || return 0
+  _HI_SI_PROBED=1
   local kernel arch os cpus ram base_mhz boost_mhz load="" load_pct=""
   # process substitution, not <<<: a here-string is a temp file before bash
   # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
@@ -334,9 +386,44 @@ function system_info() {
   # closed to "?", not a garbled cell
   case "$load" in '' | *[!0-9.]*) load="" ;; esac
   _hi_load_pct load_pct "$load" "${cpus:-}"
-  header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}${load_pct:+ ($load_pct%)}" \
-    "${BRBLUE}CPU: $(_hi_cpu_clocks "${base_mhz:-}" "${boost_mhz:-}") GHz" \
-    "${CYAN}RAM: ${ram:-?}"
+  _HI_SI_ARCH="$PURPLE${arch:-?}"
+  _HI_SI_OS="$GREEN${os:-?}"
+  _HI_SI_CORES="${YELLOW}Cores: ${cpus:-?}${load_pct:+ ($load_pct%)}"
+  _HI_SI_CPU="${BRBLUE}CPU: $(_hi_cpu_clocks "${base_mhz:-}" "${boost_mhz:-}") GHz"
+  _HI_SI_RAM="${CYAN}RAM: ${ram:-?}"
+}
+
+function _hi_cell_arch() {
+  _hi_system_info_probe
+  printf -v "$1" '%s' "$_HI_SI_ARCH"
+}
+function _hi_cell_os() {
+  _hi_system_info_probe
+  printf -v "$1" '%s' "$_HI_SI_OS"
+}
+function _hi_cell_cores() {
+  _hi_system_info_probe
+  printf -v "$1" '%s' "$_HI_SI_CORES"
+}
+function _hi_cell_cpu() {
+  _hi_system_info_probe
+  printf -v "$1" '%s' "$_HI_SI_CPU"
+}
+function _hi_cell_ram() {
+  _hi_system_info_probe
+  printf -v "$1" '%s' "$_HI_SI_RAM"
+}
+
+# The group wrapper: unchanged output for any direct caller (hi --doctor,
+# a suite) that wants the whole bundle rather than picking individual words.
+function system_info() {
+  local arch os cores cpu ram
+  _hi_cell_arch arch
+  _hi_cell_os os
+  _hi_cell_cores cores
+  _hi_cell_cpu cpu
+  _hi_cell_ram ram
+  header_row "$arch" "$os" "$cores" "$cpu" "$ram"
 }
 
 # <var> gets the uptime cell, folded into identity() rather than a row of its
@@ -416,11 +503,19 @@ function _hi_probe_launch() {
   return 0
 }
 
-# git identity (domain masked), containers/jobs/pods, ssh key counts, uptime.
+# git identity (domain masked), containers/jobs/pods, ssh key counts - the
+# detection identity()'s cells share, memoized into $_HI_ID_* the same way
+# _hi_system_info_probe memoizes system_info()'s. $_HI_ID_CONTAINERS/_JOBS/_PODS
+# stay empty when that backend's probe never ran - a getter checks for that
+# itself, same "cell appears only when the probe actually ran" rule as
+# before. Uptime is not part of this probe: _hi_uptime_cell already has its
+# own minimal, independent one (see its own comment) and stays that way.
 # Reads what _hi_probe_launch started; calls it itself if nobody did.
-function identity() {
-  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0 up_cell
-  local -a lines cells
+function _hi_identity_probe() {
+  [ -z "${_HI_ID_PROBED:-}" ] || return 0
+  _HI_ID_PROBED=1
+  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0
+  local -a lines
   command -v git &>/dev/null && email=$(git config --get user.email 2>/dev/null || true)
   _hi_sanitize_var email "$email"
   if [ -n "$email" ]; then
@@ -459,17 +554,59 @@ function identity() {
   fi
   [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_read_lines lines <"$_HI_SSH_AUTHORIZED_KEYS" && authorized=${#lines[@]}
   [ -d "$_HI_SSH_DIR" ] && _hi_read_lines lines < <(find "$_HI_SSH_DIR" -type f -name "*.pub") && public=${#lines[@]}
-  cells=("$user_part")
-  [ -n "$containers" ] && cells+=("$BLUE$containers")
-  [ -n "$jobs" ] && cells+=("$BRCYAN$jobs")
-  [ -n "$pods" ] && cells+=("$CYAN$pods")
-  cells+=("${RED}Auth: $authorized" "${PURPLE}Pub: $public")
-  # uptime rides the end of this row, not a row of its own, so it wraps with
-  # everything else instead of always costing a line
-  if [[ "${_HI_HEADER_UPTIME:-1}" != 0 ]]; then
-    _hi_uptime_cell up_cell
-    cells+=("$up_cell")
-  fi
+  _HI_ID_GITID="$user_part"
+  _HI_ID_CONTAINERS="${containers:+$BLUE$containers}"
+  _HI_ID_JOBS="${jobs:+$BRCYAN$jobs}"
+  _HI_ID_PODS="${pods:+$CYAN$pods}"
+  _HI_ID_AUTH="${RED}Auth: $authorized"
+  _HI_ID_PUB="${PURPLE}Pub: $public"
+}
+
+function _hi_cell_gitid() {
+  _hi_identity_probe
+  printf -v "$1" '%s' "$_HI_ID_GITID"
+}
+function _hi_cell_containers() {
+  _hi_identity_probe
+  printf -v "$1" '%s' "$_HI_ID_CONTAINERS"
+}
+function _hi_cell_jobs() {
+  _hi_identity_probe
+  printf -v "$1" '%s' "$_HI_ID_JOBS"
+}
+function _hi_cell_pods() {
+  _hi_identity_probe
+  printf -v "$1" '%s' "$_HI_ID_PODS"
+}
+function _hi_cell_auth() {
+  _hi_identity_probe
+  printf -v "$1" '%s' "$_HI_ID_AUTH"
+}
+function _hi_cell_pub() {
+  _hi_identity_probe
+  printf -v "$1" '%s' "$_HI_ID_PUB"
+}
+function _hi_cell_uptime() {
+  _hi_uptime_cell "$1"
+}
+
+# The group wrapper: unchanged output for any direct caller (hi --doctor,
+# a suite) that wants the whole bundle rather than picking individual words.
+function identity() {
+  local gitid containers jobs pods auth pub up_cell
+  local -a cells
+  _hi_cell_gitid gitid
+  _hi_cell_containers containers
+  _hi_cell_jobs jobs
+  _hi_cell_pods pods
+  _hi_cell_auth auth
+  _hi_cell_pub pub
+  _hi_cell_uptime up_cell
+  cells=("$gitid")
+  [ -n "$containers" ] && cells+=("$containers")
+  [ -n "$jobs" ] && cells+=("$jobs")
+  [ -n "$pods" ] && cells+=("$pods")
+  cells+=("$auth" "$pub" "$up_cell")
   header_row "${cells[@]}"
 }
 
@@ -500,13 +637,14 @@ function banner() {
       changes_w=$((changes_w + ${#_HI_BANNER_BRANCH} + 3))
     fi
   fi
-  local host tildes start_len end_len start_tildes end_tildes width left core
+  local host tildes start_len end_len start_tildes end_tildes width left core lead=" "
+  [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && lead=""
   # memoized for the same reason: two forks a banner for a fixed name
   [ -n "${_HI_BANNER_HOST+x}" ] || _hi_sanitize_var _HI_BANNER_HOST "$(_hi_hostname)"
   host="$_HI_BANNER_HOST"
   _hi_draw_width width
   # split so "label [host]" lands at the center with at least 1 tilde on the left
-  left=$((${#prefix} + 1 + changes_w))
+  left=$((${#prefix} + ${#lead} + changes_w))
   core=$((${#label} + ${#host} + 4))
   tildes=$((width - left - core - 1))
   ((tildes < 4)) && tildes=4
@@ -518,7 +656,7 @@ function banner() {
   _hi_repeat end_tildes "$end_len" '~'
   local host_esc=""
   _hi_host_escape host_esc
-  printf '%b\n' " $changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
+  printf '%b\n' "$lead$changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
 # tmux swallows the DCS passthrough osc52.sh and notify.sh wrap their escapes
@@ -543,51 +681,103 @@ function passthrough_check() {
 }
 
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
-# per row, naming the same rows its $_HI_HEADER_* toggle does. Named here
+# per feature, in the shipped default order - no more grouping: any word may
+# be reordered or left out on its own, independent of the others. Named here
 # rather than only in the case below, so a doc or test can read the default
-# without parsing the dispatch. No "uptime" word: its cell lives inside the
-# identity row now (identity()), gated by $_HI_HEADER_UPTIME but not
-# independently orderable.
-_HI_HEADER_ORDER_DEFAULT="timestamp sysinfo identity check"
+# without parsing the dispatch.
+_HI_HEADER_ORDER_DEFAULT="utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime check"
 
-# One named row of hi_header's dispatch, behind the same toggle the fixed
-# order used - so a row hidden by its toggle stays hidden whatever order it's
-# named in. An unknown word is silently skipped: _HI_HEADER_ORDER is a reorder,
-# not a second way to spell a typo into an error.
-function _hi_header_row() {
+# <var> gets $1's cell text if $1 names a getter, empty otherwise -
+# _hi_collect_header_word's own dispatch, split out so a direct caller (a
+# suite) can ask "what would this word render as" without going through the
+# accumulate/flush machinery below.
+function _hi_header_word_cell() {
   case "$1" in
-  timestamp) [[ "${_HI_HEADER_TIMESTAMP:-1}" == 0 ]] || timestamp ;;
-  sysinfo) [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info ;;
-  identity) [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity ;;
-  check) [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check ;;
+  utc) _hi_cell_utc "$2" ;;
+  version) _hi_cell_version "$2" ;;
+  localtime) _hi_cell_localtime "$2" ;;
+  arch) _hi_cell_arch "$2" ;;
+  os) _hi_cell_os "$2" ;;
+  cores) _hi_cell_cores "$2" ;;
+  cpu) _hi_cell_cpu "$2" ;;
+  ram) _hi_cell_ram "$2" ;;
+  gitid) _hi_cell_gitid "$2" ;;
+  containers) _hi_cell_containers "$2" ;;
+  jobs) _hi_cell_jobs "$2" ;;
+  pods) _hi_cell_pods "$2" ;;
+  auth) _hi_cell_auth "$2" ;;
+  pub) _hi_cell_pub "$2" ;;
+  uptime) _hi_cell_uptime "$2" ;;
+  *) printf -v "$2" '%s' "" ;;
+  esac
+}
+
+# One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
+# one header_row call (so full_check's own carry-absorption at its top sees
+# the right leftover), then runs it; every other word gets its cell text and
+# appends it to $_HI_PENDING_CELLS (bash's dynamic scoping reaches into the
+# caller's local array, the same trick $_HI_ROW_CARRY's callers use) rather
+# than calling header_row itself - header_row always ends its own call with a
+# newline, so a call per feature would put one cell per line instead of
+# letting consecutive features pack onto one, the very thing this flattening
+# is supposed to stop being a fixed row rather than reintroduce one at a
+# time. An unknown word is silently skipped: a reorder, not a second way to
+# spell a typo into an error.
+function _hi_collect_header_word() {
+  if [ "$1" = check ]; then
+    if ((${#_HI_PENDING_CELLS[@]})); then
+      header_row "${_HI_PENDING_CELLS[@]}"
+      _HI_PENDING_CELLS=()
+    fi
+    full_check
+    return 0
+  fi
+  local cell=""
+  _hi_header_word_cell "$1" cell
+  [ -n "$cell" ] && _HI_PENDING_CELLS+=("$cell")
+}
+
+# Is <word> anywhere in $_HI_HEADER_ORDER (or its default)? Used to decide
+# whether hi_header's eager probe-launch is worth starting at all, and by
+# load.sh's disconnect banner to match the connect side without a
+# disconnect-specific toggle of its own.
+function _hi_order_has() {
+  case " ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT} " in
+  *" $1 "*) return 0 ;;
+  *) return 1 ;;
   esac
 }
 
 function hi_header() {
   [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && return 0
   banner "$@"
-  # ahead of the fork-only rows, so their ~30ms runs inside the probes' wall
-  # clock; same toggle, so a hidden identity row still starts nothing. Always
-  # first regardless of $_HI_HEADER_ORDER - a latency optimization, not a row.
-  [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || _hi_probe_launch
+  # ahead of the fork-only cells, so their ~30ms runs inside the probes' wall
+  # clock. Only the three that actually consume a backend probe gate this -
+  # gitid/auth/pub never did, so they cost nothing here whether or not they
+  # end up in the order.
+  if _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; then
+    _hi_probe_launch
+  fi
   local row
-  # armed for the span of this loop only - every row's overflow cascades into
-  # the next row's line instead of costing one of its own. Reset per call:
-  # hi_header runs twice a session (connect, disconnect).
+  local -a _HI_PENDING_CELLS=()
+  # armed for the span of this loop only - a cell's overflow cascades into
+  # the next header_row call's line instead of costing one of its own. Reset
+  # per call: hi_header runs twice a session (connect, disconnect).
   _HI_ROW_CARRY=() _HI_ROW_CARRY_ARMED=1
-  # shellcheck disable=SC2086 # the split is the point: one word per row
+  # shellcheck disable=SC2086 # the split is the point: one word per feature
   for row in ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT}; do
-    _hi_header_row "$row"
+    _hi_collect_header_word "$row"
   done
+  ((${#_HI_PENDING_CELLS[@]})) && header_row "${_HI_PENDING_CELLS[@]}"
   _HI_ROW_CARRY_ARMED=0
-  # whatever the last enabled row's line couldn't fit, printed as its own
-  # line rather than dropped - a no-op when that row was "check", since
-  # full_check absorbs the carry itself and leaves none behind.
+  # whatever the last line couldn't fit, printed as its own line rather than
+  # dropped - a no-op when the order ends on "check", since full_check
+  # absorbs the carry itself and leaves none behind.
   _hi_header_flush
   # last, so the one line that says something is wrong sits next to the
   # prompt. Connect only: load.sh's disconnect calls banner directly. No
   # _HI_HEADER_ORDER word of its own - like passthrough_check always was,
-  # this is not a row a reorder moves.
+  # this is not a word a reorder moves.
   passthrough_check
 }
 
@@ -752,8 +942,12 @@ function full_check() {
     piece="${row_pieces[$i]}"
     if ((width + width_item > max)); then # start of a row
       ((count == 0)) || printf '\n'
-      printf ' '
-      width=1
+      if [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]]; then
+        width=0
+      else
+        printf ' '
+        width=1
+      fi
     fi
     printf '%b' "$NC$piece$NC"
     width=$((width + width_item))

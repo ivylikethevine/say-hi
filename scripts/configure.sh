@@ -158,15 +158,37 @@ function _hi_is_packages_palette() {
   case "$1" in cool | warm | mono) ;; *) return 1 ;; esac
 }
 
-# $_HI_HEADER_ORDER's vocabulary: the words header.sh's _hi_header_row case
-# understands, any order, space-separated, a row skippable by leaving it out
+# $_HI_HEADER_ORDER's vocabulary: the words header.sh's _hi_header_word_cell
+# case understands, any order, space-separated, a feature skippable by
+# leaving it out
 function _hi_is_header_order() {
   local word
   [ -n "$1" ] || return 1
-  # shellcheck disable=SC2086 # the split is the point: one word per row
+  # shellcheck disable=SC2086 # the split is the point: one word per feature
   for word in $1; do
-    case "$word" in timestamp | sysinfo | identity | check) ;; *) return 1 ;; esac
+    case "$word" in
+    utc | version | localtime | arch | os | cores | cpu | ram | gitid | \
+      containers | jobs | pods | auth | pub | uptime | check) ;;
+    *) return 1 ;;
+    esac
   done
+}
+
+# true if "check" is present in the header order this run would write - the
+# replacement for the retired _HI_HEADER_CHECK toggle, config_packages_floor
+# and config_packages_palette's own skip-when-moot shape. Not
+# $_HI_HEADER_ORDER_DEFAULT: that lives in common/header.sh, which
+# _hi_load_preview_sources only sources for an interactive run - a
+# non-interactive --preset run must not depend on it having loaded. Empty
+# means unset, which means the default order, which always includes check.
+function _hi_header_order_has_check() {
+  local current
+  setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" current
+  [ -z "$current" ] && return 0
+  case " $current " in
+  *' check '*) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 # A section heading plus one line saying what the questions under it decide,
@@ -322,13 +344,13 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?|"
 )
 
+# The one row that survives from the old row toggles: banner is not part of
+# $_HI_HEADER_ORDER's reorderable feature list (it always leads), so it still
+# needs its own hide switch. Every other former row toggle (TIMESTAMP/
+# SYSINFO/UPTIME/IDENTITY/CHECK) is retired - that content is addressed at
+# the finer feature grain, through config_header_order below.
 _HI_HEADER_PROMPTS=(
   "_HI_HEADER_BANNER|0||_hi_banner_preview| Show the connect/disconnect banner line?|"
-  "_HI_HEADER_TIMESTAMP|0||timestamp| Show the timestamp line?|"
-  "_HI_HEADER_SYSINFO|0||system_info| Show the system info line (OS, CPU, RAM)?|"
-  "_HI_HEADER_UPTIME|0||identity| Show the uptime cell (on the identity line)?|"
-  "_HI_HEADER_IDENTITY|0||identity| Show the git identity/docker/ssh key line?|"
-  "_HI_HEADER_CHECK|0||full_check| Show the installed-packages check?|"
 )
 
 # asked only while the prompt is on: whether to hand it to starship where a
@@ -344,6 +366,7 @@ _HI_ADVANCED_PROMPTS=(
   "_HI_TERM_FALLBACK|0||| Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?|"
   "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?|"
   "_HI_ENABLE_FISH_ALIAS_ABBR|0|1|| fish: expand every hi alias to its full command on the line before it runs (an abbr - it rewrites what your history says)?|fish"
+  "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?|"
 )
 
 # Ask every row of the table named by $1, recording whichever answers have to
@@ -393,7 +416,7 @@ function ask_prompt_group() {
 # takes them as final without asking.
 _HI_PRESETS=(
   "everything|every feature and every header line on - the shipped defaults|"
-  "balanced|everything but the noise: the header keeps its banner, system info and a shorter package check; no desktop notifications|_HI_HEADER_TIMESTAMP=0 _HI_HEADER_IDENTITY=0 _HI_PACKAGES_MIN_PRIORITY=3 _HI_DISABLE_NOTIFY=1"
+  "balanced|everything but the noise: a shorter package check, no desktop notifications|_HI_PACKAGES_MIN_PRIORITY=3 _HI_DISABLE_NOTIFY=1"
   "minimal|on targets only the colored prompt and the aliases - no header, editors, clipboard or notifications; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_OSC52=1 _HI_DISABLE_NOTIFY=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
@@ -521,18 +544,20 @@ function config_header_details() {
   config_header_order
 }
 
-# The row order: a space-separated $_HI_HEADER_ORDER word list, one free-text
-# answer like config_prompt_ends' rather than a preview loop - seeing the
-# effect means running hi_header itself (identity's backend probes among its
-# rows), not a one-line render like the floor's. Defaults to header.sh's own
-# $_HI_HEADER_ORDER_DEFAULT, loaded by _hi_load_preview_sources just above,
-# rather than a second copy of the word list here.
+# The feature order: a space-separated $_HI_HEADER_ORDER word list, one
+# free-text answer like config_prompt_ends' rather than a preview loop -
+# seeing the effect means running hi_header itself (identity's backend
+# probes among its cells), not a one-line render like the floor's. Defaults
+# to header.sh's own $_HI_HEADER_ORDER_DEFAULT, loaded by
+# _hi_load_preview_sources just above, rather than a second copy of the word
+# list here. A word left out is a feature hidden, same as its old row toggle
+# used to be - this list is both the toggle and the order now.
 function config_header_order() {
   local current="" value
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" current
-  value="$(ask_value "Order the header's rows print in (words: $_HI_HEADER_ORDER_DEFAULT)?" \
+  value="$(ask_value "Which header features to show, and in what order (words: $_HI_HEADER_ORDER_DEFAULT)?" \
     "$current" "$_HI_HEADER_ORDER_DEFAULT" _hi_is_header_order \
-    "only timestamp, sysinfo, identity and check are understood")"
+    "only utc, version, localtime, arch, os, cores, cpu, ram, gitid, containers, jobs, pods, auth, pub, uptime and check are understood")"
   # shellcheck disable=SC2016 # quoted for the file: the value has spaces
   _HI_SETTING_LINES+=("${value:+export _HI_HEADER_ORDER='$value'}")
 }
@@ -553,7 +578,7 @@ function config_header_order() {
 # a preview of something switched off is a box full of nothing.
 function config_packages_floor() {
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
-  setting_off _HI_HEADER_CHECK "$_HI_SETTINGS" 0 && return 0
+  _hi_header_order_has_check || return 0
   section "Choosing the package check's depth" "How much of settings/packages the header reports; the preview re-renders at each value."
   local current reply rejects=0 max_rejects=3
   current=""
@@ -600,7 +625,7 @@ function config_packages_floor() {
 # check itself off.
 function config_packages_palette() {
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && return 0
-  setting_off _HI_HEADER_CHECK "$_HI_SETTINGS" 0 && return 0
+  _hi_header_order_has_check || return 0
   section "Choosing the package check's colors" "Which named color ramp the check paints installed/missing packages with."
   local current="" value
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" current

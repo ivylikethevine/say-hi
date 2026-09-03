@@ -357,10 +357,3 @@ questions decided against are **deleted**: git history is the ledger.
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release.
-
-#### Miscellaneous
-
-Added randomly, to be filled out later.
-
-1. Add ability to remove the initial space on most items (prompt, header, etc.)
-2. Remove header "row" concept and instead just allow user to toggle specific features & change entire order

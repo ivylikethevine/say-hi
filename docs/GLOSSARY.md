@@ -101,6 +101,14 @@ doesn't. Used on hot paths (`_hi_git_prompt`'s optional out-var, `_hi_repeat`,
 `_hi_prompt_end`) — but only in bash: zsh's `printf` has no `-v`, so zsh
 callers keep the stdout form.
 
+Never `printf -v x ''` (a bare empty format, zero arguments) to clear a
+variable: verified against a real bash 3.2.0 build, that form leaves `$x`
+untouched rather than emptying it — bash 3.2's printf skips the assignment
+outright when there is nothing to format. `printf -v x '%s' ''` (one `%s`
+conversion, one empty argument) is the form that actually clears it on every
+bash this project targets; `_hi_git_prompt`'s out-var preclear is where this
+first bit (CI's macOS leg, not this Linux box's newer bash).
+
 ## HI.06 source guard
 
 `[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0` above a script's imperative

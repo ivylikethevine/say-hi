@@ -946,58 +946,57 @@ function test_hi_header_default_order() {
     ((ts < si)) && ((si < id)) && ((id < ck))
 }
 
-# a reordered $_HI_HEADER_ORDER moves the rows to match, and a row left out of
-# it is not printed at all - a second way to hide a row alongside its own
-# $_HI_HEADER_* toggle. identity is in this order, so its uptime cell still
-# rides along with it.
+# a reordered $_HI_HEADER_ORDER moves the features to match, and a feature
+# left out of it is not printed at all - that omission is the whole toggle
+# now, there is no separate $_HI_HEADER_* switch behind it any more. uptime
+# is in this order, so its cell still shows.
 function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-custom" out
-  local ck id si
+  local ck up si
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="check identity sysinfo" hi_header Connected)"
+  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
-  id="$(_hi_pos "$out" "Auth:")"
+  up="$(_hi_pos "$out" "Up:")"
   si="$(_hi_pos "$out" "Cores:")"
   [[ "$out" != *orderprobe* ]] &&
-    [[ "$out" == *"Up:"* ]] &&
-    [ -n "$ck" ] && [ -n "$id" ] && [ -n "$si" ] &&
-    ((ck < id)) && ((id < si))
+    [ -n "$ck" ] && [ -n "$up" ] && [ -n "$si" ] &&
+    ((ck < up)) && ((up < si))
 }
 
-# "uptime" left $_HI_HEADER_ORDER's vocabulary along with the row - an unknown
-# word is ignored rather than erroring or printing anything for it, and that
-# is what a word this list no longer understands falls back to
+# an unknown word is ignored rather than erroring or printing anything for it
 function test_hi_header_order_ignores_an_unknown_word() {
   local out
-  out="$(_HI_HEADER_ORDER="bogus sysinfo" hi_header Connected)"
+  out="$(_HI_HEADER_ORDER="bogus cores" hi_header Connected)"
   [[ "$out" == *"Cores:"* ]]
 }
 
-function test_hi_header_order_uptime_is_no_longer_a_word() {
+# uptime is its own word now, independent of every other former identity cell
+function test_hi_header_order_uptime_is_its_own_word() {
   local out
-  out="$(_HI_HEADER_ORDER="uptime sysinfo" hi_header Connected)"
-  [[ "$out" != *"Up:"* && "$out" == *"Cores:"* ]]
+  out="$(_HI_HEADER_ORDER="uptime cores" hi_header Connected)"
+  [[ "$out" == *"Up:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
 }
 
-# _HI_HEADER_UPTIME=0 hides just the uptime cell, the identity row's other
-# cells stay
-function test_hi_header_uptime_toggle_hides_the_cell() {
+# leaving uptime out of the order hides just that cell - the identity
+# group's other words stay, there is no separate toggle behind it any more
+function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
   local out
-  out="$(_HI_HEADER_UPTIME=0 hi_header Connected)"
+  out="$(_HI_HEADER_ORDER="gitid auth" hi_header Connected)"
   [[ "$out" != *"Up:"* && "$out" == *"Auth:"* ]]
 }
 
-# End to end: hi_header arms the cascade for its own row loop, so identity's
-# overflow (its Up: cell, guaranteed last) rides into the packages row's
-# first line instead of standing alone. A restricted PATH (no docker/podman/
-# nomad/kubectl, the same fixture identity()'s own backend-cell tests use via
-# _hi_identity_path) keeps identity's cells short and deterministic; one
-# priority-3 package guarantees full_check has something to open with.
+# End to end: hi_header arms the cascade for its own accumulate/flush loop,
+# so uptime's overflow (guaranteed last of the identity-group words here)
+# rides into the packages row's first line instead of standing alone. A
+# restricted PATH (no docker/podman/nomad/kubectl, the same fixture
+# identity()'s own backend-cell tests use via _hi_identity_path) keeps these
+# cells short and deterministic; one priority-3 package guarantees
+# full_check has something to open with.
 function test_hi_header_cascades_identity_overflow_into_check() {
   local pkgfile="$_HI_WORKDIR/cascade-into-check" out line
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_PACKAGES="$pkgfile" \
-  _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="identity check" \
+  _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
   [[ "$out" == *"Up:"* && "$out" == *"$_HI_REAL_CMD"* ]] || return 1
   while IFS= read -r line; do
@@ -1012,9 +1011,21 @@ function test_hi_header_cascades_identity_overflow_into_check() {
 function test_hi_header_flushes_leftover_when_check_is_absent() {
   local out
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
-  _HI_MAX_WIDTH=20 _HI_HEADER_ORDER="identity" \
+  _HI_MAX_WIDTH=20 _HI_HEADER_ORDER="gitid auth pub uptime" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
   [[ "$out" == *"Auth:"* && "$out" == *"Up:"* ]]
+}
+
+# an order word that reorders across former group boundaries packs onto one
+# line exactly like a same-group order does - "row" is gone as a fixed
+# concept, only width-driven packing decides where a line breaks now
+function test_hi_header_order_packs_across_former_group_boundaries() {
+  local out lines
+  out="$(_HI_HEADER_ORDER="cpu gitid utc" hi_header Connected)"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  # banner + one packed line (cpu, gitid and utc all short enough to share it)
+  [ "$lines" -eq 2 ] &&
+    [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
 }
 
 # Does $1 contain the bytes of $2? A byte-exact `grep -F` under LC_ALL=C rather
@@ -1457,13 +1468,14 @@ function run_header_tests() {
   _hi_check "No output when disabled" test_hi_header_disabled_produces_no_output
   _hi_check "Prints the banner when enabled" test_hi_header_enabled_prints_banner
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
-  _hi_check "Default row order: timestamp, sysinfo, identity, check" test_hi_header_default_order
-  _hi_check "_HI_HEADER_ORDER reorders, and omitting a row hides it" test_hi_header_order_setting_reorders_and_can_omit
+  _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order
+  _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
-  _hi_check "'uptime' is no longer an order word" test_hi_header_order_uptime_is_no_longer_a_word
-  _hi_check "_HI_HEADER_UPTIME=0 hides just the uptime cell" test_hi_header_uptime_toggle_hides_the_cell
-  _hi_check "A row's overflow cascades into the packages row" test_hi_header_cascades_identity_overflow_into_check
+  _hi_check "'uptime' is its own order word now" test_hi_header_order_uptime_is_its_own_word
+  _hi_check "Omitting 'uptime' hides just that cell" test_hi_header_order_omitting_uptime_hides_just_that_cell
+  _hi_check "A line's overflow cascades into the packages block" test_hi_header_cascades_identity_overflow_into_check
   _hi_check "...and still flushes when 'check' is left out" test_hi_header_flushes_leftover_when_check_is_absent
+  _hi_check "Reordering across former group boundaries still packs" test_hi_header_order_packs_across_former_group_boundaries
 
   _hi_h2 "Testing: passthrough_check"
   _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off
