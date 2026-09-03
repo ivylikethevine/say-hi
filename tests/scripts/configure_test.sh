@@ -1018,6 +1018,340 @@ function test_config_hi_degrades_when_sudo_cannot_link() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"--no-link"* ]] && [ ! -e "$dir/bin/hi" ]
 }
 
+# ...and the sudo-less box: the same staging as the refused-sudo case, but
+# with a PATH that has no sudo on it at all - the other way into
+# link_hi_by_hand. readlink and dirname ride along as real binaries, since
+# swapping PATH for the probe takes the whole toolbox with it.
+function test_config_hi_degrades_with_no_sudo_at_all() {
+  local dir="$_HI_WORKDIR/nosudoatall" farm out rc=0
+  farm="$(_hi_real_path nosudo_tools readlink dirname)"
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  chmod 555 "$dir/bin"
+  out="$(
+    hash -r
+    # shellcheck disable=SC2030 # subshell-local is exactly the intent
+    PATH="$farm"
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || rc=$?
+  chmod 755 "$dir/bin"
+  [ "$rc" -eq 0 ] && [[ "$out" == *"--no-link"* ]] && [ ! -e "$dir/bin/hi" ]
+}
+
+#
+# The live previews, called straight rather than through show_preview: each is
+# the one line of truth its question illustrates, so what it names - the real
+# user and host, the real rc paths, what bat/starship resolve to - is the
+# assertion. PATH is swapped for the two that probe a command, so both of
+# their arms run here whatever this machine has installed.
+
+function test_prompt_preview_shows_this_user_and_host() {
+  _hi_load_preview_sources
+  local out
+  out="$(_hi_strip_ansi "$(_hi_prompt_preview)")"
+  [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* ]]
+}
+
+function test_editors_preview_names_both_overrides() {
+  local out
+  out="$(_hi_editors_preview)"
+  [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* ]]
+}
+
+function test_osc52_preview_names_the_escape_and_the_helper() {
+  local out
+  out="$(_hi_osc52_preview)"
+  [[ "$out" == *']52;c;'* && "$out" == *"$_HI_OSC52"* ]]
+}
+
+function test_bat_preview_names_the_bat_it_found() {
+  local dir out
+  dir="$(_hi_fake_path preview_bat bat)"
+  # shellcheck disable=SC2031 # the swaps here live and die in their own $( )
+  out="$(PATH="$dir:$PATH" _hi_bat_alias_preview)"
+  [[ "$out" == "cat -> $dir/bat "* ]]
+}
+
+# an empty PATH directory, so `command -v bat` fails even where bat is real
+function test_bat_preview_without_bat_says_targets_only() {
+  local out
+  mkdir -p "$_HI_WORKDIR/preview_none"
+  out="$(hash -r && PATH="$_HI_WORKDIR/preview_none" _hi_bat_alias_preview)"
+  [[ "$out" == *"bat is not installed here"* ]]
+}
+
+function test_starship_preview_reports_an_installed_one() {
+  local dir out
+  dir="$(_hi_fake_path preview_star starship)"
+  # shellcheck disable=SC2031 # the swap lives and dies in its own $( )
+  out="$(PATH="$dir:$PATH" _hi_starship_preview)"
+  [[ "$out" == *"starship is installed here"* ]]
+}
+
+function test_starship_preview_reports_an_absent_one() {
+  local out
+  mkdir -p "$_HI_WORKDIR/preview_none"
+  out="$(hash -r && PATH="$_HI_WORKDIR/preview_none" _hi_starship_preview)"
+  [[ "$out" == *"starship is not installed on this machine"* ]]
+}
+
+# an empty render is a real answer at a high enough floor, and the preview
+# says so rather than handing show_preview a blank to drop on the floor
+function test_floor_preview_says_off_at_the_top_floor() {
+  _hi_load_preview_sources
+  local out
+  out="$(_hi_strip_ansi "$(_hi_floor_candidate=4 _hi_packages_floor_preview)")"
+  [[ "$out" == *"nothing - the check is off at this floor"* ]]
+}
+
+# the palette's preview is the real check (every shipped row renders a mark,
+# installed or not, so floor 0 is never empty) - and the same off-message
+# shape as the floor's when the floor has hidden everything. Asserted on the
+# raw render: _hi_strip_ansi over a full floor-0 check (hundreds of escapes)
+# is where extglob replacement gets quadratic, and the names land unpainted
+# between escapes anyway.
+function test_palette_preview_renders_the_real_check() {
+  _hi_load_preview_sources
+  local out
+  out="$(_HI_PACKAGES_MIN_PRIORITY=0 _hi_packages_palette_preview)"
+  [[ "$out" == *" bat "* && "$out" != *"nothing -"* ]]
+}
+
+function test_palette_preview_says_off_above_every_priority() {
+  _hi_load_preview_sources
+  local out
+  out="$(_hi_strip_ansi "$(_HI_PACKAGES_MIN_PRIORITY=9 _hi_packages_palette_preview)")"
+  [[ "$out" == *"nothing - the package check is off"* ]]
+}
+
+# no git, no init - said in red, and no half-made overlay left behind
+function test_overlay_init_without_git_says_so() {
+  local dir="$_HI_WORKDIR/ovl-nogit" out rc=0
+  mkdir -p "$dir" "$_HI_WORKDIR/no-tools"
+  out="$(
+    hash -r
+    # shellcheck disable=SC2123,SC2030 # losing the search path is the case
+    PATH="$_HI_WORKDIR/no-tools"
+    _HI_CONFIG_DIR="$dir" overlay_init 2>&1
+  )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"git is not installed"* ]] && [ ! -d "$dir/.git" ]
+}
+
+# a machine that never ran `git config` still gets a committed overlay: init
+# falls back to a repo-local identity rather than failing its first commit
+function test_overlay_init_supplies_an_identity_when_git_has_none() {
+  local dir="$_HI_WORKDIR/ovl-noident"
+  mkdir -p "$dir" "$_HI_WORKDIR/ovl-noident-home"
+  (
+    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+    export HOME="$_HI_WORKDIR/ovl-noident-home"
+    _HI_CONFIG_DIR="$dir" overlay_init >/dev/null
+  ) || return 1
+  [ "$(git -C "$dir" config user.name)" = "say-hi" ] &&
+    [ "$(_hi_overlay_commits "$dir")" = 1 ]
+}
+
+# the whole run with neither a preset nor a tty: config_preset stands down,
+# every question keeps what the file holds, and the rewrite reproduces the
+# block it found rather than dropping it
+function _hi_no_preset_run() {
+  mkdir -p "$_HI_CONFIG_DIR"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_NOTIFY=1"
+  _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  _HI_PRESET_FINAL=""
+  run_configure "" </dev/null
+}
+
+function test_run_configure_without_a_preset_keeps_the_block() {
+  local block
+  _hi_settings_fixture nopreset _hi_no_preset_run
+  block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings nopreset)")"
+  [[ "$block" == *"export _HI_DISABLE_NOTIFY=1"* ]]
+}
+
+# The interactive arms proper: ask_setting's tty prompt, ask_value's typed
+# answers, config_preset and the intro are all `[ -t 0 ]`-gated the same way
+# the floor loop is, and the same pty harness reaches them. The child is
+# _HI_FLOOR_CHILD's shape generalised - point the settings at a scratch dir,
+# run the one configure function named on its argv with the pty as stdin, and
+# report the exit code, the preset-final flag and the collected lines on one
+# greppable tail line. Feeding a question an extra newline is harmless (it
+# sits unread); feeding one too few hangs the child, which _hi_wait_pid turns
+# into the kill this helper reports.
+# shellcheck disable=SC2016 # single quotes on purpose: every expansion in here
+# is the child shell's to make, after the pty has put it on the other side
+_HI_CFG_CHILD='
+  _hi_dir="$1"
+  shift
+  _hi_cfg_argv=("$@")
+  source "$_HI_TEST_LIB"
+  set --
+  source "$_HI_INSTALL"
+  _HI_ROOT="$_hi_dir"
+  _HI_CONFIG_DIR="$_hi_dir/config"
+  _HI_SETTINGS="$_hi_dir/config/settings.sh"
+  _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  _hi_cfg_rc=0
+  "${_hi_cfg_argv[@]}" || _hi_cfg_rc=$?
+  printf "CFGRC=%s CFGFINAL=%s CFGLINES=%s\n" "$_hi_cfg_rc" "${_HI_PRESET_FINAL:-none}" "${_HI_SETTING_LINES[*]:-}"
+'
+
+# _hi_cfg_pty <label> <input> <settings-line> <fn> [arg...] - one configure
+# function under a pty with <input> (printf %b) on its stdin. Transcript
+# lands in $_HI_WORKDIR/<label>.cfg.out; non-zero when the child had to be
+# killed at the deadline.
+function _hi_cfg_pty() {
+  local label="$1" input="$2" line="$3"
+  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.cfg.out"
+  shift 3
+  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
+  printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
+  : >"$out"
+  printf '%b' "$input" |
+    "${_HI_PTY_FORCED[@]}" bash -c "$_HI_CFG_CHILD" bash "$dir" "$@" >"$out" 2>&1 &
+  _hi_wait_pid "$!" 30 _hi_timed_out "$label" 30
+  [ "$_HI_WAIT_EXIT" != 124 ]
+}
+
+# the readers: the raw transcript for substrings (fixed strings only - a pty
+# writes CR-LF, so nothing here anchors a line), the tail line's fields
+# through the same CR normalisation the floor's readers use
+function _hi_cfg_has() { grep -qF "$2" "$_HI_WORKDIR/$1.cfg.out"; }
+function _hi_cfg_rc() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.cfg.out" | sed -n 's/.*CFGRC=\([0-9]*\).*/\1/p' | head -1
+}
+function _hi_cfg_lines() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.cfg.out" | sed -n 's/.*CFGLINES=//p' | head -1
+}
+
+# answering n turns a default-on toggle off, and the prompt said what the
+# setting was in words before asking
+function test_ask_setting_takes_a_no() {
+  _hi_cfg_pty ask_no 'n\n' '' \
+    ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_no/config/settings.sh" 1 || return 1
+  [ "$(_hi_cfg_rc ask_no)" = 1 ] && _hi_cfg_has ask_no "(currently on) [Y/n]"
+}
+
+# ...and y turns a written-off one back on, with the hint's capital flipped -
+# plus the preview box, boxed between the question and the read
+function test_ask_setting_takes_a_yes_over_an_off_state() {
+  _hi_cfg_pty ask_yes 'y\n' 'export _HI_DISABLE_FOO=1' \
+    ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_yes/config/settings.sh" 1 \
+    _hi_osc52_preview || return 1
+  [ "$(_hi_cfg_rc ask_yes)" = 0 ] &&
+    _hi_cfg_has ask_yes "(currently off) [y/N]" &&
+    _hi_cfg_has ask_yes "hi_copy"
+}
+
+function test_ask_setting_enter_keeps_the_off_state() {
+  _hi_cfg_pty ask_enter '\n' 'export _HI_DISABLE_FOO=1' \
+    ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_enter/config/settings.sh" 1 || return 1
+  [ "$(_hi_cfg_rc ask_enter)" = 1 ]
+}
+
+function test_ask_value_takes_a_typed_number() {
+  _hi_cfg_pty width_typed '120\n' '' config_max_width || return 1
+  [ "$(_hi_cfg_lines width_typed)" = "export _HI_MAX_WIDTH=120" ]
+}
+
+# a rejected answer says why and keeps the current value rather than dropping
+# it - the message names the value kept, so both halves are one substring
+function test_ask_value_rejects_junk_and_keeps_current() {
+  _hi_cfg_pty width_junk 'abc\n' 'export _HI_MAX_WIDTH=100' config_max_width || return 1
+  _hi_cfg_has width_junk "not a number, leaving it at 100" &&
+    [ "$(_hi_cfg_lines width_junk)" = "export _HI_MAX_WIDTH=100" ]
+}
+
+# typing the shipped default is how an override is cleared interactively
+function test_ask_value_typed_default_clears_the_override() {
+  _hi_cfg_pty width_default '80\n' 'export _HI_MAX_WIDTH=100' config_max_width || return 1
+  [ -z "$(_hi_cfg_lines width_default | tr -d '[:space:]')" ]
+}
+
+# the palette question previews the real check once, then takes a word
+function test_palette_asked_interactively_takes_a_word() {
+  _hi_cfg_pty pal_typed 'warm\n' '' config_packages_palette || return 1
+  _hi_cfg_has pal_typed "preview" &&
+    [ "$(_hi_cfg_lines pal_typed)" = "export _HI_PACKAGES_PALETTE=warm" ]
+}
+
+# the six header rows answered with Enter, then the order typed: one word is
+# a valid order (a row left out is skipped), quoted on the way to the file
+function test_header_order_typed_interactively() {
+  _hi_cfg_pty order_typed '\n\n\n\n\n\ncheck\n' '' config_header_details || return 1
+  [[ "$(_hi_cfg_lines order_typed)" == *"export _HI_HEADER_ORDER='check'"* ]]
+}
+
+# starship declined, then one separator typed for bash and Enter for the
+# rest: only the typed one is written, single-quoted
+function test_prompt_end_typed_interactively_is_quoted() {
+  _hi_cfg_pty pe_typed 'n\n>>\n\n\n' '' config_prompt_ends || return 1
+  local lines
+  lines="$(_hi_cfg_lines pe_typed)"
+  [[ "$lines" == *"export _HI_PROMPT_END_BASH='>>'"* && "$lines" != *"_HI_PROMPT_END_ZSH"* ]]
+}
+
+# the gate answered y really asks the advanced questions - and Enter through
+# all of them still writes nothing, since the defaults live in the code
+function test_advanced_gate_yes_walks_the_questions() {
+  _hi_cfg_pty adv_gate 'y\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_has adv_gate "Swap a TERM" &&
+    _hi_cfg_has adv_gate "Shell a session runs in" &&
+    [ -z "$(_hi_cfg_lines adv_gate | tr -d '[:space:]')" ]
+}
+
+# every advanced value typed for real, including the words-to-flag mapping
+# _HI_ASCII's question hides behind ("ascii" is stored as 1)
+function test_advanced_values_typed_interactively() {
+  _hi_cfg_pty adv_typed 'zsh login\nascii\n9\n0.5\n' '' config_advanced_values || return 1
+  local lines
+  lines="$(_hi_cfg_lines adv_typed)"
+  [[ "$lines" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$lines" == *"export _HI_ASCII=1"* &&
+    "$lines" == *"export _HI_TARGETS_TTL=9"* && "$lines" == *"export _HI_PROBE_TIMEOUT=0.5"* ]]
+}
+
+# Enter at the preset question keeps the current settings: nothing seeded,
+# and the run carries on rather than failing
+function test_preset_question_enter_keeps_current() {
+  _hi_cfg_pty pre_enter '\n' '' config_preset || return 1
+  [ "$(_hi_cfg_rc pre_enter)" = 0 ] &&
+    _hi_cfg_has pre_enter "Start from a preset?" &&
+    ! _hi_cfg_has pre_enter "starting from the"
+}
+
+# a typo gets the full name list back and the run carries on unseeded - the
+# question is an offer, not a gate
+function test_preset_question_refuses_a_stranger_and_carries_on() {
+  _hi_cfg_pty pre_unknown 'zzz\n' '' config_preset || return 1
+  [ "$(_hi_cfg_rc pre_unknown)" = 0 ] && _hi_cfg_has pre_unknown "no such preset: zzz"
+}
+
+# a shorthand letter resolves, and Enter at "apply as is" leaves the walk
+# ahead rather than taking the preset as final
+function test_preset_shorthand_then_walk_through() {
+  _hi_cfg_pty pre_walk 'b\n\n' '' config_preset || return 1
+  _hi_cfg_has pre_walk "starting from the 'balanced' preset" &&
+    _hi_cfg_has pre_walk "CFGFINAL=none"
+}
+
+# the whole interactive run, shortest path: the intro orients, the shorthand
+# picks minimal, "apply as is" closes stdin for the sections, and the one
+# write at the end is exactly the preset's block
+function test_full_interactive_run_applies_a_preset_as_final() {
+  _hi_cfg_pty full_walk 'm\ny\n' '' run_configure "" || return 1
+  local block
+  block="$(grep -F "$_HI_MARKER" "$_HI_WORKDIR/full_walk/config/settings.sh")"
+  _hi_cfg_has full_walk "nothing is written until the last question" &&
+    _hi_cfg_has full_walk "starting from the 'minimal' preset" &&
+    _hi_cfg_has full_walk "CFGFINAL=1" &&
+    [[ "$block" == *"export _HI_DISABLE_HEADER=1"* && "$block" == *"export _HI_DISABLE_LOCAL=1"* ]]
+}
+
 function run_configure_tests() {
   _hi_workdir configuretest
 
@@ -1067,6 +1401,8 @@ function run_configure_tests() {
   _hi_check_requires git "A tracked overlay commits settings writes" test_overlay_commit_records_a_change_when_tracked
   _hi_check_requires git "Nothing new, no commit" test_overlay_commit_is_a_noop_with_nothing_new
   _hi_check_requires git "An untracked overlay never hears about git" test_overlay_commit_never_creates_a_repo
+  _hi_check "No git, no init - and it says so" test_overlay_init_without_git_says_so
+  _hi_check_requires git "Init supplies an identity where git has none" test_overlay_init_supplies_an_identity_when_git_has_none
 
   _hi_h2 "Testing: ensure_settings_shebang"
   _hi_check "Written to a new settings.sh" test_shebang_is_written_to_a_new_settings_file
@@ -1130,6 +1466,7 @@ function run_configure_tests() {
   _hi_check "The vocabulary excludes the palette and the order" test_preset_vocab_excludes_palette_and_order
   _hi_check "--preset writes exactly the preset" test_preset_run_writes_the_preset
   _hi_check "install.sh refuses an unknown --preset" test_install_rejects_an_unknown_preset
+  _hi_check "No preset and no tty keeps the block" test_run_configure_without_a_preset_keeps_the_block
 
   _hi_h2 "Testing: _hi_visible_len"
   _hi_check "Plain text" test_visible_len_plain_text
@@ -1152,6 +1489,36 @@ function run_configure_tests() {
   _hi_check_capable symlink "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
   _hi_check_capable symlink "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
   _hi_check_capable lockout "Degrades when sudo can't link" test_config_hi_degrades_when_sudo_cannot_link
+  _hi_check_capable lockout "Degrades with no sudo at all" test_config_hi_degrades_with_no_sudo_at_all
+
+  _hi_h2 "Testing: the question previews"
+  _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
+  _hi_check "Editors preview names both overrides" test_editors_preview_names_both_overrides
+  _hi_check "OSC 52 preview names the escape and the helper" test_osc52_preview_names_the_escape_and_the_helper
+  _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
+  _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
+  _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one
+  _hi_check "...and an absent one" test_starship_preview_reports_an_absent_one
+  _hi_check "Floor preview says off at the top floor" test_floor_preview_says_off_at_the_top_floor
+  _hi_check "Palette preview renders the real check" test_palette_preview_renders_the_real_check
+  _hi_check "...and says off above every priority" test_palette_preview_says_off_above_every_priority
+
+  _hi_h2 "Testing: the interactive arms (pty)"
+  _hi_check_capable pty "ask_setting takes a no" test_ask_setting_takes_a_no
+  _hi_check_capable pty "ask_setting takes a yes over an off state" test_ask_setting_takes_a_yes_over_an_off_state
+  _hi_check_capable pty "ask_setting: Enter keeps the off state" test_ask_setting_enter_keeps_the_off_state
+  _hi_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
+  _hi_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
+  _hi_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
+  _hi_check_capable pty "Palette: previewed once, then a typed word" test_palette_asked_interactively_takes_a_word
+  _hi_check_capable pty "Header order: typed and quoted" test_header_order_typed_interactively
+  _hi_check_capable pty "Prompt end: typed and quoted" test_prompt_end_typed_interactively_is_quoted
+  _hi_check_capable pty "Advanced gate: y walks the questions" test_advanced_gate_yes_walks_the_questions
+  _hi_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
+  _hi_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
+  _hi_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
+  _hi_check_capable pty "Preset shorthand, then the walk-through" test_preset_shorthand_then_walk_through
+  _hi_check_capable pty "Full run: a preset applied as final" test_full_interactive_run_applies_a_preset_as_final
 
   _hi_suite_end "configure.sh logic"
 }

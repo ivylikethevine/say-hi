@@ -118,6 +118,13 @@ function test_bashrc_states_the_tree() { _hi_loc_rc_states_the_tree .bashrc; }
 function test_zshrc_states_the_tree() { _hi_loc_rc_states_the_tree .zshrc; }
 function test_fish_config_states_the_tree() { _hi_loc_rc_states_the_tree .config/fish/config.fish; }
 
+# the install itself has to have said it finished: a run that died between
+# wiring the rc files and its closing banner would leave every case below
+# asserting against a half-made install
+function test_the_install_reported_success() {
+  grep -q "Installed!" "$_HI_WORKDIR/install.log"
+}
+
 # the tree stays where it is: an install writes the user's rc files and the
 # overlay, never the checkout it was run from
 function test_the_install_wrote_nothing_into_the_tree() {
@@ -294,6 +301,7 @@ function run_install_location_tests() {
   _hi_suite_begin
 
   _hi_h2 "Testing: the rc wiring install.sh wrote"
+  _hi_check "The install reported success" test_the_install_reported_success
   _hi_check "bashrc names the tree" test_bashrc_states_the_tree
   _hi_check "zshrc names the tree" test_zshrc_states_the_tree
   _hi_check "config.fish names the tree" test_fish_config_states_the_tree

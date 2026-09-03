@@ -284,11 +284,12 @@ side) then `--group lint` on every push/PR. Runbook:
 [![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-Two coverage tools sit beside the suites and disagree — kcov reads far too
-low, bashcov far too high — so the two badges up top sit under a disclaimer,
-keep their self-describing labels (`load-time`, `heredoc-inflated`) instead of
-claiming to be coverage, and neither gates anything. Why each is wrong, and
-the profiler for a tripped bench ceiling, is
+Two coverage tools sit beside the suites — kcov and bashcov, each sweeping
+every suite the coverage runner can host, measured over the shipped product
+only. They cannot err in the same direction, so their landing within a few
+points of each other is what makes the number worth reading; each badge
+names its measurer, and neither gates anything. The residual per-file skews,
+and the profiler for a tripped bench ceiling, are
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## AI Usage
@@ -356,3 +357,9 @@ questions decided against are **deleted**: git history is the ledger.
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release.
+
+#### Miscellaneous
+
+Added randomly, to be filled out later.
+
+1. Add ability to remove the initial space on most items (prompt, header, etc.)

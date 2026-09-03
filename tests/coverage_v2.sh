@@ -16,18 +16,20 @@
 # WHY A SECOND COVERAGE SCRIPT
 #
 # tests/coverage.sh drives kcov, whose bash instrumentation is a DEBUG trap.
-# Something in tests/test_lib.sh's source-time work loses that trap, and every
-# line a suite runs *after* the harness finishes loading goes unrecorded - so
-# common/git_prompt.sh reports 2 of 78 lines (its two `set` statements, the only
-# ones that run at source time) while its 17 cases pass and assert real output.
-# coverage.sh's own header carries the measurements. It is a kcov bug, it is not
-# say-hi's to fix, and no amount of editing the suites moves it.
+# An earlier kcov lost that trap during tests/test_lib.sh's source-time work,
+# and every line a suite ran *after* the harness finished loading went
+# unrecorded - common/git_prompt.sh reported 2 of 78 lines while its 17 cases
+# passed. coverage.sh's own header keeps that measured record; the current
+# pin lands within a few points of this script's figure, and the two staying
+# close is what makes either worth reading.
 #
-# bashcov instruments a different way: it runs the script under `set -x` with a
-# PS4 that names $BASH_SOURCE and $LINENO, and reads the trace off
-# $BASH_XTRACEFD. xtrace follows into functions and subshells without needing a
-# trap to survive, so the failure mode above cannot happen here. The numbers
-# this prints are meant to be believed; coverage.sh's are not.
+# bashcov instruments a different way: it runs the script under `set -x` with
+# a PS4 that names $BASH_SOURCE and $LINENO, and reads the trace off
+# $BASH_XTRACEFD. xtrace follows into functions and subshells without needing
+# a trap to survive, so kcov's failure mode cannot happen here - though this
+# side has skews of its own (heredoc bodies count as covered whether or not
+# they ran; `env -i` children and in-container lines drop out of the trace),
+# which is why both tools ship rather than one replacing the other.
 #
 # The topology is the one coverage.sh established and is unchanged: one run per
 # suite, with the suite script as the *top-level* process, merged at the end.

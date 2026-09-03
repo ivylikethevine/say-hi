@@ -1,22 +1,23 @@
 name: Coverage
 
-# kcov and bashcov, each over the fast suites, published as artifacts -
-# visibility, never a gate: no PR waits on either and no threshold fails one.
+# kcov and bashcov, each over the full suite sweep (test_runner.sh's every-
+# suite default: fast plus whichever e2e backends the runner has - docker and
+# ssh here; kube/nomad/podman stand down as SKIPPED, nothing installs them),
+# published as artifacts - visibility, never a gate: no PR waits on either
+# and no threshold fails one.
 # One workflow, a two-entry matrix, because the two are identical in shape -
 # same workflow_run + workflow_dispatch trigger, same push/success gate, same
 # per-tool concurrency - and differed before only in which tool ran.
 #
-# Neither figure is to be believed on its own, and they disagree in opposite
-# directions:
-#   - kcov loses its DEBUG trap once test_lib.sh is sourced (tests/coverage.sh's
-#     READ THIS BEFORE BELIEVING A NUMBER THIS PRINTS), so it understates real
-#     coverage by a wide, uneven margin and the README badge says `load-time`
-#     in grey, under an accuracy disclaimer.
-#   - bashcov reads bash's xtrace, so it keeps the suites kcov loses
-#     (git_prompt.sh 92.68% vs. 2.56%), but marks every heredoc-body line
-#     covered - hi.sh's two connect functions, 182 lines --group fast never
-#     runs, report 100% - so its badge says `heredoc-inflated` in grey, under
-#     the same disclaimer.
+# The two figures land within a few points of each other and are usable -
+# for finding untested arms and watching the trend, never as a gate. Each
+# still skews a little, in opposite directions: kcov once lost its DEBUG
+# trap wholesale (tests/coverage.sh's header keeps the measured record; if
+# the two badges diverge again, re-run its probe before believing either),
+# and bashcov marks every heredoc-body line covered whether or not the run
+# executed it and cannot see into `env -i` children or containers - so a
+# single file reads a few points off in either direction while the pair
+# brackets the truth.
 #
 # workflow_run so every green push to main refreshes both figures without a
 # manual dispatch; each job gates on the run's conclusion and event the way
@@ -34,7 +35,7 @@ name: Coverage
 # the cost is that the failed tool's own badge goes stale (it needs a run
 # where *both* legs pass to find a newer artifact) rather than the fully
 # independent search two separate workflows gave it - an acceptable trade for
-# an advisory-only figure that already carries a "not to be believed" label.
+# an advisory-only figure that never gates anything.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -47,7 +48,7 @@ permissions:
 
 jobs:
   coverage:
-    name: ${{ matrix.tool }} over the fast suites
+    name: ${{ matrix.tool }} over the suite sweep
     # only a green push to main measures; a manual dispatch passes the first
     # clause
     if: >-
@@ -135,7 +136,7 @@ jobs:
       # No shellcheck/shfmt/checkbashisms on purpose: both coverage scripts
       # drop the `shellcheck` suite from the sweep, so the host report's
       # "(absent)" for them is not a failure.
-      - name: Run the fast suites under ${{ matrix.tool }}
+      - name: Run the suite sweep under ${{ matrix.tool }}
         run: "${{ matrix.script }} ${{ matrix.report_dir }}"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -152,8 +153,12 @@ jobs:
       # inside a `{...}` and once for the whole run on a line of its own;
       # without it the first per-file figure wins. bashcov's SimpleCov
       # .resultset.json has no aggregate percentage at all, only per-line hit
-      # arrays, so ruby computes it - the filters coverage_v2.sh applies are
-      # already baked into the resultset.
+      # arrays, so ruby computes it - and applies the tests/ + docs/ subject
+      # filters itself: coverage_v2.sh's SimpleCov filters shape only the
+      # HTML report, while the resultset stays raw, so without them here the
+      # badge counts the harness and the never-executed demo scripts against
+      # the product (kcov's badge already excludes both: --exclude-path
+      # drops tests/, and files never executed don't reach its report).
       - name: Write the badge figure
         env:
           TOOL: ${{ matrix.tool }}
@@ -193,7 +198,10 @@ jobs:
                   end
                 end
               end
-              relevant = merged.values.flatten.compact
+              root = Dir.pwd + "/"
+              relevant = merged.reject { |f, _|
+                f.sub(root, "").start_with?("tests/", "docs/")
+              }.values.flatten.compact
               exit 1 if relevant.empty?
               printf("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
             ' "$src")" || {

@@ -215,45 +215,37 @@ jobs:
             echo "::warning::no package-install-sizes to read - package badge published as unknown"
           fi
 
-          # The kcov endpoint. Shown in README under an explicit accuracy
-          # disclaimer - README.md's Coverage and Profiling section has the story.
-          # Grey and labelled "load-time", never green and
-          # never "coverage": tests/coverage.sh's header explains at length that
-          # kcov loses its DEBUG trap once the harness is sourced, so this
-          # figure is the share of lines that ran while things were loading and
-          # understates real coverage by a wide, uneven margin
-          # (common/git_prompt.sh reads 2.56% with seventeen cases passing
-          # against it). A green "coverage: 60%" here would be a false claim on
-          # the front page, so the badge is written to be unmistakable instead.
+          # The kcov endpoint. Labelled by its measurer, not "coverage": the
+          # two tools still skew a few points in opposite directions
+          # (docs/TESTING.md's Coverage and profiling section), so each badge
+          # names its tool and the agreeing pair is the claim. Informational
+          # blue rather than pass/fail green - no threshold gates on these.
           # No warning on the empty branch: no successful coverage run yet is
           # a normal state, not something to flag.
           pct=""
           [ -f "$COVPCT" ] && read -r pct <"$COVPCT" || true
           if [ -n "$pct" ]; then
-            badge coverage.json kcov inactive "$pct% load-time"
-            echo "kcov badge: $pct% load-time"
+            badge coverage.json kcov informational "$pct%"
+            echo "kcov badge: $pct%"
           else
             badge coverage.json kcov inactive "not measured"
             echo "kcov badge: no figure published yet"
           fi
 
-          # The bashcov endpoint. Same deal as the kcov one above - shown in
-          # README under the same disclaimer. Grey and labelled "heredoc-inflated" for the
-          # mirror-image reason kcov's says "load-time": bashcov reads xtrace
-          # rather than a DEBUG trap, so it does not lose the suites (
-          # common/git_prompt.sh reads 92.68% here against kcov's 2.56%), but it
-          # counts every line of a heredoc *body* as covered - and hi.sh, which
-          # generates the whole remote script that way, reports 100% for two
-          # connect functions --group fast never calls. An over-count where
-          # kcov's is an under-count, so it gets the same unmistakable
-          # treatment rather than a green percentage.
+          # The bashcov endpoint. Same treatment as the kcov one above: named
+          # by its tool, informational blue. bashcov reads xtrace rather than
+          # a DEBUG trap, and its residual skew runs the other way from
+          # kcov's - heredoc bodies count as covered whether or not they ran,
+          # while `env -i` children and in-container lines drop out - which
+          # is exactly why both badges ship: the two cannot err in the same
+          # direction, so their agreement is the claim.
           # No warning on the empty branch: no successful run yet is a normal
           # state, not something to flag.
           pct2=""
           [ -f "$COVPCT2" ] && read -r pct2 <"$COVPCT2" || true
           if [ -n "$pct2" ]; then
-            badge coverage-v2.json bashcov inactive "$pct2% heredoc-inflated"
-            echo "bashcov badge: $pct2% heredoc-inflated"
+            badge coverage-v2.json bashcov informational "$pct2%"
+            echo "bashcov badge: $pct2%"
           else
             badge coverage-v2.json bashcov inactive "not measured"
             echo "bashcov badge: no figure published yet"

@@ -432,6 +432,46 @@ function test_release_workflow_only_runs_on_tags() {
   grep -qE '^ *- "v\*"' "$_HI_RELEASE_WF" && ! grep -qE '^ *(branches|pull_request):' "$_HI_RELEASE_WF"
 }
 
+# release.yml's publish job seds the minisign public key out of
+# docs/PACKAGING.md's verification line - a contract with nothing else
+# holding it. The sed program is extracted from the workflow's own text, so
+# this guards the real pattern rather than a copy that could drift with it.
+function test_release_minisign_pubkey_sed_matches_packaging_md() {
+  local prog key
+  prog="$(sed -n 's/.*sed -n "\(s\/^minisign[^"]*\)".*/\1/p' "$_HI_RELEASE_WF" | head -1)"
+  [ -n "$prog" ] || {
+    _hi_cecho " | could not extract the pubkey sed program from release.yml" "$RED"
+    return 1
+  }
+  key="$(sed -n "$prog" "$_HI_ROOT/docs/PACKAGING.md" | head -1)"
+  # a minisign public key: 56 chars of base64 starting RW; anything else
+  # means the PACKAGING.md line moved or reflowed out from under the sed
+  case "$key" in
+  RW[A-Za-z0-9+/=]*) [ "${#key}" -eq 56 ] ;;
+  *)
+    _hi_cecho " | the workflow's sed read [$key] out of docs/PACKAGING.md" "$RED"
+    return 1
+    ;;
+  esac
+}
+
+# every workflow chained off CI via workflow_run runs with its own elevated
+# defaults on main, so each must gate on the triggering run being a green
+# *push*: a forgotten gate is a job running off red or fork-PR CI. The
+# convention lives here rather than in six copied comments.
+function test_ci_chained_workflows_carry_the_green_push_gate() {
+  local wf bad=0
+  for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
+    grep -qF 'workflows: [CI]' "$wf" || continue
+    { grep -qF "conclusion == 'success'" "$wf" &&
+      grep -qF "event == 'push'" "$wf"; } || {
+      _hi_cecho " | ${wf##*/} chains off CI without the green-push gate" "$RED"
+      bad=1
+    }
+  done
+  [ "$bad" = 0 ]
+}
+
 # bump.sh --check is the tag/manifest gate; the build must not skip it
 function test_release_workflow_verifies_the_manifests() {
   grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
@@ -625,6 +665,18 @@ function test_bump_write_rewrites_formula_url_and_sha256() {
   )
 }
 
+# asset_url derives its host from the PKGBUILD's url= (the line makepkg
+# expands into source=), so a repo rename cannot ship manifests pointing at
+# the old host with --check still green on a no-makepkg runner
+function test_bump_asset_url_follows_the_pkgbuild_url() {
+  bump_fixture
+  (
+    _hi_bump_env
+    _hi_rewrite "$_HI_PKGBUILD" 's|^url=.*|url="https://example.invalid/renamed"|'
+    [ "$(asset_url 9.9.9)" = "https://example.invalid/renamed/releases/download/v9.9.9/say-hi-9.9.9.tar.gz" ]
+  )
+}
+
 # the no-makepkg path (any non-Arch box, incl. the release runner) has to fix
 # all three lines the AUR reads out of .SRCINFO, not just pkgver
 function test_bump_srcinfo_fallback_rewrites_the_three_lines() {
@@ -676,6 +728,151 @@ function test_bump_check_catches_stale_srcinfo_b2sums() {
 
 function test_bump_check_catches_stale_srcinfo_source() {
   _hi_bump_check_rejects 's|^\([[:space:]]*\)source = .*|\1source = x/releases/download/v0.0.1/say-hi-0.0.1.tar.gz|'
+}
+
+# bump.sh run as the command release.yml runs, against the fixture: the
+# _HI_PKG_DIR seam travels by environment instead of _hi_bump_env's re-source
+function _hi_bump_cli() {
+  _HI_PKG_DIR="$_HI_WORKDIR/bump" "$_HI_ROOT/packaging/bump.sh" "$@"
+}
+
+# _hi_bump_git_shim <ok|fail> - a PATH directory whose `git` answers the two
+# calls the no-tarball path makes: rev-parse says the tag exists, and archive
+# writes deterministic bytes to its -o argument (or refuses, for the failure
+# branch). A shim rather than a real tag: the tag check runs against
+# $_HI_ROOT, and this suite never writes tags into the checkout it tests.
+function _hi_bump_git_shim() {
+  local dir="$_HI_WORKDIR/gitshim.$1" archive
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    # shellcheck disable=SC2016 # the shim's $out is its own, not an expansion
+    case "$1" in
+    ok) archive='printf "tag bytes\n" >"$out"' ;;
+    *) archive='exit 128' ;;
+    esac
+    # shellcheck disable=SC2016 # the shim's $1/$2/$out are its own, not ours
+    printf '%s\n' '#!/bin/sh' \
+      'mode="" out=""' \
+      'while [ $# -gt 0 ]; do' \
+      '  case "$1" in' \
+      '  rev-parse | archive) mode="$1" ;;' \
+      '  -o)' \
+      '    out="$2"' \
+      '    shift' \
+      '    ;;' \
+      '  esac' \
+      '  shift' \
+      'done' \
+      '[ "$mode" = archive ] || exit 0' \
+      "$archive" >"$dir/git"
+    chmod +x "$dir/git"
+  fi
+  printf '%s' "$dir"
+}
+
+# no --tarball and a local v9.9.9 tag: the manifests have to carry the sums
+# of the bytes git archive just wrote, not a fetched asset's
+function test_bump_write_builds_from_a_local_tag() {
+  bump_fixture
+  (
+    _hi_bump_env
+    shim="$(_hi_bump_git_shim ok)"
+    printf 'tag bytes\n' >"$_HI_WORKDIR/tagbytes"
+    out="$(PATH="$shim:$PATH" write_manifests 2>&1)" || exit 1
+    [[ "$out" == *"Building the source tarball from refs/tags/v9.9.9"* ]] &&
+      grep -qF "b2sums=('$(b2_of "$_HI_WORKDIR/tagbytes")')" "$_HI_PKGBUILD" &&
+      grep -qF "sha256 \"$(sha256_of "$_HI_WORKDIR/tagbytes")\"" "$_HI_FORMULA"
+  )
+}
+
+function test_bump_write_reports_a_failed_git_archive() {
+  bump_fixture
+  (
+    _hi_bump_env
+    shim="$(_hi_bump_git_shim fail)"
+    out="$(PATH="$shim:$PATH" write_manifests 2>&1)" && exit 1
+    [[ "$out" == *"git archive failed"* ]]
+  )
+}
+
+# no --tarball and no local tag falls back to fetching the released asset,
+# and a fetch that comes back empty-handed has to say what to look for. A
+# file:// URL keeps the case offline; there is no v9.9.9 tag here to shadow
+# the branch.
+function test_bump_write_reports_a_failed_asset_fetch() {
+  bump_fixture
+  (
+    _hi_bump_env
+    _hi_rewrite "$_HI_PKGBUILD" 's|^url=.*|url="file:///hi-suite-absent"|'
+    out="$(write_manifests 2>&1)" && exit 1
+    [[ "$out" == *"No local v9.9.9 tag - fetching file:///hi-suite-absent/releases/download/v9.9.9/say-hi-9.9.9.tar.gz"* ]] &&
+      [[ "$out" == *"could not fetch it"* ]]
+  )
+}
+
+# --tarball pointing at nothing is a named refusal, and it travels out of the
+# command as a non-zero exit
+function test_bump_cli_refuses_a_missing_tarball() {
+  bump_fixture
+  local out
+  out="$(_hi_bump_cli --tarball "$_HI_WORKDIR/bump/absent.tar.gz" 9.9.9 2>&1)" && return 1
+  [[ "$out" == *"no such file: $_HI_WORKDIR/bump/absent.tar.gz"* ]]
+}
+
+# the write path's *dispatch* into the no-makepkg fallback (the rewrite
+# itself is test_bump_srcinfo_fallback_rewrites_the_three_lines): a PATH
+# with no makepkg on it has to land the sed rewrite and say which lines
+function test_bump_write_falls_back_without_makepkg() {
+  bump_fixture
+  (
+    _hi_bump_env
+    box="$(_hi_real_path nomakepkg sh sed awk head grep cat rm chmod stat mktemp sha256sum shasum b2sum openssl)"
+    out="$(PATH="$box" write_manifests "$_HI_TB" 2>&1)" || exit 1
+    [[ "$out" == *"pkgver/source/b2sums only"* ]] &&
+      grep -qF "b2sums = $(b2_of "$_HI_TB")" "$_HI_SRCINFO"
+  )
+}
+
+# the whole command in one pass: the --tarball parse, the v-prefix strip, the
+# write, and the "Bumped!" tail
+function test_bump_cli_write_bumps_the_fixture() {
+  bump_fixture
+  local out tb="$_HI_WORKDIR/bump/src.tar.gz"
+  out="$(_hi_bump_cli --tarball "$tb" v9.9.9 2>&1)" || return 1
+  [[ "$out" == *"Bumping say-hi to 9.9.9"*"Bumped!"* ]] || return 1
+  grep -q '^pkgver=9\.9\.9$' "$_HI_WORKDIR/bump/aur/say-hi/PKGBUILD" &&
+    grep -qF "sha256 \"$(sha256_of "$tb")\"" "$_HI_WORKDIR/bump/homebrew/say-hi.rb"
+}
+
+# --check's green tail, run as the command CI runs it as
+function test_bump_cli_check_agrees_after_a_write() {
+  bump_fixture
+  (_hi_bump_written) || return 1
+  local out
+  out="$(_hi_bump_cli --check 9.9.9 2>&1)" || return 1
+  [[ "$out" == *"Manifests agree!"* ]]
+}
+
+function test_bump_help_names_both_modes() {
+  local out
+  out="$("$_HI_PKG_DIR/bump.sh" --help)" || return 1
+  [[ "$out" == *"Usage: bump.sh [--check] [--tarball <file>] <version>"*"--check"*"--tarball <file>"* ]] || return 1
+  # -h is the same door
+  out="$("$_HI_PKG_DIR/bump.sh" -h)" || return 1
+  [[ "$out" == *"Usage: bump.sh"* ]]
+}
+
+function test_bump_rejects_an_unknown_flag() {
+  local out
+  out="$("$_HI_PKG_DIR/bump.sh" --bogus 2>&1)" && return 1
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: bump.sh"* ]]
+}
+
+# flags alone are not a run - the version check sits below the parse loop
+function test_bump_requires_a_version() {
+  local out
+  out="$("$_HI_PKG_DIR/bump.sh" --check 2>&1)" && return 1
+  [[ "$out" == *"a version is required"*"Usage: bump.sh"* ]]
 }
 
 # a wrong tool or wrong output field shows up as a wrong constant
@@ -994,6 +1191,36 @@ function test_stamp_keeps_the_launcher_exec_bit() {
   [ "$before" = "$after" ]
 }
 
+# the --x=y spelling, normalized at the top of the parse loop the same way
+# in every packaging entry point
+function test_stamp_accepts_the_equals_form() {
+  local d
+  d="$(_hi_stamp_fixture)"
+  _hi_stamp --root="$d" --version=5.5.5 --date=2026-01-02 || return 1
+  grep -qF '_HI_RELEASE="5.5.5"' "$d/usr/share/say-hi/hi.sh"
+}
+
+# a value flag typed with its value left off must refuse loudly - the
+# alternative is silently eating the *next* flag
+function test_parsers_refuse_a_flag_with_no_value() {
+  local pair s flag out
+  for pair in "mkpkg.sh|--outdir" "mkrepo.sh|--dist" "bump.sh|--tarball" "stamp.sh|--version"; do
+    s="${pair%%|*}"
+    flag="${pair#*|}"
+    out="$("$_HI_PKG_DIR/$s" "$flag" 2>&1)" && {
+      _hi_cecho " | $s $flag with no value should have failed" "$RED"
+      return 1
+    }
+    case "$out" in
+    *"requires a value"*) : ;;
+    *)
+      _hi_cecho " | $s: expected a 'requires a value' refusal, got [$out]" "$RED"
+      return 1
+      ;;
+    esac
+  done
+}
+
 # a renamed line makes every channel's bare sed a silent no-op; this is the
 # case that turns that into a failed build instead
 function test_stamp_fails_on_a_missing_release_line() {
@@ -1155,12 +1382,95 @@ function test_lib_pkgbuild_version_reads_and_refuses() {
   ! _hi_in_pkglib pkgbuild_version "$f" 2>/dev/null
 }
 
+function test_lib_pkgbuild_url_reads_and_refuses() {
+  local f="$_HI_WORKDIR/PKGBUILD.url"
+  printf 'pkgname=say-hi\nurl="https://example.invalid/say-hi"\n' >"$f"
+  [ "$(_hi_in_pkglib pkgbuild_url "$f")" = "https://example.invalid/say-hi" ] || return 1
+  printf 'pkgname=say-hi\n' >"$f"
+  ! _hi_in_pkglib pkgbuild_url "$f" 2>/dev/null
+}
+
+function test_lib_need_verdicts() {
+  _hi_in_pkglib need sh || return 1
+  ! _hi_in_pkglib need hi-no-such-tool 2>/dev/null
+}
+
+# the whole contract: a missing/unreadable file reads as empty rather than
+# killing a `set -e` caller inside the command substitution
+function test_lib_gpg_fpr_is_empty_never_fatal() {
+  local hd="$_HI_WORKDIR/gpgfpr" out
+  mkdir -p "$hd"
+  chmod 700 "$hd"
+  out="$(_hi_in_pkglib gpg_fpr --homedir "$hd" --show-keys "$_HI_WORKDIR/no-such-key.asc")" || return 1
+  [ -z "$out" ]
+}
+
+function test_lib_verify_signing_key_gpg_verdicts() {
+  _hi_mkrepo_keys || return 1
+  local kd="$_HI_WORKDIR/gpg" fpr
+  # the matching pair passes and prints the fingerprint...
+  fpr="$(_hi_in_pkglib verify_signing_key gpg "$kd/main.key" "$kd/main.asc" 2>/dev/null)" || {
+    _hi_cecho " | the matching pair should have been accepted" "$RED"
+    return 1
+  }
+  case "$fpr" in
+  *[!0-9A-F]* | '')
+    _hi_cecho " | expected a hex fingerprint, got [$fpr]" "$RED"
+    return 1
+    ;;
+  esac
+  # ...a secret that is another key is refused...
+  ! _hi_in_pkglib verify_signing_key gpg "$kd/main.key" "$kd/other.asc" 2>/dev/null || {
+    _hi_cecho " | a mismatched public half should have been refused" "$RED"
+    return 1
+  }
+  # ...and so is a missing public half
+  ! _hi_in_pkglib verify_signing_key gpg "$kd/main.key" "$kd/absent.asc" 2>/dev/null
+}
+
+function test_lib_verify_signing_key_rsa_verdicts() {
+  local kd="$_HI_WORKDIR/rsa"
+  mkdir -p "$kd"
+  openssl genrsa -out "$kd/a.rsa" 2048 2>/dev/null &&
+    openssl genrsa -out "$kd/b.rsa" 2048 2>/dev/null &&
+    openssl rsa -in "$kd/a.rsa" -pubout -out "$kd/a.pub" 2>/dev/null || return 1
+  _hi_in_pkglib verify_signing_key rsa "$kd/a.rsa" "$kd/a.pub" || return 1
+  ! _hi_in_pkglib verify_signing_key rsa "$kd/b.rsa" "$kd/a.pub" 2>/dev/null
+}
+
 function test_lib_src_tarball_carries_the_versioned_prefix() {
   local out="$_HI_WORKDIR/src.tar.gz"
   _hi_in_pkglib src_tarball 9.9.9 HEAD "$out" || return 1
   # no -q: an early grep exit would SIGPIPE tar mid-listing, which reads as
   # a red 141 under the suite's pipefail
   tar -tzf "$out" | grep -x 'say-hi-9.9.9/hi.sh' >/dev/null
+}
+
+# --- packaging/srctar.sh, run as the command release.yml runs ---------------
+
+# src_tarball itself is covered above; these cover the entry point around it
+
+function test_srctar_help_names_the_usage() {
+  local out
+  out="$("$_HI_PKG_DIR/srctar.sh" --help)" || return 1
+  [[ "$out" == *"Usage: srctar.sh <version> <ref> <outfile>"* ]] || return 1
+  out="$("$_HI_PKG_DIR/srctar.sh" -h)" || return 1
+  [[ "$out" == *"Usage: srctar.sh"* ]]
+}
+
+function test_srctar_refuses_a_wrong_arg_count() {
+  local out
+  out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD 2>&1)" && return 1
+  [[ "$out" == *"expected <version> <ref> <outfile>"*"Usage: srctar.sh"* ]]
+}
+
+# the built file is the shape src_tarball's own cases pin down, and the green
+# confirmation names the outfile
+function test_srctar_builds_the_tarball_it_names() {
+  local out f="$_HI_WORKDIR/srctar-cli.tar.gz"
+  out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD "$f" 2>&1)" || return 1
+  [[ "$out" == *"$f :)"* ]] || return 1
+  [ "$(tar tzf "$f" | head -1)" = "say-hi-9.9.9/" ]
 }
 
 # --- mkrepo.sh's offline half (the docker-free index builders) --------------
@@ -1213,6 +1523,15 @@ function test_mkrepo_one_package_rule() {
   [ "$(_hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null)" = "$d/a.deb" ] || return 1
   : >"$d/b.deb"
   ! _hi_in_mkrepo "$d" "$d/repo" one_package deb 2>/dev/null
+}
+
+# an apk with no .PKGINFO must be refused by name - before any docker runs,
+# and as a red row rather than a silent `set -e` abort inside the extraction
+function test_mkrepo_build_apk_refuses_a_pkginfo_less_apk() {
+  local d="$_HI_WORKDIR/apk-refuse"
+  mkdir -p "$d"
+  tar -czf "$d/say-hi.apk" -T /dev/null
+  ! _hi_in_mkrepo "$d" "$d/repo" build_apk 2>/dev/null
 }
 
 function test_mkrepo_deb_control_reads_the_paragraph() {
@@ -1433,6 +1752,8 @@ function run_packaging_tests() {
   _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
   _hi_check "src_tarball ships an executable hi.sh" test_src_tarball_ships_an_executable_hi_sh
+  _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
+  _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
 
   _hi_h2 "Testing: publish-external.yml"
   _hi_check "tap/aur are dispatch-only, not in release.yml" test_tap_and_aur_are_dispatch_only
@@ -1442,6 +1763,10 @@ function run_packaging_tests() {
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
   _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild
   _hi_check "bump.sh --check rejects a mismatch" test_bump_check_rejects_a_version_the_manifests_do_not_carry
+  _hi_check "every parser refuses a value-less flag" test_parsers_refuse_a_flag_with_no_value
+  _hi_check "bump.sh --help names both modes" test_bump_help_names_both_modes
+  _hi_check "bump.sh refuses an unrecognized argument" test_bump_rejects_an_unknown_flag
+  _hi_check "bump.sh refuses to run without a version" test_bump_requires_a_version
 
   _hi_h2 "Testing: bump.sh's write path (offline)"
   _hi_check "Rewrites pkgver and b2sums" test_bump_write_rewrites_pkgver_and_b2sums
@@ -1451,6 +1776,14 @@ function run_packaging_tests() {
   _hi_check "Handles a PKGBUILD missing pkgver=" test_bump_check_handles_a_pkgbuild_missing_pkgver
   _hi_check "--check catches stale .SRCINFO b2sums" test_bump_check_catches_stale_srcinfo_b2sums
   _hi_check "--check catches a stale .SRCINFO source" test_bump_check_catches_stale_srcinfo_source
+  _hi_check "Builds the tarball from a local tag" test_bump_write_builds_from_a_local_tag
+  _hi_check "...and a failed git archive is loud" test_bump_write_reports_a_failed_git_archive
+  _hi_check_requires curl "...as is a failed asset fetch" test_bump_write_reports_a_failed_asset_fetch
+  _hi_check "Refuses a --tarball that is not there" test_bump_cli_refuses_a_missing_tarball
+  _hi_check "Falls back to the sed rewrite without makepkg" test_bump_write_falls_back_without_makepkg
+  _hi_check "Run as a command, a --tarball write lands" test_bump_cli_write_bumps_the_fixture
+  _hi_check "...and --check then agrees, exit 0" test_bump_cli_check_agrees_after_a_write
+  _hi_check "asset_url follows the PKGBUILD's url=" test_bump_asset_url_follows_the_pkgbuild_url
   _hi_check "sha256 matches a known vector" test_bump_sha256_matches_a_known_vector
   # needs both halves present to compare them; openssl stopped being implied
   # when the wire armor moved to base64
@@ -1482,6 +1815,7 @@ function run_packaging_tests() {
   _hi_check "Fails on a man page with no .TH line" test_stamp_fails_on_a_man_page_with_no_th_line
   _hi_check "Takes explicit launcher/man paths" test_stamp_takes_explicit_paths
   _hi_check "Skips a missing man page" test_stamp_skips_a_missing_man_page
+  _hi_check "Accepts the --x=y spelling" test_stamp_accepts_the_equals_form
 
   _hi_h2 "Testing: mkpkg.sh (offline half)"
   _hi_check "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
@@ -1501,7 +1835,17 @@ function run_packaging_tests() {
   _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
   _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_matches_makepkg_expectation
   _hi_check "pkgbuild_version reads pkgver= and refuses none" test_lib_pkgbuild_version_reads_and_refuses
+  _hi_check "pkgbuild_url reads url= and refuses none" test_lib_pkgbuild_url_reads_and_refuses
+  _hi_check "need's two verdicts" test_lib_need_verdicts
+  _hi_check_requires gpg "gpg_fpr reads a bad file as empty, never fatal" test_lib_gpg_fpr_is_empty_never_fatal
+  _hi_check_requires gpg "verify_signing_key's gpg verdicts" test_lib_verify_signing_key_gpg_verdicts
+  _hi_check_requires openssl "verify_signing_key's rsa verdicts" test_lib_verify_signing_key_rsa_verdicts
   _hi_check_requires git "src_tarball carries the versioned prefix" test_lib_src_tarball_carries_the_versioned_prefix
+
+  _hi_h2 "Testing: packaging/srctar.sh"
+  _hi_check "--help names the usage" test_srctar_help_names_the_usage
+  _hi_check "Refuses a wrong argument count" test_srctar_refuses_a_wrong_arg_count
+  _hi_check_requires git "Builds the tarball it names" test_srctar_builds_the_tarball_it_names
 
   _hi_h2 "Testing: mkrepo.sh (offline half)"
   _hi_check "one_package enforces exactly one artifact" test_mkrepo_one_package_rule
@@ -1509,6 +1853,7 @@ function run_packaging_tests() {
   _hi_check_requires openssl "release_hashes writes apt's hash block shape" test_mkrepo_release_hashes_shape
   _hi_check_requires ar "build_apt writes a whole apt tree, no docker" test_mkrepo_build_apt_offline
   _hi_check_requires gpg "gpg_setup's four verdicts" test_mkrepo_gpg_setup_verdicts
+  _hi_check "build_apk refuses a .PKGINFO-less apk" test_mkrepo_build_apk_refuses_a_pkginfo_less_apk
 
   _hi_suite_end "packaging"
 }

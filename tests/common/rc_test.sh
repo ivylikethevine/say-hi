@@ -133,6 +133,136 @@ function test_bash_sources_the_convenience_aliases() {
      done"
 }
 
+# A plain child bash rather than _hi_rc_shell's `env -i`, for the cases below
+# on bash.sh's prompt-time and completion machinery: they read nothing ambient
+# beyond $HOME and $_HI_CONFIG_DIR, both redirected here, and a full
+# environment keeps the child measurable by coverage tooling, which `env -i`
+# silently is not - the same child-bash shape targets_test.sh's _hi_complete
+# cases use. Later NAME=VALUE pairs win over the baseline, as in _hi_rc_shell.
+function _hi_bash_child() {
+  local script="$1"
+  shift
+  env HOME="$_HI_WORKDIR" TERM=xterm-256color _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" "$@" \
+    bash -c "$script" </dev/null
+}
+
+# ps1 runs per prompt: OSC 133;D must carry the *last* command's status and
+# OSC 7 the cwd (the D/A pair kitty/WezTerm/ghostty jump and report by), and
+# $PS1 itself must open with the A mark and close with B.
+function test_bash_ps1_reports_status_and_cwd_marks() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    cd "$HOME" || exit 1
+    (exit 7)
+    ps1
+    printf %s "$PS1"')"
+  [[ "$out" == *$'\e]133;D;7\a'* ]] &&
+    [[ "$out" == *$'\e]7;file://'*"$_HI_WORKDIR"$'\a'* ]] &&
+    [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
+}
+
+# _HI_DISABLE_MARKS=1 silences the whole channel - no D at prompt time, no
+# A/B in $PS1 - and TERM=dumb takes the color branch's else with it: the
+# plain \u@\h:\w form, with no escapes anywhere.
+function test_bash_disable_marks_emits_no_osc() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    ps1
+    printf %s "$PS1"' _HI_DISABLE_MARKS=1 TERM=dumb)"
+  [[ "$out" != *$'\e]133'* ]] || return 1
+  [[ "$out" == *'\u@\h:\w'* ]]
+}
+
+# The pw3nage guard (the comment in ps1 says why): with promptvars on, the
+# git segment reaches $PS1 as a literal ${__powerline_git_info} reference for
+# bash to expand at display time - never its value spliced in.
+function test_bash_ps1_references_git_info_under_promptvars() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    cd "$HOME" || exit 1
+    shopt -s promptvars
+    ps1
+    printf %s "$PS1"')"
+  [[ "$out" == *'${__powerline_git_info}'* ]]
+}
+
+# ...and with promptvars off no expansion would ever happen, so the value
+# goes in as text: the branch name lands in $PS1 itself, its color escapes
+# already wrapped in \001...\002 by _hi_ps_mark (readline's ignore markers -
+# the raw \[ \] pair only works in the static half bash decodes).
+function test_bash_ps1_inlines_git_info_without_promptvars() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    cd "$HI_TEST_REPO" || exit 1
+    shopt -u promptvars
+    ps1
+    printf %s "$PS1"' HI_TEST_REPO="$(_hi_git_fixture)")"
+  [[ "$out" != *'${__powerline_git_info}'* ]] &&
+    [[ "$out" == *main* && "$out" == *$'\001'* ]]
+}
+
+# bash's dash-word branch, the same promise the zsh and fish cases below pin:
+# `hi --<TAB>` answers from targets.sh's flags roster and never touches the
+# target cache ($_HI_TARGET_NAMES_AT still -1, "never filled"), because a
+# flag list must not wait on a docker daemon.
+function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    COMP_WORDS=(hi --col)
+    COMP_CWORD=1
+    COMPREPLY=()
+    _hi_complete
+    printf "%s|%s" "${COMPREPLY[*]}" "$_HI_TARGET_NAMES_AT"' _HI_DISABLE_PROMPT=1)"
+  [ "$out" = "--color-preview|-1" ]
+}
+
+# The deferred exa completion: the first TAB clones eza's registered spec
+# onto exa and answers 124, bash-completion's "retry with the new spec". The
+# loader function is dropped first so a host bash-completion cannot fetch a
+# different eza spec over the case's own.
+function test_bash_exa_completion_clones_ezas_spec() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    unset -f _completion_loader 2>/dev/null
+    complete -W "--grid --tree" eza
+    _hi_load_exa_completion
+    printf "%s|" "$?"
+    complete -p exa' _HI_DISABLE_PROMPT=1)"
+  [[ "$out" == '124|'*'-W'*'--grid --tree'*' exa' ]]
+}
+
+# ...and with no eza spec to clone (and no loader to fetch one) it reports
+# failure and leaves its own registration armed for the next TAB.
+function test_bash_exa_completion_fails_without_an_eza_spec() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    unset -f _completion_loader 2>/dev/null
+    complete -r eza 2>/dev/null
+    _hi_load_exa_completion
+    printf "%s|" "$?"
+    complete -p exa' _HI_DISABLE_PROMPT=1)"
+  [[ "$out" == '1|'*'_hi_load_exa_completion exa' ]]
+}
+
+# When starship owns the prompt, hi's per-prompt hook must stay out of its
+# way: no ps1 function defined, nothing prepended to PROMPT_COMMAND - a
+# leftover ps1 there would overwrite starship's $PS1 on every prompt.
+function test_bash_starship_handoff_installs_no_ps1_hook() {
+  local out
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t ps1 || true)"' \
+    "PATH=$(_hi_starship_stub_dir):$PATH" _HI_PROMPT=starship)"
+  [[ "$out" != *ps1* ]]
+}
+
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
 # machine without one still runs (and honestly reports) the rest.
 
@@ -441,6 +571,14 @@ function run_rc_tests() {
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "Key aliases are defined" test_bash_defines_key_aliases
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
+  _hi_check "ps1 marks the prompt, status and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
+  _hi_check "_HI_DISABLE_MARKS silences every OSC" test_bash_disable_marks_emits_no_osc
+  _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
+  _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars
+  _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
+  _hi_check "the first exa TAB clones eza's spec (124)" test_bash_exa_completion_clones_ezas_spec
+  _hi_check "...and fails armed without an eza spec" test_bash_exa_completion_fails_without_an_eza_spec
+  _hi_check "starship handoff installs no ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
 
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built

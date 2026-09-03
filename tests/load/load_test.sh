@@ -6,8 +6,10 @@
 #
 # SAFETY: clean_all ends in `rm -rf "$_HI_CLEANUP"`, so no case calls it
 # directly - every call goes through _hi_clean_all, which shadows $_HI_ROOT
-# and $_HI_CLEANUP both. The real thing with the real paths would delete this
-# checkout; the canary case at the end proves none did.
+# and $_HI_CLEANUP both, and every load() run goes through _hi_load_run,
+# which shadows the same pair before load() can trap it. The real thing with
+# the real paths would delete this checkout; the canary case at the end
+# proves none did.
 #
 # GLOSSARY: HI.30 + HI.34
 # The single-quoted probe scripts expand in the child shell, which is the
@@ -79,6 +81,28 @@ function test_no_init_guard_skips_profile() {
   printf 'export HI_LOAD_TEST_PROFILE=1\n' >"$home/.profile"
   out="$(_hi_source_load "$home" 1)"
   [[ -z "${out%%|*}" ]]
+}
+
+# The elif ladder is login bash's documented order - .bash_profile, then
+# .bash_login, then .profile - and exactly *one* rung runs. A file writes its
+# own name into the marker, so the wrong rung names itself in the failure.
+function test_profile_prefers_bash_profile_first() {
+  local home="$_HI_WORKDIR/profilehome-bp" out
+  mkdir -p "$home"
+  printf 'export HI_LOAD_TEST_PROFILE=bash_profile\n' >"$home/.bash_profile"
+  printf 'export HI_LOAD_TEST_PROFILE=bash_login\n' >"$home/.bash_login"
+  printf 'export HI_LOAD_TEST_PROFILE=profile\n' >"$home/.profile"
+  out="$(_hi_source_load "$home" 0)"
+  [[ "${out%%|*}" == bash_profile ]]
+}
+
+function test_profile_falls_back_to_bash_login() {
+  local home="$_HI_WORKDIR/profilehome-bl" out
+  mkdir -p "$home"
+  printf 'export HI_LOAD_TEST_PROFILE=bash_login\n' >"$home/.bash_login"
+  printf 'export HI_LOAD_TEST_PROFILE=profile\n' >"$home/.profile"
+  out="$(_hi_source_load "$home" 0)"
+  [[ "${out%%|*}" == bash_login ]]
 }
 
 # The tree must NOT land on $PATH: on a disposable session $_HI_ROOT is a
@@ -348,6 +372,189 @@ function test_login_shell_falls_back_to_etc_passwd_without_getent() {
   [ "$got" = "$want" ]
 }
 
+# $SHELL is trusted as spoken, and only its basename survives - the tail
+# _hi_session_shell's allow-list case matches on. The $( ) subshell keeps the
+# SHELL= prefix from sticking to this shell (a NAME=VALUE prefix on a
+# *function* call persists, unlike on a command).
+function test_login_shell_answers_with_the_basename_of_shell() {
+  [ "$(SHELL=/opt/odd/bin/tcsh _hi_login_shell)" = tcsh ]
+}
+
+# Exported-but-empty $SHELL (a minimal container's shape) falls back the same
+# way an unset one does: ${SHELL:-}, not ${SHELL-}.
+function test_login_shell_treats_an_empty_shell_as_unset() {
+  local want got
+  want="$(getent passwd "$(id -un)" | awk -F: '{ print $NF }')"
+  want="${want##*/}"
+  [ -n "$want" ] || return 1
+  got="$(SHELL="" _hi_login_shell)"
+  [ "$got" = "$want" ]
+}
+
+# getent present but silent (an NSS-only misconfiguration, or a user the DB
+# never heard of): the ladder steps down to /etc/passwd rather than stopping.
+# `hash -r` first, or the subshell answers from the real getent this suite
+# already ran and hashed. Same no-presence-check rule on $want as the
+# without-getent case above: /etc/passwd's own answer, empty or not.
+function test_login_shell_steps_past_a_silent_getent() {
+  local stub="$_HI_WORKDIR/silent-getent" want got
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'exit 2' >"$stub/getent"
+  chmod +x "$stub/getent"
+  want="$(awk -F: -v u="$(id -un)" '$1 == u { print $NF }' /etc/passwd 2>/dev/null)"
+  want="${want##*/}"
+  got="$(
+    hash -r 2>/dev/null
+    SHELL="" PATH="$stub:$PATH" _hi_login_shell
+  )"
+  [ "$got" = "$want" ]
+}
+
+# `login` is a word in $_HI_SHELL_PREFERENCE's vocabulary, not only its
+# implied default first entry - spelled mid-list it still expands and still
+# gives way to the entries after it.
+function test_session_shell_expands_a_spelled_out_login_word() {
+  [ "$(SHELL=/bin/mksh _HI_SHELL_PREFERENCE="login bash" _hi_session_shell)" = bash ]
+}
+
+# The printf floor itself, below even the table's "Floors at bash" row (which
+# had a bash *installed*): with no styled shell on $PATH at all, the answer is
+# still bash - this file only runs where bash exists, PATH notwithstanding.
+function test_session_shell_floors_at_bash_even_off_path() {
+  local fakes
+  fakes="$(_hi_fake_path no-shells-here true)"
+  [ "$(
+    hash -r 2>/dev/null
+    SHELL=/bin/mksh PATH="$fakes" _hi_session_shell
+  )" = bash ]
+}
+
+# load() itself, run for real in a subshell: it traps clean_all, exports the
+# session pointers and ends in `exit`, none of which may reach the suite
+# shell. Same SAFETY rule as _hi_clean_all's: $_HI_ROOT and $_HI_CLEANUP are
+# shadowed *before* load() can trap clean_all, so the trap only ever removes
+# the rc directory this run made. The session shell reads $1 as its stdin
+# (`exit 42`, a probe printf, ...); the NAME=VALUE pairs after it land in the
+# run's environment. Stdout is load's transcript; stderr is the interactive
+# shell's prompt noise, dropped.
+function _hi_load_run() {
+  local stdin_cmds="$1"
+  shift
+  mkdir -p "$_HI_WORKDIR/loadroot" "$_HI_WORKDIR/loadhome"
+  (
+    local _HI_ROOT="$_HI_WORKDIR/loadroot" _HI_SESSION_RC_DIR=""
+    unset _HI_CLEANUP VIMINIT TMUX
+    export HOME="$_HI_WORKDIR/loadhome"
+    local _hi_pair
+    for _hi_pair in "$@"; do export "${_hi_pair?}"; done
+    load
+  ) <<<"$stdin_cmds" 2>/dev/null
+}
+
+# the whole handoff round trip: the shell's exit status is the session's
+# (line 263's `|| shell_ec=$?` and the closing `exit "$shell_ec"`), and the
+# fixed transcript lines bracket it
+function test_load_propagates_the_session_shells_exit_code() {
+  local out rc=0
+  out="$(_hi_load_run 'exit 42' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1)" || rc=$?
+  [ "$rc" -eq 42 ] || {
+    _hi_cecho " | exit code $rc, want 42" "$RED"
+    return 1
+  }
+  case "$(_hi_strip_ansi "$out")" in
+  *"hi loaded with"*"hi closing!"*) return 0 ;;
+  esac
+  _hi_cecho " | transcript missing its fixed lines: $out" "$RED"
+  return 1
+}
+
+# <shell> <greeting> - the "hi loaded with..." line names the shell the user
+# actually got, in that shell's own words
+function test_load_greets_the_chosen_shell() {
+  local shell="$1" want="$2" out
+  out="$(_hi_load_run 'exit 0' "_HI_SHELL_PREFERENCE=$shell" _HI_DISABLE_HEADER=1)" || return 1
+  case "$(_hi_strip_ansi "$out")" in
+  *"$want"*) return 0 ;;
+  esac
+  _hi_cecho " | wanted '$want' in: $out" "$RED"
+  return 1
+}
+
+# VIMINIT is how hi's vimrc reaches the session without touching ~/.vimrc; a
+# faked vim on a prepended PATH makes "vim installed" true on any box. The
+# session shell itself reads the variable back, since load() exports it for
+# exactly that shell to inherit.
+function test_load_exports_viminit_for_vim_sessions() {
+  local out
+  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
+    _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 \
+    "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
+  case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# ...and _HI_DISABLE_EDITORS=1 is the gate, not vim's absence: same fake vim,
+# toggle on, no export
+function test_load_editors_toggle_blocks_viminit() {
+  local out
+  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
+    _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_EDITORS=1 \
+    "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
+  case "$out" in *"VIM=unset"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# the trap wired by load() itself: the rc directory is live while the session
+# runs (the shell proves it from inside) and gone once load() has exited
+function test_load_cleans_up_its_session_rc_dir() {
+  local marker="$_HI_WORKDIR/load.rcdir" dir
+  rm -f "$marker"
+  _hi_load_run "[ -d \"\$_HI_SESSION_RC\" ] && printf 'live:%s' \"\$_HI_SESSION_RC\" >\"$marker\"; exit 0" \
+    _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 || return 1
+  dir="$(cat "$marker" 2>/dev/null)"
+  case "$dir" in live:?*) dir="${dir#live:}" ;; *)
+    _hi_cecho " | the session never saw a live rc dir" "$RED"
+    return 1
+    ;;
+  esac
+  [ ! -e "$dir" ] || {
+    _hi_cecho " | $dir survived clean_all" "$RED"
+    return 1
+  }
+}
+
+# The disconnect footer: tree size and whole-session duration on the banner
+# line, then the timestamp row. The connect header is trimmed to its banner
+# (no rows, no probes) so the case measures load(), not system_info.
+function test_load_prints_the_disconnect_banner_and_footer() {
+  local out
+  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash \
+    "_HI_HEADER_ORDER= " _HI_HEADER_IDENTITY=0)" || return 1
+  case "$(_hi_strip_ansi "$out")" in
+  *"| session: "*" Disconnected ["*) return 0 ;;
+  esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# ...and with the header off the banner goes, while the plain size/duration
+# line stays - the session summary is not the header's to hide
+function test_load_disable_header_skips_the_banner() {
+  local out
+  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1)" || return 1
+  out="$(_hi_strip_ansi "$out")"
+  case "$out" in *"Disconnected"*)
+    _hi_cecho " | banner printed despite _HI_DISABLE_HEADER=1" "$RED"
+    return 1
+    ;;
+  esac
+  case "$out" in *"| session: "*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
 function run_load_tests() {
   _hi_workdir loadtest
 
@@ -364,6 +571,8 @@ function run_load_tests() {
   _hi_h2 "Testing: profile restoration"
   _hi_check "Sourcing restores the profile chain" test_source_restores_profile
   _hi_check "_HI_LOAD_NO_INIT=1 skips it" test_no_init_guard_skips_profile
+  _hi_check ".bash_profile outranks .bash_login and .profile" test_profile_prefers_bash_profile_first
+  _hi_check ".bash_login outranks .profile" test_profile_falls_back_to_bash_login
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars
@@ -374,6 +583,9 @@ function run_load_tests() {
   _hi_check "_hi_session_sh_rc writes the three layers in order" test_session_sh_rc_writes_the_three_layers
 
   _hi_h2 "Testing: _hi_login_shell"
+  _hi_check "\$SHELL answers as its basename" test_login_shell_answers_with_the_basename_of_shell
+  _hi_check_requires getent "An empty \$SHELL falls back like an unset one" test_login_shell_treats_an_empty_shell_as_unset
+  _hi_check "A silent getent steps down to /etc/passwd" test_login_shell_steps_past_a_silent_getent
   _hi_check_requires getent "Falls back to getent when \$SHELL is unset" test_login_shell_falls_back_to_getent_when_shell_unset
   _hi_check "Falls back to /etc/passwd without getent" test_login_shell_falls_back_to_etc_passwd_without_getent
 
@@ -402,6 +614,19 @@ Floors at bash|bash|SHELL=/usr/bin/fish _HI_SHELL_PREFERENCE="fish zsh"|bash
 # tree walked without that filter would answer "dash" here.
 A bash-less tier is never the session shell (dash)|bash dash zsh|SHELL=/bin/dash|zsh
 EOF
+  _hi_check "login can be spelled mid-preference" test_session_shell_expands_a_spelled_out_login_word
+  _hi_check "...and bash is the answer even off-PATH" test_session_shell_floors_at_bash_even_off_path
+
+  _hi_h2 "Testing: load()"
+  _hi_check "Propagates the session shell's exit code" test_load_propagates_the_session_shells_exit_code
+  _hi_check "Greets a bash session honestly" test_load_greets_the_chosen_shell bash "only bash today :("
+  _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
+  _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
+  _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
+  _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
+  _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
+  _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
+  _hi_check "_HI_DISABLE_HEADER=1 keeps the footer, drops the banner" test_load_disable_header_skips_the_banner
 
   _hi_h2 "Testing: this checkout"
   _hi_check "Still intact after every clean_all above" test_this_checkout_was_never_touched

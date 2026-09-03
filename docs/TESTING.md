@@ -146,34 +146,38 @@ they actually run.
 
 ### Coverage and profiling
 
-Three hand-run tools, all out of CI. Two measure coverage, they disagree, and
-neither is right:
+Two coverage tools and a profiler. The coverage pair runs by hand and in CI
+(`coverage.yml`, after every green CI battery on a push to `main`) over the
+full suite sweep — every suite the box's backends can host — and their
+aggregates land within a few points of each other. That makes the figures
+usable: for finding untested arms in the per-file report and for watching
+the trend, never as a gate.
 
-- `tests/coverage.sh` runs the fast suites under kcov, which loses the DEBUG
-  trap once the harness is sourced, so a figure describes what ran while
-  things were _loading_ — `common/git_prompt.sh` reads 2.56% with seventeen
-  cases passing against it. Don't write tests to move those figures.
+- `tests/coverage.sh` runs the sweep under kcov. An earlier kcov lost its
+  DEBUG trap once the harness was sourced and read whole suites as
+  load-time-only (`common/git_prompt.sh` at 2.56% with seventeen cases
+  passing against it); the header keeps the measured record of that
+  failure, and its probe is the thing to re-run if the two badges ever
+  diverge again.
 - `tests/coverage_v2.sh` is the same sweep under
-  [bashcov](https://github.com/infertux/bashcov), which reads bash's `xtrace`
-  and puts `common/git_prompt.sh` at 92.68%. It fails the other way: every
-  line of a **heredoc body** counts as covered, so anything that generates
-  scripts reads high — `hi.sh` at 97.38%, `_say_hi` and `_say_hi_container`
-  at 100% though nothing in `--group fast` calls them. Files with no heredocs
-  (all of `common/` and `settings/`) are the ones to believe. It needs
-  `gem install --user-install bashcov`; the script finds the binary off
-  `$PATH`, writes a `.simplecov` into the checkout for the run, removes it
-  after, and refuses to start rather than overwrite one you have.
+  [bashcov](https://github.com/infertux/bashcov), which reads bash's
+  `xtrace`. Its residual skews run the other way from kcov's: every line of
+  a **heredoc body** counts as covered whether or not it ran, and children
+  under `env -i` or inside containers drop out of the trace — so a single
+  file reads a few points off in either direction while the pair brackets
+  the truth. It needs `gem install --user-install bashcov`; the script
+  finds the binary off `$PATH`, writes a `.simplecov` into the checkout for
+  the run, removes it after, and refuses to start rather than overwrite one
+  you have.
 
-The dispatch-only `coverage.yml` (a two-job matrix, kcov and bashcov) publishes
-both aggregates as shields endpoints (`badges/coverage.json`,
-`badges/coverage-v2.json`) via `pages.yml`, labelled `load-time` /
-`heredoc-inflated` rather than `coverage`. README shows them under an explicit
-disclaimer — the labels say what each number actually is, never a green
-"coverage: N%" — and neither gates anything. Both stay: kcov cannot over-count
-and bashcov cannot under-count, so a file that reads low in bashcov is
-genuinely uncovered and a line that reads covered in kcov genuinely ran.
-`coverage.sh`'s header is the measured record of _why_ kcov cannot be the
-tool.
+`coverage.yml` publishes both aggregates as shields endpoints
+(`badges/coverage.json`, `badges/coverage-v2.json`) via `pages.yml`, each
+labelled by its measurer and computed over the shipped product only — the
+badge math excludes `tests/` and `docs/`, the same subject both reports
+declare. Neither gates anything. Both stay because they cannot err in the
+same direction: a file that reads low in bashcov is genuinely uncovered, a
+line that reads covered in kcov genuinely ran, and the two agreeing is what
+makes the aggregate worth believing.
 
 `tests/profile.sh` is for a tripped `--group bench` ceiling: `_hi_bench` says
 _whether_ a path got slower, this says _which command in it_ did. It profiles
