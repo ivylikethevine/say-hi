@@ -35,7 +35,8 @@ FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a
 #
 # This is also the honest answer to Scorecard's Pinned-Dependencies finding on
 # this line: see .hadolint.yaml (DL3008) for why the package set is pinned by
-# the base image's digest instead, and docs/ROADMAP.md for the Scorecard half.
+# the base image's digest instead, and README.md's Roadmap for the Scorecard
+# half.
 # The version assertion below is a pipe, and a pipe in a RUN needs pipefail or
 # a failing `fish --version` is masked by the grep's status - DL4006, which
 # .hadolint.yaml records as a finding that was real and got fixed. Same

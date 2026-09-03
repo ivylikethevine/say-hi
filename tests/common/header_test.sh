@@ -319,7 +319,7 @@ function test_system_info_cpu_cell_is_ghz() {
 }
 
 # the CPU cell sits right after Cores: now, with RAM: pushed behind it -
-# rather than separated from it by RAM: the way it used to be
+# rather than separated from it by RAM
 function test_system_info_cpu_cell_sits_next_to_cores() {
   local out cores_pos cpu_pos ram_pos
   out="$(system_info)"
@@ -353,6 +353,47 @@ function test_hi_cpu_clocks_question_mark_when_both_missing() {
   [ "$(_hi_cpu_clocks "" "")" = "?" ]
 }
 
+# _hi_load_pct's own contract: load divided by cores, rounded to a whole
+# percent, empty rather than a garbled or divide-by-zero cell whenever either
+# input can't back that math up
+function test_hi_load_pct_divides_load_by_cores() {
+  local out
+  _hi_load_pct out 2.00 4
+  [ "$out" = 50 ]
+}
+
+function test_hi_load_pct_rounds_to_a_whole_percent() {
+  local out
+  _hi_load_pct out 1.00 3
+  [ "$out" = 33 ]
+}
+
+function test_hi_load_pct_empty_without_a_load_figure() {
+  local out=""
+  _hi_load_pct out "" 4
+  [ -z "$out" ]
+}
+
+function test_hi_load_pct_empty_without_a_core_count() {
+  local out=""
+  _hi_load_pct out 2.00 ""
+  [ -z "$out" ]
+}
+
+# the Windows fallback's own unresolved sentinel - never divided into, just
+# passed straight through to the cell as "Cores: ?"
+function test_hi_load_pct_empty_when_cores_is_not_numeric() {
+  local out=""
+  _hi_load_pct out 2.00 "?"
+  [ -z "$out" ]
+}
+
+function test_hi_load_pct_empty_when_cores_is_zero() {
+  local out=""
+  _hi_load_pct out 2.00 0
+  [ -z "$out" ]
+}
+
 # _hi_uptime_cell: at most two units, largest first, or "?" where no probe
 # answers - the shape is pinned rather than a value, which moves by the second
 function test_uptime_cell_is_humanized() {
@@ -384,15 +425,25 @@ function test_system_info_ram_cell_is_used_over_total() {
   [[ "$out" =~ RAM:\ ([0-9]+G/[0-9]+G|[0-9]+G|\?) ]]
 }
 
-# the load figure, when a probe answers, rides in parens right after "GHz" -
-# optional, since a stripped target has no /proc/loadavg or vm.loadavg; a
-# figure that showed up would have to be a plain decimal, never garbage from
-# an unguarded parse
-function test_system_info_load_rides_the_cpu_cell() {
+# the load-average figure, when a probe answers, rides in parens right after
+# "Cores: N" as a percentage of that count - not next to "GHz", where a bare
+# decimal meant nothing without knowing how many cores it was dividing by.
+# Optional, since a stripped target has no /proc/loadavg or vm.loadavg, or no
+# core count to divide by; a figure that showed up would have to be a plain
+# integer percentage, never garbage from an unguarded parse.
+function test_system_info_load_rides_the_cores_cell() {
   local out load
   out="$(system_info)"
-  load="$(printf '%s' "$out" | sed -n 's/.*GHz (\([^)]*\)).*/\1/p')"
-  [[ -z "$load" || "$load" =~ ^[0-9]+\.[0-9]+$ ]]
+  load="$(printf '%s' "$out" | sed -n 's/.*Cores: [0-9?]* (\([^)]*\)).*/\1/p')"
+  [[ -z "$load" || "$load" =~ ^[0-9]+%$ ]]
+}
+
+# ...and the GHz cell carries nothing of its own in parens any more - the one
+# thing this rides on is the clock figure itself
+function test_system_info_cpu_cell_has_no_parenthetical() {
+  local out
+  out="$(system_info)"
+  [[ "$out" != *"GHz ("* ]]
 }
 
 # A target with a shell and awk and nothing else - core_test.sh's barebones
@@ -1306,8 +1357,15 @@ function run_header_tests() {
   _hi_check "...collapses when boost is missing" test_hi_cpu_clocks_collapses_when_boost_missing
   _hi_check "...falls back to boost when base is missing" test_hi_cpu_clocks_falls_back_to_boost_when_base_missing
   _hi_check "...? when both are missing" test_hi_cpu_clocks_question_mark_when_both_missing
+  _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
+  _hi_check "...rounds to a whole percent" test_hi_load_pct_rounds_to_a_whole_percent
+  _hi_check "...empty without a load figure" test_hi_load_pct_empty_without_a_load_figure
+  _hi_check "...empty without a core count" test_hi_load_pct_empty_without_a_core_count
+  _hi_check "...empty when cores isn't numeric" test_hi_load_pct_empty_when_cores_is_not_numeric
+  _hi_check "...empty when cores is zero" test_hi_load_pct_empty_when_cores_is_zero
   _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
-  _hi_check "System_info's load figure rides the CPU cell" test_system_info_load_rides_the_cpu_cell
+  _hi_check "System_info's load figure rides the Cores cell" test_system_info_load_rides_the_cores_cell
+  _hi_check "...and the GHz cell no longer carries it" test_system_info_cpu_cell_has_no_parenthetical
   _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
   _hi_check "_hi_humanize_uptime: days and hours" test_hi_humanize_uptime_days_and_hours
   _hi_check "_hi_humanize_uptime: hours and minutes" test_hi_humanize_uptime_hours_and_minutes

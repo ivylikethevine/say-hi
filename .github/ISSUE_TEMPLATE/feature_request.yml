@@ -5,11 +5,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Two files answer most of these before they are asked:
+        Two things answer most of these before they are asked:
         [docs/SUPPORT.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/SUPPORT.md)
         carries a verdict and a reason for everything weighed and answered no —
         runtimes, shells, packaging channels, removed features — and
-        [docs/ROADMAP.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/ROADMAP.md)
+        [README's Roadmap](https://github.com/ivylikethevine/say-hi/blob/main/README.md#roadmap)
         is what is already planned. A reason that has stopped being true is worth
         raising; so is a case neither file considered. Additionally, a sufficiently
         clean implementation of a previous feature may be considered.
@@ -54,5 +54,5 @@ body:
     attributes:
       label: Before you send it
       options:
-        - label: I checked docs/SUPPORT.md and docs/ROADMAP.md for an existing answer.
+        - label: I checked docs/SUPPORT.md and README's Roadmap for an existing answer.
           required: true

@@ -210,6 +210,19 @@ function _hi_cpu_clocks() {
   fi
 }
 
+# _hi_load_pct <var> <load> <cpus> - the 1-minute load average as a percentage
+# of this box's own core count ("2.34" on 8 cores -> "29"): the number that
+# actually answers "is this box busy", where the bare load figure needed the
+# core count to mean anything and never carried it along. Empty <var> when
+# either input is missing, or <cpus> isn't a plain positive integer - the
+# Windows fallback's own unresolved "?" among them.
+function _hi_load_pct() {
+  local load="$2" cpus="$3"
+  case "$cpus" in '' | *[!0-9]*) return 0 ;; esac
+  [ -n "$load" ] && ((cpus > 0)) || return 0
+  printf -v "$1" '%s' "$(awk -v l="$load" -v c="$cpus" 'BEGIN { printf "%.0f", (l / c) * 100 }')"
+}
+
 # <seconds> humanized to at most two units, largest first - a header cell,
 # not a stopwatch. Shared by _hi_uptime_cell and nothing else; system_info no
 # longer touches uptime at all.
@@ -225,7 +238,7 @@ function _hi_humanize_uptime() {
 }
 
 function system_info() {
-  local kernel arch os cpus ram base_mhz boost_mhz load=""
+  local kernel arch os cpus ram base_mhz boost_mhz load="" load_pct=""
   # process substitution, not <<<: a here-string is a temp file before bash
   # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
@@ -320,8 +333,9 @@ function system_info() {
   # a stripped-down awk or a locale that prints a comma decimal both fail
   # closed to "?", not a garbled cell
   case "$load" in '' | *[!0-9.]*) load="" ;; esac
-  header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}" \
-    "${BRBLUE}CPU: $(_hi_cpu_clocks "${base_mhz:-}" "${boost_mhz:-}") GHz${load:+ ($load)}" \
+  _hi_load_pct load_pct "$load" "${cpus:-}"
+  header_row "$PURPLE${arch:-?}" "$GREEN${os:-?}" "${YELLOW}Cores: ${cpus:-?}${load_pct:+ ($load_pct%)}" \
+    "${BRBLUE}CPU: $(_hi_cpu_clocks "${base_mhz:-}" "${boost_mhz:-}") GHz" \
     "${CYAN}RAM: ${ram:-?}"
 }
 
@@ -348,7 +362,7 @@ function _hi_uptime_cell() {
   # probe negative, and a stripped-down awk fails closed the same way
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
   [ -n "$uptime_s" ] && up="$(_hi_humanize_uptime "$uptime_s")"
-  printf -v "$1" '%s' "${BRCYAN}Up: ${up:-?}"
+  printf -v "$1" '%s' "${BRBLUE}Up: ${up:-?}"
 }
 
 # identity()'s backend probes are independent and each capped at

@@ -636,8 +636,8 @@ jobs:
   # kept it, and gated on `changes` like the other fast-suite jobs. A real
   # check, not advisory: windows-client.yml carries no continue-on-error, so
   # a red suite fails the push. Not yet on the required-checks list
-  # (docs/ROADMAP.md's release-readiness entry), so it does not block a merge
-  # yet.
+  # (README.md's Roadmap release-readiness entry), so it does not block a
+  # merge yet.
   e2e-windows-client:
     name: fast suites (Windows client)
     needs: changes

@@ -7,14 +7,14 @@ publishing job waits on a manual approval, and the AUR and Homebrew tap stay
 hand-copied until their secrets exist - and, once they do, until someone
 dispatches `publish-external.yml` by hand. Both signing keys are in place; the
 AUR deploy key and the tap token are one-time setup ([AUR](#aur), [Homebrew
-tap](#homebrew-tap)), tracked in [docs/ROADMAP.md](ROADMAP.md).
+tap](#homebrew-tap)), tracked in [README's Roadmap](../README.md#roadmap).
 
 **What is live today: releases and the package repository, not the AUR or the
 tap.** Every channel on this page is built and tested in CI on each push;
 tagged releases exist (`v0.1.1`, `v0.1.2`, …) and the apt/rpm/apk repository
 is live and signed at `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`.
 There is still no AUR package and no Homebrew tap. Until
-[What v1.0.0 means](ROADMAP.md#what-v100-means) is ticked, a checkout stays
+[What v1.0.0 means](../README.md#what-v100-means) is ticked, a checkout stays
 the recommended install for most people
 ([README](../README.md#installationusage)); this page describes the AUR and
 tap channels as they will ship once they are.
