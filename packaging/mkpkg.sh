@@ -11,13 +11,10 @@
 # a better Arch package (real optdepends, a -git variant, AUR updates), and two
 # Arch packages for one project would only conflict.
 
-# the locator, core.sh, and the shared primitives (sha256_lines/
+# the locator, core.sh, strict mode and the shared primitives (sha256_lines/
 # default_version) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-# after the source, not before: core.sh (which lib.sh pulls in) ends with
-# `set +euo pipefail`, so an earlier line here would be undone by it
-set -euo pipefail
 
 _HI_PACKAGERS=(deb rpm apk)
 _HI_NFPM_CONFIG="$_HI_ROOT/packaging/nfpm/nfpm.yaml"
@@ -82,12 +79,11 @@ function touch_epoch() {
 
 function run_nfpm() {
   local packager
-  if ! command -v nfpm >/dev/null 2>&1; then
-    _hi_cecho " nfpm is not installed - it is a single Go binary:" "$RED" >&2
+  need nfpm "it is a single Go binary" || {
     _hi_cecho "   go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest" "$YELLOW" >&2
     _hi_cecho "   or grab a release from https://github.com/goreleaser/nfpm/releases" "$YELLOW" >&2
     return 1
-  fi
+  }
   for packager in "${_HI_PACKAGERS[@]}"; do
     _hi_h2 "Building $packager"
     # cd to the tree root: nfpm.yaml's contents are relative to the config's
@@ -147,35 +143,22 @@ function write_checksums() {
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
 while [ $# -gt 0 ]; do
+  # --x=y becomes --x y first, so each flag below is spelled once
+  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   --stage-only) _HI_STAGE_ONLY=1 ;;
-  --version)
+  --version | --outdir | --source-tarball)
     [ $# -ge 2 ] || {
-      echo "mkpkg.sh: --version requires a value" >&2
+      echo "mkpkg.sh: $1 requires a value" >&2
       exit 1
     }
-    _HI_VERSION="$2"
+    case "$1" in
+    --version) _HI_VERSION="$2" ;;
+    --outdir) _HI_DIST="$2" ;;
+    --source-tarball) _HI_SRC_TARBALL="$2" ;;
+    esac
     shift
     ;;
-  --version=*) _HI_VERSION="${1#--version=}" ;;
-  --outdir)
-    [ $# -ge 2 ] || {
-      echo "mkpkg.sh: --outdir requires a path" >&2
-      exit 1
-    }
-    _HI_DIST="$2"
-    shift
-    ;;
-  --outdir=*) _HI_DIST="${1#--outdir=}" ;;
-  --source-tarball)
-    [ $# -ge 2 ] || {
-      echo "mkpkg.sh: --source-tarball requires a path" >&2
-      exit 1
-    }
-    _HI_SRC_TARBALL="$2"
-    shift
-    ;;
-  --source-tarball=*) _HI_SRC_TARBALL="${1#--source-tarball=}" ;;
   -h | --help)
     cat <<EOF
 $_HI_USAGE

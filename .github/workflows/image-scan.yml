@@ -1,16 +1,28 @@
 name: Image scan
 
-# Weekly trivy scan of tests/dockerfiles' digest-pinned base images: the
-# severity half of digest-pinning, which dependabot cannot offer (its docker
-# ecosystem is version-updates-only - .github/dependabot.yml's docker block).
-# Scans the pinned digest and what the tag points at now, and speaks only when
-# the second is verifiably better; --ignore-unfixed is the whole design (the
-# scan step says why) and the state machine is scan_pinned_images.sh's header.
-on:
-  # scheduled rather than per-PR: this tracks upstream's clock, not the diff's
+# Trivy scan of tests/dockerfiles' digest-pinned base images: the severity
+# half of digest-pinning, which dependabot cannot offer (its docker ecosystem
+# is version-updates-only - .github/dependabot.yml's docker block). Scans the
+# pinned digest and what the tag points at now, and speaks only when the
+# second is verifiably better; --ignore-unfixed is the whole design (the scan
+# step says why) and the state machine is scan_pinned_images.sh's header.
+# Runs after every green CI battery on a push to main (the batch scorecard,
+# coverage and tool-versions share) and weekly as a backstop - upstream's
+# clock keeps ticking with no push here; never per-PR, since the findings
+# track that clock and not the diff's.
+on: # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "37 6 * * 3"
   workflow_dispatch:
+
+# pushes to main can stack; only the newest scan matters
+concurrency:
+  group: image-scan
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,6 +32,12 @@ permissions:
 jobs:
   scan:
     name: trivy over the pinned base images (advisory)
+    # only a green push to main gets a fresh scan; the schedule and a manual
+    # dispatch pass the first clause
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

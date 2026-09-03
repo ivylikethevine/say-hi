@@ -27,7 +27,6 @@ _HI_PKGBUILD="$_HI_PKG_DIR/aur/say-hi/PKGBUILD"
 _HI_PKGBUILD_GIT="$_HI_PKG_DIR/aur/say-hi-git/PKGBUILD"
 _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
 _HI_PUBLISH_EXTERNAL_WF="$_HI_ROOT/.github/workflows/publish-external.yml"
-_HI_SNAPSHOT_WF="$_HI_ROOT/.github/workflows/snapshot.yml"
 _HI_PAGES_WF="$_HI_ROOT/.github/workflows/pages.yml"
 _HI_CI_WF="$_HI_ROOT/.github/workflows/ci.yml"
 _HI_MKREPO="$_HI_PKG_DIR/mkrepo.sh"
@@ -431,50 +430,6 @@ function test_publish_external_reads_manifests_from_the_release() {
 
 function test_release_workflow_only_runs_on_tags() {
   grep -qE '^ *- "v\*"' "$_HI_RELEASE_WF" && ! grep -qE '^ *(branches|pull_request):' "$_HI_RELEASE_WF"
-}
-
-# snapshot.yml is the other half of the split: every push to main ships a
-# rolling prerelease from this repo alone. The invariants are that it stays on
-# main (no tag can start it, so it can never race release.yml for a v* push)
-# and that it reaches nothing outside the repo - no channel job, no manifest
-# PR, no bump.sh (whose URLs only a v* asset can satisfy), and no `release`
-# environment, which is the human gate and would make "every push" a lie.
-function test_snapshot_workflow_only_runs_on_main() {
-  [ -f "$_HI_SNAPSHOT_WF" ] || return 0
-  grep -qE '^ *- main$' "$_HI_SNAPSHOT_WF" &&
-    ! grep -qE '^ *(tags|pull_request):' "$_HI_SNAPSHOT_WF"
-}
-
-function test_snapshot_workflow_reaches_no_channel() {
-  [ -f "$_HI_SNAPSHOT_WF" ] || return 0
-  local needle bad=0
-  # full-line comments excluded: the file's own header explains bump.sh's
-  # absence by naming it, the same "prose names it while explaining why" case
-  # dependabot.yml's bash:5 comment and lint_image_tags' comment exclusion
-  # already carve out elsewhere in this tree
-  for needle in homebrew aur.archlinux bump.sh 'gh pr create' 'environment: release'; do
-    if grep -vE '^[[:space:]]*#' "$_HI_SNAPSHOT_WF" | grep -qF -- "$needle"; then
-      _hi_cecho " | snapshot.yml mentions '$needle' - that belongs behind release.yml's gate" "$RED"
-      bad=1
-    fi
-  done
-  [ "$bad" = 0 ]
-}
-
-# ...and it publishes one snapshot at a time, marked as what it is: a
-# prerelease that never becomes "Latest", tagged per commit rather than a fixed
-# name a client's `git pull` could see force-moved, with the previous one
-# retired before this one is created
-function test_snapshot_workflow_is_a_single_current_prerelease() {
-  [ -f "$_HI_SNAPSHOT_WF" ] || return 0
-  # shellcheck disable=SC2016 # matching snapshot.yml's literal source text,
-  # not expanding a variable of this script's own
-  grep -qF 'gh release create "$tag"' "$_HI_SNAPSHOT_WF" &&
-    grep -qF 'gh release edit "$tag"' "$_HI_SNAPSHOT_WF" &&
-    grep -qF -- '--prerelease --latest=false' "$_HI_SNAPSHOT_WF" &&
-    grep -qF 'dist/ARTIFACTS' "$_HI_SNAPSHOT_WF" &&
-    grep -qE 'tag="snapshot-\$\{?GITHUB_SHA' "$_HI_SNAPSHOT_WF" &&
-    grep -qF 'gh release delete "$old"' "$_HI_SNAPSHOT_WF"
 }
 
 # bump.sh --check is the tag/manifest gate; the build must not skip it
@@ -1203,7 +1158,9 @@ function test_lib_pkgbuild_version_reads_and_refuses() {
 function test_lib_src_tarball_carries_the_versioned_prefix() {
   local out="$_HI_WORKDIR/src.tar.gz"
   _hi_in_pkglib src_tarball 9.9.9 HEAD "$out" || return 1
-  tar -tzf "$out" | grep -qx 'say-hi-9.9.9/hi.sh'
+  # no -q: an early grep exit would SIGPIPE tar mid-listing, which reads as
+  # a red 141 under the suite's pipefail
+  tar -tzf "$out" | grep -x 'say-hi-9.9.9/hi.sh' >/dev/null
 }
 
 # --- mkrepo.sh's offline half (the docker-free index builders) --------------
@@ -1481,11 +1438,6 @@ function run_packaging_tests() {
   _hi_check "tap/aur are dispatch-only, not in release.yml" test_tap_and_aur_are_dispatch_only
   _hi_check "...and skip a prerelease tag" test_prerelease_tags_reach_no_external_channel
   _hi_check "...reading their manifests off the release" test_publish_external_reads_manifests_from_the_release
-
-  _hi_h2 "Testing: snapshot.yml"
-  _hi_check "Runs on pushes to main only" test_snapshot_workflow_only_runs_on_main
-  _hi_check "Reaches no external channel" test_snapshot_workflow_reaches_no_channel
-  _hi_check "Publishes one current prerelease, tagged per commit" test_snapshot_workflow_is_a_single_current_prerelease
 
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
   _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild

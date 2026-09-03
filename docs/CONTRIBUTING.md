@@ -95,7 +95,7 @@ configured required status check yet — requiring `fast suites
 carries no `continue-on-error`, so a red suite there fails that run, but it
 doesn't stop a merge either way.
 
-The rest of `.github/workflows/` — `release.yml`, `snapshot.yml`,
+The rest of `.github/workflows/` — `release.yml`,
 `pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,
 `tool-versions.yml`, `link-check.yml`, `demos.yml`, and the dispatch-only
 `coverage.yml` (a kcov/bashcov matrix, both aggregates published as shields

@@ -33,57 +33,38 @@ _HI_ROOT_DIR=""
 _HI_LAUNCHER_FILE=""
 _HI_MAN_FILE=""
 
-# Five flags took a value and each spelled the same guard out: without one, a
-# flag typed with its value left off silently eats the *next* flag. One table
-# instead, mapping flag -> variable and the noun its error says; `eval` to
-# assign through a name is the bash-3.2-safe form (no namerefs).
-_HI_OPTS='--version:_HI_VERSION:a value
---date:_HI_DATE:a value
---root:_HI_ROOT_DIR:a path
---launcher:_HI_LAUNCHER_FILE:a path
---man:_HI_MAN_FILE:a path'
-
 while [ $# -gt 0 ]; do
-  _hi_opt=""
+  # --x=y becomes --x y first, so each flag below is spelled once
+  case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   -h | --help)
     echo "$_HI_USAGE"
     exit 0
     ;;
-  *)
-    # The table is the list of flags that take a value, so their names are
-    # spelled there and nowhere else - a `case` arm repeating them is the
-    # second home that goes stale. A literal prefix match, not `grep "^$1:"`:
-    # that reads the argument as a regex (`--.*` would match a real row) and
-    # costs a fork besides.
-    while IFS= read -r _hi_row; do
-      case "$_hi_row" in "$1":*)
-        _hi_opt="$_hi_row"
-        break
-        ;;
-      esac
-    done <<EOF
-$_HI_OPTS
-EOF
-    [ -n "$_hi_opt" ] || {
-      echo "stamp.sh: unknown argument: $1" >&2
-      echo "$_HI_USAGE" >&2
-      exit 1
-    }
-    _hi_var="${_hi_opt#*:}"
-    _hi_noun="${_hi_var#*:}"
-    _hi_var="${_hi_var%%:*}"
+  --version | --date | --root | --launcher | --man)
+    # one guard for every value flag: typed with its value left off, a flag
+    # would otherwise silently eat the *next* flag
     [ $# -ge 2 ] || {
-      echo "stamp.sh: $1 requires $_hi_noun" >&2
+      echo "stamp.sh: $1 requires a value" >&2
       exit 1
     }
-    eval "$_hi_var=\$2"
+    case "$1" in
+    --version) _HI_VERSION="$2" ;;
+    --date) _HI_DATE="$2" ;;
+    --root) _HI_ROOT_DIR="$2" ;;
+    --launcher) _HI_LAUNCHER_FILE="$2" ;;
+    --man) _HI_MAN_FILE="$2" ;;
+    esac
     shift
+    ;;
+  *)
+    echo "stamp.sh: unknown argument: $1" >&2
+    echo "$_HI_USAGE" >&2
+    exit 1
     ;;
   esac
   shift
 done
-unset _hi_opt _hi_row _hi_var _hi_noun
 
 [ -n "$_HI_VERSION" ] || {
   echo "stamp.sh: --version is required" >&2

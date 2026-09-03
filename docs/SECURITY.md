@@ -175,10 +175,9 @@ third-party action cannot.
 
 ## Supported versions
 
-No tagged release yet: the supported version is the tip of `main`. The
-`snapshot` prerelease is that tip, packaged - unattended, unsigned, and
-replaced on every push ([PACKAGING.md](PACKAGING.md#snapshot-builds)); it is
-a convenience, not a version. Once v1.0 is tagged, this becomes a version
+No tagged release yet: the supported version is the tip of `main`, and
+packages exist only for the versions a hand-pushed `v*` tag has built
+([PACKAGING.md](PACKAGING.md)). Once v1.0 is tagged, this becomes a version
 table with the latest release supported; what a 1.x release keeps stable is
 [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
 

@@ -8,15 +8,13 @@
 # invocation spelled twice with a prefix that has to match by luck.
 #
 # Usage: srctar.sh <version> <ref> <outfile>
-set -euo pipefail
 
+# strict mode comes back on with the source: lib.sh ends with `set -euo
+# pipefail` after core.sh turned it off
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 _HI_USAGE="Usage: srctar.sh <version> <ref> <outfile>"
-
-# GLOSSARY: HI.06
-[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
 case "${1:-}" in
 -h | --help)
