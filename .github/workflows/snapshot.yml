@@ -38,7 +38,7 @@ jobs:
       - name: Install zsh and fish
         run: sudo apt-get update && sudo apt-get install -y zsh fish
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: shellcheck
 
@@ -59,7 +59,7 @@ jobs:
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: nfpm
 
@@ -147,7 +147,7 @@ jobs:
           name: snapshot-packages
           path: dist
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: minisign
 

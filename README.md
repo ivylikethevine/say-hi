@@ -9,8 +9,8 @@ _Don't `ssh`ush your hosts, say `hi`!_
      nameFilter or the badge reads "no check runs". The release badge omits
      include_prereleases: each push to main publishes a snapshot prerelease. -->
 
-![Payload Size](https://img.shields.io/badge/ssh_payload-46KB-4c1)
-![Code Size](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
+![Payload](https://img.shields.io/badge/ssh_payload-46KB-4c1)
+![Code](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -168,7 +168,7 @@ Client: zsh.
 [![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 [![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
-[![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20MSYS2%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20MSYS2)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
+[![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)](https://github.com/ivylikethevine/say-hi/actions/workflows/ci.yml)
 
 Two questions, answered at two moments: **can hi land a session on that OS at
 all**, and **what shell do you end up in**. Both tables, with a legend and what

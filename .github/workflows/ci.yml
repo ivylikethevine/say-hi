@@ -42,7 +42,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-    uses: ./.github/workflows/changes.yml
+    uses: $/.github/workflows/changes.yml
     with:
       filters: |
         code:
@@ -80,7 +80,7 @@ jobs:
       # 14 days, not 1: a workflow_dispatch of pages.yml must still find totals.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: fast-totals
+          name: tests
           path: ${{ runner.temp }}/totals
           retention-days: 14
 
@@ -110,25 +110,25 @@ jobs:
       - name: Install zsh and fish
         run: sudo apt-get update && sudo apt-get install -y zsh fish
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: shellcheck
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: shfmt
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: checkbashisms
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: mandoc
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: typos
 
@@ -161,6 +161,10 @@ jobs:
   # credentialed release checkout, is suppressed inline). One job, two steps
   # each with continue-on-error so a finding in one does not stop the other
   # from reporting; the trailing step fails the job if either did.
+  #
+  # actionlint is pinned to kjanat's fork, not upstream: upstream rejects the
+  # `$/...` self-repository syntax zizmor's own auto-fix rewrote every local
+  # `uses:` to (tools.txt has the why).
   workflow-lint:
     name: workflow lint
     runs-on: ubuntu-latest
@@ -172,11 +176,11 @@ jobs:
 
       # actionlint shells out to shellcheck for run: blocks when it is on
       # PATH - pin it so both tools lint shell with the same version
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: shellcheck
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: actionlint
 
@@ -185,7 +189,7 @@ jobs:
         continue-on-error: true
         run: actionlint -color
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: zizmor
 
@@ -232,7 +236,7 @@ jobs:
             !.claude/**
           config: ".markdownlint.yaml"
 
-      - uses: ./.github/actions/advisory-note
+      - uses: $/.github/actions/advisory-note
         if: steps.markdownlint.outcome == 'failure'
         with:
           title: markdownlint
@@ -247,7 +251,7 @@ jobs:
       # fixture. DL4006 - curl piped into sh with no pipefail, where a 404
       # builds a green image with the framework missing - is fixed in the
       # fixtures rather than ignored here.
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: hadolint
 
@@ -274,7 +278,7 @@ jobs:
         if: steps.hadolint.outputs.found == '1'
         run: sed -n '1,80p' "$RUNNER_TEMP/hadolint.out" >"$RUNNER_TEMP/hadolint.truncated"
 
-      - uses: ./.github/actions/advisory-note
+      - uses: $/.github/actions/advisory-note
         if: steps.hadolint.outputs.found == '1'
         with:
           title: hadolint
@@ -308,7 +312,7 @@ jobs:
         if: steps.demo-staleness.outputs.stale == '1'
         run: sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/staleness.out" >"$RUNNER_TEMP/staleness.plain"
 
-      - uses: ./.github/actions/advisory-note
+      - uses: $/.github/actions/advisory-note
         if: steps.demo-staleness.outputs.stale == '1'
         with:
           title: demo.gif
@@ -353,7 +357,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: nfpm
 
@@ -412,7 +416,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: package-sizes
+          name: package-install-sizes
           path: ${{ runner.temp }}/sizes
           retention-days: 14
 
@@ -465,7 +469,7 @@ jobs:
       # install_methods_test.sh builds real .deb/.rpm/.apk with mkpkg.sh and
       # installs them on its targets; without nfpm those cases stand down and
       # --require-run fails the gate, so the pin is what makes them run.
-      - uses: ./.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tool
         with:
           tool: nfpm
 
@@ -609,13 +613,13 @@ jobs:
     name: e2e (macOS)
     needs: e2e-gate
     if: needs.e2e-gate.outputs.ok == 'true'
-    uses: ./.github/workflows/macos-e2e.yml
+    uses: $/.github/workflows/macos-e2e.yml
 
   e2e-windows:
     name: e2e (Windows)
     needs: e2e-gate
     if: needs.e2e-gate.outputs.ok == 'true'
-    uses: ./.github/workflows/windows-e2e.yml
+    uses: $/.github/workflows/windows-e2e.yml
 
   # The non-macOS BSD, on the same gate: a FreeBSD VM on a hosted runner runs
   # the fast suites and ssh's to itself.
@@ -623,7 +627,7 @@ jobs:
     name: e2e (FreeBSD)
     needs: e2e-gate
     if: needs.e2e-gate.outputs.ok == 'true'
-    uses: ./.github/workflows/freebsd-e2e.yml
+    uses: $/.github/workflows/freebsd-e2e.yml
 
   # The client-side half of Windows. Not behind e2e-gate: it is the fast
   # suites on another client, not an e2e that wants green targets first, and
@@ -638,4 +642,4 @@ jobs:
     name: fast suites (Windows client)
     needs: changes
     if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
-    uses: ./.github/workflows/windows-client.yml
+    uses: $/.github/workflows/windows-client.yml

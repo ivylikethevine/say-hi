@@ -87,10 +87,10 @@ jobs:
       # come from ci.yml's newest run and look it up twice to keep all five
       # steps the same shape.
       - name: Fetch CI's totals
-        uses: ./.github/actions/fetch-latest-artifact
+        uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: ci.yml
-          artifact-name: fast-totals
+          artifact-name: tests
           dest-subdir: totals
           found-message: counting from CI run
           missing-message: no successful CI run on main to read a count from
@@ -99,10 +99,10 @@ jobs:
       # separate artifacts from the same run: the count comes from `test`, the
       # sizes from `packaging-smoke`
       - name: Fetch CI's package sizes
-        uses: ./.github/actions/fetch-latest-artifact
+        uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: ci.yml
-          artifact-name: package-sizes
+          artifact-name: package-install-sizes
           dest-subdir: sizes
           found-message: sizing from CI run
           missing-message: no successful CI run on main to read package sizes from
@@ -119,7 +119,7 @@ jobs:
       # run's overall status and grey out the other's badge too - see
       # coverage.yml's header comment for the trade that buys.
       - name: Fetch the last coverage run's kcov figure
-        uses: ./.github/actions/fetch-latest-artifact
+        uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
           artifact-name: coverage-pct
@@ -128,7 +128,7 @@ jobs:
           missing-message: no successful coverage run on main - the kcov badge stays grey
 
       - name: Fetch the last coverage run's bashcov figure
-        uses: ./.github/actions/fetch-latest-artifact
+        uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
           artifact-name: coverage-v2-pct
@@ -145,7 +145,7 @@ jobs:
       # docs/tapes/ is excluded from the Jekyll build (_config.yml), so the
       # copy step below carries it into _site beside the rendered ones.
       - name: Fetch the last demo render's GIFs
-        uses: ./.github/actions/fetch-latest-artifact
+        uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: demos.yml
           artifact-name: demo-gifs
@@ -198,7 +198,7 @@ jobs:
             echo "tests badge: $passed passed"
           else
             badge tests.json tests inactive unknown
-            echo "::warning::no fast-totals to read - tests badge published as unknown"
+            echo "::warning::no tests artifact to read - tests badge published as unknown"
           fi
 
           # README's package badge. Two figures in one message on purpose: the
@@ -212,7 +212,7 @@ jobs:
             echo "package badge: $deb B deb, $installed B installed"
           else
             badge package.json package inactive unknown
-            echo "::warning::no package-sizes to read - package badge published as unknown"
+            echo "::warning::no package-install-sizes to read - package badge published as unknown"
           fi
 
           # The kcov endpoint. Shown in README under an explicit accuracy

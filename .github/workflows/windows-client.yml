@@ -39,7 +39,7 @@ jobs:
       # lint group is enforced on ci.yml's ubuntu job only. No --require-run or
       # --totals-file either: skips are expected (no zsh or fish here), and
       # README's tests badge is the ubuntu count on purpose, per the note above
-      # ci.yml's fast-totals upload.
+      # ci.yml's tests upload.
       - name: Run this shard of the fast suites under Git Bash
         shell: bash
         # HI_SHARDS is the divisor and the matrix above lists one entry per

@@ -35,8 +35,12 @@
 shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck
 shfmt|3.14.0|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh
 checkbashisms|2.26.11|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:debian%2Fdevscripts
-actionlint|1.7.12|tar.gz|https://github.com/rhysd/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:rhysd/actionlint
-zizmor|1.29.0|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor
+# actionlint points at kjanat's fork, not upstream rhysd/actionlint: upstream
+# is stuck on 1.7.12 and rejects zizmor's `$/...` self-repository syntax
+# (rhysd/actionlint#732 open, unmerged); the fork added `$/...` support in
+# v1.9.0 and is what unblocks the zizmor pin below.
+actionlint|1.14.0|tar.gz|https://github.com/kjanat/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:kjanat/actionlint
+zizmor|1.30.0|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor
 nfpm|2.47.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm
 minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign
 trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy

@@ -60,7 +60,7 @@ jobs:
             echo "Found by [\`tool-versions\`]($RUN_URL). Closed automatically once every pin is current."
           } >"$RUNNER_TEMP/report.md"
 
-      - uses: ./.github/actions/upsert-tracking-issue
+      - uses: $/.github/actions/upsert-tracking-issue
         with:
           label: tool-versions
           label-color: 0E8A16
