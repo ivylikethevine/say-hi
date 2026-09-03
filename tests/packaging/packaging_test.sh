@@ -32,6 +32,20 @@ _HI_CI_WF="$_HI_ROOT/.github/workflows/ci.yml"
 _HI_MKREPO="$_HI_PKG_DIR/mkrepo.sh"
 _HI_TOOLS_TXT="$_HI_ROOT/.github/actions/setup-tool/tools.txt"
 
+# _hi_wf_job <file> <job> - one job's block from a workflow's jobs: map, in a
+# variable rather than a pipe (nothing here can EPIPE). Closes on the next
+# top-level (2-space) job key, whatever it's named, or EOF for the last job -
+# unlike a hand-picked end pattern (`[a-z]*:$`, a literal next name), this
+# can't quietly stop matching a real key and read past the job it names.
+function _hi_wf_job() {
+  local file="$1" job="  $2:"
+  awk -v job="$job" '
+    $0 == job { found = 1; next }
+    found && /^  [A-Za-z0-9_-]+:$/ { exit }
+    found { print }
+  ' "$file"
+}
+
 # The names SHA256SUMS covers, however the local sha256sum spelled them. GNU
 # writes `<hash>  <name>`; Windows' opens binary by default and writes
 # `<hash> *<name>`, and `sha256sum -c` reads both either way - so the leading
@@ -341,10 +355,10 @@ function test_release_workflow_gates_publishing() {
 function test_release_jobs_under_the_gate_check_their_needs() {
   local name need job bad=0
   while read -r name; do
-    job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
+    job="$(_hi_wf_job "$_HI_RELEASE_WF" "$name")"
     need="$(printf '%s\n' "$job" | sed -n 's/^    needs: //p' | head -1)"
     [ -n "$need" ] || continue
-    if ! printf '%s\n' "$job" | grep -qF "needs.$need.result"; then
+    if ! [[ "$job" == *"needs.$need.result"* ]]; then
       _hi_cecho " | release.yml's $name job needs $need but never checks needs.$need.result" "$RED"
       bad=1
     fi
@@ -357,7 +371,7 @@ function test_only_the_gated_job_publishes() {
   local before
   # everything above the publish: job must be free of release uploads
   before="$(sed -n '1,/^  publish:/p' "$_HI_RELEASE_WF")"
-  ! printf '%s' "$before" | grep -qE 'gh release (create|upload)'
+  ! { [[ "$before" == *'gh release create'* ]] || [[ "$before" == *'gh release upload'* ]]; }
 }
 
 # A prerelease tag (a `-` in the name: v1.0.0-rc.1) is a GitHub Release and
@@ -367,7 +381,7 @@ function test_only_the_gated_job_publishes() {
 # is not a makepkg-legal pkgver, and the AUR is the one place it would go.
 function test_release_workflow_marks_prerelease_tags() {
   local job
-  job="$(sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [ -n "$job" ] || return 1
   # shellcheck disable=SC2016 # matching release.yml's literal source text
   [[ "$job" == *'case "$GITHUB_REF_NAME" in *-*)'* ]] &&
@@ -376,15 +390,15 @@ function test_release_workflow_marks_prerelease_tags() {
 
 function test_prerelease_tags_reach_no_channel() {
   local job bad=0 guard="!contains(github.ref_name, '-')"
-  job="$(sed -n "/^  brew:/,/^  [a-z]*:\$/p" "$_HI_RELEASE_WF")"
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" brew)"
   if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
     _hi_cecho " | release.yml's brew job runs on a prerelease tag" "$RED"
     bad=1
   fi
   # the Pages refresh too: a prerelease publishes --latest=false, so pages.yml
   # would have nothing new to serve and the dispatch must be skipped
-  job="$(sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
-  if ! printf '%s\n' "$job" | grep -qF "if: \${{ $guard }}"; then
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  if ! [[ "$job" == *"if: \${{ $guard }}"* ]]; then
     _hi_cecho " | release.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
@@ -398,7 +412,7 @@ function test_prerelease_tags_reach_no_external_channel() {
   [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
   local name job bad=0 guard="!contains(github.event.inputs.tag, '-')"
   for name in tap aur; do
-    job="$(sed -n "/^  $name:/,/^  [a-z]*:\$/p" "$_HI_PUBLISH_EXTERNAL_WF")"
+    job="$(_hi_wf_job "$_HI_PUBLISH_EXTERNAL_WF" "$name")"
     if [[ "$job" != *"$guard"* ]]; then
       _hi_cecho " | publish-external.yml's $name job runs on a prerelease tag" "$RED"
       bad=1
@@ -483,9 +497,9 @@ function test_release_workflow_verifies_the_manifests() {
 function test_publish_job_signs_the_sums() {
   local publish
   publish="$(sed -n '/^  publish:/,$p' "$_HI_RELEASE_WF")"
-  printf '%s' "$publish" | grep -qF 'MINISIGN_SECRET_KEY' &&
-    printf '%s' "$publish" | grep -qF 'minisign -S' &&
-    printf '%s' "$publish" | grep -qF 'tool: minisign'
+  [[ "$publish" == *'MINISIGN_SECRET_KEY'* ]] &&
+    [[ "$publish" == *'minisign -S'* ]] &&
+    [[ "$publish" == *'tool: minisign'* ]]
 }
 
 # The package repository (docs/PACKAGING.md's _Package repository_), in four
@@ -497,19 +511,19 @@ function test_publish_job_signs_the_sums() {
 # packaging-smoke builds one on every PR.
 function test_build_job_signs_the_rpm() {
   local build
-  build="$(sed -n '/^  build:/,/^  publish:/p' "$_HI_RELEASE_WF")"
-  printf '%s' "$build" | grep -qF 'GPG_SIGNING_KEY' &&
-    printf '%s' "$build" | grep -qF 'HI_GPG_KEY=' &&
-    printf '%s' "$build" | grep -qF 'packaging/gpg/say-hi.asc'
+  build="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
+  [[ "$build" == *'GPG_SIGNING_KEY'* ]] &&
+    [[ "$build" == *'HI_GPG_KEY='* ]] &&
+    [[ "$build" == *'packaging/gpg/say-hi.asc'* ]]
 }
 
 # shellcheck disable=SC2016 # matching release.yml's literal source text
 function test_publish_job_ships_the_package_repository() {
   local publish
-  publish="$(sed -n '/^  publish:/,/^  tap:/p' "$_HI_RELEASE_WF")"
-  printf '%s' "$publish" | grep -qF 'packaging/mkrepo.sh' &&
-    printf '%s' "$publish" | grep -qF -- '--public-key packaging/gpg/say-hi.asc' &&
-    printf '%s' "$publish" | grep -qF 'gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz'
+  publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  [[ "$publish" == *'packaging/mkrepo.sh'* ]] &&
+    [[ "$publish" == *'--public-key packaging/gpg/say-hi.asc'* ]] &&
+    [[ "$publish" == *'gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz'* ]]
 }
 
 function test_pages_workflow_serves_the_package_repository() {
@@ -529,13 +543,12 @@ function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
   ! grep -qE '^ *workflows: \[CI, Release\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflows: \[CI\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
-    sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF" |
-    grep -qF 'gh workflow run pages.yml'
+    [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" == *'gh workflow run pages.yml'* ]]
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
   [ -f "$_HI_CI_WF" ] || return 0
-  sed -n '/^  packaging-smoke:/,/^  [a-z-]*:$/p' "$_HI_CI_WF" | grep -qF 'packaging/mkrepo.sh'
+  [[ "$(_hi_wf_job "$_HI_CI_WF" packaging-smoke)" == *'packaging/mkrepo.sh'* ]]
 }
 
 # mkrepo.sh answers --help before it asks for docker, so the flags the
