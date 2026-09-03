@@ -142,10 +142,11 @@ cannot land without a row here.
 | `_HI_REMOTE_SESSION`         | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                 |
 | `_HI_HEADER_BANNER`          | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                           |
 | `_HI_HEADER_TIMESTAMP`       | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the date/time line                                                     |
-| `_HI_HEADER_SYSINFO`         | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the OS/CPU/RAM/uptime line                                             |
+| `_HI_HEADER_SYSINFO`         | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the OS/CPU/RAM line                                                    |
+| `_HI_HEADER_UPTIME`          | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the uptime line                                                        |
 | `_HI_HEADER_IDENTITY`        | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the git identity/containers/ssh key line                               |
 | `_HI_HEADER_CHECK`           | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the installed-packages check                                           |
-| `_HI_HEADER_ORDER`           | `timestamp sysinfo identity check`                   | `hi --configure`          | [Header details](#header-details) - the order the header's rows print in                                   |
+| `_HI_HEADER_ORDER`           | `timestamp sysinfo uptime identity check`            | `hi --configure`          | [Header details](#header-details) - the order the header's rows print in                                   |
 | `_HI_PACKAGES_MIN_PRIORITY`  | `2`                                                  | `hi --configure`          | [Everything else](#everything-else) - how far down `settings/packages` the check reports                   |
 | `_HI_PACKAGES_PALETTE`       | `cool`                                               | `hi --configure`          | [Everything else](#everything-else) - which named color ramp the check paints with                         |
 | `_HI_MAX_WIDTH`              | `80`                                                 | `hi --configure`          | [Everything else](#everything-else) - columns the header and banner are drawn to                           |
@@ -283,18 +284,20 @@ Each is **on by default**; set it to `0` to hide that line. All are ignored when
 | ---------------------- | ---------------------------------------------------------------- |
 | `_HI_HEADER_BANNER`    | the `~~~ Connected [host] ~~~` line, on connect _and_ disconnect |
 | `_HI_HEADER_TIMESTAMP` | the date/time line                                               |
-| `_HI_HEADER_SYSINFO`   | the OS / CPU / RAM / uptime line                                 |
+| `_HI_HEADER_SYSINFO`   | the OS / CPU / RAM line                                          |
+| `_HI_HEADER_UPTIME`    | the uptime line                                                  |
 | `_HI_HEADER_IDENTITY`  | the git identity / containers / ssh key line                     |
 | `_HI_HEADER_CHECK`     | the installed-packages check (`settings/packages`)               |
 
-`_HI_HEADER_ORDER` reorders those four rows instead of hiding one: a
-space-separated list of `timestamp`, `sysinfo`, `identity` and `check`, top to
-bottom, in any order and any subset - a row left out is not printed, a second
-way to hide one alongside its own toggle above. Unknown words are ignored. The
-banner always leads and the tmux-passthrough warning below (no toggle of its
-own) always trails; neither is a word this list understands, since a reorder
-cannot move either. Defaults to `timestamp sysinfo identity check`, today's
-fixed order, so an unset override changes nothing.
+`_HI_HEADER_ORDER` reorders those five rows instead of hiding one: a
+space-separated list of `timestamp`, `sysinfo`, `uptime`, `identity` and
+`check`, top to bottom, in any order and any subset - a row left out is not
+printed, a second way to hide one alongside its own toggle above. Unknown
+words are ignored. The banner always leads and the tmux-passthrough warning
+below (no toggle of its own) always trails; neither is a word this list
+understands, since a reorder cannot move either. Defaults to
+`timestamp sysinfo uptime identity check`, today's fixed order, so an unset
+override changes nothing.
 
 ### Others
 

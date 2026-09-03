@@ -10,3 +10,8 @@ contact_links:
     about: >-
       What it copies, where it writes, and what it removes on exit — worth
       reading before deciding something is a bug.
+  - name: Ask a question or share an idea
+    url: https://github.com/ivylikethevine/say-hi/discussions
+    about: >-
+      Not a bug and not a vulnerability - usage questions, feature ideas and
+      general discussion go here instead of an issue.
