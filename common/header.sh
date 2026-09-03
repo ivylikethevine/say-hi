@@ -28,14 +28,51 @@ function _hi_visible_width() {
   printf -v "$1" '%d' "${#s}"
 }
 
-# Wraps between cells at $_HI_MAX_WIDTH, never within one - full_check's own
+# <var> gets the width the header actually draws to: $_HI_MAX_WIDTH, never
+# wider than the window. A row left to overrun the real terminal gets broken
+# by the terminal mid-cell, which is the one break header_row/full_check/
+# banner exist to prevent.
+#
+# $_HI_TERM_COLS set (by a caller, or a previous call's own tput fallback)
+# always wins, tty or not - the one deliberate override, and what lets a
+# suite pin a narrow width the same way it already pins $_HI_MAX_WIDTH.
+# Otherwise, only when stdout is a tty: a captured header (the suites that
+# never touch $_HI_TERM_COLS, configure.sh's previews, `hi --doctor`) keeps
+# drawing to $_HI_MAX_WIDTH exactly. $COLUMNS first, read fresh every call -
+# bash's checkwinsize keeps it current across a resize, and reading it is
+# free. `tput` is the fallback and the fork, so its answer is memoized into
+# $_HI_TERM_COLS for every call after the first.
+#
+# Locals prefixed _hi_dw_, not the generic "max"/"cols" every caller uses for
+# its own budget - `printf -v "$1"` resolves the name in the nearest scope,
+# so a same-named local declared here would shadow the caller's variable
+# instead of writing into it.
+function _hi_draw_width() {
+  local _hi_dw_max=${_HI_MAX_WIDTH:-80} _hi_dw_cols=""
+  if [ -n "${_HI_TERM_COLS+x}" ]; then
+    _hi_dw_cols="$_HI_TERM_COLS"
+  elif [ -t 1 ]; then
+    _hi_dw_cols="${COLUMNS:-}"
+    case "$_hi_dw_cols" in '' | *[!0-9]*) _hi_dw_cols="" ;; esac
+    if [ -z "$_hi_dw_cols" ]; then
+      _hi_dw_cols="$(command -v tput >/dev/null 2>&1 && tput cols 2>/dev/null || true)"
+      case "$_hi_dw_cols" in '' | *[!0-9]*) _hi_dw_cols="" ;; esac
+      _HI_TERM_COLS="$_hi_dw_cols"
+    fi
+  fi
+  [ -n "$_hi_dw_cols" ] && ((_hi_dw_cols > 0 && _hi_dw_cols < _hi_dw_max)) && _hi_dw_max=$_hi_dw_cols
+  printf -v "$1" '%d' "$_hi_dw_max"
+}
+
+# Wraps between cells at _hi_draw_width, never within one - full_check's own
 # wrap loop (below), reused here rather than duplicated: `width` starts at
 # `max` so the very first cell always looks like an overflow and takes the
 # same branch a real wrap does, minus the leading newline `count == 0` skips.
 # Every cell keeps its own trailing reset before a line break, since a
 # color left open would otherwise bleed onto the next physical line.
 function header_row() {
-  local cell out="" max=${_HI_MAX_WIDTH:-80} vislen count=0
+  local cell out="" max vislen count=0
+  _hi_draw_width max
   local width=$max
   for cell in "$@"; do
     _hi_visible_width vislen "$cell"
@@ -53,19 +90,33 @@ function header_row() {
 
 # The header's version cell is a glance value, not a lookup key - git
 # describe's own hash (7 hex digits, either after "-g" or bare when no tag is
-# reachable at all) is more precision than a header row has room for, so this
-# trims it to 4. Never touches $_HI_RELEASE or `hi --version`'s answer
-# (hi.sh's _hi_version calls _hi_release_or_describe directly): those stay
-# the full string, this is a display-only shortening of the header's copy.
+# reachable at all) is more precision than a header row has room for, and its
+# tag can carry one too (a snapshot tag names its own commit). So: drop
+# -dirty (a glance value has no room for it either), keep at most 5 columns of
+# tag plus a 4-column hash joined by ".", never bare $_HI_RELEASE or
+# `hi --version`'s answer (hi.sh's _hi_version calls _hi_release_or_describe
+# directly) - this is a display-only shortening of the header's copy, capped
+# at 10 columns either way.
 function _hi_shorten_describe() {
-  local v="$1" re_g='^(.*-g)([0-9a-f]{5,})(-dirty)?$' re_bare='^([0-9a-f]{5,})(-dirty)?$'
+  local v="${1%-dirty}" tag="" hash="" out
+  local re_g='^(.*)-[0-9]+-g([0-9a-f]{4,})$' re_bare='^([0-9a-f]{4,})$'
   if [[ "$v" =~ $re_g ]]; then
-    printf '%s%s%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]:0:4}" "${BASH_REMATCH[3]:-}"
+    tag="${BASH_REMATCH[1]}" hash="${BASH_REMATCH[2]}"
   elif [[ "$v" =~ $re_bare ]]; then
-    printf '%s%s' "${BASH_REMATCH[1]:0:4}" "${BASH_REMATCH[2]:-}"
+    hash="${BASH_REMATCH[1]}"
   else
-    printf '%s' "$v"
+    tag="$v"
   fi
+  if [ -z "$hash" ]; then
+    out="${tag:0:10}"
+  else
+    tag="${tag:0:5}"
+    while [ -n "$tag" ]; do
+      case "$tag" in *[-._]) tag="${tag%?}" ;; *) break ;; esac
+    done
+    out="${tag:+$tag.}${hash:0:4}"
+  fi
+  printf '%s' "$out"
 }
 
 # hi's version for the header, resolved once per shell (the row prints twice
@@ -115,7 +166,7 @@ function _hi_cpu_clocks() {
 }
 
 # <seconds> humanized to at most two units, largest first - a header cell,
-# not a stopwatch. Shared by uptime_row and nothing else; system_info no
+# not a stopwatch. Shared by _hi_uptime_cell and nothing else; system_info no
 # longer touches uptime at all.
 function _hi_humanize_uptime() {
   local s="$1"
@@ -229,13 +280,13 @@ function system_info() {
     "${CYAN}RAM: ${ram:-?}"
 }
 
-# The uptime row, split out of system_info so $_HI_HEADER_ORDER can move or
-# hide it independently. Its own minimal probe rather than sharing
-# system_info's: only the kernel branch (which command answers "how long has
-# this box been up") is common to both, and duplicating that one `uname` call
-# is cheaper than making the two rows share state across a $_HI_HEADER_ORDER
-# that might put other rows, or nothing at all, between them.
-function uptime_row() {
+# <var> gets the uptime cell, folded into identity() rather than a row of its
+# own so it rides the wrap instead of always costing a line. Its own minimal
+# probe rather than sharing system_info's: only the kernel branch (which
+# command answers "how long has this box been up") is common to both, and
+# duplicating that one `uname` call is cheaper than making the two share
+# state.
+function _hi_uptime_cell() {
   local kernel uptime_s="" up=""
   read -r kernel _ < <(uname -sm 2>/dev/null || :)
   _hi_sanitize_var kernel "$kernel"
@@ -252,7 +303,7 @@ function uptime_row() {
   # probe negative, and a stripped-down awk fails closed the same way
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
   [ -n "$uptime_s" ] && up="$(_hi_humanize_uptime "$uptime_s")"
-  header_row "${BRPURPLE}Up: ${up:-?}"
+  printf -v "$1" '%s' "${BRPURPLE}Up: ${up:-?}"
 }
 
 # identity()'s backend probes are independent and each capped at
@@ -306,10 +357,10 @@ function _hi_probe_launch() {
   return 0
 }
 
-# git identity (domain masked), containers/jobs/pods, ssh key counts. Reads
-# what _hi_probe_launch started; calls it itself if nobody did.
+# git identity (domain masked), containers/jobs/pods, ssh key counts, uptime.
+# Reads what _hi_probe_launch started; calls it itself if nobody did.
 function identity() {
-  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0
+  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0 up_cell
   local -a lines cells
   command -v git &>/dev/null && email=$(git config --get user.email 2>/dev/null || true)
   _hi_sanitize_var email "$email"
@@ -354,11 +405,17 @@ function identity() {
   [ -n "$jobs" ] && cells+=("$BRCYAN$jobs")
   [ -n "$pods" ] && cells+=("$CYAN$pods")
   cells+=("${RED}Auth: $authorized" "${PURPLE}Pub: $public")
+  # uptime rides the end of this row, not a row of its own, so it wraps with
+  # everything else instead of always costing a line
+  if [[ "${_HI_HEADER_UPTIME:-1}" != 0 ]]; then
+    _hi_uptime_cell up_cell
+    cells+=("$up_cell")
+  fi
   header_row "${cells[@]}"
 }
 
 # "~~~ <label> [host] ~~~" prefixed with say-hi's local change count, always
-# _HI_MAX_WIDTH columns wide
+# _hi_draw_width columns wide
 function banner() {
   [[ "${_HI_HEADER_BANNER:-1}" == 0 ]] && return 0
   local label="$1" color="${2:-$BRGREEN}" changes="" prefix="${3:-}" changes_w=0
@@ -388,7 +445,7 @@ function banner() {
   # memoized for the same reason: two forks a banner for a fixed name
   [ -n "${_HI_BANNER_HOST+x}" ] || _hi_sanitize_var _HI_BANNER_HOST "$(_hi_hostname)"
   host="$_HI_BANNER_HOST"
-  width=${_HI_MAX_WIDTH:-80}
+  _hi_draw_width width
   # split so "label [host]" lands at the center with at least 1 tilde on the left
   left=$((${#prefix} + 1 + changes_w))
   core=$((${#label} + ${#host} + 4))
@@ -429,9 +486,10 @@ function passthrough_check() {
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
 # per row, naming the same rows its $_HI_HEADER_* toggle does. Named here
 # rather than only in the case below, so a doc or test can read the default
-# without parsing the dispatch. uptime sits right after sysinfo, where its
-# cell used to live before it became its own row.
-_HI_HEADER_ORDER_DEFAULT="timestamp sysinfo uptime identity check"
+# without parsing the dispatch. No "uptime" word: its cell lives inside the
+# identity row now (identity()), gated by $_HI_HEADER_UPTIME but not
+# independently orderable.
+_HI_HEADER_ORDER_DEFAULT="timestamp sysinfo identity check"
 
 # One named row of hi_header's dispatch, behind the same toggle the fixed
 # order used - so a row hidden by its toggle stays hidden whatever order it's
@@ -441,7 +499,6 @@ function _hi_header_row() {
   case "$1" in
   timestamp) [[ "${_HI_HEADER_TIMESTAMP:-1}" == 0 ]] || timestamp ;;
   sysinfo) [[ "${_HI_HEADER_SYSINFO:-1}" == 0 ]] || system_info ;;
-  uptime) [[ "${_HI_HEADER_UPTIME:-1}" == 0 ]] || uptime_row ;;
   identity) [[ "${_HI_HEADER_IDENTITY:-1}" == 0 ]] || identity ;;
   check) [[ "${_HI_HEADER_CHECK:-1}" == 0 ]] || full_check ;;
   esac
@@ -574,12 +631,13 @@ function check_line() {
   visible+=("$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered")
 }
 
-# print sorted package results limited by _HI_MAX_WIDTH, from
+# print sorted package results limited by _hi_draw_width, from
 # $_HI_PACKAGES_MIN_PRIORITY up. The floor lives here, not in check_line:
 # scripts/packages_preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
-  local line priority width_item rendered count=0 max=${_HI_MAX_WIDTH:-80}
+  local line priority width_item rendered count=0 max
+  _hi_draw_width max
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
   local -a visible=() # appended to by check_line

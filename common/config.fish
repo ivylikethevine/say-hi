@@ -93,8 +93,12 @@ complete exa --wraps eza
 # color resolution each come from one bash call
 function fish_greeting
   # on a hi session load.sh printed this already and sets $fish_greeting to
-  # suppress us; locally nothing sets it, so we print the header ourselves
-  set -q fish_greeting; or __hi_bash "source $_HI_HEADER; hi_header Online"
+  # suppress us; locally nothing sets it, so we print the header ourselves.
+  # $COLUMNS is fish's own global and never exported, so header.sh's
+  # _hi_draw_width wouldn't see it through __hi_bash's plain `bash -c` -
+  # handed over with an explicit prefix instead of joining _HI_SESSION_VARS
+  # for the one caller that needs it
+  set -q fish_greeting; or COLUMNS=$COLUMNS __hi_bash "source $_HI_HEADER; hi_header Online"
 end
 
 # a whole process for two color names, so memoized in a universal variable
