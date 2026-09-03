@@ -78,6 +78,8 @@ jobs:
         with:
           extra-packages: zsh fish fzf
 
+      # v2.1.1 is upstream's newest tag and its own `main` branch is still
+      # node20 - not a stale pin, there is no node24 release to move to yet.
       - name: Install vhs, ttyd and ffmpeg
         uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1
         with:

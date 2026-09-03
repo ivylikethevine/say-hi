@@ -220,7 +220,13 @@ jobs:
       # Signed build provenance for everything the release carries: the sums
       # say what the bytes are, the attestation says which run built them.
       # Check with: gh attestation verify <file> --repo <owner>/<repo>
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      # actions/attest-build-provenance is a wrapper over actions/attest as of
+      # v4 - called directly instead, carrying over the header-size bump the
+      # wrapper set on its inner step.
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        env:
+          NODE_OPTIONS: "--max-http-header-size=32768"
         with:
           subject-path: ${{ steps.artifacts.outputs.paths }}
 
@@ -241,7 +247,12 @@ jobs:
           upload-artifact: false
           upload-release-assets: false
 
-      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+      # actions/attest-sbom is deprecated in favor of actions/attest (its own
+      # v4 wrapper prints a warning saying so); called directly instead.
+      - name: Attest the SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        env:
+          NODE_OPTIONS: "--max-http-header-size=32768"
         with:
           subject-path: ${{ steps.artifacts.outputs.paths }}
           sbom-path: dist/say-hi.spdx.json
@@ -471,6 +482,11 @@ jobs:
   # and are filtered from what remains; now that the repo is public neither
   # should appear, but the filter stays as a harmless no-op if GitHub's own
   # check is ever slow to see that.
+  #
+  # `brew trust` after tap-new: Homebrew 6.0's tap trust gate ignores a
+  # non-official tap's formulae until trusted, and this throwaway tap is
+  # exactly that shape - untrusted, install/test/audit below would each fail
+  # to find the formula the moment macos-latest ships Homebrew 6.x.
   brew:
     name: brew install, test and audit the formula (macOS)
     needs: publish
@@ -494,6 +510,11 @@ jobs:
           set -euo pipefail
           brew tap-new --no-git "$TAP"
           cp dist/manifests/say-hi.rb "$(brew --repository "$TAP")/Formula/say-hi.rb"
+          # Homebrew 6.0 added tap trust: a non-official tap's formulae are
+          # ignored until trusted, which would otherwise silently break every
+          # step below the moment the runner image carries it. A no-op on
+          # Homebrew 5.x, which has no `trust` subcommand.
+          brew trust --tap "$TAP" 2>/dev/null || true
 
       - name: brew install --build-from-source
         env:

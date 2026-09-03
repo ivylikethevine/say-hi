@@ -2,11 +2,13 @@
 # images, which is what every ignore below turns on. Each names its reason; a
 # rule silenced without one is a rule nobody can put back.
 ignored:
-  # DL3008/DL3018: pin apt/apk versions. The base image is digest-pinned
-  # instead (dependabot watches it); per-package pins would freeze dozens of
-  # versions nothing watches, for packages hi's behaviour never depends on.
+  # DL3008/DL3018/DL3041: pin apt/apk/dnf versions. The base image is
+  # digest-pinned instead (dependabot watches it); per-package pins would
+  # freeze dozens of versions nothing watches, for packages hi's behaviour
+  # never depends on.
   - DL3008
   - DL3018
+  - DL3041
 
   # DL3002: last USER should not be root. The framework fixture ends on `USER
   # root` because its entrypoint runs ssh-keygen and binds a privileged port.
@@ -23,9 +25,10 @@ ignored:
   # for the sed in installed-pkg.
   - SC2016
 
-# Not ignored: DL3009 (apt lists left in the layer) and DL3015 (no
-# --no-install-recommends) are real, low priority on fixtures built once and
-# thrown away, and left visible on purpose - the job is advisory. DL4006 (piped
-# RUN without pipefail) was real and is fixed: framework.Dockerfile sets
-# `SHELL -o pipefail` and every script sets it itself.
+# Not ignored, and not needed: DL3009 (apt lists left in the layer), DL3015
+# (no --no-install-recommends) and DL4006 (piped RUN without pipefail) were
+# all real findings and are fixed in the fixtures rather than silenced -
+# framework.Dockerfile sets `SHELL -o pipefail` and every script sets it
+# itself, and every apt RUN cleans the lists and passes
+# --no-install-recommends.
 failure-threshold: error
