@@ -60,6 +60,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.44 wire size token](#hi44-wire-size-token)
 - [HI.46 session rc directory](#hi46-session-rc-directory)
 - [HI.47 what a child inherits](#hi47-what-a-child-inherits)
+- [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
 
 ## HI.01 empty-array guard
 
@@ -738,3 +739,38 @@ reason. Both are tiers below what `load.sh` styles.
 all three shells, config.fish's two mirrors against core.sh, `_hi_session_env`
 against `_HI_SESSION_VARS`, every env read in targets.sh against the roster,
 and the session rc's quoting round-trip in each dialect.
+
+## HI.48 header cell hue resolution
+
+`$_HI_HEADER_ORDER` (HI's header, `common/header.sh`) lets any subset of
+fifteen words print in any order, each carrying its own hardcoded color.
+Nothing about the order guarantees two adjacent cells differ in color —
+before this, `jobs` and `pods` sat next to each other in the shipped default
+order wearing the same hue (`BRCYAN`/`CYAN`, differing only in the bold bit),
+and any user-supplied order can create the same collision between any two of
+the fifteen.
+
+`_hi_collect_header_word` fixes this in one pass, no lookahead or backtrack:
+it tracks the previous cell's hue in `$_HI_PREV_HUE`, and when a word's own
+color would repeat it, swaps in that word's hand-picked alternate
+(`_hi_header_word_alt`) instead. "Hue" ignores the bold bit — `\e[0;36m` and
+`\e[1;36m` both read as cyan (`_hi_cell_hue`), so a bold/non-bold pair still
+counts as a collision; `\e[0;34m` (blue) does not collide with either.
+
+The one property that makes a single pass sufficient, with no ring walk and
+no retry loop: **every word's alternate has a different hue than that same
+word's own primary.** A substitution only fires when
+`prev_hue == primary_hue`; since `alt_hue != primary_hue` always holds by
+construction, `alt_hue != prev_hue` follows immediately — the substituted
+cell can never itself collide with what came before it. This is not
+something the shell enforces; it is a property of the hand-written color
+table in `_hi_header_word_alt`; a new header word's entry must keep it, and
+`tests/common/header_test.sh`'s `test_header_word_alt_differs_from_its_own_primary`
+checks it mechanically rather than trusting the table by eye.
+
+An empty cell (`containers`/`jobs`/`pods` when that backend never answered)
+leaves `$_HI_PREV_HUE` untouched rather than resetting it to empty —
+resetting it would let the *next* word compare against nothing and skip a
+real collision two cells later. `check` resets it explicitly: the packages
+block has its own palette (`$_HI_YES`/`$_HI_NO`), unrelated to header cell
+hues.

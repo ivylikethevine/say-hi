@@ -28,6 +28,20 @@ function _hi_visible_width() {
   printf -v "$1" '%d' "${#s}"
 }
 
+# <var> gets $2's hue - the final digit of its leading `\e[<bold>;3<n>m`
+# escape (1 red, 2 green, 3 yellow, 4 blue, 5 purple, 6 cyan), ignoring the
+# bold bit, so CYAN and BRCYAN read as the same hue and BLUE/CYAN don't.
+# Empty when there is no leading escape - NO_COLOR blanks the whole palette
+# (core.sh), and a cell like $_HI_SI_OS is then bare text. Anchored and
+# validated the same way _hi_visible_width's own prefix match is, rather
+# than an unanchored `${cell%%m*}`: an unvalidated cut would read a stray
+# "m" out of plain text (an OS name, "GHz") as if it were a color.
+function _hi_cell_hue() {
+  local s="$2" re='^\\e\[[01];3([1-6])m'
+  printf -v "$1" '%s' ""
+  [[ "$s" =~ $re ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+}
+
 # <var> gets the width the header actually draws to: $_HI_MAX_WIDTH, never
 # wider than the window. A row left to overrun the real terminal gets broken
 # by the terminal mid-cell, which is the one break header_row/full_check/
@@ -73,6 +87,13 @@ function _hi_draw_width() {
 # unchanged from before this cascade existed.
 _HI_ROW_CARRY_ARMED=0
 declare -a _HI_ROW_CARRY=()
+
+# The previous $_HI_HEADER_ORDER cell's hue, tracked across
+# _hi_collect_header_word calls so a colliding neighbor can be recolored.
+# File scope, like $_HI_ROW_CARRY_ARMED above: configure.sh's previews run
+# under their own strict mode, and an unset global there is a `set -u` trip,
+# not a silently-empty read.
+_HI_PREV_HUE=""
 
 # Fills exactly one line at _hi_draw_width from <cells...>, prints it, and
 # leaves whatever didn't fit in $_HI_ROW_CARRY (reset on entry) for a caller
@@ -313,7 +334,7 @@ function _hi_system_info_probe() {
       /^MemTotal:/     { total = $2 }
       /^MemAvailable:/ { avail = $2 }
       END {
-        if (avail != "") printf "%.0fG/%.0fG", (total - avail) / 1048576, total / 1048576
+        if (avail != "") printf "%.0f/%.0fG", (total - avail) / 1048576, total / 1048576
         else if (total != "") printf "%.0fG", total / 1048576
       }' /proc/meminfo 2>/dev/null || true)
     load=$(awk '{ printf "%s", $1 }' /proc/loadavg 2>/dev/null || true)
@@ -369,7 +390,7 @@ function _hi_system_info_probe() {
         /^Pages occupied by compressor/ { gsub(/\.$/, "", $NF); compressed = $NF }
         END {
           if (page != "" && total != "")
-            printf "%.0fG/%.0fG", (active + wired + compressed) * page / 1073741824, total / 1073741824
+            printf "%.0f/%.0fG", (active + wired + compressed) * page / 1073741824, total / 1073741824
           else if (total != "")
             printf "%.0fG", total / 1073741824
         }' || true
@@ -556,8 +577,8 @@ function _hi_identity_probe() {
   [ -d "$_HI_SSH_DIR" ] && _hi_read_lines lines < <(find "$_HI_SSH_DIR" -type f -name "*.pub") && public=${#lines[@]}
   _HI_ID_GITID="$user_part"
   _HI_ID_CONTAINERS="${containers:+$BLUE$containers}"
-  _HI_ID_JOBS="${jobs:+$BRCYAN$jobs}"
-  _HI_ID_PODS="${pods:+$CYAN$pods}"
+  _HI_ID_JOBS="${jobs:+$BRGREEN$jobs}"
+  _HI_ID_PODS="${pods:+$BRPURPLE$pods}"
   _HI_ID_AUTH="${RED}Auth: $authorized"
   _HI_ID_PUB="${PURPLE}Pub: $public"
 }
@@ -712,6 +733,36 @@ function _hi_header_word_cell() {
   esac
 }
 
+# <var> gets $1's alternate color - a bright variant of a hue other than the
+# word's own primary, used only when that primary would collide with the
+# previous cell's hue (_hi_collect_header_word below). GLOSSARY: HI.48 - no
+# ring walk or iteration is needed to pick it: a substitution only fires when
+# prev_hue == primary_hue, and every alternate below has a hue that differs
+# from its own word's primary, so alt_hue != primary_hue == prev_hue always
+# holds - the substitution can never itself collide. That property is
+# load-bearing and not enforced by the shell; a new header word's entry here
+# must keep it (tests/common/header_test.sh checks it mechanically).
+function _hi_header_word_alt() {
+  case "$1" in
+  utc) printf -v "$2" '%s' "$BRCYAN" ;;
+  version) printf -v "$2" '%s' "$BRCYAN" ;;
+  localtime) printf -v "$2" '%s' "$BRRED" ;;
+  arch) printf -v "$2" '%s' "$BRCYAN" ;;
+  os) printf -v "$2" '%s' "$BRPURPLE" ;;
+  cores) printf -v "$2" '%s' "$BRGREEN" ;;
+  cpu) printf -v "$2" '%s' "$BRPURPLE" ;;
+  ram) printf -v "$2" '%s' "$BRGREEN" ;;
+  gitid) printf -v "$2" '%s' "$BRRED" ;;
+  containers) printf -v "$2" '%s' "$BRYELLOW" ;;
+  jobs) printf -v "$2" '%s' "$BRYELLOW" ;;
+  pods) printf -v "$2" '%s' "$BRCYAN" ;;
+  auth) printf -v "$2" '%s' "$BRYELLOW" ;;
+  pub) printf -v "$2" '%s' "$BRRED" ;;
+  uptime) printf -v "$2" '%s' "$BRGREEN" ;;
+  *) printf -v "$2" '%s' "" ;;
+  esac
+}
+
 # One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
 # one header_row call (so full_check's own carry-absorption at its top sees
 # the right leftover), then runs it; every other word gets its cell text and
@@ -730,11 +781,26 @@ function _hi_collect_header_word() {
       _HI_PENDING_CELLS=()
     fi
     full_check
+    # the packages check has its own palette (_HI_YES/_HI_NO below); nothing
+    # after "check" should be recolored against it
+    _HI_PREV_HUE=""
     return 0
   fi
-  local cell=""
+  local cell="" hue="" alt=""
   _hi_header_word_cell "$1" cell
-  [ -n "$cell" ] && _HI_PENDING_CELLS+=("$cell")
+  # an empty cell (containers/jobs/pods whose backend never answered) leaves
+  # $_HI_PREV_HUE untouched - writing "" here would disable the *next*
+  # word's comparison too, since a collision needs both hues non-empty
+  [ -n "$cell" ] || return 0
+  _hi_cell_hue hue "$cell"
+  if [ -n "$hue" ] && [ "$hue" = "${_HI_PREV_HUE:-}" ]; then
+    _hi_header_word_alt "$1" alt
+    local re='^\\e\[[01];3[1-6]m(.*)$'
+    [[ "$cell" =~ $re ]] && cell="$alt${BASH_REMATCH[1]}"
+    _hi_cell_hue hue "$cell"
+  fi
+  _HI_PREV_HUE="$hue"
+  _HI_PENDING_CELLS+=("$cell")
 }
 
 # Is <word> anywhere in $_HI_HEADER_ORDER (or its default)? Used to decide
@@ -762,8 +828,11 @@ function hi_header() {
   local -a _HI_PENDING_CELLS=()
   # armed for the span of this loop only - a cell's overflow cascades into
   # the next header_row call's line instead of costing one of its own. Reset
-  # per call: hi_header runs twice a session (connect, disconnect).
+  # per call: hi_header runs twice a session (connect, disconnect). Same
+  # reason for $_HI_PREV_HUE below - the adjacency resolver's own memory of
+  # "what hue did the last cell end up as".
   _HI_ROW_CARRY=() _HI_ROW_CARRY_ARMED=1
+  _HI_PREV_HUE=""
   # shellcheck disable=SC2086 # the split is the point: one word per feature
   for row in ${_HI_HEADER_ORDER:-$_HI_HEADER_ORDER_DEFAULT}; do
     _hi_collect_header_word "$row"

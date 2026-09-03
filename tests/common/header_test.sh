@@ -478,13 +478,17 @@ function test_hi_humanize_uptime_minutes_only() {
   [ "$(_hi_humanize_uptime 120)" = "2m" ]
 }
 
-# used/total, one unit at the end, or total alone when only that probe
-# answers, or "?" when neither does - the shape is pinned, not a value, since
-# this box's own usage moves between runs
+# used/total, one unit on total only ("6/60G", not "6G/60G" - the used
+# figure's own G is redundant next to it), or total alone when only that
+# probe answers, or "?" when neither does - the shape is pinned, not a
+# value, since this box's own usage moves between runs. The second
+# alternative alone would also match a regressed "6G/60G" (its "6G" prefix
+# satisfies `[0-9]+G`), so the explicit "no G/" check carries the real
+# assertion.
 function test_system_info_ram_cell_is_used_over_total() {
   local out
   out="$(system_info)"
-  [[ "$out" =~ RAM:\ ([0-9]+G/[0-9]+G|[0-9]+G|\?) ]]
+  [[ "$out" =~ RAM:\ ([0-9]+/[0-9]+G|[0-9]+G|\?) ]] && [[ "$out" != *"G/"* ]]
 }
 
 # the load-average figure, when a probe answers, rides in parens right after
@@ -1028,6 +1032,157 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
     [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
 }
 
+# _hi_cell_hue: the leading escape's hue digit (1 red .. 6 cyan), ignoring
+# the bold bit, empty with no leading escape.
+function test_hi_cell_hue_reads_the_leading_escape() {
+  local h
+  _hi_cell_hue h "${CYAN}x"
+  [ "$h" = 6 ]
+}
+
+function test_hi_cell_hue_ignores_the_bold_bit() {
+  local cyan brcyan blue
+  _hi_cell_hue cyan "${CYAN}x"
+  _hi_cell_hue brcyan "${BRCYAN}x"
+  _hi_cell_hue blue "${BLUE}x"
+  [ "$cyan" = "$brcyan" ] && [ "$cyan" != "$blue" ]
+}
+
+# NO_COLOR blanks the whole palette (core.sh), so a cell like $_HI_SI_OS is
+# then bare text - the trap an unvalidated `${cell%%m*}` would fall into,
+# reading a stray "m" out of plain text as a color
+function test_hi_cell_hue_is_empty_without_an_escape() {
+  local h
+  _hi_cell_hue h "macOS 15.1"
+  [ -z "$h" ]
+}
+
+function test_hi_cell_hue_ignores_a_non_leading_escape() {
+  local h
+  _hi_cell_hue h "RAM: ${CYAN}6/60G"
+  [ -z "$h" ]
+}
+
+# The correctness argument for skipping a ring-walk fallback: a substitution
+# only fires when the previous cell's hue equals the current word's primary
+# hue, so as long as every word's alternate has a *different* hue than its
+# own primary, the substitution can never itself collide. This is the
+# mechanical check of that property - the one thing that actually has to
+# stay true as header words are added. GLOSSARY: HI.48
+function test_header_word_alt_differs_from_its_own_primary() {
+  local words w cell primary_hue alt alt_hue
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do
+    cell=""
+    _hi_header_word_cell "$w" cell
+    [ -n "$cell" ] || continue
+    primary_hue=""
+    _hi_cell_hue primary_hue "$cell"
+    [ -n "$primary_hue" ] || continue
+    alt=""
+    _hi_header_word_alt "$w" alt
+    alt_hue=""
+    _hi_cell_hue alt_hue "${alt}x"
+    [ -n "$alt_hue" ] && [ "$alt_hue" != "$primary_hue" ] || return 1
+  done
+}
+
+function test_header_word_alt_is_defined_for_every_order_word() {
+  local words w alt
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do
+    alt=""
+    _hi_header_word_alt "$w" alt
+    [ -n "$alt" ] || return 1
+  done
+}
+
+# The default order is the actual bug report: today's word list should never
+# need its own resolver - every cell should come out exactly as
+# _hi_header_word_cell renders it on its own, unresolved. This is the case
+# that would have caught the shipped jobs/pods collision.
+function test_header_default_order_needs_no_alternate() {
+  local words w raw i=0
+  local -a _HI_PENDING_CELLS=()
+  local _HI_PREV_HUE=""
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do _hi_collect_header_word "$w"; done
+  for w in $words; do
+    raw=""
+    _hi_header_word_cell "$w" raw
+    [ -n "$raw" ] || continue
+    [ "${_HI_PENDING_CELLS[$i]}" = "$raw" ] || return 1
+    i=$((i + 1))
+  done
+}
+
+function test_header_hues_never_repeat_in_the_default_order() {
+  local words w cell hue prev=""
+  local -a _HI_PENDING_CELLS=()
+  local _HI_PREV_HUE=""
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do _hi_collect_header_word "$w"; done
+  for cell in "${_HI_PENDING_CELLS[@]}"; do
+    hue=""
+    _hi_cell_hue hue "$cell"
+    [ -n "$hue" ] || continue
+    [ "$hue" = "$prev" ] && return 1
+    prev="$hue"
+  done
+}
+
+# A worst case no real order would ship: every word the same hue (utc, cpu
+# and uptime are all $BRBLUE), forcing the resolver to actually work rather
+# than coasting on Part C's already-clean default.
+function test_header_hues_never_repeat_in_a_pathological_order() {
+  local words="utc utc cpu uptime" w cell hue prev=""
+  local -a _HI_PENDING_CELLS=()
+  local _HI_PREV_HUE=""
+  for w in $words; do _hi_collect_header_word "$w"; done
+  for cell in "${_HI_PENDING_CELLS[@]}"; do
+    hue=""
+    _hi_cell_hue hue "$cell"
+    [ -n "$hue" ] || continue
+    [ "$hue" = "$prev" ] && return 1
+    prev="$hue"
+  done
+}
+
+# containers/jobs/pods render only when their own backend answered, so any
+# subset of the trio has to read right on its own - three distinct families,
+# not just "not identical to the immediate neighbor"
+function test_header_backend_trio_hues_are_three_families() {
+  local out d_dir n_dir k_dir path
+  d_dir="$(_hi_backend_shim docker 1)" d_dir="${d_dir%%:*}"
+  n_dir="$(_hi_backend_shim nomad 1)" n_dir="${n_dir%%:*}"
+  k_dir="$(_hi_kube_shim 1)" k_dir="${k_dir%%:*}"
+  path="$d_dir:$n_dir:$k_dir:$(_hi_identity_path)"
+  out="$(PATH="$path" _HI_TARGETS_TTL=0 bash -c '
+    source "$_HI_HEADER"
+    _hi_identity_probe
+    printf "%s\n%s\n%s\n" "$_HI_ID_CONTAINERS" "$_HI_ID_JOBS" "$_HI_ID_PODS"')"
+  local containers jobs pods hc hj hp
+  containers="$(sed -n 1p <<<"$out")"
+  jobs="$(sed -n 2p <<<"$out")"
+  pods="$(sed -n 3p <<<"$out")"
+  _hi_cell_hue hc "$containers"
+  _hi_cell_hue hj "$jobs"
+  _hi_cell_hue hp "$pods"
+  [ -n "$hc" ] && [ -n "$hj" ] && [ -n "$hp" ] &&
+    [ "$hc" != "$hj" ] && [ "$hc" != "$hp" ] && [ "$hj" != "$hp" ]
+}
+
+# Under NO_COLOR every color var is blank (core.sh), so _hi_cell_hue reads
+# nothing on any cell and the resolver has nothing to compare - the whole
+# header comes out with zero escape sequences, exactly as it did before this
+# feature existed.
+function test_header_hues_are_inert_under_no_color() {
+  local out
+  out="$(NO_COLOR=1 PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
+    bash -c 'source "$_HI_HEADER"; hi_header Online' 2>&1)"
+  [[ "$out" != *$'\e['* ]]
+}
+
 # Does $1 contain the bytes of $2? A byte-exact `grep -F` under LC_ALL=C rather
 # than `[[ $1 == *"$2"* ]]`, because two of the three marks are multibyte and
 # bash's pattern engine consults the locale to decide what a character even is.
@@ -1476,6 +1631,19 @@ function run_header_tests() {
   _hi_check "A line's overflow cascades into the packages block" test_hi_header_cascades_identity_overflow_into_check
   _hi_check "...and still flushes when 'check' is left out" test_hi_header_flushes_leftover_when_check_is_absent
   _hi_check "Reordering across former group boundaries still packs" test_hi_header_order_packs_across_former_group_boundaries
+
+  _hi_h2 "Testing: header cell hues"
+  _hi_check "_hi_cell_hue reads the leading escape" test_hi_cell_hue_reads_the_leading_escape
+  _hi_check "_hi_cell_hue ignores the bold bit" test_hi_cell_hue_ignores_the_bold_bit
+  _hi_check "_hi_cell_hue is empty without an escape" test_hi_cell_hue_is_empty_without_an_escape
+  _hi_check "_hi_cell_hue ignores a non-leading escape" test_hi_cell_hue_ignores_a_non_leading_escape
+  _hi_check "Every word's alternate differs from its own primary" test_header_word_alt_differs_from_its_own_primary
+  _hi_check "Every order word has an alternate defined" test_header_word_alt_is_defined_for_every_order_word
+  _hi_check "The default order never needs its own alternate" test_header_default_order_needs_no_alternate
+  _hi_check "No two adjacent cells share a hue in the default order" test_header_hues_never_repeat_in_the_default_order
+  _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
+  _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
+  _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
 
   _hi_h2 "Testing: passthrough_check"
   _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off

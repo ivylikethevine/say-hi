@@ -306,10 +306,14 @@ order you want them to print, any subset:
 A word left out is not printed - that's the whole toggle, there is nothing
 else to set. Unknown words are ignored. `containers`/`jobs`/`pods` only ever
 render when their backend actually answered, whether or not they're in the
-list; being in the list controls whether hi bothers asking at all. Defaults
-to `utc version localtime arch os cores cpu ram gitid containers jobs pods
-auth pub uptime check`, today's shipped order, so an unset override changes
-nothing.
+list; being in the list controls whether hi bothers asking at all. Each word
+also has a fixed color; whichever two land next to each other, hi swaps a
+word's color for its alternate rather than let it repeat the cell before it -
+so reordering never puts two same-colored cells side by side, even though the
+order above is free-form
+([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). Defaults to `utc
+version localtime arch os cores cpu ram gitid containers jobs pods auth pub
+uptime check`, today's shipped order, so an unset override changes nothing.
 
 A physical line that overflows `_HI_MAX_WIDTH` no longer wraps within itself:
 whatever does not fit opens the next line instead, cascading forward through
