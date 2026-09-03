@@ -132,7 +132,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 
 ## Workflow
 
-- `docs/ROADMAP.md` is a to-do list, not a changelog: finished entries are
-  deleted (git history is the ledger); entries whose code half shipped but
-  which wait on a human step stay unticked, rewritten to say what shipped and
-  what the tick now means.
+- `README.md`'s Roadmap section is a to-do list, not a changelog: finished
+  entries are deleted (git history is the ledger); entries whose code half
+  shipped but which wait on a human step stay unticked, rewritten to say what
+  shipped and what the tick now means.

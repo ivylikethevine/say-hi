@@ -324,11 +324,11 @@ jobs:
         run: |
           set -euo pipefail
           # Body: what changed, then how to check it. The notes are generated
-          # because docs/ROADMAP.md deletes finished entries and this is where
-          # the git-history ledger gets published. Asked for via the API and
-          # composed here rather than --generate-notes plus --notes, which
-          # would put the checklist first: gh appends generated notes *after*
-          # --notes.
+          # because README.md's Roadmap section deletes finished entries and
+          # this is where the git-history ledger gets published. Asked for via
+          # the API and composed here rather than --generate-notes plus
+          # --notes, which would put the checklist first: gh appends generated
+          # notes *after* --notes.
           notes="$(gh api --method POST \
             "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"

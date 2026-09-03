@@ -13,5 +13,4 @@ walkthrough.
 | [Security policy](SECURITY.md)        | What hi touches on a target, and how to report a vulnerability.                                          |
 | [Code of conduct](CODE_OF_CONDUCT.md) | The bar for behaviour in issues, pull requests and discussions, and where to report a breach.            |
 | [Packaging](PACKAGING.md)             | The publishing runbook, the reproducibility contract, verifying a download, regenerating the demo GIFs.  |
-| [Roadmap](ROADMAP.md)                 | Every open item, smallest scope first, and what each one waits on.                                       |
 | [Contributing](CONTRIBUTING.md)       | The gate to run before a pull request, what 1.x will not break, and which doc changes with what.         |

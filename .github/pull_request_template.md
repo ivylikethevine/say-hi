@@ -30,7 +30,7 @@ takes pull requests from `dev`.
 ## Docs
 
 - [ ] affected docs updated (CONTRIBUTING's table says which)
-- [ ] ROADMAP: finished entries deleted, not ticked
+- [ ] README Roadmap: finished entries deleted, not ticked
 - [ ] the shipped tree or the demo tape changed: `demo.gif` re-rendered and
       looked at, or the staleness warning called out as deliberate
 

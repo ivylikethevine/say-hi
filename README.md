@@ -40,6 +40,9 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Testing](#testing)
   - [Coverage and Profiling](#coverage-and-profiling)
 - [AI Usage](#ai-usage)
+- [Roadmap](#roadmap)
+  - [What v1.0.0 means](#what-v100-means)
+  - [By scope](#by-scope)
 
 ## More docs
 
@@ -57,8 +60,6 @@ _Don't `ssh`ush your hosts, say `hi`!_
   target
 - [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
   reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/ROADMAP.md](docs/ROADMAP.md) — every open item, smallest scope first,
-  and what each one waits on
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
   request, what 1.x will not break, and which doc changes with what
 - [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
@@ -343,3 +344,64 @@ is a tool, not an owner of a project. I have personally understood, reviewed
 and approved all of the AI-generated code in this repository, and _mainline
 releases_ carry the same accountability to me as anything I write and publish
 myself.
+
+## Roadmap
+
+What's left, in one list ordered by **ascending scope** — the smallest work
+first. Every entry is open for consideration; nothing here is parked or
+descoped. Each opens with its scope in italics, ending _in-repo_ or _outside
+this checkout_; an externally gated entry says what it waits on where it
+sits. Nothing is wired up until its checkbox is ticked. Finished entries and
+questions decided against are **deleted**: git history is the ledger.
+
+### What v1.0.0 means
+
+A **gate, not a wish list**: anything merely nice by v1 stays an ordinary
+entry below. The release unblocks the channels after it.
+
+- [ ] **Every publishable channel has been published once by hand**, before
+      the automation is trusted with it: deb/rpm/apk and the Homebrew tap,
+      per [docs/PACKAGING.md](docs/PACKAGING.md)'s _Publishing each channel_.
+      deb/rpm/apk are live, signed, and have carried a second release to a
+      subscriber in place. What's left is the tap half - the **Homebrew tap**
+      entry.
+- [ ] **A stability contract is written down** — shipped as
+      [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
+      the eighteen `common/flags`, every `docs/SETTINGS.md` row,
+      `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
+      and how a toggle retires. **Ticks when** the tag commit turns
+      `docs/SECURITY.md`'s _Supported versions_ prose into the version table
+      it promises (the **Flip to stable** entry).
+
+**The AUR is excluded on purpose** — v1 shouldn't wait on somebody else's
+spam problem; see the **AUR** entry below.
+
+### By scope
+
+1. [ ] **tldr page** — _scope: one upstream pull request; outside this
+       checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
+       by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
+       draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
+       against tldr-pages. **Ticks when:** merged upstream.
+
+2. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
+       real Mac; outside this checkout._ Create `homebrew-tap` (plain repo,
+       `Formula/` dir), add a fine-grained
+       PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
+       `brew install`/`test`/`audit` gate on an actual Mac (`/opt/homebrew`,
+       not the Linuxbrew prefix used so far). **Ticks when:**
+       `brew install ivy/tap/say-hi` works, from a release
+       `publish-external.yml`'s `tap` job (dispatched by hand against that
+       tag) opened a PR for.
+
+3. [ ] **AUR** — _scope: nothing until registration reopens; then an
+       account, a key, and one manual first push; outside this checkout._
+       Registration is closed to new accounts (spam), and
+       `publish-external.yml`'s `aur` job stays written and unexercised
+       until it reopens. **When it reopens:** register; generate an ed25519
+       key, add the private half as the `AUR_SSH_KEY` repo secret; the first
+       push per package is manual (namcap gate against the published
+       source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
+       `publish-external.yml` handles the versioned package after.
+       **Ticks when:** both packages are live on the AUR and a dispatch has
+       kept `say-hi` current for one real release.

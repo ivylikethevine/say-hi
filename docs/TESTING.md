@@ -274,7 +274,7 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   Scorecard hasn't seen a release yet. `release.yml` already ships
   `dist/SHA256SUMS.minisig` and a build-provenance attestation, and `.minisig`
   is an extension the check recognizes, so this resolves on its own once
-  [a release ships](ROADMAP.md#quick-wins).
+  [a release ships](../README.md#roadmap).
 
 ## The lint gate
 

@@ -1,9 +1,9 @@
 # Contributing to say-hi
 
 say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md#experimental-until-v100):
-interfaces can still move, and [docs/ROADMAP.md](ROADMAP.md) is what is left
-to do. The test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
-[docs/GLOSSARY.md](GLOSSARY.md).
+interfaces can still move, and [README's Roadmap](../README.md#roadmap) is
+what is left to do. The test runbook is [docs/TESTING.md](TESTING.md); the
+named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
 
 ## Contents
 
@@ -181,8 +181,8 @@ Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
 (`.markdownlint.yaml`, advisory in CI). The two agree by construction, and
 `.moxide.toml` keeps markdown-oxide from arguing with either.
 
-`docs/ROADMAP.md` is a to-do list, not a changelog: finishing an entry means
-**deleting** it — git history is the ledger.
+[README's Roadmap](../README.md#roadmap) is a to-do list, not a changelog:
+finishing an entry means **deleting** it — git history is the ledger.
 
 ## Opening the pull request
 
