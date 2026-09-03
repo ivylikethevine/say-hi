@@ -4,12 +4,16 @@ name: Release
 # rehearsal: the dispatch runs the whole build job against a HEAD archive and
 # a fake version, and the publish job is hard-gated to tag pushes. A
 # prerelease tag (a `-` in the name, v1.0.0-rc.1) is a GitHub Release only,
-# marked as a prerelease; the manifest PR skips it. Branch pushes and PRs are
-# ci.yml's. Needs the `release` environment with a required reviewer
+# marked as a prerelease; no channel job runs for it. Branch pushes and PRs
+# are ci.yml's. Needs the `release` environment with a required reviewer
 # (docs/PACKAGING.md); APK_SIGNING_KEY and MINISIGN_SECRET_KEY are each
 # optional and skip loudly. The tap PR and the AUR push are not here -
 # publish-external.yml reaches those, by a separate manual dispatch against an
-# already-published tag, and holds HOMEBREW_TAP_TOKEN and AUR_SSH_KEY.
+# already-published tag, and holds HOMEBREW_TAP_TOKEN and AUR_SSH_KEY. The
+# manifests it builds (dist/manifests/) are release assets only - the
+# committed packaging/aur and packaging/homebrew files stay permanent
+# templates (packaging/bump.sh's header) and this workflow never writes to
+# main.
 #
 # Every job below `gate` names its `needs` result in its `if`: `gate` is
 # skipped on the tag path, and a job-level `if` with no status function gets
@@ -30,9 +34,10 @@ on:
 permissions:
   contents: read
 
-# Serialized, never cancelled: two tags pushed close together would otherwise
-# each open a manifest PR against main from the other's base. The wait on
-# environment approval does not count against job timeouts.
+# Serialized, never cancelled: the release environment approval is one gate
+# for whichever tag is running, and two tags racing through publish would
+# otherwise dispatch pages.yml (below) out of order. The wait on environment
+# approval does not count against job timeouts.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -203,9 +208,9 @@ jobs:
             echo 'HI_ARTIFACTS_EOF'
           } >>"$GITHUB_OUTPUT"
 
-      # not a shared list: the release upload, the manifest PR and
-      # publish-external.yml's later `gh release download` each take a
-      # different subset of these five
+      # not a shared list: the release upload and publish-external.yml's
+      # later `gh release download` each take a different subset of these
+      # five
       - name: Collect the manifests alongside them
         run: |
           set -euo pipefail
@@ -255,7 +260,8 @@ jobs:
     environment: release
     permissions:
       contents: write
-      pull-requests: write
+      # dispatches pages.yml (Refresh the Pages package repository, above)
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -400,56 +406,19 @@ jobs:
           packaging/mkrepo.sh "$@" --tarball dist/package-repo.tar.gz
           gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz
 
-      # The regenerated manifests come back here, after the human gate, so the
-      # tag stays put: publish-external.yml's tap/aur jobs read theirs off the
-      # release itself, never off this branch. A PR, not a direct push: `main`
-      # requires one. Nothing waits on the merge - it only keeps the in-repo
-      # copy current for the next release to diff against.
-      #
-      # Not on a prerelease tag: `0.1.0-rc.1` is not a makepkg-legal pkgver
-      # (the `-` is makepkg's pkgver-pkgrel separator), so the rc's manifests
-      # ride on the release as files and never come back to main.
-      #
-      # the one checkout that keeps its credentials: the step below pushes a
-      # branch with them (every other checkout sets persist-credentials: false)
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
-        if: ${{ !contains(github.ref_name, '-') }}
-        with:
-          ref: main
-          path: main
-
-      - name: Open the manifest PR against main
+      # pages.yml serves the package repository out of the newest
+      # non-prerelease release, but its workflow_run trigger filters
+      # branches: [main] - which a tag push's head_branch never matches, so a
+      # release alone never redeploys the site. Ask for the deploy here
+      # instead of waiting for the next unrelated push to main to carry it.
+      # Not on a prerelease tag: it publishes `--latest=false` (below), so
+      # "the newest non-prerelease release" pages.yml reads is unchanged and
+      # a redeploy would serve nothing new.
+      - name: Refresh the Pages package repository
         if: ${{ !contains(github.ref_name, '-') }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          cp dist/manifests/PKGBUILD main/packaging/aur/say-hi/PKGBUILD
-          cp dist/manifests/.SRCINFO main/packaging/aur/say-hi/.SRCINFO
-          cp dist/manifests/say-hi.rb main/packaging/homebrew/say-hi.rb
-          cd main
-          if git diff --quiet; then
-            echo "manifests already current on main - nothing to open"
-            exit 0
-          fi
-          branch="manifests-$GITHUB_REF_NAME"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
-          git add packaging/aur/say-hi/PKGBUILD packaging/aur/say-hi/.SRCINFO packaging/homebrew/say-hi.rb
-          git commit -m "packaging: manifests for $GITHUB_REF_NAME"
-          git push origin "$branch"
-          # printf rather than a heredoc: a heredoc body would have to be
-          # unindented, which ends the YAML block scalar
-          body="$(printf '%s\n' \
-            "Regenerated packaging manifests for say-hi $GITHUB_REF_NAME." \
-            "" \
-            "Opened by the release workflow after the publish gate. The tap and" \
-            "AUR read theirs off the release itself (publish-external.yml), so" \
-            "nothing is waiting on this merge - it keeps the in-repo copy" \
-            "current for the next release to diff against.")"
-          gh pr create --head "$branch" --base main \
-            --title "packaging: manifests for $GITHUB_REF_NAME" --body "$body"
+        run: gh workflow run pages.yml --ref main
 
   # The three commands docs/PACKAGING.md's "Homebrew tap" section asks for by
   # hand before a tap PR is merged, run on a hosted mac against the tarball

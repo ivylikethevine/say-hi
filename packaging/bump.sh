@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
 # Sets the release version across every manifest, with real checksums, so that
 # cutting a release is one command rather than four hand-edits that can
-# disagree. The version of record is packaging/aur/say-hi/PKGBUILD's pkgver -
-# packaging/mkpkg.sh reads it back from there.
+# disagree.
+#
+# The three manifests this rewrites (packaging/aur/say-hi/{PKGBUILD,.SRCINFO},
+# packaging/homebrew/say-hi.rb) are committed as permanent v0.0.0/SKIP/
+# all-zero templates - never run this against a checkout and commit the
+# result. release.yml's build job is the only caller that matters: it runs
+# in a disposable checkout, against a tarball it just built, and the rewritten
+# files are attached to the release as dist/manifests/* rather than pushed
+# anywhere. packaging/mkpkg.sh's default version instead falls through to the
+# newest local tag (lib.sh's default_version) once the PKGBUILD is a template.
 #
 # Two modes:
 #   bump.sh <version>            rewrite the manifests (builds the tarball)
 #   bump.sh --check <version>    verify they already say <version>, offline
 #
-# --check is what CI runs on a tag: the release workflow refuses to build if the
-# committed manifests and the tag disagree, rather than quietly rewriting files
-# nobody reviewed.
+# --check is what CI runs right after a bump, in the same job: it confirms the
+# rewrite actually landed a real version and real checksums (not the template
+# sentinels) before the build goes any further.
 set -euo pipefail
 
 # the locator, core.sh, and the shared primitives (sha256_of/b2_of/

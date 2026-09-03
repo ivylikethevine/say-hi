@@ -282,6 +282,25 @@ function test_manifests_build_from_the_release_asset() {
   return 0
 }
 
+# The three manifests are committed as permanent templates - a release's
+# build job rewrites its own disposable checkout and never pushes the result
+# back (bump.sh's header). Read out of git rather than the working tree: a
+# release run calls bump.sh --tarball before it calls the fast/lint groups
+# this suite runs in, so an on-disk assertion would fail on every release.
+function test_committed_manifests_are_templates() {
+  git -C "$_HI_ROOT" rev-parse HEAD >/dev/null 2>&1 || return 0
+  local pkgbuild srcinfo formula
+  pkgbuild="$(git -C "$_HI_ROOT" show HEAD:packaging/aur/say-hi/PKGBUILD)"
+  srcinfo="$(git -C "$_HI_ROOT" show HEAD:packaging/aur/say-hi/.SRCINFO)"
+  formula="$(git -C "$_HI_ROOT" show HEAD:packaging/homebrew/say-hi.rb)"
+  [[ "$pkgbuild" == *$'\npkgver=0.0.0'* ]] &&
+    [[ "$pkgbuild" == *"b2sums=('SKIP')"* ]] &&
+    [[ "$srcinfo" == *'pkgver = 0.0.0'* ]] &&
+    [[ "$srcinfo" == *'b2sums = SKIP'* ]] &&
+    [[ "$formula" == *'/v0.0.0/say-hi-0.0.0.tar.gz'* ]] &&
+    [[ "$formula" == *'sha256 "0000000000000000000000000000000000000000000000000000000000000000"'* ]]
+}
+
 function test_srcinfo_agrees_with_its_pkgbuild() {
   local pkgver
   pkgver="$(sed -n 's/^pkgver=//p' "$_HI_PKGBUILD" | head -1)"
@@ -345,7 +364,7 @@ function test_only_the_gated_job_publishes() {
 # A prerelease tag (a `-` in the name: v1.0.0-rc.1) is a GitHub Release and
 # nothing more. It is created as a prerelease that never becomes "Latest" -
 # README's badge and pages.yml's package repository read that pointer - and
-# it reaches no channel and opens no manifest PR: `0.1.0-rc.1`
+# it reaches no channel and never refreshes Pages: `0.1.0-rc.1`
 # is not a makepkg-legal pkgver, and the AUR is the one place it would go.
 function test_release_workflow_marks_prerelease_tags() {
   local job
@@ -363,11 +382,11 @@ function test_prerelease_tags_reach_no_channel() {
     _hi_cecho " | release.yml's brew job runs on a prerelease tag" "$RED"
     bad=1
   fi
-  # the manifest PR too: both its steps, the credentialed checkout and the
-  # push, carry the guard
+  # the Pages refresh too: a prerelease publishes --latest=false, so pages.yml
+  # would have nothing new to serve and the dispatch must be skipped
   job="$(sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF")"
-  if [ "$(printf '%s\n' "$job" | grep -cF "if: \${{ $guard }}")" -lt 2 ]; then
-    _hi_cecho " | release.yml opens a manifest PR on a prerelease tag" "$RED"
+  if ! printf '%s\n' "$job" | grep -qF "if: \${{ $guard }}"; then
+    _hi_cecho " | release.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
   [ "$bad" = 0 ]
@@ -500,10 +519,23 @@ function test_publish_job_ships_the_package_repository() {
 
 function test_pages_workflow_serves_the_package_repository() {
   [ -f "$_HI_PAGES_WF" ] || return 0
-  grep -qE '^ *workflows: \[CI, Release\]' "$_HI_PAGES_WF" &&
-    grep -qF 'gh release download' "$_HI_PAGES_WF" &&
+  grep -qF 'gh release download' "$_HI_PAGES_WF" &&
     grep -qF 'package-repo.tar.gz' "$_HI_PAGES_WF" &&
     grep -qF -- '-C _site' "$_HI_PAGES_WF"
+}
+
+# pages.yml's workflow_run trigger filters branches: [main], which a tag
+# push's head_branch never matches - Release naming itself there would never
+# actually fire (verified against the live run history: every Pages run's
+# head_branch is main, none a tag). So a release has to ask for its own
+# redeploy instead, and Release must not claim a trigger that cannot fire.
+function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
+  [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_RELEASE_WF" ] || return 0
+  ! grep -qE '^ *workflows: \[CI, Release\]' "$_HI_PAGES_WF" &&
+    grep -qE '^ *workflows: \[CI\]' "$_HI_PAGES_WF" &&
+    grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
+    sed -n '/^  publish:/,/^  [a-z]*:$/p' "$_HI_RELEASE_WF" |
+    grep -qF 'gh workflow run pages.yml'
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
@@ -1407,6 +1439,7 @@ function run_packaging_tests() {
   _hi_check ".SRCINFO agrees with its PKGBUILD" test_srcinfo_agrees_with_its_pkgbuild
   _hi_check ".SRCINFO depends match, both packages" test_srcinfo_depends_match_their_pkgbuild
   _hi_check "All three build from the release asset" test_manifests_build_from_the_release_asset
+  _hi_check "Committed manifests stay templates" test_committed_manifests_are_templates
 
   _hi_h2 "Testing: release.yml"
   _hi_check "Publishing sits behind an environment" test_release_workflow_gates_publishing
@@ -1414,7 +1447,7 @@ function run_packaging_tests() {
   _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
   _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
-  _hi_check "...and reaches no channel, opens no manifest PR" test_prerelease_tags_reach_no_channel
+  _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
   _hi_check "Verifies the manifests against the tag" test_release_workflow_verifies_the_manifests
   _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
   _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
@@ -1493,6 +1526,7 @@ function run_packaging_tests() {
   _hi_check "build signs the rpm with the checked GPG key" test_build_job_signs_the_rpm
   _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
   _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
+  _hi_check "...a release refreshes Pages itself" test_release_refreshes_pages_instead_of_relying_on_workflow_run
   _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
   _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
 

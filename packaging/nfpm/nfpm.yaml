@@ -8,8 +8,10 @@
 # contents and this file only says where that staged tree lands. The packaging
 # suite fails if the paths below stop matching what install_tree produces.
 #
-# ${HI_VERSION} is expanded by nfpm from the environment; mkpkg.sh reads it
-# out of packaging/aur/say-hi/PKGBUILD so there is one version of record.
+# ${HI_VERSION} is expanded by nfpm from the environment; mkpkg.sh defaults it
+# to a real release's own PKGBUILD (bump.sh already rewrote it by then), or
+# else this checkout's newest tag - packaging/aur/say-hi/PKGBUILD on main is a
+# permanent 0.0.0 template, never the version of record outside a release.
 
 name: say-hi
 arch: all

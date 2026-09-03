@@ -9,12 +9,15 @@ dispatches `publish-external.yml` by hand. Both signing keys are in place; the
 AUR deploy key and the tap token are one-time setup ([AUR](#aur), [Homebrew
 tap](#homebrew-tap)), tracked in [docs/ROADMAP.md](ROADMAP.md).
 
-**What is live today: none of it.** Every channel on this page is built and
-tested in CI on each push and has not been published: there is no stable tag,
-no release asset, no package repository, no AUR package and no tap. Until
-[What v1.0.0 means](ROADMAP.md#what-v100-means) is ticked, the install is the
-checkout ([README](../README.md#installationusage)); this page describes the
-channels as they will ship.
+**What is live today: releases and the package repository, not the AUR or the
+tap.** Every channel on this page is built and tested in CI on each push;
+tagged releases exist (`v0.1.1`, `v0.1.2`, …) and the apt/rpm/apk repository
+is live and signed at `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`.
+There is still no AUR package and no Homebrew tap. Until
+[What v1.0.0 means](ROADMAP.md#what-v100-means) is ticked, a checkout stays
+the recommended install for most people
+([README](../README.md#installationusage)); this page describes the AUR and
+tap channels as they will ship once they are.
 
 **Runners.** Every job runs on a plain GitHub-hosted label (`ubuntu-latest`,
 `macos-latest`, `windows-latest`); none substitutes a machine from a repo/org
@@ -64,17 +67,17 @@ repeats the list, because `install_tree` hardcodes `/usr/bin` and
 
 ## Layout
 
-| path                 | what it is                                                                          |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                       |
-| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it |
-| `bump.sh`            | writes the version + real checksums into every manifest; `--check` verifies         |
-| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source              |
-| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes    |
-| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                  |
-| `aur/say-hi-git/`    | the same package built from `main`                                                  |
-| `homebrew/say-hi.rb` | the tap formula                                                                     |
-| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                             |
+| path                 | what it is                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `mkpkg.sh`           | stages the tree, stamps it, then builds deb/rpm/apk with nfpm                                    |
+| `stamp.sh`           | writes the version into a built tree's `hi.sh` and man page; every channel calls it              |
+| `bump.sh`            | writes the version + real checksums into a release's own manifests; `--check` verifies the write |
+| `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source                           |
+| `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes                 |
+| `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                               |
+| `aur/say-hi-git/`    | the same package built from `main`                                                               |
+| `homebrew/say-hi.rb` | the tap formula                                                                                  |
+| `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                                          |
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the installed
 `hi.sh` and the version into the man page's `.TH` line. It cannot live in git:
@@ -125,34 +128,37 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 1. `git tag v1.0.0 && git push origin v1.0.0` — the workflow starts.
 2. The `build` job builds `say-hi-1.0.0.tar.gz` from the tag, runs the fast
    suites, runs `bump.sh --tarball <that file> 1.0.0` (writes `pkgver`,
-   `b2sums`, the formula `url`/`sha256`, and the derivable `.SRCINFO` lines),
-   verifies with `bump.sh --check`, runs the packaging drift guards, and builds
-   the deb/rpm/apk with one `SHA256SUMS` over the lot. Nothing has published.
+   `b2sums`, the formula `url`/`sha256`, and the derivable `.SRCINFO` lines) —
+   in that job's own disposable checkout, never committed — verifies with
+   `bump.sh --check`, runs the packaging drift guards, and builds the
+   deb/rpm/apk with one `SHA256SUMS` over the lot. Nothing has published.
 3. Approve the `publish` job in the Actions UI — your review point, over the
-   exact artifacts `build` produced. Packages, the source tarball, `SHA256SUMS`
-   and manifests land on the release; the regenerated manifests come back to
-   `main` as a `manifests-v1.0.0` **pull request**, since `main` refuses a
-   direct push.
+   exact artifacts `build` produced. Packages, the source tarball,
+   `SHA256SUMS` and manifests land on the release, and the package repository
+   redeploys to the Pages site (`gh workflow run pages.yml`, since its own
+   `workflow_run` trigger cannot fire off a tag push). The manifests committed
+   in `packaging/aur/` and `packaging/homebrew/` stay permanent `v0.0.0`
+   templates — this workflow never writes to `main`.
 4. Once their secrets exist, dispatch `publish-external.yml` with `tag:
 v1.0.0` to open the tap PR (`HOMEBREW_TAP_TOKEN`) and push the AUR
    (`AUR_SSH_KEY`) — a separate, later, manual step so nothing reaches either
-   channel just because a tag was pushed. **Neither waits on the manifest
-   PR**; both read the manifests off the release itself
-   (`gh release download`). Until the secrets exist, copy the manifests by
-   hand per the sections below.
-5. Merge the manifest PR.
+   channel just because a tag was pushed. Both read the manifests off the
+   release itself (`gh release download`), which is why the templates on
+   `main` never need to be current. Until the secrets exist, copy the
+   manifests by hand per the sections below.
 
 **A release candidate is a GitHub Release and nothing more.** A prerelease
-tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-3 unchanged and
+tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-2 unchanged and
 is created `--prerelease --latest=false`, so "the latest release" (README's
 badge, the [package repository](#package-repository)) never resolves to a
 candidate.
 The packages, the source tarball, `SHA256SUMS` and the manifests are attached
-as on any release, but no manifest PR opens and no channel job runs:
-`0.1.0-rc.1` is valid semver (nfpm's `version_schema` accepts it; the deb
-sorts as `0.1.0~rc.1`) and not a legal `pkgver` (`-` is makepkg's
-`pkgver-pkgrel` separator), and the AUR is where the manifests go. The final
-tag is the first to walk the tap, the AUR and `brew audit`.
+as on any release, but no channel job runs and the Pages redeploy is skipped
+too - the newest non-prerelease release is unchanged, so there is nothing new
+for the site to serve: `0.1.0-rc.1` is valid semver (nfpm's `version_schema`
+accepts it; the deb sorts as `0.1.0~rc.1`) and not a legal `pkgver` (`-` is
+makepkg's `pkgver-pkgrel` separator), and the AUR is where the manifests go.
+The final tag is the first to walk the tap, the AUR and `brew audit`.
 
 `bump.sh 1.0.0` works by hand if CI is unavailable: with the tag in your
 checkout it builds the identical tarball itself, `--tarball <file>` takes one
@@ -225,7 +231,7 @@ by the same `srctar.sh` → `mkpkg.sh` path, versioned `0.0.0-main.<date>.<sha>`
   own. No tag is ever retargeted: each push's tag is new, so a clone holding
   an old one keeps a harmless local copy nothing upstream asks to move.
 - **It reaches no channel.** No `bump.sh` (the manifests checksum a
-  `releases/download/v<ver>/` URL a snapshot never has), no manifest PR, no
+  `releases/download/v<ver>/` URL a snapshot never has), no Pages redeploy, no
   tap, no AUR; all of that starts with a `v*` tag pushed by hand
   ([Cutting a release](#cutting-a-release)) and, for the tap and the AUR, a
   further manual dispatch of `publish-external.yml` after.
@@ -267,8 +273,17 @@ and the same command. Run the gate for **each** package, `aur/say-hi-git`
 today and `aur/say-hi` once v1.0.0 exists; push nothing while namcap has
 complaints about either the `PKGBUILD` or the built package.
 
+`packaging/aur/say-hi/PKGBUILD` in the checkout is a permanent `v0.0.0`
+template ([Cutting a release](#cutting-a-release)) - a release never writes
+its real version back to `main`. For `say-hi`, download the ones the release
+actually built instead of using the checkout:
+
 ```bash
-cd packaging/aur/say-hi-git        # then again in packaging/aur/say-hi
+gh release download v1.0.0 --pattern PKGBUILD --pattern .SRCINFO --dir /tmp/say-hi-aur
+```
+
+```bash
+cd packaging/aur/say-hi-git        # then /tmp/say-hi-aur for the say-hi run
 makepkg -f                       # builds it
 namcap PKGBUILD                  # lints the recipe itself
 namcap ./*.pkg.tar.zst           # catches hardcoded paths and bad permissions
@@ -325,10 +340,14 @@ three commands on a hosted mac against the published tarball automatically,
 right after `publish`, filtering out the two expected findings below and
 recording the verdict in its run summary - read that summary before
 dispatching `tap`, since its PR checklist points back to it. Merging the PR
-is yours, as is repeating these on a mac of your own:
+is yours, as is repeating these on a mac of your own - against the formula the
+release actually built, not the checkout: `packaging/homebrew/say-hi.rb` in
+the tree is a permanent `v0.0.0` template
+([Cutting a release](#cutting-a-release)), so download the real one first:
 
 ```bash
-brew install --build-from-source ./packaging/homebrew/say-hi.rb
+gh release download v1.0.0 --pattern say-hi.rb --dir /tmp/say-hi-tap
+brew install --build-from-source /tmp/say-hi-tap/say-hi.rb
 brew test say-hi
 brew audit --strict --new say-hi
 ```

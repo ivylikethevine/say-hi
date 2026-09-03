@@ -12,7 +12,7 @@
 # Arch packages for one project would only conflict.
 
 # the locator, core.sh, and the shared primitives (sha256_lines/
-# pkgbuild_version) all come from lib.sh, found beside this script
+# default_version) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # after the source, not before: core.sh (which lib.sh pulls in) ends with
@@ -207,7 +207,7 @@ EOF
   shift
 done
 
-: "${_HI_VERSION:=$(pkgbuild_version)}"
+: "${_HI_VERSION:=$(default_version)}"
 
 # Reproducible builds: nfpm stamps the timestamps it controls from
 # $SOURCE_DATE_EPOCH, and touch_epoch clamps the staged tree's mtimes to it,

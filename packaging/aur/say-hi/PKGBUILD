@@ -1,11 +1,15 @@
 # Maintainer: Ivy Duggan <ivylikethevine@gmail.com>
 #
-# The versioned package, cut from a tagged release tarball. packaging/bump.sh
-# rewrites pkgver and b2sums together; do not edit either by hand.
+# The versioned package, cut from a tagged release tarball. A template on
+# main: pkgver and b2sums stay 0.0.0/SKIP here permanently, and a release
+# only ever rewrites its own build-time copy (release.yml's build job runs
+# packaging/bump.sh --tarball, checksums that release's tarball, and the
+# result is attached to the release rather than committed back). Do not run
+# bump.sh against this checkout and commit the result.
 # say-hi-git/ is the same package built from the branch instead.
 
 pkgname=say-hi
-pkgver=0.1.1
+pkgver=0.0.0
 pkgrel=1
 pkgdesc="sshrc supercharged - your shell config, on every host you say hi to"
 arch=('any')
@@ -26,8 +30,9 @@ optdepends=('zsh: zsh support on the client'
 # is built by the release, listed in its SHA256SUMS and covered by its build
 # provenance. It is already named $pkgname-$pkgver.tar.gz, so no `::` rename.
 source=("$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
-# never submit with SKIP - packaging/bump.sh <version> fills in the real sum
-b2sums=('3d651340a40b698667a65881b01537f06eff45d3dc33061f69b74213b20f56dc8c1997b3b71b30e044761195fc48d5b03dd2cdd50472772770f54490391c2992')
+# template sentinel - a release's build fills in the real sum, in its own
+# copy, and never commits it back here
+b2sums=('SKIP')
 
 prepare() {
   # scripts/install.sh derives $_HI_HOME as <checkout>/.. and then looks for
