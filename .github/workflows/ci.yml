@@ -532,27 +532,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install podman and nomad
-        run: |
-          set -euo pipefail
-          # gpg unprivileged, `sudo` only for the write. `sudo gpg` runs with
-          # root's HOME, creates /root/.gnupg on the way past, and then wants a
-          # controlling terminal to say so - which an Actions step does not
-          # have: "gpg: cannot open '/dev/tty'". --batch --yes says there is
-          # nobody to ask, and the keyring lands through tee, the way the repo
-          # list on the next line already does.
-          curl -sSfL https://apt.releases.hashicorp.com/gpg |
-            gpg --batch --yes --dearmor |
-            sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" |
-            sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
-          sudo apt-get update && sudo apt-get install -y podman nomad
-          nomad version
-
-      - name: Install kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          install_only: true
+      # podman, nomad (HashiCorp apt repo) and kind, from the composite
+      # demos.yml's publish job shares
+      - uses: $/.github/actions/setup-backends
 
       # HI_SHARDS is the divisor and the matrix above lists one entry per
       # shard, same contract as e2e's above; runner_test.sh checks both that

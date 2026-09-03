@@ -344,13 +344,15 @@ jobs:
             sigline="# SHA256SUMS is unsigned for this release - no minisign check"
           fi
           # The repository links: derived from $GITHUB_REPOSITORY rather than
-          # another literal copy of the Pages URL (the publish job derives
-          # the same value for mkrepo.sh's --base-url; mkrepo's local-build
-          # default and docs/PACKAGING.md hold the remaining literals). The
-          # apt and apk
-          # rows are config values, not pages - GitHub Pages has no directory
-          # index, so only the two key files and say-hi.repo are fetchable.
+          # another literal copy of the Pages URL (mkrepo's local-build
+          # default and docs/PACKAGING.md hold the remaining literals), and
+          # derived once - the package-repository step below feeds the same
+          # value to mkrepo.sh's --base-url, and the two must never disagree.
+          # The apt and apk rows are config values, not pages - GitHub Pages
+          # has no directory index, so only the two key files and say-hi.repo
+          # are fetchable.
           pages="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}"
+          echo "HI_PAGES_URL=$pages" >>"$GITHUB_ENV"
           # printf rather than a heredoc: a heredoc body would have to be
           # unindented, which ends the YAML block scalar
           body="$(printf '%s\n' \
@@ -418,11 +420,11 @@ jobs:
           printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
           chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
           set -- --gpg-key "$RUNNER_TEMP/say-hi.gpg.key" --public-key packaging/gpg/say-hi.asc
-          # the served URL, derived the way the release-notes links are:
-          # left off, say-hi.repo and the rpm baseurl would bake in
-          # mkrepo.sh's default - a literal that goes stale on a fork or an
-          # owner/repo rename while the notes above it stay correct
-          set -- "$@" --base-url "https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}"
+          # the served URL, the one the release-notes step derived and put in
+          # $GITHUB_ENV: left off, say-hi.repo and the rpm baseurl would bake
+          # in mkrepo.sh's default - a literal that goes stale on a fork or
+          # an owner/repo rename while the notes above it stay correct
+          set -- "$@" --base-url "$HI_PAGES_URL"
           if [ -n "$APK_SIGNING_KEY" ]; then
             printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.rsa"
             chmod 600 "$RUNNER_TEMP/say-hi.rsa"
