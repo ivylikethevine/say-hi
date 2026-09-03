@@ -179,6 +179,19 @@ same direction: a file that reads low in bashcov is genuinely uncovered, a
 line that reads covered in kcov genuinely ran, and the two agreeing is what
 makes the aggregate worth believing.
 
+Two shipped files sit outside what either tool can report at all:
+`common/zsh.zsh` and `common/config.fish`. Both instrumentation methods need
+a bash process — kcov's DEBUG trap and bashcov's `xtrace` are bash
+mechanisms — and neither zsh nor fish provides one, so no line-coverage
+percentage for these two is honest at any number. What stands in instead:
+`tests/lint/dialects_test.sh` sources `common/zsh.zsh` into a real
+interactive zsh and asserts four behaviors (the prompt, the aliases, a
+resolved host color, the prompt separator), and separately parses both files
+under real zsh and fish; `tests/common/exports_test.sh` and
+`tests/hi/prompt_test.sh` drift-check `common/config.fish` against
+`common/core.sh` (glyphs, colors, the prompt separator, the 32-column branch
+shorten) line by line rather than by running it.
+
 `tests/profile.sh` is for a tripped `--group bench` ceiling: `_hi_bench` says
 _whether_ a path got slower, this says _which command in it_ did. It profiles
 the four bash paths the bench guards through

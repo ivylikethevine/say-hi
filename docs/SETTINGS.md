@@ -141,12 +141,7 @@ cannot land without a row here.
 | `_HI_DISABLE_LOCAL`          | `0`                                                  | `hi --configure`          | [Features](#features) - all of the above, on this machine only                                                        |
 | `_HI_REMOTE_SESSION`         | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                            |
 | `_HI_HEADER_BANNER`          | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                      |
-| `_HI_HEADER_TIMESTAMP`       | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the date/time line                                                                |
-| `_HI_HEADER_SYSINFO`         | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the OS/CPU/RAM line                                                               |
-| `_HI_HEADER_UPTIME`          | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the uptime cell, on the identity line                                             |
-| `_HI_HEADER_IDENTITY`        | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the git identity/containers/ssh key line                                          |
-| `_HI_HEADER_CHECK`           | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the installed-packages check                                                      |
-| `_HI_HEADER_ORDER`           | `timestamp sysinfo identity check`                   | `hi --configure`          | [Header details](#header-details) - the order the header's rows print in                                              |
+| `_HI_HEADER_ORDER`           | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                    |
 | `_HI_PACKAGES_MIN_PRIORITY`  | `2`                                                  | `hi --configure`          | [Everything else](#everything-else) - how far down `settings/packages` the check reports                              |
 | `_HI_PACKAGES_PALETTE`       | `cool`                                               | `hi --configure`          | [Everything else](#everything-else) - which named color ramp the check paints with                                    |
 | `_HI_MAX_WIDTH`              | `80`                                                 | `hi --configure`          | [Everything else](#everything-else) - columns the header and banner are drawn to, narrowed to a smaller real terminal |
@@ -159,6 +154,7 @@ cannot land without a row here.
 | `_HI_TERM_FALLBACK`          | `1`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - swap an unknown `TERM` for `xterm-256color`                                     |
 | `_HI_RECENT`                 | `1`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - `0` stops recent targets being recorded and ranked first                        |
 | `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - fish only: give every alias a real `abbr`                                       |
+| `_HI_NO_LEAD_SPACE`          | `0`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - drop the hardcoded leading space in the prompt, git segment and header lines    |
 | `_HI_SHELL_PREFERENCE`       | `login` + `$_HI_SHELL_TREE`                          | `hi --configure` advanced | [Everything else](#everything-else) - which shell a session runs in                                                   |
 | `_HI_ASCII`                  | by locale                                            | `hi --configure` advanced | [Everything else](#everything-else) - force ASCII stand-ins (`1`) or glyphs (`0`)                                     |
 | `_HI_TARGETS_TTL`            | `5`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - seconds `hi <TAB>` reuses its target list for                                   |
@@ -277,35 +273,63 @@ Each is **on by default**; set it to `1` to turn that piece off.
 
 ## Header details
 
-Each is **on by default**; set it to `0` to hide that line. All are ignored when
+`_HI_HEADER_BANNER` (default `1`, `0` hides it) controls the
+`~~~ Connected [host] ~~~` line, on connect _and_ disconnect. It always leads
+and is not one of the reorderable features below - it needs its own switch
+for exactly that reason. Ignored, like everything in this section, when
 `_HI_DISABLE_HEADER=1`.
 
-| variable               | hides                                                            |
-| ---------------------- | ---------------------------------------------------------------- |
-| `_HI_HEADER_BANNER`    | the `~~~ Connected [host] ~~~` line, on connect _and_ disconnect |
-| `_HI_HEADER_TIMESTAMP` | the date/time line                                               |
-| `_HI_HEADER_SYSINFO`   | the OS / CPU / RAM line                                          |
-| `_HI_HEADER_UPTIME`    | the uptime cell, at the end of the identity line                 |
-| `_HI_HEADER_IDENTITY`  | the git identity / containers / ssh key / uptime line            |
-| `_HI_HEADER_CHECK`     | the installed-packages check (`settings/packages`)               |
+Everything else the header prints is one flat list of individually
+toggleable, reorderable features - there is no fixed "row" grouping them
+anymore. `_HI_HEADER_ORDER` is a space-separated list of these words, in the
+order you want them to print, any subset:
 
-`_HI_HEADER_ORDER` reorders those rows instead of hiding one: a space-separated
-list of `timestamp`, `sysinfo`, `identity` and `check`, top to bottom, in any
-order and any subset - a row left out is not printed, a second way to hide one
-alongside its own toggle above. Unknown words are ignored. The banner always
-leads and the tmux-passthrough warning below (no toggle of its own) always
-trails; neither is a word this list understands, since a reorder cannot move
-either. Uptime has no word of its own - it rides inside the identity row, and
-`_HI_HEADER_IDENTITY=0` hides it along with the rest of that row, on top of
-its own `_HI_HEADER_UPTIME` toggle. Defaults to
-`timestamp sysinfo identity check`, today's fixed order, so an unset override
-changes nothing.
+| word         | what it is                                          |
+| ------------ | ---------------------------------------------------- |
+| `utc`        | the UTC clock                                        |
+| `version`    | hi's own version                                     |
+| `localtime`  | your local clock                                     |
+| `arch`       | the CPU architecture                                 |
+| `os`         | the OS name/version                                  |
+| `cores`      | core count and load percentage                       |
+| `cpu`        | base/boost clock speed                               |
+| `ram`        | used/total memory                                    |
+| `gitid`      | the masked git identity (`user.email`)               |
+| `containers` | the docker/podman container count, when either runs  |
+| `jobs`       | the nomad job count, when nomad answers              |
+| `pods`       | the reachable kube pod count, when kubectl answers   |
+| `auth`       | the `~/.ssh/authorized_keys` line count              |
+| `pub`        | the `~/.ssh/*.pub` file count                        |
+| `uptime`     | this box's uptime                                    |
+| `check`      | the installed-packages check (`settings/packages`)   |
 
-A row that overflows `_HI_MAX_WIDTH` no longer wraps within itself: whatever
-does not fit on its one line opens the next row's line instead, cascading
-forward through the order above until the packages check (the one
-variable-length row) absorbs the rest, or - with `check` hidden or left out -
-prints as its own trailing line.
+A word left out is not printed - that's the whole toggle, there is nothing
+else to set. Unknown words are ignored. `containers`/`jobs`/`pods` only ever
+render when their backend actually answered, whether or not they're in the
+list; being in the list controls whether hi bothers asking at all. Each word
+also has a fixed color; whichever two land next to each other, hi swaps a
+word's color for its alternate rather than let it repeat the cell before it -
+so reordering never puts two same-colored cells side by side, even though the
+order above is free-form
+([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). Defaults to `utc
+version localtime arch os cores cpu ram gitid containers jobs pods auth pub
+uptime check`, today's shipped order, so an unset override changes nothing.
+
+A physical line that overflows `_HI_MAX_WIDTH` no longer wraps within itself:
+whatever does not fit opens the next line instead, cascading forward through
+the order above until the packages check (the one variable-length feature)
+absorbs the rest, or - with `check` hidden or left out - prints as its own
+trailing line.
+
+**Migrating an existing `_HI_HEADER_ORDER`**: the old four words
+(`timestamp`, `sysinfo`, `identity`, `check`) are gone along with the six
+`_HI_HEADER_*` row toggles they went with (`_HI_HEADER_BANNER` is the one
+exception, kept above) - none of them match anything in the new vocabulary,
+so a saved value using them silently shows nothing for the words it no
+longer recognizes. Replace `timestamp` with `utc version localtime`,
+`sysinfo` with `arch os cores cpu ram`, and `identity` with `gitid
+containers jobs pods auth pub uptime` (drop `uptime` from that if you had
+`_HI_HEADER_UPTIME=0` set).
 
 ### Others
 
@@ -486,6 +510,7 @@ All four update the moment the color pins above do.
 | `_HI_PACKAGES_MIN_PRIORITY`  | `2`                             | the lowest `settings/packages` priority the header's check prints, and the main dial on how long that check is. The file ranks every entry 0-3, and a line's leading mode character decides which states speak at all: `-` only when the line is missing (core tools, where present is not news), `+` only when something is installed (platform facts, where absent is noise), no flag both ways. `2` (the default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just the favorites and core alerts, and anything above `3` mutes the check entirely. An older overlay file still renders: priorities above 3 clamp to 3, and its unflagged lines speak both ways until a mode character is added. `hi --configure` asks for this with a live preview; `hi --packages-preview` marks the ranks it silences `below floor` |
 | `_HI_PACKAGES_PALETTE`       | `cool`                          | which of `common/header.sh`'s named color tables the check paints an installed and a missing package with, per priority - `cool` (cyan through green for installed, blue through red for missing), `warm` (yellow through red), or `mono` (blue through cyan for installed, yellow through red for missing). Each ramp is meant to read monotonic 0-3 in both directions and legibly on light and dark terminals; judge a candidate with `hi --packages-preview`, which names the active palette above its legend. Any other value falls back to `cool`. `hi --configure` asks for this with the check's current render shown as a preview                                                                                                                                                                                                                                                                               |
 | `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                             | fish only: `1` gives every alias hi defines a real `abbr`, so it expands to the full command on the line before you run it - it rewrites what your command line and history say, hence opt-in (`hi_abbr_aliases` does the work and is callable by hand). Not in the `_HI_DISABLE_*` table since it is fish-specific, not one of `core.sh`'s shared toggles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `_HI_NO_LEAD_SPACE`          | `0`                             | `1` drops the single hardcoded leading space each of these puts before its own content: the prompt's `user@host` (bash/zsh/fish), the git segment (`common/git_prompt.sh`), the banner line, and the first cell of every header row. The `\|`-separated space between later cells on the same header row is untouched - that separator is structural, not this                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `_HI_TTY`                    | `[ -t 0 ]`                      | whether the container backends hand the session a tty (`docker exec -it` vs `-i`). Answered by probing stdin; set it to `1` or `0` to override, which is what a wrapper that knows better than the probe does. `docker exec -it` refuses outright when stdin is a pipe, so `hi <container> <cmd> \| ...` depends on this being right                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_SESSION_RC`             | `mktemp -d`                     | set by hi inside a session: the directory holding the per-shell rc files a nested `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends. `$ZDOTDIR` and `$ENV` are exported alongside it, see [HI.46](GLOSSARY.md#hi46-session-rc-directory)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 

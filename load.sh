@@ -270,7 +270,12 @@ function load() {
   _hi_cecho " $size | session: $dur" "$NC" 1
   if [[ "${_HI_DISABLE_HEADER:-0}" != 1 ]]; then
     banner Disconnected "$BRRED" " $size | session: $dur"
-    [[ "${_HI_HEADER_TIMESTAMP:-1}" == 0 ]] || timestamp
+    # matches the connect header rather than a disconnect-specific toggle:
+    # shows the timestamp bundle iff any one of its three words survives in
+    # $_HI_HEADER_ORDER
+    if _hi_order_has utc || _hi_order_has version || _hi_order_has localtime; then
+      timestamp
+    fi
   fi
   _hi_cecho " | " "$NC" 1
   _hi_cecho "hi closing! " "$BRPURPLE"

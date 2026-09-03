@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 # a repo with one commit and one unstaged edit: the git segment then shows a
 # branch *and* a dirty marker rather than a bare name
-RUN mkdir -p /root/app && cd /root/app \
-    && git init -q -b main \
+WORKDIR /root/app
+RUN git init -q -b main \
     && git config user.email demo@example.invalid && git config user.name demo \
     && printf 'def main():\n    print("hi from db-prod")\n\n\nmain()\n' >main.py \
     && printf '[server]\nport = 8080\nworkers = 4\n# tuned by hand\n' >app.conf \

@@ -7,7 +7,12 @@ set -euo pipefail # off again at the end: an error must not close an interactive
 # stdout, saving bash.sh's per-prompt fork. GLOSSARY: HI.05
 # shellcheck disable=SC2120 # the argument is optional by design
 _hi_git_prompt() {
-  [[ -n "${1:-}" ]] && printf -v "$1" ''
+  # %s '', not a bare '' format: bash 3.2's printf -v skips the assignment
+  # outright for a zero-conversion, zero-argument format (verified against a
+  # real bash 3.2.0 build - `printf -v x ''` leaves $x untouched), so a
+  # stale out-var from a previous prompt draw would survive both early
+  # returns below instead of being cleared
+  [[ -n "${1:-}" ]] && printf -v "$1" '%s' ''
   [[ "${_HI_DISABLE_GIT_STATUS:-0}" == 1 ]] && return
 
   # --no-optional-locks, or `git status` rewrites .git/index per prompt
@@ -117,10 +122,12 @@ _hi_git_prompt() {
   local out="(${branch_color}${ref}${NC}"
   [[ -n "$state" ]] && out+="|${state}"
   [[ -n "$upstream" ]] && out+="|${upstream}"
+  local lead=" "
+  [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && lead=""
   if [[ -n "${1:-}" ]]; then
-    printf -v "$1" ' %b' "$out|${flags})"
+    printf -v "$1" "${lead}%b" "$out|${flags})"
   else
-    printf ' %b' "$out|${flags})"
+    printf "${lead}%b" "$out|${flags})"
   fi
 }
 

@@ -149,6 +149,28 @@ function test_header_row_unarmed_leaves_no_carry_behind() {
   [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
 }
 
+# _hi_row_line's own documented contract: zero cells is a no-op, not an empty
+# line - nothing reaches this arm through header_row (it always has at least
+# the un-carried "$@"), so only a direct call exercises it.
+function test_row_line_returns_1_and_prints_nothing_for_zero_cells() {
+  local out ec=0
+  out="$(_hi_row_line)" || ec=$?
+  [ "$ec" -eq 1 ] && [ -z "$out" ]
+}
+
+# _hi_header_flush's termination argument, proven rather than assumed: three
+# cells at a width that fits exactly one per line takes three rounds of the
+# while loop, and every cell still reaches output with the carry left empty.
+function test_header_flush_drains_across_multiple_overflow_rounds() {
+  local outfile="$_HI_WORKDIR/header-flush-multi" out lines
+  local -a _HI_ROW_CARRY=(alpha beta gamma)
+  _HI_MAX_WIDTH=5 _hi_header_flush >"$outfile"
+  out="$(cat "$outfile")"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  [[ "$out" == *alpha* && "$out" == *beta* && "$out" == *gamma* ]] &&
+    [ "$lines" -eq 3 ] && [ "${#_HI_ROW_CARRY[@]}" -eq 0 ]
+}
+
 function test_banner_includes_label_and_host() {
   local out host
   host="$(_hi_hostname)"
@@ -255,6 +277,32 @@ function test_timestamp_version_falls_back_without_a_stamp() {
   [ -n "$(cut -d'|' -f3 <<<"$out" | tr -d ' ')" ]
 }
 
+# _hi_header_version's own memo - "resolved once per shell (the row prints
+# twice a session)" - captured by direct call rather than $( ), which would
+# fork away the assignment to $_HI_HEADER_VERSION before it ever landed.
+function test_header_version_resolves_once_per_shell() {
+  (
+    unset _HI_HEADER_VERSION
+    _HI_RELEASE=1.0.0
+    _hi_header_version >/dev/null
+    local first="$_HI_HEADER_VERSION"
+    _HI_RELEASE=2.0.0 # a later change must not reach an already-memoized version
+    _hi_header_version >/dev/null
+    [ "$_HI_HEADER_VERSION" = "$first" ] && [ "$first" = 1.0.0 ]
+  )
+}
+
+function test_header_version_is_unknown_without_a_stamp_or_git() {
+  local dir
+  dir="$(mktemp -d "$_HI_WORKDIR/noversion.XXXXXX")"
+  (
+    unset _HI_HEADER_VERSION
+    _HI_RELEASE=""
+    _HI_ROOT="$dir"
+    [ "$(_hi_header_version)" = unknown ]
+  )
+}
+
 # _hi_shorten_describe's own contract - git describe's shapes, folded to at
 # most 5 columns of tag plus a 4-column hash (10 total), -dirty always
 # dropped, and a tag with no hash (an exact tag, a plain $_HI_RELEASE,
@@ -353,6 +401,20 @@ function test_hi_cpu_clocks_question_mark_when_both_missing() {
   [ "$(_hi_cpu_clocks "" "")" = "?" ]
 }
 
+# _hi_ghz's own contract, from its comment: rounded to tenths *before*
+# splitting, so a carry lands in the whole-GHz digit (2950 -> 3.0) rather than
+# spilling into a second decimal (2.10) - _hi_cpu_clocks' cases above only
+# ever see the already-rounded strings this produces.
+function test_ghz_rounds_the_carry_into_the_whole_digit() {
+  local out
+  _hi_ghz out 2950
+  [ "$out" = 3.0 ] || return 1
+  _hi_ghz out 2949
+  [ "$out" = 2.9 ] || return 1
+  _hi_ghz out 2100
+  [ "$out" = 2.1 ]
+}
+
 # _hi_load_pct's own contract: load divided by cores, rounded to a whole
 # percent, empty rather than a garbled or divide-by-zero cell whenever either
 # input can't back that math up
@@ -416,13 +478,17 @@ function test_hi_humanize_uptime_minutes_only() {
   [ "$(_hi_humanize_uptime 120)" = "2m" ]
 }
 
-# used/total, one unit at the end, or total alone when only that probe
-# answers, or "?" when neither does - the shape is pinned, not a value, since
-# this box's own usage moves between runs
+# used/total, one unit on total only ("6/60G", not "6G/60G" - the used
+# figure's own G is redundant next to it), or total alone when only that
+# probe answers, or "?" when neither does - the shape is pinned, not a
+# value, since this box's own usage moves between runs. The second
+# alternative alone would also match a regressed "6G/60G" (its "6G" prefix
+# satisfies `[0-9]+G`), so the explicit "no G/" check carries the real
+# assertion.
 function test_system_info_ram_cell_is_used_over_total() {
   local out
   out="$(system_info)"
-  [[ "$out" =~ RAM:\ ([0-9]+G/[0-9]+G|[0-9]+G|\?) ]]
+  [[ "$out" =~ RAM:\ ([0-9]+/[0-9]+G|[0-9]+G|\?) ]] && [[ "$out" != *"G/"* ]]
 }
 
 # the load-average figure, when a probe answers, rides in parens right after
@@ -884,58 +950,57 @@ function test_hi_header_default_order() {
     ((ts < si)) && ((si < id)) && ((id < ck))
 }
 
-# a reordered $_HI_HEADER_ORDER moves the rows to match, and a row left out of
-# it is not printed at all - a second way to hide a row alongside its own
-# $_HI_HEADER_* toggle. identity is in this order, so its uptime cell still
-# rides along with it.
+# a reordered $_HI_HEADER_ORDER moves the features to match, and a feature
+# left out of it is not printed at all - that omission is the whole toggle
+# now, there is no separate $_HI_HEADER_* switch behind it any more. uptime
+# is in this order, so its cell still shows.
 function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-custom" out
-  local ck id si
+  local ck up si
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="check identity sysinfo" hi_header Connected)"
+  out="$(_HI_PACKAGES="$pkgfile" _HI_HEADER_ORDER="check uptime cores" hi_header Connected)"
   ck="$(_hi_pos "$out" "$_HI_REAL_CMD")"
-  id="$(_hi_pos "$out" "Auth:")"
+  up="$(_hi_pos "$out" "Up:")"
   si="$(_hi_pos "$out" "Cores:")"
   [[ "$out" != *orderprobe* ]] &&
-    [[ "$out" == *"Up:"* ]] &&
-    [ -n "$ck" ] && [ -n "$id" ] && [ -n "$si" ] &&
-    ((ck < id)) && ((id < si))
+    [ -n "$ck" ] && [ -n "$up" ] && [ -n "$si" ] &&
+    ((ck < up)) && ((up < si))
 }
 
-# "uptime" left $_HI_HEADER_ORDER's vocabulary along with the row - an unknown
-# word is ignored rather than erroring or printing anything for it, and that
-# is what a word this list no longer understands falls back to
+# an unknown word is ignored rather than erroring or printing anything for it
 function test_hi_header_order_ignores_an_unknown_word() {
   local out
-  out="$(_HI_HEADER_ORDER="bogus sysinfo" hi_header Connected)"
+  out="$(_HI_HEADER_ORDER="bogus cores" hi_header Connected)"
   [[ "$out" == *"Cores:"* ]]
 }
 
-function test_hi_header_order_uptime_is_no_longer_a_word() {
+# uptime is its own word now, independent of every other former identity cell
+function test_hi_header_order_uptime_is_its_own_word() {
   local out
-  out="$(_HI_HEADER_ORDER="uptime sysinfo" hi_header Connected)"
-  [[ "$out" != *"Up:"* && "$out" == *"Cores:"* ]]
+  out="$(_HI_HEADER_ORDER="uptime cores" hi_header Connected)"
+  [[ "$out" == *"Up:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
 }
 
-# _HI_HEADER_UPTIME=0 hides just the uptime cell, the identity row's other
-# cells stay
-function test_hi_header_uptime_toggle_hides_the_cell() {
+# leaving uptime out of the order hides just that cell - the identity
+# group's other words stay, there is no separate toggle behind it any more
+function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
   local out
-  out="$(_HI_HEADER_UPTIME=0 hi_header Connected)"
+  out="$(_HI_HEADER_ORDER="gitid auth" hi_header Connected)"
   [[ "$out" != *"Up:"* && "$out" == *"Auth:"* ]]
 }
 
-# End to end: hi_header arms the cascade for its own row loop, so identity's
-# overflow (its Up: cell, guaranteed last) rides into the packages row's
-# first line instead of standing alone. A restricted PATH (no docker/podman/
-# nomad/kubectl, the same fixture identity()'s own backend-cell tests use via
-# _hi_identity_path) keeps identity's cells short and deterministic; one
-# priority-3 package guarantees full_check has something to open with.
+# End to end: hi_header arms the cascade for its own accumulate/flush loop,
+# so uptime's overflow (guaranteed last of the identity-group words here)
+# rides into the packages row's first line instead of standing alone. A
+# restricted PATH (no docker/podman/nomad/kubectl, the same fixture
+# identity()'s own backend-cell tests use via _hi_identity_path) keeps these
+# cells short and deterministic; one priority-3 package guarantees
+# full_check has something to open with.
 function test_hi_header_cascades_identity_overflow_into_check() {
   local pkgfile="$_HI_WORKDIR/cascade-into-check" out line
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_PACKAGES="$pkgfile" \
-  _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="identity check" \
+  _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
   [[ "$out" == *"Up:"* && "$out" == *"$_HI_REAL_CMD"* ]] || return 1
   while IFS= read -r line; do
@@ -950,9 +1015,172 @@ function test_hi_header_cascades_identity_overflow_into_check() {
 function test_hi_header_flushes_leftover_when_check_is_absent() {
   local out
   out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
-  _HI_MAX_WIDTH=20 _HI_HEADER_ORDER="identity" \
+  _HI_MAX_WIDTH=20 _HI_HEADER_ORDER="gitid auth pub uptime" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
   [[ "$out" == *"Auth:"* && "$out" == *"Up:"* ]]
+}
+
+# an order word that reorders across former group boundaries packs onto one
+# line exactly like a same-group order does - "row" is gone as a fixed
+# concept, only width-driven packing decides where a line breaks now
+function test_hi_header_order_packs_across_former_group_boundaries() {
+  local out lines
+  out="$(_HI_HEADER_ORDER="cpu gitid utc" hi_header Connected)"
+  lines="$(printf '%s\n' "$out" | grep -c .)"
+  # banner + one packed line (cpu, gitid and utc all short enough to share it)
+  [ "$lines" -eq 2 ] &&
+    [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
+}
+
+# _hi_cell_hue: the leading escape's hue digit (1 red .. 6 cyan), ignoring
+# the bold bit, empty with no leading escape.
+function test_hi_cell_hue_reads_the_leading_escape() {
+  local h
+  _hi_cell_hue h "${CYAN}x"
+  [ "$h" = 6 ]
+}
+
+function test_hi_cell_hue_ignores_the_bold_bit() {
+  local cyan brcyan blue
+  _hi_cell_hue cyan "${CYAN}x"
+  _hi_cell_hue brcyan "${BRCYAN}x"
+  _hi_cell_hue blue "${BLUE}x"
+  [ "$cyan" = "$brcyan" ] && [ "$cyan" != "$blue" ]
+}
+
+# NO_COLOR blanks the whole palette (core.sh), so a cell like $_HI_SI_OS is
+# then bare text - the trap an unvalidated `${cell%%m*}` would fall into,
+# reading a stray "m" out of plain text as a color
+function test_hi_cell_hue_is_empty_without_an_escape() {
+  local h
+  _hi_cell_hue h "macOS 15.1"
+  [ -z "$h" ]
+}
+
+function test_hi_cell_hue_ignores_a_non_leading_escape() {
+  local h
+  _hi_cell_hue h "RAM: ${CYAN}6/60G"
+  [ -z "$h" ]
+}
+
+# The correctness argument for skipping a ring-walk fallback: a substitution
+# only fires when the previous cell's hue equals the current word's primary
+# hue, so as long as every word's alternate has a *different* hue than its
+# own primary, the substitution can never itself collide. This is the
+# mechanical check of that property - the one thing that actually has to
+# stay true as header words are added. GLOSSARY: HI.48
+function test_header_word_alt_differs_from_its_own_primary() {
+  local words w cell primary_hue alt alt_hue
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do
+    cell=""
+    _hi_header_word_cell "$w" cell
+    [ -n "$cell" ] || continue
+    primary_hue=""
+    _hi_cell_hue primary_hue "$cell"
+    [ -n "$primary_hue" ] || continue
+    alt=""
+    _hi_header_word_alt "$w" alt
+    alt_hue=""
+    _hi_cell_hue alt_hue "${alt}x"
+    [ -n "$alt_hue" ] && [ "$alt_hue" != "$primary_hue" ] || return 1
+  done
+}
+
+function test_header_word_alt_is_defined_for_every_order_word() {
+  local words w alt
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do
+    alt=""
+    _hi_header_word_alt "$w" alt
+    [ -n "$alt" ] || return 1
+  done
+}
+
+# The default order is the actual bug report: today's word list should never
+# need its own resolver - every cell should come out exactly as
+# _hi_header_word_cell renders it on its own, unresolved. This is the case
+# that would have caught the shipped jobs/pods collision.
+function test_header_default_order_needs_no_alternate() {
+  local words w raw i=0
+  local -a _HI_PENDING_CELLS=()
+  local _HI_PREV_HUE=""
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do _hi_collect_header_word "$w"; done
+  for w in $words; do
+    raw=""
+    _hi_header_word_cell "$w" raw
+    [ -n "$raw" ] || continue
+    [ "${_HI_PENDING_CELLS[$i]}" = "$raw" ] || return 1
+    i=$((i + 1))
+  done
+}
+
+function test_header_hues_never_repeat_in_the_default_order() {
+  local words w cell hue prev=""
+  local -a _HI_PENDING_CELLS=()
+  local _HI_PREV_HUE=""
+  words="${_HI_HEADER_ORDER_DEFAULT% check}"
+  for w in $words; do _hi_collect_header_word "$w"; done
+  for cell in "${_HI_PENDING_CELLS[@]}"; do
+    hue=""
+    _hi_cell_hue hue "$cell"
+    [ -n "$hue" ] || continue
+    [ "$hue" = "$prev" ] && return 1
+    prev="$hue"
+  done
+}
+
+# A worst case no real order would ship: every word the same hue (utc, cpu
+# and uptime are all $BRBLUE), forcing the resolver to actually work rather
+# than coasting on Part C's already-clean default.
+function test_header_hues_never_repeat_in_a_pathological_order() {
+  local words="utc utc cpu uptime" w cell hue prev=""
+  local -a _HI_PENDING_CELLS=()
+  local _HI_PREV_HUE=""
+  for w in $words; do _hi_collect_header_word "$w"; done
+  for cell in "${_HI_PENDING_CELLS[@]}"; do
+    hue=""
+    _hi_cell_hue hue "$cell"
+    [ -n "$hue" ] || continue
+    [ "$hue" = "$prev" ] && return 1
+    prev="$hue"
+  done
+}
+
+# containers/jobs/pods render only when their own backend answered, so any
+# subset of the trio has to read right on its own - three distinct families,
+# not just "not identical to the immediate neighbor"
+function test_header_backend_trio_hues_are_three_families() {
+  local out d_dir n_dir k_dir path
+  d_dir="$(_hi_backend_shim docker 1)" d_dir="${d_dir%%:*}"
+  n_dir="$(_hi_backend_shim nomad 1)" n_dir="${n_dir%%:*}"
+  k_dir="$(_hi_kube_shim 1)" k_dir="${k_dir%%:*}"
+  path="$d_dir:$n_dir:$k_dir:$(_hi_identity_path)"
+  out="$(PATH="$path" _HI_TARGETS_TTL=0 bash -c '
+    source "$_HI_HEADER"
+    _hi_identity_probe
+    printf "%s\n%s\n%s\n" "$_HI_ID_CONTAINERS" "$_HI_ID_JOBS" "$_HI_ID_PODS"')"
+  local containers jobs pods hc hj hp
+  containers="$(sed -n 1p <<<"$out")"
+  jobs="$(sed -n 2p <<<"$out")"
+  pods="$(sed -n 3p <<<"$out")"
+  _hi_cell_hue hc "$containers"
+  _hi_cell_hue hj "$jobs"
+  _hi_cell_hue hp "$pods"
+  [ -n "$hc" ] && [ -n "$hj" ] && [ -n "$hp" ] &&
+    [ "$hc" != "$hj" ] && [ "$hc" != "$hp" ] && [ "$hj" != "$hp" ]
+}
+
+# Under NO_COLOR every color var is blank (core.sh), so _hi_cell_hue reads
+# nothing on any cell and the resolver has nothing to compare - the whole
+# header comes out with zero escape sequences, exactly as it did before this
+# feature existed.
+function test_header_hues_are_inert_under_no_color() {
+  local out
+  out="$(NO_COLOR=1 PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
+    bash -c 'source "$_HI_HEADER"; hi_header Online' 2>&1)"
+  [[ "$out" != *$'\e['* ]]
 }
 
 # Does $1 contain the bytes of $2? A byte-exact `grep -F` under LC_ALL=C rather
@@ -1317,6 +1545,8 @@ function run_header_tests() {
   _hi_check "Armed, overflow carries to the next call" test_header_row_armed_carries_overflow_to_the_next_call
   _hi_check "...and opens the next row" test_header_row_armed_carry_opens_the_next_row
   _hi_check "Unarmed, a row leaves no carry behind" test_header_row_unarmed_leaves_no_carry_behind
+  _hi_check "Zero cells: returns 1, prints nothing" test_row_line_returns_1_and_prints_nothing_for_zero_cells
+  _hi_check "_hi_header_flush drains multiple overflow rounds" test_header_flush_drains_across_multiple_overflow_rounds
 
   _hi_h2 "Testing: banner"
   _hi_check "Includes label and hostname" test_banner_includes_label_and_host
@@ -1340,6 +1570,8 @@ function run_header_tests() {
   _hi_check "Timestamp prints three cells" test_timestamp_runs_and_has_three_cells
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
+  _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
+  _hi_check "...and is \"unknown\" without a stamp or git" test_header_version_is_unknown_without_a_stamp_or_git
   _hi_check "Folds a tag and its hash together" test_hi_shorten_describe_folds_tag_and_hash
   _hi_check "...drops the -dirty suffix" test_hi_shorten_describe_drops_the_dirty_suffix
   _hi_check "...trims a bare hash too" test_hi_shorten_describe_trims_a_bare_hash
@@ -1357,6 +1589,7 @@ function run_header_tests() {
   _hi_check "...collapses when boost is missing" test_hi_cpu_clocks_collapses_when_boost_missing
   _hi_check "...falls back to boost when base is missing" test_hi_cpu_clocks_falls_back_to_boost_when_base_missing
   _hi_check "...? when both are missing" test_hi_cpu_clocks_question_mark_when_both_missing
+  _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
   _hi_check "...rounds to a whole percent" test_hi_load_pct_rounds_to_a_whole_percent
   _hi_check "...empty without a load figure" test_hi_load_pct_empty_without_a_load_figure
@@ -1390,13 +1623,27 @@ function run_header_tests() {
   _hi_check "No output when disabled" test_hi_header_disabled_produces_no_output
   _hi_check "Prints the banner when enabled" test_hi_header_enabled_prints_banner
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
-  _hi_check "Default row order: timestamp, sysinfo, identity, check" test_hi_header_default_order
-  _hi_check "_HI_HEADER_ORDER reorders, and omitting a row hides it" test_hi_header_order_setting_reorders_and_can_omit
+  _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order
+  _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
-  _hi_check "'uptime' is no longer an order word" test_hi_header_order_uptime_is_no_longer_a_word
-  _hi_check "_HI_HEADER_UPTIME=0 hides just the uptime cell" test_hi_header_uptime_toggle_hides_the_cell
-  _hi_check "A row's overflow cascades into the packages row" test_hi_header_cascades_identity_overflow_into_check
+  _hi_check "'uptime' is its own order word now" test_hi_header_order_uptime_is_its_own_word
+  _hi_check "Omitting 'uptime' hides just that cell" test_hi_header_order_omitting_uptime_hides_just_that_cell
+  _hi_check "A line's overflow cascades into the packages block" test_hi_header_cascades_identity_overflow_into_check
   _hi_check "...and still flushes when 'check' is left out" test_hi_header_flushes_leftover_when_check_is_absent
+  _hi_check "Reordering across former group boundaries still packs" test_hi_header_order_packs_across_former_group_boundaries
+
+  _hi_h2 "Testing: header cell hues"
+  _hi_check "_hi_cell_hue reads the leading escape" test_hi_cell_hue_reads_the_leading_escape
+  _hi_check "_hi_cell_hue ignores the bold bit" test_hi_cell_hue_ignores_the_bold_bit
+  _hi_check "_hi_cell_hue is empty without an escape" test_hi_cell_hue_is_empty_without_an_escape
+  _hi_check "_hi_cell_hue ignores a non-leading escape" test_hi_cell_hue_ignores_a_non_leading_escape
+  _hi_check "Every word's alternate differs from its own primary" test_header_word_alt_differs_from_its_own_primary
+  _hi_check "Every order word has an alternate defined" test_header_word_alt_is_defined_for_every_order_word
+  _hi_check "The default order never needs its own alternate" test_header_default_order_needs_no_alternate
+  _hi_check "No two adjacent cells share a hue in the default order" test_header_hues_never_repeat_in_the_default_order
+  _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
+  _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
+  _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
 
   _hi_h2 "Testing: passthrough_check"
   _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off

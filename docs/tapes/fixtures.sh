@@ -57,9 +57,7 @@ function demo_sshd_image() {
   # rest of the box's identity already is, and `docker run hi-demo-sshd` alone
   # is the demo's box rather than one that still needs configuring.
   demo_settings "$_HI_DEMO_DIR/ssh-target-settings.sh" <<'EOF'
-export _HI_HEADER_TIMESTAMP='0'
-export _HI_HEADER_SYSINFO='0'
-export _HI_HEADER_CHECK='0'
+export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
 EOF
 
   mkdir -p "$_HI_DEMO_DIR/base"
@@ -603,7 +601,7 @@ up:editors)
   client_rc zsh dev cache-1
   # the header stays one line; the editors get the frame
   demo_settings <<'EOF'
-export _HI_HEADER_CHECK='0'
+export _HI_HEADER_ORDER='utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime'
 EOF
   up_container docker db-prod tools
   ;;
@@ -612,7 +610,7 @@ up:overlay)
   # no throwaway $HOME here (podman lives under the real one), so the recents
   # file is moved out of the renderer's state dir by hand
   demo_settings <<'EOF'
-export _HI_HEADER_CHECK='0'
+export _HI_HEADER_ORDER='utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime'
 export _HI_RECENT_FILE='/tmp/hi-demo/home/recent'
 export _HI_SHELL_PREFERENCE='fish'
 EOF
@@ -647,7 +645,7 @@ up:pick)
   # recording. The header is not this demo's subject; the choice above it is.
   demo_settings <<'EOF'
 export _HI_TARGETS_TTL='0'
-export _HI_HEADER_CHECK='0'
+export _HI_HEADER_ORDER='utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime'
 EOF
   up_pick
   ;;

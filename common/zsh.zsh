@@ -43,8 +43,12 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       preexec_functions+=(__hi_marks_preexec)
     fi
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
-    # expansion happens at render time rather than at assignment
+    # expansion happens at render time rather than at assignment. $_hi_lead is
+    # a plain double-quoted segment instead - $_HI_NO_LEAD_SPACE is a static
+    # setting, not something that needs re-deciding on every prompt draw.
     _hi_prompt_end ZSH HI_PS1_END
+    _hi_lead=" "
+    [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && _hi_lead=""
     if _hi_has_color; then
       export CLICOLOR=1
       export LSCOLORS=gafacadabaegedabagacad
@@ -54,10 +58,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       HOST_COLOR="${_HI_HOST_COLOR//br/}"
       _hi_at_color=plain
       [ -n "${SSH_TTY:-}" ] && _hi_at_color=yellow
-      PS1="$_hi_marks_a"$' ${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
+      PS1="$_hi_marks_a$_hi_lead"$'${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
     else
-      PS1="$_hi_marks_a"$' ${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
+      PS1="$_hi_marks_a$_hi_lead"$'${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
     fi
+    unset _hi_lead
   fi
 fi
 

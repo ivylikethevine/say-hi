@@ -19,7 +19,8 @@ ARG PKGS
 # image tells dpkg to drop - the exclusion file goes first so it lands. It is
 # harmless for every other framework, and simpler than a per-framework switch.
 RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
- && apt-get update -qq && apt-get install -y -qq ca-certificates ${PKGS} >/dev/null
+ && apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates ${PKGS} >/dev/null \
+ && rm -rf /var/lib/apt/lists/*
 ARG FRAMEWORK
 COPY --chown=hitest:hitest frameworks/${FRAMEWORK}.sh /tmp/framework.sh
 USER hitest

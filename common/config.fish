@@ -158,8 +158,10 @@ if test "$_HI_DISABLE_PROMPT" != 1
       end
       set -l color_at normal
       set -q SSH_TTY; and set color_at yellow
+      set -l lead " "
+      test "$_HI_NO_LEAD_SPACE" = 1; and set lead ""
       echo -ns (set_color yellow) "$__fish_machine" \
-        (set_color $fish_color_user) " $USER" \
+        (set_color $fish_color_user) "$lead$USER" \
         (set_color $color_at) @ \
         (set_color $fish_color_host) (prompt_hostname) (set_color normal)
     end

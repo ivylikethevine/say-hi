@@ -246,11 +246,13 @@ jobs:
             Advisory only: this job never blocks a merge. See the step above for the findings,
             or run `markdownlint-cli2 '**/*.md' '!.claude/**'` locally.
 
-      # Advisory like markdownlint: what .hadolint.yaml leaves is DL3009 and
-      # DL3015 (apt lists, --no-install-recommends), image size on a throwaway
-      # fixture. DL4006 - curl piped into sh with no pipefail, where a 404
-      # builds a green image with the framework missing - is fixed in the
-      # fixtures rather than ignored here.
+      # Advisory like markdownlint: .hadolint.yaml's ignore list is version
+      # pins (DL3008/DL3018/DL3041) and fixture-shape rules (DL3002, DL3066,
+      # SC2016) that have a written reason to stay. Everything else,
+      # including DL3009/DL3015 (apt lists, --no-install-recommends) and
+      # DL4006 (curl piped into sh with no pipefail, where a 404 builds a
+      # green image with the framework missing), is fixed in the fixtures
+      # rather than ignored here.
       - uses: $/.github/actions/setup-tool
         with:
           tool: hadolint

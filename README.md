@@ -8,8 +8,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". -->
 
-![Payload](https://img.shields.io/badge/ssh_payload-46KB-4c1)
-![Code](https://img.shields.io/github/languages/code-size/ivylikethevine/say-hi)
+![Payload](https://img.shields.io/badge/ssh_payload-50KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -64,7 +63,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ---
 
-## In sixty seconds
+## In Sixty Seconds
 
 ```sh
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi
@@ -78,8 +77,6 @@ packages checked, a color-coded prompt, your editor configured, and more.
 Do it all via `ssh`, `docker`, `podman`, `nomad`, or `kube` with `hi <TAB>`. No
 fancy requirements on any target. Even an `alpine` container with `sh` will still
 respect your `ls` alias flags.
-
-![Requires](https://img.shields.io/badge/requires-ssh%20%2B%20base64-0A6E8A)
 
 ## What You Get
 
@@ -159,6 +156,8 @@ default).
 
 ## Target Requirements
 
+![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64-0A6E8A)
+![Full](https://img.shields.io/badge/full-bash%203.2-0A8E8A)
 ![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)
 ![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)
 ![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)
@@ -357,9 +356,3 @@ questions decided against are **deleted**: git history is the ledger.
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release.
-
-#### Miscellaneous
-
-Added randomly, to be filled out later.
-
-1. Add ability to remove the initial space on most items (prompt, header, etc.)
