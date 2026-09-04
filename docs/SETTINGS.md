@@ -55,6 +55,7 @@ which, and why). A setting a child must see — a script of your own reading
   - [Pointing one file somewhere else](#pointing-one-file-somewhere-else)
   - [Not settings](#not-settings)
 - [System-wide settings](#system-wide-settings)
+- [The wizard](#the-wizard)
 - [Presets](#presets)
 - [Features](#features)
 - [Header details](#header-details)
@@ -112,13 +113,13 @@ the wire size and the unpacked size, labeled.
 ## Every setting
 
 The whole vocabulary a `settings.sh` may use, in the order `hi --configure`
-asks for it; the linked sections are the explanations. The **set by** column:
+writes it; the linked sections are the explanations. The **set by** column:
 
 - **you** — supported surface nothing asks about: export it, or write an
   `export` line into `settings.sh` by hand.
-- **`hi --configure`** — the same, with a question attached; the only
-  variables the wizard writes. **advanced** marks the ones behind the wizard's
-  last question, which one Enter skips: they keep whatever they hold.
+- **`hi --configure`** — the same, with a menu item attached; the only
+  variables the wizard writes. **advanced** marks the ones behind the menu's
+  _Advanced_ item: a run that never opens it keeps whatever they hold.
 - **hi** — hi's own, listed because a `settings.sh` _can_ set it and something
   will happen. hi sets these per session, from the client; overriding one
   tells the target something untrue about where it is.
@@ -236,23 +237,45 @@ ships the file — an administrator creates it, and removing it restores
 per-user settings everywhere at the next shell. (`$_HI_SYSTEM_SETTINGS`
 points the read somewhere else; it exists for the test suites.)
 
+## The wizard
+
+`hi --configure` opens on a preview — the header as it would print and the
+prompt line as it would draw, at your current settings — over a short menu:
+
+1. **Preset** — `everything`, `balanced` or `minimal`, below.
+2. **Header** — the editor for everything in [Header details](#header-details):
+   the real header rendered above a numbered list of the banner and every
+   item; a number toggles one, `up N`/`down N` moves it, `p` loads a header
+   preset (`full`, `compact`, `quiet`), and the width, the package check's
+   depth and its palette live there too.
+3. **Features** — the [Features](#features) toggles, each previewed as it
+   flips.
+4. **Prompt** — starship, and the character each shell's prompt ends with.
+5. **Advanced** — the _advanced_ rows, as a short walk of questions.
+
+Every section returns to the menu and the preview re-renders. `s` writes the
+settings once; `q` leaves `settings.sh` untouched; nothing is written before
+either. With no terminal (`hi --configure </dev/null`, a script) there is no
+menu: what the file holds is written back as it stands.
+
 ## Presets
 
-`hi --configure` opens with a choice of starting point, and
-`hi --configure --preset <name>` applies one without asking:
+The menu's first item, and `hi --configure --preset <name>` applies one
+without the menu:
 
 | preset       | what it answers                                                                                                                                                                                                                                          |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `everything` | every feature and every header line on — the shipped defaults                                                                                                                                                                                            |
-| `balanced`   | the header keeps its banner, system info and a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`); the timestamp, identity line and `hi_notify` are off                                                                                               |
+| `everything` | every feature and every header item on — the shipped defaults                                                                                                                                                                                            |
+| `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`) and no `hi_notify`                                                                                                                                                     |
 | `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors, clipboard, notifications or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`). The opt-in is off in every preset; it is only ever turned on by hand |
 
-A preset is an absolute answer over the feature, header and prompt questions:
+A preset is an absolute answer over the feature, header and prompt settings:
 what it names is set, everything else in that vocabulary returns to its
-default, and the width, prompt separators and advanced settings keep what they
-hold. Interactively its answers become the defaults for the questions that
-follow — a starting point, not a lock — and a second prompt offers to take it
-as final and skip them. The rows are `scripts/configure.sh`'s `_HI_PRESETS`.
+default, and the header order, the width, the prompt separators and the
+advanced settings keep what they hold. From the menu its answers are what the
+preview shows and `s` saves — a starting point, not a lock. The rows are
+`scripts/configure.sh`'s `_HI_PRESETS`; the header editor's own presets are
+`_HI_HEADER_PRESETS` beside them.
 
 ## Features
 
@@ -277,7 +300,11 @@ Each is **on by default**; set it to `1` to turn that piece off.
 `~~~ Connected [host] ~~~` line, on connect _and_ disconnect. It always leads
 and is not one of the reorderable features below - it needs its own switch
 for exactly that reason. Ignored, like everything in this section, when
-`_HI_DISABLE_HEADER=1`.
+`_HI_DISABLE_HEADER=1` - ignored, not dropped: `hi --configure` writes a
+stored order back even while the header is off, so it is there again when
+the header comes back on. The wizard's _Header_ menu is the editor for all
+of it, with the real header rendered above the list ([The
+wizard](#the-wizard)).
 
 Everything else the header prints is one flat list of individually
 toggleable, reorderable features - there is no fixed "row" grouping them

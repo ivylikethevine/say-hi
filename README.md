@@ -200,9 +200,10 @@ everything weighed and answered **no**, and why.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has issues.
 - reload your shell!
-- `hi --configure` revisits the settings in short sections, and an _advanced_
-  section. Start from a preset if you like
-  (`everything`, `balanced`, `minimal`; `--preset <name>`). Answers land in
+- `hi --configure` opens a menu over a live preview of the header and
+  prompt: pick a preset (`everything`, `balanced`, `minimal`), or open a
+  section - Header, Features, Prompt, Advanced - and save.
+  `hi --configure --preset <name>` skips the menu. Answers land in
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - [optional] `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
   on `hi --configure` commits its own writes. [docs/SETTINGS.md](docs/SETTINGS.md).

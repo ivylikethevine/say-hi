@@ -74,14 +74,16 @@ Note: this needs sudo to link hi.sh into /usr/bin, and every prompt keeps
 its current setting when there is no tty to answer on.
 
   --features-only  Skip the shell rc wiring and the hi.sh symlink - just
-                   re-run the settings questions. This is what
-                   \`hi --configure\` calls once say-hi is installed.
-  --preset <name>  Answer the feature, header and prompt questions from a
-                   preset - everything, balanced or minimal - without asking,
-                   and write that. Interactively the same presets are offered
-                   as a starting point you can then adjust. The width, the
-                   prompt separators and the advanced settings keep what
-                   they hold. Combines with --features-only:
+                   open the settings menu: a preview of the header and
+                   prompt, then Preset / Header / Features / Prompt /
+                   Advanced, s to save, q to leave the file alone. This is
+                   what \`hi --configure\` calls once say-hi is installed.
+  --preset <name>  Answer the feature, header and prompt settings from a
+                   preset - everything, balanced or minimal - without the
+                   menu, and write that. The same presets are the menu's
+                   first item. The header order, the width, the prompt
+                   separators and the advanced settings keep what they
+                   hold. Combines with --features-only:
                    \`hi --configure --preset minimal\`.
   --check-configs  Only run the pre-install validation of your existing
                    ~/.bashrc, ~/.zshrc and ~/.config/fish/config.fish, plus
@@ -386,7 +388,11 @@ fi
 run_configure "$_HI_PRESET"
 
 if [ -n "$_HI_FEATURES_ONLY" ]; then
-  _hi_h1 "Features updated!"
+  if [ -n "$_HI_CONFIGURE_QUIT" ]; then
+    _hi_h1 "Settings left as they were"
+  else
+    _hi_h1 "Features updated!"
+  fi
   exit 0
 fi
 
