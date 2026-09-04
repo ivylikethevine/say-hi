@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The parallel batch runner - the counters, teardown and transcript a case needs
 # when it runs in a background subshell instead of this shell.
 #

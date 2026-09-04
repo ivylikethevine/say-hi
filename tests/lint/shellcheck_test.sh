@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The repo's shellcheck run: every *.sh file, through shellcheck itself, with
 # one precondition ahead of it that is fatal rather than counted.
 #

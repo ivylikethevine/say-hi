@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # stdin -> the *client's* clipboard over OSC 52; the escape rides the pty back,
 # nothing needed on the target. Run, not sourced, by `hi_copy` and vim.rc's
 # yank autocmd, so the wrapping isn't written twice.

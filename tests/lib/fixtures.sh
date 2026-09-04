@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # World-building for a case: fake and real PATHs, git and settings fixtures, a
 # scratch tree, and the string helpers that read what came back out.
 #

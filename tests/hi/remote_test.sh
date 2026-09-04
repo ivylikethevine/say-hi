@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: everything the client writes for the target to run.
 # The bootloader, the fallback rc, `_hi_remote_root`'s probe, the ssh preamble
 # and `--version` - strings assembled on this side and executed on the other.

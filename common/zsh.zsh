@@ -1,4 +1,6 @@
 #!/bin/zsh
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 
 # === start required configuration ===
 # The tree from this file's own path: %x is this file, :A absolute, :h up one.

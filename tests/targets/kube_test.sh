@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Boots a throwaway kind (Kubernetes-in-docker) cluster and drives hi.sh's
 # real kube path (_say_hi_container) over actual `kubectl exec` against pods
 # running on it. This proves the kube-specific command shapes added to

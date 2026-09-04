@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Driving something that takes time: the target-side probe strings, pty wrapping,
 # the polling helpers, and the timed interactive case.
 #

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for the tests/lib/ harness - what a suite counts and what it prints.
 # tests/lib/case.sh and tests/lib/report.sh: the counters, the begin/end banners,
 # the skip and failure ledgers test_runner.sh reads back, and the two things

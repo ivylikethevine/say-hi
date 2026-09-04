@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Sets the release version across every manifest, with real checksums, so that
 # cutting a release is one command rather than four hand-edits that can
 # disagree.

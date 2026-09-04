@@ -12,6 +12,7 @@ fpr = "fpr"                    # gpg --with-colons' fingerprint record type (pac
 tre = "tre"                    # the package (a `tree` alternative), settings/packages
 darcula = "darcula"            # the IntelliJ theme, named as a vim colorscheme
 unparseable = "unparseable"    # a spelling, not a typo
+intoto = "intoto"              # in-toto's SLSA attestation format, *.intoto.jsonl
 
 [default.extend-identifiers]
 ACI = "ACI"                    # Azure Container Instances, docs/SUPPORT.md

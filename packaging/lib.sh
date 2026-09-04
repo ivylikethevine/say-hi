@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh): locate
 # the tree, source core.sh, and hold the primitives they share.
 # scripts/install.sh keeps its own locator on purpose - it ships in packages

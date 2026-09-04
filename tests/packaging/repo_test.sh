@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The package repository, end to end: packaging/mkpkg.sh builds the deb, rpm
 # and apk signed with throwaway keys, packaging/mkrepo.sh turns them into the
 # apt, rpm and apk repositories release.yml publishes, and three throwaway

@@ -11,6 +11,7 @@ to report what slipped through it.
 - [Footprint and cleanup on the target](#footprint-and-cleanup-on-the-target)
 - [Trust boundaries](#trust-boundaries)
   - [What a process started from a session inherits](#what-a-process-started-from-a-session-inherits)
+- [Assurance case](#assurance-case)
 - [When a push is refused](#when-a-push-is-refused)
 - [Supported versions](#supported-versions)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
@@ -158,6 +159,56 @@ own rc directory instead. The mechanism and the roster are
 pins both. The one tier this does not reach is a POSIX `sh` started inside a
 session (and the bash-less fallback), where `$ENV` sources `paths.sh` again
 and dash has no un-export.
+
+## Assurance case
+
+Why the design above is believed to meet its own security requirements: the
+threat model is [What hi does - and deliberately doesn't](#what-hi-does---and-deliberately-doesnt)
+and [What runs where](#what-runs-where); the trust boundaries are
+[above](#trust-boundaries). This section is the argument that secure design
+principles were applied across them, and that the common implementation
+weaknesses in a tool that assembles and ships shell to other machines were
+specifically countered - not a claim that the tool is free of bugs.
+
+**Least privilege and minimal attack surface.** hi adds no authentication of
+its own and listens on nothing; every check above is either "no network calls
+of its own" or "trusts the transport you already run." There is nothing here
+for an attacker to authenticate to, escalate through, or leave listening.
+
+**Fail loud, fail closed.** Every entry point runs under `set -euo pipefail`
+(`hi.sh:9`, `load.sh:29`, `common/core.sh:4`, `scripts/install.sh:12`), each
+with a documented, deliberate re-disable where an error must not close an
+interactive shell rather than a silent one. The three framework installers
+under `tests/dockerfiles/frameworks/` run under `pipefail` for the same
+reason: a 404 mid-pipe fails the build instead of shipping an image with the
+framework silently missing ([What is pinned, and what deliberately is not](TESTING.md#what-is-pinned-and-what-deliberately-is-not)).
+
+**Untrusted input is allowlisted, not sanitized after the fact.** The two
+strings a target can hand back - the existing-tree probe and the bootstrap
+directory it made - are checked by `_hi_safe_path` (`hi.sh:520`) against an
+explicit `[bracket-class]` before either is interpolated into a command run
+back on that same target; anything outside the class is refused outright, not
+escaped. `_hi_ssh_host_tag` and `_hi_ssh_pattern_hit` (`common/core.sh`) skip
+an ssh-config token that isn't a hostname shape rather than evaluating it as
+one, so a crafted `Host` line in `~/.ssh/config` cannot inject case-statement
+syntax. `_hi_sanitize_var` (`common/core.sh:283`) strips control characters
+and backslashes from target-derived text before it reaches a banner or a
+prompt.
+
+**No secret ever needs to be in the payload.** The payload is the allow list
+in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are
+handled by hand, once, outside CI ([When a push is refused](#when-a-push-is-refused)),
+and GitHub's push protection is the backstop if one lands in a commit anyway.
+
+**What is not (yet) countered.** `hi --update`'s plain `git pull` verifies
+only what an unconfigured `git pull` always does unless `--verify-signatures`
+is passed; that is a documented, current gap, not an oversight -
+[What hi does](#what-hi-does---and-deliberately-doesnt) says so in the same
+breath as the mitigation. A packaged install updates through its package
+manager instead, which has its own signing story
+([PACKAGING.md](PACKAGING.md)).
+
+Last reviewed 2026-09, alongside the changes this argument describes.
 
 ## When a push is refused
 

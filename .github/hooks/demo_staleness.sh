@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Warn when docs/tapes/demo.gif is older than the things that decide what it
 # shows. Warn, never block: demo.gif is a manual artifact reviewed by eye
 # (docs/tapes/generate.sh), so exit status is always 0. Run by hand, as the

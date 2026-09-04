@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Every file a non-bash shell parses for itself, run through that shell's own
 # syntax checker (`zsh -n` / `fish --no-execute`) - shellcheck_test.sh covers
 # every *.sh file, but common/zsh.zsh and common/config.fish are not shell it

@@ -294,6 +294,8 @@ jobs:
       actions: write
       # release_notes.sh reads each merged PR's body for its `## Release note`
       pull-requests: read
+      # gh attestation download, below - reads what build's attest steps wrote
+      attestations: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -417,6 +419,20 @@ jobs:
           shopt -u dotglob
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
           files+=(dist/say-hi.spdx.json)
+          # build's two attest steps covered every file dist/ARTIFACTS lists,
+          # SHA256SUMS included - its bytes are unchanged since (minisign
+          # signs it, never rewrites it), so its digest still matches what was
+          # attested. Scorecard's Signed-Releases check reads release assets
+          # for a literal `*.intoto.jsonl` name to award its top score; `gh
+          # attestation download` names its output after the digest instead
+          # (`sha256:<digest>.jsonl`), so the rename is what makes the file
+          # visible to it, not the attestation itself, which stands regardless.
+          if gh attestation download dist/SHA256SUMS --repo "$GITHUB_REPOSITORY"; then
+            mv sha256:*.jsonl dist/say-hi.intoto.jsonl
+            files+=(dist/say-hi.intoto.jsonl)
+          else
+            echo "no attestations found for dist/SHA256SUMS - shipping without one" >&2
+          fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
 
       # The subscribable repository (docs/PACKAGING.md's _Package repository_):

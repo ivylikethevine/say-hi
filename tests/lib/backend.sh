@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The container-backend suites, whole: one throwaway container per case, and the
 # docker/podman/nomad/kube test bodies that drive hi.sh through it.
 #

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # End-to-end test that hi's ephemeral-target cleanup (_say_hi's `trap 'rm -rf
 # $_HI_CLEANUP' exit`) survives an abrupt disconnect, not just a clean `exit`.
 #

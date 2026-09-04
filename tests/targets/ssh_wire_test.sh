@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # What hi actually puts on the wire, measured rather than computed. Two
 # containers, one session each through a byte-counting ProxyCommand: a bare
 # target, where the whole tree goes over, and one with say-hi already

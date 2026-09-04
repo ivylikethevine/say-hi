@@ -401,3 +401,8 @@ questions decided against are **deleted**: git history is the ledger.
        target-side survivor stays a no; a permanent-install recipe for a NAS
        on a slow link, where 48KB a connect shows. None ticks; each is
        promoted or deleted.
+
+Misc:
+
+1. show users IP(s) in header
+2.

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # oh-my-zsh, the framework hi is most likely to be appended after. Its array
 # indexing is the collision: `setopt KSH_ARRAYS` was set here for hi's
 # convenience, and oh-my-zsh indexes arrays from 1.

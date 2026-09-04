@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Shared scaffolding for every suite under tests. The scaffolding itself lives
 # in tests/lib/; this file is the one path a suite sources (common/paths.sh
 # exports it as $_HI_TEST_LIB), so the parts can be re-cut without touching a

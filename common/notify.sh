@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # <cmd> [args...] -> run it here, then a desktop notification on the *client's*
 # terminal emulator: the escape rides the pty back, so nothing is installed on
 # the target (the same trick common/osc52.sh plays for the clipboard). Run,

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The counted case: _hi_case tallies, _hi_assert reports, _hi_check does both.
 #
 # Part of the tests/test_lib.sh harness; sourced by it, never on its own.
