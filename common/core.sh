@@ -152,11 +152,19 @@ function _hi_repeat() {
 # scripts/lib.sh: they are tooling, and common/ ships in the ssh payload
 # under a size budget nothing a target runs should spend.
 
-# $EPOCHREALTIME on bash 5, date(1) on 3.2, $SECONDS with no date to fork.
-# Only ever differenced, so any monotonic clock works; an empty answer would
-# make _hi_elapsed print a time for a session it never timed.
+# date +%s.%N first - it has sub-second precision and _hi_remote_preamble's
+# copy of this function (hi.sh) already proves it on bash 3.2 targets; *N*
+# or empty is a date(1) with no %N (old BSD), where $EPOCHREALTIME (bash 5)
+# or plain date +%s or $SECONDS is the fallback, in that order. Only ever
+# differenced, so any monotonic clock works; an empty answer would make
+# _hi_elapsed print a time for a session it never timed.
 function _hi_now() {
-  printf '%s' "${EPOCHREALTIME:-$(date +%s 2>/dev/null || printf '%s' "$SECONDS")}"
+  local d
+  d=$(date +%s.%N 2>/dev/null)
+  case "$d" in
+  *N* | '') printf '%s' "${EPOCHREALTIME:-$(date +%s 2>/dev/null || printf '%s' "$SECONDS")}" ;;
+  *) printf '%s' "$d" ;;
+  esac
 }
 
 function _hi_elapsed() {
