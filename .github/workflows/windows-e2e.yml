@@ -6,13 +6,14 @@ name: Windows e2e
 # out, and not be mistaken for a Linux host missing base64 (cmd honours `||`,
 # which is why hi's probe keeps it off the lines whose exit codes it reads).
 # The client is the runner's own Git Bash;
-# windows-client.yml is the client-side half. The second job is WSL: an Ubuntu
-# distribution on the same runner runs the fast suites, takes the package
-# layout (`install.sh --prefix`, what the .deb's package() runs) and is then
-# said hi to from Git Bash - the Windows-desk homelab shape, and what turns
-# SUPPORT.md's WSL row from expected to proven. ci.yml calls this on every
-# push to main once both fast-suite jobs are green; dispatch runs it on its
-# own.
+# windows-client.yml is the client-side half. The rest is WSL, in two halves:
+# `wsl-suites` runs the fast suites inside an Ubuntu distribution (sharded,
+# from a copy on the distribution's own filesystem - see the job), and `wsl`
+# gives a fresh distribution the package layout (`install.sh --prefix`, what
+# the .deb's package() runs) and is then said hi to from Git Bash - the
+# Windows-desk homelab shape, and what turns SUPPORT.md's WSL row from
+# expected to proven. ci.yml calls this on every push to main once both
+# fast-suite jobs are green; dispatch runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -82,6 +83,101 @@ jobs:
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q "hi from PowerShell"
 
+  # The fast suites inside WSL, sharded the way windows-client.yml shards
+  # them under Git Bash, and run from a copy of the checkout on the
+  # distribution's own filesystem rather than from /mnt. Under WSL 2 the
+  # checkout on D: reaches the VM as a 9p share - a round trip per file
+  # operation - and the fast group is nothing but file operations: thirty
+  # suites each sourcing the harness, runner_test.sh's nested runners,
+  # install_tree copying the tree some forty-five times. The first run that
+  # got this far read from /mnt/d and was still going at the 900-second kill
+  # with nothing in the log, since the runner's width-4 mode replays its
+  # transcripts only once every suite has finished. On ext4 the group runs
+  # at Linux speed, which is what makes --verbose (width 1, streamed live)
+  # affordable - and --verbose is what has a future wedge name its suite and
+  # its case instead of leaving 900 seconds of silence.
+  wsl-suites:
+    name: fast suites (WSL, shard ${{ matrix.shard }} of 2)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    # WSLENV is the allowlist of names Windows shares into a wsl-bash step
+    # (the `wsl` job below says why); the shard pair has to be on it too, or
+    # the step's own env: never reaches the distribution
+    env:
+      WSLENV: GITHUB_WORKSPACE:HI_SHARD:HI_SHARDS
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # WSL 2 (the action's own default - this job used to pin 1): hosted
+      # Windows runners have carried the nested virtualization WSL 2's VM
+      # needs since the Dadsv5 image move, so the old "no nested virt" reason
+      # for WSL 1 no longer holds. The Windows -> Linux direction this job
+      # actually uses - Git Bash reaching the distribution's sshd on
+      # 127.0.0.1 below - is the one WSL 2's default NAT networking forwards
+      # on its own; only the *other* direction (WSL reaching a Windows-side
+      # service by 127.0.0.1) needs mirrored networking or the host's real
+      # IP, and nothing here does that. This job runs no docker/podman/nomad/
+      # kubectl - the `fast` group is backend-agnostic - so there is nothing
+      # backend-shaped to lose either way.
+      - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: bash zsh fish git python3 openssh-server
+
+      # HI_SHARDS is the divisor and the matrix above lists one entry per
+      # shard; runner_test.sh checks the two agree and that the slices are
+      # exactly the fast group. $HOME/hi-tree rather than $HOME/say-hi on
+      # purpose: $HOME is on hi's install-probe candidate list, and a tree
+      # there would be the one a session into this distribution found.
+      - name: This shard of the fast suites, from a copy on ext4
+        shell: wsl-bash {0}
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          HI_SHARDS: 2
+        run: |
+          set -eu
+          ws="$(wslpath -u "$GITHUB_WORKSPACE")"
+          mkdir -p "$HOME/hi-tree"
+          cp -a "$ws" "$HOME/hi-tree/say-hi"
+          cd "$HOME/hi-tree/say-hi"
+          _HI_HOME="$HOME/hi-tree"
+          export _HI_HOME
+          git config --global --add safe.directory "$(pwd)"
+          # -k 30: a wedge that outlives the first signal would otherwise
+          # leave `timeout` waiting on it forever too - see
+          # freebsd-e2e.yml's comment on the same flag.
+          timeout -k 30 900 bash ./tests/test_runner.sh --verbose --host-report \
+            --group fast --shard "$HI_SHARD/$HI_SHARDS" </dev/null
+
+  # The one check the shards roll up into, as windows-client.yml's
+  # fast-suites job does for Git Bash. `!cancelled()` so it reports on a red
+  # shard rather than being skipped past; the explicit result is the verdict
+  # (a skipped or failed shard is a failed check).
+  wsl-fast-suites:
+    name: fast suites (WSL)
+    needs: wsl-suites
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every shard green
+        env:
+          RESULT: ${{ needs.wsl-suites.result }}
+        run: |
+          set -euo pipefail
+          echo "shards: $RESULT"
+          [ "$RESULT" = success ]
+
+  # The target side: a fresh distribution takes the package layout and is
+  # said hi to from Git Bash. The fast suites used to run here first and
+  # moved to wsl-suites above, so this job is only the session.
   wsl:
     name: hi into WSL (Ubuntu, Git Bash client)
     runs-on: windows-latest
@@ -117,24 +213,6 @@ jobs:
           distribution: Ubuntu-24.04
           wsl-version: 2
           additional-packages: bash zsh fish git python3 openssh-server
-
-      # The checkout is on the Windows side; WSL sees it under /mnt. `cd` to
-      # it through the path WSL gives, since $GITHUB_WORKSPACE is a
-      # backslashed D: path here.
-      - name: Fast suites inside WSL
-        shell: wsl-bash {0}
-        run: |
-          set -eu
-          cd "$(wslpath -u "$GITHUB_WORKSPACE")"
-          _HI_HOME="$(cd .. && pwd)"
-          export _HI_HOME
-          # a DrvFs checkout is owned by a Windows SID, which git reports as
-          # someone else - the FreeBSD job's dubious-ownership case again
-          git config --global --add safe.directory "$(pwd)"
-          # -k 30: a wedge that outlives the first signal would otherwise
-          # leave `timeout` waiting on it forever too - see
-          # freebsd-e2e.yml's comment on the same flag.
-          timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
 
       # The package layout, by the same call the .deb's package() step makes:
       # the tree under /usr/share/say-hi, /usr/bin/hi, /etc/profile.d/say-hi.sh.
