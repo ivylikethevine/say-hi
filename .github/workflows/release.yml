@@ -292,6 +292,8 @@ jobs:
       contents: write
       # dispatches pages.yml (Refresh the Pages package repository, above)
       actions: write
+      # release_notes.sh reads each merged PR's body for its `## Release note`
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -340,6 +342,13 @@ jobs:
             "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
             -f tag_name="$GITHUB_REF_NAME" --jq .body 2>/dev/null || true)"
           [ -n "$notes" ] || notes="_Release notes could not be generated for this tag._"
+          # What changed, in the words each PR's `## Release note` section
+          # (the template's) gave it: release_notes.sh reads the PR numbers
+          # out of the generated notes, so "since the last tag" is GitHub's
+          # own answer, and prints nothing when no PR said anything - the
+          # titles then stand alone as they always did.
+          printf '%s\n' "$notes" >"$RUNNER_TEMP/generated-notes.md"
+          changed="$(bash .github/scripts/release_notes.sh "$GITHUB_REPOSITORY" "$RUNNER_TEMP/generated-notes.md")"
           # The checklist: each command is the one docs/PACKAGING.md documents
           # under "Verifying a release download", and the public key is read
           # out of that file so a second literal copy cannot drift.
@@ -367,6 +376,7 @@ jobs:
           # printf rather than a heredoc: a heredoc body would have to be
           # unindented, which ends the YAML block scalar
           body="$(printf '%s\n' \
+            ${changed:+"$changed" ""} \
             "$notes" \
             "" \
             "## Verifying this download" \
@@ -463,10 +473,9 @@ jobs:
   # The three commands docs/PACKAGING.md's "Homebrew tap" section asks for by
   # hand before a tap PR is merged, run on a hosted mac against the tarball
   # just published - the formula's url points at the release asset, which is
-  # why this waits on publish and never runs for a rehearsal. It gates
-  # nothing and nobody waits on it: publish-external.yml's `tap` job is a
-  # separate, later, manual dispatch, so this always finishes (or fails) well
-  # before that PR exists to read its verdict from.
+  # why this waits on publish and never runs for a rehearsal. The `tap` job
+  # below waits on it: a formula that fails install, test or audit never
+  # reaches the tap PR.
   #
   # `brew audit` refuses a path and wants a *named* formula in a tap, hence
   # the throwaway local tap; --new on top of --strict is what a first
@@ -490,8 +499,9 @@ jobs:
   brew:
     name: brew install, test and audit the formula (macOS)
     needs: publish
-    # not on a v0.0.x or a prerelease tag - the same skip publish-external.yml's
-    # tap/aur jobs use, since neither is a release anyone should reach
+    # not on a v0.0.x or a prerelease tag - the same skip the tap job below
+    # and publish-external.yml's aur job use, since neither is a release
+    # anyone should reach
     if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
     runs-on: macos-latest
     timeout-minutes: 20
@@ -566,3 +576,73 @@ jobs:
             echo "::error title=brew audit::the formula has audit findings - see the step summary and the tap PR"
             exit 1
           fi
+
+  # The Homebrew tap, as part of the release: a PR against
+  # <owner>/homebrew-tap carrying the formula the `brew` job just installed,
+  # tested and audited, opened only when that job passed. A PR rather than a
+  # push, so the tap's own merge stays the human step - there is no second
+  # `environment:` gate here, since `publish` was already approved in this
+  # run and `brew` is the technical gate. No-ops loudly without the
+  # HOMEBREW_TAP_TOKEN repo secret (a fine-grained PAT scoped to the tap repo,
+  # contents + pull requests write). The AUR stays in publish-external.yml:
+  # its registration is closed, and its push has no PR to hide behind.
+  tap:
+    name: open the Homebrew tap PR
+    needs: brew
+    if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages
+          path: dist
+
+      - name: Open the formula PR
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPO: ${{ github.repository_owner }}/homebrew-tap
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning title=Homebrew tap::no HOMEBREW_TAP_TOKEN secret - the tap formula was NOT updated; copy dist/manifests/say-hi.rb to Formula/say-hi.rb by hand (docs/PACKAGING.md)"
+            exit 0
+          fi
+          branch="say-hi-$TAG"
+          gh repo clone "$TAP_REPO" tap -- --depth 1
+          cd tap
+          # gh's token into git's credential helper, so the push below is
+          # authenticated as the PAT rather than as nobody
+          gh auth setup-git
+          git checkout -b "$branch"
+          mkdir -p Formula
+          cp ../dist/manifests/say-hi.rb Formula/say-hi.rb
+          git add Formula/say-hi.rb
+          if git diff --cached --quiet; then
+            echo "tap formula already current - nothing to open"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "say-hi $TAG"
+          git push origin "$branch"
+          # The checklist rides in the body: this run's `brew` job already
+          # ran these on a hosted mac against this tag's published tarball,
+          # so the boxes are for the reviewer confirming that run before
+          # merging. printf rather than a heredoc: a heredoc body would have
+          # to be unindented, which ends the YAML block scalar.
+          # shellcheck disable=SC2016 # the backticks are markdown, not substitution
+          body="$(printf '%s\n' \
+            "Formula for say-hi $TAG, generated by release.yml." \
+            "" \
+            "This run's \`brew\` job ran these on a hosted mac against the tag's release ($RUN_URL); confirm from one of your own before merging:" \
+            "" \
+            '- [ ] `brew install --build-from-source Formula/say-hi.rb`' \
+            '- [ ] `brew test say-hi`' \
+            '- [ ] `brew audit --strict --new say-hi`')"
+          gh pr create --repo "$TAP_REPO" --head "$branch" \
+            --title "say-hi $TAG" --body "$body"

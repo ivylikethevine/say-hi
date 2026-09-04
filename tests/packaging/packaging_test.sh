@@ -405,32 +405,111 @@ function test_prerelease_tags_reach_no_channel() {
   [ "$bad" = 0 ]
 }
 
-# tap/aur's own guard, in publish-external.yml: no release.event to read a tag
+# The release page's "What changed" list is each PR's `## Release note`
+# section: the template carries the section, the publish job runs the
+# extractor over the generated notes with the permission that needs, and
+# the extractor's grammar holds - the section to the next heading, comments
+# and `none` as nothing, a body without the section as nothing.
+function test_pr_template_carries_the_release_note_section() {
+  grep -q '^## Release note' "$_HI_ROOT/.github/pull_request_template.md"
+}
+
+function test_release_workflow_publishes_release_notes() {
+  local job
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  [[ "$job" == *"release_notes.sh"* ]] && [[ "$job" == *"pull-requests: read"* ]]
+}
+
+function _hi_release_note_of() {
+  printf '%s\n' "$1" | bash "$_HI_ROOT/.github/scripts/release_notes.sh" --extract
+}
+
+function test_release_note_extract_takes_the_section() {
+  local body
+  body=$'# What\'s New\n\n## What Changed & Why\n\nstuff\n\n## Release note\n\n<!-- one or two sentences -->\n\nhi keeps your prompt.\n\n## Issue/Discussion Links\n\nnone'
+  [ "$(_hi_release_note_of "$body")" = "hi keeps your prompt." ]
+}
+
+function test_release_note_extract_treats_none_as_empty() {
+  [ -z "$(_hi_release_note_of $'## Release note\n\nnone\n\n## Next')" ] &&
+    [ -z "$(_hi_release_note_of $'## Release note\n\nNone.\n')" ] &&
+    [ -z "$(_hi_release_note_of $'## Release note\n\n<!-- a\nmulti-line comment -->\n\n## Next')" ] &&
+    [ -z "$(_hi_release_note_of $'## What Changed\n\nno section here')" ]
+}
+
+# the network mode, against a stand-in gh: one bullet per PR with a note, in
+# the generated notes' order, a multi-line note joined, `none` dropped
+function test_release_notes_builds_the_list_from_the_prs() {
+  local dir="$_HI_WORKDIR/relnotes" out
+  mkdir -p "$dir/bin"
+  cat >"$dir/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+*pulls/12*) printf '## Release note\n\nhi keeps your prompt.\nOn targets too.\n' ;;
+*pulls/13*) printf '## Release note\n\nnone\n' ;;
+*) exit 1 ;;
+esac
+EOF
+  chmod +x "$dir/bin/gh"
+  printf '## What Changed\n* header tweaks by @x in https://github.com/o/r/pull/13\n* prompt by @x in https://github.com/o/r/pull/12\n* again in https://github.com/o/r/pull/12\n' >"$dir/notes.md"
+  out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/release_notes.sh" o/r "$dir/notes.md")"
+  [ "$out" = $'## What changed\n\n- hi keeps your prompt. On targets too. (#12)' ]
+}
+
+# ...and nothing at all when no PR wrote one: the titles then stand alone
+function test_release_notes_are_silent_without_a_note() {
+  local dir="$_HI_WORKDIR/relnotes-none" out
+  mkdir -p "$dir/bin"
+  printf '#!/usr/bin/env bash\nprintf "no section\\n"\n' >"$dir/bin/gh"
+  chmod +x "$dir/bin/gh"
+  printf '* x in https://github.com/o/r/pull/1\n' >"$dir/notes.md"
+  out="$(PATH="$dir/bin:$PATH" bash "$_HI_ROOT/.github/scripts/release_notes.sh" o/r "$dir/notes.md")"
+  [ -z "$out" ]
+}
+
+# aur's own guard, in publish-external.yml: no release.event to read a tag
 # from (this is a workflow_dispatch, not a push), so it is the same skip
 # spelled off the tag input instead
 function test_prerelease_tags_reach_no_external_channel() {
   [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
-  local name job bad=0 guard="!contains(github.event.inputs.tag, '-')"
-  for name in tap aur; do
-    job="$(_hi_wf_job "$_HI_PUBLISH_EXTERNAL_WF" "$name")"
-    if [[ "$job" != *"$guard"* ]]; then
-      _hi_cecho " | publish-external.yml's $name job runs on a prerelease tag" "$RED"
-      bad=1
-    fi
-  done
-  [ "$bad" = 0 ]
+  local job guard="!contains(github.event.inputs.tag, '-')"
+  job="$(_hi_wf_job "$_HI_PUBLISH_EXTERNAL_WF" aur)"
+  [[ "$job" == *"$guard"* ]] || {
+    _hi_cecho " | publish-external.yml's aur job runs on a prerelease tag" "$RED"
+    return 1
+  }
 }
 
-# tap and aur no longer run off a tag push at all - a v0.0.x/prerelease skip
-# on `github.ref_name` alone, with no workflow_dispatch guard beside it, would
+# aur does not run off a tag push at all - a v0.0.x/prerelease skip on
+# `github.ref_name` alone, with no workflow_dispatch guard beside it, would
 # read as "still automatic" and silently reintroduce the coupling this split
-# exists to remove
-function test_tap_and_aur_are_dispatch_only() {
+# exists to remove. The tap is release.yml's now (below), not this file's.
+function test_aur_is_dispatch_only() {
   [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
   grep -qE '^ *workflow_dispatch:' "$_HI_PUBLISH_EXTERNAL_WF" &&
     ! grep -qE '^ *(push|pull_request):' "$_HI_PUBLISH_EXTERNAL_WF" &&
-    ! grep -q "tap:" "$_HI_RELEASE_WF" &&
-    ! grep -q "aur:" "$_HI_RELEASE_WF"
+    ! grep -q "^  tap:" "$_HI_PUBLISH_EXTERNAL_WF" &&
+    ! grep -q "^  aur:" "$_HI_RELEASE_WF"
+}
+
+# The tap PR is part of the release: release.yml's tap job waits on brew's
+# verdict (a formula that failed install/test/audit never reaches the tap),
+# skips the same debug and prerelease tags brew does, opens a PR rather than
+# pushing, and reads the tap token - never the repo's own - for that.
+function test_release_workflow_opens_the_tap_pr_after_brew() {
+  local job
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" tap)"
+  [ -n "$job" ] || {
+    _hi_cecho " | release.yml has no tap job" "$RED"
+    return 1
+  }
+  [[ "$job" == *"needs: brew"* ]] &&
+    [[ "$job" == *"needs.brew.result == 'success'"* ]] &&
+    [[ "$job" == *"!startsWith(github.ref_name, 'v0.0.')"* ]] &&
+    [[ "$job" == *"!contains(github.ref_name, '-')"* ]] &&
+    [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
+    [[ "$job" == *"gh pr create"* ]] &&
+    [[ "$job" != *"environment:"* ]]
 }
 
 # each job's manifest comes off the release itself, never a same-run build
@@ -1754,6 +1833,12 @@ function run_packaging_tests() {
   _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
   _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
+  _hi_check "The PR template carries a release-note section" test_pr_template_carries_the_release_note_section
+  _hi_check "publish runs release_notes.sh with pull-requests: read" test_release_workflow_publishes_release_notes
+  _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
+  _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
+  _hi_check "release_notes.sh builds the list from the PRs" test_release_notes_builds_the_list_from_the_prs
+  _hi_check "release_notes.sh is silent without a note" test_release_notes_are_silent_without_a_note
   _hi_check "Verifies the manifests against the tag" test_release_workflow_verifies_the_manifests
   _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
   _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
@@ -1772,9 +1857,10 @@ function run_packaging_tests() {
   _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
 
   _hi_h2 "Testing: publish-external.yml"
-  _hi_check "tap/aur are dispatch-only, not in release.yml" test_tap_and_aur_are_dispatch_only
-  _hi_check "...and skip a prerelease tag" test_prerelease_tags_reach_no_external_channel
-  _hi_check "...reading their manifests off the release" test_publish_external_reads_manifests_from_the_release
+  _hi_check "aur is dispatch-only, not in release.yml" test_aur_is_dispatch_only
+  _hi_check "...and skips a prerelease tag" test_prerelease_tags_reach_no_external_channel
+  _hi_check "...reading its manifest off the release" test_publish_external_reads_manifests_from_the_release
+  _hi_check "release.yml opens the tap PR after brew passes" test_release_workflow_opens_the_tap_pr_after_brew
 
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
   _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild

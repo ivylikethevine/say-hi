@@ -3,6 +3,11 @@ name: macOS e2e
 # The BSD path end-to-end: the runner ssh's to itself, so one job covers
 # client AND target - macOS userland (`sed -i ''`, BSD mktemp, `base64 -D`)
 # and /bin/bash 3.2 on both ends, which the fast suites can only imitate.
+# Three sessions: a one-shot command (only its output comes back), a full
+# interactive one (the header names macOS, the disconnect banner closes it,
+# nothing is left in $TMPDIR), and a `--doctor` against the loopback. The
+# client is run as `/bin/bash ./hi.sh` on purpose: the runner's PATH bash is
+# Homebrew's 5.x, and it is Apple's 3.2 the floor promises.
 # ci.yml calls this on every push to main once both fast-suite jobs are green
 # (no point burning a 15-minute macOS runner on a tree whose unit tests are
 # already red); dispatch runs it on its own.
@@ -32,6 +37,10 @@ jobs:
           ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
           cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
           chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
+          # a Host entry for the --doctor step, which takes no ssh options and
+          # reads ~/.ssh/config as completion and the header do
+          printf 'Host loop\n  HostName 127.0.0.1\n  IdentityFile %s/.ssh/loop\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  LogLevel ERROR\n' "$HOME" >>"$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
           sudo systemsetup -setremotelogin on
           for _ in $(seq 1 30); do
             ssh -i "$HOME/.ssh/loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
@@ -42,9 +51,18 @@ jobs:
           echo "sshd never answered" >&2
           exit 1
 
+      # The floor, checked rather than assumed: Apple's bash is what the
+      # steps below run hi.sh with, and a runner image that moved it would
+      # silently turn this job into a bash 5 test.
+      - name: The client is Apple's bash 3.2
+        run: |
+          set -euo pipefail
+          /bin/bash --version | head -1
+          /bin/bash --version | head -1 | grep -q 'version 3\.2'
+
       # the same pty trick the e2e suites use: `ssh -t` needs a tty on our
       # side, and a CI step has none
-      - name: Say hi to ourselves
+      - name: Say hi to ourselves (one command, only its output back)
         run: |
           set -euo pipefail
           # hi.sh derives its own tree now (GLOSSARY: HI.33), so this export is
@@ -56,11 +74,44 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
-            ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
+            /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
             "$USER@127.0.0.1" 'echo HI_MAC_LOOP_OK' 2>&1)" || true
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q HI_MAC_LOOP_OK
+
+      # A full session: the header's Darwin branch (sw_vers, sysctl, vm_stat)
+      # has to say macOS, hi_info has to name this checkout as the tree, and
+      # the disconnect banner has to close it. The commands ride in on the
+      # pty's input queue ahead of the prompt; python 3.12+ ends pty.spawn on
+      # stdin EOF rather than hanging, which is what lets a pipe drive it.
+      - name: Say hi to ourselves (a full session)
+        run: |
+          set -euo pipefail
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          out="$(printf 'hi_info\nexit\n' | python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
+            /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+            "$USER@127.0.0.1" 2>&1)" || true
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q 'Connected'
+          printf '%s\n' "$out" | grep -q 'macOS'
+          printf '%s\n' "$out" | grep -q "hi_root: $GITHUB_WORKSPACE"
+          printf '%s\n' "$out" | grep -q 'Disconnected'
+
+      # --doctor reaches the target read-only over the Host entry above and
+      # reports in JSON; its exit code is the count of `bad` rows, so a
+      # finding here is a real one and fails the step with the row in the log.
+      - name: hi --doctor against the loopback
+        run: |
+          set -euo pipefail
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          rc=0
+          /bin/bash ./hi.sh --doctor --json loop >"$RUNNER_TEMP/doctor.json" || rc=$?
+          python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(json.dumps(d, indent=1))' "$RUNNER_TEMP/doctor.json"
+          [ "$rc" -eq 0 ] || { echo "hi --doctor reported $rc bad row(s)" >&2; exit "$rc"; }
 
       - name: The cleanup trap left nothing behind
         run: |

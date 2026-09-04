@@ -183,7 +183,11 @@ Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
 `.moxide.toml` keeps markdown-oxide from arguing with either.
 
 [README's Roadmap](../README.md#roadmap) is a to-do list, not a changelog:
-finishing an entry means **deleting** it — git history is the ledger.
+finishing an entry means **deleting** it — git history is the ledger. What a
+_user_ reads is the pull request's `## Release note` section (the template
+has it): `release.yml` collects those from the PRs merged since the last tag
+into the release body, titles as the fallback. Write it as the sentence you
+would want on the release page, or `none` when nothing a user sees changes.
 
 ## Opening the pull request
 

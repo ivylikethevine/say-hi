@@ -1,5 +1,5 @@
 # The tap formula. Publish by copying this file to Formula/say-hi.rb in a repo
-# named ivylikethevine/homebrew-tap; `brew install ivy/tap/say-hi` then works with
+# named ivylikethevine/homebrew-tap; `brew install ivylikethevine/tap/say-hi` then works with
 # no review and no approval. A template on main: url/sha256 stay the v0.0.0
 # sentinel here permanently - a release's build job runs packaging/bump.sh
 # against its own copy (checksumming the tarball it built), and the result is

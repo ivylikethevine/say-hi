@@ -25,6 +25,15 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_REPO=""
 _HI_REPO_VERSION=""
+# The release before this one, as far as an upgrade case is concerned: the
+# same tree built and signed a second time under a lower version, so a client
+# can install it first and then take the repository's as an upgrade. The
+# mechanics on trial are the package manager's - files replaced, the symlink
+# and profile.d snippet still there, the version stamp moved - and that
+# nothing the user wrote (/etc/say-hi/settings.sh, ~/.config/say-hi) is
+# touched; those hold whatever version the packages carry.
+_HI_PREV=""
+_HI_PREV_VERSION="0.0.1"
 
 # _hi_repo_keys - a throwaway GPG signing key and a throwaway apk RSA key in
 # the workdir. RSA 4096 as the runbook prescribes for the real one.
@@ -56,10 +65,20 @@ function _hi_repo_build() {
     _hi_cecho " | no pkgver in packaging/aur/say-hi/PKGBUILD" "$RED"
     return 1
   }
-  _hi_h2 "Building the packages, signed"
   # registered before the build (the ledger's rule): the exit trap removes
   # dist/ only when this suite is the one that created it
   [ -d "$_HI_ROOT/dist" ] || _hi_track_dir "$_HI_ROOT/dist"
+  # The previous release first, moved out of dist/ before the real build:
+  # nfpm.yaml hardcodes ./dist/staging, so the two builds are sequential
+  # rather than --outdir'd apart, as ci.yml's byte-identical check is.
+  _hi_h2 "Building the previous release ($_HI_PREV_VERSION), signed"
+  _HI_PREV="$_HI_WORKDIR/prev"
+  if ! (cd "$_HI_ROOT" && HI_GPG_KEY="$_HI_WORKDIR/gpg.key" HI_APK_KEY="$_HI_WORKDIR/apk.rsa" packaging/mkpkg.sh --version "$_HI_PREV_VERSION") >"$_HI_WORKDIR/mkpkg-prev.log" 2>&1; then
+    _hi_dump_log "mkpkg.sh --version $_HI_PREV_VERSION failed:" "$_HI_WORKDIR/mkpkg-prev.log" "$RED"
+    return 1
+  fi
+  mv "$_HI_ROOT/dist" "$_HI_PREV"
+  _hi_h2 "Building the packages, signed"
   if ! (cd "$_HI_ROOT" && HI_GPG_KEY="$_HI_WORKDIR/gpg.key" HI_APK_KEY="$_HI_WORKDIR/apk.rsa" packaging/mkpkg.sh) >"$_HI_WORKDIR/mkpkg.log" 2>&1; then
     _hi_dump_log "mkpkg.sh failed:" "$_HI_WORKDIR/mkpkg.log" "$RED"
     return 1
@@ -101,7 +120,7 @@ function test_repository_is_signed() {
 # the transcript replays on failure.
 function _hi_repo_client() {
   local label="$1" image="$2" shell="$3" script="$4" log="$_HI_WORKDIR/$1.log" last
-  if ! docker run --rm -v "$_HI_REPO:/repo:ro" "$image" "$shell" -ec "$script" >"$log" 2>&1; then
+  if ! docker run --rm -v "$_HI_REPO:/repo:ro" -v "$_HI_PREV:/prev:ro" "$image" "$shell" -ec "$script" >"$log" 2>&1; then
     _hi_dump_log "$label client failed:" "$log" "$RED"
     return 1
   fi
@@ -149,6 +168,62 @@ function test_apk_client_installs_from_the_repository() {
     sh -lc "hi --version"'
 }
 
+# The upgrade every subscriber takes: the previous release installed from its
+# package file, a system layer and an overlay written, then the repository's
+# release taken as an upgrade through the same manager. Each script checks
+# what it can only check from the inside - the version that was there before,
+# both config files intact after, the symlink and profile.d snippet still in
+# place - and ends on `hi --version` for _hi_repo_client's verdict. The
+# upgrade is asked for the way a user would ask (`apt-get install`, `dnf
+# upgrade`, `apk add -u`), not with a path to the new file.
+_HI_UPGRADE_CONFIG='
+    mkdir -p /etc/say-hi /root/.config/say-hi
+    echo "export _HI_DISABLE_NOTIFY=1" >/etc/say-hi/settings.sh
+    echo "hostname,prod,red" >/root/.config/say-hi/colors'
+_HI_UPGRADE_ASSERT='
+    grep -q "_HI_DISABLE_NOTIFY=1" /etc/say-hi/settings.sh
+    grep -q "hostname,prod,red" /root/.config/say-hi/colors
+    test -L /usr/bin/hi && test -f /etc/profile.d/say-hi.sh && test -f /usr/share/say-hi/hi.sh'
+
+function test_apt_client_upgrades_in_place() {
+  # shellcheck disable=SC2016 # the $( ) runs inside the container
+  _hi_repo_client apt-upgrade ubuntu:24.04 bash '
+    mkdir -p /etc/apt/keyrings
+    cp /repo/say-hi.asc /etc/apt/keyrings/say-hi.asc
+    apt-get -qq update
+    DEBIAN_FRONTEND=noninteractive apt-get -qq install -y /prev/say-hi_*_all.deb >/dev/null
+    test "$(bash -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
+    echo "deb [signed-by=/etc/apt/keyrings/say-hi.asc] file:///repo/apt stable main" >/etc/apt/sources.list.d/say-hi.list
+    apt-get -qq update
+    DEBIAN_FRONTEND=noninteractive apt-get -qq install -y say-hi >/dev/null
+    dpkg -s say-hi | grep -q "^Status: install ok installed"'"$_HI_UPGRADE_ASSERT"'
+    bash -lc "hi --version"'
+}
+
+function test_dnf_client_upgrades_in_place() {
+  # shellcheck disable=SC2016 # the $( ) runs inside the container
+  _hi_repo_client dnf-upgrade fedora:44 bash '
+    rpm --import /repo/say-hi.asc
+    dnf -y -q install /prev/say-hi-*.noarch.rpm >/dev/null
+    test "$(bash -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
+    printf "[say-hi]\nname=say-hi\nbaseurl=file:///repo/rpm\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///repo/say-hi.asc\n" >/etc/yum.repos.d/say-hi.repo
+    dnf -y -q upgrade say-hi >/dev/null
+    rpm -q say-hi >/dev/null'"$_HI_UPGRADE_ASSERT"'
+    bash -lc "hi --version"'
+}
+
+function test_apk_client_upgrades_in_place() {
+  # shellcheck disable=SC2016 # the $( ) runs inside the container
+  _hi_repo_client apk-upgrade alpine:3.24 sh '
+    cp /repo/say-hi.rsa.pub /etc/apk/keys/
+    apk add -q /prev/say-hi_*_noarch.apk
+    test "$(sh -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
+    echo /repo/apk >>/etc/apk/repositories
+    apk add -q -u say-hi
+    apk info -e say-hi >/dev/null'"$_HI_UPGRADE_ASSERT"'
+    sh -lc "hi --version"'
+}
+
 function run_repo_tests() {
   _hi_require_backend docker
   _hi_require nfpm "not installed - it builds the packages the repository indexes"
@@ -170,6 +245,10 @@ function run_repo_tests() {
     _hi_check "apt (ubuntu:24.04) installs with signed-by" test_apt_client_installs_from_the_repository
     _hi_check "dnf (fedora:44) installs with gpgcheck and repo_gpgcheck" test_dnf_client_installs_from_the_repository
     _hi_check "apk (alpine:3.24) installs with the served key" test_apk_client_installs_from_the_repository
+    _hi_h2 "Testing: the upgrade from $_HI_PREV_VERSION, config kept"
+    _hi_check "apt upgrades in place" test_apt_client_upgrades_in_place
+    _hi_check "dnf upgrades in place" test_dnf_client_upgrades_in_place
+    _hi_check "apk upgrades in place" test_apk_client_upgrades_in_place
   else
     _hi_skip "[clients]" "no repository to subscribe to"
   fi

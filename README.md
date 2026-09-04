@@ -214,9 +214,11 @@ everything weighed and answered **no**, and why.
   ```
 
   A packaged install still needs `hi --install` once per user, for the rc
-  lines. macOS has no package yet (the Homebrew tap is on the
-  [Roadmap](#roadmap)): clone, and pass `--no-link` to `install.sh` — `/usr/bin`
-  is read-only under SIP, so put `~/say-hi/hi.sh` on your `PATH` yourself.
+  lines. macOS: `brew install ivylikethevine/tap/say-hi` (the tap is
+  [ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap)),
+  then `hi --install`.
+  From a clone instead, pass `--no-link` to `install.sh` — `/usr/bin` is
+  read-only under SIP — and put `~/say-hi/hi.sh` on your `PATH` yourself.
 
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
@@ -351,12 +353,6 @@ questions decided against are **deleted**: git history is the ledger.
 
 ### What v1.0.0 Means
 
-- [ ] **Every publishable channel has been published once by hand**, before
-      the automation is trusted with it: deb/rpm/apk and the Homebrew tap,
-      per [docs/PACKAGING.md](docs/PACKAGING.md)'s _Publishing each channel_.
-      deb/rpm/apk are live, signed, and have carried a second release to a
-      subscriber in place. What's left is the tap half - the **Homebrew tap**
-      entry.
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
       the eighteen `common/flags`, every `docs/SETTINGS.md` row,
@@ -381,59 +377,14 @@ questions decided against are **deleted**: git history is the ledger.
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-3. [ ] **Homelab rows in SUPPORT.md** — _scope: prose, one fixture already
-       exists._ Synology/QNAP/TrueNAS/Unraid, OpenWrt and Termux (the last as
-       a client) have no row in [docs/SUPPORT.md](docs/SUPPORT.md), which
-       otherwise answers every candidate. Most are busybox without bash: the
-       aliases-only tier `tests/dockerfiles/sshd-alpine.Dockerfile` already
-       proves. **Do:** a row each, with the tier it lands in and what proves
-       it. **Ticks when:** every host a homelab points hi at has a verdict.
+3. [ ] **WSL proven** — _scope: one green push._ The job is written and
+       pinned: `windows-e2e.yml`'s `wsl` runs the fast suites inside an
+       Ubuntu WSL distribution, lays down the package layout with
+       `install.sh --prefix`, and says `hi` into it from Git Bash. **Do:**
+       push, read the run, fix what a hosted runner disagrees with. **Ticks
+       when:** the job is green on `main` and SUPPORT.md's WSL row reads ✅.
 
-4. [ ] **Release notes with content** — _scope:
-       `.github/pull_request_template.md`, `release.yml`._ Release bodies are
-       generated from merged PR titles, and titles like "header tweaks" tell
-       a subscriber nothing about whether to take the upgrade. **Do:** a
-       `## Release note` section in the PR template, assembled into the body
-       by `release.yml` (titles as the fallback), and one sentence in
-       CONTRIBUTING.md saying where a human reads what changed — git history
-       stays the ledger. **Ticks when:** the next tag's release page names its
-       user-visible changes.
-
-5. [ ] **WSL proven** — _scope: one job in `windows-e2e.yml`._ SUPPORT.md's
-       WSL row is 🟡 (expected, unproven) beside three Windows workflows.
-       **Do:** `wsl --install -d Ubuntu` on the Windows runner, install the
-       built `.deb` inside it, run `hi localhost 'echo ok'`. **Ticks when:**
-       the row is ✅ and names the job.
-
-6. [ ] **Upgrade-path test** — _scope: one case in `tests/packaging/`._
-       Nothing installs release N-1 and upgrades to N, the one path every
-       apt/dnf/apk subscriber takes; `nfpm.yaml` has no maintainer scripts
-       and nothing asserts `~/.config/say-hi` and `/etc/say-hi/settings.sh`
-       survive. **Do:** install the previous release from the repository,
-       write both, upgrade to the freshly built package, assert both survive
-       and `hi --version` moved; decide whether `conffiles` are needed and
-       record it in PACKAGING.md. **Ticks when:** the case runs in `package
-    build` on every PR.
-
-7. [ ] **macOS e2e beyond one grep** — _scope: `macos-e2e.yml`, one suite._
-       The macOS badge rests on a single loopback `echo`; no test in `tests/`
-       names Darwin, while the tree carries BSD `sed -i ''`, `mktemp` and
-       `base64 -D` branches. **Do:** a `tests/common/darwin_test.sh` that
-       runs where `uname` is Darwin and skips elsewhere, asserting each BSD
-       branch, registered in `_HI_TESTS` and run by the macOS jobs. **Ticks
-       when:** the macOS badge reflects a suite.
-
-8. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
-       real Mac; outside this checkout._ The only channel for the developer
-       audience's main OS. Create `homebrew-tap` (plain repo, `Formula/`
-       dir), add a fine-grained PAT (contents + PRs write) as
-       `HOMEBREW_TAP_TOKEN`, re-run the `brew install`/`test`/`audit` gate on
-       an actual Mac (`/opt/homebrew`, not the Linuxbrew prefix used so far).
-       **Ticks when:** `brew install ivy/tap/say-hi` works, from a release
-       `publish-external.yml`'s `tap` job (dispatched by hand against that
-       tag) opened a PR for.
-
-9. [ ] **AUR** — _scope: nothing until registration reopens; then an
+4. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
@@ -445,14 +396,14 @@ questions decided against are **deleted**: git history is the ledger.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release.
 
-10. [ ] **Weighed, open for an audience argument** — _scope: each its own
-        entry once someone is sitting in it_
-        ([docs/SUPPORT.md](docs/SUPPORT.md#what-would-change-an-answer) has
-        the rule). A devcontainer Feature that installs say-hi into the
-        container, for the terminal you already sit in; an `examples/`
-        Ansible role dropping the package and `/etc/say-hi/settings.sh`; an
-        opt-in `logger` line per session for shops that audit who reached
-        what; a client-side `tmux new -A -s hi-<target>` wrap, since a
-        target-side survivor stays a no; a permanent-install recipe for a NAS
-        on a slow link, where 48KB a connect shows. None ticks; each is
-        promoted or deleted.
+5. [ ] **Weighed, open for an audience argument** — _scope: each its own
+       entry once someone is sitting in it_
+       ([docs/SUPPORT.md](docs/SUPPORT.md#what-would-change-an-answer) has
+       the rule). A devcontainer Feature that installs say-hi into the
+       container, for the terminal you already sit in; an `examples/`
+       Ansible role dropping the package and `/etc/say-hi/settings.sh`; an
+       opt-in `logger` line per session for shops that audit who reached
+       what; a client-side `tmux new -A -s hi-<target>` wrap, since a
+       target-side survivor stays a no; a permanent-install recipe for a NAS
+       on a slow link, where 48KB a connect shows. None ticks; each is
+       promoted or deleted.

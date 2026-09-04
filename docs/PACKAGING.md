@@ -3,21 +3,22 @@
 How `hi` ships through a package manager, plus [checking a download you did
 not build](#verifying-a-release-download) and [regenerating the demo
 GIFs](#regenerating-the-demo-gifs). Nothing publishes on its own: the
-publishing job waits on a manual approval, and the AUR and Homebrew tap stay
-hand-copied until their secrets exist - and, once they do, until someone
-dispatches `publish-external.yml` by hand. Both signing keys are in place; the
-AUR deploy key and the tap token are one-time setup ([AUR](#aur), [Homebrew
-tap](#homebrew-tap)), tracked in [README's Roadmap](../README.md#roadmap).
+publishing job waits on a manual approval; the Homebrew tap gets a PR from
+the same run once `brew` has passed the formula, and the AUR is updated only
+when someone dispatches `publish-external.yml` by hand, once its key exists.
+Both signing keys and the tap token are in place; the AUR deploy key is
+one-time setup ([AUR](#aur)), tracked in
+[README's Roadmap](../README.md#roadmap).
 
-**What is live today: releases and the package repository, not the AUR or the
-tap.** Every channel on this page is built and tested in CI on each push;
-tagged releases exist (`v0.1.1`, `v0.1.2`, …) and the apt/rpm/apk repository
-is live and signed at `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`.
-There is still no AUR package and no Homebrew tap. Until
-[What v1.0.0 means](../README.md#what-v100-means) is ticked, a checkout stays
-the recommended install for most people
-([README](../README.md#installation)); this page describes the AUR and
-tap channels as they will ship once they are.
+**What is live today: releases, the package repository and the Homebrew
+tap, not the AUR.** Every channel on this page is built and tested in CI on
+each push; tagged releases exist (`v0.1.1`, `v0.1.2`, …), the apt/rpm/apk
+repository is live and signed at
+`https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, and
+`brew install ivylikethevine/tap/say-hi` installs from
+[ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap),
+first published by hand and gated on a real Mac. There is still no AUR package (registration is closed); this page
+describes that channel as it will ship once there is.
 
 **Runners.** Every job runs on a plain GitHub-hosted label (`ubuntu-latest`,
 `macos-latest`, `windows-latest`); none substitutes a machine from a repo/org
@@ -141,13 +142,17 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    `workflow_run` trigger cannot fire off a tag push). The manifests committed
    in `packaging/aur/` and `packaging/homebrew/` stay permanent `v0.0.0`
    templates — this workflow never writes to `main`.
-4. Once their secrets exist, dispatch `publish-external.yml` with `tag:
-v1.0.0` to open the tap PR (`HOMEBREW_TAP_TOKEN`) and push the AUR
-   (`AUR_SSH_KEY`) — a separate, later, manual step so nothing reaches either
-   channel just because a tag was pushed. Both read the manifests off the
+4. `brew` installs, tests and audits the formula on a hosted mac against the
+   published tarball, and when it passes, `tap` opens a PR against
+   [homebrew-tap](https://github.com/ivylikethevine/homebrew-tap) with it
+   (`HOMEBREW_TAP_TOKEN`). Merging that PR is yours — the tap has no review
+   of its own, so the PR is where the `brew` verdict gets read.
+5. Once `AUR_SSH_KEY` exists, dispatch `publish-external.yml` with `tag:
+v1.0.0` to push the AUR — a separate, later, manual step so nothing reaches
+   that channel just because a tag was pushed. It reads the manifest off the
    release itself (`gh release download`), which is why the templates on
-   `main` never need to be current. Until the secrets exist, copy the
-   manifests by hand per the sections below.
+   `main` never need to be current. Until the key exists, copy the manifest
+   by hand per [AUR](#aur).
 
 **A release candidate is a GitHub Release and nothing more.** A prerelease
 tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-2 unchanged and
@@ -168,13 +173,19 @@ you have, and it downloads the published asset only when neither is available
 (during a release the asset does not exist yet). `bump.sh --check 1.0.0`
 confirms the manifests match a cut release.
 
-**Release notes are the PR titles.** The publish job asks GitHub's
-`releases/generate-notes` endpoint for the PR titles merged since the last tag
-and puts them at the top of the release body, the [verification
-checklist](#verifying-a-release-download) below. Title PRs the way you'd want
-them read; skim `gh pr list --state merged` before tagging. The body is
-composed rather than passed as `--generate-notes --notes` because `gh` appends
-generated notes **after** `--notes`, burying them under the checklist.
+**Release notes are the PRs' `## Release note` sections.** The publish job
+asks GitHub's `releases/generate-notes` endpoint for the PRs merged since the
+last tag, then `.github/scripts/release_notes.sh` reads each one's
+`## Release note` section (the pull request template's) into a
+"What changed" list at the top of the release body - the generated titles
+below it, the [verification checklist](#verifying-a-release-download) below
+those. A section left at `none` contributes nothing, and a release nobody
+wrote a note for falls back to the titles alone. Skim
+`gh pr list --state merged` before tagging and fix a PR's section in place if
+it reads badly; the release run reads the bodies as they are then. The body
+is composed rather than passed as `--generate-notes --notes` because `gh`
+appends generated notes **after** `--notes`, burying them under the
+checklist.
 
 ### The release environment
 
@@ -182,7 +193,8 @@ Two repository settings under _Settings → Environments_ that no file in the
 tree can set; `release.yml` only names them.
 
 - **`release`** — what `release.yml`'s `publish` and `publish-external.yml`'s
-  `tap`/`aur` all run in. _Required reviewers_: you; that is the approval
+  `aur` both run in (`tap` runs behind `publish`'s approval in the same run
+  and needs no gate of its own: it opens a PR). _Required reviewers_: you; that is the approval
   `publish` pauses for, and without it the job publishes unattended.
   _Deployment branches and tags_: a **tag** rule, `v*`, for `publish` running
   on the tag ref - a policy listing only `main` refuses every release with
@@ -190,9 +202,9 @@ tree can set; `release.yml` only names them.
 protection rules` — `build` green, `publish` failed, the tag page showing
   source archives alone. The rule is checked when the job starts, so once it
   exists _Re-run failed jobs_ on that run goes on to the approval; no new tag
-  is needed. `tap`/`aur` run on `workflow_dispatch`, not a tag ref, so add
-  `main` (or wherever the dispatch is run from) to the same rule or they hit
-  the identical refusal.
+  is needed. `aur` runs on `workflow_dispatch`, not a tag ref, so add `main`
+  (or wherever the dispatch is run from) to the same rule or it hits the
+  identical refusal.
 - **`manual-dispatch`** — the rehearsal gate. _Required reviewers_: you, or a
   rehearsal's `build` reaches `APK_SIGNING_KEY` with nobody asked. A branch
   rule `main` fits here: a dispatch runs on a branch.
@@ -220,17 +232,17 @@ minisign.key` strips the passphrase and keeps the pair). Before pasting,
 
 ## Publishing each channel
 
-The AUR and the tap are behind the manual approval on `publish-external.yml`,
-which you dispatch by hand against an already-published tag (`gh workflow run
-publish-external.yml -f tag=v1.0.0`, or the Actions UI) once their secrets
-exist - never automatically from a tag push, so the release and reaching
-these two channels are two separate decisions. Each section's checks are
-still yours to run first.
+The tap is part of the release (`release.yml`'s `tap` job, a PR you merge);
+the AUR is behind the manual approval on `publish-external.yml`, which you
+dispatch by hand against an already-published tag (`gh workflow run
+publish-external.yml -f tag=v1.0.0`, or the Actions UI) once its key exists -
+never automatically from a tag push, so the release and reaching the AUR are
+two separate decisions. Each section's checks are still yours to run first.
 
-**A `v0.0.x` tag reaches none of them, and neither does a prerelease tag.**
+**A `v0.0.x` tag reaches neither, and neither does a prerelease tag.**
 `v0.0.x` are debug tags for exercising the release path and a `-` in the name
-(`v1.0.0-rc.1`) is a candidate; `tap` and `aur` both skip on the tag name, and
-the GitHub Release is still created with the packages attached.
+(`v1.0.0-rc.1`) is a candidate; `brew`, `tap` and `aur` all skip on the tag
+name, and the GitHub Release is still created with the packages attached.
 
 ### AUR
 
@@ -292,27 +304,24 @@ and no workflow ever touches it. Never submit the versioned package with
 
 ### Homebrew tap
 
-A tap is a GitHub repo named `homebrew-tap` with a `Formula/` directory. Copy
-`packaging/homebrew/say-hi.rb` to `Formula/say-hi.rb` there and
-`brew install ivy/tap/say-hi` works, with no review and no approval, which is
-why `brew audit --strict` is a hard gate here.
+The tap is [ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap):
+a plain repo with a `Formula/` directory, so `brew install
+ivylikethevine/tap/say-hi` works with no review and no approval on Homebrew's
+side, which is why `brew audit --strict` is a hard gate here.
 
-**The copy and the checks are automated; opening the PR and merging it are
-not.** `publish-external.yml`'s `tap` job (behind the same `release`
-environment approval `publish` uses, dispatched by hand with `tag: v1.0.0`
-against an already-published release) opens a PR against
-`<owner>/homebrew-tap` with the regenerated formula and the three commands
-below as its checklist. It needs a `HOMEBREW_TAP_TOKEN` repo secret (a
-fine-grained PAT scoped to that repo with contents + pull-requests write) and
-without it says so and does nothing. `release.yml`'s `brew` job runs the same
-three commands on a hosted mac against the published tarball automatically,
-right after `publish`, filtering out the two expected findings below and
-recording the verdict in its run summary - read that summary before
-dispatching `tap`, since its PR checklist points back to it. Merging the PR
-is yours, as is repeating these on a mac of your own - against the formula the
-release actually built, not the checkout: `packaging/homebrew/say-hi.rb` in
-the tree is a permanent `v0.0.0` template
-([Cutting a release](#cutting-a-release)), so download the real one first:
+**The copy, the checks and the PR are automated; merging it is not.**
+`release.yml`'s `brew` job runs the three commands below on a hosted mac
+against the published tarball right after `publish`, filtering out the two
+expected findings further down and recording the verdict in its run summary;
+when it passes, the `tap` job opens a PR against the tap with the regenerated
+formula, linking that run and carrying the same three commands as its
+checklist. It needs the `HOMEBREW_TAP_TOKEN` repo secret (a fine-grained PAT
+scoped to the tap repo with contents + pull-requests write) and without it
+warns and does nothing. Merging the PR is yours, as is repeating the commands
+on a mac of your own - against the formula the release actually built, not
+the checkout: `packaging/homebrew/say-hi.rb` in the tree is a permanent
+`v0.0.0` template ([Cutting a release](#cutting-a-release)), so download the
+real one first:
 
 ```bash
 gh release download v1.0.0 --pattern say-hi.rb --dir /tmp/say-hi-tap
@@ -321,8 +330,8 @@ brew test say-hi
 brew audit --strict --new say-hi
 ```
 
-`brew audit` needs a _named_ formula: `brew tap-new ivy/tap`, copy the file
-into its `Formula/`, then `brew audit --strict --new ivy/tap/say-hi`.
+`brew audit` needs a _named_ formula: `brew tap-new ivylikethevine/tap`, copy the file
+into its `Formula/`, then `brew audit --strict --new ivylikethevine/tap/say-hi`.
 
 **A clean run** in the `homebrew/brew` container against a local tarball:
 install and test exit 0, and audit reports only these two (the repository is
@@ -415,7 +424,19 @@ that asset from the newest **non-prerelease** release into the site. Only the
 latest release is in the repository - older packages stay on their release
 pages - and a candidate never reaches a subscriber. `ci.yml`'s packaging-smoke
 builds a repository on every PR, and `tests/packaging/repo_test.sh` (the
-`e2e` group) installs from one as all three clients, signatures verified.
+`e2e` group, on every PR too) installs from one as all three clients,
+signatures verified - then installs a `0.0.1` build of the same tree first
+and takes the repository's release as an **upgrade** through `apt-get`,
+`dnf upgrade` and `apk add -u`, with an `/etc/say-hi/settings.sh` and a
+`~/.config/say-hi/colors` written in between and checked after.
+
+**No maintainer scripts, no `conffiles`, on purpose.** Everything a user
+writes lives outside the package's paths - the system layer in `/etc/say-hi/`,
+the overlay under `$XDG_CONFIG_HOME` - and the package owns only
+`/usr/share/say-hi`, `/usr/bin/hi`, `/etc/profile.d/say-hi.sh` and the man
+page, none of which a user edits. So an upgrade is a plain file replacement
+with nothing to preserve, merge or prompt about, and `nfpm.yaml` stays a
+contents list; the upgrade cases above are what keep that claim true.
 
 **What signs what.** One GPG key, the `GPG_SIGNING_KEY` repository secret:
 `build` signs the rpm with it through nfpm (`HI_GPG_KEY`, checked by
