@@ -194,11 +194,37 @@ everything weighed and answered **no**, and why.
 - The `.deb`/`.rpm`/`.apk` are on
   [the releases page](https://github.com/ivylikethevine/say-hi/releases), and
   [the package repository](docs/PACKAGING.md#package-repository) serves them
-  subscribable so upgrades ride your
-  package manager.
+  signed and subscribable, so upgrades ride your package manager:
+
+  ```sh
+  # Debian, Ubuntu
+  sudo curl -fsSLo /etc/apt/keyrings/say-hi.asc https://ivylikethevine.github.io/say-hi/say-hi.asc
+  echo 'deb [signed-by=/etc/apt/keyrings/say-hi.asc] https://ivylikethevine.github.io/say-hi/apt stable main' |
+    sudo tee /etc/apt/sources.list.d/say-hi.list
+  sudo apt update && sudo apt install say-hi
+
+  # Fedora, RHEL and derivatives
+  sudo curl -fsSLo /etc/yum.repos.d/say-hi.repo https://ivylikethevine.github.io/say-hi/say-hi.repo
+  sudo dnf install say-hi
+
+  # Alpine
+  wget -O /etc/apk/keys/say-hi.rsa.pub https://ivylikethevine.github.io/say-hi/say-hi.rsa.pub
+  echo https://ivylikethevine.github.io/say-hi/apk >>/etc/apk/repositories
+  apk add say-hi
+  ```
+
+  A packaged install still needs `hi --install` once per user, for the rc
+  lines. macOS has no package yet (the Homebrew tap is on the
+  [Roadmap](#roadmap)): clone, and pass `--no-link` to `install.sh` — `/usr/bin`
+  is read-only under SIP, so put `~/say-hi/hi.sh` on your `PATH` yourself.
+
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has issues.
+  A starship, powerlevel10k or oh-my-zsh prompt already in those files is
+  found and kept on this machine (`_HI_DISABLE_LOCAL_PROMPT=1`); hi's prompt
+  still draws on every target
+  ([docs/SETTINGS.md](docs/SETTINGS.md#others)).
 - reload your shell!
 - `hi --configure` opens a menu over a live preview of the header and
   prompt: pick a preset (`everything`, `balanced`, `minimal`), or open a
@@ -216,12 +242,23 @@ everything weighed and answered **no**, and why.
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
   `say-hi/settings/colors` to start); `hi --color-preview` shows what every
   ssh host and your user resolve to.
-- a dropped connection ends the session — the target's tree is removed on any
-  exit, a lost link included — so run `hi` inside `tmux` or `screen` on this
-  machine to survive drops ([how it works](docs/SETTINGS.md#how-it-works)).
+- **A dropped connection ends the session.** The target's tree is removed on
+  any exit, a lost link included, and nothing on the target outlives it —
+  there is no `hi --tmux` ([why](docs/SUPPORT.md#features-that-were-removed)).
+  For anything you would hate to lose to a flaky link, start `hi` inside
+  `tmux` or `screen` **on this machine**: the local multiplexer survives the
+  drop, and reconnecting is another `hi <target>`
+  ([how it works](docs/SETTINGS.md#how-it-works)).
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
-  unlinks `/usr/bin/hi`. Then remove `/usr/bin/say-hi`, or uninstall via package manager (and `~/.config/say-hi`).
+  unlinks `/usr/bin/hi`. Left behind, on purpose: the checkout (or the
+  package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
+  (your colors, packages and aliases), and the one-time `<rc>.hi-orig`
+  backups. To take it all off a cloned install:
+
+  ```sh
+  hi --uninstall && rm -rf ~/say-hi ~/.config/say-hi ~/.bashrc.hi-orig ~/.zshrc.hi-orig ~/.config/fish/config.fish.hi-orig
+  ```
 
 ## Configuration
 
@@ -330,23 +367,73 @@ questions decided against are **deleted**: git history is the ledger.
 
 ### By Scope
 
-1. [ ] **tldr page** — _scope: one upstream pull request; outside this
+1. [ ] **Required status checks on `main`** — _scope: one repository
+       settings page; outside this checkout._ No job is a required check
+       today ([docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#the-gate)): a red
+       gate goes red, it does not block the merge. **Do:** require
+       `fast suites`, `lint suites`, `package build` and both `e2e` jobs;
+       update CONTRIBUTING.md's sentence saying none is. **Ticks when:**
+       Scorecard's Branch-Protection reads 8/10.
+
+2. [ ] **tldr page** — _scope: one upstream pull request; outside this
        checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
-       real Mac; outside this checkout._ Create `homebrew-tap` (plain repo,
-       `Formula/` dir), add a fine-grained
-       PAT (contents + PRs write) as `HOMEBREW_TAP_TOKEN`, re-run the
-       `brew install`/`test`/`audit` gate on an actual Mac (`/opt/homebrew`,
-       not the Linuxbrew prefix used so far). **Ticks when:**
-       `brew install ivy/tap/say-hi` works, from a release
+3. [ ] **Homelab rows in SUPPORT.md** — _scope: prose, one fixture already
+       exists._ Synology/QNAP/TrueNAS/Unraid, OpenWrt and Termux (the last as
+       a client) have no row in [docs/SUPPORT.md](docs/SUPPORT.md), which
+       otherwise answers every candidate. Most are busybox without bash: the
+       aliases-only tier `tests/dockerfiles/sshd-alpine.Dockerfile` already
+       proves. **Do:** a row each, with the tier it lands in and what proves
+       it. **Ticks when:** every host a homelab points hi at has a verdict.
+
+4. [ ] **Release notes with content** — _scope:
+       `.github/pull_request_template.md`, `release.yml`._ Release bodies are
+       generated from merged PR titles, and titles like "header tweaks" tell
+       a subscriber nothing about whether to take the upgrade. **Do:** a
+       `## Release note` section in the PR template, assembled into the body
+       by `release.yml` (titles as the fallback), and one sentence in
+       CONTRIBUTING.md saying where a human reads what changed — git history
+       stays the ledger. **Ticks when:** the next tag's release page names its
+       user-visible changes.
+
+5. [ ] **WSL proven** — _scope: one job in `windows-e2e.yml`._ SUPPORT.md's
+       WSL row is 🟡 (expected, unproven) beside three Windows workflows.
+       **Do:** `wsl --install -d Ubuntu` on the Windows runner, install the
+       built `.deb` inside it, run `hi localhost 'echo ok'`. **Ticks when:**
+       the row is ✅ and names the job.
+
+6. [ ] **Upgrade-path test** — _scope: one case in `tests/packaging/`._
+       Nothing installs release N-1 and upgrades to N, the one path every
+       apt/dnf/apk subscriber takes; `nfpm.yaml` has no maintainer scripts
+       and nothing asserts `~/.config/say-hi` and `/etc/say-hi/settings.sh`
+       survive. **Do:** install the previous release from the repository,
+       write both, upgrade to the freshly built package, assert both survive
+       and `hi --version` moved; decide whether `conffiles` are needed and
+       record it in PACKAGING.md. **Ticks when:** the case runs in `package
+    build` on every PR.
+
+7. [ ] **macOS e2e beyond one grep** — _scope: `macos-e2e.yml`, one suite._
+       The macOS badge rests on a single loopback `echo`; no test in `tests/`
+       names Darwin, while the tree carries BSD `sed -i ''`, `mktemp` and
+       `base64 -D` branches. **Do:** a `tests/common/darwin_test.sh` that
+       runs where `uname` is Darwin and skips elsewhere, asserting each BSD
+       branch, registered in `_HI_TESTS` and run by the macOS jobs. **Ticks
+       when:** the macOS badge reflects a suite.
+
+8. [ ] **Homebrew tap** — _scope: a repo, a scoped PAT, one gate re-run on a
+       real Mac; outside this checkout._ The only channel for the developer
+       audience's main OS. Create `homebrew-tap` (plain repo, `Formula/`
+       dir), add a fine-grained PAT (contents + PRs write) as
+       `HOMEBREW_TAP_TOKEN`, re-run the `brew install`/`test`/`audit` gate on
+       an actual Mac (`/opt/homebrew`, not the Linuxbrew prefix used so far).
+       **Ticks when:** `brew install ivy/tap/say-hi` works, from a release
        `publish-external.yml`'s `tap` job (dispatched by hand against that
        tag) opened a PR for.
 
-3. [ ] **AUR** — _scope: nothing until registration reopens; then an
+9. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
@@ -357,3 +444,15 @@ questions decided against are **deleted**: git history is the ledger.
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release.
+
+10. [ ] **Weighed, open for an audience argument** — _scope: each its own
+        entry once someone is sitting in it_
+        ([docs/SUPPORT.md](docs/SUPPORT.md#what-would-change-an-answer) has
+        the rule). A devcontainer Feature that installs say-hi into the
+        container, for the terminal you already sit in; an `examples/`
+        Ansible role dropping the package and `/etc/say-hi/settings.sh`; an
+        opt-in `logger` line per session for shops that audit who reached
+        what; a client-side `tmux new -A -s hi-<target>` wrap, since a
+        target-side survivor stays a no; a permanent-install recipe for a NAS
+        on a slow link, where 48KB a connect shows. None ticks; each is
+        promoted or deleted.

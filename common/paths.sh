@@ -95,7 +95,15 @@ alias hi_info="echo ' | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | script: $_HI_L
 # Local-only gate, reading settings each entry point sourced *ahead* of this
 # file; _HI_REMOTE_SESSION tells local from remote.
 export _HI_DISABLE_LOCAL
+export _HI_DISABLE_LOCAL_PROMPT
 export _HI_REMOTE_SESSION
+
+# The prompt alone, on this machine alone: what install.sh answers for a
+# starship, powerlevel10k or oh-my-zsh prompt it found in your rc files. hi
+# still draws its prompt on every target. Same brace rule as the gate below.
+[ "$_HI_DISABLE_LOCAL_PROMPT" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && {
+  export _HI_DISABLE_PROMPT=1
+} || true
 
 # core.sh's _HI_TOGGLES minus the gate's own two inputs, spelled out because
 # this dialect can't loop; paths_test.sh pins the two lists together.

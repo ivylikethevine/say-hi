@@ -26,8 +26,9 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   export _HI_HOME
   # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry is a
   # *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot as 0
-  # and paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1.
-  _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
+  # and paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1; its narrower
+  # _HI_DISABLE_LOCAL_PROMPT gate sets only _HI_DISABLE_PROMPT.
+  _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
     _HI_DISABLE_BAT_ALIAS _HI_DISABLE_LS_ALIASES)
@@ -527,15 +528,21 @@ function _hi_ssh_host_tag() {
 # GLOSSARY: HI.37 - the zsh divergences, and why a leading "!" is inert.
 function _hi_ssh_pattern_hit() {
   local name="$1" pat hit=1
+  # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?` and a
+  # leading `!` - nothing else names a host. Anything outside that set is
+  # skipped rather than matched: the zsh arm's eval would otherwise re-parse
+  # a `)` or `;;` from ~/.ssh/config as case syntax.
   if [ -n "${ZSH_VERSION:-}" ]; then
     setopt localoptions shwordsplit
     # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
     # and cannot parse `${~pat}` (SC2296)
     for pat in $2; do
+      case "$pat" in *[!A-Za-z0-9_.:*?!-]*) continue ;; esac
       eval 'case "$name" in ${~pat}) hit=0 ;; esac'
     done
   else
     for pat in $2; do
+      case "$pat" in *[!A-Za-z0-9_.:*?!-]*) continue ;; esac
       # shellcheck disable=SC2254 # deliberate: $pat is a glob, not a literal
       case "$name" in $pat) hit=0 ;; esac
     done

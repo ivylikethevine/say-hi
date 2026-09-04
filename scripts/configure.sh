@@ -455,7 +455,63 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?||hi_notify - a desktop notification here when a command finishes"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
+  "_HI_DISABLE_LOCAL_PROMPT|1||| Enable hi's prompt on this machine too? (no keeps a starship, powerlevel10k or oh-my-zsh prompt you already have here; targets get hi's either way)||hi's prompt on this machine too - no keeps the prompt you already have here"
 )
+
+# What draws the prompt in this user's own rc files today, if anything hi
+# would replace: the name on stdout, failure when none is found. Read from
+# the user's rc files (core.sh's _HI_SHELL_TABLE), never hi's own, and hi's
+# marker-tagged lines are skipped so a previous install does not read as a
+# framework. Two shapes: a file that sources or inits one by name, and fish's
+# fish_prompt.fish function file, which is a hand-written prompt by definition.
+_HI_PROMPT_FRAMEWORKS=(
+  "starship|starship init"
+  "powerlevel10k|powerlevel10k|p10k"
+  "oh-my-zsh|oh-my-zsh|ZSH_THEME="
+  "prezto|prezto"
+  "zimfw|zimfw|zmodule"
+  "oh-my-bash|oh-my-bash|OSH_THEME="
+  "bash-it|bash-it|BASH_IT_THEME="
+  "liquidprompt|liquidprompt"
+)
+
+function detect_prompt_framework() {
+  local rc row name pat rest hit=""
+  local -a rcs=("$_HI_HOME_BASHRC" "$_HI_HOME_ZSHRC" "$_HI_HOME_FISH_CONFIG")
+  [ -n "${ZDOTDIR:-}" ] && rcs+=("$ZDOTDIR/.zshrc")
+  for rc in "${rcs[@]}"; do
+    [ -f "$rc" ] || continue
+    for row in "${_HI_PROMPT_FRAMEWORKS[@]}"; do
+      IFS='|' read -r name rest <<<"$row"
+      while [ -n "$rest" ]; do
+        pat="${rest%%|*}"
+        [ "$pat" = "$rest" ] && rest="" || rest="${rest#*|}"
+        if grep -v -F "$_HI_MARKER" "$rc" 2>/dev/null | grep -q -F -- "$pat"; then
+          hit="$name"
+          break 2
+        fi
+      done
+    done
+    [ -n "$hit" ] && break
+  done
+  if [ -z "$hit" ] && [ -f "${_HI_HOME_FISH_CONFIG%/*}/functions/fish_prompt.fish" ]; then
+    hit="your own fish_prompt"
+  fi
+  [ -n "$hit" ] || return 1
+  printf '%s' "$hit"
+}
+
+# First configure only (no settings.sh yet): a prompt framework found in the
+# user's rc files answers _HI_DISABLE_LOCAL_PROMPT with "keep theirs", said
+# once so the choice is visible. After that the stored answer stands and the
+# Features menu is where it changes - detection never overrides a decision.
+function prompt_framework_default() {
+  local found
+  [ -f "$_HI_SETTINGS" ] && return 0
+  found="$(detect_prompt_framework)" || return 0
+  _hi_pending_set _HI_DISABLE_LOCAL_PROMPT 1
+  _hi_cecho " found $found in your shell config - keeping that prompt on this machine (hi's still draws on every target; Features menu to change)" "$GREEN"
+}
 
 # The one row that survives from the old row toggles: banner is not part of
 # $_HI_HEADER_ORDER's reorderable feature list (it always leads), so it still
@@ -1305,7 +1361,11 @@ function run_configure() {
   configure_intro
   if [ -n "$preset" ]; then
     apply_preset "$preset" || return 1
-  elif [ -t 0 ]; then
+  fi
+  # after the preset so the machine's own fact wins over a vocabulary reset,
+  # before the hub so the Features menu shows the answer
+  prompt_framework_default
+  if [ -z "$preset" ] && [ -t 0 ]; then
     config_hub
   fi
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then

@@ -349,6 +349,20 @@ function test_pattern_beats_hash() {
   [ "$(_HI_COLORS="$colors" _hi_resolve_color hostname other-9)" = "$(_hi_hash_color other-9)" ]
 }
 
+# A Host token that is not a hostname pattern - a `)` or `;;` in it - is
+# skipped, never eval'd: the zsh arm re-parses its pattern as case syntax
+# otherwise, and ~/.ssh/config is a file the user edits by hand.
+function test_pattern_hit_skips_a_token_that_is_not_a_hostname() {
+  _hi_ssh_pattern_hit myhost 'x) hit=0 ;; case y in y' && return 1
+  _hi_ssh_pattern_hit myhost 'my*' || return 1
+  _hi_ssh_pattern_hit fe80::1 'fe80:*' || return 1
+  ! _hi_ssh_pattern_hit myhost 'other?'
+}
+
+function test_zsh_pattern_hit_skips_the_same_tokens() {
+  _hi_shell_agrees '_hi_ssh_pattern_hit myhost "x) hit=0 ;; case y in y"; printf "bad:%s " "$?"; _hi_ssh_pattern_hit myhost "my*"; printf "glob:%s" "$?"'
+}
+
 # the pattern walk rides _hi_ssh_pattern_hit, whose zsh divergences are HI.37's
 function test_zsh_pattern_pins_agree_with_bash() {
   local colors="$_HI_WORKDIR/colors.zshpat" a b script
@@ -818,6 +832,8 @@ function run_core_tests() {
   _hi_check "An exact pin beats a pattern" test_exact_pin_beats_pattern
   _hi_check "A hosttag beats a pattern" test_hosttag_beats_pattern
   _hi_check "A pattern beats the hash" test_pattern_beats_hash
+  _hi_check "A token that is not a hostname is skipped, not eval'd" test_pattern_hit_skips_a_token_that_is_not_a_hostname
+  _hi_check "zsh skips the same tokens" test_zsh_pattern_hit_skips_the_same_tokens
   _hi_check_requires zsh "Pattern pins agree in zsh" test_zsh_pattern_pins_agree_with_bash
 
   _hi_h2 "Testing: the settings overlay"

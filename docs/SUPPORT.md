@@ -116,13 +116,20 @@ Can hi land a session there at all?
 | `nushell`, `elvish`, `xonsh`, `ion`, `oil`/`osh` | ❌ **decided against**, not pending                                   | see [Shells hi does not style](#shells-hi-does-not-style). You still get a session — hi lands you in the best of `$_HI_SHELL_TREE` the target has |
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                               |
 
-**A shell framework loads normally**: hi lands you in your own login shell,
-which is what `_HI_SHELL_PREFERENCE`'s default (`login`, then `fish zsh bash`)
-means. `tests/targets/framework_test.sh` covers nine — oh-my-zsh,
+**A shell framework loads normally on a target**: hi lands you in your own
+login shell, which is what `_HI_SHELL_PREFERENCE`'s default (`login`, then
+`fish zsh bash`) means. `tests/targets/framework_test.sh` covers nine — oh-my-zsh,
 powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise — each
 asserting no shell errors and the framework's own hook left intact: zsh's
 array base unchanged, `PROMPT_COMMAND` chained rather than replaced, `bind -x`
 bindings in place.
+
+**On your own machine the prompt is the one thing that gives way**: hi's rc
+is sourced last, so a stock install would draw hi's prompt over powerlevel10k
+or your `fish_prompt`. The first install looks for a prompt framework in your
+rc files and, finding one, sets `_HI_DISABLE_LOCAL_PROMPT=1` — your prompt
+locally, hi's on every target
+([SETTINGS.md](SETTINGS.md#others)). Aliases, completion and the header stay.
 
 **Both tables assume hi can reach the target**, which
 [The five that ship](#the-five-that-ship) and

@@ -66,7 +66,34 @@ function test_toggles_stay_on_remotely_without_local_only() {
   _hi_all_gated "$(_hi_gate 0 1)" 0
 }
 
-# The gate's list has to be core.sh's _HI_TOGGLES minus the gate's own two
+# The narrower gate: _HI_DISABLE_LOCAL_PROMPT turns off hi's prompt on this
+# machine and nothing else - the answer for a starship/p10k/oh-my-zsh user -
+# and, like _HI_DISABLE_LOCAL, never follows the user onto a target.
+function _hi_gate_prompt() {
+  _HI_DISABLE_LOCAL_PROMPT="$1" _HI_REMOTE_SESSION="$2" bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    for v in "$@"; do printf "%s=%s\n" "$v" "${!v:-}"; done
+  ' _ "${_HI_GATED_VARS[@]}"
+}
+
+function test_local_prompt_gate_disables_only_the_prompt() {
+  local out v
+  out="$(_hi_gate_prompt 1 0)"
+  printf '%s\n' "$out" | grep -qxF "_HI_DISABLE_PROMPT=1" || return 1
+  for v in "${_HI_GATED_VARS[@]}"; do
+    [ "$v" = _HI_DISABLE_PROMPT ] && continue
+    printf '%s\n' "$out" | grep -qxF "$v=0" || {
+      _hi_cecho " | $v flipped with the prompt: $(printf '%s\n' "$out" | grep "^$v=")" "$RED"
+      return 1
+    }
+  done
+}
+
+function test_local_prompt_gate_leaves_a_remote_session_alone() {
+  _hi_all_gated "$(_hi_gate_prompt 1 1)" 0
+}
+
+# The gate's list has to be core.sh's _HI_TOGGLES minus the gates' own three
 # inputs - paths.sh can't loop the roster (its four-shell dialect has no
 # loops), so it spells the list out, and a toggle added to core.sh that never
 # reaches it is exactly how _HI_DISABLE_OSC52 once went
@@ -76,7 +103,7 @@ function test_gate_list_matches_the_toggle_roster() {
   local t
   local -a want=()
   for t in "${_HI_TOGGLES[@]}"; do
-    case "$t" in _HI_DISABLE_LOCAL | _HI_REMOTE_SESSION) continue ;; esac
+    case "$t" in _HI_DISABLE_LOCAL | _HI_DISABLE_LOCAL_PROMPT | _HI_REMOTE_SESSION) continue ;; esac
     want+=("$t")
   done
   [ "${want[*]}" = "${_HI_GATED_VARS[*]}" ] || {
@@ -118,13 +145,13 @@ function test_paths_sources_cleanly_under_strict_mode() {
 # rather than empty - which is exactly how `hi <target> <command>` broke.
 
 function _hi_defaults_via() {
-  bash -c "$1"' ; for v in '"${_HI_GATED_VARS[*]}"' _HI_DISABLE_LOCAL _HI_REMOTE_SESSION; do
+  bash -c "$1"' ; for v in '"${_HI_GATED_VARS[*]}"' _HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION; do
     printf "%s=%s\n" "$v" "${!v-UNSET}"; done'
 }
 
 function _hi_none_unset() {
   local out="$1" v
-  for v in "${_HI_GATED_VARS[@]}" _HI_DISABLE_LOCAL _HI_REMOTE_SESSION; do
+  for v in "${_HI_GATED_VARS[@]}" _HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION; do
     printf '%s\n' "$out" | grep -qxF "$v=UNSET" && {
       _hi_cecho " | $v is still unset" "$RED"
       return 1
@@ -417,6 +444,8 @@ function run_paths_tests() {
   _hi_check "Local-only leaves a remote session alone" test_local_only_leaves_a_remote_session_alone
   _hi_check "Toggles stay on without local-only" test_toggles_stay_on_without_local_only
   _hi_check "Toggles stay on remotely without local-only" test_toggles_stay_on_remotely_without_local_only
+  _hi_check "Local-prompt gate disables only the prompt" test_local_prompt_gate_disables_only_the_prompt
+  _hi_check "Local-prompt gate leaves a remote session alone" test_local_prompt_gate_leaves_a_remote_session_alone
   _hi_check "The gate covers the whole toggle roster" test_gate_list_matches_the_toggle_roster
   _hi_check "config.fish's toggle mirror matches core.sh" test_fish_toggle_list_matches_core
   _hi_check "Sources cleanly under strict mode" test_paths_sources_cleanly_under_strict_mode
