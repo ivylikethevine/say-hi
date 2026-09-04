@@ -150,10 +150,21 @@ jobs:
           _HI_HOME="$HOME/hi-tree"
           export _HI_HOME
           git config --global --add safe.directory "$(pwd)"
+          # setsid: a wsl.exe session has a controlling terminal even with
+          # every stdio a pipe, where GitHub's ubuntu runner has none. The
+          # suites start `bash -i` / `zsh -i` / `fish -i` sessions (load(),
+          # the fresh-shell cases) with stderr redirected, so bash opens
+          # /dev/tty for job control - and finding itself in a background
+          # process group (timeout's own, below) stops on SIGTTIN, for good.
+          # The first sharded run wedged in exactly those two suites, at
+          # Linux speed everywhere else. A new session has no terminal to
+          # open, which is the ubuntu shape. Outside `timeout`, not inside:
+          # timeout kills its child's process group, and that has to still
+          # be the runner's.
           # -k 30: a wedge that outlives the first signal would otherwise
           # leave `timeout` waiting on it forever too - see
           # freebsd-e2e.yml's comment on the same flag.
-          timeout -k 30 900 bash ./tests/test_runner.sh --verbose --host-report \
+          setsid -w timeout -k 30 900 bash ./tests/test_runner.sh --verbose --host-report \
             --group fast --shard "$HI_SHARD/$HI_SHARDS" </dev/null
 
   # The one check the shards roll up into, as windows-client.yml's
@@ -228,9 +239,16 @@ jobs:
           /usr/bin/hi --version
 
       # sshd on 2222 so nothing on the Windows side is in the way, key-only,
-      # the runner user's own key. `service ssh start` is the init-less
-      # answer neither WSL 1 nor WSL 2 need real systemd for; ssh-keygen -A
-      # writes the host keys a fresh install lacks.
+      # the distribution user's own key (root, in this action's image - key
+      # auth is what PermitRootLogin's default allows). Started as
+      # /usr/sbin/sshd itself rather than `service ssh start`: noble's
+      # openssh-server is socket-activated, so under systemd that route has
+      # ssh.socket own port 22 and sshd_config's Port never read - the first
+      # run here listened on 22 and was refused on 2222. The binary reads the
+      # config, and works the same with or without systemd. ssh-keygen -A
+      # writes the host keys a fresh install lacks. The loop proves the
+      # listener from inside before Git Bash tries it from outside, so a
+      # refusal in the next step can only be the Windows -> WSL relay.
       - name: Start sshd inside WSL
         shell: wsl-bash {0}
         run: |
@@ -241,10 +259,22 @@ jobs:
           ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
           cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
           chmod 600 "$HOME/.ssh/authorized_keys"
-          sudo service ssh start
-          # the client is Git Bash, whose $HOME is the Windows profile
+          sudo install -d -m 0755 /run/sshd
+          sudo /usr/sbin/sshd -E /tmp/hi-sshd.log
+          up=0
+          for _ in $(seq 1 30); do
+            if ssh -p 2222 -i "$HOME/.ssh/loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -o ConnectTimeout=2 -o LogLevel=ERROR \
+              "$USER@127.0.0.1" true; then up=1; break; fi
+            sleep 1
+          done
+          [ "$up" = 1 ] || { echo "sshd never answered on 2222 inside WSL" >&2; sudo cat /tmp/hi-sshd.log >&2; exit 1; }
+          # the client is Git Bash, whose $HOME is the Windows profile: the
+          # key, the user, and the distribution's own address for the case
+          # where 127.0.0.1 is not relayed in
           cp "$HOME/.ssh/loop" "$(wslpath -u "$USERPROFILE")/wsl-loop"
           printf '%s\n' "$USER" >"$(wslpath -u "$USERPROFILE")/wsl-user"
+          hostname -I | awk '{print $1}' >"$(wslpath -u "$USERPROFILE")/wsl-host"
 
       # From Git Bash into the distribution: a full bash session on a target
       # that has a permanent say-hi (the header names its /usr/share tree),
@@ -256,9 +286,23 @@ jobs:
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
           user="$(cat "$HOME/wsl-user")"
+          # a file copied in from WSL lands with the profile's ACL, which MSYS
+          # reads as 0644 - and ssh ignores a private key that open
+          chmod 600 "$HOME/wsl-loop"
+          # WSL 2's NAT relays Windows 127.0.0.1 into the distribution for
+          # ports it listens on; the address the previous step recorded is
+          # the fallback when that relay is not there, said out loud so the
+          # log shows which path ran
+          host=127.0.0.1
+          ssh -p 2222 -i "$HOME/wsl-loop" -o BatchMode=yes -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o LogLevel=ERROR \
+            "$user@$host" true 2>/dev/null || {
+            host="$(cat "$HOME/wsl-host")"
+            echo "127.0.0.1:2222 is not relayed into WSL - using the distribution's address $host"
+          }
           out="$(timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "$user@127.0.0.1" 'echo HI_WSL_OK; hi_info' 2>&1)" || true
+            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || true
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q HI_WSL_OK
           printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'

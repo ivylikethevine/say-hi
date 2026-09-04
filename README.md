@@ -423,3 +423,7 @@ questions decided against are **deleted**: git history is the ledger.
        `docs/SETTINGS.md` row. **Ticks when:** the toggle ships, tested and
        documented, and reconnecting to the same target reattaches instead of
        opening a second session.
+
+### Misc
+
+1. Investigate migrating to a non-sh based test suite (or supplementing with one)
