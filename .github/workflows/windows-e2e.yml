@@ -6,8 +6,13 @@ name: Windows e2e
 # out, and not be mistaken for a Linux host missing base64 (cmd honours `||`,
 # which is why hi's probe keeps it off the lines whose exit codes it reads).
 # The client is the runner's own Git Bash;
-# windows-client.yml is the client-side half. ci.yml calls this on every push
-# to main once both fast-suite jobs are green; dispatch runs it on its own.
+# windows-client.yml is the client-side half. The second job is WSL: an Ubuntu
+# distribution on the same runner runs the fast suites, takes the package
+# layout (`install.sh --prefix`, what the .deb's package() runs) and is then
+# said hi to from Git Bash - the Windows-desk homelab shape, and what turns
+# SUPPORT.md's WSL row from expected to proven. ci.yml calls this on every
+# push to main once both fast-suite jobs are green; dispatch runs it on its
+# own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -76,3 +81,93 @@ jobs:
             -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 2>&1)" || true
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q "hi from PowerShell"
+
+  wsl:
+    name: hi into WSL (Ubuntu, Git Bash client)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # WSL 1, not 2: the hosted Windows runners have no nested virtualization
+      # for WSL 2's VM, and WSL 1 is the shape that has run on them for years.
+      # It also shares the Windows network stack, which is what lets Git Bash
+      # reach the distribution's sshd on 127.0.0.1 with no port forwarding.
+      - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 1
+          additional-packages: bash zsh fish git python3 openssh-server
+
+      # The checkout is on the Windows side; WSL sees it under /mnt. `cd` to
+      # it through the path WSL gives, since $GITHUB_WORKSPACE is a
+      # backslashed D: path here.
+      - name: Fast suites inside WSL
+        shell: wsl-bash {0}
+        run: |
+          set -eu
+          cd "$(wslpath -u "$GITHUB_WORKSPACE")"
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          # a DrvFs checkout is owned by a Windows SID, which git reports as
+          # someone else - the FreeBSD job's dubious-ownership case again
+          git config --global --add safe.directory "$(pwd)"
+          timeout 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
+
+      # The package layout, by the same call the .deb's package() step makes:
+      # the tree under /usr/share/say-hi, /usr/bin/hi, /etc/profile.d/say-hi.sh.
+      # A session from outside then finds that permanent tree the way
+      # install_methods_test.sh's deb case does, and ships nothing.
+      - name: Install the package layout inside WSL
+        shell: wsl-bash {0}
+        run: |
+          set -eu
+          cd "$(wslpath -u "$GITHUB_WORKSPACE")"
+          sudo bash ./scripts/install.sh --prefix /usr/share
+          test -x /usr/bin/hi && test -f /etc/profile.d/say-hi.sh
+          /usr/bin/hi --version
+
+      # sshd on 2222 so nothing on the Windows side is in the way, key-only,
+      # the runner user's own key. `service ssh start` is WSL 1's init-less
+      # answer; ssh-keygen -A writes the host keys a fresh install lacks.
+      - name: Start sshd inside WSL
+        shell: wsl-bash {0}
+        run: |
+          set -eu
+          sudo ssh-keygen -A
+          printf 'Port 2222\nPasswordAuthentication no\n' | sudo tee /etc/ssh/sshd_config.d/hi.conf >/dev/null
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
+          cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
+          chmod 600 "$HOME/.ssh/authorized_keys"
+          sudo service ssh start
+          # the client is Git Bash, whose $HOME is the Windows profile
+          cp "$HOME/.ssh/loop" "$(wslpath -u "$USERPROFILE")/wsl-loop"
+          printf '%s\n' "$USER" >"$(wslpath -u "$USERPROFILE")/wsl-user"
+
+      # From Git Bash into the distribution: a full bash session on a target
+      # that has a permanent say-hi (the header names its /usr/share tree),
+      # the command's output back, and nothing left in the target's /tmp.
+      - name: Say hi into WSL from Git Bash
+        shell: bash
+        run: |
+          set -euo pipefail
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          user="$(cat "$HOME/wsl-user")"
+          out="$(timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o LogLevel=ERROR "$user@127.0.0.1" 'echo HI_WSL_OK; hi_info' 2>&1)" || true
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q HI_WSL_OK
+          printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'
+
+      - name: Nothing left behind in the target
+        shell: wsl-bash {0}
+        run: |
+          if ls -d /tmp/*.hi.* 2>/dev/null; then
+            echo "session directory survived the exit" >&2
+            exit 1
+          fi

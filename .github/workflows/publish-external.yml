@@ -1,23 +1,19 @@
 name: Publish external channels
 
-# The Homebrew tap PR and the AUR push - the two release.yml jobs used to run
-# automatically once a tag's `publish` job was approved. Split out here so a
-# tag push only ever produces the GitHub Release (build -> publish, still
-# behind the `release` environment's required reviewer): reaching the tap and
-# the AUR is a second, later, explicit decision, made by dispatching this
-# workflow by hand against a tag that has already published. Nothing about the
-# GitHub Release changes - see release.yml.
+# The AUR push - the one channel release.yml does not reach on its own. It
+# used to run automatically once a tag's `publish` job was approved, and the
+# Homebrew tap PR sat beside it here; the tap moved back into release.yml
+# (its `tap` job, after `brew`) once the tap repo existed and its formula had
+# passed a real Mac. The AUR stays a second, later, explicit decision, made by
+# dispatching this workflow by hand against a tag that has already published:
+# registration is closed to new accounts, its push has no PR to hide behind,
+# and until an account and AUR_SSH_KEY exist the job says so and does nothing.
 #
-# release.yml's `brew` job (install/test/audit, no publish) stays there and
-# stays automatic: it publishes nothing, and its verdict - recorded in that
-# run's summary - is what the tap PR's checklist below asks a reviewer to have
-# already seen before dispatching this.
-#
-# No `build` job here to hand these a same-run artifact: each job downloads
-# its manifest straight off the release `publish` already attached it to
+# No `build` job here to hand this a same-run artifact: it downloads its
+# manifest straight off the release `publish` already attached it to
 # (`gh release download`), which is what lets this run any time after that -
 # a fixed retry when a first attempt failed, or a deliberate wait while the
-# release itself gets a look before it reaches Homebrew or the AUR.
+# release itself gets a look before it reaches the AUR.
 on:
   workflow_dispatch:
     inputs:
@@ -30,100 +26,24 @@ permissions:
 
 # One dispatch per tag at a time; a second run against the same tag while the
 # first is still pushing would race it for nothing - cancelling only rewinds
-# the branch the first is about to open a PR from or push over.
+# the branch the first is about to push over.
 concurrency:
   group: publish-external-${{ github.event.inputs.tag }}
   cancel-in-progress: false
 
 jobs:
-  # Copies one formula into the tap repo, behind the same human gate
-  # (`environment: release`) `publish` ran under. A PR, not a direct push: a
-  # tap has no review of its own, so the PR is where release.yml's `brew` job
-  # verdict gets read before the formula goes live. No-ops loudly without
-  # HOMEBREW_TAP_TOKEN, so this can land before the tap repo exists. See
-  # docs/PACKAGING.md.
-  tap:
-    name: open a PR against the Homebrew tap
-    # never on a v0.0.x tag: those are debug tags, pushed to exercise the
-    # release path rather than to ship. Nor on a prerelease tag (a `-` in the
-    # name): a candidate's version is not a legal pkgver besides. A missing
-    # token would skip this too, but that is a fact about which secrets exist;
-    # this line is the promise.
-    if: ${{ !startsWith(github.event.inputs.tag, 'v0.0.') && !contains(github.event.inputs.tag, '-') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: release
-    permissions:
-      contents: read
-    steps:
-      # the repo's own token, read-only, only to read a release asset - never
-      # the tap token, which the next step scopes to the write it needs
-      - name: Download the formula off the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.tag }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist/manifests
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --dir dist/manifests --pattern say-hi.rb
-
-      - name: Open the formula PR
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          TAP_REPO: ${{ github.repository_owner }}/homebrew-tap
-          # via env, never inline ${{ }} in the run block below: a crafted
-          # dispatch input must stay data (zizmor: template-injection)
-          TAG: ${{ github.event.inputs.tag }}
-        run: |
-          set -euo pipefail
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "no HOMEBREW_TAP_TOKEN secret - the tap formula was NOT updated;"
-            echo "copy dist/manifests/say-hi.rb to Formula/say-hi.rb by hand (docs/PACKAGING.md)"
-            exit 0
-          fi
-          branch="say-hi-$TAG"
-          gh repo clone "$TAP_REPO" tap -- --depth 1
-          cd tap
-          git checkout -b "$branch"
-          mkdir -p Formula
-          cp ../dist/manifests/say-hi.rb Formula/say-hi.rb
-          if git diff --quiet; then
-            echo "tap formula already current - nothing to open"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "say-hi $TAG"
-          git push origin "$branch"
-          # The checklist rides in the body: release.yml's `brew` job already
-          # ran these on a hosted mac against this tag's published tarball, so
-          # the boxes are for a reviewer confirming that run before merging.
-          # printf rather than a heredoc: a heredoc body would have to be
-          # unindented, which ends the YAML block scalar.
-          # shellcheck disable=SC2016 # the backticks are markdown, not substitution
-          body="$(printf '%s\n' \
-            "Formula for say-hi $TAG, generated by publish-external.yml." \
-            "" \
-            "release.yml's \`brew\` job ran these on a hosted mac against this tag's release; confirm from one of your own before merging:" \
-            "" \
-            '- [ ] `brew install --build-from-source Formula/say-hi.rb`' \
-            '- [ ] `brew test say-hi`' \
-            '- [ ] `brew audit --strict --new say-hi`')"
-          gh pr create --repo "$TAP_REPO" --head "$branch" \
-            --title "say-hi $TAG" --body "$body"
-
   # A plain git push over ssh - the AUR has no PR mechanism - so the safety is
   # the human gate above (`environment: release`) plus pushing exactly the two
   # files the release carries. Deliberately does NOT run namcap (it needs an
   # Arch box, so each package's first push is still a manual, namcap'd one -
   # docs/PACKAGING.md) and does NOT touch say-hi-git (it builds from `main`
   # and has no version to bump). No secret, no push: it prints what to copy
-  # and exits 0, as the tap job does.
+  # and exits 0.
   aur:
     name: push the AUR package
-    # a v0.0.x debug tag or a prerelease tag reaches no external channel, on
-    # the tap job's reasoning above
+    # a v0.0.x debug tag or a prerelease tag reaches no external channel: the
+    # first are debug tags pushed to exercise the release path, the second are
+    # candidates whose version is not a legal pkgver besides
     if: ${{ !startsWith(github.event.inputs.tag, 'v0.0.') && !contains(github.event.inputs.tag, '-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -358,6 +358,49 @@ function test_install_with_yes_continues_over_broken_configs() {
     grep -qF "$_HI_MARKER" "$home/.bashrc"
 }
 
+# A prompt framework in the user's own rc answers _HI_DISABLE_LOCAL_PROMPT on
+# the first install: hi's prompt stays off on this machine and on on every
+# target, and the run says which framework it found.
+function test_install_keeps_a_detected_prompt_framework() {
+  local home="$_HI_WORKDIR/p10k" out rc=0
+  mkdir -p "$home"
+  printf 'source ~/powerlevel10k/powerlevel10k.zsh-theme\n' >"$home/.zshrc"
+  out="$(_hi_run_install p10k --no-link --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"found powerlevel10k"* ]] &&
+    grep -qF "export _HI_DISABLE_LOCAL_PROMPT=1" "$home/.config/say-hi/settings.sh"
+}
+
+function test_install_writes_no_prompt_answer_without_a_framework() {
+  local home="$_HI_WORKDIR/noframework" out rc=0
+  out="$(_hi_run_install noframework --no-link --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" != *"in your shell config"* ]] &&
+    ! grep -qF "_HI_DISABLE_LOCAL_PROMPT" "$home/.config/say-hi/settings.sh"
+}
+
+# a settings.sh already there is a decision already taken, whatever it holds:
+# detection never overrides it, the Features menu is where it changes
+function test_install_detection_defers_to_an_existing_settings_file() {
+  local home="$_HI_WORKDIR/decided" out rc=0
+  mkdir -p "$home/.config/say-hi"
+  printf 'starship init bash | source\n' >"$home/.bashrc"
+  printf '#!/bin/sh\n' >"$home/.config/say-hi/settings.sh"
+  out="$(_hi_run_install decided --no-link --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" != *"found starship"* ]] &&
+    ! grep -qF "_HI_DISABLE_LOCAL_PROMPT" "$home/.config/say-hi/settings.sh"
+}
+
+# hi's own rc lines never read as a framework: a fresh configure over an
+# already-wired .zshrc (uninstall leaves the rc lines' backup, and a user may
+# keep hi's lines) finds nothing
+function test_install_ignores_its_own_rc_lines() {
+  local home="$_HI_WORKDIR/rerun" out rc=0
+  _hi_run_install rerun --no-link --yes >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] || return 1
+  rm -f "$home/.config/say-hi/settings.sh"
+  out="$(_hi_run_install rerun --no-link --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" != *"in your shell config"* ]]
+}
+
 # --prefix=<dir> (the one-token spelling) enters packaging mode: the tree
 # lands under $DESTDIR<dir>, and the profile.d snippet names the prefix -
 # not the staging root, which is gone at runtime, and not the build tree
@@ -511,6 +554,10 @@ function run_install_tests() {
   _hi_check "No --yes over broken configs aborts" test_install_aborts_on_broken_configs_without_yes
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
   _hi_check "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
+  _hi_check "A detected prompt framework is kept on this machine" test_install_keeps_a_detected_prompt_framework
+  _hi_check "No framework, no prompt answer written" test_install_writes_no_prompt_answer_without_a_framework
+  _hi_check "Detection defers to an existing settings.sh" test_install_detection_defers_to_an_existing_settings_file
+  _hi_check "hi's own rc lines never read as a framework" test_install_ignores_its_own_rc_lines
 
   _hi_h2 "Testing: the locator walk through a symlink"
   _hi_check_capable symlink "An absolute link target" test_locator_walks_an_absolute_symlink

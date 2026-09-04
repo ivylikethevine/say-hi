@@ -6,6 +6,16 @@
 
 ____________ used to [be/do/say] ____________ but now it [is/does/says] ____________ because of ____________.
 
+## Release note
+
+<!-- One or two sentences a user reads on the release page: what they see
+     differently after upgrading, present tense, no file names. Write `none`
+     when nothing a user sees changes (tests, CI, doc wording). release.yml
+     publishes this section as the release's "What changed" list; the PR
+     title is only the fallback. -->
+
+none
+
 ## Issue/Discussion Links
 
 Please links and reference any relevant issues/discussions/etc here.
