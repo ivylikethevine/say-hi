@@ -142,7 +142,7 @@ cannot land without a row here.
 | `_HI_DISABLE_LOCAL`          | `0`                                                  | `hi --configure`          | [Features](#features) - all of the above, on this machine only                                                        |
 | `_HI_REMOTE_SESSION`         | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                            |
 | `_HI_HEADER_BANNER`          | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                      |
-| `_HI_HEADER_ORDER`           | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                    |
+| `_HI_HEADER_ORDER`           | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                     |
 | `_HI_PACKAGES_MIN_PRIORITY`  | `2`                                                  | `hi --configure`          | [Everything else](#everything-else) - how far down `settings/packages` the check reports                              |
 | `_HI_PACKAGES_PALETTE`       | `cool`                                               | `hi --configure`          | [Everything else](#everything-else) - which named color ramp the check paints with                                    |
 | `_HI_MAX_WIDTH`              | `80`                                                 | `hi --configure`          | [Everything else](#everything-else) - columns the header and banner are drawn to, narrowed to a smaller real terminal |
@@ -217,10 +217,8 @@ Four more names look like settings and are not. `$_HI_CONFIG_DIR` and
 too late; export them in your environment, as `hi.sh` and `install.sh`'s rc
 line do. `$_HI_ROOT` and `$_HI_SSH_CONFIG` are derived from those two by
 `common/paths.sh` on every source, so an exported value does not survive;
-point `$_HI_HOME` or `$HOME` elsewhere instead. `$_HI_CONFIG_DIR` moves the
-whole overlay, so the directory itself stays at the XDG path. Everything else
-beginning `_HI_` is internal state, named that way to stay out of your
-namespace.
+point `$_HI_HOME` or `$HOME` elsewhere instead. Everything else beginning
+`_HI_` is internal state, named that way to stay out of your namespace.
 
 ## System-wide settings
 
@@ -312,23 +310,23 @@ anymore. `_HI_HEADER_ORDER` is a space-separated list of these words, in the
 order you want them to print, any subset:
 
 | word         | what it is                                          |
-| ------------ | ---------------------------------------------------- |
-| `utc`        | the UTC clock                                        |
-| `version`    | hi's own version                                     |
-| `localtime`  | your local clock                                     |
-| `arch`       | the CPU architecture                                 |
-| `os`         | the OS name/version                                  |
-| `cores`      | core count and load percentage                       |
-| `cpu`        | base/boost clock speed                               |
-| `ram`        | used/total memory                                    |
-| `gitid`      | the masked git identity (`user.email`)               |
-| `containers` | the docker/podman container count, when either runs  |
-| `jobs`       | the nomad job count, when nomad answers              |
-| `pods`       | the reachable kube pod count, when kubectl answers   |
-| `auth`       | the `~/.ssh/authorized_keys` line count              |
-| `pub`        | the `~/.ssh/*.pub` file count                        |
-| `uptime`     | this box's uptime                                    |
-| `check`      | the installed-packages check (`settings/packages`)   |
+| ------------ | --------------------------------------------------- |
+| `utc`        | the UTC clock                                       |
+| `version`    | hi's own version                                    |
+| `localtime`  | your local clock                                    |
+| `os`         | the OS name/version                                 |
+| `arch`       | the CPU architecture                                |
+| `cores`      | core count and load percentage                      |
+| `cpu`        | base/boost clock speed                              |
+| `ram`        | used/total memory                                   |
+| `gitid`      | the masked git identity (`user.email`)              |
+| `containers` | the docker/podman container count, when either runs |
+| `jobs`       | the nomad job count, when nomad answers             |
+| `pods`       | the reachable kube pod count, when kubectl answers  |
+| `auth`       | the `~/.ssh/authorized_keys` line count             |
+| `pub`        | the `~/.ssh/*.pub` file count                       |
+| `uptime`     | this box's uptime                                   |
+| `check`      | the installed-packages check (`settings/packages`)  |
 
 A word left out is not printed - that's the whole toggle, there is nothing
 else to set. Unknown words are ignored. `containers`/`jobs`/`pods` only ever
@@ -339,7 +337,7 @@ word's color for its alternate rather than let it repeat the cell before it -
 so reordering never puts two same-colored cells side by side, even though the
 order above is free-form
 ([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). Defaults to `utc
-version localtime arch os cores cpu ram gitid containers jobs pods auth pub
+version localtime os arch cores cpu ram gitid containers jobs pods auth pub
 uptime check`, today's shipped order, so an unset override changes nothing.
 
 A physical line that overflows `_HI_MAX_WIDTH` no longer wraps within itself:
@@ -535,9 +533,9 @@ All four update the moment the color pins above do.
 | `_HI_PROMPT_END_FISH`        | `\|`                            | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `_HI_TERM_FALLBACK`          | `1`                             | on ssh targets missing a terminfo entry for your `TERM` (ghostty's `xterm-ghostty`, typically), swap it for `xterm-256color` before the session starts; `0` keeps the original                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `_HI_PACKAGES_MIN_PRIORITY`  | `2`                             | the lowest `settings/packages` priority the header's check prints, and the main dial on how long that check is. The file ranks every entry 0-3, and a line's leading mode character decides which states speak at all: `-` only when the line is missing (core tools, where present is not news), `+` only when something is installed (platform facts, where absent is noise), no flag both ways. `2` (the default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just the favorites and core alerts, and anything above `3` mutes the check entirely. An older overlay file still renders: priorities above 3 clamp to 3, and its unflagged lines speak both ways until a mode character is added. `hi --configure` asks for this with a live preview; `hi --packages-preview` marks the ranks it silences `below floor` |
-| `_HI_PACKAGES_PALETTE`       | `cool`                          | which of `common/header.sh`'s named color tables the check paints an installed and a missing package with, per priority - `cool` (cyan through green for installed, blue through red for missing), `warm` (yellow through red), or `mono` (blue through cyan for installed, yellow through red for missing). Each ramp is meant to read monotonic 0-3 in both directions and legibly on light and dark terminals; judge a candidate with `hi --packages-preview`, which names the active palette above its legend. Any other value falls back to `cool`. `hi --configure` asks for this with the check's current render shown as a preview                                                                                                                                                                                                                                                                               |
+| `_HI_PACKAGES_PALETTE`       | `cool`                          | which of `common/header.sh`'s named color tables the check paints an installed and a missing package with, per priority - `cool` (cyan through green for installed, blue through red for missing), `warm` (yellow through red), or `mono` (blue through cyan for installed, yellow through red for missing). Each ramp is meant to read monotonic 0-3 in both directions and legibly on light and dark terminals; judge a candidate with `hi --packages-preview`, which names the active palette above its legend. Any other value falls back to `cool`. `hi --configure` asks for this with the check's current render shown as a preview                                                                                                                                                                                                                                   |
 | `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                             | fish only: `1` gives every alias hi defines a real `abbr`, so it expands to the full command on the line before you run it - it rewrites what your command line and history say, hence opt-in (`hi_abbr_aliases` does the work and is callable by hand). Not in the `_HI_DISABLE_*` table since it is fish-specific, not one of `core.sh`'s shared toggles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `_HI_NO_LEAD_SPACE`          | `0`                             | `1` drops the single hardcoded leading space each of these puts before its own content: the prompt's `user@host` (bash/zsh/fish), the git segment (`common/git_prompt.sh`), the banner line, and the first cell of every header row. The `\|`-separated space between later cells on the same header row is untouched - that separator is structural, not this                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `_HI_NO_LEAD_SPACE`          | `0`                             | `1` drops the single hardcoded leading space each of these puts before its own content: the prompt's `user@host` (bash/zsh/fish), the git segment (`common/git_prompt.sh`), the banner line, and the first cell of every header row. The `\|`-separated space between later cells on the same header row is untouched - that separator is structural, not this                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `_HI_TTY`                    | `[ -t 0 ]`                      | whether the container backends hand the session a tty (`docker exec -it` vs `-i`). Answered by probing stdin; set it to `1` or `0` to override, which is what a wrapper that knows better than the probe does. `docker exec -it` refuses outright when stdin is a pipe, so `hi <container> <cmd> \| ...` depends on this being right                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_SESSION_RC`             | `mktemp -d`                     | set by hi inside a session: the directory holding the per-shell rc files a nested `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends. `$ZDOTDIR` and `$ENV` are exported alongside it, see [HI.46](GLOSSARY.md#hi46-session-rc-directory)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 

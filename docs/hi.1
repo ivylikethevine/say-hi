@@ -306,6 +306,9 @@ Configuration lives outside the tree, in
 .RB ( settings.sh ,
 .BR colors ,
 .BR packages ,
+.BR vim.rc
+and
+.BR nano.rc ,
 additive
 .BR aliases.sh ,
 and per-shell
@@ -340,8 +343,19 @@ this machine only, never a target's.
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
 .TP
+.B ~/.config/say-hi/vim.rc, ~/.config/say-hi/nano.rc
+per\-user replacements of the tree's editor configs, used whole rather than
+merged.
+.TP
 .B ~/.config/say-hi/aliases.sh
-your own aliases, sourced after the shipped set so yours win.
+your own aliases, sourced first so any
+.B _HI_*_OPTS
+value or
+.B _HI_DISABLE_*
+toggle you set there wins over the shipped set - an
+.B alias
+of the same name does not, since the shipped one is defined after and
+overwrites it.
 .TP
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.

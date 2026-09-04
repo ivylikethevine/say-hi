@@ -1,6 +1,6 @@
 # Contributing to say-hi
 
-say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md#experimental-until-v100):
+say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md):
 interfaces can still move, and [README's Roadmap](../README.md#roadmap) is
 what is left to do. The test runbook is [docs/TESTING.md](TESTING.md); the
 named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
@@ -69,7 +69,8 @@ comments are convenient to read through by eye.
 
 | Job                                                      | Runs on your PR                                                      | Gate or advisory?                       |
 | -------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
-| `fast suites (ubuntu-latest)` (also runs the lint group) | Skipped on a workflow-only diff                                      | Gate                                    |
+| `fast suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                      | Gate                                    |
+| `lint suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                      | Gate                                    |
 | `fast suites (macos-latest)`                             | Skipped on a workflow-only diff                                      | Gate                                    |
 | `workflow lint` (actionlint + zizmor)                    | Always                                                               | Gate                                    |
 | `advisory lint` (markdownlint, hadolint, demo-staleness) | Always                                                               | Advisory — reports, never fails the job |
@@ -95,7 +96,7 @@ configured required status check yet — requiring `fast suites
 carries no `continue-on-error`, so a red suite there fails that run, but it
 doesn't stop a merge either way.
 
-The rest of `.github/workflows/` — `release.yml`,
+The rest of `.github/workflows/` — `release.yml`, `publish-external.yml`,
 `pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,
 `tool-versions.yml`, `link-check.yml`, `demos.yml`, and the dispatch-only
 `coverage.yml` (a kcov/bashcov matrix, both aggregates published as shields

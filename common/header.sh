@@ -396,8 +396,27 @@ function _hi_system_info_probe() {
         }' || true
     )
     load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ printf "%s", $2 }' || true)
-    # Apple Silicon exposes neither clock via sysctl; only Intel Macs get a value
+    # Apple Silicon exposes no clock via sysctl at all; only Intel Macs get a
+    # value here, and boost_mhz is left for the ioreg probe below to try.
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
+    # GLOSSARY: HI.49 - the P-cluster boost table, off Apple Silicon's own
+    # power manager, when sysctl above found nothing
+    if [ -z "$base_mhz" ] && command -v ioreg >/dev/null 2>&1; then
+      boost_mhz=$(
+        ioreg -l 2>/dev/null | grep -o 'voltage-states[0-9]-sram" = <[0-9a-f]*>' |
+          grep -o '<[0-9a-f]*>' | tr -d '<>' |
+          awk '{
+            for (i = 1; i <= length($0); i += 8) {
+              word = substr($0, i, 8)
+              if (length(word) < 8) continue
+              hex = substr(word, 7, 2) substr(word, 5, 2) substr(word, 3, 2) substr(word, 1, 2)
+              freq = strtonum("0x" hex)
+              if (freq > max) max = freq
+            }
+          }
+          END { if (max > 0) printf "%.0f", max / 1000000 }'
+      )
+    fi
   fi
   _hi_sanitize_var os "$os"
   # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)

@@ -44,11 +44,15 @@ to report what slipped through it.
 hosts` line and the host-key fingerprint on a first connection reach your
   terminal exactly as they would without hi. Capturing them would turn
   trust-on-first-use into accepting a fingerprint nobody was shown.
-- **`hi --update` is an unsigned `git pull`.** There are no signed tags yet
-  (no tagged release at all - see [Supported versions](#supported-versions)),
-  so it verifies what `git` verifies: the transport to the remote, and nothing
-  about the commits. A packaged install updates through its package manager,
-  which has its own signing story.
+- **`hi --update` is a plain `git pull`, which checks no signature.** Tagged
+  releases exist (`v0.1.0`, `v0.1.1`, … - see
+  [Supported versions](#supported-versions)) and their tags are themselves
+  signed (`git verify-tag`), but `hi.sh`'s `--update` is `git -C "$_HI_ROOT"
+pull` unmodified - it neither fetches nor checks a signature unless asked
+  to (`--verify-signatures`, or a `pull.*` config doing it for you), so today
+  it verifies only what an unconfigured `git pull` always does: the transport
+  to the remote, and nothing about the commits. A packaged install updates
+  through its package manager, which has its own signing story.
 
 ## What runs where
 
@@ -175,10 +179,11 @@ third-party action cannot.
 
 ## Supported versions
 
-No tagged release yet: the supported version is the tip of `main`, and
-packages exist only for the versions a hand-pushed `v*` tag has built
-([PACKAGING.md](PACKAGING.md)). Once v1.0 is tagged, this becomes a version
-table with the latest release supported; what a 1.x release keeps stable is
+No **1.0** release yet: the supported version is the tip of `main`, and
+packages exist for the pre-1.0 versions a hand-pushed `v*` tag has built
+([PACKAGING.md](PACKAGING.md)) - `v0.1.0` through the current tag today. Once
+v1.0 is tagged, this becomes a version table with the latest release
+supported; what a 1.x release keeps stable is
 [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
 
 ## Reporting a vulnerability
