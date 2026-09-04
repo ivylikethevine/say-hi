@@ -16,7 +16,7 @@ is live and signed at `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`.
 There is still no AUR package and no Homebrew tap. Until
 [What v1.0.0 means](../README.md#what-v100-means) is ticked, a checkout stays
 the recommended install for most people
-([README](../README.md#installationusage)); this page describes the AUR and
+([README](../README.md#installation)); this page describes the AUR and
 tap channels as they will ship once they are.
 
 **Runners.** Every job runs on a plain GitHub-hosted label (`ubuntu-latest`,
@@ -73,10 +73,13 @@ repeats the list, because `install_tree` hardcodes `/usr/bin` and
 | `bump.sh`            | writes the version + real checksums into a release's own manifests; `--check` verifies the write |
 | `lib.sh`             | the tree locator and shared primitives `bump.sh` and `mkpkg.sh` source                           |
 | `srctar.sh`          | builds the source tarball a release attaches; `bump.sh` checksums the same bytes                 |
+| `mkrepo.sh`          | turns the built packages into the apt/rpm/apk [package repository](#package-repository)          |
 | `aur/say-hi/`        | the versioned AUR package (`PKGBUILD`, `.SRCINFO`)                                               |
 | `aur/say-hi-git/`    | the same package built from `main`                                                               |
 | `homebrew/say-hi.rb` | the tap formula                                                                                  |
 | `nfpm/nfpm.yaml`     | deb/rpm/apk, built from the staged tree                                                          |
+| `gpg/say-hi.asc`     | the public half of the key that signs the rpm and the apt/rpm repository metadata                |
+| `apk/say-hi.rsa.pub` | the public half of the key that signs the apk and its `APKINDEX`                                 |
 
 **The version stamp.** `stamp.sh` writes `_HI_RELEASE=` into the installed
 `hi.sh` and the version into the man page's `.TH` line. It cannot live in git:
@@ -343,7 +346,7 @@ Built by `mkpkg.sh` and attached to the GitHub Release. Users subscribe to
 the [package repository](#package-repository) or install the file:
 
 ```bash
-sudo apt install ./say-hi_1.0.0_all.deb
+sudo apt install ./say-hi_0.1.5_all.deb   # whatever version you downloaded
 ```
 
 The apk is signed with a key apk verifies against `/etc/apk/keys/`, so Alpine
@@ -352,7 +355,7 @@ users install the public key once and never pass `--allow-untrusted`:
 ```sh
 wget -O /etc/apk/keys/say-hi.rsa.pub \
   https://raw.githubusercontent.com/ivylikethevine/say-hi/main/packaging/apk/say-hi.rsa.pub
-apk add ./say-hi_1.0.0_noarch.apk
+apk add ./say-hi_0.1.5_noarch.apk   # whatever version you downloaded
 ```
 
 A quirk: the apk lists its contents per `_HI_PACKAGE_CONTENTS` member in

@@ -61,6 +61,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.46 session rc directory](#hi46-session-rc-directory)
 - [HI.47 what a child inherits](#hi47-what-a-child-inherits)
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
+- [HI.49 Apple Silicon boost clock probe](#hi49-apple-silicon-boost-clock-probe)
 
 ## HI.01 empty-array guard
 
@@ -743,12 +744,13 @@ and the session rc's quoting round-trip in each dialect.
 ## HI.48 header cell hue resolution
 
 `$_HI_HEADER_ORDER` (HI's header, `common/header.sh`) lets any subset of
-fifteen words print in any order, each carrying its own hardcoded color.
+sixteen words print in any order, each carrying its own hardcoded color.
 Nothing about the order guarantees two adjacent cells differ in color —
 before this, `jobs` and `pods` sat next to each other in the shipped default
 order wearing the same hue (`BRCYAN`/`CYAN`, differing only in the bold bit),
 and any user-supplied order can create the same collision between any two of
-the fifteen.
+the fifteen `_hi_header_word_alt` carries an alternate for - `check` is the
+sixteenth word, and resets the hue tracking explicitly instead (below).
 
 `_hi_collect_header_word` fixes this in one pass, no lookahead or backtrack:
 it tracks the previous cell's hue in `$_HI_PREV_HUE`, and when a word's own
@@ -770,7 +772,42 @@ checks it mechanically rather than trusting the table by eye.
 
 An empty cell (`containers`/`jobs`/`pods` when that backend never answered)
 leaves `$_HI_PREV_HUE` untouched rather than resetting it to empty —
-resetting it would let the *next* word compare against nothing and skip a
+resetting it would let the _next_ word compare against nothing and skip a
 real collision two cells later. `check` resets it explicitly: the packages
 block has its own palette (`$_HI_YES`/`$_HI_NO`), unrelated to header cell
 hues.
+
+## HI.49 Apple Silicon boost clock probe
+
+`sysctl -n hw.cpufrequency` (`common/header.sh`) is Intel-only: Apple never
+exposes a clock speed for Apple Silicon through sysctl at all, because there
+is no single stable number the way there was on Intel — cores scale
+per-cluster, per-workload. Without it the `cpu` header cell fell all the way
+to `_hi_cpu_clocks`'s `?` fallback.
+
+What actually carries a number is the power manager's own boost table, in the
+IOKit registry: `pmgr`'s `voltage-states<N>-sram` properties are
+(frequency-Hz, voltage-µV) uint32 pairs, ascending, one table per core
+cluster. This is **undocumented and reverse-engineered** — the technique
+`asitop` and `mx-power-gadget` use, not an Apple-published interface. Two
+consequences follow from that:
+
+- **Which numbered key holds the P-cluster's table has moved between chip
+  generations** (5 on M1, a different index on later ones), so every
+  `voltage-states0-sram` through `voltage-states9-sram` is tried and the
+  single highest frequency found across all of them wins, rather than trusting
+  one fixed index.
+- **`ioreg -l`'s hex dump is the property's bytes in storage order**
+  (little-endian on this hardware), so each 4-byte word is byte-reversed
+  before being read as a frequency — get this backwards and the cell shows a
+  number, not a failure, which is why a parse that finds nothing leaves
+  `boost_mhz` empty rather than guessing: the existing `?` fallback is the
+  safe failure mode, a wrong number is not.
+
+No macOS box tests this path: `tests/lint/dialects_test.sh`'s zsh/fish
+containers and `tests/targets/ssh_test.sh`'s bash-3.2 container are Linux,
+and `.github/workflows/macos-e2e.yml` runs `hi` but does not assert on the
+header's CPU cell. A parse that goes wrong on a real Mac needs the raw
+`ioreg -l | grep -i voltage-states` output from that machine to fix — the
+literal hex tells whether the byte order or the key index assumption above
+has moved again.

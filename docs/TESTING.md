@@ -89,11 +89,15 @@ Five groups (`--group <name>`; `--list` prints the membership):
 Fast cases stand down through two guards: `_hi_check_requires <bin>` skips a
 case when a _command_ is missing, `_hi_check_capable <capability>` when a
 _facility_ is — something `command -v` cannot answer. The roster,
-`_hi_capable` (`tests/lib/fixtures.sh`), has two entries, both for Git Bash
-and both probes rather than OS sniffs: `symlink` makes one and tests `[ -L ]`,
-so a filesystem that refuses _or_ silently copies reads as no; `pty` is
-python3 being able to `import pty`. `_hi_par_check_capable` is the parallel
-twin.
+`_hi_capable` (`tests/lib/fixtures.sh`), has five entries. Two are probes
+rather than OS sniffs, both for Git Bash: `symlink` makes one and tests
+`[ -L ]`, so a filesystem that refuses _or_ silently copies reads as no; `pty`
+is python3 being able to `import pty`. The other three are `uname`-based
+guards for the same MSYS/Cygwin tier: `lockout` (a `chmod 555` directory
+actually refuses a write, rather than the runtime looking the other way),
+`fork_concurrency` (background subshells genuinely overlap) and `mode_bits`
+(a reported permission string reflects `chmod`'s own bits). `_hi_par_check_capable`
+is the parallel twin.
 
 ### Where a suite lives
 
@@ -283,14 +287,17 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
 - **CII-Best-Practices** — the project is registered at
   [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
   Practices badge in README's badge block, a self-assessment questionnaire
-  separate from Scorecard). The score reflects registration the
-  next time Scorecard runs. _Passing_ still waits on the first release —
-  three MUST criteria are release-shaped.
-- **Signed-Releases reads -1 (excluded from the average)**, not a fixable 0 —
-  Scorecard hasn't seen a release yet. `release.yml` already ships
-  `dist/SHA256SUMS.minisig` and a build-provenance attestation, and `.minisig`
-  is an extension the check recognizes, so this resolves on its own once
-  [a release ships](../README.md#roadmap).
+  separate from Scorecard). The score reflects registration; three MUST
+  criteria are release-shaped, and tagged releases now exist (`v0.1.0`
+  onward) - re-check the live questionnaire rather than assuming _Passing_
+  still waits on one.
+- **Signed-Releases** was `-1` (excluded from the average) before any tag
+  existed. `release.yml` ships `dist/SHA256SUMS.minisig` and a
+  build-provenance attestation on every release, and `.minisig` is an
+  extension the check recognizes, so this should resolve once Scorecard has
+  run against a tagged release - re-check the live score rather than
+  assuming it is still `-1`, since `v0.1.0` through the current tag have
+  shipped since this was last confirmed.
 
 ## The lint gate
 
