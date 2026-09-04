@@ -1,0 +1,12 @@
+name: Setup shells
+# The zsh/fish install every ubuntu job needs to exercise say-hi's non-bash
+# dialects - dialects_test.sh's native roster and the fast group's per-shell
+# cases. One copy instead of four hand-kept ones (ci.yml's test, lint and
+# bench jobs, release.yml's build job), so a package-list change is one edit.
+description: Install zsh and fish for the fast/lint/bench suites' non-bash dialect checks
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: sudo apt-get update && sudo apt-get install -y zsh fish

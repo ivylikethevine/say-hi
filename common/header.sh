@@ -316,6 +316,16 @@ function _hi_apple_silicon_boost_mhz() {
   # `timeout`, which is exactly the case on stock macOS - so this is bounded
   # by hand: backgrounded to a scratch file, killed once a second passes,
   # read for whatever it managed to write either way.
+  #
+  # SIGKILL, not SIGTERM, on the timeout path, and no `wait` for it: the hang
+  # this guards against is a real kernel-side one under virtualization, which
+  # can leave ioreg unkillable by any signal until the stuck syscall itself
+  # unblocks - waiting for that exit is exactly the 15-minute hang this loop
+  # exists to avoid, only moved one step over. `disown` silences bash's own
+  # "Killed" job-control notice on a session that outlives this call; the
+  # process is cut loose and $out is read for whatever it holds so far
+  # either way. The quick path (ioreg exits inside the 1s budget) still
+  # `wait`s, quietly reaping it with no notice at all.
   out="$(mktemp -t hi.ioreg.XXXXXX)"
   ioreg -l >"$out" 2>/dev/null &
   pid=$!
@@ -323,8 +333,12 @@ function _hi_apple_silicon_boost_mhz() {
     sleep 0.1
     i=$((i + 1))
   done
-  kill -0 "$pid" 2>/dev/null && kill "$pid" 2>/dev/null
-  wait "$pid" 2>/dev/null
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null
+    disown "$pid" 2>/dev/null
+  else
+    wait "$pid" 2>/dev/null
+  fi
   for word in $(
     sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' "$out" 2>/dev/null |
       fold -w8 | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/'

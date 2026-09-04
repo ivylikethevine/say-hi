@@ -56,13 +56,20 @@ jobs:
             # process group does exactly that). FreeBSD ships
             # timeout(1) in base.
             #
+            # -k 30: without it, a wedge that ignores or outlives the first
+            # signal leaves `timeout` waiting on it forever too - the exact
+            # "sits on the job timeout with no verdict" case above, one level
+            # removed. -k asks again with SIGKILL 30s later if the first
+            # signal didn't land; both FreeBSD's own timeout(1) and GNU's
+            # take the same `-k SECONDS` short form.
+            #
             # </dev/null here and below is structural, not caution: vmactions
             # runs `ssh <host> sh` and pipes *this script* to that sh's stdin,
             # so anything started from it inherits the untransmitted remainder
             # as its own stdin. A child that reads to EOF eats the rest of the
             # script, and sh - which had buffered exactly 1024 bytes - resumes
             # at EOF mid-word. That is what `sh: ssh-k: not found` was.
-            timeout 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
+            timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
 
             # a throwaway key, and sshd is already up in the vmactions image
             ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"

@@ -4,6 +4,14 @@ name: Setup backends
 # security-relevant download in either job, so it lives here once: a key or
 # URL change, or a fix to the gpg pipeline, is one edit. Neither caller may
 # assume the other ran on the machine, and apt is idempotent when it has.
+#
+# The downloaded .debs are cached under $RUNNER_TEMP rather than apt's own
+# /var/cache/apt/archives: that directory is root-owned, and actions/cache
+# restores as the unprivileged runner user, so a hit there would fail to
+# write. podman/nomad aren't pinned like tools.txt's rows - they float with
+# apt/HashiCorp's latest - so the key is rounded to the week rather than held
+# forever: a hit skips the re-download, and the key rolls over on its own
+# before the packages can go stale for long.
 description: Install the backends the e2e suites and demo renders drive (podman, nomad, kind), plus any extra apt packages
 
 inputs:
@@ -15,6 +23,17 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: This week, for the cache key
+      id: week
+      shell: bash
+      run: printf 'week=%s\n' "$(date -u +%G-%V)" >>"$GITHUB_OUTPUT"
+
+    - name: Cache podman/nomad's downloaded .debs
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/apt-archives
+        key: setup-backends-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ inputs.extra-packages }}
+
     # the shell lives in ./install.sh, where the lint gate's shellcheck and
     # shfmt sweep it; the input arrives unquoted on purpose - a word list,
     # one apt name each
@@ -22,6 +41,7 @@ runs:
       shell: bash
       env:
         HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+        HI_APT_CACHE: ${{ runner.temp }}/apt-archives
       run: '"$GITHUB_ACTION_PATH/install.sh" $HI_EXTRA_PACKAGES'
 
     - name: Install kind

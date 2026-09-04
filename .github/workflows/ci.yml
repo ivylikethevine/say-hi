@@ -25,14 +25,20 @@ concurrency:
 
 jobs:
 
-  # Whether anything besides workflow YAML changed: test, test-macos, bench,
-  # packaging-smoke, e2e and e2e-backends skip on a workflow-only or docs-only
-  # diff. workflow-lint and advisory-lint are exempt - a workflow-only change
-  # is what workflow-lint audits and a docs-only one is when advisory-lint
-  # should run. Fork-PR-safe mechanics are in changes.yml. Only push and
-  # pull_request are filtered; on schedule or workflow_dispatch this job does
-  # not run and the jobs below treat the skip as "assume yes" - a diff against
-  # the wrong commit must never be why a real check goes quiet.
+  # Whether anything besides workflow YAML or markdown changed: test,
+  # test-macos, packaging-smoke, e2e and e2e-backends skip on a workflow-only
+  # or docs-only diff. workflow-lint and advisory-lint are exempt - a
+  # workflow-only change is what workflow-lint audits and a docs-only one is
+  # when advisory-lint should run. lint and bench are exempt for the same
+  # reason: drift_test.sh (in lint) drift-checks docs/GLOSSARY.md and
+  # docs/SETTINGS.md, and bench_test.sh checks README.md's payload badge - a
+  # docs-only diff is exactly what those exist to catch, and both suites are
+  # cheap enough (~40s each) that running them unconditionally costs nothing
+  # on the diffs that used to skip them. Fork-PR-safe mechanics are in
+  # changes.yml. Only push and pull_request are filtered; on schedule or
+  # workflow_dispatch this job does not run and the jobs below treat the skip
+  # as "assume yes" - a diff against the wrong commit must never be why a real
+  # check goes quiet.
   changes:
     name: detect changes
     if: github.event_name == 'push' || github.event_name == 'pull_request'
@@ -48,6 +54,7 @@ jobs:
         code:
           - '**'
           - '!.github/workflows/**'
+          - '!**/*.md'
 
   test:
     name: fast suites (ubuntu-latest)
@@ -60,8 +67,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install zsh and fish
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
+      - uses: $/.github/actions/setup-shells
 
       # No --verbose: dropping it lets the runner's own suite-level fan-out
       # run several suites side by side (test_runner.sh:493-505 caps it at
@@ -96,8 +102,6 @@ jobs:
   # e2e-gate's `needs:` to restore the old "lint blocks e2e" behaviour.
   lint:
     name: lint suites (ubuntu-latest)
-    needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -107,30 +111,13 @@ jobs:
 
       # dialects_test.sh's native roster runs `zsh -n` / `fish --no-execute`;
       # its three floor-image checks use docker, preinstalled on this runner
-      - name: Install zsh and fish
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
-
-      - uses: $/.github/actions/setup-tool
-        with:
-          tool: shellcheck
+      - uses: $/.github/actions/setup-shells
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: shfmt
-
-      - uses: $/.github/actions/setup-tool
-        with:
-          tool: checkbashisms
-
-      - uses: $/.github/actions/setup-tool
-        with:
-          tool: mandoc
-
-      - uses: $/.github/actions/setup-tool
-        with:
-          tool: typos
+          tools: shellcheck shfmt checkbashisms mandoc typos
 
       - name: Run the lint group
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
@@ -176,22 +163,14 @@ jobs:
 
       # actionlint shells out to shellcheck for run: blocks when it is on
       # PATH - pin it so both tools lint shell with the same version
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: shellcheck
-
-      - uses: $/.github/actions/setup-tool
-        with:
-          tool: actionlint
+          tools: shellcheck actionlint zizmor
 
       - id: actionlint
         name: Lint the workflows
         continue-on-error: true
         run: actionlint -color
-
-      - uses: $/.github/actions/setup-tool
-        with:
-          tool: zizmor
 
       - id: zizmor
         name: Audit the workflows
@@ -331,8 +310,6 @@ jobs:
   # numbers for eyeballing trends.
   bench:
     name: hot-path benchmarks
-    needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -340,8 +317,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install zsh and fish
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
+      - uses: $/.github/actions/setup-shells
 
       - name: Run benchmarks
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"

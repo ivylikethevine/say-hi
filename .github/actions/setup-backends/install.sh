@@ -8,6 +8,13 @@
 # to install alongside podman and nomad.
 set -euo pipefail
 
+# $HI_APT_CACHE (action.yml points it at a runner-owned $RUNNER_TEMP dir, so
+# actions/cache can restore it without root) replaces apt's own
+# /var/cache/apt/archives so the downloaded .debs survive between runs;
+# apt needs the archive dir's partial/ subdirectory to exist up front.
+: "${HI_APT_CACHE:=/var/cache/apt/archives}"
+mkdir -p "$HI_APT_CACHE/partial"
+
 # gpg unprivileged, `sudo` only for the write. `sudo gpg` runs with root's
 # HOME, creates /root/.gnupg on the way past, and then wants a controlling
 # terminal to say so - which an Actions step does not have: "gpg: cannot open
@@ -18,5 +25,6 @@ curl -sSfL https://apt.releases.hashicorp.com/gpg |
   sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" |
   sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
-sudo apt-get update && sudo apt-get install -y podman nomad "$@"
+sudo apt-get update
+sudo apt-get -o "Dir::Cache::Archives=$HI_APT_CACHE" install -y podman nomad "$@"
 nomad version
