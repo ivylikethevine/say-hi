@@ -1331,13 +1331,17 @@ function test_palette_asked_interactively_takes_a_word() {
 
 # The header editor: the real header boxed above the list, and every
 # command re-renders. Toggling one word off (2 is utc, the first item after
-# the banner) writes the default order minus that word, quoted.
+# the banner) writes the default order minus that word, quoted - read off
+# header.sh's own $_HI_HEADER_ORDER_DEFAULT rather than a second copy of it,
+# so a reorder there cannot leave this expectation stale.
 function test_header_editor_toggle_writes_the_order() {
   _hi_cfg_pty hdr_toggle '2\n\n' '' config_header || return 1
-  local lines
+  local lines want
+  want="$(bash -c 'source "$_HI_HEADER"; printf %s "$_HI_HEADER_ORDER_DEFAULT"')"
+  want="${want/utc /}"
   lines="$(_hi_cfg_lines hdr_toggle)"
   _hi_cfg_has hdr_toggle "preview" &&
-    [[ "$lines" == *"export _HI_HEADER_ORDER='version localtime arch"* && "$lines" != *"utc"* ]]
+    [[ "$lines" == *"export _HI_HEADER_ORDER='$want'"* ]]
 }
 
 # toggled off and back on, the order is the shipped one again and writes
