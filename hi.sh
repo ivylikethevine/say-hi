@@ -183,8 +183,13 @@ function _hi_overlay_tar() {
     trap 'rm -rf "$stage"' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
-    tar cf - -h -C "$_HI_CONFIG_DIR" "${present[@]}" |
-      tar xf - -C "$stage" || exit 1
+    # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
+    # marker and a GNU writer still has its record padding to send, which is
+    # an EPIPE and a "tar: Write error" on stderr - and pipefail is off here,
+    # so only the reader's status was ever checked (_hi_payload_tar, the same)
+    tar cf "$stage/in.tar" -h -C "$_HI_CONFIG_DIR" "${present[@]}" || exit 1
+    tar xf "$stage/in.tar" -C "$stage" || exit 1
+    rm -f "$stage/in.tar"
     _hi_strip_awk >"$stage/strip.awk"
     find "$stage" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \
       -o -name colors -o -name packages -o -name vim.rc -o -name nano.rc \) \
@@ -279,8 +284,10 @@ function _hi_payload_tar() {
     trap 'rm -rf "$stage"' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
-    tar cf - -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}" |
-      tar xf - -C "$stage" || exit 1
+    # through a file for the reason _hi_overlay_tar gives
+    tar cf "$stage/in.tar" -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}" || exit 1
+    tar xf "$stage/in.tar" -C "$stage" || exit 1
+    rm -f "$stage/in.tar"
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file; _hi_write_back keeps hi.sh's mode. GLOSSARY: HI.09
     find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \

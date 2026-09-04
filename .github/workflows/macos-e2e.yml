@@ -96,8 +96,11 @@ jobs:
       #
       # hi_root is a payload tree, not this checkout: nothing installs say-hi
       # on the loopback or writes _HI_HOME into an rc there, so the install
-      # probe finds no permanent tree and the session unpacks under
-      # $TMPDIR/<user>.hi.XXXXXX - the BSD-both-ends wire path this job is for.
+      # probe finds no permanent tree and the session unpacks under $TMPDIR -
+      # the BSD-both-ends wire path this job is for. The name is
+      # <user>.hi.XXXXXX.<random>: BSD mktemp reads -t as a prefix and appends
+      # its own suffix rather than filling the Xs, so the grep takes anything
+      # between the prefix and /say-hi.
       - name: Say hi to ourselves (a full session)
         run: |
           set -euo pipefail
@@ -146,7 +149,7 @@ jobs:
           PY
           grep -q 'Connected' "$RUNNER_TEMP/session.log"
           grep -q 'macOS' "$RUNNER_TEMP/session.log"
-          grep -Eq "hi_root: .*/$USER\.hi\.[A-Za-z0-9]{6}/say-hi" "$RUNNER_TEMP/session.log"
+          grep -Eq "hi_root: .*/$USER\.hi\.[A-Za-z0-9.]+/say-hi" "$RUNNER_TEMP/session.log"
           grep -q 'Disconnected' "$RUNNER_TEMP/session.log"
 
       # --doctor reaches the target read-only over the Host entry above and

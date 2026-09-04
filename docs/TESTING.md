@@ -53,6 +53,16 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   **every** run when the tree under test is not the one you invoked the
   runner from — the quietest way to get a wrong result here.
 - Every test script also runs directly, e.g. `tests/lint/shellcheck_test.sh`.
+- Under a wrapper that leaves the process a controlling terminal but puts it
+  in a background process group — `timeout` from a shell prompt, or a
+  `wsl.exe` session, whose stdio are pipes but whose session still has a
+  terminal — run it as `setsid -w timeout … tests/test_runner.sh …`. The
+  `load` and `install_location` suites start `bash -i`/`zsh -i`/`fish -i`
+  sessions with stderr redirected; bash then opens `/dev/tty` for job control,
+  finds itself in the background, and stops on SIGTTIN until the wrapper's
+  deadline. `setsid` outside `timeout`, not inside, so `timeout` still kills
+  the runner's own process group. GitHub's ubuntu runner has no controlling
+  terminal, which is why the same run is clean there without it.
 
 Five groups (`--group <name>`; `--list` prints the membership):
 
@@ -264,7 +274,7 @@ first and `sha256sum -c`s it before running `sh` on it, rather than piping
 tracks the version pin above it and both are bumped together. mise's and
 starship's own install scripts are generic bootstrap endpoints
 (`mise.run`, `starship.rs/install.sh`) that install whatever version their env
-var or flag names, so the hash pins *that day's copy of the installer*, not
+var or flag names, so the hash pins _that day's copy of the installer_, not
 the app version - a hash mismatch means the framework's own installer
 changed, not that the pinned app version did, and needs a fresh hash rather
 than a version bump. Each script runs under `pipefail`, so a 404, a checksum

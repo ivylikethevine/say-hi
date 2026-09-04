@@ -360,6 +360,49 @@ function test_install_with_yes_continues_over_broken_configs() {
     grep -qF "$_HI_MARKER" "$home/.bashrc"
 }
 
+# _hi_run_install_pty <home-name> <input> <flag...> - _hi_run_install under a
+# pty with <input> (printf %b) on its stdin, for the one question install.sh
+# asks a terminal and nothing else: rc.sh's config_validate_shells. The
+# transcript is $_HI_WORKDIR/<home-name>.pty.out, and the cases assert on it
+# rather than on the status - pty.spawn exits with the raw wait status,
+# which comes back through the shell truncated to 0.
+function _hi_run_install_pty() {
+  local name="$1" input="$2" home="$_HI_WORKDIR/$1" out="$_HI_WORKDIR/$1.pty.out"
+  shift 2
+  mkdir -p "$home"
+  : >"$out"
+  printf '%b' "$input" |
+    env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
+      SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" \
+      "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" "$@" >"$out" 2>&1 &
+  _hi_wait_pid "$!" 30 _hi_timed_out "$name" 30
+  [ "$_HI_WAIT_EXIT" != 124 ]
+}
+
+# the same gate at a terminal, where it asks instead of deciding: "n" stops
+# the install with nothing written...
+function test_install_gate_declined_at_a_terminal_aborts() {
+  local home="$_HI_WORKDIR/gate-no"
+  mkdir -p "$home"
+  printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
+  _hi_run_install_pty gate-no 'n\n' --no-link || return 1
+  grep -qF 'Continue installing anyway?' "$_HI_WORKDIR/gate-no.pty.out" &&
+    grep -qF 'aborting install' "$_HI_WORKDIR/gate-no.pty.out" &&
+    ! grep -qF 'Installed!' "$_HI_WORKDIR/gate-no.pty.out" &&
+    ! grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
+# ...and "y" goes on to a full install that wires that same .bashrc. A preset
+# so the settings wizard, which would also ask a terminal, has nothing to ask.
+function test_install_gate_accepted_at_a_terminal_continues() {
+  local home="$_HI_WORKDIR/gate-y"
+  mkdir -p "$home"
+  printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
+  _hi_run_install_pty gate-y 'y\n' --no-link --preset everything || return 1
+  grep -qF 'Installed!' "$_HI_WORKDIR/gate-y.pty.out" &&
+    grep -qF "$_HI_MARKER" "$home/.bashrc"
+}
+
 # A prompt framework in the user's own rc answers _HI_DISABLE_LOCAL_PROMPT on
 # the first install: hi's prompt stays off on this machine and on on every
 # target, and the run says which framework it found.
@@ -555,6 +598,8 @@ function run_install_tests() {
   _hi_check "--features-only writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check "No --yes over broken configs aborts" test_install_aborts_on_broken_configs_without_yes
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
+  _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts
+  _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
   _hi_check "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
   _hi_check "A detected prompt framework is kept on this machine" test_install_keeps_a_detected_prompt_framework
   _hi_check "No framework, no prompt answer written" test_install_writes_no_prompt_answer_without_a_framework

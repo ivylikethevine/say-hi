@@ -223,6 +223,17 @@ Host wilduntagged-*
 # Tags: excluded
 Host web-* !web-99
     HostName 14.14.14.14
+
+# Tags: bastion
+Match host bastion-* user deploy
+    HostName 15.15.15.15
+
+# Tags: nobody
+Match user nobody
+    HostName 16.16.16.16
+
+Host afternobody
+    HostName 17.17.17.17
 EOF
   printf '%s' "$f"
 }
@@ -290,6 +301,24 @@ function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
 # explicitly excluded there. Pinned so a future change to this is deliberate.
 function test_ssh_host_tag_negation_token_is_inert_not_exclusionary() {
   [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag web-99)" = "excluded" ]
+}
+
+# `Match host` takes further criteria after its patterns (user, exec,
+# canonical, ...); those words are not host patterns, so a host that happens
+# to be called "deploy" must not inherit the block's tag - only bastion-* does
+function test_ssh_host_tag_match_criteria_are_not_patterns() {
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag bastion-2)" = "bastion" ] || return 1
+  local rc=0
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag deploy >/dev/null || rc=$?
+  [ "$rc" -eq 1 ]
+}
+
+# a Match on anything but host opens a block of its own, so the tag comment
+# above it belongs to that block and never carries onto the next Host line
+function test_ssh_host_tag_non_host_match_ends_its_tag() {
+  local rc=0
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag afternobody >/dev/null || rc=$?
+  [ "$rc" -eq 2 ]
 }
 
 function test_resolve_color_override_wins() {
@@ -823,6 +852,8 @@ function run_core_tests() {
   _hi_check "Match host, comma-separated patterns" test_ssh_host_tag_match_host_comma_patterns
   _hi_check "Untagged wildcard block is rc 2" test_ssh_host_tag_wildcard_untagged_block_is_rc_2
   _hi_check "A '!' token is inert, not exclusionary" test_ssh_host_tag_negation_token_is_inert_not_exclusionary
+  _hi_check "Match criteria after the patterns are not patterns" test_ssh_host_tag_match_criteria_are_not_patterns
+  _hi_check "A non-host Match ends its tag" test_ssh_host_tag_non_host_match_ends_its_tag
 
   _hi_h2 "Testing: _hi_resolve_color precedence"
   _hi_check "Exact override wins" test_resolve_color_override_wins
