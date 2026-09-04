@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for scripts/packages_preview.sh - the `hi --packages-preview` legend.
 #
 # The preview's whole claim is that it shows what the *header* will do, so what

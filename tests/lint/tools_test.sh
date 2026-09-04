@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The external-tool wrappers that ride along with the lint gate when their
 # tool is installed, and skip yellow when it isn't: shfmt as a formatting
 # gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, and

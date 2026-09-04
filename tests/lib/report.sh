@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Everything a suite prints: the aligned status line, the begin/end banners, the
 # skip and failure ledgers the runner reads, and the host report.
 #

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for scripts/color_preview.sh - the `hi --color-preview` table.
 #
 # Its job is to render the same answers the live prompt would give, so what

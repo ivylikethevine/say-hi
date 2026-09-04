@@ -1,4 +1,6 @@
 #!/bin/fish
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 
 # === start required configuration ===
 # The tree from this file's own path, only when unset. Through `sh`, not

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The entry point every bash/zsh script sources: toggles, settings, paths,
 # colors, shared primitives. One file - fish reaches it via bare `bash -c`.
 set -euo pipefail # off again at the end: an error must not close an interactive shell

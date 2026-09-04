@@ -252,17 +252,24 @@ cannot see. `lint_image_tags` fails the build when a tag named anywhere in the
 tree disagrees with the digest-pinned ones in `tests/dockerfiles/`;
 `lint_image_digests` when two Dockerfiles pin one tag to different digests.
 
-**The three `curl | sh` framework installers are pinned to a release each, not
-a hash.** `frameworks/atuin.sh` (v18.20.1, in the download URL),
-`frameworks/mise.sh` (v2026.8.14, via `MISE_VERSION`) and
-`frameworks/starship.sh` (v1.26.0, via `--version`) each name the pin in their
-own header and are bumped by hand when that framework's own bugs are worth
-chasing, not on a schedule; `ci.yml`'s weekly run re-tests them against
-whatever else moved but does not touch the pin. Scorecard still reports all
-three as unpinned `downloadThenRun` dependencies: its probe has no "pinned to
-a version" state for a download piped to a shell, only pinned-by-hash or not.
-Each script runs under `pipefail`, so a 404 or a checksum mismatch fails the
-build rather than shipping an image with the framework silently missing.
+**The three `curl | sh` framework installers are pinned to a release, and the
+fetched script itself to a hash.** `frameworks/atuin.sh` (v18.20.1, in the
+download URL), `frameworks/mise.sh` (v2026.8.14, via `MISE_VERSION`) and
+`frameworks/starship.sh` (v1.26.0, via `--version`) each name the version pin
+in their own header and are bumped by hand when that framework's own bugs are
+worth chasing, not on a schedule; `ci.yml`'s weekly run re-tests them against
+whatever else moved but does not touch the pin. Each now downloads to a file
+first and `sha256sum -c`s it before running `sh` on it, rather than piping
+`curl` straight into a shell. Atuin's URL names the release tag, so the hash
+tracks the version pin above it and both are bumped together. mise's and
+starship's own install scripts are generic bootstrap endpoints
+(`mise.run`, `starship.rs/install.sh`) that install whatever version their env
+var or flag names, so the hash pins *that day's copy of the installer*, not
+the app version - a hash mismatch means the framework's own installer
+changed, not that the pinned app version did, and needs a fresh hash rather
+than a version bump. Each script runs under `pipefail`, so a 404, a checksum
+mismatch or the framework's installer changing shape fails the build rather
+than shipping an image with the framework silently missing.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions
 the release path uses are SHA-pinned separately. What Scorecard still dings
@@ -292,12 +299,33 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   onward) - re-check the live questionnaire rather than assuming _Passing_
   still waits on one.
 - **Signed-Releases** was `-1` (excluded from the average) before any tag
-  existed. `release.yml` ships `dist/SHA256SUMS.minisig` and a
-  build-provenance attestation on every release, and `.minisig` is an
-  extension the check recognizes, so this should resolve once Scorecard has
-  run against a tagged release - re-check the live score rather than
-  assuming it is still `-1`, since `v0.1.0` through the current tag have
-  shipped since this was last confirmed.
+  existed. `release.yml` ships `dist/SHA256SUMS.minisig` on every release,
+  which the check's signature probe recognizes for 8/10; the build-provenance
+  attestation `build` creates was invisible to it until `publish` also
+  downloads that attestation and re-uploads it as `dist/say-hi.intoto.jsonl` -
+  the literal filename the check's provenance probe looks for among release
+  assets, for the full 10/10. Re-check the live score against a tag cut after
+  that change; it doesn't move retroactively on tags that already shipped.
+- **Pinned-Dependencies reads low for a reason outside this repo.** GitHub
+  shipped same-repository `uses: $/...` references in July 2026
+  ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
+  a local action or reusable workflow resolves at the exact commit running,
+  with no `./` plus checkout and no separately-pinnable ref. `ci.yml` explains
+  why `actionlint` is pinned to a fork that understands it (upstream doesn't
+  yet); Scorecard's own dependency extraction is the same story - as of this
+  writing it reads every `$/...` reference as an unresolvable third-party
+  action with no `@sha`, which is where most of the check's "unpinned"
+  count comes from. The actual third-party (non-`$/`) actions in the tree are
+  100% SHA-pinned; re-run the numbers by hand
+  (`grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`) before
+  assuming a `$/` reference is the gap. Not something to revert to `./` to
+  chase a parser that hasn't caught up - that would trade a real improvement
+  for a score built on a five-week-old blind spot.
+- **Branch-Protection sits at 8, by choice.** The next tier up requires
+  "include administrators", which would remove the maintainer's own ability to
+  push past a failing check or merge without the full gate - kept, since
+  that's the emergency valve for a one-person project. 10 additionally needs
+  two required approving reviews, which needs a second person regardless.
 
 ## The lint gate
 

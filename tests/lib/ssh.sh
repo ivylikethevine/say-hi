@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The shared sshd fixture: its image, its keypair, its container, and the client
 # side - mux paths, pid lookup, and freezing a session mid-flight.
 #

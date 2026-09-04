@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for common/targets.sh - the "<name>\t<kind>" list behind `hi`'s
 # bash/zsh/fish completions and hi.sh's own _hi_is_ssh_host check.
 #

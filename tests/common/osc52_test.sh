@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for the OSC 52 clipboard feature: common/osc52.sh (the emitter),
 # the `hi_copy` alias in settings/aliases.sh, and settings/vim.rc's yank autocmd.
 #

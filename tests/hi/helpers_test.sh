@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's pure helpers: the quoting/armor pair every baked
 # script rides through, the target-grammar splitters, the size reporters, the
 # trim table, and the flags-table renderers. Sourcing hi.sh goes through the

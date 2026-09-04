@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The gap .github/dependabot.yml documents: dependabot moves the SHA-pinned
 # `uses:` but cannot see the tools setup-tool curls in. This prints each
 # pinned version next to the upstream's latest release and exits non-zero if

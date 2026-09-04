@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for the desktop-notification feature: common/notify.sh (the
 # emitter), the `hi_notify` alias in settings/aliases.sh, and the
 # _HI_DISABLE_NOTIFY toggle.

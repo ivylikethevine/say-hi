@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # preview what every ssh host & every known user resolve to, rendered in that
 # actual color, plus why (override/hosttag/default) - handy when tuning
 # settings/colors. Run via `hi --color-preview`.

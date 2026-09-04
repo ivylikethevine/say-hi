@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Turns the packages mkpkg.sh built into a subscribable repository for apt, dnf
 # and apk - the tree release.yml ships as `package-repo.tar.gz` and pages.yml
 # serves from https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}.

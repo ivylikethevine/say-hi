@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The install half of ./action.yml, in a real file so the repo's own lint suite
 # (shellcheck, shfmt, the bash-3.2 grep) reads it - a `run:` block inside a
 # composite action is code nothing here would otherwise lint, and this one

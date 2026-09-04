@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Points the local shells at say-hi's configs and links hi.sh onto $PATH.
 # Safe to re-run: it repairs the lines it owns and leaves everything else alone.
 #

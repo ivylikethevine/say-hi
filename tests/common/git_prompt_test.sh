@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for common/git_prompt.sh's _hi_git_prompt.
 #
 # GLOSSARY: HI.30 + HI.34

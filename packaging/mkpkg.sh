@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Builds the distributable packages: stage the tree with scripts/install.sh's
 # packaging mode, then hand that staging root to nfpm for .deb/.rpm/.apk.
 #

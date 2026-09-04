@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Every path hi uses, in one place. Fish sources this too, so plain
 # `export NAME=value` lines only (plus `[ ] && export` guards) - no functions,
 # no ${var:-...}. $_HI_HOME and $_HI_CONFIG_DIR must already be set.

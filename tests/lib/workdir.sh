@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The suite's scratch dir, the teardown ledger, and the exit trap that spends it.
 #
 # Part of the tests/test_lib.sh harness; sourced by it, never on its own.

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The tooling-side helpers scripts/, packaging/, docs/tapes/ and tests/ share:
 # the heading rules and the sed-rewrite primitive. They lived in common/core.sh
 # until the payload budget made the distinction matter - common/ ships in the

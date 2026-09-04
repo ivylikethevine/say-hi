@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The two pieces of settings/aliases.sh that alias_test.sh doesn't cover: the
 # `command -v a || command -v b || ...` fallthrough chains, and the
 # _HI_DISABLE_* guards that skip parts of the file. The split from

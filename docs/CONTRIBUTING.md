@@ -116,6 +116,14 @@ closed and cancels whatever of the above is still in flight for it.
 
 These are constraints the tree enforces, not requests:
 
+- **Style follows the [Google Shell Style
+  Guide](https://google.github.io/styleguide/shellguide.html), with the
+  deviations this list and [GLOSSARY.md](GLOSSARY.md) spell out** — the bash
+  3.2 floor and the dialect-constrained files below chief among them.
+  `shellcheck` (`.shellcheckrc`) and `shfmt` (style from `.editorconfig`) are
+  the enforcement, both required by `lint suites` in [What CI
+  runs](#what-ci-runs); a style exception is a `# shellcheck disable=` comment
+  at the line it covers, not a blanket suppression.
 - **bash 3.2 is the floor.** No `mapfile`/`readarray`, associative arrays,
   namerefs or `${x,,}`; the lint suite greps for all four. Every deliberately
   odd construct that forces is explained once in [GLOSSARY.md](GLOSSARY.md),

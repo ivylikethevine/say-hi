@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # The apt half of the setup-backends action: the HashiCorp repo (keyring
 # fetched here - the one security-relevant download in the action) and the
 # package install. A script rather than YAML-embedded shell so the lint

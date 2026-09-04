@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for common/core.sh
 # GLOSSARY: HI.30 + HI.34. The single-quoted probe scripts are expanded by the
 # *child* shell, which is the whole point (SC2016).
@@ -833,7 +835,7 @@ function run_core_tests() {
   _hi_check "A hosttag beats a pattern" test_hosttag_beats_pattern
   _hi_check "A pattern beats the hash" test_pattern_beats_hash
   _hi_check "A token that is not a hostname is skipped, not eval'd" test_pattern_hit_skips_a_token_that_is_not_a_hostname
-  _hi_check "zsh skips the same tokens" test_zsh_pattern_hit_skips_the_same_tokens
+  _hi_check_requires zsh "zsh skips the same tokens" test_zsh_pattern_hit_skips_the_same_tokens
   _hi_check_requires zsh "Pattern pins agree in zsh" test_zsh_pattern_pins_agree_with_bash
 
   _hi_h2 "Testing: the settings overlay"

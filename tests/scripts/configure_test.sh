@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unit tests for hi --configure's settings wizard - scripts/configure.sh - and
 # the rc.sh/table.sh helpers it and install.sh's own rc handling share
 # (config_shell, tmpdir_line, check_one_config, check_overlay_configs,

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Unified test runner - runs every test in tests/ (or a chosen subset), times
 # each one, and prints a colored pass/fail summary table at the end.
 #

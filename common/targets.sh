@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # Everything `hi <target>` can connect to, one "<name>\t<kind>" line each; the
 # bash, zsh and fish completions all read it. Standalone POSIX - fish shells
 # out to it, and it runs on whatever /bin/sh a target has.
