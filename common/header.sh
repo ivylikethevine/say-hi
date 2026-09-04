@@ -706,7 +706,7 @@ function passthrough_check() {
 # be reordered or left out on its own, independent of the others. Named here
 # rather than only in the case below, so a doc or test can read the default
 # without parsing the dispatch.
-_HI_HEADER_ORDER_DEFAULT="utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime check"
+_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram gitid containers jobs pods auth pub uptime check"
 
 # <var> gets $1's cell text if $1 names a getter, empty otherwise -
 # _hi_collect_header_word's own dispatch, split out so a direct caller (a
@@ -717,8 +717,8 @@ function _hi_header_word_cell() {
   utc) _hi_cell_utc "$2" ;;
   version) _hi_cell_version "$2" ;;
   localtime) _hi_cell_localtime "$2" ;;
-  arch) _hi_cell_arch "$2" ;;
   os) _hi_cell_os "$2" ;;
+  arch) _hi_cell_arch "$2" ;;
   cores) _hi_cell_cores "$2" ;;
   cpu) _hi_cell_cpu "$2" ;;
   ram) _hi_cell_ram "$2" ;;
@@ -747,8 +747,8 @@ function _hi_header_word_alt() {
   utc) printf -v "$2" '%s' "$BRCYAN" ;;
   version) printf -v "$2" '%s' "$BRCYAN" ;;
   localtime) printf -v "$2" '%s' "$BRRED" ;;
-  arch) printf -v "$2" '%s' "$BRCYAN" ;;
   os) printf -v "$2" '%s' "$BRPURPLE" ;;
+  arch) printf -v "$2" '%s' "$BRCYAN" ;;
   cores) printf -v "$2" '%s' "$BRGREEN" ;;
   cpu) printf -v "$2" '%s' "$BRPURPLE" ;;
   ram) printf -v "$2" '%s' "$BRGREEN" ;;
