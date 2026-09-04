@@ -259,7 +259,7 @@ function release_hashes() {
   printf '%s:\n' "$heading"
   for f in "$dists"/main/binary-*/Packages "$dists"/main/binary-*/Packages.gz; do
     rel="${f#"$dists"/}"
-    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" -r "$f" | cut -d' ' -f1)" "$(wc -c <"$f" | tr -d ' ')" "$rel"
+    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" "$f" | awk '{print $NF}')" "$(wc -c <"$f" | tr -d ' ')" "$rel"
   done
 }
 

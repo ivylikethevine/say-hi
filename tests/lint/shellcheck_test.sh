@@ -135,40 +135,100 @@ function _hi_sc_width() {
 # the same invocation, so that tree is parsed once. Measured at width 8: 42-45s
 # by file, 32s by directory, repeatably.
 #
-# Chunks are *deliberately* unbalanced as a result - tests/ is 47 of 75 files
-# and lands whole in one of them, which is also the run's critical path. That is
-# the trade: an even split costs more total CPU than the idle cores save, and
-# splitting tests/ by subdirectory (each of which sources test_lib.sh too) times
-# at 36-37s, between the two. It also means width past the number of top-level
-# directories buys nothing at all - there is no tenth group to hand a ninth
-# core.
+# A whole group can still dominate a chunk by itself - tests/ is 47 of 75
+# files and there is no splitting it further without paying the by-file cost
+# above. That is still the accepted trade. What groups land *with* it is not:
+# dealing by `idx % width` (first-seen order) can pile unrelated small groups
+# onto the same chunk as the biggest one purely by index arithmetic, while
+# another chunk sits near-empty - at CI's width=4, `.github` and a root-level
+# file have landed in tests/'s chunk this way, inflating the run's critical
+# path for no reason. _hi_sc_chunks below bin-packs groups onto chunks
+# instead (largest group first, always onto the currently-smallest chunk) so
+# the other chunks come out balanced without ever splitting a group. Width
+# past the number of top-level directories still buys nothing - there is no
+# tenth group to hand a ninth core.
 function _hi_sc_chunks() {
-  local out="$1" width="$2" i=0 f rel top idx seen="" s
+  local out="$1" width="$2" f rel top idx seen="" s
   shift 2
+
+  # first pass: bucket each file into $out/group.<idx> by its top-level
+  # directory - $_HI_ROOT-relative, so a root-level file (hi.sh, load.sh) is
+  # its own group, sharing a sourced tree with nothing. First-seen order
+  # picks <idx>, keeping the deal stable for a given (sorted) file list;
+  # groupsize[idx] counts how many files landed in it.
+  local -a groupsize
   for f in "$@"; do
-    # $_HI_ROOT-relative, so the group is the top-level directory - and a
-    # root-level file (hi.sh, load.sh) is its own group, which is right: it
-    # shares a sourced tree with nothing.
     rel="${f#"$_HI_ROOT"/}"
     top="${rel%%/*}"
     case " $seen " in
     *" $top "*) ;;
     *) seen="$seen $top" ;;
     esac
-    # the group's position in $seen is its chunk - first seen, first chunk,
-    # which keeps the deal stable for a given (sorted) file list
     idx=0
     # shellcheck disable=SC2086 # deliberate split: $seen is a space-joined list
     for s in $seen; do
       [ "$s" = "$top" ] && break
       idx=$((idx + 1))
     done
-    printf '%s\0' "$f" >>"$out/chunk.$((idx % width))"
+    groupsize[idx]=$((${groupsize[idx]:-0} + 1))
+    printf '%s\0' "$f" >>"$out/group.$idx"
   done
-  i=0
-  while [ "$i" -lt "$width" ]; do
-    [ -s "$out/chunk.$i" ] && printf '%s\n' "$i"
-    i=$((i + 1))
+
+  # second pass: greedy bin-pack whole groups onto chunks - largest group
+  # first, always onto the chunk with the fewest files placed so far. Every
+  # file that shares a sourced tree still lands in one shellcheck invocation
+  # together; only which chunk that invocation is changes.
+  local n_groups=0 gi picked best best_size c smallest smallest_size
+  # shellcheck disable=SC2086 # deliberate split: $seen is a space-joined list
+  for s in $seen; do n_groups=$((n_groups + 1)); done
+
+  local -a placed chunksize
+  gi=0
+  while [ "$gi" -lt "$n_groups" ]; do
+    placed[gi]=0
+    gi=$((gi + 1))
+  done
+  c=0
+  while [ "$c" -lt "$width" ]; do
+    chunksize[c]=0
+    c=$((c + 1))
+  done
+
+  picked=0
+  while [ "$picked" -lt "$n_groups" ]; do
+    best=0
+    best_size=-1
+    gi=0
+    while [ "$gi" -lt "$n_groups" ]; do
+      if [ "${placed[gi]}" -eq 0 ] && [ "${groupsize[gi]:-0}" -gt "$best_size" ]; then
+        best="$gi"
+        best_size="${groupsize[gi]:-0}"
+      fi
+      gi=$((gi + 1))
+    done
+
+    smallest=0
+    smallest_size="${chunksize[0]}"
+    c=1
+    while [ "$c" -lt "$width" ]; do
+      if [ "${chunksize[c]}" -lt "$smallest_size" ]; then
+        smallest="$c"
+        smallest_size="${chunksize[c]}"
+      fi
+      c=$((c + 1))
+    done
+
+    cat "$out/group.$best" >>"$out/chunk.$smallest"
+    rm -f "$out/group.$best"
+    chunksize[smallest]=$((smallest_size + best_size))
+    placed[best]=1
+    picked=$((picked + 1))
+  done
+
+  c=0
+  while [ "$c" -lt "$width" ]; do
+    [ -s "$out/chunk.$c" ] && printf '%s\n' "$c"
+    c=$((c + 1))
   done
 }
 

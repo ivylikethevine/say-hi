@@ -101,14 +101,21 @@ jobs:
         with:
           persist-credentials: false
 
-      # WSL 1, not 2: the hosted Windows runners have no nested virtualization
-      # for WSL 2's VM, and WSL 1 is the shape that has run on them for years.
-      # It also shares the Windows network stack, which is what lets Git Bash
-      # reach the distribution's sshd on 127.0.0.1 with no port forwarding.
+      # WSL 2 (the action's own default - this job used to pin 1): hosted
+      # Windows runners have carried the nested virtualization WSL 2's VM
+      # needs since the Dadsv5 image move, so the old "no nested virt" reason
+      # for WSL 1 no longer holds. The Windows -> Linux direction this job
+      # actually uses - Git Bash reaching the distribution's sshd on
+      # 127.0.0.1 below - is the one WSL 2's default NAT networking forwards
+      # on its own; only the *other* direction (WSL reaching a Windows-side
+      # service by 127.0.0.1) needs mirrored networking or the host's real
+      # IP, and nothing here does that. This job runs no docker/podman/nomad/
+      # kubectl - the `fast` group is backend-agnostic - so there is nothing
+      # backend-shaped to lose either way.
       - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04
-          wsl-version: 1
+          wsl-version: 2
           additional-packages: bash zsh fish git python3 openssh-server
 
       # The checkout is on the Windows side; WSL sees it under /mnt. `cd` to
@@ -124,7 +131,10 @@ jobs:
           # a DrvFs checkout is owned by a Windows SID, which git reports as
           # someone else - the FreeBSD job's dubious-ownership case again
           git config --global --add safe.directory "$(pwd)"
-          timeout 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
+          # -k 30: a wedge that outlives the first signal would otherwise
+          # leave `timeout` waiting on it forever too - see
+          # freebsd-e2e.yml's comment on the same flag.
+          timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
 
       # The package layout, by the same call the .deb's package() step makes:
       # the tree under /usr/share/say-hi, /usr/bin/hi, /etc/profile.d/say-hi.sh.
@@ -140,8 +150,9 @@ jobs:
           /usr/bin/hi --version
 
       # sshd on 2222 so nothing on the Windows side is in the way, key-only,
-      # the runner user's own key. `service ssh start` is WSL 1's init-less
-      # answer; ssh-keygen -A writes the host keys a fresh install lacks.
+      # the runner user's own key. `service ssh start` is the init-less
+      # answer neither WSL 1 nor WSL 2 need real systemd for; ssh-keygen -A
+      # writes the host keys a fresh install lacks.
       - name: Start sshd inside WSL
         shell: wsl-bash {0}
         run: |

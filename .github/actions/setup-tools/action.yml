@@ -1,0 +1,78 @@
+name: Setup tools
+# The batched form of ../setup-tool for a job that needs several pinned
+# tools.txt rows at once (ci.yml's lint and workflow-lint jobs) - one
+# actions/cache round trip covering every tool's binary instead of one per
+# tool, since a job's steps run one after another and each cache call is its
+# own network round trip. The trade: the cache key covers every requested
+# tool together, so bumping one tool's pin also redownloads the others named
+# in the same call on the next run - tools.txt pins move rarely, and the
+# downloads are small, so that is a good trade for skipping N-1 round trips
+# on every ordinary (all-hit) run. ../setup-tool (singular) is still the
+# right call for a job that needs only one tool, or an explicit `version:`
+# override - this action has neither.
+description: Install several pinned CI tools from ./tools.txt at once, with one shared cache round trip
+
+inputs:
+  tools:
+    description: space-separated tool names - each the first column of a ../setup-tool/tools.txt row
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # one row lookup per tool (no network), so the cache key can hash every
+    # resolved version together. ../setup-tool/lib.sh is the same roster
+    # reader install.sh and check_tool_versions.sh both use, so a tool named
+    # here that has no tools.txt row fails the same way setup-tool's own
+    # resolve step would.
+    - name: Resolve every pin in ${{ inputs.tools }}
+      id: resolve
+      shell: bash
+      env:
+        HI_TOOLS: ${{ inputs.tools }}
+      run: |
+        set -euo pipefail
+        source "$GITHUB_ACTION_PATH/../setup-tool/lib.sh"
+        key=""
+        paths=""
+        for t in $HI_TOOLS; do
+          row="$(_hi_tool_row "$t")"
+          IFS='|' read -r _ pin _ _ _ _ <<<"$row"
+          key="$key $t=$pin"
+          paths="$paths/usr/local/bin/$t"$'\n'
+        done
+        {
+          printf 'key=%s\n' "$key"
+          echo "paths<<HI_EOF"
+          printf '%s' "$paths"
+          echo "HI_EOF"
+        } >>"$GITHUB_OUTPUT"
+
+    # runner.os/runner.arch on every tool, not only shellcheck (the one also
+    # installed on macOS) - see ../setup-tool/action.yml's own comment on the
+    # same key shape.
+    - name: Cache ${{ inputs.tools }}
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.resolve.outputs.paths }}
+        key: setup-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.key }}
+
+    # ../setup-tool/install.sh's `install` falls back to the tools.txt pin
+    # whenever $HI_TOOL_VERSION is empty, which is every call here - none of
+    # these go through the `version:` override ../setup-tool/action.yml
+    # supports. The per-tool existence check is a defensive no-op on the
+    # normal all-miss path (a whole-key cache miss restores nothing at all)
+    # and only matters if a future caller pre-seeds one of these binaries
+    # some other way.
+    - name: Install whatever missed the cache
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        HI_TOOLS: ${{ inputs.tools }}
+      run: |
+        set -euo pipefail
+        for t in $HI_TOOLS; do
+          [ -x "/usr/local/bin/$t" ] && continue
+          HI_TOOL="$t" "$GITHUB_ACTION_PATH/../setup-tool/install.sh" install
+        done

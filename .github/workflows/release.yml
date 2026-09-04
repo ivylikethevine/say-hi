@@ -77,8 +77,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install zsh and fish
-        run: sudo apt-get update && sudo apt-get install -y zsh fish
+      - uses: $/.github/actions/setup-shells
 
       # same pinned upstream binary ci.yml uses - the distro package lags badly
       - uses: $/.github/actions/setup-tool
