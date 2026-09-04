@@ -95,7 +95,7 @@ jobs:
       # for WSL 2's VM, and WSL 1 is the shape that has run on them for years.
       # It also shares the Windows network stack, which is what lets Git Bash
       # reach the distribution's sshd on 127.0.0.1 with no port forwarding.
-      - uses: Vampire/setup-wsl@5fae231e29d976722de11654d8323419501bb327 # v7.0.0
+      - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04
           wsl-version: 1

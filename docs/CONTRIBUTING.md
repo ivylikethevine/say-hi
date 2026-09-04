@@ -88,13 +88,18 @@ exempt — a workflow-only change is exactly what the first audits, and a
 docs-only change is exactly when the second should run.
 
 "Gate" means the job itself fails loudly rather than reporting and continuing
-— not that GitHub's merge button is blocked by it. No job on this list is a
-configured required status check yet — requiring `fast suites
-(ubuntu-latest)` would lift Scorecard's Branch-Protection score from 6 to 8 of
-10, and its higher tiers need two reviewers a solo maintainer can't supply;
-`fast suites (Windows client)`
-carries no `continue-on-error`, so a red suite there fails that run, but it
-doesn't stop a merge either way.
+— not, on its own, that GitHub's merge button is blocked by it. `main` now
+requires seven of the jobs above before a merge: both `fast suites` jobs,
+`lint suites (ubuntu-latest)`, `workflow lint`, `package build (deb, rpm,
+apk)`, `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` — every gate that
+actually runs on a pull request, by its aggregate name rather than a
+per-shard one, since the shard count is a knob. The `e2e (macOS)` /
+`e2e (Windows)` / `e2e (FreeBSD)` push-only jobs and `fast suites (Windows
+client)` stay unrequired: none of them runs on a PR (the first three sit
+behind `e2e-gate`, which only opens on a push to `main`), so a required check
+that never reports would block every merge forever. `fast suites (Windows
+client)` carries no `continue-on-error`, so a red suite there fails that run,
+but it doesn't stop a merge either way.
 
 The rest of `.github/workflows/` — `release.yml`, `publish-external.yml`,
 `pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,

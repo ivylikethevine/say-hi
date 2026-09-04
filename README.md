@@ -16,6 +16,8 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
+> View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
+
 ## Contents
 
 - [Additional Documentation](#additional-documentation)
@@ -363,28 +365,20 @@ questions decided against are **deleted**: git history is the ledger.
 
 ### By Scope
 
-1. [ ] **Required status checks on `main`** — _scope: one repository
-       settings page; outside this checkout._ No job is a required check
-       today ([docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#the-gate)): a red
-       gate goes red, it does not block the merge. **Do:** require
-       `fast suites`, `lint suites`, `package build` and both `e2e` jobs;
-       update CONTRIBUTING.md's sentence saying none is. **Ticks when:**
-       Scorecard's Branch-Protection reads 8/10.
-
-2. [ ] **tldr page** — _scope: one upstream pull request; outside this
+1. [ ] **tldr page** — _scope: one upstream pull request; outside this
        checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-3. [ ] **WSL proven** — _scope: one green push._ The job is written and
+2. [ ] **WSL proven** — _scope: one green push._ The job is written and
        pinned: `windows-e2e.yml`'s `wsl` runs the fast suites inside an
        Ubuntu WSL distribution, lays down the package layout with
        `install.sh --prefix`, and says `hi` into it from Git Bash. **Do:**
        push, read the run, fix what a hosted runner disagrees with. **Ticks
        when:** the job is green on `main` and SUPPORT.md's WSL row reads ✅.
 
-4. [ ] **AUR** — _scope: nothing until registration reopens; then an
+3. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
@@ -394,9 +388,9 @@ questions decided against are **deleted**: git history is the ledger.
        source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
-       kept `say-hi` current for one real release.
+       kept `say-hi` current for one real release. <https://archlinux.org/news/>
 
-5. [ ] **Weighed, open for an audience argument** — _scope: each its own
+4. [ ] **Weighed, open for an audience argument** — _scope: each its own
        entry once someone is sitting in it_
        ([docs/SUPPORT.md](docs/SUPPORT.md#what-would-change-an-answer) has
        the rule). A devcontainer Feature that installs say-hi into the

@@ -32,8 +32,16 @@ _HI_REPO_VERSION=""
 # and profile.d snippet still there, the version stamp moved - and that
 # nothing the user wrote (/etc/say-hi/settings.sh, ~/.config/say-hi) is
 # touched; those hold whatever version the packages carry.
+#
+# Both versions are named here, not derived, so the ordering the upgrade
+# depends on is structural rather than borrowed from whatever this checkout's
+# tags happen to say: default_version() (packaging/lib.sh) falls through a
+# shallow, tagless clone - the shape ci.yml's e2e checkout actually is - to
+# the literal 0.0.0, which is *lower* than a hardcoded 0.0.1 fixture and would
+# turn every "upgrade" below into a downgrade apt/dnf/apk silently no-op.
 _HI_PREV=""
 _HI_PREV_VERSION="0.0.1"
+_HI_CUR_VERSION="0.0.2"
 
 # _hi_repo_keys - a throwaway GPG signing key and a throwaway apk RSA key in
 # the workdir. RSA 4096 as the runbook prescribes for the real one.
@@ -54,17 +62,12 @@ function _hi_repo_keys() {
 # the same note); the repository itself lands in the workdir.
 function _hi_repo_build() {
   _HI_REPO="$_HI_WORKDIR/repo"
-  # the version mkpkg.sh stamps by default is what every client's
-  # `hi --version` has to print back - through mkpkg.sh's own
-  # default_version(), not a bare PKGBUILD grep: outside a release, pkgver=
-  # is the committed 0.0.0 template, and default_version() falls through to
-  # this checkout's newest tag (packaging/lib.sh) the same way mkpkg.sh does.
-  # shellcheck source=../../packaging/lib.sh
-  _HI_REPO_VERSION="$(source "$_HI_ROOT/packaging/lib.sh" && default_version)"
-  [ -n "$_HI_REPO_VERSION" ] || {
-    _hi_cecho " | no pkgver in packaging/aur/say-hi/PKGBUILD" "$RED"
-    return 1
-  }
+  # named, not derived from mkpkg.sh's own default_version(): that falls
+  # through a shallow, tagless checkout to the literal 0.0.0, which would
+  # sort below the hardcoded $_HI_PREV_VERSION fixture and turn every
+  # upgrade case into a downgrade. $_HI_CUR_VERSION is what every client's
+  # `hi --version` has to print back.
+  _HI_REPO_VERSION="$_HI_CUR_VERSION"
   # registered before the build (the ledger's rule): the exit trap removes
   # dist/ only when this suite is the one that created it
   [ -d "$_HI_ROOT/dist" ] || _hi_track_dir "$_HI_ROOT/dist"
@@ -79,8 +82,8 @@ function _hi_repo_build() {
   fi
   mv "$_HI_ROOT/dist" "$_HI_PREV"
   _hi_h2 "Building the packages, signed"
-  if ! (cd "$_HI_ROOT" && HI_GPG_KEY="$_HI_WORKDIR/gpg.key" HI_APK_KEY="$_HI_WORKDIR/apk.rsa" packaging/mkpkg.sh) >"$_HI_WORKDIR/mkpkg.log" 2>&1; then
-    _hi_dump_log "mkpkg.sh failed:" "$_HI_WORKDIR/mkpkg.log" "$RED"
+  if ! (cd "$_HI_ROOT" && HI_GPG_KEY="$_HI_WORKDIR/gpg.key" HI_APK_KEY="$_HI_WORKDIR/apk.rsa" packaging/mkpkg.sh --version "$_HI_CUR_VERSION") >"$_HI_WORKDIR/mkpkg.log" 2>&1; then
+    _hi_dump_log "mkpkg.sh --version $_HI_CUR_VERSION failed:" "$_HI_WORKDIR/mkpkg.log" "$RED"
     return 1
   fi
   _hi_h2 "Building the repository"

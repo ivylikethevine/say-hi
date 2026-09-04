@@ -1477,6 +1477,33 @@ function test_lib_pkgbuild_version_reads_and_refuses() {
   ! _hi_in_pkglib pkgbuild_version "$f" 2>/dev/null
 }
 
+# default_version()'s three rungs, each one forcing the next: a real
+# pkgver= wins outright; the committed 0.0.0 template is refused and falls
+# through to the newest tag; with neither, the last resort is the literal
+# 0.0.0 - the shape a shallow, tagless checkout leaves it in (the case
+# repo_test.sh names both its versions to never depend on).
+function test_lib_default_version_falls_through_the_template() {
+  local pkgbuild="$_HI_WORKDIR/dv.PKGBUILD" gitdir="$_HI_WORKDIR/dv.git"
+
+  printf 'pkgname=say-hi\npkgver=1.2.3\npkgrel=1\n' >"$pkgbuild"
+  [ "$(_HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 1.2.3 ] || return 1
+
+  printf 'pkgname=say-hi\npkgver=0.0.0\npkgrel=1\n' >"$pkgbuild"
+  rm -rf "$gitdir" && mkdir -p "$gitdir"
+  git -C "$gitdir" init -q
+  git -C "$gitdir" -c user.email=t@example.invalid -c user.name=t -c commit.gpgSign=false \
+    commit -q --allow-empty -m x
+  # -c tag.gpgSign=false: a lightweight tag, and one that needs no signing
+  # key - a maintainer machine with tag.gpgSign=true set globally would
+  # otherwise fail this with "no tag message?"
+  git -C "$gitdir" -c tag.gpgSign=false tag v9.9.9
+  [ "$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 9.9.9 ] || return 1
+
+  rm -rf "$gitdir" && mkdir -p "$gitdir"
+  git -C "$gitdir" init -q
+  [ "$(_HI_ROOT="$gitdir" _HI_PKGBUILD="$pkgbuild" _hi_in_pkglib default_version)" = 0.0.0 ]
+}
+
 function test_lib_pkgbuild_url_reads_and_refuses() {
   local f="$_HI_WORKDIR/PKGBUILD.url"
   printf 'pkgname=say-hi\nurl="https://example.invalid/say-hi"\n' >"$f"
@@ -1937,6 +1964,7 @@ function run_packaging_tests() {
   _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
   _hi_check_requires openssl "b2_of is BLAKE2b-512, makepkg's b2sums" test_lib_b2_matches_makepkg_expectation
   _hi_check "pkgbuild_version reads pkgver= and refuses none" test_lib_pkgbuild_version_reads_and_refuses
+  _hi_check_requires git "default_version falls through the template" test_lib_default_version_falls_through_the_template
   _hi_check "pkgbuild_url reads url= and refuses none" test_lib_pkgbuild_url_reads_and_refuses
   _hi_check "need's two verdicts" test_lib_need_verdicts
   _hi_check_requires gpg "gpg_fpr reads a bad file as empty, never fatal" test_lib_gpg_fpr_is_empty_never_fatal

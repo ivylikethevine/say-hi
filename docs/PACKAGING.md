@@ -426,9 +426,11 @@ pages - and a candidate never reaches a subscriber. `ci.yml`'s packaging-smoke
 builds a repository on every PR, and `tests/packaging/repo_test.sh` (the
 `e2e` group, on every PR too) installs from one as all three clients,
 signatures verified - then installs a `0.0.1` build of the same tree first
-and takes the repository's release as an **upgrade** through `apt-get`,
-`dnf upgrade` and `apk add -u`, with an `/etc/say-hi/settings.sh` and a
-`~/.config/say-hi/colors` written in between and checked after.
+and takes the repository's `0.0.2` release as an **upgrade** through
+`apt-get`, `dnf upgrade` and `apk add -u`, with an `/etc/say-hi/settings.sh`
+and a `~/.config/say-hi/colors` written in between and checked after. Both
+versions are named in `repo_test.sh` rather than derived, so the ordering the
+upgrade depends on holds in a shallow, tagless checkout too.
 
 **No maintainer scripts, no `conffiles`, on purpose.** Everything a user
 writes lives outside the package's paths - the system layer in `/etc/say-hi/`,

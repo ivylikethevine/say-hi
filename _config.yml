@@ -6,7 +6,7 @@ title: say-hi
 description: >-
   A greeting, a prompt and your aliases on every machine you ssh, docker,
   podman, nomad or kubectl into - without installing anything there.
-remote_theme: pages-themes/minimal@v0.2.0
+remote_theme: just-the-docs/just-the-docs@v0.12.0
 
 # readme-index: README.md is the site index; there is no index.md and there
 #   should not be.
@@ -25,7 +25,7 @@ plugins:
 # Without a layout, front-matter-less pages render with no theme chrome.
 defaults:
   - scope:
-      path: ''
+      path: ""
     values:
       layout: default
 
