@@ -303,20 +303,21 @@ function test_header_version_is_unknown_without_a_stamp_or_git() {
   )
 }
 
-# _hi_shorten_describe's own contract - git describe's shapes, folded to at
-# most 5 columns of tag plus a 4-column hash (10 total), -dirty always
-# dropped, and a tag with no hash (an exact tag, a plain $_HI_RELEASE,
-# "unknown") just truncated to 10 since there is nothing to join it to
-function test_hi_shorten_describe_folds_tag_and_hash() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f)" = "v1.0.9c1d" ]
+# _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
+# or no tag reachable at all) means it isn't a release, so only a 6-column
+# commit hash shows, tag dropped rather than implied; a tag with no hash (an
+# exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
+# truncated to 10 since there's nothing to join it to
+function test_hi_shorten_describe_shows_a_hash_when_not_on_a_tag() {
+  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f)" = "9c1dd0" ]
 }
 
 function test_hi_shorten_describe_drops_the_dirty_suffix() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty)" = "v1.0.9c1d" ]
+  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty)" = "9c1dd0" ]
 }
 
 function test_hi_shorten_describe_trims_a_bare_hash() {
-  [ "$(_hi_shorten_describe 9c1dd0fabc)" = "9c1d" ]
+  [ "$(_hi_shorten_describe 9c1dd0fabc)" = "9c1dd0" ]
 }
 
 function test_hi_shorten_describe_leaves_an_exact_tag_alone() {
@@ -331,8 +332,12 @@ function test_hi_shorten_describe_leaves_unknown_alone() {
   [ "$(_hi_shorten_describe unknown)" = "unknown" ]
 }
 
-function test_hi_shorten_describe_caps_a_long_tag_at_ten() {
-  [ "$(_hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty)" = "snaps.200c" ]
+function test_hi_shorten_describe_caps_a_long_exact_tag_at_ten() {
+  [ "$(_hi_shorten_describe snapshot-6fba937)" = "snapshot-6" ]
+}
+
+function test_hi_shorten_describe_drops_a_long_tag_when_a_hash_is_present() {
+  [ "$(_hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty)" = "200cef" ]
 }
 
 # the header cell itself carries the shortened form, not just the helper in
@@ -1612,13 +1617,14 @@ function run_header_tests() {
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
   _hi_check "...and is \"unknown\" without a stamp or git" test_header_version_is_unknown_without_a_stamp_or_git
-  _hi_check "Folds a tag and its hash together" test_hi_shorten_describe_folds_tag_and_hash
+  _hi_check "Shows a 6-char hash when not on a tag" test_hi_shorten_describe_shows_a_hash_when_not_on_a_tag
   _hi_check "...drops the -dirty suffix" test_hi_shorten_describe_drops_the_dirty_suffix
   _hi_check "...trims a bare hash too" test_hi_shorten_describe_trims_a_bare_hash
   _hi_check "...leaves an exact tag alone" test_hi_shorten_describe_leaves_an_exact_tag_alone
   _hi_check "...leaves a release stamp alone" test_hi_shorten_describe_leaves_a_release_stamp_alone
   _hi_check "...leaves 'unknown' alone" test_hi_shorten_describe_leaves_unknown_alone
-  _hi_check "...caps a long tag+hash at 10 columns" test_hi_shorten_describe_caps_a_long_tag_at_ten
+  _hi_check "...caps a long exact tag at 10 columns" test_hi_shorten_describe_caps_a_long_exact_tag_at_ten
+  _hi_check "...drops a long tag when a hash is present" test_hi_shorten_describe_drops_a_long_tag_when_a_hash_is_present
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info no longer shows uptime" test_system_info_no_longer_shows_uptime

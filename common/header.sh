@@ -165,35 +165,23 @@ function header_row() {
   ((_HI_ROW_CARRY_ARMED)) || _hi_header_flush
 }
 
-# The header's version cell is a glance value, not a lookup key - git
-# describe's own hash (7 hex digits, either after "-g" or bare when no tag is
-# reachable at all) is more precision than a header row has room for, and its
-# tag can carry one too (a snapshot tag names its own commit). So: drop
-# -dirty (a glance value has no room for it either), keep at most 5 columns of
-# tag plus a 4-column hash joined by ".", never bare $_HI_RELEASE or
-# `hi --version`'s answer (hi.sh's _hi_version calls _hi_release_or_describe
-# directly) - this is a display-only shortening of the header's copy, capped
-# at 10 columns either way.
+# The header's version cell is a glance value, not a lookup key. A tag exactly
+# on HEAD (a release, or a plain $_HI_RELEASE/snapshot stamp) is shown as-is,
+# capped at 10 columns. Anything else - commits ahead of the last tag, or no
+# reachable tag at all - is not a release, so the tag is dropped rather than
+# implied: just a 6-column commit hash, `-dirty` included in neither case.
+# Never `hi --version`'s own answer (hi.sh's _hi_version calls
+# _hi_release_or_describe directly) - this is a display-only shortening of the
+# header's copy.
 function _hi_shorten_describe() {
-  local v="${1%-dirty}" tag="" hash="" out
-  local re_g='^(.*)-[0-9]+-g([0-9a-f]{4,})$' re_bare='^([0-9a-f]{4,})$'
-  if [[ "$v" =~ $re_g ]]; then
-    tag="${BASH_REMATCH[1]}" hash="${BASH_REMATCH[2]}"
-  elif [[ "$v" =~ $re_bare ]]; then
+  local v="${1%-dirty}" hash=""
+  local re_g='^.*-[0-9]+-g([0-9a-f]{4,})$' re_bare='^([0-9a-f]{4,})$'
+  if [[ "$v" =~ $re_g ]] || [[ "$v" =~ $re_bare ]]; then
     hash="${BASH_REMATCH[1]}"
+    printf '%s' "${hash:0:6}"
   else
-    tag="$v"
+    printf '%s' "${v:0:10}"
   fi
-  if [ -z "$hash" ]; then
-    out="${tag:0:10}"
-  else
-    tag="${tag:0:5}"
-    while [ -n "$tag" ]; do
-      case "$tag" in *[-._]) tag="${tag%?}" ;; *) break ;; esac
-    done
-    out="${tag:+$tag.}${hash:0:4}"
-  fi
-  printf '%s' "$out"
 }
 
 # hi's version for the header, resolved once per shell (the row prints twice
@@ -308,6 +296,28 @@ function _hi_humanize_uptime() {
 # memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells into
 # independently orderable/toggleable $_HI_HEADER_ORDER words costs nothing
 # extra: arch alone still pays for exactly one probe, not five.
+
+# <var> gets the P-cluster's boost clock in MHz, read off Apple Silicon's own
+# power manager - sysctl has no clock speed key there at all (only Intel Macs
+# get one). Undocumented and reverse-engineered, the same technique
+# asitop/mx-power-gadget use; empty <var> on anything that doesn't parse, same
+# as every other probe in this file failing closed to "?". GLOSSARY: HI.49
+# has the byte-layout and index-generation reasoning in full.
+function _hi_apple_silicon_boost_mhz() {
+  command -v ioreg >/dev/null 2>&1 || return 0
+  local max_hz=0 word freq
+  for word in $(
+    ioreg -l 2>/dev/null |
+      sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' |
+      fold -w8 | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/'
+  ); do
+    [ "${#word}" -eq 8 ] || continue
+    freq=$((16#$word))
+    [ "$freq" -gt "$max_hz" ] && max_hz=$freq
+  done
+  [ "$max_hz" -gt 0 ] && printf -v "$1" '%s' "$((max_hz / 1000000))"
+}
+
 function _hi_system_info_probe() {
   [ -z "${_HI_SI_PROBED:-}" ] || return 0
   _HI_SI_PROBED=1
@@ -399,22 +409,7 @@ function _hi_system_info_probe() {
     # Apple Silicon exposes no clock via sysctl at all; only Intel Macs get a
     # value here, and boost_mhz is left for the ioreg probe below to try.
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
-    # GLOSSARY: HI.49 - the P-cluster boost table, off Apple Silicon's own
-    # power manager, when sysctl above found nothing. $((16#word)) is bash's
-    # own hex parser - no awk, no gawk-only strtonum to be missing.
-    if [ -z "$base_mhz" ] && command -v ioreg >/dev/null 2>&1; then
-      local max_hz=0 word freq
-      for word in $(
-        ioreg -l 2>/dev/null |
-          sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' |
-          fold -w8 | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/'
-      ); do
-        [ "${#word}" -eq 8 ] || continue
-        freq=$((16#$word))
-        [ "$freq" -gt "$max_hz" ] && max_hz=$freq
-      done
-      [ "$max_hz" -gt 0 ] && boost_mhz=$((max_hz / 1000000))
-    fi
+    [ -n "$base_mhz" ] || _hi_apple_silicon_boost_mhz boost_mhz
   fi
   _hi_sanitize_var os "$os"
   # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)
@@ -431,26 +426,20 @@ function _hi_system_info_probe() {
   _HI_SI_RAM="${CYAN}RAM: ${ram:-?}"
 }
 
-function _hi_cell_arch() {
-  _hi_system_info_probe
-  printf -v "$1" '%s' "$_HI_SI_ARCH"
+# _hi_probed_cell <outvar> <probe-fn> <memo-var> - every _hi_cell_* getter
+# below is "run the (memoized) probe, copy one of its globals out by name".
+# GLOSSARY: HI.04 - ${!3} is indirect expansion, not a nameref (bash 3.2 has
+# none of those), and has worked since early bash with no declare needed.
+function _hi_probed_cell() {
+  "$2"
+  printf -v "$1" '%s' "${!3}"
 }
-function _hi_cell_os() {
-  _hi_system_info_probe
-  printf -v "$1" '%s' "$_HI_SI_OS"
-}
-function _hi_cell_cores() {
-  _hi_system_info_probe
-  printf -v "$1" '%s' "$_HI_SI_CORES"
-}
-function _hi_cell_cpu() {
-  _hi_system_info_probe
-  printf -v "$1" '%s' "$_HI_SI_CPU"
-}
-function _hi_cell_ram() {
-  _hi_system_info_probe
-  printf -v "$1" '%s' "$_HI_SI_RAM"
-}
+
+function _hi_cell_arch() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_ARCH; }
+function _hi_cell_os() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_OS; }
+function _hi_cell_cores() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CORES; }
+function _hi_cell_cpu() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CPU; }
+function _hi_cell_ram() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_RAM; }
 
 # The group wrapper: unchanged output for any direct caller (hi --doctor,
 # a suite) that wants the whole bundle rather than picking individual words.
@@ -600,30 +589,12 @@ function _hi_identity_probe() {
   _HI_ID_PUB="${PURPLE}Pub: $public"
 }
 
-function _hi_cell_gitid() {
-  _hi_identity_probe
-  printf -v "$1" '%s' "$_HI_ID_GITID"
-}
-function _hi_cell_containers() {
-  _hi_identity_probe
-  printf -v "$1" '%s' "$_HI_ID_CONTAINERS"
-}
-function _hi_cell_jobs() {
-  _hi_identity_probe
-  printf -v "$1" '%s' "$_HI_ID_JOBS"
-}
-function _hi_cell_pods() {
-  _hi_identity_probe
-  printf -v "$1" '%s' "$_HI_ID_PODS"
-}
-function _hi_cell_auth() {
-  _hi_identity_probe
-  printf -v "$1" '%s' "$_HI_ID_AUTH"
-}
-function _hi_cell_pub() {
-  _hi_identity_probe
-  printf -v "$1" '%s' "$_HI_ID_PUB"
-}
+function _hi_cell_gitid() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_GITID; }
+function _hi_cell_containers() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_CONTAINERS; }
+function _hi_cell_jobs() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_JOBS; }
+function _hi_cell_pods() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PODS; }
+function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; }
+function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
 function _hi_cell_uptime() {
   _hi_uptime_cell "$1"
 }
@@ -811,9 +782,11 @@ function _hi_collect_header_word() {
   [ -n "$cell" ] || return 0
   _hi_cell_hue hue "$cell"
   if [ -n "$hue" ] && [ "$hue" = "${_HI_PREV_HUE:-}" ]; then
+    # $hue only got set above by matching this exact escape prefix, so it's
+    # already known to be there and to end in the first "m" in the string -
+    # no need to re-derive it with a second regex.
     _hi_header_word_alt "$1" alt
-    local re='^\\e\[[01];3[1-6]m(.*)$'
-    [[ "$cell" =~ $re ]] && cell="$alt${BASH_REMATCH[1]}"
+    cell="$alt${cell#*m}"
     _hi_cell_hue hue "$cell"
   fi
   _HI_PREV_HUE="$hue"
