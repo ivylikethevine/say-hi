@@ -744,13 +744,13 @@ and the session rc's quoting round-trip in each dialect.
 ## HI.48 header cell hue resolution
 
 `$_HI_HEADER_ORDER` (HI's header, `common/header.sh`) lets any subset of
-sixteen words print in any order, each carrying its own hardcoded color.
+seventeen words print in any order, each carrying its own hardcoded color.
 Nothing about the order guarantees two adjacent cells differ in color —
 before this, `jobs` and `pods` sat next to each other in the shipped default
 order wearing the same hue (`BRCYAN`/`CYAN`, differing only in the bold bit),
 and any user-supplied order can create the same collision between any two of
-the fifteen `_hi_header_word_alt` carries an alternate for - `check` is the
-sixteenth word, and resets the hue tracking explicitly instead (below).
+the sixteen `_hi_header_word_alt` carries an alternate for - `check` is the
+seventeenth word, and resets the hue tracking explicitly instead (below).
 
 `_hi_collect_header_word` fixes this in one pass, no lookahead or backtrack:
 it tracks the previous cell's hue in `$_HI_PREV_HUE`, and when a word's own
@@ -815,6 +815,18 @@ consequences follow from that:
   are always three-plus orders of magnitude smaller than any real clock
   speed, so scanning every 4-byte word (not just the alternating frequency
   ones) and taking the single highest value is safe as well as simpler.
+- **`ioreg -l` itself is bounded by hand, not by `_hi_probe`.** Milliseconds
+  on real hardware, `ioreg -l` has a documented history of hanging outright
+  under macOS virtualization - GitHub's own hosted macOS runners (Apple
+  Silicon, themselves virtualized) among them, where this probe once sat for
+  a job's full 15-minute timeout on its very first real connect-time call
+  there. `_hi_probe` (`common/core.sh`) is the project's existing bound-a-CLI
+  helper, but it runs bare - unbounded - without GNU `timeout`, which is
+  exactly the case on stock macOS; wrapping this call in it would have
+  changed nothing. The fix backgrounds `ioreg -l` to a scratch file, polls
+  for up to a second, and kills it if it hasn't finished - portable, no new
+  binary required, matching every other probe in this file's own "fails
+  closed to `?`" rule when the process is killed mid-write.
 
 Verified against a real Apple Silicon Mac's `ioreg -l` output (an M1-family
 chip): the P-cluster's `voltage-states5-sram` table decoded to a clean

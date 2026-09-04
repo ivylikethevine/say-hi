@@ -471,6 +471,15 @@ function test_uptime_cell_is_humanized() {
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
+# _hi_ip_cell: a comma-joined list of dotted-quad addresses, or "?" - the
+# shape is pinned rather than a value, which depends on this box's own
+# network config
+function test_ip_cell_has_a_shape() {
+  local out
+  _hi_ip_cell out
+  [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
+}
+
 # _hi_humanize_uptime's own contract, independent of what this box's real
 # uptime happens to be
 function test_hi_humanize_uptime_days_and_hours() {
@@ -555,6 +564,18 @@ function test_uptime_cell_survives_a_stripped_environment() {
   local out
   out="$(_hi_stripped_header '_hi_uptime_cell u; printf "%s" "$u"')"
   [[ "$out" == *"Up: "* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+}
+
+# The exact case the comment above contrasts itself with: every branch of
+# _hi_ip_cell's first stage is an external binary ("ip", "hostname",
+# "ifconfig", "ipconfig") the stripped ("bash and awk only") target has none
+# of, so unlike uptime this doubles as a claim about the value, not only
+# about failing quietly - "?" is the only answer this environment can give.
+# shellcheck disable=SC2016 # $i expands in the stripped child bash, not here
+function test_ip_cell_says_unknown_under_a_stripped_environment() {
+  local out
+  out="$(_hi_stripped_header '_hi_ip_cell i; printf "%s" "$i"')"
+  [[ "$out" == *"IP: ?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
 # the whole banner, since that is what a session actually prints
@@ -1011,6 +1032,12 @@ function test_hi_header_order_uptime_is_its_own_word() {
   local out
   out="$(_HI_HEADER_ORDER="uptime cores" hi_header Connected)"
   [[ "$out" == *"Up:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
+}
+
+function test_hi_header_order_ip_is_its_own_word() {
+  local out
+  out="$(_HI_HEADER_ORDER="ip cores" hi_header Connected)"
+  [[ "$out" == *"IP:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
 }
 
 # leaving uptime out of the order hides just that cell - the identity
@@ -1648,6 +1675,7 @@ function run_header_tests() {
   _hi_check "System_info's load figure rides the Cores cell" test_system_info_load_rides_the_cores_cell
   _hi_check "...and the GHz cell no longer carries it" test_system_info_cpu_cell_has_no_parenthetical
   _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
+  _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
   _hi_check "_hi_humanize_uptime: days and hours" test_hi_humanize_uptime_days_and_hours
   _hi_check "_hi_humanize_uptime: hours and minutes" test_hi_humanize_uptime_hours_and_minutes
   _hi_check "_hi_humanize_uptime: minutes only" test_hi_humanize_uptime_minutes_only
@@ -1665,6 +1693,7 @@ function run_header_tests() {
   _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown
   _hi_check "Timestamp says ? without date" test_timestamp_without_date_says_unknown
   _hi_check "The uptime cell survives a stripped environment" test_uptime_cell_survives_a_stripped_environment
+  _hi_check "The ip cell says unknown under a stripped environment" test_ip_cell_says_unknown_under_a_stripped_environment
   _hi_check "The banner still renders" test_banner_renders_without_coreutils
 
   _hi_h2 "Testing: hi_header"
@@ -1677,6 +1706,7 @@ function run_header_tests() {
   _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
   _hi_check "'uptime' is its own order word now" test_hi_header_order_uptime_is_its_own_word
+  _hi_check "'ip' is its own order word" test_hi_header_order_ip_is_its_own_word
   _hi_check "Omitting 'uptime' hides just that cell" test_hi_header_order_omitting_uptime_hides_just_that_cell
   _hi_check "A line's overflow cascades into the packages block" test_hi_header_cascades_identity_overflow_into_check
   _hi_check "...and still flushes when 'check' is left out" test_hi_header_flushes_leftover_when_check_is_absent

@@ -307,16 +307,33 @@ function _hi_humanize_uptime() {
 # has the byte-layout and index-generation reasoning in full.
 function _hi_apple_silicon_boost_mhz() {
   command -v ioreg >/dev/null 2>&1 || return 0
-  local max_hz=0 word freq
+  local max_hz=0 word freq out pid i=0
+  # ioreg -l walks the whole IORegistry - milliseconds on real hardware, but
+  # a documented hang risk under macOS virtualization (GitHub's own hosted
+  # runners among them: this connect-time probe once ran the header's very
+  # first ioreg call there and sat for the job's full 15-minute timeout).
+  # _hi_probe (common/core.sh) doesn't cover this - bare without GNU
+  # `timeout`, which is exactly the case on stock macOS - so this is bounded
+  # by hand: backgrounded to a scratch file, killed once a second passes,
+  # read for whatever it managed to write either way.
+  out="$(mktemp -t hi.ioreg.XXXXXX)"
+  ioreg -l >"$out" 2>/dev/null &
+  pid=$!
+  while [ "$i" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  kill -0 "$pid" 2>/dev/null && kill "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
   for word in $(
-    ioreg -l 2>/dev/null |
-      sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' |
+    sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' "$out" 2>/dev/null |
       fold -w8 | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/'
   ); do
     [ "${#word}" -eq 8 ] || continue
     freq=$((16#$word))
     [ "$freq" -gt "$max_hz" ] && max_hz=$freq
   done
+  command rm -f "$out"
   [ "$max_hz" -gt 0 ] && printf -v "$1" '%s' "$((max_hz / 1000000))"
 }
 
@@ -479,6 +496,48 @@ function _hi_uptime_cell() {
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
   [ -n "$uptime_s" ] && up="$(_hi_humanize_uptime "$uptime_s")"
   printf -v "$1" '%s' "${BRBLUE}Up: ${up:-?}"
+}
+
+# <var> gets the ip cell: every routable IPv4 address this box has, comma-
+# joined. Its own minimal probe for the same reason _hi_uptime_cell gives for
+# its own uname call - duplicating it here is cheaper than sharing state with
+# system_info's. `ip` is tried first (present on every target this project
+# already assumes iproute2 for, and on Alpine's busybox too - both answer the
+# same `-o` field layout); `hostname -I` is the fallback where it prints
+# nothing. Scope global excludes loopback and link-local, so a bare "?" means
+# neither this box has a routable address nor either tool exists to say so.
+function _hi_ip_cell() {
+  local kernel ips=""
+  read -r kernel _ < <(uname -sm 2>/dev/null || :)
+  _hi_sanitize_var kernel "$kernel"
+  # One possibly-absent tool per branch, piped straight into awk for every
+  # further step (splitting, filtering, joining) - awk is the one thing
+  # besides bash a stripped target is guaranteed to have (GLOSSARY: HI.30
+  # territory), so `cut`/`paste`/`tr`/`grep` chained after it would be one
+  # more absent-tool roll of the dice apiece, each needing its own
+  # `2>/dev/null` to stay quiet under _hi_stripped_header.
+  if [ -f "$_HI_LINUX_RELEASE" ]; then
+    ips=$(ip -4 -o addr show scope global 2>/dev/null | awk '{
+      split($4, a, "/"); printf "%s%s", sep, a[1]; sep = ","
+    }')
+    [ -n "$ips" ] || ips=$(hostname -I 2>/dev/null | awk '{
+      for (i = 1; i <= NF; i++) { printf "%s%s", sep, $i; sep = "," }
+    }')
+  elif [[ "$kernel" == MINGW* || "$kernel" == MSYS* || "$kernel" == CYGWIN* ]]; then
+    # git-bash/MSYS2/Cygwin: no `ip`, no `ifconfig` - ipconfig is the one tool
+    # every one of them shells out to Windows for
+    ips=$(ipconfig 2>/dev/null | awk -F': ' '/IPv4 Address/ {
+      gsub(/\r/, "", $2); printf "%s%s", sep, $2; sep = ","
+    }')
+  elif [ -n "$kernel" ]; then
+    # macOS and the BSDs: no `ip`, but `ifconfig`'s "inet " line (never
+    # "inet6") is there on all of them
+    ips=$(ifconfig 2>/dev/null | awk '/inet / && $2 !~ /^127\./ {
+      printf "%s%s", sep, $2; sep = ","
+    }')
+  fi
+  _hi_sanitize_var ips "$ips"
+  printf -v "$1" '%s' "${BLUE}IP: ${ips:-?}"
 }
 
 # identity()'s backend probes are independent and each capped at
@@ -696,7 +755,7 @@ function passthrough_check() {
 # be reordered or left out on its own, independent of the others. Named here
 # rather than only in the case below, so a doc or test can read the default
 # without parsing the dispatch.
-_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram gitid containers jobs pods auth pub uptime check"
+_HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime check"
 
 # <var> gets $1's cell text if $1 names a getter, empty otherwise -
 # _hi_collect_header_word's own dispatch, split out so a direct caller (a
@@ -712,6 +771,7 @@ function _hi_header_word_cell() {
   cores) _hi_cell_cores "$2" ;;
   cpu) _hi_cell_cpu "$2" ;;
   ram) _hi_cell_ram "$2" ;;
+  ip) _hi_ip_cell "$2" ;;
   gitid) _hi_cell_gitid "$2" ;;
   containers) _hi_cell_containers "$2" ;;
   jobs) _hi_cell_jobs "$2" ;;
@@ -742,6 +802,7 @@ function _hi_header_word_alt() {
   cores) printf -v "$2" '%s' "$BRGREEN" ;;
   cpu) printf -v "$2" '%s' "$BRPURPLE" ;;
   ram) printf -v "$2" '%s' "$BRGREEN" ;;
+  ip) printf -v "$2" '%s' "$BRCYAN" ;;
   gitid) printf -v "$2" '%s' "$BRRED" ;;
   containers) printf -v "$2" '%s' "$BRYELLOW" ;;
   jobs) printf -v "$2" '%s' "$BRYELLOW" ;;
