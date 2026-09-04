@@ -923,6 +923,31 @@ function test_hi_header_enabled_prints_banner() {
   [[ "$out" == *"Connected"* ]]
 }
 
+# The eager probe launch fires when a backend word is in the order and
+# identity is not yet memoized...
+function test_hi_header_launches_probes_for_a_backend_word() {
+  local out
+  out="$(
+    function _hi_probe_launch() { echo LAUNCHED; }
+    _HI_HEADER_ORDER="containers gitid" hi_header Connected
+  )"
+  [[ "$out" == *LAUNCHED* ]]
+}
+
+# ...and stands down once it is: configure.sh renders hi_header over and over
+# in subshells that inherit the memo, and a relaunch there would start
+# backends nobody waits on and leave _hi_probe_launch's mktemp dir behind
+function test_hi_header_skips_probe_launch_once_identity_is_memoized() {
+  local out
+  out="$(
+    function _hi_probe_launch() { echo LAUNCHED; }
+    _HI_ID_PROBED=1 _HI_ID_GITID=gitid _HI_ID_CONTAINERS="" _HI_ID_JOBS="" _HI_ID_PODS=""
+    _HI_ID_AUTH=auth _HI_ID_PUB=pub
+    _HI_HEADER_ORDER="containers gitid" hi_header Connected
+  )"
+  [[ "$out" != *LAUNCHED* && "$out" == *gitid* ]]
+}
+
 # shellcheck disable=SC2209 # the literal command name "sh" is intentional, not a botched `sh` invocation
 _HI_REAL_CMD=sh
 _HI_FAKE_CMD=definitely-not-a-real-hi-test-command-xyz
@@ -1638,6 +1663,8 @@ function run_header_tests() {
   _hi_check "No output when disabled" test_hi_header_disabled_produces_no_output
   _hi_check "Prints the banner when enabled" test_hi_header_enabled_prints_banner
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
+  _hi_check "A backend word launches the probes" test_hi_header_launches_probes_for_a_backend_word
+  _hi_check "...but not once identity is memoized" test_hi_header_skips_probe_launch_once_identity_is_memoized
   _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order
   _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word

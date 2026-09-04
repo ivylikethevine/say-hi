@@ -821,7 +821,10 @@ function hi_header() {
   # clock. Only the three that actually consume a backend probe gate this -
   # gitid/auth/pub never did, so they cost nothing here whether or not they
   # end up in the order.
-  if _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; then
+  # Skipped once identity is memoized (configure.sh renders the header
+  # repeatedly in subshells): a relaunch there would start backends nobody
+  # waits on and leave their mktemp dir behind.
+  if [ -z "${_HI_ID_PROBED:-}" ] && { _hi_order_has containers || _hi_order_has jobs || _hi_order_has pods; }; then
     _hi_probe_launch
   fi
   local row
