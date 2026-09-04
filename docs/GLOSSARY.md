@@ -786,28 +786,42 @@ per-cluster, per-workload. Without it the `cpu` header cell fell all the way
 to `_hi_cpu_clocks`'s `?` fallback.
 
 What actually carries a number is the power manager's own boost table, in the
-IOKit registry: `pmgr`'s `voltage-states<N>-sram` properties are
-(frequency-Hz, voltage-µV) uint32 pairs, ascending, one table per core
+IOKit registry: `pmgr`'s `voltage-states<N>-sram` properties are each an
+ascending list of (frequency-Hz, voltage) uint32 pairs, one table per core
 cluster. This is **undocumented and reverse-engineered** — the technique
-`asitop` and `mx-power-gadget` use, not an Apple-published interface. Two
+`asitop` and `mx-power-gadget` use, not an Apple-published interface. Three
 consequences follow from that:
 
+- **No awk at all, on purpose.** A first cut parsed the hex in awk with
+  `strtonum()` - a gawk extension absent from the One True Awk macOS ships
+  as `/usr/bin/awk`, so it failed outright on the machine this was written
+  for. `$((16#word))`, bash's own hex-to-decimal arithmetic (bash 3.2 has
+  had it since the beginning), replaced the whole hand-written hex parser -
+  shorter, and nothing left to be missing on a different awk.
 - **Which numbered key holds the P-cluster's table has moved between chip
-  generations** (5 on M1, a different index on later ones), so every
-  `voltage-states0-sram` through `voltage-states9-sram` is tried and the
-  single highest frequency found across all of them wins, rather than trusting
-  one fixed index.
+  generations** (index 5 on the M1 family confirmed against real hardware;
+  a later generation may differ), so every `voltage-states0-sram` through
+  `voltage-states9-sram` is tried and the single highest frequency found
+  across all of them wins, rather than trusting one fixed index - the
+  E-cluster's table is always present alongside the P-cluster's and always
+  tops out lower, so taking the global max needs no per-index chip logic at
+  all.
 - **`ioreg -l`'s hex dump is the property's bytes in storage order**
   (little-endian on this hardware), so each 4-byte word is byte-reversed
   before being read as a frequency — get this backwards and the cell shows a
   number, not a failure, which is why a parse that finds nothing leaves
   `boost_mhz` empty rather than guessing: the existing `?` fallback is the
-  safe failure mode, a wrong number is not.
+  safe failure mode, a wrong number is not. Voltage words in these tables
+  are always three-plus orders of magnitude smaller than any real clock
+  speed, so scanning every 4-byte word (not just the alternating frequency
+  ones) and taking the single highest value is safe as well as simpler.
 
-No macOS box tests this path: `tests/lint/dialects_test.sh`'s zsh/fish
-containers and `tests/targets/ssh_test.sh`'s bash-3.2 container are Linux,
-and `.github/workflows/macos-e2e.yml` runs `hi` but does not assert on the
-header's CPU cell. A parse that goes wrong on a real Mac needs the raw
-`ioreg -l | grep -i voltage-states` output from that machine to fix — the
-literal hex tells whether the byte order or the key index assumption above
-has moved again.
+Verified against a real Apple Silicon Mac's `ioreg -l` output (an M1-family
+chip): the P-cluster's `voltage-states5-sram` table decoded to a clean
+ascending step sequence topping out at 3204 MHz, against a
+`voltage-states1-sram` (E-cluster) table topping out at 2064 MHz - the
+global-max approach picked the right one with no index-specific logic. A
+parse that comes out wrong on a different Mac needs the raw
+`ioreg -l | grep -i voltage-states` output from that machine to fix - the
+literal hex says whether the byte order or the key index assumption above
+has moved.

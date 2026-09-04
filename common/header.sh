@@ -400,22 +400,20 @@ function _hi_system_info_probe() {
     # value here, and boost_mhz is left for the ioreg probe below to try.
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
     # GLOSSARY: HI.49 - the P-cluster boost table, off Apple Silicon's own
-    # power manager, when sysctl above found nothing
+    # power manager, when sysctl above found nothing. $((16#word)) is bash's
+    # own hex parser - no awk, no gawk-only strtonum to be missing.
     if [ -z "$base_mhz" ] && command -v ioreg >/dev/null 2>&1; then
-      boost_mhz=$(
-        ioreg -l 2>/dev/null | grep -o 'voltage-states[0-9]-sram" = <[0-9a-f]*>' |
-          grep -o '<[0-9a-f]*>' | tr -d '<>' |
-          awk '{
-            for (i = 1; i <= length($0); i += 8) {
-              word = substr($0, i, 8)
-              if (length(word) < 8) continue
-              hex = substr(word, 7, 2) substr(word, 5, 2) substr(word, 3, 2) substr(word, 1, 2)
-              freq = strtonum("0x" hex)
-              if (freq > max) max = freq
-            }
-          }
-          END { if (max > 0) printf "%.0f", max / 1000000 }'
-      )
+      local max_hz=0 word freq
+      for word in $(
+        ioreg -l 2>/dev/null |
+          sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' |
+          fold -w8 | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/'
+      ); do
+        [ "${#word}" -eq 8 ] || continue
+        freq=$((16#$word))
+        [ "$freq" -gt "$max_hz" ] && max_hz=$freq
+      done
+      [ "$max_hz" -gt 0 ] && boost_mhz=$((max_hz / 1000000))
     fi
   fi
   _hi_sanitize_var os "$os"
