@@ -371,12 +371,15 @@ questions decided against are **deleted**: git history is the ledger.
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **WSL proven** — _scope: one green push._ The job is written and
-       pinned: `windows-e2e.yml`'s `wsl` runs the fast suites inside an
-       Ubuntu WSL distribution, lays down the package layout with
-       `install.sh --prefix`, and says `hi` into it from Git Bash. **Do:**
-       push, read the run, fix what a hosted runner disagrees with. **Ticks
-       when:** the job is green on `main` and SUPPORT.md's WSL row reads ✅.
+2. [ ] **WSL proven** — _scope: one green push._ The jobs are written and
+       pinned: `windows-e2e.yml`'s `wsl-suites` runs the fast suites inside
+       an Ubuntu WSL distribution, sharded and from a copy on the
+       distribution's own filesystem (the first run read them over WSL 2's
+       9p `/mnt` and outlived its timeout), and `wsl` lays down the package
+       layout with `install.sh --prefix` and says `hi` into it from Git
+       Bash. **Do:** push, read the run, fix what a hosted runner disagrees
+       with. **Ticks when:** both are green on `main` and SUPPORT.md's WSL
+       row reads ✅.
 
 3. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
        on access to real appliance hardware, which nothing in this checkout

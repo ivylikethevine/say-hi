@@ -675,11 +675,16 @@ function _hi_shards_cover_group() {
   [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ]
 }
 
-# The count is a contract with windows-client.yml - its matrix lists one
-# entry per shard and the run passes HI_SHARDS as the divisor; the two halves
-# CI runs on Windows are exactly the fast group.
+# The count is a contract with the two sharded Windows jobs - each matrix
+# lists one entry per shard and each run passes HI_SHARDS as the divisor; the
+# halves CI runs under Git Bash, and again inside WSL, are exactly the fast
+# group.
 function test_windows_client_shards_cover_the_fast_group() {
   _hi_shards_cover_group windows-client.yml - fast
+}
+
+function test_windows_e2e_wsl_shards_cover_the_fast_group() {
+  _hi_shards_cover_group windows-e2e.yml wsl-suites fast
 }
 
 function test_ci_e2e_shards_cover_the_e2e_group() {

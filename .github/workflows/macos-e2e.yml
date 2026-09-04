@@ -81,24 +81,73 @@ jobs:
           printf '%s\n' "$out" | grep -q HI_MAC_LOOP_OK
 
       # A full session: the header's Darwin branch (sw_vers, sysctl, vm_stat)
-      # has to say macOS, hi_info has to name this checkout as the tree, and
-      # the disconnect banner has to close it. The commands ride in on the
-      # pty's input queue ahead of the prompt; python 3.12+ ends pty.spawn on
-      # stdin EOF rather than hanging, which is what lets a pipe drive it.
+      # has to say macOS, hi_info has to name the session's tree, and the
+      # disconnect banner has to close it. Driven the way tests/lib/process.sh's
+      # _hi_interactive_case drives one - wait for a marker, type the next
+      # line - rather than by a pipe queued ahead of the prompt: input that
+      # arrives before load() has printed its "hi loaded with" banner lands on
+      # whatever is reading the pty at the time, and pty.spawn never closes
+      # the master on stdin EOF, so one missed line left this step sitting
+      # out the job's whole 15 minutes with nothing in the log. The driver
+      # gives up at 90s (the ssh suite's own budget) naming the marker that
+      # never came; the transcript goes to the log as it arrives and to a
+      # file for the greps, so a hang still shows how far it got. macOS has
+      # no GNU `timeout`, so the deadline is the driver's own.
+      #
+      # hi_root is a payload tree, not this checkout: nothing installs say-hi
+      # on the loopback or writes _HI_HOME into an rc there, so the install
+      # probe finds no permanent tree and the session unpacks under
+      # $TMPDIR/<user>.hi.XXXXXX - the BSD-both-ends wire path this job is for.
       - name: Say hi to ourselves (a full session)
         run: |
           set -euo pipefail
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          out="$(printf 'hi_info\nexit\n' | python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
-            /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
+          python3 - /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-            "$USER@127.0.0.1" 2>&1)" || true
-          printf '%s\n' "$out"
-          printf '%s\n' "$out" | grep -q 'Connected'
-          printf '%s\n' "$out" | grep -q 'macOS'
-          printf '%s\n' "$out" | grep -q "hi_root: $GITHUB_WORKSPACE"
-          printf '%s\n' "$out" | grep -q 'Disconnected'
+            "$USER@127.0.0.1" <<'PY' 2>&1 | tee "$RUNNER_TEMP/session.log" || true
+          import os, pty, select, sys, time
+          argv = sys.argv[1:]
+          pid, fd = pty.fork()
+          if pid == 0:
+              os.execvp(argv[0], argv)
+          deadline = time.time() + 90
+          seen = b""
+          def pump(until):
+              global seen
+              while until is None or until not in seen:
+                  left = deadline - time.time()
+                  if left <= 0:
+                      sys.stdout.flush()
+                      sys.exit("driver: gave up after 90s waiting for %s" % (
+                          repr(until.decode()) if until else "the session to close"))
+                  ready, _, _ = select.select([fd], [], [], min(left, 1.0))
+                  if fd not in ready:
+                      continue
+                  try:
+                      data = os.read(fd, 4096)
+                  except OSError:
+                      data = b""
+                  if not data:
+                      if until is None:
+                          return
+                      sys.stdout.flush()
+                      sys.exit("driver: pty closed before %r" % until.decode())
+                  seen += data
+                  sys.stdout.buffer.write(data)
+                  sys.stdout.flush()
+          pump(b"hi loaded with")
+          os.write(fd, b"hi_info\n")
+          pump(b"hi_root:")
+          os.write(fd, b"exit\n")
+          pump(None)
+          _, status = os.waitpid(pid, 0)
+          sys.exit(os.waitstatus_to_exitcode(status))
+          PY
+          grep -q 'Connected' "$RUNNER_TEMP/session.log"
+          grep -q 'macOS' "$RUNNER_TEMP/session.log"
+          grep -Eq "hi_root: .*/$USER\.hi\.[A-Za-z0-9]{6}/say-hi" "$RUNNER_TEMP/session.log"
+          grep -q 'Disconnected' "$RUNNER_TEMP/session.log"
 
       # --doctor reaches the target read-only over the Host entry above and
       # reports in JSON; its exit code is the count of `bad` rows, so a

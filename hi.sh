@@ -549,10 +549,16 @@ function _hi_tty() {
 # with the thing it is a prompt *about* thrown away - trust-on-first-use with
 # nothing to base the trust on. The probe's own noise on an odd target is the
 # price, and it is the cheaper of the two.
+#
+# stdin *is* redirected (-n): this ssh runs before the session exists, and
+# without it anything typed or piped ahead - a user's type-ahead, a driver's
+# `hi_info` - is forwarded to the probe's `sh -c`, which never reads it, and
+# the session shell then waits on input that is already gone. The prompts
+# above come from /dev/tty, so -n costs them nothing.
 function _hi_remote_root() {
   local out
   out="$(_hi_ssh_sh "$(_hi_remote_root_probe)" \
-    "$@" -o ConnectTimeout=5)" || out=""
+    "$@" -n -o ConnectTimeout=5)" || out=""
   printf '%s' "$out"
 }
 
