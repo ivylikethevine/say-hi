@@ -321,6 +321,7 @@ order you want them to print, any subset:
 | `cores`      | core count and load percentage                      |
 | `cpu`        | base/boost clock speed                              |
 | `ram`        | used/total memory                                   |
+| `ip`         | this box's routable IPv4 address(es)                |
 | `gitid`      | the masked git identity (`user.email`)              |
 | `containers` | the docker/podman container count, when either runs |
 | `jobs`       | the nomad job count, when nomad answers             |
@@ -339,8 +340,9 @@ word's color for its alternate rather than let it repeat the cell before it -
 so reordering never puts two same-colored cells side by side, even though the
 order above is free-form
 ([HI.48](GLOSSARY.md#hi48-header-cell-hue-resolution)). Defaults to `utc
-version localtime os arch cores cpu ram gitid containers jobs pods auth pub
-uptime check`, today's shipped order, so an unset override changes nothing.
+version localtime os arch cores cpu ram ip gitid containers jobs pods auth
+pub uptime check`, today's shipped order, so an unset override changes
+nothing.
 
 A physical line that overflows `_HI_MAX_WIDTH` no longer wraps within itself:
 whatever does not fit opens the next line instead, cascading forward through

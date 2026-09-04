@@ -787,6 +787,7 @@ function _hi_header_word_desc() {
   cores) printf -v "$2" '%s' "core count and load" ;;
   cpu) printf -v "$2" '%s' "base/boost clock speed" ;;
   ram) printf -v "$2" '%s' "used/total memory" ;;
+  ip) printf -v "$2" '%s' "this box's routable IPv4 address(es)" ;;
   gitid) printf -v "$2" '%s' "your git identity, domain masked" ;;
   containers) printf -v "$2" '%s' "docker/podman container count, when either runs" ;;
   jobs) printf -v "$2" '%s' "nomad job count, when nomad answers" ;;

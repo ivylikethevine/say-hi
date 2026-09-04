@@ -378,7 +378,19 @@ questions decided against are **deleted**: git history is the ledger.
        push, read the run, fix what a hosted runner disagrees with. **Ticks
        when:** the job is green on `main` and SUPPORT.md's WSL row reads ✅.
 
-3. [ ] **AUR** — _scope: nothing until registration reopens; then an
+3. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
+       on access to real appliance hardware, which nothing in this checkout
+       supplies._ SUPPORT.md's NAS rows read 🟡 ("full session expected...
+       nobody has run it on the appliance") — plain disposable `hi` isn't even
+       confirmed there yet, before a permanent-install recipe is worth
+       writing to spare a slow link the ~48KB-a-connect payload. **Do:** get
+       `hi <target>` working once on a real DSM, QTS, SCALE, Unraid or CORE
+       box and flip that row to ✅; only then is `scripts/install.sh --prefix`
+       (or a package, where one exists for the platform) worth walking
+       end-to-end and writing up. **Ticks when:** one NAS row is ✅ and the
+       recipe is linked from it.
+
+4. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
@@ -390,19 +402,21 @@ questions decided against are **deleted**: git history is the ledger.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
 
-4. [ ] **Weighed, open for an audience argument** — _scope: each its own
-       entry once someone is sitting in it_
-       ([docs/SUPPORT.md](docs/SUPPORT.md#what-would-change-an-answer) has
-       the rule). A devcontainer Feature that installs say-hi into the
-       container, for the terminal you already sit in; an `examples/`
-       Ansible role dropping the package and `/etc/say-hi/settings.sh`; an
-       opt-in `logger` line per session for shops that audit who reached
-       what; a client-side `tmux new -A -s hi-<target>` wrap, since a
-       target-side survivor stays a no; a permanent-install recipe for a NAS
-       on a slow link, where 48KB a connect shows. None ticks; each is
-       promoted or deleted.
-
-Misc:
-
-1. show users IP(s) in header
-2.
+5. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
+       eighteen, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
+       count), target-name sanitization, a suite, docs._ The target-side
+       version of this shipped, then was removed and declined
+       ([why](docs/SUPPORT.md#features-that-were-removed)) — a disposable
+       tree cannot outlive its own session. Today's workaround is manual:
+       start `hi` inside your own `tmux`/`screen` ([README](#in-sixty-seconds)).
+       This automates that one step, entirely client-side, no target-side
+       footprint at all — wrapping the session in `tmux new -A -s hi-<target>`,
+       attaching if that name is already running rather than opening a
+       second one. **Do:** a flag/toggle (chosen not to reuse the
+       removed `_HI_TMUX_*`/`--tmux` names — those meant the target-side
+       feature), a sanitizer for target strings tmux's session-name rules
+       reject (`:` in a kube `context:namespace:pod`, `/` in a nested
+       target), a suite under `tests/hi/` or `tests/targets/`, a
+       `docs/SETTINGS.md` row. **Ticks when:** the toggle ships, tested and
+       documented, and reconnecting to the same target reattaches instead of
+       opening a second session.

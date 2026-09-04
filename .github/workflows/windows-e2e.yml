@@ -86,6 +86,16 @@ jobs:
     name: hi into WSL (Ubuntu, Git Bash client)
     runs-on: windows-latest
     timeout-minutes: 30
+    # wsl-bash {0} runs the step inside the distribution, which does not
+    # inherit the runner's environment on its own - WSLENV is the allowlist
+    # of names Windows shares across that boundary, unflagged (no /p) so the
+    # raw backslashed value crosses unchanged for the wslpath -u calls below
+    # to translate themselves, the way they already assumed it would arrive.
+    # Without this, $GITHUB_WORKSPACE and $USERPROFILE are simply unset
+    # inside every wsl-bash step - "unbound variable" under this job's own
+    # set -eu, not a hang, whatever the log looks like mid-run.
+    env:
+      WSLENV: GITHUB_WORKSPACE:USERPROFILE
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
