@@ -118,7 +118,12 @@ function _hi_poll_budget() {
 # Both pollers take (tries, interval) - the shape every call site speaks -
 # but tries*interval only sizes the wall-clock budget: the deadline is the
 # one bound, for _hi_wait_pid's reason (an iteration counter stretches
-# without bound exactly when the machine is busiest).
+# without bound exactly when the machine is busiest). The trailing +1 covers
+# $SECONDS itself: it counts whole seconds and is already truncated by an
+# unknown fraction when read, so a bare `SECONDS + budget` deadline delivers
+# somewhere between budget-1 and budget seconds, never a guaranteed budget -
+# at the 1-second floor, sometimes nothing at all. The tick makes the asked-for
+# budget the floor rather than the ceiling.
 function _hi_poll_bool() {
   local abort=""
   if [ "$1" = -a ]; then
@@ -127,7 +132,7 @@ function _hi_poll_bool() {
   fi
   local tries="$1" interval="$2" deadline
   shift 2
-  deadline=$((SECONDS + $(_hi_poll_budget "$tries" "$interval")))
+  deadline=$((SECONDS + $(_hi_poll_budget "$tries" "$interval") + 1))
   while :; do
     "$@" >/dev/null 2>&1 && return 0
     if [ -n "$abort" ] && ! "$abort"; then
@@ -141,7 +146,7 @@ function _hi_poll_bool() {
 function _hi_poll_value() {
   local tries="$1" interval="$2" out deadline
   shift 2
-  deadline=$((SECONDS + $(_hi_poll_budget "$tries" "$interval")))
+  deadline=$((SECONDS + $(_hi_poll_budget "$tries" "$interval") + 1))
   while :; do
     out="$("$@" 2>/dev/null)"
     if [ -n "$out" ]; then
@@ -157,15 +162,15 @@ function _hi_poll_value() {
 # fixed sleep only equals timeout_s when nothing else is competing for the
 # machine, and stretches without bound when something is - which is exactly
 # when an e2e suite is most likely to need the timeout. _hi_poll_bool and
-# _hi_poll_value use the same deadline; this matches them. The poll is 50ms:
-# a pty case that finishes in under a second used to pay up to a quarter of
-# it again just waiting to be noticed, and configure's thirty-odd of them
-# added up.
+# _hi_poll_value use the same deadline; this matches them, +1 included. The
+# poll is 50ms: a pty case that finishes in under a second used to pay up to a
+# quarter of it again just waiting to be noticed, and configure's thirty-odd
+# of them added up.
 function _hi_wait_pid() {
   local pid="$1" timeout_s="$2" deadline
   shift 2
   _HI_WAIT_EXIT=0
-  deadline=$((SECONDS + timeout_s))
+  deadline=$((SECONDS + timeout_s + 1))
   while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || break
     sleep 0.05
