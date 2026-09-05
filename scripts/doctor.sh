@@ -233,7 +233,12 @@ function doctor_local() {
   if [ -z "$missing" ]; then
     wire="$(_hi_wire_bytes)"
     doctor_row payload "$(_hi_human_bytes "$wire") over the wire per ssh session, $(_hi_size) unpacked (${_HI_PAYLOAD[*]})"
-    doctor_payload_diff "$wire"
+    # the stock figure is a second full assembly (~300 forks); an overlay dir
+    # with nothing in it can only differ from stock by the run-to-run noise
+    # the floor exists to hide, so the diff row is skipped without building it
+    if [ -d "$_HI_CONFIG_DIR" ] && [ -n "$(ls -A "$_HI_CONFIG_DIR" 2>/dev/null)" ]; then
+      doctor_payload_diff "$wire"
+    fi
   else
     doctor_row payload "unknown - needs $missing to measure (${_HI_PAYLOAD[*]})" bad
   fi

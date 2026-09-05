@@ -699,11 +699,13 @@ function identity() {
 function banner() {
   [[ "${_HI_HEADER_BANNER:-1}" == 0 ]] && return 0
   local label="$1" color="${2:-$BRGREEN}" changes="" prefix="${3:-}" changes_w=0
-  # ~10ms of `git status`, computed once and kept for both banners
+  # ~10ms of `git status`, computed once and kept for both banners.
+  # --no-optional-locks as git_prompt.sh: a plain `git status` also rewrites
+  # .git/index - cheap on ext4, a 9p round trip per file on a /mnt checkout.
   if [ -d "$_HI_ROOT/.git" ]; then
     if [ -z "${_HI_BANNER_CHANGES+x}" ]; then
       local -a lines
-      _hi_read_lines lines < <(git -C "$_HI_ROOT" status --short 2>/dev/null)
+      _hi_read_lines lines < <(git -C "$_HI_ROOT" --no-optional-locks status --short 2>/dev/null)
       _HI_BANNER_CHANGES="${#lines[@]}"
       # symbolic-ref is empty on detached HEAD and main is blanked, so only
       # an unusual branch earns a callout

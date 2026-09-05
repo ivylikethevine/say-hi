@@ -144,6 +144,17 @@ jobs:
         run: |
           set -eu
           ws="$(wslpath -u "$GITHUB_WORKSPACE")"
+          # The Windows PATH rides into the distribution too (WSL's interop
+          # appendWindowsPath default): some fifty /mnt/c/... entries, each
+          # a 9p round trip per stat. The package check is 279 `command -v`
+          # lookups per render and bash caches no misses, so one full_check
+          # walked ~10,000 /mnt/c stats and took 30-37s here against 30ms
+          # on ext4 - past the configure suite's 30s pty cases, and the
+          # whole shard past the 900s kill below. The check-heavy suites
+          # (configure, header, packages_preview) all sit on shard 2, which
+          # is where it showed. Nothing below needs a Windows binary.
+          PATH="$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd: -)"
+          export PATH
           mkdir -p "$HOME/hi-tree"
           cp -a "$ws" "$HOME/hi-tree/say-hi"
           cd "$HOME/hi-tree/say-hi"

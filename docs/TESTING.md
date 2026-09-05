@@ -63,6 +63,13 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   deadline. `setsid` outside `timeout`, not inside, so `timeout` still kills
   the runner's own process group. GitHub's ubuntu runner has no controlling
   terminal, which is why the same run is clean there without it.
+- Under WSL 2, drop the `/mnt/` entries from `$PATH` before running (the
+  `wsl-suites` job in `windows-e2e.yml` does). WSL's interop default appends
+  the Windows PATH, some fifty `/mnt/c/...` directories served over 9p, and
+  the package check is 279 `command -v` lookups per render with no miss
+  caching: one `full_check` took 30–37s there against 30ms on ext4, which
+  is past the `configure` suite's 30s pty cases and, over the `header` and
+  `packages_preview` suites too, past the job's 900s kill.
 
 Five groups (`--group <name>`; `--list` prints the membership):
 
@@ -140,6 +147,11 @@ _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can ta
 
 `nomad` pins itself to `_HI_PAR_WIDTH=1`: its jobs are tracked in a shell array
 its cleanup hook purges, the one fixture in the tree that is not case-scoped.
+
+The pty-driven cases (`configure`, `install`) kill their child after 30s and
+count that as a failure; `_HI_CASE_TIMEOUT` raises the deadline on a host that
+is slow for a reason the suites cannot fix, the way `_HI_SSH_CASE_TIMEOUT`
+(90s) does for the ssh cases.
 
 ### The install-method suite
 
