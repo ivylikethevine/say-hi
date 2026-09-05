@@ -1322,11 +1322,25 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
   }
 }
 
-# ...and the header itself then prints no IP cell at all
+# ...and the header itself then prints no IP cell at all. Shimmed the same
+# way the sibling above is: hi_header run against the *real* uname/ifconfig
+# only proves this on a box whose live network happens to hand back a
+# non-loopback IPv4 the parser recognizes - on one that doesn't, _hi_ip_cell
+# takes its "nothing routable found" path and prints "IP: ?" regardless of
+# $_HI_IP_HIDE, which still contains "IP:" and fails this for a reason that
+# has nothing to do with the hiding this test means to check.
 function test_header_omits_the_ip_cell_when_hidden() {
-  local out
-  out="$(_HI_HEADER_ORDER='utc ip' _HI_IP_HIDE='*' hi_header Connected 2>&1)"
-  [[ "$out" == *"Connected"* && "$out" == *" UTC"* && "$out" != *"IP:"* ]]
+  local dir="$_HI_WORKDIR/ip-hide-header-shims" out
+  mkdir -p "$dir"
+  printf '#!/bin/sh\necho "Darwin arm64"\n' >"$dir/uname"
+  printf '#!/bin/sh\nprintf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 10.0.0.5 netmask 0xffffff00\n"\n' >"$dir/ifconfig"
+  chmod +x "$dir/uname" "$dir/ifconfig"
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$dir" 'hi_header Connected' _HI_HEADER_ORDER='utc ip' _HI_IP_HIDE='*')"
+  [[ "$out" == *"Connected"* && "$out" == *" UTC"* && "$out" != *"IP:"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
 }
 
 function test_uptime_and_ip_cells_on_windows() {

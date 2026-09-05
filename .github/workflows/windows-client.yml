@@ -7,12 +7,14 @@ name: Windows client
 # as a real gate (a failing suite fails the push, no continue-on-error);
 # dispatch runs it on its own.
 #
-# Two runners, half the table each: the fast group takes about seven minutes
-# under Git Bash - backgrounded suites barely overlap there (tests/lib/
-# fixtures.sh's fork_concurrency), so the runner's width-4 run is close to
-# serial and only more machines shorten it. The `fast-suites` job below folds
-# the shards back into the one check name README's badge and CONTRIBUTING's
-# table know, "fast suites (Windows client) / fast suites (Git Bash)".
+# Four runners, a quarter of the table each: the fast group takes about
+# seven minutes under Git Bash - backgrounded suites barely overlap there
+# (tests/lib/fixtures.sh's fork_concurrency), so the runner's width-4 run is
+# close to serial and only more machines shorten it - four shards cut it
+# further than the two-shard split this replaced. The `fast-suites` job below
+# folds the shards back into the one check name README's badge and
+# CONTRIBUTING's table know, "fast suites (Windows client) / fast suites
+# (Git Bash)".
 on:
   workflow_call:
   workflow_dispatch:
@@ -22,13 +24,13 @@ permissions:
 
 jobs:
   shard:
-    name: fast suites (Git Bash, shard ${{ matrix.shard }} of 2)
+    name: fast suites (Git Bash, shard ${{ matrix.shard }} of 4)
     runs-on: windows-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,7 +49,7 @@ jobs:
         # exactly the fast group
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 2
+          HI_SHARDS: 4
         run: |
           set -euo pipefail
           # hi.sh derives its own tree (GLOSSARY: HI.33), so this export is
