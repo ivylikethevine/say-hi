@@ -183,7 +183,7 @@ function test_session_rc_setup_writes_only_the_set_vars() {
   local dir bashrc fish_config ok=1
   (
     local _HI_SESSION_RC_DIR="" _HI_TARGET=myhost _HI_TARGET_COLOR=blue
-    unset _HI_TARGET_TAG _HI_LOCAL_USER _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII
+    unset _HI_TARGET_TAG _HI_LOCAL_USER _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
     _hi_session_rc_setup || exit 1
     printf '%s\n' "$_HI_SESSION_RC_DIR"
   ) >"$_HI_WORKDIR/onlyset_out"

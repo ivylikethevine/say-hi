@@ -101,25 +101,103 @@ export _HI_SHELL_TREE="fish zsh bash dash ash sh"
 # fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan)
 
+# Does this terminal do 24-bit color? $COLORTERM is the de facto signal;
+# _HI_TRUECOLOR overrides both ways (1 forces, 0 refuses) and is what hi.sh
+# ships as the *client's* verdict, since ssh never forwards COLORTERM. No
+# fork, the _hi_has_color rule (GLOSSARY: HI.16). $NO_COLOR is not re-tested
+# here: the palette block and _hi_color_escape_var blank first.
+function _hi_has_truecolor() {
+  case "${_HI_TRUECOLOR:-}" in 1) return 0 ;; 0) return 1 ;; esac
+  case "${COLORTERM:-}" in truecolor | 24bit) return 0 ;; esac
+  return 1
+}
+function _hi_truecolor_flag() { _hi_has_truecolor && printf '1\n' || printf '0\n'; }
+
+# _hi_scheme_hex <outvar> <index> - rrggbb for _HI_COLOR_NAMES slot <index>
+# under $_HI_COLOR_SCHEME, empty when there is no scheme, the name is
+# unknown, or the terminal is not truecolor. Twelve six-digit words per
+# scheme in one fixed-width string, sliced by offset: no arrays (zsh indexes
+# them from 1), no read, no fork. The vocabulary is still the twelve names -
+# a scheme changes what a name renders as, never which name a host hashes
+# to or what settings/colors may pin. GLOSSARY: HI.50
+function _hi_scheme_hex() {
+  local _hi_sh_t
+  printf -v "$1" '%s' ''
+  _hi_has_truecolor || return 0
+  case "${_HI_COLOR_SCHEME:-}" in
+  catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca' ;;
+  monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4' ;;
+  onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5' ;;
+  vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db' ;;
+  *) return 0 ;;
+  esac
+  printf -v "$1" '%s' "${_hi_sh_t:$(($2 * 7)):6}"
+}
+
+# _hi_color_escape_at <outvar> <index> - the literal '\e[..m' string for
+# slot <index> (the two characters backslash-e, which every palette variable
+# holds; a consumer's final printf '%b' makes it an ESC). One SGR: the
+# 16-color pair first, then ;38;2;r;g;b when the scheme and the terminal
+# both say so, so a terminal that ignores the second keeps the first, and
+# header.sh's hue and width readers still see one escape. GLOSSARY: HI.50
+function _hi_color_escape_at() {
+  local _hi_ce_h _hi_ce_rgb=""
+  _hi_scheme_hex _hi_ce_h "$2"
+  [ -n "$_hi_ce_h" ] && _hi_ce_rgb=";38;2;$((16#${_hi_ce_h:0:2}));$((16#${_hi_ce_h:2:2}));$((16#${_hi_ce_h:4:2}))"
+  printf -v "$1" '\\e[%d;3%d%sm' "$(($2 / 6))" "$(($2 % 6 + 1))" "$_hi_ce_rgb"
+}
+
+# _hi_color_escape_var <outvar> <name> - by name; unknown names reset,
+# $NO_COLOR blanks the lot. Every hashed color comes through here.
+function _hi_color_escape_var() {
+  local _hi_cv_i=0 _hi_cv_n
+  printf -v "$1" '%s' ''
+  [ -n "${NO_COLOR:-}" ] && return 0
+  for _hi_cv_n in "${_HI_COLOR_NAMES[@]}"; do
+    [ "$_hi_cv_n" = "$2" ] && {
+      _hi_color_escape_at "$1" "$_hi_cv_i"
+      return 0
+    }
+    _hi_cv_i=$((_hi_cv_i + 1))
+  done
+  printf -v "$1" '%s' "$NC"
+}
+
+# _hi_color_hex <outvar> <name> - rrggbb for <name> under the scheme, empty
+# when the escape would be the plain 16-color one; zsh's %F{#..} and fish's
+# set_color take the hex where the escape form does not fit
+function _hi_color_hex() {
+  local _hi_ch_i=0 _hi_ch_n
+  printf -v "$1" '%s' ''
+  [ -n "${NO_COLOR:-}" ] && return 0
+  for _hi_ch_n in "${_HI_COLOR_NAMES[@]}"; do
+    [ "$_hi_ch_n" = "$2" ] && {
+      _hi_scheme_hex "$1" "$_hi_ch_i"
+      return 0
+    }
+    _hi_ch_i=$((_hi_ch_i + 1))
+  done
+}
+
+# The twelve exported palette variables, under the scheme and terminal of
+# the moment; re-callable (configure.sh's previews flip $_HI_COLOR_SCHEME and
+# call again). $PURPLE is the magenta slot's variable, as it always was.
+function _hi_assign_palette() {
+  local _hi_ap_i=0 _hi_ap_v
+  for _hi_ap_v in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
+    if [ -n "${NO_COLOR:-}" ]; then printf -v "$_hi_ap_v" '%s' ''; else _hi_color_escape_at "$_hi_ap_v" "$_hi_ap_i"; fi
+    export "$_hi_ap_v"
+    _hi_ap_i=$((_hi_ap_i + 1))
+  done
+}
+
 # https://no-color.org: non-empty $NO_COLOR blanks the palette. hi.sh ships it along.
 if [ -n "${NO_COLOR:-}" ]; then
-  export NC='' RED='' GREEN='' YELLOW='' BLUE='' PURPLE='' CYAN='' \
-    BRRED='' BRGREEN='' BRYELLOW='' BRBLUE='' BRPURPLE='' BRCYAN=''
+  export NC=''
 else
   export NC='\e[0m'
-  export RED='\e[0;31m'
-  export GREEN='\e[0;32m'
-  export YELLOW='\e[0;33m'
-  export BLUE='\e[0;34m'
-  export PURPLE='\e[0;35m'
-  export CYAN='\e[0;36m'
-  export BRRED='\e[1;31m'
-  export BRGREEN='\e[1;32m'
-  export BRYELLOW='\e[1;33m'
-  export BRBLUE='\e[1;34m'
-  export BRPURPLE='\e[1;35m'
-  export BRCYAN='\e[1;36m'
 fi
+_hi_assign_palette
 
 # _hi_cecho <text> [color] [no_newline]
 #
@@ -254,7 +332,7 @@ _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
-  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII)
+  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR)
 
 # _hi_unexport - drop the export attribute from every _HI_* name not in
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
@@ -434,19 +512,24 @@ function _hi_choose_glyphs() {
 }
 _hi_choose_glyphs
 
-# the ANSI escape for a palette name (_HI_COLOR_NAMES); unknown names reset,
-# $NO_COLOR blanks the lot. Every hashed color comes through here.
+# the ANSI escape for a palette name (_HI_COLOR_NAMES) as a real ESC on
+# stdout, for $( ) callers - the memos below and the previews;
+# _hi_color_escape_var (above) is the no-fork form
 function _hi_color_escape() {
-  local i=0 name
-  if [ -n "${NO_COLOR:-}" ]; then return 0; fi
-  for name in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$name" = "$1" ] && {
-      printf '\e[%d;3%dm' "$((i / 6))" "$((i % 6 + 1))"
-      return
-    }
-    i=$((i + 1))
+  local _hi_ce
+  _hi_color_escape_var _hi_ce "$1"
+  printf '%b' "$_hi_ce"
+}
+
+# two lines, "<hex> <name>" (or the bare name) for the user then the host:
+# what fish's set_color takes as a list and picks the first its terminal
+# renders (config.fish memoizes the answer)
+function _hi_prompt_colors() {
+  local _hi_pc_n _hi_pc_h
+  for _hi_pc_n in "$(_hi_user_color)" "$(_hi_host_color)"; do
+    _hi_color_hex _hi_pc_h "$_hi_pc_n"
+    printf '%s%s\n' "${_hi_pc_h:+$_hi_pc_h }" "$_hi_pc_n"
   done
-  printf '%b' "$NC"
 }
 
 # Deterministic name -> palette bucket, right in zsh as well as bash:

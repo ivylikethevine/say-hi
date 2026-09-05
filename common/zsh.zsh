@@ -58,6 +58,17 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # base color. The memos, not $( ): _hi_prime_identity filled both.
       USER_COLOR="${_HI_USER_COLOR//br/}"
       HOST_COLOR="${_HI_HOST_COLOR//br/}"
+      # under a color scheme the hex form instead, which %F{} takes from
+      # 5.7 on; an older zsh keeps the name (GLOSSARY: HI.50)
+      autoload -Uz is-at-least
+      if is-at-least 5.7; then
+        _hi_hex=""
+        _hi_color_hex _hi_hex "$_HI_USER_COLOR"
+        [ -n "$_hi_hex" ] && USER_COLOR="#$_hi_hex"
+        _hi_color_hex _hi_hex "$_HI_HOST_COLOR"
+        [ -n "$_hi_hex" ] && HOST_COLOR="#$_hi_hex"
+        unset _hi_hex
+      fi
       _hi_at_color=plain
       [ -n "${SSH_TTY:-}" ] && _hi_at_color=yellow
       PS1="$_hi_marks_a$_hi_lead"$'${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"

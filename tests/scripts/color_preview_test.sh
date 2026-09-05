@@ -293,6 +293,16 @@ function test_tables_render_without_error() {
 
 # a host with no override and no usable tag would render identically to a bare
 # `hi`, so it's deliberately left out of the table
+# a scheme paints the swatches with the 24-bit tail, and the header line
+# says which scheme it is (HI.50)
+function test_tables_render_under_a_scheme() {
+  local out
+  out="$(_HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_render_preview)" || return 1
+  [[ "$out" == *"scheme: catppuccin"* && "$out" == *";38;2;"* ]] || return 1
+  out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_preview)" || return 1
+  [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]]
+}
+
 function test_tables_skip_hosts_that_render_by_default() {
   ! printf '%s\n' "$_HI_PREVIEW_OUT" | grep -q '\bplain\b'
 }
@@ -413,6 +423,7 @@ EOF
 
   _hi_h2 "Testing: the rendered tables"
   _hi_check "Render without error" test_tables_render_without_error
+  _hi_check "Render under a scheme, and name it" test_tables_render_under_a_scheme
   _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
   _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
