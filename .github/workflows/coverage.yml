@@ -22,9 +22,9 @@ name: Coverage
 # workflow_run so every green push to main refreshes both figures without a
 # manual dispatch; each job gates on the run's conclusion and event the way
 # pages.yml does, and checkout uses the default ref, never the triggering
-# run's payload. pages.yml deploys off the same CI event, so a badge shows
-# the *previous* push's figure until the next deploy - the documented "last
-# figure anyone measured" design, now at most one push behind.
+# run's payload. pages.yml deploys off the same CI event and again when
+# this workflow completes, so a badge shows this run's figure as soon as
+# the sweep is done rather than on the next push.
 #
 # job-level continue-on-error, not workflow-level: pages.yml looks up "the
 # newest run of this workflow with status=success" once per badge, and that

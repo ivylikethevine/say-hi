@@ -10,6 +10,9 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
+# every batch here is plain local processes, no container daemon to spare
+_HI_PAR_LOCAL=1
+
 # _hi_fixture <name> <exit> [counts-line] - a stand-in suite: announces itself
 # as "ran:<name>", optionally writes <counts-line> to $_HI_COUNTS_FILE the way
 # _hi_report_counts/_hi_report_skip do, and exits <exit>. One writer rather
@@ -45,9 +48,11 @@ function _hi_skipping_fixture() {
 #
 # Memoized to files rather than through _hi_kv_set: that store is
 # newline-separated and $_HI_RUN_OUT is a whole run's transcript. The key is
-# everything that decides what a run produces, keyed by cksum because it
-# contains newlines; a collision would show up as a case failing, not as a
-# quietly wrong pass.
+# everything that decides what a run produces - the table, the arguments and
+# $_HI_RUN_WITH, which is why a case wanting _HI_MAX_WIDTH or _HI_HOST_REPORT
+# set passes it that way rather than exporting around the call - keyed by
+# cksum because it contains newlines; a collision would show up as a case
+# failing, not as a quietly wrong pass.
 _HI_RUN_MEMO_DIR=""
 
 function _hi_run_runner() {
@@ -93,8 +98,13 @@ function _hi_run_runner() {
     # shellcheck source=../test_runner.sh
     source "$_HI_TEST_RUN" "$@"
   )" || _HI_RUN_EXIT=$?
-  printf '%s' "$_HI_RUN_EXIT" >"$memo.exit"
-  printf '%s' "$_HI_RUN_OUT" >"$memo.out"
+  # written whole and renamed into place, so a batch case in one subshell can
+  # never hand a half-written memo to a sibling (or to the parent after it):
+  # the .out lands first and the .exit, the presence check above, last
+  printf '%s' "$_HI_RUN_OUT" >"$memo.out.$$"
+  printf '%s' "$_HI_RUN_EXIT" >"$memo.exit.$$"
+  mv -f "$memo.out.$$" "$memo.out"
+  mv -f "$memo.exit.$$" "$memo.exit"
 }
 
 function test_runs_every_suite_when_given_no_arguments() {
@@ -250,9 +260,7 @@ function _hi_status_line_len() {
 
 function test_status_lines_span_hi_max_width() {
   local name
-  export _HI_MAX_WIDTH=72
-  _hi_run_runner $'a:green.sh\nlongername:green.sh'
-  unset _HI_MAX_WIDTH
+  _HI_RUN_WITH="_HI_MAX_WIDTH=72" _hi_run_runner $'a:green.sh\nlongername:green.sh'
   for name in a longername; do
     [ "$(_hi_status_line_len "$name")" = 72 ] || {
       _hi_cecho " | '$name' status line is $(_hi_status_line_len "$name") wide, expected 72" "$RED"
@@ -276,9 +284,7 @@ function test_status_lines_align_verdicts_in_one_column() {
 # a name with no room left for the verdict pushes it right instead of losing
 # it, the same rule the summary table's name column follows
 function test_status_line_narrow_width_keeps_the_verdict() {
-  export _HI_MAX_WIDTH=20
-  _hi_run_runner $'averylongsuitename:green.sh'
-  unset _HI_MAX_WIDTH
+  _HI_RUN_WITH="_HI_MAX_WIDTH=20" _hi_run_runner $'averylongsuitename:green.sh'
   printf '%s\n' "$_HI_RUN_OUT" | grep -qE 'averylongsuitename +PASS \('
 }
 
@@ -286,9 +292,7 @@ function test_status_line_narrow_width_keeps_the_verdict() {
 # _HI_MAX_WIDTH, which the _hi_h1 rules above and below the table already use
 function test_summary_rows_span_hi_max_width() {
   local row
-  export _HI_MAX_WIDTH=72
-  _hi_run_runner $'a:green.sh\nlongername:green.sh'
-  unset _HI_MAX_WIDTH
+  _HI_RUN_WITH="_HI_MAX_WIDTH=72" _hi_run_runner $'a:green.sh\nlongername:green.sh'
   for row in SUITE a longername TOTAL; do
     [ "$(_hi_summary_field "$row" len)" = 72 ] || {
       _hi_cecho " | row '$row' is $(_hi_summary_field "$row" len) wide, expected 72" "$RED"
@@ -298,18 +302,14 @@ function test_summary_rows_span_hi_max_width() {
 }
 
 function test_summary_tracks_a_wider_hi_max_width() {
-  export _HI_MAX_WIDTH=110
-  _hi_run_runner $'a:green.sh'
-  unset _HI_MAX_WIDTH
+  _HI_RUN_WITH="_HI_MAX_WIDTH=110" _hi_run_runner $'a:green.sh'
   [ "$(_hi_summary_field TOTAL len)" = 110 ]
 }
 
 # too narrow to fit the names, the column keeps its natural size and the row
 # overflows - a truncated suite name would be worse than a long line
 function test_summary_narrow_width_does_not_truncate_names() {
-  export _HI_MAX_WIDTH=20
-  _hi_run_runner $'averylongsuitename:green.sh'
-  unset _HI_MAX_WIDTH
+  _HI_RUN_WITH="_HI_MAX_WIDTH=20" _hi_run_runner $'averylongsuitename:green.sh'
   [ -n "$(_hi_summary_field averylongsuitename len)" ]
 }
 

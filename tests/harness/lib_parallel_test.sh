@@ -275,10 +275,22 @@ function test_par_begin_announces_the_width() {
 function test_par_width_defaults_within_bounds() {
   local w
   w="$( (
-    unset _HI_PAR_WIDTH
+    unset _HI_PAR_WIDTH _HI_PAR_LOCAL
     _hi_par_width
   ))"
   [ "$w" -ge 1 ] && [ "$w" -le 4 ]
+}
+
+# a local-process suite gets the whole box; the daemon cap is the default only
+function test_par_width_local_is_the_core_count() {
+  local w cpus
+  cpus="$(_hi_host_cores)"
+  [ -n "$cpus" ] || cpus=2
+  w="$( (
+    unset _HI_PAR_WIDTH
+    _HI_PAR_LOCAL=1 _hi_par_width
+  ))"
+  [ "$w" -eq "$cpus" ]
 }
 
 function run_lib_parallel_tests() {
@@ -305,6 +317,7 @@ function run_lib_parallel_tests() {
   _hi_check "_HI_PAR_WIDTH=1 really serializes" test_par_width_one_really_serializes
   _hi_check "The width is announced, capped or not" test_par_begin_announces_the_width
   _hi_check "The default width stays within bounds" test_par_width_defaults_within_bounds
+  _hi_check "_HI_PAR_LOCAL=1 widens to the core count" test_par_width_local_is_the_core_count
 
   _hi_h2 "Testing: _hi_expect_eq"
   _hi_check "Passes on a match" test_expect_eq_passes_on_a_match

@@ -153,11 +153,14 @@ function _hi_poll_value() {
   done
 }
 
-# Wall-clock, not iteration count: `for ((i = 0; i < timeout_s * 4))` at
-# sleep 0.25 only equals timeout_s when nothing else is competing for the
+# Wall-clock, not iteration count: `for ((i = 0; i < timeout_s * N))` at a
+# fixed sleep only equals timeout_s when nothing else is competing for the
 # machine, and stretches without bound when something is - which is exactly
 # when an e2e suite is most likely to need the timeout. _hi_poll_bool and
-# _hi_poll_value use the same deadline; this matches them.
+# _hi_poll_value use the same deadline; this matches them. The poll is 50ms:
+# a pty case that finishes in under a second used to pay up to a quarter of
+# it again just waiting to be noticed, and configure's thirty-odd of them
+# added up.
 function _hi_wait_pid() {
   local pid="$1" timeout_s="$2" deadline
   shift 2
@@ -165,7 +168,7 @@ function _hi_wait_pid() {
   deadline=$((SECONDS + timeout_s))
   while [ "$SECONDS" -lt "$deadline" ]; do
     kill -0 "$pid" 2>/dev/null || break
-    sleep 0.25
+    sleep 0.05
   done
   if kill -0 "$pid" 2>/dev/null; then
     [ $# -gt 0 ] && "$@"

@@ -371,17 +371,7 @@ questions decided against are **deleted**: git history is the ledger.
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **WSL proven** — _scope: one green push._ The jobs are written and
-       pinned: `windows-e2e.yml`'s `wsl-suites` runs the fast suites inside
-       an Ubuntu WSL distribution, sharded and from a copy on the
-       distribution's own filesystem (the first run read them over WSL 2's
-       9p `/mnt` and outlived its timeout), and `wsl` lays down the package
-       layout with `install.sh --prefix` and says `hi` into it from Git
-       Bash. **Do:** push, read the run, fix what a hosted runner disagrees
-       with. **Ticks when:** both are green on `main` and SUPPORT.md's WSL
-       row reads ✅.
-
-3. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
+2. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
        on access to real appliance hardware, which nothing in this checkout
        supplies._ SUPPORT.md's NAS rows read 🟡 ("full session expected...
        nobody has run it on the appliance") — plain disposable `hi` isn't even
@@ -393,7 +383,7 @@ questions decided against are **deleted**: git history is the ledger.
        end-to-end and writing up. **Ticks when:** one NAS row is ✅ and the
        recipe is linked from it.
 
-4. [ ] **AUR** — _scope: nothing until registration reopens; then an
+3. [ ] **AUR** — _scope: nothing until registration reopens; then an
        account, a key, and one manual first push; outside this checkout._
        Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
@@ -405,7 +395,7 @@ questions decided against are **deleted**: git history is the ledger.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
 
-5. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
+4. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
        eighteen, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
        count), target-name sanitization, a suite, docs._ The target-side
        version of this shipped, then was removed and declined
@@ -424,6 +414,30 @@ questions decided against are **deleted**: git history is the ledger.
        documented, and reconnecting to the same target reattaches instead of
        opening a second session.
 
-### Misc
+5. [ ] **More color palettes** — _scope: color tables in `settings/colors`
+       and `common/header.sh`, one `hi --packages-preview` eyeball pass each,
+       a `docs/SETTINGS.md` row._ The header's packages check paints from
+       three named ramps (`_HI_PACKAGES_PALETTE`: `cool`, `warm`, `mono`)
+       and the prompt from the 16-color pins in `settings/colors`; both are
+       judged in the preview and read on light and dark terminals. **Do:**
+       add the popular schemes - Catppuccin, Monokai, One Dark, VS Code's
+       default - as named tables, and decide whether the pins may go past
+       the 16 named colors (256-color or truecolor escapes, behind a
+       capability check so a plain `TERM` still renders). **Ticks when:**
+       each scheme renders monotonic 0-3 in the preview on both backgrounds
+       and has its `docs/SETTINGS.md` row.
 
-1. Investigate migrating to a non-sh based test suite (or supplementing with one)
+6. [ ] **A non-sh test harness, or not** — _scope: an investigation and one
+       recorded decision; no product code._ The suite is 46 bash suites,
+       ~1500 cases, on a hand-rolled harness (`tests/test_lib.sh` +
+       `tests/lib/*.sh`, [docs/TESTING.md](docs/TESTING.md)) that has to run
+       under macOS's bash 3.2, Git Bash, WSL and FreeBSD's pkg bash, and does
+       its own parallel batches, pty driving, skips and coverage. **Do:** try
+       bats-core, shellspec and a python/pytest driver against the same three
+       or four suites (`configure`, `doctor`, `ssh`, one lint suite) and
+       write up speed, portability to those four runners, pty/e2e fixtures
+       and coverage tooling against the current harness, with the
+       `tests/<dir it tests>/` and sources-only-`test_lib.sh` rule
+       (GLOSSARY: HI.34) as a constraint, not a casualty. **Ticks when:** a
+       decision is written into docs/TESTING.md — "keep", with the reasons,
+       or a migration entry here that replaces this one.

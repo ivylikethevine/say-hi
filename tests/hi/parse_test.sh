@@ -951,6 +951,19 @@ function test_update_refuses_without_a_git_dir() {
   [[ "$out" == *"hi --update: no .git in"* ]]
 }
 
+# ...and with a .git it hands the rest of its argv to git pull, in this tree:
+# a git shim first on the PATH sees exactly that
+function test_update_hands_its_arguments_to_git_pull() {
+  local dir out
+  dir="$_HI_WORKDIR/updategit"
+  mkdir -p "$dir"
+  printf '#!/bin/sh\nprintf "GIT %%s\\n" "$*"\n' >"$dir/git"
+  chmod +x "$dir/git"
+  [ -d "$_HI_ROOT/.git" ] || return 0
+  out="$(PATH="$dir:$PATH" "$_HI_ROOT/hi.sh" --update --ff-only 2>&1)" || return 1
+  [[ "$out" == *"GIT -C $_HI_ROOT pull --ff-only"* ]]
+}
+
 # ...and --packages-preview is the one that does not refuse at all: the check
 # itself ships in common/header.sh, so on a target it falls back to that
 function test_packages_preview_falls_back_to_the_shipped_check() {
@@ -1250,6 +1263,7 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
   _hi_check "--update refuses without a .git" test_update_refuses_without_a_git_dir
+  _hi_check "--update hands its arguments to git pull" test_update_hands_its_arguments_to_git_pull
   _hi_check "--packages-preview falls back instead" test_packages_preview_falls_back_to_the_shipped_check
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments

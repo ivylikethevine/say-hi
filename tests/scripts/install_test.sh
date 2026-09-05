@@ -265,30 +265,50 @@ function _hi_run_env() {
     SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" "$@" </dev/null
 }
 
-# _hi_run_install <home-name> <flag...> - the scratch tree's install.sh
+# _hi_run_install <home-name> <flag...> - the scratch tree's install.sh, for
+# the modes that reach outside $HOME: --uninstall walks unlink_hi past
+# /usr/bin/hi, which on a box with say-hi installed points at the real one.
 function _hi_run_install() {
   local home="$1"
   shift
   _hi_run_env "$home" bash "$_HI_RUN_TREE/scripts/install.sh" "$@"
 }
 
+# _hi_run_install_here <home-name> <flag...> - this checkout's own install.sh
+# against a fabricated $HOME, for every mode confined to $HOME and
+# $XDG_CONFIG_HOME. The real file rather than the scratch copy, and a plain
+# `env` rather than `env -i`, because the coverage sweep sees neither a copy
+# nor an `env -i` child - these are the argument parser, the --check-configs,
+# --overlay-init and --features-only arms and the validation gate, which read
+# as never run when they only ever ran out of $_HI_RUN_TREE. The locator still
+# derives the tree from the script's own path (GLOSSARY: HI.33), so what runs
+# is exactly what the copy ran, in place.
+function _hi_run_install_here() {
+  local home="$_HI_WORKDIR/$1"
+  shift
+  mkdir -p "$home"
+  env HOME="$home" TERM="${TERM:-xterm-256color}" SHELL=/bin/bash \
+    XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
+    bash "$_HI_ROOT/scripts/install.sh" "$@" </dev/null
+}
+
 # the three argument errors: each has to stop before anything is sourced,
 # written or asked, with the message naming what was missing
 function test_prefix_flag_requires_a_path() {
   local out rc=0
-  out="$(bash "$_HI_RUN_TREE/scripts/install.sh" --prefix 2>&1)" || rc=$?
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix requires a path"* ]]
 }
 
 function test_preset_flag_requires_a_name() {
   local out rc=0
-  out="$(bash "$_HI_RUN_TREE/scripts/install.sh" --preset 2>&1)" || rc=$?
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --preset 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--preset requires a name"* ]]
 }
 
 function test_an_unknown_argument_gets_the_usage() {
   local out rc=0
-  out="$(bash "$_HI_RUN_TREE/scripts/install.sh" --bogus 2>&1)" || rc=$?
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unrecognized argument: --bogus"* && "$out" == *"Usage: install.sh"* ]]
 }
 
@@ -297,7 +317,7 @@ function test_an_unknown_argument_gets_the_usage() {
 # contract anything scripting `hi --check-configs` reads
 function test_check_configs_mode_passes_a_clean_home() {
   local out rc=0
-  out="$(_hi_run_install cc-clean --check-configs 2>&1)" || rc=$?
+  out="$(_hi_run_install_here cc-clean --check-configs 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Checking existing shell configs!"* ]]
 }
 
@@ -305,7 +325,7 @@ function test_check_configs_mode_fails_on_a_broken_bashrc() {
   local home="$_HI_WORKDIR/cc-broken" rc=0
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc" # unterminated if
-  _hi_run_install cc-broken --check-configs >/dev/null 2>&1 || rc=$?
+  _hi_run_install_here cc-broken --check-configs >/dev/null 2>&1 || rc=$?
   [ "$rc" -eq 1 ]
 }
 
@@ -314,7 +334,7 @@ function test_check_configs_mode_fails_on_a_broken_bashrc() {
 # to exist at all
 function test_overlay_init_mode_versions_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0
-  out="$(_hi_run_install ovl-mode --overlay-init 2>&1)" || rc=$?
+  out="$(_hi_run_install_here ovl-mode --overlay-init 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Versioning the config overlay!"* ]] &&
     [ -d "$ovl/.git" ] &&
     [ "$(git -C "$ovl" rev-list --count HEAD)" = 1 ]
@@ -333,10 +353,49 @@ function test_uninstall_mode_is_safe_on_a_fresh_home() {
 # --preset=<name> is the one-token spelling of the flag.
 function test_features_only_writes_settings_and_no_rc() {
   local home="$_HI_WORKDIR/feat" out rc=0
-  out="$(_hi_run_install feat --features-only --preset=minimal 2>&1)" || rc=$?
+  out="$(_hi_run_install_here feat --features-only --preset=minimal 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Features updated!"* ]] &&
     grep -qF "export _HI_DISABLE_HEADER=1" "$home/.config/say-hi/settings.sh" &&
     [ ! -e "$home/.bashrc" ]
+}
+
+# a preset name is checked before a question is asked or a byte written: the
+# typo costs an exit 1 that names the real ones, and no settings.sh appears
+function test_a_stranger_preset_is_refused_before_anything_is_written() {
+  local home="$_HI_WORKDIR/preset-typo" out rc=0
+  out="$(_hi_run_install_here preset-typo --features-only --preset=minimalist 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no such preset: minimalist"* && "$out" == *"minimal"* ]] &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ]
+}
+
+# run_uninstall in order: the rc lines go, then the settings file, then the
+# link. A child bash with $HOME swapped, so core.sh derives the rc roster
+# from the fabricated home (this shell's roster is already bound to the real
+# one); plain `env`, not `env -i`, so the coverage sweep sees it. unlink_hi is
+# shadowed: the real one walks /usr/bin/hi, and a box with say-hi installed
+# has one that is not ours.
+function test_run_uninstall_strips_rc_then_settings_then_the_link() {
+  local home="$_HI_WORKDIR/run-uninstall" out
+  mkdir -p "$home/.config/say-hi"
+  printf 'echo before\n%s\nsource hi\necho after\n' "$_HI_MARKER" >"$home/.bashrc"
+  printf '#!/bin/sh\nexport _HI_DISABLE_HEADER=1\n' >"$home/.config/say-hi/settings.sh"
+  # the rc roster is exported by this shell already bound to the real $HOME,
+  # so the three paths are handed over explicitly; install.sh parses its
+  # argv when sourced, hence the `set --` and the path riding in the env
+  # shellcheck disable=SC2016 # single quotes on purpose: the child expands these
+  out="$(env HOME="$home" XDG_CONFIG_HOME="$home/.config" _HI_CONFIG_DIR="$home/.config/say-hi" \
+    _HI_SETTINGS="$home/.config/say-hi/settings.sh" _HI_HOME_BASHRC="$home/.bashrc" \
+    _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/.config/fish/config.fish" \
+    _HI_UNINSTALL_SCRIPT="$_HI_INSTALL" bash -c '
+      set --
+      source "$_HI_UNINSTALL_SCRIPT"
+      function unlink_hi() { echo UNLINK_CALLED; }
+      run_uninstall 2>&1
+    ')" || return 1
+  [[ "$out" == *UNLINK_CALLED* ]] &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ] &&
+    ! grep -qF "$_HI_MARKER" "$home/.bashrc" &&
+    grep -qx 'echo before' "$home/.bashrc" && grep -qx 'echo after' "$home/.bashrc"
 }
 
 # the validation gate, both ways: a broken .bashrc stops a non-interactive
@@ -346,7 +405,7 @@ function test_install_aborts_on_broken_configs_without_yes() {
   local home="$_HI_WORKDIR/gate-abort" out rc=0
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
-  out="$(_hi_run_install gate-abort --no-link 2>&1)" || rc=$?
+  out="$(_hi_run_install_here gate-abort --no-link 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
     ! grep -qF "$_HI_MARKER" "$home/.bashrc"
 }
@@ -355,7 +414,7 @@ function test_install_with_yes_continues_over_broken_configs() {
   local home="$_HI_WORKDIR/gate-yes" out rc=0
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
-  out="$(_hi_run_install gate-yes --no-link --yes 2>&1)" || rc=$?
+  out="$(_hi_run_install_here gate-yes --no-link --yes 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"continuing anyway"* && "$out" == *"Installed!"* ]] &&
     grep -qF "$_HI_MARKER" "$home/.bashrc"
 }
@@ -596,6 +655,8 @@ function run_install_tests() {
   _hi_check_requires git "--overlay-init versions the overlay" test_overlay_init_mode_versions_the_overlay
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--features-only writes settings and no rc" test_features_only_writes_settings_and_no_rc
+  _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written
+  _hi_check "run_uninstall strips rc, then settings, then the link" test_run_uninstall_strips_rc_then_settings_then_the_link
   _hi_check "No --yes over broken configs aborts" test_install_aborts_on_broken_configs_without_yes
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
   _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts

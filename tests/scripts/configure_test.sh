@@ -18,6 +18,9 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
+# every batch here is plain local processes, no container daemon to spare
+_HI_PAR_LOCAL=1
+
 set -- # install.sh reads "$@" for its own args; make sure it sees none
 # shellcheck source=../../scripts/install.sh
 source "$_HI_INSTALL"
@@ -1159,9 +1162,7 @@ function test_floor_preview_says_off_at_the_top_floor() {
 # the palette's preview is the real check (every shipped row renders a mark,
 # installed or not, so floor 0 is never empty) - and the same off-message
 # shape as the floor's when the floor has hidden everything. Asserted on the
-# raw render: _hi_strip_ansi over a full floor-0 check (hundreds of escapes)
-# is where extglob replacement gets quadratic, and the names land unpainted
-# between escapes anyway.
+# raw render: the names land unpainted between escapes anyway.
 function test_palette_preview_renders_the_real_check() {
   _hi_load_preview_sources
   local dir out
@@ -1369,6 +1370,135 @@ function test_header_editor_banner_never_moves() {
 }
 
 # a header preset loads its words, on and in its order, everything else off
+# _hi_detect_in <home> [zdotdir] - detect_prompt_framework with the roster
+# pointed at <home>'s rc files, in a subshell so the suite's own stay bound
+function _hi_detect_in() {
+  (
+    _HI_HOME_BASHRC="$1/.bashrc" _HI_HOME_ZSHRC="$1/.zshrc" _HI_HOME_FISH_CONFIG="$1/.config/fish/config.fish"
+    export ZDOTDIR="${2:-}"
+    detect_prompt_framework
+  )
+}
+
+# every rc on the roster is read, a $ZDOTDIR .zshrc with them, hi's own
+# marker-tagged lines never count, and a fish_prompt.fish of the user's own
+# is the fallback when no framework names itself
+# shellcheck disable=SC2016 # the rc lines are fixtures; nothing expands
+function test_detect_prompt_framework_reads_every_rc_and_skips_hi_lines() {
+  local home="$_HI_WORKDIR/detect"
+  mkdir -p "$home/zdot" "$home/.config/fish/functions"
+  ! _hi_detect_in "$home" >/dev/null || return 1
+  printf 'eval "$(starship init bash)"\n' >"$home/.bashrc"
+  [ "$(_hi_detect_in "$home")" = starship ] || return 1
+  rm -f "$home/.bashrc"
+  printf 'source ~/powerlevel10k/p10k.zsh\n' >"$home/zdot/.zshrc"
+  [ "$(_hi_detect_in "$home" "$home/zdot")" = powerlevel10k ] || return 1
+  ! _hi_detect_in "$home" >/dev/null || return 1
+  rm -f "$home/zdot/.zshrc"
+  printf 'eval "$(starship init bash)" %s\n' "$_HI_MARKER" >"$home/.bashrc"
+  ! _hi_detect_in "$home" >/dev/null || return 1
+  : >"$home/.config/fish/functions/fish_prompt.fish"
+  [ "$(_hi_detect_in "$home")" = "your own fish_prompt" ]
+}
+
+# the "keep theirs" default is a first-configure courtesy: with no settings.sh
+# a found framework pends _HI_DISABLE_LOCAL_PROMPT=1; with one, the stored
+# answer stands and nothing is pended
+# shellcheck disable=SC2016 # the rc line is a fixture; nothing expands
+function test_prompt_framework_default_keeps_theirs_only_on_a_first_configure() {
+  local home="$_HI_WORKDIR/pfd" out
+  mkdir -p "$home"
+  printf 'eval "$(starship init bash)"\n' >"$home/.bashrc"
+  out="$(
+    _HI_HOME_BASHRC="$home/.bashrc" _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/none"
+    _HI_SETTINGS="$home/absent.sh"
+    _HI_SETTING_PENDING=()
+    prompt_framework_default >/dev/null
+    printf '%s' "${_HI_SETTING_PENDING[*]:-}"
+  )"
+  [ "$out" = "_HI_DISABLE_LOCAL_PROMPT=1" ] || return 1
+  : >"$home/settings.sh"
+  out="$(
+    _HI_HOME_BASHRC="$home/.bashrc" _HI_HOME_ZSHRC="$home/.zshrc" _HI_HOME_FISH_CONFIG="$home/none"
+    _HI_SETTINGS="$home/settings.sh"
+    _HI_SETTING_PENDING=()
+    prompt_framework_default >/dev/null
+    printf '%s' "${_HI_SETTING_PENDING[*]:-}"
+  )"
+  [ -z "$out" ]
+}
+
+# a name off the preset roster is a non-zero return and no pending write
+function test_header_edit_preset_refuses_a_stranger() {
+  local out
+  out="$(
+    _HI_SETTING_PENDING=()
+    _hi_header_edit_preset nope && exit 1
+    printf '%s' "${_HI_SETTING_PENDING[*]:-}"
+  )" || return 1
+  [ -z "$out" ]
+}
+
+# up/down out of range, on the banner, and at the end the word is already at
+# - three refusals, each in words, and the run goes on
+function test_header_editor_refuses_a_move_that_cannot_happen() {
+  _hi_cfg_pty hdr_updown 'up 99\nup 1\nup 2\n\n' '' config_header || return 1
+  _hi_cfg_has hdr_updown "up/down take an item number from 2 to" &&
+    _hi_cfg_has hdr_updown "the banner always leads" &&
+    _hi_cfg_has hdr_updown "is already at that end"
+}
+
+# three answers the editor cannot read in a row end it, like the hub
+function test_header_editor_junk_is_bounded() {
+  _hi_cfg_pty hdr_junk 'x\ny\nz\n' '' config_header || return 1
+  [ "$(_hi_cfg_rc hdr_junk)" = 0 ] &&
+    _hi_cfg_has hdr_junk "type an item number, up N, down N, p, w, c, k, 0, or Enter" &&
+    [ -z "$(_hi_cfg_lines hdr_junk | tr -d '[:space:]')" ]
+}
+
+# p, then a name off the roster: said, nothing written, the editor goes on
+function test_header_editor_preset_refuses_a_stranger() {
+  _hi_cfg_pty hdr_pstranger 'p\nnope\n\n' '' config_header || return 1
+  _hi_cfg_has hdr_pstranger "no such header preset: nope" &&
+    [ -z "$(_hi_cfg_lines hdr_pstranger | tr -d '[:space:]')" ]
+}
+
+# w asks for the width and writes a typed one
+function test_header_editor_w_takes_a_width() {
+  _hi_cfg_pty hdr_width 'w\n120\n\n' '' config_header || return 1
+  _hi_cfg_has hdr_width "Terminal width for the header/banner?" &&
+    [[ "$(_hi_cfg_lines hdr_width)" == *"export _HI_MAX_WIDTH=120"* ]]
+}
+
+# k asks for the check's palette once check is on, and writes the word
+function test_header_editor_k_takes_a_palette() {
+  _hi_cfg_pty hdr_palette 'k\nwarm\n\n' "export _HI_HEADER_ORDER='check utc'" config_header || return 1
+  _hi_cfg_has hdr_palette "Package check palette: cool, warm, or mono?" &&
+    [[ "$(_hi_cfg_lines hdr_palette)" == *"export _HI_PACKAGES_PALETTE=warm"* ]]
+}
+
+# the Prompt menu is bounded the same way, and a separator with a quote in it
+# is refused rather than written into settings.sh
+function test_prompt_menu_junk_is_bounded_and_a_quote_is_refused() {
+  _hi_cfg_pty pe_junk 'x\ny\nz\n' '' config_prompt || return 1
+  _hi_cfg_has pe_junk "type a number from 1 to" || return 1
+  _hi_cfg_pty pe_quote '2\n'"'"'\n\n' '' config_prompt || return 1
+  _hi_cfg_has pe_quote "a single quote can't be written to settings.sh" &&
+    [[ "$(_hi_cfg_lines pe_quote)" != *"_HI_PROMPT_END_"* ]]
+}
+
+# the glyph question maps words both ways, and a shell list with a stranger
+# in it is refused - said in words, the current value kept, nothing written
+function test_advanced_values_map_glyph_words_and_refuse_a_bad_shell_list() {
+  _hi_cfg_pty adv_glyphs 'bash zsh\nglyphs\n\n\n' '' config_advanced_values || return 1
+  local lines
+  lines="$(_hi_cfg_lines adv_glyphs)"
+  [[ "$lines" == *"export _HI_SHELL_PREFERENCE='bash zsh'"* && "$lines" == *"export _HI_ASCII=0"* ]] || return 1
+  _hi_cfg_pty adv_badshell 'tcsh\n\n\n\n' '' config_advanced_values || return 1
+  _hi_cfg_has adv_badshell "only login, bash, zsh and fish are understood" &&
+    [[ "$(_hi_cfg_lines adv_badshell)" != *"_HI_SHELL_PREFERENCE"* ]]
+}
+
 function test_header_editor_takes_a_preset() {
   _hi_cfg_pty hdr_preset 'p\nq\n\n' '' config_header || return 1
   [[ "$(_hi_cfg_lines hdr_preset)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
@@ -1610,10 +1740,10 @@ function run_configure_tests() {
   _hi_check "Packages floor: the default is not written" test_packages_floor_does_not_write_the_default
   _hi_check "Packages floor: a zero is written out" test_packages_floor_writes_a_zero
   _hi_check "Packages floor: kept when the check is off" test_packages_floor_kept_when_the_check_is_off
-  _hi_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
-  _hi_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
-  _hi_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_check "Replaces a different shebang" test_shebang_replaces_a_different_one_and_keeps_content
+  _hi_check "detect_prompt_framework reads every rc and skips hi's lines" test_detect_prompt_framework_reads_every_rc_and_skips_hi_lines
+  _hi_check "prompt_framework_default: keep theirs, first configure only" test_prompt_framework_default_keeps_theirs_only_on_a_first_configure
+  _hi_check "_hi_header_edit_preset refuses a stranger" test_header_edit_preset_refuses_a_stranger
   _hi_check_capable mode_bits "Preserves settings.sh's mode" test_settings_shebang_preserves_mode
 
   _hi_h2 "Testing: config_settings"
@@ -1701,43 +1831,57 @@ function run_configure_tests() {
   _hi_check "Palette preview renders the real check" test_palette_preview_renders_the_real_check
   _hi_check "...and says off above every priority" test_palette_preview_says_off_above_every_priority
 
-  _hi_h2 "Testing: the interactive arms (pty)"
-  _hi_check_capable pty "ask_setting takes a no" test_ask_setting_takes_a_no
-  _hi_check_capable pty "ask_setting takes a yes over an off state" test_ask_setting_takes_a_yes_over_an_off_state
-  _hi_check_capable pty "ask_setting: Enter keeps the off state" test_ask_setting_enter_keeps_the_off_state
-  _hi_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
-  _hi_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
-  _hi_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
-  _hi_check_capable pty "Palette: previewed once, then a typed word" test_palette_asked_interactively_takes_a_word
-  _hi_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
-  _hi_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
-  _hi_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
-  _hi_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
-  _hi_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
-  _hi_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
-  _hi_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
-
-  _hi_h2 "Testing: the header editor (pty)"
-  _hi_check_capable pty "A toggle writes the order, previewed" test_header_editor_toggle_writes_the_order
-  _hi_check_capable pty "Back to the default order writes nothing" test_header_editor_default_order_writes_nothing
-  _hi_check_capable pty "down N moves a word" test_header_editor_moves_a_word
-  _hi_check_capable pty "The banner toggles but never moves" test_header_editor_banner_never_moves
-  _hi_check_capable pty "p takes a header preset" test_header_editor_takes_a_preset
-  _hi_check_capable pty "0 turns the header off, previewed in words" test_header_editor_header_off_previews_as_words
-  _hi_check_capable pty "The last word cannot be turned off" test_header_editor_keeps_the_last_word
-  _hi_check_capable pty "Words a stored order leaves out list unchecked" test_header_editor_lists_missing_words_off
-  _hi_check_capable pty "c/k refused while 'check' is off" test_header_editor_refuses_check_dials_when_check_is_off
-  _hi_check_capable pty "c opens the check depth" test_header_editor_opens_the_check_depth
-
-  _hi_h2 "Testing: the Features menu and the hub (pty)"
-  _hi_check_capable pty "A number toggles and previews" test_features_menu_toggles_and_previews
-  _hi_check_capable pty "The header row previews the whole header" test_features_menu_header_row_previews_the_header
-  _hi_check_capable pty "Junk is bounded" test_features_menu_junk_is_bounded
-  _hi_check_capable pty "Full run: preset, then save" test_full_run_preset_then_save
-  _hi_check_capable pty "Full run: preset, then quit writes nothing" test_full_run_quit_writes_nothing
-  _hi_check_capable pty "Hub: EOF saves" test_hub_eof_saves
-  _hi_check_capable pty "Hub: junk is bounded and saves" test_hub_junk_is_bounded_and_saves
-  _hi_check_capable pty "Hub: every section opens and returns" test_hub_opens_every_section
+  # Every pty case fans out together: each drives its own child under its own
+  # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,
+  # so nothing in this shell is shared - and thirty-odd of them at a second
+  # apiece were this suite's whole wall clock when they ran one at a time.
+  # The three packages-floor prompts belong to the section above; they sit
+  # here because they are pty cases too.
+  _hi_h2 "Testing: the interactive arms, the header editor, the Features menu and the hub (pty)"
+  _hi_par_begin "pty cases"
+  _hi_par_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
+  _hi_par_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
+  _hi_par_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
+  _hi_par_check_capable pty "ask_setting takes a no" test_ask_setting_takes_a_no
+  _hi_par_check_capable pty "ask_setting takes a yes over an off state" test_ask_setting_takes_a_yes_over_an_off_state
+  _hi_par_check_capable pty "ask_setting: Enter keeps the off state" test_ask_setting_enter_keeps_the_off_state
+  _hi_par_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
+  _hi_par_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
+  _hi_par_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
+  _hi_par_check_capable pty "Palette: previewed once, then a typed word" test_palette_asked_interactively_takes_a_word
+  _hi_par_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
+  _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
+  _hi_par_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
+  _hi_par_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
+  _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
+  _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
+  _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
+  _hi_par_check_capable pty "A toggle writes the order, previewed" test_header_editor_toggle_writes_the_order
+  _hi_par_check_capable pty "Back to the default order writes nothing" test_header_editor_default_order_writes_nothing
+  _hi_par_check_capable pty "down N moves a word" test_header_editor_moves_a_word
+  _hi_par_check_capable pty "The banner toggles but never moves" test_header_editor_banner_never_moves
+  _hi_par_check_capable pty "p takes a header preset" test_header_editor_takes_a_preset
+  _hi_par_check_capable pty "0 turns the header off, previewed in words" test_header_editor_header_off_previews_as_words
+  _hi_par_check_capable pty "The last word cannot be turned off" test_header_editor_keeps_the_last_word
+  _hi_par_check_capable pty "Words a stored order leaves out list unchecked" test_header_editor_lists_missing_words_off
+  _hi_par_check_capable pty "c/k refused while 'check' is off" test_header_editor_refuses_check_dials_when_check_is_off
+  _hi_par_check_capable pty "c opens the check depth" test_header_editor_opens_the_check_depth
+  _hi_par_check_capable pty "A move that cannot happen is refused in words" test_header_editor_refuses_a_move_that_cannot_happen
+  _hi_par_check_capable pty "Editor junk is bounded" test_header_editor_junk_is_bounded
+  _hi_par_check_capable pty "p refuses a stranger" test_header_editor_preset_refuses_a_stranger
+  _hi_par_check_capable pty "w takes a width" test_header_editor_w_takes_a_width
+  _hi_par_check_capable pty "k takes a palette" test_header_editor_k_takes_a_palette
+  _hi_par_check_capable pty "Prompt menu: junk bounded, a quote refused" test_prompt_menu_junk_is_bounded_and_a_quote_is_refused
+  _hi_par_check_capable pty "Advanced values: glyph words map, a bad shell list is refused" test_advanced_values_map_glyph_words_and_refuse_a_bad_shell_list
+  _hi_par_check_capable pty "A number toggles and previews" test_features_menu_toggles_and_previews
+  _hi_par_check_capable pty "The header row previews the whole header" test_features_menu_header_row_previews_the_header
+  _hi_par_check_capable pty "Junk is bounded" test_features_menu_junk_is_bounded
+  _hi_par_check_capable pty "Full run: preset, then save" test_full_run_preset_then_save
+  _hi_par_check_capable pty "Full run: preset, then quit writes nothing" test_full_run_quit_writes_nothing
+  _hi_par_check_capable pty "Hub: EOF saves" test_hub_eof_saves
+  _hi_par_check_capable pty "Hub: junk is bounded and saves" test_hub_junk_is_bounded_and_saves
+  _hi_par_check_capable pty "Hub: every section opens and returns" test_hub_opens_every_section
+  _hi_par_wait
 
   _hi_suite_end "configure.sh logic"
 }

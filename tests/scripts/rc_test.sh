@@ -153,6 +153,61 @@ function test_strip_rc_lines_restores_the_originals() {
     [ "$(cat "$home/.config/fish/config.fish")" = "echo fish-mine" ]
 }
 
+# check_shell_configs walks the whole roster and names the one that is
+# broken, in that file's own dialect: a fish config that bash would not even
+# read is checked by fish
+function test_check_shell_configs_names_the_broken_roster_file() {
+  local home="$_HI_WORKDIR/roster-broken" out
+  mkdir -p "$home/.config/fish"
+  printf 'echo fine\n' >"$home/.bashrc"
+  printf 'echo fine\n' >"$home/.zshrc"
+  printf 'if true\n' >"$home/.config/fish/config.fish"
+  out="$(_hi_rc_out "$home" -- check_shell_configs)" && return 1
+  [[ "$out" == *"config.fish) has issues"* && "$out" != *".bashrc) has issues"* && "$out" != *".zshrc) has issues"* ]]
+}
+
+# _hi_rc_out - _hi_rc_in with the transcript kept, for the cases that assert
+# on what was said rather than on the files
+function _hi_rc_out() {
+  local home="$1"
+  shift
+  local -a envs=()
+  while [ "${1:-}" != -- ]; do
+    envs+=("$1")
+    shift
+  done
+  shift
+  mkdir -p "$home"
+  env HOME="$home" ${envs[@]+"${envs[@]}"} bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/rc.sh"
+    "$@"' rc_probe "$@" 2>&1
+}
+
+# config_validate_shells at a terminal: the one question install.sh asks.
+# A y goes on; an n aborts, in words.
+function test_config_validate_shells_asks_at_a_terminal() {
+  local home="$_HI_WORKDIR/gate-tty" reply
+  mkdir -p "$home"
+  printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
+  for reply in y n; do
+    : >"$_HI_WORKDIR/gate-tty.$reply.out"
+    printf '%s\n' "$reply" |
+      env HOME="$home" "${_HI_PTY_FORCED[@]}" bash -c '
+        source "$_HI_HOME/say-hi/common/core.sh"
+        source "$_HI_HOME/say-hi/scripts/lib.sh"
+        source "$_HI_HOME/say-hi/scripts/rc.sh"
+        config_validate_shells && echo GATE_WENT_ON' >"$_HI_WORKDIR/gate-tty.$reply.out" 2>&1 &
+    _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}"
+    [ "$_HI_WAIT_EXIT" != 124 ] || return 1
+  done
+  grep -q "Continue installing anyway" "$_HI_WORKDIR/gate-tty.y.out" &&
+    grep -q GATE_WENT_ON "$_HI_WORKDIR/gate-tty.y.out" &&
+    grep -q "aborting install" "$_HI_WORKDIR/gate-tty.n.out" &&
+    ! grep -q GATE_WENT_ON "$_HI_WORKDIR/gate-tty.n.out"
+}
+
 function test_check_one_config_verdicts() {
   local home="$_HI_WORKDIR/checkone"
   mkdir -p "$home"
@@ -211,6 +266,8 @@ function run_rc_lines_test() {
   _hi_h2 "Testing: the syntax gate"
   _hi_check "check_one_config's four verdicts" test_check_one_config_verdicts
   _hi_check "check_shell_configs flags a broken rc" test_check_shell_configs_flags_a_broken_rc
+  _hi_check_requires fish "check_shell_configs names the broken roster file" test_check_shell_configs_names_the_broken_roster_file
+  _hi_check_capable pty "config_validate_shells asks at a terminal" test_config_validate_shells_asks_at_a_terminal
   _hi_check "config_validate_shells: --yes vs non-interactive" test_config_validate_shells_gate
 
   _hi_suite_end "rc.sh"

@@ -285,14 +285,18 @@ function test_modes_table_is_rectangular() {
   _hi_table_is_rectangular "$(_hi_print_modes_table)"
 }
 
-# Running the real script through a scratch tree rather than through the
-# exported fixture above, and still deliberately: $_HI_PACKAGES does now reach a
-# child (paths.sh keeps a value it did not derive - the per-file override), and
-# the case below pins that, but what these cases want proved is the ordinary
-# path, where the file is the one the *tree* carries.
+# The real script, in this tree, reading the exported fixture ($_HI_PACKAGES
+# does reach a child: paths.sh keeps a value it did not derive - the per-file
+# override). The real file rather than a scratch copy so that what these cases
+# exercise counts in the coverage sweep, which only sees files under the
+# checkout; $HOME is pointed at the workdir so no overlay of the user's can
+# win the automatic lookup. The ordinary path - the file the *tree* carries,
+# nothing exported - is pinned once, by test_preview_reads_the_trees_own_file
+# on a scratch tree below.
 function _hi_render_preview() {
-  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/packages_preview.sh" 2>&1
+  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" \
+  _HI_PACKAGES="$_HI_WORKDIR/packages" \
+    "$_HI_ROOT/scripts/packages_preview.sh" 2>&1
 }
 
 function _hi_write_preview_tree() {
@@ -301,10 +305,21 @@ function _hi_write_preview_tree() {
   cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages"
 }
 
-# the help path: same tree and PATH as the render, plus the one argument
+# the help path: same PATH as the render, plus the one argument
 function _hi_render_help() {
-  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-    "$_HI_WORKDIR/tree/say-hi/scripts/packages_preview.sh" "$1" 2>&1
+  PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" \
+  _HI_PACKAGES="$_HI_WORKDIR/packages" \
+    "$_HI_ROOT/scripts/packages_preview.sh" "$1" 2>&1
+}
+
+# the ordinary path: nothing exported, the tree's own settings/packages is the
+# roster - a scratch tree, because this checkout's real file is not the fixture
+function test_preview_reads_the_trees_own_file() {
+  local out
+  out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
+  _HI_PACKAGES="" _HI_PACKAGES_AUTO="" \
+    "$_HI_WORKDIR/tree/say-hi/scripts/packages_preview.sh" 2>&1)" || return 1
+  [[ "$out" == *hialpha* ]] && [[ "$out" == *'13 listed'* ]]
 }
 
 # --help exits 0 before any table renders: usage text, the files it reads, and
@@ -471,6 +486,7 @@ function run_packages_preview_tests() {
   _hi_check "Every line of a table is the same width" test_tables_are_rectangular
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
   _hi_check "Reads an exported packages file" test_preview_reads_an_exported_packages_file
+  _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
 
   _hi_suite_end "packages_preview.sh"
 }

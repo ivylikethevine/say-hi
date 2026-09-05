@@ -22,6 +22,13 @@ name: Pages
 # main with no path filter, so a `push` trigger on the markdown paths would add
 # only a duplicate build and deploy, and would publish docs from a commit whose
 # tests failed. The cost is latency - the site lands when CI goes green.
+# Coverage is the second trigger: coverage.yml is itself chained off the same
+# green CI run and finishes well after this deploy has fetched "the newest
+# successful coverage run", so without it the coverage badges always showed
+# the *previous* push's figure. A finished Coverage run redeploys, and the
+# lookup below then finds the figure it just published. Its own event is
+# `workflow_run` (or a dispatch), never `push`, which is why `build`'s `if`
+# admits it by name.
 #
 # Release is not a workflow_run trigger here, on purpose: this filters
 # branches: [main], and a tag push's head_branch is the tag - which never
@@ -31,7 +38,7 @@ name: Pages
 # (`gh workflow run pages.yml`), which is what workflow_dispatch is for here.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Coverage]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -53,11 +60,16 @@ jobs:
     # never run on a self-hosted runner.
     runs-on: ubuntu-latest
     # a red CI must not publish, and neither may a fork's PR run - `event`
-    # pins it to a push to `main`. The other two triggers have no run to judge.
+    # pins it to a push to `main`. A Coverage run's own event is workflow_run
+    # (it only ever follows a green push to main, or a maintainer's dispatch),
+    # so it is admitted by name instead. The dispatch trigger has no run to
+    # judge.
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
+       github.event.workflow_run.event == 'push') ||
+      (github.event.workflow_run.name == 'Coverage' &&
+       github.event.workflow_run.conclusion == 'success')
     timeout-minutes: 10
     # actions: read is for the cross-workflow artifact read below - the site
     # build itself still needs nothing but contents
@@ -109,9 +121,11 @@ jobs:
           warn-on-missing: "true"
 
       # Coverage is its own lookup: coverage.yml is slow and chained off the
-      # same CI event as this deploy, so a badge shows the last figure anyone
-      # measured - at most one push behind. warn-on-missing stays off here
-      # and below - a workflow with no successful run yet is a normal state.
+      # same CI event as this deploy, so the CI-triggered deploy finds the
+      # last figure anyone measured; the Coverage-triggered one (the
+      # workflow_run trigger above) finds the figure that run just wrote.
+      # warn-on-missing stays off here and below - a workflow with no
+      # successful run yet is a normal state.
       #
       # Both figures come from the same workflow (a two-job matrix, kcov and
       # bashcov) but are looked up separately by artifact name: each job

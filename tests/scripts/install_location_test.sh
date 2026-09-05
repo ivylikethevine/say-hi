@@ -39,6 +39,9 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
+# every batch here is plain local processes, no container daemon to spare
+_HI_PAR_LOCAL=1
+
 # What a tree needs for install.sh to run and `hi --doctor` to answer: the
 # shipped payload (mirrors install.sh's _HI_PACKAGE_CONTENTS) plus scripts/.
 # Not the whole checkout - .git is the expensive half and nothing reads it.

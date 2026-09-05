@@ -44,6 +44,11 @@ declare -a _HI_PAR_RUNNING=()
 # and _HI_PAR_WIDTH=1 is a genuine serial run down this same code path - what a
 # suite whose fixtures are not case-scoped asks for (nomad's job list), and what
 # bisecting a flake wants.
+#
+# That cap is about the daemon, not the box. A suite whose cases are plain
+# local processes (a pty-driven configure run, an `env -i` shell, a nested
+# runner) sets _HI_PAR_LOCAL=1 at its top and gets the whole CPU count
+# instead; $_HI_PAR_WIDTH still overrides both.
 function _hi_par_width() {
   local cpus
   if [ -n "${_HI_PAR_WIDTH:-}" ]; then
@@ -53,7 +58,7 @@ function _hi_par_width() {
   cpus="$(_hi_host_cores)"
   [ -n "$cpus" ] || cpus=2
   [ "$cpus" -lt 1 ] && cpus=1
-  [ "$cpus" -gt 4 ] && cpus=4
+  [ "${_HI_PAR_LOCAL:-0}" = 1 ] || [ "$cpus" -le 4 ] || cpus=4
   printf '%s' "$cpus"
 }
 
@@ -94,7 +99,7 @@ function _hi_par_slot() {
       fi
     done
     _HI_PAR_RUNNING=(${keep[@]+"${keep[@]}"})
-    [ "${#_HI_PAR_RUNNING[@]}" -ge "$_HI_PAR_SLOTS" ] && sleep 0.25
+    [ "${#_HI_PAR_RUNNING[@]}" -ge "$_HI_PAR_SLOTS" ] && sleep 0.05
   done
   return 0
 }

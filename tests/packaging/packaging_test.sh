@@ -621,10 +621,24 @@ function test_pages_workflow_serves_the_package_repository() {
 # redeploy instead, and Release must not claim a trigger that cannot fire.
 function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
   [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_RELEASE_WF" ] || return 0
-  ! grep -qE '^ *workflows: \[CI, Release\]' "$_HI_PAGES_WF" &&
-    grep -qE '^ *workflows: \[CI\]' "$_HI_PAGES_WF" &&
+  ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
+    grep -qE '^ *workflows: \[CI, Coverage\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
     [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" == *'gh workflow run pages.yml'* ]]
+}
+
+# The coverage badges are read from "the newest successful coverage run" at
+# deploy time, and coverage.yml is itself chained off the CI run that triggers
+# the deploy - so unless a finished sweep redeploys too, a badge shows the
+# previous push's figure. Its event is workflow_run, never push, so the build
+# job has to admit it by name.
+function test_a_finished_coverage_sweep_refreshes_pages() {
+  [ -f "$_HI_PAGES_WF" ] || return 0
+  local build
+  build="$(_hi_wf_job "$_HI_PAGES_WF" build)"
+  grep -qE '^ *workflows: \[CI, Coverage\]' "$_HI_PAGES_WF" &&
+    [[ "$build" == *"workflow_run.name == 'Coverage'"* ]] &&
+    [[ "$build" == *"workflow_run.conclusion == 'success'"* ]]
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
@@ -1676,6 +1690,70 @@ function test_srctar_builds_the_tarball_it_names() {
   [ "$(tar tzf "$f" | head -1)" = "say-hi-9.9.9/" ]
 }
 
+# --- mkpkg.sh's arms past --stage-only -------------------------------------
+#
+# Not here: run_nfpm with nfpm present. nfpm.yaml's contents are written
+# relative to the repo root (./dist/staging/...), so a build only works into
+# the checkout's own dist/ - a suite must not write there. ci.yml's
+# packaging-smoke job is where the real build runs, twice, and diffs.
+
+# _hi_in_mkpkg <dist> <fn> [args...] - one mkpkg.sh function in a subshell,
+# through its HI.06 source guard, with the dist dir pointed at a fixture
+function _hi_in_mkpkg() {
+  local dist="$1"
+  shift
+  (
+    _hi_argv=("$@")
+    set -- # mkpkg.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkpkg.sh
+    source "$_HI_PKG_DIR/mkpkg.sh"
+    _HI_DIST="$dist"
+    "${_hi_argv[@]}"
+  )
+}
+
+function test_mkpkg_help_names_its_flags() {
+  local out
+  out="$("$_HI_PKG_DIR/mkpkg.sh" --help 2>&1)" || return 1
+  [[ "$out" == *"--stage-only"*"--outdir <dir>"*"--source-tarball <file>"* ]]
+}
+
+# a flag without its value and a flag nobody knows both stop before anything
+# is staged, naming the problem
+function test_mkpkg_refuses_a_bare_flag_and_a_stranger() {
+  local out
+  out="$("$_HI_PKG_DIR/mkpkg.sh" --outdir 2>&1)" && return 1
+  [[ "$out" == *"--outdir requires a value"* ]] || return 1
+  out="$("$_HI_PKG_DIR/mkpkg.sh" --bogus 2>&1)" && return 1
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkpkg.sh"* ]]
+}
+
+# no nfpm on the PATH: the refusal says where to get it, and nothing builds
+function test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it() {
+  local out
+  out="$(PATH="$(_hi_real_path nonfpm sh bash awk sed grep cat printf)" \
+    _hi_in_mkpkg "$_HI_WORKDIR/nonfpm" run_nfpm 2>&1)" && return 1
+  [[ "$out" == *"nfpm is not installed"*"go install github.com/goreleaser/nfpm"* ]]
+}
+
+# with no git history to read a commit time from, the build still stages -
+# SOURCE_DATE_EPOCH is "now", and the run says the build is not reproducible.
+# The --outdir=<dir> spelling rides along.
+function test_mkpkg_without_git_history_stamps_now_and_warns() {
+  local dir="$_HI_WORKDIR/nogit-bin" out
+  mkdir -p "$dir"
+  printf '#!/bin/sh\nexit 128\n' >"$dir/git"
+  chmod +x "$dir/git"
+  out="$(env -u SOURCE_DATE_EPOCH PATH="$dir:$PATH" "$_HI_PKG_DIR/mkpkg.sh" --stage-only \
+    --version 9.9.9 --outdir="$_HI_WORKDIR/nogit-dist" 2>&1)" || {
+    printf '%s\n' "$out" >"$_HI_WORKDIR/nogit-dist.log"
+    _hi_dump_log "mkpkg.sh --stage-only without git" "$_HI_WORKDIR/nogit-dist.log"
+    return 1
+  }
+  [[ "$out" == *"no git history - SOURCE_DATE_EPOCH stamps 'now'"* ]] &&
+    [ -f "$_HI_WORKDIR/nogit-dist/staging/usr/share/say-hi/hi.sh" ]
+}
+
 # --- mkrepo.sh's offline half (the docker-free index builders) --------------
 
 # _hi_in_mkrepo <dist> <out> <fn> [args...] - one mkrepo.sh function in a
@@ -1693,6 +1771,171 @@ function _hi_in_mkrepo() {
     _HI_OUT="$out"
     "${_hi_argv[@]}"
   )
+}
+
+# _hi_mkrepo_docker - a PATH whose `docker` answers `info` and, on `run`,
+# lays down in the mounted /work what the real container would (createrepo_c's
+# repodata/repomd.xml, apk index's per-arch APKINDEX.tar.gz) and keeps the
+# -e environment it was handed in <work>/.docker.env - the offline stand-in
+# for in_container, so build_rpm and build_apk's own arms can run here while
+# the real containers stay the repo e2e suite's job
+function _hi_mkrepo_docker() {
+  local dir="$_HI_WORKDIR/fakedocker"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    cat >"$dir/docker" <<'EOF'
+#!/bin/sh
+[ "$1" = info ] && exit 0
+[ "$1" = run ] || exit 1
+work=""
+: >"/dev/null"
+while [ $# -gt 0 ]; do
+  case "$1" in
+  -v) work="${2%%:*}"; shift ;;
+  -e) printf '%s\n' "$2" >>"$work/.docker.env"; shift ;;
+  esac
+  shift
+done
+case "$work" in
+*/rpm) mkdir -p "$work/repodata" && : >"$work/repodata/repomd.xml" ;;
+*/apk)
+  for a in $(sed -n 's/^HI_ARCHES=//p' "$work/.docker.env"); do
+    mkdir -p "$work/$a" && : >"$work/$a/APKINDEX.tar.gz"
+  done
+  ;;
+esac
+EOF
+    chmod +x "$dir/docker"
+  fi
+  printf '%s:%s' "$dir" "$(_hi_real_path mkrepotools sh bash awk sed grep cat cp mkdir rm chmod id printf gzip tar openssl gpg ar wc tr sort find head dirname readlink basename mktemp date)"
+}
+
+# _hi_fake_apk <dir> - a structurally real .apk (a gzipped tar carrying a
+# .PKGINFO with pkgname/pkgver), enough for build_apk to name the repository
+# copy; prints its path
+function _hi_fake_apk() {
+  local dir="$1"
+  mkdir -p "$dir/apkctl"
+  printf 'pkgname = say-hi\npkgver = 9.9.9-r0\n' >"$dir/apkctl/.PKGINFO"
+  tar -C "$dir/apkctl" -czf "$dir/say-hi_9.9.9_x86_64.apk" .PKGINFO
+  printf '%s' "$dir/say-hi_9.9.9_x86_64.apk"
+}
+
+function test_mkrepo_in_container_hands_over_uid_gid_and_arches() {
+  local d="$_HI_WORKDIR/ic"
+  mkdir -p "$d/work"
+  PATH="$(_hi_mkrepo_docker)" HI_ARCHES="x86_64 aarch64" \
+    _hi_in_mkrepo "$d" "$d/repo" in_container img "$d/work" 'true' || return 1
+  grep -qx "HI_UID=$(id -u)" "$d/work/.docker.env" &&
+    grep -qx "HI_GID=$(id -g)" "$d/work/.docker.env" &&
+    grep -qx "HI_ARCHES=x86_64 aarch64" "$d/work/.docker.env"
+}
+
+# build_rpm lays out rpm/<package>, has the container index it, writes the
+# .repo file a dnf user drops in with the base URL, and says the index is
+# unsigned when there is no key
+function test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned() {
+  local d="$_HI_WORKDIR/rpm-build" out
+  mkdir -p "$d/dist" "$d/repo"
+  : >"$d/dist/say-hi-9.9.9-1.noarch.rpm"
+  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" build_rpm 2>&1)" || return 1
+  [ -f "$d/repo/rpm/say-hi-9.9.9-1.noarch.rpm" ] && [ -f "$d/repo/rpm/repodata/repomd.xml" ] &&
+    [ ! -e "$d/repo/rpm/repodata/repomd.xml.asc" ] &&
+    [[ "$out" == *"repomd.xml is unsigned"* ]] &&
+    grep -q '^baseurl=https://ivylikethevine.github.io/say-hi/rpm$' "$d/repo/say-hi.repo" &&
+    grep -q '^repo_gpgcheck=1$' "$d/repo/say-hi.repo"
+}
+
+# ...and with a key, repomd.xml gets its detached signature and the public
+# key is exported beside the repo
+# shellcheck disable=SC2016 # single quotes on purpose: the eval'd subshell expands these
+function test_mkrepo_build_rpm_signs_repomd_with_a_key() {
+  local d="$_HI_WORKDIR/rpm-signed"
+  _hi_mkrepo_keys || return 1
+  mkdir -p "$d/dist" "$d/repo"
+  : >"$d/dist/say-hi-9.9.9-1.noarch.rpm"
+  PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" eval '
+    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
+    gpg_setup && build_rpm
+    rc=$?
+    rm -rf "$_HI_GNUPGHOME"
+    exit $rc' >/dev/null 2>&1 || return 1
+  [ -s "$d/repo/rpm/repodata/repomd.xml.asc" ] && [ -s "$d/repo/say-hi.asc" ]
+}
+
+# build_apt with a key: the Release file gets both signature shapes apt reads
+# shellcheck disable=SC2016 # single quotes on purpose: the eval'd subshell expands these
+function test_mkrepo_build_apt_signs_the_release_with_a_key() {
+  local d="$_HI_WORKDIR/apt-signed"
+  _hi_mkrepo_keys || return 1
+  mkdir -p "$d/dist" "$d/repo"
+  _hi_fake_deb "$d/dist" >/dev/null || return 1
+  _hi_in_mkrepo "$d/dist" "$d/repo" eval '
+    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
+    gpg_setup && build_apt
+    rc=$?
+    rm -rf "$_HI_GNUPGHOME"
+    exit $rc' >/dev/null 2>&1 || return 1
+  [ -s "$d/repo/apt/dists/stable/InRelease" ] && [ -s "$d/repo/apt/dists/stable/Release.gpg" ] &&
+    grep -q 'BEGIN PGP SIGNED MESSAGE' "$d/repo/apt/dists/stable/InRelease"
+}
+
+# build_apk without a key: the committed public key is served, the package is
+# copied under its .PKGINFO name per arch, every arch gets its index, and the
+# run says the indexes are unsigned
+function test_mkrepo_build_apk_without_a_key_serves_the_committed_key() {
+  local d="$_HI_WORKDIR/apk-nokey" out arch
+  mkdir -p "$d/dist" "$d/repo"
+  _hi_fake_apk "$d/dist" >/dev/null
+  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" build_apk 2>&1)" || return 1
+  [[ "$out" == *"APKINDEX files are unsigned"* ]] || return 1
+  # shellcheck disable=SC2031 # _hi_in_mkrepo's subshell is the one that sets it
+  cmp -s "$d/repo/say-hi.rsa.pub" "$_HI_ROOT/packaging/apk/say-hi.rsa.pub" || return 1
+  for arch in x86_64 aarch64; do
+    [ -f "$d/repo/apk/$arch/say-hi-9.9.9-r0.apk" ] && [ -f "$d/repo/apk/$arch/APKINDEX.tar.gz" ] || return 1
+  done
+}
+
+# ...with a key: the served public half is derived from it, the key is
+# staged for the signer under the name nfpm.yaml promises and removed after;
+# a key file that is not there is refused before anything is copied
+function test_mkrepo_build_apk_with_a_key_derives_the_public_half() {
+  local d="$_HI_WORKDIR/apk-key" out
+  mkdir -p "$d/dist" "$d/repo"
+  _hi_fake_apk "$d/dist" >/dev/null
+  openssl genrsa -out "$d/key.pem" 2048 >/dev/null 2>&1 || return 1
+  PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo" eval '
+    _HI_APK_KEY="'"$d/key.pem"'"
+    build_apk' >/dev/null 2>&1 || return 1
+  [ -s "$d/repo/say-hi.rsa.pub" ] && grep -q 'BEGIN PUBLIC KEY' "$d/repo/say-hi.rsa.pub" &&
+    [ ! -e "$d/repo/apk/.keys" ] && [ -f "$d/repo/apk/x86_64/APKINDEX.tar.gz" ] || return 1
+  out="$(PATH="$(_hi_mkrepo_docker)" _hi_in_mkrepo "$d/dist" "$d/repo2" eval '
+    _HI_APK_KEY=/nonexistent/key.pem
+    build_apk' 2>&1)" && return 1
+  [[ "$out" == *"no such apk key file"* ]] && [ ! -e "$d/repo2/apk" ]
+}
+
+# the argument parser: --x=y is the one-token spelling, a bare flag and a
+# stranger stop with the usage - all before docker is asked for
+function test_mkrepo_parses_flags_before_asking_for_docker() {
+  local out
+  out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" --outdir="$_HI_WORKDIR/x" --bogus 2>&1)" && return 1
+  [[ "$out" == *"unrecognized argument: --bogus"*"Usage: mkrepo.sh"* ]] || return 1
+  out="$("$_HI_MKREPO" --dist 2>&1)" && return 1
+  [[ "$out" == *"--dist requires a value"* ]]
+}
+
+# the main guard's two refusals: no docker at all, and a docker whose daemon
+# does not answer
+function test_mkrepo_main_refuses_without_a_reachable_docker() {
+  local out dir="$_HI_WORKDIR/deaddocker"
+  out="$(PATH="$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" && return 1
+  [[ "$out" == *"docker is not installed"* ]] || return 1
+  mkdir -p "$dir"
+  printf '#!/bin/sh\nexit 1\n' >"$dir/docker"
+  chmod +x "$dir/docker"
+  out="$(PATH="$dir:$(_hi_real_path nodocker sh bash awk sed grep cat printf dirname readlink)" "$_HI_MKREPO" 2>&1)" && return 1
+  [[ "$out" == *"docker is installed but not reachable"* ]]
 }
 
 # _hi_fake_deb <dir> - a structurally real .deb (ar of debian-binary +
@@ -2042,8 +2285,21 @@ function run_packaging_tests() {
   _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
   _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
   _hi_check "...a release refreshes Pages itself" test_release_refreshes_pages_instead_of_relying_on_workflow_run
+  _hi_check "...and a finished coverage sweep refreshes Pages too" test_a_finished_coverage_sweep_refreshes_pages
   _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
   _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
+  _hi_check "mkrepo.sh parses its flags before asking for docker" test_mkrepo_parses_flags_before_asking_for_docker
+  _hi_check "mkrepo.sh refuses without a reachable docker" test_mkrepo_main_refuses_without_a_reachable_docker
+  _hi_check "in_container hands over uid, gid and the arch list" test_mkrepo_in_container_hands_over_uid_gid_and_arches
+  _hi_check "build_rpm lays out the repo and warns unsigned" test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned
+  _hi_check_requires gpg "build_rpm signs repomd.xml with a key" test_mkrepo_build_rpm_signs_repomd_with_a_key
+  _hi_check_requires gpg "build_apt signs the Release with a key" test_mkrepo_build_apt_signs_the_release_with_a_key
+  _hi_check "build_apk without a key serves the committed key" test_mkrepo_build_apk_without_a_key_serves_the_committed_key
+  _hi_check_requires openssl "build_apk with a key derives the public half" test_mkrepo_build_apk_with_a_key_derives_the_public_half
+  _hi_check "mkpkg.sh --help names its flags" test_mkpkg_help_names_its_flags
+  _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
+  _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
+  _hi_check "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
 
   _hi_h2 "Testing: packaging/lib.sh's primitives"
   _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl
