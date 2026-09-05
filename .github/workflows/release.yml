@@ -205,15 +205,15 @@ jobs:
 
       # not a shared list: the release upload and publish-external.yml's
       # later `gh release download` each take a different subset of these
-      # five
+      # three. say-hi-git has no version to bump and nothing to publish per
+      # release (packaging/aur/say-hi-git derives pkgver() from main itself),
+      # so its PKGBUILD/.SRCINFO never rode along here.
       - name: Collect the manifests alongside them
         run: |
           set -euo pipefail
           mkdir -p dist/manifests
           cp packaging/aur/say-hi/PKGBUILD dist/manifests/PKGBUILD
           cp packaging/aur/say-hi/.SRCINFO dist/manifests/.SRCINFO
-          cp packaging/aur/say-hi-git/PKGBUILD dist/manifests/PKGBUILD.git
-          cp packaging/aur/say-hi-git/.SRCINFO dist/manifests/.SRCINFO.git
           cp packaging/homebrew/say-hi.rb dist/manifests/say-hi.rb
 
       # Signed build provenance for everything the release carries: the sums
@@ -264,9 +264,9 @@ jobs:
             dist/manifests/*
             dist/ARTIFACTS
             dist/say-hi.spdx.json
-          # .SRCINFO and .SRCINFO.git: the action drops hidden files by
-          # default, which is how v0.1.0's manifest-PR step found no .SRCINFO
-          # to cp - the failure surfaced two jobs later, in publish
+          # .SRCINFO: the action drops hidden files by default, which is how
+          # v0.1.0's manifest-PR step found no .SRCINFO to cp - the failure
+          # surfaced two jobs later, in publish
           include-hidden-files: true
           if-no-files-found: error
 

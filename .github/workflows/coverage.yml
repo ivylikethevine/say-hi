@@ -5,9 +5,24 @@ name: Coverage
 # ssh here; kube/nomad/podman stand down as SKIPPED, nothing installs them),
 # published as artifacts - visibility, never a gate: no PR waits on either
 # and no threshold fails one.
-# One workflow, a two-entry matrix, because the two are identical in shape -
-# same workflow_run + workflow_dispatch trigger, same push/success gate, same
-# per-tool concurrency - and differed before only in which tool ran.
+#
+# Each tool is sharded 4 ways (shard-kcov/shard-bashcov, matrix shard:
+# [1,2,3,4]) and then merged by a gather job (gather-kcov/gather-bashcov) -
+# the same --shard i/n test_runner.sh already gives windows-client.yml and
+# ci.yml's e2e job, which _hi_cov_select_suites passes straight through to
+# test_runner.sh before it ever calls --list-paths. No change to
+# tests/coverage.sh, tests/coverage_v2.sh or tests/lib/coverage.sh was needed
+# for this - the sharding was already there, only the workflow wasn't using
+# it. Four shards rather than a bigger split: it halves the eight e2e suites'
+# 2-per-shard, which is the slice that actually drives wall clock; --shard's
+# own interleaving (table order) spreads them rather than stacking every one
+# in a single shard.
+#
+# Two tools, each its own pair of jobs (shard-<tool>/gather-<tool>) rather
+# than one shared matrix over tool - so gather-kcov's `needs:` never waits on
+# bashcov's shards finishing (or vice versa), preserving the same
+# independence a two-entry matrix bought before sharding existed: kcov's
+# queue must not wait behind bashcov's.
 #
 # The two figures land within a few points of each other and are usable -
 # for finding untested arms and watching the trend, never as a gate. Each
@@ -26,16 +41,14 @@ name: Coverage
 # this workflow completes, so a badge shows this run's figure as soon as
 # the sweep is done rather than on the next push.
 #
-# job-level continue-on-error, not workflow-level: pages.yml looks up "the
+# continue-on-error on every job, not workflow-level: pages.yml looks up "the
 # newest run of this workflow with status=success" once per badge, and that
-# status is the *whole run's* conclusion - which a two-job matrix would
-# otherwise couple, one tool's failure graying out the other's badge too
-# (they were fully independent workflows before this merge). continue-on-error
-# keeps a failed leg from failing the run, so the other badge still updates;
-# the cost is that the failed tool's own badge goes stale (it needs a run
-# where *both* legs pass to find a newer artifact) rather than the fully
-# independent search two separate workflows gave it - an acceptable trade for
-# an advisory-only figure that never gates anything.
+# status is the *whole run's* conclusion - which a hard-failing job would
+# otherwise couple, one shard's failure graying out both tools' badges. A
+# gather job merges whatever shards actually uploaded rather than requiring
+# all four - the cost is the same one continue-on-error always bought here:
+# a failed shard's own badge goes stale (it needs a run where every shard and
+# the gather both land a result) rather than gating the run itself.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -47,68 +60,101 @@ permissions:
   contents: read
 
 jobs:
-  coverage:
-    name: ${{ matrix.tool }} over the suite sweep
-    # only a green push to main measures; a manual dispatch passes the first
-    # clause
+  # every-suite selection sliced 4 ways, per the header above; each shard
+  # writes only its own $_HI_COV_DIR/parts/<suite> subdirectories, which are
+  # disjoint across shards by construction (--shard partitions the suite
+  # table, never splits a suite), so gather-kcov's `kcov --merge` over the
+  # union is exactly the merge tests/coverage.sh would have done for the
+  # whole sweep in one process.
+  shard-kcov:
+    name: kcov over the suite sweep (shard ${{ matrix.shard }} of 4)
     if: >-
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # pushes to main can stack; only the newest figure per tool matters, and
-    # kcov's queue must not wait behind bashcov's or vice versa
+    timeout-minutes: 25
     concurrency:
-      group: coverage-${{ matrix.tool }}
+      group: coverage-kcov-${{ matrix.shard }}
       cancel-in-progress: true
-    # see the header comment above for what this buys and what it costs
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - tool: kcov
-            script: tests/coverage.sh
-            report_dir: coverage-report
-            pct_dir: coverage-pct
-          - tool: bashcov
-            script: tests/coverage_v2.sh
-            report_dir: coverage-v2-report
-            pct_dir: coverage-v2-pct
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # kcov's runtime libraries ride along on its own leg; bashcov needs
-      # nothing past zsh and fish
-      - name: Install zsh, fish, and this leg's other OS packages
+      - name: Install zsh, fish, and kcov's runtime libraries
         run: |
           set -euo pipefail
           sudo apt-get update
-          if [ "${{ matrix.tool }}" = kcov ]; then
-            sudo apt-get install -y zsh fish libdw1 libelf1 libcurl4 zlib1g libstdc++6
-          else
-            sudo apt-get install -y zsh fish
-          fi
+          sudo apt-get install -y zsh fish libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
       # built from its GitHub source tarball like every other tool setup-tool
       # knows: kcov publishes no binary asset and reaches Debian/Ubuntu only
-      # through a PPA
-      - if: matrix.tool == 'kcov'
-        uses: $/.github/actions/setup-tool
+      # through a PPA. Cached by version+os+arch, so all four shards' runners
+      # hit the cache rather than each rebuilding kcov from source.
+      - uses: $/.github/actions/setup-tool
         with:
           tool: kcov
+
+      # HI_SHARDS is the divisor and the matrix above lists one entry per
+      # shard, the same contract ci.yml's e2e job and windows-client.yml use.
+      # No --group: the default selection is every suite, same as an
+      # unsharded run.
+      - name: Run this shard of the suite sweep under kcov
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          HI_SHARDS: 4
+        run: "tests/coverage.sh coverage-report --shard \"$HI_SHARD/$HI_SHARDS\""
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-parts-kcov-${{ matrix.shard }}
+          path: coverage-report/parts
+          if-no-files-found: error
+          retention-days: 1
+
+  shard-bashcov:
+    name: bashcov over the suite sweep (shard ${{ matrix.shard }} of 4)
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: coverage-bashcov-${{ matrix.shard }}
+      cancel-in-progress: true
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install zsh and fish
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y zsh fish
 
       # bashcov is a rubygem, and none of tools.txt's kinds fetch one, so the
       # pin lives here by hand - which makes it the one tool
       # check_tool_versions.sh cannot report drift on through tools.txt; its
       # own row in _WORKFLOW_ROSTER points at this file instead. ruby is
       # preinstalled on the hosted images; the apt install below is a
-      # fallback that should never run.
-      - if: matrix.tool == 'bashcov'
-        name: Install ruby and bashcov
+      # fallback that should never run. Every shard installs its own copy -
+      # a rubygem install has no cache here the way setup-tool's kcov build
+      # does, so this is paid four times in parallel rather than once, which
+      # is still faster wall-clock than the unsharded serial sweep was.
+      - name: Install ruby and bashcov
         env:
           BASHCOV_VERSION: "4.0.0"
         run: | # zizmor: ignore[adhoc-packages]
@@ -117,105 +163,269 @@ jobs:
           # zizmor flags this as an ad-hoc install, and the ignore rides on
           # the `run:` line above - a comment in here is shell text, not YAML,
           # and the audit never sees it. The version pin is the answer to the
-          # finding: the lockfile it would rather see is a Gemfile for a single
-          # gem in a job that installs nothing else. ci.yml audits with no
-          # --min-severity, so even a low finding exits 12 - the suppression
-          # has to be written down rather than assumed.
+          # finding: the lockfile it would rather see is a Gemfile for a
+          # single gem in a job that installs nothing else. ci.yml audits
+          # with no --min-severity, so even a low finding exits 12 - the
+          # suppression has to be written down rather than assumed.
           gem install --user-install bashcov -v "$BASHCOV_VERSION"
           # --user-install puts the binary somewhere off the default PATH;
-          # coverage_v2.sh looks there itself, but exporting it here keeps the
-          # step below readable and lets `bashcov --version` be the smoke test
+          # coverage_v2.sh looks there itself, but exporting it here keeps
+          # the step below readable and lets `bashcov --version` be the
+          # smoke test
           for d in "$HOME"/.local/share/gem/ruby/*/bin; do
             [ -x "$d/bashcov" ] && echo "$d" >>"$GITHUB_PATH"
           done
 
-      - if: matrix.tool == 'bashcov'
-        name: Show the bashcov version
+      - name: Show the bashcov version
         run: bashcov --version
 
-      # No shellcheck/shfmt/checkbashisms on purpose: both coverage scripts
-      # drop the `shellcheck` suite from the sweep, so the host report's
-      # "(absent)" for them is not a failure.
-      - name: Run the suite sweep under ${{ matrix.tool }}
-        run: "${{ matrix.script }} ${{ matrix.report_dir }}"
+      - name: Run this shard of the suite sweep under bashcov
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          HI_SHARDS: 4
+        run: "tests/coverage_v2.sh coverage-v2-report --shard \"$HI_SHARD/$HI_SHARDS\""
+
+      # Only the resultset, not the whole coverage-v2-report tree: SimpleCov
+      # writes an HTML report per shard too, and gather-bashcov has no use
+      # for four partial, suite-incomplete copies of it - only the raw
+      # per-line hit data merges cleanly (see gather-bashcov below).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-parts-bashcov-${{ matrix.shard }}
+          path: coverage-v2-report/.resultset.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # kcov's own --merge takes any glob of independent kcov output directories,
+  # which is exactly what four shards' parts/ uploads are - nothing about the
+  # merge assumes they came from one process, one machine, or in order.
+  gather-kcov:
+    name: kcov - merge shards and publish
+    needs: shard-kcov
+    if: >-
+      always() &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: coverage-kcov-gather
+      cancel-in-progress: true
+    continue-on-error: true
+    steps:
+      - uses: $/.github/actions/setup-tool
+        with:
+          tool: kcov
+
+      # merge-multiple flattens every matched artifact straight into one
+      # directory rather than nesting one subdirectory per artifact name -
+      # what makes this equivalent to an unsharded run's parts/: suite names
+      # are disjoint across shards (--shard partitions the suite table), so
+      # nothing here collides.
+      - name: Download every kcov shard's parts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-parts-kcov-*
+          path: coverage-report/parts
+          merge-multiple: true
+
+      - name: Merge the shards
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          parts=(coverage-report/parts/*)
+          if [ "${#parts[@]}" -eq 0 ]; then
+            echo "::warning::no kcov shard parts were downloaded - nothing to merge"
+            exit 0
+          fi
+          kcov --merge coverage-report/merged "${parts[@]}"
+          # Every file kcov traced, worst first - the same ranking
+          # tests/coverage.sh prints locally, reproduced here since this
+          # merge happens in the gather job instead.
+          json="$(find coverage-report/merged -name coverage.json | head -1)"
+          [ -n "$json" ] && awk -F'"' '
+            /"file"/ {
+              for (i = 1; i < NF; i++)
+                if ($i == "percent_covered") {
+                  printf " |   %6s%%  %5s/%-5s  %s\n", $(i + 2), $(i + 6), $(i + 10), $4
+                  break
+                }
+            }' "$json" | sort -n
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ matrix.report_dir }}
-          path: ${{ matrix.report_dir }}
+          name: coverage-report
+          path: coverage-report
           if-no-files-found: error
           retention-days: 90
 
-      # One line pages.yml turns into README's badge (badges/coverage.json or
-      # badges/coverage-v2.json), separate from the report because the site
-      # re-reads it on every deploy. kcov's `^[[:space:]]*` anchor is
-      # load-bearing: it writes percent_covered once per traced file inline
-      # inside a `{...}` and once for the whole run on a line of its own;
-      # without it the first per-file figure wins. bashcov's SimpleCov
-      # .resultset.json has no aggregate percentage at all, only per-line hit
-      # arrays, so ruby computes it - and applies the tests/ + docs/ subject
-      # filters itself: coverage_v2.sh's SimpleCov filters shape only the
-      # HTML report, while the resultset stays raw, so without them here the
-      # badge counts the harness and the never-executed demo scripts against
-      # the product (kcov's badge already excludes both: --exclude-path
-      # drops tests/, and files never executed don't reach its report).
+      # One line pages.yml turns into README's badge (badges/coverage.json),
+      # unchanged from the unsharded workflow: gather-kcov reproduces the
+      # exact merged/kcov-merged/coverage.json path a single-process run
+      # would have written. kcov's `^[[:space:]]*` anchor is load-bearing: it
+      # writes percent_covered once per traced file inline inside a `{...}`
+      # and once for the whole run on a line of its own; without it the
+      # first per-file figure wins.
       - name: Write the badge figure
-        env:
-          TOOL: ${{ matrix.tool }}
-          REPORT_DIR: ${{ matrix.report_dir }}
-          PCT_DIR: ${{ matrix.pct_dir }}
         run: |
           set -euo pipefail
-          if [ "$TOOL" = kcov ]; then
-            src="$REPORT_DIR/merged/kcov-merged/coverage.json"
-            if [ ! -f "$src" ]; then
-              echo "::warning::$src is missing - no badge figure to publish"
-              exit 0
-            fi
-            pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$src" | tail -1)"
-            case "$pct" in '' | *[!0-9.]*)
-              echo "::warning::could not read percent_covered out of $src"
-              exit 0
-              ;;
-            esac
-          else
-            src="$REPORT_DIR/.resultset.json"
-            if [ ! -f "$src" ]; then
-              echo "::warning::$src is missing - no badge figure to publish"
-              exit 0
-            fi
-            pct="$(ruby -rjson -e '
-              merged = {}
-              JSON.parse(File.read(ARGV[0])).each_value do |payload|
-                (payload["coverage"] || {}).each do |file, data|
-                  lines = data.is_a?(Hash) ? data["lines"] : data
-                  if merged[file]
-                    merged[file] = merged[file].each_with_index.map do |v, i|
-                      [v, lines[i]].compact.sum if v || lines[i]
-                    end
-                  else
-                    merged[file] = lines.dup
-                  end
-                end
-              end
-              root = Dir.pwd + "/"
-              relevant = merged.reject { |f, _|
-                f.sub(root, "").start_with?("tests/", "docs/")
-              }.values.flatten.compact
-              exit 1 if relevant.empty?
-              printf("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
-            ' "$src")" || {
-              echo "::warning::could not compute a percentage out of $src"
-              exit 0
-            }
+          src="coverage-report/merged/kcov-merged/coverage.json"
+          if [ ! -f "$src" ]; then
+            echo "::warning::$src is missing - no badge figure to publish"
+            exit 0
           fi
-          mkdir -p "$PCT_DIR"
-          printf '%s\n' "$pct" >"$PCT_DIR/pct"
-          echo "$TOOL reports ${pct}% of lines executed"
+          pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$src" | tail -1)"
+          case "$pct" in '' | *[!0-9.]*)
+            echo "::warning::could not read percent_covered out of $src"
+            exit 0
+            ;;
+          esac
+          mkdir -p coverage-pct
+          printf '%s\n' "$pct" >coverage-pct/pct
+          echo "kcov reports ${pct}% of lines executed"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: hashFiles(format('{0}/pct', matrix.pct_dir)) != ''
+        if: hashFiles('coverage-pct/pct') != ''
         with:
-          name: ${{ matrix.pct_dir }}
-          path: ${{ matrix.pct_dir }}
+          name: coverage-pct
+          path: coverage-pct
+          if-no-files-found: error
+
+  # bashcov's SimpleCov .resultset.json is a plain hash keyed by
+  # --command-name (the suite name), so four shards' resultsets are
+  # disjoint-by-construction and merging them is a plain hash union - no
+  # SimpleCov.merge, no lock file, just JSON. That is also exactly what the
+  # existing badge/ranking code already does one level up (each iterates
+  # every payload's "coverage" hash and sums per-file arrays across
+  # entries), so this reuses the same shape rather than inventing a second
+  # one. Only the full HTML index would need SimpleCov.collate (and the
+  # simplecov gem installed here to call it) - deliberately skipped: nothing
+  # downstream reads coverage-v2-report's HTML programmatically (pages.yml
+  # only ever fetches the coverage-pct/coverage-v2-pct artifacts), so it is
+  # not worth a second gem install in a job that otherwise needs only ruby.
+  gather-bashcov:
+    name: bashcov - merge shards and publish
+    needs: shard-bashcov
+    if: >-
+      always() &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: coverage-bashcov-gather
+      cancel-in-progress: true
+    continue-on-error: true
+    steps:
+      # each shard's resultset lands in its own artifact-named subdirectory
+      # (merge-multiple: false, the default) - never merge-multiple here:
+      # every shard's file is literally named .resultset.json, and flattening
+      # them into one directory would let the last download overwrite every
+      # shard before it.
+      - name: Download every bashcov shard's resultset
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-parts-bashcov-*
+          path: coverage-v2-report/shards
+
+      - name: Merge the shards and rank the files
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          shards=(coverage-v2-report/shards/*/.resultset.json)
+          if [ "${#shards[@]}" -eq 0 ]; then
+            echo "::warning::no bashcov shard resultsets were downloaded - nothing to merge"
+            exit 0
+          fi
+          ruby -rjson -e '
+            merged = {}
+            ARGV.each do |f|
+              JSON.parse(File.read(f)).each { |name, payload| merged[name] = payload }
+            end
+            File.write("coverage-v2-report/.resultset.json", JSON.generate(merged))
+
+            # Every file bashcov traced, worst first - the same ranking
+            # tests/coverage_v2.sh prints locally, reproduced here since this
+            # merge happens in the gather job instead.
+            root = Dir.pwd + "/"
+            lines_by_file = Hash.new
+            merged.each_value do |payload|
+              (payload["coverage"] || {}).each do |file, data|
+                lines = data.is_a?(Hash) ? data["lines"] : data
+                if lines_by_file[file]
+                  lines_by_file[file] = lines_by_file[file].each_with_index.map do |v, i|
+                    [v, lines[i]].compact.sum if v || lines[i]
+                  end
+                else
+                  lines_by_file[file] = lines.dup
+                end
+              end
+            end
+            rows = lines_by_file.map do |file, lines|
+              relevant = lines.compact
+              next if relevant.empty?
+              hit = relevant.count { |c| c > 0 }
+              [100.0 * hit / relevant.size, hit, relevant.size, file.sub(root, "")]
+            end.compact
+            rows.sort_by { |pct, _, _, path| [pct, path] }.each do |pct, hit, total, path|
+              printf(" |   %6.2f%%  %5d/%-5d  %s\n", pct, hit, total, path)
+            end
+          ' "${shards[@]}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-v2-report
+          path: coverage-v2-report/.resultset.json
+          if-no-files-found: error
+          retention-days: 90
+
+      # bashcov's SimpleCov .resultset.json has no aggregate percentage at
+      # all, only per-line hit arrays, so ruby computes it - and applies the
+      # tests/ + docs/ subject filters itself: coverage_v2.sh's SimpleCov
+      # filters shape only the HTML report, while the resultset stays raw,
+      # so without them here the badge counts the harness and the
+      # never-executed demo scripts against the product.
+      - name: Write the badge figure
+        run: |
+          set -euo pipefail
+          src="coverage-v2-report/.resultset.json"
+          if [ ! -f "$src" ]; then
+            echo "::warning::$src is missing - no badge figure to publish"
+            exit 0
+          fi
+          pct="$(ruby -rjson -e '
+            merged = {}
+            JSON.parse(File.read(ARGV[0])).each_value do |payload|
+              (payload["coverage"] || {}).each do |file, data|
+                lines = data.is_a?(Hash) ? data["lines"] : data
+                if merged[file]
+                  merged[file] = merged[file].each_with_index.map do |v, i|
+                    [v, lines[i]].compact.sum if v || lines[i]
+                  end
+                else
+                  merged[file] = lines.dup
+                end
+              end
+            end
+            root = Dir.pwd + "/"
+            relevant = merged.reject { |f, _|
+              f.sub(root, "").start_with?("tests/", "docs/")
+            }.values.flatten.compact
+            exit 1 if relevant.empty?
+            printf("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
+          ' "$src")" || {
+            echo "::warning::could not compute a percentage out of $src"
+            exit 0
+          }
+          mkdir -p coverage-v2-pct
+          printf '%s\n' "$pct" >coverage-v2-pct/pct
+          echo "bashcov reports ${pct}% of lines executed"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: hashFiles('coverage-v2-pct/pct') != ''
+        with:
+          name: coverage-v2-pct
+          path: coverage-v2-pct
           if-no-files-found: error

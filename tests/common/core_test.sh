@@ -234,6 +234,18 @@ Match user nobody
 
 Host afternobody
     HostName 17.17.17.17
+
+# Tags: canary
+Match host canary-* localuser build
+    HostName 18.18.18.18
+
+# Tags: robot
+Match host robot-* exec "true"
+    HostName 19.19.19.19
+
+# Tags: lastword
+Match host lastcall-* canonical final
+    HostName 20.20.20.20
 EOF
   printf '%s' "$f"
 }
@@ -311,6 +323,25 @@ function test_ssh_host_tag_match_criteria_are_not_patterns() {
   local rc=0
   _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag deploy >/dev/null || rc=$?
   [ "$rc" -eq 1 ]
+}
+
+# The rest of ssh_config's Match criteria roster - the walker strips one of
+# `user`, `localuser`, `exec`, `canonical`, `final` off the end of a `Match
+# host` pattern list, in that order - only `user` had a case above.
+# `canonical` and `final` are bare keywords with no value of their own, so
+# "lastcall-* canonical final" exercises both the mid-string and
+# end-of-string truncations in one fixture line - named to not itself start
+# with the word "final", which the last truncation would otherwise also
+# strip as if it were the keyword.
+function test_ssh_host_tag_match_criteria_localuser_exec_canonical_final() {
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag canary-1)" = "canary" ] || return 1
+  local rc=0
+  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag build >/dev/null || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag robot-1)" = "robot" ] || return 1
+
+  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag lastcall-1)" = "lastword" ]
 }
 
 # a Match on anything but host opens a block of its own, so the tag comment
@@ -402,6 +433,31 @@ function test_zsh_pattern_pins_agree_with_bash() {
   a="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" bash -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
   b="$(env _HI_HOME="$_HI_HOME" _HI_COLORS="$colors" zsh -c "source \"\$_HI_HOME/say-hi/common/core.sh\"; $script" 2>&1)"
   [ -n "$a" ] && [ "$a" = "$b" ]
+}
+
+# GLOSSARY: HI.33's bash arm - the every-entry-point-derives-its-own-tree
+# fallback that makes $_HI_HOME optional. Every other case in this suite sets
+# $_HI_HOME before sourcing core.sh (test_lib.sh's own doing, HI.33's *test*
+# side), so this branch never otherwise runs: a fresh bash with $_HI_HOME
+# genuinely unset (not just empty - `-u`, not a blank value) sourcing core.sh
+# by its real path is the only way to reach it. Asserts against the real
+# checkout's own $_HI_HOME rather than a scratch tree, since the point is
+# that the derivation is correct, not merely that it runs.
+function test_hi_home_self_derives_when_unset() {
+  local real="$_HI_HOME/say-hi/common/core.sh"
+  [ "$(env -u _HI_HOME -u _hi_core_loaded bash -c \
+    "source '$real'; printf '%s' \"\$_HI_HOME\"")" = "$_HI_HOME" ]
+}
+
+# The other half of HI.33's case: BASH_SOURCE[0] carries no slash at all when
+# core.sh is sourced by a bare relative name from its own directory (`source
+# core.sh`, not `source ./core.sh` or an absolute path) - bash's `.`/`source`
+# still finds it in the current directory, but the case that strips a
+# directory component off $_hi_self has nothing to strip, and takes the
+# `*) _hi_self="."` arm instead.
+function test_hi_home_self_derives_from_a_bare_relative_source() {
+  [ "$(cd "$_HI_HOME/say-hi/common" && env -u _HI_HOME -u _hi_core_loaded bash -c \
+    'source core.sh; printf "%s" "$_HI_HOME"')" = "$_HI_HOME" ]
 }
 
 # core.sh's preamble runs once per shell and is guarded by $_hi_core_loaded,
@@ -886,6 +942,7 @@ function run_core_tests() {
   _hi_check "Untagged wildcard block is rc 2" test_ssh_host_tag_wildcard_untagged_block_is_rc_2
   _hi_check "A '!' token is inert, not exclusionary" test_ssh_host_tag_negation_token_is_inert_not_exclusionary
   _hi_check "Match criteria after the patterns are not patterns" test_ssh_host_tag_match_criteria_are_not_patterns
+  _hi_check "...localuser, exec, canonical and final too" test_ssh_host_tag_match_criteria_localuser_exec_canonical_final
   _hi_check "A non-host Match ends its tag" test_ssh_host_tag_non_host_match_ends_its_tag
 
   _hi_h2 "Testing: _hi_resolve_color precedence"
@@ -906,6 +963,10 @@ function run_core_tests() {
   _hi_check "_hi_on_exit installs a trap that fires in bash" test_on_exit_installs_a_trap_that_fires_in_bash
   _hi_check "_hi_setting_get: rc 1 for a missing file and an unset name" test_setting_get_fails_for_a_missing_file_and_an_unset_name
   _hi_check "_hi_unexport keeps the value, drops the export bit" test_unexport_keeps_values_and_drops_the_export_bit
+
+  _hi_h2 "Testing: HI.33's bash arm - \$_HI_HOME self-derivation"
+  _hi_check "sourced by its real path with \$_HI_HOME unset" test_hi_home_self_derives_when_unset
+  _hi_check "...and by a bare relative name from its own directory" test_hi_home_self_derives_from_a_bare_relative_source
 
   _hi_h2 "Testing: the settings overlay"
   _hi_check "settings.sh is sourced" test_settings_sh_is_sourced
