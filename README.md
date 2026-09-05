@@ -438,18 +438,3 @@ questions decided against are **deleted**: git history is the ledger.
        scheme on both backgrounds and retune any hex that reads wrong.
        **Ticks when:** all four schemes read monotonic 0-3 in
        `--packages-preview` and legibly in `--color-preview` on both.
-
-6. [ ] **A non-sh test harness, or not** — _scope: an investigation and one
-       recorded decision; no product code._ The suite is 46 bash suites,
-       ~1500 cases, on a hand-rolled harness (`tests/test_lib.sh` +
-       `tests/lib/*.sh`, [docs/TESTING.md](docs/TESTING.md)) that has to run
-       under macOS's bash 3.2, Git Bash, WSL and FreeBSD's pkg bash, and does
-       its own parallel batches, pty driving, skips and coverage. **Do:** try
-       bats-core, shellspec and a python/pytest driver against the same three
-       or four suites (`configure`, `doctor`, `ssh`, one lint suite) and
-       write up speed, portability to those four runners, pty/e2e fixtures
-       and coverage tooling against the current harness, with the
-       `tests/<dir it tests>/` and sources-only-`test_lib.sh` rule
-       (GLOSSARY: HI.34) as a constraint, not a casualty. **Ticks when:** a
-       decision is written into docs/TESTING.md — "keep", with the reasons,
-       or a migration entry here that replaces this one.

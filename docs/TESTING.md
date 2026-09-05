@@ -19,6 +19,7 @@ tests/test_runner.sh
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
     - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
   - [The score has a ceiling here](#the-score-has-a-ceiling-here)
+- [Why the harness is hand-rolled](#why-the-harness-is-hand-rolled)
 - [The lint gate](#the-lint-gate)
 - [Relaying](#relaying)
 - [Local-only](#local-only)
@@ -368,6 +369,102 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   push past a failing check or merge without the full gate - kept, since
   that's the emergency valve for a one-person project. 10 additionally needs
   two required approving reviews, which needs a second person regardless.
+
+## Why the harness is hand-rolled
+
+The roadmap once asked whether to try [bats-core], [shellspec] and a
+python/pytest driver against `configure`, `doctor`, `ssh` and one lint suite,
+and either keep this harness or replace it. What follows is that decision.
+It's a paper study, not a bake-off: no suite was ported, and nothing below is
+a timing number. Speed was one of the things asked for, and a paper study
+can't produce it honestly - the reasoning for why it probably wouldn't have
+decided the answer anyway is at the end. Every other axis here is a
+documented fact about a candidate or a demonstrable fact about this tree,
+checked on 2026-09-05.
+
+The three candidates aren't really competing with `test_runner.sh` - nothing
+about `--group`, `--shard`, `--host-report`, the summary table or the
+`::group::`/`::error` folding that eight workflows are wired to changes if
+the suites underneath it move. What a candidate replaces is
+`tests/test_lib.sh` and the 2,517 lines of `tests/lib/*.sh` behind it, and
+then has to hand `test_runner.sh` back something it can still collect through
+`$_HI_COUNTS_FILE`/`$_HI_FAILS_FILE`. Scored on that basis:
+
+|                          | this harness                                               | [bats-core]                                                                       | [shellspec]                                                               | a pytest driver                                                       |
+| ------------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| macOS bash 3.2           | native (it's what's shipped)                               | claimed, "Bash 3.2 or above"                                                      | bash 3.2.57 named and CI-tested                                           | n/a - drives shells, isn't one                                        |
+| Git Bash, install step   | none - it's the tree                                       | source-only; no MSYS2/Cygwin/WSL tier documented                                  | Git Bash, msys2, cygwin, busybox-w32, WSL all tested                      | `import pty` fails - Unix only, stdlib says so                        |
+| runtime-generated cases  | plain bash `for`, unrestricted                             | `bats_test_function` (workaround; order is issue #860)                            | `Parameters:dynamic` allows a `for` loop, but no function/variable access | `parametrize`/`pytest_generate_tests`, fully dynamic                  |
+| skip vs. `--require-run` | three tiers, wrapper turns every skip into a fail          | `skip`; no fail-mode documented                                                   | `Skip`/`Pending`; no fail-mode documented                                 | needs `pytest-error-for-skips`, a second package                      |
+| parallel, ordered replay | own scheduler, submission-order replay                     | needs GNU parallel; **order not guaranteed**                                      | own `--jobs`; ordering undocumented                                       | needs `pytest-xdist`; reorders for scheduling                         |
+| coverage topology        | suite = top-level process, kcov + bashcov merged           | kcov known to read 0% on some `.bats` files (kcov#462)                            | built-in `--kcov`, same bash/zsh/ksh DEBUG-trap limit as ours             | coverage.py measures Python only - subprocess bash is invisible to it |
+| lint-gate reach          | already `*.sh`; shellcheck, shfmt, checkbashisms all apply | shellcheck parses `.bats` since 0.7; shfmt/checkbashisms don't know the extension | DSL keywords (`It`/`When`/`Then`); no shellcheck dialect found            | not shell at all - opts the driver out of the gate entirely           |
+| new dependency           | none                                                       | GNU parallel                                                                      | none found required                                                       | pytest + xdist + a pty replacement on Windows                         |
+
+Two things drop out of that table before the individual write-ups do:
+**pty and coverage are the two blockers a pytest driver can't route around.**
+`pty`/`tty` are Unix-only in CPython's own docs, which is exactly why
+`_hi_capable pty` (`tests/lib/fixtures.sh:206`) exists — Windows'
+`python3` passes `command -v` and fails `import pty` — so a pytest suite
+needs a second, separate driver (`pexpect`'s own docs point at
+[wexpect], a different package built on `pywin32`) for the one platform this
+harness already treats as a special case. And `coverage.py` never sees the
+bash it would be shelling out to; getting kcov/bashcov numbers back would
+mean wrapping every subprocess individually, which is a different topology
+from `tests/coverage.sh`'s one-tracer-per-suite design
+(`tests/coverage.sh:44-47`), not a port of it.
+
+**bats-core** gets the platform floor right - bash 3.2 is a named, tested
+target, not an afterthought - but two of its own documented behaviors would
+change what this tree currently guarantees. `--jobs` requires GNU parallel,
+a tool this repo doesn't otherwise depend on and that isn't part of any
+`tools.txt` row; and bats' own docs say parallel ordering "is not
+guaranteed," while `test_runner.sh` and `tests/lib/parallel.sh` both exist
+partly to make a parallel run _read_ like a serial one. `@test` blocks are
+preprocessed at parse time, so the ~230 `_hi_check` call sites that live
+inside `for` loops over shells and container shapes need `bats_test_function`
+instead of the loop they're written as now - documented, but with its own
+open issue about execution order. The one clean win: bats supports a custom
+formatter at an absolute path, which is the cleanest formatter story of the
+three.
+
+**shellspec** is the strongest of the three on paper, and worth naming
+specifically: its supported-shell matrix names macOS's exact shipped
+bash (3.2.57) and tests Git Bash, msys2, cygwin, busybox-w32 and WSL
+separately, which is a better-documented Windows story than this harness's
+own five hand-rolled `_hi_capable` probes for the same tier. Its
+`Parameters:dynamic` block accepts a `for` loop, which is close to what the
+suites already do. Set against that: its DSL (`Describe`/`It`/`When`/`Then`)
+is no more bash than bats' `@test` is, and no shellcheck dialect for it
+turned up in research, unlike bats' native support since 0.7 - so the fatal
+`source=` guard and the shellcheck fan-out both stop applying the moment a
+suite becomes a `.spec`. Its built-in `--kcov` integration carries the same
+bash/zsh/ksh-only limitation kcov already has here, so it's not a coverage
+upgrade, and no documented flag turns a `Skip` into a failure, so
+`--require-run`'s inversion would need the same kind of wrapper any of the
+three would.
+
+**Keep it.** The paper study lines up entirely on one side: every candidate
+either adds a dependency this repo doesn't vendor for anything else (GNU
+parallel, `pytest-xdist`, a Windows-only pty replacement), gives up ordered
+parallel replay, drops out of the lint gate's `*.sh` reach, or breaks the
+one-tracer-per-suite coverage topology - usually more than one of those at
+once. None of that needed the missing speed numbers to decide; the sweep's
+wall clock is dominated by container boot and the 90s/30s e2e and pty
+deadlines, not by how a runner dispatches a case, so per-case overhead across
+~1,450 cases was never likely to outweigh what's in the table above. If
+anything reopens this: Git Bash leaving the platform matrix, both coverage
+tools going unmaintained at once, a second maintainer showing up to absorb a
+migration, or one of these three documenting an ordered parallel mode and a
+skip-as-failure flag without a second package. Absent that, the closest thing
+to a "take" is bats' and shellspec's formatter idea - `test_runner.sh`
+growing a `--format tap` output for third-party tooling would be cheap and
+dependency-free - but that's product code, and this entry's scope was the
+decision, not the flag.
+
+[bats-core]: https://bats-core.readthedocs.io/
+[shellspec]: https://shellspec.info/
+[wexpect]: https://wexpect.readthedocs.io/
 
 ## The lint gate
 
