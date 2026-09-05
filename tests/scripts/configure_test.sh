@@ -514,7 +514,7 @@ function _hi_floor_pty() {
   : >"$out"
   printf '%b' "$input" |
     "${_HI_PTY_FORCED[@]}" bash -c "$_HI_FLOOR_CHILD" bash "$dir" >"$out" 2>&1 &
-  _hi_wait_pid "$!" 30 _hi_timed_out "$label" 30
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-30}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
@@ -1265,7 +1265,7 @@ function _hi_cfg_pty() {
   : >"$out"
   printf '%b' "$input" |
     "${_HI_PTY_FORCED[@]}" bash -c "$_HI_CFG_CHILD" bash "$dir" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" 30 _hi_timed_out "$label" 30
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-30}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 

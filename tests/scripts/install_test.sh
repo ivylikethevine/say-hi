@@ -375,7 +375,7 @@ function _hi_run_install_pty() {
     env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
       SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" \
       "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" 30 _hi_timed_out "$name" 30
+  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$name" "${_HI_CASE_TIMEOUT:-30}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
 
