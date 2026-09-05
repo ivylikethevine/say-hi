@@ -183,6 +183,63 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
 }
 
+# the row a healthy overlay gets: settings.sh there and parsing, both toggles
+# at their defaults folded into one quiet line
+function test_config_reports_a_settings_file_that_parses() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/goodcfg.XXXXXX")"
+  printf 'export _HI_MAX_WIDTH=100\n' >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"settings.sh"*"present, parses"* && "$out" == *"all defaults"* ]]
+}
+
+# settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
+# has to say which of the two parsers refused it
+function test_config_flags_a_settings_file_that_is_not_fish() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/shonly.XXXXXX")"
+  printf 'foo=1\n' >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"parses as sh but NOT as fish"* ]]
+}
+
+# the system layer gets the same two parse checks as settings.sh
+function test_config_flags_a_system_layer_that_does_not_parse() {
+  local dir sys out
+  dir="$(mktemp -d "$_HI_WORKDIR/badsys.XXXXXX")"
+  sys="$_HI_WORKDIR/broken.system.settings.sh"
+  printf 'if [ x\n' >"$sys"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_SYSTEM_SETTINGS="$sys"
+    doctor_config
+  )"
+  [[ "$out" == *"system"*"does NOT parse as sh"* ]]
+}
+
+# a non-default toggle is a row of its own - the one thing about a session
+# that a target-side report cannot see, named here so it is not a mystery
+function test_config_lists_a_non_default_toggle() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/toggled.XXXXXX")"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_DISABLE_NOTIFY=1
+    doctor_config
+  )"
+  [[ "$out" == *"toggle"*"_HI_DISABLE_NOTIFY=1"* && "$out" != *"all defaults"* ]]
+}
+
 # _hi_json_str is what makes --json parseable whatever a target wrote into a
 # row: quotes and backslashes escaped, control characters flattened to spaces
 function test_json_str_escapes_and_flattens() {
@@ -304,6 +361,15 @@ function test_container_target_names_the_fallback_shell() {
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 ash sh " \
   _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
   [[ "$out" == *"aliases only"* && "$out" == *"lands in ash"* ]]
+}
+
+# base64 but no shell on the whole ladder: there is nowhere for a session to
+# land, and the row says so rather than naming an empty fallback
+function test_container_target_flags_no_known_shell() {
+  local out
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " \
+  _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
+  [[ "$out" == *"no shell hi knows"* ]]
 }
 
 # a container that answers nothing is not running, and saying so beats an empty
@@ -523,6 +589,10 @@ function run_doctor_tests() {
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "The system layer gets a row" test_config_reports_the_system_layer
+  _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
+  _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
+  _hi_check "Flags a system layer that does not parse" test_config_flags_a_system_layer_that_does_not_parse
+  _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
 
   _hi_h2 "Testing: the report primitives"
   _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens
@@ -538,6 +608,7 @@ function run_doctor_tests() {
   _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
   _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target
+  _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
   _hi_check "Reports a permanent install" test_ssh_target_reports_a_permanent_install
   _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
   _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash

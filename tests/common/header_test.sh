@@ -1091,6 +1091,229 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
     [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
 }
 
+# --- the non-Linux arms of system_info, uptime and ip, on shims ------------
+#
+# The macOS and Windows probes cannot run here, so each platform is a PATH
+# dir of fake tools answering exactly the invocations header.sh makes, and
+# _HI_LINUX_RELEASE pointed at nothing so the kernel string decides the arm.
+# What each case asserts is the parse: the figures below are chosen so a
+# wrong field, a wrong page size or a byte order read the wrong way round
+# gives a different number.
+
+# _hi_platform_header <shims> <probe> [env...] - <probe> in a child bash
+# whose PATH is <shims> plus the coreutils the probes themselves fork
+# shellcheck disable=SC2016 # the probe expands in the child bash, not here
+function _hi_platform_header() {
+  local shims="$1" probe="$2"
+  shift 2
+  # _HI_LINUX_RELEASE is set after the source: paths.sh (via core.sh) writes
+  # its /etc/os-release default over whatever the environment carried in
+  env "$@" PATH="$shims:$(_hi_real_path platform-tools bash sh awk sed date fold mktemp rm sleep)" \
+    NO_COLOR=1 _HI_CASE_PROBE="$probe" \
+    bash -c 'source "$_HI_HEADER"; _HI_LINUX_RELEASE=/nonexistent; eval "$_HI_CASE_PROBE"' 2>&1
+}
+
+# an Apple Silicon mac: sysctl has no hw.cpufrequency (the probe answers
+# nothing, so the ioreg arm runs), vm_stat's page size is 16K and read from
+# its own header, and the sram voltage-states word is little-endian
+# (0x00b8dcd0 read backwards is 0xd0dcb800 = 3,504,000,000 Hz)
+function _hi_mac_shims() {
+  local dir="$_HI_WORKDIR/mac-shims"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    printf '#!/bin/sh\necho "Darwin arm64"\n' >"$dir/uname"
+    printf '#!/bin/sh\necho 15.1\n' >"$dir/sw_vers"
+    cat >"$dir/sysctl" <<'EOF'
+#!/bin/sh
+case "$2" in
+hw.ncpu) echo 8 ;;
+hw.memsize) echo 17179869184 ;;
+vm.loadavg) echo "{ 2.00 1.50 1.00 }" ;;
+kern.boottime) echo "{ sec = $(($(date +%s) - 5400)), usec = 0 } Thu Jan  1 00:00:00 2026" ;;
+*) exit 1 ;;
+esac
+EOF
+    cat >"$dir/vm_stat" <<'EOF'
+#!/bin/sh
+printf '%s\n' 'Mach Virtual Memory Statistics: (page size of 16384 bytes)' \
+  'Pages free:                              100000.' \
+  'Pages active:                            200000.' \
+  'Pages wired down:                         50000.' \
+  'Pages occupied by compressor:             12500.'
+EOF
+    cat >"$dir/ifconfig" <<'EOF'
+#!/bin/sh
+printf '%s\n' 'lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384' \
+  '	inet 127.0.0.1 netmask 0xff000000' \
+  'en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500' \
+  '	inet6 fe80::1%en0 prefixlen 64 secured scopeid 0x4' \
+  '	inet 192.0.2.10 netmask 0xffffff00 broadcast 192.0.2.255'
+EOF
+    cat >"$dir/ioreg" <<'EOF'
+#!/bin/sh
+printf '%s\n' '    | |   "voltage-states5-sram" = <00b8dcd000e1f505>'
+EOF
+    chmod +x "$dir"/*
+  fi
+  printf '%s' "$dir"
+}
+
+# git-bash on Windows: the MINGW kernel string, wmic's two-line answers
+# (header, then the value) and ipconfig's CRLF lines
+function _hi_windows_shims() {
+  local dir="$_HI_WORKDIR/windows-shims"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    printf '#!/bin/sh\necho "MINGW64_NT-10.0-22631 x86_64"\n' >"$dir/uname"
+    cat >"$dir/wmic" <<'EOF'
+#!/bin/sh
+case "$1 $2 $3" in
+"ComputerSystem get TotalPhysicalMemory") printf 'TotalPhysicalMemory\n17179869184\n' ;;
+"cpu get MaxClockSpeed") printf 'MaxClockSpeed\n2400\n' ;;
+*) exit 1 ;;
+esac
+EOF
+    cat >"$dir/ipconfig" <<'EOF'
+#!/bin/sh
+printf '%s\r\n' 'Windows IP Configuration' '' 'Ethernet adapter Ethernet:' \
+  '   IPv4 Address. . . . . . . . . . . : 10.0.0.5' \
+  '   Subnet Mask . . . . . . . . . . . : 255.255.255.0'
+EOF
+    chmod +x "$dir"/*
+  fi
+  printf '%s' "$dir"
+}
+
+function test_system_info_on_a_mac() {
+  local out
+  out="$(_hi_platform_header "$(_hi_mac_shims)" 'system_info')"
+  # used = (200000 + 50000 + 12500) pages * 16K = 4.0G of 16G; 2.00 on 8
+  # cores is 25%; the boost clock is ioreg's, sysctl having answered none
+  [[ "$out" == *"macOS 15.1"* && "$out" == *"arm64"* && "$out" == *"Cores: 8 (25%)"* &&
+    "$out" == *"RAM: 4/16G"* && "$out" == *"CPU: 3.5 GHz"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+function test_uptime_and_ip_cells_on_a_mac() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_uptime_cell u; _hi_ip_cell i; printf "%s\n%s\n" "$u" "$i"')"
+  # kern.boottime 5400s ago; ifconfig's inet line, not inet6 and not lo0
+  [[ "$out" == *"Up: 1h 30m"* && "$out" == *"IP: 192.0.2.10"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+function test_system_info_on_windows() {
+  local out
+  out="$(_hi_platform_header "$(_hi_windows_shims)" 'system_info' NUMBER_OF_PROCESSORS=4)"
+  # wmic only exposes the rated clock, so one figure, never a base/boost pair
+  [[ "$out" == *"Windows (MINGW64_NT-10.0-22631)"* && "$out" == *"Cores: 4"* &&
+    "$out" == *"RAM: 16G"* && "$out" == *"CPU: 2.4 GHz"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+function test_uptime_and_ip_cells_on_windows() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$(_hi_windows_shims)" '_hi_uptime_cell u; _hi_ip_cell i; printf "%s\n%s\n" "$u" "$i"')"
+  # no sysctl on git-bash: uptime is not probed at all; ipconfig's CR is gone
+  [[ "$out" == *"Up: ?"* && "$out" == *"IP: 10.0.0.5"* && "$out" != *$'\r'* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+# no uname and no /etc/os-release: nothing says what this box is, and the
+# cells say "?" rather than guessing at macOS
+function test_system_info_with_no_kernel_and_no_release_says_unknown() {
+  local out
+  out="$(_hi_platform_header "$(_hi_fake_path no-kernel-tools true)" 'system_info')"
+  [[ "$out" == *"?"* && "$out" != *"macOS"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
+}
+
+# the ioreg probe on its own: the parsed clock, and the bound that keeps a
+# hung ioreg (a documented risk under macOS virtualization) from stalling
+# the header - killed after a second, the cell left empty
+function test_apple_silicon_boost_parses_ioreg() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_apple_silicon_boost_mhz v; printf "%s" "${v:-none}"')"
+  [ "$out" = 3504 ]
+}
+
+function test_apple_silicon_boost_gives_up_on_a_hung_ioreg() {
+  local dir="$_HI_WORKDIR/hung-ioreg" out t0 t1
+  mkdir -p "$dir"
+  # exec: the shim *is* the hung process, so the SIGKILL lands on the sleep
+  # rather than on a wrapper shell that would leave it running as an orphan
+  printf '#!/bin/sh\nexec sleep 30\n' >"$dir/ioreg"
+  chmod +x "$dir/ioreg"
+  t0="$(_hi_now)"
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$dir" '_hi_apple_silicon_boost_mhz v; printf "%s" "${v:-none}"')"
+  t1="$(_hi_now)"
+  [ "$out" = none ] || {
+    _hi_cecho " | expected no clock, got: $out" "$RED"
+    return 1
+  }
+  # the loop's budget is 1s; anything near sleep's 30 means it waited
+  [ "$(_hi_elapsed "$t0" "$t1" | cut -d. -f1)" -lt 5 ]
+}
+
+# --- the row painter's two width-neutral switches -----------------------
+
+# $_HI_NO_LEAD_SPACE drops the leading space and only that: the " | " between
+# cells stays, on a header row and on the packages check's own rows
+function test_no_lead_space_drops_only_the_leading_space() {
+  local out
+  out="$(NO_COLOR=1 _HI_NO_LEAD_SPACE=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
+  [ "$out" = "| alpha | beta" ] || {
+    _hi_cecho " | got: [$out]" "$RED"
+    return 1
+  }
+  out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
+  [ "$out" = " | alpha | beta" ]
+}
+
+function test_no_lead_space_applies_to_the_packages_check() {
+  local pkgfile="$_HI_WORKDIR/nolead-pkgs" out
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
+  out="$(NO_COLOR=1 _HI_NO_LEAD_SPACE=1 _HI_PACKAGES="$pkgfile" bash -c 'source "$_HI_HEADER"; full_check')"
+  [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
+}
+
+# a row with nothing to place still ends the line: hi_header's own loop
+# relies on the reset-and-newline to close whatever color a prior cell left
+function test_header_row_with_no_cells_prints_a_bare_line() {
+  local out
+  out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row; printf END')"
+  [ "$out" = $'\nEND' ]
+}
+
+# a git identity has to exist to be masked; none at all is its own text
+function test_identity_without_a_git_email_says_so() {
+  local out
+  out="$(cd "$_HI_WORKDIR" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 NO_COLOR=1 \
+    PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c 'source "$_HI_HEADER"; identity')"
+  [[ "$out" == *"No Git ID Found"* ]]
+}
+
+# the alternate-hue table's two ends: a word with an entry, and one without,
+# which reads empty so the caller keeps the primary rather than a stray code
+function test_header_word_alt_is_empty_for_an_unknown_word() {
+  local v=set
+  _hi_header_word_alt no-such-word v
+  [ -z "$v" ] || return 1
+  _hi_header_word_alt uptime v
+  [ "$v" = "$BRGREEN" ]
+}
+
 # _hi_cell_hue: the leading escape's hue digit (1 red .. 6 cyan), ignoring
 # the bold bit, empty with no leading escape.
 function test_hi_cell_hue_reads_the_leading_escape() {
@@ -1691,6 +1914,18 @@ function run_header_tests() {
 
   _hi_h2 "Testing: a target with no coreutils"
   _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown
+  _hi_check "System_info on a mac, from shims" test_system_info_on_a_mac
+  _hi_check "Uptime and IP cells on a mac" test_uptime_and_ip_cells_on_a_mac
+  _hi_check "System_info on Windows (git-bash), from shims" test_system_info_on_windows
+  _hi_check "Uptime and IP cells on Windows" test_uptime_and_ip_cells_on_windows
+  _hi_check "System_info with no kernel and no os-release says ?" test_system_info_with_no_kernel_and_no_release_says_unknown
+  _hi_check "Apple Silicon boost parses ioreg's little-endian word" test_apple_silicon_boost_parses_ioreg
+  _hi_check "...and gives up on a hung ioreg inside a second" test_apple_silicon_boost_gives_up_on_a_hung_ioreg
+  _hi_check "_HI_NO_LEAD_SPACE drops only the leading space" test_no_lead_space_drops_only_the_leading_space
+  _hi_check "...on the packages check too" test_no_lead_space_applies_to_the_packages_check
+  _hi_check "A row with no cells prints a bare line" test_header_row_with_no_cells_prints_a_bare_line
+  _hi_check "Identity without a git email says so" test_identity_without_a_git_email_says_so
+  _hi_check "Alternate hue is empty for an unknown word" test_header_word_alt_is_empty_for_an_unknown_word
   _hi_check "Timestamp says ? without date" test_timestamp_without_date_says_unknown
   _hi_check "The uptime cell survives a stripped environment" test_uptime_cell_survives_a_stripped_environment
   _hi_check "The ip cell says unknown under a stripped environment" test_ip_cell_says_unknown_under_a_stripped_environment
