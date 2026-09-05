@@ -388,6 +388,14 @@ function _hi_print_hosts_table() {
 # tests/scripts/color_preview_test.sh needs
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
+# what the swatches below are painted under, so an eyeball pass of a
+# $_HI_COLOR_SCHEME says which one it is looking at (GLOSSARY: HI.50)
+if _hi_has_truecolor; then
+  _hi_cecho " | scheme: ${_HI_COLOR_SCHEME:-default}"
+else
+  _hi_cecho " | scheme: ${_HI_COLOR_SCHEME:-default} (no truecolor here - the 16-color escapes render)"
+fi
+printf '\n'
 _hi_print_users_table
 printf '\n'
 _hi_print_hosts_table

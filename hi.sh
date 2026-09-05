@@ -94,6 +94,9 @@ function _hi_session_env() {
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
   # the client's glyph verdict, not the target's: see _hi_ascii_flag
   printf '_HI_ASCII\t%s\n' "${_HI_ASCII:-$(_hi_ascii_flag)}"
+  # and its 24-bit verdict: ssh never forwards COLORTERM, and the escapes a
+  # $_HI_COLOR_SCHEME paints with render here, not there (GLOSSARY: HI.50)
+  printf '_HI_TRUECOLOR\t%s\n' "${_HI_TRUECOLOR:-$(_hi_truecolor_flag)}"
   # the client's no-color choice travels the same way (nothing when unset,
   # which is the value https://no-color.org gives no meaning to)
   [ -n "${NO_COLOR:-}" ] && printf 'NO_COLOR\t1\n'
@@ -601,6 +604,7 @@ function _hi_fallback_rc() {
   if [ -n "$aliases_dir" ]; then
     # the client verdicts the ssh preamble would have exported ride the rc here
     printf 'export _HI_ASCII=%s\n' "${_HI_ASCII:-$(_hi_ascii_flag)}"
+    printf 'export _HI_TRUECOLOR=%s\n' "${_HI_TRUECOLOR:-$(_hi_truecolor_flag)}"
     [ -n "${NO_COLOR:-}" ] && printf 'export NO_COLOR=1\n'
     printf '. %s/aliases.sh 2>/dev/null\n' "$aliases_dir"
   else

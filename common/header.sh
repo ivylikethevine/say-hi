@@ -33,13 +33,16 @@ function _hi_visible_width() {
 # <var> gets $2's hue - the final digit of its leading `\e[<bold>;3<n>m`
 # escape (1 red, 2 green, 3 yellow, 4 blue, 5 purple, 6 cyan), ignoring the
 # bold bit, so CYAN and BRCYAN read as the same hue and BLUE/CYAN don't.
-# Empty when there is no leading escape - NO_COLOR blanks the whole palette
-# (core.sh), and a cell like $_HI_SI_OS is then bare text. Anchored and
-# validated the same way _hi_visible_width's own prefix match is, rather
-# than an unanchored `${cell%%m*}`: an unvalidated cut would read a stray
-# "m" out of plain text (an OS name, "GHz") as if it were a color.
+# Under a color scheme the same escape carries on `;38;2;r;g;b` after the
+# slot digit (GLOSSARY: HI.50), so the digit is followed by `;` or `m` and
+# is the hue either way. Empty when there is no leading escape - NO_COLOR
+# blanks the whole palette (core.sh), and a cell like $_HI_SI_OS is then
+# bare text. Anchored and validated the same way _hi_visible_width's own
+# prefix match is, rather than an unanchored `${cell%%m*}`: an unvalidated
+# cut would read a stray "m" out of plain text (an OS name, "GHz") as if it
+# were a color.
 function _hi_cell_hue() {
-  local s="$2" re='^\\e\[[01];3([1-6])m'
+  local s="$2" re='^\\e\[[01];3([1-6])[;m]'
   printf -v "$1" '%s' ""
   [[ "$s" =~ $re ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
 }
@@ -551,7 +554,51 @@ function _hi_ip_cell() {
     }')
   fi
   _hi_sanitize_var ips "$ips"
+  # Addresses found but every one of them hidden is an empty cell, which
+  # _hi_collect_header_word drops - not "?", which keeps meaning that
+  # nothing routable was found or no tool could say.
+  if [ -n "$ips" ]; then
+    _hi_ip_filter ips "$ips"
+    [ -n "$ips" ] || {
+      printf -v "$1" '%s' ''
+      return 0
+    }
+  fi
   printf -v "$1" '%s' "${BLUE}IP: ${ips:-?}"
+}
+
+# _hi_ip_filter <outvar> <comma-joined addresses> - the same list minus every
+# address a $_HI_IP_HIDE glob matches. The setting is space-separated globs,
+# unset meaning `172.*` (the docker/podman bridge range, noise on any box that
+# runs containers); the word `none` (or an empty value) hides nothing. The
+# words are peeled off the string one at a time rather than word-split in a
+# `for`, which would also pathname-expand `172.*` against the cwd.
+function _hi_ip_filter() {
+  local _hi_if_hide="${_HI_IP_HIDE-172.*}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip _hi_if_list _hi_if_glob _hi_if_drop
+  case "$_hi_if_hide" in '' | none)
+    printf -v "$1" '%s' "$2"
+    return 0
+    ;;
+  esac
+  while [ -n "$_hi_if_rest" ]; do
+    _hi_if_ip="${_hi_if_rest%%,*}"
+    if [ "$_hi_if_ip" = "$_hi_if_rest" ]; then _hi_if_rest=""; else _hi_if_rest="${_hi_if_rest#*,}"; fi
+    _hi_if_drop=""
+    _hi_if_list="$_hi_if_hide "
+    while [ -n "${_hi_if_list// /}" ]; do
+      _hi_if_list="${_hi_if_list#"${_hi_if_list%%[! ]*}"}"
+      _hi_if_glob="${_hi_if_list%% *}"
+      _hi_if_list="${_hi_if_list#* }"
+      # shellcheck disable=SC2254 # the glob is the point
+      case "$_hi_if_ip" in $_hi_if_glob)
+        _hi_if_drop=1
+        break
+        ;;
+      esac
+    done
+    [ -n "$_hi_if_drop" ] || _hi_if_kept="$_hi_if_kept${_hi_if_kept:+,}$_hi_if_ip"
+  done
+  printf -v "$1" '%s' "$_hi_if_kept"
 }
 
 # identity()'s backend probes are independent and each capped at

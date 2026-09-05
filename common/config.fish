@@ -53,7 +53,7 @@ source $_HI_ALIASES
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE
 set -g _HI_SESSION_VARS _HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
-    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII
+    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
 function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
   for __hi_n in $_HI_SESSION_VARS
     set -q $__hi_n; and set -fx $__hi_n $$__hi_n
@@ -103,14 +103,18 @@ function fish_greeting
   set -q fish_greeting; or COLUMNS=$COLUMNS __hi_bash "source $_HI_HEADER; hi_header Online"
 end
 
-# a whole process for two color names, so memoized in a universal variable
-# keyed on user@host+colors-mtime: only the first shell after a change pays
+# a whole process for two colors, so memoized in a universal variable keyed
+# on user@host+colors-mtime, plus the scheme and the terminal's 24-bit verdict
+# (a universal variable outlives this terminal): only the first shell after a
+# change pays. Each value is a list - "rrggbb name" under a scheme, the bare
+# name otherwise - and set_color takes the first entry this terminal renders.
 set -l hi_key "$USER@"(prompt_hostname)
 test -f $_HI_COLORS; and set hi_key "$hi_key:"(path mtime $_HI_COLORS 2>/dev/null; or command stat -c %Y $_HI_COLORS 2>/dev/null; or command stat -f %m $_HI_COLORS 2>/dev/null)
+set hi_key "$hi_key:$_HI_COLOR_SCHEME:$_HI_TRUECOLOR:$COLORTERM"
 if not set -q __hi_colors_key; or test "$__hi_colors_key" != "$hi_key"
-  set -l hi_colors (__hi_bash "source $_HI_CORE; _hi_user_color; _hi_host_color")
-  set -U __hi_color_user $hi_colors[1]
-  set -U __hi_color_host $hi_colors[2]
+  set -l hi_colors (__hi_bash "source $_HI_CORE; _hi_prompt_colors")
+  set -U __hi_color_user (string split ' ' $hi_colors[1])
+  set -U __hi_color_host (string split ' ' $hi_colors[2])
   set -U __hi_colors_key "$hi_key"
 end
 set -gx fish_color_user $__hi_color_user

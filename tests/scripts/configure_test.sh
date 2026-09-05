@@ -188,6 +188,46 @@ function test_packages_palette_does_not_write_the_default() {
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
 }
 
+function test_color_scheme_keeps_an_existing_override() {
+  local out
+  out="$(_hi_section_lines scheme_keep config_color_scheme "export _HI_COLOR_SCHEME=onedark")"
+  [[ "$out" == *"export _HI_COLOR_SCHEME=onedark"* ]]
+}
+
+# no scheme is the default, so nothing is ever written for it
+function test_color_scheme_does_not_write_the_default() {
+  local out
+  out="$(_hi_section_lines scheme_default config_color_scheme)"
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+}
+
+# five rows, one per scheme, every one but default painted with the 24-bit
+# tail (forced, so the swatches show what a capable terminal would)
+function test_color_scheme_preview_lists_every_scheme() {
+  local out scheme
+  out="$(_hi_color_scheme_preview)"
+  for scheme in default catppuccin monokai onedark vscode; do
+    [[ "$out" == *"$scheme"* ]] || return 1
+  done
+  [[ "$out" == *";38;2;"* && "$out" == *"brcyan"* ]] || return 1
+  [ "$(printf '%s\n' "$out" | grep -c ';38;2;')" -eq 4 ]
+}
+
+function test_ip_hide_keeps_an_existing_override() {
+  local out
+  out="$(_hi_section_lines iphide_keep config_ip_hide "export _HI_IP_HIDE='none'")"
+  [[ "$out" == *"export _HI_IP_HIDE='none'"* ]]
+}
+
+# 172.* is header.sh's own default, so it is never written out
+function test_ip_hide_does_not_write_the_default() {
+  local out
+  out="$(_hi_section_lines iphide_default config_ip_hide)"
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ] || return 1
+  out="$(_hi_section_lines iphide_default2 config_ip_hide "export _HI_IP_HIDE='172.*'")"
+  [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
+}
+
 # the check itself is off, so which colors it would use is moot - the header
 # editor does not offer the palette then, and the stored value is kept for
 # when 'check' comes back
@@ -296,6 +336,19 @@ function test_validators_hold_their_grammars() {
   _hi_is_packages_palette warm || return 1
   _hi_is_packages_palette mono || return 1
   ! _hi_is_packages_palette bogus || return 1
+  _hi_is_ip_hide none || return 1
+  _hi_is_color_scheme default || return 1
+  _hi_is_color_scheme catppuccin || return 1
+  _hi_is_color_scheme monokai || return 1
+  _hi_is_color_scheme onedark || return 1
+  _hi_is_color_scheme vscode || return 1
+  ! _hi_is_color_scheme solarized || return 1
+  ! _hi_is_color_scheme "" || return 1
+  _hi_is_ip_hide '172.*' || return 1
+  _hi_is_ip_hide '10.* 192.168.?.*' || return 1
+  ! _hi_is_ip_hide "" || return 1
+  ! _hi_is_ip_hide "172.*;rm" || return 1
+  ! _hi_is_ip_hide "all" || return 1
   _hi_is_header_order "utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime check" || return 1
   _hi_is_header_order "check gitid" || return 1
   _hi_is_header_order utc || return 1
@@ -900,7 +953,9 @@ function test_preset_vocab_excludes_palette_and_order() {
   local vocab
   vocab="$(_hi_preset_vocab)"
   ! grep -qx _HI_PACKAGES_PALETTE <<<"$vocab" &&
-    ! grep -qx _HI_HEADER_ORDER <<<"$vocab"
+    ! grep -qx _HI_HEADER_ORDER <<<"$vocab" &&
+    ! grep -qx _HI_COLOR_SCHEME <<<"$vocab" &&
+    ! grep -qx _HI_IP_HIDE <<<"$vocab"
 }
 
 # the whole run with --preset, no tty: exactly the preset's lines land in the
@@ -1338,6 +1393,24 @@ function test_ask_value_typed_default_clears_the_override() {
 }
 
 # the palette question previews the real check once, then takes a word
+function test_color_scheme_asked_interactively_takes_a_word() {
+  _hi_cfg_pty scheme_typed 'monokai\n' '' config_color_scheme || return 1
+  _hi_cfg_has scheme_typed "catppuccin" &&
+    [ "$(_hi_cfg_lines scheme_typed)" = "export _HI_COLOR_SCHEME=monokai" ]
+}
+
+# typing the default clears an override rather than restating it
+function test_color_scheme_default_answer_clears_it() {
+  _hi_cfg_pty scheme_clear 'default\n' "export _HI_COLOR_SCHEME=vscode" config_color_scheme || return 1
+  [[ "$(_hi_cfg_lines scheme_clear)" != *"_HI_COLOR_SCHEME"* ]]
+}
+
+function test_hub_opens_colors() {
+  _hi_cfg_pty hub_colors '6\nonedark\ns\n' '' run_configure "" || return 1
+  _hi_cfg_has hub_colors "Color scheme:" &&
+    [[ "$(_hi_cfg_lines hub_colors)" == *"export _HI_COLOR_SCHEME=onedark"* ]]
+}
+
 function test_palette_asked_interactively_takes_a_word() {
   _hi_cfg_pty pal_typed 'warm\n' '' config_packages_palette || return 1
   _hi_cfg_has pal_typed "preview" &&
@@ -1487,6 +1560,12 @@ function test_header_editor_k_takes_a_palette() {
   _hi_cfg_pty hdr_palette 'k\nwarm\n\n' "export _HI_HEADER_ORDER='check utc'" config_header || return 1
   _hi_cfg_has hdr_palette "Package check palette: cool, warm, or mono?" &&
     [[ "$(_hi_cfg_lines hdr_palette)" == *"export _HI_PACKAGES_PALETTE=warm"* ]]
+}
+
+function test_header_editor_i_takes_hidden_addresses() {
+  _hi_cfg_pty hdr_iphide 'i\nnone\n\n' "export _HI_HEADER_ORDER='ip utc'" config_header || return 1
+  _hi_cfg_has hdr_iphide "Hide which addresses from the ip cell" &&
+    [[ "$(_hi_cfg_lines hdr_iphide)" == *"export _HI_IP_HIDE='none'"* ]]
 }
 
 # the Prompt menu is bounded the same way, and a separator with a quote in it
@@ -1722,6 +1801,11 @@ function run_configure_tests() {
   _hi_check "Palette: an existing override is kept" test_packages_palette_keeps_an_existing_override
   _hi_check "Palette: the default writes nothing" test_packages_palette_does_not_write_the_default
   _hi_check "Palette: kept when the check is off" test_packages_palette_kept_when_the_check_is_off
+  _hi_check "Hidden addresses: an existing override is kept" test_ip_hide_keeps_an_existing_override
+  _hi_check "Scheme: an existing override is kept" test_color_scheme_keeps_an_existing_override
+  _hi_check "Scheme: the default writes nothing" test_color_scheme_does_not_write_the_default
+  _hi_check "Scheme preview lists every scheme" test_color_scheme_preview_lists_every_scheme
+  _hi_check "Hidden addresses: the default writes nothing" test_ip_hide_does_not_write_the_default
   _hi_check "Order: an existing override is kept" test_header_order_keeps_an_existing_override
   _hi_check "Order: the default writes nothing" test_header_order_does_not_write_the_default
   _hi_check "Order: kept when the header is off" test_header_order_kept_when_the_header_is_off
@@ -1862,6 +1946,9 @@ function run_configure_tests() {
   _hi_par_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
   _hi_par_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
   _hi_par_check_capable pty "Palette: previewed once, then a typed word" test_palette_asked_interactively_takes_a_word
+  _hi_par_check_capable pty "Scheme: previewed, then a typed word" test_color_scheme_asked_interactively_takes_a_word
+  _hi_par_check_capable pty "Scheme: the default clears an override" test_color_scheme_default_answer_clears_it
+  _hi_par_check_capable pty "Hub: 6 opens Colors" test_hub_opens_colors
   _hi_par_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
   _hi_par_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
@@ -1884,6 +1971,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "p refuses a stranger" test_header_editor_preset_refuses_a_stranger
   _hi_par_check_capable pty "w takes a width" test_header_editor_w_takes_a_width
   _hi_par_check_capable pty "k takes a palette" test_header_editor_k_takes_a_palette
+  _hi_par_check_capable pty "i takes the hidden addresses" test_header_editor_i_takes_hidden_addresses
   _hi_par_check_capable pty "Prompt menu: junk bounded, a quote refused" test_prompt_menu_junk_is_bounded_and_a_quote_is_refused
   _hi_par_check_capable pty "Advanced values: glyph words map, a bad shell list is refused" test_advanced_values_map_glyph_words_and_refuse_a_bad_shell_list
   _hi_par_check_capable pty "A number toggles and previews" test_features_menu_toggles_and_previews

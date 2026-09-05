@@ -2036,12 +2036,27 @@ function test_mkrepo_release_hashes_shape() {
   printf 'Package: say-hi\n' >"$d/dists/main/binary-amd64/Packages"
   gzip -9 -n -c "$d/dists/main/binary-amd64/Packages" >"$d/dists/main/binary-amd64/Packages.gz"
   out="$(_hi_in_mkrepo "$d" "$d/repo" release_hashes "$d/dists" SHA256 sha256)" || return 1
-  printf '%s\n' "$out" | head -1 | grep -qx 'SHA256:' || return 1
-  printf '%s\n' "$out" | grep -qE '^ [0-9a-f]{64} +[0-9]+ main/binary-amd64/Packages$' && return 0
-  # A platform whose openssl doesn't shape this the way the regex above
-  # expects has failed here before with nothing to go on but "FAILED" - dump
-  # what release_hashes actually produced so a repeat failure names the
-  # real shape instead of sending someone back to guess again.
+  # The shape is checked in bash, not with a regex: this case once read
+  # `grep -qE '^ [0-9a-f]{64} +...'`, and FreeBSD 14's grep failed the bound
+  # on output that was byte-for-byte what the pattern asked for, while GNU
+  # grep passed it. Field splitting and `case` classes are the same in every
+  # shell this suite runs under.
+  local heading second hash size path
+  heading="${out%%$'\n'*}"
+  second="${out#*$'\n'}"
+  second="${second%%$'\n'*}"
+  [ "$heading" = 'SHA256:' ] || return 1
+  if [ "${second#" "}" != "$second" ]; then
+    read -r hash size path <<<"$second"
+    if [ "${#hash}" -eq 64 ] && [ "$path" = main/binary-amd64/Packages ]; then
+      case "$hash" in *[!0-9a-f]*) ;; *)
+        case "$size" in '' | *[!0-9]*) ;; *) return 0 ;; esac
+        ;;
+      esac
+    fi
+  fi
+  # A failure here once had nothing to go on but "FAILED" - dump what
+  # release_hashes actually produced so a repeat names the real shape.
   printf '%s\n' "$out" >"$d/hashes.actual"
   _hi_dump_log "release_hashes' actual output (wanted a lowercase-hex sha256 line)" "$d/hashes.actual"
   return 1

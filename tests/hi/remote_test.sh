@@ -303,6 +303,13 @@ function test_remote_preamble_ships_the_glyph_verdict() {
     [[ "$(DOMAIN=host _HI_ASCII="" LC_ALL=en_US.UTF-8 _hi_remote_preamble)" == *"export _HI_ASCII='0'"* ]]
 }
 
+# ...and its 24-bit verdict, for the same reason: the escapes a scheme
+# paints with render in the client's terminal, and ssh drops COLORTERM
+function test_remote_preamble_ships_the_truecolor_verdict() {
+  [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM=truecolor _hi_remote_preamble)" == *"export _HI_TRUECOLOR='1'"* ]] &&
+    [[ "$(DOMAIN=host _HI_TRUECOLOR="" COLORTERM="" _hi_remote_preamble)" == *"export _HI_TRUECOLOR='0'"* ]]
+}
+
 # Every value the preamble exports is data the client picked up rather than
 # code it wrote: $DOMAIN off argv, $_HI_TARGET_TAG out of a free-text ssh_config
 # comment, $_HI_RELEASE off `git describe`. Interpolated raw, they are the
@@ -556,6 +563,7 @@ EOF
   _hi_check "Candid with no stamp and no git" test_version_is_candid_without_stamp_or_git
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
   _hi_check "The preamble ships the glyph verdict" test_remote_preamble_ships_the_glyph_verdict
+  _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
 
   _hi_h2 "Testing: what the client bakes in stays data"
   _hi_check "A hostile target name survives the ssh preamble" test_preamble_quotes_a_hostile_target_name

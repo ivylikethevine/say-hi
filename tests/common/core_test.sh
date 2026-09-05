@@ -88,6 +88,85 @@ function test_no_color_blanks_the_palette_at_source_time() {
   [ -z "$out" ]
 }
 
+# _HI_COLOR_SCHEME (GLOSSARY: HI.50): the twelve names render as a
+# truecolor scheme only when the terminal says it can. Every case pins
+# _HI_TRUECOLOR rather than reading the developer's own COLORTERM.
+function test_has_truecolor_reads_colorterm() {
+  _HI_TRUECOLOR="" COLORTERM=truecolor _hi_has_truecolor || return 1
+  _HI_TRUECOLOR="" COLORTERM=24bit _hi_has_truecolor || return 1
+  ! _HI_TRUECOLOR="" COLORTERM=xterm-256color _hi_has_truecolor || return 1
+  ! _HI_TRUECOLOR="" COLORTERM="" _hi_has_truecolor || return 1
+  [ "$(_HI_TRUECOLOR="" COLORTERM=truecolor _hi_truecolor_flag)" = 1 ] &&
+    [ "$(_HI_TRUECOLOR="" COLORTERM="" _hi_truecolor_flag)" = 0 ]
+}
+
+function test_truecolor_override_wins_both_ways() {
+  _HI_TRUECOLOR=1 COLORTERM="" _hi_has_truecolor || return 1
+  ! _HI_TRUECOLOR=0 COLORTERM=truecolor _hi_has_truecolor
+}
+
+# one SGR: the 16-color pair first, the 24-bit triple after it, the bold bit
+# kept for the bright six - so every reader of the leading escape still
+# finds what it found before
+function test_scheme_escape_keeps_the_16_color_prefix() {
+  local red brred
+  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_var red red
+  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_var brred brred
+  [ "$red" = '\e[0;31;38;2;243;139;168m' ] && [ "$brred" = '\e[1;31;38;2;243;119;153m' ] &&
+    [ "$(_HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape red)" = $'\e[0;31;38;2;243;139;168m' ]
+}
+
+function test_scheme_is_inert_without_truecolor() {
+  local out
+  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=0 _hi_color_escape_var out red
+  [ "$out" = '\e[0;31m' ] || return 1
+  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=0 _hi_color_hex out red
+  [ -z "$out" ]
+}
+
+function test_scheme_is_inert_under_no_color() {
+  [ -z "$(NO_COLOR=1 _HI_COLOR_SCHEME=monokai _HI_TRUECOLOR=1 _hi_color_escape red)" ]
+}
+
+function test_unknown_scheme_falls_back_to_16_color() {
+  local out
+  _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
+  [ "$out" = '\e[1;36m' ]
+}
+
+function test_scheme_hex_is_six_hex_digits_for_every_slot() {
+  local scheme i hex
+  for scheme in catppuccin monokai onedark vscode; do
+    i=0
+    while [ "$i" -lt "${#_HI_COLOR_NAMES[@]}" ]; do
+      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex hex "$i"
+      [ "${#hex}" -eq 6 ] || return 1
+      case "$hex" in *[!0-9a-f]*) return 1 ;; esac
+      i=$((i + 1))
+    done
+  done
+}
+
+# the exported palette and the by-name escape share one primitive, so a
+# fresh shell under a scheme assigns $RED exactly what _hi_color_escape red
+# prints - packages_preview.sh's reverse map depends on that
+function test_palette_vars_agree_with_color_escape_under_a_scheme() {
+  local out
+  out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
+    . "$_HI_HOME/say-hi/common/core.sh"
+    for n in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
+      eval "v=\$$n"; printf "%b" "$v"
+    done | od -An -c | tr -d " \n"
+    printf "|"
+    for n in "${_HI_COLOR_NAMES[@]}"; do _hi_color_escape "$n"; done | od -An -c | tr -d " \n"')"
+  [ -n "${out%%|*}" ] && [ "${out%%|*}" = "${out#*|}" ] && [[ "${out%%|*}" == *"38;2;"* ]]
+}
+
+# the hash is untouched by a scheme: a name, never a hex
+function test_hash_color_ignores_the_scheme() {
+  [ "$(_HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1 _hi_hash_color prod-db)" = "$(_hi_hash_color prod-db)" ]
+}
+
 # _hi_cecho's %b is for the palette; the text goes through %s. What it prints
 # is a target's or ssh's words as often as hi's - _hi_report_failure feeds a
 # connect errlog through it - so a backslash a target wrote has to come out a
@@ -559,6 +638,10 @@ function test_zsh_hash_color_agrees_with_bash() {
   _hi_shell_agrees 'printf "%s,%s,%s" "$(_hi_hash_color alice)" "$(_hi_hash_color prod-db)" "$(_hi_hash_color x)"'
 }
 
+function test_zsh_scheme_escape_agrees_with_bash() {
+  _hi_shell_agrees 'export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1; _hi_assign_palette; _hi_color_hex h brcyan; printf "%s|%s|%s" "$RED" "$BRCYAN" "$h"'
+}
+
 function test_zsh_host_tag_agrees_with_bash() {
   _hi_shell_agrees 'printf "%s|%s" "$(_hi_ssh_host_tag myhost)" "$(_hi_ssh_host_tag devhost)"'
 }
@@ -876,6 +959,17 @@ function run_core_tests() {
   _hi_check "Empty means on (non-empty rule)" test_no_color_empty_means_on
   _hi_check "Blanks the palette at source time" test_no_color_blanks_the_palette_at_source_time
 
+  _hi_h2 "Testing: _HI_COLOR_SCHEME (HI.50)"
+  _hi_check "_hi_has_truecolor reads COLORTERM" test_has_truecolor_reads_colorterm
+  _hi_check "_HI_TRUECOLOR overrides both ways" test_truecolor_override_wins_both_ways
+  _hi_check "A scheme escape keeps the 16-color prefix" test_scheme_escape_keeps_the_16_color_prefix
+  _hi_check "Inert without truecolor" test_scheme_is_inert_without_truecolor
+  _hi_check "Inert under NO_COLOR" test_scheme_is_inert_under_no_color
+  _hi_check "An unknown scheme falls back to 16 colors" test_unknown_scheme_falls_back_to_16_color
+  _hi_check "Every slot of every scheme is six hex digits" test_scheme_hex_is_six_hex_digits_for_every_slot
+  _hi_check "The palette agrees with _hi_color_escape under a scheme" test_palette_vars_agree_with_color_escape_under_a_scheme
+  _hi_check "The hash ignores the scheme" test_hash_color_ignores_the_scheme
+
   _hi_h2 "Testing: _hi_cecho"
   _hi_check "Prints the text verbatim" test_cecho_prints_the_text_verbatim
   _hi_check "...and still expands the palette" test_cecho_still_expands_the_palette
@@ -979,6 +1073,7 @@ function run_core_tests() {
 
   _hi_h2 "Testing: the same answers in zsh"
   _hi_check_requires zsh "_hi_hash_color agrees with bash" test_zsh_hash_color_agrees_with_bash
+  _hi_check_requires zsh "A scheme escape agrees with bash" test_zsh_scheme_escape_agrees_with_bash
   _hi_check_requires zsh "_hi_ssh_host_tag agrees with bash" test_zsh_host_tag_agrees_with_bash
   _hi_check_requires zsh "...and rejects the same hosts" test_zsh_host_tag_rejects_the_same_hosts
   _hi_check_requires zsh "...and agrees on wildcard blocks" test_zsh_host_tag_wildcard_agrees_with_bash

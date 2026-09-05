@@ -213,6 +213,22 @@ function _hi_is_packages_palette() {
   case "$1" in cool | warm | mono) ;; *) return 1 ;; esac
 }
 
+# $_HI_COLOR_SCHEME's vocabulary: the schemes core.sh's _hi_scheme_hex knows,
+# and `default` for none (ask_value blanks it, which clears the line)
+function _hi_is_color_scheme() {
+  case "$1" in default | catppuccin | monokai | onedark | vscode) ;; *) return 1 ;; esac
+}
+
+# $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
+# dotted-quad addresses - digits, dots, `*` and `?` and nothing else, so a
+# stray quote or a shell metacharacter can't be written into settings.sh
+function _hi_is_ip_hide() {
+  case "$1" in
+  none) return 0 ;;
+  '' | *[!0-9.*?\ ]*) return 1 ;;
+  esac
+}
+
 # _hi_is_header_word <word> - one of $_HI_HEADER_ORDER's vocabulary, read off
 # header.sh's own $_HI_HEADER_ORDER_DEFAULT rather than a second copy of the
 # word list here (the two used to drift)
@@ -292,7 +308,7 @@ function _hi_probe_once() {
 # header. Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
-  local order banner width floor palette lead
+  local order banner width floor palette lead iphide scheme
   _hi_load_preview_sources
   if setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1; then
     _hi_cecho " header off - nothing prints on connect or disconnect" "$YELLOW"
@@ -304,10 +320,17 @@ function _hi_header_preview() {
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
   setting_value _HI_NO_LEAD_SPACE "$_HI_SETTINGS" lead
+  setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
+  setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
   (
     export _HI_HEADER_ORDER="$order" _HI_HEADER_BANNER="${banner:-1}" _HI_MAX_WIDTH="${width:-80}"
     export _HI_PACKAGES_MIN_PRIORITY="${floor:-2}" _HI_PACKAGES_PALETTE="${palette:-cool}"
-    export _HI_NO_LEAD_SPACE="${lead:-0}"
+    export _HI_NO_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
+    # the palette and the check's ramps were captured at source time;
+    # rebuild both under this run's scheme so the preview paints with it
+    export _HI_COLOR_SCHEME="$scheme"
+    _hi_assign_palette
+    _hi_packages_palette
     unset _HI_DISABLE_HEADER TMUX
     hi_header Connected
   )
@@ -344,12 +367,20 @@ function _hi_git_status_preview() {
 # user@host cwd, the git segment when that is on, and the end character -
 # or a sentence, when the colored prompt itself is off
 function _hi_prompt_sample_preview() {
-  local prompt git="" end
+  local prompt git="" end scheme
   if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS" 1; then
     _hi_cecho " prompt off - your shell's own" "$YELLOW"
     return 0
   fi
-  prompt="$(_hi_prompt_preview)"
+  setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
+  # the escape memos are per shell, so the scheme is applied in a subshell
+  # with them cleared, and the palette rebuilt under it
+  prompt="$(
+    export _HI_COLOR_SCHEME="$scheme"
+    _hi_assign_palette
+    unset _HI_HOST_ESC _HI_USER_ESC
+    _hi_prompt_preview
+  )"
   setting_off _HI_DISABLE_GIT_STATUS "$_HI_SETTINGS" 1 || git="$(_hi_git_status_preview)"
   _hi_prompt_end_shown BASH end
   printf '%s%s %s\n' "$prompt" "$git" "$end"
@@ -428,6 +459,25 @@ function _hi_packages_palette_preview() {
   else
     _hi_cecho " nothing - the package check is off (\$_HI_PACKAGES_MIN_PRIORITY)" "$YELLOW"
   fi
+}
+
+# One row per scheme, the twelve palette names painted as that scheme
+# paints them. _HI_TRUECOLOR=1 is forced for the swatches on purpose: the
+# question is what a capable terminal will show, and the note below says so
+# when this one is not. Temporary-environment calls on a function, so
+# nothing leaks and nothing forks.
+function _hi_color_scheme_preview() {
+  local scheme name esc
+  for scheme in default catppuccin monokai onedark vscode; do
+    printf '   %-11s' "$scheme"
+    for name in "${_HI_COLOR_NAMES[@]}"; do
+      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_color_escape_var esc "$name"
+      printf '%b%s%b ' "$esc" "$name" "$NC"
+    done
+    printf '\n'
+  done
+  _hi_has_truecolor ||
+    _hi_cecho " this terminal reports no truecolor (COLORTERM), so a scheme renders as the default row here" "$YELLOW"
 }
 
 # Every line collect_setting_lines decides on, written to $_HI_SETTINGS in
@@ -700,6 +750,7 @@ function config_hub() {
     printf '   3) %-10s %s\n' Features "prompt, git status, editors, clipboard, notifications, ..."
     printf '   4) %-10s %s\n' Prompt "starship, and the character each shell's prompt ends with"
     printf '   5) %-10s %s\n' Advanced "session shell, glyphs, TERM fallback, timeouts"
+    printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode"
     printf '   s) %-10s %s\n' save "write the settings and exit"
     printf '   q) %-10s %s\n' quit "exit without writing anything"
     menu_read " > " reply || return 0
@@ -710,6 +761,7 @@ function config_hub() {
     3 | f | features) config_features ;;
     4 | r | prompt) config_prompt ;;
     5 | a | advanced) config_advanced ;;
+    6 | c | colors) config_color_scheme ;;
     s | save) return 0 ;;
     q | quit)
       _HI_CONFIGURE_QUIT=1
@@ -721,7 +773,7 @@ function config_hub() {
         _hi_cecho " not a menu item - saving what you have" "$YELLOW"
         return 0
       fi
-      _hi_cecho " type 1-5, s to save or q to quit" "$YELLOW"
+      _hi_cecho " type 1-6, s to save or q to quit" "$YELLOW"
       continue
       ;;
     esac
@@ -888,7 +940,7 @@ function _hi_header_edit_move() {
 }
 
 function _hi_header_edit_list() {
-  local i state desc banner width floor palette on_state="on"
+  local i state desc banner width floor palette iphide on_state="on"
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && on_state="off"
   setting_off _HI_HEADER_BANNER "$_HI_SETTINGS" 0 && state=" " || state="x"
   printf '   0) header: %s\n' "$on_state"
@@ -901,7 +953,11 @@ function _hi_header_edit_list() {
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
+  setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   _hi_cecho "   N toggles an item; up N / down N moves it; p header preset; w width (${width:-80})" "$BLUE"
+  if _hi_header_edit_has ip; then
+    _hi_cecho "   i hidden addresses (${iphide:-172.*})" "$BLUE"
+  fi
   if _hi_header_edit_has check; then
     _hi_cecho "   c check depth (${floor:-2}); k check palette (${palette:-cool}); Enter goes back" "$BLUE"
   else
@@ -957,6 +1013,9 @@ function config_header() {
       ;;
     k | palette)
       if _hi_header_edit_has check; then config_packages_palette; else _hi_cecho " the package check is off - turn 'check' on first" "$YELLOW"; fi
+      ;;
+    i | ip | hide)
+      if _hi_header_edit_has ip; then config_ip_hide; else _hi_cecho " the ip cell is off - turn 'ip' on first" "$YELLOW"; fi
       ;;
     *)
       if _hi_is_number "$cmd" && [ "$cmd" -ge 2 ] && [ "$cmd" -le "$n" ]; then
@@ -1059,6 +1118,33 @@ function config_packages_palette() {
   value="$(ask_value "Package check palette: cool, warm, or mono?" \
     "$current" cool _hi_is_packages_palette "answer cool, warm or mono")"
   _hi_pending_set _HI_PACKAGES_PALETTE "$value"
+}
+
+# Which truecolor scheme the twelve palette names render as, everywhere hi
+# paints - the prompt, the header, the git segment, the packages check. A
+# word from a closed set, so ask_value; `default` clears the line. Not a
+# preset answer: a scheme is taste, not a feature level.
+function config_color_scheme() {
+  local current="" value
+  setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
+  if [ -t 0 ]; then
+    show_preview _hi_color_scheme_preview
+  fi
+  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode?" \
+    "$current" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
+  _hi_pending_set _HI_COLOR_SCHEME "$value"
+}
+
+# Which addresses the header's ip cell leaves out - header.sh's
+# _hi_ip_filter reads it. `172.*` is the shipped default (the docker/podman
+# bridge range), so typing it clears the override the way config_max_width's
+# 80 does; `none` shows every address.
+function config_ip_hide() {
+  local current="" value
+  setting_value _HI_IP_HIDE "$_HI_SETTINGS" current
+  value="$(ask_value "Hide which addresses from the ip cell (globs, space-separated, or none)?" \
+    "$current" '172.*' _hi_is_ip_hide "answer none, or globs like 172.* 10.0.*")"
+  _hi_pending_set _HI_IP_HIDE "$value"
 }
 
 # Ask for the header/banner's terminal width. Entering 80 (common/core.sh's
@@ -1215,6 +1301,8 @@ function collect_setting_lines() {
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_MIN_PRIORITY 2
   _hi_collect_value _HI_PACKAGES_PALETTE cool
+  _hi_collect_value _HI_COLOR_SCHEME ""
+  _hi_collect_value _HI_IP_HIDE '172.*' quoted
   _hi_collect_value _HI_MAX_WIDTH 80
   _hi_collect_group _HI_PROMPT_PROMPTS
   for row in "${_HI_RC_TABLE[@]}"; do
