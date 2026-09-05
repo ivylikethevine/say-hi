@@ -96,6 +96,15 @@ EOF
 
 # the first doctor_local case: the version row, carrying whatever _hi_version
 # answers (a stamp here, so the row is deterministic)
+# a tree with no .git is what a package manager laid down, and the row says
+# so rather than calling git on it
+function test_local_without_a_git_dir_reads_as_a_package_install() {
+  local root out
+  root="$(_hi_scratch_tree nogit common settings scripts hi.sh load.sh)/say-hi"
+  out="$(_HI_ROOT="$root" doctor_local 2>/dev/null)"
+  [[ "$out" == *"no .git - a package-manager install"* ]]
+}
+
 function test_local_reports_the_version() {
   local out
   out="$(_HI_RELEASE=1.2.3 doctor_local)"
@@ -169,6 +178,22 @@ function test_config_flags_a_settings_file_that_does_not_parse() {
     doctor_config
   )"
   [[ "$out" == *"does NOT parse as sh"* ]]
+}
+
+# an overlay hi --overlay-init has versioned reports its history
+function test_config_reports_a_tracked_overlay_with_its_commit_count() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/tracked.XXXXXX")"
+  git -C "$dir" init -q &&
+    printf 'a\n' >"$dir/colors" &&
+    git -C "$dir" add colors &&
+    git -C "$dir" -c user.name=suite -c user.email=suite@example.invalid commit -q -m one || return 1
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"tracked (1 commits)"* ]]
 }
 
 function test_config_counts_an_overlay_file() {
@@ -338,6 +363,16 @@ function test_config_reports_the_system_layer() {
   [[ "$out" == *"per-user settings only"* ]]
 }
 
+# --docker / --ssh force an arm: the probe chain is skipped and the row says
+# which flag decided it
+function test_target_forced_by_a_flag_skips_the_probe_chain() {
+  local out
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=docker doctor_target runningbox)" || true
+  [[ "$out" == *"docker container (forced by --docker)"* ]] || return 1
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target somewhere)" || true
+  [[ "$out" == *"ssh host (forced by --ssh)"* ]]
+}
+
 function test_target_resolves_a_running_container() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
@@ -449,6 +484,23 @@ SHIM
   [[ "$out" == *"Permission denied"* ]] || return 1
   case "$out" in *'bad=1'*) return 0 ;; esac
   return 1
+}
+
+# the text report's closing line: green with nothing to say, red with the
+# count when a row went bad - and that count is the exit code
+function test_a_finding_turns_the_closing_line_red_and_is_the_exit_code() {
+  local out rc=0
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" somehost)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"1 finding(s) above in red"* ]]
+}
+
+# --plain is accepted on the text report too, and is not read as a target
+function test_plain_flag_is_accepted_on_the_text_report() {
+  local out rc=0
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --plain)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
 
 function test_help_exits_zero() {
@@ -575,6 +627,7 @@ function run_doctor_tests() {
 
   _hi_h2 "Testing: doctor_local"
   _hi_check "Reports the version" test_local_reports_the_version
+  _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
   _hi_check "Payload diff shown when a toggle trims the wire" test_local_reports_payload_diff_when_toggled
   _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
   _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
@@ -588,6 +641,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check_requires git "A tracked overlay reports its commit count" test_config_reports_a_tracked_overlay_with_its_commit_count
   _hi_check "The system layer gets a row" test_config_reports_the_system_layer
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
@@ -604,6 +658,7 @@ function run_doctor_tests() {
 
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
+  _hi_check "A flag forces the arm" test_target_forced_by_a_flag_skips_the_probe_chain
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
   _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
@@ -617,6 +672,8 @@ function run_doctor_tests() {
   _hi_h2 "Testing: the report"
   _hi_check "--help exits zero" test_help_exits_zero
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
+  _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
+  _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
 
   _hi_h2 "Testing: --json"
   _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it

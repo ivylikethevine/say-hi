@@ -965,6 +965,51 @@ function test_hi_header_launches_probes_for_a_backend_word() {
 # ...and stands down once it is: configure.sh renders hi_header over and over
 # in subshells that inherit the memo, and a relaunch there would start
 # backends nobody waits on and leave _hi_probe_launch's mktemp dir behind
+# _hi_draw_width at a terminal: $COLUMNS first, tput when that is unset (and
+# memoized into $_HI_TERM_COLS), and never past $_HI_MAX_WIDTH
+# shellcheck disable=SC2016 # single quotes on purpose: the shim and the child expand these
+function test_draw_width_reads_columns_then_tput_under_a_tty() {
+  local dir out
+  dir="$_HI_WORKDIR/drawwidth"
+  mkdir -p "$dir"
+  printf '#!/bin/sh\n[ "$1" = cols ] && echo 50\n' >"$dir/tput"
+  chmod +x "$dir/tput"
+  out="$(env _HI_HOME="$_HI_HOME" PATH="$dir:$PATH" "${_HI_PTY_FORCED[@]}" bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HEADER"
+    COLUMNS=40 _hi_draw_width w
+    printf "cols=%s " "$w"
+    unset _HI_TERM_COLS
+    COLUMNS="" _hi_draw_width w
+    printf "tput=%s memo=%s " "$w" "$_HI_TERM_COLS"
+    _HI_TERM_COLS=""
+    _HI_MAX_WIDTH=30 COLUMNS=40 _hi_draw_width w
+    printf "max=%s\n" "$w"' 2>&1 | tr -d '\r')"
+  [[ "$out" == *"cols=40 tput=50 memo=50 max=30"* ]]
+}
+
+# with no docker on the PATH, podman is the container prober - and the probe
+# file it writes is the same one docker would have
+function test_probe_launch_takes_podman_when_docker_is_absent() {
+  local dir out
+  dir="$_HI_WORKDIR/podman-only"
+  [ -d "$dir" ] || _hi_probe_shims "$dir" runningbox
+  rm -f "$dir/docker" "$dir/nomad" "$dir/kubectl"
+  printf '#!/bin/sh\necho abc123\n' >"$dir/podman"
+  chmod +x "$dir/podman"
+  out="$(
+    PATH="$dir:$(_hi_identity_path)"
+    _HI_PROBE_DIR=""
+    _HI_PROBE_PIDS=()
+    _hi_probe_launch
+    _hi_probe_wait
+    [ -n "$_HI_PROBE_DIR" ] || exit 1
+    [ -f "$_HI_PROBE_DIR/containers" ] && [ ! -e "$_HI_PROBE_DIR/nomad" ] && echo PODMAN_PROBED
+    rm -rf "$_HI_PROBE_DIR"
+  )"
+  [ "$out" = PODMAN_PROBED ]
+}
+
 function test_hi_header_skips_probe_launch_once_identity_is_memoized() {
   local out
   out="$(
@@ -1937,6 +1982,8 @@ function run_header_tests() {
   _hi_check "Banner off still prints the detail lines" test_hi_header_banner_off_keeps_detail_lines
   _hi_check "A backend word launches the probes" test_hi_header_launches_probes_for_a_backend_word
   _hi_check "...but not once identity is memoized" test_hi_header_skips_probe_launch_once_identity_is_memoized
+  _hi_check "podman probes when docker is absent" test_probe_launch_takes_podman_when_docker_is_absent
+  _hi_check_capable pty "_hi_draw_width: COLUMNS, then tput, never past the max" test_draw_width_reads_columns_then_tput_under_a_tty
   _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order
   _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word

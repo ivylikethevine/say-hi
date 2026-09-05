@@ -35,8 +35,10 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
 # Within the fast section the slowest suites lead: the parallel runner starts
 # suites in table order, so a heavy suite starting last is the whole group's
-# scheduling tail (leading with the six heaviest takes a width-4 run from
-# ~20s wall to near its packing bound).
+# scheduling tail (leading with the six heaviest - packaging, doctor,
+# test_runner, test_lib, configure, header, each 5-8s where the rest are
+# under 4 - keeps a run near its packing bound; re-sort from the summary
+# table when a suite's weight changes).
 #
 # The group is here rather than in .github/workflows/ci.yml: with CI spelling
 # out which suites are fast and which are e2e, a suite added to this table but
@@ -44,18 +46,20 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # list, so the two cannot disagree.
 if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
-    "fast:test_lib:harness/lib_test.sh"
-    "fast:test_runner:harness/runner_test.sh"
-    "fast:doctor:scripts/doctor_test.sh"
-    "fast:install_location:scripts/install_location_test.sh"
     "fast:packaging:packaging/packaging_test.sh"
+    "fast:doctor:scripts/doctor_test.sh"
+    "fast:test_runner:harness/runner_test.sh"
+    "fast:test_lib:harness/lib_test.sh"
+    "fast:configure:scripts/configure_test.sh"
+    "fast:header:common/header_test.sh"
+    "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
+    "fast:install_location:scripts/install_location_test.sh"
+    "fast:targets:common/targets_test.sh"
+    "fast:install:scripts/install_test.sh"
     "fast:packages_preview:scripts/packages_preview_test.sh"
     "fast:aliases:settings/alias_test.sh"
-    "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
     "fast:osc52:common/osc52_test.sh"
     "fast:notify:common/notify_test.sh"
-    "fast:install:scripts/install_test.sh"
-    "fast:configure:scripts/configure_test.sh"
     "fast:rc_lines:scripts/rc_test.sh"
     "fast:table:scripts/table_test.sh"
     "fast:hi:hi/parse_test.sh"
@@ -63,10 +67,8 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:hi_payload:hi/payload_test.sh"
     "fast:hi_prompt:hi/prompt_test.sh"
     "fast:hi_helpers:hi/helpers_test.sh"
-    "fast:header:common/header_test.sh"
     "fast:core:common/core_test.sh"
     "fast:git_prompt:common/git_prompt_test.sh"
-    "fast:targets:common/targets_test.sh"
     "fast:paths:common/paths_test.sh"
     "fast:exports:common/exports_test.sh"
     "fast:color_preview:scripts/color_preview_test.sh"
@@ -495,12 +497,13 @@ function _hi_collect_suite() {
 # run side by side and the wall clock collapses toward the slowest suite.
 # Serial where it has to be: --verbose streams transcripts live and two at
 # once would interleave; bench measures timings; e2e and backends contend on
-# one container daemon. $_HI_RUNNER_WIDTH overrides (1 is a plain serial run).
+# one container daemon. The width is the CPU count: the unit suites are plain
+# processes, and the daemon-bound groups below are pinned to one anyway.
+# $_HI_RUNNER_WIDTH overrides (1 is a plain serial run).
 _HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-}"
 if [ -z "$_HI_RUNNER_WIDTH" ]; then
   _HI_RUNNER_WIDTH="$(_hi_host_cores)"
   [ -n "$_HI_RUNNER_WIDTH" ] || _HI_RUNNER_WIDTH=2
-  [ "$_HI_RUNNER_WIDTH" -gt 4 ] && _HI_RUNNER_WIDTH=4
 fi
 [ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1
 [ "$_HI_VERBOSE" = 1 ] && _HI_RUNNER_WIDTH=1
@@ -550,7 +553,7 @@ for _hi_t in "${_HI_SELECTED[@]}"; do
         if kill -0 "$_hi_pid" 2>/dev/null; then _hi_keep+=("$_hi_pid"); else wait "$_hi_pid" 2>/dev/null || true; fi
       done
       _hi_running=(${_hi_keep[@]+"${_hi_keep[@]}"})
-      [ "${#_hi_running[@]}" -ge "$_HI_RUNNER_WIDTH" ] && sleep 0.2
+      [ "${#_hi_running[@]}" -ge "$_HI_RUNNER_WIDTH" ] && sleep 0.05
     done
     (
       _hi_t0="$(_hi_now)"

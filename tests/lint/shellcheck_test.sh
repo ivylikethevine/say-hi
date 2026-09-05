@@ -101,11 +101,12 @@ function lint_config_dir_sources() {
 # this is pure CPU and a few MB resident. $_HI_SC_WIDTH overrides it, and
 # _HI_SC_WIDTH=1 is the serial run down this same code path.
 #
-# Raising it past the CPU count is not the lever it looks like. Measured on an
-# 8-core box: 1 -> 60s, 2 -> 47s, 4 -> 41s, 8 -> 40s, and 12/16/24/32 all sit at
-# 38-39s, which is run-to-run noise. What flattens the curve is -x re-parsing,
-# not scheduling - see _hi_sc_chunks below, which is where the time actually
-# went.
+# Raising it past the CPU count is not the lever it looks like: shellcheck is
+# single-threaded, and on a 4-core/8-thread box the tests/ subdirectories
+# checked 4 at a time took 12.7s where 8 at a time took 16s (hyperthreads
+# contending), and 12/16/24/32 sat in the same noise. What used to flatten the
+# curve entirely was one 45s chunk no width could split - see _hi_sc_chunks
+# below, which is where the time actually went.
 function _hi_sc_width() {
   local cpus
   if [ -n "${_HI_SC_WIDTH:-}" ]; then
@@ -135,18 +136,25 @@ function _hi_sc_width() {
 # the same invocation, so that tree is parsed once. Measured at width 8: 42-45s
 # by file, 32s by directory, repeatably.
 #
-# A whole group can still dominate a chunk by itself - tests/ is 47 of 75
-# files and there is no splitting it further without paying the by-file cost
-# above. That is still the accepted trade. What groups land *with* it is not:
-# dealing by `idx % width` (first-seen order) can pile unrelated small groups
-# onto the same chunk as the biggest one purely by index arithmetic, while
-# another chunk sits near-empty - at CI's width=4, `.github` and a root-level
-# file have landed in tests/'s chunk this way, inflating the run's critical
-# path for no reason. _hi_sc_chunks below bin-packs groups onto chunks
-# instead (largest group first, always onto the currently-smallest chunk) so
-# the other chunks come out balanced without ever splitting a group. Width
-# past the number of top-level directories still buys nothing - there is no
-# tenth group to hand a ninth core.
+# One tree is the exception: tests/ is 56 of the 105 files, and dealt as one
+# group it was a 45s chunk at every width - the whole lint gate's critical
+# path, whatever the other cores did. Dealt by its second-level directory
+# instead (tests/lib, tests/hi, tests/common, ...) the largest group is ten
+# files and ~9s, each subdirectory's invocation re-parses the harness tree
+# once (a second or so apiece, the header's own by-file numbers scaled), and
+# the bin-pack below finally has something to balance. Measured on a 4-core
+# box: 50s for the lint group before, ~20s after.
+#
+# What groups land *with* each other still matters: dealing by `idx % width`
+# (first-seen order) can pile unrelated small groups onto the same chunk as
+# the biggest one purely by index arithmetic, while another chunk sits
+# near-empty - at CI's width=4, `.github` and a root-level file have landed
+# in the biggest chunk this way, inflating the run's critical path for no
+# reason. _hi_sc_chunks below bin-packs groups onto chunks instead (largest
+# group first, always onto the currently-smallest chunk) so the chunks come
+# out balanced without ever splitting a group. Width past the number of
+# groups still buys nothing - there is no eighteenth group to hand another
+# core.
 function _hi_sc_chunks() {
   local out="$1" width="$2" f rel top idx seen="" s
   shift 2
@@ -159,7 +167,16 @@ function _hi_sc_chunks() {
   local -a groupsize
   for f in "$@"; do
     rel="${f#"$_HI_ROOT"/}"
-    top="${rel%%/*}"
+    # tests/ is dealt by its second-level directory (tests/lib, tests/hi,
+    # ...) and every other path by its first: see the header above for why
+    # the one tree that is half the files is the one worth splitting
+    case "$rel" in
+    tests/*/*)
+      top="${rel#tests/}"
+      top="tests/${top%%/*}"
+      ;;
+    *) top="${rel%%/*}" ;;
+    esac
     case " $seen " in
     *" $top "*) ;;
     *) seen="$seen $top" ;;

@@ -758,6 +758,39 @@ function test_prime_identity_fills_every_memo_in_the_caller() {
     [ "${_HI_USER_COLOR+x}" = x ]
 }
 
+# the bash arm of _hi_on_exit is a plain EXIT trap: the command runs after
+# the body, once (the zsh arm is pinned with the other zsh answers below)
+function test_on_exit_installs_a_trap_that_fires_in_bash() {
+  local out
+  out="$(env _HI_HOME="$_HI_HOME" bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    _hi_on_exit "echo fired"
+    echo body' 2>&1)"
+  [ "$out" = $'body\nfired' ]
+}
+
+# the two ways a value is not there: no file at all, and a file that never
+# sets the name - both rc 1, and neither says anything
+function test_setting_get_fails_for_a_missing_file_and_an_unset_name() {
+  local f="$_HI_WORKDIR/sg.sh" out
+  printf 'export _HI_PROBE_SG=yes\n' >"$f"
+  ! _hi_setting_get "$_HI_WORKDIR/absent.sh" _HI_PROBE_SG >/dev/null || return 1
+  out="$(_hi_setting_get "$f" _HI_NEVER_SET_SG)" && return 1
+  [ -z "$out" ] && [ "$(_hi_setting_get "$f" _HI_PROBE_SG)" = yes ]
+}
+
+# an _HI_* name outside _HI_CHILD_ENV stays set in the shell but stops
+# reaching children; one on the roster keeps its export
+function test_unexport_keeps_values_and_drops_the_export_bit() {
+  local out
+  out="$(env _HI_HOME="$_HI_HOME" _HI_PROBE_UX=kept bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    _hi_unexport
+    printf "%s|" "${_HI_PROBE_UX:-lost}"
+    bash -c "printf %s \"\${_HI_PROBE_UX:-gone}\""')"
+  [ "$out" = "kept|gone" ]
+}
+
 function run_core_tests() {
   _hi_workdir sharedtest
   _HI_SSH_TAG_FIXTURE="$(_hi_ssh_tag_fixture)"
@@ -868,6 +901,11 @@ function run_core_tests() {
   _hi_check "A token that is not a hostname is skipped, not eval'd" test_pattern_hit_skips_a_token_that_is_not_a_hostname
   _hi_check_requires zsh "zsh skips the same tokens" test_zsh_pattern_hit_skips_the_same_tokens
   _hi_check_requires zsh "Pattern pins agree in zsh" test_zsh_pattern_pins_agree_with_bash
+
+  _hi_h2 "Testing: _hi_on_exit / _hi_setting_get / _hi_unexport"
+  _hi_check "_hi_on_exit installs a trap that fires in bash" test_on_exit_installs_a_trap_that_fires_in_bash
+  _hi_check "_hi_setting_get: rc 1 for a missing file and an unset name" test_setting_get_fails_for_a_missing_file_and_an_unset_name
+  _hi_check "_hi_unexport keeps the value, drops the export bit" test_unexport_keeps_values_and_drops_the_export_bit
 
   _hi_h2 "Testing: the settings overlay"
   _hi_check "settings.sh is sourced" test_settings_sh_is_sourced

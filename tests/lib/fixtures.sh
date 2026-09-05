@@ -15,17 +15,20 @@
 # an interactive fish -i -c fires its built-in cwd-reporting hook (OSC 7) on
 # some fish builds, unprompted, and it would otherwise land ahead of whatever
 # the case actually asked fish to print.
+#
+# One sed pass, not bash's `${out//pattern/}`: that replacement is quadratic
+# in the string (an extglob `*(...)` is re-tried from every position), and a
+# 2KB colored render took seconds, an 8KB one never finished. The ESC and BEL
+# bytes are spliced in as bytes - BSD sed has no \x1b - and a literal ESC
+# inside a bracket expression is fine on GNU, BSD and busybox sed alike. sed
+# ends its last line with a newline where bash's printf did not; every caller
+# reads the result through $(...) or a pipe, which does not see it.
 function _hi_strip_ansi() {
-  local out="$1" restore=0
-  shopt -q extglob || {
-    shopt -s extglob
-    restore=1
-  }
-  out="${out//$'\e'\[*([0-9;])m/}"
-  out="${out//$'\e'\]*([^$'\a\e'])$'\a'/}"
-  out="${out//$'\e'\]*([^$'\a\e'])$'\e'\\/}"
-  ((restore)) && shopt -u extglob
-  printf '%s' "$out"
+  local esc=$'\e' bel=$'\a'
+  printf '%s' "$1" | sed \
+    -e "s/${esc}\[[0-9;]*m//g" \
+    -e "s/${esc}\][^${bel}${esc}]*${bel}//g" \
+    -e "s/${esc}\][^${bel}${esc}]*${esc}\\\\//g"
 }
 
 # _hi_within_percent <got> <want> <pct> - is <got> within <pct>% of <want>?

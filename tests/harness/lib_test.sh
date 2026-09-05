@@ -21,6 +21,9 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
+# every batch here is plain local processes, no container daemon to spare
+_HI_PAR_LOCAL=1
+
 function _hi_true() { return 0; }
 function _hi_false() { return 1; }
 
@@ -413,8 +416,22 @@ function test_exec_case_exhausts_retries_and_fails() {
 }
 
 function test_exec_case_never_retries_a_timeout() {
-  _hi_retry_run retrytimeout 2 'echo HI_RETRY_TEST_OK' 'sleep 5'
+  _hi_retry_run retrytimeout 1 'echo HI_RETRY_TEST_OK' 'sleep 5'
   [ "$_HI_RETRY_RC" -eq 1 ] && [[ "$_HI_RETRY_OUT" == *'TIMED OUT'* ]] && [[ "$_HI_RETRY_OUT" != *"retrying"* ]]
+}
+
+# Every escape form the helper documents goes, and a render's worth of them
+# goes in one pass: the bash-replacement version was quadratic, and a 2KB
+# colored table took seconds. Timed with $SECONDS, so the bound is loose.
+function test_strip_ansi_strips_every_form_and_stays_linear() {
+  local s big i out t0
+  s="$(printf 'a\033[1;32mb\033[0mc\033]7;file:///x\007d\033]0;t\033\\e')"
+  [ "$(_hi_strip_ansi "$s")" = abcde ] || return 1
+  big=""
+  for ((i = 0; i < 4000; i++)); do big="$big"$'\e[31m'"word$i"$'\e[0m '; done
+  t0=$SECONDS
+  out="$(_hi_strip_ansi "$big")"
+  [ $((SECONDS - t0)) -le 2 ] && [[ "$out" == "word0 word1 "* ]] && [[ "$out" != *$'\e'* ]]
 }
 
 function test_pty_wrap_force_wraps_even_on_a_tty() {
@@ -587,6 +604,9 @@ function run_lib_process_tests() {
   _hi_par_check "Kills and reports 124 on timeout" test_wait_pid_kills_and_reports_124_on_timeout
   _hi_par_check "Runs the timeout hook before killing" test_wait_pid_runs_the_timeout_hook_before_killing
   _hi_par_check "A timed-out attempt is never treated as success, and is not retried" test_exec_case_never_retries_a_timeout
+  _hi_par_check "Poll_bool returns 1 when never true" test_poll_bool_returns_one_when_never_true
+  _hi_par_check "Poll_bool passes arguments through" test_poll_bool_passes_arguments_through
+  _hi_par_check "Poll_value fails on empty output" test_poll_value_fails_when_output_stays_empty
   _hi_par_check_requires ssh "Reachability probe fails on a dead port" test_ssh_reachable_fails_against_a_dead_port
   _hi_par_wait
 
@@ -623,13 +643,10 @@ function run_lib_process_tests() {
 
   _hi_h2 "Testing: _hi_poll_bool / _hi_poll_value"
   _hi_check "Poll_bool returns 0 when already true" test_poll_bool_returns_zero_when_already_true
-  _hi_check "Poll_bool returns 1 when never true" test_poll_bool_returns_one_when_never_true
   _hi_check "Poll_bool succeeds on a later attempt" test_poll_bool_succeeds_on_a_later_attempt
-  _hi_check "Poll_bool passes arguments through" test_poll_bool_passes_arguments_through
   _hi_check "Poll_bool's abort predicate stops early" test_poll_bool_abort_predicate_stops_early
   _hi_check "Poll_bool's abort predicate doesn't block success" test_poll_bool_abort_predicate_does_not_block_success
   _hi_check "Poll_value prints what it found" test_poll_value_prints_the_value_it_found
-  _hi_check "Poll_value fails on empty output" test_poll_value_fails_when_output_stays_empty
   _hi_check "Poll_value keeps polling past empty output" test_poll_value_keeps_polling_past_empty_output
 
   _hi_h2 "Testing: _hi_wait_pid"
@@ -643,6 +660,9 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_exec_case retries"
   _hi_check "A markerless first attempt succeeds on the retry" test_exec_case_retries_a_markerless_first_attempt
   _hi_check "Two markerless attempts stop retrying and report failure" test_exec_case_exhausts_retries_and_fails
+
+  _hi_h2 "Testing: _hi_strip_ansi"
+  _hi_check "Strips SGR, OSC-BEL and OSC-ST, linearly" test_strip_ansi_strips_every_form_and_stays_linear
 
   _hi_h2 "Testing: _hi_pty_wrap"
   _hi_check "Force wraps regardless of the fd" test_pty_wrap_force_wraps_even_on_a_tty

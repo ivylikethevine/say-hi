@@ -76,7 +76,7 @@ Five groups (`--group <name>`; `--list` prints the membership):
 - **`fast`** — dependency-free unit suites, the first thing CI runs on every
   platform job; `test_lib`, `test_lib_report`, `test_lib_par` and
   `test_runner` are the harness testing itself. Suites run **side by side**
-  (up to four, or the CPU count), each in its own workdir with its own tally
+  (one per CPU), each in its own workdir with its own tally
   files, transcripts replayed in table order, so the run reads like a serial
   one and takes about as long as its slowest suite. `_HI_RUNNER_WIDTH=1` puts
   it back to one at a time; `--verbose` implies that, since two live
@@ -138,7 +138,10 @@ submission order**, so the transcript reads like a serial one. Cases that read
 another case's files stay serial.
 
 The batch is capped at four, or the CPU count if smaller — unbounded fan-out
-thrashes the docker daemon on a laptop. `_HI_PAR_WIDTH` overrides it:
+thrashes the docker daemon on a laptop. A suite whose cases are plain local
+processes (`configure`'s pty runs, `install_location`'s shells, the harness
+suites' nested runners) sets `_HI_PAR_LOCAL=1` at its top and gets the whole
+CPU count instead. `_HI_PAR_WIDTH` overrides both:
 
 ```sh
 _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisecting a flake
@@ -177,7 +180,9 @@ Two coverage tools and a profiler. The coverage pair runs by hand and in CI
 full suite sweep — every suite the box's backends can host — and their
 aggregates land within a few points of each other. That makes the figures
 usable: for finding untested arms in the per-file report and for watching
-the trend, never as a gate.
+the trend, never as a gate. Both sweeps pin `_HI_PAR_WIDTH=1`: a suite's
+cases share one trace stream, and a batch writing into it side by side loses
+lines.
 
 - `tests/coverage.sh` runs the sweep under kcov. An earlier kcov lost its
   DEBUG trap once the harness was sourced and read whole suites as
@@ -200,7 +205,10 @@ the trend, never as a gate.
 (`badges/coverage.json`, `badges/coverage-v2.json`) via `pages.yml`, each
 labelled by its measurer and computed over the shipped product only — the
 badge math excludes `tests/` and `docs/`, the same subject both reports
-declare. Neither gates anything. Both stay because they cannot err in the
+declare. Each refreshes as soon as its sweep finishes — `pages.yml` redeploys
+on a completed Coverage run as well as on a green CI — so a badge is only ever
+as old as the sweep, never a push behind. Neither gates anything. Both stay
+because they cannot err in the
 same direction: a file that reads low in bashcov is genuinely uncovered, a
 line that reads covered in kcov genuinely ran, and the two agreeing is what
 makes the aggregate worth believing.

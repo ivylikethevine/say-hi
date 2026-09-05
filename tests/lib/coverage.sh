@@ -62,10 +62,18 @@ function _hi_cov_select_suites() {
 # export, made here so _hi_suite_end has somewhere to write its tally;
 # everything else a suite needs it derives from $_HI_HOME through
 # common/paths.sh.
+#
+# Also pins every in-suite batch to one case at a time. Both tracers read a
+# single xtrace stream per suite process, and a batch of pty children (the
+# configure suite runs thirty-odd side by side) writing into it at once
+# interleaves lines the tracer then drops: configure.sh read six points low
+# the first time the batch ran wide under bashcov. Serial batches cost the
+# sweep a few seconds a suite and lose nothing.
 function _hi_cov_counts_files() {
   _HI_COUNTS_FILE="$(mktemp -t "hi.$1.counts.XXXXXX")"
   _HI_FAILS_FILE="$(mktemp -t "hi.$1.fails.XXXXXX")"
   export _HI_COUNTS_FILE _HI_FAILS_FILE
+  export _HI_PAR_WIDTH=1
   _HI_COV_TRASH+=("$_HI_COUNTS_FILE" "$_HI_FAILS_FILE")
 }
 
