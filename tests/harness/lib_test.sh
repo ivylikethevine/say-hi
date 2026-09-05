@@ -256,7 +256,7 @@ function test_poll_bool_succeeds_on_a_later_attempt() {
     printf 'x' >>"$counter"
     [ "$(wc -c <"$counter")" -ge 3 ]
   }
-  _hi_poll_bool 10 0.01 _hi_third_time_lucky && [ "$(wc -c <"$counter")" -eq 3 ]
+  _hi_poll_bool 300 0.01 _hi_third_time_lucky && [ "$(wc -c <"$counter")" -eq 3 ]
 }
 
 function test_poll_bool_passes_arguments_through() {
@@ -292,6 +292,17 @@ function test_poll_bool_stops_at_the_wall_clock_budget() {
   [ "$(wc -c <"$counter")" -lt 20 ]
 }
 
+# $SECONDS is whole seconds and already truncated when it is read, so a naive
+# `SECONDS + b` deadline delivers somewhere between b-1 and b seconds - at the
+# 1-second floor, sometimes nothing at all. The extra tick in _hi_poll_bool
+# makes the asked-for budget the floor rather than the ceiling; a never-true
+# poll at that floor has to have spent its full second.
+function test_poll_budget_is_never_short() {
+  local t0=$SECONDS
+  ! _hi_poll_bool 1 0.05 _hi_false || return 1
+  [ $((SECONDS - t0)) -ge 2 ]
+}
+
 function test_poll_value_prints_the_value_it_found() {
   local out
   out="$(_hi_poll_value 3 0.01 printf 'alloc-id')"
@@ -311,7 +322,7 @@ function test_poll_value_keeps_polling_past_empty_output() {
     [ "$(wc -c <"$counter")" -ge 2 ] && printf 'ready'
     return 0
   }
-  [ "$(_hi_poll_value 10 0.01 _hi_late_value)" = ready ]
+  [ "$(_hi_poll_value 300 0.01 _hi_late_value)" = ready ]
 }
 
 function test_wait_pid_reports_a_clean_exit() {
@@ -601,6 +612,7 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: the timeout and budget paths"
   _hi_par_begin "timeout cases"
   _hi_par_check "Poll_bool stops at the wall-clock budget" test_poll_bool_stops_at_the_wall_clock_budget
+  _hi_par_check "The budget is never short of what was asked" test_poll_budget_is_never_short
   _hi_par_check "Kills and reports 124 on timeout" test_wait_pid_kills_and_reports_124_on_timeout
   _hi_par_check "Runs the timeout hook before killing" test_wait_pid_runs_the_timeout_hook_before_killing
   _hi_par_check "A timed-out attempt is never treated as success, and is not retried" test_exec_case_never_retries_a_timeout
