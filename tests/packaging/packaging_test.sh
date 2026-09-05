@@ -1755,14 +1755,16 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
 }
 
 # GNU touch takes -d "@epoch"; BSD/macOS does not, and touch_epoch falls back
-# to its own stamp through -t instead, built with `date -u -r <epoch>` -
-# BSD's date reads a bare -r argument as a Unix timestamp, GNU's as a
-# reference *file*, so the fallback's own `date` call only works as intended
-# on the BSD it targets. Never reached on a Linux dev box or CI runner
-# (both ship GNU touch and GNU date), so nothing else in this suite
-# exercises it: faking both `touch` (reject -d) and `date` (translate a
-# bare -r <epoch> into GNU's -d "@<epoch>") is what forces the real
-# fallback branch to run correctly here, without needing an actual BSD.
+# to its own stamp through -t instead, built with `date -u -r <epoch>` - BSD's
+# date reads a bare -r argument as a Unix timestamp, GNU's as a reference
+# *file*, so the fallback's own `date` call only works as intended on the BSD
+# it targets. The `touch` shim alone (reject -d, delegate the rest) forces the
+# fallback branch to run on any host; what the real `date` underneath does
+# with `-u -r <epoch>` then depends on which one it already is - a *real* BSD
+# runner (macOS CI) needs no help at all, while a GNU-date dev box needs the
+# call translated into GNU's own `-d "@<epoch>"` spelling to get the same
+# answer. Probed once, rather than assumed either way, so this test is
+# runnable on both without needing an actual BSD to hand.
 function test_mkpkg_touch_epoch_falls_back_without_gnu_touch() {
   local shim="$_HI_WORKDIR/notouch-bin" dist="$_HI_WORKDIR/notouch-dist"
   local real_touch real_date got
@@ -1774,9 +1776,17 @@ function test_mkpkg_touch_epoch_falls_back_without_gnu_touch() {
   printf '#!/bin/sh\ncase "$1" in\n-d) exit 1 ;;\nesac\nexec %s "$@"\n' "$real_touch" \
     >"$shim/touch"
   chmod +x "$shim/touch"
-  # shellcheck disable=SC2016 # same as above - the shim's own $1/$2/$3/$@
-  printf '#!/bin/sh\nif [ "$1" = -u ] && [ "$2" = -r ]; then\n  epoch="$3"; shift 3\n  exec %s -u -d "@$epoch" "$@"\nfi\nexec %s "$@"\n' \
-    "$real_date" "$real_date" >"$shim/date"
+  if [ "$("$real_date" -u -r 0 +%s 2>/dev/null)" = 0 ]; then
+    # already BSD-flavored (a real BSD/macOS, or a busybox date that agrees):
+    # touch_epoch's own `date -u -r <epoch>` call needs no help
+    printf '#!/bin/sh\nexec %s "$@"\n' "$real_date" >"$shim/date"
+  else
+    # GNU-flavored: -r means "reference file", not a timestamp - translate the
+    # one shape touch_epoch calls into GNU's -d "@<epoch>" to get a BSD answer
+    # shellcheck disable=SC2016 # the shim's own $1/$2/$3/$@, expanded when it runs
+    printf '#!/bin/sh\nif [ "$1" = -u ] && [ "$2" = -r ]; then\n  epoch="$3"; shift 3\n  exec %s -u -d "@$epoch" "$@"\nfi\nexec %s "$@"\n' \
+      "$real_date" "$real_date" >"$shim/date"
+  fi
   chmod +x "$shim/date"
   SOURCE_DATE_EPOCH=946684800 PATH="$shim:$PATH" \
     _hi_in_mkpkg "$dist" touch_epoch || return 1
