@@ -438,3 +438,22 @@ questions decided against are **deleted**: git history is the ledger.
        scheme on both backgrounds and retune any hex that reads wrong.
        **Ticks when:** all four schemes read monotonic 0-3 in
        `--packages-preview` and legibly in `--color-preview` on both.
+
+6. [ ] **`hi --update` between release tags in a git install** — _scope: a
+       decision on `--update`'s argument grammar, a git-install-only code
+       path, dirty-tree and detached-HEAD handling, a suite, docs._ Today
+       `--update` is `exec git -C "$_HI_ROOT" pull "$@"` (`hi.sh`) — a
+       straight git-pull passthrough, tested only as that
+       (`tests/hi/remote_test.sh`). Moving between tags needs a
+       `git fetch --tags` and a `git checkout <tag>` instead, which detaches
+       HEAD, and a call on a dirty working tree first — git-install users are
+       expected to be able to hack on the checkout. **Do:** settle the grammar
+       as a new argument to `--update` rather than a new flag (the
+       eighteen-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
+       stays put), refuse or guard a dirty tree, decide what a bare `--update`
+       does afterward — reattach to the branch, stay on the tag, or say so —
+       extend `tests/hi/remote_test.sh`'s coverage, and document it in
+       `docs/hi.1` and `hi --help`. **Ticks when:** `hi --update <tag>` in a
+       git checkout switches cleanly, a dirty tree is never silently
+       overwritten, and a following bare `hi --update` behaves predictably,
+       tested and documented.
