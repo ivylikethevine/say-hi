@@ -1997,7 +1997,14 @@ function test_mkrepo_release_hashes_shape() {
   gzip -9 -n -c "$d/dists/main/binary-amd64/Packages" >"$d/dists/main/binary-amd64/Packages.gz"
   out="$(_hi_in_mkrepo "$d" "$d/repo" release_hashes "$d/dists" SHA256 sha256)" || return 1
   printf '%s\n' "$out" | head -1 | grep -qx 'SHA256:' || return 1
-  printf '%s\n' "$out" | grep -qE '^ [0-9a-f]{64} +[0-9]+ main/binary-amd64/Packages$'
+  printf '%s\n' "$out" | grep -qE '^ [0-9a-f]{64} +[0-9]+ main/binary-amd64/Packages$' && return 0
+  # A platform whose openssl doesn't shape this the way the regex above
+  # expects has failed here before with nothing to go on but "FAILED" - dump
+  # what release_hashes actually produced so a repeat failure names the
+  # real shape instead of sending someone back to guess again.
+  printf '%s\n' "$out" >"$d/hashes.actual"
+  _hi_dump_log "release_hashes' actual output (wanted a lowercase-hex sha256 line)" "$d/hashes.actual"
+  return 1
 }
 
 # The whole apt half, offline: build_apt needs ar, openssl and gzip and no

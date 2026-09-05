@@ -1107,6 +1107,18 @@ function test_prompt_preview_shows_this_user_and_host() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* ]]
 }
 
+# The composite sample (as opposed to _hi_prompt_preview above, which is
+# always live): with the colored prompt off, it says so and skips drawing one
+# rather than rendering a prompt the run will not actually use.
+function test_prompt_sample_preview_says_off_when_disabled() {
+  _hi_load_preview_sources
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-off.settings.sh"
+  printf 'export _HI_DISABLE_PROMPT=1\n' >"$_HI_SETTINGS"
+  local out
+  out="$(_hi_strip_ansi "$(_hi_prompt_sample_preview)")"
+  [ "$out" = " prompt off - your shell's own" ]
+}
+
 function test_editors_preview_names_both_overrides() {
   local out
   out="$(_hi_editors_preview)"
@@ -1821,6 +1833,7 @@ function run_configure_tests() {
 
   _hi_h2 "Testing: the question previews"
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
+  _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
   _hi_check "Editors preview names both overrides" test_editors_preview_names_both_overrides
   _hi_check "OSC 52 preview names the escape and the helper" test_osc52_preview_names_the_escape_and_the_helper
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
