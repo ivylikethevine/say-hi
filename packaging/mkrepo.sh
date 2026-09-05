@@ -257,14 +257,16 @@ function build_apt() {
 # -r, not the default `dgst` header-and-hash format build_apt's other digests
 # already learned to avoid (line 227): the algorithm name it prints ("SHA256"
 # vs "SHA2-256" vs whatever a given OpenSSL build calls it) isn't stable
-# across versions or platforms, and FreeBSD's base openssl formats it
-# differently from this box's - -r's "<hash> *<file>" shape never carries one.
+# across versions. Even -r's own shape is only trusted for the leading hex
+# run, via grep instead of `cut -d' ' -f1`: a build that leaks a config or
+# provider warning onto stdout ahead of the real "<hash> *<file>" line would
+# otherwise hand `cut` that warning's first word instead of the digest.
 function release_hashes() {
   local dists="$1" heading="$2" algo="$3" f rel
   printf '%s:\n' "$heading"
   for f in "$dists"/main/binary-*/Packages "$dists"/main/binary-*/Packages.gz; do
     rel="${f#"$dists"/}"
-    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" -r "$f" | cut -d' ' -f1)" "$(wc -c <"$f" | tr -d ' ')" "$rel"
+    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" -r "$f" | grep -oE '^[0-9a-fA-F]+' | head -1)" "$(wc -c <"$f" | tr -d ' ')" "$rel"
   done
 }
 
