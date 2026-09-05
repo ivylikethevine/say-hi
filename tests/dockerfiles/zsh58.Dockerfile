@@ -28,7 +28,20 @@ FROM debian:bullseye-slim@sha256:e5b6442dd2e9684cf5e87d8338b5968f3b348636fc0be6d
 # spelling as framework.Dockerfile's. /bin/bash rather than /bin/sh because sh
 # here is dash, which has no `-o pipefail`.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# Retries and a bounded per-request timeout on both apt-get calls: a stalled
+# or dropped connection to a mirror otherwise eats the lint job's own
+# timeout-minutes budget in ci.yml silently, which surfaces as "the lint job
+# failed" with no apt error in the log at all - it just ran out of clock
+# waiting on one slow request instead of giving up and retrying. This bounds
+# the worst case instead of guessing why any one mirror was slow.
 RUN apt-get update -qq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends zsh \
+    -o Acquire::Retries=5 \
+    -o Acquire::http::Timeout=15 \
+    -o Acquire::https::Timeout=15 \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+    -o Acquire::Retries=5 \
+    -o Acquire::http::Timeout=15 \
+    -o Acquire::https::Timeout=15 \
+    zsh \
     && zsh --version | grep -qE '^zsh 5\.8' \
     && rm -rf /var/lib/apt/lists/*

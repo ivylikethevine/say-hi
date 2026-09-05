@@ -1754,6 +1754,36 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
     [ -f "$_HI_WORKDIR/nogit-dist/staging/usr/share/say-hi/hi.sh" ]
 }
 
+# GNU touch takes -d "@epoch"; BSD/macOS does not, and touch_epoch falls back
+# to its own stamp through -t instead, built with `date -u -r <epoch>` -
+# BSD's date reads a bare -r argument as a Unix timestamp, GNU's as a
+# reference *file*, so the fallback's own `date` call only works as intended
+# on the BSD it targets. Never reached on a Linux dev box or CI runner
+# (both ship GNU touch and GNU date), so nothing else in this suite
+# exercises it: faking both `touch` (reject -d) and `date` (translate a
+# bare -r <epoch> into GNU's -d "@<epoch>") is what forces the real
+# fallback branch to run correctly here, without needing an actual BSD.
+function test_mkpkg_touch_epoch_falls_back_without_gnu_touch() {
+  local shim="$_HI_WORKDIR/notouch-bin" dist="$_HI_WORKDIR/notouch-dist"
+  local real_touch real_date got
+  real_touch="$(command -v touch)"
+  real_date="$(command -v date)"
+  mkdir -p "$shim" "$dist/staging"
+  : >"$dist/staging/probe"
+  # shellcheck disable=SC2016 # the shim script's own $1/$@, expanded when it runs, not here
+  printf '#!/bin/sh\ncase "$1" in\n-d) exit 1 ;;\nesac\nexec %s "$@"\n' "$real_touch" \
+    >"$shim/touch"
+  chmod +x "$shim/touch"
+  # shellcheck disable=SC2016 # same as above - the shim's own $1/$2/$3/$@
+  printf '#!/bin/sh\nif [ "$1" = -u ] && [ "$2" = -r ]; then\n  epoch="$3"; shift 3\n  exec %s -u -d "@$epoch" "$@"\nfi\nexec %s "$@"\n' \
+    "$real_date" "$real_date" >"$shim/date"
+  chmod +x "$shim/date"
+  SOURCE_DATE_EPOCH=946684800 PATH="$shim:$PATH" \
+    _hi_in_mkpkg "$dist" touch_epoch || return 1
+  got="$(stat -c '%Y' "$dist/staging/probe" 2>/dev/null || stat -f '%m' "$dist/staging/probe")"
+  [ "$got" -eq 946684800 ]
+}
+
 # --- mkrepo.sh's offline half (the docker-free index builders) --------------
 
 # _hi_in_mkrepo <dist> <out> <fn> [args...] - one mkrepo.sh function in a
@@ -2307,6 +2337,7 @@ function run_packaging_tests() {
   _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
   _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
   _hi_check "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
+  _hi_check "touch_epoch falls back without GNU touch" test_mkpkg_touch_epoch_falls_back_without_gnu_touch
 
   _hi_h2 "Testing: packaging/lib.sh's primitives"
   _hi_check_requires openssl "sha256 helpers agree with openssl" test_lib_sha256_agrees_with_openssl

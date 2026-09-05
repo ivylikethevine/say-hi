@@ -175,14 +175,24 @@ they actually run.
 
 ### Coverage and profiling
 
-Two coverage tools and a profiler. The coverage pair runs by hand and in CI
-(`coverage.yml`, after every green CI battery on a push to `main`) over the
-full suite sweep — every suite the box's backends can host — and their
-aggregates land within a few points of each other. That makes the figures
-usable: for finding untested arms in the per-file report and for watching
-the trend, never as a gate. Both sweeps pin `_HI_PAR_WIDTH=1`: a suite's
-cases share one trace stream, and a batch writing into it side by side loses
-lines.
+Two coverage tools and a profiler. The coverage pair runs by hand (unsharded,
+the whole sweep in one process) and in CI (`coverage.yml`, after every green
+CI battery on a push to `main`) over the full suite sweep — every suite the
+box's backends can host — and their aggregates land within a few points of
+each other. That makes the figures usable: for finding untested arms in the
+per-file report and for watching the trend, never as a gate. Both sweeps pin
+`_HI_PAR_WIDTH=1`: a suite's cases share one trace stream, and a batch writing
+into it side by side loses lines. `_HI_SC_WIDTH` is unrelated (the shellcheck
+suite's own fan-out) and moot here besides — both drivers drop `shellcheck`
+from the sweep.
+
+In CI, each tool is sharded 4 ways (`--shard i/4`, the same knob
+`windows-client.yml` and `ci.yml`'s `e2e` job use) and merged by a gather job
+— `kcov --merge` over the four shards' `parts/` directories for kcov, a plain
+JSON hash union over the four shards' `--command-name`-keyed `.resultset.json`
+files for bashcov, since shards partition the suite table and so never share a
+suite name. No change to either driver script was needed: `_hi_cov_select_suites`
+already passes `--shard` straight through to `test_runner.sh`.
 
 - `tests/coverage.sh` runs the sweep under kcov. An earlier kcov lost its
   DEBUG trap once the harness was sourced and read whole suites as
