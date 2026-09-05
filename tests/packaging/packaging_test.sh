@@ -1297,6 +1297,35 @@ function test_stamp_accepts_the_equals_form() {
   grep -qF '_HI_RELEASE="5.5.5"' "$d/usr/share/say-hi/hi.sh"
 }
 
+# the parse loop's own exits, each by its message: --help is the one exit 0
+# with no file touched, and the three refusals below each name what was
+# wrong, so one regressing into another's wording cannot pass as it
+function test_stamp_help_prints_usage_and_exits_zero() {
+  local out
+  out="$(_hi_stamp --help 2>&1)" || return 1
+  [[ "$out" == "Usage: stamp.sh --version"* ]]
+}
+
+function test_stamp_refuses_an_unknown_argument() {
+  local out
+  out="$(_hi_stamp --bogus 2>&1)" && return 1
+  [[ "$out" == *"unknown argument: --bogus"* && "$out" == *"Usage: stamp.sh"* ]]
+}
+
+function test_stamp_requires_a_version() {
+  local d out
+  d="$(_hi_stamp_fixture)"
+  out="$(_hi_stamp --root "$d" --date 2026-01-02 2>&1)" && return 1
+  [[ "$out" == *"--version is required"* ]]
+}
+
+# --version alone names nothing to write into: neither --root nor --launcher
+function test_stamp_refuses_with_nothing_to_stamp() {
+  local out
+  out="$(_hi_stamp --version 1.0.0 --date 2026-01-02 2>&1)" && return 1
+  [[ "$out" == *"nothing to stamp"* ]]
+}
+
 # a value flag typed with its value left off must refuse loudly - the
 # alternative is silently eating the *next* flag
 function test_parsers_refuse_a_flag_with_no_value() {
@@ -1527,6 +1556,56 @@ function test_lib_gpg_fpr_is_empty_never_fatal() {
   chmod 700 "$hd"
   out="$(_hi_in_pkglib gpg_fpr --homedir "$hd" --show-keys "$_HI_WORKDIR/no-such-key.asc")" || return 1
   [ -z "$out" ]
+}
+
+# the walk at the top of lib.sh: sourced through a symlink - absolute, then a
+# relative one pointing at it - the tree is still the one the real file is
+# in, not the link's directory two levels up
+function test_lib_locates_its_tree_through_a_symlink() {
+  # shellcheck disable=SC2031 # _hi_in_pkglib's subshell re-derives it on purpose
+  local d="$_HI_WORKDIR/liblink" want="$_HI_HOME" got
+  mkdir -p "$d/deeper"
+  ln -sf "$_HI_PKG_DIR/lib.sh" "$d/abs.sh"
+  ln -sf ../abs.sh "$d/deeper/rel.sh"
+  # shellcheck disable=SC2016 # $1 is the child's positional, resolved there
+  got="$(bash -c 'source "$1"; printf %s "$_HI_HOME"' _ "$d/abs.sh")"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | through the absolute link: $got" "$RED"
+    return 1
+  }
+  # shellcheck disable=SC2016
+  got="$(bash -c 'source "$1"; printf %s "$_HI_HOME"' _ "$d/deeper/rel.sh")"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | through the relative link: $got" "$RED"
+    return 1
+  }
+}
+
+# a mac has neither sha256sum nor b2sum: shasum and openssl stand in, and
+# have to answer the same bytes coreutils does
+function test_lib_hash_fallbacks_agree_with_coreutils() {
+  local f="$_HI_WORKDIR/fallback.probe" path sha b2
+  printf 'hash me\n' >"$f"
+  sha="$(_hi_in_pkglib sha256_of "$f")"
+  b2="$(_hi_in_pkglib b2_of "$f")"
+  path="$(_hi_real_path mac-hash-tools bash sh awk sed grep cat tr dirname readlink uname shasum openssl)"
+  [ "$(PATH="$path" _hi_in_pkglib sha256_of "$f")" = "$sha" ] || {
+    _hi_cecho " | shasum's sha256 disagrees with sha256sum's" "$RED"
+    return 1
+  }
+  [ "$(PATH="$path" _hi_in_pkglib b2_of "$f")" = "$b2" ] || {
+    _hi_cecho " | openssl's blake2b disagrees with b2sum's" "$RED"
+    return 1
+  }
+}
+
+# a secret file gpg cannot import is refused by name, before any fingerprint
+# comparison could report a confusing "not the key ... names"
+function test_lib_verify_signing_key_refuses_a_non_key_secret() {
+  local f="$_HI_WORKDIR/notakey.asc" out
+  printf 'this is not a key\n' >"$f"
+  out="$(_hi_in_pkglib verify_signing_key gpg "$f" "$f" 2>&1)" && return 1
+  [[ "$out" == *"could not import the secret key"* ]]
 }
 
 function test_lib_verify_signing_key_gpg_verdicts() {
@@ -1947,6 +2026,10 @@ function run_packaging_tests() {
   _hi_check "Takes explicit launcher/man paths" test_stamp_takes_explicit_paths
   _hi_check "Skips a missing man page" test_stamp_skips_a_missing_man_page
   _hi_check "Accepts the --x=y spelling" test_stamp_accepts_the_equals_form
+  _hi_check "--help prints the usage and exits 0" test_stamp_help_prints_usage_and_exits_zero
+  _hi_check "Refuses an unknown argument" test_stamp_refuses_an_unknown_argument
+  _hi_check "Requires --version" test_stamp_requires_a_version
+  _hi_check "Refuses with nothing to stamp" test_stamp_refuses_with_nothing_to_stamp
 
   _hi_h2 "Testing: mkpkg.sh (offline half)"
   _hi_check "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
@@ -1970,7 +2053,10 @@ function run_packaging_tests() {
   _hi_check "pkgbuild_url reads url= and refuses none" test_lib_pkgbuild_url_reads_and_refuses
   _hi_check "need's two verdicts" test_lib_need_verdicts
   _hi_check_requires gpg "gpg_fpr reads a bad file as empty, never fatal" test_lib_gpg_fpr_is_empty_never_fatal
+  _hi_check_capable symlink "lib.sh locates its tree through a symlink" test_lib_locates_its_tree_through_a_symlink
+  _hi_check_requires shasum "sha256/blake2b fallbacks agree with coreutils" test_lib_hash_fallbacks_agree_with_coreutils
   _hi_check_requires gpg "verify_signing_key's gpg verdicts" test_lib_verify_signing_key_gpg_verdicts
+  _hi_check_requires gpg "verify_signing_key refuses a non-key secret" test_lib_verify_signing_key_refuses_a_non_key_secret
   _hi_check_requires openssl "verify_signing_key's rsa verdicts" test_lib_verify_signing_key_rsa_verdicts
   _hi_check_requires git "src_tarball carries the versioned prefix" test_lib_src_tarball_carries_the_versioned_prefix
 
