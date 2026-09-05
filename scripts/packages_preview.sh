@@ -325,6 +325,11 @@ fi
 
 _hi_cecho " | reading $_HI_PACKAGES"
 _hi_cecho " | palette: ${_HI_PACKAGES_PALETTE:-cool}"
+if _hi_has_truecolor; then
+  _hi_cecho " | scheme: ${_HI_COLOR_SCHEME:-default}"
+else
+  _hi_cecho " | scheme: ${_HI_COLOR_SCHEME:-default} (no truecolor here - the 16-color escapes render)"
+fi
 printf '\n'
 _hi_collect_examples
 _hi_print_priorities_table

@@ -22,6 +22,12 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # directions: bash 3.2 quietly expands it to nothing whatever the array holds,
 # and bash 5 reads it as an indirect reference and dies. Plain "${!a[@]}" is
 # already empty-safe and is what to write instead.
+#
+# One trap no pattern here can catch: bash 3.2's $( ... ) scanner does not
+# skip # comments, so an apostrophe (or an unbalanced paren) in a comment
+# inside a command substitution opens a quote that swallows the rest of the
+# file and dies at some far-off `)`. Keep comments inside $( ... ) free of
+# both; `bash -n` under the bash:3.2 image is the check that sees it.
 # shellcheck disable=SC2016 # these are regexes and prose, not expansions
 _HI_BASH32_LINT=(
   '\bmapfile\b|\breadarray\b|mapfile/readarray (bash 4) - use _hi_read_lines'

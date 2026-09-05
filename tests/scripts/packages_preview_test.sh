@@ -106,7 +106,7 @@ function test_color_name_of_names_a_palette_entry() {
 # sets $_HI_PACKAGES_PALETTE itself
 function test_color_name_of_names_every_header_color() {
   local name escape
-  for name in cool warm mono; do
+  for name in cool $(sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'); do
     _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
     for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
       [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
@@ -350,7 +350,20 @@ function test_preview_renders_without_error() {
 # the eyeball pass _HI_PACKAGES_PALETTE's roadmap entry leans on: the legend
 # has to say which named ramp is on screen, not just render one
 function test_preview_names_the_active_palette() {
-  [[ "$_HI_PREVIEW_OUT" == *"palette: cool"* ]]
+  [[ "$_HI_PREVIEW_OUT" == *"palette: cool"* && "$_HI_PREVIEW_OUT" == *"scheme: default"* ]]
+}
+
+# under a scheme the escapes carry a 24-bit tail, and the reverse map still
+# has to name them - through a fresh bash, since _HI_COLOR_ESCAPES is
+# resolved when the script is sourced (HI.50)
+function test_color_name_of_names_scheme_escapes() {
+  local out
+  # shellcheck disable=SC2016 # the script expands in the child bash, not here
+  out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
+    . "$_HI_HOME/say-hi/common/core.sh"
+    . "$_HI_HOME/say-hi/scripts/packages_preview.sh"
+    printf "%s %s %s" "$(_hi_color_name_of "$BRGREEN")" "$(_hi_color_name_of "$RED")" "$(_hi_color_name_of "$NC")"')"
+  [ "$out" = "brgreen red plain" ]
 }
 
 function test_preview_names_every_priority() {
@@ -479,6 +492,7 @@ function run_packages_preview_tests() {
   _hi_check "-h matches --help" test_short_help_matches_long
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
+  _hi_check "Names a scheme's escapes" test_color_name_of_names_scheme_escapes
   _hi_check "Names every priority" test_preview_names_every_priority
   _hi_check "Explains the mode characters" test_preview_explains_the_modes
   _hi_check "Counts what it read" test_preview_counts_what_it_read

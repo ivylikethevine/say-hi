@@ -187,6 +187,17 @@ is composed rather than passed as `--generate-notes --notes` because `gh`
 appends generated notes **after** `--notes`, burying them under the
 checklist.
 
+**The body opens with the tag's own badges.** README's tests, kcov and
+bashcov badges read the newest green run of `main` and drift with it; the
+release body carries the same three figures as static `img.shields.io`
+badges, frozen at the tag. The publish job looks each one up by this
+commit's sha (`.github/actions/fetch-latest-artifact` with `head-sha`, the
+`tests` artifact of `ci.yml` and the two `pct` artifacts of `coverage.yml`)
+and a figure that is not there - a tag cut before the sweep finished, an
+artifact past its 14-day retention - reads `unknown` in grey rather than
+failing the release. Only a release the run creates gets them: an existing
+body is never rewritten.
+
 ### The release environment
 
 Two repository settings under _Settings → Environments_ that no file in the
@@ -563,6 +574,12 @@ ever warns. To hear it before the push:
 ```sh
 git config core.hooksPath .github/hooks
 ```
+
+Each tape's header names the persona it is shot for - the ops bastion, the
+developer on a shared dev box, the homelab tinkerer, the researcher at a
+workstation - and which header configuration and whose prompt is in the
+frame; `fixtures.sh`'s `up:<name>` arm writes exactly that settings.sh.
+Change the two together, and README's section for the GIF with them.
 
 By hand it is one `vhs docs/tapes/<name>.tape` per GIF from the repo root,
 with the backend running and `hi` on PATH; `docs/tapes/fixtures.sh` builds

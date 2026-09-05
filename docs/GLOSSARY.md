@@ -62,6 +62,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.47 what a child inherits](#hi47-what-a-child-inherits)
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
 - [HI.49 Apple Silicon boost clock probe](#hi49-apple-silicon-boost-clock-probe)
+- [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
 
 ## HI.01 empty-array guard
 
@@ -837,3 +838,40 @@ parse that comes out wrong on a different Mac needs the raw
 `ioreg -l | grep -i voltage-states` output from that machine to fix - the
 literal hex says whether the byte order or the key index assumption above
 has moved.
+
+## HI.50 truecolor color schemes
+
+`_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twelve palette names
+render as; it never adds a name. `_hi_hash_color`, the `settings/colors`
+pins, `_hi_color_name_of` and `hi --color-preview` all keep the same
+vocabulary, so a scheme is invisible to everything that reasons about a
+color by name - only the bytes a name turns into change.
+
+Those bytes are **one SGR**, `\e[<bold>;3<n>;38;2;<r>;<g>;<b>m`: the
+16-color pair first, the 24-bit triple after it. A terminal that ignores
+`38;2` keeps the first; a capable one applies the last foreground it was
+given. One escape rather than two keeps every reader of a cell's leading
+escape working unchanged - `_hi_visible_width` strips one prefix,
+`_hi_collect_header_word` cuts at the first `m`, `scripts/table.sh` and the
+suites' `_hi_strip_ansi` match `\e[[0-9;]*m` - and `_hi_cell_hue` (HI.48)
+needed only to accept `;` as well as `m` after the slot digit, which is
+still the hue.
+
+The hex tables are a fixed-width string per scheme, sliced by offset
+(`_hi_scheme_hex`): no arrays, because zsh indexes them from 1 and sources
+this file; no separate data file, because the payload strips comments and
+the twelve six-digit words are the only bytes that cost anything on the wire.
+`_hi_assign_palette` builds the exported `$RED..$BRCYAN` through the same
+primitive as `_hi_color_escape`, so the two can never disagree and
+`scripts/configure.sh`'s previews can rebuild the palette under a pending
+answer.
+
+The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
+`_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so
+`hi.sh`'s `_hi_session_env` ships the client's verdict as `_HI_TRUECOLOR`
+beside `_HI_ASCII` - the escapes render in the client's terminal, and the
+target must not guess from its own environment. The scheme name itself needs
+no transport: `settings.sh` is in the overlay. zsh takes `%F{#rrggbb}` from
+5.7 (`common/zsh.zsh`, behind `is-at-least`) and fish takes `set_color hex
+name`, a list it resolves to the first entry it can render, so both fall
+back to the plain name on their own.

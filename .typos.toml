@@ -5,6 +5,7 @@
 extend-ignore-re = [
   "\\[Tt\\]ags",  # core.sh's case pattern for Tags:/tags:, split as `ags`
   "mis-parse",    # the hyphenated form, split at the hyphen
+  "\\b[0-9a-f]{6}\\b", # rrggbb words in core.sh's color scheme tables
 ]
 
 [default.extend-words]

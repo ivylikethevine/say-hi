@@ -1,17 +1,14 @@
-# The packages demo: the header's check is a diagnosis, not decoration. One
-# `packages` overlay, two boxes - a debian with your tools on it and a bare one
-# - and the same line reads quiet on the first and loud on the second. Render
-# with `vhs docs/tapes/packages.tape` from the repo root, docker running, hi on
-# PATH. Manual artifact, reviewed by eye.
+# The packages demo, as the homelab tinkerer sees it: sam, from a laptop with
+# a plain distro prompt, into the nas and the pihole under the stairs. Render
+# with `vhs docs/tapes/packages.tape` from the repo root, docker running, hi
+# on PATH. Manual artifact, reviewed by eye.
 #
-# Its configuration: a `packages` overlay of favorites (docs/tapes/fixtures.sh
-# writes it into the same overlay dir every demo uses), a floor of 3 so tiers
-# 0-2 stay out of the frame. The overlay is what rides along: the check on
-# both boxes reads the *client's* file, which is the whole point of showing
-# two.
-#
-# `clear` between the sessions is for the frame: two headers plus the overlay
-# listing outrun common.tape's height, and the second header is the shot.
+# Its configuration (docs/tapes/fixtures.sh, up:packages): hi's prompt off
+# (_HI_DISABLE_PROMPT - this person keeps their own, and the targets keep
+# theirs), the whole header with every address shown (_HI_IP_HIDE=none), a
+# check floor of 2, and a `packages` overlay that is the homelab toolbox.
+# The nas (the tools debian) answers it with one quiet line; the pihole (a
+# bare debian) does not.
 #
 # The Hide block paces itself with Wait+Screen on sentinel text instead of
 # fixed sleeps; the quoted split in fixture-o''k keeps the typed command from
@@ -39,13 +36,13 @@ Enter
 Show
 
 Sleep 1s
-Type "# the tools you care about, and how loudly to miss them"
+Type "# the homelab toolbox, and how loudly to miss each piece"
 Enter
 Type "cat $_HI_CONFIG_DIR/packages"
 Enter
 Sleep 3s
 
-Type "hi db-prod"
+Type "hi nas"
 Enter
 Wait+Screen@60s /hi loaded with/
 Sleep 4s
@@ -56,9 +53,9 @@ Sleep 1s
 Type "clear"
 Enter
 
-Type "# the same check on a bare box"
+Type "# the same check on the pihole"
 Enter
-Type "hi builder"
+Type "hi pihole"
 Enter
 Wait+Screen@60s /hi loaded with/
 Sleep 5s

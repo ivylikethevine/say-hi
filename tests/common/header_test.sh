@@ -1263,6 +1263,72 @@ function test_system_info_on_windows() {
   }
 }
 
+# _HI_IP_HIDE: a docker bridge address is noise on any box that runs
+# containers, so the default hides 172.*; `none` shows everything; any other
+# value is a list of globs. The filter is checked on its own, then through
+# the cell on a mac-shaped box whose ifconfig answers two addresses.
+function test_ip_filter_hides_the_bridge_by_default() {
+  local out
+  unset _HI_IP_HIDE
+  _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  [ "$out" = "10.0.0.5" ] || return 1
+  _hi_ip_filter out "10.0.0.5,172.18.0.1,192.0.2.10"
+  [ "$out" = "10.0.0.5,192.0.2.10" ]
+}
+
+function test_ip_filter_none_and_empty_keep_everything() {
+  local out
+  _HI_IP_HIDE=none _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  [ "$out" = "172.17.0.2,10.0.0.5" ] || return 1
+  _HI_IP_HIDE="" _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  [ "$out" = "172.17.0.2,10.0.0.5" ]
+}
+
+function test_ip_filter_takes_a_glob_list() {
+  local out
+  _HI_IP_HIDE="10.*" _hi_ip_filter out "172.17.0.2,10.0.0.5"
+  [ "$out" = "172.17.0.2" ] || return 1
+  _HI_IP_HIDE="10.* 172.*" _hi_ip_filter out "172.17.0.2,10.0.0.5,192.0.2.10"
+  [ "$out" = "192.0.2.10" ] || return 1
+  _HI_IP_HIDE="192.0.2.1?" _hi_ip_filter out "192.0.2.10,192.0.2.100"
+  [ "$out" = "192.0.2.100" ]
+}
+
+# every address hidden: the cell is empty (so the header drops it), never
+# "?", which still means no routable address was found at all
+function test_ip_cell_is_empty_when_every_address_is_hidden() {
+  local dir="$_HI_WORKDIR/ip-hide-shims" out
+  mkdir -p "$dir"
+  printf '#!/bin/sh\necho "Darwin arm64"\n' >"$dir/uname"
+  printf '#!/bin/sh\nprintf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 172.17.0.2 netmask 0xffff0000\n\tinet 10.0.0.5 netmask 0xffffff00\n"\n' >"$dir/ifconfig"
+  chmod +x "$dir/uname" "$dir/ifconfig"
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"')"
+  [[ "$out" == *"[IP: 10.0.0.5]"* ]] || {
+    _hi_cecho " | default got: $out" "$RED"
+    return 1
+  }
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_IP_HIDE="10.* 172.*")"
+  [[ "$out" == *"[]"* ]] || {
+    _hi_cecho " | all hidden got: $out" "$RED"
+    return 1
+  }
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
+  [[ "$out" == *"[IP: 172.17.0.2,10.0.0.5]"* ]] || {
+    _hi_cecho " | none got: $out" "$RED"
+    return 1
+  }
+}
+
+# ...and the header itself then prints no IP cell at all
+function test_header_omits_the_ip_cell_when_hidden() {
+  local out
+  out="$(_HI_HEADER_ORDER='utc ip' _HI_IP_HIDE='*' hi_header Connected 2>&1)"
+  [[ "$out" == *"Connected"* && "$out" == *" UTC"* && "$out" != *"IP:"* ]]
+}
+
 function test_uptime_and_ip_cells_on_windows() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
@@ -1382,6 +1448,30 @@ function test_hi_cell_hue_is_empty_without_an_escape() {
   local h
   _hi_cell_hue h "macOS 15.1"
   [ -z "$h" ]
+}
+
+# under a scheme the escape runs on past the slot digit (HI.50); the digit is
+# still the hue, and text is still not
+function test_hi_cell_hue_reads_a_truecolor_escape() {
+  local h
+  _hi_cell_hue h '\e[1;36;38;2;107;215;202mIP: x'
+  [ "$h" = 6 ] || return 1
+  _hi_cell_hue h '\e[0;33;38;2;249;226;175mUp: 1h'
+  [ "$h" = 3 ] || return 1
+  _hi_cell_hue h 'RAM: \e[0;33;38;2;1;2;3m6G'
+  [ -z "$h" ]
+}
+
+function test_header_hues_never_repeat_under_a_scheme() {
+  local ok=0
+  (
+    # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
+    export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1
+    _hi_assign_palette
+    _hi_packages_palette
+    test_header_hues_never_repeat_in_the_default_order
+  ) && ok=1
+  [ "$ok" = 1 ]
 }
 
 function test_hi_cell_hue_ignores_a_non_leading_escape() {
@@ -1822,9 +1912,16 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 # one per priority 0-3 - in both tables. `VAR=val func` on a shell function
 # (not an external command) reverts VAR once the call returns, so this leaves
 # no _HI_PACKAGES_PALETTE behind for a case after it.
+# the named ramps, read off header.sh's own case rather than a second copy
+# of the list here (the two used to drift); cool is the default arm
+function _hi_palette_names() {
+  printf 'cool\n'
+  sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'
+}
+
 function test_packages_palette_each_name_has_four_entries() {
   local name
-  for name in cool warm mono; do
+  for name in $(_hi_palette_names); do
     _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
     [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ] || return 1
   done
@@ -1850,18 +1947,28 @@ function test_packages_palette_unknown_falls_back_to_cool() {
 # characters `\e`, while _hi_color_escape's format string interprets `\e` as
 # the real ESC byte - unexpanded, every comparison here would silently miss.
 function test_packages_palette_escapes_are_all_named_colors() {
-  local name escape found candidate want
-  for name in cool warm mono; do
-    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-    for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-      want="$(printf '%b' "$escape")"
-      found=""
-      for candidate in "${_HI_COLOR_NAMES[@]}"; do
-        [ "$(printf '%b' "$(_hi_color_escape "$candidate")")" = "$want" ] && found=1 && break
-      done
-      [ -n "$found" ] || return 1
+  local name escape found candidate want scheme
+  # under every scheme too (HI.50): the ramps are captured from the palette
+  # variables, so they are rebuilt per scheme the way configure.sh does
+  for scheme in "" catppuccin monokai onedark vscode; do
+    for name in $(_hi_palette_names); do
+      (
+        # shellcheck disable=SC2031 # per-scheme, in its own subshell on purpose
+        export _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1
+        _hi_assign_palette
+        _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+        for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
+          want="$(printf '%b' "$escape")"
+          found=""
+          for candidate in "${_HI_COLOR_NAMES[@]}"; do
+            [ "$(printf '%b' "$(_hi_color_escape "$candidate")")" = "$want" ] && found=1 && break
+          done
+          [ -n "$found" ] || exit 1
+        done
+      ) || return 1
     done
   done
+  [ "$(_hi_palette_names | wc -l)" -ge 3 ]
 }
 
 function run_header_tests() {
@@ -1963,6 +2070,11 @@ function run_header_tests() {
   _hi_check "Uptime and IP cells on a mac" test_uptime_and_ip_cells_on_a_mac
   _hi_check "System_info on Windows (git-bash), from shims" test_system_info_on_windows
   _hi_check "Uptime and IP cells on Windows" test_uptime_and_ip_cells_on_windows
+  _hi_check "_HI_IP_HIDE hides the bridge by default" test_ip_filter_hides_the_bridge_by_default
+  _hi_check "_HI_IP_HIDE none/empty keep everything" test_ip_filter_none_and_empty_keep_everything
+  _hi_check "_HI_IP_HIDE takes a glob list" test_ip_filter_takes_a_glob_list
+  _hi_check "The ip cell is empty when every address is hidden" test_ip_cell_is_empty_when_every_address_is_hidden
+  _hi_check "The header omits a hidden ip cell" test_header_omits_the_ip_cell_when_hidden
   _hi_check "System_info with no kernel and no os-release says ?" test_system_info_with_no_kernel_and_no_release_says_unknown
   _hi_check "Apple Silicon boost parses ioreg's little-endian word" test_apple_silicon_boost_parses_ioreg
   _hi_check "...and gives up on a hung ioreg inside a second" test_apple_silicon_boost_gives_up_on_a_hung_ioreg
@@ -1999,10 +2111,12 @@ function run_header_tests() {
   _hi_check "_hi_cell_hue ignores the bold bit" test_hi_cell_hue_ignores_the_bold_bit
   _hi_check "_hi_cell_hue is empty without an escape" test_hi_cell_hue_is_empty_without_an_escape
   _hi_check "_hi_cell_hue ignores a non-leading escape" test_hi_cell_hue_ignores_a_non_leading_escape
+  _hi_check "_hi_cell_hue reads a truecolor escape" test_hi_cell_hue_reads_a_truecolor_escape
   _hi_check "Every word's alternate differs from its own primary" test_header_word_alt_differs_from_its_own_primary
   _hi_check "Every order word has an alternate defined" test_header_word_alt_is_defined_for_every_order_word
   _hi_check "The default order never needs its own alternate" test_header_default_order_needs_no_alternate
   _hi_check "No two adjacent cells share a hue in the default order" test_header_hues_never_repeat_in_the_default_order
+  _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
   _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color

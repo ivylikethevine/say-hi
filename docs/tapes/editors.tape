@@ -1,11 +1,14 @@
-# The editors demo, from a zsh client into the tools debian: nano with hi's
-# nanorc, vim with hi's vimrc, and the two escapes that ride the pty back -
-# hi_copy to the client's clipboard, hi_notify to the client's terminal.
-# Render with `vhs docs/tapes/editors.tape` from the repo root, docker running,
-# hi on PATH. Manual artifact, reviewed by eye.
+# The editors demo, as the developer on a shared dev box sees it: maya, zsh
+# on her mac, into the team's debian. nano with hi's nanorc, vim with hi's
+# vimrc, and the two escapes that ride the pty back - hi_copy to the client's
+# clipboard, hi_notify to the client's terminal. Render with
+# `vhs docs/tapes/editors.tape` from the repo root, docker running, hi on
+# PATH. Manual artifact, reviewed by eye.
 #
-# Its configuration: a package floor of 5, so the header stays one line and
-# the editors get the frame.
+# Its configuration (docs/tapes/fixtures.sh, up:editors): the compact header
+# preset, so the header stays one line and the editors get the frame, and the
+# prompt handed to starship (_HI_PROMPT=starship - the box has it, and it is
+# the prompt this person already uses); hi keeps everything else.
 #
 # hi_copy and hi_notify are typed and *not* shown landing: an OSC 52 or OSC 9
 # escape goes to the terminal emulator, and vhs's headless one has no clipboard
@@ -44,7 +47,7 @@ Enter
 Show
 
 Sleep 1s
-Type "hi db-prod"
+Type "hi dev-box"
 Enter
 Wait+Screen@60s /hi loaded with/
 Sleep 2s

@@ -17,7 +17,7 @@
 # **client shell**, so the set has three looks rather than seven and the look
 # tells you which shell you are watching.
 #
-#   bash (no `Set Shell`, the default here)      GruvboxDark
+#   bash (no `Set Shell`, the default here)      Monokai Pro
 #   zsh  (editors.tape, run.tape)                 Dracula
 #   fish (overlay.tape, complete.tape)            nord
 #
@@ -41,5 +41,4 @@ Set BorderRadius 10
 
 # The bash default - overridden by the non-bash tapes. Names come from
 # `vhs themes`; see https://github.com/charmbracelet/vhs/blob/main/THEMES.md
-# Set Theme "GruvboxDark"
 Set Theme "Monokai Pro"
