@@ -253,13 +253,18 @@ function build_apt() {
 }
 
 # release_hashes <dists-dir> <heading> <openssl-digest> - one hash block of a
-# Release file: " <hash> <size> <path relative to dists/stable>" per index
+# Release file: " <hash> <size> <path relative to dists/stable>" per index.
+# -r, not the default `dgst` header-and-hash format build_apt's other digests
+# already learned to avoid (line 227): the algorithm name it prints ("SHA256"
+# vs "SHA2-256" vs whatever a given OpenSSL build calls it) isn't stable
+# across versions or platforms, and FreeBSD's base openssl formats it
+# differently from this box's - -r's "<hash> *<file>" shape never carries one.
 function release_hashes() {
   local dists="$1" heading="$2" algo="$3" f rel
   printf '%s:\n' "$heading"
   for f in "$dists"/main/binary-*/Packages "$dists"/main/binary-*/Packages.gz; do
     rel="${f#"$dists"/}"
-    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" "$f" | awk '{print $NF}')" "$(wc -c <"$f" | tr -d ' ')" "$rel"
+    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" -r "$f" | cut -d' ' -f1)" "$(wc -c <"$f" | tr -d ' ')" "$rel"
   done
 }
 
