@@ -422,6 +422,24 @@ function test_release_workflow_publishes_release_notes() {
   [[ "$job" == *"release_notes.sh"* ]] && [[ "$job" == *"pull-requests: read"* ]]
 }
 
+# The body opens with the tag's own figures as static shields badges: three
+# fetches pinned to this commit's sha (the action's head-sha input), a step
+# that turns totals/pct files into badge URLs, and the body line that prints
+# them. A figure that is missing reads unknown rather than failing the run.
+function test_release_body_carries_frozen_badges() {
+  local job
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  [[ "$job" == *"head-sha: \${{ github.sha }}"* ]] || return 1
+  [[ "$job" == *"artifact-name: tests"* && "$job" == *"artifact-name: coverage-pct"* &&
+    "$job" == *"artifact-name: coverage-v2-pct"* ]] || return 1
+  [[ "$job" == *"img.shields.io/badge/"* && "$job" == *"unknown"* && "$job" == *"lightgrey"* ]] || return 1
+  # shellcheck disable=SC2016 # the workflow's own literals, expanded there
+  [[ "$job" == *'![tests]($HI_BADGE_TESTS)'* && "$job" == *'($HI_BADGE_KCOV)'* &&
+    "$job" == *'($HI_BADGE_BASHCOV)'* ]] || return 1
+  # shellcheck disable=SC2016 # likewise
+  grep -q 'head_sha=\$HEAD_SHA' "$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml"
+}
+
 function _hi_release_note_of() {
   printf '%s\n' "$1" | bash "$_HI_ROOT/.github/scripts/release_notes.sh" --extract
 }
@@ -2248,6 +2266,7 @@ function run_packaging_tests() {
   _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
   _hi_check "The PR template carries a release-note section" test_pr_template_carries_the_release_note_section
   _hi_check "publish runs release_notes.sh with pull-requests: read" test_release_workflow_publishes_release_notes
+  _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
   _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
   _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
   _hi_check "release_notes.sh builds the list from the PRs" test_release_notes_builds_the_list_from_the_prs

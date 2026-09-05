@@ -60,6 +60,20 @@ function demo_sshd_image() {
   # is the demo's box rather than one that still needs configuring.
   demo_settings "$_HI_DEMO_DIR/ssh-target-settings.sh" <<'EOF'
 export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
+export _HI_COLOR_SCHEME='onedark'
+EOF
+  # ...and the box's own prompt: hitest's login shell is fish, and this
+  # config.fish is sourced after hi's, so the two-line prompt below replaces
+  # hi's fish_prompt while reusing the colors hi resolved for user and host
+  # (docs/SETTINGS.md, "Your own prompt") - the tagged red and green still
+  # land, in someone else's prompt.
+  cat >"$_HI_DEMO_DIR/ssh-target-config.fish" <<'EOF'
+# ~/.config/say-hi/config.fish - a prompt of my own, on hi's colors
+function fish_prompt
+  printf '%s%s%s@%s%s%s %s%s%s\n> ' (set_color $fish_color_user) $USER (set_color normal) \
+    (set_color $fish_color_host) (prompt_hostname) (set_color normal) \
+    (set_color cyan) (prompt_pwd) (set_color normal)
+end
 EOF
 
   mkdir -p "$_HI_DEMO_DIR/base"
@@ -145,7 +159,7 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
 # prompt shows the second, and a demo where those differ reads as a bug in hi.
 # It also gives the header's color-hash line something meaningful to hash
 # instead of the backend's random container ID.
-function up_container() { # <backend> <name> <flavor: debian|zsh|fish|ash>
+function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash|zsh-bash>
   local backend="$1" name="$2" flavor="$3" image
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
@@ -165,6 +179,13 @@ function up_container() { # <backend> <name> <flavor: debian|zsh|fish|ash>
     "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image=hi-demo-fish-bash-img
+    ;;
+  # zsh with bash beside it, for the same reason: the picker demo's session
+  # lands in zsh (_HI_SHELL_PREFERENCE) with the full tier under it
+  zsh-bash)
+    "$backend" build -q -t hi-demo-zsh-bash-img --build-arg "PKGS=zsh bash git" \
+      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
+    image=hi-demo-zsh-bash-img
     ;;
   zsh | fish)
     "$backend" build -q -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
@@ -294,8 +315,8 @@ function rc_sed() { # <outfile> - body on stdin
     -e "s#@CONFIG@#$_HI_DEMO_DIR/config#g" >"$1"
 }
 
-function client_rc() { # <shell> <user> <hostname>
-  local shell="$1" user="$2" host="$3" home
+function client_rc() { # <shell> <user> <hostname> [stock]
+  local shell="$1" user="$2" host="$3" stock="${4:-}" home
   home="$(dirname "$_HI_ROOT")"
   # Every up:* calls this before writing its overlay, so this is the one place
   # that can guarantee a demo gets its own configuration and no one else's.
@@ -312,8 +333,21 @@ function client_rc() { # <shell> <user> <hostname>
   # shell, and on a machine where /usr/bin/hi points at some other install (or
   # a login profile exports its own $_HI_HOME) an inherited one renders the
   # wrong tree - silently, and the GIF is the only place it would show.
-  case "$shell" in
-  bash)
+  case "$stock:$shell" in
+  # the homelab persona: hi's prompt is off in its settings.sh, so this rc
+  # draws the distro-style prompt such a person already has, and the targets
+  # show their own (debian's root@host:~#) - the header and aliases still
+  # ride along, the prompt does not
+  stock:bash)
+    rc_sed "$_HI_DEMO_DIR/clientrc.bash" <<'EOF'
+export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
+export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
+export _HI_CONFIG_DIR='@CONFIG@'
+source "$_HI_ROOT/common/bash.sh"
+PS1='[@USER@@@HOST@ \W]\$ '
+EOF
+    ;;
+  *:bash)
     rc_sed "$_HI_DEMO_DIR/clientrc.bash" <<'EOF'
 export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
 export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
@@ -331,7 +365,7 @@ _hi_demo_ps1() {
 PROMPT_COMMAND=_hi_demo_ps1
 EOF
     ;;
-  zsh)
+  *:zsh)
     rc_sed "$_HI_DEMO_DIR/clientrc.zsh" <<'EOF'
 export _HI_HOME='@HOME@' _HI_ROOT='@ROOT@'
 export _HI_WHOAMI_CACHE='@USER@' _HI_HOSTNAME_CACHE='@HOST@'
@@ -345,7 +379,7 @@ PS1="${PS1//\%n/@USER@}"
 PS1="${PS1//\%m/@HOST@}"
 EOF
     ;;
-  fish)
+  *:fish)
     rc_sed "$_HI_DEMO_DIR/clientrc.fish" <<'EOF'
 set -gx _HI_HOME '@HOME@'
 set -gx _HI_ROOT '@ROOT@'
@@ -400,6 +434,31 @@ Host build-box
 
 Host bastion
   User root
+EOF
+}
+
+# The researcher's roster (the picker demo): a small cluster reached from a
+# laptop. Read out of the file only, like demo_ssh_config's - no sshd runs
+# for any of them.
+function demo_ssh_config_research() {
+  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
+  cat >"$_HI_DEMO_DIR/home/.ssh/config" <<'EOF'
+# Tags: gpu
+Host gpu-01 gpu-02
+  User chen
+
+# Tags: gpu
+Host gpu-big
+  User chen
+
+Host jupyter
+  User chen
+
+Host storage
+  User chen
+
+Host login
+  User chen
 EOF
 }
 
@@ -505,9 +564,11 @@ function demo_recents() { # <target>
 # ordinary greeting: true, but not this one's subject.
 # Debian, therefore, under a name that is in no roster.
 function up_pick() {
-  demo_ssh_config
-  demo_recents app-1
-  up_container docker app-1 debian || return 1
+  demo_ssh_config_research
+  demo_recents notebook-1
+  # a zsh box, so the session lands in the shell the researcher's own
+  # prompt (the overlay's zsh.zsh) is written for
+  up_container docker notebook-1 zsh-bash || return 1
 }
 
 # The run demo's stage: one target per backend, reached from a throwaway $HOME
@@ -580,39 +641,55 @@ case "${1:-}:${2:-}" in
 # exception is docker's second target, where client and target are both cache-1
 # - the same box reached two ways, which is worth one frame of the set.
 up:packages)
-  client_rc bash ivy workshop
-  # the check as a diagnosis: a floor of 3 keeps everything below the top tier
-  # out of the frame, and the overlay below is the list being checked. Two
-  # boxes: the tools debian answers the list quietly, the bare one does not.
+  # The homelab tinkerer: sam, from a laptop, into the two boxes under the
+  # stairs. Their own distro prompt everywhere (hi's is off, so the targets
+  # show their stock root@host:~# too), the whole header with every address
+  # shown (_HI_IP_HIDE=none - the default would drop the docker bridge these
+  # containers stand in for a LAN with), and the check as a diagnosis: the
+  # overlay below is the homelab toolbox, and the two boxes answer it very
+  # differently - the nas has most of it, the pihole almost none.
+  client_rc bash sam laptop stock
   demo_settings <<'EOF'
-export _HI_PACKAGES_MIN_PRIORITY='3'
+export _HI_DISABLE_PROMPT='1'
+export _HI_IP_HIDE='none'
+export _HI_PACKAGES_MIN_PRIORITY='2'
 EOF
   demo_overlay packages <<'EOF'
-# the tools you care about, and how loudly to miss them
-vim:3
-nano:3
-batcat:3
+# the homelab toolbox, and how loudly to miss each piece
 git:3
-rg:3
-htop:3
+vim|nano:3
+rsync:3
+curl:3
+htop:2
+tmux:2
+smartctl:2
 EOF
-  up_container docker db-prod tools
-  up_container docker builder debian
+  up_container docker nas tools
+  up_container docker pihole debian
   ;;
 up:editors)
-  client_rc zsh dev cache-1
-  # the header stays one line; the editors get the frame
+  # The developer on a shared dev box: maya, zsh on her mac, into the team's
+  # debian where starship is installed. The compact header preset, and the
+  # prompt handed to starship (_HI_PROMPT) - hi keeps the header, the
+  # editors, the clipboard and the aliases; the prompt is hers.
+  client_rc zsh maya mbp
   demo_settings <<'EOF'
-export _HI_HEADER_ORDER='utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime'
+export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods check'
+export _HI_PROMPT='starship'
 EOF
-  up_container docker db-prod tools
+  up_container docker dev-box tools
   ;;
 up:overlay)
+  # The ops persona: fish on a bastion, into a docker box and a podman box.
+  # The header trimmed to what an operator looks at - clocks, the backend
+  # counts, the check - painted with the mono ramp; the fish session on the
+  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here (podman
+  # lives under the real one), so the recents file is moved out of the
+  # renderer's state dir by hand.
   client_rc fish ops bastion
-  # no throwaway $HOME here (podman lives under the real one), so the recents
-  # file is moved out of the renderer's state dir by hand
   demo_settings <<'EOF'
-export _HI_HEADER_ORDER='utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime'
+export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
+export _HI_PACKAGES_PALETTE='mono'
 export _HI_RECENT_FILE='/tmp/hi-demo/home/recent'
 export _HI_SHELL_PREFERENCE='fish'
 EOF
@@ -642,12 +719,23 @@ up:pick)
   # _HI_TARGETS_TTL=0 for up:complete's reason: the sweep is cached for 5s in
   # $XDG_RUNTIME_DIR, which the renderer shares with every other shell on their
   # box, so a stale window would render *their* containers into a committed GIF.
-  client_rc bash ivy workshop
-  # ...and no package check, so the picker and the session it opens fit one
-  # recording. The header is not this demo's subject; the choice above it is.
+  # The researcher: chen, zsh on a thinkpad, picking among a GPU cluster's
+  # boxes. The header is what a workstation user reads - the clocks, cores,
+  # clock speed, memory, uptime and the check, on the warm ramp - and the
+  # prompt is theirs: the overlay's zsh.zsh below is the oh-my-zsh
+  # robbyrussell look, rewritten by hand, which hi sources last on the client
+  # and on every zsh target (_HI_SHELL_PREFERENCE lands the session in zsh).
+  client_rc zsh chen thinkpad
   demo_settings <<'EOF'
 export _HI_TARGETS_TTL='0'
-export _HI_HEADER_ORDER='utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime'
+export _HI_HEADER_ORDER='utc localtime cores cpu ram uptime check'
+export _HI_PACKAGES_PALETTE='warm'
+export _HI_SHELL_PREFERENCE='zsh'
+EOF
+  demo_overlay zsh.zsh <<'EOF'
+# ~/.config/say-hi/zsh.zsh - my prompt, sourced after hi's on every zsh
+setopt PROMPT_SUBST
+PROMPT='%(?:%F{green}➜ :%F{red}➜ )%F{cyan}%c%f${__hi_git_info} '
 EOF
   up_pick
   ;;
@@ -670,15 +758,22 @@ EOF
   up_complete
   ;;
 up:colors)
-  # no settings.sh: this demo's configuration is the `colors` overlay up_colors
-  # writes, into the same dir every other demo uses. The tape exports a
-  # throwaway $HOME as well, for the ssh config the preview and the two
-  # sessions read.
-  client_rc bash ivy workshop
+  # The sysadmin: kai, bash on a laptop, into two boxes that carry their own
+  # permanent install (and their own prompt - see demo_sshd_image). This
+  # demo's configuration is the `colors` overlay up_colors writes plus the
+  # onedark scheme, set on the client here and baked into the targets, so
+  # the preview and both sessions paint with the same truecolor. The tape
+  # exports a throwaway $HOME as well, for the ssh config the preview and
+  # the two sessions read, and COLORTERM, which vhs's shell does not set.
+  client_rc bash kai ops-laptop
+  demo_settings <<'EOF'
+export _HI_COLOR_SCHEME='onedark'
+EOF
   up_colors
   ;;
 up:run)
-  client_rc zsh dev cache-1
+  # the researcher again, running one command across the cluster's backends
+  client_rc zsh chen thinkpad
   # a one-off command draws no header, so nothing a knob would show; the TTL
   # is up:complete's, for up:complete's reason
   demo_settings <<'EOF'

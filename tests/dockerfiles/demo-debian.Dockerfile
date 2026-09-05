@@ -8,10 +8,19 @@
 # flavor `tools`; the same digest pin as the sshd base, so there is one
 # debian pin to bump. Root, on purpose: a container's shell is root's, and
 # `root` is the username whose color the colors overlay pins.
+#
+# starship too, for the editors tape's developer persona (_HI_PROMPT=starship
+# hands the prompt over only where the binary is): the same pinned installer
+# and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
+# since root is the session user here.
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git nano vim bat ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+      git nano vim bat ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://starship.rs/install.sh -o /tmp/starship-install.sh \
+    && echo "52c64f14a558034ebeb1907ea9364e802b32474576fd3e68265f73bc33cc8fbb  /tmp/starship-install.sh" | sha256sum -c - >/dev/null \
+    && sh /tmp/starship-install.sh --yes -b /usr/local/bin --version v1.26.0 >/dev/null \
+    && rm -f /tmp/starship-install.sh
 # a repo with one commit and one unstaged edit: the git segment then shows a
 # branch *and* a dirty marker rather than a bare name
 WORKDIR /root/app

@@ -24,6 +24,10 @@ inputs:
     description: "'true' to log the missing case as a ::warning instead of a plain echo"
     required: false
     default: "false"
+  head-sha:
+    description: "a commit sha: find the newest successful run *of that commit* rather than of main (release.yml's tag figures)"
+    required: false
+    default: ""
 
 outputs:
   run_id:
@@ -35,7 +39,9 @@ runs:
   steps:
     # By query rather than off a workflow_run payload: the newest green run on
     # main *is* the triggering run when that is the event, so one code path
-    # serves push and dispatch too.
+    # serves push and dispatch too. With head-sha the query is pinned to one
+    # commit instead - a workflow_run-triggered run (coverage) carries the
+    # triggering push's sha, so the same shape finds every producer.
     - id: find
       shell: bash
       env:
@@ -45,10 +51,12 @@ runs:
         FOUND_MESSAGE: ${{ inputs.found-message }}
         MISSING_MESSAGE: ${{ inputs.missing-message }}
         WARN_ON_MISSING: ${{ inputs.warn-on-missing }}
+        HEAD_SHA: ${{ inputs.head-sha }}
       run: |
         set -euo pipefail
+        if [ -n "$HEAD_SHA" ]; then scope="head_sha=$HEAD_SHA"; else scope="branch=main"; fi
         run_id="$(gh api \
-          "repos/$REPO/actions/workflows/$WORKFLOW/runs?branch=main&status=success&per_page=1" \
+          "repos/$REPO/actions/workflows/$WORKFLOW/runs?$scope&status=success&per_page=1" \
           --jq '.workflow_runs[0].id // empty')"
         echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
         if [ -n "$run_id" ]; then

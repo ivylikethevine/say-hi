@@ -1,5 +1,8 @@
-# The overlay demo, from a fish client: one config directory, and the alias in
-# it works in a bash session on a debian container and a fish session on an
+# The overlay demo, as the ops persona sees it: fish on a bastion, into a
+# docker box and a podman box, the header trimmed to an operator's cells
+# (clocks, backend counts, the check on the mono ramp). One aliases.sh
+# overlay, sourced on every target: it works in a bash session on a debian
+# container and a fish session on an
 # alpine box - via docker and podman, so no two of client, target shell and
 # backend match. The alpine has bash beside its fish, and _HI_SHELL_PREFERENCE
 # picks fish: that is a *full* session in fish. (A fish-only box was tried

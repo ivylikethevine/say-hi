@@ -328,6 +328,7 @@ function _hi_header_preview() {
     export _HI_NO_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
     # the palette and the check's ramps were captured at source time;
     # rebuild both under this run's scheme so the preview paints with it
+    # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
     export _HI_COLOR_SCHEME="$scheme"
     _hi_assign_palette
     _hi_packages_palette
@@ -376,6 +377,7 @@ function _hi_prompt_sample_preview() {
   # the escape memos are per shell, so the scheme is applied in a subshell
   # with them cleared, and the palette rebuilt under it
   prompt="$(
+    # shellcheck disable=SC2031 # the same subshell-scoped export as the header's
     export _HI_COLOR_SCHEME="$scheme"
     _hi_assign_palette
     unset _HI_HOST_ESC _HI_USER_ESC

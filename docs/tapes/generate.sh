@@ -87,7 +87,7 @@ _HI_GEN_TAPES=(
   "demo:demo:docker"
   "packages:packages:docker"
   "editors:editors:docker zsh"
-  "pick:pick:docker fzf"
+  "pick:pick:docker fzf zsh"
   "overlay:overlay:docker podman fish"
   "colors:colors:docker ssh ssh-keygen"
   "complete:complete:docker podman nomad kind kubectl fish"

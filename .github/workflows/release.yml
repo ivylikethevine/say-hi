@@ -328,12 +328,75 @@ jobs:
             echo "no MINISIGN_SECRET_KEY secret - SHA256SUMS ships unsigned"
           fi
 
+      # The tag's own test count and coverage, frozen into the body as static
+      # badges. README's three badges read the newest green run of main and
+      # drift with it; a release should say what it was cut at. Looked up by
+      # this commit's sha (a workflow_run-triggered coverage run carries the
+      # triggering push's), and a figure that is not there - a tag cut before
+      # CI finished, an artifact past its retention - is a grey "unknown",
+      # never a failed release.
+      - uses: $/.github/actions/fetch-latest-artifact
+        with:
+          workflow: ci.yml
+          artifact-name: tests
+          dest-subdir: badge-tests
+          head-sha: ${{ github.sha }}
+          found-message: "tests totals from CI run"
+          missing-message: "no green CI run for this commit - the tests badge reads unknown"
+          warn-on-missing: "true"
+
+      - uses: $/.github/actions/fetch-latest-artifact
+        with:
+          workflow: coverage.yml
+          artifact-name: coverage-pct
+          dest-subdir: badge-kcov
+          head-sha: ${{ github.sha }}
+          found-message: "kcov figure from Coverage run"
+          missing-message: "no green Coverage run for this commit - the kcov badge reads unknown"
+          warn-on-missing: "true"
+
+      - uses: $/.github/actions/fetch-latest-artifact
+        with:
+          workflow: coverage.yml
+          artifact-name: coverage-v2-pct
+          dest-subdir: badge-bashcov
+          head-sha: ${{ github.sha }}
+          found-message: "bashcov figure from Coverage run"
+          missing-message: "no green Coverage run for this commit - the bashcov badge reads unknown"
+          warn-on-missing: "true"
+
+      # totals is one line, "passed failed skipped selected"
+      # (test_runner.sh --totals-file); each pct file is one number.
+      - name: Freeze the badge figures
+        run: |
+          set -euo pipefail
+          badge() { printf 'https://img.shields.io/badge/%s-%s-%s' "$1" "$2" "$3"; }
+          tests=unknown tcolor=lightgrey kcov=unknown kcolor=lightgrey bashcov=unknown bcolor=lightgrey
+          if [ -f "$RUNNER_TEMP/badge-tests/totals" ]; then
+            read -r passed _ _ _ <"$RUNNER_TEMP/badge-tests/totals" || true
+            case "$passed" in '' | *[!0-9]*) ;; *) tests="$passed%20passed" tcolor=4c1 ;; esac
+          fi
+          if [ -f "$RUNNER_TEMP/badge-kcov/pct" ]; then
+            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-kcov/pct")"
+            case "$pct" in '' | *[!0-9.]*) ;; *) kcov="$pct%25" kcolor=informational ;; esac
+          fi
+          if [ -f "$RUNNER_TEMP/badge-bashcov/pct" ]; then
+            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-bashcov/pct")"
+            case "$pct" in '' | *[!0-9.]*) ;; *) bashcov="$pct%25" bcolor=informational ;; esac
+          fi
+          {
+            echo "HI_BADGE_TESTS=$(badge tests "$tests" "$tcolor")"
+            echo "HI_BADGE_KCOV=$(badge kcov "$kcov" "$kcolor")"
+            echo "HI_BADGE_BASHCOV=$(badge bashcov "$bashcov" "$bcolor")"
+          } >>"$GITHUB_ENV"
+          echo "badges: tests=$tests kcov=$kcov bashcov=$bashcov"
+
       - name: Attach everything to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Body: what changed, then how to check it. The notes are generated
+          # Body: the badges frozen above, what changed, then how to check it. The notes are generated
           # because README.md's Roadmap section deletes finished entries and
           # this is where the git-history ledger gets published. Asked for via
           # the API and composed here rather than --generate-notes plus
@@ -377,6 +440,8 @@ jobs:
           # printf rather than a heredoc: a heredoc body would have to be
           # unindented, which ends the YAML block scalar
           body="$(printf '%s\n' \
+            "![tests]($HI_BADGE_TESTS) ![kcov]($HI_BADGE_KCOV) ![bashcov]($HI_BADGE_BASHCOV)" \
+            "" \
             ${changed:+"$changed" ""} \
             "$notes" \
             "" \

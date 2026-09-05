@@ -88,8 +88,9 @@ respect your `ls` alias flags.
 running container, allocation and pod, each tagged with its backend; the
 targets you use most, and most recently, come first (zsh and fish keep that
 order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
-without probing any backend. Client: fish, for its pager's description
-column. Showing `_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
+without probing any backend. An operator at a bastion, in fish for its
+pager's description column. Showing `_HI_TARGETS_TTL=0`, so the sweep is
+never served from cache.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
@@ -97,8 +98,12 @@ column. Showing `_HI_TARGETS_TTL=0`, so the sweep is never served from cache.
 
 A `packages` overlay of the tools you care about, each with a priority; the
 header reads it on every target — one quiet line on a box that has them, a
-loud one on a box that does not. Client: bash, into two docker containers.
-Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
+loud one on a box that does not. A homelab: bash from a laptop into the nas
+and the pihole, with the distro prompt this person already had — hi's is off
+(`_HI_DISABLE_PROMPT=1`), and the header, the check and the aliases ride
+along anyway. Showing a `packages` overlay, the full header with every
+address (`_HI_IP_HIDE=none`; the default hides the docker bridge) and
+`_HI_PACKAGES_MIN_PRIORITY=2`.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
@@ -106,10 +111,12 @@ Showing a `packages` overlay and `_HI_PACKAGES_MIN_PRIORITY=3`.
 
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
 bash session on a debian container and a fish session on an alpine box,
-reached through docker and podman. Client: fish. Showing an `aliases.sh`
-overlay with one alias and `_HI_BAT_OPTS`, and `_HI_SHELL_PREFERENCE=fish` for
-the second target. A box with no bash gets the aliases-only tier — hi's own
-aliases, not the overlay
+reached through docker and podman. The operator again, in fish, with the
+header trimmed to the clocks, the backend counts and the check on the `mono`
+ramp. Showing an `aliases.sh` overlay with one alias and `_HI_BAT_OPTS`, a
+custom `_HI_HEADER_ORDER` with `_HI_PACKAGES_PALETTE=mono`, and
+`_HI_SHELL_PREFERENCE=fish` for the second target. A box with no bash gets
+the aliases-only tier — hi's own aliases, not the overlay
 ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
@@ -120,7 +127,9 @@ aliases, not the overlay
 neither; `hi_copy` puts a target's output on _your_ clipboard and `hi_notify`
 raises a desktop notification in _your_ terminal when a command finishes.
 Both ride the pty back as escapes: nothing is installed or running on the
-target. Client: zsh, into a docker container.
+target. A developer, zsh on a laptop into the team's shared dev box, where
+the prompt is starship's, not hi's (`_HI_PROMPT=starship`; hi keeps the
+header, editors, clipboard and aliases). Showing the `compact` header preset.
 
 ![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -128,9 +137,11 @@ target. Client: zsh, into a docker container.
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --color-preview` to see what every host resolves to — then a prod host
-lands in red and a dev host in green. The targets carry their own `~/say-hi`
-(the permanent-install path, hence their shorter headers). Client: bash, into
-two ssh hosts. Showing a `colors` overlay with `hosttag` pins.
+lands in red and a dev host in green. A sysadmin, bash from a laptop into two
+ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
+their shorter headers) and their own two-line fish prompt, drawn on the
+colors hi resolved. Showing a `colors` overlay with `hosttag` pins and
+`_HI_COLOR_SCHEME=onedark`, on both ends.
 
 ![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
@@ -141,7 +152,7 @@ comes back: the same loop over an ssh host, a docker container, a nomad
 allocation and a kubernetes pod (`-F` is ssh's, passed through unchanged; the
 recording's ssh config is a throwaway). The pod is busybox `ash` with no bash
 — the aliases-only tier — and hi says so, once, and runs the command anyway.
-Client: zsh.
+A researcher, in zsh, sweeping the cluster's backends.
 
 ![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
@@ -151,8 +162,11 @@ Client: zsh.
 most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
 if you have one, a numbered menu if not. It runs on the client, never reaches
 a target, and a `hi` in a script or CI job still fails rather than wait on a
-menu. Client: bash, into a docker container. Showing `_HI_RECENT` (on by
-default).
+menu. The researcher, zsh on a laptop with a GPU cluster in `~/.ssh/config`,
+landing in a notebook container — with a prompt of their own, an oh-my-zsh
+look written into the overlay's `zsh.zsh`, which hi sources last on both
+ends. Showing `_HI_RECENT` (on by default), a workstation `_HI_HEADER_ORDER`
+with `_HI_PACKAGES_PALETTE=warm`, and `_HI_SHELL_PREFERENCE=zsh`.
 
 ![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
 
@@ -414,18 +428,16 @@ questions decided against are **deleted**: git history is the ledger.
        documented, and reconnecting to the same target reattaches instead of
        opening a second session.
 
-5. [ ] **More color palettes** — _scope: color tables in `settings/colors`
-       and `common/header.sh`, one `hi --packages-preview` eyeball pass each,
-       a `docs/SETTINGS.md` row._ The header's packages check paints from
-       three named ramps (`_HI_PACKAGES_PALETTE`: `cool`, `warm`, `mono`)
-       and the prompt from the 16-color pins in `settings/colors`; both are
-       judged in the preview and read on light and dark terminals. **Do:**
-       add the popular schemes - Catppuccin, Monokai, One Dark, VS Code's
-       default - as named tables, and decide whether the pins may go past
-       the 16 named colors (256-color or truecolor escapes, behind a
-       capability check so a plain `TERM` still renders). **Ticks when:**
-       each scheme renders monotonic 0-3 in the preview on both backgrounds
-       and has its `docs/SETTINGS.md` row.
+5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --color-preview`
+       and `hi --packages-preview` per scheme on a light and a dark
+       terminal._ `_HI_COLOR_SCHEME` (`catppuccin`, `monokai`, `onedark`,
+       `vscode`) renders the twelve palette names as that scheme's truecolor
+       wherever hi paints, behind a `COLORTERM` check so a plain terminal
+       keeps its sixteen, with its `docs/SETTINGS.md` row and `hi
+ --configure`'s Colors section. **Do:** run both previews under each
+       scheme on both backgrounds and retune any hex that reads wrong.
+       **Ticks when:** all four schemes read monotonic 0-3 in
+       `--packages-preview` and legibly in `--color-preview` on both.
 
 6. [ ] **A non-sh test harness, or not** — _scope: an investigation and one
        recorded decision; no product code._ The suite is 46 bash suites,

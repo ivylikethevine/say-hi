@@ -13,9 +13,11 @@
 # context and the image alike.
 #
 # ssh-target-settings.sh comes from the same context and is the ssh demo's hi
-# configuration. It belongs in the image rather than in a `docker exec` after
-# the run: hi's permanent-install path ships no overlay and reads the box's own
-# ~/.config/say-hi, so this file is part of what makes the box the demo's box.
+# configuration; ssh-target-config.fish beside it is the box's own prompt,
+# sourced after hi's config.fish. They belong in the image rather than in a
+# `docker exec` after the run: hi's permanent-install path ships no overlay
+# and reads the box's own ~/.config/say-hi, so these files are part of what
+# makes the box the demo's box.
 ARG BASE=hi-demo-sshd-base
 FROM ${BASE}
 # git for the prompt's git segment, which the demo shows
@@ -24,5 +26,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && usermod -s /usr/bin/fish hitest
 COPY --chown=hitest:hitest checkout /home/hitest/say-hi
 COPY --chown=hitest:hitest ssh-target-settings.sh /home/hitest/.config/say-hi/settings.sh
+COPY --chown=hitest:hitest ssh-target-config.fish /home/hitest/.config/say-hi/config.fish
 RUN chmod +x /home/hitest/say-hi/hi.sh \
     && chown -R hitest:hitest /home/hitest/.config

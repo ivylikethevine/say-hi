@@ -358,6 +358,7 @@ function test_preview_names_the_active_palette() {
 # resolved when the script is sourced (HI.50)
 function test_color_name_of_names_scheme_escapes() {
   local out
+  # shellcheck disable=SC2016 # the script expands in the child bash, not here
   out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
     . "$_HI_HOME/say-hi/common/core.sh"
     . "$_HI_HOME/say-hi/scripts/packages_preview.sh"

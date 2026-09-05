@@ -1465,6 +1465,7 @@ function test_hi_cell_hue_reads_a_truecolor_escape() {
 function test_header_hues_never_repeat_under_a_scheme() {
   local ok=0
   (
+    # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
     export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1
     _hi_assign_palette
     _hi_packages_palette
@@ -1952,6 +1953,7 @@ function test_packages_palette_escapes_are_all_named_colors() {
   for scheme in "" catppuccin monokai onedark vscode; do
     for name in $(_hi_palette_names); do
       (
+        # shellcheck disable=SC2031 # per-scheme, in its own subshell on purpose
         export _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1
         _hi_assign_palette
         _HI_PACKAGES_PALETTE="$name" _hi_packages_palette

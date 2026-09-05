@@ -186,7 +186,7 @@ function _hi_assign_palette() {
   local _hi_ap_i=0 _hi_ap_v
   for _hi_ap_v in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
     if [ -n "${NO_COLOR:-}" ]; then printf -v "$_hi_ap_v" '%s' ''; else _hi_color_escape_at "$_hi_ap_v" "$_hi_ap_i"; fi
-    export "$_hi_ap_v"
+    export "${_hi_ap_v?}"
     _hi_ap_i=$((_hi_ap_i + 1))
   done
 }

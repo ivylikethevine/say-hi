@@ -228,7 +228,7 @@ preview of the header and the prompt. Pick a preset (\fBeverything\fR,
 \fBbalanced\fR, \fBminimal\fR), or open a section \- Header (the real header
 rendered above a list of its items: toggle, reorder, presets, width, the
 package check's depth and palette, the addresses the ip cell hides), Features,
-Prompt, Advanced \- then
+Prompt, Advanced, Colors (a truecolor scheme) \- then
 \fBs\fR saves and \fBq\fR leaves the file untouched; nothing is written
 before either.
 .B \-\-preset <name>
@@ -381,6 +381,18 @@ then the shells hi styles in preference order:
 per\-feature opt\-outs; see
 .I docs/SETTINGS.md
 for the full table.
+.TP
+.B _HI_COLOR_SCHEME
+render the twelve palette names as a truecolor scheme \-
+.BR catppuccin ,
+.BR monokai ,
+.BR onedark ,
+or
+.BR vscode
+\- wherever hi paints, on a terminal that reports 24\-bit color
+.RB ( COLORTERM ;
+.B _HI_TRUECOLOR=1
+forces it, 0 refuses). Unset, the terminal's own sixteen colors.
 .TP
 .B _HI_COLORS, _HI_PACKAGES, _HI_VIMRC, _HI_NANORC
 where each of those four config files is read from. Unset, each resolves to

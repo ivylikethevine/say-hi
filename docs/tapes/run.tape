@@ -1,4 +1,5 @@
-# The run demo, from a zsh client: `hi <target> <command>` once per backend -
+# The run demo, as the researcher sees it: chen, zsh on a thinkpad, running
+# one command across the cluster's backends - `hi <target> <command>` over
 # an ssh host, a docker container, a nomad allocation, a kubernetes pod - in
 # one loop, and only each command's output comes back - one hostname per
 # backend, plus the aliases-only notice for the bash-less pod. (`cat` is hi's
