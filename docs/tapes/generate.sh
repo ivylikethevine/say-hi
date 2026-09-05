@@ -64,7 +64,7 @@ set -uo pipefail
 # wherever the caller happened to be standing.
 cd "$_HI_ROOT"
 
-_HI_USAGE="Usage: generate.sh [-l|--list] [--head] [--keep] [--require-run] [--down] [name ...]"
+_HI_USAGE="Usage: generate.sh [-l|--list] [--head] [--keep] [--require-run] [--version <v>] [--down] [name ...]"
 
 # "<name>:<fixture>:<tool...>", in render order. A string table rather than an
 # associative array: bash 3.2 is the floor (see the lint suite), and the same
@@ -99,6 +99,7 @@ _HI_GEN_HEAD=0
 _HI_GEN_KEEP=0
 _HI_GEN_REQUIRE=0
 _HI_GEN_DOWN=0
+_HI_GEN_VERSION=""
 _HI_GEN_WANT=()
 _HI_GEN_RUN=()
 
@@ -264,6 +265,15 @@ function gen_preflight() {
   if [ -n "$was" ] && [ "$was" != "$_HI_ROOT/hi.sh" ]; then
     gen_row "" note "$BLUE" "shimmed past the $was already on \$PATH"
   fi
+  # The version the header's cell and `hi --version` show, when the render is
+  # not happening on the tag it documents: a packager's stamp is the same
+  # variable, so nothing downstream has to know. core.sh's ladder puts it ahead
+  # of git describe, hi.sh keeps an inherited one, and the ssh and container
+  # preambles ship it to the target, so both ends of every tape show it.
+  if [ -n "$_HI_GEN_VERSION" ]; then
+    export _HI_RELEASE="$_HI_GEN_VERSION"
+    gen_row version "$_HI_GEN_VERSION" "$GREEN" "the header's version cell, on both ends (--version)"
+  fi
 
   # HEAD vs the working tree. Only demo_sshd_image reads HI_DEMO_SOURCE, so this
   # changes the sshd target (colors, run) and nothing else - every other tape's target gets the tree
@@ -396,6 +406,10 @@ Options:
                      client and the target show the same tree
       --keep         leave the last tape's fixtures up, for poking at
       --require-run  a missing backend fails instead of skipping
+      --version <v>  show <v> as hi's version in every recording (the header's
+                     cell, hi --version, the target's copy over the wire) instead
+                     of git describe - for rendering a release's GIFs before its
+                     tag exists. Same variable as a package's stamp, $_HI_RELEASE
       --down         take leftover fixtures down and exit (after a crashed run)
   -h, --help
 
@@ -412,6 +426,16 @@ EOF
   --head) _HI_GEN_HEAD=1 ;;
   --keep) _HI_GEN_KEEP=1 ;;
   --require-run) _HI_GEN_REQUIRE=1 ;;
+  --version)
+    if [ $# -lt 2 ] || [ -z "$2" ]; then
+      echo "generate.sh: --version needs a value" >&2
+      echo "$_HI_USAGE" >&2
+      exit 1
+    fi
+    _HI_GEN_VERSION="$2"
+    shift
+    ;;
+  --version=*) _HI_GEN_VERSION="${1#--version=}" ;;
   --down) _HI_GEN_DOWN=1 ;;
   -*)
     echo "generate.sh: unknown option: $1" >&2

@@ -553,7 +553,9 @@ real `.deb`, `.rpm` and `.apk` on real targets and asserts exactly that.
 run per tape, cheapest first, `fixtures.sh down` in between, and a summary of
 what rendered, stood down, or failed. Name tapes for a subset
 (`generate.sh docker kube`); `--list` shows them, `--down` clears up after a
-crashed run.
+crashed run. `--version <v>` puts `<v>` in the header's version cell (and in
+`hi --version`, on both ends of the wire) instead of `git describe`, so a
+release's GIFs can be rendered before its tag exists.
 
 **Seven of the eight render themselves.**
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
