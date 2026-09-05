@@ -15,6 +15,14 @@
 # client is told to trust are the ones the artifacts were signed with. The
 # unit suite guards the workflow wiring; this one is the wire.
 #
+# The apt client is an image of its own (tests/dockerfiles/apt-client): ubuntu
+# with openssh-client, the one dependency the base image lacks, already in
+# place and no Ubuntu archive on its sources list, so the two apt cases fetch
+# nothing but /repo. A bare ubuntu:24.04 pulling that dependency from
+# archive.ubuntu.com ran close to ten minutes on a hosted runner, twice, and
+# took the e2e shard past its budget. dnf and apk resolve from their mirrors
+# in seconds and stay on the stock images.
+#
 # Needs docker, nfpm (to build the packages), gpg and openssl (the keys).
 # Without any of them the suite stands down yellow.
 #
@@ -44,6 +52,9 @@ _HI_REPO_VERSION=""
 _HI_PREV=""
 _HI_PREV_VERSION="0.0.1"
 _HI_CUR_VERSION="0.0.2"
+# $$-suffixed like install_methods_test.sh's images: a second run on the same
+# host must not remove the image the first is still running from
+_HI_APT_IMAGE="hi-repotest-apt-$$"
 
 # _hi_repo_keys - a throwaway GPG signing key and a throwaway apk RSA key in
 # the workdir. RSA 4096 as the runbook prescribes for the real one.
@@ -138,9 +149,11 @@ function _hi_repo_client() {
 
 # apt: the key goes to /etc/apt/keyrings, the sources line names it with
 # signed-by and nothing says trusted=yes - so a bad InRelease signature fails
-# `apt-get update`, and a missing one fails it louder
+# `apt-get update`, and a missing one fails it louder. The image carries no
+# other source, so the update reads /repo alone and the install can come from
+# nowhere else.
 function test_apt_client_installs_from_the_repository() {
-  _hi_repo_client apt ubuntu:24.04 bash '
+  _hi_repo_client apt "$_HI_APT_IMAGE" bash '
     mkdir -p /etc/apt/keyrings
     cp /repo/say-hi.asc /etc/apt/keyrings/say-hi.asc
     echo "deb [signed-by=/etc/apt/keyrings/say-hi.asc] file:///repo/apt stable main" >/etc/apt/sources.list.d/say-hi.list
@@ -192,10 +205,9 @@ _HI_UPGRADE_ASSERT='
 
 function test_apt_client_upgrades_in_place() {
   # shellcheck disable=SC2016 # the $( ) runs inside the container
-  _hi_repo_client apt-upgrade ubuntu:24.04 bash '
+  _hi_repo_client apt-upgrade "$_HI_APT_IMAGE" bash '
     mkdir -p /etc/apt/keyrings
     cp /repo/say-hi.asc /etc/apt/keyrings/say-hi.asc
-    apt-get -qq update
     DEBIAN_FRONTEND=noninteractive apt-get -qq install -y /prev/say-hi_*_all.deb >/dev/null
     test "$(bash -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
     echo "deb [signed-by=/etc/apt/keyrings/say-hi.asc] file:///repo/apt stable main" >/etc/apt/sources.list.d/say-hi.list
@@ -241,22 +253,44 @@ function run_repo_tests() {
   local built=0
   _hi_repo_build && built=1
 
+  # the apt client image, once, ahead of the two cases that run from it; an
+  # empty context, since the Dockerfile has no COPY and the build still wants
+  # a directory to be handed
+  local apt_ok=0
+  if [ "$built" -eq 1 ]; then
+    _hi_h2 "Building the apt client"
+    mkdir -p "$_HI_WORKDIR/apt-client"
+    _hi_build_image apt-client "$_HI_APT_IMAGE" "the apt cases" \
+      -f "$(_hi_dockerfile apt-client)" "$_HI_WORKDIR/apt-client" && apt_ok=1
+  fi
+
   _hi_suite_begin
   _hi_check "mkpkg.sh and mkrepo.sh build a signed repository" [ "$built" -eq 1 ]
   if [ "$built" -eq 1 ]; then
     _hi_check "package-repo.tar.gz is the repository" test_tarball_is_the_repository
     _hi_check "Every index is signed and every key served" test_repository_is_signed
     _hi_h2 "Testing: subscribed clients"
-    _hi_check "apt (ubuntu:24.04) installs with signed-by" test_apt_client_installs_from_the_repository
+    if [ "$apt_ok" -eq 1 ]; then
+      _hi_check "apt (ubuntu:24.04, offline) installs with signed-by" test_apt_client_installs_from_the_repository
+    else
+      _hi_skip "[apt]" "the apt client image did not build"
+    fi
     _hi_check "dnf (fedora:44) installs with gpgcheck and repo_gpgcheck" test_dnf_client_installs_from_the_repository
     _hi_check "apk (alpine:3.24) installs with the served key" test_apk_client_installs_from_the_repository
     _hi_h2 "Testing: the upgrade from $_HI_PREV_VERSION, config kept"
-    _hi_check "apt upgrades in place" test_apt_client_upgrades_in_place
+    if [ "$apt_ok" -eq 1 ]; then
+      _hi_check "apt upgrades in place" test_apt_client_upgrades_in_place
+    else
+      _hi_skip "[apt-upgrade]" "the apt client image did not build"
+    fi
     _hi_check "dnf upgrades in place" test_dnf_client_upgrades_in_place
     _hi_check "apk upgrades in place" test_apk_client_upgrades_in_place
   else
     _hi_skip "[clients]" "no repository to subscribe to"
   fi
+  # recorded whether or not the build succeeded: a half-built tag still wants
+  # removing, and `image rm -f` on a name that never existed is a no-op
+  docker image rm -f "$_HI_APT_IMAGE" >/dev/null 2>&1 || true
   _hi_suite_end "" \
     "every client installed say-hi $_HI_REPO_VERSION from the repository, signatures verified ($_HI_TOTAL cases)" \
     "the package repository FAILED: $_HI_FAILED/$_HI_TOTAL cases"

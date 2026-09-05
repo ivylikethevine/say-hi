@@ -240,7 +240,9 @@ Every container image an e2e suite builds is a real Dockerfile under
 `installed-*` for the install-method targets (`installed-pkg` takes the
 `.deb`/`.rpm`/`.apk` as a build arg), `framework` for the nine shell
 frameworks (one Dockerfile, the framework a build arg naming a script under
-`frameworks/`). Only the _build context_ is generated per case: the throwaway
+`frameworks/`), `apt-client` for the `repo` suite's apt subscriber (ubuntu with
+openssh-client in place and no Ubuntu archive on its sources list, so the
+cases fetch from the repository under test and nowhere else). Only the _build context_ is generated per case: the throwaway
 keypair's `entrypoint.sh`, and for the pre-installed case the repo itself.
 Suites reach a file through `_hi_dockerfile <stem>`; variants differing only
 by a package list or base image are one file plus a `--build-arg` (`PKGS`,
@@ -255,7 +257,7 @@ Scorecard's Pinned-Dependencies check reports every line below and will keep
 reporting some of them.
 
 **Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
-`tests/dockerfiles/` that names an upstream image (10 of 18 - alpine, ubuntu,
+`tests/dockerfiles/` that names an upstream image (11 of 19 - alpine, ubuntu,
 debian, fedora, bash) carries a `@sha256:`: a digest is what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
 Dependabot bumps the digests weekly; the Alpine 3.20 → 3.24 upgrade (3.20 past
