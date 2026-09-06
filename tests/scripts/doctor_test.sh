@@ -132,7 +132,7 @@ function test_local_reports_payload_diff_when_toggled() {
   local dir out
   dir="$_HI_WORKDIR/payloaddiff_cfg"
   mkdir -p "$dir"
-  printf "export _HI_DISABLE_OSC52='1'\n" >"$dir/settings.sh"
+  printf "export _HI_DISABLE_PASSTHROUGH='1'\n" >"$dir/settings.sh"
   out="$(_HI_CONFIG_DIR="$dir" doctor_local)"
   [[ "$out" == *"payload_diff"* && "$out" == *"lighter than the stock default"* ]]
 }
@@ -274,10 +274,10 @@ function test_config_lists_a_non_default_toggle() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_NOTIFY=1
+    _HI_DISABLE_PASSTHROUGH=1
     doctor_config
   )"
-  [[ "$out" == *"toggle"*"_HI_DISABLE_NOTIFY=1"* && "$out" != *"all defaults"* ]]
+  [[ "$out" == *"toggle"*"_HI_DISABLE_PASSTHROUGH=1"* && "$out" != *"all defaults"* ]]
 }
 
 # _hi_json_str is what makes --json parseable whatever a target wrote into a

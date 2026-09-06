@@ -149,6 +149,12 @@ function test_fallback_prompt_honors_the_separator_setting() {
   [[ "$(_HI_PROMPT_END='>>' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'>> "'* ]]
 }
 
+# ...and the bash-less prompt takes bash's own separator, not one of its own:
+# the two look alike on purpose, and one row fewer to freeze
+function test_fallback_prompt_takes_the_bash_separator() {
+  [[ "$(_HI_PROMPT_END_BASH='%%' DOMAIN=hitest@myhost _hi_fallback_prompt)" == *'%% "'* ]]
+}
+
 function test_fallback_prompt_respects_the_toggle() {
   [ -z "$(_HI_DISABLE_PROMPT=1 DOMAIN=hitest@myhost _hi_fallback_prompt)" ]
 }
@@ -189,6 +195,7 @@ function run_hi_prompt_tests() {
   _hi_h2 "Testing: the bash-less prompt"
   _hi_check "Carries user, host, color and separator" test_fallback_prompt_carries_user_host_and_color
   _hi_check "_HI_PROMPT_END applies here too" test_fallback_prompt_honors_the_separator_setting
+  _hi_check "_HI_PROMPT_END_BASH is the sh prompt's too" test_fallback_prompt_takes_the_bash_separator
   _hi_check "_HI_DISABLE_PROMPT skips it" test_fallback_prompt_respects_the_toggle
   _hi_check_requires dash "Renders in a real dash" test_fallback_prompt_renders_in_dash
   _hi_check "The shared rc stays shell-agnostic" test_fallback_rc_stays_shell_agnostic

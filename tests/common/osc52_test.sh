@@ -146,24 +146,24 @@ function run_osc52_test() {
   local shell
   for shell in sh bash zsh fish; do
     _hi_check_requires "$shell" "[$shell] defined by default" \
-      _hi_alias_defined_in "$shell" hi_copy _HI_DISABLE_OSC52=0 yes
-    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_OSC52=1" \
-      _hi_alias_defined_in "$shell" hi_copy _HI_DISABLE_OSC52=1 no
+      _hi_alias_defined_in "$shell" hi_copy _HI_DISABLE_PASSTHROUGH=0 yes
+    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_PASSTHROUGH=1" \
+      _hi_alias_defined_in "$shell" hi_copy _HI_DISABLE_PASSTHROUGH=1 no
   done
   _hi_check "absent without paths.sh (container fallback)" \
     _hi_no_alias_without_paths hi_copy _HI_OSC52
 
   _hi_h2 "the toggle"
-  _hi_check "_HI_DISABLE_OSC52 in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list _HI_DISABLE_OSC52
-  _hi_check "_HI_DISABLE_OSC52 in config.fish's copy" _hi_toggle_in_fish_list _HI_DISABLE_OSC52
+  _hi_check "_HI_DISABLE_PASSTHROUGH in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list _HI_DISABLE_PASSTHROUGH
+  _hi_check "_HI_DISABLE_PASSTHROUGH in config.fish's copy" _hi_toggle_in_fish_list _HI_DISABLE_PASSTHROUGH
 
   _hi_h2 "the vim autocmd"
   _hi_check_requires vim "registered in a hi session" \
-    _hi_vim_autocmd 1 "_HI_OSC52=$_HI_OSC52" "_HI_DISABLE_OSC52=0"
-  _hi_check_requires vim "gone on _HI_DISABLE_OSC52=1" \
-    _hi_vim_autocmd 0 "_HI_OSC52=$_HI_OSC52" "_HI_DISABLE_OSC52=1"
+    _hi_vim_autocmd 1 "_HI_OSC52=$_HI_OSC52" "_HI_DISABLE_PASSTHROUGH=0"
+  _hi_check_requires vim "gone on _HI_DISABLE_PASSTHROUGH=1" \
+    _hi_vim_autocmd 0 "_HI_OSC52=$_HI_OSC52" "_HI_DISABLE_PASSTHROUGH=1"
   _hi_check_requires vim "gone outside a hi session (no \$_HI_OSC52)" \
-    _hi_vim_autocmd 0 "_HI_OSC52=" "_HI_DISABLE_OSC52=0"
+    _hi_vim_autocmd 0 "_HI_OSC52=" "_HI_DISABLE_PASSTHROUGH=0"
 
   _hi_suite_end "OSC 52"
 }

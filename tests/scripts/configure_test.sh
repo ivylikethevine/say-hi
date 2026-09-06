@@ -642,7 +642,7 @@ function test_settings_shebang_preserves_mode() {
 # because one config_shell call per group against one file would have each
 # wipe the other two's lines
 function _hi_settings_one_write() {
-  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_HEADER_BANNER=0")
+  local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "" "export _HI_DISABLE_BANNER=1")
   mkdir -p "$_HI_CONFIG_DIR"
   config_shell settings "$_HI_SETTINGS" "${_HI_SETTING_LINES[@]}"
 }
@@ -651,7 +651,7 @@ function test_config_settings_writes_every_group_at_once() {
   _hi_settings_fixture onewrite _hi_settings_one_write
   local f
   f="$(_hi_fixture_settings onewrite)"
-  grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_HEADER_BANNER=0" "$f"
+  grep -qF "export _HI_DISABLE_PROMPT=1" "$f" && grep -qF "export _HI_DISABLE_BANNER=1" "$f"
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
@@ -684,8 +684,8 @@ function test_setting_off_true_when_off_present() {
 
 function test_setting_off_respects_custom_off_value() {
   local target="$_HI_WORKDIR/customoff"
-  printf 'export _HI_HEADER_BANNER=0\n' >"$target"
-  setting_off _HI_HEADER_BANNER "$target" 0
+  printf 'export _HI_DISABLE_BANNER=1\n' >"$target"
+  setting_off _HI_DISABLE_BANNER "$target" 1
 }
 
 # the line as config_shell really writes it: marker-padded, unquoted - the
@@ -867,7 +867,7 @@ function test_validators_for_the_advanced_values() {
 function _hi_diff_run() {
   local -a _HI_SETTING_LINES=("export _HI_DISABLE_PROMPT=1" "export _HI_MAX_WIDTH=120")
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1" "export _HI_HEADER_BANNER=0"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PROMPT=1" "export _HI_DISABLE_BANNER=1"
   settings_diff_before
   settings_diff_report >"$_HI_CONFIG_DIR/diff.out"
 }
@@ -876,7 +876,7 @@ function test_settings_diff_reports_added_and_removed() {
   local out
   _hi_settings_fixture diff _hi_diff_run
   out="$(cat "$_HI_WORKDIR/diff/config/diff.out")"
-  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_HEADER_BANNER=0"* &&
+  [[ "$out" == *"+ export _HI_MAX_WIDTH=120"* && "$out" == *"- export _HI_DISABLE_BANNER=1"* &&
     "$out" != *"_HI_DISABLE_PROMPT"* ]]
 }
 
@@ -974,7 +974,7 @@ function test_preset_run_writes_the_preset() {
   local block
   _hi_settings_fixture preset_run _hi_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings preset_run)")"
-  [[ "$block" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* && "$block" == *"export _HI_DISABLE_NOTIFY=1"* &&
+  [[ "$block" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* &&
     "$block" == *"export _HI_MAX_WIDTH=120"* && "$block" != *"_HI_DISABLE_EDITORS"* ]]
 }
 
@@ -1190,7 +1190,7 @@ function test_bat_preview_names_the_bat_it_found() {
   local dir out
   dir="$(_hi_fake_path preview_bat bat)"
   # shellcheck disable=SC2031 # the swaps here live and die in their own $( )
-  out="$(PATH="$dir:$PATH" _hi_bat_alias_preview)"
+  out="$(PATH="$dir:$PATH" _hi_tool_alias_preview)"
   [[ "$out" == "cat -> $dir/bat "* ]]
 }
 
@@ -1198,7 +1198,7 @@ function test_bat_preview_names_the_bat_it_found() {
 function test_bat_preview_without_bat_says_targets_only() {
   local out
   mkdir -p "$_HI_WORKDIR/preview_none"
-  out="$(hash -r && PATH="$_HI_WORKDIR/preview_none" _hi_bat_alias_preview)"
+  out="$(hash -r && PATH="$_HI_WORKDIR/preview_none" _hi_tool_alias_preview)"
   [[ "$out" == *"bat is not installed here"* ]]
 }
 
@@ -1278,7 +1278,7 @@ function test_overlay_init_supplies_an_identity_when_git_has_none() {
 # block it found rather than dropping it
 function _hi_no_preset_run() {
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_NOTIFY=1"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PASSTHROUGH=1"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   run_configure "" </dev/null
@@ -1288,7 +1288,7 @@ function test_run_configure_without_a_preset_keeps_the_block() {
   local block
   _hi_settings_fixture nopreset _hi_no_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings nopreset)")"
-  [[ "$block" == *"export _HI_DISABLE_NOTIFY=1"* ]]
+  [[ "$block" == *"export _HI_DISABLE_PASSTHROUGH=1"* ]]
 }
 
 # The interactive arms proper: ask_setting's tty prompt, ask_value's typed
@@ -1451,7 +1451,7 @@ function test_header_editor_banner_never_moves() {
   local lines
   lines="$(_hi_cfg_lines hdr_banner)"
   _hi_cfg_has hdr_banner "the banner always leads" &&
-    [[ "$lines" == *"export _HI_HEADER_BANNER=0"* && "$lines" != *"_HI_HEADER_ORDER"* ]]
+    [[ "$lines" == *"export _HI_DISABLE_BANNER=1"* && "$lines" != *"_HI_HEADER_ORDER"* ]]
 }
 
 # a header preset loads its words, on and in its order, everything else off
@@ -1752,9 +1752,9 @@ function test_full_run_quit_writes_nothing() {
 # you have and finish" here - so a driver that stops typing still ends in
 # the write
 function test_hub_eof_saves() {
-  _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_NOTIFY=1' run_configure "" || return 1
+  _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_PASSTHROUGH=1' run_configure "" || return 1
   _hi_cfg_has hub_eof "CFGQUIT=none" &&
-    grep -qF "export _HI_DISABLE_NOTIFY=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
+    grep -qF "export _HI_DISABLE_PASSTHROUGH=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
 }
 
 # ...and so does the third junk answer in a row: the bound, not the patience

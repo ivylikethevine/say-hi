@@ -61,7 +61,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.46 session rc directory](#hi46-session-rc-directory)
 - [HI.47 what a child inherits](#hi47-what-a-child-inherits)
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
-- [HI.49 Apple Silicon boost clock probe](#hi49-apple-silicon-boost-clock-probe)
 - [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
 
@@ -688,7 +687,7 @@ function of that name, and without it `fish` would call itself forever.
 The wrappers cannot cover a bash or fish shell nothing typed — a `tmux` pane
 spawning a login shell, an editor's shell-out — which comes up as the host's
 own. hi writes nothing into a target's login files
-([SUPPORT.md](SUPPORT.md#features-that-were-removed) has the reasoning).
+([SUPPORT.md](SUPPORT.md#what-would-change-an-answer) has the reasoning).
 
 ## HI.47 what a child inherits
 
@@ -769,53 +768,6 @@ resetting it would let the _next_ word compare against nothing and skip a
 real collision two cells later. `check` resets it explicitly: the packages
 block has its own palette (`$_HI_YES`/`$_HI_NO`), unrelated to header cell
 hues.
-
-## HI.49 Apple Silicon boost clock probe
-
-`sysctl -n hw.cpufrequency` (`common/header.sh`) is Intel-only: Apple never
-exposes a clock speed for Apple Silicon through sysctl at all, because there
-is no single stable number the way there was on Intel — cores scale
-per-cluster, per-workload. Without it the `cpu` header cell fell all the way
-to `_hi_cpu_clocks`'s `?` fallback.
-
-What actually carries a number is the power manager's own boost table, in the
-IOKit registry: `pmgr`'s `voltage-states<N>-sram` properties are each an
-ascending list of (frequency-Hz, voltage) uint32 pairs, one table per core
-cluster. This is **undocumented and reverse-engineered** — the technique
-`asitop` and `mx-power-gadget` use, not an Apple-published interface. Three
-consequences follow from that:
-
-- **No awk at all, on purpose.** A first cut parsed the hex in awk with
-  `strtonum()` - a gawk extension absent from the One True Awk macOS ships
-  as `/usr/bin/awk`, so it failed outright on the machine this was written
-  for. `$((16#word))`, bash's own hex-to-decimal arithmetic (bash 3.2 has
-  had it since the beginning), replaced the whole hand-written hex parser -
-  shorter, and nothing left to be missing on a different awk.
-- **Which numbered key holds the P-cluster's table has moved between chip
-  generations** (index 5 on the M1 family confirmed against real hardware;
-  a later generation may differ), so every `voltage-states0-sram` through
-  `voltage-states9-sram` is tried and the single highest frequency found
-  across all of them wins, rather than trusting one fixed index - the
-  E-cluster's table is always present alongside the P-cluster's and always
-  tops out lower, so taking the global max needs no per-index chip logic at
-  all.
-- **`ioreg -l`'s hex dump is the property's bytes in storage order**
-  (little-endian on this hardware), so each 4-byte word is byte-reversed
-  before being read as a frequency — get this backwards and the cell shows a
-  number, not a failure, which is why a parse that finds nothing leaves
-  `boost_mhz` empty rather than guessing: the existing `?` fallback is the
-  safe failure mode, a wrong number is not. Voltage words in these tables
-  are always three-plus orders of magnitude smaller than any real clock
-  speed, so scanning every 4-byte word (not just the alternating frequency
-  ones) and taking the single highest value is safe as well as simpler.
-- **`ioreg -l` itself is bounded by hand, not by `_hi_probe`.** Milliseconds
-  on real hardware, `ioreg -l` has a documented history of hanging outright
-  under macOS virtualization - GitHub's own hosted Apple Silicon runners
-  among them. `_hi_probe` (`common/core.sh`) is the project's existing
-  bound-a-CLI helper, but it runs unbounded without GNU `timeout`, which is
-  exactly the case on stock macOS. The fix backgrounds `ioreg -l` to a
-  scratch file, polls for up to a second, and kills it if it hasn't
-  finished, matching this file's own "fails closed to `?`" rule.
 
 ## HI.50 truecolor color schemes
 

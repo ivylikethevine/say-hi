@@ -252,23 +252,6 @@ function _hi_ghz() {
   printf -v "$1" '%d.%d' "$((t / 10))" "$((t % 10))"
 }
 
-# One or two clocks, folded to one when there is nothing worth a second
-# number: no boost probe answered, or it answered the same as base (no real
-# turbo range) - a real base/boost pair is the only case worth "<n>/<n> GHz"
-# rather than one.
-function _hi_cpu_clocks() {
-  local base="$1" boost="$2"
-  if [ -n "$base" ] && [ -n "$boost" ] && [ "$base" != "$boost" ]; then
-    printf '%s/%s' "$base" "$boost"
-  elif [ -n "$base" ]; then
-    printf '%s' "$base"
-  elif [ -n "$boost" ]; then
-    printf '%s' "$boost"
-  else
-    printf '?'
-  fi
-}
-
 # _hi_load_pct <var> <load> <cpus> - the 1-minute load average as a percentage
 # of this box's own core count ("2.34" on 8 cores -> "29"): the number that
 # actually answers "is this box busy", where the bare load figure needed the
@@ -301,63 +284,10 @@ function _hi_humanize_uptime() {
 # memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells into
 # independently orderable/toggleable $_HI_HEADER_ORDER words costs nothing
 # extra: arch alone still pays for exactly one probe, not five.
-
-# <var> gets the P-cluster's boost clock in MHz, read off Apple Silicon's own
-# power manager - sysctl has no clock speed key there at all (only Intel Macs
-# get one). Undocumented and reverse-engineered, the same technique
-# asitop/mx-power-gadget use; empty <var> on anything that doesn't parse, same
-# as every other probe in this file failing closed to "?". GLOSSARY: HI.49
-# has the byte-layout and index-generation reasoning in full.
-function _hi_apple_silicon_boost_mhz() {
-  command -v ioreg >/dev/null 2>&1 || return 0
-  local max_hz=0 word freq out pid i=0
-  # ioreg -l walks the whole IORegistry - milliseconds on real hardware, but
-  # a documented hang risk under macOS virtualization (GitHub's own hosted
-  # runners among them: this connect-time probe once ran the header's very
-  # first ioreg call there and sat for the job's full 15-minute timeout).
-  # _hi_probe (common/core.sh) doesn't cover this - bare without GNU
-  # `timeout`, which is exactly the case on stock macOS - so this is bounded
-  # by hand: backgrounded to a scratch file, killed once a second passes,
-  # read for whatever it managed to write either way.
-  #
-  # SIGKILL, not SIGTERM, on the timeout path, and no `wait` for it: the hang
-  # this guards against is a real kernel-side one under virtualization, which
-  # can leave ioreg unkillable by any signal until the stuck syscall itself
-  # unblocks - waiting for that exit is exactly the 15-minute hang this loop
-  # exists to avoid, only moved one step over. `disown` silences bash's own
-  # "Killed" job-control notice on a session that outlives this call; the
-  # process is cut loose and $out is read for whatever it holds so far
-  # either way. The quick path (ioreg exits inside the 1s budget) still
-  # `wait`s, quietly reaping it with no notice at all.
-  out="$(mktemp -t hi.ioreg.XXXXXX)"
-  ioreg -l >"$out" 2>/dev/null &
-  pid=$!
-  while [ "$i" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do
-    sleep 0.1
-    i=$((i + 1))
-  done
-  if kill -0 "$pid" 2>/dev/null; then
-    kill -9 "$pid" 2>/dev/null
-    disown "$pid" 2>/dev/null
-  else
-    wait "$pid" 2>/dev/null
-  fi
-  for word in $(
-    sed -n 's/.*voltage-states[0-9]-sram" = <\([0-9a-f]*\)>.*/\1/p' "$out" 2>/dev/null |
-      fold -w8 | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/'
-  ); do
-    [ "${#word}" -eq 8 ] || continue
-    freq=$((16#$word))
-    [ "$freq" -gt "$max_hz" ] && max_hz=$freq
-  done
-  command rm -f "$out"
-  [ "$max_hz" -gt 0 ] && printf -v "$1" '%s' "$((max_hz / 1000000))"
-}
-
 function _hi_system_info_probe() {
   [ -z "${_HI_SI_PROBED:-}" ] || return 0
   _HI_SI_PROBED=1
-  local kernel arch os cpus ram base_mhz boost_mhz load="" load_pct=""
+  local kernel arch os cpus ram base_mhz load="" load_pct=""
   # process substitution, not <<<: a here-string is a temp file before bash
   # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
   read -r kernel arch < <(uname -sm 2>/dev/null || :)
@@ -397,17 +327,6 @@ function _hi_system_info_probe() {
       base_mhz=$((khz / 1000))
       ((base_mhz)) || base_mhz=""
     done
-    # boost/max clock: cpufreq first, else lscpu. khz reset, or a host with
-    # base_frequency but no cpuinfo_max_freq reports its base as its boost.
-    # cpuinfo_max_freq's *presence* gates the read (its value is never used):
-    # scaling_max_freq alone, without the hardware figure beside it, is a
-    # policy clamp with nothing to say it means "max".
-    khz=0
-    if [ -f "$cpufreq/cpuinfo_max_freq" ] && [ -f "$cpufreq/scaling_max_freq" ]; then
-      read -r khz <"$cpufreq/scaling_max_freq" 2>/dev/null || khz=0
-    fi
-    boost_mhz=$((khz / 1000))
-    ((boost_mhz)) || boost_mhz=$(lscpu 2>/dev/null | awk -F: '/CPU max MHz/ { gsub(/ /, "", $2); printf "%.0f", $2 }' || true)
   elif [[ "$kernel" == MINGW* || "$kernel" == MSYS* || "$kernel" == CYGWIN* ]]; then
     # git-bash/MSYS2/Cygwin on native Windows - no /etc/os-release, no sysctl
     os="Windows ($kernel)"
@@ -442,15 +361,16 @@ function _hi_system_info_probe() {
         }' || true
     )
     load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ printf "%s", $2 }' || true)
-    # Apple Silicon exposes no clock via sysctl at all; only Intel Macs get a
-    # value here, and boost_mhz is left for the ioreg probe below to try.
+    # Apple Silicon exposes no clock via sysctl at all (only Intel Macs get a
+    # value here), so the cell reads "?" there, like every failed probe; drop
+    # `cpu` from $_HI_HEADER_ORDER on such a box. A boost figure once came
+    # from a hand-bounded, reverse-engineered ioreg read - more code and more
+    # churn than one header cell was worth.
     base_mhz=$(sysctl -n hw.cpufrequency 2>/dev/null | awk '{ printf "%.0f", $1 / 1000000 }' || true)
-    [ -n "$base_mhz" ] || _hi_apple_silicon_boost_mhz boost_mhz
   fi
   _hi_sanitize_var os "$os"
-  # every probe above yields MHz (hence base_mhz/boost_mhz keep their names)
+  # every probe above yields MHz (hence base_mhz keeps its name)
   [ -n "${base_mhz:-}" ] && _hi_ghz base_mhz "$base_mhz"
-  [ -n "${boost_mhz:-}" ] && _hi_ghz boost_mhz "$boost_mhz"
   # a stripped-down awk or a locale that prints a comma decimal both fail
   # closed to "?", not a garbled cell
   case "$load" in '' | *[!0-9.]*) load="" ;; esac
@@ -458,7 +378,7 @@ function _hi_system_info_probe() {
   _HI_SI_ARCH="$PURPLE${arch:-?}"
   _HI_SI_OS="$GREEN${os:-?}"
   _HI_SI_CORES="${YELLOW}Cores: ${cpus:-?}${load_pct:+ ($load_pct%)}"
-  _HI_SI_CPU="${BRBLUE}CPU: $(_hi_cpu_clocks "${base_mhz:-}" "${boost_mhz:-}") GHz"
+  _HI_SI_CPU="${BRBLUE}CPU: ${base_mhz:-?} GHz"
   _HI_SI_RAM="${CYAN}RAM: ${ram:-?}"
 }
 
@@ -753,7 +673,7 @@ function identity() {
 # "~~~ <label> [host] ~~~" prefixed with say-hi's local change count, always
 # _hi_draw_width columns wide
 function banner() {
-  [[ "${_HI_HEADER_BANNER:-1}" == 0 ]] && return 0
+  [[ "${_HI_DISABLE_BANNER:-0}" == 1 ]] && return 0
   local label="$1" color="${2:-$BRGREEN}" changes="" prefix="${3:-}" changes_w=0
   # ~10ms of `git status`, computed once and kept for both banners.
   # --no-optional-locks as git_prompt.sh: a plain `git status` also rewrites
@@ -805,7 +725,8 @@ function banner() {
 # in unless `allow-passthrough` is on (off by default since tmux 3.3), and
 # nothing fails visibly - that is the "hi_copy does nothing" report, answered
 # here before it is filed. Three conditions: a tmux in the way ($TMUX, not
-# $TERM), at least one of the two features on, and the option not set.
+# $TERM), the two features on (one toggle covers both), and the option not
+# set.
 # `show -Apv`: allow-passthrough is a *pane* option, -A includes the inherited
 # global; a tmux too old to have it answers nothing, and nothing is the right
 # thing to say back. `all` counts as on. No _HI_HEADER_* toggle: this row only
@@ -813,7 +734,7 @@ function banner() {
 function passthrough_check() {
   local value
   [ -n "${TMUX:-}" ] || return 0
-  [[ "${_HI_DISABLE_OSC52:-0}" == 1 && "${_HI_DISABLE_NOTIFY:-0}" == 1 ]] && return 0
+  [[ "${_HI_DISABLE_PASSTHROUGH:-0}" == 1 ]] && return 0
   command -v tmux &>/dev/null || return 0
   value="$(tmux show -Apv allow-passthrough 2>/dev/null || true)"
   [ -n "$value" ] || value="$(tmux show -gv allow-passthrough 2>/dev/null || true)"

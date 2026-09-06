@@ -23,7 +23,7 @@ filetype plugin indent on
 " this only decides *when*. Four honest conditions: the toggle, the event
 " (exists('##...') - neovim lies to has('patch-')), $_HI_OSC52 (empty outside
 " a session), and the unnamed register - "ay stays local, a delete a delete.
-if $_HI_DISABLE_OSC52 != '1' && exists('##TextYankPost') && filereadable($_HI_OSC52)
+if $_HI_DISABLE_PASSTHROUGH != '1' && exists('##TextYankPost') && filereadable($_HI_OSC52)
   augroup hi_osc52
     autocmd!
     autocmd TextYankPost *
