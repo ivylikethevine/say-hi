@@ -221,6 +221,28 @@ function test_config_reports_a_settings_file_that_parses() {
   [[ "$out" == *"settings.sh"*"present, parses"* && "$out" == *"all defaults"* ]]
 }
 
+# a scheme that is neither a name nor 12/24 hex words renders nothing, and
+# nothing else says so (core.sh falls back to 16 colors in silence)
+function test_config_flags_a_scheme_nothing_renders() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/badscheme.XXXXXX")"
+  printf "export _HI_COLOR_SCHEME='solarized'\n" >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_COLOR_SCHEME=solarized
+    doctor_config
+  )"
+  [[ "$out" == *"color-scheme"*"'solarized' is ignored"* ]] || return 1
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_COLOR_SCHEME='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+    doctor_config
+  )"
+  [[ "$out" != *"color-scheme"* ]]
+}
+
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
 # has to say which of the two parsers refused it
 function test_config_flags_a_settings_file_that_is_not_fish() {
@@ -716,6 +738,7 @@ function run_doctor_tests() {
   _hi_check "The system layer gets a row" test_config_reports_the_system_layer
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
+  _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Flags a system layer that does not parse" test_config_flags_a_system_layer_that_does_not_parse
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
 

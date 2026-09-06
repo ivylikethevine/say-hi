@@ -60,10 +60,9 @@
 #     case in git_prompt_test.sh calls _hi_git_prompt inside $( ), the
 #     original instance of this bug (the probe above is this file).
 #   common/targets.sh      ABSENT here, 95.29%   under coverage_v2.sh
-#   common/notify.sh       ABSENT here, 100.00%  under coverage_v2.sh
-#   common/osc52.sh        ABSENT here, 100.00%  under coverage_v2.sh
-#     all three are `#!/bin/sh` scripts their suites *execute* as children
-#     (targets_test.sh, notify_test.sh, osc52_test.sh) rather than source -
+#   common/passthrough.sh  ABSENT here, 100.00%  under coverage_v2.sh
+#     both are `#!/bin/sh` scripts their suites *execute* as children
+#     (targets_test.sh, passthrough_test.sh) rather than source -
 #     common/paths.sh is also `#!/bin/sh` and reads 100% here only because
 #     core.sh sources it into the traced process instead.
 #   hi.sh                  64.77% here under --group fast, 84.56% under the

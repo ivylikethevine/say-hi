@@ -107,25 +107,57 @@ function _hi_has_truecolor() {
 }
 function _hi_truecolor_flag() { _hi_has_truecolor && printf '1\n' || printf '0\n'; }
 
+# the named schemes _hi_scheme_hex knows; configure.sh's validator and the
+# preview's label read the roster from here
+export _HI_COLOR_SCHEMES="catppuccin monokai onedark vscode"
+
+# _hi_scheme_words <outvar> - 12 or 24 when $_HI_COLOR_SCHEME is that many
+# six-digit hex words one space apart (a scheme of the user's own, written
+# into settings.sh), 0 for a name, nothing, or anything else. The shape is
+# the one _hi_scheme_hex slices, so the walk is by offset: no read, no fork,
+# no arrays, and no variable in a `case` pattern (zsh reads one literally).
+# GLOSSARY: HI.50
+function _hi_scheme_words() {
+  local _hi_sw_s="${_HI_COLOR_SCHEME:-}" _hi_sw_n _hi_sw_i=0
+  printf -v "$1" '%s' 0
+  case "${#_hi_sw_s}" in 83) _hi_sw_n=12 ;; 167) _hi_sw_n=24 ;; *) return 0 ;; esac
+  while [ "$_hi_sw_i" -lt "$_hi_sw_n" ]; do
+    case "${_hi_sw_s:$((_hi_sw_i * 7)):6}" in *[!0-9a-fA-F]*) return 0 ;; esac
+    case "${_hi_sw_s:$((_hi_sw_i * 7 + 6)):1}" in '' | ' ') ;; *) return 0 ;; esac
+    _hi_sw_i=$((_hi_sw_i + 1))
+  done
+  printf -v "$1" '%s' "$_hi_sw_n"
+}
+
 # _hi_scheme_hex <outvar> <index> - rrggbb for _HI_COLOR_NAMES slot <index>
 # under $_HI_COLOR_SCHEME, empty when there is no scheme, the name is
 # unknown, or the terminal is not truecolor. Twelve six-digit words per
 # scheme in one fixed-width string, sliced by offset: no arrays (zsh indexes
 # them from 1), no read, no fork. The vocabulary is still the twelve names -
 # a scheme changes what a name renders as, never which name a host hashes
-# to or what settings/colors may pin. GLOSSARY: HI.50
+# to or what settings/colors may pin. <index> runs 0-23: slots 12-23 are a
+# second bank, the twelve names again, which only a 24-word list of the
+# user's own fills (header.sh paints the packages check from it); every
+# other table answers them with the first bank. GLOSSARY: HI.50
 function _hi_scheme_hex() {
-  local _hi_sh_t
+  local _hi_sh_t _hi_sh_n _hi_sh_i="$2"
   printf -v "$1" '%s' ''
   _hi_has_truecolor || return 0
-  case "${_HI_COLOR_SCHEME:-}" in
-  catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca' ;;
-  monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4' ;;
-  onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5' ;;
-  vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db' ;;
-  *) return 0 ;;
-  esac
-  printf -v "$1" '%s' "${_hi_sh_t:$(($2 * 7)):6}"
+  _hi_scheme_words _hi_sh_n
+  if [ "$_hi_sh_n" -gt 0 ]; then
+    _hi_sh_t="$_HI_COLOR_SCHEME"
+  else
+    _hi_sh_n=12
+    case "${_HI_COLOR_SCHEME:-}" in
+    catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca' ;;
+    monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4' ;;
+    onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5' ;;
+    vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db' ;;
+    *) return 0 ;;
+    esac
+  fi
+  [ "$_hi_sh_i" -lt "$_hi_sh_n" ] || _hi_sh_i=$((_hi_sh_i - 12))
+  printf -v "$1" '%s' "${_hi_sh_t:$((_hi_sh_i * 7)):6}"
 }
 
 # _hi_color_escape_at <outvar> <index> - the literal '\e[..m' string for
@@ -133,12 +165,14 @@ function _hi_scheme_hex() {
 # holds; a consumer's final printf '%b' makes it an ESC). One SGR: the
 # 16-color pair first, then ;38;2;r;g;b when the scheme and the terminal
 # both say so, so a terminal that ignores the second keeps the first, and
-# header.sh's hue and width readers still see one escape. GLOSSARY: HI.50
+# header.sh's hue and width readers still see one escape. The pair comes
+# from <index> mod 12, so a second-bank slot wears the same 16-color half
+# as its name. GLOSSARY: HI.50
 function _hi_color_escape_at() {
   local _hi_ce_h _hi_ce_rgb=""
   _hi_scheme_hex _hi_ce_h "$2"
   [ -n "$_hi_ce_h" ] && _hi_ce_rgb=";38;2;$((16#${_hi_ce_h:0:2}));$((16#${_hi_ce_h:2:2}));$((16#${_hi_ce_h:4:2}))"
-  printf -v "$1" '\\e[%d;3%d%sm' "$(($2 / 6))" "$(($2 % 6 + 1))" "$_hi_ce_rgb"
+  printf -v "$1" '\\e[%d;3%d%sm' "$(($2 % 12 / 6))" "$(($2 % 6 + 1))" "$_hi_ce_rgb"
 }
 
 # _hi_color_escape_var <outvar> <name> - by name; unknown names reset,

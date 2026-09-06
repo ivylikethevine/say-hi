@@ -4,8 +4,8 @@
 # Shared scaffolding for every suite under tests. The scaffolding itself lives
 # in tests/lib/; this file is the one path a suite sources (common/paths.sh
 # exports it as $_HI_TEST_LIB), so the parts can be re-cut without touching a
-# single suite. Order below is dependency order - report.sh's _hi_align is
-# what case.sh's assertions print through, and every part uses core.sh.
+# single suite. Order below is dependency order - report.sh's assertions print
+# through its own _hi_align, and every part uses core.sh.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -42,8 +42,6 @@ source "$_hi_d/../scripts/lib.sh"
 
 # shellcheck source=./lib/workdir.sh
 source "$_hi_d/lib/workdir.sh"
-# shellcheck source=./lib/case.sh
-source "$_hi_d/lib/case.sh"
 # shellcheck source=./lib/parallel.sh
 source "$_hi_d/lib/parallel.sh"
 # shellcheck source=./lib/fixtures.sh

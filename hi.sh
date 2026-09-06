@@ -133,7 +133,7 @@ function _hi_target_color() {
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
-  "_HI_DISABLE_PASSTHROUGH|say-hi/common/osc52.sh say-hi/common/notify.sh|"
+  "_HI_DISABLE_PASSTHROUGH|say-hi/common/passthrough.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
@@ -1971,19 +1971,19 @@ EOF
   shift
   _hi_update "$@"
   ;;
-# --preview <subject>: colors wants scripts/ (and says so in a session);
-# packages and header have a full form in scripts/ and fall back to the
+# --preview <subject>: one scripts/preview.sh for all three. colors wants
+# scripts/ (and says so in a session); packages and header fall back to the
 # shipped common/header.sh on a target, so the flag itself works anywhere
 --preview)
   shift
   case "${1:-}" in
   colors)
     shift
-    _hi_run_script "--preview colors" "$_HI_COLOR_PREVIEW" "$@"
+    _hi_run_script "--preview colors" "$_HI_PREVIEW" colors "$@"
     ;;
   packages)
     shift
-    [ -f "$_HI_PACKAGES_PREVIEW" ] && _HI_ARGV0="hi --preview packages" exec "$_HI_PACKAGES_PREVIEW" "$@"
+    [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview packages" exec "$_HI_PREVIEW" packages "$@"
     exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
     ;;
   header)

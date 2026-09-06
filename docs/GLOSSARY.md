@@ -86,7 +86,7 @@ does. Use it as `_hi_read_lines lines < <(cmd)`.
 
 Associative arrays are bash 4 — on 3.2 the _declaration alone_ is fatal. Where
 a map is needed: parallel indexed arrays sharing one index with a keys array
-(`_hi_group_index` in `scripts/color_preview.sh`), or `"<key>=<value>"`
+(`_hi_group_index` in `scripts/preview.sh`), or `"<key>=<value>"`
 strings via `_hi_kv_get`/`_hi_kv_set` (`tests/test_lib.sh`).
 
 ## HI.04 dynamic-name assignment
@@ -117,8 +117,7 @@ the form that actually clears it on every bash this project targets.
 tail: sourcing the file defines its functions and stops there, which is how
 the test suites reach the functions without running an install/bump/render.
 `scripts/install.sh`, `packaging/bump.sh`, `packaging/mkpkg.sh`,
-`packaging/mkrepo.sh`, `scripts/color_preview.sh` and
-`scripts/packages_preview.sh` all carry it.
+`packaging/mkrepo.sh` and `scripts/preview.sh` all carry it.
 
 ## HI.07 toggle defaulting
 
@@ -386,15 +385,15 @@ under `/Users/runner` that was never there). Each file asks only when
 reaches core.sh through its own path. The files that derive have nothing above
 them to ask through:
 
-| where                                                                                               | how                                                                                                                                                                      |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `common/core.sh`                                                                                    | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                |
-| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`                                                   | the same behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and unresolved it answers `/usr`. Three copies: each must resolve itself before it can source anything |
-| `load.sh`, `tests/test_runner.sh`                                                                   | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                            |
-| `scripts/doctor.sh`, `scripts/color_preview.sh`, `scripts/packages_preview.sh`, `tests/test_lib.sh` | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                           |
-| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it)                                     | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                           |
-| fish (`common/config.fish`)                                                                         | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical      |
-| `common/bash.sh`                                                                                    | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                  |
+| where                                                           | how                                                                                                                                                                      |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `common/core.sh`                                                | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                |
+| `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`               | the same behind a `readlink` walk - `$_HI_LINK` is `/usr/bin/hi`, and unresolved it answers `/usr`. Three copies: each must resolve itself before it can source anything |
+| `load.sh`, `tests/test_runner.sh`                               | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                            |
+| `scripts/doctor.sh`, `scripts/preview.sh`, `tests/test_lib.sh`  | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                           |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                           |
+| fish (`common/config.fish`)                                     | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical      |
+| `common/bash.sh`                                                | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                  |
 
 **The standalone-entry form, and why `$_HI_HOME` wins in it.** A script run
 on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
@@ -553,9 +552,8 @@ the client reads `settings.sh` (HI.36) before building the tar, so this costs
 no probe. One table feeds both halves — tree files and the overlay files a
 toggle takes off — because off has to take _both_ off or a switched-off toggle
 still ships a file. `settings/aliases.sh` is never trimmed: it carries the
-whole alias set, and every consumer of `common/osc52.sh` and
-`common/notify.sh` tests the file exists first, so trimming the emitters is
-safe.
+whole alias set, and every consumer of `common/passthrough.sh` tests the file
+exists first, so trimming the emitter is safe.
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
@@ -796,6 +794,25 @@ the twelve six-digit words are the only bytes that cost anything on the wire.
 primitive as `_hi_color_escape`, so the two can never disagree and
 `scripts/configure.sh`'s previews can rebuild the palette under a pending
 answer.
+
+**A scheme of the user's own is the same string, in the setting.**
+`_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
+12, 24 or 0: exactly that many six-digit hex words one space apart is a
+scheme, anything else is a name (or nothing), and a name the `case` does not
+know falls back to sixteen colors as it always did. Twenty-four words are
+two banks of the twelve names. `_hi_scheme_hex` takes slot indexes 0-23 and
+folds 12-23 onto 0-11 for every table but a 24-word list, and
+`_hi_color_escape_at` derives the 16-color half from the index mod 12, so a
+second-bank escape wears the same `\e[<bold>;3<n>` as its name: every hue
+and width reader above still works, and `_hi_sgr_base` (`scripts/lib.sh`)
+is how the tooling names an escape from either bank - cut at `;38;2;`, what
+is left is the name. Only `common/header.sh`'s packages check reads the
+second bank: `_hi_packages_palette` rebuilds `_HI_YES`/`_HI_NO` from it after
+the named-ramp `case`, per render rather than at source time, because the
+ramps are the palette variables and those are the first bank by contract.
+The two `_hi_scheme_words` calls a render costs are offset arithmetic, no
+fork. `scripts/lib.sh`'s `_hi_scheme_ok` and `_hi_scheme_label` are the
+validator and the preview/doctor label; core.sh only ever renders.
 
 The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
 `_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so

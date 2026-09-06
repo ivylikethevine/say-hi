@@ -400,3 +400,4 @@ install_rc_lines
 config_hi
 
 _hi_h1 "Installed!"
+_hi_cecho " next: reload your shell (exec \$SHELL), then \`hi --configure\` to tune it and \`hi --doctor\` to check it" "$BLUE"

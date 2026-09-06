@@ -293,6 +293,11 @@ function doctor_config() {
   else
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
   fi
+  # a scheme nothing renders: neither a name nor 12/24 hex words (HI.50).
+  # settings.sh is already sourced, so the exported value is the one to judge
+  if [ -n "${_HI_COLOR_SCHEME:-}" ] && ! _hi_scheme_ok "$_HI_COLOR_SCHEME"; then
+    doctor_row color-scheme "'$_HI_COLOR_SCHEME' is ignored - not $(printf '%s' "$_HI_COLOR_SCHEMES" | tr ' ' '/') or 12/24 six-digit hex words" bad
+  fi
   # the system-wide layer, parse-checked the way settings.sh is; absent is
   # the norm (a platform team's file, never shipped by a package)
   local sys="${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}"

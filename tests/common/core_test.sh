@@ -149,7 +149,7 @@ function test_scheme_hex_is_six_hex_digits_for_every_slot() {
 
 # the exported palette and the by-name escape share one primitive, so a
 # fresh shell under a scheme assigns $RED exactly what _hi_color_escape red
-# prints - packages_preview.sh's reverse map depends on that
+# prints - preview.sh's reverse map depends on that
 function test_palette_vars_agree_with_color_escape_under_a_scheme() {
   local out
   out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
@@ -165,6 +165,93 @@ function test_palette_vars_agree_with_color_escape_under_a_scheme() {
 # the hash is untouched by a scheme: a name, never a hex
 function test_hash_color_ignores_the_scheme() {
   [ "$(_HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1 _hi_hash_color prod-db)" = "$(_hi_hash_color prod-db)" ]
+}
+
+# A scheme of the user's own: 12 or 24 six-digit hex words in the setting
+# itself. Catppuccin's twelve, then vscode's twelve as the second bank.
+_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+
+function test_scheme_words_counts_a_list() {
+  local n
+  _HI_COLOR_SCHEME="$_HI_TEST_L12" _hi_scheme_words n
+  [ "$n" -eq 12 ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_words n
+  [ "$n" -eq 24 ] || return 1
+  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L12#* }" _hi_scheme_words n
+  [ "$n" -eq 12 ] || return 1
+  _HI_COLOR_SCHEME=catppuccin _hi_scheme_words n
+  [ "$n" -eq 0 ] || return 1
+  _HI_COLOR_SCHEME="" _hi_scheme_words n
+  [ "$n" -eq 0 ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L12 cd3131" _hi_scheme_words n
+  [ "$n" -eq 0 ] || return 1
+  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L12#* }" _hi_scheme_words n
+  [ "$n" -eq 0 ] || return 1
+  _HI_COLOR_SCHEME="$(printf '%s' "$_HI_TEST_L12" | tr ' ' ',')" _hi_scheme_words n
+  [ "$n" -eq 0 ]
+}
+
+# the first word paints red, with the 16-color half in front as ever
+function test_scheme_list_of_twelve_renders() {
+  local out
+  _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  [ "$out" = '\e[0;31;38;2;243;139;168m' ] || return 1
+  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L12#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  [ "$out" = '\e[0;31;38;2;243;139;168m' ]
+}
+
+# slot 12 is red again: the second bank under a 24-word list, the first bank
+# under everything else - and always red's 16-color half
+function test_scheme_second_bank_folds_without_24_words() {
+  local a b c
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_at a 12
+  _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1 _hi_color_escape_at b 12
+  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_at c 12
+  [ "$a" = '\e[0;31;38;2;205;49;49m' ] && [ "$b" = '\e[0;31;38;2;243;139;168m' ] && [ "$c" = "$b" ]
+}
+
+# a list that is not one is an unknown scheme: 16 colors, no complaint here
+function test_scheme_bad_list_falls_back_to_16_color() {
+  local out
+  _HI_COLOR_SCHEME="$_HI_TEST_L12 cd3131" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  [ "$out" = '\e[0;31m' ] || return 1
+  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L12#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
+  [ "$out" = '\e[1;36m' ]
+}
+
+# scripts/lib.sh's three readers of the setting, tested beside the primitive
+# they wrap (test_lib.sh sources lib.sh)
+function test_scheme_ok_takes_names_and_lists() {
+  _hi_scheme_ok catppuccin && _hi_scheme_ok "$_HI_TEST_L12" && _hi_scheme_ok "$_HI_TEST_L24" || return 1
+  ! _hi_scheme_ok solarized || return 1
+  ! _hi_scheme_ok custom || return 1
+  ! _hi_scheme_ok "$_HI_TEST_L12 cd3131" || return 1
+  ! _hi_scheme_ok ""
+}
+
+function test_scheme_label_names_every_shape() {
+  local l
+  _HI_COLOR_SCHEME="" _hi_scheme_label l
+  [ "$l" = default ] || return 1
+  _HI_COLOR_SCHEME=monokai _hi_scheme_label l
+  [ "$l" = monokai ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L12" _hi_scheme_label l
+  [ "$l" = "custom (12)" ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_label l
+  [ "$l" = "custom (24)" ] || return 1
+  _HI_COLOR_SCHEME=solarized _hi_scheme_label l
+  [ "$l" = "solarized (ignored - not a scheme)" ]
+}
+
+function test_sgr_base_drops_the_24_bit_tail() {
+  local b
+  _hi_sgr_base b '\e[1;36;38;2;17;168;205m'
+  [ "$b" = '\e[1;36m' ] || return 1
+  _hi_sgr_base b '\e[0;31m'
+  [ "$b" = '\e[0;31m' ] || return 1
+  _hi_sgr_base b ""
+  [ -z "$b" ]
 }
 
 # _hi_cecho's %b is for the palette; the text goes through %s. What it prints
@@ -642,6 +729,12 @@ function test_zsh_scheme_escape_agrees_with_bash() {
   _hi_shell_agrees 'export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1; _hi_assign_palette; _hi_color_hex h brcyan; printf "%s|%s|%s" "$RED" "$BRCYAN" "$h"'
 }
 
+# the list form walks the setting by offset, which is where zsh and bash
+# most easily part ways; both banks and the word count have to agree
+function test_zsh_scheme_list_agrees_with_bash() {
+  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L24' _HI_TRUECOLOR=1; _hi_scheme_words n; _hi_assign_palette; _hi_color_hex h brcyan; _hi_color_escape_at e 17; printf '%s|%s|%s|%s|%s' \"\$n\" \"\$RED\" \"\$BRCYAN\" \"\$h\" \"\$e\""
+}
+
 function test_zsh_host_tag_agrees_with_bash() {
   _hi_shell_agrees 'printf "%s|%s" "$(_hi_ssh_host_tag myhost)" "$(_hi_ssh_host_tag devhost)"'
 }
@@ -969,6 +1062,13 @@ function run_core_tests() {
   _hi_check "Every slot of every scheme is six hex digits" test_scheme_hex_is_six_hex_digits_for_every_slot
   _hi_check "The palette agrees with _hi_color_escape under a scheme" test_palette_vars_agree_with_color_escape_under_a_scheme
   _hi_check "The hash ignores the scheme" test_hash_color_ignores_the_scheme
+  _hi_check "_hi_scheme_words counts a 12/24-word list" test_scheme_words_counts_a_list
+  _hi_check "A 12-word list renders" test_scheme_list_of_twelve_renders
+  _hi_check "Slots 12-23 fold to the first bank without 24 words" test_scheme_second_bank_folds_without_24_words
+  _hi_check "A malformed list falls back to 16 colors" test_scheme_bad_list_falls_back_to_16_color
+  _hi_check "_hi_scheme_ok takes names and lists" test_scheme_ok_takes_names_and_lists
+  _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
+  _hi_check "_hi_sgr_base drops the 24-bit tail" test_sgr_base_drops_the_24_bit_tail
 
   _hi_h2 "Testing: _hi_cecho"
   _hi_check "Prints the text verbatim" test_cecho_prints_the_text_verbatim
@@ -1074,6 +1174,7 @@ function run_core_tests() {
   _hi_h2 "Testing: the same answers in zsh"
   _hi_check_requires zsh "_hi_hash_color agrees with bash" test_zsh_hash_color_agrees_with_bash
   _hi_check_requires zsh "A scheme escape agrees with bash" test_zsh_scheme_escape_agrees_with_bash
+  _hi_check_requires zsh "A scheme list agrees with bash" test_zsh_scheme_list_agrees_with_bash
   _hi_check_requires zsh "_hi_ssh_host_tag agrees with bash" test_zsh_host_tag_agrees_with_bash
   _hi_check_requires zsh "...and rejects the same hosts" test_zsh_host_tag_rejects_the_same_hosts
   _hi_check_requires zsh "...and agrees on wildcard blocks" test_zsh_host_tag_wildcard_agrees_with_bash

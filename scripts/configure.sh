@@ -216,9 +216,11 @@ function _hi_is_packages_palette() {
 }
 
 # $_HI_COLOR_SCHEME's vocabulary: the schemes core.sh's _hi_scheme_hex knows,
-# and `default` for none (ask_value blanks it, which clears the line)
+# `default` for none (ask_value blanks it, which clears the line), or a list
+# of 12/24 hex words - a scheme of the user's own, which config_color_scheme
+# keeps rather than asks for. `custom` is what that shows as, never a value.
 function _hi_is_color_scheme() {
-  case "$1" in default | catppuccin | monokai | onedark | vscode) ;; *) return 1 ;; esac
+  [ "$1" = default ] || _hi_scheme_ok "$1"
 }
 
 # $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
@@ -428,10 +430,10 @@ function _hi_tool_alias_preview() {
 
 # hi_copy and hi_notify share the toggle: both are escapes written to the tty
 # for the client's terminal to act on
-function _hi_osc52_preview() {
+function _hi_passthrough_preview() {
   printf 'vim yank  -> \\e]52;c;<base64> -> your local clipboard\n'
-  printf 'hi_copy   -> %s\n' "$_HI_OSC52"
-  printf 'hi_notify -> %s\n' "$_HI_NOTIFY"
+  printf 'hi_copy   -> sh %s copy\n' "$_HI_PASSTHROUGH"
+  printf 'hi_notify -> sh %s notify\n' "$_HI_PASSTHROUGH"
 }
 
 function _hi_starship_preview() {
@@ -480,8 +482,9 @@ function _hi_packages_palette_preview() {
 # when this one is not. Temporary-environment calls on a function, so
 # nothing leaks and nothing forks.
 function _hi_color_scheme_preview() {
-  local scheme name esc
-  for scheme in default catppuccin monokai onedark vscode; do
+  local scheme name esc current="" n i
+  # shellcheck disable=SC2153 # the roster is core.sh's, exported
+  for scheme in default $_HI_COLOR_SCHEMES; do
     printf '   %-11s' "$scheme"
     for name in "${_HI_COLOR_NAMES[@]}"; do
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_color_escape_var esc "$name"
@@ -489,6 +492,24 @@ function _hi_color_scheme_preview() {
     done
     printf '\n'
   done
+  # a hand-written list as its own row, and a second one for the bank the
+  # packages check paints from when it carries twenty-four words (HI.50)
+  setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
+  _HI_COLOR_SCHEME="$current" _hi_scheme_words n
+  if [ "$n" -gt 0 ]; then
+    for scheme in custom packages; do
+      [ "$scheme" = packages ] && [ "$n" -lt 24 ] && break
+      printf '   %-11s' "$scheme"
+      i=0
+      [ "$scheme" = packages ] && i=12
+      for name in "${_HI_COLOR_NAMES[@]}"; do
+        _HI_COLOR_SCHEME="$current" _HI_TRUECOLOR=1 _hi_color_escape_at esc "$i"
+        printf '%b%s%b ' "$esc" "$name" "$NC"
+        i=$((i + 1))
+      done
+      printf '\n'
+    done
+  fi
   _hi_has_truecolor ||
     _hi_cecho " this terminal reports no truecolor (COLORTERM), so a scheme renders as the default row here" "$YELLOW"
 }
@@ -515,7 +536,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?||vim/nano config overrides"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
-  "_HI_DISABLE_PASSTHROUGH|1||_hi_osc52_preview| Enable hi_copy and hi_notify (a yank or hi_copy on a target lands in your local clipboard; hi_notify raises a desktop notification here when a command finishes)?||hi_copy and hi_notify - clipboard and notifications back through the connection"
+  "_HI_DISABLE_PASSTHROUGH|1||_hi_passthrough_preview| Enable hi_copy and hi_notify (a yank or hi_copy on a target lands in your local clipboard; hi_notify raises a desktop notification here when a command finishes)?||hi_copy and hi_notify - clipboard and notifications back through the connection"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
   "_HI_DISABLE_LOCAL_PROMPT|1||| Enable hi's prompt on this machine too? (no keeps a starship, powerlevel10k or oh-my-zsh prompt you already have here; targets get hi's either way)||hi's prompt on this machine too - no keeps the prompt you already have here"
@@ -595,7 +616,7 @@ _HI_PROMPT_PROMPTS=(
 # never touch, kept out of the default path so it stays short. Not opening
 # it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
-  "_HI_TERM_FALLBACK|0||| Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?||"
+  "_HI_TERM_FALLBACK|0||| (ssh only) Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?||"
   "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?||"
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
   "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
@@ -723,7 +744,7 @@ function config_preset() {
     printf '   %s) %-11s %s\n' "${name:0:1}" "$name" "$desc"
     shorts="$shorts${name:0:1}/"
   done
-  menu_read " Start from a preset? (${shorts%/} or the full name, or Enter to keep your current settings) [] " reply || return 0
+  menu_read " Start from a preset? (${shorts%/} or the full name, or Enter to keep your current settings) [keep] " reply || return 0
   [ -n "$reply" ] || return 0
   short="$(preset_shorthand "$reply")" && reply="$short"
   apply_preset "$reply" || return 0
@@ -762,7 +783,7 @@ function config_hub() {
     printf '   3) %-10s %s\n' Features "prompt, git status, editors, clipboard, notifications, ..."
     printf '   4) %-10s %s\n' Prompt "starship, and the character each shell's prompt ends with"
     printf '   5) %-10s %s\n' Advanced "session shell, glyphs, TERM fallback, timeouts"
-    printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode"
+    printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
     printf '   s) %-10s %s\n' save "write the settings and exit"
     printf '   q) %-10s %s\n' quit "exit without writing anything"
     menu_read " > " reply || return 0
@@ -1090,18 +1111,18 @@ function config_packages_floor() {
       # A failed read is EOF - a closed pipe, ^D, or a driver that ran out of
       # input - and never an answer. Break, and close the prompt line, since
       # read -p leaves the cursor on it.
-      if ! read -r -p " Lowest package priority to show (0-4, 4 turns the check off)? [$_hi_floor_candidate] " reply; then
+      if ! read -r -p " Lowest package priority to show (0-3, or 4 to turn the check off)? [$_hi_floor_candidate] " reply; then
         printf '\n' >&2
         break
       fi
       [ -z "$reply" ] && break
-      if ! _hi_is_number "$reply"; then
+      if ! _hi_is_number "$reply" || [ "$reply" -gt 4 ]; then
         rejects=$((rejects + 1))
         if [ "$rejects" -ge "$max_rejects" ]; then
-          _hi_cecho " not a number, leaving it at $_hi_floor_candidate" "$YELLOW"
+          _hi_cecho " not 0-4, leaving it at $_hi_floor_candidate" "$YELLOW"
           break
         fi
-        _hi_cecho " not a number - type 0-4, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
+        _hi_cecho " not 0-4 - type a priority, 4 to turn the check off, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
         continue
       fi
       rejects=0
@@ -1137,13 +1158,20 @@ function config_packages_palette() {
 # word from a closed set, so ask_value; `default` clears the line. Not a
 # preset answer: a scheme is taste, not a feature level.
 function config_color_scheme() {
-  local current="" value
+  local current="" shown value n
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
+  # a scheme of the user's own - 12 or 24 hex words, written into settings.sh
+  # by hand - shows as `custom` and Enter keeps it; the list itself is never
+  # typed at a prompt
+  shown="$current"
+  _HI_COLOR_SCHEME="$current" _hi_scheme_words n
+  [ "$n" -gt 0 ] && shown=custom
   if [ -t 0 ]; then
     show_preview _hi_color_scheme_preview
   fi
-  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode?" \
-    "$current" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
+  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 12/24 hex words, written into settings.sh by hand)?" \
+    "$shown" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
+  [ "$value" = custom ] && value="$current"
   _hi_pending_set _HI_COLOR_SCHEME "$value"
 }
 
@@ -1250,25 +1278,25 @@ function config_advanced_values() {
 
   current=""
   setting_value _HI_TARGETS_TTL "$_HI_SETTINGS" current
-  value="$(ask_value "Seconds hi <TAB> reuses its target list for (0 = never)?" \
+  value="$(ask_value "(completion) Seconds hi <TAB> reuses its target list for (0 = never)?" \
     "$current" 5 _hi_is_number "not a number")"
   _hi_pending_set _HI_TARGETS_TTL "$value"
 
   current=""
   setting_value _HI_PROBE_TIMEOUT "$_HI_SETTINGS" current
-  value="$(ask_value "Seconds any one backend (docker, kubectl, ...) gets to answer, in completion and the header?" \
+  value="$(ask_value "(completion and the header) Seconds any one backend (docker, kubectl, ...) gets to answer?" \
     "$current" 2 _hi_is_seconds "not a number of seconds")"
   _hi_pending_set _HI_PROBE_TIMEOUT "$value"
 
   current=""
   setting_value _HI_CONTAINER_CLIS "$_HI_SETTINGS" current
-  value="$(ask_value "Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?" \
+  value="$(ask_value "(containers) Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?" \
     "$current" "docker podman nerdctl finch" _hi_is_cli_list "plain names separated by spaces, like: docker podman")"
   _hi_pending_set _HI_CONTAINER_CLIS "$value"
 
   current=""
   setting_value _HI_CTL_PERSIST "$_HI_SETTINGS" current
-  value="$(ask_value "Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?" \
+  value="$(ask_value "(ssh only) Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?" \
     "$current" 60 _hi_is_number "not a number")"
   _hi_pending_set _HI_CTL_PERSIST "$value"
 }
@@ -1304,11 +1332,15 @@ function _hi_collect_group() {
   done
 }
 
-# _hi_collect_value <var> <default> [quoted] - one value line, or none
+# _hi_collect_value <var> <default> [quoted] - one value line, or none. A
+# value holding whitespace is quoted whether or not the caller asked: the
+# line has to parse as sh and fish both, and a bare word is the only form
+# that does so unquoted.
 function _hi_collect_value() {
   local var="$1" default="$2" quoted="${3:-}" value=""
   setting_value "$var" "$_HI_SETTINGS" value
   [ -n "$value" ] && [ "$value" != "$default" ] || return 0
+  case "$value" in *[[:space:]]*) quoted=1 ;; esac
   if [ -n "$quoted" ]; then
     _HI_SETTING_LINES+=("export $var='$value'")
   else

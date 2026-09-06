@@ -231,9 +231,10 @@ everything weighed and answered **no**, and why.
   section - Header, Features, Prompt, Advanced, Colors - and save.
   `hi --configure --preset <name>` skips the menu. Answers land in
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- the install also seeds `~/.config/say-hi` with the shipped defaults, for
-  the files you have none of - yours to edit, and to version however you
-  keep your dotfiles. [docs/SETTINGS.md](docs/SETTINGS.md).
+- the install also seeds `~/.config/say-hi` with the shipped `colors`,
+  `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
+  to edit, and to version however you keep your dotfiles.
+  [docs/SETTINGS.md](docs/SETTINGS.md).
 - `hi --doctor [<target>]` when something is slow or failing to help diagnose.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
@@ -267,11 +268,9 @@ everything weighed and answered **no**, and why.
 
 Your config lives in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
-say `hi` to. `colors` and `packages` overlay the tree's copies, `aliases.sh`
-adds to the shipped alias set, and a `bash.sh`/`zsh.zsh`/`config.fish` there
-is sourced last in hi's per-shell rc so yours win. `settings.sh` (what
-`hi --configure` writes) has no in-tree counterpart. The overlay file table,
-every toggle and every environment variable are in
+say `hi` to: `settings.sh` is what `hi --configure` writes, and the other
+files overlay or extend the tree's copies. The overlay file table, the
+wizard, every toggle and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works).
 
@@ -287,16 +286,11 @@ that on exit:
 
 ### Hostname, Username, and Group/Tag Colors
 
-Every username and hostname gets a color derived from its name. To pin one,
-add a line to `~/.config/say-hi/colors`: `username,root,red`,
-`hostname,prod-db,yellow` or `hosttag,desktop,green`. `hosttag` matches the
-_leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
-`Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
-every name it covers. A `hostname` pin holding `*` or `?` is a pattern —
-`hostname,10.0.1.*,red` colors a whole subnet with no ssh-config entry at
-all. `hi --preview colors` shows the result in the actual colors; the long
-version, and using the hash in your own prompt, is
-[docs/SETTINGS.md](docs/SETTINGS.md#colors).
+Every username and hostname gets a color derived from its name; a line in
+`~/.config/say-hi/colors` (`username,root,red`, `hostname,prod-db,yellow`,
+`hosttag,desktop,green`) pins one, and `hi --preview colors` shows what every
+host resolves to. Tags, patterns, truecolor schemes of your own and using the
+hash in your own prompt: [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
 
@@ -359,7 +353,7 @@ git history is the ledger.
       `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
-      it promises (the **Flip to stable** entry).
+      it promises.
 
 ### Post 1.0
 
