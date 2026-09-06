@@ -562,39 +562,20 @@ _HI_BACKENDS+=(
   "kube|kubernetes pod|kubectl get pods -o name|_hi_is_k8s_pod"
 )
 
-# _hi_backend_flag <word> - "docker" for "--docker", "ssh" for "--ssh", or
-# nothing: whether <word> names a backend to force rather than probe for.
-# Reads $_HI_BACKENDS rather than a second spelling of the roster, but a name
-# is a flag only if common/flags carries its row too: the family rows are
-# whatever $_HI_CONTAINER_CLIS says, and `--nerdctl` for a user-added member
-# would otherwise be a flag --help never lists. Those force their arm through
-# `--via <cli>` instead (_hi_parse). tests/hi/parse_test.sh checks the two
-# rosters agree.
-function _hi_backend_flag() {
-  local row flag_row
-  case "$1" in
-  --ssh) printf 'ssh' && return 0 ;;
-  esac
+# _hi_use_backend <arm> - the arm name for `--use <arm>`, or a message and
+# failure: "ssh" or any roster name hi was loaded with, never a bare word (a
+# typo would otherwise force an arm nothing can run). The one way to force an
+# arm: reading the roster rather than a per-backend flag row means a backend
+# added to $_HI_BACKENDS (or a CLI added to $_HI_CONTAINER_CLIS) is reachable
+# with no second spelling anywhere.
+function _hi_use_backend() {
+  local row names="ssh"
+  [ "$1" = ssh ] && printf 'ssh' && return 0
   for row in "${_HI_BACKENDS[@]}"; do
-    [ "$1" = "--${row%%|*}" ] || continue
-    for flag_row in "${_HI_FLAGS[@]}"; do
-      [ "${flag_row%%|*}" = "$1" ] && printf '%s' "${1#--}" && return 0
-    done
-    return 1
+    [ "$1" = "${row%%|*}" ] && printf '%s' "$1" && return 0
+    names="$names ${row%%|*}"
   done
-  return 1
-}
-
-# _hi_via_backend <cli> - the roster name for `--via <cli>`, or a message and
-# failure: the value has to be a family member hi was loaded with, not any
-# word (a typo would otherwise force an arm nothing can run).
-function _hi_via_backend() {
-  local cli members=""
-  for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
-    [ "$1" = "$cli" ] && printf '%s' "$cli" && return 0
-    members="$members${members:+ }$cli"
-  done
-  _hi_cecho "hi: --via wants one of: $members" "$RED" >&2
+  _hi_cecho "hi: --use wants one of: $names" "$RED" >&2
   return 1
 }
 
@@ -1565,33 +1546,27 @@ function _hi_parse() {
       SSHARGS+=("$1" "$2")
       shift
       ;;
-    # a backend flag names the arm outright, ahead of the target - like any
-    # other ssh option. ssh itself takes no `--` option, so claiming every one
-    # here costs nothing: today they are all just ssh's own "unknown option"
-    # to report. Only ahead of the target - one already chosen means this is
-    # the remote command's own word, not hi's.
+    # --use names the arm outright, ahead of the target - like any other ssh
+    # option. ssh itself takes no `--` option, so claiming it here costs
+    # nothing: it would only ever be ssh's own "unknown option" to report.
+    # Only ahead of the target - one already chosen means this is the remote
+    # command's own word, not hi's.
     -*)
       if [ -n "${DOMAIN:-}" ]; then
         SSHARGS+=("$1")
-      elif [ "$1" = --via ]; then
-        # the one hi flag that takes a word: which family member's arm
+      elif [ "$1" = --use ]; then
+        # the one hi flag that takes a word: which arm, by name
         [ $# -ge 2 ] || {
-          _hi_cecho "hi: --via needs a CLI name" "$RED" >&2
+          _hi_cecho "hi: --use needs an arm name (ssh, or a backend)" "$RED" >&2
           exit 1
         }
-        backend_word="$(_hi_via_backend "$2")" || exit 1
+        backend_word="$(_hi_use_backend "$2")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: --via $2 and --$BACKEND both name a backend; pick one" "$RED" >&2
+          _hi_cecho "hi: --use $2 and --use $BACKEND both name an arm; pick one" "$RED" >&2
           exit 1
         fi
         BACKEND="$backend_word"
         shift
-      elif backend_word="$(_hi_backend_flag "$1")"; then
-        if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: $1 and --$BACKEND both name a backend; pick one" "$RED" >&2
-          exit 1
-        fi
-        BACKEND="$backend_word"
       elif [ "$1" = --plain ]; then
         PLAIN=1
       else
@@ -1790,7 +1765,7 @@ unset _hi_row
 function _hi_dispatch_subcommand() {
   local row flag var arg
   for row in "${_HI_FLAGS[@]}"; do
-    IFS='|' read -r flag _ var arg _ <<<"$row"
+    IFS='|' read -r flag _ _ var arg _ <<<"$row"
     [ "$flag" = "${1:-}" ] || continue
     [ -n "$var" ] || return 1
     shift
@@ -1802,15 +1777,20 @@ function _hi_dispatch_subcommand() {
 # _hi_flag_help <-|local> - the option lines of --help: `-` is what works
 # anywhere, `local` what needs a part of the tree the payload does not carry.
 function _hi_flag_help() {
-  local row flag needs help
+  local row flag arg needs help
   for row in "${_HI_FLAGS[@]}"; do
-    IFS='|' read -r flag needs _ _ help <<<"$row"
+    IFS='|' read -r flag arg needs _ _ help <<<"$row"
     case "$1:$needs" in
-    -:-) [ "$flag" = --help ] && flag="-h, --help" ;;
+    -:-)
+      case "$flag" in
+      --help) flag="-h, --help" ;;
+      --version) flag="-V, --version" ;;
+      esac
+      ;;
     local:-) continue ;;
     -:*) continue ;;
     esac
-    printf '  %-21s %s\n' "$flag" "$help"
+    printf '  %-26s %s\n' "$flag${arg:+ $arg}" "$help"
   done
 }
 
@@ -1848,10 +1828,9 @@ tarball you are piping into a file, say - use ssh itself.
   4. a kubernetes pod, in whatever context/namespace kubectl points at -
      or namespace:pod / context:namespace:pod for another one
 
---ssh, --docker, --podman, --nomad or --kube before the target names the arm
-outright and skips every probe above it - the fix for a container that
-shadows an unrelated ssh host of the same name; --via <cli> does the same
-for any member of the family. --plain skips the payload
+--use <arm> before the target names the arm outright and skips every probe
+above it - the fix for a container that shadows an unrelated ssh host of the
+same name. --plain skips the payload
 too and hands over a bare shell on whichever arm resolves - no tar, no
 base64, no writable /tmp, no \$HOME needed on the target at all.
 
@@ -1888,12 +1867,15 @@ EOF
   exec git -C "$_HI_ROOT" pull "$@"
   ;;
 # the full preview lives in scripts/; a target falls back to the check itself
---packages-preview)
+--preview-packages)
   shift
   [ -f "$_HI_PACKAGES_PREVIEW" ] && exec "$_HI_PACKAGES_PREVIEW" "$@"
   exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
   ;;
---version)
+# -V is hi's, like -h: the one ssh short option claimed on purpose, because
+# "which version of hi is this" is the question a bug report asks first and
+# `ssh -V` is a keystroke away for the other one
+-V | --version)
   _hi_version
   exit 0
   ;;

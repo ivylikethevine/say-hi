@@ -758,7 +758,7 @@ function test_help_flags_all_appear_in_roster() {
 function test_flags_drop_local_subcommands_in_a_session() {
   local out flag
   out="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags)"
-  for flag in --install --doctor --test --update; do
+  for flag in --install --doctor --update; do
     case $'\n'"$out"$'\n' in
     *$'\n'"$flag"$'\n'*)
       _hi_cecho "   a session was offered $flag" "$RED"
@@ -766,18 +766,18 @@ function test_flags_drop_local_subcommands_in_a_session() {
       ;;
     esac
   done
-  # ...while the one that does work there is still offered: --packages-preview
+  # ...while the one that does work there is still offered: --preview-packages
   # falls back to the shipped common/header.sh rather than refusing.
   case $'\n'"$out"$'\n' in
-  *$'\n--packages-preview\n'*) return 0 ;;
+  *$'\n--preview-packages\n'*) return 0 ;;
   esac
-  _hi_cecho "   a session lost --packages-preview, which works there" "$RED"
+  _hi_cecho "   a session lost --preview-packages, which works there" "$RED"
   return 1
 }
 
 # The case _HI_REMOTE_SESSION cannot see. A package-manager install ships
-# scripts/ - so every sub-command above works - but neither tests/ nor .git, so
-# --test and --update are exactly the two that must not be offered there. The
+# scripts/ - so every sub-command above works - but not .git, so --update is
+# the one that must not be offered there. The
 # roster is answered out of a staged tree rather than this checkout, because
 # this checkout has all three and would pass either way.
 function test_flags_drop_what_a_package_lacks() {
@@ -786,14 +786,12 @@ function test_flags_drop_what_a_package_lacks() {
   mkdir -p "$tree/common" "$tree/scripts"
   cp "$_HI_ROOT/common/targets.sh" "$_HI_ROOT/common/flags" "$tree/common/"
   out="$(sh "$tree/common/targets.sh" flags)"
-  for flag in --test --update; do
-    case $'\n'"$out"$'\n' in
-    *$'\n'"$flag"$'\n'*)
-      _hi_cecho "   a packaged install was offered $flag" "$RED"
-      return 1
-      ;;
-    esac
-  done
+  case $'\n'"$out"$'\n' in
+  *$'\n--update\n'*)
+    _hi_cecho "   a packaged install was offered --update" "$RED"
+    return 1
+    ;;
+  esac
   case $'\n'"$out"$'\n' in
   *$'\n--doctor\n'*) return 0 ;;
   esac
@@ -809,7 +807,7 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
   local out
   out="$(_hi_completions_for --)"
   printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --color-preview
+    printf '%s\n' "$out" | grep -qx -- --preview-colors
 }
 
 # ...and the prefix filter is the completion's own, not targets.sh's: the
@@ -818,10 +816,10 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 # that fell through to the target branch would show it.
 function test_complete_flags_filter_by_prefix_and_never_reach_targets() {
   local out
-  out="$(_hi_completions_for --col)"
-  printf '%s\n' "$out" | grep -qx -- --color-preview || return 1
-  if printf '%s\n' "$out" | grep -qx -- --configure; then
-    _hi_cecho "   --col also offered --configure" "$RED"
+  out="$(_hi_completions_for --preview-c)"
+  printf '%s\n' "$out" | grep -qx -- --preview-colors || return 1
+  if printf '%s\n' "$out" | grep -qx -- --preview-packages; then
+    _hi_cecho "   --preview-c also offered --preview-packages" "$RED"
     return 1
   fi
   if printf '%s\n' "$out" | grep -qx alpha; then

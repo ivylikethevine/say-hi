@@ -595,12 +595,12 @@ relay is the container transport's bash-less fallback, which ships
 
 ## Local-only
 
-`tests/` is stripped from the payload, so `hi --test` on a target says so
+`tests/` is stripped from the payload, so `hi --doctor` on a target says so
 rather than running. Every flag that needs `scripts/`, `tests/` or a `.git`
-answers the same way there, and `--test` and `--update` answer that way in a
+answers the same way there, and `--update` answers that way in a
 package-manager install too, which ships `scripts/` but neither of the others.
 **Which flag needs what is `docs/hi.1`'s OPTIONS section**, drift-checked
 against `common/targets.sh`'s completion roster by `tests/hi/parse_test.sh`.
-`hi --packages-preview` is the one that does not refuse: its legend lives in
+`hi --preview-packages` is the one that does not refuse: its legend lives in
 `scripts/`, but the check it previews lives in the shipped `common/header.sh`,
 so on a target it runs that half instead.

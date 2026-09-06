@@ -35,3 +35,15 @@
 - Re-run the feature toggle prompts (header, prompt, git status, aliases):
 
 `hi --configure`
+
+- Force an arm by name instead of probing (ssh, docker, podman, nomad, kube), for a container that shadows an ssh host:
+
+`hi --use {{docker}} {{name}}`
+
+- Hand over a bare shell with nothing copied - no aliases, no header - on whatever the target resolves to:
+
+`hi --plain {{target}}`
+
+- Preview what every ssh host and your user resolve to, in their colors:
+
+`hi --preview-colors`

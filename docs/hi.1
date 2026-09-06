@@ -93,13 +93,7 @@ A name matching none of these is handed to
 .BR ssh (1)
 anyway, so unlisted hosts still work.
 .PP
-.BR \-\-ssh ,
-.BR \-\-docker ,
-.BR \-\-podman ,
-.BR \-\-via " " \fIcli\fR,
-.BR \-\-nomad
-or
-.B \-\-kube
+.BR \-\-use " " \fIarm\fR
 before
 .I target
 names the arm outright and skips every probe above it \- the fix for a
@@ -135,11 +129,11 @@ and failing rather than waiting on a menu nobody can answer. An
 .I ssh\-option
 with no target does the same: an option without a host is an error for
 .BR ssh (1)
-to report, not a target to guess at \- which is what keeps
-.B hi \-V
-behaving as
+to report, not a target to guess at. The one short option hi claims is
+.BR \-V :
+it answers with hi's own version, the first thing a bug report asks for, and
 .B ssh \-V
-does.
+is a keystroke away for the other one.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
@@ -148,44 +142,28 @@ own options \- and exit. Everything here in short form; this page is the long
 one. Caught before the pass\-through below, so it never reaches
 .BR ssh (1).
 .TP
-.B \-\-version
+.B \-V\fR, \fB\-\-version
 print the version and exit: the version stamped in at packaging time, or
 .B git describe
 output in a checkout.
 .TP
-.B \-\-ssh
-force the ssh arm for
-.IR target ,
-skipping every backend probe in
+.B \-\-use \fIarm\fR
+force that arm for
+.I target
+and skip every probe in
 .B TARGET RESOLUTION
-above \- ssh's own error speaks if it is not there.
-.TP
-.B \-\-docker
-force the docker arm for
-.IR target .
-.TP
-.B \-\-podman
-force the podman arm for
-.IR target .
-.TP
-.B \-\-via \fIcli\fR
-force the arm of any member of
-.B $_HI_CONTAINER_CLIS
-for
-.IR target :
-.B \-\-via nerdctl
-where
-.B \-\-docker
-would name docker. The name has to be one hi was loaded with; a stranger is an
-error, not a guess.
-.TP
-.B \-\-nomad
-force the nomad arm for
-.IR target .
-.TP
-.B \-\-kube
-force the kube arm for
-.IR target .
+above:
+.B ssh
+(ssh's own error speaks if the host is not there), or a backend by name \-
+.BR docker ,
+.BR podman ,
+any other member of
+.BR $_HI_CONTAINER_CLIS ,
+.B nomad
+or
+.BR kube .
+The name has to be one hi was loaded with; a stranger is an error, not a
+guess.
 .TP
 .B \-\-plain
 skip the payload entirely and hand over a bare shell on whichever arm
@@ -208,23 +186,23 @@ of the tree that is not always present. All of them want
 .BR scripts/ ,
 which a package\-manager install ships but a hi session does not \- so inside a
 session each says so and stops.
-.B \-\-test
-and
 .B \-\-update
-want
-.B tests/
-and
+wants
 .B .git
-on top of that, and a package carries neither.
-.B \-\-packages\-preview
+on top of that, and a package carries none.
+.B \-\-preview\-packages
 is the one exception to all of it: it falls back to the check itself, out of the
 shipped
 .BR common/header.sh ,
 rather than refusing.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-ssh\fR|\fB\-\-docker\fR|\fB\-\-podman\fR|\fB\-\-via\fR \fIcli\fR|\fB\-\-nomad\fR|\fB\-\-kube\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIarm\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
-the config overlay, every backend probed and timed, and \- with a target \-
+the config overlay, the shell rc files and the overlay's own shell files
+parsed by whatever will read them (what
+.B \-\-install
+checks before it writes a line), every backend probed and timed, and \- with
+a target \-
 which backend the name resolves to plus an ssh reachability check. A backend
 flag reports the same forced arm a real connect with it would take, skipping
 the probe chain. With
@@ -248,11 +226,6 @@ before either.
 .B \-\-preset <name>
 after it applies one without the menu.
 .TP
-.B \-\-check\-configs
-re\-run just the syntax validation, without the rest of the install: the
-shell rc files, and the overlay's own shell files (\fBaliases.sh\fR under both
-\fBsh\fR and \fBfish\fR, since a target sources it in whichever it has).
-.TP
 .B \-\-overlay\-init
 seed the config overlay at
 .B ~/.config/say-hi/
@@ -266,17 +239,11 @@ Needs one: an install from a package has no
 .B .git
 to pull into, and says so rather than running.
 .TP
-.B \-\-color\-preview
+.B \-\-preview\-colors
 what every ssh host and your user resolve to, in their actual colors.
 .TP
-.B \-\-packages\-preview
+.B \-\-preview\-packages
 the package\-priority legend, as the header prints it.
-.TP
-.B \-\-test
-run the test suite.
-Needs the full checkout: the packages do not ship
-.BR tests/ ,
-and there this says so rather than running.
 .PP
 Everything else is passed through to
 .BR ssh (1)

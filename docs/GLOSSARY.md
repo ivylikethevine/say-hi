@@ -844,7 +844,7 @@ has moved.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twelve palette names
 render as; it never adds a name. `_hi_hash_color`, the `settings/colors`
-pins, `_hi_color_name_of` and `hi --color-preview` all keep the same
+pins, `_hi_color_name_of` and `hi --preview-colors` all keep the same
 vocabulary, so a scheme is invisible to everything that reasons about a
 color by name - only the bytes a name turns into change.
 
@@ -898,7 +898,7 @@ files, since the IDs are the daemon's. The compose-service alias stays
 docker's: podman honours the `.Label` template, nerdctl and finch are
 unverified, and a template one rejects would empty its lane.
 
-`--docker` and `--podman` keep their rows in `common/flags`; every other
-member forces its arm through `--via <cli>`, which accepts only a name from
-the list. Names are plain identifiers (`[A-Za-z0-9_]`) because `hi.sh`'s
+`--use <arm>` forces any arm by name, ssh and every roster row included, and
+is the only way to: there is no per-backend flag, so a member added to the
+list is reachable with no second spelling. Names are plain identifiers (`[A-Za-z0-9_]`) because `hi.sh`'s
 per-member predicate is `eval`-defined; `scripts/configure.sh` enforces it.

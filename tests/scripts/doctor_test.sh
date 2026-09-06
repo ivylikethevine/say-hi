@@ -363,14 +363,29 @@ function test_config_reports_the_system_layer() {
   [[ "$out" == *"per-user settings only"* ]]
 }
 
-# --docker / --ssh force an arm: the probe chain is skipped and the row says
+# the folded-in `--check-configs`: each rc or overlay file through its parser,
+# one row each, with the same skip rule install.sh's pre-flight has
+function test_config_rows_parse_the_files() {
+  local dir="$_HI_WORKDIR/cfgrows" out
+  mkdir -p "$dir"
+  printf 'alias ll="ls -l"\n' >"$dir/good.bash"
+  printf 'if [ 1 ]; then\n' >"$dir/bad.bash"
+  out="$(doctor_config_row good "$dir/good.bash" bash -n)" || return 1
+  [[ "$out" == *"good"*"parses (bash)"* ]] || return 1
+  out="$(doctor_config_row bad "$dir/bad.bash" bash -n)" || return 1
+  [[ "$out" == *"bad"*"has issues (bash)"* ]] || return 1
+  [ -z "$(doctor_config_row gone "$dir/missing.bash" bash -n)" ] || return 1
+  [ -z "$(doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
+}
+
+# --use docker / --use ssh force an arm: the probe chain is skipped and the row says
 # which flag decided it
 function test_target_forced_by_a_flag_skips_the_probe_chain() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=docker doctor_target runningbox)" || true
-  [[ "$out" == *"docker container (forced by --docker)"* ]] || return 1
+  [[ "$out" == *"docker container (forced by --use docker)"* ]] || return 1
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target somewhere)" || true
-  [[ "$out" == *"ssh host (forced by --ssh)"* ]]
+  [[ "$out" == *"ssh host (forced by --use ssh)"* ]]
 }
 
 function test_target_resolves_a_running_container() {
@@ -423,33 +438,33 @@ function test_target_falls_through_to_ssh() {
   [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]]
 }
 
-# --docker forces the arm and skips the probe chain entirely: "ghostbox" would
+# --use docker forces the arm and skips the probe chain entirely: "ghostbox" would
 # fall through to ssh unforced (nothing answers for it), but a forced backend
 # reports it as a container without ever asking whether one is running.
 function test_target_honors_a_forced_backend() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
   _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=docker doctor_target ghostbox)"
-  [[ "$out" == *"resolves"*"docker container"*"forced by --docker"* && "$out" != *checked* ]]
+  [[ "$out" == *"resolves"*"docker container"*"forced by --use docker"* && "$out" != *checked* ]]
 }
 
-# a family member with no flag row of its own was forced through --via, and
+# a family member with no flag row of its own was forced through --use, and
 # the report says so in the user's own spelling
-function test_target_names_via_for_a_rowless_member() {
+function test_target_names_use_for_a_rowless_member() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
   _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=nerdctl doctor_target ghostbox)"
-  [[ "$out" == *"resolves"*"nerdctl container"*"forced by --via nerdctl"* && "$out" != *checked* ]]
+  [[ "$out" == *"resolves"*"nerdctl container"*"forced by --use nerdctl"* && "$out" != *checked* ]]
 }
 
-# --ssh overrides the other way too: "runningbox" answers docker's predicate
+# --use ssh overrides the other way too: "runningbox" answers docker's predicate
 # (test_target_resolves_a_running_container relies on exactly that), and a
-# forced --ssh has to win over it rather than the roster ever being asked.
+# forced --use ssh has to win over it rather than the roster ever being asked.
 function test_forced_ssh_overrides_a_real_container() {
   local out
   out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_ROOT="" HI_FAKE_TOOLS="base64 bash " \
   _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target runningbox)"
-  [[ "$out" == *"resolves"*"ssh host (forced by --ssh)"* && "$out" == *"connect"*ok* ]]
+  [[ "$out" == *"resolves"*"ssh host (forced by --use ssh)"* && "$out" == *"connect"*ok* ]]
 }
 
 function test_ssh_target_reports_a_permanent_install() {
@@ -557,7 +572,7 @@ assert d["findings"] == 0, d["findings"]
 assert d["target"] is None
 assert d["version"]
 secs = {r["section"] for r in d["rows"]}
-assert secs == {"local", "config", "backends"}, secs
+assert secs == {"local", "config", "configs", "backends"}, secs
 sevs = {r["severity"] for r in d["rows"]}
 assert sevs <= {"info", "ok", "warn", "bad"}, sevs
 assert any(r["label"] == "docker" and r["severity"] == "ok" for r in d["rows"])
@@ -668,7 +683,8 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
   _hi_check "A flag forces the arm" test_target_forced_by_a_flag_skips_the_probe_chain
-  _hi_check "--via names the member in the forced-arm row" test_target_names_via_for_a_rowless_member
+  _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
+  _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
   _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell

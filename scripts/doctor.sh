@@ -26,12 +26,16 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 source "$_hi_d/common/core.sh"
 # shellcheck source=./lib.sh
 source "$_hi_d/scripts/lib.sh"
+# rc.sh for the rc-file roster and the overlay's parser table, which the
+# "Shell configs" section below reads the way install.sh's own pre-flight does
+# shellcheck source=./rc.sh
+source "$_hi_d/scripts/rc.sh"
 unset _hi_d
 
 case "${1:-}" in
 -h | --help)
   cat <<'EOF'
-Usage: doctor.sh [--json] [--ssh|--docker|--podman|--nomad|--kube] [target]
+Usage: doctor.sh [--json] [--use <arm>] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -46,9 +50,9 @@ Prints, in order:
                      remote end has installed
 
 ssh options are not accepted here - the probe uses your ssh config as-is,
-which is exactly what completion and the header do. A backend flag names the
-target's arm outright, the same one a real `hi --docker <target>` would take,
-and skips the probe chain in the target report. --plain is accepted and
+which is exactly what completion and the header do. --use <arm> names the
+target's arm outright, the same one a real `hi --use <arm> <target>` would
+take, and skips the probe chain in the target report. --plain is accepted and
 ignored - doctor never connects, so it has nothing to report.
 
 --json prints the same report as one JSON document instead - what a bug
@@ -64,10 +68,10 @@ esac
 
 # hi.sh's source hatch hands over everything this needs without connecting
 # anywhere: the backend predicates, _hi_remote_root, $_HI_PAYLOAD and
-# _hi_backend_flag. The args are saved before the source line clears "$@" (hi.sh
-# reads it at source time, and must see none) and classified after, so a
-# backend flag is recognized through the one place that spells the roster
-# rather than a second list here.
+# _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
+# reads it at source time, and must see none) and classified after, so an arm
+# name is recognized through the one place that spells the roster rather than
+# a second list here.
 _HI_DOC_TARGET=""
 _HI_DOC_JSON=0
 _HI_DOC_BACKEND=""
@@ -76,38 +80,32 @@ set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
 
-# --json, the target and a backend flag may come in any order: `hi --doctor
-# --json host`, `hi --doctor host --json`, `hi --doctor --docker host` all read
-# naturally. `--via <cli>` is the one two-word flag: the word after it is the
-# family member, not the target.
+# --json, the target and --use may come in any order: `hi --doctor --json
+# host`, `hi --doctor host --json`, `hi --doctor --use docker host` all read
+# naturally. `--use <arm>` is the one two-word flag: the word after it is the
+# arm, not the target.
 _hi_via=""
 for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   if [ -n "$_hi_via" ]; then
-    _HI_DOC_BACKEND="$(_hi_via_backend "$_hi_arg")" || exit 1
+    _HI_DOC_BACKEND="$(_hi_use_backend "$_hi_arg")" || exit 1
     _hi_via=""
     continue
   fi
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
-  --via) _hi_via=1 ;;
+  --use) _hi_via=1 ;;
   # doctor never connects, so --plain has nothing to report and is silently
   # accepted rather than misread as the target name it would otherwise fall
   # through to below
   --plain) ;;
-  *)
-    if _hi_bf="$(_hi_backend_flag "$_hi_arg")"; then
-      _HI_DOC_BACKEND="$_hi_bf"
-    else
-      _HI_DOC_TARGET="$_hi_arg"
-    fi
-    ;;
+  *) _HI_DOC_TARGET="$_hi_arg" ;;
   esac
 done
 if [ -n "$_hi_via" ]; then
-  _hi_cecho "hi: --via needs a CLI name" "$RED" >&2
+  _hi_cecho "hi: --use needs an arm name (ssh, or a backend)" "$RED" >&2
   exit 1
 fi
-unset _hi_arg _hi_bf _hi_doc_args _hi_via
+unset _hi_arg _hi_doc_args _hi_via
 
 _HI_DOC_BAD=0
 # the section the rows below belong to, and the JSON rows collected so far -
@@ -328,6 +326,44 @@ function doctor_config() {
 
 # doctor_backend <name> <cli> <probe...> - installed, answering, and how long
 # the answer took; the same _hi_probe ceiling the header and completion use
+# doctor_config_row <label> <file> <check...> - one rc or overlay file through
+# the parser that will read it, as a row; an absent file or an absent parser
+# is no row at all, as in rc.sh's check_one_config (the same rule, so what
+# install.sh would wave through, this waves through).
+function doctor_config_row() {
+  local label="$1" target="$2" out
+  shift 2
+  command -v "$1" >/dev/null 2>&1 || return 0
+  [ -s "$target" ] || return 0
+  if out="$("$@" "$target" 2>&1)"; then
+    doctor_row "$label" "$target parses ($1)" ok
+  else
+    doctor_row "$label" "$target has issues ($1): $(printf '%s' "$out" | sed -n '1p')" bad
+  fi
+  return 0
+}
+
+# The syntax checks install.sh runs before it writes a line, as report rows:
+# the shell rc files it wires, then the overlay's own shell files against
+# every parser a target may source them with. This is where the old
+# `hi --check-configs` went - a read-only check is a doctor's row.
+function doctor_configs() {
+  local row shell target check file
+  doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
+  for row in "${_HI_RC_TABLE[@]}"; do
+    IFS='|' read -r shell _ target check _ <<<"$row"
+    # shellcheck disable=SC2086 # the check column is a command plus its flag
+    doctor_config_row "$shell" "$target" $check
+  done
+  # the file as the label (the parser is in the row's text): rc.sh's longer
+  # labels overflow the report's label column
+  for row in "${_HI_OVERLAY_CHECKS[@]}"; do
+    IFS='|' read -r file _ check <<<"$row"
+    # shellcheck disable=SC2086
+    doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
+  done
+}
+
 function doctor_backend() {
   local name="$1" t0 t1 rc=0
   shift
@@ -380,20 +416,14 @@ function doctor_target() {
     # flag is to not run it
     if [ "$_HI_DOC_BACKEND" = ssh ]; then
       kind="ssh host"
-      doctor_row resolves "ssh host (forced by --ssh)" ok
+      doctor_row resolves "ssh host (forced by --use ssh)" ok
     else
       for row in "${_HI_BACKENDS[@]}"; do
         IFS='|' read -r name what _ _ <<<"$row"
         [ "$name" = "$_HI_DOC_BACKEND" ] || continue
         kind="$what"
         label="$name"
-        # the flag as the user spelled it: a family member without a row of
-        # its own in common/flags was forced through --via
-        if _hi_backend_flag "--$name" >/dev/null; then
-          doctor_row resolves "$what (forced by --$name)" ok
-        else
-          doctor_row resolves "$what (forced by --via $name)" ok
-        fi
+        doctor_row resolves "$what (forced by --use $name)" ok
         break
       done
     fi
@@ -556,6 +586,7 @@ function doctor_ssh_target() {
 [ "$_HI_DOC_JSON" = 1 ] || _hi_h1 "hi doctor"
 doctor_local
 doctor_config
+doctor_configs
 doctor_backends
 [ -n "${_HI_DOC_TARGET:-}" ] && doctor_target "$_HI_DOC_TARGET"
 if [ "$_HI_DOC_JSON" = 1 ]; then

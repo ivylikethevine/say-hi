@@ -136,14 +136,14 @@ header, editors, clipboard and aliases). Showing the `compact` header preset.
 ### Know Where You Are at a Glance
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
-`hi --color-preview` to see what every host resolves to — then a prod host
+`hi --preview-colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
 ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
 their shorter headers) and their own two-line fish prompt, drawn on the
 colors hi resolved. Showing a `colors` overlay with `hosttag` pins and
 `_HI_COLOR_SCHEME=onedark`, on both ends.
 
-![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+![hi --preview-colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### One Command, Any Backend
 
@@ -259,7 +259,7 @@ everything weighed and answered **no**, and why.
   [no target at all](#no-target-at-all).
 - [optional] configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
-  `say-hi/settings/colors` to start); `hi --color-preview` shows what every
+  `say-hi/settings/colors` to start); `hi --preview-colors` shows what every
   ssh host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
@@ -310,7 +310,7 @@ _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. A `hostname` pin holding `*` or `?` is a pattern —
 `hostname,10.0.1.*,red` colors a whole subnet with no ssh-config entry at
-all. `hi --color-preview` shows the result in the actual colors; the long
+all. `hi --preview-colors` shows the result in the actual colors; the long
 version, and using the hash in your own prompt, is
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
@@ -331,7 +331,7 @@ How say-hi compares to similar tools, and when to use something else:
 
 ## Testing
 
-`tests/test_runner.sh` (`hi --test` once installed) runs the suite with a
+`tests/test_runner.sh` runs the suite with a
 colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
 side) then `--group lint` on every push/PR. Runbook:
 [docs/TESTING.md](docs/TESTING.md).
@@ -372,7 +372,7 @@ questions decided against are **deleted**: git history is the ledger.
 
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
-      the nineteen `common/flags`, every `docs/SETTINGS.md` row,
+      the twelve `common/flags`, every `docs/SETTINGS.md` row,
       `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
@@ -381,7 +381,7 @@ questions decided against are **deleted**: git history is the ledger.
 ### By Scope
 
 1. [ ] **tldr page** — _scope: one upstream pull request; outside this
-       checkout._ CLI surface is frozen (nineteen flags, CI-enforced both ways
+       checkout._ CLI surface is frozen (twelve flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
@@ -411,7 +411,7 @@ questions decided against are **deleted**: git history is the ledger.
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
 
 4. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
-       nineteen, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
+       twelve, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
        count), target-name sanitization, a suite, docs._ The target-side
        version of this shipped, then was removed and declined
        ([why](docs/SUPPORT.md#features-that-were-removed)) — a disposable
@@ -429,8 +429,8 @@ questions decided against are **deleted**: git history is the ledger.
        documented, and reconnecting to the same target reattaches instead of
        opening a second session.
 
-5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --color-preview`
-       and `hi --packages-preview` per scheme on a light and a dark
+5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --preview-colors`
+       and `hi --preview-packages` per scheme on a light and a dark
        terminal._ `_HI_COLOR_SCHEME` (`catppuccin`, `monokai`, `onedark`,
        `vscode`) renders the twelve palette names as that scheme's truecolor
        wherever hi paints, behind a `COLORTERM` check so a plain terminal
@@ -438,7 +438,7 @@ questions decided against are **deleted**: git history is the ledger.
  --configure`'s Colors section. **Do:** run both previews under each
        scheme on both backgrounds and retune any hex that reads wrong.
        **Ticks when:** all four schemes read monotonic 0-3 in
-       `--packages-preview` and legibly in `--color-preview` on both.
+       `--preview-packages` and legibly in `--preview-colors` on both.
 
 6. [ ] **`hi --update` between release tags in a git install** — _scope: a
        decision on `--update`'s argument grammar, a git-install-only code
@@ -450,7 +450,7 @@ questions decided against are **deleted**: git history is the ledger.
        HEAD, and a call on a dirty working tree first — git-install users are
        expected to be able to hack on the checkout. **Do:** settle the grammar
        as a new argument to `--update` rather than a new flag (the
-       nineteen-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
+       twelve-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
        stays put), refuse or guard a dirty tree, decide what a bare `--update`
        does afterward — reattach to the branch, stay on the tag, or say so —
        extend `tests/hi/remote_test.sh`'s coverage, and document it in

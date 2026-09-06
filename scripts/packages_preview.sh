@@ -4,7 +4,7 @@
 # preview how the header's packages check will render: what each priority
 # means, the colors it paints an installed and a missing package at that
 # priority, a real example of each drawn from your own packages file, and the
-# check itself as it will actually print. Run via `hi --packages-preview`.
+# check itself as it will actually print. Run via `hi --preview-packages`.
 set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it

@@ -215,12 +215,12 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
   local out
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    COMP_WORDS=(hi --col)
+    COMP_WORDS=(hi --preview-c)
     COMP_CWORD=1
     COMPREPLY=()
     _hi_complete
     printf "%s|%s" "${COMPREPLY[*]}" "$_HI_TARGET_NAMES_AT"' _HI_DISABLE_PROMPT=1)"
-  [ "$out" = "--color-preview|-1" ]
+  [ "$out" = "--preview-colors|-1" ]
 }
 
 # The deferred exa completion: the first TAB clones eza's registered spec
@@ -368,19 +368,19 @@ function test_zsh_flag_completion_offers_hi_options() {
     _hi
   ')"
   printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --color-preview
+    printf '%s\n' "$out" | grep -qx -- --preview-colors
 }
 
-# fish does its own prefix matching, so `--col` narrows to the one flag. A tab
+# fish does its own prefix matching, so `--preview-c` narrows to one flag. A tab
 # in the output would be a target row ("<name>\t<kind>"), which is the sweep
 # the -n guard exists to keep out of a dash word.
 function test_fish_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color fish '
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
-    complete -C "hi --col"
+    complete -C "hi --preview-c"
   ')"
-  printf '%s\n' "$out" | grep -qx -- --color-preview || return 1
+  printf '%s\n' "$out" | grep -qx -- --preview-colors || return 1
   if printf '%s\n' "$out" | grep -q "$(printf '\t')"; then
     _hi_cecho "   a dash word also swept the targets" "$RED"
     return 1

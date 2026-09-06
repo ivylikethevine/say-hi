@@ -31,18 +31,17 @@ if [ "$kind" = flags ]; then
   # Out of common/flags, the table hi.sh dispatches from. <needs> is what a
   # flag wants that is not always on disk: `-` is offered everywhere; the rest
   # are withheld in a session and then checked against the tree (a package
-  # install ships scripts/ but neither tests/ nor .git). Derived from $0, since
+  # install ships scripts/ but not .git). Derived from $0, since
   # a completion can reach this file without paths.sh (GLOSSARY: HI.33).
   case $0 in
   */*) hi_tree="${0%/*}/.." ;;
   *) hi_tree=".." ;;
   esac
-  while IFS='|' read -r flag needs _rest; do
+  while IFS='|' read -r flag _arg needs _rest; do
     case "$flag" in '#'* | '') continue ;; esac
     [ "$needs" = - ] || [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
     case "$needs" in
     scripts) [ -d "$hi_tree/scripts" ] || continue ;;
-    tests) [ -f "$hi_tree/tests/test_runner.sh" ] || continue ;;
     git) [ -d "$hi_tree/.git" ] || continue ;;
     esac
     printf '%s\n' "$flag"
