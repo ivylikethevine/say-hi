@@ -75,22 +75,27 @@ function test_payload_ships_everything_by_default() {
   return 0
 }
 
-# The notification emitter is the second file a toggle takes off the wire, on
-# common/osc52.sh's precedent: a client that never wants hi_notify pays nothing
-# for it. Same shape as the editors case above - the file goes, the tree stays.
-function test_payload_trims_the_notifier() {
-  local dir="$_HI_WORKDIR/nonotify" listing
+# The two emitters go off the wire together: a client that never wants
+# hi_copy or hi_notify pays nothing for either. Same shape as the editors case
+# above - the files go, the tree stays.
+function test_payload_trims_the_emitters() {
+  local dir="$_HI_WORKDIR/nopassthrough" listing
   mkdir -p "$dir"
-  printf "#!/bin/sh\nexport _HI_DISABLE_NOTIFY='1'\n" >"$dir/settings.sh"
+  printf "#!/bin/sh\nexport _HI_DISABLE_PASSTHROUGH='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
   case "$listing" in *say-hi/common/notify.sh*)
-    _hi_cecho " | _HI_DISABLE_NOTIFY=1 still shipped common/notify.sh" "$RED"
+    _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 still shipped common/notify.sh" "$RED"
     return 1
     ;;
   esac
-  # the sibling emitter is not collateral: the two toggles are independent
-  case "$listing" in *say-hi/common/osc52.sh*) return 0 ;; esac
-  _hi_cecho " | _HI_DISABLE_NOTIFY=1 took common/osc52.sh with it" "$RED"
+  case "$listing" in *say-hi/common/osc52.sh*)
+    _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 still shipped common/osc52.sh" "$RED"
+    return 1
+    ;;
+  esac
+  # settings/aliases.sh is not collateral - it carries the toggle's guards
+  case "$listing" in *say-hi/settings/aliases.sh*) return 0 ;; esac
+  _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 took settings/aliases.sh with it" "$RED"
   return 1
 }
 
@@ -520,7 +525,7 @@ function run_hi_payload_tests() {
   _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
-  _hi_check "_HI_DISABLE_NOTIFY trims notify.sh only" test_payload_trims_the_notifier
+  _hi_check "_HI_DISABLE_PASSTHROUGH trims osc52.sh and notify.sh" test_payload_trims_the_emitters
   _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"

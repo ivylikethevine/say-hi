@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 # Unit tests for the desktop-notification feature: common/notify.sh (the
 # emitter), the `hi_notify` alias in settings/aliases.sh, and the
-# _HI_DISABLE_NOTIFY toggle.
+# _HI_DISABLE_PASSTHROUGH toggle.
 #
 # Built on tests/common/osc52_test.sh, which is the sibling feature and the
 # file to read first. The emitter's job is the same shape - produce exactly the
@@ -171,13 +171,13 @@ function _hi_refuses_with_no_command() {
   return 1
 }
 
-# _HI_DISABLE_NOTIFY=1 has to keep the emitter off the wire as well as unalias
-# it - the same guarantee _HI_DISABLE_OSC52 already makes for the clipboard
-# half. hi/payload_test.sh owns the trimming cases; this one is the claim that
-# hi.sh knows the file at all, which is what a rename would break.
+# _HI_DISABLE_PASSTHROUGH=1 has to keep the emitter off the wire as well as
+# unalias it, beside the clipboard half it shares the toggle with.
+# hi/payload_test.sh owns the trimming cases; this one is the claim that hi.sh
+# knows the file at all, which is what a rename would break.
 function _hi_payload_trims_the_emitter() {
-  # the _HI_TRIM_TABLE row: toggle, then the tree file it takes off the wire
-  grep -q '"_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|' "$_HI_LAUNCHER"
+  # the _HI_TRIM_TABLE row: toggle, then the tree files it takes off the wire
+  grep -q '"_HI_DISABLE_PASSTHROUGH|say-hi/common/osc52.sh say-hi/common/notify.sh|' "$_HI_LAUNCHER"
 }
 
 function run_notify_test() {
@@ -212,16 +212,16 @@ function run_notify_test() {
   local shell
   for shell in sh bash zsh fish; do
     _hi_check_requires "$shell" "[$shell] defined by default" \
-      _hi_alias_defined_in "$shell" hi_notify _HI_DISABLE_NOTIFY=0 yes
-    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_NOTIFY=1" \
-      _hi_alias_defined_in "$shell" hi_notify _HI_DISABLE_NOTIFY=1 no
+      _hi_alias_defined_in "$shell" hi_notify _HI_DISABLE_PASSTHROUGH=0 yes
+    _hi_check_requires "$shell" "[$shell] gone on _HI_DISABLE_PASSTHROUGH=1" \
+      _hi_alias_defined_in "$shell" hi_notify _HI_DISABLE_PASSTHROUGH=1 no
   done
   _hi_check "absent without paths.sh (container fallback)" \
     _hi_no_alias_without_paths hi_notify _HI_NOTIFY
 
   _hi_h2 "the toggle"
-  _hi_check "_HI_DISABLE_NOTIFY in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list _HI_DISABLE_NOTIFY
-  _hi_check "_HI_DISABLE_NOTIFY in config.fish's copy" _hi_toggle_in_fish_list _HI_DISABLE_NOTIFY
+  _hi_check "_HI_DISABLE_PASSTHROUGH in core.sh's _HI_TOGGLES" _hi_toggle_in_core_list _HI_DISABLE_PASSTHROUGH
+  _hi_check "_HI_DISABLE_PASSTHROUGH in config.fish's copy" _hi_toggle_in_fish_list _HI_DISABLE_PASSTHROUGH
   _hi_check "hi.sh trims common/notify.sh when it is off" _hi_payload_trims_the_emitter
 
   _hi_suite_end "notify"

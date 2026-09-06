@@ -32,8 +32,8 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # _HI_DISABLE_LOCAL_PROMPT gate sets only _HI_DISABLE_PROMPT.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
-    _HI_DISABLE_OSC52 _HI_DISABLE_NOTIFY _HI_DISABLE_MARKS
-    _HI_DISABLE_BAT_ALIAS _HI_DISABLE_LS_ALIASES)
+    _HI_DISABLE_PASSTHROUGH _HI_DISABLE_MARKS
+    _HI_DISABLE_TOOL_ALIASES)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -431,10 +431,10 @@ function _hi_setting_get() {
   fi
 }
 
-# What each shell's prompt ends with unless overridden, <SHELL>:<char>. SH is
-# the sh fallback hi.sh bakes on the client. config.fish keeps its own copy;
-# hi_test.sh pins it here.
-_HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:>' 'FISH:|' 'SH:\$')
+# What each shell's prompt ends with unless overridden, <SHELL>:<char>. The
+# sh fallback hi.sh bakes on the client takes BASH's. config.fish keeps its
+# own copy; hi_test.sh pins it here.
+_HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:>' 'FISH:|')
 
 # _hi_prompt_end_default <SHELL> - the shipped default, empty if not listed
 function _hi_prompt_end_default() {

@@ -171,8 +171,8 @@ function doctor_row() {
 # bytes to a couple dozen, gzip-level, the same imprecision
 # bench_payload_readme_badge gives the README's own badge a 5% window for. A
 # rounded-string comparison was tried first and was wrong the other direction:
-# _HI_DISABLE_OSC52 alone trims ~450 bytes, comfortably real, but that is
-# _less_ than one _hi_human_bytes rounding step on a ~46KB payload, so it
+# _HI_DISABLE_EDITORS alone trims a few hundred bytes, comfortably real, but
+# that is _less_ than one _hi_human_bytes rounding step on a ~46KB payload, so it
 # silently vanished. 128 bytes is the fixed floor instead - roughly 9x the
 # worst jitter observed and 3x under the smallest single toggle's real effect,
 # with room on both sides for either to drift somewhat before this needs

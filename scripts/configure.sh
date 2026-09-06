@@ -317,7 +317,7 @@ function _hi_header_preview() {
     return 0
   fi
   setting_value _HI_HEADER_ORDER "$_HI_SETTINGS" order
-  setting_value _HI_HEADER_BANNER "$_HI_SETTINGS" banner
+  setting_value _HI_DISABLE_BANNER "$_HI_SETTINGS" banner
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
@@ -325,7 +325,7 @@ function _hi_header_preview() {
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
   (
-    export _HI_HEADER_ORDER="$order" _HI_HEADER_BANNER="${banner:-1}" _HI_MAX_WIDTH="${width:-80}"
+    export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="${width:-80}"
     export _HI_PACKAGES_MIN_PRIORITY="${floor:-2}" _HI_PACKAGES_PALETTE="${palette:-cool}"
     export _HI_NO_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
     # the palette and the check ramps were captured at source time;
@@ -407,22 +407,31 @@ function _hi_editors_preview() {
   printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
 }
 
-# what `cat` resolves to with the rebind on. settings/aliases.sh's ladder is
-# spelled again because this file cannot source it - see the note there;
-# alias_fallthrough_test.sh fails when the two drift.
-function _hi_bat_alias_preview() {
-  local bat_bin
+# what `cat` and `eza` resolve to with the rebinds on. settings/aliases.sh's
+# ladders are spelled again because this file cannot source it - see the note
+# there; alias_fallthrough_test.sh fails when the two drift.
+function _hi_tool_alias_preview() {
+  local bat_bin eza_bin
   bat_bin="$(command -v bat || command -v batcat)"
   if [ -n "$bat_bin" ]; then
     printf 'cat -> %s -P --tabs 2 --theme Monokai\\ Extended\\ Bright --style changes,grid\n' "$bat_bin"
   else
     printf 'bat is not installed here - only targets that have it are affected\n'
   fi
+  eza_bin="$(command -v eza || command -v exa)"
+  if [ -n "$eza_bin" ]; then
+    printf 'eza -> %s -F -1 -l -m --group-directories-first --smart-group --time-style="+%%b %%d %%Y %%H:%%M"\n' "$eza_bin"
+  else
+    printf 'eza is not installed here - only targets that have it are affected\n'
+  fi
 }
 
+# hi_copy and hi_notify share the toggle: both are escapes written to the tty
+# for the client's terminal to act on
 function _hi_osc52_preview() {
-  printf 'vim yank -> \\e]52;c;<base64> -> your local clipboard\n'
-  printf 'hi_copy  -> %s\n' "$_HI_OSC52"
+  printf 'vim yank  -> \\e]52;c;<base64> -> your local clipboard\n'
+  printf 'hi_copy   -> %s\n' "$_HI_OSC52"
+  printf 'hi_notify -> %s\n' "$_HI_NOTIFY"
 }
 
 function _hi_starship_preview() {
@@ -505,10 +514,8 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?||vim/nano config overrides"
-  "_HI_DISABLE_BAT_ALIAS|1||_hi_bat_alias_preview| Enable the cat -> bat alias (styled output, --tabs 2, changes/grid) when bat is installed?|bat|cat -> bat alias (styled output)"
-  "_HI_DISABLE_LS_ALIASES|1||| Enable the styled exa/eza aliases?|eza|styled exa/eza aliases"
-  "_HI_DISABLE_OSC52|1||_hi_osc52_preview| Enable the OSC 52 clipboard (a yank on a target lands in your local clipboard)?||OSC 52 clipboard - a yank on a target lands in your local clipboard"
-  "_HI_DISABLE_NOTIFY|1||| Enable hi_notify (run a command, get a desktop notification on this machine when it finishes)?||hi_notify - a desktop notification here when a command finishes"
+  "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
+  "_HI_DISABLE_PASSTHROUGH|1||_hi_osc52_preview| Enable hi_copy and hi_notify (a yank or hi_copy on a target lands in your local clipboard; hi_notify raises a desktop notification here when a command finishes)?||hi_copy and hi_notify - clipboard and notifications back through the connection"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
   "_HI_DISABLE_LOCAL_PROMPT|1||| Enable hi's prompt on this machine too? (no keeps a starship, powerlevel10k or oh-my-zsh prompt you already have here; targets get hi's either way)||hi's prompt on this machine too - no keeps the prompt you already have here"
@@ -575,7 +582,7 @@ function prompt_framework_default() {
 # SYSINFO/UPTIME/IDENTITY/CHECK) is retired - that content is addressed at
 # the finer feature grain, through the header editor (config_header).
 _HI_HEADER_PROMPTS=(
-  "_HI_HEADER_BANNER|0||_hi_header_preview| Show the connect/disconnect banner line?||banner"
+  "_HI_DISABLE_BANNER|1||_hi_header_preview| Show the connect/disconnect banner line?||banner"
 )
 
 # whether to hand the prompt to starship where a target has one. An opt-in,
@@ -632,8 +639,8 @@ function ask_prompt_group() {
 # `--preset <name>` writes them without a hub at all.
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
-  "balanced|everything but the noise: a shorter package check, no desktop notifications|_HI_PACKAGES_MIN_PRIORITY=3 _HI_DISABLE_NOTIFY=1"
-  "minimal|on targets only the colored prompt and the aliases - no header, editors, clipboard or notifications; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_OSC52=1 _HI_DISABLE_NOTIFY=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
+  "minimal|on targets only the colored prompt and the aliases - no header, editors, clipboard or notifications; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_PASSTHROUGH=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the yes/no tables above, plus the one
@@ -841,7 +848,7 @@ function _hi_header_word_desc() {
   arch) printf -v "$2" '%s' "the CPU architecture" ;;
   os) printf -v "$2" '%s' "the OS name/version" ;;
   cores) printf -v "$2" '%s' "core count and load" ;;
-  cpu) printf -v "$2" '%s' "base/boost clock speed" ;;
+  cpu) printf -v "$2" '%s' "clock speed" ;;
   ram) printf -v "$2" '%s' "used/total memory" ;;
   ip) printf -v "$2" '%s' "this box's routable IPv4 address(es)" ;;
   gitid) printf -v "$2" '%s' "your git identity, domain masked" ;;
@@ -946,7 +953,7 @@ function _hi_header_edit_move() {
 function _hi_header_edit_list() {
   local i state desc banner width floor palette iphide on_state="on"
   setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && on_state="off"
-  setting_off _HI_HEADER_BANNER "$_HI_SETTINGS" 0 && state=" " || state="x"
+  setting_off _HI_DISABLE_BANNER "$_HI_SETTINGS" 1 && state=" " || state="x"
   printf '   0) header: %s\n' "$on_state"
   printf '   1) [%s] %-11s %s\n' "$state" banner "the ~~~ Connected [host] ~~~ line - always first"
   for i in "${!_HI_HDR_WORDS[@]}"; do
@@ -971,7 +978,7 @@ function _hi_header_edit_list() {
 
 # The header editor: the real header rendered above a numbered list of
 # everything it can show; every command re-renders. Item 1 is the banner
-# (_HI_HEADER_BANNER - it always leads, so it toggles but never moves), the
+# (_HI_DISABLE_BANNER - it always leads, so it toggles but never moves), the
 # rest are $_HI_HEADER_ORDER's words in the order they will print, 0 is the
 # header itself. The width, the package check's depth and its palette live
 # here too, since the render is what each of them changes.
@@ -994,7 +1001,7 @@ function config_header() {
       _hi_cecho " header: now $state" "$GREEN"
       ;;
     1)
-      _hi_setting_flip _HI_HEADER_BANNER 0 "" state
+      _hi_setting_flip _HI_DISABLE_BANNER 1 "" state
       _hi_cecho " banner: now $state" "$GREEN"
       ;;
     up | u | down | d)

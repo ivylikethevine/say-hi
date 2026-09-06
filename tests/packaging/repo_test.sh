@@ -196,10 +196,10 @@ function test_apk_client_installs_from_the_repository() {
 # upgrade`, `apk add -u`), not with a path to the new file.
 _HI_UPGRADE_CONFIG='
     mkdir -p /etc/say-hi /root/.config/say-hi
-    echo "export _HI_DISABLE_NOTIFY=1" >/etc/say-hi/settings.sh
+    echo "export _HI_DISABLE_PASSTHROUGH=1" >/etc/say-hi/settings.sh
     echo "hostname,prod,red" >/root/.config/say-hi/colors'
 _HI_UPGRADE_ASSERT='
-    grep -q "_HI_DISABLE_NOTIFY=1" /etc/say-hi/settings.sh
+    grep -q "_HI_DISABLE_PASSTHROUGH=1" /etc/say-hi/settings.sh
     grep -q "hostname,prod,red" /root/.config/say-hi/colors
     test -L /usr/bin/hi && test -f /etc/profile.d/say-hi.sh && test -f /usr/share/say-hi/hi.sh'
 

@@ -276,8 +276,7 @@ function _hi_run_scenario() {
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
-    _HI_DISABLE_BAT_ALIAS="${_HI_DISABLE_BAT_ALIAS:-0}" \
-    _HI_DISABLE_LS_ALIASES="${_HI_DISABLE_LS_ALIASES:-0}" \
+    _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
     t1="$(_hi_now)"
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
@@ -341,50 +340,32 @@ function run_flag_tests() {
 # The cat/catn rebind is unconditional once $_HI_BATCAT_BIN resolves to
 # anything - even down to plain cat, its floor - so the guard is tested the
 # same way as _HI_DISABLE_EDITORS's above: does the alias exist at all,
-# regardless of what it would ultimately run.
-function run_bat_alias_flag_tests() {
-  _hi_h1 "_HI_DISABLE_BAT_ALIAS guard"
+# regardless of what it would ultimately run. The one toggle covers the
+# styled exa/eza wrappers too; the *binaries* stay resolvable either way
+# (run_fallthrough_tests already covers that), so the same pass checks that
+# both families go together.
+function run_tool_aliases_flag_tests() {
+  _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
   local shell fakepath
-  fakepath="$(_hi_fake_path fp_batflags cat vi)"
+  fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa)"
 
   for combo in "0 1" "1 0"; do
     # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
     set -- $combo
-    local dba="$1" want_cat="$2"
+    local dta="$1" want="$2"
     for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_BAT_ALIAS="$dba" \
+      _HI_DISABLE_TOOL_ALIASES="$dta" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_BAT_ALIAS=$dba" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want_cat"
-    done
-  done
-}
-
-# Modelled on _HI_DISABLE_BAT_ALIAS above: the exa/eza *binaries* stay
-# resolvable either way (run_fallthrough_tests already covers that), only the
-# styled `exa`/`eza` wrapper aliases go.
-function run_ls_aliases_flag_tests() {
-  _hi_h1 "_HI_DISABLE_LS_ALIASES guard"
-  local shell fakepath
-  fakepath="$(_hi_fake_path fp_lsflags cat vi eza exa)"
-
-  for combo in "0 1" "1 0"; do
-    # shellcheck disable=SC2086 # fixed 2-field combo, splitting is intended
-    set -- $combo
-    local dla="$1" want_eza="$2"
-    for shell in $_HI_INSTALLED_SHELLS; do
-      _HI_DISABLE_LS_ALIASES="$dla" \
-        _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_LS_ALIASES=$dla" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS=1 \
-        _HI_EXPECT_LS_ALIAS="$want_eza"
+        "_HI_DISABLE_TOOL_ALIASES=$dta" \
+        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=1 _HI_EXPECT_CAT_ALIAS="$want" \
+        _HI_EXPECT_LS_ALIAS="$want"
     done
   done
 }
 
 # settings/aliases.sh resolves vim through `command -v nvim || command -v vim`
 # and bat through `command -v bat || command -v batcat`, and scripts/
-# configure.sh's previews (_hi_editors_preview, _hi_bat_alias_preview) spell
+# configure.sh's previews (_hi_editors_preview, _hi_tool_alias_preview) spell
 # the same ladders a second time to show the answer before the toggle is set.
 # Neither file can source the other (see the note above the alias), so nothing
 # but this pins them: a preview that disagrees with the alias it previews is a
@@ -437,8 +418,7 @@ function run_alias_fallthrough_test() {
     test_ladder_matches_the_install_preview 'command -v bat || command -v batcat'
   run_fallthrough_tests
   run_flag_tests
-  run_bat_alias_flag_tests
-  run_ls_aliases_flag_tests
+  run_tool_aliases_flag_tests
   run_overlay_tests
   run_overlay_poisoning_test
   run_overlay_bat_opts_test

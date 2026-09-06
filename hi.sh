@@ -132,8 +132,7 @@ function _hi_target_color() {
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
-  "_HI_DISABLE_OSC52|say-hi/common/osc52.sh|"
-  "_HI_DISABLE_NOTIFY|say-hi/common/notify.sh|"
+  "_HI_DISABLE_PASSTHROUGH|say-hi/common/osc52.sh say-hi/common/notify.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
@@ -843,7 +842,7 @@ function _hi_fallback_prompt() {
   # shellcheck disable=SC2119 # stdout form on purpose
   printf 'PS1=" %s${_hi_u}%s@%s%s%s %s "\n' \
     "$(_hi_user_escape)" "$nc" "$(_hi_color_escape "$(_hi_target_color)")" \
-    "$host" "$nc" "$(_hi_prompt_end SH)"
+    "$host" "$nc" "$(_hi_prompt_end BASH)"
 }
 
 function _hi_size() {

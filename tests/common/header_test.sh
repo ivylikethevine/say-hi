@@ -385,29 +385,6 @@ function test_system_info_cpu_cell_sits_next_to_cores() {
     ((cores_pos < cpu_pos)) && ((cpu_pos < ram_pos))
 }
 
-# _hi_cpu_clocks' own contract: two numbers only when there is a real range
-# to show, one otherwise - system_info's probe results are out of its
-# control, so this is what actually pins the collapse behavior
-function test_hi_cpu_clocks_shows_both_when_they_differ() {
-  [ "$(_hi_cpu_clocks 2.8 4.5)" = "2.8/4.5" ]
-}
-
-function test_hi_cpu_clocks_collapses_when_equal() {
-  [ "$(_hi_cpu_clocks 3.0 3.0)" = "3.0" ]
-}
-
-function test_hi_cpu_clocks_collapses_when_boost_missing() {
-  [ "$(_hi_cpu_clocks 2.8 "")" = "2.8" ]
-}
-
-function test_hi_cpu_clocks_falls_back_to_boost_when_base_missing() {
-  [ "$(_hi_cpu_clocks "" 4.5)" = "4.5" ]
-}
-
-function test_hi_cpu_clocks_question_mark_when_both_missing() {
-  [ "$(_hi_cpu_clocks "" "")" = "?" ]
-}
-
 # _hi_ghz's own contract, from its comment: rounded to tenths *before*
 # splitting, so a carry lands in the whole-GHz digit (2950 -> 3.0) rather than
 # spilling into a second decimal (2.10) - _hi_cpu_clocks' cases above only
@@ -647,23 +624,14 @@ function test_passthrough_quiet_without_tmux_in_the_env() {
   [ -z "$out" ]
 }
 
-# ...and nothing to warn about once both features it is about are off. Either
-# one still on keeps the line, since either one alone is muted by the same
-# option.
-function test_passthrough_quiet_when_both_features_are_off() {
+# ...and nothing to warn about once the two features it is about are off -
+# hi_copy and hi_notify share the one toggle, since the same option mutes both
+function test_passthrough_quiet_when_the_features_are_off() {
   local out
   out="$(PATH="$(_hi_tmux_shim off off):$PATH" TMUX="/tmp/tmux-0/default,1,0" \
-  _HI_DISABLE_OSC52=1 _HI_DISABLE_NOTIFY=1 \
+  _HI_DISABLE_PASSTHROUGH=1 \
     bash -c 'source "$_HI_HEADER"; passthrough_check' 2>&1)"
   [ -z "$out" ]
-}
-
-function test_passthrough_warns_with_only_notify_on() {
-  local out
-  out="$(PATH="$(_hi_tmux_shim off off):$PATH" TMUX="/tmp/tmux-0/default,1,0" \
-  _HI_DISABLE_OSC52=1 \
-    bash -c 'source "$_HI_HEADER"; passthrough_check' 2>&1)"
-  [[ "$out" == *"allow-passthrough on"* ]]
 }
 
 # it rides the header rather than standing on its own, and last: the line that
@@ -809,14 +777,14 @@ function test_identity_shows_pods_count_when_kube_found() {
 
 function test_banner_disabled_produces_no_output() {
   local out
-  out="$(_HI_HEADER_BANNER=0 banner TestBanner)"
+  out="$(_HI_DISABLE_BANNER=1 banner TestBanner)"
   [ -z "$out" ]
 }
 
 # guards the default: the toggle is opt-out, so an unset var must still print
 function test_banner_prints_when_toggle_unset() {
   local out
-  out="$(unset _HI_HEADER_BANNER && banner TestBanner)"
+  out="$(unset _HI_DISABLE_BANNER && banner TestBanner)"
   [[ "$out" == *"TestBanner"* ]]
 }
 
@@ -935,7 +903,7 @@ function test_banner_branch_shrinks_padding() {
 # rest of the header alone, unlike _HI_DISABLE_HEADER which kills all of it
 function test_hi_header_banner_off_keeps_detail_lines() {
   local out
-  out="$(_HI_HEADER_BANNER=0 hi_header Connected)"
+  out="$(_HI_DISABLE_BANNER=1 hi_header Connected)"
   [[ "$out" != *"Connected"* && "$out" == *"Cores:"* && "$out" == *"RAM:"* ]]
 }
 
@@ -1158,10 +1126,8 @@ function _hi_platform_header() {
     bash -c 'source "$_HI_HEADER"; _HI_LINUX_RELEASE=/nonexistent; eval "$_HI_CASE_PROBE"' 2>&1
 }
 
-# an Apple Silicon mac: sysctl has no hw.cpufrequency (the probe answers
-# nothing, so the ioreg arm runs), vm_stat's page size is 16K and read from
-# its own header, and the sram voltage-states word is little-endian
-# (0x00b8dcd0 read backwards is 0xd0dcb800 = 3,504,000,000 Hz)
+# an Apple Silicon mac: sysctl has no hw.cpufrequency (the cpu cell fails
+# closed to "?"), and vm_stat's page size is 16K and read from its own header
 function _hi_mac_shims() {
   local dir="$_HI_WORKDIR/mac-shims"
   if [ ! -d "$dir" ]; then
@@ -1193,10 +1159,6 @@ printf '%s\n' 'lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384' \
   'en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500' \
   '	inet6 fe80::1%en0 prefixlen 64 secured scopeid 0x4' \
   '	inet 192.0.2.10 netmask 0xffffff00 broadcast 192.0.2.255'
-EOF
-    cat >"$dir/ioreg" <<'EOF'
-#!/bin/sh
-printf '%s\n' '    | |   "voltage-states5-sram" = <00b8dcd000e1f505>'
 EOF
     chmod +x "$dir"/*
   fi
@@ -1233,9 +1195,9 @@ function test_system_info_on_a_mac() {
   local out
   out="$(_hi_platform_header "$(_hi_mac_shims)" 'system_info')"
   # used = (200000 + 50000 + 12500) pages * 16K = 4.0G of 16G; 2.00 on 8
-  # cores is 25%; the boost clock is ioreg's, sysctl having answered none
+  # cores is 25%; sysctl answered no clock, so the cpu cell fails closed
   [[ "$out" == *"macOS 15.1"* && "$out" == *"arm64"* && "$out" == *"Cores: 8 (25%)"* &&
-    "$out" == *"RAM: 4/16G"* && "$out" == *"CPU: 3.5 GHz"* ]] || {
+    "$out" == *"RAM: 4/16G"* && "$out" == *"CPU: ? GHz"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
   }
@@ -1255,7 +1217,7 @@ function test_uptime_and_ip_cells_on_a_mac() {
 function test_system_info_on_windows() {
   local out
   out="$(_hi_platform_header "$(_hi_windows_shims)" 'system_info' NUMBER_OF_PROCESSORS=4)"
-  # wmic only exposes the rated clock, so one figure, never a base/boost pair
+  # wmic exposes the rated clock
   [[ "$out" == *"Windows (MINGW64_NT-10.0-22631)"* && "$out" == *"Cores: 4"* &&
     "$out" == *"RAM: 16G"* && "$out" == *"CPU: 2.4 GHz"* ]] || {
     _hi_cecho " | got: $out" "$RED"
@@ -1360,35 +1322,6 @@ function test_system_info_with_no_kernel_and_no_release_says_unknown() {
   local out
   out="$(_hi_platform_header "$(_hi_fake_path no-kernel-tools true)" 'system_info')"
   [[ "$out" == *"?"* && "$out" != *"macOS"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
-}
-
-# the ioreg probe on its own: the parsed clock, and the bound that keeps a
-# hung ioreg (a documented risk under macOS virtualization) from stalling
-# the header - killed after a second, the cell left empty
-function test_apple_silicon_boost_parses_ioreg() {
-  local out
-  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_apple_silicon_boost_mhz v; printf "%s" "${v:-none}"')"
-  [ "$out" = 3504 ]
-}
-
-function test_apple_silicon_boost_gives_up_on_a_hung_ioreg() {
-  local dir="$_HI_WORKDIR/hung-ioreg" out t0 t1
-  mkdir -p "$dir"
-  # exec: the shim *is* the hung process, so the SIGKILL lands on the sleep
-  # rather than on a wrapper shell that would leave it running as an orphan
-  printf '#!/bin/sh\nexec sleep 30\n' >"$dir/ioreg"
-  chmod +x "$dir/ioreg"
-  t0="$(_hi_now)"
-  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_apple_silicon_boost_mhz v; printf "%s" "${v:-none}"')"
-  t1="$(_hi_now)"
-  [ "$out" = none ] || {
-    _hi_cecho " | expected no clock, got: $out" "$RED"
-    return 1
-  }
-  # the loop's budget is 1s; anything near sleep's 30 means it waited
-  [ "$(_hi_elapsed "$t0" "$t1" | cut -d. -f1)" -lt 5 ]
 }
 
 # --- the row painter's two width-neutral switches -----------------------
@@ -2019,7 +1952,7 @@ function run_header_tests() {
   _hi_check "Survives a narrow _HI_MAX_WIDTH" test_banner_narrow_width_does_not_error
   _hi_check "ASCII fallback swaps the arrow" test_banner_ascii_fallback_uses_caret
   _hi_check "...and the marks with it" test_marks_swap_to_ascii_with_the_set
-  _hi_check "No output when _HI_HEADER_BANNER=0" test_banner_disabled_produces_no_output
+  _hi_check "No output when _HI_DISABLE_BANNER=1" test_banner_disabled_produces_no_output
   _hi_check "Still prints when the toggle is unset" test_banner_prints_when_toggle_unset
   _hi_check "Change count is computed once per session" test_banner_change_count_is_computed_once
   _hi_check "No count without a .git dir" test_banner_omits_the_count_without_a_git_dir
@@ -2048,11 +1981,6 @@ function run_header_tests() {
   _hi_check "System_info no longer shows uptime" test_system_info_no_longer_shows_uptime
   _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
   _hi_check "System_info's CPU cell sits next to Cores:" test_system_info_cpu_cell_sits_next_to_cores
-  _hi_check "_hi_cpu_clocks shows both when they differ" test_hi_cpu_clocks_shows_both_when_they_differ
-  _hi_check "...collapses when equal" test_hi_cpu_clocks_collapses_when_equal
-  _hi_check "...collapses when boost is missing" test_hi_cpu_clocks_collapses_when_boost_missing
-  _hi_check "...falls back to boost when base is missing" test_hi_cpu_clocks_falls_back_to_boost_when_base_missing
-  _hi_check "...? when both are missing" test_hi_cpu_clocks_question_mark_when_both_missing
   _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
   _hi_check "...rounds to a whole percent" test_hi_load_pct_rounds_to_a_whole_percent
@@ -2090,8 +2018,6 @@ function run_header_tests() {
   _hi_check "The ip cell is empty when every address is hidden" test_ip_cell_is_empty_when_every_address_is_hidden
   _hi_check "The header omits a hidden ip cell" test_header_omits_the_ip_cell_when_hidden
   _hi_check "System_info with no kernel and no os-release says ?" test_system_info_with_no_kernel_and_no_release_says_unknown
-  _hi_check "Apple Silicon boost parses ioreg's little-endian word" test_apple_silicon_boost_parses_ioreg
-  _hi_check "...and gives up on a hung ioreg inside a second" test_apple_silicon_boost_gives_up_on_a_hung_ioreg
   _hi_check "_HI_NO_LEAD_SPACE drops only the leading space" test_no_lead_space_drops_only_the_leading_space
   _hi_check "...on the packages check too" test_no_lead_space_applies_to_the_packages_check
   _hi_check "A row with no cells prints a bare line" test_header_row_with_no_cells_prints_a_bare_line
@@ -2141,8 +2067,7 @@ function run_header_tests() {
   _hi_check "Quiet with passthrough all" test_passthrough_quiet_when_all
   _hi_check "Quiet on a tmux too old for the option" test_passthrough_quiet_on_an_old_tmux
   _hi_check "Quiet with no tmux in the environment" test_passthrough_quiet_without_tmux_in_the_env
-  _hi_check "Quiet once both features are off" test_passthrough_quiet_when_both_features_are_off
-  _hi_check "Warns with only hi_notify left on" test_passthrough_warns_with_only_notify_on
+  _hi_check "Quiet once the features are off" test_passthrough_quiet_when_the_features_are_off
   _hi_check "The line is the header's last" test_passthrough_line_reaches_the_header
 
   _hi_h2 "Testing: check_line"

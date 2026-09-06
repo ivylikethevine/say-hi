@@ -243,7 +243,7 @@ everything weighed and answered **no**, and why.
   ssh host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
-  there is no `hi --tmux` ([why](docs/SUPPORT.md#features-that-were-removed)).
+  there is no `hi --tmux` ([why](docs/SUPPORT.md#what-would-change-an-answer)).
   For anything you would hate to lose to a flaky link, start `hi` inside
   `tmux` or `screen` **on this machine**: the local multiplexer survives the
   drop, and reconnecting is another `hi <target>`
@@ -368,14 +368,14 @@ questions decided against are **deleted**: git history is the ledger.
 
 2. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
        on access to real appliance hardware, which nothing in this checkout
-       supplies._ SUPPORT.md's NAS rows read 🟡 ("full session expected...
-       nobody has run it on the appliance") — plain disposable `hi` isn't even
+       supplies._ SUPPORT.md's NAS row reads 🟡 ("full session expected...
+       nobody has run it on an appliance") — plain disposable `hi` isn't even
        confirmed there yet, before a permanent-install recipe is worth
        writing to spare a slow link the ~48KB-a-connect payload. **Do:** get
        `hi <target>` working once on a real DSM, QTS, SCALE, Unraid or CORE
        box and flip that row to ✅; only then is `scripts/install.sh --prefix`
        (or a package, where one exists for the platform) worth walking
-       end-to-end and writing up. **Ticks when:** one NAS row is ✅ and the
+       end-to-end and writing up. **Ticks when:** the NAS row carries a ✅ and the
        recipe is linked from it.
 
 3. [ ] **AUR** — _scope: nothing until registration reopens; then an
@@ -394,7 +394,7 @@ questions decided against are **deleted**: git history is the ledger.
        twelve, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
        count), target-name sanitization, a suite, docs._ The target-side
        version of this shipped, then was removed and declined
-       ([why](docs/SUPPORT.md#features-that-were-removed)) — a disposable
+       ([why](docs/SUPPORT.md#what-would-change-an-answer)) — a disposable
        tree cannot outlive its own session. Today's workaround is manual:
        start `hi` inside your own `tmux`/`screen` ([README](#in-sixty-seconds)).
        This automates that one step, entirely client-side, no target-side
