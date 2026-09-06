@@ -106,7 +106,6 @@ function _hi_shquote() {
 # The client-derived env both transports export into the session, one
 # NAME<TAB>value pair per line (_hi_env_each renders it per transport)
 function _hi_session_env() {
-  printf '_HI_TARGET\t%s\n' "$DOMAIN"
   printf '_HI_TARGET_COLOR\t%s\n' "$(_hi_target_color)"
   printf '_HI_TARGET_TAG\t%s\n' "$(_hi_ssh_host_tag "$DOMAIN" 2>/dev/null || true)"
   printf '_HI_LOCAL_USER\t%s\n' "$(_hi_whoami)"
@@ -948,6 +947,10 @@ REMOTE
 # there rather than in the shared rc, which also feeds fish (no PS1) and zsh
 # (a different \$ escape).
 function _hi_remote_suffix() {
+  # the target as typed, single-quoted here so the fallback line below can
+  # name it without the session carrying a variable for it
+  local target_q
+  _hi_shquote target_q "$DOMAIN"
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
       if command -v bash >/dev/null 2>&1; then
@@ -955,7 +958,7 @@ function _hi_remote_suffix() {
       else
         _hi_fallback=sh
         $(_hi_ladder_probe '_hi_fallback="$_hi_s"')
-        printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$hi_esc" "\$_HI_TARGET" "\$_hi_fallback" "$nc_esc" >&2
+        printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$hi_esc" $target_q "\$_hi_fallback" "$nc_esc" >&2
         $(_hi_fallback_rc | _hi_armored_line '>' '"$_hi_rc_dir/.hi_fallback_rc"')
         case "\$_hi_fallback" in
         zsh)
@@ -1515,6 +1518,10 @@ function _hi_pick_target() {
 
 function _hi_parse() {
   local backend_word use_word
+  # every result of the parse starts empty here: these are plain globals, and
+  # an inherited MUX=1 or PLAIN=1 in the environment must not stand in for a
+  # flag that was never typed
+  DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
   SSHARGS=()
   while [ $# -gt 0 ]; do
     case $1 in

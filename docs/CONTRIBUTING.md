@@ -152,13 +152,13 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The fourteen flags in `common/flags`** — name, argument shape and what
+- **The thirteen flags in `common/flags`** — name, argument shape and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
   type and default. A toggle that has to go **warns for one minor release**
-  (`hi --doctor` and the session header both say so), then is removed in the
-  next.
+  (`hi --doctor` and the session header both say so, off `common/core.sh`'s
+  `_HI_RETIRED_SETTINGS` roster), then is removed in the next.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `vim.rc`, `nano.rc`, `aliases.sh` and the per-shell rc files), their
   formats, the XDG path and the `_HI_CONFIG_DIR` / `_HI_COLORS` /

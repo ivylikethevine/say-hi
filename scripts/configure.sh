@@ -21,7 +21,7 @@
 
 # The live previews borrow header.sh's hi_header/banner/full_check and
 # git_prompt.sh's segment. Sourced on first use rather than up top:
-# --uninstall, --check-configs, --overlay-init and packaging mode never
+# --uninstall, --check-configs and packaging mode never
 # render one, and never need $_HI_HEADER_ORDER_DEFAULT either.
 function _hi_load_preview_sources() {
   [ -n "${_hi_previews_loaded:-}" ] && return 0
@@ -1412,58 +1412,22 @@ function settings_diff_report() {
   return 0
 }
 
-# `hi --overlay-init` - seed and version the overlay where it lives. A repo
-# *in* $_HI_CONFIG_DIR versions exactly the files that are the user's, and
-# dodges the checkout's own .git (hi --update reads $_HI_ROOT/.git as "this is
-# a checkout"). Owns seed-init-and-commit and no more: sync, merge and secrets
-# are a dotfile manager's job, and the README's alternatives section says so.
-# The initial commit keeps --allow-empty for the tree a packager stripped the
-# defaults from - an unconfigured overlay still starts tracking.
-#
-# The seed copies the shipped defaults in for the files the user has none of,
-# so a fresh overlay starts with real files to edit rather than a scavenger
-# hunt through the tree; a file already present is never touched, and re-runs
-# never reach the loop (the already-tracked return above it). The copies stop
-# tracking what `hi --update` delivers - SETTINGS.md says so.
-function overlay_init() {
-  command -v git >/dev/null 2>&1 || {
-    _hi_cecho " git is not installed - nothing to init with" "$RED"
-    return 1
-  }
-  mkdir -p "$_HI_CONFIG_DIR"
-  if [ -d "$_HI_CONFIG_DIR/.git" ]; then
-    _hi_cecho " $_HI_CONFIG_DIR is already tracked ($(git -C "$_HI_CONFIG_DIR" rev-list --count HEAD 2>/dev/null || echo 0) commits) :)" "$GREEN"
-    return 0
-  fi
+# The overlay half of `hi --install`: copy the shipped defaults in for the
+# files the user has none of, so a fresh overlay starts with real files to
+# edit rather than a scavenger hunt through the tree. A file already present
+# is never touched, so a re-run seeds nothing new. A seeded copy stops
+# tracking what `hi --update` delivers for that file - SETTINGS.md says so.
+# Versioning the directory is the user's own business (a dotfile manager, or
+# a `git init` of their own); hi neither inits nor commits there.
+function overlay_seed() {
   local _hi_seed seeded=""
+  mkdir -p "$_HI_CONFIG_DIR"
   for _hi_seed in colors packages vim.rc nano.rc; do
     [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
     [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
     cp "$_HI_ROOT/settings/$_hi_seed" "$_HI_CONFIG_DIR/$_hi_seed" && seeded="$seeded $_hi_seed"
   done
-  [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults:$seeded" "$BLUE"
-  git -C "$_HI_CONFIG_DIR" init -q || return 1
-  # a repo-local identity only when the user has none - a committed overlay
-  # must not fail on a fresh machine that never ran `git config`
-  git -C "$_HI_CONFIG_DIR" config user.email >/dev/null 2>&1 || {
-    git -C "$_HI_CONFIG_DIR" config user.name "say-hi"
-    git -C "$_HI_CONFIG_DIR" config user.email "say-hi@localhost"
-  }
-  git -C "$_HI_CONFIG_DIR" add -A &&
-    git -C "$_HI_CONFIG_DIR" commit -q --allow-empty -m "say-hi overlay: initial commit" || return 1
-  _hi_cecho " $_HI_CONFIG_DIR is now a git repo - push it wherever you like (git remote add ...)" "$GREEN"
-}
-
-# The quiet half of overlay_init's contract: when - and only when - the
-# overlay is a repo, every settings write becomes history. An overlay that
-# was never inited never hears about git, and a failed commit never fails
-# the configure that triggered it.
-function overlay_commit() {
-  [ -d "$_HI_CONFIG_DIR/.git" ] || return 0
-  command -v git >/dev/null 2>&1 || return 0
-  git -C "$_HI_CONFIG_DIR" add -A >/dev/null 2>&1 || return 0
-  git -C "$_HI_CONFIG_DIR" diff --cached --quiet 2>/dev/null && return 0
-  git -C "$_HI_CONFIG_DIR" commit -q -m "hi --configure: settings update" >/dev/null 2>&1 || true
+  [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults into $_HI_CONFIG_DIR:$seeded" "$BLUE"
   return 0
 }
 
@@ -1497,5 +1461,4 @@ function run_configure() {
   # every setting at its default leaves exactly that - no lines to write.
   config_shell settings "$_HI_SETTINGS" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}
   settings_diff_report
-  overlay_commit
 }

@@ -25,7 +25,7 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-configure
 .RB [ \-\-preset " " \fIname\fR]
 .br
-.BR "hi \-\-uninstall" " | " \-\-overlay\-init " | " \-\-update " [" \fIref\fR "] [" \fIgit\-pull\-options\fR "]"
+.BR "hi \-\-uninstall" " | " \-\-update " [" \fIref\fR "] [" \fIgit\-pull\-options\fR "]"
 .br
 .BR "hi \-\-preview\-colors" " | " \-\-preview\-packages
 .br
@@ -276,7 +276,10 @@ Exits 1 on any finding (see
 .BR "EXIT STATUS" ).
 .TP
 .B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-no\-link\fR] [\fB\-\-prefix\fR \fIdir\fR]
-install or repair say-hi's lines in your shell rc files, asking before each.
+install or repair say-hi's lines in your shell rc files, asking before each,
+and seed the config overlay at
+.B ~/.config/say-hi/
+with the shipped defaults (files already there are never touched).
 .B \-\-yes
 answers every prompt yes;
 .B \-\-no\-link
@@ -288,7 +291,13 @@ symlink into
 is packaging mode \- stage the tree under
 .I dir
 and write nothing to a home \- which the package builds use and a user never
-needs.
+needs. The script behind it,
+.BR scripts/install.sh ,
+also takes
+.BR \-\-check\-configs ,
+the same read\-only pre\-flight over your rc files and overlay that
+.B \-\-doctor
+reports, as an exit status alone.
 .TP
 .B \-\-uninstall
 take those lines back out again. The tree itself is left where it is.
@@ -305,12 +314,6 @@ before either.
 .B \-\-preset
 .I name
 applies one without the menu.
-.TP
-.B \-\-overlay\-init
-seed the config overlay at
-.B ~/.config/say-hi/
-with the shipped defaults (files already there are never touched) and make it
-a git repo, in place, so it carries history.
 .TP
 .B \-\-update \fR[\fIref\fR] [\fIgit\-pull\-options\fR]
 .B git pull

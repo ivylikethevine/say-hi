@@ -23,6 +23,5 @@
 --install|[--yes] [--no-link] [--prefix <dir>]|scripts|_HI_INSTALL||install or repair say-hi's lines in your shell rc files
 --uninstall||scripts|_HI_INSTALL|--uninstall|take those lines back out again
 --configure|[--preset <name>]|scripts|_HI_INSTALL|--features-only|revisit the settings, leaving the rc wiring be
---overlay-init||scripts|_HI_INSTALL|--overlay-init|seed the config overlay with defaults, git it in place
 --preview-colors||scripts|_HI_COLOR_PREVIEW||every ssh host and your user, in their resolved colors
 --update|[<ref>] [git-pull-options]|git|||pull the checkout, or move to a tag/branch (needs .git)

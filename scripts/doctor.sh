@@ -317,13 +317,6 @@ function doctor_config() {
       doctor_row "$f" "tree default"
     fi
   done
-  # whether the overlay has history - hi --overlay-init's optional-and-quiet
-  # contract means untracked is a state, not a problem
-  if [ -d "$_HI_CONFIG_DIR/.git" ]; then
-    doctor_row versioning "tracked ($(git -C "$_HI_CONFIG_DIR" rev-list --count HEAD 2>/dev/null || echo 0) commits)" ok
-  else
-    doctor_row versioning "untracked (hi --overlay-init gives it history)"
-  fi
   # only the non-default settings: a default setup stays one quiet line
   for t in "${_HI_TOGGLES[@]}"; do
     eval "v=\${$t:-0}"
@@ -332,6 +325,12 @@ function doctor_config() {
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
+  # a retired name still exported is a warning, not a finding: it is ignored
+  local r
+  while IFS='|' read -r r v why; do
+    [ -n "$r" ] || continue
+    doctor_row retired "$r is set but retired since $v ($why); it is ignored" warn
+  done < <(_hi_retired_set)
 }
 
 # The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS

@@ -351,7 +351,7 @@ function test_a_stray_argument_is_refused() {
 function test_h_flag_prints_the_same_usage() {
   local out
   # shellcheck source=../../scripts/color_preview.sh
-  out="$( (source "$_HI_COLOR_PREVIEW" -h))" || return 1
+  out="$( (source "$_HI_COLOR_PREVIEW" -h) )" || return 1
   [[ "$out" == 'Usage: color_preview.sh'* ]]
 }
 

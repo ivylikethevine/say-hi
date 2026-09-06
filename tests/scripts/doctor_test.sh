@@ -195,22 +195,6 @@ function test_config_flags_a_settings_file_that_does_not_parse() {
   [[ "$out" == *"does NOT parse as sh"* ]]
 }
 
-# an overlay hi --overlay-init has versioned reports its history
-function test_config_reports_a_tracked_overlay_with_its_commit_count() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/tracked.XXXXXX")"
-  git -C "$dir" init -q &&
-    printf 'a\n' >"$dir/colors" &&
-    git -C "$dir" add colors &&
-    git -C "$dir" -c user.name=suite -c user.email=suite@example.invalid commit -q -m one || return 1
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
-  [[ "$out" == *"tracked (1 commits)"* ]]
-}
-
 function test_config_counts_an_overlay_file() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
@@ -542,6 +526,15 @@ function test_plain_flag_is_accepted_on_the_text_report() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
 
+# a retired name still exported is a warn row that names the release and the
+# reason, and never a finding
+function test_config_warns_about_a_retired_setting() {
+  local out rc=0
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_EZA_OPTS_SIZE=x "$_HI_DOCTOR")" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_EZA_OPTS_SIZE is set but retired since 0.1.9"* ]]
+}
+
 function test_help_exits_zero() {
   "$_HI_DOCTOR" --help >/dev/null
 }
@@ -720,7 +713,6 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
-  _hi_check_requires git "A tracked overlay reports its commit count" test_config_reports_a_tracked_overlay_with_its_commit_count
   _hi_check "The system layer gets a row" test_config_reports_the_system_layer
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
@@ -751,6 +743,7 @@ function run_doctor_tests() {
   _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
   _hi_h2 "Testing: the report"
+  _hi_check "A retired setting is a warn row" test_config_warns_about_a_retired_setting
   _hi_check "--help exits zero" test_help_exits_zero
   _hi_check "--help names what was typed" test_help_names_what_was_typed
   _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target

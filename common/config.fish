@@ -52,7 +52,7 @@ source $_HI_ALIASES
 # command runs. GLOSSARY: HI.47
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_CONTAINER_CLIS _HI_RECENT _HI_RECENT_FILE
-set -g _HI_SESSION_VARS _HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
+set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
     _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
 function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
   for __hi_n in $_HI_SESSION_VARS

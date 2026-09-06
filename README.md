@@ -40,7 +40,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 means](#what-v100-means)
-  - [By scope](#by-scope)
+  - [Post 1.0](#post-10)
 
 ### Additional Documentation
 
@@ -54,7 +54,7 @@ the OpenSSF answer sheet.
 
 ```sh
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi
-~/say-hi/scripts/install.sh    # wires your rc files, asks about each feature
+~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu
 exec $SHELL                    # reload
 hi <anything>                   # ssh, with your prompt, aliases and editors along
 ```
@@ -228,20 +228,21 @@ everything weighed and answered **no**, and why.
 - reload your shell!
 - `hi --configure` opens a menu over a live preview of the header and
   prompt: pick a preset (`everything`, `balanced`, `minimal`), or open a
-  section - Header, Features, Prompt, Advanced - and save.
+  section - Header, Features, Prompt, Advanced, Colors - and save.
   `hi --configure --preset <name>` skips the menu. Answers land in
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- [optional] `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
-  on `hi --configure` commits its own writes. [docs/SETTINGS.md](docs/SETTINGS.md).
+- the install also seeds `~/.config/say-hi` with the shipped defaults, for
+  the files you have none of - yours to edit, and to version however you
+  keep your dotfiles. [docs/SETTINGS.md](docs/SETTINGS.md).
 - `hi --doctor [<target>]` when something is slow or failing to help diagnose.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
   `sk` if you have one, a numbered menu if not. GIF:
   [no target at all](#no-target-at-all).
 - [optional] configure `~/.ssh/config` tags via sshm
-- [optional] pin colors in `~/.config/say-hi/colors` (copy
-  `say-hi/settings/colors` to start); `hi --preview-colors` shows what every
-  ssh host and your user resolve to.
+- [optional] pin colors in `~/.config/say-hi/colors` (the install seeded it
+  from `say-hi/settings/colors`); `hi --preview-colors` shows what every ssh
+  host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
   there is no `hi --tmux` ([why](docs/SUPPORT.md#what-would-change-an-answer)).
@@ -251,7 +252,7 @@ everything weighed and answered **no**, and why.
   ([how it works](docs/SETTINGS.md#how-it-works)). `hi --mux <target>` (or
   `_HI_MUX=1`) does that step for you: one local tmux session per target,
   and a repeat reattaches instead of opening a second.
-- done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
+- done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. Left behind, on purpose: the checkout (or the
   package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
@@ -280,8 +281,8 @@ every toggle and every environment variable are in
 `hi` to, so a token, an internal hostname or a private path in your
 `aliases.sh` lands on each of them. See [docs/SECURITY.md](docs/SECURITY.md)._**
 
-By default hi writes nothing to a target outside its own temp directory.
-The two opt-in settings that change that are in
+hi writes nothing to a target outside its own temp directory, and removes
+that on exit:
 [What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, Username, and Group/Tag Colors
@@ -316,7 +317,7 @@ How say-hi compares to similar tools, and when to use something else:
 
 `tests/test_runner.sh` runs the suite with a
 colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
-side) then `--group lint` on every push/PR. Runbook:
+side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
 [docs/TESTING.md](docs/TESTING.md).
 
 ![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
@@ -346,10 +347,9 @@ myself.
 
 ## Roadmap
 
-What's left, in one list ordered by **ascending scope** — the smallest work
-first. Every entry is open for consideration; nothing here is parked or
-descoped. Finished entries and
-questions decided against are **deleted**: git history is the ledger.
+What's left. Every entry is open for consideration; nothing here is parked
+or descoped. Finished entries and questions decided against are **deleted**:
+git history is the ledger.
 
 ### What v1.0.0 Means
 
@@ -361,51 +361,20 @@ questions decided against are **deleted**: git history is the ledger.
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises (the **Flip to stable** entry).
 
-### By Scope
-
-1. [ ] **NAS permanent-install recipe** — _scope: one docs section, drafted
-       and unverified; blocked on access to real appliance hardware, which
-       nothing in this checkout supplies._ SUPPORT.md's NAS row reads 🟡
-       ("full session expected... nobody has run it on an appliance") and
-       [A permanent install on a NAS](docs/SUPPORT.md#a-permanent-install-on-a-nas)
-       is written from the install path, marked untested: the tree in the
-       user's home on the data volume, `scripts/install.sh --no-link`, never
-       `--prefix` (firmware owns `/usr/bin` and `/etc/profile.d`). **Do:**
-       get `hi <target>` working once on a real DSM, QTS, SCALE, Unraid or
-       CORE box, then walk the recipe there and fix what it gets wrong.
-       **Ticks when:** the NAS row carries a ✅ and the recipe has been run on
-       one appliance.
-
-2. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --preview-colors`
-       and `hi --preview-packages` per scheme on a light and a dark
-       terminal._ `_HI_COLOR_SCHEME` (`catppuccin`, `monokai`, `onedark`,
-       `vscode`) renders the twelve palette names as that scheme's truecolor
-       wherever hi paints, behind a `COLORTERM` check so a plain terminal
-       keeps its sixteen, with its `docs/SETTINGS.md` row and `hi
- --configure`'s Colors section. **Do:** run both previews under each
-       scheme on both backgrounds and retune any hex that reads wrong.
-       **Ticks when:** all four schemes read monotonic 0-3 in
-       `--preview-packages` and legibly in `--preview-colors` on both.
-
 ### Post 1.0
 
 Outside this checkout, and not what the tag waits on: each is an account or
 an upstream review that lands when it lands.
 
-1. [ ] **tldr page** — _scope: one upstream pull request; outside this
-       checkout._ CLI surface is frozen (thirteen flags, CI-enforced both ways
-       by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
+1. [ ] **tldr page** — CLI surface is frozen, matches the hi.1, and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **AUR** — _scope: nothing until registration reopens; then an
-       account, a key, and one manual first push; outside this checkout._
-       Registration is closed to new accounts (spam), and
+2. [ ] **AUR** — Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
        until it reopens. **When it reopens:** register; generate an ed25519
        key, add the private half as the `AUR_SSH_KEY` repo secret; the first
-       push per package is manual (namcap gate against the published
-       source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
+       push per package is manual, and dispatching
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release. <https://archlinux.org/news/>

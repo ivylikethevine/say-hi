@@ -996,9 +996,8 @@ function _hi_subcmd_stubs() {
   local home stub dir
   home="$(_hi_subcmd_home subcmd-stubs)"
   mkdir -p "$home/say-hi/scripts" "$home/say-hi/tests"
-  for stub in install:scripts/install.sh uninstall:scripts/uninstall.sh \
-    color_preview:scripts/color_preview.sh doctor:scripts/doctor.sh \
-    packages_preview:scripts/packages_preview.sh test_runner:tests/test_runner.sh; do
+  for stub in install:scripts/install.sh color_preview:scripts/color_preview.sh \
+    doctor:scripts/doctor.sh packages_preview:scripts/packages_preview.sh; do
     dir="$home/say-hi/${stub#*:}"
     printf '#!/bin/sh\nprintf %s\nfor a in "$@"; do printf " %%s" "$a"; done\nprintf "\\n"\n' \
       "'STUB ${stub%%:*}'" >"$dir"
@@ -1017,8 +1016,7 @@ function _hi_subcmd_run() {
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag out
   home="$(_hi_subcmd_home subcmd-bare)"
-  for flag in --install --uninstall --configure --overlay-init \
-    --preview-colors --doctor; do
+  for flag in --install --uninstall --configure --preview-colors --doctor; do
     out="$(_hi_subcmd_run "$home" "$flag")" && {
       _hi_cecho " | $flag exited 0 without a checkout" "$RED"
       return 1
@@ -1163,7 +1161,6 @@ function test_local_subcommands_exec_the_right_script() {
     '--install|STUB install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
-    '--overlay-init|STUB install --overlay-init' \
     '--preview-colors|STUB color_preview' \
     '--preview-packages|STUB packages_preview' \
     '--doctor|STUB doctor'; do

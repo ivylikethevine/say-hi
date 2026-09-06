@@ -333,9 +333,9 @@ function lint_glossary_tags() {
 # The vocabulary a `settings.sh` may use has to be written down where a user
 # looks for it, and the tree is where it actually lives - in three places, at
 # that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
-# `scripts/install.sh`'s `_HI_FEATURE_PROMPTS` and `_HI_HEADER_PROMPTS` are the
-# questions `hi --configure` asks and the lines it writes. A name goes into any
-# of the three without a thought for the docs, which is how "what can I set?"
+# `scripts/configure.sh`'s `_HI_*_PROMPTS` tables and its `_hi_collect_value`
+# calls are the questions `hi --configure` asks and the lines it writes. A
+# name goes into any of the three without a thought for the docs, which is how "what can I set?"
 # stopped being answerable from one place; this is what makes SETTINGS.md's
 # roster derived rather than hand-kept.
 #
@@ -360,15 +360,18 @@ function lint_settings_table() {
   [ "$bad" -eq 0 ] && _hi_align " | every setting the tree defines has a row" "OK" "$GREEN"
 
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
-  # a row for a variable nothing reads any more. Names hi assembles at run time
-  # never appear whole in the tree - core.sh reads `_HI_PROMPT_END_$1` through
-  # an eval - so a miss retries against the literal prefix up to the last `_`
-  # before it is called a failure.
+  # a row for a variable nothing reads any more. A *read* - `$NAME`, `${NAME`,
+  # fish's `$$NAME` or `set -q NAME` - not any mention: an assignment or a
+  # comment kept _HI_EZA_OPTS_SIZE green for months after its last reader
+  # went. Names hi assembles at run time never appear whole in the tree -
+  # core.sh reads `_HI_PROMPT_END_$1` through an eval - so a miss retries
+  # against the literal prefix up to the last `_` before it is called a
+  # failure.
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local tree stale=0 stem
-  tree="$(grep -rhoE '_HI_[A-Z0-9_]+' "$_HI_ROOT/common" "$_HI_ROOT/settings" \
-    "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
-    2>/dev/null | sort -u)"
+  tree="$(grep -rhoE '(\$\{?|\$\$|set -q )_HI_[A-Z0-9_]+' "$_HI_ROOT/common" \
+    "$_HI_ROOT/settings" "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    2>/dev/null | grep -oE '_HI_[A-Z0-9_]+' | sort -u)"
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     case "$tree" in *"$name"$'\n'* | *"$name") continue ;; esac
@@ -394,16 +397,21 @@ function _hi_settings_documented() {
 # Every name the tree treats as a setting: core.sh's toggle roster, plus the
 # variable column of every `_HI_*_PROMPTS` table in configure.sh (the yes/no
 # groups `hi --configure` asks, `<var>|<off>|<on>|<preview>|<question>|<needs>`
-# rows). Any table by that name counts, so a section added to the wizard
-# cannot ask about a setting this check never sees. `sort -u` because the
-# toggles and the tables overlap almost entirely - without it a toggle that
-# is also a question is reported missing twice.
+# rows), plus every name a `_hi_collect_value` call writes (the free-text
+# settings the wizard asks outside a table; a name assembled at run time,
+# `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).
+# Any table by that name counts, so a section added to the wizard cannot ask
+# about a setting this check never sees. `sort -u` because the toggles and
+# the tables overlap almost entirely - without it a toggle that is also a
+# question is reported missing twice.
 function _hi_settings_roster() {
   {
     sed -n '/^  _HI_TOGGLES=(/,/)$/p' "$_HI_ROOT/common/core.sh" |
       grep -oE '_HI_[A-Z0-9_]+' | grep -v '^_HI_TOGGLES$'
     sed -n '/^_HI_[A-Z_]*_PROMPTS=(/,/^)$/p' \
       "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
+    sed -n 's/^ *_hi_collect_value "\{0,1\}\(_HI_[A-Z0-9_]*\)"\{0,1\} .*/\1/p' \
+      "$_HI_ROOT/scripts/configure.sh" | grep -v '_$'
   } | sort -u
 }
 

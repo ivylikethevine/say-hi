@@ -643,6 +643,16 @@ function test_passthrough_line_reaches_the_header() {
   [[ "$out" == *Connected* && "$(printf '%s\n' "$out" | tail -n 1)" == *"allow-passthrough on"* ]]
 }
 
+# a retired setting still exported gets one header line, after the header and
+# ahead of the prompt; unset, nothing at all
+function test_retired_setting_gets_a_header_line() {
+  local out
+  out="$(_HI_EZA_OPTS_SIZE=x bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
+  [[ "$out" == *Connected* && "$out" == *"_HI_EZA_OPTS_SIZE is retired since 0.1.9"* ]] || return 1
+  out="$(bash -c 'unset _HI_EZA_OPTS_SIZE; source "$_HI_HEADER"; hi_header Connected' 2>&1)"
+  [[ "$out" != *retired* ]]
+}
+
 function test_identity_includes_static_labels() {
   local out
   out="$(identity)"
@@ -2069,6 +2079,7 @@ function run_header_tests() {
   _hi_check "Quiet with no tmux in the environment" test_passthrough_quiet_without_tmux_in_the_env
   _hi_check "Quiet once the features are off" test_passthrough_quiet_when_the_features_are_off
   _hi_check "The line is the header's last" test_passthrough_line_reaches_the_header
+  _hi_check "A retired setting gets one header line" test_retired_setting_gets_a_header_line
 
   _hi_h2 "Testing: check_line"
   _hi_check "Found primary -> visible, checked" test_check_line_found_primary_is_visible_checked

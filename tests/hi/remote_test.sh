@@ -311,13 +311,14 @@ function test_remote_preamble_ships_the_truecolor_verdict() {
 }
 
 # Every value the preamble exports is data the client picked up rather than
-# code it wrote: $DOMAIN off argv, $_HI_TARGET_TAG out of a free-text ssh_config
-# comment, $_HI_RELEASE off `git describe`. Interpolated raw, they are the
-# target's to *execute* - `hi 'a$(id)b'` rendering as
-# `export _HI_TARGET="a$(id)b"` is exactly the injection quoting has to
-# prevent - so the assertion is a round trip through a real sh rather than a
-# match on the rendered text: whatever the name was, that is what has to
-# arrive.
+# code it wrote: $_HI_LOCAL_HOSTNAME off `hostname`, $_HI_TARGET_TAG out of a
+# free-text ssh_config comment, $_HI_RELEASE off `git describe`. Interpolated
+# raw, they are the target's to *execute* - a hostname of `a$(id)b` rendering
+# as `export _HI_LOCAL_HOSTNAME="a$(id)b"` is exactly the injection quoting
+# has to prevent - so the assertion is a round trip through a real sh rather
+# than a match on the rendered text: whatever the value was, that is what has
+# to arrive. _HI_HOSTNAME_CACHE is _hi_hostname's memo, so setting it is the
+# one way to hand the preamble a hostname of the test's choosing.
 #
 # _HI_MEAN is deliberately every character that ends a quoted word in either
 # dialect, so a quoting bug specific to one transport cannot hide behind
@@ -326,7 +327,7 @@ _HI_MEAN='we$(id)ird"ho'\''st`whoami`\\%s'
 
 function _hi_preamble_env_value() { # <name> - what the preamble delivers, via sh
   local script
-  script="$(DOMAIN="$_HI_MEAN" _hi_remote_preamble)"
+  script="$(DOMAIN=host _HI_HOSTNAME_CACHE="$_HI_MEAN" _hi_remote_preamble)"
   sh -c "$script"'
 printf %s "$'"$1"'"' 2>/dev/null
 }
@@ -352,17 +353,25 @@ function test_remote_root_is_refused_when_hostile() {
   done
 }
 
-function test_preamble_quotes_a_hostile_target_name() {
-  [ "$(_hi_preamble_env_value _HI_TARGET)" = "$_HI_MEAN" ]
+function test_preamble_quotes_a_hostile_hostname() {
+  [ "$(_hi_preamble_env_value _HI_LOCAL_HOSTNAME)" = "$_HI_MEAN" ]
 }
 
 # ...and the container transport folds the same stream into one `sh -c export`
 # line, so it gets the same round trip rather than trusting the shared helper
-function test_container_env_quotes_a_hostile_target_name() {
+function test_container_env_quotes_a_hostile_hostname() {
   local kv
-  kv="$(DOMAIN="$_HI_MEAN" _hi_env_each ' %s=%s')"
+  kv="$(DOMAIN=host _HI_HOSTNAME_CACHE="$_HI_MEAN" _hi_env_each ' %s=%s')"
   [ "$(sh -c "export$kv"'
-printf %s "$_HI_TARGET"' 2>/dev/null)" = "$_HI_MEAN" ]
+printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ]
+}
+
+# ...and the target as typed reaches the no-bash fallback line as one quoted
+# word, now that the session carries no variable for it
+function test_suffix_quotes_a_hostile_target_name() {
+  local out
+  out="$(hi_esc="" nc_esc="" DOMAIN="$_HI_MEAN" _hi_remote_suffix)"
+  [[ "$out" == *"'we\$(id)ird\"ho'\\''st\`whoami\`\\\\%s'"* ]]
 }
 
 # The sh-tier prompt bakes the host into a double-quoted PS1 on the client, so
@@ -566,8 +575,9 @@ EOF
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
 
   _hi_h2 "Testing: what the client bakes in stays data"
-  _hi_check "A hostile target name survives the ssh preamble" test_preamble_quotes_a_hostile_target_name
-  _hi_check "...and the container transport's export line" test_container_env_quotes_a_hostile_target_name
+  _hi_check "A hostile hostname survives the ssh preamble" test_preamble_quotes_a_hostile_hostname
+  _hi_check "...and the container transport's export line" test_container_env_quotes_a_hostile_hostname
+  _hi_check "A hostile target name is one quoted word in the suffix" test_suffix_quotes_a_hostile_target_name
   _hi_check "...and the sh-tier prompt renders it literally" test_fallback_prompt_escapes_a_hostile_host
   _hi_check "A hostile install path from the target is refused" test_remote_root_is_refused_when_hostile
 
