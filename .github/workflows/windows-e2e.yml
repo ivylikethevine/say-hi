@@ -12,8 +12,9 @@ name: Windows e2e
 # gives a fresh distribution the package layout (`install.sh --prefix`, what
 # the .deb's package() runs) and is then said hi to from Git Bash - the
 # Windows-desk homelab shape, and what turns SUPPORT.md's WSL row from
-# expected to proven. ci.yml calls this on every push to main once both
-# fast-suite jobs are green; dispatch runs it on its own.
+# expected to proven. ci.yml calls this on every push to main and every
+# same-repository pull request once both fast-suite jobs are green; dispatch
+# runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -26,8 +27,8 @@ jobs:
     name: hi at stock Windows OpenSSH (PowerShell fallback)
     runs-on: windows-latest
     timeout-minutes: 20
-    # No `environment:` - see macos-e2e.yml; ci.yml calls this only on `push`,
-    # so a fork PR never reaches it.
+    # No `environment:` - see macos-e2e.yml; ci.yml calls this on `push` and
+    # on same-repository PRs only, so a fork PR never reaches it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

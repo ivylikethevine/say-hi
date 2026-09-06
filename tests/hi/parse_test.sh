@@ -348,14 +348,25 @@ function test_header_probes_every_backend_in_the_roster() {
   # shellcheck disable=SC2031
   for row in "${_HI_BACKENDS[@]}"; do
     name="${row%%|*}"
-    # podman is docker's drop-in and shares its probe, so either name counts;
-    # kube is probed by its CLI's name rather than the roster's
+    # kube is probed by its CLI's name rather than the roster's; the family
+    # rows are whatever $_HI_CONTAINER_CLIS says, and the header walks that
+    # same list rather than spelling any member (GLOSSARY: HI.51)
     case "$name" in
-    podman) [[ "$launch" == *podman* || "$launch" == *docker* ]] || return 1 ;;
     kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || return 1 ;;
-    *) [[ "$launch" == *"$name"* ]] || return 1 ;;
+    nomad) [[ "$launch" == *nomad* ]] || return 1 ;;
+    *) [[ "$launch" == *_HI_CONTAINER_CLIS* ]] || return 1 ;;
     esac
   done
+}
+
+# the family rows follow the setting: a list of one is a roster of three, and
+# a member hi was not loaded with has no row to resolve through
+function test_backend_roster_follows_container_clis() {
+  local names
+  # sourced in a child bash with $0 left as "bash", so hi.sh's
+  # `[[ BASH_SOURCE == $0 ]]` hatch reads it as a library, not a run
+  names="$(_HI_CONTAINER_CLIS=nerdctl bash -c 'source "$1" >/dev/null 2>&1; printf "%s\n" "${_HI_BACKENDS[@]%%|*}"' bash "$_HI_LAUNCHER")"
+  [ "$names" = "$(printf 'nerdctl\nnomad\nkube\n')" ]
 }
 
 function test_resolve_backend_prints_nothing_for_a_stranger() {
@@ -375,17 +386,68 @@ function test_resolve_backend_prints_nothing_without_any_cli() {
 #
 # SC2031: the roster swap above (test_resolve_backend_follows_the_roster_order)
 # happens inside a $( ) and never reaches here; this reads the file-scope table
+#
+# The frozen flags (--ssh, --docker, --podman, --nomad, --kube) each have a
+# row and resolve; the rest of the family resolves through --via <cli> and
+# has no row of its own, so `--nerdctl` is not silently a flag --help never
+# lists (GLOSSARY: HI.51).
 function test_every_backend_has_a_flag_row() {
   local name
   # shellcheck disable=SC2031
   for name in ssh "${_HI_BACKENDS[@]%%|*}"; do
-    grep -q "^--$name|" "$_HI_ROOT/common/flags" || return 1
-    [ "$(_hi_backend_flag "--$name")" = "$name" ] || return 1
+    if grep -q "^--$name|" "$_HI_ROOT/common/flags"; then
+      [ "$(_hi_backend_flag "--$name")" = "$name" ] || return 1
+    else
+      ! _hi_backend_flag "--$name" >/dev/null 2>&1 || return 1
+      [ "$(_hi_via_backend "$name" 2>/dev/null)" = "$name" ] || return 1
+    fi
   done
+  grep -q '^--via|' "$_HI_ROOT/common/flags"
 }
 
 function test_backend_flag_rejects_a_stranger() {
   ! _hi_backend_flag --frobnicate >/dev/null 2>&1
+}
+
+function test_backend_flag_rejects_a_rowless_family_member() {
+  ! _hi_backend_flag --nerdctl >/dev/null 2>&1
+}
+
+function test_parse_via_sets_backend_to_the_named_cli() {
+  [ "$(_hi_backend_parse_out --via nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ]
+}
+
+# --via and its word are both consumed, neither becomes the target or an
+# ssh option
+function test_parse_via_does_not_reach_sshargs() {
+  [ "$(_hi_parse_out --via podman myhost)" = "$(printf 'myhost\n\n')" ]
+}
+
+function test_parse_via_rejects_a_stranger() {
+  local rc=0 out
+  out="$( (_hi_parse --via frobnicate myhost 2>&1 >/dev/null) || true)"
+  (_hi_parse --via frobnicate myhost >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--via"*docker* ]]
+}
+
+function test_parse_via_without_a_word_exits_one() {
+  local rc=0
+  (_hi_parse --via >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ]
+}
+
+# --via docker and --docker name the same arm, so together they are no
+# conflict; --via podman beside --docker is one
+function test_parse_via_agrees_with_the_short_flag() {
+  local rc=0
+  [ "$(_hi_backend_parse_out --via docker --docker myhost)" = "$(printf 'myhost\ndocker\n')" ] || return 1
+  (_hi_parse --via podman --docker myhost >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ]
+}
+
+# after the target, --via is the remote command's own word
+function test_parse_via_after_the_target_is_not_claimed() {
+  [ "$(_hi_backend_parse_out myhost --via nerdctl)" = "$(printf 'myhost\n\n')" ]
 }
 
 # BACKEND and PLAIN are _hi_parse's other outputs, alongside DOMAIN/CMDARG/
@@ -1208,12 +1270,20 @@ function run_hi_parse_tests() {
   _hi_check "Picks the roster's first match" test_resolve_backend_picks_the_first_matching_row
   _hi_check "The roster decides, not the resolver" test_resolve_backend_follows_the_roster_order
   _hi_check "The header counts every backend the roster dispatches" test_header_probes_every_backend_in_the_roster
+  _hi_check "The family rows follow _HI_CONTAINER_CLIS" test_backend_roster_follows_container_clis
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
 
   _hi_h2 "Testing: backend override flags (--ssh, --docker, ...)"
   _hi_check "Every roster backend has a flag row" test_every_backend_has_a_flag_row
   _hi_check "_hi_backend_flag rejects a stranger" test_backend_flag_rejects_a_stranger
+  _hi_check "_hi_backend_flag rejects a rowless family member" test_backend_flag_rejects_a_rowless_family_member
+  _hi_check "--via <cli> sets BACKEND to that member" test_parse_via_sets_backend_to_the_named_cli
+  _hi_check "--via and its word never reach SSHARGS" test_parse_via_does_not_reach_sshargs
+  _hi_check "--via rejects a stranger, naming the members" test_parse_via_rejects_a_stranger
+  _hi_check "--via with no word exits 1" test_parse_via_without_a_word_exits_one
+  _hi_check "--via docker agrees with --docker, --via podman does not" test_parse_via_agrees_with_the_short_flag
+  _hi_check "--via after the target is the remote command's" test_parse_via_after_the_target_is_not_claimed
   _hi_check "Each flag sets BACKEND to its own name" test_parse_backend_flags_set_backend_for_every_name
   _hi_check "A backend flag never reaches SSHARGS" test_parse_backend_flag_does_not_reach_sshargs
   _hi_check "Two different backend flags refuse each other" test_parse_two_backend_flags_refuse_each_other

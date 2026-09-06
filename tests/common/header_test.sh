@@ -1004,7 +1004,7 @@ function test_probe_launch_takes_podman_when_docker_is_absent() {
     _hi_probe_launch
     _hi_probe_wait
     [ -n "$_HI_PROBE_DIR" ] || exit 1
-    [ -f "$_HI_PROBE_DIR/containers" ] && [ ! -e "$_HI_PROBE_DIR/nomad" ] && echo PODMAN_PROBED
+    [ -f "$_HI_PROBE_DIR/containers.podman" ] && [ ! -e "$_HI_PROBE_DIR/containers.docker" ] && [ ! -e "$_HI_PROBE_DIR/nomad" ] && echo PODMAN_PROBED
     rm -rf "$_HI_PROBE_DIR"
   )"
   [ "$out" = PODMAN_PROBED ]

@@ -8,9 +8,10 @@ name: macOS e2e
 # nothing is left in $TMPDIR), and a `--doctor` against the loopback. The
 # client is run as `/bin/bash ./hi.sh` on purpose: the runner's PATH bash is
 # Homebrew's 5.x, and it is Apple's 3.2 the floor promises.
-# ci.yml calls this on every push to main once both fast-suite jobs are green
-# (no point burning a 15-minute macOS runner on a tree whose unit tests are
-# already red); dispatch runs it on its own.
+# ci.yml calls this on every push to main and every same-repository pull
+# request once both fast-suite jobs are green (no point burning a 15-minute
+# macOS runner on a tree whose unit tests are already red); dispatch runs it
+# on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -24,8 +25,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 15
     # Deliberately no `environment:`: a required reviewer would stall every
-    # push to main. The gate is the caller - ci.yml calls this only on `push`,
-    # so a fork PR never reaches it.
+    # push to main. The gate is the caller - ci.yml calls this on `push` and
+    # on same-repository PRs only, so a fork PR never reaches it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

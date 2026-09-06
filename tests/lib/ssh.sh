@@ -33,11 +33,18 @@ function _hi_dockerfile() {
   printf '%s' "$_HI_ROOT/tests/dockerfiles/$1.Dockerfile"
 }
 
+# _hi_build_image <label> <tag> <what> [build args...] - build an image, quiet
+# on success and loud on failure. Plain progress into the log rather than
+# `build -q`: BuildKit's quiet mode keeps only its own one-line verdict
+# ("exit code: 100") and drops the failing step's output, which is the part
+# that says why - a whole CI-only apt failure went undiagnosed behind it. The
+# env var, not `--progress=plain`, so podman (which has no such flag and
+# ignores the variable) takes the same call.
 function _hi_build_image() {
   local label="$1" tag="$2" what="$3"
   shift 3
   _hi_h3 "Building $tag" "$BLUE"
-  "${_HI_BACKEND:-docker}" build -q -t "$tag" "$@" >/dev/null 2>"$_HI_WORKDIR/$label.log" && return 0
+  BUILDKIT_PROGRESS=plain "${_HI_BACKEND:-docker}" build -t "$tag" "$@" >"$_HI_WORKDIR/$label.log" 2>&1 && return 0
   _hi_dump_log "$tag failed to build, skipping $what:" "$_HI_WORKDIR/$label.log" "$YELLOW"
   return 1
 }

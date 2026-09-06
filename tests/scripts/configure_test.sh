@@ -1581,11 +1581,11 @@ function test_prompt_menu_junk_is_bounded_and_a_quote_is_refused() {
 # the glyph question maps words both ways, and a shell list with a stranger
 # in it is refused - said in words, the current value kept, nothing written
 function test_advanced_values_map_glyph_words_and_refuse_a_bad_shell_list() {
-  _hi_cfg_pty adv_glyphs 'bash zsh\nglyphs\n\n\n' '' config_advanced_values || return 1
+  _hi_cfg_pty adv_glyphs 'bash zsh\nglyphs\n\n\n\n\n' '' config_advanced_values || return 1
   local lines
   lines="$(_hi_cfg_lines adv_glyphs)"
   [[ "$lines" == *"export _HI_SHELL_PREFERENCE='bash zsh'"* && "$lines" == *"export _HI_ASCII=0"* ]] || return 1
-  _hi_cfg_pty adv_badshell 'tcsh\n\n\n\n' '' config_advanced_values || return 1
+  _hi_cfg_pty adv_badshell 'tcsh\n\n\n\n\n\n' '' config_advanced_values || return 1
   _hi_cfg_has adv_badshell "only login, bash, zsh and fish are understood" &&
     [[ "$(_hi_cfg_lines adv_badshell)" != *"_HI_SHELL_PREFERENCE"* ]]
 }
@@ -1676,7 +1676,7 @@ function test_prompt_menu_toggles_starship() {
 # hub's item is the gate) - and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "Swap a TERM" &&
     _hi_cfg_has adv_walk "Shell a session runs in" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
@@ -1685,11 +1685,21 @@ function test_advanced_walks_the_questions() {
 # every advanced value typed for real, including the words-to-flag mapping
 # _HI_ASCII's question hides behind ("ascii" is stored as 1)
 function test_advanced_values_typed_interactively() {
-  _hi_cfg_pty adv_typed 'zsh login\nascii\n9\n0.5\n' '' config_advanced_values || return 1
+  _hi_cfg_pty adv_typed 'zsh login\nascii\n9\n0.5\npodman docker\n120\n' '' config_advanced_values || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
   [[ "$lines" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$lines" == *"export _HI_ASCII=1"* &&
-    "$lines" == *"export _HI_TARGETS_TTL=9"* && "$lines" == *"export _HI_PROBE_TIMEOUT=0.5"* ]]
+    "$lines" == *"export _HI_TARGETS_TTL=9"* && "$lines" == *"export _HI_PROBE_TIMEOUT=0.5"* &&
+    "$lines" == *"export _HI_CONTAINER_CLIS='podman docker'"* &&
+    "$lines" == *"export _HI_CTL_PERSIST=120"* ]]
+}
+
+# a CLI name hi.sh could not turn into a function name is refused in words
+# and the value left alone, like every other ask_value answer
+function test_advanced_container_clis_rejects_a_bad_name() {
+  _hi_cfg_pty adv_clis '\n\n\n\nno-dashes here\n\n' '' config_advanced_values || return 1
+  _hi_cfg_has adv_clis "plain names" &&
+    [[ "$(_hi_cfg_lines adv_clis)" != *"_HI_CONTAINER_CLIS"* ]]
 }
 
 # Enter at the preset question keeps the current settings: nothing seeded,
@@ -1755,10 +1765,10 @@ function test_hub_junk_is_bounded_and_saves() {
 }
 
 # every digit opens its section and comes back to the hub; the preview box
-# is drawn before the menu. The advanced walk takes up to eight Enters (one
+# is drawn before the menu. The advanced walk takes up to ten Enters (one
 # fewer without fish here); a spare Enter at the hub only redraws it.
 function test_hub_opens_every_section() {
-  _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+  _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&
@@ -1953,6 +1963,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
   _hi_par_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
   _hi_par_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
+  _hi_par_check_capable pty "Advanced values: a bad CLI name is refused" test_advanced_container_clis_rejects_a_bad_name
   _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run

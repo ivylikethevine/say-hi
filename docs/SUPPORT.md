@@ -29,12 +29,17 @@ that reopens a row.
 
 ## What a "yes" costs
 
-A backend is not one function. Adding one touches seven places:
+A backend is not one function. A docker-compatible CLI is the exception:
+podman, nerdctl and finch share docker's `ps`/`exec`/`inspect` grammar, so
+they are one arm and a name in `_HI_CONTAINER_CLIS`
+([SETTINGS.md](SETTINGS.md#everything-else), GLOSSARY: HI.51) — a new
+drop-in costs a word in a setting, not a row here. Anything else touches
+seven places:
 
 - **a row in `_HI_BACKENDS`** (`hi.sh`): `<name>|<what a target resolves
 as>|<liveness probe>|<predicate>`, walked by the dispatch and by
   `scripts/doctor.sh`.
-- **a predicate** beside `_hi_is_docker_container`: one `command -v` guard,
+- **a predicate** beside `_hi_is_family_container`: one `command -v` guard,
   one `[ "$(<query>)" = <literal> ]`, stderr swallowed.
 - **an arm in `_hi_container_cmds`** filling `probe`/`cp`/`attach`; past
   that, everything is backend-agnostic.
@@ -52,22 +57,24 @@ as>|<liveness probe>|<predicate>`, walked by the dispatch and by
 Then the part everyone else pays: `_hi_resolve_backend` runs **every**
 predicate on every `hi <target>`, and `common/targets.sh` probes **every**
 backend on every TAB (GLOSSARY: HI.26), on machines with none of the runtime.
-The `command -v` guard short-circuits before the CLI runs, so a row costs a
-fork rather than a daemon round-trip — but five forks per keystroke instead of
-four.
+One background subshell per row, installed or not, is the resolve-time part;
+on TAB the `command -v` guard is a shell builtin, so an absent CLI costs
+nothing there and a present one is one parallel lane. The subshell per
+`hi <target>` is what every row charges every host.
 
 **A row earns a yes by being something people actually sit in, not by being
 reachable.**
 
 ## The five that ship
 
-| target        | what a name resolves as                                      | proven by                                                                                                                                                                  |
-| ------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ssh host ✅   | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` and `ssh_wire_test.sh` (bytes on the wire vs the printed size) |
-| docker ✅     | a running container                                          | `tests/targets/docker_test.sh` - six shell environments (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case                                |
-| podman ✅     | a running container                                          | `tests/targets/podman_test.sh`, the same six against podman's own image store                                                                                              |
-| nomad ✅      | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                                                           |
-| kubernetes ✅ | a running pod, `pod/container`, `ns:pod`, `ctx:ns:pod`       | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                                                  |
+| target         | what a name resolves as                                      | proven by                                                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ssh host ✅    | a `Host` entry in `~/.ssh/config`, or any name ssh will take | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` and `ssh_wire_test.sh` (bytes on the wire vs the printed size)                                    |
+| docker ✅      | a running container                                          | `tests/targets/docker_test.sh` - six shell environments (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case                                                                   |
+| podman ✅      | a running container                                          | `tests/targets/podman_test.sh`, the same six against podman's own image store                                                                                                                                 |
+| nerdctl, finch | a running container, through the docker arm                  | nothing in CI - no hosted runner has either. Members of the default `_HI_CONTAINER_CLIS` because the grammar is docker's; unproven, and the docker and podman suites are what prove the arm (GLOSSARY: HI.51) |
+| nomad ✅       | a running allocation, or `alloc/task`                        | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                                                                                              |
+| kubernetes ✅  | a running pod, `pod/container`, `ns:pod`, `ctx:ns:pod`       | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                                                                                     |
 
 ssh is checked first and short-circuits the roster, so a name that is both an
 ssh host and a container name resolves as the ssh host.
@@ -138,8 +145,8 @@ locally, hi's on every target
 **Both tables assume hi can reach the target**, which
 [The five that ship](#the-five-that-ship) and
 [Already covered](#already-covered-without-a-row) answer. Everything weighed
-and left off that roster — LXC/Incus, `systemd-nspawn`, WSL, `nerdctl`, jails,
-zones and the rest — is in the next section.
+and left off that roster — LXC/Incus, `systemd-nspawn`, WSL, jails, zones and
+the rest — is in the next section.
 
 ## Targets weighed and not shipped
 
@@ -150,7 +157,6 @@ and each is a "no" for a reason of its own.
 | --------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `systemd-nspawn` / `machinectl`                                                                           | ❌ decided against                            | `machinectl shell` goes through systemd-machined, so it wants root or a polkit prompt on the host, and the few people who sit in an nspawn container long enough to want their aliases do not outweigh a fifth probe on every TAB for everyone else. The containers would be ideal targets; the audience fails the test                                                                                                                                                                                                                                                                                                                                       |
 | WSL (`wsl -d <distro>`)                                                                                   | ❌ decided against                            | reachable only from a Windows client — and a WSL distribution is a machine you install say-hi _into_: the `.deb` installs into one unchanged, `/etc/profile.d/say-hi.sh` and all                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `nerdctl` / containerd                                                                                    | ❌ decided against                            | deliberately docker-compatible, so `alias docker=nerdctl` gives it to anyone who wants it before hi sees the name. Those with nerdctl and neither docker nor kubectl are too few to charge everyone a probe for                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `crictl` / CRI-O                                                                                          | ❌ decided against                            | a node-level debugging tool, not a place people sit; the session you want is the pod, which the kubernetes row resolves. `tests/targets/kube_test.sh` uses `crictl` to preload images — about the right relationship to it                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Apptainer / Singularity                                                                                   | ❌ decided against                            | HPC containers are mostly run-to-completion jobs, so there is usually nothing to exec into; where there is, the culture is batch schedulers and `srun`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Proxmox `pct enter`                                                                                       | ❌ decided against                            | LXC underneath, reachable only from the PVE node as root — the lxc row below with a narrower door                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -200,10 +206,12 @@ Shipped, then taken back out.
 
 A "no" above is closed, not permanent, and the one thing that reopens it is
 the same in every section: **evidence of people sitting in it**, enough to be
-worth charging everyone who has never heard of it — a fork on every TAB for a
-target, a second prompt implementation to keep in sync forever for a shell. A
-new exec CLI, a cleaner API or an easier integration moves neither, because
-neither is a "no" for being hard.
+worth charging everyone who has never heard of it — a subshell on every
+`hi <target>` for a target, a second prompt implementation to keep in sync
+forever for a shell. A new exec CLI, a cleaner API or an easier integration
+moves neither, because neither is a "no" for being hard — unless the CLI
+speaks docker's grammar, in which case it is a word in `_HI_CONTAINER_CLIS`
+and needs no answer here at all.
 
 The useful shape of the argument: who is in these, how often, and what they do
 today instead.

@@ -67,19 +67,19 @@ Every job `ci.yml` runs on your pull request, and whether a red one fails the
 run or only reports — seventeen workflow files is more than `ci.yml`'s per-job
 comments are convenient to read through by eye.
 
-| Job                                                      | Runs on your PR                                                      | Gate or advisory?                       |
-| -------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
-| `fast suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                      | Gate                                    |
-| `lint suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                      | Gate                                    |
-| `fast suites (macos-latest)`                             | Skipped on a workflow-only diff                                      | Gate                                    |
-| `workflow lint` (actionlint + zizmor)                    | Always                                                               | Gate                                    |
-| `advisory lint` (markdownlint, hadolint, demo-staleness) | Always                                                               | Advisory — reports, never fails the job |
-| `hot-path benchmarks`                                    | Skipped on a workflow-only diff                                      | Gate                                    |
-| `package build (deb, rpm, apk)`                          | Skipped on a workflow-only diff                                      | Gate                                    |
-| `e2e (ssh, docker)`                                      | Beside the fast suites; skipped on a workflow-only diff              | Gate                                    |
-| `e2e (podman, nomad, kube)`                              | Beside the fast suites; skipped on a workflow-only diff              | Gate                                    |
-| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)`        | Push to `main` only, after both fast-suite jobs pass — never on a PR | Gate                                    |
-| `fast suites (Windows client)`                           | Push to `main` only — never on a PR; two runners, half the table     | Gate, but see below                     |
+| Job                                                      | Runs on your PR                                                     | Gate or advisory?                       |
+| -------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------- |
+| `fast suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                     | Gate                                    |
+| `lint suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                     | Gate                                    |
+| `fast suites (macos-latest)`                             | Skipped on a workflow-only diff                                     | Gate                                    |
+| `workflow lint` (actionlint + zizmor)                    | Always                                                              | Gate                                    |
+| `advisory lint` (markdownlint, hadolint, demo-staleness) | Always                                                              | Advisory — reports, never fails the job |
+| `hot-path benchmarks`                                    | Skipped on a workflow-only diff                                     | Gate                                    |
+| `package build (deb, rpm, apk)`                          | Skipped on a workflow-only diff                                     | Gate                                    |
+| `e2e (ssh, docker)`                                      | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
+| `e2e (podman, nomad, kube)`                              | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
+| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)`        | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass | Gate, but see below                     |
+| `fast suites (Windows client)`                           | Same-repo PRs and pushes to `main`; four runners, a quarter each    | Gate, but see below                     |
 
 "Skipped on a workflow-only diff" is `changes.yml`: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
@@ -93,13 +93,15 @@ requires seven of the jobs above before a merge: both `fast suites` jobs,
 `lint suites (ubuntu-latest)`, `workflow lint`, `package build (deb, rpm,
 apk)`, `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` — every gate that
 actually runs on a pull request, by its aggregate name rather than a
-per-shard one, since the shard count is a knob. The `e2e (macOS)` /
-`e2e (Windows)` / `e2e (FreeBSD)` push-only jobs and `fast suites (Windows
-client)` stay unrequired: none of them runs on a PR (the first three sit
-behind `e2e-gate`, which only opens on a push to `main`), so a required check
-that never reports would block every merge forever. `fast suites (Windows
-client)` carries no `continue-on-error`, so a red suite there fails that run,
-but it doesn't stop a merge either way.
+per-shard one, since the shard count is a knob. `e2e (macOS)` /
+`e2e (Windows)` / `e2e (FreeBSD)` and `fast suites (Windows client)` run on a
+pull request only when its head branch lives in this repository: each stands
+up an sshd and authorizes a throwaway key, which is not something to hand a
+fork's PR (the first three sit behind `e2e-gate`, which opens on a push to
+`main` or a same-repo PR). They stay off the required list for that reason —
+a fork PR would never report them and could never merge. On a same-repo PR
+they are real checks all the same: none carries `continue-on-error`, so a red
+suite fails the run, and it is the PR, not the release, where that shows.
 
 The rest of `.github/workflows/` — `release.yml`, `publish-external.yml`,
 `pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,
@@ -151,7 +153,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The eighteen flags in `common/flags`** — name, argument shape and what
+- **The nineteen flags in `common/flags`** — name, argument shape and what
   each needs (`-`, `scripts`, `tests`, `git`). New flags may arrive; none is
   renamed or removed. Anything hi does not answer still passes to `ssh`.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,

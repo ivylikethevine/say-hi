@@ -252,6 +252,13 @@ function _hi_elapsed() {
   awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f", b - a }'
 }
 
+# _hi_sum <n...> - _hi_elapsed's seconds added rather than subtracted, for the
+# connect banner's total across legs each measured wholly on one machine
+# (client or target) - $(( )) has no floats, so this is awk like its neighbor
+function _hi_sum() {
+  awk -v n="$*" 'BEGIN { split(n, a); for (i in a) t += a[i]; printf "%.3f", t }'
+}
+
 # H:MM:SS (M:SS under an hour) from an _hi_elapsed second count, for load.sh's
 # disconnect line where sub-second precision is unreadable
 function _hi_human_duration() {
@@ -328,7 +335,7 @@ function _hi_interactive_extras() {
 # (paths.sh's dialect can only `export`). config.fish mirrors it;
 # exports_test.sh pins the two. GLOSSARY: HI.47
 _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
-  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_RECENT _HI_RECENT_FILE)
+  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_CONTAINER_CLIS _HI_RECENT _HI_RECENT_FILE)
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER

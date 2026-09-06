@@ -433,6 +433,15 @@ function test_target_honors_a_forced_backend() {
   [[ "$out" == *"resolves"*"docker container"*"forced by --docker"* && "$out" != *checked* ]]
 }
 
+# a family member with no flag row of its own was forced through --via, and
+# the report says so in the user's own spelling
+function test_target_names_via_for_a_rowless_member() {
+  local out
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
+  _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=nerdctl doctor_target ghostbox)"
+  [[ "$out" == *"resolves"*"nerdctl container"*"forced by --via nerdctl"* && "$out" != *checked* ]]
+}
+
 # --ssh overrides the other way too: "runningbox" answers docker's predicate
 # (test_target_resolves_a_running_container relies on exactly that), and a
 # forced --ssh has to win over it rather than the roster ever being asked.
@@ -659,6 +668,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
   _hi_check "A flag forces the arm" test_target_forced_by_a_flag_skips_the_probe_chain
+  _hi_check "--via names the member in the forced-arm row" test_target_names_via_for_a_rowless_member
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
   _hi_check "Container: full tier reported" test_container_target_reports_the_full_tier
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell

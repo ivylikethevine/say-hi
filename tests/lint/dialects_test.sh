@@ -106,11 +106,11 @@ function _hi_floor_ready() {
     return 1
   fi
   # A build failure here is a *failure*, not a skip. The base image is pinned by
-  # digest and the only other thing in the file is an apt install with a version
-  # assertion on it, so "would not build" means the distro moved off the version
-  # this floor claims to be - which is exactly the news the check exists to
-  # deliver. Skipping it would retire the floor silently, which is how a floor
-  # check quietly stops being one.
+  # digest and the only other thing in the file is a version assertion (plus,
+  # for fish, an apt install), so "would not build" means the image no longer
+  # carries the version this floor claims to be - which is exactly the news
+  # the check exists to deliver. Skipping it would retire the floor silently,
+  # which is how a floor check quietly stops being one.
   if ! _hi_build_image "$stem" "$tag" "the $label check" -f "$(_hi_dockerfile "$stem")" "$_HI_ROOT/tests/dockerfiles"; then
     _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
     _hi_align " | $label: the pinned image would not build (has the distro moved off it?)" "FAILED" "$RED"

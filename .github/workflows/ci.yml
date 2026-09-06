@@ -548,9 +548,12 @@ jobs:
             echo "no code changes - shards were rightly skipped"
           fi
 
-  # `push` only: both platform e2e workflows stand up an sshd and authorize a
-  # throwaway key, not something to hand a fork's pull request, and the runner
-  # job's fork guard covers only the jobs that name it. Gated on both fast-suite
+  # Pushes to main and same-repository pull requests, never a fork's: the
+  # platform e2e workflows stand up an sshd and authorize a throwaway key,
+  # not something to hand a stranger's pull request, but a PR whose head
+  # branch lives in this repository was pushed by someone who can push to
+  # main already, and it is that PR where a red macOS or Windows run is worth
+  # knowing - not after the merge, off a release. Gated on both fast-suite
   # jobs so a red unit test does not cost a 15-minute macOS runner. One gate
   # job rather than the same needs/if on all three callers below.
   e2e-gate:
@@ -563,10 +566,18 @@ jobs:
       ok: ${{ steps.gate.outputs.ok }}
     steps:
       - id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          # a fork PR's head repository is the fork; same-repo PRs name this one
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          TEST: ${{ needs.test.result }}
+          TEST_MACOS: ${{ needs.test-macos.result }}
         run: |
           ok=false
-          if [ "${{ github.event_name }}" = push ] && [ "${{ needs.test.result }}" = success ] && [ "${{ needs.test-macos.result }}" = success ]; then
-            ok=true
+          if [ "$EVENT" = push ] || { [ "$EVENT" = pull_request ] && [ "$SAME_REPO" = true ]; }; then
+            if [ "$TEST" = success ] && [ "$TEST_MACOS" = success ]; then
+              ok=true
+            fi
           fi
           echo "ok=$ok" >>"$GITHUB_OUTPUT"
 
@@ -593,14 +604,18 @@ jobs:
   # The client-side half of Windows. Not behind e2e-gate: it is the fast
   # suites on another client, not an e2e that wants green targets first, and
   # at seven minutes (now two shards of half that) it was the long pole of
-  # every push when it also waited for `test`. Still push-only, as the gate
-  # kept it, and gated on `changes` like the other fast-suite jobs. A real
-  # check, not advisory: windows-client.yml carries no continue-on-error, so
-  # a red suite fails the push. Not yet on the required-checks list
-  # (README.md's Roadmap release-readiness entry), so it does not block a
-  # merge yet.
+  # every push when it also waited for `test`. Pushes and same-repo PRs, the
+  # same audience as e2e-gate (spelled out here because it does not sit
+  # behind the gate), and gated on `changes` like the other fast-suite jobs.
+  # A real check, not advisory: windows-client.yml carries no
+  # continue-on-error, so a red suite fails the run. Not on the
+  # required-checks list, so it does not block a merge.
   e2e-windows-client:
     name: fast suites (Windows client)
     needs: changes
-    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
+    if: >-
+      (github.event_name == 'push'
+        || (github.event_name == 'pull_request'
+            && github.event.pull_request.head.repo.full_name == github.repository))
+      && needs.changes.outputs.code == 'true'
     uses: $/.github/workflows/windows-client.yml
