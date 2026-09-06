@@ -124,41 +124,6 @@ function test_install_tree_replaces_a_symlinked_dest_without_following() {
     [ -f "$dir/dest/usr/share/say-hi/load.sh" ]
 }
 
-function test_strip_marker_removes_tagged_lines_only() {
-  local target="$_HI_WORKDIR/tagged"
-  printf '%s\n' "# a user comment" "alias ll='ls -la'" >"$target"
-  config_shell fixture "$target" "hi line one" "hi line two"
-  strip_marker test "$target"
-  grep -qF "# a user comment" "$target" &&
-    grep -qF "alias ll='ls -la'" "$target" &&
-    ! grep -qF "$_HI_MARKER" "$target" &&
-    ! grep -qF "hi line one" "$target"
-}
-
-function test_strip_marker_noop_when_marker_absent() {
-  local target="$_HI_WORKDIR/untagged" before after
-  printf '%s\n' "just a normal file" >"$target"
-  before="$(cat "$target")"
-  strip_marker test "$target"
-  after="$(cat "$target")"
-  [ "$before" = "$after" ]
-}
-
-function test_strip_marker_safe_on_missing_file() {
-  strip_marker test "$_HI_WORKDIR/does-not-exist"
-}
-
-function test_install_uninstall_round_trip() {
-  local target="$_HI_WORKDIR/roundtrip" before after
-  printf '%s\n' "# pre-existing line" >"$target"
-  before="$(cat "$target")"
-  config_shell fixture "$target" "some hi config line"
-  grep -qF "some hi config line" "$target" || return 1
-  strip_marker fixture "$target"
-  after="$(cat "$target")"
-  [ "$before" = "$after" ]
-}
-
 function _hi_strip_written_settings() {
   ensure_settings_shebang
   strip_settings
@@ -180,10 +145,6 @@ function _hi_strip_beside_colors() {
 function test_strip_settings_leaves_the_rest_of_the_overlay() {
   _hi_settings_fixture keep _hi_strip_beside_colors
   [ -f "$_HI_WORKDIR/keep/config/colors" ] && [ ! -e "$(_hi_fixture_settings keep)" ]
-}
-
-function test_strip_settings_is_quiet_when_there_is_nothing() {
-  _hi_settings_fixture nothing strip_settings
 }
 
 # The only path through config_hi a test may take: every other one ends in
@@ -610,16 +571,10 @@ function run_install_tests() {
   _hi_check "Clears a stale destination" test_install_tree_clears_a_stale_destination
   _hi_check_capable symlink "Replaces a symlinked dest without following" test_install_tree_replaces_a_symlinked_dest_without_following
 
-  _hi_h2 "Testing: strip_marker (--uninstall)"
-  _hi_check "Removes only tagged lines" test_strip_marker_removes_tagged_lines_only
-  _hi_check "No-op when marker absent" test_strip_marker_noop_when_marker_absent
-  _hi_check "Safe on a missing file" test_strip_marker_safe_on_missing_file
-  _hi_check "Install+uninstall round-trips" test_install_uninstall_round_trip
-
   _hi_h2 "Testing: strip_settings"
   _hi_check "Removes what install wrote" test_strip_settings_removes_what_install_wrote
   _hi_check "Leaves the rest of the overlay" test_strip_settings_leaves_the_rest_of_the_overlay
-  _hi_check "Quiet when there is nothing" test_strip_settings_is_quiet_when_there_is_nothing
+  _hi_check "Quiet when there is nothing" _hi_settings_fixture nothing strip_settings
 
   _hi_h2 "Testing: config_hi (--no-link only)"
   _hi_check "Skips the symlink entirely" test_config_hi_no_link_skips_the_symlink

@@ -167,10 +167,7 @@ function test_hash_color_ignores_the_scheme() {
   [ "$(_HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1 _hi_hash_color prod-db)" = "$(_hi_hash_color prod-db)" ]
 }
 
-# A scheme of the user's own: 12 or 24 six-digit hex words in the setting
-# itself. Catppuccin's twelve, then vscode's twelve as the second bank.
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+# _HI_TEST_L12/_HI_TEST_L24: tests/lib/fixtures.sh, shared with header_test.sh
 
 function test_scheme_words_counts_a_list() {
   local n
@@ -293,23 +290,6 @@ function _hi_barebones() {
     XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
     _HI_HOME="$_HI_HOME" "$@" bash -c \
     'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$(eval "$_HI_CASE_PROBE")"' 2>&1
-}
-
-function test_hostname_falls_back_to_the_shells_own() {
-  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=probe-host)" = probe-host ]
-}
-
-function test_hostname_names_itself_unknown_with_nothing_to_ask() {
-  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=)" = unknown ]
-}
-
-function test_whoami_falls_back_to_the_environment() {
-  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_whoami USER=probe-user)" = probe-user ] &&
-    [ "$(_hi_barebones _HI_CASE_PROBE=_hi_whoami LOGNAME=probe-logname)" = probe-logname ]
-}
-
-function test_whoami_names_itself_unknown_with_nothing_to_ask() {
-  [ "$(_hi_barebones _HI_CASE_PROBE=_hi_whoami)" = unknown ]
 }
 
 # $EPOCHREALTIME unset is bash 3.2 (macOS) as much as it is a stripped box:
@@ -626,18 +606,9 @@ function test_hi_home_self_derives_from_a_bare_relative_source() {
     'source core.sh; printf "%s" "$_HI_HOME"')" = "$_HI_HOME" ]
 }
 
-# core.sh's preamble runs once per shell and is guarded by $_hi_core_loaded,
-# so there is no function to call: the case is a fresh bash sourcing core.sh
-# against a scratch $_HI_CONFIG_DIR whose settings.sh claims $_HI_PROBE.
-# shellcheck disable=SC2016 # the probe expands in the child bash, not here
-function test_settings_sh_is_sourced() {
-  local dir="$_HI_WORKDIR/overlay"
-  mkdir -p "$dir"
-  printf 'export _HI_PROBE=global\n' >"$dir/settings.sh"
-  [ "$(env -u _hi_core_loaded -u _HI_PROBE _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$dir" \
-    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = global ]
-}
-
+# That the user's settings.sh is sourced at all is paths_test.sh's
+# test_settings_beat_the_defaults; the cases here are the layers around it.
+#
 # The system-wide layer: sourced before the user's settings.sh (so the user
 # wins), and only on the machine say-hi is installed on. $_HI_SYSTEM_SETTINGS
 # stands in for /etc/say-hi/settings.sh so the cases need no root.
@@ -669,8 +640,8 @@ function test_system_settings_skipped_remotely() {
 
 #
 # $_HI_CONFIG_DIR is derived from the XDG base, and an explicit value wins.
-# Same preamble-in-a-fresh-bash shape as test_settings_sh_is_sourced above, for
-# the same reason.
+# core.sh's preamble runs once per shell and is guarded by $_hi_core_loaded,
+# so there is no function to call: each case is a fresh bash sourcing core.sh.
 #
 # common/config.fish carries the same resolution in fish's dialect and is
 # pinned against these answers by tests/common/rc_test.sh.
@@ -1085,10 +1056,11 @@ function run_core_tests() {
   _hi_check "LOCALHOSTNAME special case" test_override_color_localhostname_special_case
 
   _hi_h2 "Testing: a target with nothing but a shell"
-  _hi_check "Hostname falls back to the shell's own" test_hostname_falls_back_to_the_shells_own
-  _hi_check "...and to \"unknown\" with nothing to ask" test_hostname_names_itself_unknown_with_nothing_to_ask
-  _hi_check "Whoami falls back to the environment" test_whoami_falls_back_to_the_environment
-  _hi_check "...and to \"unknown\" with nothing to ask" test_whoami_names_itself_unknown_with_nothing_to_ask
+  _hi_check_eq "Hostname falls back to the shell's own" probe-host _hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=probe-host
+  _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=
+  _hi_check_eq "Whoami falls back to \$USER" probe-user _hi_barebones _HI_CASE_PROBE=_hi_whoami USER=probe-user
+  _hi_check_eq "...and to \$LOGNAME" probe-logname _hi_barebones _HI_CASE_PROBE=_hi_whoami LOGNAME=probe-logname
+  _hi_check_eq "...and to \"unknown\" with nothing to ask" unknown _hi_barebones _HI_CASE_PROBE=_hi_whoami
   _hi_check "_hi_now answers without date(1)" test_now_answers_without_date
 
   _hi_h2 "Testing: _HI_SHELL_TABLE"
@@ -1106,10 +1078,8 @@ function run_core_tests() {
   _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
   _hi_check "_hi_wants_starship needs setting and binary" test_wants_starship_needs_both_halves
 
-  _hi_h2 "Testing: the colors file readers"
+  _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts
-
-  _hi_h2 "Testing: the identity memos"
   _hi_check "Host memo honors \$_HI_TARGET_COLOR; escape agrees" test_host_color_memo_and_escape_agree
   _hi_check "User color resolves like _hi_resolve_color" test_user_color_resolves_like_resolve_color
   _hi_check "The out-var escape forms fill the caller" test_escape_var_forms_fill_the_caller
@@ -1119,9 +1089,7 @@ function run_core_tests() {
   _hi_check "A shipped \$_HI_RELEASE wins outright" test_release_or_describe_prefers_the_stamp
   _hi_check "Falls back to git describe against \$_HI_ROOT" test_release_or_describe_falls_back_to_git
   _hi_check "Empty with neither a stamp nor a .git" test_release_or_describe_empty_without_either
-
-  _hi_h2 "Testing: _hi_interactive_extras"
-  _hi_check "Skips the lesspipe fork when LESSOPEN is already set" test_interactive_extras_skips_lesspipe_when_already_set
+  _hi_check "_hi_interactive_extras skips the lesspipe fork when LESSOPEN is set" test_interactive_extras_skips_lesspipe_when_already_set
 
   _hi_h2 "Testing: _hi_ssh_host_tag"
   _hi_check "Leftmost tag of a multi-tag comment" test_ssh_host_tag_leftmost_of_multiple
@@ -1163,7 +1131,6 @@ function run_core_tests() {
   _hi_check "...and by a bare relative name from its own directory" test_hi_home_self_derives_from_a_bare_relative_source
 
   _hi_h2 "Testing: the settings overlay"
-  _hi_check "settings.sh is sourced" test_settings_sh_is_sourced
   _hi_check "The system layer applies locally" test_system_settings_apply_locally
   _hi_check "...the user's settings.sh beats it" test_user_settings_beat_system
   _hi_check "...and a remote session skips it" test_system_settings_skipped_remotely

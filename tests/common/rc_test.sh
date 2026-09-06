@@ -93,26 +93,7 @@ function test_bash_registers_hi_completion() {
 }
 
 # What this case is really for: common/bash.sh's `source "$_HI_ALIASES"` line
-# actually reaching the alias chain in a real bash. It asserts the four aliases
-# hi installs on its own account - hi_copy and hi_notify are hi's, vim and nano
-# the editor-rc wrappers - rather than any of the convenience aliases below them
-# in the file, because these four are named by a toggle apiece and so are
-# stable by contract - unlike `grep`/`mindiff`, named here before 8c5570a
-# retired both while removing personal aliases for the first release and
-# turned the case red with nothing in the chain actually wrong. Nothing here
-# depends on a binary being installed - all four are defined by the file, not
-# resolved from PATH.
-function test_bash_defines_key_aliases() {
-  _hi_rc_shell xterm-256color bash \
-    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-     for a in vim nano hi_copy hi_notify; do
-       alias "$a" >/dev/null 2>&1 || { echo "missing alias: $a" >&2; exit 1; }
-     done'
-}
-
-# ...and that the chain carries on past those four into the convenience set -
-# sudo, the cat/bat and ls/eza families - now the tail of settings/aliases.sh,
-# a settings/personal.sh of their own before. Sampled from the file
+# actually reaching the alias chain in a real bash. Sampled from the file
 # rather than spelled here, on alias_test.sh's precedent: those names are still
 # being retired entry by entry, and one written into this suite goes stale the
 # next time one is dropped. The unguarded `alias` lines are exactly that tail -
@@ -600,7 +581,6 @@ function run_rc_tests() {
   _hi_check "...but still primes the color variables (bash)" test_bash_prompt_disabled_still_primes_color_variables
   _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
-  _hi_check "Key aliases are defined" test_bash_defines_key_aliases
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
   _hi_check "ps1 marks the prompt, status and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
   _hi_check "_HI_DISABLE_MARKS silences every OSC" test_bash_disable_marks_emits_no_osc

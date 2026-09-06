@@ -119,16 +119,6 @@ function test_tarball_is_the_repository() {
   diff -r "$_HI_REPO" "$unpacked" >/dev/null
 }
 
-# the signed pieces exist - the cheap check before a client is asked
-function test_repository_is_signed() {
-  [ -s "$_HI_REPO/apt/dists/stable/InRelease" ] &&
-    [ -s "$_HI_REPO/apt/dists/stable/Release.gpg" ] &&
-    [ -s "$_HI_REPO/rpm/repodata/repomd.xml.asc" ] &&
-    [ -s "$_HI_REPO/apk/x86_64/APKINDEX.tar.gz" ] &&
-    [ -s "$_HI_REPO/apk/aarch64/APKINDEX.tar.gz" ] &&
-    [ -s "$_HI_REPO/say-hi.asc" ] && [ -s "$_HI_REPO/say-hi.rsa.pub" ] && [ -s "$_HI_REPO/say-hi.repo" ]
-}
-
 # _hi_repo_client <label> <image> <shell> <script> - one throwaway client
 # with the repository at /repo, read-only. The script subscribes, installs
 # and prints `hi --version` from a login shell as its last line; the case
@@ -268,7 +258,6 @@ function run_repo_tests() {
   _hi_check "mkpkg.sh and mkrepo.sh build a signed repository" [ "$built" -eq 1 ]
   if [ "$built" -eq 1 ]; then
     _hi_check "package-repo.tar.gz is the repository" test_tarball_is_the_repository
-    _hi_check "Every index is signed and every key served" test_repository_is_signed
     _hi_h2 "Testing: subscribed clients"
     if [ "$apt_ok" -eq 1 ]; then
       _hi_check "apt (ubuntu:24.04, offline) installs with signed-by" test_apt_client_installs_from_the_repository

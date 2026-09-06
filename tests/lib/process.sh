@@ -70,14 +70,22 @@ command -v python3 >/dev/null 2>&1 &&
 # $2 is "auto" (only wrap if fd $1 isn't a real tty) or "force" (always
 # wrap - for callers where the fd being checked is never the right proxy for
 # whether the *launcher* ends up with a real tty), $3 is the warning printed
-# when there is no usable pty to build the fake with.
+# when there is no usable pty to build the fake with - optional, for a backend
+# whose failure shape is worth naming; the default says what the mode means.
 function _hi_pty_wrap() {
-  local fd="$1" mode="$2" warning="$3"
+  local fd="$1" mode="$2" warning="${3:-}"
   _HI_PTY_WRAP=()
   if [ "$mode" = force ] || [ ! -t "$fd" ]; then
     if [ "$_HI_PTY_OK" -eq 1 ]; then
       _HI_PTY_WRAP=(python3 -c "$_HI_PTY_SPAWN")
     else
+      if [ -z "$warning" ]; then
+        if [ "$mode" = force ]; then
+          warning="no python3 to give the launcher its own pty - it will raw-mode this terminal and the test kills it before it can restore, expect garbled output afterwards"
+        else
+          warning="no tty and no python3 to fake one - results may be unreliable"
+        fi
+      fi
       _hi_cecho " | $warning" "$YELLOW"
     fi
   fi
@@ -97,7 +105,7 @@ _HI_PTY_FORCED=()
 
 # The _hi_pty_wrap preamble every suite that backgrounds the launcher needs:
 # stash our real stdin on fd 3 and decide the pty wrap from *that*. $1 is the
-# mode, $2 the warning. `exec -it` refuses a remote tty unless our stdin is one,
+# mode, $2 the optional warning. `exec -it` refuses a remote tty unless our stdin is one,
 # which it isn't in CI, so the local fake is what makes these suites reliable
 # off an interactive terminal.
 #
@@ -107,7 +115,7 @@ _HI_PTY_FORCED=()
 # _hi_exec_case keeps the original tty-ness - which is why they go together.
 function _hi_pty_stdin() {
   exec 3<&0
-  _hi_pty_wrap 3 "$1" "$2"
+  _hi_pty_wrap 3 "$1" "${2:-}"
 }
 
 function _hi_poll_budget() {

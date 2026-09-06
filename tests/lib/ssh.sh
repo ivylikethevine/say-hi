@@ -103,6 +103,12 @@ function _hi_ssh_reachable() {
 # started, not whichever case started one last. A single global is fine until
 # two cases run at once, and then it is a race that reads as a bug in the code
 # under test.
+# The sshd option pair that reaps a frozen client in seconds rather than hours,
+# handed to _hi_sshd_container as `-e "$_HI_SSHD_ALIVE"` by the disconnect
+# cases (ssh_disconnect, ssh_relay), which freeze the client and wait for the
+# far end's exit trap.
+_HI_SSHD_ALIVE="SSHD_OPTS=-o ClientAliveInterval=2 -o ClientAliveCountMax=1"
+
 function _hi_sshd_container() {
   local name="$1" image="$2"
   shift 2

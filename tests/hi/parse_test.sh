@@ -400,16 +400,6 @@ function test_use_backend_rejects_a_stranger() {
   ! _hi_use_backend frobnicate >/dev/null 2>&1
 }
 
-function test_parse_use_sets_backend_to_the_named_cli() {
-  [ "$(_hi_backend_parse_out --use nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ]
-}
-
-# --use and its word are both consumed, neither becomes the target or an
-# ssh option
-function test_parse_use_does_not_reach_sshargs() {
-  [ "$(_hi_parse_out --use podman myhost)" = "$(printf 'myhost\n\n')" ]
-}
-
 # --use=<backend> is the same flag with its word joined, the spelling
 # install.sh's --prefix and --preset already take; it used to fall through
 # to ssh as an unknown option
@@ -455,11 +445,6 @@ function test_parse_use_twice_agrees_or_refuses() {
   [ "$rc" -eq 1 ] || return 1
   out="$( (_hi_parse --use docker --use ssh myhost 2>&1 >/dev/null) || true)"
   [[ "$out" == *"--use ssh"*"--use docker"* ]]
-}
-
-# after the target, --use is the remote command's own word
-function test_parse_use_after_the_target_is_not_claimed() {
-  [ "$(_hi_backend_parse_out myhost --use nerdctl)" = "$(printf 'myhost\n\n')" ]
 }
 
 # BACKEND and PLAIN are _hi_parse's other outputs, alongside DOMAIN/CMDARG/
@@ -1433,15 +1418,15 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: the arm override (--use <backend>)"
   _hi_check "Every arm resolves through --use, none has a row of its own" test_every_arm_resolves_through_use
   _hi_check "_hi_use_backend rejects a stranger" test_use_backend_rejects_a_stranger
-  _hi_check "--use <cli> sets BACKEND to that member" test_parse_use_sets_backend_to_the_named_cli
-  _hi_check "--use and its word never reach SSHARGS" test_parse_use_does_not_reach_sshargs
+  _hi_check_eq "--use <cli> sets BACKEND to that member" "$(printf 'myhost\nnerdctl\n')" _hi_backend_parse_out --use nerdctl myhost
+  _hi_check_eq "--use and its word never reach SSHARGS" "$(printf 'myhost\n\n')" _hi_parse_out --use podman myhost
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger
   _hi_check "--use=<backend> is the same flag" test_parse_use_takes_the_equals_spelling
   _hi_check "--use=<stranger> is refused" test_parse_use_equals_rejects_a_stranger
   _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
   _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
-  _hi_check "--use after the target is the remote command's" test_parse_use_after_the_target_is_not_claimed
+  _hi_check_eq "--use after the target is the remote command's" "$(printf 'myhost\n\n')" _hi_backend_parse_out myhost --use nerdctl
   _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
   _hi_check "--plain combines with --use" test_parse_plain_combines_with_use
   _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix

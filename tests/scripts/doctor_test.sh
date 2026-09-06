@@ -237,7 +237,7 @@ function test_config_flags_a_scheme_nothing_renders() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_COLOR_SCHEME='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+    _HI_COLOR_SCHEME="$_HI_TEST_L12"
     doctor_config
   )"
   [[ "$out" != *"color-scheme"* ]]

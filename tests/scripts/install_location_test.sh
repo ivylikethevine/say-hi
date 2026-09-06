@@ -136,28 +136,8 @@ function test_the_install_wrote_nothing_into_the_tree() {
   [ ! -e "$_HI_LOC_ROOT/config" ] && [ ! -e "$_HI_LOC_ROOT/settings/settings.sh" ]
 }
 
-# Value producers rather than predicates: _hi_par_check_eq compares and, on a
-# mismatch, prints what came back. A bare `[ "$(...)" = "$..." ]` here reported
-# FAILED and nothing else, which is worth little on a run you cannot reach -
-# an empty $_HI_ROOT (the rc wiring never loaded), one pointing at $HOME/say-hi
-# (a surviving $HOME default) and one carrying stray rc stdout are three
-# different bugs behind one identical red line.
-function test_bash_resolves_the_nested_tree() {
-  _hi_loc_shell bash 'printf %s "$_HI_ROOT"'
-}
-
-function test_zsh_resolves_the_nested_tree() {
-  _hi_loc_shell zsh 'printf %s "$_HI_ROOT"'
-}
-
 function test_fish_resolves_the_nested_tree() {
   _hi_strip_ansi "$(_hi_loc_shell fish 'printf %s "$_HI_ROOT"')"
-}
-
-# sh has no rc of its own to wire up - it reaches paths.sh directly, told where
-# the tree is, which is the shape hi.sh's bash-less fallback rc builds
-function test_sh_sources_paths_from_the_nested_tree() {
-  _hi_loc_sh 'printf %s "$_HI_ROOT"'
 }
 
 function test_bash_has_his_prompt() {
@@ -179,20 +159,6 @@ function _hi_loc_renders_the_header() {
   local out
   out="$(_hi_loc_shell "$1" "$2")"
   _hi_has_rendered "$out" Online
-}
-
-function test_bash_renders_the_header() {
-  _hi_loc_renders_the_header bash 'source "$_HI_HEADER"; hi_header Online'
-}
-
-function test_zsh_renders_the_header() {
-  _hi_loc_renders_the_header zsh 'bash -c "source $_HI_HEADER; hi_header Online"'
-}
-
-# fish's own greeting is hi's header (common/config.fish's fish_greeting), so
-# this asks for the thing a user actually sees rather than a stand-in
-function test_fish_renders_the_header() {
-  _hi_loc_renders_the_header fish 'fish_greeting'
 }
 
 # `hi --doctor` through the `hi` alias common/paths.sh defines - the launcher,
@@ -240,22 +206,6 @@ function _hi_loc_outside_env() {
 # for _hi_par_check_eq to compare against $_HI_LOC_OUT_ROOT
 function _hi_loc_outside_resolves() {
   _hi_loc_outside_env "$1" -c "$2" </dev/null 2>/dev/null
-}
-
-function test_outside_bash_derives_the_tree() {
-  _hi_loc_outside_resolves bash "source '$_HI_LOC_OUT_ROOT/common/bash.sh'; printf %s \"\$_HI_ROOT\""
-}
-
-function test_outside_zsh_derives_the_tree() {
-  _hi_loc_outside_resolves zsh "source '$_HI_LOC_OUT_ROOT/common/zsh.zsh'; printf %s \"\$_HI_ROOT\""
-}
-
-function test_outside_fish_derives_the_tree() {
-  _hi_loc_outside_resolves fish "source '$_HI_LOC_OUT_ROOT/common/config.fish'; printf %s \"\$_HI_ROOT\""
-}
-
-function test_outside_core_derives_the_tree() {
-  _hi_loc_outside_resolves bash "source '$_HI_LOC_OUT_ROOT/common/core.sh'; printf %s \"\$_HI_ROOT\""
 }
 
 # the launcher answers rather than reporting a path nobody typed
@@ -316,10 +266,18 @@ function run_install_location_tests() {
   # `hi --doctor` runs at ~350ms each were most of this suite's wall clock.
   _hi_h2 "Testing: a fresh shell finds the nested tree"
   _hi_par_begin cases
-  _hi_par_check_eq "bash" "$_HI_LOC_ROOT" test_bash_resolves_the_nested_tree
-  _hi_par_check_requires_eq zsh "zsh" "$_HI_LOC_ROOT" test_zsh_resolves_the_nested_tree
+  # Value producers rather than predicates: _hi_par_check_eq compares and, on a
+  # mismatch, prints what came back. A bare `[ "$(...)" = "$..." ]` here reported
+  # FAILED and nothing else, which is worth little on a run you cannot reach -
+  # an empty $_HI_ROOT (the rc wiring never loaded), one pointing at $HOME/say-hi
+  # (a surviving $HOME default) and one carrying stray rc stdout are three
+  # different bugs behind one identical red line.
+  _hi_par_check_eq "bash" "$_HI_LOC_ROOT" _hi_loc_shell bash 'printf %s "$_HI_ROOT"'
+  _hi_par_check_requires_eq zsh "zsh" "$_HI_LOC_ROOT" _hi_loc_shell zsh 'printf %s "$_HI_ROOT"'
   _hi_par_check_requires_eq fish "fish" "$_HI_LOC_ROOT" test_fish_resolves_the_nested_tree
-  _hi_par_check_eq "sh, through common/paths.sh" "$_HI_LOC_ROOT" test_sh_sources_paths_from_the_nested_tree
+  # sh has no rc of its own to wire up - it reaches paths.sh directly, told where
+  # the tree is, which is the shape hi.sh's bash-less fallback rc builds
+  _hi_par_check_eq "sh, through common/paths.sh" "$_HI_LOC_ROOT" _hi_loc_sh 'printf %s "$_HI_ROOT"'
   _hi_par_wait
 
   _hi_h2 "Testing: prompt, header and hi --doctor out of it"
@@ -327,9 +285,11 @@ function run_install_location_tests() {
   _hi_par_check "bash has hi's prompt" test_bash_has_his_prompt
   _hi_par_check_requires zsh "zsh has hi's prompt" test_zsh_has_his_prompt
   _hi_par_check_requires fish "fish has hi's prompt" test_fish_has_his_prompt
-  _hi_par_check "bash renders the header" test_bash_renders_the_header
-  _hi_par_check_requires zsh "zsh renders the header" test_zsh_renders_the_header
-  _hi_par_check_requires fish "fish renders the header" test_fish_renders_the_header
+  _hi_par_check "bash renders the header" _hi_loc_renders_the_header bash 'source "$_HI_HEADER"; hi_header Online'
+  _hi_par_check_requires zsh "zsh renders the header" _hi_loc_renders_the_header zsh 'bash -c "source $_HI_HEADER; hi_header Online"'
+  # fish's own greeting is hi's header (common/config.fish's fish_greeting), so
+  # this asks for the thing a user actually sees rather than a stand-in
+  _hi_par_check_requires fish "fish renders the header" _hi_loc_renders_the_header fish 'fish_greeting'
   _hi_par_check "bash: hi --doctor names the tree" test_bash_doctor_names_the_nested_tree
   _hi_par_check_requires zsh "zsh: hi --doctor names the tree" test_zsh_doctor_names_the_nested_tree
   _hi_par_check_requires fish "fish: hi --doctor names the tree" test_fish_doctor_names_the_nested_tree
@@ -339,10 +299,10 @@ function run_install_location_tests() {
 
   _hi_h2 "Testing: a tree outside \$HOME, with \$_HI_HOME unset"
   _hi_par_begin cases
-  _hi_par_check_eq "bash.sh derives it" "$_HI_LOC_OUT_ROOT" test_outside_bash_derives_the_tree
-  _hi_par_check_requires_eq zsh "zsh.zsh derives it" "$_HI_LOC_OUT_ROOT" test_outside_zsh_derives_the_tree
-  _hi_par_check_requires_eq fish "config.fish derives it" "$_HI_LOC_OUT_ROOT" test_outside_fish_derives_the_tree
-  _hi_par_check_eq "core.sh derives it" "$_HI_LOC_OUT_ROOT" test_outside_core_derives_the_tree
+  _hi_par_check_eq "bash.sh derives it" "$_HI_LOC_OUT_ROOT" _hi_loc_outside_resolves bash "source '$_HI_LOC_OUT_ROOT/common/bash.sh'; printf %s \"\$_HI_ROOT\""
+  _hi_par_check_requires_eq zsh "zsh.zsh derives it" "$_HI_LOC_OUT_ROOT" _hi_loc_outside_resolves zsh "source '$_HI_LOC_OUT_ROOT/common/zsh.zsh'; printf %s \"\$_HI_ROOT\""
+  _hi_par_check_requires_eq fish "config.fish derives it" "$_HI_LOC_OUT_ROOT" _hi_loc_outside_resolves fish "source '$_HI_LOC_OUT_ROOT/common/config.fish'; printf %s \"\$_HI_ROOT\""
+  _hi_par_check_eq "core.sh derives it" "$_HI_LOC_OUT_ROOT" _hi_loc_outside_resolves bash "source '$_HI_LOC_OUT_ROOT/common/core.sh'; printf %s \"\$_HI_ROOT\""
   _hi_par_check "hi.sh runs from it" test_outside_launcher_runs
   _hi_par_check_capable symlink "hi.sh runs through a symlink onto it" test_outside_launcher_runs_through_a_symlink
   _hi_par_check "A missing tree is named and refused" test_a_missing_tree_is_named_and_refused

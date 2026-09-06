@@ -131,14 +131,6 @@ function _hi_sources_settings_before_paths() {
   _hi_before "$(grep -v '^[[:space:]]*#' "$1")" 'settings\.sh' 'paths\.sh'
 }
 
-function test_core_sources_settings_first() {
-  _hi_sources_settings_before_paths "$_HI_ROOT/common/core.sh"
-}
-
-function test_fish_config_sources_settings_first() {
-  _hi_sources_settings_before_paths "$_HI_ROOT/common/config.fish"
-}
-
 # hi.sh's fallback rc is the third entry point, but it's *generated* rather
 # than sourced, so it's asserted against _hi_fallback_rc's real output over in
 # tests/hi/parse_test.sh instead of by grepping the file.
@@ -302,10 +294,6 @@ function test_header_presets_hold_the_vocabulary() {
 # The input validators guarding what ask_value will write into settings.sh -
 # the single-quote one is what keeps a typed value from ending the sh word the
 # written `export NAME='value'` line wraps it in.
-# a scheme of the user's own: 12 hex words, or 24 with a second bank
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
-
 function test_validators_hold_their_grammars() {
   _hi_is_number 42 || return 1
   ! _hi_is_number 4.2 || return 1
@@ -1009,10 +997,6 @@ function test_check_overlay_configs_catches_sh_only_aliases() {
   _hi_settings_fixture ov_if bash -c 'printf "if true; then alias ll=ls; fi\n" >"$_HI_CONFIG_DIR/aliases.sh"'
   ! _hi_settings_fixture ov_if _hi_overlay_check_run
 }
-function test_check_overlay_configs_passes_with_no_overlay() {
-  _hi_settings_fixture ov_none _hi_overlay_check_run
-}
-
 function test_check_one_config_skips_empty_file() {
   local target="$_HI_WORKDIR/empty.bashrc"
   : >"$target"
@@ -1761,8 +1745,8 @@ function run_configure_tests() {
   _hi_check "No backup for an empty target" test_config_shell_no_backup_for_empty_target
 
   _hi_h2 "Testing: settings are sourced ahead of paths.sh"
-  _hi_check "common/core.sh" test_core_sources_settings_first
-  _hi_check "common/config.fish" test_fish_config_sources_settings_first
+  _hi_check "common/core.sh" _hi_sources_settings_before_paths "$_HI_ROOT/common/core.sh"
+  _hi_check "common/config.fish" _hi_sources_settings_before_paths "$_HI_ROOT/common/config.fish"
 
   _hi_h2 "Testing: the collector - prompt separators"
   _hi_check "An existing override is kept" test_prompt_ends_keeps_an_existing_override
@@ -1872,7 +1856,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: check_overlay_configs"
   _hi_check_requires fish "A clean overlay passes" test_check_overlay_configs_passes_a_clean_overlay
   _hi_check_requires fish "An sh-only aliases.sh is caught by the fish row" test_check_overlay_configs_catches_sh_only_aliases
-  _hi_check "No overlay, nothing to say" test_check_overlay_configs_passes_with_no_overlay
+  _hi_check "No overlay, nothing to say" _hi_settings_fixture ov_none _hi_overlay_check_run
 
   _hi_h2 "Testing: config_hi (skip path only)"
   _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked

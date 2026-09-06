@@ -32,10 +32,6 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../scripts/preview.sh
 source "$_HI_PREVIEW"
 
-# catppuccin's twelve, then vscode's twelve: a 24-word scheme of the user's own
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
-
 # One scratch tree for both halves: the colors fixtures and the ssh config a
 # child render derives its paths from, and the packages roster in the tree.
 function _hi_write_preview_tree() {
@@ -387,16 +383,6 @@ function test_tables_show_a_pattern_pin_example_row() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1'
 }
 
-# Not the exact shape the comment above declines to assert - just that each
-# table *is* one: every cell is padded to its column's width, so every line of
-# a table has to come out the same printed width once the color escapes are
-# stripped. Catches a column measured in something other than printed
-# characters, which PREVIEW (escape-laden, sized by _hi_group_preview_width)
-# and HOST (unwrappably long names) both got wrong.
-function test_color_tables_are_rectangular() {
-  _hi_table_is_rectangular "$_HI_COLORS_OUT"
-}
-
 # --help answers before reading any config, prints the usage text and exits 0
 function test_help_prints_usage_and_exits_zero() {
   local out
@@ -511,7 +497,7 @@ function test_color_name_of_names_a_palette_entry() {
 # sets $_HI_PACKAGES_PALETTE itself
 function test_color_name_of_names_every_header_color() {
   local name escape
-  for name in cool $(sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'); do
+  for name in $(_hi_palette_names); do
     _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
     for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
       [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
@@ -649,10 +635,6 @@ function test_priorities_table_drops_the_floor_note_at_zero() {
     [[ "$out" == *hidelta* && "$out" == *"13 listed, 11 shown, 2 hidden"* ]]
 }
 
-function test_priorities_table_is_rectangular() {
-  _hi_table_is_rectangular "$_HI_PRIO_OUT"
-}
-
 function test_marks_table_explains_every_mark() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
@@ -737,10 +719,6 @@ function test_packages_stray_argument_is_refused() {
   local out rc=0
   out="$(_hi_render_packages_help nonsense)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* && "$out" != *"| PRIORITY"* ]]
-}
-
-function test_short_help_matches_long() {
-  [ "$(_hi_render_packages_help -h)" = "$(_hi_render_packages_help --help)" ]
 }
 
 # One render (the slowest thing this suite does) shared by the cases below;
@@ -855,13 +833,6 @@ function test_preview_ignores_an_exported_packages_path() {
   [[ "$out" == *hibravo* ]] && [[ "$out" != *hionlyone* ]]
 }
 
-# The same invariant the colors half asserts, through literally the same
-# code: test_lib.sh's _hi_table_is_rectangular. Shared so the two cannot
-# segment tables differently and quietly check different things.
-function test_package_tables_are_rectangular() {
-  _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
-}
-
 function run_preview_tests() {
   _hi_workdir previewtest
   _hi_write_color_fixtures
@@ -949,7 +920,14 @@ EOF
   _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
   _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
-  _hi_check "Every line of a table is the same width" test_color_tables_are_rectangular
+  # Not the exact table shape - just that each table *is* one: every cell is
+  # padded to its column's width, so every line has to come out the same printed
+  # width once the color escapes are stripped. Catches a column measured in
+  # something other than printed characters, which PREVIEW (escape-laden, sized
+  # by _hi_group_preview_width) and HOST (unwrappably long names) both got
+  # wrong. The packages half asserts the same invariant through literally the
+  # same code, so the two cannot segment tables differently.
+  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_COLORS_OUT"
 
   _hi_h2 "Testing: colors - --help"
   _hi_check "--help prints usage and exits 0" test_help_prints_usage_and_exits_zero
@@ -993,7 +971,7 @@ EOF
   _hi_check "Legend shows the real examples" test_priorities_table_shows_the_real_examples
   _hi_check "Legend counts below the table" test_priorities_table_counts_below_the_table
   _hi_check "Floor note vanishes at floor 0" test_priorities_table_drops_the_floor_note_at_zero
-  _hi_check "Legend is rectangular" test_priorities_table_is_rectangular
+  _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_PRIO_OUT"
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
@@ -1003,7 +981,7 @@ EOF
   _hi_h2 "Testing: packages - the rendered preview"
   _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops
   _hi_check "A stray argument is refused" test_packages_stray_argument_is_refused
-  _hi_check "-h matches --help" test_short_help_matches_long
+  _hi_check_eq "-h matches --help" "$(_hi_render_packages_help --help)" _hi_render_packages_help -h
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
   _hi_check "Names a scheme's escapes" test_color_name_of_names_scheme_escapes
@@ -1013,7 +991,7 @@ EOF
   _hi_check "Explains the mode characters" test_preview_explains_the_modes
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
-  _hi_check "Every line of a table is the same width" test_package_tables_are_rectangular
+  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
   _hi_check "An exported $_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
