@@ -43,13 +43,6 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # The per-file overlay paths and their *_AUTO companions, defaulted so
-  # paths.sh's guards can read them bare under `set -u`. GLOSSARY: HI.07
-  for _hi_t in _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC \
-    _HI_COLORS_AUTO _HI_PACKAGES_AUTO _HI_VIMRC_AUTO _HI_NANORC_AUTO; do
-    eval ": \"\${$_hi_t:=}\"; export $_hi_t"
-  done
-  unset _hi_t
   # A platform team's defaults, below the user's settings.sh (sourced next,
   # so the user wins). Local machines only: a visiting session is configured
   # by the visitor, and a target's /etc has no say in it. $_HI_SYSTEM_SETTINGS

@@ -609,7 +609,7 @@ function test_config_settings_writes_every_group_at_once() {
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
-# `hi --update`'s git pull still applies and a root-owned tree still works
+# `hi --update`'s tag checkout still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
   [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/settings/settings.sh" ]

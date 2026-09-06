@@ -65,8 +65,16 @@ end
 # `hi --<TAB>` would fire the target sweep too, and a flag list must never
 # wait on a docker daemon (the promise targets.sh, bash.sh and zsh.zsh keep).
 # -k keeps targets.sh's order - recent targets first - instead of sorting.
-complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct)' \
+# the word after a flag that takes one - `hi --preview <TAB>`, `hi --use
+# <TAB>` - is neither a flag nor a target: targets.sh's words roster
+function __hi_prev_takes_word --description 'is the previous token --preview or --use'
+  set -l toks (commandline -opc)
+  test (count $toks) -gt 0; and contains -- $toks[-1] --preview --use
+end
+complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct); and not __hi_prev_takes_word' \
   -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
+complete -c hi -f -k -n __hi_prev_takes_word \
+  -a '(sh $_HI_TARGETS words (commandline -opc)[-1])'
 # hi's own options from the same file, so the two lists cannot drift
 complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags)'

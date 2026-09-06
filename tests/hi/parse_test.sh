@@ -879,7 +879,7 @@ function test_help_fits_eighty_columns() {
 # makes the same split at runtime, so the two are one fact written twice - and
 # they disagreed in both directions at once. --doctor was documented in the top
 # group while the roster correctly withheld it in a session (scripts/doctor.sh
-# is not in $_HI_PAYLOAD), and --preview-packages was documented in the bottom
+# is not in $_HI_PAYLOAD), and the packages preview was documented in the bottom
 # group while the roster correctly still offered it there (it falls back to the
 # shipped common/header.sh instead of refusing).
 function test_man_page_option_groups_match_the_roster() {
@@ -1016,8 +1016,9 @@ function _hi_subcmd_run() {
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag out
   home="$(_hi_subcmd_home subcmd-bare)"
-  for flag in --install --uninstall --configure --preview-colors --doctor; do
-    out="$(_hi_subcmd_run "$home" "$flag")" && {
+  for flag in --install --uninstall --configure "--preview colors" --doctor; do
+    # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
+    out="$(_hi_subcmd_run "$home" $flag)" && {
       _hi_cecho " | $flag exited 0 without a checkout" "$RED"
       return 1
     }
@@ -1036,26 +1037,13 @@ function test_update_refuses_without_a_git_dir() {
   [[ "$out" == *"hi --update: no .git in"* ]]
 }
 
-# --help is hi's to answer, not git pull's - and it answers ahead of the .git
-# check, so a package install gets the text too
+# --help is hi's to answer, and it answers ahead of the .git check, so a
+# package install gets the text too
 function test_update_help_is_his_own() {
   local home out
   home="$(_hi_subcmd_home subcmd-bare)"
   out="$(_hi_subcmd_run "$home" --update --help)" || return 1
-  [[ "$out" == "Usage: hi --update"* && "$out" == *"<branch>"* ]]
-}
-
-# ...and with a .git it hands the rest of its argv to git pull, in this tree:
-# a git shim first on the PATH sees exactly that
-function test_update_hands_its_arguments_to_git_pull() {
-  local dir out
-  dir="$_HI_WORKDIR/updategit"
-  mkdir -p "$dir"
-  printf '#!/bin/sh\nprintf "GIT %%s\\n" "$*"\n' >"$dir/git"
-  chmod +x "$dir/git"
-  [ -d "$_HI_ROOT/.git" ] || return 0
-  out="$(PATH="$dir:$PATH" "$_HI_ROOT/hi.sh" --update --ff-only 2>&1)" || return 1
-  [[ "$out" == *"GIT -C $_HI_ROOT pull --ff-only"* ]]
+  [[ "$out" == "Usage: hi --update"* && "$out" == *"newest release tag"* ]]
 }
 
 # _hi_update_fixture <name> - a target-shaped tree that is also a git clone:
@@ -1098,24 +1086,40 @@ function test_update_to_a_tag_detaches_there() {
   ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1
 }
 
-function test_bare_update_on_a_tag_says_so_and_stops() {
-  local home out before after
+# bare: the newest tag by version, which the fetch brings in - and that
+# leaves a branch checkout detached too, since releases are tags and nothing
+# else
+function test_bare_update_moves_to_the_newest_tag() {
+  local home out
   home="$(_hi_update_fixture upd-bare)" || return 1
-  _hi_subcmd_run "$home" --update v0.0.2 >/dev/null || return 1
-  before="$(git -C "$home/say-hi" rev-parse HEAD)"
-  out="$(_hi_subcmd_run "$home" --update)" && return 1
-  after="$(git -C "$home/say-hi" rev-parse HEAD)"
-  [[ "$out" == *"on v0.0.2, not a branch"* ]] && [ "$before" = "$after" ]
+  out="$(_hi_subcmd_run "$home" --update)" || return 1
+  [[ "$out" == *"now on v0.0.2"* ]] || return 1
+  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.2 ] &&
+    [ -f "$home/say-hi/two.txt" ]
 }
 
-function test_update_to_a_branch_reattaches_and_pulls() {
-  local home
-  home="$(_hi_update_fixture upd-branch)" || return 1
-  _hi_subcmd_run "$home" --update v0.0.1 >/dev/null || return 1
-  _hi_subcmd_run "$home" --update main >/dev/null || return 1
-  [ "$(git -C "$home/say-hi" symbolic-ref -q --short HEAD)" = main ] || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$(git -C "$home/say-hi" rev-parse origin/main)" ] || return 1
-  [ -f "$home/say-hi/two.txt" ]
+# ...by version, not by name: v0.0.10 beats v0.0.9, and a pre-release of the
+# next version is never chosen unasked
+function test_bare_update_sorts_tags_by_version() {
+  local home out
+  home="$(_hi_update_fixture upd-sort)" || return 1
+  (
+    cd "$home/work" || exit 1
+    git -c tag.gpgsign=false tag v0.0.10 && git -c tag.gpgsign=false tag v0.0.9 &&
+      git -c tag.gpgsign=false tag v0.0.11-rc.1 && git push -q origin --tags
+  ) >/dev/null 2>&1 || return 1
+  out="$(_hi_subcmd_run "$home" --update)" || return 1
+  [[ "$out" == *"now on v0.0.10"* ]]
+}
+
+function test_update_on_the_tag_already_says_so() {
+  local home out before after
+  home="$(_hi_update_fixture upd-same)" || return 1
+  _hi_subcmd_run "$home" --update v0.0.2 >/dev/null || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update)" || return 1
+  after="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [[ "$out" == *"already on v0.0.2"* ]] && [ "$before" = "$after" ]
 }
 
 function test_update_refuses_a_dirty_tree() {
@@ -1129,27 +1133,36 @@ function test_update_refuses_a_dirty_tree() {
   tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$'
 }
 
-function test_update_refuses_an_unknown_ref() {
+# a branch name is no longer a thing to name: releases are tags
+function test_update_refuses_an_unknown_tag() {
   local home out
   home="$(_hi_update_fixture upd-nope)" || return 1
   out="$(_hi_subcmd_run "$home" --update nope)" && return 1
-  [[ "$out" == *"no tag or branch named nope"* ]]
+  [[ "$out" == *"no release tag named nope"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --update main)" && return 1
+  [[ "$out" == *"no release tag named main"* ]]
 }
 
-function test_update_to_a_tag_takes_no_pull_options() {
+# no git-pull options any more, and no second word: both are errors before
+# anything moves
+function test_update_takes_one_tag_at_most() {
   local home out
   home="$(_hi_update_fixture upd-opts)" || return 1
   out="$(_hi_subcmd_run "$home" --update v0.0.2 --ff-only)" && return 1
-  [[ "$out" == *"takes no git-pull options"* ]] || return 1
+  [[ "$out" == *"one release tag at most"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --update --ff-only)" && return 1
+  [[ "$out" == *"unknown option --ff-only"* ]] || return 1
   [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
 }
 
-# ...and --preview-packages is the one that does not refuse at all: the check
-# itself ships in common/header.sh, so on a target it falls back to that
+# ...and --preview packages/header do not refuse at all: the check and the
+# header ship in common/header.sh, so on a target they fall back to that
 function test_packages_preview_falls_back_to_the_shipped_check() {
   local home out
   home="$(_hi_subcmd_home subcmd-bare)"
-  out="$(_hi_subcmd_run "$home" --preview-packages)" || return 1
+  out="$(_hi_subcmd_run "$home" --preview packages)" || return 1
+  [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --preview header)" || return 1
   [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]]
 }
 
@@ -1161,12 +1174,13 @@ function test_local_subcommands_exec_the_right_script() {
     '--install|STUB install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
-    '--preview-colors|STUB color_preview' \
-    '--preview-packages|STUB packages_preview' \
+    '--preview colors|STUB color_preview' \
+    '--preview packages|STUB packages_preview' \
     '--doctor|STUB doctor'; do
     flag="${spec%%|*}"
     want="${spec#*|}"
-    out="$(_hi_subcmd_run "$home" "$flag")" || return 1
+    # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
+    out="$(_hi_subcmd_run "$home" $flag)" || return 1
     [ "$out" = "$want" ] || {
       _hi_cecho " | $flag ran '$out', wanted '$want'" "$RED"
       return 1
@@ -1175,12 +1189,39 @@ function test_local_subcommands_exec_the_right_script() {
 }
 
 # a sub-command is still a command line: what follows the flag rides along
+# a subject that is not one of the three is an error naming them, and so is
+# no subject at all - `hi --preview` must never connect to a host by that name
+function test_preview_refuses_an_unknown_subject() {
+  local home out rc=0
+  home="$(_hi_subcmd_stubs)"
+  out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
+  [[ "$out" == *"one of colors, packages or header"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --preview)" && return 1
+  [[ "$out" == *"one of colors, packages or header"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]]
+}
+
+# `hi --use <TAB>` completes from targets.sh's words roster, which spells the
+# arms on its own (a completion can reach it without hi.sh): it has to be
+# ssh plus _HI_BACKENDS, in order
+function test_use_words_match_the_backend_roster() {
+  local want roster
+  # shellcheck disable=SC2031
+  want="$(printf '%s\n' ssh "${_HI_BACKENDS[@]%%|*}")"
+  roster="$(sh "$_HI_ROOT/common/targets.sh" words --use | cut -f1)"
+  [ "$roster" = "$want" ] || {
+    _hi_cecho "   words --use: ${roster//$'\n'/ } - hi.sh: ${want//$'\n'/ }" "$RED"
+    return 1
+  }
+}
+
 function test_local_subcommands_forward_extra_arguments() {
   local home out
   home="$(_hi_subcmd_stubs)"
   out="$(_hi_subcmd_run "$home" --doctor myhost)" || return 1
   [ "$out" = "STUB doctor myhost" ] || return 1
-  out="$(_hi_subcmd_run "$home" --preview-colors --help)" || return 1
+  out="$(_hi_subcmd_run "$home" --preview colors --help)" || return 1
   [ "$out" = "STUB color_preview --help" ]
 }
 
@@ -1445,14 +1486,16 @@ function run_hi_parse_tests() {
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
   _hi_check "--update refuses without a .git" test_update_refuses_without_a_git_dir
   _hi_check "--update --help is hi's text" test_update_help_is_his_own
-  _hi_check "--update hands its arguments to git pull" test_update_hands_its_arguments_to_git_pull
   _hi_check_requires git "--update <tag> checks the tag out, detached" test_update_to_a_tag_detaches_there
-  _hi_check_requires git "A bare --update on a tag says so and stops" test_bare_update_on_a_tag_says_so_and_stops
-  _hi_check_requires git "--update <branch> reattaches and pulls" test_update_to_a_branch_reattaches_and_pulls
-  _hi_check_requires git "--update <ref> refuses a dirty tree" test_update_refuses_a_dirty_tree
-  _hi_check_requires git "--update refuses an unknown ref" test_update_refuses_an_unknown_ref
-  _hi_check_requires git "--update <tag> takes no git-pull options" test_update_to_a_tag_takes_no_pull_options
-  _hi_check "--preview-packages falls back instead" test_packages_preview_falls_back_to_the_shipped_check
+  _hi_check_requires git "A bare --update moves to the newest tag" test_bare_update_moves_to_the_newest_tag
+  _hi_check_requires git "...newest by version, pre-releases below" test_bare_update_sorts_tags_by_version
+  _hi_check_requires git "Already on the tag: says so, exits 0" test_update_on_the_tag_already_says_so
+  _hi_check_requires git "--update refuses a dirty tree" test_update_refuses_a_dirty_tree
+  _hi_check_requires git "--update refuses an unknown tag, a branch included" test_update_refuses_an_unknown_tag
+  _hi_check_requires git "--update takes one tag at most, no options" test_update_takes_one_tag_at_most
+  _hi_check "--preview packages/header fall back instead" test_packages_preview_falls_back_to_the_shipped_check
+  _hi_check "--preview wants one of three subjects" test_preview_refuses_an_unknown_subject
+  _hi_check "--use's completion roster is hi's backend roster" test_use_words_match_the_backend_roster
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments
   _hi_check "paths.sh defines no command aliases" test_paths_defines_no_command_aliases

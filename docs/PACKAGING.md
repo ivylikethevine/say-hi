@@ -502,8 +502,8 @@ The tree is root-owned and holds nobody's settings. Each user runs, once:
 ```
 
 `--no-link` skips the `/usr/bin/hi` symlink the package owns. Answers go to
-`~/.config/say-hi/`, never into the tree. `hi --update` refuses to `git pull`
-and points at the package manager.
+`~/.config/say-hi/`, never into the tree. `hi --update` refuses to move a
+packaged tree and points at the package manager.
 
 **Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
 `hi.sh`'s `_hi_remote_root` probe reads the package's

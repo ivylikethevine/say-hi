@@ -788,12 +788,12 @@ function test_flags_drop_local_subcommands_in_a_session() {
       ;;
     esac
   done
-  # ...while the one that does work there is still offered: --preview-packages
+  # ...while the one that does work there is still offered: --preview
   # falls back to the shipped common/header.sh rather than refusing.
   case $'\n'"$out"$'\n' in
-  *$'\n--preview-packages\n'*) return 0 ;;
+  *$'\n--preview\n'*) return 0 ;;
   esac
-  _hi_cecho "   a session lost --preview-packages, which works there" "$RED"
+  _hi_cecho "   a session lost --preview, which works there" "$RED"
   return 1
 }
 
@@ -829,7 +829,43 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
   local out
   out="$(_hi_completions_for --)"
   printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --preview-colors
+    printf '%s\n' "$out" | grep -qx -- --preview
+}
+
+# _hi_completions_after <prev> <cur> - _hi_complete with a flag already typed
+function _hi_completions_after() {
+  PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
+    _HI_DISABLE_PROMPT=1 \
+    bash -c '
+      # shellcheck source=../../common/bash.sh
+      source "$_HI_BASHRC"
+      COMP_WORDS=(hi "$1" "$2")
+      COMP_CWORD=2
+      COMPREPLY=()
+      _hi_complete
+      printf "%s\n" ${COMPREPLY[@]+"${COMPREPLY[@]}"}
+    ' _ "$1" "$2"
+}
+
+# the word after --preview or --use is that flag's own roster, prefix-filtered
+# here, and never a target: alpha (the shim docker's container) must not show
+function test_complete_the_word_after_preview_and_use() {
+  local out
+  out="$(_hi_completions_after --preview "")"
+  printf '%s\n' "$out" | grep -qx header || return 1
+  printf '%s\n' "$out" | grep -qx colors || return 1
+  if printf '%s\n' "$out" | grep -qx alpha; then
+    _hi_cecho "   --preview's word reached the target list" "$RED"
+    return 1
+  fi
+  out="$(_hi_completions_after --use "do")"
+  [ "$out" = docker ] || {
+    _hi_cecho "   --use do: $out" "$RED"
+    return 1
+  }
+  # ...and once the word is taken, the next one is a target again
+  out="$(_hi_completions_after docker "")"
+  printf '%s\n' "$out" | grep -qx alpha
 }
 
 # ...and the prefix filter is the completion's own, not targets.sh's: the
@@ -838,10 +874,10 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 # that fell through to the target branch would show it.
 function test_complete_flags_filter_by_prefix_and_never_reach_targets() {
   local out
-  out="$(_hi_completions_for --preview-c)"
-  printf '%s\n' "$out" | grep -qx -- --preview-colors || return 1
-  if printf '%s\n' "$out" | grep -qx -- --preview-packages; then
-    _hi_cecho "   --preview-c also offered --preview-packages" "$RED"
+  out="$(_hi_completions_for --pl)"
+  printf '%s\n' "$out" | grep -qx -- --plain || return 1
+  if printf '%s\n' "$out" | grep -qx -- --preview; then
+    _hi_cecho "   --pl also offered --preview" "$RED"
     return 1
   fi
   if printf '%s\n' "$out" | grep -qx alpha; then
@@ -943,6 +979,7 @@ function run_targets_tests() {
   _hi_check "flags: a package is offered only what works there" test_flags_drop_what_a_package_lacks
   _hi_check "flags: answered without probing a backend" test_flags_do_not_probe
   _hi_check "flags: a dash word completes hi's options" test_complete_offers_hi_flags_for_a_dash_word
+  _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
   _hi_suite_end "targets.sh"

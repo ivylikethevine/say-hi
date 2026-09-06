@@ -118,13 +118,13 @@ header, editors, clipboard and aliases).
 ### Know Where You Are at a Glance
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
-`hi --preview-colors` to see what every host resolves to — then a prod host
+`hi --preview colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
 ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
 their shorter headers) and their own two-line fish prompt, drawn on the
 colors hi resolved.
 
-![hi --preview-colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### One Command, Any Backend
 
@@ -241,7 +241,7 @@ everything weighed and answered **no**, and why.
   [no target at all](#no-target-at-all).
 - [optional] configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (the install seeded it
-  from `say-hi/settings/colors`); `hi --preview-colors` shows what every ssh
+  from `say-hi/settings/colors`); `hi --preview colors` shows what every ssh
   host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
@@ -294,7 +294,7 @@ _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. A `hostname` pin holding `*` or `?` is a pattern —
 `hostname,10.0.1.*,red` colors a whole subnet with no ssh-config entry at
-all. `hi --preview-colors` shows the result in the actual colors; the long
+all. `hi --preview colors` shows the result in the actual colors; the long
 version, and using the hash in your own prompt, is
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
@@ -355,7 +355,7 @@ git history is the ledger.
 
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
-      the thirteen `common/flags`, every `docs/SETTINGS.md` row,
+      the twelve `common/flags`, every `docs/SETTINGS.md` row,
       `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table

@@ -25,9 +25,10 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-configure
 .RB [ \-\-preset " " \fIname\fR]
 .br
-.BR "hi \-\-uninstall" " | " \-\-update " [" \fIref\fR "] [" \fIgit\-pull\-options\fR "]"
+.BR "hi \-\-uninstall" " | " \-\-update " [" \fItag\fR "]"
 .br
-.BR "hi \-\-preview\-colors" " | " \-\-preview\-packages
+.B hi \-\-preview
+.RB { colors | packages | header }
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -241,6 +242,24 @@ says \- the way out of that default for one connect. Of
 and
 .BR \-\-no\-mux ,
 the last one on the line wins.
+.TP
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
+print one of three things and exit, instead of connecting.
+.B colors
+is every ssh host and your user in their resolved colors, each row naming the
+rule it matched \- a pin, a tag, a pattern or the hash.
+.B packages
+is the package\-priority legend, as the header's check prints it, with the
+ranks the floor silences marked.
+.B header
+is the connect header itself, as it prints here at your settings.
+.B colors
+wants
+.BR scripts/ ,
+so inside a session it says so and stops; the other two have a full form
+there too and fall back to the check and the header out of the shipped
+.B common/header.sh
+on a target.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -251,11 +270,6 @@ session each says so and stops.
 wants
 .B .git
 on top of that, and a package carries none.
-.B \-\-preview\-packages
-is the one exception to all of it: it falls back to the check itself, out of the
-shipped
-.BR common/header.sh ,
-rather than refusing.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
@@ -315,31 +329,19 @@ before either.
 .I name
 applies one without the menu.
 .TP
-.B \-\-update \fR[\fIref\fR] [\fIgit\-pull\-options\fR]
+.B \-\-update \fR[\fItag\fR]
+move the say-hi checkout to a release tag: the tags are fetched and the newest
+is checked out, detached \- or the
+.I tag
+named, to move on or back. Releases are tags and nothing else; following a
+branch is
 .B git pull
-in the say-hi checkout, with any further words handed to
-.BR git\-pull (1)
-as they are.
-With a
-.IR ref ,
-the checkout moves instead: the tags are fetched, and a release tag is checked
-out detached (nothing to pull, so pull options are refused), while a branch is
-checked out and then pulled.
+in the checkout, by hand.
 A working tree with uncommitted changes is refused before anything moves \-
 commit or stash first.
-A bare
-.B \-\-update
-on a checkout left on a tag says which tag and stops; name a branch to reattach,
-or another tag to move on.
 Needs a checkout: an install from a package has no
 .B .git
-to pull into, and says so rather than running.
-.TP
-.B \-\-preview\-colors
-what every ssh host and your user resolve to, in their actual colors.
-.TP
-.B \-\-preview\-packages
-the package\-priority legend, as the header prints it.
+to move, and says so rather than running.
 .PP
 Everything else is passed through to
 .BR ssh (1)
@@ -538,13 +540,6 @@ or
 .RB ( COLORTERM ;
 .B _HI_TRUECOLOR=1
 forces it, 0 refuses). Unset, the terminal's own sixteen colors.
-.TP
-.B _HI_COLORS, _HI_PACKAGES, _HI_VIMRC, _HI_NANORC
-where each of those four config files is read from. Unset, each resolves to
-the copy in
-.B $_HI_CONFIG_DIR
-if you have made one and to the tree's otherwise; exported, it points that
-one file elsewhere and leaves the rest of the overlay where it is.
 .SH EXAMPLES
 .TP
 .B hi prod-db

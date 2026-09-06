@@ -51,6 +51,31 @@ if [ "$kind" = flags ]; then
   exit 0
 fi
 
+# The word after a flag that takes one, so `hi --preview <TAB>` and
+# `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
+# lines. --use's roster is the arms hi.sh dispatches on - ssh, every member of
+# $_HI_CONTAINER_CLIS, nomad, kube - spelled here because a completion can
+# reach this file without hi.sh (parse_test.sh pins the two against each
+# other). Answered before the probes, like the flags.
+if [ "$kind" = words ]; then
+  case "${2:-}" in
+  --preview)
+    printf 'colors\tevery ssh host and your user, in their resolved colors\n'
+    printf 'packages\tthe package-priority legend, as the header prints it\n'
+    printf 'header\tthe connect header, as it prints here\n'
+    ;;
+  --use)
+    printf 'ssh\tssh, no probing (a container of the same name loses)\n'
+    for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+      printf '%s\ta running container, through %s\n' "$cli" "$cli"
+    done
+    printf 'nomad\ta running nomad allocation\n'
+    printf 'kube\ta kubernetes pod\n'
+    ;;
+  esac
+  exit 0
+fi
+
 ttl="${_HI_TARGETS_TTL:-5}"
 now="$(date +%s 2>/dev/null || echo 0)"
 

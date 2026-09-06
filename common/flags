@@ -18,10 +18,9 @@
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
 --mux||-|||a local tmux around the session; a repeat reattaches
 --no-mux||-|||no tmux around this connect, whatever _HI_MUX says
---preview-packages||-|||the package-priority legend, as the header prints it
+--preview|<subject>|-|||colors, packages or header, as they resolve here
 --doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
 --install|[--yes] [--no-link] [--prefix <dir>]|scripts|_HI_INSTALL||install or repair say-hi's lines in your shell rc files
 --uninstall||scripts|_HI_INSTALL|--uninstall|take those lines back out again
 --configure|[--preset <name>]|scripts|_HI_INSTALL|--features-only|revisit the settings, leaving the rc wiring be
---preview-colors||scripts|_HI_COLOR_PREVIEW||every ssh host and your user, in their resolved colors
---update|[<ref>] [git-pull-options]|git|||pull the checkout, or move to a tag/branch (needs .git)
+--update|[<tag>]|git|||move the checkout to the newest release tag, or <tag>

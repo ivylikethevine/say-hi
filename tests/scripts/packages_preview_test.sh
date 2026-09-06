@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Unit tests for scripts/packages_preview.sh - the `hi --preview-packages` legend.
+# Unit tests for scripts/packages_preview.sh - the `hi --preview packages` legend.
 #
 # The preview's whole claim is that it shows what the *header* will do, so what
 # matters is that it reads its facts from header.sh rather than from a copy:
@@ -46,7 +46,11 @@ highost0:0
 +highostplus:0
 highostalt:3,hibravo:3
 EOF
+  # in-process cases read $_HI_PACKAGES; a child script re-derives it from
+  # $_HI_CONFIG_DIR, so the fixture is also an overlay directory
   export _HI_PACKAGES="$_HI_WORKDIR/packages"
+  mkdir -p "$_HI_WORKDIR/cfg"
+  cp "$_HI_WORKDIR/packages" "$_HI_WORKDIR/cfg/packages"
 }
 
 # the fixture's packages, and the coreutils the script itself shells out to
@@ -287,7 +291,7 @@ function test_modes_table_is_rectangular() {
 
 # The real script, in this tree, reading the exported fixture ($_HI_PACKAGES
 # does reach a child: paths.sh keeps a value it did not derive - the per-file
-# override). The real file rather than a scratch copy so that what these cases
+# overlay). The real file rather than a scratch copy so that what these cases
 # exercise counts in the coverage sweep, which only sees files under the
 # checkout; $HOME is pointed at the workdir so no overlay of the user's can
 # win the automatic lookup. The ordinary path - the file the *tree* carries,
@@ -295,7 +299,7 @@ function test_modes_table_is_rectangular() {
 # on a scratch tree below.
 function _hi_render_preview() {
   PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" \
-  _HI_PACKAGES="$_HI_WORKDIR/packages" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" \
     "$_HI_ROOT/scripts/packages_preview.sh" 2>&1
 }
 
@@ -308,7 +312,7 @@ function _hi_write_preview_tree() {
 # the help path: same PATH as the render, plus the one argument
 function _hi_render_help() {
   PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" \
-  _HI_PACKAGES="$_HI_WORKDIR/packages" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" \
     "$_HI_ROOT/scripts/packages_preview.sh" "$1" 2>&1
 }
 
@@ -317,7 +321,7 @@ function _hi_render_help() {
 function test_preview_reads_the_trees_own_file() {
   local out
   out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
-  _HI_PACKAGES="" _HI_PACKAGES_AUTO="" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$_HI_WORKDIR/tree/say-hi/scripts/packages_preview.sh" 2>&1)" || return 1
   [[ "$out" == *hialpha* ]] && [[ "$out" == *'13 listed'* ]]
 }
@@ -404,34 +408,31 @@ function test_preview_ends_with_the_real_check() {
 # Every section of the preview reads the packages file, so a missing one is
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
-# $_HI_PACKAGES is cleared for the child, and has to be: the suite exports its
-# own fixture into this shell, and an exported value is an *override* that
-# paths.sh keeps rather than something the next source overwrites. Leaving it
-# set would point the script at a file that exists and prove nothing.
+# $_HI_CONFIG_DIR points the child at an empty overlay, so the tree's file
+# is the only candidate - and the tree has none.
 function test_preview_reports_a_missing_packages_file() {
   local home out
   home="$(_hi_scratch_tree nopackages common settings scripts)"
   rm -f "$home/say-hi/settings/packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
-  _HI_PACKAGES="" _HI_PACKAGES_AUTO="" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
     "$home/say-hi/scripts/packages_preview.sh" 2>&1)" && return 1
   [[ "$out" == *"No packages file"* ]]
 }
 
-# ...and the other half of the same fact, which is the feature rather than its
-# side effect: an exported $_HI_PACKAGES points the check at one file without
-# moving the rest of the overlay, and survives the paths.sh the script sources
-# on its way in. The tree here has a perfectly good packages file; the export
-# names a different one, and the roster that comes out has to be that one's.
-function test_preview_reads_an_exported_packages_file() {
+# ...and an exported $_HI_PACKAGES is not a way in: the script's paths.sh
+# re-derives the path from $_HI_CONFIG_DIR and the tree, so the export is
+# ignored and the tree's roster comes out. The overlay is the one way to
+# point the check at a file of your own.
+function test_preview_ignores_an_exported_packages_path() {
   local home out
   home="$(_hi_scratch_tree exportedpkgs common settings scripts)"
-  printf 'hionlyone:3
-' >"$_HI_WORKDIR/exported-packages"
+  cp "$_HI_WORKDIR/packages" "$home/say-hi/settings/packages"
+  printf 'hionlyone:3\n' >"$_HI_WORKDIR/exported-packages"
   out="$(PATH="$(_hi_pkg_path)" HOME="$home" _HI_HOME="$home" \
-  _HI_PACKAGES="$_HI_WORKDIR/exported-packages" \
+  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$_HI_WORKDIR/exported-packages" \
     "$home/say-hi/scripts/packages_preview.sh" 2>&1)" || return 1
-  [[ "$out" == *hionlyone* ]] && [[ "$out" != *hibravo* ]]
+  [[ "$out" == *hibravo* ]] && [[ "$out" != *hionlyone* ]]
 }
 
 # The same invariant color_preview_test.sh asserts, through literally the same
@@ -508,7 +509,7 @@ function run_packages_preview_tests() {
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" test_tables_are_rectangular
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
-  _hi_check "Reads an exported packages file" test_preview_reads_an_exported_packages_file
+  _hi_check "An exported $_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
 
   _hi_suite_end "packages_preview.sh"

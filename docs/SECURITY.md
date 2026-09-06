@@ -25,8 +25,7 @@ to report what slipped through it.
   `curl`/`wget` in the shipped tree.
 - **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
   a distro package (deb/rpm/apk, AUR, Homebrew) built from that same script.
-  `hi --update` is `git pull`, or a tag or branch checkout, in a checkout you
-  can read.
+  `hi --update` is a release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) —
   docs, tests, CI and editor config never leave the client; `hi.sh` is there so
@@ -48,13 +47,12 @@ hosts` line and the host-key fingerprint on a first connection reach your
   trust-on-first-use into accepting a fingerprint nobody was shown.
 - **`hi --update` checks no signature.** Tagged releases exist (`v0.1.0`,
   `v0.1.1`, … - see [Supported versions](#supported-versions)) and their tags
-  are themselves signed (`git verify-tag`), but `hi.sh`'s `--update` runs
-  `git pull` on a branch and `git checkout` on a tag, unmodified - it fetches
-  tags and checks no signature on either unless asked to (`--verify-signatures`
-  as a git-pull option, or a `pull.*` config doing it for you), so today it
-  verifies only what an unconfigured `git pull` always does: the transport to
-  the remote, and nothing about the commits or the tag. A packaged install
-  updates through its package manager, which has its own signing story.
+  are themselves signed (`git verify-tag`), but `hi.sh`'s `--update` is
+  `git fetch --tags` plus `git checkout` of the tag, unmodified - it checks
+  no signature on what it fetched, so today it verifies only what git
+  always does: the transport to the remote, and nothing about the tag. A
+  packaged install updates through its package manager, which has its own
+  signing story.
 
 ## What runs where
 
@@ -187,10 +185,10 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | Untrusted input allowlisted, not sanitized after the fact | `_hi_safe_path` (`hi.sh:520`) checks the two strings a target hands back against an explicit `[bracket-class]` before either reaches a command run back on it; `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` skip an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` (`common/core.sh:283`) strips control characters and backslashes from target-derived text |
 | No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([When a push is refused](#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                               |
 
-**What is not (yet) countered.** `hi --update` verifies only what an
-unconfigured `git pull` always does - nothing about the commits it pulls or
-the tag it checks out - unless `--verify-signatures` is passed on a branch;
-a documented, current gap. A packaged install updates through its
+**What is not (yet) countered.** `hi --update` verifies nothing about the
+release tag it checks out beyond git's transport to the remote; `git
+verify-tag` before `hi --update <tag>` is the manual step, and wiring it in
+is a documented, current gap. A packaged install updates through its
 package manager instead, with its own signing story ([PACKAGING.md](PACKAGING.md)).
 
 Last reviewed 2026-09, alongside the changes this argument describes.

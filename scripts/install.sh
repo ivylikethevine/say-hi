@@ -267,7 +267,7 @@ function run_uninstall() {
 # hi.sh's $_HI_PAYLOAD: that list answers "what does a target need for one
 # session", this one answers "what does an installed copy need forever", and the
 # two differ on scripts/ - not in the payload, required here so a user of a
-# packaged install can still run `hi --install`/`hi --uninstall`/`hi --preview-colors`
+# packaged install can still run `hi --install`/`hi --uninstall`/`hi --preview colors`
 # against it. tests/ is in neither and has no flag of its own.
 # Every entry is top-level. LICENSE.md is at the root rather than under docs/
 # so github.com and OpenSSF Scorecard's License check can both find it - they

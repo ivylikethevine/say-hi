@@ -1079,9 +1079,10 @@ function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
 # cells short and deterministic; one priority-3 package guarantees
 # full_check has something to open with.
 function test_hi_header_cascades_identity_overflow_into_check() {
-  local pkgfile="$_HI_WORKDIR/cascade-into-check" out line
-  printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_PACKAGES="$pkgfile" \
+  local cfg="$_HI_WORKDIR/cascade-into-check" out line
+  mkdir -p "$cfg"
+  printf '%s:3\n' "$_HI_REAL_CMD" >"$cfg/packages"
+  out="$(PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 _HI_CONFIG_DIR="$cfg" \
   _HI_MAX_WIDTH=25 _HI_HEADER_ORDER="gitid auth pub uptime check" \
     bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
   [[ "$out" == *"Up:"* && "$out" == *"$_HI_REAL_CMD"* ]] || return 1
@@ -1352,7 +1353,8 @@ function test_no_lead_space_drops_only_the_leading_space() {
 function test_no_lead_space_applies_to_the_packages_check() {
   local pkgfile="$_HI_WORKDIR/nolead-pkgs" out
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
-  out="$(NO_COLOR=1 _HI_NO_LEAD_SPACE=1 _HI_PACKAGES="$pkgfile" bash -c 'source "$_HI_HEADER"; full_check')"
+  mkdir -p "$_HI_WORKDIR/pkgcfg" && cp "$pkgfile" "$_HI_WORKDIR/pkgcfg/packages"
+  out="$(NO_COLOR=1 _HI_NO_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
   [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
 }
 

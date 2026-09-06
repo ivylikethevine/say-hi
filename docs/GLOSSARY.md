@@ -774,7 +774,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twelve palette names
 render as; it never adds a name. `_hi_hash_color`, the `settings/colors`
-pins, `_hi_color_name_of` and `hi --preview-colors` all keep the same
+pins, `_hi_color_name_of` and `hi --preview colors` all keep the same
 vocabulary, so a scheme is invisible to everything that reasons about a
 color by name - only the bytes a name turns into change.
 

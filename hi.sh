@@ -1851,33 +1851,26 @@ function _hi_flag_help() {
 
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
 
-# _hi_update [<ref>] [git-pull-options] - the checkout's update, three shapes.
-# Bare on a branch: `git pull` with the rest of argv, as it always was. Bare on
-# a detached HEAD (a tag checked out below): say so and stop - nothing moves
-# without being named. With a ref: refuse a dirty tree, fetch the tags, then a
-# tag is checked out detached (and takes no pull options, there is no pull), a
-# branch is checked out and pulled. .git is the test throughout: absent from
-# payloads and packaged installs alike.
+# hi --update [<tag>]: move the checkout to a release tag - the newest one, or
+# the one named - detached, after a tag fetch. Releases are tags and nothing
+# else; following a branch is `git pull` in the checkout, by hand. A dirty
+# tree is refused before anything moves. Payloads and packages carry no .git
+# and say so; --help is answered ahead of that check so they get the text too.
 function _hi_update() {
-  local root="$_HI_ROOT" ref="" dirty here
-  # answered ahead of the .git check, so a package install gets the text too,
-  # and ahead of the ref case below, which would hand --help to git pull
+  local root="$_HI_ROOT" tag="" dirty here
   case "${1:-}" in
   -h | --help)
     cat <<EOF
-Usage: hi --update [<ref>] [git-pull-options]
+Usage: hi --update [<tag>]
 
-Moves the say-hi checkout this hi runs from (needs its .git; a package has
-none, so it says so and stops):
-  hi --update                    git pull on the branch it is on, with any
-                                 git-pull-options passed through (--rebase, ...)
-  hi --update <tag>              check that release out, detached; no pull,
-                                 so no git-pull-options either
-  hi --update <branch>           check that branch out and pull it - the way
-                                 back from a tag
+Moves the say-hi checkout this hi runs from to a release tag (needs its
+.git; a package has none, so it says so and stops):
+  hi --update           the newest release tag, after fetching them
+  hi --update <tag>     that release
 
-A tree with uncommitted changes is refused. \`git -C $root tag\` lists the
-releases.
+Either way the checkout is left detached on the tag. A tree with
+uncommitted changes is refused. \`git -C $root tag\` lists the releases;
+following a branch instead is \`git -C $root pull\`, by hand.
 EOF
     exit 0
     ;;
@@ -1887,42 +1880,42 @@ EOF
     exit 1
   }
   case "${1:-}" in
-  '' | -*) ;;
-  *)
-    ref="$1"
-    shift
+  -*)
+    _hi_cecho "hi --update: unknown option $1 (one release tag, or nothing for the newest)" "$RED" >&2
+    exit 1
     ;;
   esac
-  if [ -z "$ref" ]; then
-    git -C "$root" symbolic-ref -q HEAD >/dev/null 2>&1 || {
-      here="$(git -C "$root" describe --tags --always 2>/dev/null)"
-      _hi_cecho "hi --update: $root is on ${here:-a detached HEAD}, not a branch; hi --update <branch> reattaches, hi --update <tag> moves to another release" "$RED" >&2
-      exit 1
-    }
-    exec git -C "$root" pull "$@"
-  fi
+  [ $# -le 1 ] || {
+    _hi_cecho "hi --update: one release tag at most ($*)" "$RED" >&2
+    exit 1
+  }
+  tag="${1:-}"
   dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
   [ -z "$dirty" ] || {
-    _hi_cecho "hi --update $ref: uncommitted changes in $root; commit or stash them first" "$RED" >&2
+    _hi_cecho "hi --update: uncommitted changes in $root; commit or stash them first" "$RED" >&2
     exit 1
   }
   git -C "$root" fetch --tags --quiet || exit 1
-  if git -C "$root" show-ref --verify -q "refs/tags/$ref"; then
-    [ $# -eq 0 ] || {
-      _hi_cecho "hi --update $ref: a tag takes no git-pull options ($*); there is no pull" "$RED" >&2
+  if [ -z "$tag" ]; then
+    # newest release by version (v0.0.10 above v0.0.9); a pre-release
+    # (v1.0.0-rc.1) is never chosen unasked - name it to move there
+    tag="$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -v -- - | head -n 1)"
+    [ -n "$tag" ] || {
+      _hi_cecho "hi --update: no release tags in $root" "$RED" >&2
       exit 1
     }
-    git -C "$root" checkout -q "refs/tags/$ref" || exit 1
-    _hi_cecho "hi: now on $ref (detached); hi --update <branch> reattaches" "$GREEN"
+  elif ! git -C "$root" show-ref --verify -q "refs/tags/$tag"; then
+    _hi_cecho "hi --update: no release tag named $tag; git -C $root tag lists them" "$RED" >&2
+    exit 1
+  fi
+  here="$(git -C "$root" describe --tags --exact-match 2>/dev/null || true)"
+  if [ "$here" = "$tag" ]; then
+    _hi_cecho "hi: already on $tag" "$GREEN"
     exit 0
   fi
-  if git -C "$root" show-ref --verify -q "refs/heads/$ref" ||
-    git -C "$root" show-ref --verify -q "refs/remotes/origin/$ref"; then
-    git -C "$root" checkout -q "$ref" || exit 1
-    exec git -C "$root" pull "$@"
-  fi
-  _hi_cecho "hi --update: no tag or branch named $ref; git -C $root tag lists releases" "$RED" >&2
-  exit 1
+  git -C "$root" checkout -q "refs/tags/$tag" || exit 1
+  _hi_cecho "hi: now on $tag (detached)" "$GREEN"
+  exit 0
 }
 
 # sourcing this file defines its functions without connecting, for testing
@@ -1978,11 +1971,50 @@ EOF
   shift
   _hi_update "$@"
   ;;
-# the full preview lives in scripts/; a target falls back to the check itself
---preview-packages)
+# --preview <subject>: colors wants scripts/ (and says so in a session);
+# packages and header have a full form in scripts/ and fall back to the
+# shipped common/header.sh on a target, so the flag itself works anywhere
+--preview)
   shift
-  [ -f "$_HI_PACKAGES_PREVIEW" ] && _HI_ARGV0="hi --preview-packages" exec "$_HI_PACKAGES_PREVIEW" "$@"
-  exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
+  case "${1:-}" in
+  colors)
+    shift
+    _hi_run_script "--preview colors" "$_HI_COLOR_PREVIEW" "$@"
+    ;;
+  packages)
+    shift
+    [ -f "$_HI_PACKAGES_PREVIEW" ] && _HI_ARGV0="hi --preview packages" exec "$_HI_PACKAGES_PREVIEW" "$@"
+    exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
+    ;;
+  header)
+    shift
+    [ $# -eq 0 ] || {
+      _hi_cecho "hi --preview header: takes no arguments (got: $*)" "$RED" >&2
+      exit 1
+    }
+    exec bash -c 'source "$1" && hi_header Preview' hi "$_HI_HEADER"
+    ;;
+  -h | --help)
+    cat <<'EOF'
+Usage: hi --preview <subject>
+
+One of:
+
+  colors     every ssh host and your user, in their resolved colors, and
+             why (a pin, a tag, a pattern or the hash)
+  packages   the package-priority legend, as the header's check prints it
+  header     the connect header, as it prints here at your settings
+
+colors needs scripts/, so inside a session it says so and stops; the other
+two fall back to the shipped common/header.sh there.
+EOF
+    exit 0
+    ;;
+  *)
+    _hi_cecho "hi --preview: one of colors, packages or header${1:+ (not $1)}" "$RED" >&2
+    exit 1
+    ;;
+  esac
   ;;
 # -V is hi's, like -h: the one ssh short option claimed on purpose, because
 # "which version of hi is this" is the question a bug report asks first and

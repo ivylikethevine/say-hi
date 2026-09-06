@@ -104,8 +104,19 @@ _HI_TARGET_ROWS_AT=-1
 
 _hi() {
   local name kind
+  # the word a flag takes (`hi --preview <TAB>`, `hi --use <TAB>`), then
   # hi's own options when the word is one, targets otherwise - the split
   # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
+  if [[ "${words[CURRENT-1]}" == --preview || "${words[CURRENT-1]}" == --use ]]; then
+    local -a subjects sdescs
+    local srow
+    for srow in "${(@f)$(sh "$_HI_TARGETS" words "${words[CURRENT-1]}")}"; do
+      subjects+=("${srow%%$'\t'*}")
+      sdescs+=("${srow%%$'\t'*} - ${srow#*$'\t'}")
+    done
+    compadd -d sdescs -a subjects
+    return 0
+  fi
   if [[ "${words[CURRENT]}" == -* ]]; then
     # "<flag>\t<help>" lines: the flag is the match, the help its description
     local -a flags descs

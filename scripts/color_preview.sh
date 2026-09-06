@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 # preview what every ssh host & every known user resolve to, rendered in that
 # actual color, plus why (override/hosttag/default) - handy when tuning
-# settings/colors. Run via `hi --preview-colors`.
+# settings/colors. Run via `hi --preview colors`.
 set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it

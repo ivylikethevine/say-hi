@@ -4,7 +4,7 @@
 # preview how the header's packages check will render: what each priority
 # means, the colors it paints an installed and a missing package at that
 # priority, a real example of each drawn from your own packages file, and the
-# check itself as it will actually print. Run via `hi --preview-packages`.
+# check itself as it will actually print. Run via `hi --preview packages`.
 set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -35,8 +35,8 @@ taken from your own packages file - then the marks, then the check itself
 exactly as a connect will print it.
 
 Takes no arguments. Reads:
-  settings/packages      the [-|+]package:priority lines (override with \$_HI_PACKAGES;
-                     ~/.config/say-hi/packages wins automatically when present)
+  settings/packages      the [-|+]package:priority lines (the overlay's
+                     ~/.config/say-hi/packages wins when present)
   common/header.sh   the priority meanings and their two color tables
   \$_HI_PACKAGES_PALETTE   which of the named color tables is active (cool, the
                      default; warm; mono) - printed above the legend
