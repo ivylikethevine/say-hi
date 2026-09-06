@@ -717,7 +717,7 @@ function test_complete_still_answers_from_the_cache() {
 function test_flags_all_appear_in_help() {
   local flag help bad=0
   help="$(_HI_HOME="$_HI_HOME" bash "$_HI_ROOT/hi.sh" --help 2>&1)" || true
-  while read -r flag; do
+  while IFS=$'\t' read -r flag _; do
     case "$help" in
     *"$flag"*) ;;
     *)
@@ -733,7 +733,7 @@ function test_flags_all_appear_in_help() {
 # to hi.sh that nobody can TAB to.
 function test_help_flags_all_appear_in_roster() {
   local flag roster bad=0
-  roster="$(sh "$_HI_ROOT/common/targets.sh" flags)"
+  roster="$(sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)"
   # the long options out of the two --help blocks, which is every flag hi parses
   # except -h (its --help twin is listed, and a single letter is not worth
   # completing)
@@ -750,6 +750,28 @@ function test_help_flags_all_appear_in_roster() {
   [ "$bad" = 0 ]
 }
 
+# Every row carries its help clause after a tab - what fish shows beside the
+# flag and zsh beside the match - and it is common/flags' own clause, not a
+# copy. Pinned on two rows with different <needs> so the gate above keeps the
+# column intact.
+function test_flags_carry_their_help_as_a_second_column() {
+  local out flag help table
+  out="$(sh "$_HI_ROOT/common/targets.sh" flags)"
+  while IFS=$'\t' read -r flag help; do
+    [ -n "$help" ] || {
+      _hi_cecho "   $flag has no help column" "$RED"
+      return 1
+    }
+    table="$(sed -n "s/^$flag|[^|]*|[^|]*|[^|]*|[^|]*|//p" "$_HI_ROOT/common/flags")"
+    [ "$help" = "$table" ] || {
+      _hi_cecho "   $flag: roster says '$help', common/flags says '$table'" "$RED"
+      return 1
+    }
+  done <<<"$out"
+  case "$out" in *'--plain'$'\t'*) ;; *) return 1 ;; esac
+  case "$out" in *'--doctor'$'\t'*) ;; *) return 1 ;; esac
+}
+
 # Inside a session the local sub-commands need a checkout the payload does not
 # carry, so completing one lands on hi.sh's refusal. The roster has to know.
 # --doctor is one of them, despite looking portable as a read-only probe:
@@ -757,7 +779,7 @@ function test_help_flags_all_appear_in_roster() {
 # answers $_HI_NO_CHECKOUT like the rest.
 function test_flags_drop_local_subcommands_in_a_session() {
   local out flag
-  out="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags)"
+  out="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)"
   for flag in --install --doctor --update; do
     case $'\n'"$out"$'\n' in
     *$'\n'"$flag"$'\n'*)
@@ -766,12 +788,12 @@ function test_flags_drop_local_subcommands_in_a_session() {
       ;;
     esac
   done
-  # ...while the one that does work there is still offered: --preview-packages
+  # ...while the one that does work there is still offered: --preview
   # falls back to the shipped common/header.sh rather than refusing.
   case $'\n'"$out"$'\n' in
-  *$'\n--preview-packages\n'*) return 0 ;;
+  *$'\n--preview\n'*) return 0 ;;
   esac
-  _hi_cecho "   a session lost --preview-packages, which works there" "$RED"
+  _hi_cecho "   a session lost --preview, which works there" "$RED"
   return 1
 }
 
@@ -785,7 +807,7 @@ function test_flags_drop_what_a_package_lacks() {
   rm -rf "$tree"
   mkdir -p "$tree/common" "$tree/scripts"
   cp "$_HI_ROOT/common/targets.sh" "$_HI_ROOT/common/flags" "$tree/common/"
-  out="$(sh "$tree/common/targets.sh" flags)"
+  out="$(sh "$tree/common/targets.sh" flags | cut -f1)"
   case $'\n'"$out"$'\n' in
   *$'\n--update\n'*)
     _hi_cecho "   a packaged install was offered --update" "$RED"
@@ -807,7 +829,43 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
   local out
   out="$(_hi_completions_for --)"
   printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --preview-colors
+    printf '%s\n' "$out" | grep -qx -- --preview
+}
+
+# _hi_completions_after <prev> <cur> - _hi_complete with a flag already typed
+function _hi_completions_after() {
+  PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
+    _HI_DISABLE_PROMPT=1 \
+    bash -c '
+      # shellcheck source=../../common/bash.sh
+      source "$_HI_BASHRC"
+      COMP_WORDS=(hi "$1" "$2")
+      COMP_CWORD=2
+      COMPREPLY=()
+      _hi_complete
+      printf "%s\n" ${COMPREPLY[@]+"${COMPREPLY[@]}"}
+    ' _ "$1" "$2"
+}
+
+# the word after --preview or --use is that flag's own roster, prefix-filtered
+# here, and never a target: alpha (the shim docker's container) must not show
+function test_complete_the_word_after_preview_and_use() {
+  local out
+  out="$(_hi_completions_after --preview "")"
+  printf '%s\n' "$out" | grep -qx header || return 1
+  printf '%s\n' "$out" | grep -qx colors || return 1
+  if printf '%s\n' "$out" | grep -qx alpha; then
+    _hi_cecho "   --preview's word reached the target list" "$RED"
+    return 1
+  fi
+  out="$(_hi_completions_after --use "do")"
+  [ "$out" = docker ] || {
+    _hi_cecho "   --use do: $out" "$RED"
+    return 1
+  }
+  # ...and once the word is taken, the next one is a target again
+  out="$(_hi_completions_after docker "")"
+  printf '%s\n' "$out" | grep -qx alpha
 }
 
 # ...and the prefix filter is the completion's own, not targets.sh's: the
@@ -816,10 +874,10 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 # that fell through to the target branch would show it.
 function test_complete_flags_filter_by_prefix_and_never_reach_targets() {
   local out
-  out="$(_hi_completions_for --preview-c)"
-  printf '%s\n' "$out" | grep -qx -- --preview-colors || return 1
-  if printf '%s\n' "$out" | grep -qx -- --preview-packages; then
-    _hi_cecho "   --preview-c also offered --preview-packages" "$RED"
+  out="$(_hi_completions_for --pl)"
+  printf '%s\n' "$out" | grep -qx -- --plain || return 1
+  if printf '%s\n' "$out" | grep -qx -- --preview; then
+    _hi_cecho "   --pl also offered --preview" "$RED"
     return 1
   fi
   if printf '%s\n' "$out" | grep -qx alpha; then
@@ -835,7 +893,7 @@ function test_flags_do_not_probe() {
   local out
   out="$(
     PATH="/nonexistent-hi-test-path:$PATH" \
-      _HI_PROBE_TIMEOUT=0 sh "$_HI_ROOT/common/targets.sh" flags
+      _HI_PROBE_TIMEOUT=0 sh "$_HI_ROOT/common/targets.sh" flags | cut -f1
   )"
   case $'\n'"$out"$'\n' in
   *$'\n--doctor\n'*) return 0 ;;
@@ -916,10 +974,12 @@ function run_targets_tests() {
   _hi_check "The completion offers it first" test_complete_offers_the_most_recent_first
   _hi_check "flags: every one is in hi --help" test_flags_all_appear_in_help
   _hi_check "flags: every --help flag is in the roster" test_help_flags_all_appear_in_roster
+  _hi_check "flags: each carries common/flags' help clause" test_flags_carry_their_help_as_a_second_column
   _hi_check "flags: a session is offered only what works there" test_flags_drop_local_subcommands_in_a_session
   _hi_check "flags: a package is offered only what works there" test_flags_drop_what_a_package_lacks
   _hi_check "flags: answered without probing a backend" test_flags_do_not_probe
   _hi_check "flags: a dash word completes hi's options" test_complete_offers_hi_flags_for_a_dash_word
+  _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
   _hi_suite_end "targets.sh"

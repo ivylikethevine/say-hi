@@ -10,16 +10,13 @@
 # and lives here rather than in a script of its own: both halves own the same
 # marker-tagged lines and the same symlink, and split across two files the
 # contract between them is two copies of a string staying identical.
-# scripts/uninstall.sh is a shim onto this flag.
 set -euo pipefail
 
 _HI_FEATURES_ONLY=""
 _HI_CHECK_CONFIGS_ONLY=""
-_HI_OVERLAY_INIT=""
-# _MODE, not a bare _HI_UNINSTALL: common/paths.sh exports that name as the path
-# to scripts/uninstall.sh, and it is sourced below - a flag by that name would be
-# overwritten with a non-empty path and turn every plain `install.sh` run into an
-# uninstall.
+# _MODE, not a bare _HI_UNINSTALL: common/paths.sh once exported that name as
+# a path, and a sourced file overwriting a mode flag with a non-empty string
+# would turn every plain `install.sh` run into an uninstall.
 _HI_UNINSTALL_MODE=""
 _HI_ASSUME_YES=0
 # Skip config_hi's symlink. For installs where something else already owns the
@@ -31,15 +28,17 @@ _HI_NO_LINK=""
 _HI_PREFIX=""
 # --preset <name>: configure.sh's _HI_PRESETS, applied without asking
 _HI_PRESET=""
-_HI_USAGE="Usage: install.sh [--features-only] [--preset <name>] [--check-configs] [--overlay-init] [--uninstall] [--yes] [--no-link] [--prefix <dir>]"
+_HI_USAGE="Usage: ${_HI_ARGV0:-install.sh} [--features-only] [--preset <name>] [--check-configs] [--uninstall] [--yes] [--no-link] [--prefix <dir>]"
+# the three modes are one choice: hi --configure and hi --uninstall each
+# inject one, so `hi --configure --uninstall` used to uninstall
+_HI_MODES=""
 # one `shift` after the case, not one per arm: an arm added without its own was
 # an infinite loop
 while [ $# -gt 0 ]; do
   case "$1" in
-  --features-only) _HI_FEATURES_ONLY=1 ;;
-  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 ;;
-  --overlay-init) _HI_OVERLAY_INIT=1 ;;
-  --uninstall) _HI_UNINSTALL_MODE=1 ;;
+  --features-only) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
   --no-link) _HI_NO_LINK=1 ;;
   -y | --yes) _HI_ASSUME_YES=1 ;;
   --prefix)
@@ -65,7 +64,10 @@ while [ $# -gt 0 ]; do
 $_HI_USAGE
 
 Wires up the local shells to source this say-hi checkout and links hi.sh onto
-PATH. Safe to re-run any time - it repairs its own lines and leaves
+PATH. It also seeds the config overlay: copies the shipped
+colors/packages/vim.rc/nano.rc defaults into
+\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi for the files you have none of, a
+file already there never touched. Safe to re-run any time - it repairs its own lines and leaves
 everything else alone. The install location is always wherever this script
 lives (say-hi's parent directory), not a path you pass in - say-hi installs in
 place. Your own answers never land in the tree: they go to
@@ -92,14 +94,6 @@ its current setting when there is no tty to answer on.
                    the shell files in your config overlay (aliases.sh under
                    both sh and fish) - skip everything else. This is what
                    \`hi --doctor\` folds into its report.
-  --overlay-init   Seed and version the config overlay: copy the shipped
-                   colors/packages/vim.rc/nano.rc defaults in for the files
-                   you have none of (a file already there is never touched),
-                   then \`git init\` plus a first commit in
-                   \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi, in place. From
-                   then on \`hi --configure\` commits its own settings writes;
-                   an overlay you never init never hears about git. This is
-                   what \`hi --overlay-init\` calls.
   --uninstall      The inverse: strip hi's lines back out of those three rc
                    files, remove the settings.sh this wrote, and unlink
                    /usr/bin/hi if it points at this say-hi. Safe to re-run.
@@ -107,7 +101,7 @@ its current setting when there is no tty to answer on.
                    you're done with it - and so is the one-time
                    <rc-file>.hi-orig backup the install took before its
                    first write to each rc file. This is what
-                   \`hi --uninstall\` (and scripts/uninstall.sh) calls.
+                   \`hi --uninstall\` calls.
   -y, --yes        Install even if that validation finds problems. Without
                    it, a non-interactive run stops rather than rewriting
                    shell configs that don't parse.
@@ -135,6 +129,14 @@ EOF
   esac
   shift
 done
+case "$_HI_MODES" in
+' '*' '*)
+  echo "install.sh: pick one of$_HI_MODES" >&2
+  echo "$_HI_USAGE" >&2
+  exit 1
+  ;;
+esac
+unset _HI_MODES
 
 # Either flag alone is enough - a packager who passes only $DESTDIR still gets
 # /usr/share, and one who passes only --prefix is installing straight to a live
@@ -265,7 +267,7 @@ function run_uninstall() {
 # hi.sh's $_HI_PAYLOAD: that list answers "what does a target need for one
 # session", this one answers "what does an installed copy need forever", and the
 # two differ on scripts/ - not in the payload, required here so a user of a
-# packaged install can still run `hi --install`/`hi --uninstall`/`hi --preview-colors`
+# packaged install can still run `hi --install`/`hi --uninstall`/`hi --preview colors`
 # against it. tests/ is in neither and has no flag of its own.
 # Every entry is top-level. LICENSE.md is at the root rather than under docs/
 # so github.com and OpenSSF Scorecard's License check can both find it - they
@@ -330,16 +332,15 @@ function install_tree() {
 # calls in particular have no business firing from a test
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
-if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
-  _hi_h1 "Checking existing shell configs!"
-elif [ -n "$_HI_OVERLAY_INIT" ]; then
-  _hi_h1 "Versioning the config overlay!"
-elif [ -n "$_HI_UNINSTALL_MODE" ]; then
+# the same order the modes run in below
+if [ -n "$_HI_UNINSTALL_MODE" ]; then
   _hi_h1 "Uninstalling hi.sh!"
-elif [ -n "$_HI_FEATURES_ONLY" ]; then
-  _hi_h1 "Configuring hi.sh features!"
 elif [ -n "$_HI_PACKAGING" ]; then
   _hi_h1 "Packaging hi.sh!"
+elif [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
+  _hi_h1 "Checking existing shell configs!"
+elif [ -n "$_HI_FEATURES_ONLY" ]; then
+  _hi_h1 "Configuring hi.sh features!"
 else
   _hi_h1 "Installing (or reinstalling) hi.sh!"
 fi
@@ -369,13 +370,6 @@ if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
   exit $_hi_check_rc
 fi
 
-# Ahead of everything that reads or writes the overlay, and after the modes
-# that must not touch a user's home (packaging, uninstall) have already exited.
-if [ -n "$_HI_OVERLAY_INIT" ]; then
-  overlay_init
-  exit $?
-fi
-
 # a preset name is checked before anything is asked or written, so a typo
 # costs nothing
 if [ -n "$_HI_PRESET" ] && ! preset_row "$_HI_PRESET" >/dev/null; then
@@ -385,6 +379,10 @@ fi
 
 if [ -z "$_HI_FEATURES_ONLY" ]; then
   config_validate_shells
+  # seed the overlay ahead of everything that reads or writes it, and after
+  # the modes that must not touch a user's home (packaging, uninstall,
+  # --check-configs) have already exited; --configure leaves it be
+  overlay_seed
 fi
 
 run_configure "$_HI_PRESET"

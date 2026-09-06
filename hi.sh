@@ -59,8 +59,10 @@ source "$_HI_HOME/say-hi/common/core.sh"
 
 _HI_RELEASE="${_HI_RELEASE:-}"
 
-# The synopsis, kept identical to docs/hi.1's .SH SYNOPSIS
-_HI_USAGE="Usage: hi [ssh-options] <target> [command ...]"
+# The synopsis, kept identical to docs/hi.1's first .SH SYNOPSIS line
+# (tests/hi/parse_test.sh compares the two); folded so --help fits 80 columns
+_HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
+          <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
 # session has a launcher to relay onward with (~14KB of wire inside the tar).
@@ -104,7 +106,6 @@ function _hi_shquote() {
 # The client-derived env both transports export into the session, one
 # NAME<TAB>value pair per line (_hi_env_each renders it per transport)
 function _hi_session_env() {
-  printf '_HI_TARGET\t%s\n' "$DOMAIN"
   printf '_HI_TARGET_COLOR\t%s\n' "$(_hi_target_color)"
   printf '_HI_TARGET_TAG\t%s\n' "$(_hi_ssh_host_tag "$DOMAIN" 2>/dev/null || true)"
   printf '_HI_LOCAL_USER\t%s\n' "$(_hi_whoami)"
@@ -946,6 +947,10 @@ REMOTE
 # there rather than in the shared rc, which also feeds fish (no PS1) and zsh
 # (a different \$ escape).
 function _hi_remote_suffix() {
+  # the target as typed, single-quoted here so the fallback line below can
+  # name it without the session carrying a variable for it
+  local target_q
+  _hi_shquote target_q "$DOMAIN"
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
       if command -v bash >/dev/null 2>&1; then
@@ -953,7 +958,7 @@ function _hi_remote_suffix() {
       else
         _hi_fallback=sh
         $(_hi_ladder_probe '_hi_fallback="$_hi_s"')
-        printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$hi_esc" "\$_HI_TARGET" "\$_hi_fallback" "$nc_esc" >&2
+        printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$hi_esc" $target_q "\$_hi_fallback" "$nc_esc" >&2
         $(_hi_fallback_rc | _hi_armored_line '>' '"$_hi_rc_dir/.hi_fallback_rc"')
         case "\$_hi_fallback" in
         zsh)
@@ -1512,7 +1517,11 @@ function _hi_pick_target() {
 }
 
 function _hi_parse() {
-  local backend_word
+  local backend_word use_word
+  # every result of the parse starts empty here: these are plain globals, and
+  # an inherited MUX=1 or PLAIN=1 in the environment must not stand in for a
+  # flag that was never typed
+  DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
   SSHARGS=()
   while [ $# -gt 0 ]; do
     case $1 in
@@ -1533,21 +1542,32 @@ function _hi_parse() {
     -*)
       if [ -n "${DOMAIN:-}" ]; then
         SSHARGS+=("$1")
-      elif [ "$1" = --use ]; then
-        # the one hi flag that takes a word: which arm, by name
-        [ $# -ge 2 ] || {
-          _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
-          exit 1
-        }
-        backend_word="$(_hi_use_backend "$2")" || exit 1
+      elif [ "$1" = --use ] || [ "${1#--use=}" != "$1" ]; then
+        # the one hi flag that takes a word: which arm, by name, as the next
+        # word or after an = (install.sh's --prefix and --preset take both)
+        if [ "$1" = --use ]; then
+          [ $# -ge 2 ] || {
+            _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
+            exit 1
+          }
+          use_word="$2"
+          shift
+        else
+          use_word="${1#--use=}"
+        fi
+        backend_word="$(_hi_use_backend "$use_word")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: --use $2 and --use $BACKEND both name a backend; pick one" "$RED" >&2
+          _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
           exit 1
         fi
         BACKEND="$backend_word"
-        shift
       elif [ "$1" = --plain ]; then
         PLAIN=1
+      elif [ "$1" = --mux ]; then
+        MUX=1
+      elif [ "$1" = --no-mux ]; then
+        # the last of --mux/--no-mux wins, and either beats _HI_MUX
+        MUX=0
       else
         SSHARGS+=("$1")
       fi
@@ -1674,6 +1694,50 @@ function _hi_report_failure() {
   [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
 }
 
+# _hi_mux_name <target> - the tmux session a target's wrapped session lives
+# in: `hi-` and the target, with every character tmux's session-name rules
+# reject (`:` and `.`) or that would read badly in a status line (`/`, `@`)
+# turned into `-`. A kube `ctx:ns:pod/ctr` becomes `hi-ctx-ns-pod-ctr`.
+function _hi_mux_name() {
+  printf 'hi-%s' "${1//[^[:alnum:]_-]/-}"
+}
+
+# _hi_mux_wrap - with --mux or _HI_MUX=1, re-run this connect inside a local
+# tmux session named for the target, and never return. `new-session -A` is the
+# reattach: a second `hi --mux <target>` joins the session that is already
+# running instead of opening another. Everything here is client-side; the
+# target sees the same disposable session it always does.
+# GLOSSARY: HI.52 - the re-exec, its guard, the one-string command
+function _hi_mux_wrap() {
+  local name cmd="" word q
+  [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
+  # the inner hi, already inside the session: connect as usual
+  [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0
+  command -v tmux >/dev/null 2>&1 || {
+    _hi_cecho "hi: --mux needs tmux on this machine; connecting without it" "$YELLOW" >&2
+    return 0
+  }
+  name="$(_hi_mux_name "$DOMAIN")"
+  # The inner argv is rebuilt from what _hi_parse settled on rather than
+  # replayed from "$@", so a target chosen by the picker rides along. One
+  # single-quoted string, not a word list: tmux hands it to its default-shell,
+  # which may be fish, and single quotes are the one form every shell reads
+  # the same way (%q's $'...' is bash's alone).
+  for word in env _HI_MUX_INNER=1 "$_HI_LAUNCHER" \
+    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain} \
+    ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"}; do
+    _hi_shquote q "$word"
+    cmd="$cmd${cmd:+ }$q"
+  done
+  if [ -n "${TMUX:-}" ]; then
+    # tmux refuses to nest: create detached if needed, then switch this client
+    tmux has-session -t "=$name" 2>/dev/null ||
+      tmux new-session -d -s "$name" "$cmd" || exit 1
+    exec tmux switch-client -t "=$name"
+  fi
+  exec tmux new-session -A -s "$name" "$cmd"
+}
+
 function _hi() {
   local tmp exit_code arm
 
@@ -1687,6 +1751,8 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
+  # only with a terminal to attach: a piped `hi host cmd` keeps working, un-wrapped
+  if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: wrapping the whole connect to reprint a
   # failure in red at the end would also catch every word ssh says on a
   # *successful* session - the server's `Banner` (the notice a regulated
@@ -1724,7 +1790,9 @@ function _hi() {
 function _hi_run_script() {
   local flag="$1" script="$2"
   shift 2
-  [ -f "$script" ] && exec "$script" "$@"
+  # the script's own usage line names what was typed - `hi --doctor`, not
+  # doctor.sh - when it is reached this way
+  [ -f "$script" ] && _HI_ARGV0="hi $flag" exec "$script" "$@"
   _hi_cecho "hi $flag $_HI_NO_CHECKOUT" "$RED" >&2
   exit 1
 }
@@ -1783,6 +1851,73 @@ function _hi_flag_help() {
 
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
 
+# hi --update [<tag>]: move the checkout to a release tag - the newest one, or
+# the one named - detached, after a tag fetch. Releases are tags and nothing
+# else; following a branch is `git pull` in the checkout, by hand. A dirty
+# tree is refused before anything moves. Payloads and packages carry no .git
+# and say so; --help is answered ahead of that check so they get the text too.
+function _hi_update() {
+  local root="$_HI_ROOT" tag="" dirty here
+  case "${1:-}" in
+  -h | --help)
+    cat <<EOF
+Usage: hi --update [<tag>]
+
+Moves the say-hi checkout this hi runs from to a release tag (needs its
+.git; a package has none, so it says so and stops):
+  hi --update           the newest release tag, after fetching them
+  hi --update <tag>     that release
+
+Either way the checkout is left detached on the tag. A tree with
+uncommitted changes is refused. \`git -C $root tag\` lists the releases;
+following a branch instead is \`git -C $root pull\`, by hand.
+EOF
+    exit 0
+    ;;
+  esac
+  [ -d "$root/.git" ] || {
+    _hi_cecho "hi --update: $_HI_NO_GIT" "$RED" >&2
+    exit 1
+  }
+  case "${1:-}" in
+  -*)
+    _hi_cecho "hi --update: unknown option $1 (one release tag, or nothing for the newest)" "$RED" >&2
+    exit 1
+    ;;
+  esac
+  [ $# -le 1 ] || {
+    _hi_cecho "hi --update: one release tag at most ($*)" "$RED" >&2
+    exit 1
+  }
+  tag="${1:-}"
+  dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
+  [ -z "$dirty" ] || {
+    _hi_cecho "hi --update: uncommitted changes in $root; commit or stash them first" "$RED" >&2
+    exit 1
+  }
+  git -C "$root" fetch --tags --quiet || exit 1
+  if [ -z "$tag" ]; then
+    # newest release by version (v0.0.10 above v0.0.9); a pre-release
+    # (v1.0.0-rc.1) is never chosen unasked - name it to move there
+    tag="$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -v -- - | head -n 1)"
+    [ -n "$tag" ] || {
+      _hi_cecho "hi --update: no release tags in $root" "$RED" >&2
+      exit 1
+    }
+  elif ! git -C "$root" show-ref --verify -q "refs/tags/$tag"; then
+    _hi_cecho "hi --update: no release tag named $tag; git -C $root tag lists them" "$RED" >&2
+    exit 1
+  fi
+  here="$(git -C "$root" describe --tags --exact-match 2>/dev/null || true)"
+  if [ "$here" = "$tag" ]; then
+    _hi_cecho "hi: already on $tag" "$GREEN"
+    exit 0
+  fi
+  git -C "$root" checkout -q "refs/tags/$tag" || exit 1
+  _hi_cecho "hi: now on $tag (detached)" "$GREEN"
+  exit 0
+}
+
 # sourcing this file defines its functions without connecting, for testing
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
@@ -1832,20 +1967,54 @@ survives an upgrade. See \`man hi\` and the README for all of it.
 EOF
   exit 0
   ;;
-# .git as the test: absent from payloads and packaged installs alike
 --update)
   shift
-  [ -d "$_HI_ROOT/.git" ] || {
-    _hi_cecho "hi --update: $_HI_NO_GIT" "$RED" >&2
-    exit 1
-  }
-  exec git -C "$_HI_ROOT" pull "$@"
+  _hi_update "$@"
   ;;
-# the full preview lives in scripts/; a target falls back to the check itself
---preview-packages)
+# --preview <subject>: colors wants scripts/ (and says so in a session);
+# packages and header have a full form in scripts/ and fall back to the
+# shipped common/header.sh on a target, so the flag itself works anywhere
+--preview)
   shift
-  [ -f "$_HI_PACKAGES_PREVIEW" ] && exec "$_HI_PACKAGES_PREVIEW" "$@"
-  exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
+  case "${1:-}" in
+  colors)
+    shift
+    _hi_run_script "--preview colors" "$_HI_COLOR_PREVIEW" "$@"
+    ;;
+  packages)
+    shift
+    [ -f "$_HI_PACKAGES_PREVIEW" ] && _HI_ARGV0="hi --preview packages" exec "$_HI_PACKAGES_PREVIEW" "$@"
+    exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
+    ;;
+  header)
+    shift
+    [ $# -eq 0 ] || {
+      _hi_cecho "hi --preview header: takes no arguments (got: $*)" "$RED" >&2
+      exit 1
+    }
+    exec bash -c 'source "$1" && hi_header Preview' hi "$_HI_HEADER"
+    ;;
+  -h | --help)
+    cat <<'EOF'
+Usage: hi --preview <subject>
+
+One of:
+
+  colors     every ssh host and your user, in their resolved colors, and
+             why (a pin, a tag, a pattern or the hash)
+  packages   the package-priority legend, as the header's check prints it
+  header     the connect header, as it prints here at your settings
+
+colors needs scripts/, so inside a session it says so and stops; the other
+two fall back to the shipped common/header.sh there.
+EOF
+    exit 0
+    ;;
+  *)
+    _hi_cecho "hi --preview: one of colors, packages or header${1:+ (not $1)}" "$RED" >&2
+    exit 1
+    ;;
+  esac
   ;;
 # -V is hi's, like -h: the one ssh short option claimed on purpose, because
 # "which version of hi is this" is the question a bug report asks first and

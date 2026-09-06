@@ -534,6 +534,6 @@ answers the same way there, and `--update` answers that way in a
 package-manager install too, which ships `scripts/` but neither of the others.
 **Which flag needs what is `docs/hi.1`'s OPTIONS section**, drift-checked
 against `common/targets.sh`'s completion roster by `tests/hi/parse_test.sh`.
-`hi --preview-packages` is the one that does not refuse: its legend lives in
-`scripts/`, but the check it previews lives in the shipped `common/header.sh`,
-so on a target it runs that half instead.
+`hi --preview packages` and `hi --preview header` do not refuse: their full
+forms live in `scripts/`, but the check and the header they preview live in
+the shipped `common/header.sh`, so on a target they run that half instead.

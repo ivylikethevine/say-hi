@@ -288,32 +288,6 @@ function test_header_presets_hold_the_vocabulary() {
   [ "$(preset_names)" != "" ]
 }
 
-# The versioning contract: init makes a repo with one (possibly empty) first
-# commit and is idempotent; overlay_commit turns settings writes into history
-# only where a repo already exists, and never creates one. Each case gets a
-# fresh scratch $_HI_CONFIG_DIR; the identity fallback keeps the commits
-# working on a machine that never ran `git config`.
-function _hi_overlay_commits() {
-  git -C "$1" rev-list --count HEAD 2>/dev/null || echo 0
-}
-
-function test_overlay_init_creates_a_repo_with_a_first_commit() {
-  local dir="$_HI_WORKDIR/ovl-init"
-  mkdir -p "$dir"
-  printf 'export X=1\n' >"$dir/settings.sh"
-  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) &&
-    [ -d "$dir/.git" ] && [ "$(_hi_overlay_commits "$dir")" = 1 ] &&
-    git -C "$dir" ls-files | grep -qx settings.sh
-}
-
-function test_overlay_init_is_idempotent() {
-  local dir="$_HI_WORKDIR/ovl-idem"
-  mkdir -p "$dir"
-  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) &&
-    (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) &&
-    [ "$(_hi_overlay_commits "$dir")" = 1 ]
-}
-
 # The input validators guarding what ask_value will write into settings.sh -
 # the single-quote one is what keeps a typed value from ending the sh word the
 # written `export NAME='value'` line wraps it in.
@@ -374,57 +348,37 @@ function test_ask_value_non_interactive_keeps_current() {
   [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
 }
 
-# the seed half: a fresh init copies the four shipped defaults in for the
-# files the user has none of, byte for byte and tracked from the first commit
-function test_overlay_init_seeds_the_shipped_defaults() {
+# The seed: a fresh overlay gets the four shipped defaults, byte for byte,
+# for the files the user has none of - and nothing else: no repo, no commit,
+# versioning is the user's own (each case gets a fresh scratch directory)
+function test_overlay_seed_copies_the_shipped_defaults() {
   local dir="$_HI_WORKDIR/ovl-seed" f
-  mkdir -p "$dir"
-  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) || return 1
+  (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
   for f in colors packages vim.rc nano.rc; do
     cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
       _hi_cecho " | $f was not seeded from the tree" "$RED"
       return 1
     }
-    git -C "$dir" ls-files | grep -qx "$f" || {
-      _hi_cecho " | $f is not in the first commit" "$RED"
-      return 1
-    }
   done
+  [ ! -d "$dir/.git" ]
 }
 
-function test_overlay_init_never_overwrites_a_present_file() {
+function test_overlay_seed_never_overwrites_a_present_file() {
   local dir="$_HI_WORKDIR/ovl-noclobber"
   mkdir -p "$dir"
   printf 'hostname,mine,red\n' >"$dir/colors"
-  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) || return 1
+  (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
   [ "$(cat "$dir/colors")" = "hostname,mine,red" ] || return 1
   # the gaps still fill in around it
   cmp -s "$_HI_ROOT/settings/packages" "$dir/packages"
 }
 
-function test_overlay_commit_records_a_change_when_tracked() {
-  local dir="$_HI_WORKDIR/ovl-commit"
-  mkdir -p "$dir"
-  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) || return 1
-  printf 'export Y=2\n' >"$dir/settings.sh"
-  (_HI_CONFIG_DIR="$dir" overlay_commit) &&
-    [ "$(_hi_overlay_commits "$dir")" = 2 ]
-}
-
-function test_overlay_commit_is_a_noop_with_nothing_new() {
-  local dir="$_HI_WORKDIR/ovl-noop"
-  mkdir -p "$dir"
-  (_HI_CONFIG_DIR="$dir" overlay_init >/dev/null) || return 1
-  (_HI_CONFIG_DIR="$dir" overlay_commit) &&
-    [ "$(_hi_overlay_commits "$dir")" = 1 ]
-}
-
-function test_overlay_commit_never_creates_a_repo() {
-  local dir="$_HI_WORKDIR/ovl-untracked"
-  mkdir -p "$dir"
-  printf 'export X=1\n' >"$dir/settings.sh"
-  (_HI_CONFIG_DIR="$dir" overlay_commit) &&
-    [ ! -d "$dir/.git" ]
+# a re-run seeds nothing and says nothing: the files are there already
+function test_overlay_seed_is_quiet_when_nothing_is_missing() {
+  local dir="$_HI_WORKDIR/ovl-idem" out
+  (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
+  out="$(_HI_CONFIG_DIR="$dir" overlay_seed 2>&1)" || return 1
+  [ -z "$out" ]
 }
 
 # settings.sh is sourced by sh, bash, zsh and fish, so line 1 has to be the
@@ -655,7 +609,7 @@ function test_config_settings_writes_every_group_at_once() {
 }
 
 # the whole point of the overlay: a fresh install leaves the tree untouched, so
-# `hi --update`'s git pull still applies and a root-owned tree still works
+# `hi --update`'s tag checkout still applies and a root-owned tree still works
 function test_settings_are_written_outside_the_tree() {
   _hi_settings_fixture outside _hi_shebang_fresh
   [ -f "$(_hi_fixture_settings outside)" ] && [ ! -e "$_HI_WORKDIR/outside/settings/settings.sh" ]
@@ -1246,33 +1200,6 @@ function test_palette_preview_says_off_above_every_priority() {
   [[ "$out" == *"nothing - the package check is off"* ]]
 }
 
-# no git, no init - said in red, and no half-made overlay left behind
-function test_overlay_init_without_git_says_so() {
-  local dir="$_HI_WORKDIR/ovl-nogit" out rc=0
-  mkdir -p "$dir" "$_HI_WORKDIR/no-tools"
-  out="$(
-    hash -r
-    # shellcheck disable=SC2123,SC2030 # losing the search path is the case
-    PATH="$_HI_WORKDIR/no-tools"
-    _HI_CONFIG_DIR="$dir" overlay_init 2>&1
-  )" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"git is not installed"* ]] && [ ! -d "$dir/.git" ]
-}
-
-# a machine that never ran `git config` still gets a committed overlay: init
-# falls back to a repo-local identity rather than failing its first commit
-function test_overlay_init_supplies_an_identity_when_git_has_none() {
-  local dir="$_HI_WORKDIR/ovl-noident"
-  mkdir -p "$dir" "$_HI_WORKDIR/ovl-noident-home"
-  (
-    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
-    export HOME="$_HI_WORKDIR/ovl-noident-home"
-    _HI_CONFIG_DIR="$dir" overlay_init >/dev/null
-  ) || return 1
-  [ "$(git -C "$dir" config user.name)" = "say-hi" ] &&
-    [ "$(_hi_overlay_commits "$dir")" = 1 ]
-}
-
 # the whole run with neither a preset nor a tty: config_preset stands down,
 # every question keeps what the file holds, and the rewrite reproduces the
 # block it found rather than dropping it
@@ -1676,7 +1603,7 @@ function test_prompt_menu_toggles_starship() {
 # hub's item is the gate) - and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "Swap a TERM" &&
     _hi_cfg_has adv_walk "Shell a session runs in" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
@@ -1827,16 +1754,10 @@ function run_configure_tests() {
   _hi_check "_hi_pending_set replaces in place" test_pending_set_replaces_in_place
   _hi_check "ask_value: non-interactive keeps current, blanks defaults" test_ask_value_non_interactive_keeps_current
 
-  _hi_h2 "Testing: overlay_init / overlay_commit"
-  _hi_check_requires git "Init makes a repo with a first commit" test_overlay_init_creates_a_repo_with_a_first_commit
-  _hi_check_requires git "Init is idempotent" test_overlay_init_is_idempotent
-  _hi_check_requires git "Init seeds the shipped defaults" test_overlay_init_seeds_the_shipped_defaults
-  _hi_check_requires git "...and never overwrites a present file" test_overlay_init_never_overwrites_a_present_file
-  _hi_check_requires git "A tracked overlay commits settings writes" test_overlay_commit_records_a_change_when_tracked
-  _hi_check_requires git "Nothing new, no commit" test_overlay_commit_is_a_noop_with_nothing_new
-  _hi_check_requires git "An untracked overlay never hears about git" test_overlay_commit_never_creates_a_repo
-  _hi_check "No git, no init - and it says so" test_overlay_init_without_git_says_so
-  _hi_check_requires git "Init supplies an identity where git has none" test_overlay_init_supplies_an_identity_when_git_has_none
+  _hi_h2 "Testing: overlay_seed"
+  _hi_check "Seeds the shipped defaults, and no repo" test_overlay_seed_copies_the_shipped_defaults
+  _hi_check "...and never overwrites a present file" test_overlay_seed_never_overwrites_a_present_file
+  _hi_check "A re-run is quiet" test_overlay_seed_is_quiet_when_nothing_is_missing
 
   _hi_h2 "Testing: ensure_settings_shebang"
   _hi_check "Written to a new settings.sh" test_shebang_is_written_to_a_new_settings_file

@@ -269,12 +269,10 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
-# ...and an explicit value outranks both. The four overlay files with a path
-# variable of their own carry the same "only when unset" guard $_HI_HOME and
-# $_HI_CONFIG_DIR use, so `export _HI_COLORS=/anywhere` in settings.sh or in
-# the environment moves that one file and leaves the other three tracking the
-# overlay. Without the guard paths.sh re-exported over the top of it, and the
-# symptom was a setting that simply did nothing.
+# The four files with a tree default, and the path variable each resolves
+# into. Derived only: an exported value of your own does not survive the
+# source, so the overlay is the one way to move a file (it used to be one
+# of two, until the per-file override went in 0.1.9).
 _HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC)
 
 # the overlay basename each of the four resolves to, in the same order
@@ -290,52 +288,41 @@ function _hi_full_overlay_dir() {
   printf '%s' "$dir"
 }
 
-# $1 exported to $2, with $_HI_CONFIG_DIR pointed at a full overlay: the
-# override has to win over the overlay's same-named file, not merely over the
-# tree default
-function test_env_override_beats_the_overlay_file() {
+# an exported path of the user's is re-derived over: with a full overlay it
+# resolves to the overlay's copy, with none to the tree's - never to the
+# export. The inverse of the override that used to live here.
+function test_an_exported_path_does_not_survive() {
   local dir i var
   dir="$(_hi_full_overlay_dir)"
+  rm -f "$dir/settings.sh"
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
     var="${_HI_OVERLAY_PATH_VARS[i]}"
     # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
     [ "$(_HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
-      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "/anywhere/hi-$i" ] || {
-      _hi_cecho " | $var: the overlay's copy won over an explicit export" "$RED"
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
+      _hi_cecho " | $var kept an exported path over the overlay's copy" "$RED"
+      return 1
+    }
+    # shellcheck disable=SC2016 # same again, against no overlay at all
+    [ "$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
+      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$_HI_ROOT/settings/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
+      _hi_cecho " | $var kept an exported path over the tree's copy" "$RED"
       return 1
     }
   done
 }
 
-# the same through settings.sh, which is where a user actually writes it -
-# core.sh sources that file before paths.sh for exactly this reason
-function test_settings_override_beats_the_overlay_file() {
+# ...and the same through settings.sh: a line there is read before paths.sh
+# and re-derived over just the same
+function test_a_settings_path_does_not_survive() {
   local dir
   dir="$(_hi_full_overlay_dir)"
   printf 'export _HI_VIMRC=/dotfiles/hi-vim.rc\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_VIMRC "$dir")" = /dotfiles/hi-vim.rc ]
+  [ "$(_hi_resolved _HI_VIMRC "$dir")" = "$dir/vim.rc" ]
 }
 
-# ...and it moves that one file only: the other three still resolve to the
-# overlay, which is the difference between this and pointing $_HI_CONFIG_DIR
-# somewhere else
-function test_override_moves_one_file_only() {
-  local dir i var
-  dir="$(_hi_full_overlay_dir)"
-  rm -f "$dir/settings.sh"
-  for i in 1 2 3; do
-    var="${_HI_OVERLAY_PATH_VARS[i]}"
-    # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
-    [ "$(_HI_CONFIG_DIR="$dir" env _HI_COLORS=/anywhere/hi-colors bash -c \
-      'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
-      _hi_cecho " | $var followed _HI_COLORS out of the overlay" "$RED"
-      return 1
-    }
-  done
-}
-
-# the guard must not cost the default: with nothing exported, the overlay's
-# copy still wins over the tree's, which is the behaviour every install has
+# with nothing exported, the overlay's copy wins over the tree's, which is the
+# behaviour every install has
 function test_unset_still_prefers_the_overlay() {
   local dir i var
   dir="$(_hi_full_overlay_dir)"
@@ -349,12 +336,10 @@ function test_unset_still_prefers_the_overlay() {
   done
 }
 
-# The guard must not make this file's own answer sticky. A child shell inherits
-# every one of the four, so a guard that took an inherited value at face value
-# would pin the result to the parent's $_HI_CONFIG_DIR - and `_HI_CONFIG_DIR=elsewhere bash`
-# would go on reading the overlay it was told to leave. Modelled the way it
-# happens: resolve once against one overlay, carry the whole result into a
-# child pointed at another.
+# Re-derived, not inherited: a child shell inherits every one of the four,
+# and `_HI_CONFIG_DIR=elsewhere bash` has to read the overlay it was told to,
+# not the parent's answer. Modelled the way it happens: resolve once against
+# one overlay, carry the whole result into a child pointed at another.
 function test_a_derived_value_does_not_survive_a_new_config_dir() {
   local first second out
   first="$(_hi_full_overlay_dir)"
@@ -373,41 +358,14 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
   }
 }
 
-# core.sh owes paths.sh a defined value for each of the four, the way it owes
-# the toggles one: paths.sh reads them bare, and under `set -u` an unset name
-# is fatal rather than empty
-function test_core_defines_every_overlay_path_var() {
-  local var out
-  for var in "${_HI_OVERLAY_PATH_VARS[@]}"; do
-    out="$(bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1-UNSET}"' _ "$var")"
-    [ "$out" != UNSET ] || {
-      _hi_cecho " | $var is unset after core.sh" "$RED"
-      return 1
-    }
-  done
-}
-
-# every one of the four is guarded, so a fifth path variable added beside them
-# cannot quietly skip the override
-function test_every_overlay_path_var_is_guarded() {
-  local var
-  for var in "${_HI_OVERLAY_PATH_VARS[@]}"; do
-    grep -qF "[ -z \"\$$var\" ] && export $var=" "$_HI_ROOT/common/paths.sh" || {
-      _hi_cecho " | $var has no \"only when unset\" guard in paths.sh" "$RED"
-      return 1
-    }
-  done
-}
-
-# Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs a local
-# override guard in paths.sh - except settings.sh (unguarded by design: the
-# overlay is its only home) and the four additive ones, which each shell or
-# settings/aliases.sh sources by name from $_HI_CONFIG_DIR rather than reaching
-# through a path var: aliases.sh and the three per-shell files
-# (bash.sh, zsh.zsh, config.fish). A missed
-# guard fails asymmetrically: the file works on targets but local sessions
-# ignore the override - the same silent drift the toggle-gate pin above
-# catches.
+# Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs its overlay
+# lookup in paths.sh - except settings.sh (the overlay is its only home) and
+# the four additive ones, which each shell or settings/aliases.sh sources by
+# name from $_HI_CONFIG_DIR rather than reaching through a path var:
+# aliases.sh and the three per-shell files (bash.sh, zsh.zsh, config.fish). A
+# missed lookup fails asymmetrically: the file works on targets but local
+# sessions ignore the overlay's copy - the same silent drift the toggle-gate
+# pin above catches.
 function test_overlay_guards_match_the_roster() {
   local f roster
   roster="$(bash -c 'set -- && source "$_HI_LAUNCHER" && printf "%s\n" "${_HI_OVERLAY_FILES[@]}"')"
@@ -418,7 +376,7 @@ function test_overlay_guards_match_the_roster() {
     bash.sh | zsh.zsh | config.fish) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
-      _hi_cecho " | overlay file $f has no local-override guard in paths.sh" "$RED"
+      _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"
       return 1
     }
   done <<<"$roster"
@@ -466,15 +424,12 @@ function run_paths_tests() {
   _hi_check "No overlay uses the tree" test_no_overlay_uses_the_tree
   _hi_check "Settings point at the overlay before it exists" test_settings_point_at_the_overlay_before_it_exists
   _hi_check "Overlay settings reach the gate" test_overlay_settings_are_visible_to_the_gate
-  _hi_check "Every overlay file has its paths.sh guard" test_overlay_guards_match_the_roster
+  _hi_check "Every overlay file has its paths.sh lookup" test_overlay_guards_match_the_roster
 
   _hi_h2 "Testing: per-file overlay location overrides"
-  _hi_check "core.sh defines every path variable" test_core_defines_every_overlay_path_var
-  _hi_check "Every path variable is guarded" test_every_overlay_path_var_is_guarded
-  _hi_check "Unset still prefers the overlay" test_unset_still_prefers_the_overlay
-  _hi_check "The environment beats the overlay file" test_env_override_beats_the_overlay_file
-  _hi_check "settings.sh beats the overlay file" test_settings_override_beats_the_overlay_file
-  _hi_check "An override moves one file only" test_override_moves_one_file_only
+  _hi_check "The overlay's copy wins over the tree's" test_unset_still_prefers_the_overlay
+  _hi_check "An exported path does not survive" test_an_exported_path_does_not_survive
+  _hi_check "A settings.sh path does not survive" test_a_settings_path_does_not_survive
   _hi_check "A derived value does not outlive its config dir" test_a_derived_value_does_not_survive_a_new_config_dir
 
   _hi_suite_end "paths.sh"

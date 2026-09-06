@@ -13,7 +13,7 @@
 # name, without hardcoding the name itself. an exact "username,jeff,..." or
 # "hostname,jeff-desktop,..." override still takes priority over these.
 # anything with no pin at all falls back to a hash of the name.
-# run `hi --preview-colors` to preview what everything currently resolves to.
+# run `hi --preview colors` to preview what everything currently resolves to.
 #type,name,color
 hosttag,terminal,brmagenta
 hosttag,baremetal,brred

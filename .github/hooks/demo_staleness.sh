@@ -23,6 +23,11 @@ _HI_REPO="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$_HI_REPO" ] || exit 0
 # ...and if that repository is not say-hi, there is nothing here to check.
 [ -f "$_HI_REPO/common/core.sh" ] || exit 0
+# core.sh itself does honour an inherited $_HI_HOME (any shell with hi
+# installed exports one) and would source the *installed* tree's paths.sh
+# into this checkout's core.sh - fatal under `set -u` the moment the two
+# disagree on what core.sh defaults. Pin it to the repository being committed.
+export _HI_HOME="${_HI_REPO%/*}"
 # shellcheck source=../../common/core.sh
 source "$_HI_REPO/common/core.sh"
 

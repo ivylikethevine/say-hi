@@ -26,10 +26,11 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     unset _hi_self
   fi
   export _HI_HOME
-  # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry is a
-  # *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot as 0
-  # and paths.sh's _HI_DISABLE_LOCAL gate sets the lot to 1; its narrower
-  # _HI_DISABLE_LOCAL_PROMPT gate sets only _HI_DISABLE_PROMPT.
+  # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry but
+  # _HI_REMOTE_SESSION (hi's own "this is a session" mark, 1 on a target) is
+  # a *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot
+  # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1; its
+  # narrower _HI_DISABLE_LOCAL_PROMPT gate sets only _HI_DISABLE_PROMPT.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_PASSTHROUGH _HI_DISABLE_MARKS
@@ -42,13 +43,6 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # The per-file overlay paths and their *_AUTO companions, defaulted so
-  # paths.sh's guards can read them bare under `set -u`. GLOSSARY: HI.07
-  for _hi_t in _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC \
-    _HI_COLORS_AUTO _HI_PACKAGES_AUTO _HI_VIMRC_AUTO _HI_NANORC_AUTO; do
-    eval ": \"\${$_hi_t:=}\"; export $_hi_t"
-  done
-  unset _hi_t
   # A platform team's defaults, below the user's settings.sh (sourced next,
   # so the user wins). Local machines only: a visiting session is configured
   # by the visitor, and a target's /etc has no say in it. $_HI_SYSTEM_SETTINGS
@@ -338,8 +332,27 @@ _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
   _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_CONTAINER_CLIS _HI_RECENT _HI_RECENT_FILE)
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
-_HI_SESSION_VARS=(_HI_TARGET _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
+_HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
   _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR)
+
+# Settings that were retired: a name here is no longer read anywhere, and a
+# settings.sh still exporting it gets one line from hi --doctor and the
+# session header for a minor release before the name leaves this list too
+# (CONTRIBUTING.md, What 1.x will not break). "<name>|<retired in>|<why>".
+_HI_RETIRED_SETTINGS=(
+  '_HI_EZA_OPTS_SIZE|0.1.9|nothing ever read it; eza --total-size is an alias of your own'
+)
+
+# _hi_retired_set - one "<name>|<retired in>|<why>" line per retired setting
+# that is still set in this shell, nothing when none is
+function _hi_retired_set() {
+  local _hi_row _hi_v
+  for _hi_row in "${_HI_RETIRED_SETTINGS[@]}"; do
+    eval "_hi_v=\"\${${_hi_row%%|*}:-}\""
+    [ -n "$_hi_v" ] && printf '%s\n' "$_hi_row"
+  done
+  return 0
+}
 
 # _hi_unexport - drop the export attribute from every _HI_* name not in
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`

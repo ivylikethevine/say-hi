@@ -4,7 +4,7 @@
 # preview how the header's packages check will render: what each priority
 # means, the colors it paints an installed and a missing package at that
 # priority, a real example of each drawn from your own packages file, and the
-# check itself as it will actually print. Run via `hi --preview-packages`.
+# check itself as it will actually print. Run via `hi --preview packages`.
 set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -26,8 +26,8 @@ source "$_HI_ROOT/scripts/table.sh"
 
 case "${1:-}" in
 -h | --help)
-  cat <<'EOF'
-Usage: packages_preview.sh
+  cat <<EOF
+Usage: ${_HI_ARGV0:-packages_preview.sh}
 
 Prints the legend for the header's packages check - every priority, the colors
 it renders installed and missing packages in, and one real example of each
@@ -35,22 +35,28 @@ taken from your own packages file - then the marks, then the check itself
 exactly as a connect will print it.
 
 Takes no arguments. Reads:
-  settings/packages      the [-|+]package:priority lines (override with $_HI_PACKAGES;
-                     ~/.config/say-hi/packages wins automatically when present)
+  settings/packages      the [-|+]package:priority lines (the overlay's
+                     ~/.config/say-hi/packages wins when present)
   common/header.sh   the priority meanings and their two color tables
-  $_HI_PACKAGES_PALETTE   which of the named color tables is active (cool, the
+  \$_HI_PACKAGES_PALETTE   which of the named color tables is active (cool, the
                      default; warm; mono) - printed above the legend
 
-A line's leading mode character decides which states speak at all: `-` only
-when the whole line is missing, `+` only when something on it is installed,
+A line's leading mode character decides which states speak at all: \`-\` only
+when the whole line is missing, \`+\` only when something on it is installed,
 no flag both ways - the MODE table below the marks spells them out. An
-EXAMPLE cell reading "below floor" means $_HI_PACKAGES_MIN_PRIORITY is above
+EXAMPLE cell reading "below floor" means \$_HI_PACKAGES_MIN_PRIORITY is above
 that rank, so the header prints nothing for it whatever its colors say. That
 floor defaults to 2, so priorities 0-1 read "below floor" until you set one
 of your own; anything above 3 mutes the check entirely. A priority with no
 example at all has no package of its own in your file.
 EOF
   exit 0
+  ;;
+'') ;;
+*)
+  echo "${_HI_ARGV0:-packages_preview.sh}: takes no arguments (got: $*)" >&2
+  echo "Usage: ${_HI_ARGV0:-packages_preview.sh}" >&2
+  exit 1
   ;;
 esac
 

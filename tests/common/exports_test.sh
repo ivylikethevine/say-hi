@@ -166,7 +166,7 @@ _HI_RC_TAG="it's a tag"
 _HI_RC_HOST='box\1'
 
 function _hi_session_rc_dir() {
-  _HI_TARGET=web01 _HI_TARGET_COLOR=red _HI_TARGET_TAG="$_HI_RC_TAG" \
+  _HI_TARGET_COLOR=red _HI_TARGET_TAG="$_HI_RC_TAG" \
     _HI_LOCAL_USER=ivy _HI_LOCAL_HOSTNAME="$_HI_RC_HOST" _HI_RELEASE=1.2.3 _HI_ASCII=0 \
     _HI_LOAD_NO_INIT=1 bash -c '
     source "$_HI_HOME/say-hi/load.sh"
@@ -180,9 +180,9 @@ function _hi_rc_round_trips() { # <shell> <file> <assignment grep>
   local dir out
   dir="$(_hi_session_rc_dir)" || return 1
   grep "$3" "$dir/$2" >"$_HI_WORKDIR/vars.$1"
-  out="$("$1" -c "source $_HI_WORKDIR/vars.$1; printf '%s|%s|%s|%s' \"\$_HI_TARGET\" \"\$_HI_TARGET_TAG\" \"\$_HI_LOCAL_HOSTNAME\" \"\$_HI_ASCII\"" 2>&1)"
+  out="$("$1" -c "source $_HI_WORKDIR/vars.$1; printf '%s|%s|%s|%s' \"\$_HI_TARGET_COLOR\" \"\$_HI_TARGET_TAG\" \"\$_HI_LOCAL_HOSTNAME\" \"\$_HI_ASCII\"" 2>&1)"
   rm -rf "$dir"
-  [ "$out" = "web01|$_HI_RC_TAG|$_HI_RC_HOST|0" ] || {
+  [ "$out" = "red|$_HI_RC_TAG|$_HI_RC_HOST|0" ] || {
     _hi_cecho " | $1 read back: $out" "$RED"
     return 1
   }

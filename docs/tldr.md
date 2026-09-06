@@ -28,9 +28,9 @@
 
 `hi --use {{ssh|docker|podman|nomad|kube}} {{container}}`
 
-- Open a bare shell with nothing copied, on a target with no writable `/tmp`:
+- Keep the session in a local `tmux` that survives a dropped link (a repeat reattaches):
 
-`hi --plain {{target}}`
+`hi --mux {{target}}`
 
 - Diagnose a slow or failing target (backends, config, and reachability):
 

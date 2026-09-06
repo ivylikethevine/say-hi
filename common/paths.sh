@@ -14,7 +14,6 @@ export _HI_HEADER="$_HI_ROOT/common/header.sh"
 export _HI_GIT_PROMPT="$_HI_ROOT/common/git_prompt.sh"
 export _HI_TARGETS="$_HI_ROOT/common/targets.sh"
 export _HI_INSTALL="$_HI_ROOT/scripts/install.sh"
-export _HI_UNINSTALL="$_HI_ROOT/scripts/uninstall.sh"
 export _HI_COLOR_PREVIEW="$_HI_ROOT/scripts/color_preview.sh"
 export _HI_PACKAGES_PREVIEW="$_HI_ROOT/scripts/packages_preview.sh"
 export _HI_DOCTOR="$_HI_ROOT/scripts/doctor.sh"
@@ -23,41 +22,22 @@ export _HI_DOCTOR="$_HI_ROOT/scripts/doctor.sh"
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
 export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 
-# User config lives in $_HI_CONFIG_DIR, outside the tree, overridden per file;
-# settings.sh has no in-tree half, so its path is unguarded. Each of the four
-# carries an "only when unset" guard, so `export _HI_COLORS=~/dotfiles/colors`
-# in settings.sh (or the environment) points one file elsewhere. Four lines
-# each, since this dialect has no if/elif and no ${var:-...}:
-#
-#   1. drop an inherited value this file itself resolved last time;
-#   2. the tree's copy into the *_AUTO companion;
-#   3. the overlay's copy over it, when the user has made one;
-#   4. the companion into the variable, unless something already set it.
-#
-# Step 1 is the companions' whole reason: everything here is exported, so a
-# child shell inherits the parent's answer, and a guard that took it at face
-# value would pin `_HI_CONFIG_DIR=elsewhere bash` to the parent's overlay. A
-# value still equal to the companion is this file's own answer and is
-# resolved again; a path the user named matches neither and survives.
-# core.sh defaults all eight to empty, which makes the bare reads safe under
-# `set -u`; fish expands an unset variable to empty anyway.
+# User config lives in $_HI_CONFIG_DIR, outside the tree; settings.sh has no
+# in-tree half. The four files with a tree default resolve to the overlay's
+# copy when the user has made one and to the tree's otherwise, re-derived on
+# every source: a child shell told `_HI_CONFIG_DIR=elsewhere` reads that
+# overlay, and an exported path of your own does not survive - the overlay is
+# where a file of yours goes. Two lines each, since this dialect has no
+# if/elif and no ${var:-...}.
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
-[ "$_HI_COLORS" = "$_HI_COLORS_AUTO" ] && export _HI_COLORS=""
-export _HI_COLORS_AUTO="$_HI_ROOT/settings/colors"
-[ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS_AUTO="$_HI_CONFIG_DIR/colors"
-[ -z "$_HI_COLORS" ] && export _HI_COLORS="$_HI_COLORS_AUTO"
-[ "$_HI_PACKAGES" = "$_HI_PACKAGES_AUTO" ] && export _HI_PACKAGES=""
-export _HI_PACKAGES_AUTO="$_HI_ROOT/settings/packages"
-[ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES_AUTO="$_HI_CONFIG_DIR/packages"
-[ -z "$_HI_PACKAGES" ] && export _HI_PACKAGES="$_HI_PACKAGES_AUTO"
-[ "$_HI_VIMRC" = "$_HI_VIMRC_AUTO" ] && export _HI_VIMRC=""
-export _HI_VIMRC_AUTO="$_HI_ROOT/settings/vim.rc"
-[ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC_AUTO="$_HI_CONFIG_DIR/vim.rc"
-[ -z "$_HI_VIMRC" ] && export _HI_VIMRC="$_HI_VIMRC_AUTO"
-[ "$_HI_NANORC" = "$_HI_NANORC_AUTO" ] && export _HI_NANORC=""
-export _HI_NANORC_AUTO="$_HI_ROOT/settings/nano.rc"
-[ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC_AUTO="$_HI_CONFIG_DIR/nano.rc"
-[ -z "$_HI_NANORC" ] && export _HI_NANORC="$_HI_NANORC_AUTO"
+export _HI_COLORS="$_HI_ROOT/settings/colors"
+[ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
+export _HI_PACKAGES="$_HI_ROOT/settings/packages"
+[ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
+export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
+[ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
+export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
+[ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
 
 export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
 export _HI_OSC52="$_HI_ROOT/common/osc52.sh"

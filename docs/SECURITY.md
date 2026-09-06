@@ -25,7 +25,7 @@ to report what slipped through it.
   `curl`/`wget` in the shipped tree.
 - **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
   a distro package (deb/rpm/apk, AUR, Homebrew) built from that same script.
-  `hi --update` is `git pull` in a checkout you can read.
+  `hi --update` is a release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) —
   docs, tests, CI and editor config never leave the client; `hi.sh` is there so
@@ -45,15 +45,14 @@ to report what slipped through it.
 hosts` line and the host-key fingerprint on a first connection reach your
   terminal exactly as they would without hi. Capturing them would turn
   trust-on-first-use into accepting a fingerprint nobody was shown.
-- **`hi --update` is a plain `git pull`, which checks no signature.** Tagged
-  releases exist (`v0.1.0`, `v0.1.1`, … - see
-  [Supported versions](#supported-versions)) and their tags are themselves
-  signed (`git verify-tag`), but `hi.sh`'s `--update` is `git -C "$_HI_ROOT"
-pull` unmodified - it neither fetches nor checks a signature unless asked
-  to (`--verify-signatures`, or a `pull.*` config doing it for you), so today
-  it verifies only what an unconfigured `git pull` always does: the transport
-  to the remote, and nothing about the commits. A packaged install updates
-  through its package manager, which has its own signing story.
+- **`hi --update` checks no signature.** Tagged releases exist (`v0.1.0`,
+  `v0.1.1`, … - see [Supported versions](#supported-versions)) and their tags
+  are themselves signed (`git verify-tag`), but `hi.sh`'s `--update` is
+  `git fetch --tags` plus `git checkout` of the tag, unmodified - it checks
+  no signature on what it fetched, so today it verifies only what git
+  always does: the transport to the remote, and nothing about the tag. A
+  packaged install updates through its package manager, which has its own
+  signing story.
 
 ## What runs where
 
@@ -176,18 +175,20 @@ and dash has no un-export.
 The argument that secure design principles were applied against the threat
 model ([What hi does](#what-hi-does---and-deliberately-doesnt), [What runs
 where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
+
 - not a claim that the tool is free of bugs.
 
-| principle                          | how it holds                                                                                                                                                                                                                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Least privilege, minimal surface    | hi adds no authentication of its own and listens on nothing - every check above is "no network calls of its own" or "trusts the transport you already run"                                                                                                          |
-| Fail loud, fail closed              | every entry point runs under `set -euo pipefail` (`hi.sh:9`, `load.sh:29`, `common/core.sh:4`, `scripts/install.sh:12`), each with a documented re-disable where an error must not close an interactive shell                                                       |
+| principle                                                 | how it holds                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Least privilege, minimal surface                          | hi adds no authentication of its own and listens on nothing - every check above is "no network calls of its own" or "trusts the transport you already run"                                                                                                                                                                                                                                         |
+| Fail loud, fail closed                                    | every entry point runs under `set -euo pipefail` (`hi.sh:9`, `load.sh:29`, `common/core.sh:4`, `scripts/install.sh:12`), each with a documented re-disable where an error must not close an interactive shell                                                                                                                                                                                      |
 | Untrusted input allowlisted, not sanitized after the fact | `_hi_safe_path` (`hi.sh:520`) checks the two strings a target hands back against an explicit `[bracket-class]` before either reaches a command run back on it; `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` skip an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` (`common/core.sh:283`) strips control characters and backslashes from target-derived text |
-| No secret ever needs to be in the payload | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([When a push is refused](#when-a-push-is-refused)), with GitHub's push protection as backstop                               |
+| No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([When a push is refused](#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                               |
 
-**What is not (yet) countered.** `hi --update`'s plain `git pull` verifies
-only what an unconfigured `git pull` always does unless `--verify-signatures`
-is passed - a documented, current gap. A packaged install updates through its
+**What is not (yet) countered.** `hi --update` verifies nothing about the
+release tag it checks out beyond git's transport to the remote; `git
+verify-tag` before `hi --update <tag>` is the manual step, and wiring it in
+is a documented, current gap. A packaged install updates through its
 package manager instead, with its own signing story ([PACKAGING.md](PACKAGING.md)).
 
 Last reviewed 2026-09, alongside the changes this argument describes.

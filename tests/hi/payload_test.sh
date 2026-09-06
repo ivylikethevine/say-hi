@@ -162,7 +162,7 @@ function test_overlay_dereferences_symlinks() {
 
 # $_HI_OVERLAY_FILES is an allow list, and that is what makes pointing a dotfile
 # manager at this directory safe: the manager's own metadata, the .git that
-# `hi --overlay-init` creates, an editor swap file or a key that has no business
+# you made there, an editor swap file or a key that has no business
 # leaving the machine are all in the same directory and none of them travel.
 # A denylist would have to keep guessing; this asserts the allow list holds.
 function test_overlay_sends_nothing_outside_the_roster() {

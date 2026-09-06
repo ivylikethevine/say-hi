@@ -63,6 +63,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
 - [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
+- [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 
 ## HI.01 empty-array guard
 
@@ -773,7 +774,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twelve palette names
 render as; it never adds a name. `_hi_hash_color`, the `settings/colors`
-pins, `_hi_color_name_of` and `hi --preview-colors` all keep the same
+pins, `_hi_color_name_of` and `hi --preview colors` all keep the same
 vocabulary, so a scheme is invisible to everything that reasons about a
 color by name - only the bytes a name turns into change.
 
@@ -831,3 +832,32 @@ unverified, and a template one rejects would empty its lane.
 is the only way to: there is no per-backend flag, so a member added to the
 list is reachable with no second spelling. Names are plain identifiers (`[A-Za-z0-9_]`) because `hi.sh`'s
 per-member predicate is `eval`-defined; `scripts/configure.sh` enforces it.
+
+## HI.52 client multiplexer wrap
+
+`hi --mux <target>` (or `_HI_MUX=1`) re-executes the connect inside a local
+`tmux new-session -A -s hi-<target>` and never returns; the `-A` is the
+reattach, so a second `hi --mux` to the same target joins the running session.
+It is the client-side answer to a dropped link - the target-side `--tmux`
+was removed on 2026-08-21 because a disposable tree cannot outlive its own
+session, and this leaves the target untouched. Four rules in `_hi_mux_wrap`:
+
+- **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
+  insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
+  inner argv is rebuilt from the parsed state (`--use`, `--plain`, the ssh
+  options, `$DOMAIN`, the command), not replayed from `"$@"`, so a target the
+  picker chose rides along.
+- **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
+  the wrap returns at once when that is set, which is what keeps a
+  `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It
+  also stands down, un-wrapped, without a terminal on stdin (nothing to
+  attach) or without tmux on `PATH` (with a warning).
+- **One string.** tmux hands the command to its `default-shell`, which may be
+  fish, so the argv is joined into one string with `_hi_shquote` (HI.40):
+  single quotes are the one form every shell reads the same way, where `%q`'s
+  `$'...'` is bash's alone.
+- **The name.** `_hi_mux_name` keeps `[[:alnum:]_-]` and turns everything
+  else into `-`: tmux refuses `:` and `.` in a session name, and `/` and `@`
+  read badly in a status line, so a kube `ctx:ns:pod/ctr` is
+  `hi-ctx-ns-pod-ctr`. Inside an existing tmux (`$TMUX` set) nesting is
+  refused, so the session is created detached and the client switched to it.

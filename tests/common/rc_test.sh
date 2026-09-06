@@ -215,12 +215,12 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
   local out
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    COMP_WORDS=(hi --preview-c)
+    COMP_WORDS=(hi --pl)
     COMP_CWORD=1
     COMPREPLY=()
     _hi_complete
     printf "%s|%s" "${COMPREPLY[*]}" "$_HI_TARGET_NAMES_AT"' _HI_DISABLE_PROMPT=1)"
-  [ "$out" = "--preview-colors|-1" ]
+  [ "$out" = "--plain|-1" ]
 }
 
 # The deferred exa completion: the first TAB clones eza's registered spec
@@ -363,29 +363,58 @@ function test_zsh_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
-    compadd() { local -a a; [[ $1 == -a ]] && a=(${(P)2}); print -l -- $a }
+    compadd() { local -a a; while (( $# )); do [[ $1 == -a ]] && a=(${(P)2}); shift; done; print -l -- $a }
     words=(hi --c); CURRENT=2
     _hi
   ')"
   printf '%s\n' "$out" | grep -qx -- --doctor &&
-    printf '%s\n' "$out" | grep -qx -- --preview-colors
+    printf '%s\n' "$out" | grep -qx -- --preview
 }
 
-# fish does its own prefix matching, so `--preview-c` narrows to one flag. A tab
-# in the output would be a target row ("<name>\t<kind>"), which is the sweep
-# the -n guard exists to keep out of a dash word.
+# ...and the word after --preview comes from the words roster, described,
+# through the same stub: the flag is in words[CURRENT-1]
+function test_zsh_completes_the_word_after_preview() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    compadd() { local -a a; while (( $# )); do [[ $1 == -a ]] && a=(${(P)2}); shift; done; print -l -- $a }
+    words=(hi --preview ""); CURRENT=3
+    _hi
+  ')"
+  printf '%s\n' "$out" | grep -qx header &&
+    printf '%s\n' "$out" | grep -qx packages
+}
+
+# fish does its own prefix matching, so `--preview-c` narrows to one flag, and
+# prints it with the roster's help clause after a tab - the description fish
+# shows beside the flag. A line that does not start with a dash would be a
+# target row ("<name>\t<kind>"), which is the sweep the -n guard exists to
+# keep out of a dash word.
 function test_fish_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color fish '
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
-    complete -C "hi --preview-c"
+    complete -C "hi --pl"
   ')"
-  printf '%s\n' "$out" | grep -qx -- --preview-colors || return 1
-  if printf '%s\n' "$out" | grep -q "$(printf '\t')"; then
+  printf '%s\n' "$out" | grep -q "^--plain$(printf '\t')a bare shell" || return 1
+  if printf '%s\n' "$out" | grep -qv '^-'; then
     _hi_cecho "   a dash word also swept the targets" "$RED"
     return 1
   fi
   return 0
+}
+
+# the word after --preview: fish's own condition picks the words roster, and
+# the target sweep (any line not in the roster) stays out
+function test_fish_completes_the_word_after_preview() {
+  local out
+  out="$(_hi_rc_shell xterm-256color fish '
+    source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
+    complete -C "hi --preview "
+  ')"
+  printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || return 1
+  printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || return 1
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ]
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {
@@ -585,6 +614,7 @@ function run_rc_tests() {
   _hi_h2 "Testing: zsh and fish"
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
+  _hi_check_requires zsh "zsh completes the word after --preview" test_zsh_completes_the_word_after_preview
 
   _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh
@@ -604,7 +634,8 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] defers when asked and present" test_defers_to_starship_when_asked fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
-  _hi_check_requires fish "fish flag TAB completes hi's options" test_fish_flag_completion_offers_hi_options
+  _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options
+  _hi_check_requires fish "fish completes the word after --preview" test_fish_completes_the_word_after_preview
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
   _hi_check_requires fish "fish sources the system layer locally" test_fish_system_settings_apply_locally

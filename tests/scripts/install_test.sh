@@ -5,7 +5,7 @@
 # of what a packaging recipe's package() step calls, and --uninstall's
 # marker-based rc rewriting (strip_marker/strip_settings/unlink_hi), plus an
 # install+uninstall round trip. The settings-wizard half of what this file used
-# to cover - config_shell, ensure_settings_shebang, overlay_init/commit,
+# to cover - config_shell, ensure_settings_shebang, overlay_seed,
 # presets, and everything else `hi --configure` touches - moved to
 # tests/scripts/configure_test.sh once the file covering both scripts at once
 # outgrew being one suite; see that file's header for the split.
@@ -224,27 +224,6 @@ function test_unlink_hi_skips_when_link_points_elsewhere() {
   ) | grep -q "leaving it alone"
 }
 
-# The shim is the only reason `hi --uninstall` and the documented
-# scripts/uninstall.sh path still work - a text grep proves the words are in
-# the file, not that `$(dirname "$0")/install.sh` actually resolves and runs,
-# so these run it for real.
-function test_uninstall_shim_delegates_to_install() {
-  local out
-  out="$("$_HI_UNINSTALL" --help 2>&1)" || return 1
-  case "$out" in "Usage: install.sh"*) ;; *) return 1 ;; esac
-  case "$out" in *--uninstall*) ;; *) return 1 ;; esac
-}
-
-# $(dirname "$0") is resolved from argv0, not the caller's cwd - a relative
-# invocation from elsewhere is the case that would break if that ever
-# regressed to reading cwd instead
-function test_uninstall_shim_resolves_from_a_relative_invocation() {
-  local out rc=0
-  out="$(cd "$_HI_ROOT" && sh scripts/uninstall.sh --help 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] || return 1
-  case "$out" in "Usage: install.sh"*) ;; *) return 1 ;; esac
-}
-
 # The real-run half: the flag errors, the mode banners and the locator walk
 # can only be seen by executing install.sh as a program, the way a user does.
 # Every run gets the scratch tree run_install_tests stands up (never this
@@ -279,7 +258,7 @@ function _hi_run_install() {
 # $XDG_CONFIG_HOME. The real file rather than the scratch copy, and a plain
 # `env` rather than `env -i`, because the coverage sweep sees neither a copy
 # nor an `env -i` child - these are the argument parser, the --check-configs,
-# --overlay-init and --features-only arms and the validation gate, which read
+# --features-only arms, the overlay seed and the validation gate, which read
 # as never run when they only ever ran out of $_HI_RUN_TREE. The locator still
 # derives the tree from the script's own path (GLOSSARY: HI.33), so what runs
 # is exactly what the copy ran, in place.
@@ -294,6 +273,19 @@ function _hi_run_install_here() {
 
 # the three argument errors: each has to stop before anything is sourced,
 # written or asked, with the message naming what was missing
+# the four modes are one choice: `hi --configure` injects --features-only,
+# so `hi --configure --uninstall` reached run_uninstall
+function test_two_modes_are_refused() {
+  local out rc=0
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --features-only --uninstall 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --features-only --uninstall"* ]]
+}
+
+function test_usage_names_what_was_typed() {
+  [[ "$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: hi --install "* ]] &&
+    [[ "$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: install.sh "* ]]
+}
+
 function test_prefix_flag_requires_a_path() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix 2>&1)" || rc=$?
@@ -329,15 +321,17 @@ function test_check_configs_mode_fails_on_a_broken_bashrc() {
   [ "$rc" -eq 1 ]
 }
 
-# --overlay-init end to end, against a home git has never seen: the seed,
-# the repo and the identity fallback all have to land for the first commit
-# to exist at all
-function test_overlay_init_mode_versions_the_overlay() {
+# a full install seeds the overlay - the four shipped defaults, and no repo:
+# versioning is the user's own; --configure (features-only) leaves it alone
+function test_install_seeds_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0
-  out="$(_hi_run_install_here ovl-mode --overlay-init 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"Versioning the config overlay!"* ]] &&
-    [ -d "$ovl/.git" ] &&
-    [ "$(git -C "$ovl" rev-list --count HEAD)" = 1 ]
+  out="$(_hi_run_install_here ovl-mode --no-link --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"seeded the shipped defaults"* && "$out" == *"Installed!"* ]] &&
+    [ -f "$ovl/colors" ] && [ -f "$ovl/nano.rc" ] && [ ! -d "$ovl/.git" ] || return 1
+  rc=0
+  out="$(_hi_run_install_here ovl-feat --features-only --preset=minimal 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [ ! -e "$_HI_WORKDIR/ovl-feat/.config/say-hi/colors" ] &&
+    [ ! -d "$_HI_WORKDIR/ovl-feat/.config/say-hi/.git" ]
 }
 
 # --uninstall against a home that never installed: every half reports clean
@@ -634,8 +628,6 @@ function run_install_tests() {
   _hi_h2 "Testing: unlink_hi (skip paths only)"
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
   _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
-  _hi_check "uninstall.sh shims onto --uninstall" test_uninstall_shim_delegates_to_install
-  _hi_check "...resolves from a relative invocation" test_uninstall_shim_resolves_from_a_relative_invocation
 
   _hi_h2 "Testing: unlink_hi (the removal ladder)"
   _hi_check_capable symlink "Removes its own link from a writable bindir" test_unlink_hi_removes_its_own_link
@@ -650,9 +642,11 @@ function run_install_tests() {
   _hi_check "--prefix requires a path" test_prefix_flag_requires_a_path
   _hi_check "--preset requires a name" test_preset_flag_requires_a_name
   _hi_check "An unknown argument gets the usage" test_an_unknown_argument_gets_the_usage
+  _hi_check "Two modes at once are refused" test_two_modes_are_refused
+  _hi_check "The usage line names what was typed" test_usage_names_what_was_typed
   _hi_check "--check-configs passes a clean home" test_check_configs_mode_passes_a_clean_home
   _hi_check "--check-configs fails on a broken .bashrc" test_check_configs_mode_fails_on_a_broken_bashrc
-  _hi_check_requires git "--overlay-init versions the overlay" test_overlay_init_mode_versions_the_overlay
+  _hi_check "A full install seeds the overlay" test_install_seeds_the_overlay
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--features-only writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 # preview what every ssh host & every known user resolve to, rendered in that
 # actual color, plus why (override/hosttag/default) - handy when tuning
-# settings/colors. Run via `hi --preview-colors`.
+# settings/colors. Run via `hi --preview colors`.
 set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -18,8 +18,8 @@ source "$_HI_ROOT/scripts/table.sh"
 
 case "${1:-}" in
 -h | --help)
-  cat <<'EOF'
-Usage: color_preview.sh
+  cat <<EOF
+Usage: ${_HI_ARGV0:-color_preview.sh}
 
 Prints two tables - every known user, and every ssh host that resolves to
 something other than the default - rendered in the color they'd actually
@@ -31,9 +31,15 @@ Takes no arguments. Reads:
   ~/.ssh/config      hosts, and the "# Tags: ..." comments above them
 
 Hosts with no override and no usable tag are left out: they'd render exactly
-as a bare `hi` does, so there is nothing to preview.
+as a bare \`hi\` does, so there is nothing to preview.
 EOF
   exit 0
+  ;;
+'') ;;
+*)
+  echo "${_HI_ARGV0:-color_preview.sh}: takes no arguments (got: $*)" >&2
+  echo "Usage: ${_HI_ARGV0:-color_preview.sh}" >&2
+  exit 1
   ;;
 esac
 

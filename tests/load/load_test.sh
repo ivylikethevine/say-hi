@@ -182,8 +182,8 @@ function test_session_rc_setup_writes_every_shell_and_exports_the_pointers() {
 function test_session_rc_setup_writes_only_the_set_vars() {
   local dir bashrc fish_config ok=1
   (
-    local _HI_SESSION_RC_DIR="" _HI_TARGET=myhost _HI_TARGET_COLOR=blue
-    unset _HI_TARGET_TAG _HI_LOCAL_USER _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
+    local _HI_SESSION_RC_DIR="" _HI_LOCAL_USER=myself _HI_TARGET_COLOR=blue
+    unset _HI_TARGET_TAG _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
     _hi_session_rc_setup || exit 1
     printf '%s\n' "$_HI_SESSION_RC_DIR"
   ) >"$_HI_WORKDIR/onlyset_out"
@@ -191,10 +191,10 @@ function test_session_rc_setup_writes_only_the_set_vars() {
   bashrc="$(cat "$dir/bashrc")"
   fish_config="$(cat "$dir/fish.config")"
   rm -rf "$dir"
-  case "$bashrc" in *'_HI_TARGET=myhost'*) ;; *) ok=0 ;; esac
+  case "$bashrc" in *'_HI_LOCAL_USER=myself'*) ;; *) ok=0 ;; esac
   case "$bashrc" in *'_HI_TARGET_COLOR=blue'*) ;; *) ok=0 ;; esac
   case "$bashrc" in *_HI_TARGET_TAG*) ok=0 ;; esac
-  case "$fish_config" in *"set -g _HI_TARGET 'myhost'"*) ;; *) ok=0 ;; esac
+  case "$fish_config" in *"set -g _HI_LOCAL_USER 'myself'"*) ;; *) ok=0 ;; esac
   case "$fish_config" in *"set -g _HI_TARGET_COLOR 'blue'"*) ;; *) ok=0 ;; esac
   case "$fish_config" in *_HI_TARGET_TAG*) ok=0 ;; esac
   [ "$ok" -eq 1 ]
@@ -294,11 +294,11 @@ function test_fishquote_roundtrips_the_hard_cases() {
 # the sh-dialect session rc shape bash and zsh share: the target's own rc
 # first, this run's verdicts, then hi's rc - in that order
 function test_session_sh_rc_writes_the_three_layers() {
-  local out="$_HI_WORKDIR/session.rc" sh_vars=$'_HI_TARGET=probe\n'
+  local out="$_HI_WORKDIR/session.rc" sh_vars=$'_HI_TARGET_COLOR=probe\n'
   _hi_session_sh_rc .proberc "/some tree/rc file.sh" "$out" || return 1
   diff "$out" - <<'EOF' || return 1
 [ -r "$HOME/.proberc" ] && . "$HOME/.proberc"
-_HI_TARGET=probe
+_HI_TARGET_COLOR=probe
 . /some\ tree/rc\ file.sh
 EOF
   return 0

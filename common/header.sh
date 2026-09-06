@@ -892,11 +892,24 @@ function hi_header() {
   # dropped - a no-op when the order ends on "check", since full_check
   # absorbs the carry itself and leaves none behind.
   _hi_header_flush
-  # last, so the one line that says something is wrong sits next to the
-  # prompt. Connect only: load.sh's disconnect calls banner directly. No
-  # _HI_HEADER_ORDER word of its own - like passthrough_check always was,
-  # this is not a word a reorder moves.
+  # last, so the lines that say something is wrong sit next to the prompt.
+  # Connect only: load.sh's disconnect calls banner directly. No
+  # _HI_HEADER_ORDER word of their own - like passthrough_check always was,
+  # these are not words a reorder moves.
+  retired_check
   passthrough_check
+}
+
+# retired_check: one line per retired setting (core.sh's _HI_RETIRED_SETTINGS)
+# a settings.sh still exports - the header half of the one-minor-release
+# warning CONTRIBUTING.md promises; hi --doctor is the other half
+function retired_check() {
+  local name v why
+  while IFS='|' read -r name v why; do
+    [ -n "$name" ] || continue
+    header_row "${YELLOW}$name is retired since $v - ignored ($why)" \
+      "${BRYELLOW}drop it from settings.sh"
+  done < <(_hi_retired_set)
 }
 
 # Package priorities, lowest to highest, 0-3. A priority says how loudly you
@@ -934,7 +947,7 @@ _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
 # name it. Each ramp is meant to read monotonic 0->3 in both directions - a
 # missing favorite the loudest thing on screen, installed trivia the
 # quietest - and legible on light and dark terminals alike; judge a
-# candidate with `hi --preview-packages`. "cool" is the shipped default:
+# candidate with `hi --preview packages`. "cool" is the shipped default:
 # _HI_YES/_HI_NO as assigned just above, unchanged from a fresh source so
 # the common case (no override, no palette function call yet) costs nothing
 # extra to read.

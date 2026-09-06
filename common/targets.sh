@@ -22,11 +22,13 @@
 
 kind="${1:-all}"
 
-# hi's own flags, so `hi --<TAB>` completes them like a target. Here rather
-# than per shell because this is the one file all three completions read and
-# the only one fish can run. Answered before the cache and the probes: a flag
-# list must never wait on a docker daemon. targets_test.sh drift-checks it
-# against hi.sh's --help.
+# hi's own flags, so `hi --<TAB>` completes them like a target: one
+# "<flag>\t<help>" line each, the target lines' shape, so fish shows the
+# purpose beside the flag the way it does for a target's kind (bash and zsh
+# read the first column). Here rather than per shell because this is the one
+# file all three completions read and the only one fish can run. Answered
+# before the cache and the probes: a flag list must never wait on a docker
+# daemon. targets_test.sh drift-checks it against hi.sh's --help.
 if [ "$kind" = flags ]; then
   # Out of common/flags, the table hi.sh dispatches from. <needs> is what a
   # flag wants that is not always on disk: `-` is offered everywhere; the rest
@@ -37,15 +39,40 @@ if [ "$kind" = flags ]; then
   */*) hi_tree="${0%/*}/.." ;;
   *) hi_tree=".." ;;
   esac
-  while IFS='|' read -r flag _arg needs _rest; do
+  while IFS='|' read -r flag _arg needs _var _first help; do
     case "$flag" in '#'* | '') continue ;; esac
     [ "$needs" = - ] || [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue
     case "$needs" in
     scripts) [ -d "$hi_tree/scripts" ] || continue ;;
     git) [ -d "$hi_tree/.git" ] || continue ;;
     esac
-    printf '%s\n' "$flag"
+    printf '%s\t%s\n' "$flag" "$help"
   done <"$hi_tree/common/flags"
+  exit 0
+fi
+
+# The word after a flag that takes one, so `hi --preview <TAB>` and
+# `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
+# lines. --use's roster is the arms hi.sh dispatches on - ssh, every member of
+# $_HI_CONTAINER_CLIS, nomad, kube - spelled here because a completion can
+# reach this file without hi.sh (parse_test.sh pins the two against each
+# other). Answered before the probes, like the flags.
+if [ "$kind" = words ]; then
+  case "${2:-}" in
+  --preview)
+    printf 'colors\tevery ssh host and your user, in their resolved colors\n'
+    printf 'packages\tthe package-priority legend, as the header prints it\n'
+    printf 'header\tthe connect header, as it prints here\n'
+    ;;
+  --use)
+    printf 'ssh\tssh, no probing (a container of the same name loses)\n'
+    for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+      printf '%s\ta running container, through %s\n' "$cli" "$cli"
+    done
+    printf 'nomad\ta running nomad allocation\n'
+    printf 'kube\ta kubernetes pod\n'
+    ;;
+  esac
   exit 0
 fi
 

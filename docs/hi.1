@@ -1,4 +1,4 @@
-.TH HI 1 "2026-09-05" "say-hi" "User Commands"
+.TH HI 1 "2026-09-06" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
 .SH SYNOPSIS
@@ -6,6 +6,7 @@ hi \- your shell config, on every host you say hi to
 .RI [ ssh\-options ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RB [ \-\-plain ]
+.RB [ \-\-mux | \-\-no\-mux ]
 .I target
 .RI [ command ...]
 .br
@@ -24,9 +25,10 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-configure
 .RB [ \-\-preset " " \fIname\fR]
 .br
-.BR "hi \-\-uninstall" " | " \-\-overlay\-init " | " \-\-update " [" \fIgit\-pull\-options\fR "]"
+.BR "hi \-\-uninstall" " | " \-\-update " [" \fItag\fR "]"
 .br
-.BR "hi \-\-preview\-colors" " | " \-\-preview\-packages
+.B hi \-\-preview
+.RB { colors | packages | header }
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -198,6 +200,8 @@ or
 .BR kube .
 The name has to be one hi was loaded with; a stranger is an error, not a
 guess.
+.B \-\-use=\fIbackend\fR
+is the same flag with its word joined.
 .TP
 .B \-\-plain
 skip the payload entirely and hand over a bare shell on whichever arm
@@ -214,6 +218,48 @@ and no writable
 or
 .B $HOME
 either.
+.TP
+.B \-\-mux
+run the session inside a local
+.BR tmux (1)
+session named for the target
+.RB ( hi\-<target> ,
+with the characters tmux rejects turned into dashes), so a dropped link leaves
+the session running here: the next
+.B hi \-\-mux
+to the same target reattaches instead of opening a second one. Entirely
+client\-side \- the target sees the same disposable session as ever. From
+inside a tmux, the session is created detached and this client switches to
+it. Without a terminal, or without tmux on this machine, hi connects as usual.
+.B _HI_MUX=1
+in the settings makes it the default.
+.TP
+.B \-\-no\-mux
+connect without the tmux wrap, whatever
+.B _HI_MUX
+says \- the way out of that default for one connect. Of
+.B \-\-mux
+and
+.BR \-\-no\-mux ,
+the last one on the line wins.
+.TP
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
+print one of three things and exit, instead of connecting.
+.B colors
+is every ssh host and your user in their resolved colors, each row naming the
+rule it matched \- a pin, a tag, a pattern or the hash.
+.B packages
+is the package\-priority legend, as the header's check prints it, with the
+ranks the floor silences marked.
+.B header
+is the connect header itself, as it prints here at your settings.
+.B colors
+wants
+.BR scripts/ ,
+so inside a session it says so and stops; the other two have a full form
+there too and fall back to the check and the header out of the shipped
+.B common/header.sh
+on a target.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -224,11 +270,6 @@ session each says so and stops.
 wants
 .B .git
 on top of that, and a package carries none.
-.B \-\-preview\-packages
-is the one exception to all of it: it falls back to the check itself, out of the
-shipped
-.BR common/header.sh ,
-rather than refusing.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
@@ -249,19 +290,28 @@ Exits 1 on any finding (see
 .BR "EXIT STATUS" ).
 .TP
 .B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-no\-link\fR] [\fB\-\-prefix\fR \fIdir\fR]
-install or repair say-hi's lines in your shell rc files, asking before each.
+install or repair say-hi's lines in your shell rc files, asking before each,
+and seed the config overlay at
+.B ~/.config/say-hi/
+with the shipped defaults (files already there are never touched).
 .B \-\-yes
 answers every prompt yes;
 .B \-\-no\-link
 skips the
 .B hi
 symlink into
-.BR ~/.local/bin ;
+.BR /usr/bin ;
 .B \-\-prefix
 is packaging mode \- stage the tree under
 .I dir
 and write nothing to a home \- which the package builds use and a user never
-needs.
+needs. The script behind it,
+.BR scripts/install.sh ,
+also takes
+.BR \-\-check\-configs ,
+the same read\-only pre\-flight over your rc files and overlay that
+.B \-\-doctor
+reports, as an exit status alone.
 .TP
 .B \-\-uninstall
 take those lines back out again. The tree itself is left where it is.
@@ -279,26 +329,19 @@ before either.
 .I name
 applies one without the menu.
 .TP
-.B \-\-overlay\-init
-seed the config overlay at
-.B ~/.config/say-hi/
-with the shipped defaults (files already there are never touched) and make it
-a git repo, in place, so it carries history.
-.TP
-.B \-\-update \fR[\fIgit\-pull\-options\fR]
+.B \-\-update \fR[\fItag\fR]
+move the say-hi checkout to a release tag: the tags are fetched and the newest
+is checked out, detached \- or the
+.I tag
+named, to move on or back. Releases are tags and nothing else; following a
+branch is
 .B git pull
-in the say-hi checkout, with any further words handed to
-.BR git\-pull (1)
-as they are.
+in the checkout, by hand.
+A working tree with uncommitted changes is refused before anything moves \-
+commit or stash first.
 Needs a checkout: an install from a package has no
 .B .git
-to pull into, and says so rather than running.
-.TP
-.B \-\-preview\-colors
-what every ssh host and your user resolve to, in their actual colors.
-.TP
-.B \-\-preview\-packages
-the package\-priority legend, as the header prints it.
+to move, and says so rather than running.
 .PP
 Everything else is passed through to
 .BR ssh (1)
@@ -352,7 +395,9 @@ seconds and each backend gets
 to answer, because this runs on every keypress.
 .TP
 .B hi \-\-<TAB>
-hi's own options, answered without probing any backend at all. The list is
+hi's own options, each with its one\-line purpose where the shell has a
+column for it (fish and zsh do; bash lists the names). Answered without
+probing any backend at all. The list is
 filtered to what this install can actually run: a session is offered none of
 the local commands that need
 .BR scripts/ ,
@@ -444,6 +489,36 @@ Each is its own
 .B \-\-use
 name and its own completion tag; one that is not installed costs nothing.
 .TP
+.B _HI_MUX
+.B 1
+wraps every connect in the local
+.BR tmux (1)
+session
+.B \-\-mux
+describes;
+.B \-\-no\-mux
+skips it for one. Default
+.BR 0 .
+.TP
+.B _HI_RECENT, _HI_RECENT_FILE
+.B 1
+(the default) records every target a session ended cleanly on, in
+.B $XDG_STATE_HOME/say-hi/recent
+or wherever
+.B _HI_RECENT_FILE
+points, and completion and the bare\-hi picker offer those first;
+.B 0
+neither records nor ranks. Client\-side only.
+.TP
+.B _HI_TRUECOLOR
+.B 1
+or
+.BR 0 :
+whether the client's terminal renders 24\-bit color. Read off
+.B COLORTERM
+and shipped to the session, which ssh never forwards itself; set it to force
+(inside tmux, say) or refuse a scheme's hex.
+.TP
 .B _HI_TARGETS_TTL, _HI_PROBE_TIMEOUT
 completion's two knobs: seconds the target list is reused for (default 5)
 and seconds each backend gets to answer (default 2), in completion and in
@@ -465,13 +540,6 @@ or
 .RB ( COLORTERM ;
 .B _HI_TRUECOLOR=1
 forces it, 0 refuses). Unset, the terminal's own sixteen colors.
-.TP
-.B _HI_COLORS, _HI_PACKAGES, _HI_VIMRC, _HI_NANORC
-where each of those four config files is read from. Unset, each resolves to
-the copy in
-.B $_HI_CONFIG_DIR
-if you have made one and to the tree's otherwise; exported, it points that
-one file elsewhere and leaves the rest of the overlay where it is.
 .SH EXAMPLES
 .TP
 .B hi prod-db

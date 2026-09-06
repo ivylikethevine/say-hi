@@ -30,7 +30,6 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
 unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC
-unset _HI_COLORS_AUTO _HI_PACKAGES_AUTO _HI_VIMRC_AUTO _HI_NANORC_AUTO
 
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"

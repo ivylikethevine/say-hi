@@ -9,9 +9,6 @@ anything you haven't overridden keeps tracking what `hi --update` delivers.
 here. The tree's own `settings/` directory holds the shipped defaults. All of
 it rides along to every host you say `hi` to, in its own small archive.
 
-Four of those files can also live somewhere else — see
-[Pointing one file somewhere else](#pointing-one-file-somewhere-else).
-
 | overlay file                   | overrides           | what it is                                                                                                                                    |
 | ------------------------------ | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.config/say-hi/settings.sh` | -                   | what `hi --configure` writes                                                                                                                  |
@@ -24,13 +21,12 @@ Four of those files can also live somewhere else — see
 | `~/.config/say-hi/zsh.zsh`     | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish` | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
 
-`hi --overlay-init` seeds the overlay with the shipped
+`hi --install` seeds the overlay with the shipped
 `colors`/`packages`/`vim.rc`/`nano.rc` defaults — only for the files you have
-none of — then makes `~/.config/say-hi` a git repo _in place_: from then on
-`hi --configure` commits its own writes and `hi --doctor` reports the commit
-count. A seeded copy stops tracking what `hi --update` delivers for that file
-(it is yours now). If you already keep dotfiles in chezmoi, yadm, GNU Stow or
-a bare repo,
+none of. A seeded copy stops tracking what `hi --update` delivers for that
+file (it is yours now). Versioning the directory is yours to do: a `git init`
+there, or a dotfile manager — if you already keep dotfiles in chezmoi, yadm,
+GNU Stow or a bare repo,
 [that directory is the whole integration](#keeping-the-overlay-in-a-dotfile-manager).
 
 Every setting below is an environment variable, checked where it is used.
@@ -38,17 +34,16 @@ Every setting below is an environment variable, checked where it is used.
 script of `export NAME=value` lines, valid in sh, bash, zsh and fish — which
 every shell sources ahead of `common/paths.sh`. Exporting one by hand works
 too and takes precedence for that shell. It does not reach programs started
-from a hi shell: once the rc has run, every `_HI_*` name except eight is a
+from a hi shell: once the rc has run, every `_HI_*` name except nine is a
 plain shell variable ([HI.47](GLOSSARY.md#hi47-what-a-child-inherits) says
 which, and why). A setting a child must see — a script of your own reading
-`$_HI_COLORS`, say — is an `export` in the overlay's
+`$_HI_MAX_WIDTH`, say — is an `export` in the overlay's
 `bash.sh`/`zsh.zsh`/`config.fish`, which run last.
 
 ## Contents
 
 - [How it works](#how-it-works)
 - [Every setting](#every-setting)
-  - [Pointing one file somewhere else](#pointing-one-file-somewhere-else)
   - [Not settings](#not-settings)
 - [System-wide settings](#system-wide-settings)
 - [The wizard](#the-wizard)
@@ -89,11 +84,13 @@ which, and why). A setting a child must see — a script of your own reading
 5. On exit, `load.sh`'s on-exit hook removes the `/tmp` directory and the
    scratch rc directory. It runs on `SIGHUP` too, so a dropped connection
    cleans up the same way, with nothing left to reconnect to. Run `hi` inside
-   `tmux` or `screen` on the _client_ to survive drops; persistent sessions
-   on the target were
+   `tmux` or `screen` on the _client_ to survive drops - `hi --mux <target>`
+   (or `_HI_MUX=1`) does that step for you and reattaches on the next connect;
+   persistent sessions on the target were
    [decided against](SUPPORT.md#what-would-change-an-answer).
-6. `hi <target> 'some command'` skips the session and runs the command there,
-   the way `ssh` does.
+6. `hi <target> 'some command'` runs the command inside that same session -
+   hi's aliases and environment, a pty when your stdin is one - and prints
+   only its output; a plain, pty-free remote command is `ssh`'s job.
 
 The bootstrap is plain POSIX `sh`, so a target with no `bash` still gets a
 session in the best plain shell it has, aliases loaded. For ssh targets hi
@@ -136,8 +133,8 @@ cannot land without a row here.
 | `_HI_REMOTE_SESSION`        | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                                                                                                                                                                                                                                                                        |
 | `_HI_DISABLE_BANNER`        | `0`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                                                                                                                                                                                                                                                                  |
 | `_HI_HEADER_ORDER`          | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                                                                                                                                                                                                                                                                 |
-| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-3, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, above `3` mutes it entirely. `hi --preview-packages` marks the ranks it silences `below floor` |
-| `_HI_PACKAGES_PALETTE`      | `cool`                                               | `hi --configure`          | which of `common/header.sh`'s named color tables the check paints with, per priority - `cool` (cyan-green installed, blue-red missing), `warm` (yellow-red) or `mono`; any other value falls back to `cool`. Judge one with `hi --preview-packages`                                                                                                               |
+| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-3, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, above `3` mutes it entirely. `hi --preview packages` marks the ranks it silences `below floor` |
+| `_HI_PACKAGES_PALETTE`      | `cool`                                               | `hi --configure`          | which of `common/header.sh`'s named color tables the check paints with, per priority - `cool` (cyan-green installed, blue-red missing), `warm` (yellow-red) or `mono`; any other value falls back to `cool`. Judge one with `hi --preview packages`                                                                                                               |
 | `_HI_IP_HIDE`               | `172.*`                                              | `hi --configure`          | space-separated globs over the dotted quad; the header's `ip` cell drops every address one matches, and drops itself when nothing is left. `none` hides nothing. See [Header details](#header-details)                                                                                                                                                            |
 | `_HI_COLOR_SCHEME`          | unset                                                | `hi --configure`          | which truecolor scheme the twelve palette names render as - `catppuccin` (Mocha), `monokai`, `onedark`, `vscode` (Dark+) - on a terminal that reports 24-bit color, nothing on one that does not. See [Colors](#colors)                                                                                                                                           |
 | `_HI_MAX_WIDTH`             | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal                                                                                                                                                                                                                                                                          |
@@ -157,18 +154,13 @@ cannot land without a row here.
 | `_HI_CONTAINER_CLIS`        | `docker podman nerdctl finch`                        | `hi --configure` advanced | the docker-compatible CLIs, space-separated, `hi <TAB>` lists containers through and `hi <target>` resolves with; docker's grammar is what they all speak, so one arm serves the lot. See [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                                                                                                                  |
 | `_HI_CTL_PERSIST`           | `60`                                                 | `hi --configure` advanced | seconds an ssh connection stays authenticated after you disconnect, so a second `hi <target>` within that window reuses the socket and skips the key exchange; `0` closes it right away                                                                                                                                                                           |
 | `_HI_PAYLOAD_CACHE`         | `1`                                                  | `hi --configure` advanced | caches the gzipped payload and overlay archives between connects, rebuilding when a source file's mtime moves past the cache's own or a toggle changes what would ship; `0` rebuilds fresh every connect                                                                                                                                                          |
+| `_HI_MUX`                   | `0`                                                  | `hi --configure` advanced | `1` wraps every session in a local `tmux` named for the target and reattaches on the next connect, what `--mux` does for one connect (`--no-mux` skips it for one); needs tmux here, not on the target                                                                                                                                                            |
 | `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to `_HI_ASCII`                                                                                                                                                                                                     |
 | `_HI_RECENT_FILE`           | `$XDG_STATE_HOME/say-hi/recent`                      | you                       | that file, one `<epoch>\t<target>` line per session, trimmed to the newest 300 past 500                                                                                                                                                                                                                                                                           |
-| `_HI_COLORS`                | overlay, else tree                                   | you                       | [Pointing one file somewhere else](#pointing-one-file-somewhere-else) - where the color pins are read from                                                                                                                                                                                                                                                        |
-| `_HI_PACKAGES`              | overlay, else tree                                   | you                       | the same for the package check's list                                                                                                                                                                                                                                                                                                                             |
-| `_HI_VIMRC`                 | overlay, else tree                                   | you                       | the same for the vim config the `vim` alias and `$VIMINIT` point at                                                                                                                                                                                                                                                                                               |
-| `_HI_NANORC`                | overlay, else tree                                   | you                       | the same for nano's                                                                                                                                                                                                                                                                                                                                               |
 | `_HI_BAT_OPTS`              | Monokai theme, `--tabs 2`, `changes,grid` style      | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                       |
 | `_HI_EXA_SHARED_OPTS`       | `-F -1 -l -m --group-directories-first`              | you                       | the flags the `exa`/`eza` aliases share before each one's own are appended                                                                                                                                                                                                                                                                                        |
 | `_HI_EXA_OPTS`              | `$_HI_EXA_SHARED_OPTS --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                            |
 | `_HI_EZA_OPTS`              | `$_HI_EXA_SHARED_OPTS` + smart-group + a time format | you                       | the `eza` alias's flags                                                                                                                                                                                                                                                                                                                                           |
-| `_HI_EZA_OPTS_SIZE`         | `$_HI_EZA_OPTS --total-size`                         | you                       | exported for an overlay's own use; no shipped alias reads it today                                                                                                                                                                                                                                                                                                |
-| `_HI_TARGET`                | -                                                    | hi                        | the target as you typed it on the client                                                                                                                                                                                                                                                                                                                          |
 | `_HI_TARGET_COLOR`          | -                                                    | hi                        | the color that target resolved to, decided on the client so it matches everywhere                                                                                                                                                                                                                                                                                 |
 | `_HI_TARGET_TAG`            | -                                                    | hi                        | the target's `# Tags:` value out of your `~/.ssh/config`                                                                                                                                                                                                                                                                                                          |
 | `_HI_HOST_COLOR`            | -                                                    | hi                        | [Your own prompt](#using-the-hash-in-your-own-prompt) - the hostname color, by name (zsh's `%F{}` form)                                                                                                                                                                                                                                                           |
@@ -177,47 +169,32 @@ cannot land without a row here.
 | `_HI_USER_ESC`              | -                                                    | hi                        | the same for the username                                                                                                                                                                                                                                                                                                                                         |
 | `_HI_LOCAL_USER`            | -                                                    | hi                        | who you are on the client, for the header's "from" half                                                                                                                                                                                                                                                                                                           |
 | `_HI_LOCAL_HOSTNAME`        | -                                                    | hi                        | where you came from, likewise                                                                                                                                                                                                                                                                                                                                     |
-| `_HI_RELEASE`               | -                                                    | hi                        | the client's version, so a session says which say-hi it is running                                                                                                                                                                                                                                                                                                |
-| `_HI_HOME`                  | derived                                              | you                       | the **parent** of your `say-hi` directory - everything resolves `$_HI_HOME/say-hi`. Each entry point derives it from its own path when unset; set it to override                                                                                                                                                                                                  |
-| `_HI_SSH_CONFIG`            | `~/.ssh/config`                                      | hi                        | read-only: where ssh hosts and their `# Tags:` comments are read from. Derived from `$HOME` by `common/paths.sh` every time it is sourced, so exporting your own value does not survive                                                                                                                                                                           |
-| `_HI_SESSION_RC`            | `mktemp -d`                                          | hi                        | set inside a session: the directory holding the per-shell rc files a nested `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends. See [HI.46](GLOSSARY.md#hi46-session-rc-directory)                                                                                                                                                                     |
-
-### Pointing one file somewhere else
-
-`$_HI_CONFIG_DIR` moves the whole overlay. The four files inside it with a
-path variable of their own — `colors`, `packages`, `vim.rc` and `nano.rc` —
-can each be moved alone instead:
-
-```sh
-export _HI_COLORS="$HOME/dotfiles/hi-colors"     # in settings.sh, or the environment
-```
-
-That one file now comes from `~/dotfiles`; the other three resolve as before
-— the overlay's copy if you made one, else the tree's. It wins even when
-`~/.config/say-hi/colors` also exists, which suits a dotfile manager that
-would rather keep its own paths than symlink into `~/.config/say-hi`; the
-[whole-directory route](#keeping-the-overlay-in-a-dotfile-manager) is simpler
-when you are moving all of it.
-
-Two edges. A value equal to what `common/paths.sh` would have resolved anyway
-is not a choice — it is what a child shell inherits from its parent, and
-re-resolving it is what lets `_HI_CONFIG_DIR=elsewhere bash` mean something.
-And the four are read on every source, so a running shell does not notice a
-file you have only just created; open a new one.
-
-The other five overlay files have no such variable: `aliases.sh` and the three
-per-shell files are sourced by fixed name straight off `$_HI_CONFIG_DIR`, and
-`settings.sh` is read before any of this happens.
 
 ### Not settings
 
-Four more names look like settings and are not. `$_HI_CONFIG_DIR` and
-`$_HI_HOME` are read **before** `settings.sh` is sourced, so a line there is
-too late; export them in your environment, as `hi.sh` and `install.sh`'s rc
-line do. `$_HI_ROOT` and `$_HI_SSH_CONFIG` are derived from those two by
+Ten more names look like settings and are not. `$_HI_CONFIG_DIR` and
+`$_HI_HOME` (the **parent** of your `say-hi` directory - everything resolves
+`$_HI_HOME/say-hi`) are read **before** `settings.sh` is sourced, so a line
+there is too late; export them in your environment, as `hi.sh` and
+`install.sh`'s rc line do, and each entry point derives `$_HI_HOME` from its
+own path when unset. `$_HI_ROOT` and `$_HI_SSH_CONFIG` (where ssh hosts and
+their `# Tags:` comments are read from) are derived from those two by
 `common/paths.sh` on every source, so an exported value does not survive;
-point `$_HI_HOME` or `$HOME` elsewhere instead. Everything else beginning
+point `$_HI_HOME` or `$HOME` elsewhere instead. `$_HI_COLORS`,
+`$_HI_PACKAGES`, `$_HI_VIMRC` and `$_HI_NANORC` are derived the same way -
+the overlay's copy of `colors`/`packages`/`vim.rc`/`nano.rc` when you have
+one, else the tree's - so a file of yours goes into the overlay, not behind
+an export. `$_HI_RELEASE` is the
+version `packaging/stamp.sh` fills in at build time, so a session can say
+which say-hi it is running, and `$_HI_SESSION_RC` is set inside a session:
+the `mktemp -d` directory holding the per-shell rc files a nested
+`bash`/`zsh`/`fish`/`sh` reads, removed when the session ends
+([HI.46](GLOSSARY.md#hi46-session-rc-directory)). Everything else beginning
 `_HI_` is internal state, named that way to stay out of your namespace.
+
+A name that used to be a setting and no longer is (`_HI_EZA_OPTS_SIZE`, which
+nothing ever read) is ignored, and for one minor release `hi --doctor` and the
+connect header both say so while it is still in your `settings.sh`.
 
 ## System-wide settings
 
@@ -249,6 +226,8 @@ prompt line as it would draw, at your current settings — over a short menu:
    each previewed as it flips.
 4. **Prompt** — starship, and the character each shell's prompt ends with.
 5. **Advanced** — the _advanced_ rows, as a short walk of questions.
+6. **Colors** — `_HI_COLOR_SCHEME`, one of the truecolor schemes in
+   [Colors](#colors), previewed on the header and prompt.
 
 Every section returns to the menu and the preview re-renders. `s` writes the
 settings once; `q` leaves `settings.sh` untouched; nothing is written before
@@ -459,9 +438,9 @@ target receives real file contents — a symlink per file, or the whole `say-hi`
 directory as one link.
 
 **Nothing but the overlay files travels.** `$_HI_OVERLAY_FILES` is an allow
-list, so your manager's metadata (`.chezmoiignore`, templates), the `.git` that
-`hi --overlay-init` creates, editor swap files and anything private sharing
-that directory stay on your machine.
+list, so your manager's metadata (`.chezmoiignore`, templates), a `.git` of
+your own, editor swap files and anything private sharing that directory stay
+on your machine.
 
 **Pick one keeper for the files a manager owns.** `hi --configure` writes
 `settings.sh` in the **live** directory; if your manager also owns it, the two
@@ -469,7 +448,7 @@ drift. Either let hi own `settings.sh` (exclude it from the manager), or keep
 it managed and run the manager's re-add step
 (`chezmoi re-add ~/.config/say-hi/settings.sh`) after each `hi --configure`.
 Per-file managers leave what they do not own alone, so a partly-managed
-directory is normal, and `hi --overlay-init`'s git repo coexists with them.
+directory is normal.
 
 ## Colors
 
@@ -486,7 +465,7 @@ pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash; a pin always beats the hash.
 
 The vocabulary is those twelve names, and stays so - a pin, the hash and
-`hi --preview-colors` never see anything else. What each name _renders as_
+`hi --preview colors` never see anything else. What each name _renders as_
 is `_HI_COLOR_SCHEME`'s: unset, the terminal's own sixteen colors; set to
 `catppuccin`, `monokai`, `onedark` or `vscode`, that scheme's hex for each
 name, emitted as one escape that carries the 16-color code first and the
@@ -499,15 +478,15 @@ Inside tmux or on a terminal that renders 24-bit color without announcing it,
 `export _HI_TRUECOLOR=1` in `settings.sh` forces it; `0` refuses it. zsh
 takes the hex from 5.7 on and keeps the plain name below that; macOS
 Terminal.app never sets `COLORTERM` and so keeps its own sixteen. Judge a
-scheme with `hi --preview-colors` and `hi --preview-packages`, which each say
+scheme with `hi --preview colors` and `hi --preview packages`, which each say
 which scheme they are rendering; `hi --configure`'s Colors section shows all
 four side by side. `settings.sh` ships to every target, so a scheme follows
 you.
 
-`hi --preview-colors` shows every host in your ssh config and every user it
+`hi --preview colors` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:
 
-![hi --preview-colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+![hi --preview colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### Using the hash in your own prompt
 

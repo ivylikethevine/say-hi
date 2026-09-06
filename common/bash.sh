@@ -84,15 +84,27 @@ function _hi_target_names() {
 # an `eval` per candidate on every TAB. targets.sh already drops names with
 # `*` or `?`; `set -f` is belt to that.
 function _hi_complete() {
-  local cur="${COMP_WORDS[COMP_CWORD]}" n
+  local cur="${COMP_WORDS[COMP_CWORD]}" prev="" n
   COMPREPLY=()
+  ((COMP_CWORD > 1)) && prev="${COMP_WORDS[COMP_CWORD - 1]}"
+  # the word a flag takes - `hi --preview <TAB>`, `hi --use <TAB>` - is
+  # neither a flag nor a target: targets.sh's words roster, no probe
+  case "$prev" in
+  --preview | --use)
+    while IFS=$'\t' read -r n _; do
+      case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
+    done < <(sh "$_HI_TARGETS" words "$prev")
+    return 0
+    ;;
+  esac
   # A `-` word asks for hi's own options, never a target, so this answers
   # without touching the target cache or its probes. Uncached on purpose: the
   # roster is a dozen printfs in targets.sh.
   if [[ "$cur" == -* ]]; then
-    for n in $(sh "$_HI_TARGETS" flags); do
+    # "<flag>\t<help>" lines; bash's menu has no room for the second column
+    while IFS=$'\t' read -r n _; do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
-    done
+    done < <(sh "$_HI_TARGETS" flags)
     return 0
   fi
   _hi_target_names

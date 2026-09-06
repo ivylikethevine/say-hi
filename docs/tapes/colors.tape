@@ -1,6 +1,6 @@
 # The colors demo, as the sysadmin sees it: kai, bash on a laptop, into a
 # prod box and a dev box that each carry their own permanent install. `# Tags:`
-# in ~/.ssh/config and hosttag pins in the colors overlay, `hi --preview-colors`
+# in ~/.ssh/config and hosttag pins in the colors overlay, `hi --preview colors`
 # to see what every host resolves to, then the prod host lands red and the
 # dev host green. Render with `vhs docs/tapes/colors.tape` from the repo
 # root, docker running, hi on PATH. Manual artifact, reviewed by eye.
@@ -40,7 +40,7 @@ Show
 Sleep 1s
 Type "# tags in ~/.ssh/config, pins in the colors overlay, the onedark scheme"
 Enter
-Type "hi --preview-colors"
+Type "hi --preview colors"
 Enter
 Wait+Screen@30s /PREVIEW/
 Sleep 6s

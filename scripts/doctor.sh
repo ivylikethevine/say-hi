@@ -34,8 +34,8 @@ unset _hi_d
 
 case "${1:-}" in
 -h | --help)
-  cat <<'EOF'
-Usage: doctor.sh [--json] [--use <backend>] [target]
+  cat <<EOF
+Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -51,9 +51,9 @@ Prints, in order:
 
 ssh options are not accepted here - the probe uses your ssh config as-is,
 which is exactly what completion and the header do. --use <backend> names the
-target's arm outright, the same one a real `hi --use <backend> <target>` would
-take, and skips the probe chain in the target report. --plain is accepted and
-ignored - doctor never connects, so it has nothing to report.
+target's arm outright, the same one a real \`hi --use <backend> <target>\` would
+take, and skips the probe chain in the target report. --plain and --mux are
+accepted and ignored - doctor never connects, so it has nothing to report.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -86,7 +86,9 @@ source "$_HI_LAUNCHER"
 # --json, the target and --use may come in any order: `hi --doctor --json
 # host`, `hi --doctor host --json`, `hi --doctor --use docker host` all read
 # naturally. `--use <backend>` is the one two-word flag: the word after it is the
-# arm, not the target.
+# arm, not the target (`--use=<backend>` is the same word joined, as hi.sh
+# takes it). Anything else that looks like a flag is an error, not a target -
+# a target never starts with a dash - and so is a second target.
 _hi_via=""
 for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   if [ -n "$_hi_via" ]; then
@@ -97,11 +99,21 @@ for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
   --use) _hi_via=1 ;;
-  # doctor never connects, so --plain has nothing to report and is silently
-  # accepted rather than misread as the target name it would otherwise fall
-  # through to below
-  --plain) ;;
-  *) _HI_DOC_TARGET="$_hi_arg" ;;
+  --use=*) _HI_DOC_BACKEND="$(_hi_use_backend "${_hi_arg#--use=}")" || exit 1 ;;
+  # doctor never connects, so the connect-time flags have nothing to report
+  # and are silently accepted rather than misread as a target name
+  --plain | --mux | --no-mux) ;;
+  -*)
+    _hi_cecho "hi --doctor: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
+    exit 1
+    ;;
+  *)
+    [ -z "$_HI_DOC_TARGET" ] || {
+      _hi_cecho "hi --doctor: one target at a time ($_HI_DOC_TARGET and $_hi_arg)" "$RED" >&2
+      exit 1
+    }
+    _HI_DOC_TARGET="$_hi_arg"
+    ;;
   esac
 done
 if [ -n "$_hi_via" ]; then
@@ -305,13 +317,6 @@ function doctor_config() {
       doctor_row "$f" "tree default"
     fi
   done
-  # whether the overlay has history - hi --overlay-init's optional-and-quiet
-  # contract means untracked is a state, not a problem
-  if [ -d "$_HI_CONFIG_DIR/.git" ]; then
-    doctor_row versioning "tracked ($(git -C "$_HI_CONFIG_DIR" rev-list --count HEAD 2>/dev/null || echo 0) commits)" ok
-  else
-    doctor_row versioning "untracked (hi --overlay-init gives it history)"
-  fi
   # only the non-default settings: a default setup stays one quiet line
   for t in "${_HI_TOGGLES[@]}"; do
     eval "v=\${$t:-0}"
@@ -320,6 +325,12 @@ function doctor_config() {
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
+  # a retired name still exported is a warning, not a finding: it is ignored
+  local r
+  while IFS='|' read -r r v why; do
+    [ -n "$r" ] || continue
+    doctor_row retired "$r is set but retired since $v ($why); it is ignored" warn
+  done < <(_hi_retired_set)
 }
 
 # The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS

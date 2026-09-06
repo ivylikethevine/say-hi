@@ -40,7 +40,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 means](#what-v100-means)
-  - [By scope](#by-scope)
+  - [Post 1.0](#post-10)
 
 ### Additional Documentation
 
@@ -54,7 +54,7 @@ the OpenSSF answer sheet.
 
 ```sh
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi
-~/say-hi/scripts/install.sh    # wires your rc files, asks about each feature
+~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu
 exec $SHELL                    # reload
 hi <anything>                   # ssh, with your prompt, aliases and editors along
 ```
@@ -118,13 +118,13 @@ header, editors, clipboard and aliases).
 ### Know Where You Are at a Glance
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
-`hi --preview-colors` to see what every host resolves to — then a prod host
+`hi --preview colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
 ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
 their shorter headers) and their own two-line fish prompt, drawn on the
 colors hi resolved.
 
-![hi --preview-colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### One Command, Any Backend
 
@@ -140,6 +140,7 @@ A researcher, in zsh, sweeping the cluster's backends.
 ### No Target at All?
 
 `hi` on its own offers the target list, backend-tagged and
+
 most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
 if you have one, a numbered menu if not. It runs on the client, never reaches
 a target, and a `hi` in a script or CI job still fails rather than wait on a
@@ -227,28 +228,31 @@ everything weighed and answered **no**, and why.
 - reload your shell!
 - `hi --configure` opens a menu over a live preview of the header and
   prompt: pick a preset (`everything`, `balanced`, `minimal`), or open a
-  section - Header, Features, Prompt, Advanced - and save.
+  section - Header, Features, Prompt, Advanced, Colors - and save.
   `hi --configure --preset <name>` skips the menu. Answers land in
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- [optional] `hi --overlay-init` puts `~/.config/say-hi` under git _in place_; from then
-  on `hi --configure` commits its own writes. [docs/SETTINGS.md](docs/SETTINGS.md).
+- the install also seeds `~/.config/say-hi` with the shipped defaults, for
+  the files you have none of - yours to edit, and to version however you
+  keep your dotfiles. [docs/SETTINGS.md](docs/SETTINGS.md).
 - `hi --doctor [<target>]` when something is slow or failing to help diagnose.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
   `sk` if you have one, a numbered menu if not. GIF:
   [no target at all](#no-target-at-all).
 - [optional] configure `~/.ssh/config` tags via sshm
-- [optional] pin colors in `~/.config/say-hi/colors` (copy
-  `say-hi/settings/colors` to start); `hi --preview-colors` shows what every
-  ssh host and your user resolve to.
+- [optional] pin colors in `~/.config/say-hi/colors` (the install seeded it
+  from `say-hi/settings/colors`); `hi --preview colors` shows what every ssh
+  host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
   there is no `hi --tmux` ([why](docs/SUPPORT.md#what-would-change-an-answer)).
   For anything you would hate to lose to a flaky link, start `hi` inside
   `tmux` or `screen` **on this machine**: the local multiplexer survives the
   drop, and reconnecting is another `hi <target>`
-  ([how it works](docs/SETTINGS.md#how-it-works)).
-- done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
+  ([how it works](docs/SETTINGS.md#how-it-works)). `hi --mux <target>` (or
+  `_HI_MUX=1`) does that step for you: one local tmux session per target,
+  and a repeat reattaches instead of opening a second.
+- done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. Left behind, on purpose: the checkout (or the
   package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
@@ -277,8 +281,8 @@ every toggle and every environment variable are in
 `hi` to, so a token, an internal hostname or a private path in your
 `aliases.sh` lands on each of them. See [docs/SECURITY.md](docs/SECURITY.md)._**
 
-By default hi writes nothing to a target outside its own temp directory.
-The two opt-in settings that change that are in
+hi writes nothing to a target outside its own temp directory, and removes
+that on exit:
 [What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, Username, and Group/Tag Colors
@@ -290,7 +294,7 @@ _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. A `hostname` pin holding `*` or `?` is a pattern —
 `hostname,10.0.1.*,red` colors a whole subnet with no ssh-config entry at
-all. `hi --preview-colors` shows the result in the actual colors; the long
+all. `hi --preview colors` shows the result in the actual colors; the long
 version, and using the hash in your own prompt, is
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
@@ -313,7 +317,7 @@ How say-hi compares to similar tools, and when to use something else:
 
 `tests/test_runner.sh` runs the suite with a
 colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
-side) then `--group lint` on every push/PR. Runbook:
+side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
 [docs/TESTING.md](docs/TESTING.md).
 
 ![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
@@ -343,10 +347,9 @@ myself.
 
 ## Roadmap
 
-What's left, in one list ordered by **ascending scope** — the smallest work
-first. Every entry is open for consideration; nothing here is parked or
-descoped. Finished entries and
-questions decided against are **deleted**: git history is the ledger.
+What's left. Every entry is open for consideration; nothing here is parked
+or descoped. Finished entries and questions decided against are **deleted**:
+git history is the ledger.
 
 ### What v1.0.0 Means
 
@@ -358,83 +361,20 @@ questions decided against are **deleted**: git history is the ledger.
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises (the **Flip to stable** entry).
 
-### By Scope
+### Post 1.0
 
-1. [ ] **tldr page** — _scope: one upstream pull request; outside this
-       checkout._ CLI surface is frozen (twelve flags, CI-enforced both ways
-       by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
+Outside this checkout, and not what the tag waits on: each is an account or
+an upstream review that lands when it lands.
+
+1. [ ] **tldr page** — CLI surface is frozen, matches the hi.1, and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
-       on access to real appliance hardware, which nothing in this checkout
-       supplies._ SUPPORT.md's NAS row reads 🟡 ("full session expected...
-       nobody has run it on an appliance") — plain disposable `hi` isn't even
-       confirmed there yet, before a permanent-install recipe is worth
-       writing to spare a slow link the ~48KB-a-connect payload. **Do:** get
-       `hi <target>` working once on a real DSM, QTS, SCALE, Unraid or CORE
-       box and flip that row to ✅; only then is `scripts/install.sh --prefix`
-       (or a package, where one exists for the platform) worth walking
-       end-to-end and writing up. **Ticks when:** the NAS row carries a ✅ and the
-       recipe is linked from it.
-
-3. [ ] **AUR** — _scope: nothing until registration reopens; then an
-       account, a key, and one manual first push; outside this checkout._
-       Registration is closed to new accounts (spam), and
+2. [ ] **AUR** — Registration is closed to new accounts (spam), and
        `publish-external.yml`'s `aur` job stays written and unexercised
        until it reopens. **When it reopens:** register; generate an ed25519
        key, add the private half as the `AUR_SSH_KEY` repo secret; the first
-       push per package is manual (namcap gate against the published
-       source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
+       push per package is manual, and dispatching
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
-
-4. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
-       twelve, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
-       count), target-name sanitization, a suite, docs._ The target-side
-       version of this shipped, then was removed and declined
-       ([why](docs/SUPPORT.md#what-would-change-an-answer)) — a disposable
-       tree cannot outlive its own session. Today's workaround is manual:
-       start `hi` inside your own `tmux`/`screen` ([README](#in-sixty-seconds)).
-       This automates that one step, entirely client-side, no target-side
-       footprint at all — wrapping the session in `tmux new -A -s hi-<target>`,
-       attaching if that name is already running rather than opening a
-       second one. **Do:** a flag/toggle (chosen not to reuse the
-       removed `_HI_TMUX_*`/`--tmux` names — those meant the target-side
-       feature), a sanitizer for target strings tmux's session-name rules
-       reject (`:` in a kube `context:namespace:pod`, `/` in a nested
-       target), a suite under `tests/hi/` or `tests/targets/`, a
-       `docs/SETTINGS.md` row. **Ticks when:** the toggle ships, tested and
-       documented, and reconnecting to the same target reattaches instead of
-       opening a second session.
-
-5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --preview-colors`
-       and `hi --preview-packages` per scheme on a light and a dark
-       terminal._ `_HI_COLOR_SCHEME` (`catppuccin`, `monokai`, `onedark`,
-       `vscode`) renders the twelve palette names as that scheme's truecolor
-       wherever hi paints, behind a `COLORTERM` check so a plain terminal
-       keeps its sixteen, with its `docs/SETTINGS.md` row and `hi
- --configure`'s Colors section. **Do:** run both previews under each
-       scheme on both backgrounds and retune any hex that reads wrong.
-       **Ticks when:** all four schemes read monotonic 0-3 in
-       `--preview-packages` and legibly in `--preview-colors` on both.
-
-6. [ ] **`hi --update` between release tags in a git install** — _scope: a
-       decision on `--update`'s argument grammar, a git-install-only code
-       path, dirty-tree and detached-HEAD handling, a suite, docs._ Today
-       `--update` is `exec git -C "$_HI_ROOT" pull "$@"` (`hi.sh`) — a
-       straight git-pull passthrough, tested only as that
-       (`tests/hi/remote_test.sh`). Moving between tags needs a
-       `git fetch --tags` and a `git checkout <tag>` instead, which detaches
-       HEAD, and a call on a dirty working tree first — git-install users are
-       expected to be able to hack on the checkout. **Do:** settle the grammar
-       as a new argument to `--update` rather than a new flag (the
-       twelve-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
-       stays put), refuse or guard a dirty tree, decide what a bare `--update`
-       does afterward — reattach to the branch, stay on the tag, or say so —
-       extend `tests/hi/remote_test.sh`'s coverage, and document it in
-       `docs/hi.1` and `hi --help`. **Ticks when:** `hi --update <tag>` in a
-       git checkout switches cleanly, a dirty tree is never silently
-       overwritten, and a following bare `hi --update` behaves predictably,
-       tested and documented.
