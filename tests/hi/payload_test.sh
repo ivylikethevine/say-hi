@@ -272,14 +272,6 @@ export _HI_MAX_WIDTH=72' ] || {
   return 0
 }
 
-function test_overlay_keep_comments_ships_verbatim() {
-  local dir="$_HI_WORKDIR/ovl-verbatim" out
-  mkdir -p "$dir"
-  cp "$_HI_ROOT/settings/colors" "$dir/colors"
-  out="$(_HI_CONFIG_DIR="$dir" _HI_KEEP_COMMENTS=1 _hi_overlay_tar | tar xzOf - colors)"
-  [ "$out" = "$(cat "$_HI_ROOT/settings/colors")" ]
-}
-
 # the user's own aliases ride the same stream under their bare name,
 # which is where settings/aliases.sh's tail line ($_HI_CONFIG_DIR/aliases.sh, the
 # target's config/) looks - a separate file from the shipped one, on purpose
@@ -501,16 +493,6 @@ function test_strip_keeps_every_data_line() {
   [ "$bad" -eq 0 ]
 }
 
-function test_keep_comments_ships_the_tree_verbatim() {
-  local dir
-  dir="$_HI_WORKDIR/verbatim"
-  mkdir -p "$dir"
-  _HI_KEEP_COMMENTS=1 _hi_payload_tar | tar xzf - -C "$dir"
-  diff "$_HI_ROOT/common/core.sh" "$dir/say-hi/common/core.sh" >/dev/null &&
-    diff "$_HI_ROOT/settings/colors" "$dir/say-hi/settings/colors" >/dev/null &&
-    diff "$_HI_ROOT/settings/vim.rc" "$dir/say-hi/settings/vim.rc" >/dev/null
-}
-
 # _hi_tar_gz's fallback when gzip is absent: tar's own -z instead of piping
 # through a second gzip process. A tar shim (rather than a real archive)
 # isolates the branch choice from whether this box's tar can gzip on its own.
@@ -549,7 +531,6 @@ function run_hi_payload_tests() {
   _hi_check "Heredoc bodies are spared" test_strip_spares_heredoc_bodies
   _hi_check "The data-file headers strip too" test_strip_covers_the_data_files
   _hi_check "Every data line survives" test_strip_keeps_every_data_line
-  _hi_check "_HI_KEEP_COMMENTS=1 ships verbatim" test_keep_comments_ships_the_tree_verbatim
 
   _hi_h2 "Testing: the config overlay stream"
   _hi_check "Nothing sent without an overlay" test_overlay_is_empty_without_one
@@ -558,7 +539,6 @@ function run_hi_payload_tests() {
   _hi_check "Carries only what exists" test_overlay_tar_carries_only_what_exists
   _hi_check "aliases.sh rides the stream" test_overlay_tar_carries_aliases
   _hi_check "The stream is comment-stripped" test_overlay_strip_removes_comments
-  _hi_check "_HI_KEEP_COMMENTS=1 ships the overlay verbatim" test_overlay_keep_comments_ships_verbatim
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster

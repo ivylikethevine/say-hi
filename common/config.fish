@@ -61,25 +61,6 @@ function __hi_bash --description 'bash -c <script>, with the session values hi k
   command bash -c $argv
 end
 
-# fish turns each shipped `alias` into an opaque function. `alias` with no
-# args lists them as `alias name 'value'` - valid fish syntax - so swapping the
-# leading word for `abbr -a --` reuses fish's own quoting round-trip.
-function hi_abbr_aliases --description 'add a fish abbr for every alias hi defined, so it expands in place'
-  for hi_abbr_line in (alias)
-    set -l hi_abbr_name (string match -rg '^alias (\S+) ' -- $hi_abbr_line)
-    test -n "$hi_abbr_name"; or continue
-    abbr -q -- $hi_abbr_name; and continue
-    eval "abbr -a -- "(string replace -r '^alias \S+ ' "$hi_abbr_name " -- $hi_abbr_line)
-  end
-end
-# Off by default: an abbr rewrites your command line and history. Fish-only,
-# so not in core.sh's _HI_TOGGLES. Showing the expansion as autosuggestion
-# text instead is not possible (fish has no setter for it) and unnecessary:
-# fish's `alias` records the body as the function's description, so the
-# completion pager already shows it on TAB.
-set -q _HI_ENABLE_FISH_ALIAS_ABBR; or set -gx _HI_ENABLE_FISH_ALIAS_ABBR 0
-test "$_HI_ENABLE_FISH_ALIAS_ABBR" = 1; and hi_abbr_aliases
-
 # Opposite conditions, so exactly one runs per TAB: without the negation
 # `hi --<TAB>` would fire the target sweep too, and a flag list must never
 # wait on a docker daemon (the promise targets.sh, bash.sh and zsh.zsh keep).

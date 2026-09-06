@@ -590,7 +590,6 @@ _HI_PROMPT_PROMPTS=(
 _HI_ADVANCED_PROMPTS=(
   "_HI_TERM_FALLBACK|0||| Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?||"
   "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?||"
-  "_HI_ENABLE_FISH_ALIAS_ABBR|0|1|| fish: expand every hi alias to its full command on the line before it runs (an abbr - it rewrites what your history says)?|fish|"
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
   "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
 )

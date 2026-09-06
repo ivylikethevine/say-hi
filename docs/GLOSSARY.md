@@ -485,10 +485,10 @@ inside a heredoc**: those bodies are data the target reads, one of them
 mentioning `<<WORD` would otherwise open a heredoc that never closes and
 silently stop stripping the rest of the file.
 
-`_HI_KEEP_COMMENTS=1` ships the tree verbatim. `tests/hi/payload_test.sh` pins
-the rest: no full-line comment survives outside `hi.sh`'s heredocs, every code
-line survives byte for byte, the result still parses, and `hi.sh` keeps its
-exec bit — the write-back is HI.09's `cat`, for the same reason.
+`tests/hi/payload_test.sh` pins the rest: no full-line comment survives outside
+`hi.sh`'s heredocs, every code line survives byte for byte, the result still
+parses, and `hi.sh` keeps its exec bit — the write-back is HI.09's `cat`, for
+the same reason.
 
 ## HI.36 overlay toggle source
 
