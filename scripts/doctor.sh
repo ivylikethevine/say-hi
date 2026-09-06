@@ -78,10 +78,18 @@ source "$_HI_LAUNCHER"
 
 # --json, the target and a backend flag may come in any order: `hi --doctor
 # --json host`, `hi --doctor host --json`, `hi --doctor --docker host` all read
-# naturally.
+# naturally. `--via <cli>` is the one two-word flag: the word after it is the
+# family member, not the target.
+_hi_via=""
 for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
+  if [ -n "$_hi_via" ]; then
+    _HI_DOC_BACKEND="$(_hi_via_backend "$_hi_arg")" || exit 1
+    _hi_via=""
+    continue
+  fi
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
+  --via) _hi_via=1 ;;
   # doctor never connects, so --plain has nothing to report and is silently
   # accepted rather than misread as the target name it would otherwise fall
   # through to below
@@ -95,7 +103,11 @@ for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
     ;;
   esac
 done
-unset _hi_arg _hi_bf _hi_doc_args
+if [ -n "$_hi_via" ]; then
+  _hi_cecho "hi: --via needs a CLI name" "$RED" >&2
+  exit 1
+fi
+unset _hi_arg _hi_bf _hi_doc_args _hi_via
 
 _HI_DOC_BAD=0
 # the section the rows below belong to, and the JSON rows collected so far -
@@ -375,7 +387,13 @@ function doctor_target() {
         [ "$name" = "$_HI_DOC_BACKEND" ] || continue
         kind="$what"
         label="$name"
-        doctor_row resolves "$what (forced by --$name)" ok
+        # the flag as the user spelled it: a family member without a row of
+        # its own in common/flags was forced through --via
+        if _hi_backend_flag "--$name" >/dev/null; then
+          doctor_row resolves "$what (forced by --$name)" ok
+        else
+          doctor_row resolves "$what (forced by --via $name)" ok
+        fi
         break
       done
     fi

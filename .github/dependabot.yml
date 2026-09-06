@@ -70,7 +70,16 @@ updates:
     # either would move it off the fish major it exists to pin (24.04->26.04
     # swapped 3.7 for 4.x in PR #53). Digest refreshes within each major.minor
     # still arrive; moving either file to a new release stays a hand edit.
+    #
+    # zshusers/zsh:5.8 is the zsh floor (zsh58.Dockerfile), the same shape as
+    # bash:3.2: a bump to 5.9 would leave the check green while it stopped
+    # being a floor. Upstream retags rarely, so digest refreshes are moot, but
+    # the semver ignore is what stops the bump PR.
     ignore:
+      - dependency-name: "zshusers/zsh"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
       - dependency-name: "bash"
         update-types:
           - "version-update:semver-major"

@@ -43,6 +43,29 @@ EOF
 printf 'pod-one\n'
 EOF
 
+  # a third family member (GLOSSARY: HI.51); finch is deliberately not
+  # shimmed, so the default roster always carries one absent member
+  cat >"$dir/nerdctl" <<'EOF'
+#!/bin/sh
+[ "$1" = ps ] || exit 1
+printf 'nerd-one\n'
+EOF
+
+  # two members fronting one daemon, podman-docker style: both answer `twin`
+  mkdir -p "$dir/twins"
+  cat >"$dir/twins/docker" <<'EOF'
+#!/bin/sh
+[ "$1" = ps ] || exit 1
+printf 'twin\nonly-docker\n'
+EOF
+  cat >"$dir/twins/podman" <<'EOF'
+#!/bin/sh
+[ "$1" = ps ] || exit 1
+printf 'twin\nonly-podman\n'
+EOF
+  chmod +x "$dir/twins/docker" "$dir/twins/podman"
+  _HI_TWIN_PATH="$dir/twins:$PATH"
+
   # `nomad job status` (header row + one job), then `nomad job allocs` per job
   cat >"$dir/nomad" <<'EOF'
 #!/bin/sh
@@ -64,7 +87,7 @@ get) printf 'default pod-a\ndefault pod-b\nother pod-c\n' ;;
 esac
 EOF
 
-  for tool in docker podman nomad kubectl; do
+  for tool in docker podman nerdctl nomad kubectl; do
     chmod +x "$dir/$tool"
   done
   _HI_SHIM_PATH="$dir:$PATH"
@@ -243,6 +266,65 @@ function test_podman_kind_lists_running_containers() {
   _hi_has_row "$(_hi_targets "$_HI_CONFIG" podman)" pod-one podman
 }
 
+# every member of $_HI_CONTAINER_CLIS is a kind of its own, in the default
+# roster without anyone naming it (GLOSSARY: HI.51)
+function test_nerdctl_kind_lists_running_containers() {
+  _hi_has_row "$(_hi_targets "$_HI_CONFIG" nerdctl)" nerd-one nerdctl
+}
+
+# a member off $PATH emits nothing and fails nothing: finch has no shim
+function test_absent_family_member_is_silent() {
+  local out
+  out="$(_hi_targets "$_HI_CONFIG" finch)" || return 1
+  [ -z "$out" ]
+}
+
+# the setting is the roster: a list without docker hides a docker on $PATH
+function test_container_clis_setting_narrows_the_family() {
+  local out
+  out="$(_HI_CONTAINER_CLIS=podman _hi_targets "$_HI_CONFIG")"
+  _hi_has_row "$out" pod-one podman || return 1
+  ! _hi_has_row "$out" alpha docker
+}
+
+# ...and its order is the emission order, ahead of nomad and kube
+function test_container_clis_order_is_emission_order() {
+  local out
+  out="$(_HI_CONTAINER_CLIS="podman docker" _hi_targets "$_HI_CONFIG" | grep -v $'\tssh$')"
+  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "pod-one"$'\t'"podman" ] || return 1
+  [ "$(printf '%s\n' "$out" | sed -n '2p')" = "alpha"$'\t'"docker" ]
+}
+
+# podman-docker's `docker` is podman: both lanes list the same container, and
+# the row is emitted once, as the earlier lane's kind
+function test_duplicate_daemon_rows_are_emitted_once() {
+  local out
+  out="$(PATH="$_HI_TWIN_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS")"
+  [ "$(printf '%s\n' "$out" | grep -c $'^twin\t')" -eq 1 ] || return 1
+  _hi_has_row "$out" twin docker || return 1
+  _hi_has_row "$out" only-docker docker || return 1
+  _hi_has_row "$out" only-podman podman
+}
+
+# the dedupe is the family's alone: a pod named like a container keeps its row
+function test_dedupe_leaves_nomad_and_kube_alone() {
+  local dir="$_HI_WORKDIR/shims/pod-twin" out
+  mkdir -p "$dir"
+  cp "$_HI_WORKDIR/shims/twins/docker" "$_HI_WORKDIR/shims/twins/podman" "$dir/"
+  cat >"$dir/kubectl" <<'EOF'
+#!/bin/sh
+case "$1" in
+config) printf 'default' ;;
+get) printf 'default twin\n' ;;
+*) exit 1 ;;
+esac
+EOF
+  chmod +x "$dir/kubectl"
+  out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS")"
+  _hi_has_row "$out" twin docker || return 1
+  _hi_has_row "$out" twin kube
+}
+
 function test_nomad_kind_lists_running_allocs() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" nomad)"
@@ -289,7 +371,7 @@ function test_no_argument_lists_every_kind() {
   local out kind
   out="$(_hi_targets "$_HI_CONFIG")"
   _hi_has_row "$out" alpha ssh || return 1
-  for kind in docker podman nomad kube; do
+  for kind in docker podman nerdctl nomad kube; do
     printf '%s\n' "$out" | grep -q $'\t'"$kind\$" || return 1
   done
 }
@@ -788,6 +870,12 @@ function run_targets_tests() {
   _hi_check "docker -> running containers" test_docker_kind_lists_running_containers
   _hi_check "docker -> compose service alias" test_docker_kind_lists_compose_service_alias
   _hi_check "docker -> no alias row for an empty label" test_docker_kind_omits_alias_row_when_label_is_empty
+  _hi_check "nerdctl -> running containers, its own kind" test_nerdctl_kind_lists_running_containers
+  _hi_check "an absent family member emits nothing" test_absent_family_member_is_silent
+  _hi_check "_HI_CONTAINER_CLIS narrows the family" test_container_clis_setting_narrows_the_family
+  _hi_check "_HI_CONTAINER_CLIS order is emission order" test_container_clis_order_is_emission_order
+  _hi_check "two CLIs on one daemon -> one row" test_duplicate_daemon_rows_are_emitted_once
+  _hi_check "dedupe leaves nomad and kube rows alone" test_dedupe_leaves_nomad_and_kube_alone
   _hi_check "podman -> running containers" test_podman_kind_lists_running_containers
   _hi_check "nomad -> running allocs, no header row" test_nomad_kind_lists_running_allocs
   _hi_check "kube -> running pods" test_kube_kind_lists_running_pods

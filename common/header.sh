@@ -631,20 +631,22 @@ _HI_PROBE_DIR=""
 # identity() so hi_header can start them first and the other rows run in
 # their shadow.
 function _hi_probe_launch() {
-  local container_bin nomad=0 kube=0
+  local cli clis="" nomad=0 kube=0
   # idempotent: hi_header starts these early, and identity() calls it too so a
   # direct `identity` (the suites, hi --doctor) still probes
   [ -z "$_HI_PROBE_DIR" ] || return 0
-  if command -v docker &>/dev/null; then
-    container_bin=docker
-  elif command -v podman &>/dev/null; then
-    container_bin=podman
-  fi
+  # one lane per docker-compatible CLI on $PATH (GLOSSARY: HI.51); the cell
+  # below unions the lanes, so two CLIs fronting one daemon count once
+  for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+    command -v "$cli" &>/dev/null && clis="$clis${clis:+ }$cli"
+  done
   command -v nomad &>/dev/null && nomad=1
   command -v kubectl &>/dev/null && kube=1
-  [ -n "$container_bin" ] || ((nomad || kube)) || return 0
+  [ -n "$clis" ] || ((nomad || kube)) || return 0
   _HI_PROBE_DIR="$(mktemp -d -t hi.probes.XXXXXX)"
-  [ -n "$container_bin" ] && _hi_probe_start "$_HI_PROBE_DIR/containers" _hi_probe "$container_bin" container ls -q
+  for cli in $clis; do
+    _hi_probe_start "$_HI_PROBE_DIR/containers.$cli" _hi_probe "$cli" container ls -q
+  done
   ((nomad)) && _hi_probe_start "$_HI_PROBE_DIR/nomad" _hi_probe nomad job status
   # kube counts through targets.sh, whose list_kube owns the "which pods count
   # as reachable" rule; docker/nomad counts answer a different question
@@ -685,8 +687,15 @@ function _hi_identity_probe() {
   # an absent one; a probed-and-empty docker/podman already didn't, and this
   # brings the other two in line with it rather than the other way round.
   if [ -n "$_HI_PROBE_DIR" ]; then
-    if [ -f "$_HI_PROBE_DIR/containers" ]; then
-      _hi_read_lines lines <"$_HI_PROBE_DIR/containers"
+    local -a lanes=("$_HI_PROBE_DIR"/containers.*)
+    if [ -f "${lanes[0]}" ]; then
+      if [ "${#lanes[@]}" -eq 1 ]; then
+        _hi_read_lines lines <"${lanes[0]}"
+      else
+        # IDs are the daemon's, so a shim's lane repeats another's and the
+        # union is the count - two forks, only on a host with two CLIs
+        _hi_read_lines lines < <(cat "${lanes[@]}" | sort -u)
+      fi
       containers="Containers: ${#lines[@]}"
     fi
     if [ -f "$_HI_PROBE_DIR/nomad" ]; then

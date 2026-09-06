@@ -4,8 +4,8 @@ name: Windows client
 # runner's own Git Bash, proving hi.sh works when the machine you are sitting
 # at is Windows. windows-e2e.yml is the target-side half; README's
 # compatibility table rests on both. Called by ci.yml on every push to main
-# as a real gate (a failing suite fails the push, no continue-on-error);
-# dispatch runs it on its own.
+# and every same-repository pull request as a real gate (a failing suite
+# fails the run, no continue-on-error); dispatch runs it on its own.
 #
 # Four runners, a quarter of the table each: the fast group takes about
 # seven minutes under Git Bash - backgrounded suites barely overlap there

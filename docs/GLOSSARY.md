@@ -63,6 +63,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.48 header cell hue resolution](#hi48-header-cell-hue-resolution)
 - [HI.49 Apple Silicon boost clock probe](#hi49-apple-silicon-boost-clock-probe)
 - [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
+- [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
 
 ## HI.01 empty-array guard
 
@@ -313,8 +314,8 @@ their own setup.
 ## HI.26 completion probe knobs
 
 `targets.sh` runs on every TAB after `hi` and a space — say-hi's most
-latency-sensitive path and its slowest (four of five backends are a subprocess
-each). Two knobs keep it honest.
+latency-sensitive path and its slowest (every backend but ssh is a
+subprocess, one per CLI on `$PATH`). Two knobs keep it honest.
 
 `_HI_PROBE_TIMEOUT` — seconds a backend CLI gets (default 2; needs GNU or
 busybox `timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds the
@@ -629,8 +630,8 @@ A container target may name what to run _in_ as well as where: `pod/container`
 for kube, `alloc/task` for nomad — one spelling for both, since a task and a
 container are the same idea here, and a suffix rather than a flag so completion
 can offer the pairs (`_hi_outer` / `_hi_inner` in `hi.sh`). Only those two
-split: a docker or podman name is taken whole, having no inner unit and `/`
-being legal in it.
+split: a container name on any of the docker-compatible family (HI.51) is
+taken whole, having no inner unit and `/` being legal in it.
 
 kube adds `[[context:]namespace:]pod[/container]` (`_hi_kube_split`). `:` is
 the separator because no ssh host, container name or allocation id may carry
@@ -699,15 +700,15 @@ own. hi writes nothing into a target's login files
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is eight names:
+is nine names:
 
 - `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
   `hi.sh` put it, and cannot be re-derived;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_RECENT`, `_HI_RECENT_FILE` —
-  the knobs `sh targets.sh` reads straight off its environment from a
-  completion.
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_CONTAINER_CLIS`, `_HI_RECENT`,
+  `_HI_RECENT_FILE` — the knobs `sh targets.sh` reads straight off its
+  environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
 `common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
@@ -875,3 +876,29 @@ no transport: `settings.sh` is in the overlay. zsh takes `%F{#rrggbb}` from
 5.7 (`common/zsh.zsh`, behind `is-at-least`) and fish takes `set_color hex
 name`, a list it resolves to the first entry it can render, so both fall
 back to the plain name on their own.
+
+## HI.51 docker-compatible CLI family
+
+docker, podman, nerdctl and finch take the same `ps --format`, `exec -i[t]`
+and `container inspect -f` grammar, so hi has one container arm and a
+setting, `_HI_CONTAINER_CLIS` (default `docker podman nerdctl finch`),
+naming which binaries to try, in that order. Each member is its own kind:
+`common/targets.sh` builds its roster from the list and emits `<name>\t<cli>`
+per lane, `hi.sh` generates one `_HI_BACKENDS` row and one predicate per
+member at load, and `common/header.sh` starts one probe lane per member on
+`$PATH`. A member that is absent costs a builtin `command -v` on TAB and one
+background subshell per `hi <target>` in `_hi_resolve_backend`; a present one
+is one parallel lane, capped like every other (HI.26).
+
+Two members can front one daemon — `podman-docker` ships a `docker` that
+execs podman, nerdctl and finch share a containerd — and would list every
+container twice. `targets.sh`'s `dedupe_family` keeps the first lane's row in
+roster order (so a shim host sees `docker`), and the header unions the lane
+files, since the IDs are the daemon's. The compose-service alias stays
+docker's: podman honours the `.Label` template, nerdctl and finch are
+unverified, and a template one rejects would empty its lane.
+
+`--docker` and `--podman` keep their rows in `common/flags`; every other
+member forces its arm through `--via <cli>`, which accepts only a name from
+the list. Names are plain identifiers (`[A-Za-z0-9_]`) because `hi.sh`'s
+per-member predicate is `eval`-defined; `scripts/configure.sh` enforces it.

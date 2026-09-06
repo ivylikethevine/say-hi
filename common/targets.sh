@@ -4,9 +4,12 @@
 # Everything `hi <target>` can connect to, one "<name>\t<kind>" line each; the
 # bash, zsh and fish completions all read it. Standalone POSIX - fish shells
 # out to it, and it runs on whatever /bin/sh a target has.
-# Usage: sh targets.sh [ssh|docker|podman|nomad|kube|flags]
-#        (no argument = every backend; `flags` = hi's own options instead)
+# Usage: sh targets.sh [ssh|<cli>|nomad|kube|flags]
+#        (<cli> = a member of $_HI_CONTAINER_CLIS: docker, podman, nerdctl,
+#        finch by default; no argument = every backend; `flags` = hi's own
+#        options instead)
 # GLOSSARY: HI.26 - _HI_PROBE_TIMEOUT and _HI_TARGETS_TTL
+# GLOSSARY: HI.51 - the docker-compatible CLI family
 #
 # The backends are probed together, each capped at $_HI_PROBE_TIMEOUT, so N
 # wedged daemons cost the longest ceiling rather than the sum (the trade
@@ -69,8 +72,17 @@ cache_body() {
   } <"$1"
 }
 
-# The roster, "<label>:<bin>", in the order the rows are emitted.
-backends='docker:docker podman:podman nomad:nomad kube:kubectl'
+# The roster, "<label>:<bin>", in the order the rows are emitted: the
+# docker-compatible family first, each CLI its own lane and its own kind, then
+# nomad and kube. A member that is not on $PATH costs backend_wanted's builtin
+# `command -v` and nothing else, so the default list can name every CLI that
+# takes docker's `ps`/`exec`/`inspect` grammar without charging the hosts that
+# have none of them.
+backends=""
+for _hi_cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+  backends="$backends$_hi_cli:$_hi_cli "
+done
+backends="${backends}nomad:nomad kube:kubectl"
 
 # Private per-run scratch for a fan-out's output, made at most once and only
 # on a path that fans out (a host with no backends never reaches for `mkdir`).
@@ -94,10 +106,31 @@ backend_wanted() {
 # run_lister <label> - that backend's rows on stdout, in turn or backgrounded.
 run_lister() {
   case "$1" in
-  docker | podman) list_ps "$1" ;;
   nomad) list_nomad ;;
   kube) list_kube ;;
+  *) list_ps "$1" ;;
   esac
+}
+
+# Two family members fronting one daemon (podman-docker's `docker` is a script
+# that execs podman; nerdctl and finch share a containerd) list every container
+# once per lane. The earlier lane's row wins, so a shim-docker host lists its
+# containers as `docker`; nomad and kube rows pass untouched. No fork: names
+# never carry whitespace, so a default-IFS `read` splits the tab for free.
+dedupe_family() {
+  _hi_seen=" "
+  while read -r _hi_name _hi_kind || [ -n "$_hi_name" ]; do
+    [ -n "$_hi_name" ] || continue
+    case "$_hi_kind" in
+    nomad | kube)
+      printf '%s\t%s\n' "$_hi_name" "$_hi_kind"
+      continue
+      ;;
+    esac
+    case "$_hi_seen" in *" $_hi_name "*) continue ;; esac
+    _hi_seen="$_hi_seen$_hi_name "
+    printf '%s\t%s\n' "$_hi_name" "$_hi_kind"
+  done
 }
 
 emit_targets() {
@@ -114,11 +147,12 @@ emit_targets() {
       }' "$_hi_ssh_config"
   fi
 
-  wanted="" n_wanted=0
+  wanted="" n_wanted=0 n_family=0
   for spec in $backends; do
     backend_wanted "${spec%%:*}" "${spec#*:}" || continue
     wanted="${wanted}${wanted:+ }${spec%%:*}"
     n_wanted=$((n_wanted + 1))
+    case "${spec%%:*}" in nomad | kube) ;; *) n_family=$((n_family + 1)) ;; esac
   done
   [ "$n_wanted" -gt 0 ] || return 0
 
@@ -128,6 +162,7 @@ emit_targets() {
     scratch_dir
   fi
 
+  # the dedupe pass only where two family lanes could list one daemon twice
   if [ "$n_wanted" -ge 2 ] && [ -n "$scratch" ]; then
     files=""
     for label in $wanted; do
@@ -136,7 +171,13 @@ emit_targets() {
     done
     wait
     # shellcheck disable=SC2086 # deliberate split: the roster-ordered file list
-    cat $files 2>/dev/null
+    if [ "$n_family" -ge 2 ]; then
+      cat $files 2>/dev/null | dedupe_family
+    else
+      cat $files 2>/dev/null
+    fi
+  elif [ "$n_family" -ge 2 ]; then
+    for label in $wanted; do run_lister "$label"; done | dedupe_family
   else
     for label in $wanted; do run_lister "$label"; done
   fi
@@ -147,10 +188,13 @@ emit_targets() {
 
 # The listers, each reached through run_lister's dispatch.
 
-# docker and podman are one call (drop-in CLIs); the tag is appended by the
-# read loop, not a `sed`, on this every-TAB path. Docker also carries the
-# compose service label on the same call: a target one word shorter than the
-# container name, resolved back by hi.sh's _hi_compose_container.
+# The family is one call (drop-in CLIs, the kind is the CLI's own name); the
+# tag is appended by the read loop, not a `sed`, on this every-TAB path. Docker
+# also carries the compose service label on the same call: a target one word
+# shorter than the container name, resolved back by hi.sh's
+# _hi_compose_container. Docker alone: podman honours the `.Label` template
+# too, but nerdctl and finch are unverified, and a template one of them
+# rejects would empty its lane.
 list_ps() {
   if [ "$1" = docker ]; then
     run_backend docker ps --format '{{.Names}} {{.Label "com.docker.compose.service"}}' 2>/dev/null |

@@ -517,10 +517,12 @@ check claims — the news the check exists to carry.
   misbehave on an old one, so `zsh -n` would wave them all through. This one
   parses the files, then _sources_ `common/zsh.zsh` in a real interactive
   zsh inside a pinned **zsh 5.8** (`tests/dockerfiles/zsh58.Dockerfile`,
-  Debian oldstable's) and asks for the four things a session depends on: a
-  prompt, the aliases, a resolved host color and the prompt separator. 5.8
-  because bookworm, noble, alpine and macOS all ship 5.9 — no machine anyone
-  develops on is the floor.
+  upstream's own `zshusers/zsh:5.8` image — a distro apt install of the same
+  version failed on hosted runners only, and a prebuilt image has no package
+  step to fail) and asks for the four things a session depends on: a prompt,
+  the aliases, a resolved host color and the prompt separator. 5.8 because
+  bookworm, noble, alpine and macOS all ship 5.9 — no machine anyone develops
+  on is the floor.
 
 **`tools`** (`tests/lint/tools_test.sh`) — four external-tool wrappers, each
 skipping yellow when its tool isn't installed locally (CI has all four):

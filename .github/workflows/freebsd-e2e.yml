@@ -4,8 +4,9 @@ name: FreeBSD e2e
 # the hosted ubuntu runner runs the fast suites and then ssh's to itself, so
 # one job covers client AND target - BSD sed/sort/date/mktemp, `base64`
 # without `-d`, a pkg-installed bash rather than /bin/sh. This is what proves
-# SUPPORT.md's "*BSD" row. ci.yml calls it on every push to main once the
-# fast-suite jobs are green; dispatch runs it on its own.
+# SUPPORT.md's "*BSD" row. ci.yml calls it on every push to main and every
+# same-repository pull request once the fast-suite jobs are green; dispatch
+# runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:

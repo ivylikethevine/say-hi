@@ -481,11 +481,14 @@ function _hi_is_container_running() {
     [ "$(_hi_probe "$1" container inspect -f '{{.State.Running}}' "$2" 2>/dev/null)" = true ]
 }
 
-# docker and podman are identical for this
-function _hi_is_docker_container() {
-  _hi_is_container_running docker "$1" || _hi_compose_container "$1" >/dev/null
+# _hi_is_family_container <cli> <name> - the predicate every member of the
+# docker-compatible family shares (GLOSSARY: HI.51); the compose alias is
+# docker's alone. The roster below wraps it once per member, because a row's
+# predicate column is one word _hi_resolve_backend runs with the target as
+# its only argument.
+function _hi_is_family_container() {
+  _hi_is_container_running "$1" "$2" || { [ "$1" = docker ] && _hi_compose_container "$2" >/dev/null; }
 }
-function _hi_is_podman_container() { _hi_is_container_running podman "$1"; }
 
 # _hi_compose_container <service> - the one running container behind a docker
 # compose service name, or failure; never a guess. GLOSSARY: HI.43
@@ -542,28 +545,56 @@ function _hi_is_k8s_pod() {
 
 # The backend roster, in resolution order:
 # "<name>|<what a target resolves as>|<liveness probe>|<predicate>". One list
-# for _hi's dispatch and scripts/doctor.sh's report.
-_HI_BACKENDS=(
-  "docker|docker container|docker ps -q|_hi_is_docker_container"
-  "podman|podman container|podman ps -q|_hi_is_podman_container"
+# for _hi's dispatch and scripts/doctor.sh's report. The family rows come
+# from $_HI_CONTAINER_CLIS (core.sh has sourced settings.sh by now), each with
+# a generated one-word predicate; the `eval` is why a member has to be a plain
+# identifier, which scripts/configure.sh's validator enforces. Absent members
+# cost one background subshell per `hi <target>` in _hi_resolve_backend and
+# nothing on TAB.
+_HI_BACKENDS=()
+for _hi_cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+  eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $_hi_cli \"\$1\"; }"
+  _HI_BACKENDS+=("$_hi_cli|$_hi_cli container|$_hi_cli ps -q|_hi_is_${_hi_cli}_container")
+done
+unset _hi_cli
+_HI_BACKENDS+=(
   "nomad|nomad allocation|nomad job status|_hi_is_nomad_alloc"
   "kube|kubernetes pod|kubectl get pods -o name|_hi_is_k8s_pod"
 )
 
 # _hi_backend_flag <word> - "docker" for "--docker", "ssh" for "--ssh", or
 # nothing: whether <word> names a backend to force rather than probe for.
-# Reads $_HI_BACKENDS rather than a second spelling of the roster, so a
-# backend added there gets its flag for free; common/flags still carries the
-# row each name needs for --help and completion, and
-# tests/hi/parse_test.sh checks the two rosters agree.
+# Reads $_HI_BACKENDS rather than a second spelling of the roster, but a name
+# is a flag only if common/flags carries its row too: the family rows are
+# whatever $_HI_CONTAINER_CLIS says, and `--nerdctl` for a user-added member
+# would otherwise be a flag --help never lists. Those force their arm through
+# `--via <cli>` instead (_hi_parse). tests/hi/parse_test.sh checks the two
+# rosters agree.
 function _hi_backend_flag() {
-  local row
+  local row flag_row
   case "$1" in
   --ssh) printf 'ssh' && return 0 ;;
   esac
   for row in "${_HI_BACKENDS[@]}"; do
-    [ "$1" = "--${row%%|*}" ] && printf '%s' "${row%%|*}" && return 0
+    [ "$1" = "--${row%%|*}" ] || continue
+    for flag_row in "${_HI_FLAGS[@]}"; do
+      [ "${flag_row%%|*}" = "$1" ] && printf '%s' "${1#--}" && return 0
+    done
+    return 1
   done
+  return 1
+}
+
+# _hi_via_backend <cli> - the roster name for `--via <cli>`, or a message and
+# failure: the value has to be a family member hi was loaded with, not any
+# word (a typo would otherwise force an arm nothing can run).
+function _hi_via_backend() {
+  local cli members=""
+  for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+    [ "$1" = "$cli" ] && printf '%s' "$cli" && return 0
+    members="$members${members:+ }$cli"
+  done
+  _hi_cecho "hi: --via wants one of: $members" "$RED" >&2
   return 1
 }
 
@@ -1210,17 +1241,6 @@ function _hi_container_cmds() {
     nt=-t=true
   fi
   case "$1" in
-  docker | podman)
-    local target="$DOMAIN"
-    # the compose alias, only when the literal name doesn't already resolve
-    if [ "$1" = docker ] && ! _hi_is_container_running docker "$DOMAIN"; then
-      local resolved
-      resolved="$(_hi_compose_container "$DOMAIN")" && target="$resolved"
-    fi
-    probe=("$1" exec "$target")
-    cp=("$1" exec -i "$target")
-    attach=("$1" exec "$it" "$target")
-    ;;
   nomad)
     [ -n "$inner" ] && pick=(-task "$inner")
     probe=(nomad alloc exec ${pick[@]+"${pick[@]}"} -i=false -t=false "$outer")
@@ -1234,6 +1254,19 @@ function _hi_container_cmds() {
     probe=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     cp=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec -i "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$it" "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
+    ;;
+  *)
+    # the docker-compatible family (GLOSSARY: HI.51): the CLI is the arm's
+    # own name, and the grammar is docker's
+    local target="$DOMAIN"
+    # the compose alias, only when the literal name doesn't already resolve
+    if [ "$1" = docker ] && ! _hi_is_container_running docker "$DOMAIN"; then
+      local resolved
+      resolved="$(_hi_compose_container "$DOMAIN")" && target="$resolved"
+    fi
+    probe=("$1" exec "$target")
+    cp=("$1" exec -i "$target")
+    attach=("$1" exec "$it" "$target")
     ;;
   esac
 }
@@ -1282,8 +1315,8 @@ function _hi_container_put() {
   return 1
 }
 
-# _say_hi_container <label> <errlog> - the container arm, across docker,
-# podman, nomad and kube.
+# _say_hi_container <label> <errlog> - the container arm, across the
+# docker-compatible family, nomad and kube.
 function _say_hi_container() {
   local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
@@ -1540,6 +1573,19 @@ function _hi_parse() {
     -*)
       if [ -n "${DOMAIN:-}" ]; then
         SSHARGS+=("$1")
+      elif [ "$1" = --via ]; then
+        # the one hi flag that takes a word: which family member's arm
+        [ $# -ge 2 ] || {
+          _hi_cecho "hi: --via needs a CLI name" "$RED" >&2
+          exit 1
+        }
+        backend_word="$(_hi_via_backend "$2")" || exit 1
+        if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
+          _hi_cecho "hi: --via $2 and --$BACKEND both name a backend; pick one" "$RED" >&2
+          exit 1
+        fi
+        BACKEND="$backend_word"
+        shift
       elif backend_word="$(_hi_backend_flag "$1")"; then
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
           _hi_cecho "hi: $1 and --$BACKEND both name a backend; pick one" "$RED" >&2
@@ -1796,15 +1842,16 @@ tarball you are piping into a file, say - use ssh itself.
 
 <target> is resolved in this order, first match wins:
   1. a Host in ~/.ssh/config (or any name ssh can reach)
-  2. a running docker container, by name or ID
-  3. a running podman container
-  4. a running nomad allocation, by ID or prefix
-  5. a kubernetes pod, in whatever context/namespace kubectl points at -
+  2. a running container, by name or ID, through docker, podman, nerdctl or
+     finch - whichever of \$_HI_CONTAINER_CLIS answers, in that order
+  3. a running nomad allocation, by ID or prefix
+  4. a kubernetes pod, in whatever context/namespace kubectl points at -
      or namespace:pod / context:namespace:pod for another one
 
 --ssh, --docker, --podman, --nomad or --kube before the target names the arm
 outright and skips every probe above it - the fix for a container that
-shadows an unrelated ssh host of the same name. --plain skips the payload
+shadows an unrelated ssh host of the same name; --via <cli> does the same
+for any member of the family. --plain skips the payload
 too and hands over a bare shell on whichever arm resolves - no tar, no
 base64, no writable /tmp, no \$HOME needed on the target at all.
 

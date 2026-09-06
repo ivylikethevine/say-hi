@@ -187,6 +187,8 @@ function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
 
 # seconds, as timeout(1) takes them: whole or with a fraction
 function _hi_is_seconds() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
+# plain identifiers, space-separated: hi.sh names a function after each one
+function _hi_is_cli_list() { [[ "$1" =~ ^[A-Za-z0-9_]+(\ [A-Za-z0-9_]+)*$ ]]; }
 
 function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
@@ -1252,6 +1254,12 @@ function config_advanced_values() {
   _hi_pending_set _HI_PROBE_TIMEOUT "$value"
 
   current=""
+  setting_value _HI_CONTAINER_CLIS "$_HI_SETTINGS" current
+  value="$(ask_value "Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?" \
+    "$current" "docker podman nerdctl finch" _hi_is_cli_list "plain names separated by spaces, like: docker podman")"
+  _hi_pending_set _HI_CONTAINER_CLIS "$value"
+
+  current=""
   setting_value _HI_CTL_PERSIST "$_HI_SETTINGS" current
   value="$(ask_value "Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?" \
     "$current" 60 _hi_is_number "not a number")"
@@ -1262,7 +1270,7 @@ function config_advanced_values() {
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
 function config_advanced() {
-  section "Advanced settings" "Session shell, glyphs, TERM fallback, recent targets, completion timing, connection reuse. Enter keeps each value."
+  section "Advanced settings" "Session shell, glyphs, TERM fallback, recent targets, completion timing, container CLIs, connection reuse. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
 }
@@ -1324,6 +1332,7 @@ function collect_setting_lines() {
   _hi_collect_value _HI_ASCII ""
   _hi_collect_value _HI_TARGETS_TTL 5
   _hi_collect_value _HI_PROBE_TIMEOUT 2
+  _hi_collect_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" quoted
   _hi_collect_value _HI_CTL_PERSIST 60
 }
 

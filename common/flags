@@ -23,6 +23,7 @@
 --ssh|-|||force the ssh arm for <target>, skipping every backend probe
 --docker|-|||force the docker arm for <target>
 --podman|-|||force the podman arm for <target>
+--via|-|||<cli> force that docker-compatible CLI's arm for <target> - any member of $_HI_CONTAINER_CLIS (docker, podman, nerdctl, finch by default)
 --nomad|-|||force the nomad arm for <target>
 --kube|-|||force the kube arm for <target>
 --plain|-|||skip the payload and hand over a bare shell - no tar, no base64, no writable /tmp, no $HOME

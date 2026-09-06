@@ -187,7 +187,8 @@ everything weighed and answered **no**, and why.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
   shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), `ssh` for
-  ssh targets, `docker`/`podman`/`nomad`/`kubectl` for those backends. hi has
+  ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, see
+  `_HI_CONTAINER_CLIS`) and `nomad`/`kubectl` for those backends. hi has
   no protocol of its own: `ssh` is the transport, `base64` is armor, not
   crypto ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod
@@ -371,7 +372,7 @@ questions decided against are **deleted**: git history is the ledger.
 
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
-      the eighteen `common/flags`, every `docs/SETTINGS.md` row,
+      the nineteen `common/flags`, every `docs/SETTINGS.md` row,
       `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
@@ -380,7 +381,7 @@ questions decided against are **deleted**: git history is the ledger.
 ### By Scope
 
 1. [ ] **tldr page** — _scope: one upstream pull request; outside this
-       checkout._ CLI surface is frozen (eighteen flags, CI-enforced both ways
+       checkout._ CLI surface is frozen (nineteen flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
@@ -410,7 +411,7 @@ questions decided against are **deleted**: git history is the ledger.
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
 
 4. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
-       eighteen, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
+       nineteen, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
        count), target-name sanitization, a suite, docs._ The target-side
        version of this shipped, then was removed and declined
        ([why](docs/SUPPORT.md#features-that-were-removed)) — a disposable
@@ -449,7 +450,7 @@ questions decided against are **deleted**: git history is the ledger.
        HEAD, and a call on a dirty working tree first — git-install users are
        expected to be able to hack on the checkout. **Do:** settle the grammar
        as a new argument to `--update` rather than a new flag (the
-       eighteen-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
+       nineteen-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
        stays put), refuse or guard a dirty tree, decide what a bare `--update`
        does afterward — reattach to the branch, stay on the tag, or say so —
        extend `tests/hi/remote_test.sh`'s coverage, and document it in

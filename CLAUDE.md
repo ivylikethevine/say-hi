@@ -36,7 +36,7 @@ typed by hand needs `XDG_CONFIG_HOME` pointed at a throwaway directory.
 names: `_HI_HOME=/home/ivy/projects`, `_HI_ROOT=/home/ivy/projects/say-hi`,
 `_HI_TEST_LIB=…/say-hi/tests/test_lib.sh`, …) exported from the launching
 shell. Those paths are the user's real install and exist, so nothing fails
-loudly. (An install carrying HI.47 exports eight names instead; same check.)
+loudly. (An install carrying HI.47 exports nine names instead; same check.)
 Check with `env | grep '^_HI_'` and clear with:
 
 ```sh
