@@ -44,24 +44,9 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ### Additional Documentation
 
-- [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
-  homeshick side by side
-- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
-  in issues, pull requests and discussions, and where to report a breach
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
-  request, what 1.x will not break, and which doc changes with what
-- [docs/GLOSSARY.md](docs/GLOSSARY.md) — the named idioms the code's
-  `GLOSSARY:` tags point at; drift-checked by the lint suite
-- [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
-  reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/SECURITY.md](docs/SECURITY.md) — reporting, and what hi touches on a
-  target
-- [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
-  environment variable hi reads
-- [docs/SUPPORT.md](docs/SUPPORT.md) — every target, OS and shell hi answers
-  to, and every runtime, shell and feature answered **no**, and why
-- [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
-  cases, the lint gate, relaying
+[docs/README.md](docs/README.md) indexes the rest: settings, support,
+alternatives, testing, the glossary, security, packaging, contributing and
+the OpenSSF answer sheet.
 
 ---
 
@@ -82,6 +67,9 @@ respect your `ls` alias flags.
 
 ## What You Get
 
+Each GIF below is one persona's real config - the settings behind every one
+are in [docs/SETTINGS.md](docs/SETTINGS.md).
+
 ### Connect Via More Than SSH
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
@@ -89,8 +77,7 @@ running container, allocation and pod, each tagged with its backend; the
 targets you use most, and most recently, come first (zsh and fish keep that
 order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
 without probing any backend. An operator at a bastion, in fish for its
-pager's description column. Showing `_HI_TARGETS_TTL=0`, so the sweep is
-never served from cache.
+pager's description column.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
@@ -101,9 +88,7 @@ header reads it on every target — one quiet line on a box that has them, a
 loud one on a box that does not. A homelab: bash from a laptop into the nas
 and the pihole, with the distro prompt this person already had — hi's is off
 (`_HI_DISABLE_PROMPT=1`), and the header, the check and the aliases ride
-along anyway. Showing a `packages` overlay, the full header with every
-address (`_HI_IP_HIDE=none`; the default hides the docker bridge) and
-`_HI_PACKAGES_MIN_PRIORITY=2`.
+along anyway.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
@@ -113,11 +98,8 @@ address (`_HI_IP_HIDE=none`; the default hides the docker bridge) and
 bash session on a debian container and a fish session on an alpine box,
 reached through docker and podman. The operator again, in fish, with the
 header trimmed to the clocks, the backend counts and the check on the `mono`
-ramp. Showing an `aliases.sh` overlay with one alias and `_HI_BAT_OPTS`, a
-custom `_HI_HEADER_ORDER` with `_HI_PACKAGES_PALETTE=mono`, and
-`_HI_SHELL_PREFERENCE=fish` for the second target. A box with no bash gets
-the aliases-only tier — hi's own aliases, not the overlay
-([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
+ramp. A box with no bash gets the aliases-only tier — hi's own aliases, not
+the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
@@ -129,21 +111,20 @@ raises a desktop notification in _your_ terminal when a command finishes.
 Both ride the pty back as escapes: nothing is installed or running on the
 target. A developer, zsh on a laptop into the team's shared dev box, where
 the prompt is starship's, not hi's (`_HI_PROMPT=starship`; hi keeps the
-header, editors, clipboard and aliases). Showing the `compact` header preset.
+header, editors, clipboard and aliases).
 
 ![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
 ### Know Where You Are at a Glance
 
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
-`hi --color-preview` to see what every host resolves to — then a prod host
+`hi --preview-colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
 ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
 their shorter headers) and their own two-line fish prompt, drawn on the
-colors hi resolved. Showing a `colors` overlay with `hosttag` pins and
-`_HI_COLOR_SCHEME=onedark`, on both ends.
+colors hi resolved.
 
-![hi --color-preview, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+![hi --preview-colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### One Command, Any Backend
 
@@ -165,8 +146,7 @@ a target, and a `hi` in a script or CI job still fails rather than wait on a
 menu. The researcher, zsh on a laptop with a GPU cluster in `~/.ssh/config`,
 landing in a notebook container — with a prompt of their own, an oh-my-zsh
 look written into the overlay's `zsh.zsh`, which hi sources last on both
-ends. Showing `_HI_RECENT` (on by default), a workstation `_HI_HEADER_ORDER`
-with `_HI_PACKAGES_PALETTE=warm`, and `_HI_SHELL_PREFERENCE=zsh`.
+ends.
 
 ![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
 
@@ -259,7 +239,7 @@ everything weighed and answered **no**, and why.
   [no target at all](#no-target-at-all).
 - [optional] configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (copy
-  `say-hi/settings/colors` to start); `hi --color-preview` shows what every
+  `say-hi/settings/colors` to start); `hi --preview-colors` shows what every
   ssh host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
@@ -310,7 +290,7 @@ _leftmost_ tag in a `# Tags: ...` comment directly above a `Host` or
 `Match host` line in `~/.ssh/config`; a wildcard block (`Host prod-*`) tags
 every name it covers. A `hostname` pin holding `*` or `?` is a pattern —
 `hostname,10.0.1.*,red` colors a whole subnet with no ssh-config entry at
-all. `hi --color-preview` shows the result in the actual colors; the long
+all. `hi --preview-colors` shows the result in the actual colors; the long
 version, and using the hash in your own prompt, is
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
@@ -331,7 +311,7 @@ How say-hi compares to similar tools, and when to use something else:
 
 ## Testing
 
-`tests/test_runner.sh` (`hi --test` once installed) runs the suite with a
+`tests/test_runner.sh` runs the suite with a
 colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
 side) then `--group lint` on every push/PR. Runbook:
 [docs/TESTING.md](docs/TESTING.md).
@@ -372,7 +352,7 @@ questions decided against are **deleted**: git history is the ledger.
 
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
-      the nineteen `common/flags`, every `docs/SETTINGS.md` row,
+      the twelve `common/flags`, every `docs/SETTINGS.md` row,
       `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
@@ -381,7 +361,7 @@ questions decided against are **deleted**: git history is the ledger.
 ### By Scope
 
 1. [ ] **tldr page** — _scope: one upstream pull request; outside this
-       checkout._ CLI surface is frozen (nineteen flags, CI-enforced both ways
+       checkout._ CLI surface is frozen (twelve flags, CI-enforced both ways
        by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
@@ -411,7 +391,7 @@ questions decided against are **deleted**: git history is the ledger.
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
 
 4. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
-       nineteen, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
+       twelve, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
        count), target-name sanitization, a suite, docs._ The target-side
        version of this shipped, then was removed and declined
        ([why](docs/SUPPORT.md#features-that-were-removed)) — a disposable
@@ -429,8 +409,8 @@ questions decided against are **deleted**: git history is the ledger.
        documented, and reconnecting to the same target reattaches instead of
        opening a second session.
 
-5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --color-preview`
-       and `hi --packages-preview` per scheme on a light and a dark
+5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --preview-colors`
+       and `hi --preview-packages` per scheme on a light and a dark
        terminal._ `_HI_COLOR_SCHEME` (`catppuccin`, `monokai`, `onedark`,
        `vscode`) renders the twelve palette names as that scheme's truecolor
        wherever hi paints, behind a `COLORTERM` check so a plain terminal
@@ -438,7 +418,7 @@ questions decided against are **deleted**: git history is the ledger.
  --configure`'s Colors section. **Do:** run both previews under each
        scheme on both backgrounds and retune any hex that reads wrong.
        **Ticks when:** all four schemes read monotonic 0-3 in
-       `--packages-preview` and legibly in `--color-preview` on both.
+       `--preview-packages` and legibly in `--preview-colors` on both.
 
 6. [ ] **`hi --update` between release tags in a git install** — _scope: a
        decision on `--update`'s argument grammar, a git-install-only code
@@ -450,7 +430,7 @@ questions decided against are **deleted**: git history is the ledger.
        HEAD, and a call on a dirty working tree first — git-install users are
        expected to be able to hack on the checkout. **Do:** settle the grammar
        as a new argument to `--update` rather than a new flag (the
-       nineteen-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
+       twelve-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
        stays put), refuse or guard a dirty tree, decide what a bare `--update`
        does afterward — reattach to the branch, stay on the tag, or say so —
        extend `tests/hi/remote_test.sh`'s coverage, and document it in

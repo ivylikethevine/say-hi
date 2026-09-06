@@ -64,7 +64,7 @@ act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/u
 ## What CI runs
 
 Every job `ci.yml` runs on your pull request, and whether a red one fails the
-run or only reports — seventeen workflow files is more than `ci.yml`'s per-job
+run or only reports — twelve workflow files is more than `ci.yml`'s per-job
 comments are convenient to read through by eye.
 
 | Job                                                      | Runs on your PR                                                     | Gate or advisory?                       |
@@ -105,11 +105,10 @@ suite fails the run, and it is the PR, not the release, where that shows.
 
 The rest of `.github/workflows/` — `release.yml`, `publish-external.yml`,
 `pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,
-`tool-versions.yml`, `link-check.yml`, `demos.yml`, and the dispatch-only
-`coverage.yml` (a kcov/bashcov matrix, both aggregates published as shields
-endpoints) — run on a schedule, a push to `main`, a tag or a manual dispatch,
-not on your pull request. `demos.yml` is the one partial
-exception: it also runs on a PR that touches `docs/tapes/**`. Most report
+`tool-versions.yml`, `link-check.yml`, `demos.yml` (a release tag, not
+`main`), and the dispatch-only `coverage.yml` (a kcov/bashcov matrix, both
+aggregates published as shields endpoints) — run on a schedule, a push to
+`main`, a tag or a manual dispatch, never on your pull request. Most report
 through a self-closing tracking issue rather than a red run; each file's
 header says why. `cancel-closed-pr.yml` runs once your PR is merged or
 closed and cancels whatever of the above is still in flight for it.
@@ -153,7 +152,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The nineteen flags in `common/flags`** — name, argument shape and what
+- **The twelve flags in `common/flags`** — name, argument shape and what
   each needs (`-`, `scripts`, `tests`, `git`). New flags may arrive; none is
   renamed or removed. Anything hi does not answer still passes to `ssh`.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,

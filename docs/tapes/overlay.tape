@@ -19,7 +19,7 @@
 # second target, and _HI_RECENT_FILE under /tmp so a render never writes into
 # the renderer's own recents.
 #
-# Not `hi --check-configs`, which would be the natural next line: it validates
+# Not `hi --doctor`'s config rows, the natural next line: they validate
 # the *renderer's* ~/.bashrc and friends by path, and those paths belong in
 # nobody's committed GIF.
 #

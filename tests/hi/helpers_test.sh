@@ -147,16 +147,17 @@ function test_flag_help_splits_local_from_anywhere() {
   local_rows="$(_hi_flag_help local)"
   case "$anywhere" in *"-h, --help"*) ;; *) return 1 ;; esac
   case "$local_rows" in *--help*) return 1 ;; *) ;; esac
-  # every common/flags row lands on exactly one side
+  # every common/flags row lands on exactly one side: one label line each
+  # (a wide label's help sits on its own line, indented past the flag column)
   local total
   total="$(grep -cv '^\(#\|$\)' "$_HI_ROOT/common/flags")"
-  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c ' --')" = "$total" ]
+  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')" = "$total" ]
 }
 
-function test_backend_flag_names_the_arm() {
-  [ "$(_hi_backend_flag --docker)" = docker ] &&
-    [ "$(_hi_backend_flag --ssh)" = ssh ] &&
-    ! _hi_backend_flag --nope
+function test_use_backend_names_the_arm() {
+  [ "$(_hi_use_backend docker)" = docker ] &&
+    [ "$(_hi_use_backend ssh)" = ssh ] &&
+    ! _hi_use_backend nope 2>/dev/null
 }
 
 # The stripper, run the way _hi_payload_tar runs it: shebang kept, full-line
@@ -279,7 +280,7 @@ function run_hi_helpers_test() {
   _hi_h2 "Testing: the target grammar"
   _hi_check "_hi_outer/_hi_inner split on the slash" test_outer_inner_split
   _hi_check "_hi_kube_split's prefix grammar" test_kube_split_grammar
-  _hi_check "_hi_backend_flag names the arm" test_backend_flag_names_the_arm
+  _hi_check "_hi_use_backend names the arm" test_use_backend_names_the_arm
 
   _hi_h2 "Testing: sizes"
   _hi_check "_hi_human_bytes picks the unit" test_human_bytes_units

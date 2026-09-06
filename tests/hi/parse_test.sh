@@ -380,74 +380,72 @@ function test_resolve_backend_prints_nothing_without_any_cli() {
   [ -z "$(PATH="$empty" _hi_resolve_backend yes)" ]
 }
 
-# common/flags is what --help and completion read; drift here means a backend
-# a user can reach through the roster has no flag to force it with, or a flag
-# _hi_backend_flag doesn't actually recognize.
+# --use is the one way to force an arm: every roster name and ssh resolve
+# through it, and common/flags carries no per-backend row that could drift
+# from the roster (GLOSSARY: HI.51).
 #
 # SC2031: the roster swap above (test_resolve_backend_follows_the_roster_order)
 # happens inside a $( ) and never reaches here; this reads the file-scope table
-#
-# The frozen flags (--ssh, --docker, --podman, --nomad, --kube) each have a
-# row and resolve; the rest of the family resolves through --via <cli> and
-# has no row of its own, so `--nerdctl` is not silently a flag --help never
-# lists (GLOSSARY: HI.51).
-function test_every_backend_has_a_flag_row() {
+function test_every_arm_resolves_through_use() {
   local name
   # shellcheck disable=SC2031
   for name in ssh "${_HI_BACKENDS[@]%%|*}"; do
-    if grep -q "^--$name|" "$_HI_ROOT/common/flags"; then
-      [ "$(_hi_backend_flag "--$name")" = "$name" ] || return 1
-    else
-      ! _hi_backend_flag "--$name" >/dev/null 2>&1 || return 1
-      [ "$(_hi_via_backend "$name" 2>/dev/null)" = "$name" ] || return 1
-    fi
+    [ "$(_hi_use_backend "$name" 2>/dev/null)" = "$name" ] || return 1
+    ! grep -q "^--$name|" "$_HI_ROOT/common/flags" || return 1
   done
-  grep -q '^--via|' "$_HI_ROOT/common/flags"
+  grep -q '^--use|' "$_HI_ROOT/common/flags"
 }
 
-function test_backend_flag_rejects_a_stranger() {
-  ! _hi_backend_flag --frobnicate >/dev/null 2>&1
+function test_use_backend_rejects_a_stranger() {
+  ! _hi_use_backend frobnicate >/dev/null 2>&1
 }
 
-function test_backend_flag_rejects_a_rowless_family_member() {
-  ! _hi_backend_flag --nerdctl >/dev/null 2>&1
+function test_parse_use_sets_backend_to_the_named_cli() {
+  [ "$(_hi_backend_parse_out --use nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ]
 }
 
-function test_parse_via_sets_backend_to_the_named_cli() {
-  [ "$(_hi_backend_parse_out --via nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ]
-}
-
-# --via and its word are both consumed, neither becomes the target or an
+# --use and its word are both consumed, neither becomes the target or an
 # ssh option
-function test_parse_via_does_not_reach_sshargs() {
-  [ "$(_hi_parse_out --via podman myhost)" = "$(printf 'myhost\n\n')" ]
+function test_parse_use_does_not_reach_sshargs() {
+  [ "$(_hi_parse_out --use podman myhost)" = "$(printf 'myhost\n\n')" ]
 }
 
-function test_parse_via_rejects_a_stranger() {
+function test_parse_use_rejects_a_stranger() {
   local rc=0 out
-  out="$( (_hi_parse --via frobnicate myhost 2>&1 >/dev/null) || true)"
-  (_hi_parse --via frobnicate myhost >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--via"*docker* ]]
+  out="$( (_hi_parse --use frobnicate myhost 2>&1 >/dev/null) || true)"
+  (_hi_parse --use frobnicate myhost >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use"*ssh*docker*kube* ]]
 }
 
-function test_parse_via_without_a_word_exits_one() {
+# --use reaches every arm, not only the family: ssh (the empty arm) and the
+# orchestrators too, the same values their shorthand flags set
+function test_parse_use_names_every_arm() {
+  local name
+  for name in ssh docker podman nomad kube; do
+    [ "$(_hi_backend_parse_out --use "$name" myhost)" = "$(printf 'myhost\n%s\n' "$name")" ] || return 1
+  done
+}
+
+function test_parse_use_without_a_word_exits_one() {
   local rc=0
-  (_hi_parse --via >/dev/null 2>&1) || rc=$?
+  (_hi_parse --use >/dev/null 2>&1) || rc=$?
   [ "$rc" -eq 1 ]
 }
 
-# --via docker and --docker name the same arm, so together they are no
-# conflict; --via podman beside --docker is one
-function test_parse_via_agrees_with_the_short_flag() {
-  local rc=0
-  [ "$(_hi_backend_parse_out --via docker --docker myhost)" = "$(printf 'myhost\ndocker\n')" ] || return 1
-  (_hi_parse --via podman --docker myhost >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ]
+# the same arm twice is no conflict; two different arms are one, and the
+# message names both
+function test_parse_use_twice_agrees_or_refuses() {
+  local rc=0 out
+  [ "$(_hi_backend_parse_out --use docker --use docker myhost)" = "$(printf 'myhost\ndocker\n')" ] || return 1
+  (_hi_parse --use podman --use docker myhost >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  out="$( (_hi_parse --use docker --use ssh myhost 2>&1 >/dev/null) || true)"
+  [[ "$out" == *"--use ssh"*"--use docker"* ]]
 }
 
-# after the target, --via is the remote command's own word
-function test_parse_via_after_the_target_is_not_claimed() {
-  [ "$(_hi_backend_parse_out myhost --via nerdctl)" = "$(printf 'myhost\n\n')" ]
+# after the target, --use is the remote command's own word
+function test_parse_use_after_the_target_is_not_claimed() {
+  [ "$(_hi_backend_parse_out myhost --use nerdctl)" = "$(printf 'myhost\n\n')" ]
 }
 
 # BACKEND and PLAIN are _hi_parse's other outputs, alongside DOMAIN/CMDARG/
@@ -470,44 +468,6 @@ function _hi_backend_parse_out() {
   _hi_var_parse_out BACKEND "" "$@"
 }
 
-function test_parse_backend_flags_set_backend_for_every_name() {
-  local name
-  for name in ssh docker podman nomad kube; do
-    [ "$(_hi_backend_parse_out "--$name" myhost)" = "$(printf 'myhost\n%s\n' "$name")" ] || return 1
-  done
-}
-
-# a backend flag is consumed outright, not folded into SSHARGS the way an
-# ssh option is - _hi_parse_out's existing exact-output form catches an extra
-# SSHARGS line if it ever leaked through
-function test_parse_backend_flag_does_not_reach_sshargs() {
-  [ "$(_hi_parse_out --docker myhost)" = "$(printf 'myhost\n\n')" ]
-}
-
-function test_parse_two_backend_flags_refuse_each_other() {
-  local rc=0
-  (_hi_parse --docker --ssh myhost >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ]
-}
-
-function test_parse_names_both_conflicting_flags() {
-  local out
-  out="$( (_hi_parse --docker --ssh myhost 2>&1 >/dev/null) || true)"
-  [[ "$out" == *"--ssh"*"--docker"* ]]
-}
-
-# the same flag twice is not a conflict
-function test_parse_repeating_a_backend_flag_is_fine() {
-  [ "$(_hi_backend_parse_out --docker --docker myhost)" = "$(printf 'myhost\ndocker\n')" ]
-}
-
-# once DOMAIN is set, a following -word is ssh's business again (today's
-# behaviour, unchanged: only ahead of the target does a backend flag mean
-# anything to hi itself)
-function test_parse_backend_flag_after_the_target_is_not_claimed() {
-  [ "$(_hi_backend_parse_out myhost --docker)" = "$(printf 'myhost\n\n')" ]
-}
-
 function _hi_plain_parse_out() {
   _hi_var_parse_out PLAIN 0 "$@"
 }
@@ -517,10 +477,10 @@ function test_parse_plain_sets_plain_not_sshargs() {
     [ "$(_hi_parse_out --plain myhost)" = "$(printf 'myhost\n\n')" ]
 }
 
-# combines freely with a backend flag - orthogonal, checked in either order
-function test_parse_plain_combines_with_a_backend_flag() {
-  [ "$(_hi_plain_parse_out --plain --docker myhost)" = "$(printf 'myhost\n1\n')" ] &&
-    [ "$(_hi_backend_parse_out --plain --docker myhost)" = "$(printf 'myhost\ndocker\n')" ]
+# combines freely with --use - orthogonal, checked in either order
+function test_parse_plain_combines_with_use() {
+  [ "$(_hi_plain_parse_out --plain --use docker myhost)" = "$(printf 'myhost\n1\n')" ] &&
+    [ "$(_hi_backend_parse_out --use docker --plain myhost)" = "$(printf 'myhost\ndocker\n')" ]
 }
 
 # RAWCMD is CMDARG's raw material, without the "; exit" suffix baked in for
@@ -811,6 +771,14 @@ EOF
   return "$rc"
 }
 
+# -V is hi's version, not ssh's: the one short option claimed beside -h
+function test_version_short_flag_is_hi_s_own() {
+  local short long
+  short="$(_hi_help_out -V)" || return 1
+  long="$(_hi_help_out --version)" || return 1
+  [ -n "$short" ] && [ "$short" = "$long" ] && [[ "$short" != OpenSSH* ]]
+}
+
 function test_help_long_flag_prints_usage() {
   local out
   out="$(_hi_help_out --help)" || return 1
@@ -848,13 +816,13 @@ function test_help_flags_are_all_in_the_man_page() {
 
 # ...and that check asks only whether a flag appears in the page at all, which
 # is why the page's *grouping* drifted twice without failing anything. hi.1
-# splits OPTIONS at "The following act on this machine": above it is what works
+# splits OPTIONS at "The local commands act on this machine": above it is what works
 # anywhere, below it is what needs a part of the tree the payload does not
 # carry, and that paragraph names the exceptions to itself. common/targets.sh
 # makes the same split at runtime, so the two are one fact written twice - and
 # they disagreed in both directions at once. --doctor was documented in the top
 # group while the roster correctly withheld it in a session (scripts/doctor.sh
-# is not in $_HI_PAYLOAD), and --packages-preview was documented in the bottom
+# is not in $_HI_PAYLOAD), and --preview-packages was documented in the bottom
 # group while the roster correctly still offered it there (it falls back to the
 # shipped common/header.sh instead of refusing).
 function test_man_page_option_groups_match_the_roster() {
@@ -865,7 +833,7 @@ function test_man_page_option_groups_match_the_roster() {
   # One "<flag> <zone>" line per mention. top = its own entry above the
   # paragraph, grouped = its own entry below it, named = spelled out inside the
   # paragraph as an exception. A flag can be both grouped and named, which is
-  # how --test and --update read: in the group, and called out in the prose.
+  # how --update reads: in the group, and called out in the prose.
   zones="$(awk '
     function emit(line, zone,   f) {
       while (match(line, /\\-\\-[a-z]([a-z]|\\-)*/)) {
@@ -876,7 +844,7 @@ function test_man_page_option_groups_match_the_roster() {
       }
     }
     BEGIN { zone = "top" }
-    /^The following act on this machine/ { zone = "para" }
+    /^The local commands act on this machine/ { zone = "para" }
     zone == "para" && $0 == ".TP" { zone = "grouped" }
     /^Everything else is passed through/ { zone = "tail" }
     zone == "para" { emit($0, "named") }
@@ -992,8 +960,8 @@ function _hi_subcmd_run() {
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag out
   home="$(_hi_subcmd_home subcmd-bare)"
-  for flag in --install --uninstall --configure --check-configs --overlay-init \
-    --color-preview --doctor --test; do
+  for flag in --install --uninstall --configure --overlay-init \
+    --preview-colors --doctor; do
     out="$(_hi_subcmd_run "$home" "$flag")" && {
       _hi_cecho " | $flag exited 0 without a checkout" "$RED"
       return 1
@@ -1026,12 +994,12 @@ function test_update_hands_its_arguments_to_git_pull() {
   [[ "$out" == *"GIT -C $_HI_ROOT pull --ff-only"* ]]
 }
 
-# ...and --packages-preview is the one that does not refuse at all: the check
+# ...and --preview-packages is the one that does not refuse at all: the check
 # itself ships in common/header.sh, so on a target it falls back to that
 function test_packages_preview_falls_back_to_the_shipped_check() {
   local home out
   home="$(_hi_subcmd_home subcmd-bare)"
-  out="$(_hi_subcmd_run "$home" --packages-preview)" || return 1
+  out="$(_hi_subcmd_run "$home" --preview-packages)" || return 1
   [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]]
 }
 
@@ -1043,12 +1011,10 @@ function test_local_subcommands_exec_the_right_script() {
     '--install|STUB install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
-    '--check-configs|STUB install --check-configs' \
     '--overlay-init|STUB install --overlay-init' \
-    '--color-preview|STUB color_preview' \
-    '--packages-preview|STUB packages_preview' \
-    '--doctor|STUB doctor' \
-    '--test|STUB test_runner'; do
+    '--preview-colors|STUB color_preview' \
+    '--preview-packages|STUB packages_preview' \
+    '--doctor|STUB doctor'; do
     flag="${spec%%|*}"
     want="${spec#*|}"
     out="$(_hi_subcmd_run "$home" "$flag")" || return 1
@@ -1065,8 +1031,8 @@ function test_local_subcommands_forward_extra_arguments() {
   home="$(_hi_subcmd_stubs)"
   out="$(_hi_subcmd_run "$home" --doctor myhost)" || return 1
   [ "$out" = "STUB doctor myhost" ] || return 1
-  out="$(_hi_subcmd_run "$home" --test --group fast)" || return 1
-  [ "$out" = "STUB test_runner --group fast" ]
+  out="$(_hi_subcmd_run "$home" --preview-colors --help)" || return 1
+  [ "$out" = "STUB color_preview --help" ]
 }
 
 # the other half of the move: paths.sh must not grow them back. hi_info is the
@@ -1120,8 +1086,8 @@ function test_record_recent_trims() {
 # _hi_select_arm, _hi_record_recent and _hi_report_failure to markers instead
 # of the real thing, in a subshell so none of it leaks to the next case.
 #
-# _hi_dispatch_probe <plain> <arm> <status> - runs _hi with $PLAIN=<plain> and
-# _hi_select_arm answering <arm>, the chosen _say_hi* returning <status>.
+# _hi_dispatch_probe <plain> <backend> <status> - runs _hi with $PLAIN=<plain> and
+# _hi_select_arm answering <backend>, the chosen _say_hi* returning <status>.
 # Prints _hi's own exit code on one line, then every marker line the stubs
 # wrote, in call order.
 #
@@ -1274,24 +1240,18 @@ function run_hi_parse_tests() {
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
 
-  _hi_h2 "Testing: backend override flags (--ssh, --docker, ...)"
-  _hi_check "Every roster backend has a flag row" test_every_backend_has_a_flag_row
-  _hi_check "_hi_backend_flag rejects a stranger" test_backend_flag_rejects_a_stranger
-  _hi_check "_hi_backend_flag rejects a rowless family member" test_backend_flag_rejects_a_rowless_family_member
-  _hi_check "--via <cli> sets BACKEND to that member" test_parse_via_sets_backend_to_the_named_cli
-  _hi_check "--via and its word never reach SSHARGS" test_parse_via_does_not_reach_sshargs
-  _hi_check "--via rejects a stranger, naming the members" test_parse_via_rejects_a_stranger
-  _hi_check "--via with no word exits 1" test_parse_via_without_a_word_exits_one
-  _hi_check "--via docker agrees with --docker, --via podman does not" test_parse_via_agrees_with_the_short_flag
-  _hi_check "--via after the target is the remote command's" test_parse_via_after_the_target_is_not_claimed
-  _hi_check "Each flag sets BACKEND to its own name" test_parse_backend_flags_set_backend_for_every_name
-  _hi_check "A backend flag never reaches SSHARGS" test_parse_backend_flag_does_not_reach_sshargs
-  _hi_check "Two different backend flags refuse each other" test_parse_two_backend_flags_refuse_each_other
-  _hi_check "Both conflicting flags are named" test_parse_names_both_conflicting_flags
-  _hi_check "The same flag twice is not a conflict" test_parse_repeating_a_backend_flag_is_fine
-  _hi_check "A backend flag after the target is ssh's, not hi's" test_parse_backend_flag_after_the_target_is_not_claimed
+  _hi_h2 "Testing: the arm override (--use <backend>)"
+  _hi_check "Every arm resolves through --use, none has a row of its own" test_every_arm_resolves_through_use
+  _hi_check "_hi_use_backend rejects a stranger" test_use_backend_rejects_a_stranger
+  _hi_check "--use <cli> sets BACKEND to that member" test_parse_use_sets_backend_to_the_named_cli
+  _hi_check "--use and its word never reach SSHARGS" test_parse_use_does_not_reach_sshargs
+  _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger
+  _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
+  _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
+  _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
+  _hi_check "--use after the target is the remote command's" test_parse_use_after_the_target_is_not_claimed
   _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
-  _hi_check "--plain combines with a backend flag" test_parse_plain_combines_with_a_backend_flag
+  _hi_check "--plain combines with --use" test_parse_plain_combines_with_use
   _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix
   _hi_check "select_arm: the flag wins over a real match" test_select_arm_backend_flag_wins_over_a_real_match
   _hi_check "select_arm: the flag names the arm with no probe" test_select_arm_backend_flag_names_the_arm_with_no_probe
@@ -1334,13 +1294,14 @@ function run_hi_parse_tests() {
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
   _hi_check "--update refuses without a .git" test_update_refuses_without_a_git_dir
   _hi_check "--update hands its arguments to git pull" test_update_hands_its_arguments_to_git_pull
-  _hi_check "--packages-preview falls back instead" test_packages_preview_falls_back_to_the_shipped_check
+  _hi_check "--preview-packages falls back instead" test_packages_preview_falls_back_to_the_shipped_check
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments
   _hi_check "paths.sh defines no command aliases" test_paths_defines_no_command_aliases
 
   _hi_h2 "Testing: hi --help"
   _hi_check "--help prints the usage line" test_help_long_flag_prints_usage
+  _hi_check "-V prints hi's version, not ssh's" test_version_short_flag_is_hi_s_own
   _hi_check_eq "-h is the same text" "$(_hi_help_out --help)" _hi_help_out -h
   _hi_check "Lists hi's flags and the target ladder" test_help_lists_hi_s_own_flags
   _hi_check "Every flag is in the man page" test_help_flags_are_all_in_the_man_page

@@ -401,66 +401,30 @@ then has to hand `test_runner.sh` back something it can still collect through
 | lint-gate reach          | already `*.sh`; shellcheck, shfmt, checkbashisms all apply | shellcheck parses `.bats` since 0.7; shfmt/checkbashisms don't know the extension | DSL keywords (`It`/`When`/`Then`); no shellcheck dialect found            | not shell at all - opts the driver out of the gate entirely           |
 | new dependency           | none                                                       | GNU parallel                                                                      | none found required                                                       | pytest + xdist + a pty replacement on Windows                         |
 
-Two things drop out of that table before the individual write-ups do:
-**pty and coverage are the two blockers a pytest driver can't route around.**
-`pty`/`tty` are Unix-only in CPython's own docs, which is exactly why
-`_hi_capable pty` (`tests/lib/fixtures.sh:206`) exists — Windows'
-`python3` passes `command -v` and fails `import pty` — so a pytest suite
-needs a second, separate driver (`pexpect`'s own docs point at
-[wexpect], a different package built on `pywin32`) for the one platform this
-harness already treats as a special case. And `coverage.py` never sees the
-bash it would be shelling out to; getting kcov/bashcov numbers back would
-mean wrapping every subprocess individually, which is a different topology
-from `tests/coverage.sh`'s one-tracer-per-suite design
-(`tests/coverage.sh:44-47`), not a port of it.
+Two blockers a pytest driver can't route around: `pty`/`tty` are Unix-only in
+CPython's own docs (`_hi_capable pty`, `tests/lib/fixtures.sh:206`, exists
+because Windows' `python3` fails `import pty`), and `coverage.py` never sees
+the bash it would be shelling out to - a different topology from
+`tests/coverage.sh`'s one-tracer-per-suite design, not a port of it.
+**bats-core** gets the bash-3.2 floor right but needs GNU parallel for
+`--jobs` (a new dependency, with its own "ordering not guaranteed" caveat)
+and `bats_test_function` in place of the plain `for` loops the ~230
+`_hi_check` call sites are written as today (its own open issue on execution
+order). **shellspec** is the strongest on paper - its shell matrix is
+better-documented than this harness's own `_hi_capable` probes - but no
+shellcheck dialect exists for its DSL, so the `source=` guard and the
+shellcheck fan-out stop applying the moment a suite becomes a `.spec`, and its
+`--kcov` integration carries the same bash/zsh/ksh-only limit kcov already
+has here.
 
-**bats-core** gets the platform floor right - bash 3.2 is a named, tested
-target, not an afterthought - but two of its own documented behaviors would
-change what this tree currently guarantees. `--jobs` requires GNU parallel,
-a tool this repo doesn't otherwise depend on and that isn't part of any
-`tools.txt` row; and bats' own docs say parallel ordering "is not
-guaranteed," while `test_runner.sh` and `tests/lib/parallel.sh` both exist
-partly to make a parallel run _read_ like a serial one. `@test` blocks are
-preprocessed at parse time, so the ~230 `_hi_check` call sites that live
-inside `for` loops over shells and container shapes need `bats_test_function`
-instead of the loop they're written as now - documented, but with its own
-open issue about execution order. The one clean win: bats supports a custom
-formatter at an absolute path, which is the cleanest formatter story of the
-three.
-
-**shellspec** is the strongest of the three on paper, and worth naming
-specifically: its supported-shell matrix names macOS's exact shipped
-bash (3.2.57) and tests Git Bash, msys2, cygwin, busybox-w32 and WSL
-separately, which is a better-documented Windows story than this harness's
-own five hand-rolled `_hi_capable` probes for the same tier. Its
-`Parameters:dynamic` block accepts a `for` loop, which is close to what the
-suites already do. Set against that: its DSL (`Describe`/`It`/`When`/`Then`)
-is no more bash than bats' `@test` is, and no shellcheck dialect for it
-turned up in research, unlike bats' native support since 0.7 - so the fatal
-`source=` guard and the shellcheck fan-out both stop applying the moment a
-suite becomes a `.spec`. Its built-in `--kcov` integration carries the same
-bash/zsh/ksh-only limitation kcov already has here, so it's not a coverage
-upgrade, and no documented flag turns a `Skip` into a failure, so
-`--require-run`'s inversion would need the same kind of wrapper any of the
-three would.
-
-**Keep it.** The paper study lines up entirely on one side: every candidate
-either adds a dependency this repo doesn't vendor for anything else (GNU
-parallel, `pytest-xdist`, a Windows-only pty replacement), gives up ordered
-parallel replay, drops out of the lint gate's `*.sh` reach, or breaks the
-one-tracer-per-suite coverage topology - usually more than one of those at
-once. None of that needed the missing speed numbers to decide; the sweep's
-wall clock is dominated by container boot and the 90s/30s e2e and pty
-deadlines, not by how a runner dispatches a case, so per-case overhead across
-~1,450 cases was never likely to outweigh what's in the table above. If
-anything reopens this: Git Bash leaving the platform matrix, both coverage
-tools going unmaintained at once, a second maintainer showing up to absorb a
-migration, or one of these three documenting an ordered parallel mode and a
-skip-as-failure flag without a second package. Absent that, the closest thing
-to a "take" is bats' and shellspec's formatter idea - `test_runner.sh`
-growing a `--format tap` output for third-party tooling would be cheap and
-dependency-free - but that's product code, and this entry's scope was the
-decision, not the flag.
+**Keep it.** Every candidate adds a dependency this repo doesn't vendor for
+anything else, gives up ordered parallel replay, drops out of the lint gate's
+`*.sh` reach, or breaks the coverage topology - usually more than one at
+once, and the sweep's wall clock is dominated by container boot and e2e
+deadlines rather than per-case dispatch overhead, so this doesn't turn on the
+missing speed numbers. Reopen it if Git Bash leaves the platform matrix, both
+coverage tools go unmaintained at once, or one of these three documents an
+ordered parallel mode and a skip-as-failure flag without a second package.
 
 [bats-core]: https://bats-core.readthedocs.io/
 [shellspec]: https://shellspec.info/
@@ -475,112 +439,81 @@ summary table, so a failure in one never hides what the others found.
 
 **`shellcheck`** (`tests/lint/shellcheck_test.sh`) — one check, and the whole
 cost of the group. A fatal guard runs **before** it: every `source` of a
-`$_HI_CONFIG_DIR/...` path must carry a `# shellcheck source=` directive.
-`.shellcheckrc` sets `source-path=SCRIPTDIR`, so under `shellcheck -x` a bare
-basename resolves against the sourcing file's own directory, and where it
-names that file the linter follows it into itself and re-parses until the
-kernel OOM-kills it (~33GB resident on a 38GB machine, editor included). The
-guard comes first because the damage happens in the fan-out right after it.
+`$_HI_CONFIG_DIR/...` path must carry a `# shellcheck source=` directive, or
+`.shellcheckrc`'s `source-path=SCRIPTDIR` under `shellcheck -x` resolves a
+bare basename to the sourcing file itself and re-parses it until the kernel
+OOM-kills it (~33GB resident).
 
-- **1. shellcheck** over every `*.sh` (CI pins the version in
-  `.github/actions/setup-tool/tools.txt`). The file list is dealt into one
-  invocation per CPU and replayed in order; `_HI_SC_WIDTH=1` puts it back on a
-  single process.
+- **1. shellcheck** over every `*.sh`, one invocation per CPU, replayed in
+  order (`_HI_SC_WIDTH=1` for one at a time).
 
 **`dialects`** (`tests/lint/dialects_test.sh`) — four shell-dialect syntax
-checks. 3-5 skip yellow without docker, but with docker _present_ an image
-that will not build is a **failure**, not a skip: the base is digest-pinned
-and the only other thing in each file is an apt install with a version
-assertion, so "would not build" means the distro moved off the version the
-check claims — the news the check exists to carry.
+checks. 3-5 skip yellow without docker, but with docker present a base image
+that won't build is a **failure**, not a skip: it's digest-pinned, so "won't
+build" means the distro moved off the version the check claims.
 
 - **2. Native syntax checks**: `zsh -n` / `fish --no-execute` over the files
   those shells parse for themselves, using whatever `zsh` and `fish` this
   machine has.
-- **3. The fish 3.7 floor**: the same files parsed inside a digest-pinned
-  **fish 3.7.0** (`tests/dockerfiles/fish37.Dockerfile`, Ubuntu 24.04's fish,
-  which is CI's). Check 2 cannot cover this: fish 4 accepts constructs 3.7
-  rejects, so a developer on current fish gets a green run and CI does not.
-  The construct that earned it was a _comment inside a `{ ... }` block_ in
-  `common/paths.sh` — `{` opens a brace expansion to fish and `#` is not a
+- **3. The fish 3.7 floor**: the same files inside a digest-pinned fish 3.7.0
+  (`tests/dockerfiles/fish37.Dockerfile`, Ubuntu 24.04's, and CI's) - check 2
+  alone misses this, since fish 4 accepts constructs 3.7 rejects. The
+  construct that earned it: a _comment inside a `{ ... }` block_ in
+  `common/paths.sh` - `{` opens a brace expansion to fish and `#` isn't a
   comment inside one, so the file died with "Mismatched braces", taking
-  `$_HI_TARGETS`, every path and every alias with it; fish 4.8 parsed it,
-  3.7 did not. The rule at the block: nothing but `export NAME=value` lines
-  between those braces.
-- **4. The fish 4 ceiling**: the same files inside a digest-pinned **fish 4**
-  (`tests/dockerfiles/fish4.Dockerfile`, Ubuntu 26.04's fish), catching a
-  construct 3.7 accepts that fish 4 rejects or has removed. CI's runners are
-  24.04, so nothing else in CI parses these files under fish 4.
-- **5. The zsh 5.8 floor** does more than parse. zsh's risky constructs here —
-  `add-zsh-hook zshexit`, the `${(%):-%x}` the tree is derived with,
-  `${~pat}`, the `KSH_ARRAYS` divergence — parse on every zsh and only
-  misbehave on an old one, so `zsh -n` would wave them all through. This one
-  parses the files, then _sources_ `common/zsh.zsh` in a real interactive
-  zsh inside a pinned **zsh 5.8** (`tests/dockerfiles/zsh58.Dockerfile`,
-  upstream's own `zshusers/zsh:5.8` image — a distro apt install of the same
-  version failed on hosted runners only, and a prebuilt image has no package
-  step to fail) and asks for the four things a session depends on: a prompt,
-  the aliases, a resolved host color and the prompt separator. 5.8 because
-  bookworm, noble, alpine and macOS all ship 5.9 — no machine anyone develops
-  on is the floor.
+  `$_HI_TARGETS` and every alias with it, on 3.7 only. The rule at the block:
+  nothing but `export NAME=value` lines inside.
+- **4. The fish 4 ceiling**: the same files inside a digest-pinned fish 4
+  (`tests/dockerfiles/fish4.Dockerfile`, Ubuntu 26.04's), catching a
+  construct 3.7 accepts that fish 4 rejects.
+- **5. The zsh 5.8 floor** does more than parse: it sources `common/zsh.zsh`
+  in a real interactive zsh inside a pinned zsh 5.8
+  (`tests/dockerfiles/zsh58.Dockerfile`) and asks for a prompt, the aliases,
+  a resolved host color and the prompt separator - `zsh -n` alone would wave
+  through the risky constructs here that only misbehave on an old zsh. 5.8,
+  not 5.9, because 5.9 is what bookworm, noble, alpine and macOS all ship -
+  no machine anyone develops on is the floor, so the image is upstream's own
+  `zshusers/zsh:5.8` rather than a distro apt install
+  (which failed on hosted runners only).
 
 **`tools`** (`tests/lint/tools_test.sh`) — four external-tool wrappers, each
 skipping yellow when its tool isn't installed locally (CI has all four):
 
-- **6. shfmt** over the same `*.sh` list shellcheck reads, style from
-  `.editorconfig`. Fix a red run with `shfmt -w` on the paths it names, not
-  `shfmt -w .`, which would also reformat `common/zsh.zsh`.
+- **6. shfmt** over the same `*.sh` list, style from `.editorconfig`. Fix a
+  red run with `shfmt -w` on the paths it names, not `shfmt -w .`, which also
+  reformats `common/zsh.zsh` (zsh, ships as-is).
 - **7. checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
   really do parse on minimal targets.
-- **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`): the page ships
-  in every package, and a roff mistake renders as garbage on `man hi` while
-  failing nothing else.
-- **9. typos** over the whole tree; the allowlist is `.typos.toml` at the root,
-  one commented line per term the checker reads wrong.
+- **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
+- **9. typos** over the whole tree, allowlisted by `.typos.toml`.
 
 **`drift`** (`tests/lint/drift_test.sh`) — eight repo-consistency sweeps, each
 a grep or small parser checking that something written down elsewhere still
 agrees with the tree:
 
 - **10. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs or
-  `${x,,}`. Every odd construct this forces is explained once in
-  [GLOSSARY.md](GLOSSARY.md); code references entries by `GLOSSARY: HI.NN`
-  tag.
+  `${x,,}` - each explained once in [GLOSSARY.md](GLOSSARY.md) by its
+  `GLOSSARY: HI.NN` tag.
 - **11. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
-  derives the say-hi tree. Wider than the shellcheck list — `*.zsh`,
-  `*.fish` and `*.md` too, since the docs teach the rule as much as the code
-  obeys it.
+  derives the say-hi tree - over `*.zsh`, `*.fish` and `*.md` too, since the
+  docs teach the rule as much as the code obeys it.
 - **12. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
-  GLOSSARY.md defines, and every entry is referenced. Codes are matched, not
-  titles, anywhere on a line — keep the code on the same line as the
-  marker.
+  GLOSSARY.md defines, and every entry is referenced; matched by code, not
+  title, anywhere on a line.
 - **13. The settings roster**: every name the tree treats as a setting
-  (`_HI_TOGGLES` in `common/core.sh`, the variable column of every
-  `_HI_*_PROMPTS` table in `scripts/configure.sh`) has a row in
+  (`_HI_TOGGLES`, the `_HI_*_PROMPTS` tables) has a row in
   [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and every row there
-  names a variable the tree still reads. Only that section is matched; a
-  name assembled at run time (`_HI_PROMPT_END_$SHELL`) is matched by its
-  literal prefix.
-- **14. Liquid syntax**: no page Jekyll's Pages build renders (derived from
-  `_config.yml`'s `exclude:` block, not hand-kept) may carry a raw Liquid
-  delimiter outside a guarded span — Liquid tokenizes before Markdown, so a
-  fence gives no shelter. The construct that does it is a fenced GitHub
-  Actions expression whose `format('{0}-{1}', …)` hands the tokenizer a
-  lone closing brace mid-expression. A page that means to show a delimiter
-  wraps the span in a raw/endraw guard, each half inside an HTML comment so
-  the guard never renders; otherwise it stays off the site.
+  names a variable the tree still reads.
+- **14. Liquid syntax**: no page the Pages build renders may carry a raw
+  Liquid delimiter outside a guarded span - Liquid tokenizes before Markdown,
+  so a fence gives no shelter.
 - **15. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **16. Image tags**: every image tag named as a plain tag in shell or YAML is
-  one of the digest-pinned `FROM` tags in `tests/dockerfiles/` — the set,
-  not one tag per image, since `debian` and `ubuntu` are each pinned twice
-  on purpose.
-- **17. Image digests**: two Dockerfiles may pin the same `image:tag` (the sshd
-  and demo debian bases, the two alpines) but must agree on its digest.
-  Check 16 strips the digest before comparing, so it cannot see one tag
-  pinned to two digests — how a "same pin as the sshd base" header claim
-  goes quietly false. This one reads the digests back in and fails any tag
-  with more than one.
+- **16. Image tags**: every plain image tag named in shell or YAML is one of
+  the digest-pinned `FROM` tags in `tests/dockerfiles/`.
+- **17. Image digests**: two Dockerfiles pinning the same `image:tag` must
+  agree on its digest - check 16 strips the digest before comparing, so it
+  can't see one tag pinned to two; this one reads the digests back in.
 
 ## Relaying
 
@@ -595,12 +528,12 @@ relay is the container transport's bash-less fallback, which ships
 
 ## Local-only
 
-`tests/` is stripped from the payload, so `hi --test` on a target says so
+`tests/` is stripped from the payload, so `hi --doctor` on a target says so
 rather than running. Every flag that needs `scripts/`, `tests/` or a `.git`
-answers the same way there, and `--test` and `--update` answer that way in a
+answers the same way there, and `--update` answers that way in a
 package-manager install too, which ships `scripts/` but neither of the others.
 **Which flag needs what is `docs/hi.1`'s OPTIONS section**, drift-checked
 against `common/targets.sh`'s completion roster by `tests/hi/parse_test.sh`.
-`hi --packages-preview` is the one that does not refuse: its legend lives in
+`hi --preview-packages` is the one that does not refuse: its legend lives in
 `scripts/`, but the check it previews lives in the shipped `common/header.sh`,
 so on a target it runs that half instead.

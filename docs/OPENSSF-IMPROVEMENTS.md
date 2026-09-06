@@ -1,110 +1,23 @@
 # OpenSSF improvements
 
-What changed in the repo for the OpenSSF Scorecard and Best Practices badge,
-what was investigated and deliberately left alone, and the Best Practices
-questionnaire answer sheet - still to be entered by hand at
-[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit).
+The Best Practices questionnaire answer sheet for this project - still to be
+entered by hand at
+[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit) -
+and what a single maintainer cannot close regardless of repo state. Work
+already shipped for the Scorecard and Best Practices badges is not repeated
+here; git history is the ledger, and
+[TESTING.md#the-score-has-a-ceiling-here](TESTING.md#the-score-has-a-ceiling-here)
+and [SECURITY.md#assurance-case](SECURITY.md#assurance-case) are the current
+state of the two things this file used to narrate.
 
 ## Contents
 
-- [Baseline, 2026-09-04](#baseline-2026-09-04)
-- [What changed](#what-changed)
-- [What was investigated and left alone](#what-was-investigated-and-left-alone)
 - [What still needs a second person](#what-still-needs-a-second-person)
 - [The Best Practices answer sheet](#the-best-practices-answer-sheet)
   - [Passing level](#passing-level)
   - [Silver level](#silver-level)
   - [Gold level](#gold-level)
 - [Left for a human](#left-for-a-human)
-
-## Baseline, 2026-09-04
-
-Two separate OpenSSF programs feed the README badge block and are scored in
-unrelated ways:
-
-- **Scorecard** - automated, re-runs weekly against `main`. **7.7/10** at
-  `a89b94c`.
-- **Best Practices badge** (project
-  [14397](https://www.bestpractices.dev/en/projects/14397)) - a self-answered
-  questionnaire. **Passing 100% / Silver 11% / Gold 9%.**
-
-## What changed
-
-- **The three `curl | sh` framework installers are now hash-pinned, not just
-  version-pinned.** `tests/dockerfiles/frameworks/{atuin,mise,starship}.sh`
-  each download to a file, `sha256sum -c` it, then run it - closing
-  Scorecard's `downloadThenRun` finding (was 0/3 pinned). Detail and the
-  trade-off (mise's and starship's installer URLs are generic bootstrap
-  endpoints, so their hash tracks _that installer's_ content, not the app
-  version) is in
-  [TESTING.md#what-is-pinned-and-what-deliberately-is-not](TESTING.md#what-is-pinned-and-what-deliberately-is-not).
-  Verified: each script run standalone against a real container, and the full
-  `framework` e2e suite (9/9).
-- **Release provenance now ships as a release asset, not only an API-side
-  attestation.** `release.yml`'s `publish` job downloads the build-provenance
-  bundle `build` already creates (`gh attestation download dist/SHA256SUMS`)
-  and re-uploads it as `dist/say-hi.intoto.jsonl` - the literal filename
-  Scorecard's `Signed-Releases` check looks for among release assets to award
-  the full 10/10, instead of the 8/10 a bare `.minisig` gets. Needs
-  `attestations: read` on the `publish` job, added alongside. Takes effect on
-  the next tag cut, not retroactively.
-- **`docs/SECURITY.md` gained an [Assurance
-  case](SECURITY.md#assurance-case) section** - the argument that secure
-  design principles were applied and common implementation weaknesses were
-  countered, citing the actual allowlist/fail-closed code (`_hi_safe_path`,
-  `_hi_ssh_host_tag`, `_hi_sanitize_var`, the `set -euo pipefail` roster)
-  rather than restating the threat model already above it.
-- **`docs/CONTRIBUTING.md` now names a base style guide** (Google Shell Style
-  Guide, with this project's stated deviations) and the tools that enforce it,
-  at the top of [What a review will bounce
-  on](CONTRIBUTING.md#what-a-review-will-bounce-on).
-- **Every source file carries a copyright and SPDX header.** `# Copyright the
-say-hi contributors.` / `# SPDX-License-Identifier: MIT` after the shebang,
-  in the 105 `*.sh` files plus `common/zsh.zsh` and `common/config.fish` (107
-  total). Scoped to source the badge criteria mean - not
-  `.github/workflows/*.yml`, not `docs/hi.1`, not the `packaging/` manifest
-  templates whose exact structure other tests assert against. Verified after:
-  `--group fast` (30/30), `--group lint` (no new findings - the one red suite
-  is `tests/harness/lib_parallel_test.sh` and three others' pre-existing
-  `shfmt` drift, unrelated to this change and present on a clean `dev` HEAD),
-  and `--group bench` (payload 35210 of 65536 bytes gzipped; README's payload
-  badge still within the 5% band, no update needed).
-- **`docs/TESTING.md`'s ceiling section gained two entries**: why
-  Pinned-Dependencies reads low for a reason outside this repo (below), and
-  why Branch-Protection sits at 8 by choice (the next tier removes the
-  maintainer's own bypass of a failing check).
-
-## What was investigated and left alone
-
-Two items in the original plan turned out to be wrong on investigation - left
-here so a future session doesn't redo the same analysis.
-
-**The `uses: $/.github/...` references are not a bug.** GitHub shipped
-same-repository action/workflow references in July 2026
-([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
-`$/...` resolves at the exact commit running, with no `./` plus checkout and
-no separately-pinnable ref to fall stale. `ci.yml` already explains why
-`actionlint` is pinned to a fork that understands it. Scorecard's own
-dependency extraction hasn't caught up as of this writing, and reads all 34
-such references as unresolvable third-party actions with no `@sha` -
-inflating the `Pinned-Dependencies` finding. The real third-party (non-`$/`)
-actions in the tree are 100% SHA-pinned. **Not reverted to `./`** - that would
-trade a real improvement for a score built on a five-week-old parser gap.
-Documented in
-[TESTING.md#the-score-has-a-ceiling-here](TESTING.md#the-score-has-a-ceiling-here).
-
-**The 8 "unpinned" test container images can't be pinned as flagged.**
-`FROM ${BASE}` in the eight layered Dockerfiles (`framework.Dockerfile`,
-`installed*.Dockerfile`, `demo-sshd.Dockerfile`) resolves an `ARG` whose
-default is the _name_ of an image another Dockerfile builds locally
-(`hi-test-sshd`, `hi-demo-sshd-base`, `hi-test-installed-prefix`) - there is
-no upstream digest to pin against, by construction. The upstream base image
-each of those local builds ultimately derives from is already
-digest-pinned elsewhere in the tree (10 of 18 `FROM` lines). This was already
-correctly understood and annotated - `.scorecard.yml` marks
-`pinned-dependencies` `test-data` rather than pretending it's clean, and
-[TESTING.md#what-is-pinned-and-what-deliberately-is-not](TESTING.md#what-is-pinned-and-what-deliberately-is-not)
-already explained it before this round of changes. No repo edit needed here.
 
 ## What still needs a second person
 
@@ -267,6 +180,4 @@ a consequence of `access_continuity`. The rest, for a complete entry:
 - Labeling `good first issue` on a couple of open issues, for `small_tasks`.
 - Confirming `secure_2FA` (TOTP/WebAuthn, not SMS) and checking
   `hardened_site` against securityheaders.com before answering either.
-- Cutting a release so `Signed-Releases` and the intoto.jsonl asset actually
-  land on a tag; the change ships nothing retroactively.
 - All git operations (commit, push, tag) stay with the user, same as always.

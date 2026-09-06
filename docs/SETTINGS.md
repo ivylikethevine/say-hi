@@ -1,11 +1,13 @@
 # Settings
 
 Your config lives **outside the checkout**, in
-`${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` (`$_HI_CONFIG_DIR`). `colors` and
-`packages` there override the tree's copies one file at a time, so anything
-you haven't overridden keeps tracking what `hi --update` delivers.
+`${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` (`$_HI_CONFIG_DIR`), so `git pull`
+applies cleanly and the tree can be root-owned or package-installed. `colors`
+and `packages` there override the tree's copies one file at a time, so
+anything you haven't overridden keeps tracking what `hi --update` delivers.
 `settings.sh` has no in-tree counterpart; `hi --configure` only ever writes it
-here. The tree's own `settings/` directory holds the shipped defaults.
+here. The tree's own `settings/` directory holds the shipped defaults. All of
+it rides along to every host you say `hi` to, in its own small archive.
 
 Four of those files can also live somewhere else — see
 [Pointing one file somewhere else](#pointing-one-file-somewhere-else).
@@ -22,19 +24,13 @@ Four of those files can also live somewhere else — see
 | `~/.config/say-hi/zsh.zsh`     | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish` | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
 
-Configuring say-hi never dirties the checkout, so `git pull` applies cleanly
-and the tree can be root-owned, installed by a package manager. All of it
-rides along to every host you say `hi` to, in its own small archive.
-
 `hi --overlay-init` seeds the overlay with the shipped
 `colors`/`packages`/`vim.rc`/`nano.rc` defaults — only for the files you have
-none of; a file already there is never touched — then makes `~/.config/say-hi`
-a git repo _in place_: from then on `hi --configure` commits its own writes,
-`hi --doctor` reports the commit count, and a push remote is one
-`git remote add` away. A seeded copy stops tracking what `hi --update`
-delivers for that file (it is yours now), and costs almost nothing on the
-wire: the overlay ships comment-stripped, the way the tree does. If you
-already keep dotfiles in chezmoi, yadm, GNU Stow or a bare repo,
+none of — then makes `~/.config/say-hi` a git repo _in place_: from then on
+`hi --configure` commits its own writes and `hi --doctor` reports the commit
+count. A seeded copy stops tracking what `hi --update` delivers for that file
+(it is yours now). If you already keep dotfiles in chezmoi, yadm, GNU Stow or
+a bare repo,
 [that directory is the whole integration](#keeping-the-overlay-in-a-dotfile-manager).
 
 Every setting below is an environment variable, checked where it is used.
@@ -57,14 +53,12 @@ which, and why). A setting a child must see — a script of your own reading
 - [System-wide settings](#system-wide-settings)
 - [The wizard](#the-wizard)
 - [Presets](#presets)
-- [Features](#features)
 - [Header details](#header-details)
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Colors](#colors)
   - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
-- [Everything else](#everything-else)
 
 ## How it works
 
@@ -130,46 +124,46 @@ cannot land without a row here.
 
 | variable                     | default                                              | set by                    | what it does                                                                                                           |
 | ---------------------------- | ---------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `_HI_DISABLE_HEADER`         | `0`                                                  | `hi --configure`          | [Features](#features) - the whole connect/disconnect header                                                            |
-| `_HI_DISABLE_PROMPT`         | `0`                                                  | `hi --configure`          | [Features](#features) - the colored `user@host` prompt                                                                 |
-| `_HI_DISABLE_GIT_STATUS`     | `0`                                                  | `hi --configure`          | [Features](#features) - the git segment in the prompt                                                                  |
-| `_HI_DISABLE_EDITORS`        | `0`                                                  | `hi --configure`          | [Features](#features) - the `vim`/`nano` config overrides                                                              |
-| `_HI_DISABLE_BAT_ALIAS`      | `0`                                                  | `hi --configure`          | [Features](#features) - rebinding `cat`/`catn` to a styled `bat`                                                       |
-| `_HI_DISABLE_LS_ALIASES`     | `0`                                                  | `hi --configure`          | [Features](#features) - the `exa`/`eza` ls-family aliases                                                              |
-| `_HI_DISABLE_OSC52`          | `0`                                                  | `hi --configure`          | [Features](#features) - the OSC 52 clipboard                                                                           |
-| `_HI_DISABLE_NOTIFY`         | `0`                                                  | `hi --configure`          | [Features](#features) - the `hi_notify` desktop-notification alias                                                     |
-| `_HI_DISABLE_MARKS`          | `0`                                                  | `hi --configure`          | [Features](#features) - OSC 133 prompt marks and OSC 7 cwd reporting                                                   |
-| `_HI_DISABLE_LOCAL`          | `0`                                                  | `hi --configure`          | [Features](#features) - all of the above, on this machine only                                                         |
-| `_HI_DISABLE_LOCAL_PROMPT`   | `0`                                                  | `hi --configure`          | [Features](#features) - hi's prompt on this machine only; the answer for a starship, powerlevel10k or oh-my-zsh prompt |
+| `_HI_DISABLE_HEADER`         | `0`                                                  | `hi --configure`          | turns off the whole connect/disconnect header, every line of it                                                        |
+| `_HI_DISABLE_PROMPT`         | `0`                                                  | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                     |
+| `_HI_DISABLE_GIT_STATUS`     | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                |
+| `_HI_DISABLE_EDITORS`        | `0`                                                  | `hi --configure`          | turns off the `vim`/`nano` config overrides                                                                            |
+| `_HI_DISABLE_BAT_ALIAS`      | `0`                                                  | `hi --configure`          | turns off rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way |
+| `_HI_DISABLE_LS_ALIASES`     | `0`                                                  | `hi --configure`          | turns off the styled `exa`/`eza` aliases - the binaries themselves stay available by name either way                   |
+| `_HI_DISABLE_OSC52`          | `0`                                                  | `hi --configure`          | turns off the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias. See [Others](#others)                         |
+| `_HI_DISABLE_NOTIFY`         | `0`                                                  | `hi --configure`          | turns off the `hi_notify` alias and keeps `common/notify.sh` off the ssh payload entirely. See [Others](#others)       |
+| `_HI_DISABLE_MARKS`          | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)      |
+| `_HI_DISABLE_LOCAL`          | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit                              |
+| `_HI_DISABLE_LOCAL_PROMPT`   | `0`                                                  | `hi --configure`          | turns off hi's prompt **on this machine only** - the answer for a starship, powerlevel10k or oh-my-zsh prompt. See [Others](#others) |
 | `_HI_REMOTE_SESSION`         | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                             |
 | `_HI_HEADER_BANNER`          | `1`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                       |
 | `_HI_HEADER_ORDER`           | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                      |
-| `_HI_PACKAGES_MIN_PRIORITY`  | `2`                                                  | `hi --configure`          | [Everything else](#everything-else) - how far down `settings/packages` the check reports                               |
-| `_HI_PACKAGES_PALETTE`       | `cool`                                               | `hi --configure`          | [Everything else](#everything-else) - which named color ramp the check paints with                                     |
-| `_HI_IP_HIDE`                | `172.*`                                              | `hi --configure`          | [Header details](#header-details) - addresses the `ip` cell leaves out; `none` shows every one                         |
-| `_HI_COLOR_SCHEME`           | unset                                                | `hi --configure`          | [Colors](#colors) - the twelve palette names as a truecolor scheme: `catppuccin`, `monokai`, `onedark`, `vscode`       |
-| `_HI_MAX_WIDTH`              | `80`                                                 | `hi --configure`          | [Everything else](#everything-else) - columns the header and banner are drawn to, narrowed to a smaller real terminal  |
-| `_HI_PROMPT`                 | unset                                                | `hi --configure`          | [Everything else](#everything-else) - `starship` hands the prompt to starship                                          |
-| `_HI_PROMPT_END`             | per shell                                            | you                       | [Everything else](#everything-else) - one prompt separator for every shell                                             |
-| `_HI_PROMPT_END_BASH`        | `\$`                                                 | `hi --configure`          | [Everything else](#everything-else) - bash's separator; wins over `_HI_PROMPT_END`                                     |
-| `_HI_PROMPT_END_ZSH`         | `>`                                                  | `hi --configure`          | [Everything else](#everything-else) - zsh's separator                                                                  |
-| `_HI_PROMPT_END_FISH`        | `\|`                                                 | `hi --configure`          | [Everything else](#everything-else) - fish's separator                                                                 |
-| `_HI_PROMPT_END_SH`          | `\$`                                                 | you                       | the separator on a bash-less target, where hi bakes a plain `sh` prompt on the client                                  |
-| `_HI_TERM_FALLBACK`          | `1`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - swap an unknown `TERM` for `xterm-256color`                                      |
-| `_HI_RECENT`                 | `1`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - `0` stops recent targets being recorded and ranked first                         |
-| `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - fish only: give every alias a real `abbr`                                        |
-| `_HI_NO_LEAD_SPACE`          | `0`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - drop the hardcoded leading space in the prompt, git segment and header lines     |
-| `_HI_SHELL_PREFERENCE`       | `login` + `$_HI_SHELL_TREE`                          | `hi --configure` advanced | [Everything else](#everything-else) - which shell a session runs in                                                    |
-| `_HI_ASCII`                  | by locale                                            | `hi --configure` advanced | [Everything else](#everything-else) - force ASCII stand-ins (`1`) or glyphs (`0`)                                      |
-| `_HI_TRUECOLOR`              | by terminal                                          | hi                        | [Colors](#colors) - the client's 24-bit verdict (`1`/`0`), shipped like `_HI_ASCII`; set it to force or refuse         |
-| `_HI_TARGETS_TTL`            | `5`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - seconds `hi <TAB>` reuses its target list for                                    |
-| `_HI_PROBE_TIMEOUT`          | `2`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - seconds any one backend CLI gets                                                 |
-| `_HI_CONTAINER_CLIS`         | `docker podman nerdctl finch`                        | `hi --configure` advanced | [Everything else](#everything-else) - the docker-compatible CLIs hi lists and resolves containers through, in order    |
-| `_HI_CTL_PERSIST`            | `60`                                                 | `hi --configure` advanced | [Everything else](#everything-else) - seconds an ssh connection stays authenticated after you disconnect               |
-| `_HI_PAYLOAD_CACHE`          | `1`                                                  | `hi --configure` advanced | [Everything else](#everything-else) - `0` rebuilds the payload/overlay archives fresh on every connect                 |
-| `NO_COLOR`                   | unset                                                | you                       | [Everything else](#everything-else) - not hi's variable; any non-empty value drops color                               |
-| `_HI_KEEP_COMMENTS`          | `0`                                                  | you                       | `1` ships the tree verbatim rather than comment-stripped, for reading real source on a target                          |
-| `_HI_RECENT_FILE`            | `$XDG_STATE_HOME/say-hi/recent`                      | you                       | [Everything else](#everything-else) - where those are kept                                                             |
+| `_HI_PACKAGES_MIN_PRIORITY`  | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-3, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, above `3` mutes it entirely. `hi --preview-packages` marks the ranks it silences `below floor` |
+| `_HI_PACKAGES_PALETTE`       | `cool`                                               | `hi --configure`          | which of `common/header.sh`'s named color tables the check paints with, per priority - `cool` (cyan-green installed, blue-red missing), `warm` (yellow-red) or `mono`; any other value falls back to `cool`. Judge one with `hi --preview-packages`                |
+| `_HI_IP_HIDE`                | `172.*`                                              | `hi --configure`          | space-separated globs over the dotted quad; the header's `ip` cell drops every address one matches, and drops itself when nothing is left. `none` hides nothing. See [Header details](#header-details)                                                              |
+| `_HI_COLOR_SCHEME`           | unset                                                | `hi --configure`          | which truecolor scheme the twelve palette names render as - `catppuccin` (Mocha), `monokai`, `onedark`, `vscode` (Dark+) - on a terminal that reports 24-bit color, nothing on one that does not. See [Colors](#colors)                                             |
+| `_HI_MAX_WIDTH`              | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal                                                                                                                                                                             |
+| `_HI_PROMPT`                 | unset                                                | `hi --configure`          | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, keeping hi's header and aliases. Never auto-detected; hi does not ship starship itself                                                                                       |
+| `_HI_PROMPT_END`             | per shell                                            | you                       | the character each prompt ends with, when you want the same one everywhere; the three below win over it                                                                                                                                                              |
+| `_HI_PROMPT_END_BASH`        | `\$`                                                 | `hi --configure`          | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root")                                                                                                                                                                                        |
+| `_HI_PROMPT_END_ZSH`         | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                           |
+| `_HI_PROMPT_END_FISH`        | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                               |
+| `_HI_PROMPT_END_SH`          | `\$`                                                 | you                       | the separator on a bash-less target, where hi bakes a plain `sh` prompt on the client                                                                                                                                                                                 |
+| `_HI_TERM_FALLBACK`          | `1`                                                  | `hi --configure` advanced | on ssh targets missing a terminfo entry for your `TERM` (ghostty's `xterm-ghostty`, typically), swap it for `xterm-256color` before the session starts; `0` keeps the original                                                                                       |
+| `_HI_RECENT`                 | `1`                                                  | `hi --configure` advanced | `1` appends every target a session ended cleanly on to a recent file, and `hi <TAB>` offers those first (zoxide's frecency). Client-side only. `0` neither records nor ranks                                                                                         |
+| `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                                                  | `hi --configure` advanced | fish only: `1` gives every alias hi defines a real `abbr`, expanding to the full command on the line before you run it - rewrites your command line and history, hence opt-in                                                                                       |
+| `_HI_NO_LEAD_SPACE`          | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                      |
+| `_HI_SHELL_PREFERENCE`       | `login` + `$_HI_SHELL_TREE`                          | `hi --configure` advanced | which shell a session runs in: an ordered list of `bash`/`zsh`/`fish`, plus `login`. First one installed on the target wins; `bash` is the floor, since `load.sh` needs it                                                                                           |
+| `_HI_ASCII`                  | by locale                                            | `hi --configure` advanced | `1` forces ASCII stand-ins for the banner/prompt/packages glyphs, `0` forces the glyphs; unset asks the locale, so `LANG=C` degrades cleanly instead of printing mojibake                                                                                            |
+| `_HI_TRUECOLOR`              | by terminal                                          | hi                        | `1`/`0`: does the client's terminal render 24-bit color, read off `COLORTERM` and shipped to the session (ssh never forwards `COLORTERM` itself); set it to force (tmux) or refuse a scheme's hex                                                                    |
+| `_HI_TARGETS_TTL`            | `5`                                                  | `hi --configure` advanced | seconds `hi <TAB>` reuses its target list for; `0` disables the cache. For ten minutes past it an expired list still answers the TAB at once while the refresh runs behind it - completion runs on **every TAB**, with no upper bound otherwise                     |
+| `_HI_PROBE_TIMEOUT`          | `2`                                                  | `hi --configure` advanced | seconds any one backend CLI gets, during completion and in the header (a TERM, with a KILL 200ms behind it) - the header runs **before you get a shell**, so a dead daemon can't hang it                                                                            |
+| `_HI_CONTAINER_CLIS`         | `docker podman nerdctl finch`                        | `hi --configure` advanced | the docker-compatible CLIs, space-separated, `hi <TAB>` lists containers through and `hi <target>` resolves with; docker's grammar is what they all speak, so one arm serves the lot. See [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                    |
+| `_HI_CTL_PERSIST`            | `60`                                                 | `hi --configure` advanced | seconds an ssh connection stays authenticated after you disconnect, so a second `hi <target>` within that window reuses the socket and skips the key exchange; `0` closes it right away                                                                             |
+| `_HI_PAYLOAD_CACHE`          | `1`                                                  | `hi --configure` advanced | caches the gzipped payload and overlay archives between connects, rebuilding when a source file's mtime moves past the cache's own or a toggle changes what would ship; `0` rebuilds fresh every connect                                                            |
+| `NO_COLOR`                   | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to `_HI_ASCII`                                                                                                       |
+| `_HI_KEEP_COMMENTS`          | `0`                                                  | you                       | `1` ships the tree verbatim rather than comment-stripped, for reading real source on a target                                                                                                                                                                        |
+| `_HI_RECENT_FILE`            | `$XDG_STATE_HOME/say-hi/recent`                      | you                       | that file, one `<epoch>\t<target>` line per session, trimmed to the newest 300 past 500                                                                                                                                                                               |
 | `_HI_COLORS`                 | overlay, else tree                                   | you                       | [Pointing one file somewhere else](#pointing-one-file-somewhere-else) - where the color pins are read from             |
 | `_HI_PACKAGES`               | overlay, else tree                                   | you                       | the same for the package check's list                                                                                  |
 | `_HI_VIMRC`                  | overlay, else tree                                   | you                       | the same for the vim config the `vim` alias and `$VIMINIT` point at                                                    |
@@ -189,6 +183,10 @@ cannot land without a row here.
 | `_HI_LOCAL_USER`             | -                                                    | hi                        | who you are on the client, for the header's "from" half                                                                |
 | `_HI_LOCAL_HOSTNAME`         | -                                                    | hi                        | where you came from, likewise                                                                                          |
 | `_HI_RELEASE`                | -                                                    | hi                        | the client's version, so a session says which say-hi it is running                                                     |
+| `_HI_HOME`                   | derived                                              | you                       | the **parent** of your `say-hi` directory - everything resolves `$_HI_HOME/say-hi`. Each entry point derives it from its own path when unset; set it to override                                                     |
+| `_HI_SSH_CONFIG`             | `~/.ssh/config`                                      | hi                        | read-only: where ssh hosts and their `# Tags:` comments are read from. Derived from `$HOME` by `common/paths.sh` every time it is sourced, so exporting your own value does not survive                              |
+| `_HI_TTY`                    | `[ -t 0 ]`                                           | you                       | whether the container backends hand the session a tty (`docker exec -it` vs `-i`), answered by probing stdin; set it to `1` or `0` when a wrapper knows better than the probe                                       |
+| `_HI_SESSION_RC`             | `mktemp -d`                                          | hi                        | set inside a session: the directory holding the per-shell rc files a nested `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends. See [HI.46](GLOSSARY.md#hi46-session-rc-directory)                        |
 
 ### Pointing one file somewhere else
 
@@ -253,8 +251,8 @@ prompt line as it would draw, at your current settings — over a short menu:
    item; a number toggles one, `up N`/`down N` moves it, `p` loads a header
    preset (`full`, `compact`, `quiet`), and the width, the package check's
    depth and its palette live there too.
-3. **Features** — the [Features](#features) toggles, each previewed as it
-   flips.
+3. **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
+   each previewed as it flips.
 4. **Prompt** — starship, and the character each shell's prompt ends with.
 5. **Advanced** — the _advanced_ rows, as a short walk of questions.
 
@@ -281,24 +279,6 @@ advanced settings keep what they hold. From the menu its answers are what the
 preview shows and `s` saves — a starting point, not a lock. The rows are
 `scripts/configure.sh`'s `_HI_PRESETS`; the header editor's own presets are
 `_HI_HEADER_PRESETS` beside them.
-
-## Features
-
-Each is **on by default**; set it to `1` to turn that piece off.
-
-| variable                   | turns off                                                                                                                            |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `_HI_DISABLE_HEADER`       | the whole connect/disconnect header, every line of it                                                                                |
-| `_HI_DISABLE_PROMPT`       | the colored `user@host` prompt, leaving your shell's own                                                                             |
-| `_HI_DISABLE_GIT_STATUS`   | the git segment in the prompt                                                                                                        |
-| `_HI_DISABLE_EDITORS`      | the `vim`/`nano` config overrides                                                                                                    |
-| `_HI_DISABLE_BAT_ALIAS`    | rebinding `cat`/`catn` to a styled `bat` - `bat`/`batcat`/`batn` themselves stay available by name either way                        |
-| `_HI_DISABLE_LS_ALIASES`   | the styled `exa`/`eza` aliases - the `exa`/`eza` binaries themselves stay available by name either way                               |
-| `_HI_DISABLE_OSC52`        | the OSC 52 clipboard - yanks in `vim` and the `hi_copy` alias                                                                        |
-| `_HI_DISABLE_NOTIFY`       | the `hi_notify` alias - desktop notifications when a command finishes. Also keeps `common/notify.sh` off the ssh payload entirely    |
-| `_HI_DISABLE_MARKS`        | the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits, see below                                          |
-| `_HI_DISABLE_LOCAL`        | all of the above **on this machine only** - hi still styles the hosts you visit                                                      |
-| `_HI_DISABLE_LOCAL_PROMPT` | hi's prompt **on this machine only** - your starship, powerlevel10k, oh-my-zsh or hand-written `fish_prompt` stays; targets get hi's |
 
 ## Header details
 
@@ -380,35 +360,29 @@ containers jobs pods auth pub uptime` (drop `uptime` from that if you had
 connect to". A real session is told apart by `_HI_REMOTE_SESSION`, which
 `load.sh` exports on a target and a local rc never does.
 
-`_HI_DISABLE_LOCAL_PROMPT` is the narrower cut: hi's rc is sourced last in
-your `~/.zshrc` / `~/.bashrc` / `config.fish`, so on your own machine its
-prompt would otherwise replace the one you already have. The first
-`hi --configure` (or install) with no `settings.sh` yet looks for starship,
-powerlevel10k, oh-my-zsh, prezto, zimfw, oh-my-bash, bash-it, liquidprompt
-or a `fish_prompt.fish` of your own in your rc files, and when it finds one
-answers this `1` and says so. A preset on the command line does not undo that
-answer; the Features menu does, and once `settings.sh` exists the detection
-never runs again. Aliases, completion, the header and `hi` itself stay on
-locally; only the prompt yields.
+`_HI_DISABLE_LOCAL_PROMPT` is the narrower cut: hi's rc is sourced last, so on
+your own machine its prompt would otherwise replace the one you already have.
+The first `hi --configure` (or install) with no `settings.sh` yet looks for
+starship, powerlevel10k, oh-my-zsh, prezto, zimfw, oh-my-bash, bash-it,
+liquidprompt or a `fish_prompt.fish` of your own in your rc files, and answers
+this `1` and says so when it finds one; once `settings.sh` exists the
+detection never runs again. Aliases, completion, the header and `hi` itself
+stay on locally; only the prompt yields.
 
-Two things hi does write on your own machine outside `~/.config/say-hi/`:
-the rc lines `install.sh` adds (marker-tagged, with a one-time `.hi-orig`
-backup), and, in fish, three universal variables (`__hi_color_user`,
-`__hi_color_host`, `__hi_colors_key`) that memoize your prompt colors so only
-the first shell after a `colors` change pays for the bash call. `hi
---uninstall` removes the rc lines; `set -e -U __hi_color_user __hi_color_host
-__hi_colors_key` clears the three.
+Two things hi does write on your own machine outside `~/.config/say-hi/`: the
+rc lines `install.sh` adds (marker-tagged, with a one-time `.hi-orig` backup,
+removed by `hi --uninstall`), and, in fish, three universal variables that
+memoize your prompt colors so only the first shell after a `colors` change
+pays for the bash call.
 
 `_HI_DISABLE_OSC52` turns off the one feature that reaches back _through_ the
 connection: a yank in `vim` on a target, or anything piped into `hi_copy`, is
 base64'd into an
 [OSC 52](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h4-Operating-System-Commands)
-escape and written to the tty, so your local terminal emulator puts it on
-**your** clipboard — no X11 forwarding, no clipboard daemon, nothing installed
-on the target. Only the unnamed register is sent, so `"ay` stays local.
-Terminal support varies (tmux needs `set -g allow-passthrough on`; under
-`$ZELLIJ` the escape goes through raw), hence the toggle. `common/osc52.sh` is
-the whole implementation.
+escape written to the tty, so your local terminal emulator puts it on **your**
+clipboard — no X11 forwarding, no clipboard daemon, nothing installed on the
+target. Terminal support varies (tmux needs `set -g allow-passthrough on`;
+under `$ZELLIJ` the escape goes through raw), hence the toggle.
 
 **The header says so when tmux is going to eat it.** `allow-passthrough` has
 been off by default since tmux 3.3, and nothing fails when it is: `hi_copy`
@@ -420,31 +394,22 @@ line on connect —
  | tmux passthrough off - hi_copy/hi_notify muted | set -g allow-passthrough on
 ```
 
-— and nowhere else. It has no toggle of its own: turn the option on, or turn
-off the two features it is about, and it stops. A tmux too old to have the
-option says nothing.
+— and nowhere else, with no toggle of its own: turn the option on, or turn off
+the two features it is about, and it stops.
 
-`_HI_DISABLE_NOTIFY` turns off the other one. `hi_notify <command>` runs the
-command on the target, then writes an
-[OSC 9](https://iterm2.com/documentation-escape-codes.html) escape (and
-iTerm2's older OSC 777 spelling) to the tty, so **your** terminal raises the
-notification: the command line and whether it succeeded. `hi_notify` exits
-with the command's own status, so it drops into a pipeline or `&&` chain
-unchanged. It is opt-in per invocation, never a prompt hook — a notification
-after every command is noise — as `hi_copy` is opt-in per yank. Both escapes
-go out because `$TERM_PROGRAM` does not cross an ssh connection, so an
-emulator implementing both shows the notification twice. Multiplexer support
-follows the OSC 52 rule. `common/notify.sh` is the whole implementation.
+`_HI_DISABLE_NOTIFY` turns off `hi_notify <command>`, which runs the command
+on the target then writes an
+[OSC 9](https://iterm2.com/documentation-escape-codes.html)/OSC 777 escape to
+the tty so **your** terminal raises the notification, and exits with the
+command's own status so it drops into a pipeline unchanged. It is opt-in per
+invocation, never a prompt hook, following the same multiplexer rule as OSC 52.
 
 `_HI_DISABLE_MARKS` turns off the two escapes every hi prompt emits for
 terminals that read them — kitty, WezTerm, ghostty, foot, iTerm2, Konsole:
 [OSC 133](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md)
-marks where each prompt, command and output begins (jump between prompts,
-select one command's output, see a failed command's status), and OSC 7 reports
-the working directory (a new tab or split opens where you were, on that host).
-Nothing is installed on the target; a terminal that does not know an OSC drops
-it, and fish 4 emits both itself, so there hi stays out of the way. Only the
-styled shells emit them — the bash-less `sh` prompt does not.
+marks where each prompt, command and output begins, and OSC 7 reports the
+working directory. A terminal that does not know an OSC drops it; only the
+styled shells emit them, not the bash-less `sh` prompt.
 
 ### Shells you drop into inside a session
 
@@ -527,7 +492,7 @@ pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash; a pin always beats the hash.
 
 The vocabulary is those twelve names, and stays so - a pin, the hash and
-`hi --color-preview` never see anything else. What each name _renders as_
+`hi --preview-colors` never see anything else. What each name _renders as_
 is `_HI_COLOR_SCHEME`'s: unset, the terminal's own sixteen colors; set to
 `catppuccin`, `monokai`, `onedark` or `vscode`, that scheme's hex for each
 name, emitted as one escape that carries the 16-color code first and the
@@ -540,19 +505,19 @@ Inside tmux or on a terminal that renders 24-bit color without announcing it,
 `export _HI_TRUECOLOR=1` in `settings.sh` forces it; `0` refuses it. zsh
 takes the hex from 5.7 on and keeps the plain name below that; macOS
 Terminal.app never sets `COLORTERM` and so keeps its own sixteen. Judge a
-scheme with `hi --color-preview` and `hi --packages-preview`, which each say
+scheme with `hi --preview-colors` and `hi --preview-packages`, which each say
 which scheme they are rendering; `hi --configure`'s Colors section shows all
 four side by side. `settings.sh` ships to every target, so a scheme follows
 you.
 
-`hi --color-preview` shows every host in your ssh config and every user it
+`hi --preview-colors` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:
 
-![hi --color-preview: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
+![hi --preview-colors: every ssh host and user in the colors they resolve to, then a prod host in red and a dev host in green](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
 ### Using the hash in your own prompt
 
-`_HI_DISABLE_PROMPT=1` [(Features)](#features) turns off hi's own
+`_HI_DISABLE_PROMPT=1` [(Every setting)](#every-setting) turns off hi's own
 `user@host` prompt; the per-host color hashing is still resolved, into
 variables for your own `bash.sh` or `zsh.zsh` (sourced at the end of hi's,
 [above](#shells-you-drop-into-inside-a-session)) to use:
@@ -567,55 +532,3 @@ variables for your own `bash.sh` or `zsh.zsh` (sourced at the end of hi's,
   in your own `fish_prompt`.
 
 All four update the moment the color pins above do.
-
-## Everything else
-
-| variable                     | default                         | what it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_HI_IP_HIDE`                | `172.*`                         | space-separated globs over the dotted quad; the header's `ip` cell drops every address one matches, and drops itself when nothing is left. `none` hides nothing. See [Header details](#header-details)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `_HI_MAX_WIDTH`              | `80`                            | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `_HI_HOME`                   | derived                         | the **parent** of your `say-hi` directory - everything resolves `$_HI_HOME/say-hi`. Each entry point derives it from its own path when unset; set it to override                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `_HI_TARGETS_TTL`            | `5`                             | seconds `hi <TAB>` reuses its target list for; `0` disables the cache. For ten minutes past it an expired list still answers the TAB at once while the refresh runs behind it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `_HI_RECENT`                 | `1`                             | `1` appends every target a session ended cleanly on to a recent file, and `hi <TAB>` offers those first - most used and most recent ahead (zoxide's frecency). Client-side only: a target never sees the file. `0` neither records nor ranks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `_HI_RECENT_FILE`            | `$XDG_STATE_HOME/say-hi/recent` | that file (`~/.local/state/say-hi/recent` by default), one `<epoch>\t<target>` line per session, trimmed to the newest 300 past 500                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `_HI_PROBE_TIMEOUT`          | `2`                             | seconds any one backend CLI gets, during completion and in the header (a TERM, with a KILL 200ms behind it)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `_HI_CONTAINER_CLIS`         | `docker podman nerdctl finch`   | the docker-compatible CLIs, space-separated, that `hi <TAB>` lists running containers through and `hi <target>` resolves them with, each its own kind and `--via <cli>` target; a name that is not on `$PATH` costs nothing, and two that front one daemon list each container once. Add a drop-in or drop one you never use; names are plain identifiers, see [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `_HI_CTL_PERSIST`            | `60`                            | seconds an ssh connection stays authenticated after you disconnect, so a second `hi <target>` within that window reuses the socket and skips the key exchange; `0` closes it right away, same as before this existed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `_HI_PAYLOAD_CACHE`          | `1`                             | caches the gzipped payload and overlay archives between connects, rebuilding only when a source file's mtime moves past the cache's own or a toggle changes what would ship; `0` rebuilds fresh on every connect, as before this existed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `_HI_SSH_CONFIG`             | `~/.ssh/config`                 | read-only: where ssh hosts and their `# Tags:` comments are read from. Derived from `$HOME` by `common/paths.sh` every time it is sourced, so exporting your own value does not survive                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_COLOR_SCHEME`           | unset                           | which truecolor scheme the twelve palette names render as everywhere hi paints - `catppuccin` (Mocha), `monokai`, `onedark`, `vscode` (Dark+) - on a terminal that reports 24-bit color, and nothing at all on one that does not. See [Colors](#colors)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_TRUECOLOR`              | by terminal                     | `1`/`0`: does the client's terminal render 24-bit color. Read off `COLORTERM` and shipped to the session beside `_HI_ASCII`, since ssh never forwards `COLORTERM`; set it yourself to force (`1`, for tmux) or refuse (`0`) a scheme's hex                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `_HI_ASCII`                  | by locale                       | `1` forces ASCII stand-ins for the banner/prompt/packages glyphs (`^ ok x` for `↑ ✓ ✗`), `0` forces the glyphs; unset asks the locale, so a `LANG=C` target degrades cleanly instead of printing mojibake                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `NO_COLOR`                   | unset                           | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, and hi ships your client-side choice to the target next to `_HI_ASCII`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `_HI_PROMPT`                 | unset                           | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, keeping hi's header and aliases. Never auto-detected; a target without starship silently keeps hi's own. hi does not ship starship - a multi-MB binary against a payload of some 48KB                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `_HI_SHELL_PREFERENCE`       | `login` + `$_HI_SHELL_TREE`     | which shell a session runs in: an ordered list of `bash`/`zsh`/`fish`, plus `login` for "your own login shell". The default tail is `$_HI_SHELL_TREE` filtered to the shells hi styles (`fish zsh bash`) - the same list `hi.sh`'s no-bash `$_HI_SHELL_LADDER` is cut from. First one installed on the target wins; `bash` is the floor, since `load.sh` needs it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `_HI_PROMPT_END`             | per shell                       | the character each prompt ends with, when you want the same one everywhere; the three below win over it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_PROMPT_END_BASH`        | `\$`                            | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `_HI_PROMPT_END_ZSH`         | `>`                             | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `_HI_PROMPT_END_FISH`        | `\|`                            | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `_HI_TERM_FALLBACK`          | `1`                             | on ssh targets missing a terminfo entry for your `TERM` (ghostty's `xterm-ghostty`, typically), swap it for `xterm-256color` before the session starts; `0` keeps the original                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `_HI_PACKAGES_MIN_PRIORITY`  | `2`                             | the lowest `settings/packages` priority the header's check prints, and the main dial on how long that check is. The file ranks every entry 0-3, and a line's leading mode character decides which states speak at all: `-` only when the line is missing (core tools, where present is not news), `+` only when something is installed (platform facts, where absent is noise), no flag both ways. `2` (the default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just the favorites and core alerts, and anything above `3` mutes the check entirely. An older overlay file still renders: priorities above 3 clamp to 3, and its unflagged lines speak both ways until a mode character is added. `hi --configure` asks for this with a live preview; `hi --packages-preview` marks the ranks it silences `below floor` |
-| `_HI_PACKAGES_PALETTE`       | `cool`                          | which of `common/header.sh`'s named color tables the check paints an installed and a missing package with, per priority - `cool` (cyan through green for installed, blue through red for missing), `warm` (yellow through red), or `mono` (blue through cyan for installed, yellow through red for missing). Each ramp is meant to read monotonic 0-3 in both directions and legibly on light and dark terminals; judge a candidate with `hi --packages-preview`, which names the active palette above its legend. Any other value falls back to `cool`. `hi --configure` asks for this with the check's current render shown as a preview                                                                                                                                                                                                                                   |
-| `_HI_ENABLE_FISH_ALIAS_ABBR` | `0`                             | fish only: `1` gives every alias hi defines a real `abbr`, so it expands to the full command on the line before you run it - it rewrites what your command line and history say, hence opt-in (`hi_abbr_aliases` does the work and is callable by hand). Not in the `_HI_DISABLE_*` table since it is fish-specific, not one of `core.sh`'s shared toggles                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `_HI_NO_LEAD_SPACE`          | `0`                             | `1` drops the single hardcoded leading space each of these puts before its own content: the prompt's `user@host` (bash/zsh/fish), the git segment (`common/git_prompt.sh`), the banner line, and the first cell of every header row. The `\|`-separated space between later cells on the same header row is untouched - that separator is structural, not this                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `_HI_TTY`                    | `[ -t 0 ]`                      | whether the container backends hand the session a tty (`docker exec -it` vs `-i`). Answered by probing stdin; set it to `1` or `0` to override, which is what a wrapper that knows better than the probe does. `docker exec -it` refuses outright when stdin is a pipe, so `hi <container> <cmd> \| ...` depends on this being right                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `_HI_SESSION_RC`             | `mktemp -d`                     | set by hi inside a session: the directory holding the per-shell rc files a nested `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends. `$ZDOTDIR` and `$ENV` are exported alongside it, see [HI.46](GLOSSARY.md#hi46-session-rc-directory)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-
-`_HI_TARGETS_TTL` and `_HI_PROBE_TIMEOUT` exist because completion runs on
-**every TAB** and the header runs **before you get a shell**: a docker daemon
-that is down or a `kubectl` pointed at a dead cluster would otherwise hang
-there with no upper bound. `_HI_CONTAINER_CLIS` is the roster those probes
-walk for containers: docker's `ps`/`exec`/`inspect` grammar is what podman,
-nerdctl and finch all speak, so one arm serves the lot and the setting says
-which names to try rather than the tree hardcoding two.
-
-`_HI_CTL_PERSIST` and `_HI_PAYLOAD_CACHE` exist because a fresh `hi <target>`
-otherwise pays a full key exchange and rebuilds the same payload every single
-time, even against a target you connected to seconds ago. Both cache into a
-private per-user directory (`$XDG_RUNTIME_DIR`, or a `mkdir -m 700` one of
-hi's own under `${TMPDIR:-/tmp}`, ownership-checked the way `hi <TAB>`'s own
-completion cache already is) and both fail open to today's behaviour - a
-fresh socket, a fresh build - when that directory is unavailable or not
-yours. The connect line's `connect: Xs` figure ([Header details](#header-details))
-is the two together: a warm socket and a warm cache both show up as a smaller
-number there, not as a setting you have to check.

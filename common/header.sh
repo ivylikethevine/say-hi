@@ -1013,7 +1013,7 @@ _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
 # name it. Each ramp is meant to read monotonic 0->3 in both directions - a
 # missing favorite the loudest thing on screen, installed trivia the
 # quietest - and legible on light and dark terminals alike; judge a
-# candidate with `hi --packages-preview`. "cool" is the shipped default:
+# candidate with `hi --preview-packages`. "cool" is the shipped default:
 # _HI_YES/_HI_NO as assigned just above, unchanged from a fresh source so
 # the common case (no override, no palette function call yet) costs nothing
 # extra to read.
