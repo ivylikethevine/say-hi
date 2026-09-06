@@ -395,11 +395,11 @@ function _hi_alias_probe_bare() {
     ". $_HI_ALIASES; alias $name >/dev/null 2>&1 && echo yes || echo no" 2>/dev/null
 }
 
-# The escape-emitter suite family. tests/common/osc52_test.sh and
-# tests/common/notify_test.sh test sibling features with the same shape - an
-# emitter whose output is exact bytes, an alias over it, a toggle mirrored
-# into config.fish - so what both suites need lives here once (HI.34) rather
-# than copied between them.
+# The escape-emitter family. tests/common/passthrough_test.sh's two halves,
+# copy and notify, test sibling features with the same shape - an emitter
+# whose output is exact bytes, an alias over it, a toggle mirrored into
+# config.fish - and tests/common/targets_test.sh runs a `#!/bin/sh` child the
+# same way, so what they share lives here once (HI.34).
 _HI_ESC=$'\033'
 _HI_BEL=$'\a'
 

@@ -62,34 +62,24 @@ function test_payload_ships_everything_by_default() {
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/common/osc52.sh*) ;; *)
-    _hi_cecho " | a default client did not ship common/osc52.sh" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/common/notify.sh*) ;; *)
-    _hi_cecho " | a default client did not ship common/notify.sh" "$RED"
+  case "$listing" in *say-hi/common/passthrough.sh*) ;; *)
+    _hi_cecho " | a default client did not ship common/passthrough.sh" "$RED"
     return 1
     ;;
   esac
   return 0
 }
 
-# The two emitters go off the wire together: a client that never wants
-# hi_copy or hi_notify pays nothing for either. Same shape as the editors case
-# above - the files go, the tree stays.
-function test_payload_trims_the_emitters() {
+# The emitter goes off the wire: a client that never wants hi_copy or
+# hi_notify pays nothing for either. Same shape as the editors case above -
+# the file goes, the tree stays.
+function test_payload_trims_the_emitter() {
   local dir="$_HI_WORKDIR/nopassthrough" listing
   mkdir -p "$dir"
   printf "#!/bin/sh\nexport _HI_DISABLE_PASSTHROUGH='1'\n" >"$dir/settings.sh"
   listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/common/notify.sh*)
-    _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 still shipped common/notify.sh" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/common/osc52.sh*)
-    _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 still shipped common/osc52.sh" "$RED"
+  case "$listing" in *say-hi/common/passthrough.sh*)
+    _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 still shipped common/passthrough.sh" "$RED"
     return 1
     ;;
   esac
@@ -525,7 +515,7 @@ function run_hi_payload_tests() {
   _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
-  _hi_check "_HI_DISABLE_PASSTHROUGH trims osc52.sh and notify.sh" test_payload_trims_the_emitters
+  _hi_check "_HI_DISABLE_PASSTHROUGH trims passthrough.sh" test_payload_trims_the_emitter
   _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"

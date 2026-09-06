@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Everything a suite prints: the aligned status line, the begin/end banners, the
-# skip and failure ledgers the runner reads, and the host report.
+# The counted case and everything a suite prints: _hi_case tallies, _hi_assert
+# reports, _hi_check does both; the aligned status line they print through,
+# the begin/end banners, the skip and failure ledgers the runner reads, and
+# the host report.
 #
 # Part of the tests/test_lib.sh harness; sourced by it, never on its own.
 # GLOSSARY: HI.30
@@ -26,6 +28,37 @@ function _hi_align() {
   # printf -v, not $( ): this runs once per verdict line, hundreds a run
   printf -v line '%s%*s' "$left" "$pad" "$right"
   _hi_cecho "$line" "${3:-}"
+}
+
+# Runs "$@" as one sub-case of a multi-case test file (one shell, one
+# container shape, one scenario, ...), bumping the caller's _HI_TOTAL/
+# _HI_FAILED counters accordingly. Set both to 0 via _hi_suite_begin before
+# the first case runs, so _hi_suite_end can report "$_HI_FAILED/$_HI_TOTAL
+# cases failed" instead of a bare pass/fail.
+function _hi_case() {
+  _HI_TOTAL=$((_HI_TOTAL + 1))
+  "$@" || _HI_FAILED=$((_HI_FAILED + 1))
+}
+
+# Runs "$@" (a predicate function or command) and reports it under $1 as a
+# human-readable label. The unit suites always want this wrapped in _hi_case,
+# which is what _hi_check below is; the e2e suites bring their own case
+# runners, which report their own timings, and so use _hi_case directly.
+function _hi_assert() {
+  local label="$1"
+  shift
+  if "$@"; then
+    _hi_align " | $label" "OK" "$GREEN"
+  else
+    _hi_align " | $label" "FAILED" "$RED"
+    _hi_note_failure "$label"
+    return 1
+  fi
+}
+
+# _hi_check <label> <predicate...> - one counted, labelled assertion.
+function _hi_check() {
+  _hi_case _hi_assert "$@"
 }
 
 # the third rule weight, below core.sh's _hi_h1/_hi_h2 - suites only

@@ -70,7 +70,7 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   the package check is 279 `command -v` lookups per render with no miss
   caching: one `full_check` took 30–37s there against 30ms on ext4, which
   is past the `configure` suite's 30s pty cases and, over the `header` and
-  `packages_preview` suites too, past the job's 900s kill.
+  `preview` suites too, past the job's 900s kill.
 
 Five groups (`--group <name>`; `--list` prints the membership):
 
@@ -432,7 +432,7 @@ ordered parallel mode and a skip-as-failure flag without a second package.
 
 ## The lint gate
 
-`--group lint` is four suites, seventeen checks between them, and CI runs all
+`--group lint` is four suites, eighteen checks between them, and CI runs all
 of them. Each suite is its own process (`tests/test_runner.sh shellcheck`,
 `dialects`, `tools`, `drift`) with its own file/failure/skip tally in the
 summary table, so a failure in one never hides what the others found.
@@ -487,7 +487,7 @@ skipping yellow when its tool isn't installed locally (CI has all four):
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
 - **9. typos** over the whole tree, allowlisted by `.typos.toml`.
 
-**`drift`** (`tests/lint/drift_test.sh`) — eight repo-consistency sweeps, each
+**`drift`** (`tests/lint/drift_test.sh`) — nine repo-consistency sweeps, each
 a grep or small parser checking that something written down elsewhere still
 agrees with the tree:
 
@@ -507,12 +507,15 @@ agrees with the tree:
 - **14. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span - Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **15. tests/dockerfiles/**: every image definition has a caller and vice
+- **15. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+  `common/flags` row, and there are at most eight examples - the upstream
+  cap.
+- **16. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **16. Image tags**: every plain image tag named in shell or YAML is one of
+- **17. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **17. Image digests**: two Dockerfiles pinning the same `image:tag` must
-  agree on its digest - check 16 strips the digest before comparing, so it
+- **18. Image digests**: two Dockerfiles pinning the same `image:tag` must
+  agree on its digest - check 17 strips the digest before comparing, so it
   can't see one tag pinned to two; this one reads the digests back in.
 
 ## Relaying

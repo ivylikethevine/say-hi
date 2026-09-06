@@ -152,7 +152,7 @@ jobs:
           # walked ~10,000 /mnt/c stats and took 30-37s here against 30ms
           # on ext4 - past the configure suite's 30s pty cases, and the
           # whole shard past the 900s kill below. The check-heavy suites
-          # (configure, header, packages_preview) all sit on shard 2, which
+          # (configure, header, preview) all sit on shard 2, which
           # is where it showed. Nothing below needs a Windows binary.
           PATH="$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v '^/mnt/' | paste -sd: -)"
           export PATH

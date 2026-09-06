@@ -1424,7 +1424,7 @@ function test_hi_cell_hue_reads_a_truecolor_escape() {
 function test_header_hues_never_repeat_under_a_scheme() {
   local ok=0
   (
-    # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
+    # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
     export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1
     _hi_assign_palette
     _hi_packages_palette
@@ -1900,27 +1900,31 @@ function test_packages_palette_unknown_falls_back_to_cool() {
 
 # every escape in every named palette has to name a real _HI_COLOR_NAMES
 # entry, or a candidate ramp would paint the header with something
-# packages_preview.sh's _hi_color_name_of could never look up. Both sides go
-# through `printf '%b'` before comparing, packages_preview.sh's own
+# preview.sh's _hi_color_name_of could never look up. Both sides go
+# through `printf '%b'` before comparing, preview.sh's own
 # _hi_color_name_of shape: core.sh's palette variables hold the literal two
 # characters `\e`, while _hi_color_escape's format string interprets `\e` as
 # the real ESC byte - unexpanded, every comparison here would silently miss.
 function test_packages_palette_escapes_are_all_named_colors() {
-  local name escape found candidate want scheme
+  local name escape found candidate want have scheme
   # under every scheme too (HI.50): the ramps are captured from the palette
-  # variables, so they are rebuilt per scheme the way configure.sh does
-  for scheme in "" catppuccin monokai onedark vscode; do
+  # variables, so they are rebuilt per scheme the way configure.sh does. A
+  # 24-word list paints the ramps from the second bank, whose 24-bit tail no
+  # palette variable carries: the name is the 16-color half, so that is what
+  # both sides are cut to (_hi_sgr_base), preview.sh's own shape.
+  for scheme in "" catppuccin monokai onedark vscode "$_HI_TEST_L24"; do
     for name in $(_hi_palette_names); do
       (
-        # shellcheck disable=SC2031 # per-scheme, in its own subshell on purpose
+        # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
         export _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1
         _hi_assign_palette
         _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
         for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-          want="$(printf '%b' "$escape")"
+          _hi_sgr_base want "$(printf '%b' "$escape")"
           found=""
           for candidate in "${_HI_COLOR_NAMES[@]}"; do
-            [ "$(printf '%b' "$(_hi_color_escape "$candidate")")" = "$want" ] && found=1 && break
+            _hi_sgr_base have "$(printf '%b' "$(_hi_color_escape "$candidate")")"
+            [ "$have" = "$want" ] && found=1 && break
           done
           [ -n "$found" ] || exit 1
         done
@@ -1928,6 +1932,70 @@ function test_packages_palette_escapes_are_all_named_colors() {
     done
   done
   [ "$(_hi_palette_names | wc -l)" -ge 3 ]
+}
+
+# A 24-word scheme: the check paints from the second bank, every other cell
+# from the first. Catppuccin's twelve then vscode's twelve, so bank 2's cyan
+# (slot 17, 11a8cd) is what cool's priority-0 installed color becomes.
+_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+
+function test_packages_palette_uses_the_second_bank_under_24_words() {
+  local ok=0
+  (
+    # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
+    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    local want
+    _hi_assign_palette
+    unset _HI_PACKAGES_PALETTE
+    _hi_packages_palette
+    _hi_color_escape_at want 17
+    [ "${_HI_YES[0]}" = "$want" ] && [ "${_HI_YES[0]}" != "$CYAN" ] &&
+      [ "$want" = '\e[0;36;38;2;17;168;205m' ] &&
+      [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ]
+  ) && ok=1
+  [ "$ok" = 1 ]
+}
+
+# ...and stays the first bank - the palette variables themselves - under a
+# 12-word list, a name, or nothing
+function test_packages_palette_keeps_the_first_bank_under_12_words() {
+  local ok=0
+  (
+    # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
+    export _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1
+    _hi_assign_palette
+    unset _HI_PACKAGES_PALETTE
+    _hi_packages_palette
+    [ "${_HI_YES[0]}" = "$CYAN" ] && [ "${_HI_NO[3]}" = "$BRRED" ] && [[ "$CYAN" == *";38;2;"* ]]
+  ) && ok=1
+  [ "$ok" = 1 ]
+}
+
+# NO_COLOR empties every palette variable, and the second-bank swap has to
+# leave them empty rather than paint over the user's no
+function test_packages_palette_second_bank_is_inert_under_no_color() {
+  local ok=0
+  (
+    # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
+    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 NO_COLOR=1
+    _hi_assign_palette
+    _hi_packages_palette
+    [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ]
+  ) && ok=1
+  [ "$ok" = 1 ]
+}
+
+function test_header_hues_never_repeat_under_a_24_word_scheme() {
+  local ok=0
+  (
+    # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
+    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    _hi_assign_palette
+    _hi_packages_palette
+    test_header_hues_never_repeat_in_the_default_order
+  ) && ok=1
+  [ "$ok" = 1 ]
 }
 
 function run_header_tests() {
@@ -2069,6 +2137,7 @@ function run_header_tests() {
   _hi_check "The default order never needs its own alternate" test_header_default_order_needs_no_alternate
   _hi_check "No two adjacent cells share a hue in the default order" test_header_hues_never_repeat_in_the_default_order
   _hi_check "...nor under a color scheme" test_header_hues_never_repeat_under_a_scheme
+  _hi_check "...nor under a 24-word scheme" test_header_hues_never_repeat_under_a_24_word_scheme
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
   _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
@@ -2115,6 +2184,9 @@ function run_header_tests() {
   _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
   _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
   _hi_check "Every escape names a real color" test_packages_palette_escapes_are_all_named_colors
+  _hi_check "The check paints from the second bank under 24 words" test_packages_palette_uses_the_second_bank_under_24_words
+  _hi_check "...and from the first under 12" test_packages_palette_keeps_the_first_bank_under_12_words
+  _hi_check "...and stays empty under NO_COLOR" test_packages_palette_second_bank_is_inert_under_no_color
 
   _hi_suite_end "header.sh"
 }

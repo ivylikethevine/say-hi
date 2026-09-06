@@ -33,7 +33,7 @@
 # roster file beside it would be swallowed the same way - see dist/'s comment
 # at the bottom of .gitignore for the same trap.
 shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck
-shfmt|3.14.0|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh
+shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh
 checkbashisms|2.26.11|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:debian%2Fdevscripts
 # actionlint points at kjanat's fork, not upstream rhysd/actionlint: upstream
 # is stuck on 1.7.12 and rejects zizmor's `$/...` self-repository syntax

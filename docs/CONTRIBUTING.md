@@ -185,10 +185,11 @@ completion ordering, `--doctor`'s report shape, and anything under `tests/` or
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag |
 | a release channel or the release flow | `docs/PACKAGING.md`                          |
 
-Two rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
-entry fails, and so does a toggle in `common/core.sh` with no row in
-[SETTINGS.md](SETTINGS.md)'s _Every setting_ table. The rest are on your
-honour and on review.
+Three rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
+entry fails, so does a toggle in `common/core.sh` with no row in
+[SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and so does a
+`docs/tldr.md` example whose flag is not a `common/flags` row (or a ninth
+example). The rest are on your honour and on review.
 
 Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
 `npx prettier --write '**/*.md'` by hand) and linted with markdownlint

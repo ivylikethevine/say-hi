@@ -14,4 +14,6 @@ walkthrough.
 | [Code of conduct](CODE_OF_CONDUCT.md)           | The bar for behaviour in issues, pull requests and discussions, and where to report a breach.                                     |
 | [Packaging](PACKAGING.md)                       | The publishing runbook, the reproducibility contract, verifying a download, regenerating the demo GIFs.                           |
 | [Contributing](CONTRIBUTING.md)                 | The gate to run before a pull request, what 1.x will not break, and which doc changes with what.                                  |
-| [OpenSSF improvements](OPENSSF-IMPROVEMENTS.md) | The Best Practices badge questionnaire answer sheet, and what a single maintainer can't close alone. |
+| [OpenSSF improvements](OPENSSF-IMPROVEMENTS.md) | The Best Practices badge questionnaire answer sheet, and what a single maintainer can't close alone.                              |
+| [Man page](hi.1)                                | `man hi`: every flag, setting and exit status; `hi --help` is its short form.                                                     |
+| [tldr page](tldr.md)                            | The eight-example draft for tldr-pages, kept in step with `common/flags` by the lint gate.                                        |

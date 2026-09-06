@@ -194,6 +194,17 @@ function test_color_scheme_keeps_an_existing_override() {
   [[ "$out" == *"export _HI_COLOR_SCHEME=onedark"* ]]
 }
 
+# a hand-written 12/24-word list is kept as it was, quoted (it holds spaces),
+# and the preview grows a `custom` row for it - two under 24 words
+function test_color_scheme_keeps_a_hand_written_list() {
+  local out
+  out="$(_hi_section_lines scheme_list config_color_scheme "export _HI_COLOR_SCHEME='$_HI_TEST_L24'")"
+  [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_L24'"* ]] || return 1
+  out="$(_HI_SETTINGS="$_HI_WORKDIR/section_scheme_list/settings.sh" _hi_color_scheme_preview)"
+  [[ "$out" == *custom* && "$out" == *packages* ]] || return 1
+  [ "$(printf '%s\n' "$out" | grep -c ';38;2;')" -eq 6 ]
+}
+
 # no scheme is the default, so nothing is ever written for it
 function test_color_scheme_does_not_write_the_default() {
   local out
@@ -291,6 +302,10 @@ function test_header_presets_hold_the_vocabulary() {
 # The input validators guarding what ask_value will write into settings.sh -
 # the single-quote one is what keeps a typed value from ending the sh word the
 # written `export NAME='value'` line wraps it in.
+# a scheme of the user's own: 12 hex words, or 24 with a second bank
+_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+
 function test_validators_hold_their_grammars() {
   _hi_is_number 42 || return 1
   ! _hi_is_number 4.2 || return 1
@@ -318,6 +333,11 @@ function test_validators_hold_their_grammars() {
   _hi_is_color_scheme vscode || return 1
   ! _hi_is_color_scheme solarized || return 1
   ! _hi_is_color_scheme "" || return 1
+  _hi_is_color_scheme "$_HI_TEST_L12" || return 1
+  _hi_is_color_scheme "$_HI_TEST_L24" || return 1
+  ! _hi_is_color_scheme "$_HI_TEST_L12 cd3131" || return 1
+  ! _hi_is_color_scheme "zzzzzz ${_HI_TEST_L12#* }" || return 1
+  ! _hi_is_color_scheme custom || return 1
   _hi_is_ip_hide '172.*' || return 1
   _hi_is_ip_hide '10.* 192.168.?.*' || return 1
   ! _hi_is_ip_hide "" || return 1
@@ -563,6 +583,14 @@ function test_packages_floor_ends_on_eof() {
 function test_packages_floor_takes_a_number_after_a_rejection() {
   _hi_floor_pty floor_recover 'zz\n3\n3\n' || return 1
   [ "$(_hi_floor_pty_lines floor_recover)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
+}
+
+# 4 is the last answer (the check off); 5 is a number and still not one -
+# refused like junk, and the next real answer lands
+function test_packages_floor_refuses_a_number_past_four() {
+  _hi_floor_pty floor_five '5\n3\n3\n' || return 1
+  tr '\r' '\n' <"$_HI_WORKDIR/floor_five.floor.out" | grep -q 'not 0-4' || return 1
+  [ "$(_hi_floor_pty_lines floor_five)" = "export _HI_PACKAGES_MIN_PRIORITY=3" ]
 }
 
 # same mode-preservation contract as config_shell, and the same reason its own
@@ -1134,10 +1162,10 @@ function test_editors_preview_names_both_overrides() {
   [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* ]]
 }
 
-function test_osc52_preview_names_the_escape_and_the_helper() {
+function test_passthrough_preview_names_the_escape_and_the_helper() {
   local out
-  out="$(_hi_osc52_preview)"
-  [[ "$out" == *']52;c;'* && "$out" == *"$_HI_OSC52"* ]]
+  out="$(_hi_passthrough_preview)"
+  [[ "$out" == *']52;c;'* && "$out" == *"$_HI_PASSTHROUGH copy"* && "$out" == *"$_HI_PASSTHROUGH notify"* ]]
 }
 
 function test_bat_preview_names_the_bat_it_found() {
@@ -1288,7 +1316,7 @@ function test_ask_setting_takes_a_no() {
 function test_ask_setting_takes_a_yes_over_an_off_state() {
   _hi_cfg_pty ask_yes 'y\n' 'export _HI_DISABLE_FOO=1' \
     ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_yes/config/settings.sh" 1 \
-    _hi_osc52_preview || return 1
+    _hi_passthrough_preview || return 1
   [ "$(_hi_cfg_rc ask_yes)" = 0 ] &&
     _hi_cfg_has ask_yes "(currently off) [y/N]" &&
     _hi_cfg_has ask_yes "hi_copy"
@@ -1324,6 +1352,13 @@ function test_color_scheme_asked_interactively_takes_a_word() {
   _hi_cfg_pty scheme_typed 'monokai\n' '' config_color_scheme || return 1
   _hi_cfg_has scheme_typed "catppuccin" &&
     [ "$(_hi_cfg_lines scheme_typed)" = "export _HI_COLOR_SCHEME=monokai" ]
+}
+
+# a hand-written list shows as `custom`, and Enter keeps the list
+function test_color_scheme_shows_a_list_as_custom_and_keeps_it() {
+  _hi_cfg_pty scheme_custom '\n' "export _HI_COLOR_SCHEME='$_HI_TEST_L12'" config_color_scheme || return 1
+  _hi_cfg_has scheme_custom "[custom]" &&
+    [ "$(_hi_cfg_lines scheme_custom)" = "export _HI_COLOR_SCHEME='$_HI_TEST_L12'" ]
 }
 
 # typing the default clears an override rather than restating it
@@ -1741,6 +1776,7 @@ function run_configure_tests() {
   _hi_check "Hidden addresses: an existing override is kept" test_ip_hide_keeps_an_existing_override
   _hi_check "Scheme: an existing override is kept" test_color_scheme_keeps_an_existing_override
   _hi_check "Scheme: the default writes nothing" test_color_scheme_does_not_write_the_default
+  _hi_check "Scheme: a hand-written list is kept, and previewed" test_color_scheme_keeps_a_hand_written_list
   _hi_check "Scheme preview lists every scheme" test_color_scheme_preview_lists_every_scheme
   _hi_check "Hidden addresses: the default writes nothing" test_ip_hide_does_not_write_the_default
   _hi_check "Order: an existing override is kept" test_header_order_keeps_an_existing_override
@@ -1850,7 +1886,7 @@ function run_configure_tests() {
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
   _hi_check "Editors preview names both overrides" test_editors_preview_names_both_overrides
-  _hi_check "OSC 52 preview names the escape and the helper" test_osc52_preview_names_the_escape_and_the_helper
+  _hi_check "Passthrough preview names the escape and both helpers" test_passthrough_preview_names_the_escape_and_the_helper
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one
@@ -1868,6 +1904,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: the interactive arms, the header editor, the Features menu and the hub (pty)"
   _hi_par_begin "pty cases"
   _hi_par_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
+  _hi_par_check_capable pty "Packages floor: 5 is refused like junk" test_packages_floor_refuses_a_number_past_four
   _hi_par_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
   _hi_par_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
   _hi_par_check_capable pty "ask_setting takes a no" test_ask_setting_takes_a_no
@@ -1879,6 +1916,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Palette: previewed once, then a typed word" test_palette_asked_interactively_takes_a_word
   _hi_par_check_capable pty "Scheme: previewed, then a typed word" test_color_scheme_asked_interactively_takes_a_word
   _hi_par_check_capable pty "Scheme: the default clears an override" test_color_scheme_default_answer_clears_it
+  _hi_par_check_capable pty "Scheme: a list shows as custom, and Enter keeps it" test_color_scheme_shows_a_list_as_custom_and_keeps_it
   _hi_par_check_capable pty "Hub: 6 opens Colors" test_hub_opens_colors
   _hi_par_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship

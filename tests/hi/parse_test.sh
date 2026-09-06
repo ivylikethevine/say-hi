@@ -996,8 +996,8 @@ function _hi_subcmd_stubs() {
   local home stub dir
   home="$(_hi_subcmd_home subcmd-stubs)"
   mkdir -p "$home/say-hi/scripts" "$home/say-hi/tests"
-  for stub in install:scripts/install.sh color_preview:scripts/color_preview.sh \
-    doctor:scripts/doctor.sh packages_preview:scripts/packages_preview.sh; do
+  for stub in install:scripts/install.sh preview:scripts/preview.sh \
+    doctor:scripts/doctor.sh; do
     dir="$home/say-hi/${stub#*:}"
     printf '#!/bin/sh\nprintf %s\nfor a in "$@"; do printf " %%s" "$a"; done\nprintf "\\n"\n' \
       "'STUB ${stub%%:*}'" >"$dir"
@@ -1174,8 +1174,8 @@ function test_local_subcommands_exec_the_right_script() {
     '--install|STUB install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
-    '--preview colors|STUB color_preview' \
-    '--preview packages|STUB packages_preview' \
+    '--preview colors|STUB preview colors' \
+    '--preview packages|STUB preview packages' \
     '--doctor|STUB doctor'; do
     flag="${spec%%|*}"
     want="${spec#*|}"
@@ -1222,7 +1222,7 @@ function test_local_subcommands_forward_extra_arguments() {
   out="$(_hi_subcmd_run "$home" --doctor myhost)" || return 1
   [ "$out" = "STUB doctor myhost" ] || return 1
   out="$(_hi_subcmd_run "$home" --preview colors --help)" || return 1
-  [ "$out" = "STUB color_preview --help" ]
+  [ "$out" = "STUB preview colors --help" ]
 }
 
 # the other half of the move: paths.sh must not grow them back. hi_info is the

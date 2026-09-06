@@ -721,7 +721,7 @@ function banner() {
   printf '%b\n' "$lead$changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
-# tmux swallows the DCS passthrough osc52.sh and notify.sh wrap their escapes
+# tmux swallows the DCS passthrough common/passthrough.sh wraps its escapes
 # in unless `allow-passthrough` is on (off by default since tmux 3.3), and
 # nothing fails visibly - that is the "hi_copy does nothing" report, answered
 # here before it is filed. Three conditions: a tmux in the way ($TMUX, not
@@ -927,7 +927,7 @@ function retired_check() {
 # priority to the next never reverses direction. A ramp that alternates
 # normal/bright/normal/bright reads a lower priority as louder than the one
 # above it - what "monotonic in both directions" below is guarding against.
-# The numbered lines below are scraped verbatim by scripts/packages_preview.sh
+# The numbered lines below are scraped verbatim by scripts/preview.sh
 # (the run directly above _HI_YES, parentheticals dropped): keep the
 # "# <n> <meaning> (<examples>)" shape and add nothing between them and the
 # table.
@@ -939,11 +939,11 @@ _HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
 _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
 
 # $_HI_PACKAGES_PALETTE picks one of the named ramps below over the two
-# tables just assigned - packages_preview.sh's scrape (above) stops at the
+# tables just assigned - preview.sh's scrape (above) stops at the
 # first line starting "_HI_YES=", so that assignment has to stay exactly
 # there and cannot move into the case. Every value is one of
 # _HI_COLOR_NAMES (core.sh), the vocabulary settings/colors and fish's
-# set_color both use, so packages_preview.sh's _hi_color_name_of can always
+# set_color both use, so preview.sh's _hi_color_name_of can always
 # name it. Each ramp is meant to read monotonic 0->3 in both directions - a
 # missing favorite the loudest thing on screen, installed trivia the
 # quietest - and legible on light and dark terminals alike; judge a
@@ -966,6 +966,38 @@ function _hi_packages_palette() {
     _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
     ;;
   esac
+  # A 24-word $_HI_COLOR_SCHEME carries a second bank of the twelve names for
+  # the check alone (HI.50). The ramps above are the palette variables, which
+  # are the first bank by contract, so the swap happens here, per render,
+  # rather than at source time: each escape's 16-color half names its slot,
+  # and the same slot twelve further on is the check's color for it.
+  local _hi_pp_n _hi_pp_e
+  local -a _hi_pp_yes=() _hi_pp_no=()
+  _hi_scheme_words _hi_pp_n
+  [ "$_hi_pp_n" -eq 24 ] || return 0
+  for _hi_pp_e in "${_HI_YES[@]}"; do
+    _hi_pkg_escape _hi_pp_e "$_hi_pp_e"
+    _hi_pp_yes+=("$_hi_pp_e")
+  done
+  for _hi_pp_e in "${_HI_NO[@]}"; do
+    _hi_pkg_escape _hi_pp_e "$_hi_pp_e"
+    _hi_pp_no+=("$_hi_pp_e")
+  done
+  _HI_YES=("${_hi_pp_yes[@]}")
+  _HI_NO=("${_hi_pp_no[@]}")
+}
+
+# _hi_pkg_escape <outvar> <escape> - the second-bank escape for a first-bank
+# one: `\e[<bold>;3<hue>...` puts the bold bit at offset 3 and the hue digit
+# at offset 6, and bold*6 + hue-1 is the slot. An empty escape ($NO_COLOR)
+# stays empty.
+function _hi_pkg_escape() {
+  local _hi_pe="$2"
+  if [ -z "$_hi_pe" ]; then
+    printf -v "$1" '%s' ''
+    return 0
+  fi
+  _hi_color_escape_at "$1" $((${_hi_pe:3:1} * 6 + ${_hi_pe:6:1} - 1 + 12))
 }
 _hi_packages_palette
 
@@ -1027,7 +1059,7 @@ function check_line() {
 
 # print sorted package results limited by _hi_draw_width, from
 # $_HI_PACKAGES_MIN_PRIORITY up. The floor lives here, not in check_line:
-# scripts/packages_preview.sh calls check_line directly and needs the rows
+# scripts/preview.sh calls check_line directly and needs the rows
 # the floor hides.
 function full_check() {
   local line priority width_item rendered count=0 max cell vislen piece i
