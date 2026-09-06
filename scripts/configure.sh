@@ -599,6 +599,7 @@ _HI_ADVANCED_PROMPTS=(
   "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?||"
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
   "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
+  "_HI_MUX|0|1|| Wrap every session in a local tmux (one named session per target, reattached when you reconnect)?|tmux|"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name

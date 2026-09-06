@@ -998,6 +998,92 @@ function test_update_hands_its_arguments_to_git_pull() {
   [[ "$out" == *"GIT -C $_HI_ROOT pull --ff-only"* ]]
 }
 
+# _hi_update_fixture <name> - a target-shaped tree that is also a git clone:
+# one commit and tag v0.0.1 locally, an origin.git with a second commit and
+# v0.0.2 that a fetch brings in. Prints the fixture's _HI_HOME.
+function _hi_update_fixture() {
+  local home tree work
+  home="$(_hi_subcmd_home "$1")"
+  tree="$home/say-hi"
+  work="$home/work"
+  (
+    cd "$tree" || exit 1
+    git init -q -b main . 2>/dev/null || { git init -q . && git checkout -q -b main; }
+    git add -A
+    git -c user.name=hi -c user.email=hi@example.invalid commit -q -m one
+    git -c tag.gpgsign=false tag v0.0.1
+    git clone -q --bare . "$home/origin.git"
+    git remote add origin "$home/origin.git"
+    git fetch -q origin
+    git branch -q --set-upstream-to=origin/main main
+  ) >/dev/null 2>&1 || return 1
+  (
+    git clone -q "$home/origin.git" "$work"
+    cd "$work" || exit 1
+    printf 'two\n' >two.txt
+    git add two.txt
+    git -c user.name=hi -c user.email=hi@example.invalid commit -q -m two
+    git -c tag.gpgsign=false tag v0.0.2
+    git push -q origin main --tags
+  ) >/dev/null 2>&1 || return 1
+  printf '%s' "$home"
+}
+
+function test_update_to_a_tag_detaches_there() {
+  local home out
+  home="$(_hi_update_fixture upd-tag)" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.2)" || return 1
+  [[ "$out" == *"now on v0.0.2"* ]] || return 1
+  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.2 ] || return 1
+  ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1
+}
+
+function test_bare_update_on_a_tag_says_so_and_stops() {
+  local home out before after
+  home="$(_hi_update_fixture upd-bare)" || return 1
+  _hi_subcmd_run "$home" --update v0.0.2 >/dev/null || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update)" && return 1
+  after="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [[ "$out" == *"on v0.0.2, not a branch"* ]] && [ "$before" = "$after" ]
+}
+
+function test_update_to_a_branch_reattaches_and_pulls() {
+  local home
+  home="$(_hi_update_fixture upd-branch)" || return 1
+  _hi_subcmd_run "$home" --update v0.0.1 >/dev/null || return 1
+  _hi_subcmd_run "$home" --update main >/dev/null || return 1
+  [ "$(git -C "$home/say-hi" symbolic-ref -q --short HEAD)" = main ] || return 1
+  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$(git -C "$home/say-hi" rev-parse origin/main)" ] || return 1
+  [ -f "$home/say-hi/two.txt" ]
+}
+
+function test_update_refuses_a_dirty_tree() {
+  local home out before
+  home="$(_hi_update_fixture upd-dirty)" || return 1
+  printf '# hacked\n' >>"$home/say-hi/hi.sh"
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update v0.0.2)" && return 1
+  [[ "$out" == *"uncommitted changes"* ]] || return 1
+  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || return 1
+  tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$'
+}
+
+function test_update_refuses_an_unknown_ref() {
+  local home out
+  home="$(_hi_update_fixture upd-nope)" || return 1
+  out="$(_hi_subcmd_run "$home" --update nope)" && return 1
+  [[ "$out" == *"no tag or branch named nope"* ]]
+}
+
+function test_update_to_a_tag_takes_no_pull_options() {
+  local home out
+  home="$(_hi_update_fixture upd-opts)" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.2 --ff-only)" && return 1
+  [[ "$out" == *"takes no git-pull options"* ]] || return 1
+  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
+}
+
 # ...and --preview-packages is the one that does not refuse at all: the check
 # itself ships in common/header.sh, so on a target it falls back to that
 function test_packages_preview_falls_back_to_the_shipped_check() {
@@ -1298,6 +1384,12 @@ function run_hi_parse_tests() {
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
   _hi_check "--update refuses without a .git" test_update_refuses_without_a_git_dir
   _hi_check "--update hands its arguments to git pull" test_update_hands_its_arguments_to_git_pull
+  _hi_check_requires git "--update <tag> checks the tag out, detached" test_update_to_a_tag_detaches_there
+  _hi_check_requires git "A bare --update on a tag says so and stops" test_bare_update_on_a_tag_says_so_and_stops
+  _hi_check_requires git "--update <branch> reattaches and pulls" test_update_to_a_branch_reattaches_and_pulls
+  _hi_check_requires git "--update <ref> refuses a dirty tree" test_update_refuses_a_dirty_tree
+  _hi_check_requires git "--update refuses an unknown ref" test_update_refuses_an_unknown_ref
+  _hi_check_requires git "--update <tag> takes no git-pull options" test_update_to_a_tag_takes_no_pull_options
   _hi_check "--preview-packages falls back instead" test_packages_preview_falls_back_to_the_shipped_check
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments

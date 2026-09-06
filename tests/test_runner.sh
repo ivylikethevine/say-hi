@@ -64,6 +64,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:table:scripts/table_test.sh"
     "fast:hi:hi/parse_test.sh"
     "fast:hi_remote:hi/remote_test.sh"
+    "fast:hi_mux:hi/mux_test.sh"
     "fast:hi_payload:hi/payload_test.sh"
     "fast:hi_prompt:hi/prompt_test.sh"
     "fast:hi_helpers:hi/helpers_test.sh"

@@ -1676,7 +1676,7 @@ function test_prompt_menu_toggles_starship() {
 # hub's item is the gate) - and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "Swap a TERM" &&
     _hi_cfg_has adv_walk "Shell a session runs in" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]

@@ -6,6 +6,7 @@ hi \- your shell config, on every host you say hi to
 .RI [ ssh\-options ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RB [ \-\-plain ]
+.RB [ \-\-mux ]
 .I target
 .RI [ command ...]
 .br
@@ -24,7 +25,7 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-configure
 .RB [ \-\-preset " " \fIname\fR]
 .br
-.BR "hi \-\-uninstall" " | " \-\-overlay\-init " | " \-\-update " [" \fIgit\-pull\-options\fR "]"
+.BR "hi \-\-uninstall" " | " \-\-overlay\-init " | " \-\-update " [" \fIref\fR "] [" \fIgit\-pull\-options\fR "]"
 .br
 .BR "hi \-\-preview\-colors" " | " \-\-preview\-packages
 .br
@@ -214,6 +215,21 @@ and no writable
 or
 .B $HOME
 either.
+.TP
+.B \-\-mux
+run the session inside a local
+.BR tmux (1)
+session named for the target
+.RB ( hi\-<target> ,
+with the characters tmux rejects turned into dashes), so a dropped link leaves
+the session running here: the next
+.B hi \-\-mux
+to the same target reattaches instead of opening a second one. Entirely
+client\-side \- the target sees the same disposable session as ever. From
+inside a tmux, the session is created detached and this client switches to
+it. Without a terminal, or without tmux on this machine, hi connects as usual.
+.B _HI_MUX=1
+in the settings makes it the default.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -285,11 +301,22 @@ seed the config overlay at
 with the shipped defaults (files already there are never touched) and make it
 a git repo, in place, so it carries history.
 .TP
-.B \-\-update \fR[\fIgit\-pull\-options\fR]
+.B \-\-update \fR[\fIref\fR] [\fIgit\-pull\-options\fR]
 .B git pull
 in the say-hi checkout, with any further words handed to
 .BR git\-pull (1)
 as they are.
+With a
+.IR ref ,
+the checkout moves instead: the tags are fetched, and a release tag is checked
+out detached (nothing to pull, so pull options are refused), while a branch is
+checked out and then pulled.
+A working tree with uncommitted changes is refused before anything moves \-
+commit or stash first.
+A bare
+.B \-\-update
+on a checkout left on a tag says which tag and stops; name a branch to reattach,
+or another tag to move on.
 Needs a checkout: an install from a package has no
 .B .git
 to pull into, and says so rather than running.

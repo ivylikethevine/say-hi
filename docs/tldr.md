@@ -32,6 +32,14 @@
 
 `hi --plain {{target}}`
 
+- Keep the session in a local `tmux` that survives a dropped link (a repeat reattaches):
+
+`hi --mux {{target}}`
+
 - Diagnose a slow or failing target (backends, config, and reachability):
 
 `hi --doctor {{host}}`
+
+- Move a git install to a release tag (a branch name reattaches and pulls):
+
+`hi --update {{v1.2.3}}`

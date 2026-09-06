@@ -1548,6 +1548,8 @@ function _hi_parse() {
         shift
       elif [ "$1" = --plain ]; then
         PLAIN=1
+      elif [ "$1" = --mux ]; then
+        MUX=1
       else
         SSHARGS+=("$1")
       fi
@@ -1674,6 +1676,50 @@ function _hi_report_failure() {
   [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
 }
 
+# _hi_mux_name <target> - the tmux session a target's wrapped session lives
+# in: `hi-` and the target, with every character tmux's session-name rules
+# reject (`:` and `.`) or that would read badly in a status line (`/`, `@`)
+# turned into `-`. A kube `ctx:ns:pod/ctr` becomes `hi-ctx-ns-pod-ctr`.
+function _hi_mux_name() {
+  printf 'hi-%s' "${1//[^[:alnum:]_-]/-}"
+}
+
+# _hi_mux_wrap - with --mux or _HI_MUX=1, re-run this connect inside a local
+# tmux session named for the target, and never return. `new-session -A` is the
+# reattach: a second `hi --mux <target>` joins the session that is already
+# running instead of opening another. Everything here is client-side; the
+# target sees the same disposable session it always does.
+# GLOSSARY: HI.52 - the re-exec, its guard, the one-string command
+function _hi_mux_wrap() {
+  local name cmd="" word q
+  [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
+  # the inner hi, already inside the session: connect as usual
+  [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0
+  command -v tmux >/dev/null 2>&1 || {
+    _hi_cecho "hi: --mux needs tmux on this machine; connecting without it" "$YELLOW" >&2
+    return 0
+  }
+  name="$(_hi_mux_name "$DOMAIN")"
+  # The inner argv is rebuilt from what _hi_parse settled on rather than
+  # replayed from "$@", so a target chosen by the picker rides along. One
+  # single-quoted string, not a word list: tmux hands it to its default-shell,
+  # which may be fish, and single quotes are the one form every shell reads
+  # the same way (%q's $'...' is bash's alone).
+  for word in env _HI_MUX_INNER=1 "$_HI_LAUNCHER" \
+    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain} \
+    ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"}; do
+    _hi_shquote q "$word"
+    cmd="$cmd${cmd:+ }$q"
+  done
+  if [ -n "${TMUX:-}" ]; then
+    # tmux refuses to nest: create detached if needed, then switch this client
+    tmux has-session -t "=$name" 2>/dev/null ||
+      tmux new-session -d -s "$name" "$cmd" || exit 1
+    exec tmux switch-client -t "=$name"
+  fi
+  exec tmux new-session -A -s "$name" "$cmd"
+}
+
 function _hi() {
   local tmp exit_code arm
 
@@ -1687,6 +1733,8 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
+  # only with a terminal to attach: a piped `hi host cmd` keeps working, un-wrapped
+  if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: wrapping the whole connect to reprint a
   # failure in red at the end would also catch every word ssh says on a
   # *successful* session - the server's `Banner` (the notice a regulated
@@ -1783,6 +1831,58 @@ function _hi_flag_help() {
 
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
 
+# _hi_update [<ref>] [git-pull-options] - the checkout's update, three shapes.
+# Bare on a branch: `git pull` with the rest of argv, as it always was. Bare on
+# a detached HEAD (a tag checked out below): say so and stop - nothing moves
+# without being named. With a ref: refuse a dirty tree, fetch the tags, then a
+# tag is checked out detached (and takes no pull options, there is no pull), a
+# branch is checked out and pulled. .git is the test throughout: absent from
+# payloads and packaged installs alike.
+function _hi_update() {
+  local root="$_HI_ROOT" ref="" dirty here
+  [ -d "$root/.git" ] || {
+    _hi_cecho "hi --update: $_HI_NO_GIT" "$RED" >&2
+    exit 1
+  }
+  case "${1:-}" in
+  '' | -*) ;;
+  *)
+    ref="$1"
+    shift
+    ;;
+  esac
+  if [ -z "$ref" ]; then
+    git -C "$root" symbolic-ref -q HEAD >/dev/null 2>&1 || {
+      here="$(git -C "$root" describe --tags --always 2>/dev/null)"
+      _hi_cecho "hi --update: $root is on ${here:-a detached HEAD}, not a branch; hi --update <branch> reattaches, hi --update <tag> moves to another release" "$RED" >&2
+      exit 1
+    }
+    exec git -C "$root" pull "$@"
+  fi
+  dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
+  [ -z "$dirty" ] || {
+    _hi_cecho "hi --update $ref: uncommitted changes in $root; commit or stash them first" "$RED" >&2
+    exit 1
+  }
+  git -C "$root" fetch --tags --quiet || exit 1
+  if git -C "$root" show-ref --verify -q "refs/tags/$ref"; then
+    [ $# -eq 0 ] || {
+      _hi_cecho "hi --update $ref: a tag takes no git-pull options ($*); there is no pull" "$RED" >&2
+      exit 1
+    }
+    git -C "$root" checkout -q "refs/tags/$ref" || exit 1
+    _hi_cecho "hi: now on $ref (detached); hi --update <branch> reattaches" "$GREEN"
+    exit 0
+  fi
+  if git -C "$root" show-ref --verify -q "refs/heads/$ref" ||
+    git -C "$root" show-ref --verify -q "refs/remotes/origin/$ref"; then
+    git -C "$root" checkout -q "$ref" || exit 1
+    exec git -C "$root" pull "$@"
+  fi
+  _hi_cecho "hi --update: no tag or branch named $ref; git -C $root tag lists releases" "$RED" >&2
+  exit 1
+}
+
 # sourcing this file defines its functions without connecting, for testing
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
@@ -1832,14 +1932,9 @@ survives an upgrade. See \`man hi\` and the README for all of it.
 EOF
   exit 0
   ;;
-# .git as the test: absent from payloads and packaged installs alike
 --update)
   shift
-  [ -d "$_HI_ROOT/.git" ] || {
-    _hi_cecho "hi --update: $_HI_NO_GIT" "$RED" >&2
-    exit 1
-  }
-  exec git -C "$_HI_ROOT" pull "$@"
+  _hi_update "$@"
   ;;
 # the full preview lives in scripts/; a target falls back to the check itself
 --preview-packages)

@@ -20,6 +20,7 @@ that reopens a row.
 - [What a "yes" costs](#what-a-yes-costs)
 - [What ships](#what-ships)
 - [The target's OS](#the-targets-os)
+- [A permanent install on a NAS](#a-permanent-install-on-a-nas)
 - [The shell you end up in](#the-shell-you-end-up-in)
 - [Targets weighed and not shipped](#targets-weighed-and-not-shipped)
 - [Shells hi does not style](#shells-hi-does-not-style)
@@ -110,11 +111,52 @@ Can hi land a session there at all?
 | Windows, with Git Bash/Cygwin/MSYS2 on `PATH`                    | ✅ as a target, ✅ as a client — the same code path as any ssh host                                                                                                                                                                                                                        | `.github/workflows/windows-e2e.yml` (target side) and `windows-client.yml` (client side), both called by ci.yml on every push                                                                                                                                                           |
 | Windows, stock OpenSSH (`cmd.exe`/PowerShell)                    | ⚠️ plain PowerShell session, no hi styling — a deliberate fallback, not a failure                                                                                                                                                                                                          | `windows-e2e.yml`, the target-side half above                                                                                                                                                                                                                                           |
 | \*BSD, Solaris/illumos                                           | ✅ FreeBSD, full session — BSD userland and a pkg bash, client half included; 🟡 the rest, which share that userland                                                                                                                                                                       | `.github/workflows/freebsd-e2e.yml` (fast suites plus a loopback session in a FreeBSD VM), called by ci.yml on every push                                                                                                                                                               |
-| NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected - DSM and QTS ship `bash` beside a busybox `sh` with the `base64` and `mktemp` the bootstrap needs (DSM wants the user-home service on, or there is no `$HOME`); SCALE is Debian, Unraid is Slackware with bash as its shell, CORE is FreeBSD with a bash in base | the Alpine, glibc and FreeBSD rows above prove each shape; nobody has run it on an appliance                                                                                                                                                                                            |
+| NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected - DSM and QTS ship `bash` beside a busybox `sh` with the `base64` and `mktemp` the bootstrap needs (DSM wants the user-home service on, or there is no `$HOME`); SCALE is Debian, Unraid is Slackware with bash as its shell, CORE is FreeBSD with a bash in base | the Alpine, glibc and FreeBSD rows above prove each shape; nobody has run it on an appliance - [the permanent-install recipe](#a-permanent-install-on-a-nas) is drafted, unverified                                                                                                     |
 | OpenWrt (and other busybox routers)                              | ⚠️ aliases-only — busybox `ash`, no bash, `base64` and `mktemp` present; `opkg install bash` makes it a full session. `/tmp` is RAM, and 48KB a connect is fine there                                                                                                                      | 🟡 the same shape as Alpine's bash-less case in `ssh_test.sh`; not run on a router                                                                                                                                                                                                      |
 | Termux (Android)                                                 | 🟡 as a **client**, bash and coreutils `base64` are there; install with `--no-link` (no `/usr/bin`) and put `hi.sh` on `$PATH` yourself. 🟡 as a target, over Termux's own `sshd` (port 8022): full session, bash is Termux's shell                                                        | — the [adb row](#targets-weighed-and-not-shipped) is the other direction and stays a no                                                                                                                                                                                                 |
 | any of the above behind sshd `ForceCommand`, or a `command=` key | ⚠️ the host's own session — the forced program — after a line saying hi's bootstrap never ran; a forced program that exits non-zero and prints nothing gets the PowerShell notice instead                                                                                                  | `ssh_test.sh`'s two forced-command cases                                                                                                                                                                                                                                                |
 | any of the above with an `rbash` login shell, or `MaxSessions 1` | ✅ full session - `sh` has no `/` in its name, so rbash runs the bootstrap unrestricted (not a boundary hi respects, [SECURITY.md](SECURITY.md#what-runs-where)); the probe's channel closes before the session's opens                                                                    | `ssh_test.sh`'s rbash and maxsessions1 cases                                                                                                                                                                                                                                            |
+
+## A permanent install on a NAS
+
+**Untested.** Drafted from the install path; nobody has run it on an
+appliance yet, which is why the NAS row above stays 🟡. If you do, what it
+gets wrong is a bug report.
+
+The point of a permanent tree on a NAS is the slow link: a disposable `hi`
+sends the ~48KB payload on every connect, a tree already there sends none
+(the [How it works](SETTINGS.md#how-it-works) probe finds it first). Two
+rules set the shape:
+
+- **Not `scripts/install.sh --prefix`.** Packaging mode writes `/usr/bin/hi`
+  and `/etc/profile.d/say-hi.sh`
+  ([PACKAGING.md](PACKAGING.md#channels-weighed-and-not-shipped) records the
+  two paths as hardcoded), and appliance firmware owns both: a DSM or QTS
+  upgrade rewrites the system partition and takes them with it.
+- **The home directory on the data volume survives upgrades.** DSM keeps it
+  at `/volume1/homes/<user>` once the _user home service_ is on (without it
+  there is no `$HOME`, and no `hi` session at all), QTS at
+  `/share/homes/<user>`; SCALE, Unraid and CORE have ordinary homes.
+
+So the recipe is the plain in-place install, as the README's
+[first steps](../README.md#in-sixty-seconds) describe it, done on the NAS:
+
+```sh
+# on the NAS, as the user you ssh in as
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or unpack a release tarball there
+bash ~/say-hi/scripts/install.sh --no-link
+```
+
+`~/say-hi` is on the probe's candidate list, so the tree is found with no rc
+line at all - which matters on DSM, where a non-admin login lands in
+`/bin/sh` and never reads the `~/.bashrc` line `install.sh` writes. What the
+run of `install.sh` is for is the questions: its answers land in
+`~/.config/say-hi/settings.sh`, which the session reads from the tree, and
+`--no-link` keeps it away from `/usr/bin`. DSM and QTS ship `bash` beside
+their busybox `sh`, which is all `install.sh` needs; `git` is not a given
+(DSM: the Git Server package, or the tarball). From then on `hi <nas>` from
+anywhere is the shorter, payload-free connect, and `hi --update` on the NAS
+itself (a clone) or a fresh tarball (otherwise) moves it forward.
 
 ## The shell you end up in
 

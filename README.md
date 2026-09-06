@@ -247,7 +247,9 @@ everything weighed and answered **no**, and why.
   For anything you would hate to lose to a flaky link, start `hi` inside
   `tmux` or `screen` **on this machine**: the local multiplexer survives the
   drop, and reconnecting is another `hi <target>`
-  ([how it works](docs/SETTINGS.md#how-it-works)).
+  ([how it works](docs/SETTINGS.md#how-it-works)). `hi --mux <target>` (or
+  `_HI_MUX=1`) does that step for you: one local tmux session per target,
+  and a repeat reattaches instead of opening a second.
 - done with it? `say-hi/scripts/uninstall.sh`, or `hi --uninstall`, strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `/usr/bin/hi`. Left behind, on purpose: the checkout (or the
@@ -352,7 +354,7 @@ questions decided against are **deleted**: git history is the ledger.
 
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
-      the twelve `common/flags`, every `docs/SETTINGS.md` row,
+      the thirteen `common/flags`, every `docs/SETTINGS.md` row,
       `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
@@ -360,56 +362,20 @@ questions decided against are **deleted**: git history is the ledger.
 
 ### By Scope
 
-1. [ ] **tldr page** — _scope: one upstream pull request; outside this
-       checkout._ CLI surface is frozen (twelve flags, CI-enforced both ways
-       by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
-       draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
-       against tldr-pages. **Ticks when:** merged upstream.
+1. [ ] **NAS permanent-install recipe** — _scope: one docs section, drafted
+       and unverified; blocked on access to real appliance hardware, which
+       nothing in this checkout supplies._ SUPPORT.md's NAS row reads 🟡
+       ("full session expected... nobody has run it on an appliance") and
+       [A permanent install on a NAS](docs/SUPPORT.md#a-permanent-install-on-a-nas)
+       is written from the install path, marked untested: the tree in the
+       user's home on the data volume, `scripts/install.sh --no-link`, never
+       `--prefix` (firmware owns `/usr/bin` and `/etc/profile.d`). **Do:**
+       get `hi <target>` working once on a real DSM, QTS, SCALE, Unraid or
+       CORE box, then walk the recipe there and fix what it gets wrong.
+       **Ticks when:** the NAS row carries a ✅ and the recipe has been run on
+       one appliance.
 
-2. [ ] **NAS permanent-install recipe** — _scope: one docs section; blocked
-       on access to real appliance hardware, which nothing in this checkout
-       supplies._ SUPPORT.md's NAS row reads 🟡 ("full session expected...
-       nobody has run it on an appliance") — plain disposable `hi` isn't even
-       confirmed there yet, before a permanent-install recipe is worth
-       writing to spare a slow link the ~48KB-a-connect payload. **Do:** get
-       `hi <target>` working once on a real DSM, QTS, SCALE, Unraid or CORE
-       box and flip that row to ✅; only then is `scripts/install.sh --prefix`
-       (or a package, where one exists for the platform) worth walking
-       end-to-end and writing up. **Ticks when:** the NAS row carries a ✅ and the
-       recipe is linked from it.
-
-3. [ ] **AUR** — _scope: nothing until registration reopens; then an
-       account, a key, and one manual first push; outside this checkout._
-       Registration is closed to new accounts (spam), and
-       `publish-external.yml`'s `aur` job stays written and unexercised
-       until it reopens. **When it reopens:** register; generate an ed25519
-       key, add the private half as the `AUR_SSH_KEY` repo secret; the first
-       push per package is manual (namcap gate against the published
-       source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
-       `publish-external.yml` handles the versioned package after.
-       **Ticks when:** both packages are live on the AUR and a dispatch has
-       kept `say-hi` current for one real release. <https://archlinux.org/news/>
-
-4. [ ] **Client-side tmux wrap** — _scope: one new flag (the CLI's first past
-       twelve, `docs/CONTRIBUTING.md#what-1x-will-not-break`'s current
-       count), target-name sanitization, a suite, docs._ The target-side
-       version of this shipped, then was removed and declined
-       ([why](docs/SUPPORT.md#what-would-change-an-answer)) — a disposable
-       tree cannot outlive its own session. Today's workaround is manual:
-       start `hi` inside your own `tmux`/`screen` ([README](#in-sixty-seconds)).
-       This automates that one step, entirely client-side, no target-side
-       footprint at all — wrapping the session in `tmux new -A -s hi-<target>`,
-       attaching if that name is already running rather than opening a
-       second one. **Do:** a flag/toggle (chosen not to reuse the
-       removed `_HI_TMUX_*`/`--tmux` names — those meant the target-side
-       feature), a sanitizer for target strings tmux's session-name rules
-       reject (`:` in a kube `context:namespace:pod`, `/` in a nested
-       target), a suite under `tests/hi/` or `tests/targets/`, a
-       `docs/SETTINGS.md` row. **Ticks when:** the toggle ships, tested and
-       documented, and reconnecting to the same target reattaches instead of
-       opening a second session.
-
-5. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --preview-colors`
+2. [ ] **Color scheme eyeball pass** — _scope: no code; `hi --preview-colors`
        and `hi --preview-packages` per scheme on a light and a dark
        terminal._ `_HI_COLOR_SCHEME` (`catppuccin`, `monokai`, `onedark`,
        `vscode`) renders the twelve palette names as that scheme's truecolor
@@ -420,21 +386,25 @@ questions decided against are **deleted**: git history is the ledger.
        **Ticks when:** all four schemes read monotonic 0-3 in
        `--preview-packages` and legibly in `--preview-colors` on both.
 
-6. [ ] **`hi --update` between release tags in a git install** — _scope: a
-       decision on `--update`'s argument grammar, a git-install-only code
-       path, dirty-tree and detached-HEAD handling, a suite, docs._ Today
-       `--update` is `exec git -C "$_HI_ROOT" pull "$@"` (`hi.sh`) — a
-       straight git-pull passthrough, tested only as that
-       (`tests/hi/remote_test.sh`). Moving between tags needs a
-       `git fetch --tags` and a `git checkout <tag>` instead, which detaches
-       HEAD, and a call on a dirty working tree first — git-install users are
-       expected to be able to hack on the checkout. **Do:** settle the grammar
-       as a new argument to `--update` rather than a new flag (the
-       twelve-flag count, `docs/CONTRIBUTING.md#what-1x-will-not-break`,
-       stays put), refuse or guard a dirty tree, decide what a bare `--update`
-       does afterward — reattach to the branch, stay on the tag, or say so —
-       extend `tests/hi/remote_test.sh`'s coverage, and document it in
-       `docs/hi.1` and `hi --help`. **Ticks when:** `hi --update <tag>` in a
-       git checkout switches cleanly, a dirty tree is never silently
-       overwritten, and a following bare `hi --update` behaves predictably,
-       tested and documented.
+### Post 1.0
+
+Outside this checkout, and not what the tag waits on: each is an account or
+an upstream review that lands when it lands.
+
+1. [ ] **tldr page** — _scope: one upstream pull request; outside this
+       checkout._ CLI surface is frozen (thirteen flags, CI-enforced both ways
+       by `tests/hi/parse_test.sh` and `tests/common/targets_test.sh`) and the
+       draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
+       against tldr-pages. **Ticks when:** merged upstream.
+
+2. [ ] **AUR** — _scope: nothing until registration reopens; then an
+       account, a key, and one manual first push; outside this checkout._
+       Registration is closed to new accounts (spam), and
+       `publish-external.yml`'s `aur` job stays written and unexercised
+       until it reopens. **When it reopens:** register; generate an ed25519
+       key, add the private half as the `AUR_SSH_KEY` repo secret; the first
+       push per package is manual (namcap gate against the published
+       source, then only `PKGBUILD` + `.SRCINFO`), and dispatching
+       `publish-external.yml` handles the versioned package after.
+       **Ticks when:** both packages are live on the AUR and a dispatch has
+       kept `say-hi` current for one real release. <https://archlinux.org/news/>

@@ -152,9 +152,9 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twelve flags in `common/flags`** — name, argument shape and what
-  each needs (`-`, `scripts`, `tests`, `git`). New flags may arrive; none is
-  renamed or removed. Anything hi does not answer still passes to `ssh`.
+- **The thirteen flags in `common/flags`** — name, argument shape and what
+  each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
+  or removed. Anything hi does not answer still passes to `ssh`.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
   type and default. A toggle that has to go **warns for one minor release**
   (`hi --doctor` and the session header both say so), then is removed in the
