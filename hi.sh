@@ -223,19 +223,14 @@ function _hi_tar_gz() {
 # _hi_overlay_tar [file...] - the overlay archive over the given members, or
 # over _hi_overlay_files when called bare; nothing at all when there are none.
 # Comment-stripped through a staging copy the way the payload is (the same
-# strip.awk, GLOSSARY: HI.35; _HI_KEEP_COMMENTS=1 ships the files verbatim):
-# the overlay is the user's prose-heavy files - a seeded default is mostly
-# header - and every byte rides each connect. The first tar's -h is what
-# resolves a dotfile manager's symlinks into content, as before; the final
-# tar names the members, so strip.awk itself never ships.
+# strip.awk, GLOSSARY: HI.35): the overlay is the user's prose-heavy files - a
+# seeded default is mostly header - and every byte rides each connect. The
+# first tar's -h is what resolves a dotfile manager's symlinks into content,
+# as before; the final tar names the members, so strip.awk itself never ships.
 function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
-  if [ "${_HI_KEEP_COMMENTS:-0}" = 1 ]; then
-    _hi_tar_gz -h -C "$_HI_CONFIG_DIR" "${present[@]}"
-    return 0
-  fi
   local stage f
   (
     stage="$(mktemp -d -t hi.ostage.XXXXXX)" || exit 1
@@ -263,10 +258,10 @@ function _hi_overlay_tar() {
 # _hi_overlay_cache_key <file...> - one line identifying everything that
 # changes what _hi_overlay_tar would produce for exactly this member list
 # without touching a single overlay file's mtime: the list itself (a toggle
-# trimming a member changes it) and _HI_KEEP_COMMENTS. Its own cksum, not the
-# string itself, keeps the cache filename short.
+# trimming a member changes it). Its own cksum, not the string itself, keeps
+# the cache filename short.
 function _hi_overlay_cache_key() {
-  printf '%s|%s' "$*" "${_HI_KEEP_COMMENTS:-0}" | cksum | cut -d' ' -f1
+  printf '%s' "$*" | cksum | cut -d' ' -f1
 }
 
 # _hi_overlay_cached <outvar> <file...> - a warm gzipped tar for exactly
@@ -384,12 +379,6 @@ function _hi_payload_tar() {
   local _hi_trim="" _hi_f
   _hi_trimmed tree _hi_trim
   for _hi_f in $_hi_trim; do excl+=("--exclude=$_hi_f"); done
-  # _HI_KEEP_COMMENTS=1 ships the tree verbatim, for reading real source on a
-  # target
-  if [ "${_HI_KEEP_COMMENTS:-0}" = 1 ]; then
-    _hi_tar_gz -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}"
-    return 0
-  fi
 
   # a subshell, so the stage's cleanup is a trap and a ^C mid-build leaves
   # nothing behind (GLOSSARY: HI.39)
@@ -416,13 +405,13 @@ function _hi_payload_tar() {
 }
 
 # _hi_payload_cache_key - _hi_overlay_cache_key's tree twin: the trim list
-# (what the overlay's toggles read, _hi_trimmed) and _HI_KEEP_COMMENTS -
-# everything that changes what _hi_payload_tar would produce without
-# touching a single source file's mtime.
+# (what the overlay's toggles read, _hi_trimmed) - everything that changes
+# what _hi_payload_tar would produce without touching a single source file's
+# mtime.
 function _hi_payload_cache_key() {
   local trim=""
   _hi_trimmed tree trim
-  printf '%s|%s' "$trim" "${_HI_KEEP_COMMENTS:-0}" | cksum | cut -d' ' -f1
+  printf '%s' "$trim" | cksum | cut -d' ' -f1
 }
 
 # _hi_payload_cached <outvar> - _hi_overlay_cached's tree twin: a warm
@@ -743,14 +732,6 @@ function _hi_safe_path() {
   *[!$2]*) return 0 ;;
   esac
   printf '%s' "$1"
-}
-
-# The one tty decision, as a 1/0 flag. $_HI_TTY answers for `[ -t 0 ]` when it
-# is set: hi's own suites have no tty and need a deterministic answer to
-# assert either arm against, and it is the escape hatch for a wrapper that
-# knows better than the probe does.
-function _hi_tty() {
-  printf '%s' "${_HI_TTY:-$([ -t 0 ] && echo 1 || echo 0)}"
 }
 
 # Prints the path of a permanent say-hi on $DOMAIN, if any.
@@ -1148,7 +1129,7 @@ $(_hi_remote_suffix)"
   # container arms have to make the same decision for a harder reason
   # (_hi_container_cmds).
   local -a tflag=()
-  [ "$(_hi_tty)" = 1 ] && tflag=(-t)
+  [ -t 0 ] && tflag=(-t)
   # An empty $boot_tmp has four causes, and only one of them is the host with
   # no `sh` the PowerShell notice exists for. Told apart by the write's
   # status and what came back (GLOSSARY: HI.19): the probe's own two codes;
@@ -1215,9 +1196,8 @@ function _hi_container_cmds() {
   # container arms had this. The `-i`/`-it` split below is the same decision
   # in each backend's spelling (nomad wants it explicit either way: its
   # stdin-is-a-tty guess lands wrong on a wrapped pty and hangs the exec).
-  local tty it=-i nt=-t=false
-  tty="$(_hi_tty)"
-  if [ "$tty" = 1 ]; then
+  local it=-i nt=-t=false
+  if [ -t 0 ]; then
     it=-it
     nt=-t=true
   fi
@@ -1451,7 +1431,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 # which is when the ControlMaster options arrive in "$@".
 function _say_hi_plain() {
   local -a tflag=()
-  [ "$(_hi_tty)" = 1 ] && tflag=(-t)
+  [ -t 0 ] && tflag=(-t)
   ssh ${tflag[@]+"${tflag[@]}"} "$@" "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
 }
 

@@ -696,10 +696,7 @@ EOF
   # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
   # says the file has to stay in, and one of the *_OPTS the shipped `cat` alias
   # reads. Both are in effect in a bash session and a fish one, which is what
-  # the tape shows. (The fish-only abbr knob was tried here and taken back
-  # out: hi is itself an alias, so the abbr expands the `hi edge-1` the tape
-  # types into the shim's absolute path, rewriting the command the GIF exists
-  # to show.)
+  # the tape shows.
   demo_overlay aliases.sh <<'EOF'
 # ~/.config/say-hi/aliases.sh - sourced on every target, in every shell
 alias dfh='df -h /'

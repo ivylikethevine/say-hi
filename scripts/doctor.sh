@@ -193,7 +193,7 @@ function doctor_payload_diff() {
   else
     delta="$((this_bytes - default_bytes))"
     [ "$delta" -lt "$_HI_PAYLOAD_DIFF_FLOOR" ] && return 0
-    doctor_row payload_diff "$(_hi_human_bytes "$delta") heavier than the stock default ($default_h) - _HI_KEEP_COMMENTS=1, most likely" warn
+    doctor_row payload_diff "$(_hi_human_bytes "$delta") heavier than the stock default ($default_h) - your overlay adds more than its toggles trim" warn
   fi
 }
 

@@ -560,28 +560,47 @@ function test_report_failure_has_no_carriage_return_off_a_tty() {
   [[ "$(_hi_report_failure 255 "" "$f" 2>&1)" != *$'\r'* ]]
 }
 
-# _hi_attach_is <backend> <domain> <want-glob> - run _hi_container_cmds for
-# <backend> against <domain> and match the attach line against <want-glob>
-# (a leading ! inverts the match). DOMAIN and the command arrays land in the
-# caller's own locals through bash's dynamic scoping, so a case can still
-# read cp or probe after its last run.
+# _hi_attach_is <tty> <backend> <domain> <want-glob> - run _hi_container_cmds
+# for <backend> against <domain> and match the attach line against <want-glob>
+# (a leading ! inverts the match). The tty decision is `[ -t 0 ]` in
+# _hi_container_cmds itself and a suite has no tty of its own, so the command
+# runs in a child bash: under $_HI_PTY_FORCED for the tty arm, on /dev/null
+# for the other. The child prints the attach and cp lines; _HI_ATTACH_CP
+# keeps the cp line for a case that wants it after its last run.
+_HI_ATTACH_CP=""
+# _hi_container_child <tty:1|0> <backend> <domain> - the attach line on stdout
+function _hi_container_child() {
+  local tty="$1" backend="$2" domain="$3" out
+  local -a wrap=()
+  [ "$tty" = 1 ] && wrap=("${_HI_PTY_FORCED[@]}")
+  out="$(
+    ${wrap[@]+"${wrap[@]}"} bash -c '
+      source "$_HI_LAUNCHER"
+      DOMAIN="$1"
+      _hi_container_cmds "$2"
+      printf "ATTACH=%s\nCP=%s\n" "${attach[*]}" "${cp[*]}"' _ "$domain" "$backend" \
+      </dev/null 2>/dev/null | tr -d '\r'
+  )"
+  _HI_ATTACH_CP="$(printf '%s\n' "$out" | sed -n 's/^CP=//p')"
+  printf '%s\n' "$out" | sed -n 's/^ATTACH=//p'
+}
+
 function _hi_attach_is() {
-  local want="$3" negate=0 why="want"
+  local want="$4" negate=0 why="want" attach
   case "$want" in !*)
     negate=1
     why="did not want"
     want="${want#!}"
     ;;
   esac
-  DOMAIN="$2"
-  _hi_container_cmds "$1"
+  attach="$(_hi_container_child "$1" "$2" "$3")"
   # SC2254: the unquoted expansion is the point - $want is a glob
   # shellcheck disable=SC2254
-  case "${attach[*]}" in
+  case "$attach" in
   $want) [ "$negate" -eq 0 ] && return 0 ;;
   *) [ "$negate" -eq 1 ] && return 0 ;;
   esac
-  _hi_cecho " | $1 $2: attach was '${attach[*]}', $why '$want'" "$RED"
+  _hi_cecho " | $2 $3: attach was '$attach', $why '$want'" "$RED"
   return 1
 }
 
@@ -589,18 +608,12 @@ function _hi_attach_is() {
 # container are the same idea. The plain form has to stay byte-identical - this
 # syntax is additive or it breaks every existing target.
 function test_container_cmds_pick_the_inner_unit() {
-  local -a probe cp attach
-  # a tty, pinned: these cases are about the target *grammar* - the inner unit
-  # and the kube prefixes - and a suite has no tty of its own, so without this
-  # they would be asserting the tty probe's answer by accident
-  local DOMAIN _HI_TTY=1
-
-  _hi_attach_is kube mypod '!* -c *' || return 1
-  _hi_attach_is kube mypod/sidecar '*exec -it mypod -c sidecar --' || return 1
-  _hi_attach_is nomad 685afd67/worker '*-task worker*685afd67' || return 1
+  _hi_attach_is 1 kube mypod '!* -c *' || return 1
+  _hi_attach_is 1 kube mypod/sidecar '*exec -it mypod -c sidecar --' || return 1
+  _hi_attach_is 1 nomad 685afd67/worker '*-task worker*685afd67' || return 1
   # docker has no inner unit and `/` is legal in a container name, so it is
   # taken whole - splitting one would break a real target
-  _hi_attach_is docker some/name '*exec -it some/name'
+  _hi_attach_is 1 docker some/name '*exec -it some/name'
 }
 
 # The other arm of that probe, which is the one `hi <target> <cmd> | ...` takes:
@@ -610,19 +623,16 @@ function test_container_cmds_pick_the_inner_unit() {
 # has to drop the `-t` and keep the `-i`; nomad spells both out either way,
 # because its own stdin-is-a-tty guess hangs the exec on a wrapped pty.
 function test_container_cmds_drop_the_tty_without_one() {
-  local -a probe cp attach
-  local DOMAIN _HI_TTY=0
-
-  _hi_attach_is kube mypod '*exec -i mypod --' || return 1
-  _hi_attach_is docker somebox '*exec -i somebox' || return 1
-  _hi_attach_is nomad 685afd67 '*-i=true -t=false*' || return 1
+  _hi_attach_is 0 kube mypod '*exec -i mypod --' || return 1
+  _hi_attach_is 0 docker somebox '*exec -i somebox' || return 1
+  _hi_attach_is 0 nomad 685afd67 '*-i=true -t=false*' || return 1
 
   # ...and the copy stream never wanted a tty in the first place, either way.
   # Matched on the *enabled* spellings, not a bare "-t": nomad's cp line says
   # `-t=false` on purpose, and a glob for "-t" calls that a tty.
-  case "${cp[*]}" in
+  case "$_HI_ATTACH_CP" in
   *"-it"* | *"-t=true"*)
-    _hi_cecho " | the cp stream grew a tty: '${cp[*]}'" "$RED"
+    _hi_cecho " | the cp stream grew a tty: '$_HI_ATTACH_CP'" "$RED"
     return 1
     ;;
   esac
@@ -632,15 +642,9 @@ function test_container_cmds_drop_the_tty_without_one() {
 # The kube prefixes: `namespace:pod` and `context:namespace:pod`, with or
 # without a `/container`, each landing as kubectl's own flags ahead of `exec`.
 function test_kube_prefixes_become_kubectl_flags() {
-  local -a probe cp attach
-  # a tty, pinned: these cases are about the target *grammar* - the inner unit
-  # and the kube prefixes - and a suite has no tty of its own, so without this
-  # they would be asserting the tty probe's answer by accident
-  local DOMAIN _HI_TTY=1
-
-  _hi_attach_is kube staging:web \
+  _hi_attach_is 1 kube staging:web \
     'kubectl --namespace staging exec -it web --' || return 1
-  _hi_attach_is kube prod:staging:web/sidecar \
+  _hi_attach_is 1 kube prod:staging:web/sidecar \
     'kubectl --context prod --namespace staging exec -it web -c sidecar --'
 }
 
@@ -720,8 +724,8 @@ echo "SSH:$*"
 EOF
   chmod +x "$dir/ssh"
   out="$(
-    DOMAIN=myhost SSHARGS=() RAWCMD="echo hi" _HI_TTY=0
-    PATH="$dir:$PATH" _say_hi_plain
+    DOMAIN=myhost SSHARGS=() RAWCMD="echo hi"
+    PATH="$dir:$PATH" _say_hi_plain </dev/null
   )"
   [[ "$out" == "SSH:myhost echo hi" ]]
 }
@@ -732,9 +736,9 @@ function test_plain_ssh_with_no_command_passes_none() {
   local dir="$_HI_WORKDIR/plainssh"
   local out
   out="$(
-    DOMAIN=myhost SSHARGS=() _HI_TTY=0
+    DOMAIN=myhost SSHARGS=()
     unset RAWCMD
-    PATH="$dir:$PATH" _say_hi_plain
+    PATH="$dir:$PATH" _say_hi_plain </dev/null
   )"
   [[ "$out" == "SSH:myhost" ]]
 }
@@ -1263,9 +1267,9 @@ function run_hi_parse_tests() {
   _hi_check "report_failure: speaks with a filed container error" test_report_failure_speaks_with_a_filed_container_error
   _hi_check "report_failure: no \\r off a tty" test_report_failure_has_no_carriage_return_off_a_tty
 
-  _hi_check "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
+  _hi_check_capable pty "target/inner picks the container or task" test_container_cmds_pick_the_inner_unit
   _hi_check "no tty, no -t (hi <target> <cmd> | ...)" test_container_cmds_drop_the_tty_without_one
-  _hi_check "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
+  _hi_check_capable pty "namespace:pod and context:namespace:pod reach kubectl" test_kube_prefixes_become_kubectl_flags
 
   _hi_h2 "Testing: --plain"
   _hi_check "Container: attaches with no write, prefers bash" test_plain_container_attaches_with_no_write

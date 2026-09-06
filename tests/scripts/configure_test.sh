@@ -759,7 +759,7 @@ function test_ask_setting_default_keeps_disabled() {
 
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
-# (_HI_ENABLE_FISH_ALIAS_ABBR=1, _HI_PROMPT=starship) is on only when its
+# (_HI_NO_LEAD_SPACE=1, _HI_PROMPT=starship) is on only when its
 # on-value is. setting_on is the one reader of both, and ask_prompt_group
 # writes both.
 
@@ -767,14 +767,14 @@ function test_setting_on_opt_in_absent_is_off() {
   local target="$_HI_WORKDIR/opt_in_absent"
   : >"$target"
   _HI_SETTING_PENDING=()
-  ! setting_on _HI_ENABLE_FISH_ALIAS_ABBR "$target" 0 1
+  ! setting_on _HI_NO_LEAD_SPACE "$target" 0 1
 }
 
 function test_setting_on_opt_in_present_is_on() {
   local target="$_HI_WORKDIR/opt_in_present"
-  printf 'export _HI_ENABLE_FISH_ALIAS_ABBR=1\n' >"$target"
+  printf 'export _HI_NO_LEAD_SPACE=1\n' >"$target"
   _HI_SETTING_PENDING=()
-  setting_on _HI_ENABLE_FISH_ALIAS_ABBR "$target" 0 1
+  setting_on _HI_NO_LEAD_SPACE "$target" 0 1
 }
 
 function test_setting_on_toggle_absent_is_on() {
@@ -845,15 +845,15 @@ function test_advanced_defaults_write_nothing() {
 function test_prompt_group_carries_a_row_it_cannot_ask() {
   local out dir="$_HI_WORKDIR/needs"
   local _HI_SETTINGS="$dir/settings.sh"
-  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_ENABLE_FISH_ALIAS_ABBR|0|1|| moot?|no-such-command-$$|")
+  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_NO_LEAD_SPACE|0|1|| moot?|no-such-command-$$|")
   _HI_SETTING_PENDING=()
   mkdir -p "$dir"
-  printf 'export _HI_ENABLE_FISH_ALIAS_ABBR=1\n' >"$_HI_SETTINGS"
+  printf 'export _HI_NO_LEAD_SPACE=1\n' >"$_HI_SETTINGS"
   ask_prompt_group _HI_NEEDS_PROMPTS </dev/null
   [ "${#_HI_SETTING_PENDING[@]}" = 0 ] || return 1
   _hi_collect_group _HI_NEEDS_PROMPTS
   out="${_HI_SETTING_LINES[*]:-}"
-  [[ "$out" == *"export _HI_ENABLE_FISH_ALIAS_ABBR=1"* ]]
+  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* ]]
 }
 
 function test_validators_for_the_advanced_values() {
@@ -1676,7 +1676,7 @@ function test_prompt_menu_toggles_starship() {
 # hub's item is the gate) - and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "Swap a TERM" &&
     _hi_cfg_has adv_walk "Shell a session runs in" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
