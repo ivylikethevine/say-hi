@@ -59,8 +59,10 @@ source "$_HI_HOME/say-hi/common/core.sh"
 
 _HI_RELEASE="${_HI_RELEASE:-}"
 
-# The synopsis, kept identical to docs/hi.1's .SH SYNOPSIS
-_HI_USAGE="Usage: hi [ssh-options] <target> [command ...]"
+# The synopsis, kept identical to docs/hi.1's first .SH SYNOPSIS line
+# (tests/hi/parse_test.sh compares the two); folded so --help fits 80 columns
+_HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
+          <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
 # session has a launcher to relay onward with (~14KB of wire inside the tar).
@@ -1512,7 +1514,7 @@ function _hi_pick_target() {
 }
 
 function _hi_parse() {
-  local backend_word
+  local backend_word use_word
   SSHARGS=()
   while [ $# -gt 0 ]; do
     case $1 in
@@ -1533,23 +1535,32 @@ function _hi_parse() {
     -*)
       if [ -n "${DOMAIN:-}" ]; then
         SSHARGS+=("$1")
-      elif [ "$1" = --use ]; then
-        # the one hi flag that takes a word: which arm, by name
-        [ $# -ge 2 ] || {
-          _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
-          exit 1
-        }
-        backend_word="$(_hi_use_backend "$2")" || exit 1
+      elif [ "$1" = --use ] || [ "${1#--use=}" != "$1" ]; then
+        # the one hi flag that takes a word: which arm, by name, as the next
+        # word or after an = (install.sh's --prefix and --preset take both)
+        if [ "$1" = --use ]; then
+          [ $# -ge 2 ] || {
+            _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
+            exit 1
+          }
+          use_word="$2"
+          shift
+        else
+          use_word="${1#--use=}"
+        fi
+        backend_word="$(_hi_use_backend "$use_word")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: --use $2 and --use $BACKEND both name a backend; pick one" "$RED" >&2
+          _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
           exit 1
         fi
         BACKEND="$backend_word"
-        shift
       elif [ "$1" = --plain ]; then
         PLAIN=1
       elif [ "$1" = --mux ]; then
         MUX=1
+      elif [ "$1" = --no-mux ]; then
+        # the last of --mux/--no-mux wins, and either beats _HI_MUX
+        MUX=0
       else
         SSHARGS+=("$1")
       fi
@@ -1772,7 +1783,9 @@ function _hi() {
 function _hi_run_script() {
   local flag="$1" script="$2"
   shift 2
-  [ -f "$script" ] && exec "$script" "$@"
+  # the script's own usage line names what was typed - `hi --doctor`, not
+  # doctor.sh - when it is reached this way
+  [ -f "$script" ] && _HI_ARGV0="hi $flag" exec "$script" "$@"
   _hi_cecho "hi $flag $_HI_NO_CHECKOUT" "$RED" >&2
   exit 1
 }
@@ -1840,6 +1853,28 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 # payloads and packaged installs alike.
 function _hi_update() {
   local root="$_HI_ROOT" ref="" dirty here
+  # answered ahead of the .git check, so a package install gets the text too,
+  # and ahead of the ref case below, which would hand --help to git pull
+  case "${1:-}" in
+  -h | --help)
+    cat <<EOF
+Usage: hi --update [<ref>] [git-pull-options]
+
+Moves the say-hi checkout this hi runs from (needs its .git; a package has
+none, so it says so and stops):
+  hi --update                    git pull on the branch it is on, with any
+                                 git-pull-options passed through (--rebase, ...)
+  hi --update <tag>              check that release out, detached; no pull,
+                                 so no git-pull-options either
+  hi --update <branch>           check that branch out and pull it - the way
+                                 back from a tag
+
+A tree with uncommitted changes is refused. \`git -C $root tag\` lists the
+releases.
+EOF
+    exit 0
+    ;;
+  esac
   [ -d "$root/.git" ] || {
     _hi_cecho "hi --update: $_HI_NO_GIT" "$RED" >&2
     exit 1
@@ -1939,7 +1974,7 @@ EOF
 # the full preview lives in scripts/; a target falls back to the check itself
 --preview-packages)
   shift
-  [ -f "$_HI_PACKAGES_PREVIEW" ] && exec "$_HI_PACKAGES_PREVIEW" "$@"
+  [ -f "$_HI_PACKAGES_PREVIEW" ] && _HI_ARGV0="hi --preview-packages" exec "$_HI_PACKAGES_PREVIEW" "$@"
   exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
   ;;
 # -V is hi's, like -h: the one ssh short option claimed on purpose, because

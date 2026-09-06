@@ -410,6 +410,20 @@ function test_parse_use_does_not_reach_sshargs() {
   [ "$(_hi_parse_out --use podman myhost)" = "$(printf 'myhost\n\n')" ]
 }
 
+# --use=<backend> is the same flag with its word joined, the spelling
+# install.sh's --prefix and --preset already take; it used to fall through
+# to ssh as an unknown option
+function test_parse_use_takes_the_equals_spelling() {
+  [ "$(_hi_backend_parse_out --use=nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ] &&
+    [ "$(_hi_parse_out --use=podman myhost)" = "$(printf 'myhost\n\n')" ]
+}
+
+function test_parse_use_equals_rejects_a_stranger() {
+  local rc=0
+  (_hi_parse --use=frobnicate myhost >/dev/null 2>&1) || rc=$?
+  [ "$rc" -eq 1 ]
+}
+
 function test_parse_use_rejects_a_stranger() {
   local rc=0 out
   out="$( (_hi_parse --use frobnicate myhost 2>&1 >/dev/null) || true)"
@@ -818,6 +832,45 @@ function test_help_flags_are_all_in_the_man_page() {
   done
 }
 
+# The synopsis is one sentence written twice - $_HI_USAGE and the page's
+# first .SH SYNOPSIS line - and this is the check the comment above
+# _HI_USAGE promises. The roff is flattened: the request names, font
+# escapes and quotes dropped, \- unescaped, and every space removed on both
+# sides (roff joins .RI/.RB arguments without them), as are --help's angle
+# brackets (the page sets those names in italics instead).
+function test_usage_line_matches_the_man_page_synopsis() {
+  local man="$_HI_HOME/say-hi/docs/hi.1" page help
+  page="$(awk '
+    /^\.SH SYNOPSIS/ { on = 1; next }
+    on && /^\.br/ { exit }
+    on {
+      sub(/^\.[A-Z]+ /, "")
+      gsub(/\\f[IRB]/, ""); gsub(/"/, ""); gsub(/\\-/, "-"); gsub(/[ \t]/, "")
+      printf "%s", $0
+    }' "$man")"
+  help="${_HI_USAGE#Usage: }"
+  help="${help//[<> ]/}"
+  help="${help//$'\n'/}"
+  [ "$page" = "$help" ] || {
+    _hi_cecho "   --help: $help" "$RED"
+    _hi_cecho "   hi.1:   $page" "$RED"
+    return 1
+  }
+}
+
+# _hi_flag_help wraps a wide label onto its own line so the block fits 80
+# columns; a help clause in common/flags is the other way to overflow, and
+# nothing wrapped those. Every line of --help is held to the width.
+function test_help_fits_eighty_columns() {
+  local out wide
+  out="$(_hi_help_out --help)" || return 1
+  wide="$(printf '%s\n' "$out" | awk 'length > 80')"
+  [ -z "$wide" ] || {
+    _hi_cecho "   over 80 columns: $wide" "$RED"
+    return 1
+  }
+}
+
 # ...and that check asks only whether a flag appears in the page at all, which
 # is why the page's *grouping* drifted twice without failing anything. hi.1
 # splits OPTIONS at "The local commands act on this machine": above it is what works
@@ -832,8 +885,8 @@ function test_help_flags_are_all_in_the_man_page() {
 function test_man_page_option_groups_match_the_roster() {
   local man="$_HI_HOME/say-hi/docs/hi.1" zones all session flag bad=0
   [ -f "$man" ] || return 1
-  all="$(sh "$_HI_ROOT/common/targets.sh" flags)" || return 1
-  session="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags)" || return 1
+  all="$(sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)" || return 1
+  session="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)" || return 1
   # One "<flag> <zone>" line per mention. top = its own entry above the
   # paragraph, grouped = its own entry below it, named = spelled out inside the
   # paragraph as an exception. A flag can be both grouped and named, which is
@@ -983,6 +1036,15 @@ function test_update_refuses_without_a_git_dir() {
   home="$(_hi_subcmd_home subcmd-bare)"
   out="$(_hi_subcmd_run "$home" --update)" && return 1
   [[ "$out" == *"hi --update: no .git in"* ]]
+}
+
+# --help is hi's to answer, not git pull's - and it answers ahead of the .git
+# check, so a package install gets the text too
+function test_update_help_is_his_own() {
+  local home out
+  home="$(_hi_subcmd_home subcmd-bare)"
+  out="$(_hi_subcmd_run "$home" --update --help)" || return 1
+  [[ "$out" == "Usage: hi --update"* && "$out" == *"<branch>"* ]]
 }
 
 # ...and with a .git it hands the rest of its argv to git pull, in this tree:
@@ -1336,6 +1398,8 @@ function run_hi_parse_tests() {
   _hi_check "--use <cli> sets BACKEND to that member" test_parse_use_sets_backend_to_the_named_cli
   _hi_check "--use and its word never reach SSHARGS" test_parse_use_does_not_reach_sshargs
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger
+  _hi_check "--use=<backend> is the same flag" test_parse_use_takes_the_equals_spelling
+  _hi_check "--use=<stranger> is refused" test_parse_use_equals_rejects_a_stranger
   _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
   _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
@@ -1383,6 +1447,7 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
   _hi_check "--update refuses without a .git" test_update_refuses_without_a_git_dir
+  _hi_check "--update --help is hi's text" test_update_help_is_his_own
   _hi_check "--update hands its arguments to git pull" test_update_hands_its_arguments_to_git_pull
   _hi_check_requires git "--update <tag> checks the tag out, detached" test_update_to_a_tag_detaches_there
   _hi_check_requires git "A bare --update on a tag says so and stops" test_bare_update_on_a_tag_says_so_and_stops
@@ -1401,6 +1466,8 @@ function run_hi_parse_tests() {
   _hi_check_eq "-h is the same text" "$(_hi_help_out --help)" _hi_help_out -h
   _hi_check "Lists hi's flags and the target ladder" test_help_lists_hi_s_own_flags
   _hi_check "Every flag is in the man page" test_help_flags_are_all_in_the_man_page
+  _hi_check "The usage line is the man page's synopsis" test_usage_line_matches_the_man_page_synopsis
+  _hi_check "Every line fits 80 columns" test_help_fits_eighty_columns
   _hi_check "The man page groups them as the roster does" test_man_page_option_groups_match_the_roster
   _hi_check "Both shell ladders are in the man page" test_shell_ladders_are_in_the_man_page
   _hi_check "The ladder is the shell tree without bash" test_the_shell_tree_is_the_documented_order

@@ -91,6 +91,36 @@ function test_mux_flag_after_the_target_is_the_commands() {
   [ "$out" = "0|myhost|--mux" ]
 }
 
+# --no-mux is the per-connect way out of _HI_MUX=1, and the last of the two
+# flags wins; after the target it is the remote command's word like --mux
+function test_no_mux_flag_clears_mux_ahead_of_the_target() {
+  local out
+  out="$(
+    unset DOMAIN MUX
+    _hi_parse --mux --no-mux myhost >/dev/null 2>&1
+    printf '%s|%s|%s' "${MUX:-unset}" "${DOMAIN:-}" "${SSHARGS[*]:-}"
+  )"
+  [ "$out" = "0|myhost|" ] || return 1
+  out="$(
+    unset DOMAIN MUX
+    _hi_parse --no-mux --mux myhost >/dev/null 2>&1
+    printf '%s' "${MUX:-unset}"
+  )"
+  [ "$out" = 1 ] || return 1
+  out="$(
+    unset DOMAIN MUX
+    _hi_parse myhost --no-mux >/dev/null 2>&1
+    printf '%s|%s' "${MUX:-unset}" "${SSHARGS[*]:-}"
+  )"
+  [ "$out" = "unset|--no-mux" ]
+}
+
+function test_no_mux_beats_the_setting() {
+  local log="$_HI_WORKDIR/nomux.log" out
+  out="$(_hi_mux_run "$log" 0 'MUX=0; _HI_MUX=1')"
+  [ "$out" = RETURNED ]
+}
+
 function test_mux_wrap_is_a_no_op_without_the_flag() {
   local log="$_HI_WORKDIR/off.log" out
   out="$(_hi_mux_run "$log" 0 'MUX=0; unset _HI_MUX')"
@@ -167,12 +197,14 @@ function run_hi_mux_tests() {
   _hi_h2 "Testing: --mux in _hi_parse"
   _hi_check "--mux ahead of the target sets MUX" test_mux_flag_sets_mux_ahead_of_the_target
   _hi_check "--mux after the target is the command's" test_mux_flag_after_the_target_is_the_commands
+  _hi_check "--no-mux clears it, last one wins" test_no_mux_flag_clears_mux_ahead_of_the_target
   _hi_h2 "Testing: _hi_mux_wrap"
   _hi_check "Without the flag or setting, nothing happens" test_mux_wrap_is_a_no_op_without_the_flag
   _hi_check "The inner hi does not wrap again" test_mux_wrap_stands_down_inside_the_wrapped_session
   _hi_check "No tmux here: connect un-wrapped, with a warning" test_mux_wrap_connects_plain_without_tmux
   _hi_check "Outside tmux: exec new-session -A -s hi-<target>" test_mux_wrap_execs_new_session_A_named_for_the_target
   _hi_check "_HI_MUX=1 wraps without the flag" test_mux_setting_wraps_without_the_flag
+  _hi_check "--no-mux beats _HI_MUX=1" test_no_mux_beats_the_setting
   _hi_check "Inside tmux: create detached, then switch-client" test_mux_wrap_inside_tmux_creates_then_switches
   _hi_check "The inner argv is the parsed state, quoted" test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state
   _hi_check "--mux is in --help and hi.1" test_mux_is_in_help_and_the_man_page

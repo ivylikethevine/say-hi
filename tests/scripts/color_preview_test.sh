@@ -342,10 +342,16 @@ function test_help_prints_usage_and_exits_zero() {
 # over: a bare `source` directly inside $( ) crashes shellcheck 0.11.0
 # ("Non-exhaustive patterns in checkCmd"), and the space before it keeps $( (
 # from reading as arithmetic.
+function test_a_stray_argument_is_refused() {
+  local out rc=0
+  out="$(_hi_render_preview nonsense)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]]
+}
+
 function test_h_flag_prints_the_same_usage() {
   local out
   # shellcheck source=../../scripts/color_preview.sh
-  out="$( (source "$_HI_COLOR_PREVIEW" -h) )" || return 1
+  out="$( (source "$_HI_COLOR_PREVIEW" -h))" || return 1
   [[ "$out" == 'Usage: color_preview.sh'* ]]
 }
 
@@ -432,6 +438,7 @@ EOF
   _hi_h2 "Testing: --help"
   _hi_check "--help prints usage and exits 0" test_help_prints_usage_and_exits_zero
   _hi_check "-h prints the same usage" test_h_flag_prints_the_same_usage
+  _hi_check "A stray argument is refused" test_a_stray_argument_is_refused
 
   _hi_suite_end "color_preview.sh"
 }

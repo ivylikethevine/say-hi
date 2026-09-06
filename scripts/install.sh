@@ -31,15 +31,18 @@ _HI_NO_LINK=""
 _HI_PREFIX=""
 # --preset <name>: configure.sh's _HI_PRESETS, applied without asking
 _HI_PRESET=""
-_HI_USAGE="Usage: install.sh [--features-only] [--preset <name>] [--check-configs] [--overlay-init] [--uninstall] [--yes] [--no-link] [--prefix <dir>]"
+_HI_USAGE="Usage: ${_HI_ARGV0:-install.sh} [--features-only] [--preset <name>] [--check-configs] [--overlay-init] [--uninstall] [--yes] [--no-link] [--prefix <dir>]"
+# the four modes are one choice: hi --configure/--uninstall/--overlay-init
+# each inject one, so `hi --configure --uninstall` used to uninstall
+_HI_MODES=""
 # one `shift` after the case, not one per arm: an arm added without its own was
 # an infinite loop
 while [ $# -gt 0 ]; do
   case "$1" in
-  --features-only) _HI_FEATURES_ONLY=1 ;;
-  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 ;;
-  --overlay-init) _HI_OVERLAY_INIT=1 ;;
-  --uninstall) _HI_UNINSTALL_MODE=1 ;;
+  --features-only) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --overlay-init) _HI_OVERLAY_INIT=1 _HI_MODES="$_HI_MODES $1" ;;
+  --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
   --no-link) _HI_NO_LINK=1 ;;
   -y | --yes) _HI_ASSUME_YES=1 ;;
   --prefix)
@@ -135,6 +138,14 @@ EOF
   esac
   shift
 done
+case "$_HI_MODES" in
+' '*' '*)
+  echo "install.sh: pick one of$_HI_MODES" >&2
+  echo "$_HI_USAGE" >&2
+  exit 1
+  ;;
+esac
+unset _HI_MODES
 
 # Either flag alone is enough - a packager who passes only $DESTDIR still gets
 # /usr/share, and one who passes only --prefix is installing straight to a live
@@ -330,16 +341,17 @@ function install_tree() {
 # calls in particular have no business firing from a test
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
-if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
+# the same order the modes run in below
+if [ -n "$_HI_UNINSTALL_MODE" ]; then
+  _hi_h1 "Uninstalling hi.sh!"
+elif [ -n "$_HI_PACKAGING" ]; then
+  _hi_h1 "Packaging hi.sh!"
+elif [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
   _hi_h1 "Checking existing shell configs!"
 elif [ -n "$_HI_OVERLAY_INIT" ]; then
   _hi_h1 "Versioning the config overlay!"
-elif [ -n "$_HI_UNINSTALL_MODE" ]; then
-  _hi_h1 "Uninstalling hi.sh!"
 elif [ -n "$_HI_FEATURES_ONLY" ]; then
   _hi_h1 "Configuring hi.sh features!"
-elif [ -n "$_HI_PACKAGING" ]; then
-  _hi_h1 "Packaging hi.sh!"
 else
   _hi_h1 "Installing (or reinstalling) hi.sh!"
 fi

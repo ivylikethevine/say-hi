@@ -585,6 +585,38 @@ function lint_dockerfiles() {
   return "$bad"
 }
 
+# docs/tldr.md is the tldr-pages draft, paired with docs/hi.1 in
+# CONTRIBUTING's table but, unlike the page, checked by nothing - a flag
+# rename failed parse_test.sh on the page and passed here. Two facts: every
+# --flag it shows is a common/flags row (--json, --use's word and the like
+# are arguments, so only the first word of a command counts), and it stays
+# inside upstream's cap of eight examples.
+function lint_tldr_page() {
+  local page="$_HI_ROOT/docs/tldr.md" flag n bad=0
+  _hi_h2 "Checking docs/tldr.md against common/flags"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  while IFS= read -r flag; do
+    [ -n "$flag" ] || continue
+    if grep -q "^$flag|" "$_HI_ROOT/common/flags"; then
+      _hi_align " | $flag" "OK" "$GREEN"
+    else
+      _hi_align " | $flag is not a common/flags row" "FAILED" "$RED"
+      _hi_note_failure "docs/tldr.md: $flag"
+      bad=$((bad + 1))
+    fi
+  done < <(sed -n 's/^`hi \(--[a-z-]*\).*/\1/p' "$page" | sort -u)
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  n="$(grep -c '^- ' "$page")"
+  if [ "$n" -le 8 ]; then
+    _hi_align " | $n examples (tldr-pages allows 8)" "OK" "$GREEN"
+  else
+    _hi_align " | $n examples, over tldr-pages' cap of 8" "FAILED" "$RED"
+    _hi_note_failure "docs/tldr.md: $n examples"
+    bad=$((bad + 1))
+  fi
+  return "$bad"
+}
+
 function run_drift() {
   _hi_lint_suite_begin "Checking repo-consistency drift"
 
@@ -592,8 +624,8 @@ function run_drift() {
   _hi_workdir drifttest
 
   _hi_lint_halves lint_bash32 lint_home_default lint_glossary_tags \
-    lint_settings_table lint_liquid_docs lint_dockerfiles lint_image_tags \
-    lint_image_digests
+    lint_settings_table lint_liquid_docs lint_tldr_page lint_dockerfiles \
+    lint_image_tags lint_image_digests
   _hi_lint_suite_end
 }
 

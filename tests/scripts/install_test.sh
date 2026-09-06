@@ -294,6 +294,19 @@ function _hi_run_install_here() {
 
 # the three argument errors: each has to stop before anything is sourced,
 # written or asked, with the message naming what was missing
+# the four modes are one choice: `hi --configure` injects --features-only,
+# so `hi --configure --uninstall` reached run_uninstall
+function test_two_modes_are_refused() {
+  local out rc=0
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --features-only --uninstall 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --features-only --uninstall"* ]]
+}
+
+function test_usage_names_what_was_typed() {
+  [[ "$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: hi --install "* ]] &&
+    [[ "$(bash "$_HI_ROOT/scripts/install.sh" --help | head -1)" == "Usage: install.sh "* ]]
+}
+
 function test_prefix_flag_requires_a_path() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix 2>&1)" || rc=$?
@@ -650,6 +663,8 @@ function run_install_tests() {
   _hi_check "--prefix requires a path" test_prefix_flag_requires_a_path
   _hi_check "--preset requires a name" test_preset_flag_requires_a_name
   _hi_check "An unknown argument gets the usage" test_an_unknown_argument_gets_the_usage
+  _hi_check "Two modes at once are refused" test_two_modes_are_refused
+  _hi_check "The usage line names what was typed" test_usage_names_what_was_typed
   _hi_check "--check-configs passes a clean home" test_check_configs_mode_passes_a_clean_home
   _hi_check "--check-configs fails on a broken .bashrc" test_check_configs_mode_fails_on_a_broken_bashrc
   _hi_check_requires git "--overlay-init versions the overlay" test_overlay_init_mode_versions_the_overlay

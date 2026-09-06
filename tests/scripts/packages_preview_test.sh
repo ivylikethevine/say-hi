@@ -332,6 +332,14 @@ function test_help_prints_usage_and_stops() {
     [[ "$out" != *"| PRIORITY"* ]]
 }
 
+# anything that is not -h/--help is an error: the flag takes no arguments,
+# and a stray one used to be ignored
+function test_a_stray_argument_is_refused() {
+  local out rc=0
+  out="$(_hi_render_help nonsense)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* && "$out" != *"| PRIORITY"* ]]
+}
+
 function test_short_help_matches_long() {
   [ "$(_hi_render_help -h)" = "$(_hi_render_help --help)" ]
 }
@@ -489,6 +497,7 @@ function run_packages_preview_tests() {
 
   _hi_h2 "Testing: the rendered preview"
   _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops
+  _hi_check "A stray argument is refused" test_a_stray_argument_is_refused
   _hi_check "-h matches --help" test_short_help_matches_long
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette

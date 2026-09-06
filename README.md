@@ -140,6 +140,7 @@ A researcher, in zsh, sweeping the cluster's backends.
 ### No Target at All?
 
 `hi` on its own offers the target list, backend-tagged and
+
 most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
 if you have one, a numbered menu if not. It runs on the client, never reaches
 a target, and a `hi` in a script or CI job still fails rather than wait on a

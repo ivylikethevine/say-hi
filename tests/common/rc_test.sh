@@ -363,7 +363,7 @@ function test_zsh_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
-    compadd() { local -a a; [[ $1 == -a ]] && a=(${(P)2}); print -l -- $a }
+    compadd() { local -a a; while (( $# )); do [[ $1 == -a ]] && a=(${(P)2}); shift; done; print -l -- $a }
     words=(hi --c); CURRENT=2
     _hi
   ')"
@@ -371,17 +371,19 @@ function test_zsh_flag_completion_offers_hi_options() {
     printf '%s\n' "$out" | grep -qx -- --preview-colors
 }
 
-# fish does its own prefix matching, so `--preview-c` narrows to one flag. A tab
-# in the output would be a target row ("<name>\t<kind>"), which is the sweep
-# the -n guard exists to keep out of a dash word.
+# fish does its own prefix matching, so `--preview-c` narrows to one flag, and
+# prints it with the roster's help clause after a tab - the description fish
+# shows beside the flag. A line that does not start with a dash would be a
+# target row ("<name>\t<kind>"), which is the sweep the -n guard exists to
+# keep out of a dash word.
 function test_fish_flag_completion_offers_hi_options() {
   local out
   out="$(_hi_rc_shell xterm-256color fish '
     source $_HI_HOME/say-hi/common/config.fish 2>/dev/null
     complete -C "hi --preview-c"
   ')"
-  printf '%s\n' "$out" | grep -qx -- --preview-colors || return 1
-  if printf '%s\n' "$out" | grep -q "$(printf '\t')"; then
+  printf '%s\n' "$out" | grep -q "^--preview-colors$(printf '\t')every ssh host" || return 1
+  if printf '%s\n' "$out" | grep -qv '^-'; then
     _hi_cecho "   a dash word also swept the targets" "$RED"
     return 1
   fi
@@ -604,7 +606,7 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] defers when asked and present" test_defers_to_starship_when_asked fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
-  _hi_check_requires fish "fish flag TAB completes hi's options" test_fish_flag_completion_offers_hi_options
+  _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
   _hi_check_requires fish "fish sources the system layer locally" test_fish_system_settings_apply_locally

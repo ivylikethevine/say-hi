@@ -1,4 +1,4 @@
-.TH HI 1 "2026-09-05" "say-hi" "User Commands"
+.TH HI 1 "2026-09-06" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
 .SH SYNOPSIS
@@ -6,7 +6,7 @@ hi \- your shell config, on every host you say hi to
 .RI [ ssh\-options ]
 .RB [ \-\-use " " \fIbackend\fR]
 .RB [ \-\-plain ]
-.RB [ \-\-mux ]
+.RB [ \-\-mux | \-\-no\-mux ]
 .I target
 .RI [ command ...]
 .br
@@ -199,6 +199,8 @@ or
 .BR kube .
 The name has to be one hi was loaded with; a stranger is an error, not a
 guess.
+.B \-\-use=\fIbackend\fR
+is the same flag with its word joined.
 .TP
 .B \-\-plain
 skip the payload entirely and hand over a bare shell on whichever arm
@@ -230,6 +232,15 @@ inside a tmux, the session is created detached and this client switches to
 it. Without a terminal, or without tmux on this machine, hi connects as usual.
 .B _HI_MUX=1
 in the settings makes it the default.
+.TP
+.B \-\-no\-mux
+connect without the tmux wrap, whatever
+.B _HI_MUX
+says \- the way out of that default for one connect. Of
+.B \-\-mux
+and
+.BR \-\-no\-mux ,
+the last one on the line wins.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -272,7 +283,7 @@ answers every prompt yes;
 skips the
 .B hi
 symlink into
-.BR ~/.local/bin ;
+.BR /usr/bin ;
 .B \-\-prefix
 is packaging mode \- stage the tree under
 .I dir
@@ -379,7 +390,9 @@ seconds and each backend gets
 to answer, because this runs on every keypress.
 .TP
 .B hi \-\-<TAB>
-hi's own options, answered without probing any backend at all. The list is
+hi's own options, each with its one\-line purpose where the shell has a
+column for it (fish and zsh do; bash lists the names). Answered without
+probing any backend at all. The list is
 filtered to what this install can actually run: a session is offered none of
 the local commands that need
 .BR scripts/ ,
@@ -470,6 +483,36 @@ order; default
 Each is its own
 .B \-\-use
 name and its own completion tag; one that is not installed costs nothing.
+.TP
+.B _HI_MUX
+.B 1
+wraps every connect in the local
+.BR tmux (1)
+session
+.B \-\-mux
+describes;
+.B \-\-no\-mux
+skips it for one. Default
+.BR 0 .
+.TP
+.B _HI_RECENT, _HI_RECENT_FILE
+.B 1
+(the default) records every target a session ended cleanly on, in
+.B $XDG_STATE_HOME/say-hi/recent
+or wherever
+.B _HI_RECENT_FILE
+points, and completion and the bare\-hi picker offer those first;
+.B 0
+neither records nor ranks. Client\-side only.
+.TP
+.B _HI_TRUECOLOR
+.B 1
+or
+.BR 0 :
+whether the client's terminal renders 24\-bit color. Read off
+.B COLORTERM
+and shipped to the session, which ssh never forwards itself; set it to force
+(inside tmux, say) or refuse a scheme's hex.
 .TP
 .B _HI_TARGETS_TTL, _HI_PROBE_TIMEOUT
 completion's two knobs: seconds the target list is reused for (default 5)

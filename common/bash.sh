@@ -90,9 +90,10 @@ function _hi_complete() {
   # without touching the target cache or its probes. Uncached on purpose: the
   # roster is a dozen printfs in targets.sh.
   if [[ "$cur" == -* ]]; then
-    for n in $(sh "$_HI_TARGETS" flags); do
+    # "<flag>\t<help>" lines; bash's menu has no room for the second column
+    while IFS=$'\t' read -r n _; do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
-    done
+    done < <(sh "$_HI_TARGETS" flags)
     return 0
   fi
   _hi_target_names
