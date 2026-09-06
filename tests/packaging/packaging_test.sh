@@ -585,6 +585,39 @@ function test_ci_chained_workflows_carry_the_green_push_gate() {
   [ "$bad" = 0 ]
 }
 
+# actions/upload-artifact (v4.4+, the pin every workflow here uses) drops
+# dotfiles unless a step sets include-hidden-files: true - the bug behind
+# coverage.yml's bashcov shards silently uploading nothing for
+# .resultset.json, masked by shard-bashcov's own continue-on-error. Each
+# upload-artifact step's block (its `- uses:` line up to the next step or a
+# dedent) is scanned for a `path:` naming a dotfile with no
+# include-hidden-files: true beside it - inline or as a `path: |` block
+# scalar entry, either way a dotfile basename is `/.name` or a bare `.name`
+# at the end of a line.
+function test_upload_artifact_dotfile_paths_set_include_hidden() {
+  local wf out line bad=0
+  for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
+    out="$(awk '
+      function indent(s,    i) { i = 0; while (substr(s, i + 1, 1) == " ") i++; return i }
+      function flush() {
+        if (open && dotfile && !hidden) print start
+        open = 0; dotfile = 0; hidden = 0
+      }
+      /- uses: actions\/upload-artifact@/ { flush(); open = 1; ind = indent($0); start = NR; next }
+      open && $0 !~ /^[ \t]*$/ && indent($0) <= ind { flush() }
+      open && /include-hidden-files:[ \t]*true/ { hidden = 1 }
+      open && $0 ~ /(^|[ \t\/])\.[A-Za-z0-9_.-]+[ \t]*$/ { dotfile = 1 }
+      END { flush() }
+    ' "$wf")"
+    [ -n "$out" ] || continue
+    while IFS= read -r line; do
+      _hi_cecho " | ${wf##*/}:$line uploads a dotfile path with no include-hidden-files: true" "$RED"
+      bad=1
+    done <<<"$out"
+  done
+  [ "$bad" = 0 ]
+}
+
 # bump.sh --check is the tag/manifest gate; the build must not skip it
 function test_release_workflow_verifies_the_manifests() {
   grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
@@ -2287,6 +2320,7 @@ function run_packaging_tests() {
   _hi_check "src_tarball ships an executable hi.sh" test_src_tarball_ships_an_executable_hi_sh
   _hi_check "publish's minisign-pubkey sed still reads the key" test_release_minisign_pubkey_sed_matches_packaging_md
   _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
+  _hi_check "every dotfile upload-artifact path sets include-hidden-files" test_upload_artifact_dotfile_paths_set_include_hidden
 
   _hi_h2 "Testing: publish-external.yml"
   _hi_check "aur is dispatch-only, not in release.yml" test_aur_is_dispatch_only

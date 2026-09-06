@@ -590,6 +590,7 @@ _HI_ADVANCED_PROMPTS=(
   "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?||"
   "_HI_ENABLE_FISH_ALIAS_ABBR|0|1|| fish: expand every hi alias to its full command on the line before it runs (an abbr - it rewrites what your history says)?|fish|"
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
+  "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
@@ -1249,13 +1250,19 @@ function config_advanced_values() {
   value="$(ask_value "Seconds any one backend (docker, kubectl, ...) gets to answer, in completion and the header?" \
     "$current" 2 _hi_is_seconds "not a number of seconds")"
   _hi_pending_set _HI_PROBE_TIMEOUT "$value"
+
+  current=""
+  setting_value _HI_CTL_PERSIST "$_HI_SETTINGS" current
+  value="$(ask_value "Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?" \
+    "$current" 60 _hi_is_number "not a number")"
+  _hi_pending_set _HI_CTL_PERSIST "$value"
 }
 
 # The advanced section: a short question walk rather than a menu - these are
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
 function config_advanced() {
-  section "Advanced settings" "Session shell, glyphs, TERM fallback, recent targets, completion timing. Enter keeps each value."
+  section "Advanced settings" "Session shell, glyphs, TERM fallback, recent targets, completion timing, connection reuse. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
 }
@@ -1317,6 +1324,7 @@ function collect_setting_lines() {
   _hi_collect_value _HI_ASCII ""
   _hi_collect_value _HI_TARGETS_TTL 5
   _hi_collect_value _HI_PROBE_TIMEOUT 2
+  _hi_collect_value _HI_CTL_PERSIST 60
 }
 
 # $_HI_SETTINGS is hi's own file, not one of the user's rc files, and it

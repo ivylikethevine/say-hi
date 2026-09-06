@@ -189,10 +189,14 @@ jobs:
       # writes an HTML report per shard too, and gather-bashcov has no use
       # for four partial, suite-incomplete copies of it - only the raw
       # per-line hit data merges cleanly (see gather-bashcov below).
+      # include-hidden-files: upload-artifact drops dotfiles by default, and
+      # .resultset.json is one - without this the step silently uploads
+      # nothing and shard-bashcov's continue-on-error hides the failure.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-parts-bashcov-${{ matrix.shard }}
           path: coverage-v2-report/.resultset.json
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
@@ -374,10 +378,12 @@ jobs:
             end
           ' "${shards[@]}"
 
+      # same dotfile exclusion as the shard upload above
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-v2-report
           path: coverage-v2-report/.resultset.json
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 90
 

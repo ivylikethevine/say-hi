@@ -10,6 +10,24 @@
 # shellcheck disable=SC2016,SC2029
 set -euo pipefail # off again below: this file is sourced by the interactive shell, where an error would close the session
 
+# The client leg of the connect banner's timing (docs/SETTINGS.md's
+# "Everything else"): as close to the moment you hit enter as this file gets,
+# before $_HI_HOME is even resolved - _hi_now doesn't exist until core.sh is
+# sourced below, so this is the same one-liner _hi_remote_preamble inlines
+# for the target side, replaced by core.sh's fuller version the moment it
+# loads. _say_hi/_say_hi_container read it when they hand off to the session;
+# every other entry point through this file leaves it be.
+_hi_now() {
+  d=$(date +%s.%N 2>/dev/null)
+  case "$d" in *N* | '') date +%s ;; *) printf '%s' "$d" ;; esac
+}
+# the `||` matters under `set -e`, above: hi.sh's own source-time work has no
+# hard `date` requirement (tests/hi/parse_test.sh's picker cases run it with
+# a PATH of nothing but bash/sh/sed/cat), so a target this bare degrades to
+# an empty connect time rather than aborting the source before it defines
+# anything - _hi_elapsed then reads it as awk's own zero, not an error.
+_HI_CONNECT_T0="$(_hi_now)" || _HI_CONNECT_T0=""
+
 # $_HI_HOME is the directory *containing* say-hi, derived from this script's
 # own path behind a symlink walk (/usr/bin/hi -> <prefix>/say-hi/hi.sh). The
 # same walk as scripts/install.sh's and packaging/lib.sh's: fix one, fix all.
@@ -149,6 +167,44 @@ function _hi_overlay_files() {
   return 0
 }
 
+# _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
+# state (a shared ControlMaster socket, the payload/overlay cache), or empty
+# into <var> when there is none hi can vouch for. $XDG_RUNTIME_DIR when it
+# exists - per-user and already 0700 - else a directory of hi's own under
+# ${TMPDIR:-/tmp}, made with `mkdir -m 700` (never adopted if something else
+# is already there) and ownership-checked before use. Every caller degrades
+# to today's behaviour rather than trust a directory it cannot vouch for. The
+# same discipline common/targets.sh's completion cache uses for the same
+# reason - kept as its own copy because targets.sh is standalone POSIX and
+# sources nothing, so the two only stay in step by comment.
+function _hi_runtime_dir() {
+  # prefixed locals: a plain `dir` would shadow the caller's outvar of the
+  # same name and the assignment below would never leave this function
+  # (GLOSSARY: HI.04)
+  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid _hi_rtd_owner
+  if [ -z "$_hi_rtd_dir" ] || [ ! -d "$_hi_rtd_dir" ]; then
+    _hi_rtd_uid="$(id -u 2>/dev/null || echo unknown)"
+    _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
+    [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
+    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ]; then
+      printf -v "$1" ''
+      return 0
+    fi
+    # shellcheck disable=SC2012 # same as common/targets.sh's copy of this
+    # check: `find -user` takes a user *name*, which is exactly what a host
+    # with no passwd entry for the caller cannot supply. SC2012's hazard is
+    # parsing file *names* out of ls; this reads a fixed column off one path
+    # this function built itself.
+    _hi_rtd_owner="$(ls -ld "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
+    if [ -z "$_hi_rtd_owner" ] ||
+      { [ "$_hi_rtd_owner" != "$(id -un 2>/dev/null || echo)" ] && [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; }; then
+      printf -v "$1" ''
+      return 0
+    fi
+  fi
+  printf -v "$1" '%s' "$_hi_rtd_dir"
+}
+
 # tar's own arguments, gzip in a second process rather than `z`: bsdtar pads
 # the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip
 function _hi_tar_gz() {
@@ -202,6 +258,62 @@ function _hi_overlay_tar() {
     done < <(find "$stage" -type f -name '*.strip')
     _hi_tar_gz -C "$stage" "${present[@]}"
   )
+}
+
+# _hi_overlay_cache_key <file...> - one line identifying everything that
+# changes what _hi_overlay_tar would produce for exactly this member list
+# without touching a single overlay file's mtime: the list itself (a toggle
+# trimming a member changes it) and _HI_KEEP_COMMENTS. Its own cksum, not the
+# string itself, keeps the cache filename short.
+function _hi_overlay_cache_key() {
+  printf '%s|%s' "$*" "${_HI_KEEP_COMMENTS:-0}" | cksum | cut -d' ' -f1
+}
+
+# _hi_overlay_cached <outvar> <file...> - a warm gzipped tar for exactly
+# these overlay members, rebuilt when missing, stale (a member's mtime past
+# the cache's own) or _HI_PAYLOAD_CACHE=0. Written whole under a temp name and
+# `mv`d into place, so a mid-build reader never sees a half-written cache -
+# the same discipline common/targets.sh's own cache writer uses. Fails
+# (nothing in <outvar>) when there is no runtime directory or no member at
+# all; the caller falls back to building fresh either way.
+function _hi_overlay_cached() {
+  # prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` or `dir`
+  # would shadow a caller's outvar of the same name (_hi_overlay_stream's own
+  # `cache`, for one) and the printf -v below would never leave this function
+  local _hi_oc_outvar="$1"
+  shift
+  local -a _hi_oc_present=("$@")
+  ((${#_hi_oc_present[@]})) || return 1
+  [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
+  local _hi_oc_dir _hi_oc_cache _hi_oc_key
+  _hi_runtime_dir _hi_oc_dir
+  [ -n "$_hi_oc_dir" ] || return 1
+  _hi_oc_key="$(_hi_overlay_cache_key "${_hi_oc_present[@]}")"
+  _hi_oc_cache="$_hi_oc_dir/hi.overlay.$_hi_oc_key"
+  if [ -f "$_hi_oc_cache" ] &&
+    [ -z "$(find "${_hi_oc_present[@]/#/$_HI_CONFIG_DIR/}" -newer "$_hi_oc_cache" -print -quit 2>/dev/null)" ]; then
+    printf -v "$_hi_oc_outvar" '%s' "$_hi_oc_cache"
+    return 0
+  fi
+  _hi_overlay_tar "${_hi_oc_present[@]}" >"$_hi_oc_cache.$$" || {
+    rm -f "$_hi_oc_cache.$$"
+    return 1
+  }
+  mv -f "$_hi_oc_cache.$$" "$_hi_oc_cache"
+  printf -v "$_hi_oc_outvar" '%s' "$_hi_oc_cache"
+}
+
+# _hi_overlay_stream <file...> - the overlay's armored `tar mxzf` line for
+# these members, through the cache when it's warm and clean, built fresh
+# otherwise. Kept apart from _say_hi so the branch that uses it reads as one
+# call regardless of which path answered.
+function _hi_overlay_stream() {
+  local cache=""
+  if _hi_overlay_cached cache "$@"; then
+    _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"' <"$cache"
+  else
+    _hi_overlay_tar "$@" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"'
+  fi
 }
 
 # _hi_overlay_toggle <name> [outvar] - what the overlay's settings.sh sets it
@@ -303,6 +415,57 @@ function _hi_payload_tar() {
   )
 }
 
+# _hi_payload_cache_key - _hi_overlay_cache_key's tree twin: the trim list
+# (what the overlay's toggles read, _hi_trimmed) and _HI_KEEP_COMMENTS -
+# everything that changes what _hi_payload_tar would produce without
+# touching a single source file's mtime.
+function _hi_payload_cache_key() {
+  local trim=""
+  _hi_trimmed tree trim
+  printf '%s|%s' "$trim" "${_HI_KEEP_COMMENTS:-0}" | cksum | cut -d' ' -f1
+}
+
+# _hi_payload_cached <outvar> - _hi_overlay_cached's tree twin: a warm
+# gzipped tar for today's tree and toggles, rebuilt when missing, stale (a
+# payload source file's mtime past the cache's own) or _HI_PAYLOAD_CACHE=0.
+# Same temp-file-and-mv as the overlay cache. Measured against the ~70-130ms
+# _hi_payload_tar otherwise costs on every single connect: the staleness
+# check alone is single-digit milliseconds.
+function _hi_payload_cached() {
+  # prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` or `dir`
+  # would shadow a caller's outvar of the same name (_hi_payload_stream's own
+  # `cache`, for one) and the printf -v below would never leave this function
+  local _hi_pc_outvar="$1"
+  [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
+  local _hi_pc_dir _hi_pc_cache _hi_pc_key
+  _hi_runtime_dir _hi_pc_dir
+  [ -n "$_hi_pc_dir" ] || return 1
+  _hi_pc_key="$(_hi_payload_cache_key)"
+  _hi_pc_cache="$_hi_pc_dir/hi.payload.$_hi_pc_key"
+  if [ -f "$_hi_pc_cache" ] &&
+    [ -z "$(find "${_HI_PAYLOAD[@]/#/$_HI_HOME/say-hi/}" -newer "$_hi_pc_cache" -print -quit 2>/dev/null)" ]; then
+    printf -v "$_hi_pc_outvar" '%s' "$_hi_pc_cache"
+    return 0
+  fi
+  _hi_payload_tar >"$_hi_pc_cache.$$" || {
+    rm -f "$_hi_pc_cache.$$"
+    return 1
+  }
+  mv -f "$_hi_pc_cache.$$" "$_hi_pc_cache"
+  printf -v "$_hi_pc_outvar" '%s' "$_hi_pc_cache"
+}
+
+# _hi_payload_stream - _hi_overlay_stream's tree twin: the armored payload
+# tar, through the cache when it's warm and clean, built fresh otherwise.
+function _hi_payload_stream() {
+  local cache=""
+  if _hi_payload_cached cache; then
+    $_HI_ARMOR <"$cache"
+  else
+    _hi_payload_tar | $_HI_ARMOR
+  fi
+}
+
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
 function _hi_is_ssh_host() {
   local rc=0
@@ -310,9 +473,12 @@ function _hi_is_ssh_host() {
   [ "$rc" -ne 1 ]
 }
 
+# _hi_probe (core.sh) bounds the daemon round trip: _hi_resolve_backend fans
+# these four out and waits on all of them, so one downed daemon or a kubectl
+# pointed at a dead cluster would otherwise stall every connect with no cap.
 function _hi_is_container_running() {
   command -v "$1" >/dev/null 2>&1 &&
-    [ "$("$1" container inspect -f '{{.State.Running}}' "$2" 2>/dev/null)" = true ]
+    [ "$(_hi_probe "$1" container inspect -f '{{.State.Running}}' "$2" 2>/dev/null)" = true ]
 }
 
 # docker and podman are identical for this
@@ -326,7 +492,7 @@ function _hi_is_podman_container() { _hi_is_container_running podman "$1"; }
 function _hi_compose_container() {
   command -v docker >/dev/null 2>&1 || return 1
   local matches
-  matches="$(docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Names}}' 2>/dev/null)"
+  matches="$(_hi_probe docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Names}}' 2>/dev/null)"
   [ -n "$matches" ] || return 1
   [ "$(printf '%s\n' "$matches" | wc -l)" -eq 1 ] || return 1
   printf '%s\n' "$matches"
@@ -343,7 +509,7 @@ function _hi_inner() {
 
 function _hi_is_nomad_alloc() {
   command -v nomad >/dev/null 2>&1 &&
-    [ "$(nomad alloc status -t '{{.ClientStatus}}' "$(_hi_outer "$1")" 2>/dev/null)" = running ]
+    [ "$(_hi_probe nomad alloc status -t '{{.ClientStatus}}' "$(_hi_outer "$1")" 2>/dev/null)" = running ]
 }
 
 # _hi_kube_split <target> - `[[context:]namespace:]pod[/container]` into
@@ -371,7 +537,7 @@ function _hi_kube_split() {
 function _hi_is_k8s_pod() {
   command -v kubectl >/dev/null 2>&1 || return 1
   _hi_kube_split "$1"
-  [ "$(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]
+  [ "$(_hi_probe kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]
 }
 
 # The backend roster, in resolution order:
@@ -410,36 +576,63 @@ function _hi_ssh_sh() {
   ssh "$@" "${SSHARGS[@]}" "$DOMAIN" "sh -c $q"
 }
 
-# _hi_ctl_open <persist-secs> [ssh-opts...] - a fresh ControlMaster socket into
-# the caller's ctl_dir/ctl_path/ctl_opts, so the install probe and the session
-# that follows multiplex one authentication; _hi_ctl_close tears it down.
+# _hi_ctl_open <run-persist-secs> <run|shared> [ssh-opts...] - a ControlMaster
+# socket into the caller's ctl_dir/ctl_path/ctl_opts/ctl_shared, so the
+# install probe and the session that follows multiplex one authentication;
+# _hi_ctl_close tears it down - except a shared one, which outlives the call
+# on purpose.
 #
-# The socket lives *inside* a `mktemp -d` (0700) rather than at a `mktemp -u`
-# name in a shared $TMPDIR. `mktemp -u` only promises the name was free when it
-# was printed, and `ControlMaster=auto` *joins* an existing socket at that path
-# rather than refusing it - so on a multi-user box the predictable-name form is
-# the shape every hardening guide names. The directory is made atomically and
-# only this user can traverse it, which makes the socket's own name moot.
+# `run` is always a fresh socket, matching the shape this function had before
+# persistence existed: it lives *inside* a `mktemp -d` (0700) rather than at a
+# `mktemp -u` name in a shared $TMPDIR (`mktemp -u` only promises the name was
+# free when it was printed, and `ControlMaster=auto` *joins* an existing
+# socket at that path rather than refusing it), and _hi_ctl_close removes it.
+# scripts/doctor.sh asks for `run` on purpose - a diagnostic should never
+# leave a socket behind.
 #
-# "/s", not a second random component: ControlPath goes into a sockaddr_un,
-# capped near 104 bytes, and macOS's per-user $TMPDIR already spends ~50 of them.
+# `shared` additionally tries a stable per-(target, ssh-args) socket under
+# _hi_runtime_dir, so a second `hi <target>` within $_HI_CTL_PERSIST seconds
+# reuses the still-authenticated connection instead of paying a fresh key
+# exchange - the biggest single cost `hi <target>` pays over plain `ssh` with
+# a warm ControlMaster of its own. _HI_CTL_PERSIST=0, or a runtime directory
+# hi cannot vouch for, both fall back to `run`'s fresh-socket behaviour, same
+# as a host with no writable temp directory always got: ctl_opts stays empty,
+# ssh authenticates twice, everything still works.
 #
-# A host with no writable temp directory gets no multiplexing rather than no
-# session: ctl_opts stays empty, ssh authenticates twice, everything still works.
+# "/s" for `run`, "hi.ctl.<key>" for `shared` - never a second random
+# component or a 40-hex `%C`: ControlPath goes into a sockaddr_un, capped
+# near 104 bytes, and macOS's per-user $TMPDIR already spends ~50 of them.
+# <key> is a cksum of $DOMAIN and $SSHARGS, not the text itself, for the same
+# reason - and so that a `-p`/`-l`/`-o` naming a different connection to the
+# same target gets its own socket rather than joining the wrong one.
 function _hi_ctl_open() {
+  local persist="$1" scope="$2" dir key
+  shift 2
   ctl_dir=""
   ctl_path=""
   ctl_opts=()
-  ctl_dir="$(mktemp -d -t hi.cm.XXXXXX 2>/dev/null)" || ctl_dir=""
-  if [ -n "$ctl_dir" ]; then
-    ctl_path="$ctl_dir/s"
-    ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$1")
+  ctl_shared=0
+  if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
+    _hi_runtime_dir dir
+    if [ -n "$dir" ]; then
+      key="$(printf '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"} | cksum | cut -d' ' -f1)"
+      ctl_path="$dir/hi.ctl.$key"
+      ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
+      ctl_shared=1
+    fi
   fi
-  shift
+  if [ "$ctl_shared" != 1 ]; then
+    ctl_dir="$(mktemp -d -t hi.cm.XXXXXX 2>/dev/null)" || ctl_dir=""
+    if [ -n "$ctl_dir" ]; then
+      ctl_path="$ctl_dir/s"
+      ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=$persist")
+    fi
+  fi
   ctl_opts+=("$@")
 }
 
 function _hi_ctl_close() {
+  [ "${ctl_shared:-0}" = 1 ] && return 0
   [ -n "$ctl_path" ] && ssh -O exit "${ctl_opts[@]}" "$DOMAIN" >/dev/null 2>&1
   [ -n "$ctl_dir" ] && rm -rf "$ctl_dir" 2>/dev/null
   return 0
@@ -823,7 +1016,7 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ec=0
+  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ctl_shared ct ec=0
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
@@ -839,10 +1032,30 @@ function _say_hi() {
   printf -v hi_esc '%b' "$YELLOW"
   printf -v nc_esc '%b' "$NC"
 
-  # multiplex the install-probe and the real session over one ssh connection
-  _hi_ctl_open 30
+  # the overlay member list is local-only - it never depends on what the
+  # round trip below finds - so it is resolved once, up here, and reused by
+  # both the background warm and (on the disposable branch) the real stream
+  _hi_read_lines overlay < <(_hi_overlay_files)
+
+  # warm the payload/overlay cache while ssh #1 (the round trip below) is in
+  # flight: a cache miss's ~70-130ms build then costs nothing once the
+  # disposable branch needs it, and is wasted only when the target turns out
+  # to have a permanent install (below) - free either way, since the socket
+  # is already open for that round trip regardless
+  local _hi_bg_junk1 _hi_bg_junk2
+  (
+    _hi_payload_cached _hi_bg_junk1 >/dev/null 2>&1 || true
+    ((${#overlay[@]})) && { _hi_overlay_cached _hi_bg_junk2 "${overlay[@]}" >/dev/null 2>&1 || true; }
+    true
+  ) &
+  local ctl_bg=$!
+
+  # multiplex the install-probe and the real session over one ssh connection;
+  # `shared` tries to reuse one already authenticated for this target
+  _hi_ctl_open 30 shared
   remote_root="$(_hi_remote_root "${ctl_opts[@]}")"
   remote_root="$(_hi_trusted_path "$remote_root")"
+  wait "$ctl_bg" 2>/dev/null || true
 
   if [ -n "$remote_root" ]; then
     # $remote_root is always <home>/<tree>
@@ -859,12 +1072,11 @@ REMOTE
     )"
   else
     bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-    tree="$(_hi_payload_tar | $_HI_ARMOR)"
+    tree="$(_hi_payload_stream)"
     # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
-    _hi_read_lines overlay < <(_hi_overlay_files)
     if ((${#overlay[@]})); then
       overlay_line="mkdir -p \"\$_HI_ROOT/config\"
-$(_hi_overlay_tar "${overlay[@]}" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"')"
+$(_hi_overlay_stream "${overlay[@]}")"
     fi
     size="$_HI_SIZE_TOKEN"
     middle="$(_hi_remote_middle)"
@@ -953,8 +1165,13 @@ $(_hi_remote_suffix)"
     esac
   fi
   if [ -n "$boot_tmp" ]; then
+    # the client's own leg of the connect banner's timing - $ct is our own
+    # _hi_elapsed digits-and-a-dot, never text a target sent back, so it is
+    # safe to interpolate straight into the command line (GLOSSARY: HI.19's
+    # neighbor rule, applied the other direction)
+    ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
     ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
-      "sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
+      "_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
   elif [ -n "$why" ]; then
     _hi_cecho " $why - handing over the host's own session" "$YELLOW" >&2
     _say_hi_plain "${ctl_opts[@]}" || ec=$?
@@ -1205,7 +1422,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # remove: $_HI_SESSION_RC_DIR nests under $_HI_CLEANUP, so this one `rm -rf`
   # already covers it too.
   env_kv="$(_hi_env_each ' %s=%s')"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
+  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
   _hi_container_cleanup

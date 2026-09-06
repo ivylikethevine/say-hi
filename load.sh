@@ -229,13 +229,22 @@ function _hi_session_shell_cmd() {
 }
 
 function load() {
-  local start
+  local start total
   start="$(_hi_now)"
   _hi_on_exit clean_all
 
   set +euo pipefail
 
-  hi_header Connected "" "${_HI_CONNECT_PREFIX:-}"
+  # the connect banner's total: connect (client, hi.sh's own leg) plus copy
+  # (this leg, timed since _hi_remote_preamble) - both measured wholly on one
+  # machine, since clock skew makes a client/target subtraction meaningless.
+  # `load` isn't in it: this line prints before that leg has even started: it
+  # continues the size hi.sh already printed with no newline, so the total
+  # widens $_HI_CONNECT_PREFIX has to grow the banner's own width math by the
+  # same amount rather than leave its tildes wrong.
+  total="$(_hi_sum "${_HI_CONNECT_TIME:-0}" "${_HI_COPY_TIME:-0}")"
+  _hi_cecho " | ${total}s" "$NC" 1
+  hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
   # vim only: setting VIMINIT when all we have is vi breaks it. Gated on
   # _HI_DISABLE_EDITORS as well: VIMINIT pointing at hi's vimrc *is* the vim
@@ -256,7 +265,7 @@ function load() {
   *) greeting="only bash today :(" color="$RED" ;;
   esac
   _hi_cecho "$greeting" "$color" 1
-  _hi_cecho " | load: $(_hi_elapsed "$start" "$(_hi_now)")s | copy: ${_HI_COPY_TIME:--1}s"
+  _hi_cecho " | connect: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
 
   local shell_ec=0
   local -a shell_cmd=()

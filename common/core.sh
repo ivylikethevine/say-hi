@@ -252,6 +252,13 @@ function _hi_elapsed() {
   awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f", b - a }'
 }
 
+# _hi_sum <n...> - _hi_elapsed's seconds added rather than subtracted, for the
+# connect banner's total across legs each measured wholly on one machine
+# (client or target) - $(( )) has no floats, so this is awk like its neighbor
+function _hi_sum() {
+  awk -v n="$*" 'BEGIN { split(n, a); for (i in a) t += a[i]; printf "%.3f", t }'
+}
+
 # H:MM:SS (M:SS under an hour) from an _hi_elapsed second count, for load.sh's
 # disconnect line where sub-second precision is unreadable
 function _hi_human_duration() {

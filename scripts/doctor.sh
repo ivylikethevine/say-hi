@@ -495,7 +495,7 @@ function doctor_ssh_target() {
   # hi.sh's own socket helper, so this probe multiplexes exactly like a real
   # session; BatchMode keeps an unanswerable auth prompt a finding, not a hang
   local -a ctl_opts
-  _hi_ctl_open 15 -o BatchMode=yes
+  _hi_ctl_open 15 run -o BatchMode=yes
   t0="$(_hi_now)"
   if ! ssh "${ctl_opts[@]}" -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
     t1="$(_hi_now)"

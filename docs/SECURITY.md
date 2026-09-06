@@ -131,18 +131,29 @@ a target" is one command.
   stays one.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
-- The ssh `ControlMaster` socket lives inside a `mktemp -d` of its own rather
-  than at a `mktemp -u` name in a shared temp directory: `ControlMaster=auto`
-  _joins_ a socket it finds at the path it was given, and a name that was
-  merely unused when printed is no guarantee about the moment it is used.
-  Passed as `-o` on the command line, it also outranks a `ControlMaster no`
-  in your `~/.ssh/config`: the socket is hi's own for the length of the
-  connect, and closed after.
-- `hi <TAB>`'s target cache is written to `$XDG_RUNTIME_DIR`, or to a
+- The ssh `ControlMaster` socket lives at a name only this user's process can
+  have made, never at a `mktemp -u` name in a shared temp directory:
+  `ControlMaster=auto` _joins_ a socket it finds at the path it was given,
+  and a name that was merely unused when printed is no guarantee about the
+  moment it is used. Passed as `-o` on the command line, it also outranks a
+  `ControlMaster no` in your `~/.ssh/config`. `scripts/doctor.sh`'s own probe
+  always uses a fresh socket inside a `mktemp -d` of its own, closed the
+  moment the probe ends - a diagnostic should never leave one behind.
+  A real connect instead tries to reuse one: a stable path under the same
+  private runtime directory `hi <TAB>`'s own cache uses (below), named by a
+  checksum of the target and your ssh options rather than either in the
+  clear, and torn down only when idle past `_HI_CTL_PERSIST` seconds
+  ([Everything else](SETTINGS.md#everything-else)) - `0` restores the
+  always-fresh, always-closed behaviour this had before persistence existed.
+  Either way the socket only this user's directory permissions and ssh's own
+  authentication ever reach it; nothing here widens who can use it.
+- `hi <TAB>`'s target cache, and the reused-connection socket and
+  payload/overlay cache above, are all written to `$XDG_RUNTIME_DIR`, or to a
   per-uid directory hi creates with `mkdir -m 700`. The name is predictable —
-  the next TAB has to find it — so if that path already exists and is not
-  owned by you, or is a symlink, the cache is skipped and completion falls
-  back to sweeping the backends: slower, and correct.
+  the next `hi` has to find it — so if that path already exists and is not
+  owned by you, or is a symlink, every one of them is skipped: completion
+  falls back to sweeping the backends and a connect falls back to a fresh
+  socket and a fresh build, all slower, and all correct.
 
 ### What a process started from a session inherits
 

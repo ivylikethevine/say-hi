@@ -181,6 +181,14 @@ function _hi_wire_case() {
   local label="$1" image="$2" shape="$3" name counts out_file exit_code t0 t1 ok=1
   local up down rx0 rx1 claim human overhead limit probe floor printed printed_bytes
   local _HI_SSH_PORT=""
+  # this suite's whole methodology is "the proxy writes its counts once the
+  # connection closes, which is hi's own `ssh -O exit`" (below) - a shared,
+  # persisted ControlMaster is exactly the opposite of that, so this case
+  # forces hi back to a fresh socket closed at the end of the connect,
+  # whatever the ambient default is. `-x`: hi.sh reads this from its own
+  # environment, not this shell's variables, so a plain `local` would never
+  # reach it
+  local -x _HI_CTL_PERSIST=0
 
   name="$_HI_SSH_CASE_PREFIX-$label-$$"
   counts="$_HI_WORKDIR/$label.wire"
