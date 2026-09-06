@@ -147,10 +147,11 @@ function test_flag_help_splits_local_from_anywhere() {
   local_rows="$(_hi_flag_help local)"
   case "$anywhere" in *"-h, --help"*) ;; *) return 1 ;; esac
   case "$local_rows" in *--help*) return 1 ;; *) ;; esac
-  # every common/flags row lands on exactly one side
+  # every common/flags row lands on exactly one side: one label line each
+  # (a wide label's help sits on its own line, indented past the flag column)
   local total
   total="$(grep -cv '^\(#\|$\)' "$_HI_ROOT/common/flags")"
-  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c ' --')" = "$total" ]
+  [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')" = "$total" ]
 }
 
 function test_use_backend_names_the_arm() {

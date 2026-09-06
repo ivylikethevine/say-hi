@@ -1,13 +1,34 @@
-.TH HI 1 "2026-08-25" "say-hi" "User Commands"
+.TH HI 1 "2026-09-05" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
 .SH SYNOPSIS
 .B hi
 .RI [ ssh\-options ]
+.RB [ \-\-use " " \fIbackend\fR]
+.RB [ \-\-plain ]
 .I target
 .RI [ command ...]
 .br
 .B hi
+.br
+.B hi \-\-doctor
+.RB [ \-\-json ]
+.RB [ \-\-use " " \fIbackend\fR]
+.RI [ target ]
+.br
+.B hi \-\-install
+.RB [ \-\-yes ]
+.RB [ \-\-no\-link ]
+.RB [ \-\-prefix " " \fIdir\fR]
+.br
+.B hi \-\-configure
+.RB [ \-\-preset " " \fIname\fR]
+.br
+.BR "hi \-\-uninstall" " | " \-\-overlay\-init " | " \-\-update " [" \fIgit\-pull\-options\fR "]"
+.br
+.BR "hi \-\-preview\-colors" " | " \-\-preview\-packages
+.br
+.BR "hi \-h" " | " \-V
 .SH DESCRIPTION
 .B hi
 copies your
@@ -19,17 +40,19 @@ the session ends. It is sshrc, supercharged.
 With no
 .IR command ,
 .B hi
-opens an interactive session on the target: your login shell when hi
-styles it (bash, zsh or fish),
-otherwise the best of fish > zsh > bash. Both halves come off one
-ordering \- fish > zsh > bash > dash > ash > sh \- so a
-target with no bash at all falls back to the best of the rest of it:
-fish > zsh > dash > ash > sh, with hi's aliases and colored
-prompt but no header. With a trailing
+opens an interactive session on the target (see
+.B SESSION SHELL
+for which shell). With a trailing
 .IR command ,
-it runs that command on the target and exits, like
+it runs that command on the target and exits \- inside hi's session, not the
+way
 .BR ssh (1)
-does.
+runs one: the command has hi's aliases, PATH and environment, and runs on a
+pty when your own stdin is one. Only the command's own output goes to stdout;
+hi's progress and errors go to stderr. For a plain, unstyled, pty\-free
+remote command \- a tarball you are piping into a file, say \- use
+.BR ssh (1)
+itself.
 .PP
 The payload is base64\-armored through the target's login shell for ssh
 targets, unpacked into a private
@@ -40,6 +63,16 @@ disconnect. If the target has a permanent say-hi (installed with
 anywhere \- the location is read from that target's login rc files, and failing
 that from the standard install prefixes), that copy is used in place and left
 alone.
+.SH SESSION SHELL
+The session runs in your login shell when hi styles it (bash, zsh or fish),
+otherwise in the best of fish > zsh > bash. Both halves come off one
+ordering \- fish > zsh > bash > dash > ash > sh \- so a target with no bash
+at all falls back to the best of the rest of it: fish > zsh > dash > ash > sh,
+with hi's aliases and colored prompt but no header.
+.B _HI_SHELL_PREFERENCE
+(see
+.BR ENVIRONMENT )
+reorders the styled three.
 .SH TARGET RESOLUTION
 .I target
 is tried against each backend, in order; the first match wins:
@@ -93,7 +126,7 @@ A name matching none of these is handed to
 .BR ssh (1)
 anyway, so unlisted hosts still work.
 .PP
-.BR \-\-use " " \fIarm\fR
+.BR \-\-use " " \fIbackend\fR
 before
 .I target
 names the arm outright and skips every probe above it \- the fix for a
@@ -129,11 +162,7 @@ and failing rather than waiting on a menu nobody can answer. An
 .I ssh\-option
 with no target does the same: an option without a host is an error for
 .BR ssh (1)
-to report, not a target to guess at. The one short option hi claims is
-.BR \-V :
-it answers with hi's own version, the first thing a bug report asks for, and
-.B ssh \-V
-is a keystroke away for the other one.
+to report, not a target to guess at.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
@@ -145,9 +174,14 @@ one. Caught before the pass\-through below, so it never reaches
 .B \-V\fR, \fB\-\-version
 print the version and exit: the version stamped in at packaging time, or
 .B git describe
-output in a checkout.
+output in a checkout. The one short
+.BR ssh (1)
+option hi claims for itself \- hi's version is the first thing a bug report
+asks for, and
+.B ssh \-V
+is a keystroke away for the other one.
 .TP
-.B \-\-use \fIarm\fR
+.B \-\-use \fIbackend\fR
 force that arm for
 .I target
 and skip every probe in
@@ -181,8 +215,8 @@ or
 .B $HOME
 either.
 .PP
-The following act on this machine instead of connecting, and each needs a part
-of the tree that is not always present. All of them want
+The local commands act on this machine instead of connecting, and each needs
+a part of the tree that is not always present. All of them want
 .BR scripts/ ,
 which a package\-manager install ships but a hi session does not \- so inside a
 session each says so and stops.
@@ -196,25 +230,43 @@ shipped
 .BR common/header.sh ,
 rather than refusing.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIarm\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, the shell rc files and the overlay's own shell files
 parsed by whatever will read them (what
 .B \-\-install
 checks before it writes a line), every backend probed and timed, and \- with
 a target \-
-which backend the name resolves to plus an ssh reachability check. A backend
-flag reports the same forced arm a real connect with it would take, skipping
+which backend the name resolves to plus an ssh reachability check.
+.B \-\-use
+reports the same forced backend a real connect with it would take, skipping
 the probe chain. With
 .BR \-\-json ,
 the same rows as one JSON document on stdout \- what a bug report should
-carry \- with the finding count as the exit status either way.
+carry \- with the finding count in it as
+.BR findings .
+Exits 1 on any finding (see
+.BR "EXIT STATUS" ).
 .TP
-.B \-\-install\fR, \fB\-\-uninstall
-install or repair say-hi's lines in your shell rc files, or take them back
-out again.
+.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-no\-link\fR] [\fB\-\-prefix\fR \fIdir\fR]
+install or repair say-hi's lines in your shell rc files, asking before each.
+.B \-\-yes
+answers every prompt yes;
+.B \-\-no\-link
+skips the
+.B hi
+symlink into
+.BR ~/.local/bin ;
+.B \-\-prefix
+is packaging mode \- stage the tree under
+.I dir
+and write nothing to a home \- which the package builds use and a user never
+needs.
 .TP
-.B \-\-configure
+.B \-\-uninstall
+take those lines back out again. The tree itself is left where it is.
+.TP
+.B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR]
 revisit the settings only, leaving the rc wiring alone: a menu over a live
 preview of the header and the prompt. Pick a preset (\fBeverything\fR,
 \fBbalanced\fR, \fBminimal\fR), or open a section \- Header (the real header
@@ -223,8 +275,9 @@ package check's depth and palette, the addresses the ip cell hides), Features,
 Prompt, Advanced, Colors (a truecolor scheme) \- then
 \fBs\fR saves and \fBq\fR leaves the file untouched; nothing is written
 before either.
-.B \-\-preset <name>
-after it applies one without the menu.
+.B \-\-preset
+.I name
+applies one without the menu.
 .TP
 .B \-\-overlay\-init
 seed the config overlay at
@@ -232,10 +285,12 @@ seed the config overlay at
 with the shipped defaults (files already there are never touched) and make it
 a git repo, in place, so it carries history.
 .TP
-.B \-\-update
+.B \-\-update \fR[\fIgit\-pull\-options\fR]
 .B git pull
-in the say-hi checkout.
-Needs one: an install from a package has no
+in the say-hi checkout, with any further words handed to
+.BR git\-pull (1)
+as they are.
+Needs a checkout: an install from a package has no
 .B .git
 to pull into, and says so rather than running.
 .TP
@@ -255,6 +310,29 @@ unchanged \-
 and the rest behave exactly as they do there. Only the first
 non\-option word is taken as the target; everything after it is the
 remote command.
+.SH EXIT STATUS
+.TP
+.B a connect
+the session's, or the remote command's, own exit status \- what
+.BR ssh (1)
+would hand back \- once the target has been cleaned up. 1 when hi itself
+refused before connecting: a
+.B \-\-use
+name it was not loaded with, two of them, or a local command run inside a
+session.
+.TP
+.B \-\-doctor
+0 with nothing to report, 1 on any finding. The count is in the report
+(and in
+.BR \-\-json 's
+.BR findings ),
+never in the status.
+.TP
+.B the other local commands
+the script's own: 0 when it did what it says, 1 otherwise \- an rc file
+that fails its syntax check stops
+.B \-\-install
+at 1 before it writes a line.
 .SH COMPLETION
 .B hi
 completes in bash, zsh and fish. All three read one list \-
@@ -276,11 +354,11 @@ to answer, because this runs on every keypress.
 .B hi \-\-<TAB>
 hi's own options, answered without probing any backend at all. The list is
 filtered to what this install can actually run: a session is offered none of
-the flags that need
+the local commands that need
 .BR scripts/ ,
-and a package\-manager install neither of the two that need
-.B tests/
-or
+and a package\-manager install is not offered
+.BR \-\-update ,
+which needs
 .BR .git .
 .SH CONFIGURATION
 Configuration lives outside the tree, in
@@ -358,6 +436,19 @@ means your login shell); default
 then the shells hi styles in preference order:
 .BR "fish zsh bash" .
 .TP
+.B _HI_CONTAINER_CLIS
+the docker\-compatible CLIs a container is listed and reached through, in
+order; default
+.BR "docker podman nerdctl finch" .
+Each is its own
+.B \-\-use
+name and its own completion tag; one that is not installed costs nothing.
+.TP
+.B _HI_TARGETS_TTL, _HI_PROBE_TIMEOUT
+completion's two knobs: seconds the target list is reused for (default 5)
+and seconds each backend gets to answer (default 2), in completion and in
+the connect header alike.
+.TP
 .B _HI_DISABLE_HEADER, _HI_DISABLE_PROMPT, ...
 per\-feature opt\-outs; see
 .I docs/SETTINGS.md
@@ -395,6 +486,23 @@ through a jump host.
 .TP
 .B hi 8f41c2
 session inside a running container or allocation with that ID.
+.TP
+.B hi \-\-use docker web
+the container named
+.BR web ,
+even though an ssh host of the same name exists \- no probe is run.
+.TP
+.B hi \-\-plain rescue
+a bare shell on
+.B rescue
+with nothing copied: for a box with no writable
+.B /tmp
+or no
+.BR tar (1).
+.TP
+.B hi \-\-doctor \-\-json prod-db > report.json
+the pre\-flight report as a document, for a bug report; the exit status
+says whether anything was found.
 .TP
 .B hi
 no target: pick one from the list \- see

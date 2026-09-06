@@ -35,7 +35,7 @@ unset _hi_d
 case "${1:-}" in
 -h | --help)
   cat <<'EOF'
-Usage: doctor.sh [--json] [--use <arm>] [target]
+Usage: doctor.sh [--json] [--use <backend>] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -50,10 +50,13 @@ Prints, in order:
                      remote end has installed
 
 ssh options are not accepted here - the probe uses your ssh config as-is,
-which is exactly what completion and the header do. --use <arm> names the
-target's arm outright, the same one a real `hi --use <arm> <target>` would
+which is exactly what completion and the header do. --use <backend> names the
+target's arm outright, the same one a real `hi --use <backend> <target>` would
 take, and skips the probe chain in the target report. --plain is accepted and
 ignored - doctor never connects, so it has nothing to report.
+
+Exits 0 with nothing to report and 1 on any finding (--json carries the
+count as "findings").
 
 --json prints the same report as one JSON document instead - what a bug
 report should carry:
@@ -82,7 +85,7 @@ source "$_HI_LAUNCHER"
 
 # --json, the target and --use may come in any order: `hi --doctor --json
 # host`, `hi --doctor host --json`, `hi --doctor --use docker host` all read
-# naturally. `--use <arm>` is the one two-word flag: the word after it is the
+# naturally. `--use <backend>` is the one two-word flag: the word after it is the
 # arm, not the target.
 _hi_via=""
 for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
@@ -102,7 +105,7 @@ for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   esac
 done
 if [ -n "$_hi_via" ]; then
-  _hi_cecho "hi: --use needs an arm name (ssh, or a backend)" "$RED" >&2
+  _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
   exit 1
 fi
 unset _hi_arg _hi_doc_args _hi_via
@@ -599,4 +602,8 @@ elif [ "$_HI_DOC_BAD" -eq 0 ]; then
 else
   _hi_h1 "$_HI_DOC_BAD finding(s) above in red" "$RED"
 fi
-exit "$_HI_DOC_BAD"
+# 1 on any finding, never the count: a count is a value, not a status (it
+# would wrap past 255 and read as "something else broke"), and --json carries
+# it as "findings" for the caller that wants the number
+[ "$_HI_DOC_BAD" -eq 0 ] || exit 1
+exit 0

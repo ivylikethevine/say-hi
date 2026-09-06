@@ -615,7 +615,7 @@ d = json.load(sys.stdin)
 assert d["target"] == "runningbox", d["target"]
 '
 }
-# a bad row lands in findings and in the exit code alike, and the document
+# a bad row lands in findings and turns the exit code to 1, and the document
 # still parses around it. The finding is the ssh target with no base64 - the
 # shim answers the tool probe with nothing when $HI_FAKE_TOOLS is unset. (Not
 # a settings.sh that fails to parse: core.sh sources that file at load, so a

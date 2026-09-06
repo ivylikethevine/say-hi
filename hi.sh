@@ -562,7 +562,7 @@ _HI_BACKENDS+=(
   "kube|kubernetes pod|kubectl get pods -o name|_hi_is_k8s_pod"
 )
 
-# _hi_use_backend <arm> - the arm name for `--use <arm>`, or a message and
+# _hi_use_backend <backend> - the arm name for `--use <backend>`, or a message and
 # failure: "ssh" or any roster name hi was loaded with, never a bare word (a
 # typo would otherwise force an arm nothing can run). The one way to force an
 # arm: reading the roster rather than a per-backend flag row means a backend
@@ -1557,12 +1557,12 @@ function _hi_parse() {
       elif [ "$1" = --use ]; then
         # the one hi flag that takes a word: which arm, by name
         [ $# -ge 2 ] || {
-          _hi_cecho "hi: --use needs an arm name (ssh, or a backend)" "$RED" >&2
+          _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
           exit 1
         }
         backend_word="$(_hi_use_backend "$2")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: --use $2 and --use $BACKEND both name an arm; pick one" "$RED" >&2
+          _hi_cecho "hi: --use $2 and --use $BACKEND both name a backend; pick one" "$RED" >&2
           exit 1
         fi
         BACKEND="$backend_word"
@@ -1665,7 +1665,7 @@ function _hi_record_recent() {
   return 0
 }
 
-# _hi_report_failure <code> <arm> <errlog> - what a failed connect says, at
+# _hi_report_failure <code> <backend> <errlog> - what a failed connect says, at
 # most once. Three ways it says nothing at all, each because the failure was
 # already spoken for: $_HI_SAID means _hi_fail already printed the reason;
 # ssh reserves exit 255 for its own failures and prints them itself (the
@@ -1776,8 +1776,11 @@ function _hi_dispatch_subcommand() {
 
 # _hi_flag_help <-|local> - the option lines of --help: `-` is what works
 # anywhere, `local` what needs a part of the tree the payload does not carry.
+# A label wider than the gutter gets its own line and the help below it, the
+# way GNU --help does, so the block fits 80 columns whatever the argument
+# column holds.
 function _hi_flag_help() {
-  local row flag arg needs help
+  local row flag arg needs help label
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag arg needs _ _ help <<<"$row"
     case "$1:$needs" in
@@ -1790,7 +1793,12 @@ function _hi_flag_help() {
     local:-) continue ;;
     -:*) continue ;;
     esac
-    printf '  %-26s %s\n' "$flag${arg:+ $arg}" "$help"
+    label="$flag${arg:+ $arg}"
+    if [ "${#label}" -le 22 ]; then
+      printf '  %-22s %s\n' "$label" "$help"
+    else
+      printf '  %s\n  %-22s %s\n' "$label" "" "$help"
+    fi
   done
 }
 
@@ -1813,12 +1821,9 @@ Copies your say-hi to <target> and hands you an identical shell session there -
 header, colors, git prompt, aliases, vim/nano configs - then strips it all
 back out when the session ends.
 
-With [command ...], runs that instead - but not quite the way ssh does, and the
-difference matters if you are scripting: the command runs inside hi's session,
-so it has hi's aliases, \$PATH and environment, and it runs on a pty when your
-own stdin is one. Only the command's own output goes to stdout; hi's progress
-and errors go to stderr. For a plain, unstyled, pty-free remote command - a
-tarball you are piping into a file, say - use ssh itself.
+With [command ...], runs that inside hi's session instead: hi's aliases and
+environment, a pty when your own stdin is one, only the command's output on
+stdout. For a plain, pty-free remote command, use ssh itself.
 
 <target> is resolved in this order, first match wins:
   1. a Host in ~/.ssh/config (or any name ssh can reach)
@@ -1828,32 +1833,23 @@ tarball you are piping into a file, say - use ssh itself.
   4. a kubernetes pod, in whatever context/namespace kubectl points at -
      or namespace:pod / context:namespace:pod for another one
 
---use <arm> before the target names the arm outright and skips every probe
-above it - the fix for a container that shadows an unrelated ssh host of the
-same name. --plain skips the payload
-too and hands over a bare shell on whichever arm resolves - no tar, no
-base64, no writable /tmp, no \$HOME needed on the target at all.
-
-With no target at all, hi offers that same list - the one your shell completes
-from, backend-tagged and recently-used first - and connects to what you pick:
-through fzf or sk when you have one, a numbered menu when you do not.
+With no target at all, hi offers that list to pick from: fzf or sk when you
+have one, a numbered menu when you do not.
 
 hi's own options, which work anywhere - a session included:
 $(_hi_flag_help -)
 
-hi's local sub-commands, which act on this machine instead of connecting. They
-need a part of the tree the payload does not carry, so inside a hi session
-each says so and stops:
+hi's local commands, which act on this machine instead of connecting. Each
+needs a part of the tree the payload does not carry, so inside a session it
+says so and stops:
 $(_hi_flag_help local)
 
-Everything else is passed to ssh unchanged - -p, -i, -J, -o and the rest behave
-exactly as they do there, and ssh keeps its own stderr, so a host's login
-banner and an unknown key's fingerprint reach you as they always would. Only
+Everything else is passed to ssh unchanged - -p, -i, -J, -o and the rest. Only
 the first non-option word is the target; everything after it is the remote
 command.
 
-Configuration lives outside this tree, in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/
-so it survives an upgrade. See \`man hi\` and the README for all of it.
+Configuration lives in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so it
+survives an upgrade. See \`man hi\` and the README for all of it.
 EOF
   exit 0
   ;;

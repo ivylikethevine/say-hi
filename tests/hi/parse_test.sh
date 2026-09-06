@@ -816,7 +816,7 @@ function test_help_flags_are_all_in_the_man_page() {
 
 # ...and that check asks only whether a flag appears in the page at all, which
 # is why the page's *grouping* drifted twice without failing anything. hi.1
-# splits OPTIONS at "The following act on this machine": above it is what works
+# splits OPTIONS at "The local commands act on this machine": above it is what works
 # anywhere, below it is what needs a part of the tree the payload does not
 # carry, and that paragraph names the exceptions to itself. common/targets.sh
 # makes the same split at runtime, so the two are one fact written twice - and
@@ -844,7 +844,7 @@ function test_man_page_option_groups_match_the_roster() {
       }
     }
     BEGIN { zone = "top" }
-    /^The following act on this machine/ { zone = "para" }
+    /^The local commands act on this machine/ { zone = "para" }
     zone == "para" && $0 == ".TP" { zone = "grouped" }
     /^Everything else is passed through/ { zone = "tail" }
     zone == "para" { emit($0, "named") }
@@ -1086,8 +1086,8 @@ function test_record_recent_trims() {
 # _hi_select_arm, _hi_record_recent and _hi_report_failure to markers instead
 # of the real thing, in a subshell so none of it leaks to the next case.
 #
-# _hi_dispatch_probe <plain> <arm> <status> - runs _hi with $PLAIN=<plain> and
-# _hi_select_arm answering <arm>, the chosen _say_hi* returning <status>.
+# _hi_dispatch_probe <plain> <backend> <status> - runs _hi with $PLAIN=<plain> and
+# _hi_select_arm answering <backend>, the chosen _say_hi* returning <status>.
 # Prints _hi's own exit code on one line, then every marker line the stubs
 # wrote, in call order.
 #
@@ -1240,13 +1240,13 @@ function run_hi_parse_tests() {
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
 
-  _hi_h2 "Testing: the arm override (--use <arm>)"
+  _hi_h2 "Testing: the arm override (--use <backend>)"
   _hi_check "Every arm resolves through --use, none has a row of its own" test_every_arm_resolves_through_use
   _hi_check "_hi_use_backend rejects a stranger" test_use_backend_rejects_a_stranger
   _hi_check "--use <cli> sets BACKEND to that member" test_parse_use_sets_backend_to_the_named_cli
   _hi_check "--use and its word never reach SSHARGS" test_parse_use_does_not_reach_sshargs
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger
-  _hi_check "--use <arm> reaches ssh and every backend" test_parse_use_names_every_arm
+  _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
   _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
   _hi_check "--use after the target is the remote command's" test_parse_use_after_the_target_is_not_claimed
