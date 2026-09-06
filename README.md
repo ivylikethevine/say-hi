@@ -44,24 +44,9 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ### Additional Documentation
 
-- [docs/ALTERNATIVES.md](docs/ALTERNATIVES.md) — sshrc, xxh, kyrat, sshdot and
-  homeshick side by side
-- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md) — the bar for behaviour
-  in issues, pull requests and discussions, and where to report a breach
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — the gate to run before a pull
-  request, what 1.x will not break, and which doc changes with what
-- [docs/GLOSSARY.md](docs/GLOSSARY.md) — the named idioms the code's
-  `GLOSSARY:` tags point at; drift-checked by the lint suite
-- [docs/PACKAGING.md](docs/PACKAGING.md) — the publishing runbook, the
-  reproducibility contract, verifying a download, regenerating the demo GIFs
-- [docs/SECURITY.md](docs/SECURITY.md) — reporting, and what hi touches on a
-  target
-- [docs/SETTINGS.md](docs/SETTINGS.md) — the config overlay, every toggle and
-  environment variable hi reads
-- [docs/SUPPORT.md](docs/SUPPORT.md) — every target, OS and shell hi answers
-  to, and every runtime, shell and feature answered **no**, and why
-- [docs/TESTING.md](docs/TESTING.md) — the runner, suite groups, parallel
-  cases, the lint gate, relaying
+[docs/README.md](docs/README.md) indexes the rest: settings, support,
+alternatives, testing, the glossary, security, packaging, contributing and
+the OpenSSF answer sheet.
 
 ---
 
@@ -82,6 +67,9 @@ respect your `ls` alias flags.
 
 ## What You Get
 
+Each GIF below is one persona's real config - the settings behind every one
+are in [docs/SETTINGS.md](docs/SETTINGS.md).
+
 ### Connect Via More Than SSH
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
@@ -89,8 +77,7 @@ running container, allocation and pod, each tagged with its backend; the
 targets you use most, and most recently, come first (zsh and fish keep that
 order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
 without probing any backend. An operator at a bastion, in fish for its
-pager's description column. Showing `_HI_TARGETS_TTL=0`, so the sweep is
-never served from cache.
+pager's description column.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
@@ -101,9 +88,7 @@ header reads it on every target — one quiet line on a box that has them, a
 loud one on a box that does not. A homelab: bash from a laptop into the nas
 and the pihole, with the distro prompt this person already had — hi's is off
 (`_HI_DISABLE_PROMPT=1`), and the header, the check and the aliases ride
-along anyway. Showing a `packages` overlay, the full header with every
-address (`_HI_IP_HIDE=none`; the default hides the docker bridge) and
-`_HI_PACKAGES_MIN_PRIORITY=2`.
+along anyway.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
@@ -113,11 +98,8 @@ address (`_HI_IP_HIDE=none`; the default hides the docker bridge) and
 bash session on a debian container and a fish session on an alpine box,
 reached through docker and podman. The operator again, in fish, with the
 header trimmed to the clocks, the backend counts and the check on the `mono`
-ramp. Showing an `aliases.sh` overlay with one alias and `_HI_BAT_OPTS`, a
-custom `_HI_HEADER_ORDER` with `_HI_PACKAGES_PALETTE=mono`, and
-`_HI_SHELL_PREFERENCE=fish` for the second target. A box with no bash gets
-the aliases-only tier — hi's own aliases, not the overlay
-([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
+ramp. A box with no bash gets the aliases-only tier — hi's own aliases, not
+the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
@@ -129,7 +111,7 @@ raises a desktop notification in _your_ terminal when a command finishes.
 Both ride the pty back as escapes: nothing is installed or running on the
 target. A developer, zsh on a laptop into the team's shared dev box, where
 the prompt is starship's, not hi's (`_HI_PROMPT=starship`; hi keeps the
-header, editors, clipboard and aliases). Showing the `compact` header preset.
+header, editors, clipboard and aliases).
 
 ![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -140,8 +122,7 @@ header, editors, clipboard and aliases). Showing the `compact` header preset.
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
 ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
 their shorter headers) and their own two-line fish prompt, drawn on the
-colors hi resolved. Showing a `colors` overlay with `hosttag` pins and
-`_HI_COLOR_SCHEME=onedark`, on both ends.
+colors hi resolved.
 
 ![hi --preview-colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
@@ -165,8 +146,7 @@ a target, and a `hi` in a script or CI job still fails rather than wait on a
 menu. The researcher, zsh on a laptop with a GPU cluster in `~/.ssh/config`,
 landing in a notebook container — with a prompt of their own, an oh-my-zsh
 look written into the overlay's `zsh.zsh`, which hi sources last on both
-ends. Showing `_HI_RECENT` (on by default), a workstation `_HI_HEADER_ORDER`
-with `_HI_PACKAGES_PALETTE=warm`, and `_HI_SHELL_PREFERENCE=zsh`.
+ends.
 
 ![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
 

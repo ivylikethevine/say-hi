@@ -56,7 +56,7 @@ to `xterm-256color`) rather than depending on your terminal.
 | Size ceiling                        | ~48KB wire script, CI-held within 5% of README's badge; gzipped tar budgeted at 64KB | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                                                       | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                                                   | no                                                                                              | **yes**                                                  | no                              | no                       |
-| Maturity                            | pre-1.0, deb/rpm/apk and the package repository live; no AUR or Homebrew tap yet     | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
+| Maturity                            | pre-1.0, deb/rpm/apk, the package repository and the Homebrew tap live; no AUR yet   | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
 
 ## Tool by tool
 
@@ -72,21 +72,13 @@ which carries the design (64KB argv ceiling included) unchanged.
 that runs on every host you touch. If you just want your `.bashrc` and
 `.vimrc` over there, sshrc does it in a fraction of the code.
 
-**Where say-hi went further:**
+**Where say-hi went further** (the table above has the transport, cleanup and
+target-needs deltas):
 
-- **Transport.** sshrc passes the payload as an argv entry; Linux caps a single
-  one at 128KB regardless of `ARG_MAX`, and sshrc's own README warns that past
-  ~64KB "the server may block your sshrc attempts". say-hi writes it over
-  **stdin** of the first of two calls multiplexed on one ssh connection.
-- **Cleanup, proven for the dropped link.** sshrc removes its `/tmp` tree on
-  exit too — a `trap … 0` in the script. What say-hi adds is the case where
-  there is no exit: `load.sh`'s hook fires on `SIGHUP`, a `trap … exit`
-  backstops a signal nothing traps, and
-  `tests/targets/ssh_disconnect_test.sh` proves the tree is gone after a
-  yanked connection. Neither writes into the host's rc files.
-- **What the target needs.** sshrc decodes with `openssl` and wants `tar` and
-  `bash` there; say-hi needs `base64`, and lands an aliases-only tier where
-  bash is missing.
+- **Cleanup, proven for the dropped link.** What say-hi adds beyond sshrc's
+  own exit trap is the case where there is no exit: `load.sh`'s hook fires on
+  `SIGHUP`, and `tests/targets/ssh_disconnect_test.sh` proves the tree is
+  gone after a yanked connection.
 - **A designed session, not copied files.** Header, hashed per-host colors, a
   git prompt, aliases, editor configs — degrading in defined tiers when the
   target cannot support all of it.
@@ -102,17 +94,9 @@ the target lacks — its no-bash ladder (`fish > zsh > dash > ash > sh`) picks
 the best of what is installed and says so. Its plugin model is also more
 principled than copying dotfiles blind.
 
-**Where say-hi wins:**
-
-- **Reach.** xxh targets "Linux on x86_64" — no ARM, no macOS, no BSD. say-hi's
-  floor is bash 3.2 and `base64`, and its suite runs real Debian, Alpine/musl
-  and bash-3.2 targets every time.
-- **Weight.** xxh uploads whole shells; say-hi sends one script under the
-  CI-tracked ceiling in the table above.
-- **Footprint.** xxh is hermetic but persistent — `~/.xxh` stays until you
-  delete it. say-hi removes itself when the session ends.
-- **Dependencies.** xxh needs Python on the client. say-hi needs a shell you
-  already have.
+**Where say-hi wins** (reach, weight, footprint and client dependencies are
+all in the table above): say-hi's suite runs real Debian, Alpine/musl and
+bash-3.2 targets every time, against xxh's single x86_64-Linux target.
 
 ### kyrat — closest in spirit
 
@@ -194,9 +178,8 @@ say-hi on the target to use in place.
 
 ## Sources
 
-- [sshrc] — say-hi's ancestor; the link is [cdown's] maintained fork, the
-  original having been deleted from GitHub ([danrabinowitz's] is the other
-  line say-hi descends through)
+- [sshrc] — say-hi's ancestor, via [cdown's] fork ([danrabinowitz's] is the
+  other line say-hi descends through)
 - [xxh] — portable shells over ssh (requires python)
 - [kyrat] — bash ssh wrapper with cleanup
 - [sshdot] — sshrc without the size limit

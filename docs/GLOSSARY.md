@@ -106,12 +106,10 @@ doesn't. Used on hot paths (`_hi_git_prompt`'s optional out-var, `_hi_repeat`,
 callers keep the stdout form.
 
 Never `printf -v x ''` (a bare empty format, zero arguments) to clear a
-variable: verified against a real bash 3.2.0 build, that form leaves `$x`
-untouched rather than emptying it — bash 3.2's printf skips the assignment
-outright when there is nothing to format. `printf -v x '%s' ''` (one `%s`
-conversion, one empty argument) is the form that actually clears it on every
-bash this project targets; `_hi_git_prompt`'s out-var preclear is where this
-first bit (CI's macOS leg, not this Linux box's newer bash).
+variable: on bash 3.2, that form leaves `$x` untouched rather than emptying
+it, since printf skips the assignment outright when there is nothing to
+format. `printf -v x '%s' ''` (one `%s` conversion, one empty argument) is
+the form that actually clears it on every bash this project targets.
 
 ## HI.06 source guard
 
@@ -337,12 +335,10 @@ turns both off.
 
 Past the TTL the file is not discarded at once. For ten minutes after expiry
 (`stale_for` in `targets.sh`) a TAB is answered **from the stale copy,
-immediately**, and the replacing sweep runs behind it with every descriptor on
-`/dev/null` — no TAB inside a working session waits on a daemon, and the next
-one is current. A lock directory beside the cache allows one refresh at a
-time; a lock older than any sweep runs is a dead refresher's and is taken
-over. After ten idle minutes the sweep is waited on again, like a first TAB:
-one pause rather than a page of names that no longer exist.
+immediately**, and the replacing sweep runs behind it - no TAB inside a
+working session waits on a daemon. A lock directory beside the cache allows
+one refresh at a time, taken over if the lock outlives any real sweep. After
+ten idle minutes the sweep is waited on again, like a first TAB.
 `_HI_TARGETS_TTL=0` skips the file, and so this, entirely.
 
 ## HI.29 apostrophes in substitution comments
@@ -492,8 +488,7 @@ silently stop stripping the rest of the file.
 `_HI_KEEP_COMMENTS=1` ships the tree verbatim. `tests/hi/payload_test.sh` pins
 the rest: no full-line comment survives outside `hi.sh`'s heredocs, every code
 line survives byte for byte, the result still parses, and `hi.sh` keeps its
-exec bit — hence HI.09's `cat` for the write-back; the target's probe tests
-`[ -x .../hi.sh ]` before it trusts a tree.
+exec bit — the write-back is HI.09's `cat`, for the same reason.
 
 ## HI.36 overlay toggle source
 
@@ -574,8 +569,7 @@ error log.
 
 **One awk, then `_hi_write_back`.** A single awk invocation strips every file
 (each lands in `<file>.strip`), and the result goes back with HI.09's `cat`,
-not `mv`: the strip file's mode would otherwise land on the target, and
-`hi.sh` has to stay executable — the install probe tests `[ -x .../hi.sh ]`.
+not `mv`, for the same exec-bit reason as HI.35.
 
 ## HI.40 hand-rolled sh quoting
 
@@ -763,12 +757,9 @@ counts as a collision; `\e[0;34m` (blue) does not collide with either.
 
 The one property that makes a single pass sufficient, with no ring walk and
 no retry loop: **every word's alternate has a different hue than that same
-word's own primary.** A substitution only fires when
-`prev_hue == primary_hue`; since `alt_hue != primary_hue` always holds by
-construction, `alt_hue != prev_hue` follows immediately — the substituted
-cell can never itself collide with what came before it. This is not
-something the shell enforces; it is a property of the hand-written color
-table in `_hi_header_word_alt`; a new header word's entry must keep it, and
+word's own primary**, so a substituted cell can never itself collide with
+what came before it. This is not something the shell enforces - it is a
+property of the hand-written `_hi_header_word_alt` table, and
 `tests/common/header_test.sh`'s `test_header_word_alt_differs_from_its_own_primary`
 checks it mechanically rather than trusting the table by eye.
 
@@ -819,26 +810,12 @@ consequences follow from that:
   ones) and taking the single highest value is safe as well as simpler.
 - **`ioreg -l` itself is bounded by hand, not by `_hi_probe`.** Milliseconds
   on real hardware, `ioreg -l` has a documented history of hanging outright
-  under macOS virtualization - GitHub's own hosted macOS runners (Apple
-  Silicon, themselves virtualized) among them, where this probe once sat for
-  a job's full 15-minute timeout on its very first real connect-time call
-  there. `_hi_probe` (`common/core.sh`) is the project's existing bound-a-CLI
-  helper, but it runs bare - unbounded - without GNU `timeout`, which is
-  exactly the case on stock macOS; wrapping this call in it would have
-  changed nothing. The fix backgrounds `ioreg -l` to a scratch file, polls
-  for up to a second, and kills it if it hasn't finished - portable, no new
-  binary required, matching every other probe in this file's own "fails
-  closed to `?`" rule when the process is killed mid-write.
-
-Verified against a real Apple Silicon Mac's `ioreg -l` output (an M1-family
-chip): the P-cluster's `voltage-states5-sram` table decoded to a clean
-ascending step sequence topping out at 3204 MHz, against a
-`voltage-states1-sram` (E-cluster) table topping out at 2064 MHz - the
-global-max approach picked the right one with no index-specific logic. A
-parse that comes out wrong on a different Mac needs the raw
-`ioreg -l | grep -i voltage-states` output from that machine to fix - the
-literal hex says whether the byte order or the key index assumption above
-has moved.
+  under macOS virtualization - GitHub's own hosted Apple Silicon runners
+  among them. `_hi_probe` (`common/core.sh`) is the project's existing
+  bound-a-CLI helper, but it runs unbounded without GNU `timeout`, which is
+  exactly the case on stock macOS. The fix backgrounds `ioreg -l` to a
+  scratch file, polls for up to a second, and kills it if it hasn't
+  finished, matching this file's own "fails closed to `?`" rule.
 
 ## HI.50 truecolor color schemes
 

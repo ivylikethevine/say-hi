@@ -35,6 +35,21 @@ function _hi_doctor_path() {
     timeout du date base64 tar gzip find
 }
 
+# A $HOME with one non-empty rc file, isolating doctor_configs()'s local-rc
+# loop the way the rest of this suite isolates every backend: without it, the
+# "configs" section's row count depends on whatever rc files the real $HOME
+# happens to carry - present and non-empty by luck on Ubuntu/macOS images,
+# absent on a freshly pkg-installed FreeBSD root. bash is on every image this
+# suite runs on, so its rc alone guarantees the section is never empty.
+function _hi_doctor_home() {
+  local dir="$_HI_WORKDIR/doctorhome"
+  if [ ! -f "$dir/.bashrc" ]; then
+    mkdir -p "$dir"
+    printf '# fixture rc for doctor_test.sh\n' >"$dir/.bashrc"
+  fi
+  printf '%s' "$dir"
+}
+
 function _hi_doctor_shims() {
   local dir="$_HI_WORKDIR/shims"
   if [ ! -d "$dir" ]; then
@@ -558,7 +573,10 @@ function test_full_report_runs_clean() {
 # not in whoever reads the bug report. The shims give it rows of every
 # severity but bad, so the count is asserted at 0 against the exit code.
 function _hi_doctor_json() {
-  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  local home
+  home="$(_hi_doctor_home)"
+  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+  _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --json "$@"
 }
 function test_json_is_a_document_with_the_report_in_it() {
@@ -584,9 +602,11 @@ assert any(r["label"] == "nomad" and "not installed" in r["text"] for r in d["ro
 # resolves to the ssh shim, which answers the tool probe from $HI_FAKE_TOOLS -
 # both named, so the report is clean and the exit code 0
 function test_json_takes_a_target_either_side_of_the_flag() {
-  local a b
+  local a b home
+  home="$(_hi_doctor_home)"
   a="$(HI_FAKE_TOOLS="base64 bash" _hi_doctor_json 'run"ning\box')" || return 1
-  b="$(HI_FAKE_TOOLS="base64 bash" PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  b="$(HI_FAKE_TOOLS="base64 bash" PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+  _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" 'run"ning\box' --json)" || return 1
   # each parsed on its own rather than compared as text: the probe timings
   # in the rows differ run to run

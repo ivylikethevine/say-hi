@@ -1,11 +1,12 @@
 name: Demos
 
 # Renders the demo tapes and ships them as an artifact pages.yml serves - on
-# a push to main, weekly, or on dispatch. Never on a pull request: a PR must
-# not re-render the packages preview (or any tape) for its own sake, only a
-# push to main refreshes what the README and Pages actually show. Nothing is
-# committed back - a bot commit on top of the author's is what branch
-# protection refuses. Needs docker, podman, nomad and kind.
+# a release tag, weekly, or on dispatch. Never on a pull request: a PR must
+# not re-render the packages preview (or any tape) for its own sake, and a
+# tape landing on main between releases waits for the next tag or the weekly
+# cron rather than re-rendering per push. Nothing is committed back - a bot
+# commit on top of the author's is what branch protection refuses. Needs
+# docker, podman, nomad and kind.
 #
 # Of the nine .tape files, common.tape is the shared include, leaving eight
 # renderable tapes. demo.gif is hand-rendered, reviewed by eye and committed in
@@ -20,18 +21,17 @@ name: Demos
 # tree. generate.sh's preflight puts a shim for this checkout's hi.sh on the
 # front of $PATH and tears the fixtures down afterwards.
 on:
-  # What re-renders the published set: a tape landing on main certainly moved a
-  # demo; the weekly run is for changes that move one without touching a tape
-  # (header, prompt, anything in the shipped tree - .github/hooks/demo_staleness.sh
-  # lists them as $_HI_DEMO_INPUTS). Rendering seven of the eight renderable
-  # tapes stands a kind cluster up and tears it down: a cadence, not a gate.
+  # A tag is what the published set should actually reflect - the same v*
+  # pattern release.yml matches, prereleases included, since an rc's GIFs are
+  # a useful rehearsal of what the release will show. The weekly run is for
+  # changes that move a demo without a release in between (header, prompt,
+  # anything in the shipped tree - .github/hooks/demo_staleness.sh lists them
+  # as $_HI_DEMO_INPUTS) and keeps the render inside the artifact's 90-day
+  # retention. Rendering seven of the eight renderable tapes stands a kind
+  # cluster up and tears it down: a cadence, not a gate.
   push:
-    branches: [main]
-    paths:
-      - "docs/tapes/**"
-      # a re-rendered demo.gif landing beside its tape is not a tape change
-      - "!docs/tapes/*.gif"
-      - ".github/workflows/demos.yml"
+    tags:
+      - "v*"
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
@@ -53,7 +53,9 @@ jobs:
     # down for a missing backend a failure, never a green run that rendered
     # nothing - pages.yml serves the last *successful* run's artifact.
     runs-on: ubuntu-latest
-    # Never on a pull request: pushes to main, the weekly cron, dispatch only.
+    # Never on a pull request: a tag push, the weekly cron, dispatch only. No
+    # trigger above admits pull_request, but this is the same belt-and-braces
+    # guard the other non-PR workflows carry.
     if: ${{ github.event_name != 'pull_request' }}
     # the hosted path pays the apt and kind installs on top of the render
     timeout-minutes: 60

@@ -2,8 +2,8 @@
 # `.github/workflows/**`, so ci.yml's expensive jobs (e2e 25 min, e2e-backends
 # 40 min, test-macos 20 min) can skip on a workflow-only or docs-only change.
 # `workflow-lint` and `advisory-lint` are deliberately not gated on it - such a
-# change is exactly what they exist to catch - and demos.yml keeps its own
-# narrower `paths:` filter.
+# change is exactly what they exist to catch - and demos.yml runs off a tag,
+# the cron and dispatch, none of which this filter reaches anyway.
 name: Detect changes
 
 on:

@@ -6,19 +6,15 @@ GIFs](#regenerating-the-demo-gifs). Nothing publishes on its own: the
 publishing job waits on a manual approval; the Homebrew tap gets a PR from
 the same run once `brew` has passed the formula, and the AUR is updated only
 when someone dispatches `publish-external.yml` by hand, once its key exists.
-Both signing keys and the tap token are in place; the AUR deploy key is
-one-time setup ([AUR](#aur)), tracked in
-[README's Roadmap](../README.md#roadmap).
 
 **What is live today: releases, the package repository and the Homebrew
-tap, not the AUR.** Every channel on this page is built and tested in CI on
-each push; tagged releases exist (`v0.1.1`, `v0.1.2`, …), the apt/rpm/apk
-repository is live and signed at
+tap, not the AUR.** Tagged releases exist (`v0.1.1`, `v0.1.2`, …), the
+apt/rpm/apk repository is live and signed at
 `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, and
 `brew install ivylikethevine/tap/say-hi` installs from
-[ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap),
-first published by hand and gated on a real Mac. There is still no AUR package (registration is closed); this page
-describes that channel as it will ship once there is.
+[ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap).
+There is still no AUR package (registration is closed); this page describes
+that channel as it will ship once there is.
 
 **Runners.** Every job runs on a plain GitHub-hosted label (`ubuntu-latest`,
 `macos-latest`, `windows-latest`); none substitutes a machine from a repo/org
@@ -92,28 +88,16 @@ The formula passes `--date <version>`, having no `SOURCE_DATE_EPOCH`;
 
 ## Channels weighed and not shipped
 
-**nix**: looked at, and no for now. The derivation is the Homebrew formula's
-shape, `$out/share/say-hi` plus a wrapped `$out/bin/hi` that exports
-`_HI_HOME`, not `scripts/install.sh --prefix`: `install_tree` hardcodes
-`/usr/bin` and `/etc/profile.d`, and neither exists in a store path. If it
-ships, it ships as a `flake.nix` in this repo first
-(`nix run github:ivylikethevine/say-hi`: no external review, no source hash,
-nothing new for `bump.sh`). nixpkgs is where nix users actually look
-(`environment.systemPackages`) but means upstream review, a standing
-maintainer entry and a fourth manifest to checksum, so it comes later.
-
-Precondition before either: a nix derivation is a _third_ copy of
-`_HI_PACKAGE_CONTENTS`, and `tests/packaging/packaging_test.sh` guards only
-the formula's today, so the drift guard grows a case before anything is
-published. The `/etc/profile.d` snippet, how a _new_ process reads `$_HI_HOME`,
-also has no store-path equivalent: a NixOS module (`environment.etc`, or a
-`programs.say-hi` option) is not committed to, and under home-manager the
-answer stays `install.sh --no-link`, as the formula's `caveats` says.
-
-What would come free: nix builds are hermetic, so the reproducibility
-[mkpkg.sh works for](#reproducibility) becomes a property rather than a CI
-check, and a `checkPhase` running `--group fast` makes the build itself a
-test.
+**nix**: looked at, and no for now. The derivation would be the Homebrew
+formula's shape (`$out/share/say-hi` plus a wrapped `$out/bin/hi` exporting
+`_HI_HOME`), not `scripts/install.sh --prefix` - `install_tree` hardcodes
+`/usr/bin` and `/etc/profile.d`, neither of which exists in a store path, and
+that's a *third* copy of `_HI_PACKAGE_CONTENTS` for `packaging_test.sh` to
+guard before anything ships. If it ships, it starts as a `flake.nix` in this
+repo (no external review, no source hash); nixpkgs, where nix users actually
+look, means upstream review and a standing maintainer entry, so it comes
+later. What would come free: nix builds are hermetic, so
+[reproducibility](#reproducibility) becomes a property rather than a CI check.
 
 ## Cutting a release
 
@@ -223,13 +207,12 @@ protection rules` — `build` green, `publish` failed, the tag page showing
   environment secret shadows a repository one of the same name; edit the one
   that exists). Its value is the **whole** `minisign.key` file `minisign -G
 -W` writes: line 1 `untrusted comment: …`, line 2 a 212-character base64
-  string. Nothing else works — the `.pub` (57 characters), the base64 line
-  alone, or that line truncated, wrapped or indented all fail the signing
-  step with `base64 conversion failed - was an actual secret key given?` or
-  `Error while loading the secret key file`; a key generated without `-W`
-  stops at `Password:` because the runner has no tty (`minisign -C -W -s
-minisign.key` strips the passphrase and keeps the pair). Before pasting,
-  check the file signs and matches the public key this runbook publishes:
+  string - the `.pub`, or that line alone, truncated, wrapped or indented,
+  all fail the signing step (`base64 conversion failed`, or `Error while
+  loading the secret key file`). A key generated without `-W` stops at
+  `Password:` because the runner has no tty (`minisign -C -W -s minisign.key`
+  strips the passphrase and keeps the pair). Before pasting, check the file
+  signs and matches the public key this runbook publishes:
 
   ```sh
   minisign -R -s minisign.key -p /tmp/check.pub &&
@@ -294,16 +277,13 @@ W: Dependency included, but may not be needed ('openssh')          # hi runs ssh
 Anything else is a real finding. `coreutils` is deliberately not in `depends`;
 it is in `base`.
 
-**The end-to-end check**, which caught `say-hi-git` shipping no version stamp:
+**The end-to-end check:**
 
 ```bash
 docker run --rm -v "$PWD:/pkgs:ro" archlinux:base bash -c '
   pacman -Sy --noconfirm openssh && pacman -U --noconfirm /pkgs/*.pkg.tar.zst
   bash -lc "echo \$_HI_HOME; command -v hi; hi --version"'
 ```
-
-Both packages have passed all of this: built, linted, installed into a clean
-Arch container, exercised, and removed with nothing left behind.
 
 Then push `PKGBUILD` + `.SRCINFO`, only those two, to
 `ssh://aur@aur.archlinux.org/say-hi-git.git`, `say-hi-git` first since it
@@ -404,24 +384,9 @@ its executable bit intact, is what that hint actually needs to find.
 ### Package repository
 
 The same deb, rpm and apk, served as an apt, a dnf and an apk repository from
-the Pages site, so a package manager upgrades say-hi like anything else:
-
-```sh
-# Debian, Ubuntu
-sudo curl -fsSLo /etc/apt/keyrings/say-hi.asc https://ivylikethevine.github.io/say-hi/say-hi.asc
-echo 'deb [signed-by=/etc/apt/keyrings/say-hi.asc] https://ivylikethevine.github.io/say-hi/apt stable main' |
-  sudo tee /etc/apt/sources.list.d/say-hi.list
-sudo apt update && sudo apt install say-hi
-
-# Fedora, RHEL and derivatives
-sudo curl -fsSLo /etc/yum.repos.d/say-hi.repo https://ivylikethevine.github.io/say-hi/say-hi.repo
-sudo dnf install say-hi
-
-# Alpine
-wget -O /etc/apk/keys/say-hi.rsa.pub https://ivylikethevine.github.io/say-hi/say-hi.rsa.pub
-echo https://ivylikethevine.github.io/say-hi/apk >>/etc/apk/repositories
-apk add say-hi
-```
+the Pages site, so a package manager upgrades say-hi like anything else - the
+subscribe commands for each are in
+[README.md's Installation](../README.md#installation) section.
 
 **How it is built.** `packaging/mkrepo.sh` turns the packages `mkpkg.sh`
 built into `dist/repo/` - `apt/` (`dists/stable`, `pool/`), `rpm/`
