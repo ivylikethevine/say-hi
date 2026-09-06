@@ -154,14 +154,6 @@ function _hi_rebase_case() {
   [[ "$out" == *"$expected"* && "$out" == *"$branch"* ]]
 }
 
-function test_rebase_apply_backend_shows_state_and_source_branch() {
-  _hi_rebase_case rebase-branch "REBASE 1/1" rebase --apply main
-}
-
-function test_rebase_interactive_shows_state() {
-  _hi_rebase_case interactive-branch "REBASE-i 1/1" rebase -i main
-}
-
 # git am reuses rebase-apply/ with its own marker file (rebasing/AM's twin);
 # a patch that conflicts with the diverged main pauses it mid-apply
 function test_am_conflict_shows_state() {
@@ -396,30 +388,22 @@ function run_git_prompt_tests() {
   _hi_check "Untracked file -> ellipsis count" test_untracked_file_shows_ellipsis_count
   _hi_check "Merge conflict -> invalid count + MERGING" test_merge_conflict_shows_invalid_and_merging
 
-  _hi_h2 "Use-Case: ahead/behind"
+  _hi_h2 "Use-Case: ahead/behind, detached HEAD, long branch names, stash"
   _hi_check "Ahead and behind arrows" test_ahead_and_behind_show_arrows
-
-  _hi_h2 "Use-Case: detached HEAD"
-  _hi_check "Short sha + red branch color" test_detached_head_shows_short_sha_and_red
-
-  _hi_h2 "Use-Case: long branch names"
-  _hi_check "Truncated at 31 chars + ellipsis" test_long_branch_name_is_truncated
+  _hi_check "Detached HEAD: short sha + red branch color" test_detached_head_shows_short_sha_and_red
+  _hi_check "Long branch name truncated at 31 chars + ellipsis" test_long_branch_name_is_truncated
+  _hi_check "Stash -> flag count" test_stash_shows_flag_count
 
   _hi_h2 "Use-Case: in-progress operations"
-  _hi_check "Rebase (apply backend) + source branch" test_rebase_apply_backend_shows_state_and_source_branch
-  _hi_check "Rebase (interactive)" test_rebase_interactive_shows_state
+  _hi_check "Rebase (apply backend) + source branch" _hi_rebase_case rebase-branch "REBASE 1/1" rebase --apply main
+  _hi_check "Rebase (interactive)" _hi_rebase_case interactive-branch "REBASE-i 1/1" rebase -i main
   _hi_check "git am, conflicting" test_am_conflict_shows_state
   _hi_check "rebase-apply with neither marker" test_am_rebase_with_neither_marker_shows_state
   _hi_check "Cherry-pick conflict" test_cherry_pick_conflict_shows_state
   _hi_check "Revert conflict" test_revert_conflict_shows_state
   _hi_check "Bisect" test_bisect_shows_state
   _hi_check "Rebase (merge backend)" test_rebase_merge_backend_shows_state
-
-  _hi_h2 "Use-Case: stash"
-  _hi_check "Stash -> flag count" test_stash_shows_flag_count
-
-  _hi_h2 "Use-Case: the out-var form (what bash.sh/zsh.zsh actually call)"
-  _hi_check "Fills the var, not stdout" test_out_var_form_fills_variable_not_stdout
+  _hi_check "The out-var form (what bash.sh/zsh.zsh call) fills the var, not stdout" test_out_var_form_fills_variable_not_stdout
   _hi_check "Agrees with the stdout form" test_out_var_and_stdout_form_agree
   _hi_check "Pre-cleared when disabled" test_out_var_is_precleared_when_disabled
   _hi_check "Pre-cleared outside a repo" test_out_var_is_precleared_outside_a_repo

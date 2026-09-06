@@ -268,11 +268,6 @@ function test_remote_suffix_fallbacks_are_interactive() {
 # below the source guard, which sourcing (this suite's usual route) never
 # reaches.
 
-# a packager's stamp (here stood in for by the env seam) wins outright
-function test_version_prints_the_stamp() {
-  [ "$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)" = "1.2.3" ]
-}
-
 # an unstamped checkout answers with git describe (--always: a bare commit
 # hash before any tag exists), never with "unknown"
 function test_version_falls_back_to_git_describe() {
@@ -351,10 +346,6 @@ function test_remote_root_is_refused_when_hostile() {
       return 1
     }
   done
-}
-
-function test_preamble_quotes_a_hostile_hostname() {
-  [ "$(_hi_preamble_env_value _HI_LOCAL_HOSTNAME)" = "$_HI_MEAN" ]
 }
 
 # ...and the container transport folds the same stream into one `sh -c export`
@@ -567,7 +558,8 @@ EOF
   _hi_check "So is every no-bash fallback" test_remote_suffix_fallbacks_are_interactive
 
   _hi_h2 "Testing: hi --version"
-  _hi_check "A stamp wins" test_version_prints_the_stamp
+  # a packager's stamp (here stood in for by the env seam) wins outright
+  _hi_check_eq "A stamp wins" 1.2.3 env _HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version
   _hi_check "A checkout answers with git describe" test_version_falls_back_to_git_describe
   _hi_check "Candid with no stamp and no git" test_version_is_candid_without_stamp_or_git
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version
@@ -575,7 +567,7 @@ EOF
   _hi_check "The preamble ships the truecolor verdict" test_remote_preamble_ships_the_truecolor_verdict
 
   _hi_h2 "Testing: what the client bakes in stays data"
-  _hi_check "A hostile hostname survives the ssh preamble" test_preamble_quotes_a_hostile_hostname
+  _hi_check_eq "A hostile hostname survives the ssh preamble" "$_HI_MEAN" _hi_preamble_env_value _HI_LOCAL_HOSTNAME
   _hi_check "...and the container transport's export line" test_container_env_quotes_a_hostile_hostname
   _hi_check "A hostile target name is one quoted word in the suffix" test_suffix_quotes_a_hostile_target_name
   _hi_check "...and the sh-tier prompt renders it literally" test_fallback_prompt_escapes_a_hostile_host

@@ -294,7 +294,7 @@ function run_wire_tests() {
   [ "$debian_ok" -eq 1 ] || _hi_stand_down "the sshd image did not build"
 
   _HI_TEST_MARKER="HI_WIRE_TEST_OK"
-  _hi_pty_stdin auto "no tty and no python3 to fake one - ssh -t may not get a real pty, results may be unreliable"
+  _hi_pty_stdin auto
 
   _hi_suite_begin
   _hi_case _hi_wire_case payload "$_HI_SSHD_IMAGE" payload

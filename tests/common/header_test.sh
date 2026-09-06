@@ -294,54 +294,6 @@ function test_header_version_resolves_once_per_shell() {
   )
 }
 
-function test_header_version_is_unknown_without_a_stamp_or_git() {
-  local dir
-  dir="$(mktemp -d "$_HI_WORKDIR/noversion.XXXXXX")"
-  (
-    unset _HI_HEADER_VERSION
-    _HI_RELEASE=""
-    _HI_ROOT="$dir"
-    [ "$(_hi_header_version)" = unknown ]
-  )
-}
-
-# _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
-# or no tag reachable at all) means it isn't a release, so only a 6-column
-# commit hash shows, tag dropped rather than implied; a tag with no hash (an
-# exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
-# truncated to 10 since there's nothing to join it to
-function test_hi_shorten_describe_shows_a_hash_when_not_on_a_tag() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f)" = "9c1dd0" ]
-}
-
-function test_hi_shorten_describe_drops_the_dirty_suffix() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty)" = "9c1dd0" ]
-}
-
-function test_hi_shorten_describe_trims_a_bare_hash() {
-  [ "$(_hi_shorten_describe 9c1dd0fabc)" = "9c1dd0" ]
-}
-
-function test_hi_shorten_describe_leaves_an_exact_tag_alone() {
-  [ "$(_hi_shorten_describe v1.0.0)" = "v1.0.0" ]
-}
-
-function test_hi_shorten_describe_leaves_a_release_stamp_alone() {
-  [ "$(_hi_shorten_describe 1.2.3)" = "1.2.3" ]
-}
-
-function test_hi_shorten_describe_leaves_unknown_alone() {
-  [ "$(_hi_shorten_describe unknown)" = "unknown" ]
-}
-
-function test_hi_shorten_describe_caps_a_long_exact_tag_at_ten() {
-  [ "$(_hi_shorten_describe snapshot-6fba937)" = "snapshot-6" ]
-}
-
-function test_hi_shorten_describe_drops_a_long_tag_when_a_hash_is_present() {
-  [ "$(_hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty)" = "200cef" ]
-}
-
 # the header cell itself carries the shortened form, not just the helper in
 # isolation - this checkout's own git describe is what timestamp renders
 function test_timestamp_version_cell_is_shortened() {
@@ -408,36 +360,12 @@ function test_hi_load_pct_divides_load_by_cores() {
   [ "$out" = 50 ]
 }
 
-function test_hi_load_pct_rounds_to_a_whole_percent() {
-  local out
-  _hi_load_pct out 1.00 3
-  [ "$out" = 33 ]
-}
-
-function test_hi_load_pct_empty_without_a_load_figure() {
+# _hi_load_pct_out <load> <cores> - _hi_load_pct's out-variable on stdout, so
+# its answers can be pinned as _hi_check_eq roster lines
+function _hi_load_pct_out() {
   local out=""
-  _hi_load_pct out "" 4
-  [ -z "$out" ]
-}
-
-function test_hi_load_pct_empty_without_a_core_count() {
-  local out=""
-  _hi_load_pct out 2.00 ""
-  [ -z "$out" ]
-}
-
-# the Windows fallback's own unresolved sentinel - never divided into, just
-# passed straight through to the cell as "Cores: ?"
-function test_hi_load_pct_empty_when_cores_is_not_numeric() {
-  local out=""
-  _hi_load_pct out 2.00 "?"
-  [ -z "$out" ]
-}
-
-function test_hi_load_pct_empty_when_cores_is_zero() {
-  local out=""
-  _hi_load_pct out 2.00 0
-  [ -z "$out" ]
+  _hi_load_pct out "$@"
+  printf '%s' "$out"
 }
 
 # _hi_uptime_cell: at most two units, largest first, or "?" where no probe
@@ -455,20 +383,6 @@ function test_ip_cell_has_a_shape() {
   local out
   _hi_ip_cell out
   [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
-}
-
-# _hi_humanize_uptime's own contract, independent of what this box's real
-# uptime happens to be
-function test_hi_humanize_uptime_days_and_hours() {
-  [ "$(_hi_humanize_uptime 90000)" = "1d 1h" ] # 25h -> 1d 1h
-}
-
-function test_hi_humanize_uptime_hours_and_minutes() {
-  [ "$(_hi_humanize_uptime 5400)" = "1h 30m" ]
-}
-
-function test_hi_humanize_uptime_minutes_only() {
-  [ "$(_hi_humanize_uptime 120)" = "2m" ]
 }
 
 # used/total, one unit on total only ("6/60G", not "6G/60G" - the used
@@ -1632,12 +1546,6 @@ function test_check_line_found_primary_is_visible_checked() {
     _hi_assert_contains "$row" "$_HI_MARK_OK"
 }
 
-# `-` is the mode hidden when the tool *is* there: it exists to speak up
-# about absence, so a healthy box says nothing.
-function test_check_line_dash_mode_hides_installed() {
-  _hi_no_visible_row "-$_HI_REAL_CMD:3"
-}
-
 # ...and the same line missing is exactly the alarm the mode exists for - with
 # the mode character stripped from the printed name.
 function test_check_line_dash_mode_missing_is_visible() {
@@ -1655,10 +1563,6 @@ function test_check_line_plus_mode_shows_installed() {
   _hi_one_visible_row "+$_HI_REAL_CMD:0" || return 1
   _hi_contains "$row" "$_HI_REAL_CMD" &&
     _hi_assert_contains "$row" "$_HI_MARK_OK"
-}
-
-function test_check_line_plus_mode_hides_missing() {
-  _hi_no_visible_row "+$_HI_FAKE_CMD:0"
 }
 
 # Every unflagged line speaks when the tool is absent - that is the nudge the
@@ -1871,13 +1775,6 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 # one per priority 0-3 - in both tables. `VAR=val func` on a shell function
 # (not an external command) reverts VAR once the call returns, so this leaves
 # no _HI_PACKAGES_PALETTE behind for a case after it.
-# the named ramps, read off header.sh's own case rather than a second copy
-# of the list here (the two used to drift); cool is the default arm
-function _hi_palette_names() {
-  printf 'cool\n'
-  sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'
-}
-
 function test_packages_palette_each_name_has_four_entries() {
   local name
   for name in $(_hi_palette_names); do
@@ -1937,8 +1834,7 @@ function test_packages_palette_escapes_are_all_named_colors() {
 # A 24-word scheme: the check paints from the second bank, every other cell
 # from the first. Catppuccin's twelve then vscode's twelve, so bank 2's cyan
 # (slot 17, 11a8cd) is what cool's priority-0 installed color becomes.
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+# _HI_TEST_L12/_HI_TEST_L24: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_24_words() {
   local ok=0
@@ -2047,15 +1943,19 @@ function run_header_tests() {
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
-  _hi_check "...and is \"unknown\" without a stamp or git" test_header_version_is_unknown_without_a_stamp_or_git
-  _hi_check "Shows a 6-char hash when not on a tag" test_hi_shorten_describe_shows_a_hash_when_not_on_a_tag
-  _hi_check "...drops the -dirty suffix" test_hi_shorten_describe_drops_the_dirty_suffix
-  _hi_check "...trims a bare hash too" test_hi_shorten_describe_trims_a_bare_hash
-  _hi_check "...leaves an exact tag alone" test_hi_shorten_describe_leaves_an_exact_tag_alone
-  _hi_check "...leaves a release stamp alone" test_hi_shorten_describe_leaves_a_release_stamp_alone
-  _hi_check "...leaves 'unknown' alone" test_hi_shorten_describe_leaves_unknown_alone
-  _hi_check "...caps a long exact tag at 10 columns" test_hi_shorten_describe_caps_a_long_exact_tag_at_ten
-  _hi_check "...drops a long tag when a hash is present" test_hi_shorten_describe_drops_a_long_tag_when_a_hash_is_present
+  # _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
+  # or no tag reachable at all) means it isn't a release, so only a 6-column
+  # commit hash shows, tag dropped rather than implied; a tag with no hash (an
+  # exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
+  # truncated to 10 since there's nothing to join it to
+  _hi_check_eq "Shows a 6-char hash when not on a tag" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f
+  _hi_check_eq "...drops the -dirty suffix" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty
+  _hi_check_eq "...trims a bare hash too" 9c1dd0 _hi_shorten_describe 9c1dd0fabc
+  _hi_check_eq "...leaves an exact tag alone" v1.0.0 _hi_shorten_describe v1.0.0
+  _hi_check_eq "...leaves a release stamp alone" 1.2.3 _hi_shorten_describe 1.2.3
+  _hi_check_eq "...leaves 'unknown' alone" unknown _hi_shorten_describe unknown
+  _hi_check_eq "...caps a long exact tag at 10 columns" snapshot-6 _hi_shorten_describe snapshot-6fba937
+  _hi_check_eq "...drops a long tag when a hash is present" 200cef _hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info no longer shows uptime" test_system_info_no_longer_shows_uptime
@@ -2063,19 +1963,23 @@ function run_header_tests() {
   _hi_check "System_info's CPU cell sits next to Cores:" test_system_info_cpu_cell_sits_next_to_cores
   _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
-  _hi_check "...rounds to a whole percent" test_hi_load_pct_rounds_to_a_whole_percent
-  _hi_check "...empty without a load figure" test_hi_load_pct_empty_without_a_load_figure
-  _hi_check "...empty without a core count" test_hi_load_pct_empty_without_a_core_count
-  _hi_check "...empty when cores isn't numeric" test_hi_load_pct_empty_when_cores_is_not_numeric
-  _hi_check "...empty when cores is zero" test_hi_load_pct_empty_when_cores_is_zero
+  _hi_check_eq "...rounds to a whole percent" 33 _hi_load_pct_out 1.00 3
+  _hi_check_eq "...empty without a load figure" "" _hi_load_pct_out "" 4
+  _hi_check_eq "...empty without a core count" "" _hi_load_pct_out 2.00 ""
+  # "?" is the Windows fallback's own unresolved sentinel - never divided
+  # into, just passed straight through to the cell as "Cores: ?"
+  _hi_check_eq "...empty when cores isn't numeric" "" _hi_load_pct_out 2.00 "?"
+  _hi_check_eq "...empty when cores is zero" "" _hi_load_pct_out 2.00 0
   _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
   _hi_check "System_info's load figure rides the Cores cell" test_system_info_load_rides_the_cores_cell
   _hi_check "...and the GHz cell no longer carries it" test_system_info_cpu_cell_has_no_parenthetical
   _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
   _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
-  _hi_check "_hi_humanize_uptime: days and hours" test_hi_humanize_uptime_days_and_hours
-  _hi_check "_hi_humanize_uptime: hours and minutes" test_hi_humanize_uptime_hours_and_minutes
-  _hi_check "_hi_humanize_uptime: minutes only" test_hi_humanize_uptime_minutes_only
+  # _hi_humanize_uptime's own contract, independent of what this box's real
+  # uptime happens to be
+  _hi_check_eq "_hi_humanize_uptime: days and hours" "1d 1h" _hi_humanize_uptime 90000
+  _hi_check_eq "_hi_humanize_uptime: hours and minutes" "1h 30m" _hi_humanize_uptime 5400
+  _hi_check_eq "_hi_humanize_uptime: minutes only" 2m _hi_humanize_uptime 120
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
   _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found
@@ -2154,10 +2058,12 @@ function run_header_tests() {
 
   _hi_h2 "Testing: check_line"
   _hi_check "Found primary -> visible, checked" test_check_line_found_primary_is_visible_checked
-  _hi_check "Installed on a - line -> hidden" test_check_line_dash_mode_hides_installed
+  # `-` is the mode hidden when the tool *is* there: it exists to speak up
+  # about absence, so a healthy box says nothing.
+  _hi_check "Installed on a - line -> hidden" _hi_no_visible_row "-$_HI_REAL_CMD:3"
   _hi_check "Missing on a - line -> visible, no leaked flag" test_check_line_dash_mode_missing_is_visible
   _hi_check "Installed on a + line -> visible" test_check_line_plus_mode_shows_installed
-  _hi_check "Missing on a + line -> hidden" test_check_line_plus_mode_hides_missing
+  _hi_check "Missing on a + line -> hidden" _hi_no_visible_row "+$_HI_FAKE_CMD:0"
   _hi_check "Missing priority 0 -> visible" test_check_line_missing_priority0_is_visible
   _hi_check "Missing priority 3 -> visible, crossed" test_check_line_missing_priority3_is_visible_crossed
   _hi_check "A priority above 3 clamps to 3" test_check_line_clamps_a_priority_above_three

@@ -42,18 +42,6 @@ function _hi_env_within_roster() {
   }
 }
 
-function test_bash_child_sees_only_the_roster() {
-  _hi_env_within_roster bash "$_HI_BASHRC"
-}
-
-function test_zsh_child_sees_only_the_roster() {
-  _hi_env_within_roster zsh "$_HI_ZSHRC"
-}
-
-function test_fish_child_sees_only_the_roster() {
-  _hi_env_within_roster fish "$_HI_FISH_CONFIG"
-}
-
 # The value has to survive the flip: `now` expands $_HI_HUMAN_SHORT_DATE when
 # it is typed, and the prompt reads the colour memos every render. One body
 # for all three shells - the shell and its rc are the only difference - run
@@ -188,46 +176,6 @@ function _hi_rc_round_trips() { # <shell> <file> <assignment grep>
   }
 }
 
-function test_session_rc_round_trips_in_bash() {
-  _hi_rc_round_trips bash bashrc '^_HI_'
-}
-
-function test_session_rc_round_trips_in_zsh() {
-  _hi_rc_round_trips zsh .zshrc '^_HI_'
-}
-
-function test_session_rc_round_trips_in_fish() {
-  _hi_rc_round_trips fish fish.config '^set -g _HI_'
-}
-
-# The lines sit between the target's own rc and hi's, so the host's config is
-# underneath and hi's rc reads them - and an unset one is not written at all.
-function test_session_rc_places_and_skips() {
-  local dir
-  dir="$(_hi_session_rc_dir)" || return 1
-  local first last
-  first="$(head -n1 "$dir/bashrc")"
-  last="$(tail -n1 "$dir/bashrc")"
-  case "$first" in *'.bashrc'*) ;; *)
-    _hi_cecho " | first line is not the target's rc: $first" "$RED"
-    rm -rf "$dir"
-    return 1
-    ;;
-  esac
-  case "$last" in *"$_HI_BASHRC"*) ;; *)
-    _hi_cecho " | last line is not hi's rc: $last" "$RED"
-    rm -rf "$dir"
-    return 1
-    ;;
-  esac
-  if grep -q '^_HI_TARGET_TAG=' "$dir/bashrc" && ! grep -q '^_HI_NOT_A_VAR=' "$dir/bashrc"; then
-    rm -rf "$dir"
-    return 0
-  fi
-  rm -rf "$dir"
-  return 1
-}
-
 function run_exports_tests() {
   _hi_workdir exportstest
   mkdir -p "$_HI_WORKDIR/home"
@@ -237,9 +185,9 @@ function run_exports_tests() {
   _hi_suite_begin
 
   _hi_h2 "Testing: the child environment is the roster"
-  _hi_check "bash: a child sees only \$_HI_CHILD_ENV" test_bash_child_sees_only_the_roster
-  _hi_check_requires zsh "zsh: a child sees only \$_HI_CHILD_ENV" test_zsh_child_sees_only_the_roster
-  _hi_check_requires fish "fish: a child sees only \$_HI_CHILD_ENV" test_fish_child_sees_only_the_roster
+  _hi_check "bash: a child sees only \$_HI_CHILD_ENV" _hi_env_within_roster bash "$_HI_BASHRC"
+  _hi_check_requires zsh "zsh: a child sees only \$_HI_CHILD_ENV" _hi_env_within_roster zsh "$_HI_ZSHRC"
+  _hi_check_requires fish "fish: a child sees only \$_HI_CHILD_ENV" _hi_env_within_roster fish "$_HI_FISH_CONFIG"
   _hi_check "bash: the roster itself is still exported" test_bash_child_still_sees_the_roster
   _hi_check_eq "bash: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" _hi_shell_keeps_values bash "$_HI_BASHRC"
   _hi_check_requires_eq zsh "zsh: the values stay as shell variables" "$_HI_ROOT|$_HI_HUMAN_SHORT_DATE" _hi_shell_keeps_values zsh "$_HI_ZSHRC"
@@ -254,10 +202,9 @@ function run_exports_tests() {
   _hi_check "every env read in targets.sh is in the roster" test_targets_env_reads_are_in_the_roster
 
   _hi_h2 "Testing: load.sh re-homes the session values into the session rc"
-  _hi_check "bash rc round-trips the values" test_session_rc_round_trips_in_bash
-  _hi_check_requires zsh "zsh rc round-trips the values" test_session_rc_round_trips_in_zsh
-  _hi_check_requires fish "fish rc round-trips the values" test_session_rc_round_trips_in_fish
-  _hi_check "the lines sit between the target's rc and hi's; unset ones are skipped" test_session_rc_places_and_skips
+  _hi_check "bash rc round-trips the values" _hi_rc_round_trips bash bashrc '^_HI_'
+  _hi_check_requires zsh "zsh rc round-trips the values" _hi_rc_round_trips zsh .zshrc '^_HI_'
+  _hi_check_requires fish "fish rc round-trips the values" _hi_rc_round_trips fish fish.config '^set -g _HI_'
 
   _hi_suite_end "exports"
 }

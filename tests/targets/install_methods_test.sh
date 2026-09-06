@@ -159,7 +159,7 @@ function run_install_methods_tests() {
   fi
 
   _hi_suite_begin
-  _hi_pty_stdin auto "no tty and no python3 to fake one - ssh -t may not get a real pty, results may be unreliable"
+  _hi_pty_stdin auto
   _hi_par_begin "install methods"
 
   # Every case's post-check says the same thing in its own words: no tree was

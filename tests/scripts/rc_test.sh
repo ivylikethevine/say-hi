@@ -255,9 +255,7 @@ function run_rc_lines_test() {
   _hi_h2 "Testing: strip_marker"
   _hi_check "Removes only hi's lines" test_strip_marker_removes_only_hi_lines
   _hi_check "A missing file is fine" test_strip_marker_missing_file_is_fine
-
-  _hi_h2 "Testing: tmpdir_line"
-  _hi_check "Each dialect's _HI_HOME line" test_tmpdir_line_dialects
+  _hi_check "tmpdir_line: each dialect's _HI_HOME line" test_tmpdir_line_dialects
 
   _hi_h2 "Testing: install_rc_lines / strip_rc_lines"
   _hi_check "Install covers the local roster, per dialect" test_install_rc_lines_covers_the_roster

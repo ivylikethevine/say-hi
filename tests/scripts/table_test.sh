@@ -132,9 +132,7 @@ function run_table_tests() {
   _hi_check "Grows to the longest string" test_widen_grows_to_the_longest_string
   _hi_check "Never shrinks" test_widen_never_shrinks
   _hi_check "_hi_widen_to takes widths, not strings" test_widen_to_takes_widths_not_strings
-
-  _hi_h2 "Testing: _hi_hbar"
-  _hi_check "Each column is width+2 dashes" test_hbar_pads_each_column_by_two
+  _hi_check "_hi_hbar: each column is width+2 dashes" test_hbar_pads_each_column_by_two
 
   _hi_h2 "Testing: _hi_cell / _hi_cell_raw"
   _hi_check "Pads to the width" test_cell_pads_to_the_width

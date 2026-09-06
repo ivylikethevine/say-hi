@@ -49,6 +49,22 @@ function _hi_within_percent() {
   [ "$delta" -le "$_HI_WITHIN_SLACK" ]
 }
 
+# A scheme of the user's own: 12 or 24 six-digit hex words in the setting
+# itself. Catppuccin's twelve, then vscode's twelve as the second bank. Shared
+# by common/core_test.sh and common/header_test.sh, which both build custom
+# color schemes off it - one copy so the two lists can't drift apart.
+_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+
+# _hi_palette_names - header.sh's named package-check ramps, one per line,
+# read off _hi_packages_palette's own case rather than a second copy of the
+# list (common/header_test.sh and scripts/preview_test.sh each carried one, and
+# the two used to drift); cool is the default arm.
+function _hi_palette_names() {
+  printf 'cool\n'
+  sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'
+}
+
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one
 # function, so they cannot segment tables differently. A table is a run of

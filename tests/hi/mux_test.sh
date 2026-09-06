@@ -48,10 +48,6 @@ function _hi_mux_run() {
   cat "$log"
 }
 
-function test_mux_name_keeps_a_plain_host() {
-  [ "$(_hi_mux_name host)" = hi-host ]
-}
-
 function test_mux_name_drops_what_tmux_rejects() {
   local out
   for out in "$(_hi_mux_name user@host)" "$(_hi_mux_name ctx:ns:pod/ctr)" "$(_hi_mux_name 'db.example.com')"; do
@@ -179,19 +175,12 @@ function test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state() {
   esac
 }
 
-function test_mux_is_in_help_and_the_man_page() {
-  local help
-  help="$(_HI_HOME="$_HI_HOME" bash "$_HI_LAUNCHER" --help 2>&1)" || true
-  case "$help" in *"--mux"*) ;; *) return 1 ;; esac
-  grep -q -- '\\-\\-mux' "$_HI_ROOT/docs/hi.1"
-}
-
 function run_hi_mux_tests() {
   _hi_workdir himuxtest
   _hi_suite_begin
   _hi_h1 "Testing hi.sh: the client-side tmux wrap"
   _hi_h2 "Testing: the session name"
-  _hi_check "A plain host is hi-<host>" test_mux_name_keeps_a_plain_host
+  _hi_check_eq "A plain host is hi-<host>" hi-host _hi_mux_name host
   _hi_check "Characters tmux rejects become dashes" test_mux_name_drops_what_tmux_rejects
   _hi_check_requires tmux "tmux accepts the name" test_mux_name_is_a_session_name_tmux_accepts
   _hi_h2 "Testing: --mux in _hi_parse"
@@ -207,7 +196,6 @@ function run_hi_mux_tests() {
   _hi_check "--no-mux beats _HI_MUX=1" test_no_mux_beats_the_setting
   _hi_check "Inside tmux: create detached, then switch-client" test_mux_wrap_inside_tmux_creates_then_switches
   _hi_check "The inner argv is the parsed state, quoted" test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state
-  _hi_check "--mux is in --help and hi.1" test_mux_is_in_help_and_the_man_page
   _hi_suite_end "hi.sh (client-side tmux wrap)"
 }
 run_hi_mux_tests

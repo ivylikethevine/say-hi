@@ -240,10 +240,6 @@ function test_probe_cmd_every_shape_ends_with_the_marker() {
   done
 }
 
-function test_poll_bool_returns_zero_when_already_true() {
-  _hi_poll_bool 3 0.01 _hi_true
-}
-
 function test_poll_bool_returns_one_when_never_true() {
   ! _hi_poll_bool 2 0.01 _hi_false
 }
@@ -273,10 +269,6 @@ function test_poll_bool_abort_predicate_stops_early() {
   }
   _hi_poll_bool -a _hi_false 50 0.01 _hi_never_true && return 1
   [ "$(wc -c <"$counter")" -eq 1 ]
-}
-
-function test_poll_bool_abort_predicate_does_not_block_success() {
-  _hi_poll_bool -a _hi_true 3 0.01 _hi_true
 }
 
 function test_poll_bool_stops_at_the_wall_clock_budget() {
@@ -654,10 +646,10 @@ function run_lib_process_tests() {
   _hi_check "Rejects an unknown shape" test_probe_cmd_rejects_an_unknown_shape
 
   _hi_h2 "Testing: _hi_poll_bool / _hi_poll_value"
-  _hi_check "Poll_bool returns 0 when already true" test_poll_bool_returns_zero_when_already_true
+  _hi_check "Poll_bool returns 0 when already true" _hi_poll_bool 3 0.01 _hi_true
   _hi_check "Poll_bool succeeds on a later attempt" test_poll_bool_succeeds_on_a_later_attempt
   _hi_check "Poll_bool's abort predicate stops early" test_poll_bool_abort_predicate_stops_early
-  _hi_check "Poll_bool's abort predicate doesn't block success" test_poll_bool_abort_predicate_does_not_block_success
+  _hi_check "Poll_bool's abort predicate doesn't block success" _hi_poll_bool -a _hi_true 3 0.01 _hi_true
   _hi_check "Poll_value prints what it found" test_poll_value_prints_the_value_it_found
   _hi_check "Poll_value keeps polling past empty output" test_poll_value_keeps_polling_past_empty_output
 
@@ -672,9 +664,7 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_exec_case retries"
   _hi_check "A markerless first attempt succeeds on the retry" test_exec_case_retries_a_markerless_first_attempt
   _hi_check "Two markerless attempts stop retrying and report failure" test_exec_case_exhausts_retries_and_fails
-
-  _hi_h2 "Testing: _hi_strip_ansi"
-  _hi_check "Strips SGR, OSC-BEL and OSC-ST, linearly" test_strip_ansi_strips_every_form_and_stays_linear
+  _hi_check "_hi_strip_ansi strips SGR, OSC-BEL and OSC-ST, linearly" test_strip_ansi_strips_every_form_and_stays_linear
 
   _hi_h2 "Testing: _hi_pty_wrap"
   _hi_check "Force wraps regardless of the fd" test_pty_wrap_force_wraps_even_on_a_tty
