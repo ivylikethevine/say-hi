@@ -147,7 +147,29 @@ function _hi_ct_run() {
     ' -- "$case_dir/errlog" 2>"$_HI_CT_ERR" || _HI_CT_RC=$?
 }
 
-function _hi_ct_said() { grep -qF -e "$1" "$_HI_CT_ERR"; }
+# A miss prints what the case *did* say. The harness reports a bare label and
+# nothing else (tests/lib/fixtures.sh's _hi_assert), so on a runner nobody can
+# reach a shell on - the Windows and macOS jobs - the captured stderr is the
+# only evidence a red case leaves, and dropping it makes one undebuggable.
+function _hi_ct_said() {
+  grep -qF -e "$1" "$_HI_CT_ERR" && return 0
+  {
+    printf ' _hi_ct_said: rc=%s, no "%s" in:\n' "$_HI_CT_RC" "$1"
+    sed 's/^/ | /' "$_HI_CT_ERR"
+  } >&2
+  return 1
+}
+
+# _hi_ct_said's twin over the shim's log, for the cases whose whole assertion
+# is "the attach hi handed over looked like this"
+function _hi_ct_logged() {
+  grep -q "$1" "$_HI_CT_LOG" && return 0
+  {
+    printf ' _hi_ct_logged: rc=%s, no /%s/ in:\n' "$_HI_CT_RC" "$1"
+    sed 's/^/ | /' "$_HI_CT_LOG"
+  } >&2
+  return 1
+}
 
 # ---------------------------------------------------------------------------
 # _hi_container_cmds - the probe/cp/attach shapes, per backend
@@ -347,18 +369,24 @@ function test_cleanup_is_quiet_when_there_is_nothing_there() {
 # _say_hi_container's failure ladder
 # ---------------------------------------------------------------------------
 
-# names the directory it tried, at the probe rather than later at the copy
+# names the directory it tried, at the probe rather than later at the copy.
+# A regular file rather than a /proc path: mkdir has to fail for the same
+# reason everywhere, and /proc is Linux's alone.
 function test_ladder_no_writable_temp_directory() {
-  _hi_ct_run notmp _HI_CT_TMPDIR=/proc/nowhere
+  printf 'not a directory\n' >"$_HI_WORKDIR/ct.notmp.file"
+  _hi_ct_run notmp "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.notmp.file"
   [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "no writable temp directory" &&
     _hi_ct_said "--plain needs none"
 }
 
 # the path comes back from the target and is interpolated into every command
-# run there, so it is refused rather than escaped
+# run there, so it is refused rather than escaped. A comma rather than a
+# semicolon: both are outside _hi_safe_path's class, which is the whole
+# assertion, but MSYS rewrites an argument that looks like a `;`-joined path
+# list and would answer a different question under Git Bash.
 function test_ladder_refuses_a_scratch_path_it_will_not_use() {
-  mkdir -p "$_HI_WORKDIR/ct.badroot/od;ir"
-  _hi_ct_run badroot "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.badroot/od;ir"
+  mkdir -p "$_HI_WORKDIR/ct.badroot/od,ir"
+  _hi_ct_run badroot "_HI_CT_TMPDIR=$_HI_WORKDIR/ct.badroot/od,ir"
   [ "$_HI_CT_RC" != 0 ] &&
     _hi_ct_said "named a scratch directory hi will not use"
 }
@@ -377,7 +405,7 @@ function test_ladder_aliases_copy_failure_still_attaches() {
   _hi_ct_run noalias _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh \
     _HI_CT_PUT_FAIL=aliases.sh
   _hi_ct_said "failed to copy aliases.sh into" &&
-    grep -q '^attach:' "$_HI_CT_LOG"
+    _hi_ct_logged '^attach:'
 }
 
 # the rc carries $CMDARG, so dropping it would leave a bare, uncommanded shell
@@ -406,13 +434,13 @@ function test_ladder_payload_copy_failure_is_fatal() {
 # _hi_remote_suffix does - never through $ENV, which fish does not read
 function test_ladder_fish_fallback_passes_the_rc_through_dash_c() {
   _hi_ct_run fish _HI_CT_NO_BASH=1 _HI_CT_LADDER=fish
-  grep -q '^attach:fish -C' "$_HI_CT_LOG"
+  _hi_ct_logged '^attach:fish -C'
 }
 
 # every other ladder shell gets it through $ENV instead
 function test_ladder_posix_fallback_passes_the_rc_through_env() {
   _hi_ct_run posix _HI_CT_NO_BASH=1 _HI_CT_LADDER=sh
-  grep -q "attach:export ENV=" "$_HI_CT_LOG"
+  _hi_ct_logged 'attach:export ENV='
 }
 
 function run_container_tests() {

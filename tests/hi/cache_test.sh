@@ -72,7 +72,9 @@ function test_runtime_dir_ignores_a_missing_xdg_runtime_dir() {
   [ "$out" = "$_HI_WORKDIR/rt.tmp1/hi-$(id -u)" ] && [ -d "$out" ]
 }
 
-# made with `mkdir -m 700`, never adopted from whatever mode was there
+# made with `mkdir -m 700`, never adopted from whatever mode was there. The
+# mode string is the assertion, so the case asks for mode_bits first: MSYS
+# synthesizes one rather than reporting chmod's.
 function test_runtime_dir_creates_its_own_at_0700() {
   local out="" mode
   mkdir -p "$_HI_WORKDIR/rt.tmp2"
@@ -390,13 +392,24 @@ function test_ctl_open_shared_falls_back_without_a_runtime_dir() {
 }
 
 # and with neither a runtime dir nor a usable temp dir there is no socket at
-# all: ctl_opts stays empty, ssh authenticates twice, everything still works
+# all: ctl_opts stays empty, ssh authenticates twice, everything still works.
+#
+# The $TMPDIR-is-a-file half is what denies _hi_runtime_dir; the mktemp on
+# $PATH is what denies the fallback, shimmed the way targets_test.sh shims
+# `ls`. Leaning on the bogus $TMPDIR for both would only work under GNU
+# mktemp - BSD's -t reads its argument as a prefix and resolves $TMPDIR on its
+# own terms - and that is hi's dependency to be free of, not the case's to
+# assert.
 function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
-  local DOMAIN=liona ctl_dir ctl_path ctl_shared base="$_HI_WORKDIR/ctl.nowhere"
+  local DOMAIN=liona ctl_dir ctl_path ctl_shared bin="$_HI_WORKDIR/ctl.nomktemp"
+  local base="$_HI_WORKDIR/ctl.nowhere"
   local -a SSHARGS=() ctl_opts=()
   _hi_ctl_vars
   printf 'not a directory\n' >"$base"
-  XDG_RUNTIME_DIR="" TMPDIR="$base" _hi_ctl_open 60 shared
+  mkdir -p "$bin"
+  printf '%s\n' '#!/bin/sh' 'exit 1' >"$bin/mktemp"
+  chmod +x "$bin/mktemp"
+  XDG_RUNTIME_DIR="" TMPDIR="$base" PATH="$bin:$PATH" _hi_ctl_open 60 shared
   [ "$ctl_shared" = 0 ] && [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
     [ "${#ctl_opts[@]}" -eq 0 ]
 }
@@ -415,7 +428,8 @@ function test_ctl_open_run_never_shares() {
 }
 
 # the socket lives *inside* a mktemp -d, not at a mktemp -u name in a shared
-# $TMPDIR: ControlMaster=auto would join a socket already at that path
+# $TMPDIR: ControlMaster=auto would join a socket already at that path.
+# mode_bits for the same reason as the 0700 case above.
 function test_ctl_open_run_socket_dir_is_private() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared mode
   local -a SSHARGS=() ctl_opts=()
@@ -479,7 +493,7 @@ function run_cache_tests() {
   _hi_h2 "Testing: _hi_runtime_dir"
   _hi_check "Takes \$XDG_RUNTIME_DIR as-is" test_runtime_dir_takes_xdg_runtime_dir_as_is
   _hi_check "Ignores an \$XDG_RUNTIME_DIR that is not there" test_runtime_dir_ignores_a_missing_xdg_runtime_dir
-  _hi_check "Creates its own at 0700" test_runtime_dir_creates_its_own_at_0700
+  _hi_check_capable mode_bits "Creates its own at 0700" test_runtime_dir_creates_its_own_at_0700
   _hi_check_capable symlink "Refuses a symlinked private dir" test_runtime_dir_refuses_a_symlinked_private_dir
   _hi_check "Empty when it cannot create one" test_runtime_dir_is_empty_when_it_cannot_create_one
   _hi_check "Empty when the owner cannot be read" test_runtime_dir_is_empty_when_the_owner_cannot_be_read
@@ -516,7 +530,7 @@ function run_cache_tests() {
   _hi_check "Shared falls back without a runtime dir" test_ctl_open_shared_falls_back_without_a_runtime_dir
   _hi_check "Gives up quietly with nowhere to put a socket" test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket
   _hi_check "run never shares" test_ctl_open_run_never_shares
-  _hi_check "run's socket dir is private" test_ctl_open_run_socket_dir_is_private
+  _hi_check_capable mode_bits "run's socket dir is private" test_ctl_open_run_socket_dir_is_private
   _hi_check "Extra ssh options are appended" test_ctl_open_appends_extra_ssh_options
   _hi_check "Close leaves a shared socket alone" test_ctl_close_leaves_a_shared_socket_alone
   _hi_check "Close removes a run socket dir" test_ctl_close_removes_a_run_socket_dir
