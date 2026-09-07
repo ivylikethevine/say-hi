@@ -316,7 +316,13 @@ function _hi_du_size() {
 # distroless target that has neither `whoami` nor `uname`. GLOSSARY: HI.33
 function _hi_hostname() {
   if [ -z "${_HI_HOSTNAME_CACHE:-}" ]; then
-    _HI_HOSTNAME_CACHE="$(hostname 2>/dev/null || uname -n 2>/dev/null || :)"
+    # Each candidate its own substitution rather than one `||` chain inside
+    # a single `$( )`: a `||` in there keeps the subshell alive to evaluate
+    # it, so the common case (the first tool is present) paid two processes
+    # for one command. `exec` for the same reason - a bare redirection also
+    # defeats the run-in-place optimisation.
+    _HI_HOSTNAME_CACHE="$(exec hostname 2>/dev/null)" ||
+      _HI_HOSTNAME_CACHE="$(exec uname -n 2>/dev/null)" || _HI_HOSTNAME_CACHE=""
     [ -n "$_HI_HOSTNAME_CACHE" ] || _HI_HOSTNAME_CACHE="${HOSTNAME:-unknown}"
   fi
   printf '%s\n' "$_HI_HOSTNAME_CACHE"
@@ -324,7 +330,8 @@ function _hi_hostname() {
 
 function _hi_whoami() {
   if [ -z "${_HI_WHOAMI_CACHE:-}" ]; then
-    _HI_WHOAMI_CACHE="$(whoami 2>/dev/null || id -un 2>/dev/null || :)"
+    _HI_WHOAMI_CACHE="$(exec whoami 2>/dev/null)" ||
+      _HI_WHOAMI_CACHE="$(exec id -un 2>/dev/null)" || _HI_WHOAMI_CACHE=""
     [ -n "$_HI_WHOAMI_CACHE" ] || _HI_WHOAMI_CACHE="${USER:-${LOGNAME:-unknown}}"
   fi
   printf '%s\n' "$_HI_WHOAMI_CACHE"
@@ -547,22 +554,21 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_DIRTY="+" _HI_GLYPH_INVALID="x" _HI_GLYPH_UNTRACKED="?"
     _HI_GLYPH_STASH="\$" _HI_GLYPH_CLEAN="ok" _HI_GLYPH_ELLIPSIS=".."
     _HI_GLYPH_MASK="*"
-    _HI_MARK_OK="ok" _HI_MARK_ALT="~" _HI_MARK_NO="x"
-    _HI_MARK_OK_W=2 _HI_MARK_ALT_W=1 _HI_MARK_NO_W=1
-    _HI_BOX_TL="+" _HI_BOX_TR="+" _HI_BOX_BL="+" _HI_BOX_BR="+"
-    _HI_BOX_H="-" _HI_BOX_V="|"
+    _HI_MARK_OK="ok" _HI_MARK_NO="x"
+    _HI_MARK_OK_W=2
   else
     _HI_GLYPH_AHEAD="↑" _HI_GLYPH_BEHIND="↓" _HI_GLYPH_STAGED="●"
     _HI_GLYPH_DIRTY="✚" _HI_GLYPH_INVALID="✖" _HI_GLYPH_UNTRACKED="…"
     _HI_GLYPH_STASH="⚑" _HI_GLYPH_CLEAN="✔" _HI_GLYPH_ELLIPSIS="…"
     _HI_GLYPH_MASK="●"
-    _HI_MARK_OK="✓"  # installed, and it is the preferred name
-    _HI_MARK_ALT="~" # installed, but via a fallback alternative
-    _HI_MARK_NO="✗"  # not installed
-    _HI_MARK_OK_W=1 _HI_MARK_ALT_W=1 _HI_MARK_NO_W=1
-    _HI_BOX_TL="┌" _HI_BOX_TR="┐" _HI_BOX_BL="└" _HI_BOX_BR="┘"
-    _HI_BOX_H="─" _HI_BOX_V="│"
+    _HI_MARK_OK="✓" # installed, and it is the preferred name
+    _HI_MARK_NO="✗" # not installed
+    _HI_MARK_OK_W=1
   fi
+  # Glyph-independent, so out of both arms rather than spelled twice: only
+  # _HI_MARK_OK and _HI_MARK_NO (and the ok width) actually change sets.
+  _HI_MARK_ALT="~" # installed, but via a fallback alternative
+  _HI_MARK_ALT_W=1 _HI_MARK_NO_W=1
 }
 _hi_choose_glyphs
 
@@ -580,7 +586,9 @@ function _hi_color_escape() {
 # renders (config.fish memoizes the answer)
 function _hi_prompt_colors() {
   local _hi_pc_n _hi_pc_h
-  for _hi_pc_n in "$(_hi_user_color)" "$(_hi_host_color)"; do
+  _hi_user_color >/dev/null # prime both memos; read the variables, not $( )
+  _hi_host_color >/dev/null
+  for _hi_pc_n in "$_HI_USER_COLOR" "$_HI_HOST_COLOR"; do
     _hi_color_hex _hi_pc_h "$_hi_pc_n"
     printf '%s%s\n' "${_hi_pc_h:+$_hi_pc_h }" "$_hi_pc_n"
   done
@@ -601,50 +609,68 @@ function _hi_hash_color() {
 
 # the user/host say-hi is permanently installed on; hi.sh ships these ahead as
 # _HI_LOCAL_USER/_HI_LOCAL_HOSTNAME (its _hi_remote_preamble)
-function _hi_local_username() { printf '%s\n' "${_HI_LOCAL_USER:-$(_hi_whoami)}"; }
-function _hi_local_hostname() { printf '%s\n' "${_HI_LOCAL_HOSTNAME:-$(_hi_hostname)}"; }
+# [outvar], as the escapes below take one: through $( ) each of these cost a
+# subshell wrapped around a subshell wrapped around a value core.sh already
+# had memoized, and _hi_override_color asks on every color resolution.
+# GLOSSARY: HI.05
+function _hi_local_username() {
+  _hi_whoami >/dev/null # primes the memo; read the variable, not a $( )
+  local v="${_HI_LOCAL_USER:-$_HI_WHOAMI_CACHE}"
+  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$v"; else printf '%s\n' "$v"; fi
+}
+function _hi_local_hostname() {
+  _hi_hostname >/dev/null
+  local v="${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
+  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$v"; else printf '%s\n' "$v"; fi
+}
 
-# The two readers of settings/colors' "<type>,<name>,<color>" lines.
-# _hi_colors_lookup <type> <name> - that pin's color, or 1 if there isn't one
-function _hi_colors_lookup() {
+# The two readers of settings/colors' "<type>,<name>,<color>" lines. One walk
+# behind both: they differ only in whether the name field is compared or
+# matched, and the two wrappers below are what the callers and the suites name.
+# _hi_colors_scan <type> <name> <glob?>
+function _hi_colors_scan() {
   local cur_type cur_name color
   [[ -f "$_HI_COLORS" ]] || return 1
   while IFS=',' read -r cur_type cur_name color; do
-    [[ "$cur_type" = "$1" && "$cur_name" = "$2" ]] || continue
+    [[ "$cur_type" = "$1" ]] || continue
+    if [ -n "$3" ]; then
+      case "$cur_name" in
+      *[\*\?]*) _hi_ssh_pattern_hit "$2" "$cur_name" || continue ;;
+      *) continue ;;
+      esac
+    else
+      [[ "$cur_name" = "$2" ]] || continue
+    fi
     printf '%s\n' "$color"
     return 0
   done <"$_HI_COLORS"
   return 1
 }
+
+# _hi_colors_lookup <type> <name> - that pin's color, or 1 if there isn't one
+function _hi_colors_lookup() { _hi_colors_scan "$1" "$2" ''; }
 
 # _hi_colors_pattern <type> <name> - the first row of <type> whose name field
 # is a glob (* or ?) matching <name>; file order wins. Exact rows are
 # _hi_colors_lookup's and never match here, so an exact pin beats a pattern
 # whatever the file order - and _hi_resolve_color consults this after the
 # hosttag, so a tag beats a pattern too. GLOSSARY: HI.37
-function _hi_colors_pattern() {
-  local cur_type cur_name color
-  [[ -f "$_HI_COLORS" ]] || return 1
-  while IFS=',' read -r cur_type cur_name color; do
-    [[ "$cur_type" = "$1" ]] || continue
-    case "$cur_name" in
-    *[\*\?]*) _hi_ssh_pattern_hit "$2" "$cur_name" || continue ;;
-    *) continue ;;
-    esac
-    printf '%s\n' "$color"
-    return 0
-  done <"$_HI_COLORS"
-  return 1
-}
+function _hi_colors_pattern() { _hi_colors_scan "$1" "$2" glob; }
 
 # an exact "<type>,<name>,<color>" override, then the LOCALUSER/LOCALHOSTNAME
 # specials; most names have neither and return 1
 function _hi_override_color() {
-  local special=""
+  local special="" _hi_oc_me=""
   _hi_colors_lookup "$1" "$2" && return 0
   case "$1" in
-  username) [[ "$2" = "$(_hi_local_username)" ]] && special="LOCALUSER" ;;
-  hostname) [[ "$2" = "$(_hi_local_hostname)" ]] && special="LOCALHOSTNAME" ;;
+  username)
+    _hi_local_username _hi_oc_me
+    [[ "$2" = "$_hi_oc_me" ]] && special="LOCALUSER"
+    ;;
+  hostname)
+    _hi_local_hostname _hi_oc_me
+    [[ "$2" = "$_hi_oc_me" ]] && special="LOCALHOSTNAME"
+    ;;
   esac
   [ -n "$special" ] && _hi_colors_lookup "$1" "$special"
 }
@@ -665,27 +691,35 @@ function _hi_ssh_host_tag() {
 # _hi_ssh_pattern_hit <name> <space/comma-separated patterns> - ssh's Host glob
 # syntax (*, ?) is case-pattern syntax too, so each token is tried as one.
 # GLOSSARY: HI.37 - the zsh divergences, and why a leading "!" is inert.
+#
+# The tokens are peeled off the string by parameter expansion, never with
+# `for pat in $2`: an unquoted expansion is pathname-expanded as well as
+# word-split, so a bare `*` - the commonest Host line there is - became the
+# cwd's file list and matched nothing, and a host's color depended on the
+# directory hi was run from. bash only; zsh does not glob there, so the two
+# shells disagreed on the same box. header.sh's _hi_ip_filter peels for the
+# same reason and now calls this rather than keeping its own copy.
 function _hi_ssh_pattern_hit() {
-  local name="$1" pat hit=1
-  # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?` and a
-  # leading `!` - nothing else names a host. Anything outside that set is
-  # skipped rather than matched: the zsh arm's eval would otherwise re-parse
-  # a `)` or `;;` from ~/.ssh/config as case syntax.
-  if [ -n "${ZSH_VERSION:-}" ]; then
-    setopt localoptions shwordsplit
-    # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
-    # and cannot parse `${~pat}` (SC2296)
-    for pat in $2; do
-      case "$pat" in *[!A-Za-z0-9_.:*?!-]*) continue ;; esac
+  local name="$1" rest="$2 " pat hit=1 zsh=""
+  [ -n "${ZSH_VERSION:-}" ] && zsh=1
+  while [ -n "${rest// /}" ]; do
+    rest="${rest#"${rest%%[! ]*}"}"
+    pat="${rest%% *}"
+    rest="${rest#* }"
+    # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?` and a
+    # leading `!` - nothing else names a host. Anything outside that set is
+    # skipped rather than matched: the zsh arm's eval would otherwise re-parse
+    # a `)` or `;;` from ~/.ssh/config as case syntax.
+    case "$pat" in *[!A-Za-z0-9_.:*?!-]*) continue ;; esac
+    if [ -n "$zsh" ]; then
+      # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
+      # and cannot parse `${~pat}` (SC2296)
       eval 'case "$name" in ${~pat}) hit=0 ;; esac'
-    done
-  else
-    for pat in $2; do
-      case "$pat" in *[!A-Za-z0-9_.:*?!-]*) continue ;; esac
+    else
       # shellcheck disable=SC2254 # deliberate: $pat is a glob, not a literal
       case "$name" in $pat) hit=0 ;; esac
-    done
-  fi
+    fi
+  done
   return "$hit"
 }
 
@@ -758,8 +792,8 @@ function _hi_ssh_host_tag_walk() {
 }
 
 function _hi_ssh_tag_color() {
-  local tag
-  tag=$(_hi_ssh_host_tag "$1") && _hi_override_color hosttag "$tag"
+  # the memo holds the tag; $( ) around it was a fork for a value in hand
+  _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE"
 }
 
 function _hi_resolve_color() {
@@ -780,23 +814,35 @@ function _hi_resolve_color() {
 # under a running shell, and one unmemoized escape cost ~7 forks. `+x` tests
 # *set*, not non-empty - a $NO_COLOR shell resolves to empty.
 function _hi_host_color() {
-  [ "${_HI_HOST_COLOR+x}" = x ] ||
-    _HI_HOST_COLOR="${_HI_TARGET_COLOR:-$(_hi_resolve_color hostname "$(_hi_hostname)")}"
+  [ "${_HI_HOST_COLOR+x}" = x ] || {
+    _hi_hostname >/dev/null # primes the memo; read the variable, not a $( )
+    _HI_HOST_COLOR="${_HI_TARGET_COLOR:-$(_hi_resolve_color hostname "$_HI_HOSTNAME_CACHE")}"
+  }
   printf '%s\n' "$_HI_HOST_COLOR"
 }
 function _hi_user_color() {
-  [ "${_HI_USER_COLOR+x}" = x ] ||
-    _HI_USER_COLOR="$(_hi_resolve_color username "$(_hi_whoami)" "${_HI_TARGET_TAG:-}")"
+  [ "${_HI_USER_COLOR+x}" = x ] || {
+    _hi_whoami >/dev/null
+    _HI_USER_COLOR="$(_hi_resolve_color username "$_HI_WHOAMI_CACHE" "${_HI_TARGET_TAG:-}")"
+  }
   printf '%s\n' "$_HI_USER_COLOR"
 }
 # [outvar]: through $( ) the memo would be filled in a subshell and die with
 # it, so the prompt builders pass one instead. GLOSSARY: HI.05
 function _hi_host_escape() {
-  [ "${_HI_HOST_ESC+x}" = x ] || _HI_HOST_ESC="$(_hi_color_escape "$(_hi_host_color)")"
+  [ "${_HI_HOST_ESC+x}" = x ] || {
+    _hi_host_color >/dev/null # primes the memo; read the variable, not a $( )
+    _hi_color_escape_var _HI_HOST_ESC "$_HI_HOST_COLOR"
+    printf -v _HI_HOST_ESC '%b' "$_HI_HOST_ESC" # the var form leaves `\e` literal
+  }
   if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_HOST_ESC"; else printf '%s' "$_HI_HOST_ESC"; fi
 }
 function _hi_user_escape() {
-  [ "${_HI_USER_ESC+x}" = x ] || _HI_USER_ESC="$(_hi_color_escape "$(_hi_user_color)")"
+  [ "${_HI_USER_ESC+x}" = x ] || {
+    _hi_user_color >/dev/null
+    _hi_color_escape_var _HI_USER_ESC "$_HI_USER_COLOR"
+    printf -v _HI_USER_ESC '%b' "$_HI_USER_ESC"
+  }
   if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_USER_ESC"; else printf '%s' "$_HI_USER_ESC"; fi
 }
 

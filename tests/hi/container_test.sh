@@ -470,16 +470,22 @@ function run_container_tests() {
   _hi_check "Cleanup removes the scratch tree" test_cleanup_removes_the_scratch_tree
   _hi_check "Cleanup is quiet when it is already gone" test_cleanup_is_quiet_when_there_is_nothing_there
 
+  # Every case below drives _say_hi_container past its scratch-dir probe,
+  # which reads `mkdir -m 700`'s exit status as its verdict. Where that status
+  # disagrees with the tree the shim is not exercising the ladder at all: the
+  # probe arm answers first and every case after it reports the same "no
+  # writable temp directory". The one case that expects that arm is gated too,
+  # since there it would pass without having tested anything.
   _hi_h2 "Testing: _say_hi_container's failure ladder"
-  _hi_check "No writable temp directory" test_ladder_no_writable_temp_directory
-  _hi_check "Refuses a scratch path it will not use" test_ladder_refuses_a_scratch_path_it_will_not_use
-  _hi_check "No shell hi asked about" test_ladder_no_shell_hi_asked_about
-  _hi_check "aliases.sh copy failure still attaches" test_ladder_aliases_copy_failure_still_attaches
-  _hi_check "Fallback rc write failure is fatal" test_ladder_fallback_rc_write_failure_is_fatal
-  _hi_check ".zshrc write failure is fatal" test_ladder_zshrc_write_failure_is_fatal
-  _hi_check "Payload copy failure is fatal" test_ladder_payload_copy_failure_is_fatal
-  _hi_check "fish takes the rc through -C" test_ladder_fish_fallback_passes_the_rc_through_dash_c
-  _hi_check "POSIX shells take it through \$ENV" test_ladder_posix_fallback_passes_the_rc_through_env
+  _hi_check_capable mkdir_mode "No writable temp directory" test_ladder_no_writable_temp_directory
+  _hi_check_capable mkdir_mode "Refuses a scratch path it will not use" test_ladder_refuses_a_scratch_path_it_will_not_use
+  _hi_check_capable mkdir_mode "No shell hi asked about" test_ladder_no_shell_hi_asked_about
+  _hi_check_capable mkdir_mode "aliases.sh copy failure still attaches" test_ladder_aliases_copy_failure_still_attaches
+  _hi_check_capable mkdir_mode "Fallback rc write failure is fatal" test_ladder_fallback_rc_write_failure_is_fatal
+  _hi_check_capable mkdir_mode ".zshrc write failure is fatal" test_ladder_zshrc_write_failure_is_fatal
+  _hi_check_capable mkdir_mode "Payload copy failure is fatal" test_ladder_payload_copy_failure_is_fatal
+  _hi_check_capable mkdir_mode "fish takes the rc through -C" test_ladder_fish_fallback_passes_the_rc_through_dash_c
+  _hi_check_capable mkdir_mode "POSIX shells take it through \$ENV" test_ladder_posix_fallback_passes_the_rc_through_env
 
   _hi_suite_end "hi.sh container arm"
 }

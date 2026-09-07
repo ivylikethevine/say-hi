@@ -519,8 +519,8 @@ function test_cache_dir_wrong_owner_is_not_trusted() {
   mkdir -m 700 "$tmp/hi-$uid"
   cat >"$bin/ls" <<SHIM
 #!/bin/sh
-if [ "\$*" = "-ld $tmp/hi-$uid" ]; then
-  printf 'drwx------ 2 nobody nobody 4096 Jan  1 00:00 %s\n' "$tmp/hi-$uid"
+if [ "\$*" = "-ldn $tmp/hi-$uid" ]; then
+  printf 'drwx------ 2 65534 65534 4096 Jan  1 00:00 %s\n' "$tmp/hi-$uid"
 else
   exec $(command -v ls) "\$@"
 fi

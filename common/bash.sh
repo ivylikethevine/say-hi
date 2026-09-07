@@ -6,7 +6,13 @@
 # === start required configuration ===
 # $_HI_HOME first, this file's own path as the fallback for a hand-written
 # `source` (hi.sh and install.sh's rc line set it). GLOSSARY: HI.33
-: "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+# `${BASH_SOURCE%/*}` and not `$(dirname ...)`: header.sh:14 and core.sh:21
+# already spell it this way, and a fork here is one every hand-written
+# `source` pays.
+_hi_d="${BASH_SOURCE[0]}"
+case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
+: "${_HI_HOME:=$(cd -P "$_hi_d/../.." && pwd)}"
+unset _hi_d
 # shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
 # shellcheck source=./git_prompt.sh

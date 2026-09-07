@@ -1616,18 +1616,18 @@ function _hi_pos() {
 
 # The scaffold every check_line case shares: run one spec against a fresh row
 # sink and assert how many rows it left visible. check_line appends to the
-# `visible` these declare (bash's dynamic scoping), and the single row - when
-# there is one - lands in the caller's `row`, ready for content checks.
+# array it is named, and the single row - when there is one - lands in the
+# caller's `row`, ready for content checks.
 function _hi_one_visible_row() {
   local -a visible=()
-  check_line "$1"
+  check_line visible "$1"
   [ "${#visible[@]}" -eq 1 ] || return 1
   row="${visible[0]}"
 }
 
 function _hi_no_visible_row() {
   local -a visible=()
-  check_line "$1"
+  check_line visible "$1"
   [ "${#visible[@]}" -eq 0 ]
 }
 
@@ -1703,7 +1703,7 @@ function test_check_line_fallback_uses_second_alternative() {
 
 function test_check_line_picks_highest_priority_installed() {
   local -a visible=()
-  check_line "$_HI_REAL_CMD:1,bash:3"
+  check_line visible "$_HI_REAL_CMD:1,bash:3"
   _hi_contains "${visible[0]}" bash
 }
 

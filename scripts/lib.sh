@@ -80,3 +80,17 @@ function _hi_sgr_base() {
   case "$_hi_sb" in *';38;2;'*) _hi_sb="${_hi_sb%%;38;2;*}m" ;; esac
   printf -v "$1" '%s' "$_hi_sb"
 }
+
+# The preview box scripts/configure.sh draws. Here and not in core.sh's
+# _hi_choose_glyphs beside the mark glyphs, for the reason at the top of this
+# file: nothing a target runs draws a box, and common/ ships in the ssh
+# payload under a size budget. One set per session, decided at source time
+# the way the glyphs are - configure.sh is sourced by install.sh after this
+# file and never re-asks.
+if _hi_use_ascii; then
+  _HI_BOX_TL="+" _HI_BOX_TR="+" _HI_BOX_BL="+" _HI_BOX_BR="+"
+  _HI_BOX_H="-" _HI_BOX_V="|"
+else
+  _HI_BOX_TL="┌" _HI_BOX_TR="┐" _HI_BOX_BL="└" _HI_BOX_BR="┘"
+  _HI_BOX_H="─" _HI_BOX_V="│"
+fi

@@ -589,7 +589,7 @@ function _hi_collect_examples() {
     # the header's own filter, character for character
     [[ "$line" == *#* || -z "$line" ]] && continue
     _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
-    check_line "$line"
+    check_line visible "$line"
   done <"$_HI_PACKAGES"
   _HI_PKG_SHOWN=${#visible[@]}
 

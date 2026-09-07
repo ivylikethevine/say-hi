@@ -196,6 +196,30 @@ function _hi_can_trust_mode_bits() {
   esac
 }
 
+# _hi_can_mkdir_mode - whether `mkdir -m <mode>` both creates the directory
+# and exits 0. No on MSYS/Cygwin under a Windows-owned temp tree: a real
+# windows-latest run showed the mkdir half landing and the chmod half refused
+# ("mkdir: cannot change permissions of ...: Permission denied"), so the
+# directory is there and the exit status says it is not. That splits any
+# caller that reads mkdir's status as its verdict from one that re-tests
+# `[ -d ]` - hi.sh does both, deliberately, in _hi_runtime_dir and in
+# _say_hi_container's scratch probe.
+#
+# Probed rather than named by kernel, unlike its two neighbours above: what
+# decides is the filesystem being written to, not the runtime, so a tree where
+# it works would answer yes and still be honest. Lazy for _hi_can_symlink's
+# reason: $_HI_WORKDIR is not there at source time.
+_HI_CAP_MKDIR_MODE=""
+function _hi_can_mkdir_mode() {
+  local probe
+  if [ -z "$_HI_CAP_MKDIR_MODE" ]; then
+    probe="$_HI_WORKDIR/cap.mkdirmode"
+    if mkdir -m 700 "$probe" 2>/dev/null; then _HI_CAP_MKDIR_MODE=yes; else _HI_CAP_MKDIR_MODE=no; fi
+    rm -rf "$probe"
+  fi
+  [ "$_HI_CAP_MKDIR_MODE" = yes ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -216,6 +240,10 @@ function _hi_can_trust_mode_bits() {
 #   mode_bits        - a permission string reflects only chmod's bits, no
 #                       content-derived guess mixed in. No on MSYS/Cygwin -
 #                       see _hi_can_trust_mode_bits.
+#   mkdir_mode       - `mkdir -m` creates the directory *and* exits 0. No on
+#                       MSYS/Cygwin, where the chmod half is refused and the
+#                       status disagrees with the tree - see
+#                       _hi_can_mkdir_mode.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -226,6 +254,7 @@ function _hi_capable() {
   lockout) _hi_can_lock_out ;;
   fork_concurrency) _hi_can_fork_concurrently ;;
   mode_bits) _hi_can_trust_mode_bits ;;
+  mkdir_mode) _hi_can_mkdir_mode ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2

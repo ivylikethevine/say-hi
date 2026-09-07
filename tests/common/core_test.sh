@@ -567,6 +567,23 @@ function test_pattern_hit_skips_a_token_that_is_not_a_hostname() {
   ! _hi_ssh_pattern_hit myhost 'other?'
 }
 
+# The patterns are a string to peel, never a list to expand: `for pat in $2`
+# pathname-expands as well as word-splits, so a bare `*` - the commonest Host
+# line there is - became whatever files the cwd held and matched nothing.
+# Run from a directory with files in it, which is the only place it shows.
+function test_pattern_hit_does_not_glob_against_the_cwd() {
+  local dir="$_HI_WORKDIR/pattern.cwd"
+  mkdir -p "$dir"
+  : >"$dir/aaa"
+  : >"$dir/bbb"
+  (
+    cd "$dir" || return 1
+    _hi_ssh_pattern_hit liona '*' || return 1
+    _hi_ssh_pattern_hit prod-db 'prod-*' || return 1
+    ! _hi_ssh_pattern_hit other 'prod-*'
+  )
+}
+
 function test_zsh_pattern_hit_skips_the_same_tokens() {
   _hi_shell_agrees '_hi_ssh_pattern_hit myhost "x) hit=0 ;; case y in y"; printf "bad:%s " "$?"; _hi_ssh_pattern_hit myhost "my*"; printf "glob:%s" "$?"'
 }
@@ -1118,6 +1135,7 @@ function run_core_tests() {
   _hi_check "A hosttag beats a pattern" test_hosttag_beats_pattern
   _hi_check "A pattern beats the hash" test_pattern_beats_hash
   _hi_check "A token that is not a hostname is skipped, not eval'd" test_pattern_hit_skips_a_token_that_is_not_a_hostname
+  _hi_check "Patterns are not globbed against the cwd" test_pattern_hit_does_not_glob_against_the_cwd
   _hi_check_requires zsh "zsh skips the same tokens" test_zsh_pattern_hit_skips_the_same_tokens
   _hi_check_requires zsh "Pattern pins agree in zsh" test_zsh_pattern_pins_agree_with_bash
 

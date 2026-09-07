@@ -18,8 +18,12 @@ set -u
 # The escape bytes as themselves, not `\033` for `printf %b`: a notify command
 # line can carry a literal `\033`, which %b would turn into a real ESC that
 # breaks out of the escape. Real bytes plus `printf %s` keeps the body inert.
-_HI_ESC="$(printf '\033')"
-_HI_BEL="$(printf '\a')"
+# One fork for the pair, split by parameter expansion: this file runs on
+# every hi_copy, which vim's yank autocmd can fire per yank.
+_hi_pair="$(printf '\033\a')"
+_HI_ESC="${_hi_pair%?}"
+_HI_BEL="${_hi_pair#?}"
+unset _hi_pair
 
 # One escape, wrapped for whatever multiplexer is in the way, written to the
 # tty. tmux/screen swallow unknown OSCs unless passthrough-wrapped ($TMUX
