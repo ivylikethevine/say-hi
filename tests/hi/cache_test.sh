@@ -290,6 +290,12 @@ function test_payload_stream_is_byte_identical_off_a_warm_cache() {
 #
 # Every case declares the four outvars _hi_ctl_open writes into, the way its
 # real callers do, plus the DOMAIN/SSHARGS it keys on.
+#
+# ...and every case that wants a socket built pins $OSTYPE to a client that
+# multiplexes. The CI matrix runs this suite under Git Bash, where bash's own
+# $OSTYPE is "msys" and _hi_ctl_open returns before assembling anything, so a
+# case reading the host's value would assert against the MSYS arm - vacuously,
+# since an unset ctl_path satisfies the "short name" and "no socket" checks.
 # ---------------------------------------------------------------------------
 
 function _hi_ctl_vars() {
@@ -312,6 +318,7 @@ function _hi_ctl_has_opt() {
 function test_ctl_open_shared_uses_the_runtime_dir() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.shared)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
@@ -326,6 +333,7 @@ function test_ctl_open_shared_uses_the_runtime_dir() {
 function test_ctl_open_shared_socket_name_stays_short() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared base
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.short)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
@@ -338,6 +346,7 @@ function test_ctl_open_shared_socket_name_stays_short() {
 function test_ctl_open_shared_key_splits_on_ssh_args() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared plain ported
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   dir="$(_hi_cache_rt ctl.key)"
   _hi_ctl_vars
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
@@ -352,6 +361,7 @@ function test_ctl_open_shared_key_splits_on_ssh_args() {
 function test_ctl_open_shared_key_splits_on_the_target() {
   local dir ctl_dir ctl_path ctl_shared one two DOMAIN
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   dir="$(_hi_cache_rt ctl.dom)"
   DOMAIN=liona
   _hi_ctl_vars
@@ -368,6 +378,7 @@ function test_ctl_open_shared_key_splits_on_the_target() {
 function test_ctl_open_shared_falls_back_when_persist_is_zero() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.zero)"
   XDG_RUNTIME_DIR="$dir" _HI_CTL_PERSIST=0 _hi_ctl_open 45 shared
@@ -383,6 +394,7 @@ function test_ctl_open_shared_falls_back_when_persist_is_zero() {
 function test_ctl_open_shared_falls_back_without_a_runtime_dir() {
   local DOMAIN=liona ctl_dir ctl_path ctl_shared base="$_HI_WORKDIR/ctl.nodir" fake
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   mkdir -p "$base"
   fake="$(_hi_fake_path noowner ls)"
@@ -404,6 +416,7 @@ function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
   local DOMAIN=liona ctl_dir ctl_path ctl_shared bin="$_HI_WORKDIR/ctl.nomktemp"
   local base="$_HI_WORKDIR/ctl.nowhere"
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   printf 'not a directory\n' >"$base"
   mkdir -p "$bin"
@@ -438,6 +451,7 @@ function test_ctl_open_declines_to_multiplex_on_msys() {
 function test_ctl_open_run_never_shares() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.run)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
@@ -452,6 +466,7 @@ function test_ctl_open_run_never_shares() {
 function test_ctl_open_run_socket_dir_is_private() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared mode
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.priv)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run
@@ -463,6 +478,7 @@ function test_ctl_open_run_socket_dir_is_private() {
 function test_ctl_open_appends_extra_ssh_options() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.extra)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared -o BatchMode=yes
@@ -474,6 +490,7 @@ function test_ctl_open_appends_extra_ssh_options() {
 function test_ctl_close_leaves_a_shared_socket_alone() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared fake
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.keep)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
@@ -485,6 +502,7 @@ function test_ctl_close_leaves_a_shared_socket_alone() {
 function test_ctl_close_removes_a_run_socket_dir() {
   local DOMAIN=liona dir ctl_dir ctl_path ctl_shared fake
   local -a SSHARGS=() ctl_opts=()
+  local OSTYPE=linux-gnu
   _hi_ctl_vars
   dir="$(_hi_cache_rt ctl.drop)"
   XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run

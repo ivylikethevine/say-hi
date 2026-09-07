@@ -485,7 +485,6 @@ function test_meanings_take_only_the_block_above_the_table() {
   [ "$(_hi_priority_meanings | awk -F'\t' '$1 == 2' | wc -l)" -eq 1 ]
 }
 
-
 # every entry in the header's two ramps has to be a name the user can look up
 # in settings/colors, or the legend prints something meaningless - checked for
 # every named palette, not just whichever one is active when the suite runs,
@@ -732,7 +731,6 @@ function test_preview_names_the_active_palette() {
   [[ "$_HI_PACKAGES_OUT" == *"palette: cool"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]]
 }
 
-
 # a scheme of the user's own is named by its shape, and a 24-word one paints
 # the legend from its second bank - which the reverse map still names, since
 # the name is the 16-color half (HI.50)
@@ -746,7 +744,6 @@ function test_preview_names_a_custom_scheme_and_its_bank() {
   out="$(_HI_COLOR_SCHEME="not a scheme" _HI_TRUECOLOR=1 _hi_render_packages)" || return 1
   [[ "$out" == *"scheme: not a scheme (ignored - not a scheme)"* ]]
 }
-
 
 function test_preview_names_every_priority() {
   local i stripped
