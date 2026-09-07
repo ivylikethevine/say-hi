@@ -63,6 +63,9 @@ function clean_all() {
   return 0
 }
 
+# [outvar], as core.sh's _hi_local_username takes one: the body is `case` and
+# `command -v` builtins in the common case ($SHELL is set), so a $( ) around
+# it was a fork for a value the shell already had. GLOSSARY: HI.05
 function _hi_login_shell() {
   local shell="${SHELL:-}" user
   if [ -z "$shell" ]; then
@@ -70,7 +73,8 @@ function _hi_login_shell() {
     shell="$(getent passwd "$user" 2>/dev/null | awk -F: '{ print $NF }')"
     [ -n "$shell" ] || shell="$(awk -F: -v u="$user" '$1 == u { print $NF }' /etc/passwd 2>/dev/null)"
   fi
-  printf '%s' "${shell##*/}"
+  shell="${shell##*/}"
+  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$shell"; else printf '%s' "$shell"; fi
 }
 
 # The default tail is core.sh's $_HI_SHELL_TREE, not a literal of its own. The
@@ -78,18 +82,17 @@ function _hi_login_shell() {
 # unmatched - they are reachable only where bash is absent, and this file is
 # bash. What survives is fish > zsh > bash, $_HI_SHELL_PREFERENCE's documented
 # default. GLOSSARY: HI.25 - why login leads the default
+# [outvar] too, for _hi_login_shell's reason - load() asks once per session
 function _hi_session_shell() {
-  local want
+  local want _hi_ss_out="${1:-}"
   for want in ${_HI_SHELL_PREFERENCE:-login} $_HI_SHELL_TREE; do
-    [ "$want" = login ] && want="$(_hi_login_shell)"
-    case "$want" in
-    bash | zsh | fish) command -v "$want" >/dev/null 2>&1 && {
-      printf '%s' "$want"
+    [ "$want" = login ] && _hi_login_shell want
+    if _hi_shell_wired "$want" && command -v "$want" >/dev/null 2>&1; then
+      if [ -n "$_hi_ss_out" ]; then printf -v "$_hi_ss_out" '%s' "$want"; else printf '%s' "$want"; fi
       return 0
-    } ;;
-    esac
+    fi
   done
-  printf 'bash'
+  if [ -n "$_hi_ss_out" ]; then printf -v "$_hi_ss_out" '%s' bash; else printf 'bash'; fi
 }
 
 # Where the session shell's rc files are written: a directory of hi's own,
@@ -258,7 +261,7 @@ function load() {
   _hi_cecho "hi loaded with... " "$BRCYAN" 1
 
   local shell greeting color
-  shell="$(_hi_session_shell)"
+  _hi_session_shell shell
   case "$shell" in
   fish) greeting="fish shell! :^)" color="$GREEN" ;;
   zsh) greeting="zsh shell! :)" color="$PURPLE" ;;

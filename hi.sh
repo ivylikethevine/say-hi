@@ -182,8 +182,27 @@ function _hi_runtime_dir() {
   # same name and the assignment below would never leave this function
   # (GLOSSARY: HI.04)
   local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid _hi_rtd_owner
+  # Memoized one deep and keyed on what it reads, the way _hi_ssh_host_tag is:
+  # a connect asks up to five times (the ControlPath, then both caches twice
+  # over, foreground and background warm), and without $XDG_RUNTIME_DIR -
+  # every macOS client, and any non-systemd Linux - each miss costs the
+  # id/ls branch below. The key rather than a bare memo because cache_test.sh
+  # asks against several $TMPDIRs in one process.
+  #
+  # Only a *found* directory is remembered. A refusal is re-probed: the
+  # directory it wanted can appear between two calls (mkdir -p by something
+  # else, an $XDG_RUNTIME_DIR mounted late), and caching "no" would hold a
+  # client to the degraded no-cache path for the rest of its life.
+  local _hi_rtd_key="${XDG_RUNTIME_DIR:-}|${TMPDIR:-}"
+  if [ "${_HI_RTD_KEY:-}" = "$_hi_rtd_key" ] && [ -n "${_HI_RTD_MEMO:-}" ]; then
+    printf -v "$1" '%s' "$_HI_RTD_MEMO"
+    return 0
+  fi
   if [ -z "$_hi_rtd_dir" ] || [ ! -d "$_hi_rtd_dir" ]; then
-    _hi_rtd_uid="$(id -u 2>/dev/null || echo unknown)"
+    # $EUID is bash's own, no fork; targets.sh keeps `id -u` because it is
+    # standalone POSIX, this file is not
+    _hi_rtd_uid="${EUID:-$(exec id -u 2>/dev/null)}"
+    [ -n "$_hi_rtd_uid" ] || _hi_rtd_uid=unknown
     _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
     [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
     if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ]; then
@@ -194,14 +213,17 @@ function _hi_runtime_dir() {
     # check: `find -user` takes a user *name*, which is exactly what a host
     # with no passwd entry for the caller cannot supply. SC2012's hazard is
     # parsing file *names* out of ls; this reads a fixed column off one path
-    # this function built itself.
-    _hi_rtd_owner="$(ls -ld "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
-    if [ -z "$_hi_rtd_owner" ] ||
-      { [ "$_hi_rtd_owner" != "$(id -un 2>/dev/null || echo)" ] && [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; }; then
+    # this function built itself. `-n` prints the owner as a number, so the
+    # uid answers for a host with a passwd entry and one without alike - one
+    # comparison, and no second `id -un` fork to cover the difference.
+    _hi_rtd_owner="$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
+    if [ -z "$_hi_rtd_owner" ] || [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; then
       printf -v "$1" ''
       return 0
     fi
   fi
+  _HI_RTD_KEY="$_hi_rtd_key"
+  _HI_RTD_MEMO="$_hi_rtd_dir"
   printf -v "$1" '%s' "$_hi_rtd_dir"
 }
 
@@ -220,6 +242,66 @@ function _hi_tar_gz() {
   return 0
 }
 
+# The file names the comment-stripper is pointed at. One list rather than a
+# copy per stager: both walk the same shipped shapes, and the payload's extra
+# `flags` is inert against an overlay, which has no member by that name.
+# GLOSSARY: HI.09
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc)
+
+# _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
+# below: pull the members out of <src-dir> into a scratch stage, strip their
+# comments, gzip what comes out. Reads $stage_in (members to pull, relative to
+# <src-dir>), $stage_out (members to emit) and $stage_excl (tar --exclude
+# words) from its caller's scope, the convention _hi_container_cleanup and
+# _hi_remote_middle already use - the two stagers were the same fourteen lines
+# twice, and the staging rule is one thing to get right, not two.
+#
+# A subshell, so the stage's cleanup is a trap and a ^C mid-build leaves
+# nothing behind (GLOSSARY: HI.39).
+# prefixed locals (GLOSSARY: HI.04): `root` is _say_hi_container's own name
+# for the target's scratch tree, and this runs inside it
+function _hi_stage_tar() {
+  local stage f _hi_st_root
+  local -a _hi_st_names=()
+  for f in "${_HI_STRIP_NAMES[@]}"; do
+    ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
+    _hi_st_names+=(-name "$f")
+  done
+  (
+    stage="$(mktemp -d -t hi.stage.XXXXXX)" || exit 1
+    trap 'rm -rf "$stage"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    _hi_st_root="$stage${2:+/$2}"
+    # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
+    # marker and a GNU writer still has its record padding to send, which is
+    # an EPIPE and a "tar: Write error" on stderr - and pipefail is off here,
+    # so only the reader's status was ever checked
+    tar cf "$stage/in.tar" -h ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
+    tar xf "$stage/in.tar" -C "$stage" || exit 1
+    rm -f "$stage/in.tar"
+    _hi_strip_awk >"$stage/strip.awk"
+    # one awk over every file. GLOSSARY: HI.09
+    # strip.awk itself sits at $stage and matches no name above, so a stage
+    # rooted there does not feed the stripper its own script.
+    find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
+    # `mv`, not core.sh's _hi_write_back. That helper writes *through* the
+    # existing inode to keep hardlinks and ACLs on a real destination
+    # (GLOSSARY: HI.09) and costs a stat, a cat, a chmod and an rm per file;
+    # here the destination is a tree tar just unpacked into a mktemp -d, where
+    # nothing links to it and only the executable bit has to survive - hi.sh
+    # must stay 0755 for the relay. So: note which files were executable
+    # (a builtin test, no fork), rename, and restore the bit in one chmod.
+    local -a _hi_st_exec=()
+    while IFS= read -r f; do
+      [ -x "${f%.strip}" ] && _hi_st_exec+=("${f%.strip}")
+      mv -f "$f" "${f%.strip}" || exit 1
+    done < <(find "$_hi_st_root" -type f -name '*.strip')
+    ((${#_hi_st_exec[@]})) && chmod +x "${_hi_st_exec[@]}"
+    _hi_tar_gz -C "$stage" "${stage_out[@]}"
+  )
+}
+
 # _hi_overlay_tar [file...] - the overlay archive over the given members, or
 # over _hi_overlay_files when called bare; nothing at all when there are none.
 # Comment-stripped through a staging copy the way the payload is (the same
@@ -231,28 +313,19 @@ function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
-  local stage f
-  (
-    stage="$(mktemp -d -t hi.ostage.XXXXXX)" || exit 1
-    trap 'rm -rf "$stage"' EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
-    # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
-    # marker and a GNU writer still has its record padding to send, which is
-    # an EPIPE and a "tar: Write error" on stderr - and pipefail is off here,
-    # so only the reader's status was ever checked (_hi_payload_tar, the same)
-    tar cf "$stage/in.tar" -h -C "$_HI_CONFIG_DIR" "${present[@]}" || exit 1
-    tar xf "$stage/in.tar" -C "$stage" || exit 1
-    rm -f "$stage/in.tar"
-    _hi_strip_awk >"$stage/strip.awk"
-    find "$stage" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \
-      -o -name colors -o -name packages -o -name vim.rc -o -name nano.rc \) \
-      -exec awk -f "$stage/strip.awk" {} + || exit 1
-    while IFS= read -r f; do
-      _hi_write_back "$f" "${f%.strip}"
-    done < <(find "$stage" -type f -name '*.strip')
-    _hi_tar_gz -C "$stage" "${present[@]}"
-  )
+  local -a stage_in=("${present[@]}") stage_out=("${present[@]}") stage_excl=()
+  _hi_stage_tar "$_HI_CONFIG_DIR" ""
+}
+
+_HI_NL="
+"
+
+# _hi_cksum <string> - cksum's checksum field alone. `${k%% *}` rather than a
+# `cut`, which was a second process per key and there are three keys a connect.
+function _hi_cksum() {
+  local _hi_ck
+  _hi_ck="$(printf '%s' "$1" | cksum)"
+  printf '%s' "${_hi_ck%% *}"
 }
 
 # _hi_overlay_cache_key <file...> - one line identifying everything that
@@ -261,7 +334,7 @@ function _hi_overlay_tar() {
 # trimming a member changes it). Its own cksum, not the string itself, keeps
 # the cache filename short.
 function _hi_overlay_cache_key() {
-  printf '%s' "$*" | cksum | cut -d' ' -f1
+  _hi_cksum "$*"
 }
 
 # _hi_overlay_cached <outvar> <file...> - a warm gzipped tar for exactly
@@ -271,31 +344,52 @@ function _hi_overlay_cache_key() {
 # the same discipline common/targets.sh's own cache writer uses. Fails
 # (nothing in <outvar>) when there is no runtime directory or no member at
 # all; the caller falls back to building fresh either way.
-function _hi_overlay_cached() {
-  # prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` or `dir`
-  # would shadow a caller's outvar of the same name (_hi_overlay_stream's own
-  # `cache`, for one) and the printf -v below would never leave this function
-  local _hi_oc_outvar="$1"
-  shift
-  local -a _hi_oc_present=("$@")
-  ((${#_hi_oc_present[@]})) || return 1
+# _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
+# callers. Rebuilt when it is missing, when any <watch> file is newer than it,
+# or when _HI_PAYLOAD_CACHE=0; written whole under a temp name and mv'd into
+# place, so a concurrent reader sees the old file or the new one and never a
+# half-written archive - the discipline common/targets.sh's completion cache
+# uses for the same reason. rc 1 means "no cache, build it yourself".
+#
+# Prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` or `dir` would
+# shadow a caller's outvar of the same name - the two streams below each have
+# one called `cache` - and the printf -v would never leave this function.
+function _hi_cached() {
+  local _hi_c_outvar="$1" _hi_c_tag="$2" _hi_c_key="$3" _hi_c_pre="$4" _hi_c_build="$5"
+  shift 5
+  local _hi_c_dir _hi_c_cache
+  local -a _hi_c_watch=("${@/#/$_hi_c_pre}")
   [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
-  local _hi_oc_dir _hi_oc_cache _hi_oc_key
-  _hi_runtime_dir _hi_oc_dir
-  [ -n "$_hi_oc_dir" ] || return 1
-  _hi_oc_key="$(_hi_overlay_cache_key "${_hi_oc_present[@]}")"
-  _hi_oc_cache="$_hi_oc_dir/hi.overlay.$_hi_oc_key"
-  if [ -f "$_hi_oc_cache" ] &&
-    [ -z "$(find "${_hi_oc_present[@]/#/$_HI_CONFIG_DIR/}" -newer "$_hi_oc_cache" -print -quit 2>/dev/null)" ]; then
-    printf -v "$_hi_oc_outvar" '%s' "$_hi_oc_cache"
+  _hi_runtime_dir _hi_c_dir
+  [ -n "$_hi_c_dir" ] || return 1
+  _hi_c_cache="$_hi_c_dir/hi.$_hi_c_tag.$_hi_c_key"
+  if [ -f "$_hi_c_cache" ] &&
+    [ -z "$(find "${_hi_c_watch[@]}" -newer "$_hi_c_cache" -print -quit 2>/dev/null)" ]; then
+    printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
     return 0
   fi
-  _hi_overlay_tar "${_hi_oc_present[@]}" >"$_hi_oc_cache.$$" || {
-    rm -f "$_hi_oc_cache.$$"
+  "$_hi_c_build" "$@" >"$_hi_c_cache.$$" || {
+    rm -f "$_hi_c_cache.$$"
     return 1
   }
-  mv -f "$_hi_oc_cache.$$" "$_hi_oc_cache"
-  printf -v "$_hi_oc_outvar" '%s' "$_hi_oc_cache"
+  mv -f "$_hi_c_cache.$$" "$_hi_c_cache"
+  printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
+}
+
+function _hi_overlay_cached() {
+  local _hi_oc_outvar="$1"
+  shift
+  (($#)) || return 1
+  _hi_cached "$_hi_oc_outvar" overlay "$(_hi_overlay_cache_key "$@")" \
+    "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"
+}
+
+# _hi_payload_tar takes no arguments - the roster is its own - but it is
+# handed one anyway: the member list is what _hi_cached watches for staleness,
+# and passing it through keeps the builder and the watch list one statement.
+function _hi_payload_cached() {
+  _hi_cached "$1" payload "$(_hi_payload_cache_key)" \
+    "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
 
 # _hi_overlay_stream <file...> - the overlay's armored `tar mxzf` line for
@@ -375,33 +469,12 @@ function _hi_fail() {
 # staging copy; both size budgets measure a *default* configuration.
 # GLOSSARY: HI.39 + HI.35
 function _hi_payload_tar() {
-  local -a excl=()
+  local -a stage_in stage_out=(say-hi) stage_excl=()
   local _hi_trim="" _hi_f
   _hi_trimmed tree _hi_trim
-  for _hi_f in $_hi_trim; do excl+=("--exclude=$_hi_f"); done
-
-  # a subshell, so the stage's cleanup is a trap and a ^C mid-build leaves
-  # nothing behind (GLOSSARY: HI.39)
-  local stage f
-  (
-    stage="$(mktemp -d -t hi.stage.XXXXXX)" || exit 1
-    trap 'rm -rf "$stage"' EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
-    # through a file for the reason _hi_overlay_tar gives
-    tar cf "$stage/in.tar" -h ${excl[@]+"${excl[@]}"} -C "$_HI_HOME" "${_HI_PAYLOAD[@]/#/say-hi/}" || exit 1
-    tar xf "$stage/in.tar" -C "$stage" || exit 1
-    rm -f "$stage/in.tar"
-    _hi_strip_awk >"$stage/strip.awk"
-    # one awk over every file; _hi_write_back keeps hi.sh's mode. GLOSSARY: HI.09
-    find "$stage/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \
-      -o -name flags -o -name colors -o -name packages -o -name vim.rc -o -name nano.rc \) \
-      -exec awk -f "$stage/strip.awk" {} + || exit 1
-    while IFS= read -r f; do
-      _hi_write_back "$f" "${f%.strip}"
-    done < <(find "$stage/say-hi" -type f -name '*.strip')
-    _hi_tar_gz -C "$stage" say-hi
-  )
+  for _hi_f in $_hi_trim; do stage_excl+=("--exclude=$_hi_f"); done
+  stage_in=("${_HI_PAYLOAD[@]/#/say-hi/}")
+  _hi_stage_tar "$_HI_HOME" say-hi
 }
 
 # _hi_payload_cache_key - _hi_overlay_cache_key's tree twin: the trim list
@@ -411,7 +484,7 @@ function _hi_payload_tar() {
 function _hi_payload_cache_key() {
   local trim=""
   _hi_trimmed tree trim
-  printf '%s' "$trim" | cksum | cut -d' ' -f1
+  _hi_cksum "$trim"
 }
 
 # _hi_payload_cached <outvar> - _hi_overlay_cached's tree twin: a warm
@@ -420,29 +493,6 @@ function _hi_payload_cache_key() {
 # Same temp-file-and-mv as the overlay cache. Measured against the ~70-130ms
 # _hi_payload_tar otherwise costs on every single connect: the staleness
 # check alone is single-digit milliseconds.
-function _hi_payload_cached() {
-  # prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` or `dir`
-  # would shadow a caller's outvar of the same name (_hi_payload_stream's own
-  # `cache`, for one) and the printf -v below would never leave this function
-  local _hi_pc_outvar="$1"
-  [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
-  local _hi_pc_dir _hi_pc_cache _hi_pc_key
-  _hi_runtime_dir _hi_pc_dir
-  [ -n "$_hi_pc_dir" ] || return 1
-  _hi_pc_key="$(_hi_payload_cache_key)"
-  _hi_pc_cache="$_hi_pc_dir/hi.payload.$_hi_pc_key"
-  if [ -f "$_hi_pc_cache" ] &&
-    [ -z "$(find "${_HI_PAYLOAD[@]/#/$_HI_HOME/say-hi/}" -newer "$_hi_pc_cache" -print -quit 2>/dev/null)" ]; then
-    printf -v "$_hi_pc_outvar" '%s' "$_hi_pc_cache"
-    return 0
-  fi
-  _hi_payload_tar >"$_hi_pc_cache.$$" || {
-    rm -f "$_hi_pc_cache.$$"
-    return 1
-  }
-  mv -f "$_hi_pc_cache.$$" "$_hi_pc_cache"
-  printf -v "$_hi_pc_outvar" '%s' "$_hi_pc_cache"
-}
 
 # _hi_payload_stream - _hi_overlay_stream's tree twin: the armored payload
 # tar, through the cache when it's warm and clean, built fresh otherwise.
@@ -476,7 +526,27 @@ function _hi_is_container_running() {
 # predicate column is one word _hi_resolve_backend runs with the target as
 # its only argument.
 function _hi_is_family_container() {
-  _hi_is_container_running "$1" "$2" || { [ "$1" = docker ] && _hi_compose_container "$2" >/dev/null; }
+  local _hi_fc
+  _hi_container_target "$1" "$2" _hi_fc
+}
+
+# _hi_container_target <cli> <name> <outvar> - the container to exec into for
+# this typed target: <name> itself when it is running, else whatever the CLI's
+# alias mechanism resolves it to. rc 1 when neither answers.
+#
+# One place for "docker, uniquely, can resolve a compose service name" - the
+# detector above and _hi_container_cmds below each owned half of that fact and
+# each spelled the `[ "$1" = docker ]` arm out, so a second family member that
+# grew an alias mechanism needed both edits. GLOSSARY: HI.43, HI.51.
+function _hi_container_target() {
+  if _hi_is_container_running "$1" "$2"; then
+    printf -v "$3" '%s' "$2"
+    return 0
+  fi
+  local _hi_ct_resolved
+  [ "$1" = docker ] || return 1
+  _hi_ct_resolved="$(_hi_compose_container "$2")" || return 1
+  printf -v "$3" '%s' "$_hi_ct_resolved"
 }
 
 # _hi_compose_container <service> - the one running container behind a docker
@@ -486,7 +556,9 @@ function _hi_compose_container() {
   local matches
   matches="$(_hi_probe docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Names}}' 2>/dev/null)"
   [ -n "$matches" ] || return 1
-  [ "$(printf '%s\n' "$matches" | wc -l)" -eq 1 ] || return 1
+  # one line and not none - a `wc -l` here was two processes for a glob test
+  [ -n "$matches" ] || return 1
+  case "$matches" in *"$_HI_NL"*) return 1 ;; esac
   printf '%s\n' "$matches"
 }
 
@@ -613,10 +685,26 @@ function _hi_ctl_open() {
   ctl_path=""
   ctl_opts=()
   ctl_shared=0
+  # No multiplexing at all from an MSYS/Cygwin client. ssh hands the session's
+  # file descriptors to the master over an AF_UNIX socket (SCM_RIGHTS), which
+  # that runtime does not carry: the master is reached and *then* the transfer
+  # fails ("mm_send_fd: sendmsg(2)", "mux_client_request_session: send fds
+  # failed"), so the connection dies rather than degrading to an ordinary one.
+  # Answered from $OSTYPE, which bash sets at build time - "msys" for both
+  # MSYS2 and Git Bash's MinGW - rather than forking `uname`.
+  #
+  # The result is the same state a host with nowhere to put a socket gets: no
+  # ctl_opts, ssh authenticates twice, everything still works.
+  case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    ctl_opts+=("$@")
+    return 0
+    ;;
+  esac
   if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
-      key="$(printf '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"} | cksum | cut -d' ' -f1)"
+      key="$(_hi_cksum "$(printf '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"})")"
       ctl_path="$dir/hi.ctl.$key"
       ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
       ctl_shared=1
@@ -853,7 +941,7 @@ function _hi_size() {
 # What a fresh session puts on the wire, without connecting: the real script,
 # assembled as _say_hi assembles it. GLOSSARY: HI.44 - why not a sum of streams
 function _hi_wire_bytes() {
-  local hi_esc="" nc_esc="" overlay_line="" bootloader tree script
+  local overlay_line="" bootloader tree script
   local size="$_HI_SIZE_TOKEN"
   local DOMAIN="${DOMAIN:-target}"
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
@@ -946,10 +1034,22 @@ REMOTE
 # and the command through -c). The `*)` arm (sh/dash/ash) appends the prompt
 # there rather than in the shared rc, which also feeds fish (no PS1) and zsh
 # (a different \$ escape).
+# _hi_esc_pair <outvar-esc> <outvar-nc> - hi's yellow and the reset as real
+# escape bytes. These used to be two more names the script builders read out
+# of _say_hi's scope, which made them part of an unstated caller contract -
+# and _hi_wire_bytes, the other caller, never filled them, so the README's
+# wire figure was assembled with the colors missing. Derived from the palette,
+# with no caller input, so they are nobody's contract now.
+function _hi_esc_pair() {
+  printf -v "$1" '%b' "$YELLOW"
+  printf -v "$2" '%b' "$NC"
+}
+
 function _hi_remote_suffix() {
   # the target as typed, single-quoted here so the fallback line below can
   # name it without the session carrying a variable for it
-  local target_q
+  local target_q _hi_esc _hi_nc
+  _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
   cat <<REMOTE
       export _HI_COPY_TIME=\$(awk -v a="\$_hi_t0" -v b="\$(_hi_now)" 'BEGIN{printf "%.3f", b-a}')
@@ -958,7 +1058,7 @@ function _hi_remote_suffix() {
       else
         _hi_fallback=sh
         $(_hi_ladder_probe '_hi_fallback="$_hi_s"')
-        printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$hi_esc" $target_q "\$_hi_fallback" "$nc_esc" >&2
+        printf '%s no bash on [%s], dropping into plain %s w/ aliases only %s\n' "$_hi_esc" $target_q "\$_hi_fallback" "$_hi_nc" >&2
         $(_hi_fallback_rc | _hi_armored_line '>' '"$_hi_rc_dir/.hi_fallback_rc"')
         case "\$_hi_fallback" in
         zsh)
@@ -978,7 +1078,7 @@ REMOTE
 }
 
 # The disposable-tree half of the script: unpack the armored streams into a
-# fresh /tmp root. Reads $hi_esc/$nc_esc/$size and the streams from its caller,
+# fresh /tmp root. Reads $size and the streams from its caller,
 # so _say_hi and _hi_wire_bytes assemble one shape rather than two kept in step.
 #
 # The `trap ... exit` below is a backstop, not a second owner: load.sh's
@@ -992,7 +1092,8 @@ REMOTE
 # it - kept out of the heredoc itself, since every byte here rides the wire
 # on every connect.
 function _hi_remote_middle() {
-  local tmpl
+  local tmpl _hi_esc _hi_nc
+  _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote tmpl "$(_hi_whoami).hi.XXXXXX"
   cat <<REMOTE
       export _HI_HOME=\$(mktemp -d -t $tmpl) # busybox mktemp needs exactly six X
@@ -1002,7 +1103,7 @@ function _hi_remote_middle() {
       mkdir "\$_HI_ROOT"
       trap 'rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
-      printf '%s %s%s' "$hi_esc" "$nc_esc" "$size" >&2
+      printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2
       echo "$bootloader" | $_HI_UNARMOR > "\$_hi_rc_dir/hi.bashrc"
       echo "$tree" | $_HI_UNARMOR | tar mxzf - -C "\$_HI_HOME"
       $overlay_line
@@ -1013,7 +1114,9 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size hi_esc nc_esc script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ctl_shared ct ec=0
+  local size script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ctl_shared ct ec=0
+  local _hi_esc _hi_nc
+  _hi_esc_pair _hi_esc _hi_nc
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
@@ -1026,9 +1129,6 @@ function _say_hi() {
   _hi_require base64 "to reach an ssh target" || return 1
   _hi_require tar "to pack the payload" || return 1
 
-  printf -v hi_esc '%b' "$YELLOW"
-  printf -v nc_esc '%b' "$NC"
-
   # the overlay member list is local-only - it never depends on what the
   # round trip below finds - so it is resolved once, up here, and reused by
   # both the background warm and (on the disposable branch) the real stream
@@ -1039,20 +1139,19 @@ function _say_hi() {
   # disposable branch needs it, and is wasted only when the target turns out
   # to have a permanent install (below) - free either way, since the socket
   # is already open for that round trip regardless
-  local _hi_bg_junk1 _hi_bg_junk2
   (
-    _hi_payload_cached _hi_bg_junk1 >/dev/null 2>&1 || true
-    ((${#overlay[@]})) && { _hi_overlay_cached _hi_bg_junk2 "${overlay[@]}" >/dev/null 2>&1 || true; }
+    _hi_payload_cached _hi_warm
+    ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
     true
-  ) &
-  local ctl_bg=$!
+  ) >/dev/null 2>&1 &
+  local warm_bg=$!
 
   # multiplex the install-probe and the real session over one ssh connection;
   # `shared` tries to reuse one already authenticated for this target
   _hi_ctl_open 30 shared
   remote_root="$(_hi_remote_root "${ctl_opts[@]}")"
   remote_root="$(_hi_trusted_path "$remote_root")"
-  wait "$ctl_bg" 2>/dev/null || true
+  wait "$warm_bg" 2>/dev/null || true
 
   if [ -n "$remote_root" ]; then
     # $remote_root is always <home>/<tree>
@@ -1062,7 +1161,7 @@ function _say_hi() {
       export _HI_HOME="$tmp_root"
       export _HI_ROOT="$remote_root"
       _hi_rc_dir="\$(dirname "\$0")"
-      printf '%s %s%s' "$hi_esc" "$nc_esc" "-> local say-hi install" >&2
+      printf '%s %s%s' "$_hi_esc" "$_hi_nc" "-> local say-hi install" >&2
       $(_hi_bootloader | _hi_armored_line '>' '"$_hi_rc_dir/hi.bashrc"')
       export _HI_CONNECT_PREFIX="-> local say-hi install"
 REMOTE
@@ -1155,8 +1254,9 @@ $(_hi_remote_suffix)"
       case "$boot_ec" in
       64) why="no base64 on [$DOMAIN]" ;;
       65) why="no writable temp directory on [$DOMAIN]" ;;
-      0) why="a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
-      *) [ -z "$boot_out" ] || why="a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
+      # exited 0, or printed something a host with no `sh` would not have
+      *) [ "$boot_ec" = 0 ] || [ -n "$boot_out" ] &&
+        why="a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
       esac
       ;;
     esac
@@ -1223,12 +1323,9 @@ function _hi_container_cmds() {
   *)
     # the docker-compatible family (GLOSSARY: HI.51): the CLI is the arm's
     # own name, and the grammar is docker's
+    # the literal name, or whatever the CLI's alias mechanism resolves it to
     local target="$DOMAIN"
-    # the compose alias, only when the literal name doesn't already resolve
-    if [ "$1" = docker ] && ! _hi_is_container_running docker "$DOMAIN"; then
-      local resolved
-      resolved="$(_hi_compose_container "$DOMAIN")" && target="$resolved"
-    fi
+    _hi_container_target "$1" "$DOMAIN" target || target="$DOMAIN"
     probe=("$1" exec "$target")
     cp=("$1" exec -i "$target")
     attach=("$1" exec "$it" "$target")
@@ -1242,6 +1339,18 @@ function _hi_container_cmds() {
 function _hi_container_cleanup() {
   "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
   return 0
+}
+
+# _hi_container_abort <message> - every fatal arm of the ladder below, once:
+# say why, sweep the scratch tree off the target, fail. Spelled out at each
+# site before, and two of the five had quietly lost the sweep - the directory
+# exists from the moment the probe returns, so a bare `return 1` leaves it in
+# the container. The two arms that must *not* sweep (nothing created yet, or a
+# $root hi refused and must never rm -rf) stay written out.
+function _hi_container_abort() {
+  _hi_fail "$1"
+  _hi_container_cleanup
+  return 1
 }
 
 # _hi_container_fallback_shell [errlog] - the no-bash fallback, probed and
@@ -1317,7 +1426,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   if ! "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>"$tmp"; then
     fallback="$(_hi_container_fallback_shell "$tmp")"
     if [ -z "$fallback" ]; then
-      _hi_fail " [$DOMAIN] named no shell hi asked about - not falling back"
+      _hi_container_abort " [$DOMAIN] named no shell hi asked about - not falling back"
       return 1
     fi
     _hi_cecho " no bash in [$DOMAIN], skipping hi config -> plain $fallback w/ aliases" "$YELLOW" >&2
@@ -1349,8 +1458,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     } >"$rc_stage"
     if ! _hi_container_put "$rc_stage" "$root/.hi_fallback_rc"; then
       rm -f "$rc_stage"
-      _hi_fail " failed to write the fallback rc into [$DOMAIN]"
-      _hi_container_cleanup
+      _hi_container_abort " failed to write the fallback rc into [$DOMAIN]"
       return 1
     fi
     rm -f "$rc_stage"
@@ -1359,8 +1467,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     case "$fallback" in
     zsh)
       if ! "${cp[@]}" sh -c "cp '$root/.hi_fallback_rc' '$root/.zshrc'" 2>"$tmp"; then
-        _hi_fail " failed to write .zshrc into [$DOMAIN]"
-        _hi_container_cleanup
+        _hi_container_abort " failed to write .zshrc into [$DOMAIN]"
         return 1
       fi
       "${attach[@]}" sh -c "export ZDOTDIR='$root'; exec zsh -i"
@@ -1374,34 +1481,62 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     return $exit_code
   fi
 
-  # staged to a file so the announced size is the one actually sent
-  tarball="$tmp.tar.gz"
-  if ! _hi_payload_tar >"$tarball"; then
-    _hi_fail " failed to archive say-hi for [$DOMAIN]"
-    return 1
+  # Staged to a file so the announced size is the one actually sent - and the
+  # cache already yields exactly that shape, so ask it first. The ssh arm has
+  # gone through _hi_payload_cached from the start; this arm was re-tarring,
+  # re-stripping and re-gzipping the whole tree on every single connect for no
+  # reason. $cached says whether the file is the cache's (leave it) or ours
+  # (delete it).
+  local cached=1
+  if ! _hi_payload_cached tarball; then
+    cached=""
+    tarball="$tmp.tar.gz"
+    if ! _hi_payload_tar >"$tarball"; then
+      _hi_container_abort " failed to archive say-hi for [$DOMAIN]"
+      return 1
+    fi
   fi
   size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
   # just the size, the way the ssh path's prefix reads
   prefix=" $size"
-  printf '%s' " $size" >&2
+  printf '%s' "$prefix" >&2
 
   if ! "${cp[@]}" sh -c "tar mxzf - -C '$root'" <"$tarball"; then
-    rm -f "$tarball"
-    _hi_fail " failed to copy say-hi into [$DOMAIN]"
-    _hi_container_cleanup
+    [ -n "$cached" ] || rm -f "$tarball"
+    _hi_container_abort " failed to copy say-hi into [$DOMAIN]"
     return 1
   fi
-  rm -f "$tarball"
+  [ -n "$cached" ] || rm -f "$tarball"
 
   _hi_read_lines overlay < <(_hi_overlay_files)
+  # from the cache when there is one, built fresh when there is not - an
+  # if/else and not `cat && || tar`, which would emit both halves if the cat
+  # died partway through
+  local ovl_cache=""
+  ((${#overlay[@]})) && _hi_overlay_cached ovl_cache "${overlay[@]}"
+  _hi_overlay_bytes() {
+    if [ -n "$ovl_cache" ]; then cat "$ovl_cache"; else _hi_overlay_tar "${overlay[@]}"; fi
+  }
   if ((${#overlay[@]})) &&
-    ! _hi_overlay_tar "${overlay[@]}" |
+    ! _hi_overlay_bytes |
     "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar mxzf - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
   fi
 
-  # hi.sh rides the payload tar unpacked above, mode and all - no separate copy
-  _hi_bootloader | "${cp[@]}" sh -c "cat > '$root/say-hi/hi.bashrc'"
+  # hi.sh rides the payload tar unpacked above, mode and all - no separate copy.
+  # Staged to a file and put through _hi_container_put like the fallback rc,
+  # not piped: the helper exists because a copy can succeed at the transport
+  # and deliver nothing, and its retry needs to replay the same bytes, which a
+  # pipe cannot do twice. An empty hi.bashrc is the worst failure this arm has
+  # - `bash --rcfile` below would start, source nothing, and hand over a bare
+  # shell with no error at all - so it is fatal rather than unchecked.
+  _hi_bootloader >"$rc_stage"
+  if ! _hi_container_put "$rc_stage" "$root/say-hi/hi.bashrc"; then
+    rm -f "$rc_stage"
+    _hi_container_abort " failed to write hi's bootloader into [$DOMAIN]"
+    return 1
+  fi
+  rm -f "$rc_stage"
 
   # `-i` explicitly, the way the ssh arm's _hi_remote_suffix has always spelled
   # it. `--rcfile` is read by an *interactive* bash and nothing else, and until
@@ -1481,7 +1616,7 @@ function _say_hi_container_plain() {
 # fzf and sk open /dev/tty themselves, and bash's `select` prompts on stderr.
 function _hi_pick_target() {
   local picker rows reply name kind
-  rows="$(sh "$_HI_TARGETS" 2>/dev/null || true)"
+  rows="$(exec sh "$_HI_TARGETS" 2>/dev/null)" || rows=""
   [ -n "$rows" ] || return 2
   picker="$(command -v fzf || command -v sk || true)"
   if [ -n "$picker" ]; then
@@ -1616,7 +1751,14 @@ function _hi_resolve_backend() {
   local target="$1" i
   local -a pids=()
   for i in "${!_HI_BACKENDS[@]}"; do
-    "${_HI_BACKENDS[i]##*|}" "$target" &
+    # >/dev/null is what makes the early return below mean anything: the
+    # caller is `arm="$(_hi_select_arm)"`, and a backgrounded probe that keeps
+    # the substitution's stdout open holds the pipe until it exits - so the
+    # parent's read could not see EOF until the *slowest* probe finished, and
+    # a first match bought nothing. The predicates answer with their exit
+    # status alone, so nothing is lost by muting them. With one wedged daemon
+    # this was the full $_HI_PROBE_TIMEOUT on every connect.
+    "${_HI_BACKENDS[i]##*|}" "$target" >/dev/null 2>&1 &
     pids+=("$!")
   done
   for i in "${!_HI_BACKENDS[@]}"; do
@@ -1651,8 +1793,10 @@ function _hi_record_recent() {
   [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || return 0
   f="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
   [ -d "${f%/*}" ] || mkdir -p "${f%/*}" 2>/dev/null || return 0
-  printf '%s\t%s\n' "$(date +%s 2>/dev/null || echo 0)" "$1" >>"$f" 2>/dev/null || return 0
-  n="$(grep -c . "$f" 2>/dev/null || echo 0)"
+  local _hi_rr_now _hi_rr_n
+  _hi_rr_now="$(exec date +%s 2>/dev/null)" || _hi_rr_now=0
+  printf '%s\t%s\n' "$_hi_rr_now" "$1" >>"$f" 2>/dev/null || return 0
+  n="$(exec grep -c . "$f" 2>/dev/null)" || n=0
   if [ "$n" -gt 500 ]; then
     tmp="$f.$$"
     if tail -n 300 "$f" >"$tmp" 2>/dev/null; then
@@ -1751,6 +1895,15 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
+  # Primed here, in the shell that keeps them. Every production caller of
+  # these three reads them through $( ), so each memo was being filled in a
+  # subshell and dying with it - core.sh goes to some trouble to prime the
+  # identity pair for exactly this reason, and the script builders below ask
+  # six times between them. A bare call fills the variable; the subshells then
+  # inherit it. GLOSSARY: HI.05
+  _hi_whoami >/dev/null
+  _hi_hostname >/dev/null
+  [ -z "${DOMAIN:-}" ] || _hi_target_color >/dev/null
   # only with a terminal to attach: a piped `hi host cmd` keeps working, un-wrapped
   if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: wrapping the whole connect to reprint a
@@ -1811,6 +1964,11 @@ unset _hi_row
 # the table names one; returns 1 otherwise. ${!var} is bash 2, not a bash-4 form.
 function _hi_dispatch_subcommand() {
   local row flag var arg
+  # Every row in common/flags is a `--word`, and _hi_parse hands any other
+  # `-word` to ssh - so a target name can never match one. Answered before the
+  # walk because this runs on every invocation, and each row costs a
+  # here-string: a temp file in $TMPDIR on the bash 3.2 floor.
+  case "${1:-}" in --*) ;; *) return 1 ;; esac
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag _ _ var arg _ <<<"$row"
     [ "$flag" = "${1:-}" ] || continue
@@ -1856,67 +2014,6 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 # else; following a branch is `git pull` in the checkout, by hand. A dirty
 # tree is refused before anything moves. Payloads and packages carry no .git
 # and say so; --help is answered ahead of that check so they get the text too.
-function _hi_update() {
-  local root="$_HI_ROOT" tag="" dirty here
-  case "${1:-}" in
-  -h | --help)
-    cat <<EOF
-Usage: hi --update [<tag>]
-
-Moves the say-hi checkout this hi runs from to a release tag (needs its
-.git; a package has none, so it says so and stops):
-  hi --update           the newest release tag, after fetching them
-  hi --update <tag>     that release
-
-Either way the checkout is left detached on the tag. A tree with
-uncommitted changes is refused. \`git -C $root tag\` lists the releases;
-following a branch instead is \`git -C $root pull\`, by hand.
-EOF
-    exit 0
-    ;;
-  esac
-  [ -d "$root/.git" ] || {
-    _hi_cecho "hi --update: $_HI_NO_GIT" "$RED" >&2
-    exit 1
-  }
-  case "${1:-}" in
-  -*)
-    _hi_cecho "hi --update: unknown option $1 (one release tag, or nothing for the newest)" "$RED" >&2
-    exit 1
-    ;;
-  esac
-  [ $# -le 1 ] || {
-    _hi_cecho "hi --update: one release tag at most ($*)" "$RED" >&2
-    exit 1
-  }
-  tag="${1:-}"
-  dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
-  [ -z "$dirty" ] || {
-    _hi_cecho "hi --update: uncommitted changes in $root; commit or stash them first" "$RED" >&2
-    exit 1
-  }
-  git -C "$root" fetch --tags --quiet || exit 1
-  if [ -z "$tag" ]; then
-    # newest release by version (v0.0.10 above v0.0.9); a pre-release
-    # (v1.0.0-rc.1) is never chosen unasked - name it to move there
-    tag="$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -v -- - | head -n 1)"
-    [ -n "$tag" ] || {
-      _hi_cecho "hi --update: no release tags in $root" "$RED" >&2
-      exit 1
-    }
-  elif ! git -C "$root" show-ref --verify -q "refs/tags/$tag"; then
-    _hi_cecho "hi --update: no release tag named $tag; git -C $root tag lists them" "$RED" >&2
-    exit 1
-  fi
-  here="$(git -C "$root" describe --tags --exact-match 2>/dev/null || true)"
-  if [ "$here" = "$tag" ]; then
-    _hi_cecho "hi: already on $tag" "$GREEN"
-    exit 0
-  fi
-  git -C "$root" checkout -q "refs/tags/$tag" || exit 1
-  _hi_cecho "hi: now on $tag (detached)" "$GREEN"
-  exit 0
-}
 
 # sourcing this file defines its functions without connecting, for testing
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
@@ -1967,10 +2064,6 @@ survives an upgrade. See \`man hi\` and the README for all of it.
 EOF
   exit 0
   ;;
---update)
-  shift
-  _hi_update "$@"
-  ;;
 # --preview <subject>: one scripts/preview.sh for all three. colors wants
 # scripts/ (and says so in a session); packages and header fall back to the
 # shipped common/header.sh on a target, so the flag itself works anywhere
@@ -1992,6 +2085,10 @@ EOF
       _hi_cecho "hi --preview header: takes no arguments (got: $*)" "$RED" >&2
       exit 1
     }
+    # the full form first, the way the packages arm does it. Without this the
+    # scripts/ subject and its --help were reachable only by running
+    # preview.sh by hand, while the shipped fallback below was the live path.
+    [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview header" exec "$_HI_PREVIEW" header
     exec bash -c 'source "$1" && hi_header Preview' hi "$_HI_HEADER"
     ;;
   -h | --help)

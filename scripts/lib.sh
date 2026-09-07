@@ -9,6 +9,18 @@
 # common/core.sh, whose _hi_repeat, _hi_cecho, palette and _hi_write_back it
 # uses; sourcing it does nothing else.
 
+# tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
+# lands on the destination and severs any hardlink/ACL. The mode is captured
+# and reapplied too, since truncate-in-place alone did not preserve it on
+# Windows Git Bash. GLOSSARY: HI.09
+function _hi_write_back() {
+  local mode=""
+  [ -e "$2" ] && mode="$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)"
+  cat "$1" >"$2"
+  [ -n "$mode" ] && chmod "$mode" "$2" 2>/dev/null
+  command rm -f "$1"
+}
+
 # _hi_hrule <label> <bar-char> <inset> <color> - a _HI_MAX_WIDTH rule with the
 # label centered; the worker behind the heading levels
 function _hi_hrule() {
@@ -71,14 +83,6 @@ function _hi_scheme_label() {
   else
     printf -v "$1" '%s (ignored - not a scheme)' "$_HI_COLOR_SCHEME"
   fi
-}
-
-# _hi_sgr_base <outvar> <escape> - the escape without its 24-bit tail: the
-# 16-color half is what names a color, whichever bank painted it
-function _hi_sgr_base() {
-  local _hi_sb="$2"
-  case "$_hi_sb" in *';38;2;'*) _hi_sb="${_hi_sb%%;38;2;*}m" ;; esac
-  printf -v "$1" '%s' "$_hi_sb"
 }
 
 # The preview box scripts/configure.sh draws. Here and not in core.sh's

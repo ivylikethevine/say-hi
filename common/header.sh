@@ -266,7 +266,7 @@ function _hi_load_pct() {
 }
 
 # <seconds> humanized to at most two units, largest first - a header cell,
-# not a stopwatch. Shared by _hi_uptime_cell and nothing else; system_info no
+# not a stopwatch. Shared by _hi_cell_uptime and nothing else; system_info no
 # longer touches uptime at all.
 function _hi_humanize_uptime() {
   local s="$1"
@@ -442,7 +442,7 @@ function system_info() {
 # long this box has been up" is common to the two - but the platform question
 # itself is _hi_platform's, so the `uname` behind it is paid once per session
 # rather than once per probe.
-function _hi_uptime_cell() {
+function _hi_cell_uptime() {
   local uptime_s="" up="" plat
   _hi_platform plat
   if [ "$plat" = linux ]; then
@@ -462,14 +462,14 @@ function _hi_uptime_cell() {
 }
 
 # <var> gets the ip cell: every routable IPv4 address this box has, comma-
-# joined. Its own minimal probe for the same reason _hi_uptime_cell gives for
+# joined. Its own minimal probe for the same reason _hi_cell_uptime gives for
 # its own uname call - duplicating it here is cheaper than sharing state with
 # system_info's. `ip` is tried first (present on every target this project
 # already assumes iproute2 for, and on Alpine's busybox too - both answer the
 # same `-o` field layout); `hostname -I` is the fallback where it prints
 # nothing. Scope global excludes loopback and link-local, so a bare "?" means
 # neither this box has a routable address nor either tool exists to say so.
-function _hi_ip_cell() {
+function _hi_cell_ip() {
   local ips="" plat
   _hi_platform plat
   # One possibly-absent tool per branch, piped straight into awk for every
@@ -594,7 +594,7 @@ function _hi_probe_launch() {
 # _hi_system_info_probe memoizes system_info()'s. $_HI_ID_CONTAINERS/_JOBS/_PODS
 # stay empty when that backend's probe never ran - a getter checks for that
 # itself, same "cell appears only when the probe actually ran" rule as
-# before. Uptime is not part of this probe: _hi_uptime_cell already has its
+# before. Uptime is not part of this probe: _hi_cell_uptime already has its
 # own minimal, independent one (see its own comment) and stays that way.
 # Reads what _hi_probe_launch started; calls it itself if nobody did.
 function _hi_identity_probe() {
@@ -661,9 +661,6 @@ function _hi_cell_jobs() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_JOBS; 
 function _hi_cell_pods() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PODS; }
 function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; }
 function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
-function _hi_cell_uptime() {
-  _hi_uptime_cell "$1"
-}
 
 # The group wrapper: unchanged output for tests/common/header_test.sh, which
 # uses it as a render entry point. Not a compatibility surface for anything
@@ -772,25 +769,17 @@ _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid c
 # suite) can ask "what would this word render as" without going through the
 # accumulate/flush machinery below.
 function _hi_header_word_cell() {
-  case "$1" in
-  utc) _hi_cell_utc "$2" ;;
-  version) _hi_cell_version "$2" ;;
-  localtime) _hi_cell_localtime "$2" ;;
-  os) _hi_cell_os "$2" ;;
-  arch) _hi_cell_arch "$2" ;;
-  cores) _hi_cell_cores "$2" ;;
-  cpu) _hi_cell_cpu "$2" ;;
-  ram) _hi_cell_ram "$2" ;;
-  ip) _hi_ip_cell "$2" ;;
-  gitid) _hi_cell_gitid "$2" ;;
-  containers) _hi_cell_containers "$2" ;;
-  jobs) _hi_cell_jobs "$2" ;;
-  pods) _hi_cell_pods "$2" ;;
-  auth) _hi_cell_auth "$2" ;;
-  pub) _hi_cell_pub "$2" ;;
-  uptime) _hi_cell_uptime "$2" ;;
-  *) printf -v "$2" '%s' "" ;;
+  printf -v "$2" '%s' ""
+  # Fifteen of the sixteen getters were already named _hi_cell_<word> and the
+  # case restated the mapping; now the convention *is* the mapping. The roster
+  # gate is what keeps it safe: $_HI_HEADER_ORDER is the user's own string, so
+  # only a word the shipped default names may reach a function here. `check`
+  # is in that roster and has no getter - it is full_check's own row - hence
+  # the declare -F.
+  case " $_HI_HEADER_ORDER_DEFAULT " in
+  *" $1 "*) declare -F "_hi_cell_$1" >/dev/null && "_hi_cell_$1" "$2" ;;
   esac
+  return 0
 }
 
 # <var> gets $1's alternate color - a bright variant of a hue other than the
@@ -802,26 +791,29 @@ function _hi_header_word_cell() {
 # holds - the substitution can never itself collide. That property is
 # load-bearing and not enforced by the shell; a new header word's entry here
 # must keep it (tests/common/header_test.sh checks it mechanically).
+# "<word>:<bright palette variable>", one row per header word - sixteen case
+# arms whose bodies differed only in a colour name were data written as
+# control flow. GLOSSARY: HI.48 - every alternate's hue must differ from its
+# own word's primary, which is what makes a substitution unable to collide,
+# and header_test.sh checks it. The variable *name* is stored, not its value.
+_HI_HEADER_ALTS="utc:BRCYAN version:BRCYAN localtime:BRRED os:BRPURPLE\
+ arch:BRCYAN cores:BRGREEN cpu:BRPURPLE ram:BRGREEN ip:BRCYAN gitid:BRRED\
+ containers:BRYELLOW jobs:BRYELLOW pods:BRCYAN auth:BRYELLOW pub:BRRED\
+ uptime:BRGREEN"
+
 function _hi_header_word_alt() {
-  case "$1" in
-  utc) printf -v "$2" '%s' "$BRCYAN" ;;
-  version) printf -v "$2" '%s' "$BRCYAN" ;;
-  localtime) printf -v "$2" '%s' "$BRRED" ;;
-  os) printf -v "$2" '%s' "$BRPURPLE" ;;
-  arch) printf -v "$2" '%s' "$BRCYAN" ;;
-  cores) printf -v "$2" '%s' "$BRGREEN" ;;
-  cpu) printf -v "$2" '%s' "$BRPURPLE" ;;
-  ram) printf -v "$2" '%s' "$BRGREEN" ;;
-  ip) printf -v "$2" '%s' "$BRCYAN" ;;
-  gitid) printf -v "$2" '%s' "$BRRED" ;;
-  containers) printf -v "$2" '%s' "$BRYELLOW" ;;
-  jobs) printf -v "$2" '%s' "$BRYELLOW" ;;
-  pods) printf -v "$2" '%s' "$BRCYAN" ;;
-  auth) printf -v "$2" '%s' "$BRYELLOW" ;;
-  pub) printf -v "$2" '%s' "$BRRED" ;;
-  uptime) printf -v "$2" '%s' "$BRGREEN" ;;
-  *) printf -v "$2" '%s' "" ;;
-  esac
+  local _hi_wa
+  printf -v "$2" '%s' ""
+  # shellcheck disable=SC2086 # the split is the table
+  for _hi_wa in $_HI_HEADER_ALTS; do
+    [ "${_hi_wa%%:*}" = "$1" ] || continue
+    _hi_wa="${_hi_wa#*:}"
+    # read at call time, not baked in: configure.sh's previews flip
+    # $_HI_COLOR_SCHEME and re-run _hi_assign_palette between renders
+    printf -v "$2" '%s' "${!_hi_wa}"
+    return 0
+  done
+  return 0
 }
 
 # One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
@@ -945,23 +937,30 @@ function retired_check() {
 # normal/bright/normal/bright reads a lower priority as louder than the one
 # above it - what "monotonic in both directions" below is guarding against.
 # The numbered lines below are scraped verbatim by scripts/preview.sh
-# (the run directly above _HI_YES, parentheticals dropped): keep the
+# (the run directly above _HI_YES_NAMES, parentheticals dropped): keep the
 # "# <n> <meaning> (<examples>)" shape and add nothing between them and the
 # table.
 # 0 platform trivia (sw_vers, kitty)
 # 1 optional extras (gping, navi)
 # 2 useful tools (make, vim, python3)
 # 3 favorites and core (bat, fzf, awk)
-_HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
-_HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
+_HI_YES_NAMES=(cyan green brcyan brgreen)
+_HI_NO_NAMES=(blue magenta bryellow brred)
+
+# Palette *names*, not escapes: these are configuration - which of
+# _HI_COLOR_NAMES each priority paints in - and storing them rendered meant
+# every consumer that wanted the name back had to invert the mapping.
+# header.sh recovered the slot by reading digits out of the escape's bytes,
+# preview.sh forked twelve escapes to build a reverse lookup, and a case in
+# header_test.sh existed only to keep that round trip honest. The escapes
+# _hi_packages_palette derives below are what check_line actually reads.
 
 # $_HI_PACKAGES_PALETTE picks one of the named ramps below over the two
 # tables just assigned - preview.sh's scrape (above) stops at the
-# first line starting "_HI_YES=", so that assignment has to stay exactly
-# there and cannot move into the case. Every value is one of
+# first line starting "_HI_YES_NAMES=", so that assignment has to stay
+# exactly there and cannot move into the case. Every value is one of
 # _HI_COLOR_NAMES (core.sh), the vocabulary settings/colors and fish's
-# set_color both use, so preview.sh's _hi_color_name_of can always
-# name it. Each ramp is meant to read monotonic 0->3 in both directions - a
+# set_color both use. Each ramp is meant to read monotonic 0->3 in both directions - a
 # missing favorite the loudest thing on screen, installed trivia the
 # quietest - and legible on light and dark terminals alike; judge a
 # candidate with `hi --preview packages`. "cool" is the shipped default:
@@ -971,51 +970,59 @@ _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
 function _hi_packages_palette() {
   case "${_HI_PACKAGES_PALETTE:-cool}" in
   warm)
-    _HI_YES=("$YELLOW" "$BRYELLOW" "$GREEN" "$BRGREEN")
-    _HI_NO=("$PURPLE" "$BRPURPLE" "$RED" "$BRRED")
+    _HI_YES_NAMES=(yellow bryellow green brgreen)
+    _HI_NO_NAMES=(magenta brmagenta red brred)
     ;;
   mono)
-    _HI_YES=("$BLUE" "$CYAN" "$BRBLUE" "$BRCYAN")
-    _HI_NO=("$YELLOW" "$BRYELLOW" "$RED" "$BRRED")
+    _HI_YES_NAMES=(blue cyan brblue brcyan)
+    _HI_NO_NAMES=(yellow bryellow red brred)
     ;;
   *)
-    _HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
-    _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
+    _HI_YES_NAMES=(cyan green brcyan brgreen)
+    _HI_NO_NAMES=(blue magenta bryellow brred)
     ;;
   esac
-  # A 24-word $_HI_COLOR_SCHEME carries a second bank of the twelve names for
-  # the check alone (HI.50). The ramps above are the palette variables, which
-  # are the first bank by contract, so the swap happens here, per render,
-  # rather than at source time: each escape's 16-color half names its slot,
-  # and the same slot twelve further on is the check's color for it.
-  local _hi_pp_n _hi_pp_e
-  local -a _hi_pp_yes=() _hi_pp_no=()
+  # Names to escapes, here rather than at source time: configure.sh's
+  # previews flip $_HI_COLOR_SCHEME and $_HI_PACKAGES_PALETTE between
+  # renders, and full_check re-runs this before every check_line.
+  local _hi_pp_n _hi_pp_i _hi_pp_e
   _hi_scheme_words _hi_pp_n
-  [ "$_hi_pp_n" -eq 24 ] || return 0
-  for _hi_pp_e in "${_HI_YES[@]}"; do
-    _hi_pkg_escape _hi_pp_e "$_hi_pp_e"
-    _hi_pp_yes+=("$_hi_pp_e")
+  _HI_YES=() _HI_NO=()
+  for _hi_pp_i in 0 1 2 3; do
+    _hi_ramp_escape _hi_pp_e "${_HI_YES_NAMES[_hi_pp_i]}" "$_hi_pp_n"
+    _HI_YES+=("$_hi_pp_e")
+    _hi_ramp_escape _hi_pp_e "${_HI_NO_NAMES[_hi_pp_i]}" "$_hi_pp_n"
+    _HI_NO+=("$_hi_pp_e")
   done
-  for _hi_pp_e in "${_HI_NO[@]}"; do
-    _hi_pkg_escape _hi_pp_e "$_hi_pp_e"
-    _hi_pp_no+=("$_hi_pp_e")
-  done
-  _HI_YES=("${_hi_pp_yes[@]}")
-  _HI_NO=("${_hi_pp_no[@]}")
 }
 
-# _hi_pkg_escape <outvar> <escape> - the second-bank escape for a first-bank
-# one: `\e[<bold>;3<hue>...` puts the bold bit at offset 3 and the hue digit
-# at offset 6, and bold*6 + hue-1 is the slot. An empty escape ($NO_COLOR)
-# stays empty.
-function _hi_pkg_escape() {
-  local _hi_pe="$2"
-  if [ -z "$_hi_pe" ]; then
-    printf -v "$1" '%s' ''
+# _hi_ramp_escape <outvar> <palette name> <scheme word count> - the escape a
+# ramp slot paints in. Normally the palette entry for <name>; with a 24-word
+# $_HI_COLOR_SCHEME, the same slot twelve further on, which is the second bank
+# that scheme carries for the check alone (HI.50). This used to read the slot
+# back out of an escape's own bytes, because the ramps stored escapes.
+function _hi_ramp_escape() {
+  local _hi_re_i=0 _hi_re_n
+  printf -v "$1" '%s' ''
+  [ -n "${NO_COLOR:-}" ] && return 0
+  [ "${3:-0}" = 24 ] || {
+    _hi_color_escape_var "$1" "$2"
     return 0
-  fi
-  _hi_color_escape_at "$1" $((${_hi_pe:3:1} * 6 + ${_hi_pe:6:1} - 1 + 12))
+  }
+  for _hi_re_n in "${_HI_COLOR_NAMES[@]}"; do
+    [ "$_hi_re_n" = "$2" ] && {
+      _hi_color_escape_at "$1" $((_hi_re_i + 12))
+      return 0
+    }
+    _hi_re_i=$((_hi_re_i + 1))
+  done
 }
+
+# Assigned at source time, as the two escape arrays were before. `|| true`
+# because this is now a call rather than a literal: header.sh is sourced into
+# a stripped `env -i` in the suites and into callers running under their own
+# strict mode, and neither could be aborted by a plain array assignment.
+_hi_packages_palette || true
 _hi_packages_palette
 
 # For each "[-|+]cmd:priority[,...]": the highest-priority installed package

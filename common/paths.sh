@@ -16,6 +16,7 @@ export _HI_TARGETS="$_HI_ROOT/common/targets.sh"
 export _HI_INSTALL="$_HI_ROOT/scripts/install.sh"
 export _HI_PREVIEW="$_HI_ROOT/scripts/preview.sh"
 export _HI_DOCTOR="$_HI_ROOT/scripts/doctor.sh"
+export _HI_UPDATE="$_HI_ROOT/scripts/update.sh"
 
 # tests - only the two entry points every session needs
 export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
@@ -65,8 +66,14 @@ export _HI_HUMAN_SHORT_DATE="+%b %e %y %H:%M %Z"
 # What hi.sh's local sub-commands say when they cannot run: the payload ships
 # no scripts/, tests/ or .git. Exported from here so the wording has one home.
 export _HI_NO_CHECKOUT="needs the full say-hi checkout - not in a package or a hi session; git clone https://github.com/ivylikethevine/say-hi has one"
-# one message for both no-.git shapes
-export _HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates by installing the next release from https://github.com/ivylikethevine/say-hi/releases; a hi session updates on the machine say-hi lives on"
+
+# The flags that take a completable word of their own. Here because all four
+# shells need it and this is the only file all four read: bash.sh, zsh.zsh and
+# config.fish each spelled the pair out to decide whether to ask, so a fifth
+# word-taking flag landed in targets.sh and silently never completed anywhere.
+# targets.sh keeps the words themselves - it owns the content, and stays
+# standalone POSIX - so this is the membership test and that is the roster.
+export _HI_WORD_FLAGS="--preview --use"
 alias hi="$_HI_LAUNCHER"
 # The only hi_* alias left (the rest became `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

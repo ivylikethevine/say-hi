@@ -326,6 +326,27 @@ function install_tree() {
   _hi_cecho " $profile :)" "$GREEN"
 }
 
+# a preset name is checked before anything is asked or written, so a typo
+# costs nothing
+# The overlay half of `hi --install`: copy the shipped defaults in for the
+# files the user has none of, so a fresh overlay starts with real files to
+# edit rather than a scavenger hunt through the tree. A file already present
+# is never touched, so a re-run seeds nothing new. A seeded copy stops
+# tracking what `hi --update` delivers for that file - SETTINGS.md says so.
+# Versioning the directory is the user's own business (a dotfile manager, or
+# a `git init` of their own); hi neither inits nor commits there.
+function overlay_seed() {
+  local _hi_seed seeded=""
+  mkdir -p "$_HI_CONFIG_DIR"
+  for _hi_seed in colors packages vim.rc nano.rc; do
+    [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
+    [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
+    cp "$_HI_ROOT/settings/$_hi_seed" "$_HI_CONFIG_DIR/$_hi_seed" && seeded="$seeded $_hi_seed"
+  done
+  [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults into $_HI_CONFIG_DIR:$seeded" "$BLUE"
+  return 0
+}
+
 # lets tests/scripts/install_test.sh and tests/scripts/configure_test.sh
 # `source` this file to reach the functions above and in rc.sh/configure.sh
 # without running the real install below - config_hi's and unlink_hi's sudo
@@ -370,8 +391,6 @@ if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
   exit $_hi_check_rc
 fi
 
-# a preset name is checked before anything is asked or written, so a typo
-# costs nothing
 if [ -n "$_HI_PRESET" ] && ! preset_row "$_HI_PRESET" >/dev/null; then
   _hi_cecho " no such preset: $_HI_PRESET (one of: $(preset_names))" "$RED" >&2
   exit 1

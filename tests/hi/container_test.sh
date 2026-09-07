@@ -430,6 +430,26 @@ function test_ladder_payload_copy_failure_is_fatal() {
   [ "$_HI_CT_RC" != 0 ] && _hi_ct_said "failed to copy say-hi into"
 }
 
+# Every fatal arm past the probe sweeps the scratch tree: it exists on the
+# target from the moment the probe returns, so a bare `return` leaves it in
+# the container. The shim logs the cleanup as an ordinary command.
+function test_ladder_every_fatal_arm_sweeps_the_scratch_tree() {
+  _hi_ct_run noshell2 _HI_CT_NO_BASH=1 _HI_CT_LADDER=bogusshell
+  _hi_ct_logged '^cmd:rm -rf ' || return 1
+  _hi_ct_run notar2 _HI_CT_TAR_FAIL=1
+  _hi_ct_logged '^cmd:rm -rf '
+}
+
+# the bootloader is the file `bash --rcfile` reads: landing it empty would
+# hand over a bare shell that sourced nothing, silently, so it goes through
+# _hi_container_put's retry-and-verify like every other copy
+function test_ladder_bootloader_write_failure_is_fatal() {
+  _hi_ct_run noboot _HI_CT_PUT_FAIL=hi.bashrc
+  [ "$_HI_CT_RC" != 0 ] &&
+    _hi_ct_said "failed to write hi's bootloader into" &&
+    ! grep -q '^attach:' "$_HI_CT_LOG"
+}
+
 # a fish fallback takes the rc through -C and the command through -c, as
 # _hi_remote_suffix does - never through $ENV, which fish does not read
 function test_ladder_fish_fallback_passes_the_rc_through_dash_c() {
@@ -484,6 +504,8 @@ function run_container_tests() {
   _hi_check_capable mkdir_mode "Fallback rc write failure is fatal" test_ladder_fallback_rc_write_failure_is_fatal
   _hi_check_capable mkdir_mode ".zshrc write failure is fatal" test_ladder_zshrc_write_failure_is_fatal
   _hi_check_capable mkdir_mode "Payload copy failure is fatal" test_ladder_payload_copy_failure_is_fatal
+  _hi_check_capable mkdir_mode "Bootloader write failure is fatal" test_ladder_bootloader_write_failure_is_fatal
+  _hi_check_capable mkdir_mode "Every fatal arm sweeps the tree" test_ladder_every_fatal_arm_sweeps_the_scratch_tree
   _hi_check_capable mkdir_mode "fish takes the rc through -C" test_ladder_fish_fallback_passes_the_rc_through_dash_c
   _hi_check_capable mkdir_mode "POSIX shells take it through \$ENV" test_ladder_posix_fallback_passes_the_rc_through_env
 

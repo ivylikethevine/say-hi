@@ -368,20 +368,20 @@ function _hi_load_pct_out() {
   printf '%s' "$out"
 }
 
-# _hi_uptime_cell: at most two units, largest first, or "?" where no probe
+# _hi_cell_uptime: at most two units, largest first, or "?" where no probe
 # answers - the shape is pinned rather than a value, which moves by the second
 function test_uptime_cell_is_humanized() {
   local out
-  _hi_uptime_cell out
+  _hi_cell_uptime out
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
-# _hi_ip_cell: a comma-joined list of dotted-quad addresses, or "?" - the
+# _hi_cell_ip: a comma-joined list of dotted-quad addresses, or "?" - the
 # shape is pinned rather than a value, which depends on this box's own
 # network config
 function test_ip_cell_has_a_shape() {
   local out
-  _hi_ip_cell out
+  _hi_cell_ip out
   [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
 }
 
@@ -445,7 +445,7 @@ function test_timestamp_without_date_says_unknown() {
   [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
-# unlike system_info's other cells, _hi_uptime_cell's only external dependency
+# unlike system_info's other cells, _hi_cell_uptime's only external dependency
 # on Linux is awk - which "stripped" still carries, since most probes need it -
 # so this stays a smoke test for "no raw shell error leaks out", not a claim
 # that the cell renders "?": a real /proc/uptime under a real Linux kernel
@@ -453,19 +453,19 @@ function test_timestamp_without_date_says_unknown() {
 # shellcheck disable=SC2016 # $u expands in the stripped child bash, not here
 function test_uptime_cell_survives_a_stripped_environment() {
   local out
-  out="$(_hi_stripped_header '_hi_uptime_cell u; printf "%s" "$u"')"
+  out="$(_hi_stripped_header '_hi_cell_uptime u; printf "%s" "$u"')"
   [[ "$out" == *"Up: "* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
 # The exact case the comment above contrasts itself with: every branch of
-# _hi_ip_cell's first stage is an external binary ("ip", "hostname",
+# _hi_cell_ip's first stage is an external binary ("ip", "hostname",
 # "ifconfig", "ipconfig") the stripped ("bash and awk only") target has none
 # of, so unlike uptime this doubles as a claim about the value, not only
 # about failing quietly - "?" is the only answer this environment can give.
 # shellcheck disable=SC2016 # $i expands in the stripped child bash, not here
 function test_ip_cell_says_unknown_under_a_stripped_environment() {
   local out
-  out="$(_hi_stripped_header '_hi_ip_cell i; printf "%s" "$i"')"
+  out="$(_hi_stripped_header '_hi_cell_ip i; printf "%s" "$i"')"
   [[ "$out" == *"IP: ?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
@@ -1157,7 +1157,7 @@ EOF
 function test_ip_cell_on_linux_reads_iproute2() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_ip_cell i; printf "[%s]" "$i"')"
+  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"')"
   [[ "$out" == *"[IP: 10.0.0.5,192.0.2.10]"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
@@ -1171,7 +1171,7 @@ function test_ip_cell_on_linux_reads_iproute2() {
 function test_ip_cell_on_linux_falls_back_to_hostname() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
+  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
   [[ "$out" == *"[IP: 198.51.100.7,198.51.100.8]"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
@@ -1223,7 +1223,7 @@ function test_system_info_on_a_mac() {
 function test_uptime_and_ip_cells_on_a_mac() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_uptime_cell u; _hi_ip_cell i; printf "%s\n%s\n" "$u" "$i"')"
+  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
   # kern.boottime 5400s ago; ifconfig's inet line, not inet6 and not lo0
   [[ "$out" == *"Up: 1h 30m"* && "$out" == *"IP: 192.0.2.10"* ]] || {
     _hi_cecho " | got: $out" "$RED"
@@ -1282,19 +1282,19 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
   printf '#!/bin/sh\nprintf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 172.17.0.2 netmask 0xffff0000\n\tinet 10.0.0.5 netmask 0xffffff00\n"\n' >"$dir/ifconfig"
   chmod +x "$dir/uname" "$dir/ifconfig"
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"')"
+  out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"')"
   [[ "$out" == *"[IP: 10.0.0.5]"* ]] || {
     _hi_cecho " | default got: $out" "$RED"
     return 1
   }
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_IP_HIDE="10.* 172.*")"
+  out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE="10.* 172.*")"
   [[ "$out" == *"[]"* ]] || {
     _hi_cecho " | all hidden got: $out" "$RED"
     return 1
   }
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
+  out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
   [[ "$out" == *"[IP: 172.17.0.2,10.0.0.5]"* ]] || {
     _hi_cecho " | none got: $out" "$RED"
     return 1
@@ -1304,7 +1304,7 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
 # ...and the header itself then prints no IP cell at all. Shimmed the same
 # way the sibling above is: hi_header run against the *real* uname/ifconfig
 # only proves this on a box whose live network happens to hand back a
-# non-loopback IPv4 the parser recognizes - on one that doesn't, _hi_ip_cell
+# non-loopback IPv4 the parser recognizes - on one that doesn't, _hi_cell_ip
 # takes its "nothing routable found" path and prints "IP: ?" regardless of
 # $_HI_IP_HIDE, which still contains "IP:" and fails this for a reason that
 # has nothing to do with the hiding this test means to check.
@@ -1325,7 +1325,7 @@ function test_header_omits_the_ip_cell_when_hidden() {
 function test_uptime_and_ip_cells_on_windows() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$(_hi_windows_shims)" '_hi_uptime_cell u; _hi_ip_cell i; printf "%s\n%s\n" "$u" "$i"')"
+  out="$(_hi_platform_header "$(_hi_windows_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
   # no sysctl on git-bash: uptime is not probed at all; ipconfig's CR is gone
   [[ "$out" == *"Up: ?"* && "$out" == *"IP: 10.0.0.5"* && "$out" != *$'\r'* ]] || {
     _hi_cecho " | got: $out" "$RED"
@@ -1398,6 +1398,8 @@ function test_hi_cell_hue_reads_the_leading_escape() {
   [ "$h" = 6 ]
 }
 
+# shellcheck disable=SC2153 # $BRCYAN is core.sh's palette variable; `brcyan`
+# below is this case's own local, not a misspelling of it
 function test_hi_cell_hue_ignores_the_bold_bit() {
   local cyan brcyan blue
   _hi_cell_hue cyan "${CYAN}x"
@@ -1887,37 +1889,21 @@ function test_packages_palette_unknown_falls_back_to_cool() {
   [ "${_HI_YES[*]}" = "${cool_yes[*]}" ] && [ "${_HI_NO[*]}" = "${cool_no[*]}" ]
 }
 
-# every escape in every named palette has to name a real _HI_COLOR_NAMES
-# entry, or a candidate ramp would paint the header with something
-# preview.sh's _hi_color_name_of could never look up. Both sides go
-# through `printf '%b'` before comparing, preview.sh's own
-# _hi_color_name_of shape: core.sh's palette variables hold the literal two
-# characters `\e`, while _hi_color_escape's format string interprets `\e` as
-# the real ESC byte - unexpanded, every comparison here would silently miss.
-function test_packages_palette_escapes_are_all_named_colors() {
-  local name escape found candidate want have scheme
-  # under every scheme too (HI.50): the ramps are captured from the palette
-  # variables, so they are rebuilt per scheme the way configure.sh does. A
-  # 24-word list paints the ramps from the second bank, whose 24-bit tail no
-  # palette variable carries: the name is the 16-color half, so that is what
-  # both sides are cut to (_hi_sgr_base), preview.sh's own shape.
-  for scheme in "" catppuccin monokai onedark vscode "$_HI_TEST_L24"; do
-    for name in $(_hi_palette_names); do
-      (
-        # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-        export _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1
-        _hi_assign_palette
-        _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-        for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-          _hi_sgr_base want "$(printf '%b' "$escape")"
-          found=""
-          for candidate in "${_HI_COLOR_NAMES[@]}"; do
-            _hi_sgr_base have "$(printf '%b' "$(_hi_color_escape "$candidate")")"
-            [ "$have" = "$want" ] && found=1 && break
-          done
-          [ -n "$found" ] || exit 1
-        done
-      ) || return 1
+# every name in every ramp has to be a real _HI_COLOR_NAMES entry, or a
+# candidate ramp would ask _hi_ramp_escape for a slot that does not exist and
+# paint the header with nothing. A direct membership check now the ramps store
+# names: it used to render each escape and search the palette for one whose
+# 16-color half matched, which is the round trip storing names removes.
+function test_packages_palette_names_are_all_real_colors() {
+  local name entry found candidate
+  for name in $(_hi_palette_names); do
+    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+    for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
+      found=""
+      for candidate in "${_HI_COLOR_NAMES[@]}"; do
+        [ "$candidate" = "$entry" ] && found=1 && break
+      done
+      [ -n "$found" ] || return 1
     done
   done
   [ "$(_hi_palette_names | wc -l)" -ge 3 ]
@@ -2184,7 +2170,7 @@ function run_header_tests() {
   _hi_h2 "Testing: _hi_packages_palette"
   _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
   _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
-  _hi_check "Every escape names a real color" test_packages_palette_escapes_are_all_named_colors
+  _hi_check "Every escape names a real color" test_packages_palette_names_are_all_real_colors
   _hi_check "The check paints from the second bank under 24 words" test_packages_palette_uses_the_second_bank_under_24_words
   _hi_check "...and from the first under 12" test_packages_palette_keeps_the_first_bank_under_12_words
   _hi_check "...and stays empty under NO_COLOR" test_packages_palette_second_bank_is_inert_under_no_color

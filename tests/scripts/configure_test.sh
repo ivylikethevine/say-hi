@@ -895,6 +895,21 @@ function test_preset_shorthand_resolves_each_first_letter() {
     [ "$(preset_shorthand m)" = "minimal" ]
 }
 
+# the header presets go through the same two helpers as the main ones. They
+# used to have their own copy of the first-letter match with no ambiguity
+# guard and no break, so two presets sharing a letter resolved to whichever
+# came last, and an exact name match could be clobbered by a later prefix.
+function test_preset_shorthand_is_table_agnostic_and_refuses_ambiguity() {
+  local -a _HI_TEST_PRESETS=("alpha|first|a b" "apex|second|c d" "zulu|third|e f")
+  # unambiguous letter and exact name both resolve
+  [ "$(preset_shorthand z _HI_TEST_PRESETS)" = zulu ] || return 1
+  [ "$(preset_row apex _HI_TEST_PRESETS)" = "apex|second|c d" ] || return 1
+  # two names share "a", so the letter is refused rather than guessed
+  ! preset_shorthand a _HI_TEST_PRESETS 2>/dev/null || return 1
+  # and the real header table still answers through the same helpers
+  [ -n "$(preset_names _HI_HEADER_PRESETS)" ]
+}
+
 function test_preset_shorthand_rejects_unknown_letter() {
   ! preset_shorthand z 2>/dev/null
 }
@@ -1188,7 +1203,8 @@ function test_starship_preview_reports_an_absent_one() {
 function test_floor_preview_says_off_at_the_top_floor() {
   _hi_load_preview_sources
   local out
-  out="$(_hi_strip_ansi "$(_hi_floor_candidate=4 _hi_packages_floor_preview)")"
+  # the candidate is an argument now, not a global the caller had to set
+  out="$(_hi_strip_ansi "$(_hi_packages_floor_preview 4)")"
   [[ "$out" == *"nothing - the check is off at this floor"* ]]
 }
 
@@ -1835,6 +1851,7 @@ function run_configure_tests() {
   _hi_check "A preset seeds every answer in its vocabulary" test_apply_preset_seeds_every_answer
   _hi_check "An unknown preset is refused" test_apply_preset_rejects_a_stranger
   _hi_check "Shorthand resolves each preset's first letter" test_preset_shorthand_resolves_each_first_letter
+  _hi_check "Shorthand is table-agnostic and refuses ambiguity" test_preset_shorthand_is_table_agnostic_and_refuses_ambiguity
   _hi_check "Shorthand rejects an unknown letter" test_preset_shorthand_rejects_unknown_letter
   _hi_check "Shorthand rejects more than one character" test_preset_shorthand_rejects_multiple_characters
   _hi_check "Every preset stays inside the vocabulary" test_every_preset_names_only_vocabulary

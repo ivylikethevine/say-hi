@@ -485,28 +485,22 @@ function test_meanings_take_only_the_block_above_the_table() {
   [ "$(_hi_priority_meanings | awk -F'\t' '$1 == 2' | wc -l)" -eq 1 ]
 }
 
-function test_color_name_of_names_a_palette_entry() {
-  [ "$(_hi_color_name_of "$BRGREEN")" = brgreen ] &&
-    [ "$(_hi_color_name_of "$YELLOW")" = yellow ]
-}
 
-# every escape in the header's two tables has to name something, or the legend
-# prints a color the user cannot look up in settings/colors - checked for
+# every entry in the header's two ramps has to be a name the user can look up
+# in settings/colors, or the legend prints something meaningless - checked for
 # every named palette, not just whichever one is active when the suite runs,
-# since _HI_YES/_HI_NO are _hi_packages_palette's output and this suite never
-# sets $_HI_PACKAGES_PALETTE itself
-function test_color_name_of_names_every_header_color() {
-  local name escape
+# since the ramps are _hi_packages_palette's output and this suite never sets
+# $_HI_PACKAGES_PALETTE itself
+function test_legend_names_every_header_color() {
+  local name entry
   for name in $(_hi_palette_names); do
     _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-    for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-      [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
+    for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
+      [ -n "$entry" ] || return 1
+      printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qx "$entry" || return 1
     done
   done
-  # back to whatever the suite's own fixtures assume elsewhere
-  unset _HI_PACKAGES_PALETTE
   _hi_packages_palette
-  return 0
 }
 
 function test_collect_counts_every_listed_package() {
@@ -738,18 +732,6 @@ function test_preview_names_the_active_palette() {
   [[ "$_HI_PACKAGES_OUT" == *"palette: cool"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]]
 }
 
-# under a scheme the escapes carry a 24-bit tail, and the reverse map still
-# has to name them - through a fresh bash, since _HI_COLOR_ESCAPES is
-# resolved when the script is sourced (HI.50)
-function test_color_name_of_names_scheme_escapes() {
-  local out
-  # shellcheck disable=SC2016 # the script expands in the child bash, not here
-  out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
-    . "$_HI_HOME/say-hi/common/core.sh"
-    . "$_HI_HOME/say-hi/scripts/preview.sh"
-    printf "%s %s %s" "$(_hi_color_name_of "$BRGREEN")" "$(_hi_color_name_of "$RED")" "$(_hi_color_name_of "$NC")"')"
-  [ "$out" = "brgreen red plain" ]
-}
 
 # a scheme of the user's own is named by its shape, and a 24-word one paints
 # the legend from its second bank - which the reverse map still names, since
@@ -765,16 +747,6 @@ function test_preview_names_a_custom_scheme_and_its_bank() {
   [[ "$out" == *"scheme: not a scheme (ignored - not a scheme)"* ]]
 }
 
-function test_color_name_of_names_second_bank_escapes() {
-  local out
-  # shellcheck disable=SC2016 # the script expands in the child bash, not here
-  out="$(env _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
-    . "$_HI_HOME/say-hi/common/core.sh"
-    . "$_HI_HOME/say-hi/scripts/preview.sh"
-    _hi_color_escape_at e 17; _hi_color_escape_at f 12
-    printf "%s %s %s" "$(_hi_color_name_of "$e")" "$(_hi_color_name_of "$f")" "$(_hi_color_name_of "$BRGREEN")"')"
-  [ "$out" = "cyan red brgreen" ]
-}
 
 function test_preview_names_every_priority() {
   local i stripped
@@ -942,13 +914,10 @@ EOF
   _hi_check "Reads only the block above the tables" test_meanings_take_only_the_block_above_the_table
 
   _hi_h2 "Testing: packages - naming the header's colors"
-  _hi_check "Names a palette entry" test_color_name_of_names_a_palette_entry
-  _hi_check "Names every color the header uses" test_color_name_of_names_every_header_color
+  _hi_check "Names every color the header uses" test_legend_names_every_header_color
   # $NC is not a palette color, and neither is anything under $NO_COLOR
-  _hi_check_eq "Calls a reset plain" plain _hi_color_name_of "$NC"
   # ...and under $NO_COLOR every escape *is* the empty string - the short-
   # circuit branch, not the table walk
-  _hi_check_eq "Calls an empty escape plain" plain _hi_color_name_of ""
 
   _hi_h2 "Testing: packages - examples, via the header's check_line"
   _hi_check "Counts every listed package" test_collect_counts_every_listed_package
@@ -984,9 +953,7 @@ EOF
   _hi_check_eq "-h matches --help" "$(_hi_render_packages_help --help)" _hi_render_packages_help -h
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
-  _hi_check "Names a scheme's escapes" test_color_name_of_names_scheme_escapes
   _hi_check "Names a custom scheme, and its second bank" test_preview_names_a_custom_scheme_and_its_bank
-  _hi_check "Names second-bank escapes" test_color_name_of_names_second_bank_escapes
   _hi_check "Names every priority" test_preview_names_every_priority
   _hi_check "Explains the mode characters" test_preview_explains_the_modes
   _hi_check "Counts what it read" test_preview_counts_what_it_read

@@ -87,6 +87,20 @@ function _hi_shell_rows() {
   done
 }
 
+# _hi_shell_wired <name> - is <name> a shell hi wires up? The table above is
+# the answer, and the header there says so ("a new one gets an arm in
+# install.sh's tmpdir_line, not a special case per consumer") - but load.sh's
+# session-shell filter and configure.sh's $_HI_SHELL_PREFERENCE validator each
+# spelled the roster out instead, and the two have to agree: configure.sh
+# accepts a word load.sh then has to honour.
+function _hi_shell_wired() {
+  local row
+  for row in "${_HI_SHELL_TABLE[@]}"; do
+    [ "${row%%|*}" = "$1" ] && return 0
+  done
+  return 1
+}
+
 # The one shell preference order, best first: load.sh's _hi_session_shell and
 # hi.sh's $_HI_SHELL_LADDER (this minus bash) both derive from it. dash/ash/sh
 # are one tier, named separately to say which `sh` a target gets.
@@ -424,18 +438,6 @@ function _hi_unexport() {
 function _hi_sanitize_var() {
   local _hi_s="${2//[[:cntrl:]]/}"
   printf -v "$1" '%s' "${_hi_s//\\/}"
-}
-
-# tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
-# lands on the destination and severs any hardlink/ACL. The mode is captured
-# and reapplied too, since truncate-in-place alone did not preserve it on
-# Windows Git Bash. GLOSSARY: HI.09
-function _hi_write_back() {
-  local mode=""
-  [ -e "$2" ] && mode="$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)"
-  cat "$1" >"$2"
-  [ -n "$mode" ] && chmod "$mode" "$2" 2>/dev/null
-  command rm -f "$1"
 }
 
 # The version, unpresented: a packager's stamp (or the client's, shipped by

@@ -902,6 +902,24 @@ function test_flags_do_not_probe() {
   return 1
 }
 
+# paths.sh's $_HI_WORD_FLAGS is the membership test all four completions use;
+# targets.sh's `words` case is the content. Nothing made the two agree, so a
+# new word-taking flag could land here and silently never complete anywhere.
+function test_word_flags_match_the_words_roster() {
+  local arms want got
+  # the arm labels of the `words` case, in file order.
+  # shellcheck disable=SC2016 # the sed script is literal, not an expansion
+  arms="$(sed -n '/if \[ "\$kind" = words \]/,/^fi$/p' "$_HI_TARGETS" |
+    sed -n 's/^  \(--[a-z-]*\))$/\1/p' | sort | tr '\n' ' ')"
+  # shellcheck disable=SC2086 # the split is the roster
+  want="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
+  got="$arms"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | targets.sh answers for [$got], _HI_WORD_FLAGS names [$want]" "$RED"
+    return 1
+  }
+}
+
 function run_targets_tests() {
   _hi_workdir targetstest
 
@@ -980,6 +998,7 @@ function run_targets_tests() {
   _hi_check "flags: answered without probing a backend" test_flags_do_not_probe
   _hi_check "flags: a dash word completes hi's options" test_complete_offers_hi_flags_for_a_dash_word
   _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
+  _hi_check "words: the roster and \$_HI_WORD_FLAGS agree" test_word_flags_match_the_words_roster
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
   _hi_suite_end "targets.sh"

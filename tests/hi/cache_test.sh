@@ -414,6 +414,25 @@ function test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket() {
     [ "${#ctl_opts[@]}" -eq 0 ]
 }
 
+# An MSYS/Cygwin client gets no socket at all, whatever the runtime dir says:
+# ssh's mux hands file descriptors over an AF_UNIX socket and that runtime
+# does not carry them, so a ControlPath there kills the connection rather than
+# degrading it. $OSTYPE is bash's own, set at build time, so a case can set it.
+function test_ctl_open_declines_to_multiplex_on_msys() {
+  local DOMAIN=liona dir ctl_dir ctl_path ctl_shared
+  local -a SSHARGS=() ctl_opts=()
+  _hi_ctl_vars
+  dir="$(_hi_cache_rt ctl.msys)"
+  OSTYPE=msys XDG_RUNTIME_DIR="$dir" _hi_ctl_open 60 shared
+  [ "$ctl_shared" = 0 ] && [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
+    [ "${#ctl_opts[@]}" -eq 0 ] || return 1
+  # ...and the run scope, which reaches the mktemp arm instead
+  OSTYPE=cygwin XDG_RUNTIME_DIR="$dir" _hi_ctl_open 30 run -o BatchMode=yes
+  # the two extra words are all that is left: no ControlMaster, no ControlPath
+  [ -z "$ctl_dir" ] && [ -z "$ctl_path" ] &&
+    [ "${#ctl_opts[@]}" -eq 2 ] && _hi_ctl_has_opt "BatchMode=yes"
+}
+
 # `run` never shares, even with a perfectly good runtime dir - scripts/doctor.sh
 # asks for it precisely so a diagnostic leaves no socket behind
 function test_ctl_open_run_never_shares() {
@@ -529,6 +548,7 @@ function run_cache_tests() {
   _hi_check "Shared falls back when persist is 0" test_ctl_open_shared_falls_back_when_persist_is_zero
   _hi_check "Shared falls back without a runtime dir" test_ctl_open_shared_falls_back_without_a_runtime_dir
   _hi_check "Gives up quietly with nowhere to put a socket" test_ctl_open_gives_up_quietly_with_nowhere_to_put_a_socket
+  _hi_check "No multiplexing on an MSYS client" test_ctl_open_declines_to_multiplex_on_msys
   _hi_check "run never shares" test_ctl_open_run_never_shares
   _hi_check_capable mode_bits "run's socket dir is private" test_ctl_open_run_socket_dir_is_private
   _hi_check "Extra ssh options are appended" test_ctl_open_appends_extra_ssh_options

@@ -241,16 +241,6 @@ function test_scheme_label_names_every_shape() {
   [ "$l" = "solarized (ignored - not a scheme)" ]
 }
 
-function test_sgr_base_drops_the_24_bit_tail() {
-  local b
-  _hi_sgr_base b '\e[1;36;38;2;17;168;205m'
-  [ "$b" = '\e[1;36m' ] || return 1
-  _hi_sgr_base b '\e[0;31m'
-  [ "$b" = '\e[0;31m' ] || return 1
-  _hi_sgr_base b ""
-  [ -z "$b" ]
-}
-
 # _hi_cecho's %b is for the palette; the text goes through %s. What it prints
 # is a target's or ssh's words as often as hi's - _hi_report_failure feeds a
 # connect errlog through it - so a backslash a target wrote has to come out a
@@ -1056,7 +1046,6 @@ function run_core_tests() {
   _hi_check "A malformed list falls back to 16 colors" test_scheme_bad_list_falls_back_to_16_color
   _hi_check "_hi_scheme_ok takes names and lists" test_scheme_ok_takes_names_and_lists
   _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
-  _hi_check "_hi_sgr_base drops the 24-bit tail" test_sgr_base_drops_the_24_bit_tail
 
   _hi_h2 "Testing: _hi_cecho"
   _hi_check "Prints the text verbatim" test_cecho_prints_the_text_verbatim

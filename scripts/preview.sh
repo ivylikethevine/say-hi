@@ -504,7 +504,7 @@ function _hi_print_hosts_table() {
 #
 
 # _hi_priority_meanings - "<priority>\t<meaning>" per priority, read from the
-# comment block header.sh keeps directly above _HI_YES rather than copied here:
+# comment block header.sh keeps directly above _HI_YES_NAMES, not copied here:
 # that block is the only description of the priorities there is, and a copy
 # would be a second thing to keep true. Only the run of lines immediately
 # preceding _HI_YES counts, so an unrelated "# 2 ..." elsewhere can't join in.
@@ -512,7 +512,7 @@ function _hi_print_hosts_table() {
 # ones, from the file the header will actually read.
 function _hi_priority_meanings() {
   awk '
-    /^_HI_YES=/ {
+    /^_HI_YES_NAMES=/ {
       for (i = 1; i <= n; i++) print buf[i]
       exit
     }
@@ -526,43 +526,6 @@ function _hi_priority_meanings() {
     }
     { n = 0 }
   ' "$_HI_HEADER"
-}
-
-# _hi_color_name_of <escape> - name the palette entry an escape came from, so
-# the table can print "brgreen" beside a cell painted with it. _HI_YES/_HI_NO
-# hold escapes, not names, and this is the only way back without a second copy
-# of the mapping. Both sides go through printf '%b' because core.sh's palette
-# variables hold a literal "\e[..." while _hi_color_escape emits a real ESC,
-# and both are cut to their 16-color half (_hi_sgr_base): under a 24-word
-# scheme the check's escapes carry the second bank's hex, and the name is
-# the half they share. Anything outside the palette - $NC, and every color
-# under $NO_COLOR - is "plain", which is exactly how it will render.
-# The escapes for _HI_COLOR_NAMES, in the same order, resolved once. Built
-# here rather than inside _hi_color_name_of, which the legend calls four
-# times a row - resolving all twelve names on every one of those calls would
-# fork _hi_color_escape forty-eight times instead of twelve.
-_HI_COLOR_ESCAPES=()
-for _hi_cn in "${_HI_COLOR_NAMES[@]}"; do
-  _HI_COLOR_ESCAPES+=("$(_hi_color_escape "$_hi_cn")")
-done
-unset _hi_cn
-
-function _hi_color_name_of() {
-  local want have i=0
-  _hi_sgr_base want "$(printf '%b' "$1")"
-  [[ -n "$want" ]] || {
-    printf 'plain'
-    return
-  }
-  while ((i < ${#_HI_COLOR_NAMES[@]})); do
-    _hi_sgr_base have "${_HI_COLOR_ESCAPES[i]}"
-    [[ "$want" = "$have" ]] && {
-      printf '%s' "${_HI_COLOR_NAMES[i]}"
-      return
-    }
-    i=$((i + 1))
-  done
-  printf 'plain'
 }
 
 # Filled by _hi_collect_examples, read by the table: per-priority example rows
@@ -653,14 +616,14 @@ function _hi_print_priorities_table() {
   _hi_read_lines rows < <(_hi_priority_meanings | LC_ALL=C sort -k1,1nr)
 
   # The measure pass keeps what it worked out, indexed by row, so the render
-  # pass below reads it instead of calling _hi_color_name_of and
+  # pass below reads it instead of calling
   # _hi_example_cell a second time for every row. Same parallel-array shape as
   # _HI_EX_OK/_HI_EX_OK_W above.
   for entry in ${rows[@]+"${rows[@]}"}; do
     IFS=$'\t' read -r p meaning <<<"$entry"
     _hi_widen w_meaning "$meaning"
-    c_yes[i]="$(_hi_color_name_of "${_HI_YES[p]:-}")"
-    c_no[i]="$(_hi_color_name_of "${_HI_NO[p]:-}")"
+    c_yes[i]="${_HI_YES_NAMES[p]:-plain}"
+    c_no[i]="${_HI_NO_NAMES[p]:-plain}"
     _hi_widen w_yes "${c_yes[i]}"
     _hi_widen w_no "${c_no[i]}"
     IFS=$'\t' read -r example ex_width <<<"$(_hi_example_cell "$p")"

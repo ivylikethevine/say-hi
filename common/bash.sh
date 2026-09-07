@@ -95,8 +95,8 @@ function _hi_complete() {
   ((COMP_CWORD > 1)) && prev="${COMP_WORDS[COMP_CWORD - 1]}"
   # the word a flag takes - `hi --preview <TAB>`, `hi --use <TAB>` - is
   # neither a flag nor a target: targets.sh's words roster, no probe
-  case "$prev" in
-  --preview | --use)
+  case " $_HI_WORD_FLAGS " in
+  *" $prev "*)
     while IFS=$'\t' read -r n _; do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
     done < <(sh "$_HI_TARGETS" words "$prev")

@@ -190,9 +190,9 @@ function test_config_flags_a_settings_file_that_does_not_parse() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
+    doctor_configs
   )"
-  [[ "$out" == *"does NOT parse as sh"* ]]
+  [[ "$out" == *"settings.sh"*"has issues (sh)"* ]]
 }
 
 function test_config_counts_an_overlay_file() {
@@ -209,6 +209,10 @@ function test_config_counts_an_overlay_file() {
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
 # at their defaults folded into one quiet line
+# the parse verdict is doctor_configs', off rc.sh's _HI_OVERLAY_CHECKS - one
+# row per parser that reads the file. doctor_config only says when it is
+# absent; it used to carry a third hand-written copy of the same ladder, so a
+# present settings.sh was reported twice in two sections.
 function test_config_reports_a_settings_file_that_parses() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/goodcfg.XXXXXX")"
@@ -217,8 +221,11 @@ function test_config_reports_a_settings_file_that_parses() {
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
+    doctor_configs
   )"
-  [[ "$out" == *"settings.sh"*"present, parses"* && "$out" == *"all defaults"* ]]
+  [[ "$out" == *"settings.sh"*"parses (sh)"* && "$out" == *"all defaults"* ]] || return 1
+  # and exactly once per parser, not once more from a hand-written arm
+  [ "$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")" -eq 1 ]
 }
 
 # a scheme that is neither a name nor 12/24 hex words renders nothing, and
@@ -252,9 +259,10 @@ function test_config_flags_a_settings_file_that_is_not_fish() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
+    doctor_configs
   )"
-  [[ "$out" == *"parses as sh but NOT as fish"* ]]
+  [[ "$out" == *"settings.sh"*"parses (sh)"* ]] || return 1
+  [[ "$out" == *"settings.sh"*"has issues (fish)"* ]]
 }
 
 # the system layer gets the same two parse checks as settings.sh
