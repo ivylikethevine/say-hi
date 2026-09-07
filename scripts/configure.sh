@@ -148,6 +148,27 @@ function ask_setting() {
 # empty - the caller records nothing rather than restating a shipped default.
 # Non-interactive runs keep what is configured, like ask_setting. The
 # messages go to stderr: stdout is the captured answer.
+# ask_setting_value <var> <default> <validator-fn> <invalid-msg> <question> -
+# ask_value against a setting, recorded. The whole shape of every free-text
+# question here: this run's answer (or the file's) is the current value, and
+# the reply goes back into the pending set. It was written out eight times,
+# six of them with a dead `current=""` ahead of it - setting_value assigns its
+# outvar on both paths, so that store never survived to be read.
+function ask_setting_value() {
+  local _hi_asv_cur=""
+  setting_value "$1" "$_HI_SETTINGS" _hi_asv_cur
+  _hi_pending_set "$1" "$(ask_value "$5" "$_hi_asv_cur" "$2" "$3" "$4")"
+}
+
+# _hi_shell_var <outvar> <shell> - the uppercase half of a $_HI_PROMPT_END_<SHELL>
+# name. _HI_RC_TABLE carries the shell lowercase and the setting is spelled
+# uppercase, so three sites bridged the two with their own `tr` - two forks
+# apiece, and one of them runs per wired shell on every redraw of the Prompt
+# menu. bash 3.2 has no ${x^^}, so a helper is the fork-free-ish form.
+function _hi_shell_var() {
+  printf -v "$1" '%s' "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
+}
+
 function ask_value() {
   local question="$1" current="$2" default="$3" validate="$4" invalid_msg="$5"
   local value reply=""
@@ -201,7 +222,7 @@ function _hi_is_shell_list() {
   [ -n "$1" ] || return 1
   # shellcheck disable=SC2086 # the split is the point: one word per shell
   for word in $1; do
-    case "$word" in login | bash | zsh | fish) ;; *) return 1 ;; esac
+    [ "$word" = login ] || _hi_shell_wired "$word" || return 1
   done
 }
 
@@ -450,9 +471,12 @@ function _hi_starship_preview() {
 # call, so a prefix assignment around it is the whole trick. An empty render is
 # a real answer at a high enough floor, and says so rather than showing
 # show_preview a blank string, which it would drop on the floor.
+# <candidate> - the floor to render at. Taken as an argument rather than read
+# out of config_packages_floor's scope: show_preview already runs "$@", so the
+# two were coupled through a bare global name for nothing.
 function _hi_packages_floor_preview() {
-  local out
-  out="$(_HI_PACKAGES_MIN_PRIORITY="${_hi_floor_candidate:-2}" full_check)"
+  local out candidate="${1:-2}"
+  out="$(_HI_PACKAGES_MIN_PRIORITY="$candidate" full_check)"
   if [ -n "$out" ]; then
     printf '%s\n' "$out"
   else
@@ -541,49 +565,6 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
   "_HI_DISABLE_LOCAL_PROMPT|1||| Enable hi's prompt on this machine too? (no keeps a starship, powerlevel10k or oh-my-zsh prompt you already have here; targets get hi's either way)||hi's prompt on this machine too - no keeps the prompt you already have here"
 )
-
-# What draws the prompt in this user's own rc files today, if anything hi
-# would replace: the name on stdout, failure when none is found. Read from
-# the user's rc files (core.sh's _HI_SHELL_TABLE), never hi's own, and hi's
-# marker-tagged lines are skipped so a previous install does not read as a
-# framework. Two shapes: a file that sources or inits one by name, and fish's
-# fish_prompt.fish function file, which is a hand-written prompt by definition.
-_HI_PROMPT_FRAMEWORKS=(
-  "starship|starship init"
-  "powerlevel10k|powerlevel10k|p10k"
-  "oh-my-zsh|oh-my-zsh|ZSH_THEME="
-  "prezto|prezto"
-  "zimfw|zimfw|zmodule"
-  "oh-my-bash|oh-my-bash|OSH_THEME="
-  "bash-it|bash-it|BASH_IT_THEME="
-  "liquidprompt|liquidprompt"
-)
-
-function detect_prompt_framework() {
-  local rc row name pat rest hit=""
-  local -a rcs=("$_HI_HOME_BASHRC" "$_HI_HOME_ZSHRC" "$_HI_HOME_FISH_CONFIG")
-  [ -n "${ZDOTDIR:-}" ] && rcs+=("$ZDOTDIR/.zshrc")
-  for rc in "${rcs[@]}"; do
-    [ -f "$rc" ] || continue
-    for row in "${_HI_PROMPT_FRAMEWORKS[@]}"; do
-      IFS='|' read -r name rest <<<"$row"
-      while [ -n "$rest" ]; do
-        pat="${rest%%|*}"
-        [ "$pat" = "$rest" ] && rest="" || rest="${rest#*|}"
-        if grep -v -F "$_HI_MARKER" "$rc" 2>/dev/null | grep -q -F -- "$pat"; then
-          hit="$name"
-          break 2
-        fi
-      done
-    done
-    [ -n "$hit" ] && break
-  done
-  if [ -z "$hit" ] && [ -f "${_HI_HOME_FISH_CONFIG%/*}/functions/fish_prompt.fish" ]; then
-    hit="your own fish_prompt"
-  fi
-  [ -n "$hit" ] || return 1
-  printf '%s' "$hit"
-}
 
 # First configure only (no settings.sh yet): a prompt framework found in the
 # user's rc files answers _HI_DISABLE_LOCAL_PROMPT with "keep theirs", said
@@ -677,9 +658,17 @@ function _hi_preset_vocab() {
 }
 
 # preset_row <name> - its table row, or failure for a name that is not one
+# The three helpers take an optional table name so the header presets can use
+# them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, and
+# config_header_preset used to re-implement all three - the listing, the row
+# lookup, and the first-letter match. That third copy had no ambiguity guard
+# and no break, so it silently took the *last* preset whose name started with
+# the typed letter, and a prefix match could clobber an exact name match.
 function preset_row() {
   local row
-  for row in "${_HI_PRESETS[@]}"; do
+  local -a _hi_pr_rows
+  _hi_prompt_rows "${2:-_HI_PRESETS}" _hi_pr_rows
+  for row in "${_hi_pr_rows[@]}"; do
     [ "${row%%|*}" = "$1" ] && {
       printf '%s' "$row"
       return 0
@@ -690,7 +679,9 @@ function preset_row() {
 
 function preset_names() {
   local row
-  for row in "${_HI_PRESETS[@]}"; do printf '%s ' "${row%%|*}"; done
+  local -a _hi_names_rows
+  _hi_prompt_rows "${1:-_HI_PRESETS}" _hi_names_rows
+  for row in "${_hi_names_rows[@]}"; do printf '%s ' "${row%%|*}"; done
 }
 
 # preset_shorthand <letter> - the one preset whose name starts with <letter>,
@@ -699,8 +690,10 @@ function preset_names() {
 # error rather than guessing, so a typo still gets the full name list back.
 function preset_shorthand() {
   local row name hit="" hits=0
+  local -a _hi_ps_rows
   [ "${#1}" -eq 1 ] || return 1
-  for row in "${_HI_PRESETS[@]}"; do
+  _hi_prompt_rows "${2:-_HI_PRESETS}" _hi_ps_rows
+  for row in "${_hi_ps_rows[@]}"; do
     name="${row%%|*}"
     if [ "${name:0:1}" = "$1" ]; then
       hit="$name"
@@ -1080,10 +1073,13 @@ function config_header_preset() {
   done
   menu_read " Header preset? (a letter or the name, Enter to keep the list as it is) [] " reply || return 0
   [ -n "$reply" ] || return 0
-  for row in "${_HI_HEADER_PRESETS[@]}"; do
-    name="${row%%|*}"
-    [ "$name" = "$reply" ] || [ "${name:0:1}" = "$reply" ] && short="$name"
-  done
+  # an exact name first, then an unambiguous first letter - config_preset's
+  # own rule, through the same two helpers rather than a third copy of it
+  if preset_row "$reply" _HI_HEADER_PRESETS >/dev/null; then
+    short="$reply"
+  else
+    short="$(preset_shorthand "$reply" _HI_HEADER_PRESETS)" || short=""
+  fi
   [ -n "$short" ] && _hi_header_edit_preset "$short" && return 0
   _hi_cecho " no such header preset: $reply" "$YELLOW"
   return 0
@@ -1100,21 +1096,17 @@ function config_header_preset() {
 # re-asked at most $max_rejects times and then keeps the current value - the
 # loop is a dial, not a validator, and an unbounded retry here is a hang.
 function config_packages_floor() {
-  local current reply rejects=0 max_rejects=3
+  local current reply rejects=0 max_rejects=3 _hi_floor_candidate
   current=""
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" current
   _hi_floor_candidate="${current:-2}"
   if [ -t 0 ]; then
     _hi_load_preview_sources
     while :; do
-      show_preview _hi_packages_floor_preview
-      # A failed read is EOF - a closed pipe, ^D, or a driver that ran out of
-      # input - and never an answer. Break, and close the prompt line, since
-      # read -p leaves the cursor on it.
-      if ! read -r -p " Lowest package priority to show (0-3, or 4 to turn the check off)? [$_hi_floor_candidate] " reply; then
-        printf '\n' >&2
-        break
-      fi
+      show_preview _hi_packages_floor_preview "$_hi_floor_candidate"
+      # menu_read carries the EOF contract (read, close the prompt line, rc 1)
+      # this used to restate; its lowercase-and-squeeze is a no-op on a number
+      menu_read " Lowest package priority to show (0-3, or 4 to turn the check off)? [$_hi_floor_candidate] " reply || break
       [ -z "$reply" ] && break
       if ! _hi_is_number "$reply" || [ "$reply" -gt 4 ]; then
         rejects=$((rejects + 1))
@@ -1180,22 +1172,16 @@ function config_color_scheme() {
 # bridge range), so typing it clears the override the way config_max_width's
 # 80 does; `none` shows every address.
 function config_ip_hide() {
-  local current="" value
-  setting_value _HI_IP_HIDE "$_HI_SETTINGS" current
-  value="$(ask_value "Hide which addresses from the ip cell (globs, space-separated, or none)?" \
-    "$current" '172.*' _hi_is_ip_hide "answer none, or globs like 172.* 10.0.*")"
-  _hi_pending_set _HI_IP_HIDE "$value"
+  ask_setting_value _HI_IP_HIDE '172.*' _hi_is_ip_hide "answer none, or globs like 172.* 10.0.*" \
+    "Hide which addresses from the ip cell (globs, space-separated, or none)?"
 }
 
 # Ask for the header/banner's terminal width. Entering 80 (common/core.sh's
 # own built-in default, via ${_HI_MAX_WIDTH:-80}) clears the override instead
 # of writing it out.
 function config_max_width() {
-  local current="" value
-  setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" current
-  value="$(ask_value "Terminal width for the header/banner?" "$current" 80 \
-    _hi_is_number "not a number")"
-  _hi_pending_set _HI_MAX_WIDTH "$value"
+  ask_setting_value _HI_MAX_WIDTH 80 _hi_is_number "not a number" \
+    "Terminal width for the header/banner?"
 }
 
 # The Prompt menu: the sample line rendered, starship as item 1, then what
@@ -1221,7 +1207,7 @@ function config_prompt() {
     printf '   1) [%s] %s\n' "$state" "starship draws the prompt on targets that have it"
     for i in "${!shells[@]}"; do
       name="${shells[$i]}"
-      shell="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
+      _hi_shell_var shell "$name"
       _hi_prompt_end_shown "$shell" current
       printf '   %d) %-5s prompt ends with  %s\n' "$((i + 2))" "$name" "$current"
     done
@@ -1237,7 +1223,7 @@ function config_prompt() {
     if _hi_is_number "$reply" && [ "$reply" -ge 2 ] && [ "$reply" -le "$n" ]; then
       rejects=0
       name="${shells[$((reply - 2))]}"
-      shell="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
+      _hi_shell_var shell "$name"
       default="$(_hi_prompt_end_default "$shell")"
       var="_HI_PROMPT_END_$shell"
       current=""
@@ -1260,15 +1246,12 @@ function config_prompt() {
 function config_advanced_values() {
   local current value choice
 
-  current=""
-  setting_value _HI_SHELL_PREFERENCE "$_HI_SETTINGS" current
-  value="$(ask_value "Shell a session runs in, in order of preference (login = your own login shell; bash, zsh, fish)?" \
-    "$current" login _hi_is_shell_list "only login, bash, zsh and fish are understood")"
-  _hi_pending_set _HI_SHELL_PREFERENCE "$value"
+  ask_setting_value _HI_SHELL_PREFERENCE login _hi_is_shell_list \
+    "only login, bash, zsh and fish are understood" \
+    "Shell a session runs in, in order of preference (login = your own login shell; bash, zsh, fish)?"
 
   # _HI_ASCII is a 1/0/unset flag; the question uses words and maps both ways,
   # since "1" for ASCII is a fact about the implementation, not an answer
-  current=""
   setting_value _HI_ASCII "$_HI_SETTINGS" current
   case "$current" in 1) choice=ascii ;; 0) choice=glyphs ;; *) choice="" ;; esac
   value="$(ask_value "Banner/prompt/package glyphs: auto (by the locale), glyphs, or ascii?" \
@@ -1276,29 +1259,18 @@ function config_advanced_values() {
   case "$value" in ascii) value=1 ;; glyphs) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_ASCII "$value"
 
-  current=""
-  setting_value _HI_TARGETS_TTL "$_HI_SETTINGS" current
-  value="$(ask_value "(completion) Seconds hi <TAB> reuses its target list for (0 = never)?" \
-    "$current" 5 _hi_is_number "not a number")"
-  _hi_pending_set _HI_TARGETS_TTL "$value"
+  ask_setting_value _HI_TARGETS_TTL 5 _hi_is_number "not a number" \
+    "(completion) Seconds hi <TAB> reuses its target list for (0 = never)?"
 
-  current=""
-  setting_value _HI_PROBE_TIMEOUT "$_HI_SETTINGS" current
-  value="$(ask_value "(completion and the header) Seconds any one backend (docker, kubectl, ...) gets to answer?" \
-    "$current" 2 _hi_is_seconds "not a number of seconds")"
-  _hi_pending_set _HI_PROBE_TIMEOUT "$value"
+  ask_setting_value _HI_PROBE_TIMEOUT 2 _hi_is_seconds "not a number of seconds" \
+    "(completion and the header) Seconds any one backend (docker, kubectl, ...) gets to answer?"
 
-  current=""
-  setting_value _HI_CONTAINER_CLIS "$_HI_SETTINGS" current
-  value="$(ask_value "(containers) Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?" \
-    "$current" "docker podman nerdctl finch" _hi_is_cli_list "plain names separated by spaces, like: docker podman")"
-  _hi_pending_set _HI_CONTAINER_CLIS "$value"
+  ask_setting_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" _hi_is_cli_list \
+    "plain names separated by spaces, like: docker podman" \
+    "(containers) Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?"
 
-  current=""
-  setting_value _HI_CTL_PERSIST "$_HI_SETTINGS" current
-  value="$(ask_value "(ssh only) Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?" \
-    "$current" 60 _hi_is_number "not a number")"
-  _hi_pending_set _HI_CTL_PERSIST "$value"
+  ask_setting_value _HI_CTL_PERSIST 60 _hi_is_number "not a number" \
+    "(ssh only) Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?"
 }
 
 # The advanced section: a short question walk rather than a menu - these are
@@ -1363,7 +1335,7 @@ function collect_setting_lines() {
   _hi_collect_group _HI_PROMPT_PROMPTS
   for row in "${_HI_RC_TABLE[@]}"; do
     name="${row%%|*}"
-    shell="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
+    _hi_shell_var shell "$name"
     _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
   done
   _hi_collect_group _HI_ADVANCED_PROMPTS
@@ -1441,25 +1413,6 @@ function settings_diff_report() {
     }
   done
   [ "$changes" = 0 ] && _hi_cecho "   no changes" "$GREEN"
-  return 0
-}
-
-# The overlay half of `hi --install`: copy the shipped defaults in for the
-# files the user has none of, so a fresh overlay starts with real files to
-# edit rather than a scavenger hunt through the tree. A file already present
-# is never touched, so a re-run seeds nothing new. A seeded copy stops
-# tracking what `hi --update` delivers for that file - SETTINGS.md says so.
-# Versioning the directory is the user's own business (a dotfile manager, or
-# a `git init` of their own); hi neither inits nor commits there.
-function overlay_seed() {
-  local _hi_seed seeded=""
-  mkdir -p "$_HI_CONFIG_DIR"
-  for _hi_seed in colors packages vim.rc nano.rc; do
-    [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
-    [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
-    cp "$_HI_ROOT/settings/$_hi_seed" "$_HI_CONFIG_DIR/$_hi_seed" && seeded="$seeded $_hi_seed"
-  done
-  [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults into $_HI_CONFIG_DIR:$seeded" "$BLUE"
   return 0
 }
 

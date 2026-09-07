@@ -23,4 +23,4 @@
 --install|[--yes] [--no-link] [--prefix <dir>]|scripts|_HI_INSTALL||install or repair say-hi's lines in your shell rc files
 --uninstall||scripts|_HI_INSTALL|--uninstall|take those lines back out again
 --configure|[--preset <name>]|scripts|_HI_INSTALL|--features-only|revisit the settings, leaving the rc wiring be
---update|[<tag>]|git|||move the checkout to the newest release tag, or <tag>
+--update|[<tag>]|git|_HI_UPDATE||move the checkout to the newest release tag, or <tag>

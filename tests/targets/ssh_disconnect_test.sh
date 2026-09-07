@@ -25,7 +25,7 @@ function _hi_cleanup_dir_gone() {
 function test_clean_exit_removes_cleanup_dir() {
   local out_file="$_HI_WORKDIR/clean.out" cleanup_dir
 
-  _hi_pty_wrap 0 auto "no tty and no python3 to fake one - results may be unreliable"
+  _hi_pty_wrap 0 auto
   _hi_ssh_launch "$_HI_SSH_PORT"
   # shellcheck disable=SC2016 # $_HI_CLEANUP expands on the target, not here
   "${_HI_SSH_LAUNCH[@]}" 'echo READY:$_HI_CLEANUP' >"$out_file" 2>&1 || true
@@ -39,7 +39,7 @@ function test_sudden_disconnect_removes_cleanup_dir() {
   local out_file="$_HI_WORKDIR/disconnect.out" cleanup_dir launcher_pid ok=0
   : >"$out_file"
 
-  _hi_pty_wrap 0 force "no python3 to give the launcher its own pty - ssh will raw-mode this terminal and the test kills it before it can restore, expect garbled output afterwards"
+  _hi_pty_wrap 0 force
   _hi_ssh_launch "$_HI_SSH_PORT"
   # the remote sleep has to outlast every poll below by a wide margin: if it
   # can expire inside the window, the session ends on its own timer and the
@@ -91,7 +91,7 @@ function run_ssh_disconnect_test() {
 
   _HI_CONTAINER="hi-sshdisconnecttest-$$"
   _hi_sshd_container "$_HI_CONTAINER" "$_HI_SSHD_IMAGE" \
-    -e "SSHD_OPTS=-o ClientAliveInterval=2 -o ClientAliveCountMax=1" || exit 1
+    -e "$_HI_SSHD_ALIVE" || exit 1
 
   _hi_suite_begin
 

@@ -32,10 +32,6 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../scripts/preview.sh
 source "$_HI_PREVIEW"
 
-# catppuccin's twelve, then vscode's twelve: a 24-word scheme of the user's own
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
-
 # One scratch tree for both halves: the colors fixtures and the ssh config a
 # child render derives its paths from, and the packages roster in the tree.
 function _hi_write_preview_tree() {
@@ -387,16 +383,6 @@ function test_tables_show_a_pattern_pin_example_row() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1'
 }
 
-# Not the exact shape the comment above declines to assert - just that each
-# table *is* one: every cell is padded to its column's width, so every line of
-# a table has to come out the same printed width once the color escapes are
-# stripped. Catches a column measured in something other than printed
-# characters, which PREVIEW (escape-laden, sized by _hi_group_preview_width)
-# and HOST (unwrappably long names) both got wrong.
-function test_color_tables_are_rectangular() {
-  _hi_table_is_rectangular "$_HI_COLORS_OUT"
-}
-
 # --help answers before reading any config, prints the usage text and exits 0
 function test_help_prints_usage_and_exits_zero() {
   local out
@@ -499,28 +485,21 @@ function test_meanings_take_only_the_block_above_the_table() {
   [ "$(_hi_priority_meanings | awk -F'\t' '$1 == 2' | wc -l)" -eq 1 ]
 }
 
-function test_color_name_of_names_a_palette_entry() {
-  [ "$(_hi_color_name_of "$BRGREEN")" = brgreen ] &&
-    [ "$(_hi_color_name_of "$YELLOW")" = yellow ]
-}
-
-# every escape in the header's two tables has to name something, or the legend
-# prints a color the user cannot look up in settings/colors - checked for
+# every entry in the header's two ramps has to be a name the user can look up
+# in settings/colors, or the legend prints something meaningless - checked for
 # every named palette, not just whichever one is active when the suite runs,
-# since _HI_YES/_HI_NO are _hi_packages_palette's output and this suite never
-# sets $_HI_PACKAGES_PALETTE itself
-function test_color_name_of_names_every_header_color() {
-  local name escape
-  for name in cool $(sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'); do
+# since the ramps are _hi_packages_palette's output and this suite never sets
+# $_HI_PACKAGES_PALETTE itself
+function test_legend_names_every_header_color() {
+  local name entry
+  for name in $(_hi_palette_names); do
     _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-    for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-      [ "$(_hi_color_name_of "$escape")" = plain ] && return 1
+    for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
+      [ -n "$entry" ] || return 1
+      printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qx "$entry" || return 1
     done
   done
-  # back to whatever the suite's own fixtures assume elsewhere
-  unset _HI_PACKAGES_PALETTE
   _hi_packages_palette
-  return 0
 }
 
 function test_collect_counts_every_listed_package() {
@@ -649,10 +628,6 @@ function test_priorities_table_drops_the_floor_note_at_zero() {
     [[ "$out" == *hidelta* && "$out" == *"13 listed, 11 shown, 2 hidden"* ]]
 }
 
-function test_priorities_table_is_rectangular() {
-  _hi_table_is_rectangular "$_HI_PRIO_OUT"
-}
-
 function test_marks_table_explains_every_mark() {
   local out
   out="$(_hi_strip_ansi "$(_hi_print_marks_table)")" || return 1
@@ -739,10 +714,6 @@ function test_packages_stray_argument_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* && "$out" != *"| PRIORITY"* ]]
 }
 
-function test_short_help_matches_long() {
-  [ "$(_hi_render_packages_help -h)" = "$(_hi_render_packages_help --help)" ]
-}
-
 # One render (the slowest thing this suite does) shared by the cases below;
 # each reads it from a variable rather than piping into grep, because under
 # `set -o pipefail` an early-exiting `grep -q` SIGPIPEs the script and a
@@ -760,19 +731,6 @@ function test_preview_names_the_active_palette() {
   [[ "$_HI_PACKAGES_OUT" == *"palette: cool"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]]
 }
 
-# under a scheme the escapes carry a 24-bit tail, and the reverse map still
-# has to name them - through a fresh bash, since _HI_COLOR_ESCAPES is
-# resolved when the script is sourced (HI.50)
-function test_color_name_of_names_scheme_escapes() {
-  local out
-  # shellcheck disable=SC2016 # the script expands in the child bash, not here
-  out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
-    . "$_HI_HOME/say-hi/common/core.sh"
-    . "$_HI_HOME/say-hi/scripts/preview.sh"
-    printf "%s %s %s" "$(_hi_color_name_of "$BRGREEN")" "$(_hi_color_name_of "$RED")" "$(_hi_color_name_of "$NC")"')"
-  [ "$out" = "brgreen red plain" ]
-}
-
 # a scheme of the user's own is named by its shape, and a 24-word one paints
 # the legend from its second bank - which the reverse map still names, since
 # the name is the 16-color half (HI.50)
@@ -785,17 +743,6 @@ function test_preview_names_a_custom_scheme_and_its_bank() {
   [[ "$row" == *";38;2;35;209;139m"*brgreen* && "$row" == *";38;2;241;76;76m"*brred* ]] || return 1
   out="$(_HI_COLOR_SCHEME="not a scheme" _HI_TRUECOLOR=1 _hi_render_packages)" || return 1
   [[ "$out" == *"scheme: not a scheme (ignored - not a scheme)"* ]]
-}
-
-function test_color_name_of_names_second_bank_escapes() {
-  local out
-  # shellcheck disable=SC2016 # the script expands in the child bash, not here
-  out="$(env _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
-    . "$_HI_HOME/say-hi/common/core.sh"
-    . "$_HI_HOME/say-hi/scripts/preview.sh"
-    _hi_color_escape_at e 17; _hi_color_escape_at f 12
-    printf "%s %s %s" "$(_hi_color_name_of "$e")" "$(_hi_color_name_of "$f")" "$(_hi_color_name_of "$BRGREEN")"')"
-  [ "$out" = "cyan red brgreen" ]
 }
 
 function test_preview_names_every_priority() {
@@ -853,13 +800,6 @@ function test_preview_ignores_an_exported_packages_path() {
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_PACKAGES="$_HI_WORKDIR/exported-packages" \
     "$home/say-hi/scripts/preview.sh" packages 2>&1)" || return 1
   [[ "$out" == *hibravo* ]] && [[ "$out" != *hionlyone* ]]
-}
-
-# The same invariant the colors half asserts, through literally the same
-# code: test_lib.sh's _hi_table_is_rectangular. Shared so the two cannot
-# segment tables differently and quietly check different things.
-function test_package_tables_are_rectangular() {
-  _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
 }
 
 function run_preview_tests() {
@@ -949,7 +889,14 @@ EOF
   _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
   _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
-  _hi_check "Every line of a table is the same width" test_color_tables_are_rectangular
+  # Not the exact table shape - just that each table *is* one: every cell is
+  # padded to its column's width, so every line has to come out the same printed
+  # width once the color escapes are stripped. Catches a column measured in
+  # something other than printed characters, which PREVIEW (escape-laden, sized
+  # by _hi_group_preview_width) and HOST (unwrappably long names) both got
+  # wrong. The packages half asserts the same invariant through literally the
+  # same code, so the two cannot segment tables differently.
+  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_COLORS_OUT"
 
   _hi_h2 "Testing: colors - --help"
   _hi_check "--help prints usage and exits 0" test_help_prints_usage_and_exits_zero
@@ -964,13 +911,10 @@ EOF
   _hi_check "Reads only the block above the tables" test_meanings_take_only_the_block_above_the_table
 
   _hi_h2 "Testing: packages - naming the header's colors"
-  _hi_check "Names a palette entry" test_color_name_of_names_a_palette_entry
-  _hi_check "Names every color the header uses" test_color_name_of_names_every_header_color
+  _hi_check "Names every color the header uses" test_legend_names_every_header_color
   # $NC is not a palette color, and neither is anything under $NO_COLOR
-  _hi_check_eq "Calls a reset plain" plain _hi_color_name_of "$NC"
   # ...and under $NO_COLOR every escape *is* the empty string - the short-
   # circuit branch, not the table walk
-  _hi_check_eq "Calls an empty escape plain" plain _hi_color_name_of ""
 
   _hi_h2 "Testing: packages - examples, via the header's check_line"
   _hi_check "Counts every listed package" test_collect_counts_every_listed_package
@@ -993,7 +937,7 @@ EOF
   _hi_check "Legend shows the real examples" test_priorities_table_shows_the_real_examples
   _hi_check "Legend counts below the table" test_priorities_table_counts_below_the_table
   _hi_check "Floor note vanishes at floor 0" test_priorities_table_drops_the_floor_note_at_zero
-  _hi_check "Legend is rectangular" test_priorities_table_is_rectangular
+  _hi_check "Legend is rectangular" _hi_table_is_rectangular "$_HI_PRIO_OUT"
   _hi_check "Marks table explains every mark" test_marks_table_explains_every_mark
   _hi_check "Marks table paints each glyph" test_marks_table_paints_each_glyph
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
@@ -1003,17 +947,15 @@ EOF
   _hi_h2 "Testing: packages - the rendered preview"
   _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops
   _hi_check "A stray argument is refused" test_packages_stray_argument_is_refused
-  _hi_check "-h matches --help" test_short_help_matches_long
+  _hi_check_eq "-h matches --help" "$(_hi_render_packages_help --help)" _hi_render_packages_help -h
   _hi_check "Renders without error" test_preview_renders_without_error
   _hi_check "Names the active palette" test_preview_names_the_active_palette
-  _hi_check "Names a scheme's escapes" test_color_name_of_names_scheme_escapes
   _hi_check "Names a custom scheme, and its second bank" test_preview_names_a_custom_scheme_and_its_bank
-  _hi_check "Names second-bank escapes" test_color_name_of_names_second_bank_escapes
   _hi_check "Names every priority" test_preview_names_every_priority
   _hi_check "Explains the mode characters" test_preview_explains_the_modes
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
-  _hi_check "Every line of a table is the same width" test_package_tables_are_rectangular
+  _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
   _hi_check "An exported $_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file

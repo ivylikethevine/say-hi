@@ -107,7 +107,7 @@ _hi() {
   # the word a flag takes (`hi --preview <TAB>`, `hi --use <TAB>`), then
   # hi's own options when the word is one, targets otherwise - the split
   # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
-  if [[ "${words[CURRENT-1]}" == --preview || "${words[CURRENT-1]}" == --use ]]; then
+  if [[ " $_HI_WORD_FLAGS " == *" ${words[CURRENT-1]} "* ]]; then
     local -a subjects sdescs
     local srow
     for srow in "${(@f)$(sh "$_HI_TARGETS" words "${words[CURRENT-1]}")}"; do

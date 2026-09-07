@@ -212,30 +212,30 @@ function _hi_header_version() {
 # reintroduce one cell at a time. timestamp() below still calls header_row
 # itself, once, with the getters' three answers together - unchanged output
 # for load.sh's disconnect banner and any other direct caller.
-function _hi_cell_utc() {
-  # not "utc": timestamp() below passes that exact name as $1, and this
-  # getter's own local of the same name would shadow it right back -
-  # printf -v resolves the nearest scope, which by then is this function's
-  # own frame, not the caller's.
-  local _hi_utc_raw
-  _hi_utc_raw="$(date -u "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
-  printf -v "$1" '%s' "$BRBLUE${_hi_utc_raw:-?}"
+# <outvar> <color> [utc] - the two clock cells differ by `date -u` and a hue.
+# Prefixed local: timestamp() below passes "utc" and "localtime" as $1, and a
+# getter's own local of that name would shadow the caller's right back -
+# printf -v resolves the nearest scope, which by then is this frame.
+function _hi_cell_clock() {
+  local _hi_ck_raw
+  # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
+  _hi_ck_raw="$(exec date ${3:+-u} "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null)" || _hi_ck_raw=""
+  printf -v "$1" '%s' "$2${_hi_ck_raw:-?}"
 }
+function _hi_cell_utc() { _hi_cell_clock "$1" "$BRBLUE" utc; }
 
 function _hi_cell_version() {
   _hi_header_version >/dev/null # primes the memo; read the variable, not a $( )
   printf -v "$1" '%s' "$GREEN$_HI_HEADER_VERSION"
 }
 
-function _hi_cell_localtime() {
-  local local_now
-  local_now="$(date "$_HI_HUMAN_CENTRIC_DATE" 2>/dev/null || :)"
-  printf -v "$1" '%s' "$BRYELLOW${local_now:-?}"
-}
+function _hi_cell_localtime() { _hi_cell_clock "$1" "$BRYELLOW"; }
 
-# The group wrapper, kept for load.sh's disconnect banner and any direct
-# caller (hi --doctor, a suite) that wants the bundle rather than picking
-# individual words.
+# The group wrapper, kept for load.sh's disconnect banner and for
+# tests/common/header_test.sh, which drives the clock cells through it. Not a
+# compatibility surface for anything else: scripts/doctor.sh does not call it,
+# and neither does hi.sh - naming a caller that does not exist is what stops
+# the next reader from removing generality nothing wants.
 function timestamp() {
   local utc version localtime
   _hi_cell_utc utc
@@ -266,7 +266,7 @@ function _hi_load_pct() {
 }
 
 # <seconds> humanized to at most two units, largest first - a header cell,
-# not a stopwatch. Shared by _hi_uptime_cell and nothing else; system_info no
+# not a stopwatch. Shared by _hi_cell_uptime and nothing else; system_info no
 # longer touches uptime at all.
 function _hi_humanize_uptime() {
   local s="$1"
@@ -284,23 +284,48 @@ function _hi_humanize_uptime() {
 # memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells into
 # independently orderable/toggleable $_HI_HEADER_ORDER words costs nothing
 # extra: arch alone still pays for exactly one probe, not five.
+# _hi_platform <outvar> - linux, windows, bsd or unknown: the one question
+# the three probes below all asked, in three spellings that had already
+# drifted apart (only the first had an "unknown" arm). Every platform test in
+# the shipped tree is in this file, so it lives here and not in core.sh.
+#
+# The `uname` fork is memoized; the verdict is not. $_HI_LINUX_RELEASE stays
+# first in the chain and is re-tested on every call, because header_test.sh
+# points it at a fixture after sourcing to choose an arm - a remembered
+# verdict would ignore that.
+function _hi_platform() {
+  if [ -z "${_HI_KERNEL+x}" ]; then
+    # process substitution, not <<<: a here-string is a temp file before bash
+    # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
+    read -r _HI_KERNEL _HI_ARCH < <(uname -sm 2>/dev/null || :)
+    _hi_sanitize_var _HI_KERNEL "$_HI_KERNEL"
+    _hi_sanitize_var _HI_ARCH "$_HI_ARCH"
+  fi
+  if [ -f "$_HI_LINUX_RELEASE" ]; then
+    printf -v "$1" '%s' linux
+  else
+    case "$_HI_KERNEL" in
+    MINGW* | MSYS* | CYGWIN*) printf -v "$1" '%s' windows ;;
+    '') printf -v "$1" '%s' unknown ;;
+    *) printf -v "$1" '%s' bsd ;;
+    esac
+  fi
+}
+
 function _hi_system_info_probe() {
   [ -z "${_HI_SI_PROBED:-}" ] || return 0
   _HI_SI_PROBED=1
-  local kernel arch os cpus ram base_mhz load="" load_pct=""
-  # process substitution, not <<<: a here-string is a temp file before bash
-  # 5.1. `|| :` so no uname means empty cells (rendered "?"), not an error.
-  read -r kernel arch < <(uname -sm 2>/dev/null || :)
-  _hi_sanitize_var kernel "$kernel"
-  _hi_sanitize_var arch "$arch"
-  if [ -f "$_HI_LINUX_RELEASE" ]; then
+  local kernel arch os cpus ram base_mhz load="" load_pct="" plat
+  _hi_platform plat
+  kernel="$_HI_KERNEL" arch="$_HI_ARCH"
+  if [ "$plat" = linux ]; then
     local cpufreq=/sys/devices/system/cpu/cpu0/cpufreq
     # also covers WSL - a real Linux kernel with its own /etc/os-release.
     # Every probe ends in `|| true`: a stripped-down target falls through to
     # "?" - and a caller under its own `set -e` (see the top of the file)
     # must not abort on a missing probe.
     os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE" 2>/dev/null || true)
-    cpus=$(nproc 2>/dev/null || true)
+    cpus=$(exec nproc 2>/dev/null) || true
     # straight at the files free(1) and uptime(1) themselves read. Used is
     # MemTotal - MemAvailable (the "how much could a new process actually get"
     # figure free -h reports, not the naive MemTotal - MemFree); MemAvailable
@@ -313,12 +338,12 @@ function _hi_system_info_probe() {
         if (avail != "") printf "%.0f/%.0fG", (total - avail) / 1048576, total / 1048576
         else if (total != "") printf "%.0fG", total / 1048576
       }' /proc/meminfo 2>/dev/null || true)
-    load=$(awk '{ printf "%s", $1 }' /proc/loadavg 2>/dev/null || true)
+    load=$(exec awk '{ printf "%s", $1 }' /proc/loadavg 2>/dev/null) || true
     # base clock from the model name ("... @ 2.80GHz"); AMD chips print none,
     # so fall back to cpufreq's base_frequency, then amd-pstate-epp's
     # lowest_nonlinear_freq (the driver's floor, but it beats "?").
     # `read < file`, not $(cat file): a miss is silent and costs no fork.
-    base_mhz=$(awk -F'@ *' '/model name/ && NF>1 { gsub(/GHz.*/, "", $2); printf "%.0f", $2 * 1000; exit }' /proc/cpuinfo 2>/dev/null || true)
+    base_mhz=$(exec awk -F'@ *' '/model name/ && NF>1 { gsub(/GHz.*/, "", $2); printf "%.0f", $2 * 1000; exit }' /proc/cpuinfo 2>/dev/null) || true
     local khz freq_path
     for freq_path in "$cpufreq/base_frequency" "$cpufreq/amd_pstate_lowest_nonlinear_freq"; do
       [ -n "$base_mhz" ] && break
@@ -327,7 +352,7 @@ function _hi_system_info_probe() {
       base_mhz=$((khz / 1000))
       ((base_mhz)) || base_mhz=""
     done
-  elif [[ "$kernel" == MINGW* || "$kernel" == MSYS* || "$kernel" == CYGWIN* ]]; then
+  elif [ "$plat" = windows ]; then
     # git-bash/MSYS2/Cygwin on native Windows - no /etc/os-release, no sysctl
     os="Windows ($kernel)"
     cpus="${NUMBER_OF_PROCESSORS:-?}"
@@ -335,12 +360,12 @@ function _hi_system_info_probe() {
       awk 'NR==2 && $1 ~ /^[0-9]+$/ { printf "%.0fG", $1 / 1073741824 }' || true)
     # wmic only exposes the rated (base) clock
     base_mhz=$(wmic cpu get MaxClockSpeed 2>/dev/null | awk 'NR==2 && $1 ~ /^[0-9]+$/ { print $1 }' || true)
-  elif [ -z "$kernel" ]; then
+  elif [ "$plat" = unknown ]; then
     # no /etc/os-release and no uname: nothing to guess from
     os=""
   else
     os="macOS $(sw_vers -productVersion 2>/dev/null || true)"
-    cpus=$(sysctl -n hw.ncpu 2>/dev/null || true)
+    cpus=$(exec sysctl -n hw.ncpu 2>/dev/null) || true
     # total from sysctl, used from vm_stat: active + wired + compressed pages,
     # at vm_stat's own page size (its "(page size of N bytes)" header, not the
     # hardcoded 4096 that stopped being universal on Apple Silicon) - matched
@@ -397,8 +422,10 @@ function _hi_cell_cores() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CO
 function _hi_cell_cpu() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CPU; }
 function _hi_cell_ram() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_RAM; }
 
-# The group wrapper: unchanged output for any direct caller (hi --doctor,
-# a suite) that wants the whole bundle rather than picking individual words.
+# The group wrapper: unchanged output for tests/common/header_test.sh, which
+# uses it as a render entry point. Not a compatibility surface for anything
+# else - scripts/doctor.sh calls the probe, not this - and saying so is what
+# stops the next reader from keeping generality nothing wants.
 function system_info() {
   local arch os cores cpu ram
   _hi_cell_arch arch
@@ -410,18 +437,17 @@ function system_info() {
 }
 
 # <var> gets the uptime cell, folded into identity() rather than a row of its
-# own so it rides the wrap instead of always costing a line. Its own minimal
-# probe rather than sharing system_info's: only the kernel branch (which
-# command answers "how long has this box been up") is common to both, and
-# duplicating that one `uname` call is cheaper than making the two share
-# state.
-function _hi_uptime_cell() {
-  local kernel uptime_s="" up=""
-  read -r kernel _ < <(uname -sm 2>/dev/null || :)
-  _hi_sanitize_var kernel "$kernel"
-  if [ -f "$_HI_LINUX_RELEASE" ]; then
-    uptime_s=$(awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null || true)
-  elif [[ "$kernel" != MINGW* && "$kernel" != MSYS* && "$kernel" != CYGWIN* && -n "$kernel" ]]; then
+# own so it rides the wrap instead of always costing a line. Its own probe
+# rather than sharing system_info's state - only "which command answers how
+# long this box has been up" is common to the two - but the platform question
+# itself is _hi_platform's, so the `uname` behind it is paid once per session
+# rather than once per probe.
+function _hi_cell_uptime() {
+  local uptime_s="" up="" plat
+  _hi_platform plat
+  if [ "$plat" = linux ]; then
+    uptime_s=$(exec awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null) || true
+  elif [ "$plat" = bsd ]; then
     # kern.boottime prints "{ sec = <epoch>, usec = ... } <date>"; the split on
     # "sec = " makes $2 lead with the epoch, which awk's coercion reads whole.
     # Not probed on Windows: git-bash/MSYS2/Cygwin have no sysctl.
@@ -436,37 +462,36 @@ function _hi_uptime_cell() {
 }
 
 # <var> gets the ip cell: every routable IPv4 address this box has, comma-
-# joined. Its own minimal probe for the same reason _hi_uptime_cell gives for
+# joined. Its own minimal probe for the same reason _hi_cell_uptime gives for
 # its own uname call - duplicating it here is cheaper than sharing state with
 # system_info's. `ip` is tried first (present on every target this project
 # already assumes iproute2 for, and on Alpine's busybox too - both answer the
 # same `-o` field layout); `hostname -I` is the fallback where it prints
 # nothing. Scope global excludes loopback and link-local, so a bare "?" means
 # neither this box has a routable address nor either tool exists to say so.
-function _hi_ip_cell() {
-  local kernel ips=""
-  read -r kernel _ < <(uname -sm 2>/dev/null || :)
-  _hi_sanitize_var kernel "$kernel"
+function _hi_cell_ip() {
+  local ips="" plat
+  _hi_platform plat
   # One possibly-absent tool per branch, piped straight into awk for every
   # further step (splitting, filtering, joining) - awk is the one thing
   # besides bash a stripped target is guaranteed to have (GLOSSARY: HI.30
   # territory), so `cut`/`paste`/`tr`/`grep` chained after it would be one
   # more absent-tool roll of the dice apiece, each needing its own
   # `2>/dev/null` to stay quiet under _hi_stripped_header.
-  if [ -f "$_HI_LINUX_RELEASE" ]; then
+  if [ "$plat" = linux ]; then
     ips=$(ip -4 -o addr show scope global 2>/dev/null | awk '{
       split($4, a, "/"); printf "%s%s", sep, a[1]; sep = ","
     }')
     [ -n "$ips" ] || ips=$(hostname -I 2>/dev/null | awk '{
       for (i = 1; i <= NF; i++) { printf "%s%s", sep, $i; sep = "," }
     }')
-  elif [[ "$kernel" == MINGW* || "$kernel" == MSYS* || "$kernel" == CYGWIN* ]]; then
+  elif [ "$plat" = windows ]; then
     # git-bash/MSYS2/Cygwin: no `ip`, no `ifconfig` - ipconfig is the one tool
     # every one of them shells out to Windows for
     ips=$(ipconfig 2>/dev/null | awk -F': ' '/IPv4 Address/ {
       gsub(/\r/, "", $2); printf "%s%s", sep, $2; sep = ","
     }')
-  elif [ -n "$kernel" ]; then
+  elif [ "$plat" = bsd ]; then
     # macOS and the BSDs: no `ip`, but `ifconfig`'s "inet " line (never
     # "inet6") is there on all of them
     ips=$(ifconfig 2>/dev/null | awk '/inet / && $2 !~ /^127\./ {
@@ -494,7 +519,7 @@ function _hi_ip_cell() {
 # words are peeled off the string one at a time rather than word-split in a
 # `for`, which would also pathname-expand `172.*` against the cwd.
 function _hi_ip_filter() {
-  local _hi_if_hide="${_HI_IP_HIDE-172.*}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip _hi_if_list _hi_if_glob _hi_if_drop
+  local _hi_if_hide="${_HI_IP_HIDE-172.*}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip
   case "$_hi_if_hide" in '' | none)
     printf -v "$1" '%s' "$2"
     return 0
@@ -503,20 +528,10 @@ function _hi_ip_filter() {
   while [ -n "$_hi_if_rest" ]; do
     _hi_if_ip="${_hi_if_rest%%,*}"
     if [ "$_hi_if_ip" = "$_hi_if_rest" ]; then _hi_if_rest=""; else _hi_if_rest="${_hi_if_rest#*,}"; fi
-    _hi_if_drop=""
-    _hi_if_list="$_hi_if_hide "
-    while [ -n "${_hi_if_list// /}" ]; do
-      _hi_if_list="${_hi_if_list#"${_hi_if_list%%[! ]*}"}"
-      _hi_if_glob="${_hi_if_list%% *}"
-      _hi_if_list="${_hi_if_list#* }"
-      # shellcheck disable=SC2254 # the glob is the point
-      case "$_hi_if_ip" in $_hi_if_glob)
-        _hi_if_drop=1
-        break
-        ;;
-      esac
-    done
-    [ -n "$_hi_if_drop" ] || _hi_if_kept="$_hi_if_kept${_hi_if_kept:+,}$_hi_if_ip"
+    # core.sh's matcher, which is this loop's former self: same peel, same
+    # glob rule, and one place to fix when either is wrong
+    _hi_ssh_pattern_hit "$_hi_if_ip" "$_hi_if_hide" ||
+      _hi_if_kept="$_hi_if_kept${_hi_if_kept:+,}$_hi_if_ip"
   done
   printf -v "$1" '%s' "$_hi_if_kept"
 }
@@ -579,7 +594,7 @@ function _hi_probe_launch() {
 # _hi_system_info_probe memoizes system_info()'s. $_HI_ID_CONTAINERS/_JOBS/_PODS
 # stay empty when that backend's probe never ran - a getter checks for that
 # itself, same "cell appears only when the probe actually ran" rule as
-# before. Uptime is not part of this probe: _hi_uptime_cell already has its
+# before. Uptime is not part of this probe: _hi_cell_uptime already has its
 # own minimal, independent one (see its own comment) and stays that way.
 # Reads what _hi_probe_launch started; calls it itself if nobody did.
 function _hi_identity_probe() {
@@ -587,7 +602,7 @@ function _hi_identity_probe() {
   _HI_ID_PROBED=1
   local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0
   local -a lines
-  command -v git &>/dev/null && email=$(git config --get user.email 2>/dev/null || true)
+  command -v git &>/dev/null && { email=$(exec git config --get user.email 2>/dev/null) || email=""; }
   _hi_sanitize_var email "$email"
   if [ -n "$email" ]; then
     domain=${email#*@}
@@ -613,8 +628,8 @@ function _hi_identity_probe() {
         _hi_read_lines lines <"${lanes[0]}"
       else
         # IDs are the daemon's, so a shim's lane repeats another's and the
-        # union is the count - two forks, only on a host with two CLIs
-        _hi_read_lines lines < <(cat "${lanes[@]}" | sort -u)
+        # union is the count - one fork, only on a host with two CLIs
+        _hi_read_lines lines < <(sort -u "${lanes[@]}")
       fi
       containers="Containers: ${#lines[@]}"
     fi
@@ -646,12 +661,11 @@ function _hi_cell_jobs() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_JOBS; 
 function _hi_cell_pods() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PODS; }
 function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; }
 function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
-function _hi_cell_uptime() {
-  _hi_uptime_cell "$1"
-}
 
-# The group wrapper: unchanged output for any direct caller (hi --doctor,
-# a suite) that wants the whole bundle rather than picking individual words.
+# The group wrapper: unchanged output for tests/common/header_test.sh, which
+# uses it as a render entry point. Not a compatibility surface for anything
+# else - scripts/doctor.sh calls the probe, not this - and saying so is what
+# stops the next reader from keeping generality nothing wants.
 function identity() {
   local gitid containers jobs pods auth pub up_cell
   local -a cells
@@ -736,8 +750,8 @@ function passthrough_check() {
   [ -n "${TMUX:-}" ] || return 0
   [[ "${_HI_DISABLE_PASSTHROUGH:-0}" == 1 ]] && return 0
   command -v tmux &>/dev/null || return 0
-  value="$(tmux show -Apv allow-passthrough 2>/dev/null || true)"
-  [ -n "$value" ] || value="$(tmux show -gv allow-passthrough 2>/dev/null || true)"
+  value="$(exec tmux show -Apv allow-passthrough 2>/dev/null)" || value=""
+  [ -n "$value" ] || value="$(exec tmux show -gv allow-passthrough 2>/dev/null)" || value=""
   case "$value" in on | all | '') return 0 ;; esac
   header_row "${YELLOW}tmux passthrough off - hi_copy/hi_notify muted" \
     "${BRYELLOW}set -g allow-passthrough on"
@@ -755,25 +769,17 @@ _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid c
 # suite) can ask "what would this word render as" without going through the
 # accumulate/flush machinery below.
 function _hi_header_word_cell() {
-  case "$1" in
-  utc) _hi_cell_utc "$2" ;;
-  version) _hi_cell_version "$2" ;;
-  localtime) _hi_cell_localtime "$2" ;;
-  os) _hi_cell_os "$2" ;;
-  arch) _hi_cell_arch "$2" ;;
-  cores) _hi_cell_cores "$2" ;;
-  cpu) _hi_cell_cpu "$2" ;;
-  ram) _hi_cell_ram "$2" ;;
-  ip) _hi_ip_cell "$2" ;;
-  gitid) _hi_cell_gitid "$2" ;;
-  containers) _hi_cell_containers "$2" ;;
-  jobs) _hi_cell_jobs "$2" ;;
-  pods) _hi_cell_pods "$2" ;;
-  auth) _hi_cell_auth "$2" ;;
-  pub) _hi_cell_pub "$2" ;;
-  uptime) _hi_cell_uptime "$2" ;;
-  *) printf -v "$2" '%s' "" ;;
+  printf -v "$2" '%s' ""
+  # Fifteen of the sixteen getters were already named _hi_cell_<word> and the
+  # case restated the mapping; now the convention *is* the mapping. The roster
+  # gate is what keeps it safe: $_HI_HEADER_ORDER is the user's own string, so
+  # only a word the shipped default names may reach a function here. `check`
+  # is in that roster and has no getter - it is full_check's own row - hence
+  # the declare -F.
+  case " $_HI_HEADER_ORDER_DEFAULT " in
+  *" $1 "*) declare -F "_hi_cell_$1" >/dev/null && "_hi_cell_$1" "$2" ;;
   esac
+  return 0
 }
 
 # <var> gets $1's alternate color - a bright variant of a hue other than the
@@ -785,26 +791,29 @@ function _hi_header_word_cell() {
 # holds - the substitution can never itself collide. That property is
 # load-bearing and not enforced by the shell; a new header word's entry here
 # must keep it (tests/common/header_test.sh checks it mechanically).
+# "<word>:<bright palette variable>", one row per header word - sixteen case
+# arms whose bodies differed only in a colour name were data written as
+# control flow. GLOSSARY: HI.48 - every alternate's hue must differ from its
+# own word's primary, which is what makes a substitution unable to collide,
+# and header_test.sh checks it. The variable *name* is stored, not its value.
+_HI_HEADER_ALTS="utc:BRCYAN version:BRCYAN localtime:BRRED os:BRPURPLE\
+ arch:BRCYAN cores:BRGREEN cpu:BRPURPLE ram:BRGREEN ip:BRCYAN gitid:BRRED\
+ containers:BRYELLOW jobs:BRYELLOW pods:BRCYAN auth:BRYELLOW pub:BRRED\
+ uptime:BRGREEN"
+
 function _hi_header_word_alt() {
-  case "$1" in
-  utc) printf -v "$2" '%s' "$BRCYAN" ;;
-  version) printf -v "$2" '%s' "$BRCYAN" ;;
-  localtime) printf -v "$2" '%s' "$BRRED" ;;
-  os) printf -v "$2" '%s' "$BRPURPLE" ;;
-  arch) printf -v "$2" '%s' "$BRCYAN" ;;
-  cores) printf -v "$2" '%s' "$BRGREEN" ;;
-  cpu) printf -v "$2" '%s' "$BRPURPLE" ;;
-  ram) printf -v "$2" '%s' "$BRGREEN" ;;
-  ip) printf -v "$2" '%s' "$BRCYAN" ;;
-  gitid) printf -v "$2" '%s' "$BRRED" ;;
-  containers) printf -v "$2" '%s' "$BRYELLOW" ;;
-  jobs) printf -v "$2" '%s' "$BRYELLOW" ;;
-  pods) printf -v "$2" '%s' "$BRCYAN" ;;
-  auth) printf -v "$2" '%s' "$BRYELLOW" ;;
-  pub) printf -v "$2" '%s' "$BRRED" ;;
-  uptime) printf -v "$2" '%s' "$BRGREEN" ;;
-  *) printf -v "$2" '%s' "" ;;
-  esac
+  local _hi_wa
+  printf -v "$2" '%s' ""
+  # shellcheck disable=SC2086 # the split is the table
+  for _hi_wa in $_HI_HEADER_ALTS; do
+    [ "${_hi_wa%%:*}" = "$1" ] || continue
+    _hi_wa="${_hi_wa#*:}"
+    # read at call time, not baked in: configure.sh's previews flip
+    # $_HI_COLOR_SCHEME and re-run _hi_assign_palette between renders
+    printf -v "$2" '%s' "${!_hi_wa}"
+    return 0
+  done
+  return 0
 }
 
 # One $_HI_HEADER_ORDER word: "check" flushes whatever cells are pending as
@@ -928,23 +937,30 @@ function retired_check() {
 # normal/bright/normal/bright reads a lower priority as louder than the one
 # above it - what "monotonic in both directions" below is guarding against.
 # The numbered lines below are scraped verbatim by scripts/preview.sh
-# (the run directly above _HI_YES, parentheticals dropped): keep the
+# (the run directly above _HI_YES_NAMES, parentheticals dropped): keep the
 # "# <n> <meaning> (<examples>)" shape and add nothing between them and the
 # table.
 # 0 platform trivia (sw_vers, kitty)
 # 1 optional extras (gping, navi)
 # 2 useful tools (make, vim, python3)
 # 3 favorites and core (bat, fzf, awk)
-_HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
-_HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
+_HI_YES_NAMES=(cyan green brcyan brgreen)
+_HI_NO_NAMES=(blue magenta bryellow brred)
+
+# Palette *names*, not escapes: these are configuration - which of
+# _HI_COLOR_NAMES each priority paints in - and storing them rendered meant
+# every consumer that wanted the name back had to invert the mapping.
+# header.sh recovered the slot by reading digits out of the escape's bytes,
+# preview.sh forked twelve escapes to build a reverse lookup, and a case in
+# header_test.sh existed only to keep that round trip honest. The escapes
+# _hi_packages_palette derives below are what check_line actually reads.
 
 # $_HI_PACKAGES_PALETTE picks one of the named ramps below over the two
 # tables just assigned - preview.sh's scrape (above) stops at the
-# first line starting "_HI_YES=", so that assignment has to stay exactly
-# there and cannot move into the case. Every value is one of
+# first line starting "_HI_YES_NAMES=", so that assignment has to stay
+# exactly there and cannot move into the case. Every value is one of
 # _HI_COLOR_NAMES (core.sh), the vocabulary settings/colors and fish's
-# set_color both use, so preview.sh's _hi_color_name_of can always
-# name it. Each ramp is meant to read monotonic 0->3 in both directions - a
+# set_color both use. Each ramp is meant to read monotonic 0->3 in both directions - a
 # missing favorite the loudest thing on screen, installed trivia the
 # quietest - and legible on light and dark terminals alike; judge a
 # candidate with `hi --preview packages`. "cool" is the shipped default:
@@ -954,51 +970,59 @@ _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
 function _hi_packages_palette() {
   case "${_HI_PACKAGES_PALETTE:-cool}" in
   warm)
-    _HI_YES=("$YELLOW" "$BRYELLOW" "$GREEN" "$BRGREEN")
-    _HI_NO=("$PURPLE" "$BRPURPLE" "$RED" "$BRRED")
+    _HI_YES_NAMES=(yellow bryellow green brgreen)
+    _HI_NO_NAMES=(magenta brmagenta red brred)
     ;;
   mono)
-    _HI_YES=("$BLUE" "$CYAN" "$BRBLUE" "$BRCYAN")
-    _HI_NO=("$YELLOW" "$BRYELLOW" "$RED" "$BRRED")
+    _HI_YES_NAMES=(blue cyan brblue brcyan)
+    _HI_NO_NAMES=(yellow bryellow red brred)
     ;;
   *)
-    _HI_YES=("$CYAN" "$GREEN" "$BRCYAN" "$BRGREEN")
-    _HI_NO=("$BLUE" "$PURPLE" "$BRYELLOW" "$BRRED")
+    _HI_YES_NAMES=(cyan green brcyan brgreen)
+    _HI_NO_NAMES=(blue magenta bryellow brred)
     ;;
   esac
-  # A 24-word $_HI_COLOR_SCHEME carries a second bank of the twelve names for
-  # the check alone (HI.50). The ramps above are the palette variables, which
-  # are the first bank by contract, so the swap happens here, per render,
-  # rather than at source time: each escape's 16-color half names its slot,
-  # and the same slot twelve further on is the check's color for it.
-  local _hi_pp_n _hi_pp_e
-  local -a _hi_pp_yes=() _hi_pp_no=()
+  # Names to escapes, here rather than at source time: configure.sh's
+  # previews flip $_HI_COLOR_SCHEME and $_HI_PACKAGES_PALETTE between
+  # renders, and full_check re-runs this before every check_line.
+  local _hi_pp_n _hi_pp_i _hi_pp_e
   _hi_scheme_words _hi_pp_n
-  [ "$_hi_pp_n" -eq 24 ] || return 0
-  for _hi_pp_e in "${_HI_YES[@]}"; do
-    _hi_pkg_escape _hi_pp_e "$_hi_pp_e"
-    _hi_pp_yes+=("$_hi_pp_e")
+  _HI_YES=() _HI_NO=()
+  for _hi_pp_i in 0 1 2 3; do
+    _hi_ramp_escape _hi_pp_e "${_HI_YES_NAMES[_hi_pp_i]}" "$_hi_pp_n"
+    _HI_YES+=("$_hi_pp_e")
+    _hi_ramp_escape _hi_pp_e "${_HI_NO_NAMES[_hi_pp_i]}" "$_hi_pp_n"
+    _HI_NO+=("$_hi_pp_e")
   done
-  for _hi_pp_e in "${_HI_NO[@]}"; do
-    _hi_pkg_escape _hi_pp_e "$_hi_pp_e"
-    _hi_pp_no+=("$_hi_pp_e")
-  done
-  _HI_YES=("${_hi_pp_yes[@]}")
-  _HI_NO=("${_hi_pp_no[@]}")
 }
 
-# _hi_pkg_escape <outvar> <escape> - the second-bank escape for a first-bank
-# one: `\e[<bold>;3<hue>...` puts the bold bit at offset 3 and the hue digit
-# at offset 6, and bold*6 + hue-1 is the slot. An empty escape ($NO_COLOR)
-# stays empty.
-function _hi_pkg_escape() {
-  local _hi_pe="$2"
-  if [ -z "$_hi_pe" ]; then
-    printf -v "$1" '%s' ''
+# _hi_ramp_escape <outvar> <palette name> <scheme word count> - the escape a
+# ramp slot paints in. Normally the palette entry for <name>; with a 24-word
+# $_HI_COLOR_SCHEME, the same slot twelve further on, which is the second bank
+# that scheme carries for the check alone (HI.50). This used to read the slot
+# back out of an escape's own bytes, because the ramps stored escapes.
+function _hi_ramp_escape() {
+  local _hi_re_i=0 _hi_re_n
+  printf -v "$1" '%s' ''
+  [ -n "${NO_COLOR:-}" ] && return 0
+  [ "${3:-0}" = 24 ] || {
+    _hi_color_escape_var "$1" "$2"
     return 0
-  fi
-  _hi_color_escape_at "$1" $((${_hi_pe:3:1} * 6 + ${_hi_pe:6:1} - 1 + 12))
+  }
+  for _hi_re_n in "${_HI_COLOR_NAMES[@]}"; do
+    [ "$_hi_re_n" = "$2" ] && {
+      _hi_color_escape_at "$1" $((_hi_re_i + 12))
+      return 0
+    }
+    _hi_re_i=$((_hi_re_i + 1))
+  done
 }
+
+# Assigned at source time, as the two escape arrays were before. `|| true`
+# because this is now a call rather than a literal: header.sh is sourced into
+# a stripped `env -i` in the suites and into callers running under their own
+# strict mode, and neither could be aborted by a plain array assignment.
+_hi_packages_palette || true
 _hi_packages_palette
 
 # For each "[-|+]cmd:priority[,...]": the highest-priority installed package
@@ -1006,9 +1030,30 @@ _hi_packages_palette
 # among its alternatives — colored and marked per above. `-` drops the row
 # when something is installed, `+` when nothing is. The marks live in
 # core.sh's _hi_choose_glyphs.
+# _hi_row_max <outvar> <line> - the highest rank a roster row could reach:
+# its largest `:N`, clamped the way the loop below clamps. Lets full_check
+# apply $_HI_PACKAGES_MIN_PRIORITY *before* the probe rather than after -
+# check_line runs a `command -v` per alternative, and at the default floor
+# more than half the shipped roster is probed only to be dropped.
+function _hi_row_max() {
+  local _hi_rm_rest="$2" _hi_rm_n _hi_rm_max=0
+  while [ "$_hi_rm_rest" != "${_hi_rm_rest#*:}" ]; do
+    _hi_rm_rest="${_hi_rm_rest#*:}"
+    _hi_rm_n="${_hi_rm_rest%%,*}"
+    _hi_rm_n="${_hi_rm_n%%[!0-9]*}"
+    [ -n "$_hi_rm_n" ] || continue
+    ((_hi_rm_n > 3)) && _hi_rm_n=3
+    ((_hi_rm_n > _hi_rm_max)) && _hi_rm_max=$_hi_rm_n
+  done
+  printf -v "$1" '%s' "$_hi_rm_max"
+}
+
+# check_line <out-array-name> <line>. The array is the caller's to name: it
+# used to append into a bare `visible`, so both callers had to know that name
+# *and* the \x1f record shape, and one of them is in another file.
 function check_line() {
   local pair cmd priority color best best_priority max_priority best_idx=0 idx=0 found=0 symbol rendered
-  local mode=both line=$1
+  local mode=both line=$2
   case "$line" in
   -*) mode=miss line="${line#-}" ;;
   +*) mode=have line="${line#+}" ;;
@@ -1054,7 +1099,14 @@ function check_line() {
   rendered="$color $best $symbol"
   # 4 = the "| " lead plus the spaces around the item; the mark's width comes
   # from the chosen glyph set (ASCII "ok" is two columns, ✓ is one)
-  visible+=("$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered")
+  # shellcheck disable=SC2034 # read by the eval below, which the linter
+  # cannot see into - the point of building the record out here is that
+  # everything *it* reads stays visible
+  local record="$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered"
+  # appended by name, the idiom core.sh's _hi_read_lines uses. The record is
+  # built first rather than inside the eval, which keeps the eval'd string
+  # trivial and leaves every variable it reads visible to the linter.
+  eval "$1+=(\"\$record\")"
 }
 
 # print sorted package results limited by _hi_draw_width, from
@@ -1066,7 +1118,7 @@ function full_check() {
   _hi_draw_width max
   local width=$max
   local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
-  local -a visible=() row_widths=() row_pieces=() # visible appended to by check_line
+  local -a visible=() row_widths=() row_pieces=()
   # re-resolved here, not just at source time: a caller that changes
   # $_HI_PACKAGES_PALETTE after header.sh loaded (configure.sh's preview does)
   # needs the next full_check to see it. A bare case, no fork either way.
@@ -1085,8 +1137,15 @@ function full_check() {
   done
   _HI_ROW_CARRY=()
 
+  local row_max
   while IFS=$' ' read -r line; do
-    [[ "$line" == *#* || -z "$line" ]] || check_line "$line"
+    [[ "$line" == *#* || -z "$line" ]] && continue
+    # the floor first: a row that cannot reach it has nothing to contribute,
+    # and probing it is a failed PATH walk per alternative. Rows that clear it
+    # are still filtered below on the rank they actually scored.
+    _hi_row_max row_max "$line"
+    ((row_max >= min)) || continue
+    check_line visible "$line"
   done <"$_HI_PACKAGES"
 
   if ((${#visible[@]})); then

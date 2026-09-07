@@ -31,6 +31,7 @@ _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
 _HI_PUBLISH_EXTERNAL_WF="$_HI_ROOT/.github/workflows/publish-external.yml"
 _HI_PAGES_WF="$_HI_ROOT/.github/workflows/pages.yml"
 _HI_CI_WF="$_HI_ROOT/.github/workflows/ci.yml"
+_HI_PR_TEMPLATE="$_HI_ROOT/.github/pull_request_template.md"
 _HI_MKREPO="$_HI_PKG_DIR/mkrepo.sh"
 _HI_TOOLS_TXT="$_HI_ROOT/.github/actions/setup-tool/tools.txt"
 
@@ -185,11 +186,6 @@ function test_formula_file_list_matches_package_contents() {
   [ "$expected" = "$actual" ]
 }
 
-# the tree has to land in a directory called say-hi, or $_HI_HOME/say-hi misses it
-function test_formula_installs_into_a_say_hi_directory() {
-  grep -qF '(libexec/"say-hi").install' "$_HI_FORMULA"
-}
-
 # hi.sh never locates itself, so a bare symlink on PATH would resolve the tree
 # against $HOME. The wrapper exporting _HI_HOME is load-bearing.
 function test_formula_ships_a_wrapper_that_exports_hi_home() {
@@ -200,11 +196,6 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
   grep -qF '(bin/"hi").write' "$_HI_FORMULA" &&
     grep -qF 'export _HI_HOME="#{libexec}"' "$_HI_FORMULA" &&
     ! grep -vE '^\s*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null
-}
-
-# the caveats must not tell people to run an install that will fail on macOS
-function test_formula_caveats_use_no_link() {
-  grep -qF 'install.sh --no-link' "$_HI_FORMULA"
 }
 
 # The rpm's signature block, on the apk's pattern: the key file from the env,
@@ -341,13 +332,6 @@ function test_srcinfo_depends_match_their_pkgbuild() {
   done
 }
 
-# The manual approval gate. `environment:` on the publishing job is what makes
-# GitHub hold it for a reviewer; losing that line silently turns a tag push into
-# an unattended publish, which is exactly the thing it exists to prevent.
-function test_release_workflow_gates_publishing() {
-  grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
-}
-
 # `gate` runs on a dispatch only, so on a tag push it is skipped - and a
 # job-level `if` with no status function gets an implicit success() that is
 # false when any ancestor in the needs chain was skipped. Every job below the
@@ -408,14 +392,10 @@ function test_prerelease_tags_reach_no_channel() {
 }
 
 # The release page's "What changed" list is each PR's `## Release note`
-# section: the template carries the section, the publish job runs the
-# extractor over the generated notes with the permission that needs, and
-# the extractor's grammar holds - the section to the next heading, comments
-# and `none` as nothing, a body without the section as nothing.
-function test_pr_template_carries_the_release_note_section() {
-  grep -q '^## Release note' "$_HI_ROOT/.github/pull_request_template.md"
-}
-
+# section: the template carries the section (a roster line), the publish job
+# runs the extractor over the generated notes with the permission that needs,
+# and the extractor's grammar holds - the section to the next heading,
+# comments and `none` as nothing, a body without the section as nothing.
 function test_release_workflow_publishes_release_notes() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
@@ -616,11 +596,6 @@ function test_upload_artifact_dotfile_paths_set_include_hidden() {
     done <<<"$out"
   done
   [ "$bad" = 0 ]
-}
-
-# bump.sh --check is the tag/manifest gate; the build must not skip it
-function test_release_workflow_verifies_the_manifests() {
-  grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
 }
 
 # the minisign half of release verification: the signing step and its secret
@@ -881,10 +856,6 @@ function test_bump_check_handles_a_pkgbuild_missing_pkgver() {
   )
 }
 
-function test_bump_check_catches_stale_srcinfo_b2sums() {
-  _hi_bump_check_rejects 's/^\([[:space:]]*\)b2sums = .*/\1b2sums = 1111/'
-}
-
 function test_bump_check_catches_stale_srcinfo_source() {
   _hi_bump_check_rejects 's|^\([[:space:]]*\)source = .*|\1source = x/releases/download/v0.0.1/say-hi-0.0.1.tar.gz|'
 }
@@ -1108,13 +1079,6 @@ function test_no_channel_kept_a_private_stamp() {
     }
   done
   return 0
-}
-
-# The formula dates the .TH line with the version, not a day, and it is the
-# only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
-# to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
-function test_formula_stamps_the_th_date_with_the_version() {
-  grep -qF -- '"--date", version' "$_HI_FORMULA"
 }
 
 function test_package_sh_stamps_the_staged_launcher() {
@@ -2274,9 +2238,11 @@ function run_packaging_tests() {
 
   _hi_h2 "Testing: the Homebrew formula"
   _hi_check "File list matches _HI_PACKAGE_CONTENTS" test_formula_file_list_matches_package_contents
-  _hi_check "Installs into a say-hi/ directory" test_formula_installs_into_a_say_hi_directory
+  # the tree has to land in a directory called say-hi, or $_HI_HOME/say-hi misses it
+  _hi_check "Installs into a say-hi/ directory" grep -qF '(libexec/"say-hi").install' "$_HI_FORMULA"
   _hi_check "Wrapper exports _HI_HOME" test_formula_ships_a_wrapper_that_exports_hi_home
-  _hi_check "Caveats point at --no-link" test_formula_caveats_use_no_link
+  # the caveats must not tell people to run an install that will fail on macOS
+  _hi_check "Caveats point at --no-link" grep -qF 'install.sh --no-link' "$_HI_FORMULA"
 
   _hi_h2 "Testing: the PKGBUILDs"
   _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh
@@ -2291,20 +2257,24 @@ function run_packaging_tests() {
   _hi_check "Committed manifests stay templates" test_committed_manifests_are_templates
 
   _hi_h2 "Testing: release.yml"
-  _hi_check "Publishing sits behind an environment" test_release_workflow_gates_publishing
+  # The manual approval gate. `environment:` on the publishing job is what makes
+  # GitHub hold it for a reviewer; losing that line silently turns a tag push into
+  # an unattended publish, which is exactly the thing it exists to prevent.
+  _hi_check "Publishing sits behind an environment" grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
   _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
   _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
   _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
-  _hi_check "The PR template carries a release-note section" test_pr_template_carries_the_release_note_section
+  _hi_check "The PR template carries a release-note section" grep -q '^## Release note' "$_HI_PR_TEMPLATE"
   _hi_check "publish runs release_notes.sh with pull-requests: read" test_release_workflow_publishes_release_notes
   _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
   _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
   _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
   _hi_check "release_notes.sh builds the list from the PRs" test_release_notes_builds_the_list_from_the_prs
   _hi_check "release_notes.sh is silent without a note" test_release_notes_are_silent_without_a_note
-  _hi_check "Verifies the manifests against the tag" test_release_workflow_verifies_the_manifests
+  # bump.sh --check is the tag/manifest gate; the build must not skip it
+  _hi_check "Verifies the manifests against the tag" grep -qF 'packaging/bump.sh --check' "$_HI_RELEASE_WF"
   _hi_check "The publish job signs the sums" test_publish_job_signs_the_sums
   _hi_check "The minisign pin is drift-checked" test_minisign_pin_is_drift_checked
   _hi_check "Every tools.txt row is well-formed" test_tool_manifest_rows_are_wellformed
@@ -2342,7 +2312,7 @@ function run_packaging_tests() {
   _hi_check ".SRCINFO fallback rewrites all three lines" test_bump_srcinfo_fallback_rewrites_the_three_lines
   _hi_check "--check passes after a write" test_bump_check_passes_after_a_write
   _hi_check "Handles a PKGBUILD missing pkgver=" test_bump_check_handles_a_pkgbuild_missing_pkgver
-  _hi_check "--check catches stale .SRCINFO b2sums" test_bump_check_catches_stale_srcinfo_b2sums
+  _hi_check "--check catches stale .SRCINFO b2sums" _hi_bump_check_rejects 's/^\([[:space:]]*\)b2sums = .*/\1b2sums = 1111/'
   _hi_check "--check catches a stale .SRCINFO source" test_bump_check_catches_stale_srcinfo_source
   _hi_check "Builds the tarball from a local tag" test_bump_write_builds_from_a_local_tag
   _hi_check "...and a failed git archive is loud" test_bump_write_reports_a_failed_git_archive
@@ -2366,7 +2336,10 @@ function run_packaging_tests() {
   _hi_check "hi.sh's stamp line is unique and empty" test_launcher_release_line_is_unique_and_empty
   _hi_check "Every channel calls stamp.sh" test_every_channel_stamps_through_stamp_sh
   _hi_check "...and none kept a private stamp" test_no_channel_kept_a_private_stamp
-  _hi_check "The formula dates .TH with the version" test_formula_stamps_the_th_date_with_the_version
+  # The formula dates the .TH line with the version, not a day, and it is the
+  # only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
+  # to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
+  _hi_check "The formula dates .TH with the version" grep -qF -- '"--date", version' "$_HI_FORMULA"
   _hi_check "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
   _hi_check "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
 

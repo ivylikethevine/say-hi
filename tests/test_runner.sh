@@ -48,6 +48,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
     "fast:packaging:packaging/packaging_test.sh"
     "fast:doctor:scripts/doctor_test.sh"
+    "fast:update:scripts/update_test.sh"
     "fast:test_runner:harness/runner_test.sh"
     "fast:test_lib:harness/lib_test.sh"
     "fast:configure:scripts/configure_test.sh"
@@ -65,6 +66,9 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:hi_remote:hi/remote_test.sh"
     "fast:hi_mux:hi/mux_test.sh"
     "fast:hi_payload:hi/payload_test.sh"
+    "fast:hi_cache:hi/cache_test.sh"
+    "fast:hi_container:hi/container_test.sh"
+    "fast:hi_dispatch:hi/dispatch_test.sh"
     "fast:hi_prompt:hi/prompt_test.sh"
     "fast:hi_helpers:hi/helpers_test.sh"
     "fast:core:common/core_test.sh"

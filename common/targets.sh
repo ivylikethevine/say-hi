@@ -21,6 +21,10 @@
 # lines in it.
 
 kind="${1:-all}"
+# The docker-compatible family, once: the `words` arm below and the probe
+# roster further down both walk it, and the two exits are far enough apart
+# that they read as unrelated files. GLOSSARY: HI.51
+clis="${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}"
 
 # hi's own flags, so `hi --<TAB>` completes them like a target: one
 # "<flag>\t<help>" line each, the target lines' shape, so fish shows the
@@ -66,7 +70,8 @@ if [ "$kind" = words ]; then
     ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'
-    for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+    # shellcheck disable=SC2086 # the split is the roster
+    for cli in $clis; do
       printf '%s\ta running container, through %s\n' "$cli" "$cli"
     done
     printf 'nomad\ta running nomad allocation\n'
@@ -77,7 +82,9 @@ if [ "$kind" = words ]; then
 fi
 
 ttl="${_HI_TARGETS_TTL:-5}"
-now="$(date +%s 2>/dev/null || echo 0)"
+# the fallback outside the substitution, and `exec` inside it: a `||` in
+# there defeats the run-in-place optimisation and costs a second process
+now="$(exec date +%s 2>/dev/null)" || now=0
 
 # `timeout` is GNU/busybox, absent on stock macOS - optional. `-k 0.2`: the
 # cap is a SIGTERM, which rootless podman defers while its runtime initialises
@@ -105,7 +112,8 @@ cache_body() {
 # takes docker's `ps`/`exec`/`inspect` grammar without charging the hosts that
 # have none of them.
 backends=""
-for _hi_cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+# shellcheck disable=SC2086 # the split is the roster
+for _hi_cli in $clis; do
   backends="$backends$_hi_cli:$_hi_cli "
 done
 backends="${backends}nomad:nomad kube:kubectl"
@@ -136,6 +144,25 @@ run_lister() {
   kube) list_kube ;;
   *) list_ps "$1" ;;
   esac
+}
+
+# Every wanted lane's rows, backgrounded where there is somewhere to put them
+# and more than one lane to run. Its own function because emit_targets asks
+# for the same thing twice - once through dedupe_family and once not - and
+# spelling the fan-out at both call sites is how the two drift apart.
+run_lanes() {
+  if [ "$n_wanted" -ge 2 ] && [ -n "$scratch" ]; then
+    files=""
+    for label in $wanted; do
+      run_lister "$label" >"$scratch/$label" 2>/dev/null &
+      files="$files $scratch/$label"
+    done
+    wait
+    # shellcheck disable=SC2086 # deliberate split: the roster-ordered file list
+    cat $files 2>/dev/null
+  else
+    for label in $wanted; do run_lister "$label"; done
+  fi
 }
 
 # Two family members fronting one daemon (podman-docker's `docker` is a script
@@ -189,24 +216,7 @@ emit_targets() {
   fi
 
   # the dedupe pass only where two family lanes could list one daemon twice
-  if [ "$n_wanted" -ge 2 ] && [ -n "$scratch" ]; then
-    files=""
-    for label in $wanted; do
-      run_lister "$label" >"$scratch/$label" 2>/dev/null &
-      files="$files $scratch/$label"
-    done
-    wait
-    # shellcheck disable=SC2086 # deliberate split: the roster-ordered file list
-    if [ "$n_family" -ge 2 ]; then
-      cat $files 2>/dev/null | dedupe_family
-    else
-      cat $files 2>/dev/null
-    fi
-  elif [ "$n_family" -ge 2 ]; then
-    for label in $wanted; do run_lister "$label"; done | dedupe_family
-  else
-    for label in $wanted; do run_lister "$label"; done
-  fi
+  if [ "$n_family" -ge 2 ]; then run_lanes | dedupe_family; else run_lanes; fi
 
   [ -n "$scratch" ] && rm -rf "$scratch" 2>/dev/null
   return 0
@@ -367,7 +377,7 @@ fi
 cache_dir="${XDG_RUNTIME_DIR:-}"
 if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   # one `id -u`, not two: the name needs it and so does the ownership check
-  _hi_uid="$(id -u 2>/dev/null || echo unknown)"
+  _hi_uid="$(exec id -u 2>/dev/null)" || _hi_uid=unknown
   cache_dir="${TMPDIR:-/tmp}/hi-$_hi_uid"
   # first TAB only; -m 700 on the create so it is never briefly world-readable,
   # and no -p, which would silently adopt a path somebody else made
@@ -377,9 +387,11 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   # `hi <TAB>` offers. A directory that is not ours is not made ours: the cache
   # is skipped and the backends swept instead, slower and correct.
   #
-  # Ownership through `ls -ld`, not `test -O`: -O is a bash/ksh/zsh extension
-  # (SC3067). The owner column is compared against both the name and the uid,
-  # since a host with no passwd entry for the caller prints a number there.
+  # Ownership through `ls -ldn`, not `test -O`: -O is a bash/ksh/zsh extension
+  # (SC3067). `-n` is what makes this one comparison rather than two - it
+  # prints the owner as a number always, so the uid we already have answers
+  # for a host with a passwd entry and for one without alike, and no second
+  # `id -un` fork is needed to cover the difference.
   # Spelled as a flag rather than one `[ ] || [ ] && [ ]` chain, so the
   # grouping is visible.
   _hi_cache_ok=1
@@ -387,14 +399,10 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
   if [ -L "$cache_dir" ]; then _hi_cache_ok=0; fi
   # shellcheck disable=SC2012 # `find -maxdepth` is not POSIX and `find -user`
   # takes a user *name*, which is exactly what a host with no passwd entry for
-  # the caller cannot supply - the case the uid arm below exists for. SC2012's
-  # hazard is parsing file *names* out of ls; this reads a fixed column off one
-  # path this script built itself.
-  _hi_owner="$(ls -ld "$cache_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
-  if [ -z "$_hi_owner" ]; then
-    _hi_cache_ok=0
-  elif [ "$_hi_owner" != "$(id -un 2>/dev/null || echo)" ] &&
-    [ "$_hi_owner" != "$_hi_uid" ]; then
+  # the caller cannot supply. SC2012's hazard is parsing file *names* out of
+  # ls; this reads a fixed column off one path this script built itself.
+  _hi_owner="$(ls -ldn "$cache_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
+  if [ -z "$_hi_owner" ] || [ "$_hi_owner" != "$_hi_uid" ]; then
     _hi_cache_ok=0
   fi
   if [ "$_hi_cache_ok" = 0 ]; then

@@ -19,7 +19,10 @@ _hi_git_prompt() {
 
   # --no-optional-locks, or `git status` rewrites .git/index per prompt
   local git_dir ref="" oid="" detached=0
-  git_dir=$(LC_ALL=C git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
+  # `exec`, because the 2>/dev/null defeats bash's "last command in the
+  # subshell runs in place" optimisation and this would otherwise cost two
+  # processes per prompt draw rather than one
+  git_dir=$(LC_ALL=C exec git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
 
   local ahead=0 behind=0 staged=0 dirty=0 invalid=0 untracked=0 line
   while IFS= read -r line; do

@@ -148,7 +148,7 @@ function run_framework_tests() {
   _hi_build_frameworks
 
   _HI_TEST_MARKER="HI_FRAMEWORK_TEST_OK"
-  _hi_pty_stdin auto "no tty and no python3 to fake one - results may be unreliable"
+  _hi_pty_stdin auto
 
   _hi_suite_begin
 

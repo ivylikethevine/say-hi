@@ -59,10 +59,6 @@ function test_clean_all_removes_the_whole_cleanup_tree_not_just_root() {
   [ ! -e "$cleanup" ]
 }
 
-function test_clean_all_succeeds_with_nothing_to_do() {
-  _hi_clean_all "$_HI_WORKDIR/never-created"
-}
-
 function _hi_source_load() {
   local home="$1" guard="$2"
   _HI_LOAD_NO_INIT="$guard" HOME="$home" bash -c \
@@ -570,7 +566,7 @@ function run_load_tests() {
   _hi_check "Keeps \$_HI_ROOT when _HI_CLEANUP is unset" test_clean_all_keeps_permanent_install
   _hi_check "Removes \$_HI_ROOT when _HI_CLEANUP is set" test_clean_all_removes_disposable_copy
   _hi_check "Removes the whole \$_HI_CLEANUP tree, not just \$_HI_ROOT" test_clean_all_removes_the_whole_cleanup_tree_not_just_root
-  _hi_check "Succeeds with nothing to clean" test_clean_all_succeeds_with_nothing_to_do
+  _hi_check "Succeeds with nothing to clean" _hi_clean_all "$_HI_WORKDIR/never-created"
 
   _hi_h2 "Testing: profile restoration"
   _hi_check "Sourcing restores the profile chain" test_source_restores_profile

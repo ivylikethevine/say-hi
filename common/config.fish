@@ -67,9 +67,11 @@ end
 # -k keeps targets.sh's order - recent targets first - instead of sorting.
 # the word after a flag that takes one - `hi --preview <TAB>`, `hi --use
 # <TAB>` - is neither a flag nor a target: targets.sh's words roster
-function __hi_prev_takes_word --description 'is the previous token --preview or --use'
+function __hi_prev_takes_word --description 'is the previous token one of $_HI_WORD_FLAGS'
   set -l toks (commandline -opc)
-  test (count $toks) -gt 0; and contains -- $toks[-1] --preview --use
+  # `--` before the separator: the flags start with dashes, and string
+  # would read them as its own options
+  test (count $toks) -gt 0; and contains -- $toks[-1] (string split -- ' ' $_HI_WORD_FLAGS)
 end
 complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct); and not __hi_prev_takes_word' \
   -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines

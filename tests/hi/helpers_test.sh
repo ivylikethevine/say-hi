@@ -154,12 +154,6 @@ function test_flag_help_splits_local_from_anywhere() {
   [ "$(printf '%s\n%s\n' "$anywhere" "$local_rows" | grep -c '^  -')" = "$total" ]
 }
 
-function test_use_backend_names_the_arm() {
-  [ "$(_hi_use_backend docker)" = docker ] &&
-    [ "$(_hi_use_backend ssh)" = ssh ] &&
-    ! _hi_use_backend nope 2>/dev/null
-}
-
 # The stripper, run the way _hi_payload_tar runs it: shebang kept, full-line
 # comments gone, heredoc bodies untouched (their "comments" are payload).
 function test_strip_awk_rules() {
@@ -181,13 +175,6 @@ FIXTURE
   case "$out" in *"a full-line comment"*) return 1 ;; *) ;; esac
   case "$out" in *"trailing comments stay"*) ;; *) return 1 ;; esac
   case "$out" in *"inside a heredoc, this line is data"*) ;; *) return 1 ;; esac
-}
-
-# _hi_safe_path is the whitelist gate on a scratch dir a target reports back -
-# accepted paths are interpolated straight into commands run against that
-# target (`rm -rf` among them)
-function test_safe_path_accepts_absolute_paths_in_class() {
-  [ "$(_hi_safe_path /tmp/hi.scratch.XXXX A-Za-z0-9/._-)" = /tmp/hi.scratch.XXXX ]
 }
 
 function test_safe_path_rejects_relative_paths() {
@@ -280,7 +267,6 @@ function run_hi_helpers_test() {
   _hi_h2 "Testing: the target grammar"
   _hi_check "_hi_outer/_hi_inner split on the slash" test_outer_inner_split
   _hi_check "_hi_kube_split's prefix grammar" test_kube_split_grammar
-  _hi_check "_hi_use_backend names the arm" test_use_backend_names_the_arm
 
   _hi_h2 "Testing: sizes"
   _hi_check "_hi_human_bytes picks the unit" test_human_bytes_units
@@ -289,8 +275,6 @@ function run_hi_helpers_test() {
   _hi_h2 "Testing: the trim table"
   _hi_check "Reads the overlay's settings.sh" test_trimmed_reads_the_overlay
   _hi_check "Empty without one" test_trimmed_empty_without_settings
-
-  _hi_h2 "Testing: session verdicts"
   _hi_check "_hi_target_color memoizes the domain's color" test_target_color_memoizes_the_domain
 
   _hi_h2 "Testing: the command plumbing"
@@ -298,14 +282,15 @@ function run_hi_helpers_test() {
   _hi_check "_hi_command_fish_flag quotes for the target's sh" test_command_fish_flag_quotes_for_sh
   _hi_check "_hi_ladder_probe names a ladder shell" test_ladder_probe_names_a_ladder_shell
 
-  _hi_h2 "Testing: the flags table"
+  _hi_h2 "Testing: the flags table and the comment stripper"
   _hi_check "--help's local/anywhere split covers every row" test_flag_help_splits_local_from_anywhere
-
-  _hi_h2 "Testing: the comment stripper"
-  _hi_check "Shebang, comments, heredoc bodies" test_strip_awk_rules
+  _hi_check "The stripper keeps the shebang and heredoc bodies, drops comments" test_strip_awk_rules
 
   _hi_h2 "Testing: _hi_safe_path's whitelist gate"
-  _hi_check "Accepts an absolute path built from the class" test_safe_path_accepts_absolute_paths_in_class
+  # _hi_safe_path is the whitelist gate on a scratch dir a target reports back -
+  # accepted paths are interpolated straight into commands run against that
+  # target (`rm -rf` among them)
+  _hi_check_eq "Accepts an absolute path built from the class" /tmp/hi.scratch.XXXX _hi_safe_path /tmp/hi.scratch.XXXX A-Za-z0-9/._-
   _hi_check "Rejects a relative path" test_safe_path_rejects_relative_paths
   _hi_check "Rejects a char outside the class" test_safe_path_rejects_chars_outside_the_class
 

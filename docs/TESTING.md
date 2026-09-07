@@ -201,6 +201,14 @@ already passes `--shard` straight through to `test_runner.sh`.
   passing against it); the header keeps the measured record of that
   failure, and its probe is the thing to re-run if the two badges ever
   diverge again.
+- **`kcov --merge` re-reads the sources.** Every shard records absolute
+  paths, and the merge opens each one again to count its lines — so a gather
+  job with no working tree merges to `"files": []` and a run-wide `0.00`,
+  which is a well-formed report, not an error, and publishes a badge reading
+  `0.00%`. `coverage.yml`'s `gather-kcov` therefore checks the tree out
+  before merging; `tests/harness/runner_test.sh` asserts that every job in
+  that workflow running `kcov --merge` does. `gather-bashcov` needs no
+  checkout: its ruby reads only the resultset's per-line arrays.
 - `tests/coverage_v2.sh` is the same sweep under
   [bashcov](https://github.com/infertux/bashcov), which reads bash's
   `xtrace`. Its residual skews run the other way from kcov's: every line of

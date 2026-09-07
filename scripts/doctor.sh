@@ -282,17 +282,12 @@ function doctor_local() {
 function doctor_config() {
   local f t v any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
-  if [ -f "$_HI_SETTINGS" ]; then
-    if ! sh -n "$_HI_SETTINGS" 2>/dev/null; then
-      doctor_row settings.sh "does NOT parse as sh - every shell sources this file" bad
-    elif command -v fish >/dev/null 2>&1 && ! fish --no-execute "$_HI_SETTINGS" 2>/dev/null; then
-      doctor_row settings.sh "parses as sh but NOT as fish - fish sessions lose it" bad
-    else
-      doctor_row settings.sh "present, parses" ok
-    fi
-  else
+  # Only the absent case here. When the file *is* there, rc.sh's
+  # _HI_OVERLAY_CHECKS already carries a row per parser that reads it, and
+  # doctor_configs walks that table below - this arm was a third hand-written
+  # copy of the same ladder, so settings.sh got two verdicts in two sections.
+  [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
-  fi
   # a scheme nothing renders: neither a name nor 12/24 hex words (HI.50).
   # settings.sh is already sourced, so the exported value is the one to judge
   if [ -n "${_HI_COLOR_SCHEME:-}" ] && ! _hi_scheme_ok "$_HI_COLOR_SCHEME"; then

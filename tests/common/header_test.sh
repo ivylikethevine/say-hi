@@ -294,54 +294,6 @@ function test_header_version_resolves_once_per_shell() {
   )
 }
 
-function test_header_version_is_unknown_without_a_stamp_or_git() {
-  local dir
-  dir="$(mktemp -d "$_HI_WORKDIR/noversion.XXXXXX")"
-  (
-    unset _HI_HEADER_VERSION
-    _HI_RELEASE=""
-    _HI_ROOT="$dir"
-    [ "$(_hi_header_version)" = unknown ]
-  )
-}
-
-# _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
-# or no tag reachable at all) means it isn't a release, so only a 6-column
-# commit hash shows, tag dropped rather than implied; a tag with no hash (an
-# exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
-# truncated to 10 since there's nothing to join it to
-function test_hi_shorten_describe_shows_a_hash_when_not_on_a_tag() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f)" = "9c1dd0" ]
-}
-
-function test_hi_shorten_describe_drops_the_dirty_suffix() {
-  [ "$(_hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty)" = "9c1dd0" ]
-}
-
-function test_hi_shorten_describe_trims_a_bare_hash() {
-  [ "$(_hi_shorten_describe 9c1dd0fabc)" = "9c1dd0" ]
-}
-
-function test_hi_shorten_describe_leaves_an_exact_tag_alone() {
-  [ "$(_hi_shorten_describe v1.0.0)" = "v1.0.0" ]
-}
-
-function test_hi_shorten_describe_leaves_a_release_stamp_alone() {
-  [ "$(_hi_shorten_describe 1.2.3)" = "1.2.3" ]
-}
-
-function test_hi_shorten_describe_leaves_unknown_alone() {
-  [ "$(_hi_shorten_describe unknown)" = "unknown" ]
-}
-
-function test_hi_shorten_describe_caps_a_long_exact_tag_at_ten() {
-  [ "$(_hi_shorten_describe snapshot-6fba937)" = "snapshot-6" ]
-}
-
-function test_hi_shorten_describe_drops_a_long_tag_when_a_hash_is_present() {
-  [ "$(_hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty)" = "200cef" ]
-}
-
 # the header cell itself carries the shortened form, not just the helper in
 # isolation - this checkout's own git describe is what timestamp renders
 function test_timestamp_version_cell_is_shortened() {
@@ -408,67 +360,29 @@ function test_hi_load_pct_divides_load_by_cores() {
   [ "$out" = 50 ]
 }
 
-function test_hi_load_pct_rounds_to_a_whole_percent() {
-  local out
-  _hi_load_pct out 1.00 3
-  [ "$out" = 33 ]
-}
-
-function test_hi_load_pct_empty_without_a_load_figure() {
+# _hi_load_pct_out <load> <cores> - _hi_load_pct's out-variable on stdout, so
+# its answers can be pinned as _hi_check_eq roster lines
+function _hi_load_pct_out() {
   local out=""
-  _hi_load_pct out "" 4
-  [ -z "$out" ]
+  _hi_load_pct out "$@"
+  printf '%s' "$out"
 }
 
-function test_hi_load_pct_empty_without_a_core_count() {
-  local out=""
-  _hi_load_pct out 2.00 ""
-  [ -z "$out" ]
-}
-
-# the Windows fallback's own unresolved sentinel - never divided into, just
-# passed straight through to the cell as "Cores: ?"
-function test_hi_load_pct_empty_when_cores_is_not_numeric() {
-  local out=""
-  _hi_load_pct out 2.00 "?"
-  [ -z "$out" ]
-}
-
-function test_hi_load_pct_empty_when_cores_is_zero() {
-  local out=""
-  _hi_load_pct out 2.00 0
-  [ -z "$out" ]
-}
-
-# _hi_uptime_cell: at most two units, largest first, or "?" where no probe
+# _hi_cell_uptime: at most two units, largest first, or "?" where no probe
 # answers - the shape is pinned rather than a value, which moves by the second
 function test_uptime_cell_is_humanized() {
   local out
-  _hi_uptime_cell out
+  _hi_cell_uptime out
   [[ "$out" =~ Up:\ ([0-9]+d\ [0-9]+h|[0-9]+h\ [0-9]+m|[0-9]+m|\?) ]]
 }
 
-# _hi_ip_cell: a comma-joined list of dotted-quad addresses, or "?" - the
+# _hi_cell_ip: a comma-joined list of dotted-quad addresses, or "?" - the
 # shape is pinned rather than a value, which depends on this box's own
 # network config
 function test_ip_cell_has_a_shape() {
   local out
-  _hi_ip_cell out
+  _hi_cell_ip out
   [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
-}
-
-# _hi_humanize_uptime's own contract, independent of what this box's real
-# uptime happens to be
-function test_hi_humanize_uptime_days_and_hours() {
-  [ "$(_hi_humanize_uptime 90000)" = "1d 1h" ] # 25h -> 1d 1h
-}
-
-function test_hi_humanize_uptime_hours_and_minutes() {
-  [ "$(_hi_humanize_uptime 5400)" = "1h 30m" ]
-}
-
-function test_hi_humanize_uptime_minutes_only() {
-  [ "$(_hi_humanize_uptime 120)" = "2m" ]
 }
 
 # used/total, one unit on total only ("6/60G", not "6G/60G" - the used
@@ -531,7 +445,7 @@ function test_timestamp_without_date_says_unknown() {
   [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
-# unlike system_info's other cells, _hi_uptime_cell's only external dependency
+# unlike system_info's other cells, _hi_cell_uptime's only external dependency
 # on Linux is awk - which "stripped" still carries, since most probes need it -
 # so this stays a smoke test for "no raw shell error leaks out", not a claim
 # that the cell renders "?": a real /proc/uptime under a real Linux kernel
@@ -539,19 +453,19 @@ function test_timestamp_without_date_says_unknown() {
 # shellcheck disable=SC2016 # $u expands in the stripped child bash, not here
 function test_uptime_cell_survives_a_stripped_environment() {
   local out
-  out="$(_hi_stripped_header '_hi_uptime_cell u; printf "%s" "$u"')"
+  out="$(_hi_stripped_header '_hi_cell_uptime u; printf "%s" "$u"')"
   [[ "$out" == *"Up: "* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
 # The exact case the comment above contrasts itself with: every branch of
-# _hi_ip_cell's first stage is an external binary ("ip", "hostname",
+# _hi_cell_ip's first stage is an external binary ("ip", "hostname",
 # "ifconfig", "ipconfig") the stripped ("bash and awk only") target has none
 # of, so unlike uptime this doubles as a claim about the value, not only
 # about failing quietly - "?" is the only answer this environment can give.
 # shellcheck disable=SC2016 # $i expands in the stripped child bash, not here
 function test_ip_cell_says_unknown_under_a_stripped_environment() {
   local out
-  out="$(_hi_stripped_header '_hi_ip_cell i; printf "%s" "$i"')"
+  out="$(_hi_stripped_header '_hi_cell_ip i; printf "%s" "$i"')"
   [[ "$out" == *"IP: ?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
@@ -1202,6 +1116,98 @@ EOF
   printf '%s' "$dir"
 }
 
+# _hi_platform_header's Linux twin: same shim discipline, but
+# $_HI_LINUX_RELEASE points at a real file so the Linux arm is the one taken
+# whatever box this runs on - the mac and Windows helpers above get there by
+# pointing it at nothing, and there is no third way to reach this branch.
+# shellcheck disable=SC2016 # the probe expands in the child bash, not here
+function _hi_linux_header() {
+  local shims="$1" probe="$2" rel="$_HI_WORKDIR/os-release"
+  shift 2
+  [ -f "$rel" ] || printf 'PRETTY_NAME="Test Linux 1.0"\n' >"$rel"
+  env "$@" PATH="$shims:$(_hi_real_path platform-tools bash sh awk sed date fold mktemp rm sleep)" \
+    NO_COLOR=1 _HI_CASE_PROBE="$probe" _HI_TEST_RELEASE="$rel" \
+    bash -c 'source "$_HI_HEADER"; _HI_LINUX_RELEASE="$_HI_TEST_RELEASE"; eval "$_HI_CASE_PROBE"' 2>&1
+}
+
+# A Linux box whose `ip` can be silenced: the cell's first stage is `ip -4 -o
+# addr show scope global`, and `hostname -I` is the fallback for the hosts
+# where that prints nothing. Both answer the field layout header.sh's awk
+# reads, so a wrong field number changes the answer.
+function _hi_linux_ip_shims() {
+  local dir="$_HI_WORKDIR/linux-ip-shims"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    printf '#!/bin/sh\necho "Linux x86_64"\n' >"$dir/uname"
+    cat >"$dir/ip" <<'EOF'
+#!/bin/sh
+[ "${_HI_FAKE_IP_SILENT:-0}" = 1 ] && exit 0
+printf '%s\n' '2: eth0    inet 10.0.0.5/24 brd 10.0.0.255 scope global eth0' \
+  '3: eth1    inet 192.0.2.10/24 brd 192.0.2.255 scope global eth1'
+EOF
+    cat >"$dir/hostname" <<'EOF'
+#!/bin/sh
+[ "$1" = -I ] && printf '198.51.100.7 198.51.100.8 \n'
+EOF
+    chmod +x "$dir/uname" "$dir/ip" "$dir/hostname"
+  fi
+  printf '%s' "$dir"
+}
+
+function test_ip_cell_on_linux_reads_iproute2() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"')"
+  [[ "$out" == *"[IP: 10.0.0.5,192.0.2.10]"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+# `ip` exists and answers nothing on a host with no routable address on an
+# iproute2-visible link - a container on a host network among them - and
+# `hostname -I` is the second opinion. A bare "?" is reserved for "neither
+# tool exists nor has anything to say".
+function test_ip_cell_on_linux_falls_back_to_hostname() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
+  [[ "$out" == *"[IP: 198.51.100.7,198.51.100.8]"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+# The five system_info cells share one memoized probe ($_HI_SI_PROBED), which
+# is what makes $_HI_HEADER_ORDER's per-word toggles free: asking for arch
+# alone pays for exactly one probe, and asking for all five pays for the same
+# one. Counted by standing a uname in front of the mac shims' that appends a
+# line per call, and reading the counter either side of the five getters.
+function test_system_info_probes_once_for_all_five_cells() {
+  local dir="$_HI_WORKDIR/probe-count" count out probe
+  count="$_HI_WORKDIR/uname.calls"
+  mkdir -p "$dir"
+  : >"$count"
+  cat >"$dir/uname" <<EOF
+#!/bin/sh
+printf 'x\n' >>"$count"
+echo "Darwin arm64"
+EOF
+  chmod +x "$dir/uname"
+  # awk, not wc: _hi_platform_header's PATH carries only the tools the probes
+  # themselves fork, and wc is not one of them
+  probe="pre=\$(awk 'END { print NR }' '$count')"
+  probe="$probe; v=''; _hi_cell_arch v; _hi_cell_os v; _hi_cell_cores v"
+  probe="$probe; _hi_cell_cpu v; _hi_cell_ram v"
+  probe="$probe; post=\$(awk 'END { print NR }' '$count')"
+  probe="$probe; printf 'delta=%s' \$((post - pre))"
+  out="$(_hi_platform_header "$dir:$(_hi_mac_shims)" "$probe")"
+  [[ "$out" == *"delta=1"* ]] || {
+    _hi_cecho " | five cells cost more than one probe: $out" "$RED"
+    return 1
+  }
+}
+
 function test_system_info_on_a_mac() {
   local out
   out="$(_hi_platform_header "$(_hi_mac_shims)" 'system_info')"
@@ -1217,7 +1223,7 @@ function test_system_info_on_a_mac() {
 function test_uptime_and_ip_cells_on_a_mac() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_uptime_cell u; _hi_ip_cell i; printf "%s\n%s\n" "$u" "$i"')"
+  out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
   # kern.boottime 5400s ago; ifconfig's inet line, not inet6 and not lo0
   [[ "$out" == *"Up: 1h 30m"* && "$out" == *"IP: 192.0.2.10"* ]] || {
     _hi_cecho " | got: $out" "$RED"
@@ -1276,19 +1282,19 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
   printf '#!/bin/sh\nprintf "\tinet 127.0.0.1 netmask 0xff000000\n\tinet 172.17.0.2 netmask 0xffff0000\n\tinet 10.0.0.5 netmask 0xffffff00\n"\n' >"$dir/ifconfig"
   chmod +x "$dir/uname" "$dir/ifconfig"
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"')"
+  out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"')"
   [[ "$out" == *"[IP: 10.0.0.5]"* ]] || {
     _hi_cecho " | default got: $out" "$RED"
     return 1
   }
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_IP_HIDE="10.* 172.*")"
+  out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE="10.* 172.*")"
   [[ "$out" == *"[]"* ]] || {
     _hi_cecho " | all hidden got: $out" "$RED"
     return 1
   }
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$dir" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
+  out="$(_hi_platform_header "$dir" '_hi_cell_ip i; printf "[%s]" "$i"' _HI_IP_HIDE=none)"
   [[ "$out" == *"[IP: 172.17.0.2,10.0.0.5]"* ]] || {
     _hi_cecho " | none got: $out" "$RED"
     return 1
@@ -1298,7 +1304,7 @@ function test_ip_cell_is_empty_when_every_address_is_hidden() {
 # ...and the header itself then prints no IP cell at all. Shimmed the same
 # way the sibling above is: hi_header run against the *real* uname/ifconfig
 # only proves this on a box whose live network happens to hand back a
-# non-loopback IPv4 the parser recognizes - on one that doesn't, _hi_ip_cell
+# non-loopback IPv4 the parser recognizes - on one that doesn't, _hi_cell_ip
 # takes its "nothing routable found" path and prints "IP: ?" regardless of
 # $_HI_IP_HIDE, which still contains "IP:" and fails this for a reason that
 # has nothing to do with the hiding this test means to check.
@@ -1319,7 +1325,7 @@ function test_header_omits_the_ip_cell_when_hidden() {
 function test_uptime_and_ip_cells_on_windows() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
-  out="$(_hi_platform_header "$(_hi_windows_shims)" '_hi_uptime_cell u; _hi_ip_cell i; printf "%s\n%s\n" "$u" "$i"')"
+  out="$(_hi_platform_header "$(_hi_windows_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
   # no sysctl on git-bash: uptime is not probed at all; ipconfig's CR is gone
   [[ "$out" == *"Up: ?"* && "$out" == *"IP: 10.0.0.5"* && "$out" != *$'\r'* ]] || {
     _hi_cecho " | got: $out" "$RED"
@@ -1392,6 +1398,8 @@ function test_hi_cell_hue_reads_the_leading_escape() {
   [ "$h" = 6 ]
 }
 
+# shellcheck disable=SC2153 # $BRCYAN is core.sh's palette variable; `brcyan`
+# below is this case's own local, not a misspelling of it
 function test_hi_cell_hue_ignores_the_bold_bit() {
   local cyan brcyan blue
   _hi_cell_hue cyan "${CYAN}x"
@@ -1610,18 +1618,18 @@ function _hi_pos() {
 
 # The scaffold every check_line case shares: run one spec against a fresh row
 # sink and assert how many rows it left visible. check_line appends to the
-# `visible` these declare (bash's dynamic scoping), and the single row - when
-# there is one - lands in the caller's `row`, ready for content checks.
+# array it is named, and the single row - when there is one - lands in the
+# caller's `row`, ready for content checks.
 function _hi_one_visible_row() {
   local -a visible=()
-  check_line "$1"
+  check_line visible "$1"
   [ "${#visible[@]}" -eq 1 ] || return 1
   row="${visible[0]}"
 }
 
 function _hi_no_visible_row() {
   local -a visible=()
-  check_line "$1"
+  check_line visible "$1"
   [ "${#visible[@]}" -eq 0 ]
 }
 
@@ -1630,12 +1638,6 @@ function test_check_line_found_primary_is_visible_checked() {
   _hi_one_visible_row "$_HI_REAL_CMD:3" || return 1
   _hi_contains "$row" "$_HI_REAL_CMD" &&
     _hi_assert_contains "$row" "$_HI_MARK_OK"
-}
-
-# `-` is the mode hidden when the tool *is* there: it exists to speak up
-# about absence, so a healthy box says nothing.
-function test_check_line_dash_mode_hides_installed() {
-  _hi_no_visible_row "-$_HI_REAL_CMD:3"
 }
 
 # ...and the same line missing is exactly the alarm the mode exists for - with
@@ -1655,10 +1657,6 @@ function test_check_line_plus_mode_shows_installed() {
   _hi_one_visible_row "+$_HI_REAL_CMD:0" || return 1
   _hi_contains "$row" "$_HI_REAL_CMD" &&
     _hi_assert_contains "$row" "$_HI_MARK_OK"
-}
-
-function test_check_line_plus_mode_hides_missing() {
-  _hi_no_visible_row "+$_HI_FAKE_CMD:0"
 }
 
 # Every unflagged line speaks when the tool is absent - that is the nudge the
@@ -1707,7 +1705,7 @@ function test_check_line_fallback_uses_second_alternative() {
 
 function test_check_line_picks_highest_priority_installed() {
   local -a visible=()
-  check_line "$_HI_REAL_CMD:1,bash:3"
+  check_line visible "$_HI_REAL_CMD:1,bash:3"
   _hi_contains "${visible[0]}" bash
 }
 
@@ -1871,13 +1869,6 @@ function test_full_check_emits_a_row_for_an_installed_package() {
 # one per priority 0-3 - in both tables. `VAR=val func` on a shell function
 # (not an external command) reverts VAR once the call returns, so this leaves
 # no _HI_PACKAGES_PALETTE behind for a case after it.
-# the named ramps, read off header.sh's own case rather than a second copy
-# of the list here (the two used to drift); cool is the default arm
-function _hi_palette_names() {
-  printf 'cool\n'
-  sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'
-}
-
 function test_packages_palette_each_name_has_four_entries() {
   local name
   for name in $(_hi_palette_names); do
@@ -1898,37 +1889,21 @@ function test_packages_palette_unknown_falls_back_to_cool() {
   [ "${_HI_YES[*]}" = "${cool_yes[*]}" ] && [ "${_HI_NO[*]}" = "${cool_no[*]}" ]
 }
 
-# every escape in every named palette has to name a real _HI_COLOR_NAMES
-# entry, or a candidate ramp would paint the header with something
-# preview.sh's _hi_color_name_of could never look up. Both sides go
-# through `printf '%b'` before comparing, preview.sh's own
-# _hi_color_name_of shape: core.sh's palette variables hold the literal two
-# characters `\e`, while _hi_color_escape's format string interprets `\e` as
-# the real ESC byte - unexpanded, every comparison here would silently miss.
-function test_packages_palette_escapes_are_all_named_colors() {
-  local name escape found candidate want have scheme
-  # under every scheme too (HI.50): the ramps are captured from the palette
-  # variables, so they are rebuilt per scheme the way configure.sh does. A
-  # 24-word list paints the ramps from the second bank, whose 24-bit tail no
-  # palette variable carries: the name is the 16-color half, so that is what
-  # both sides are cut to (_hi_sgr_base), preview.sh's own shape.
-  for scheme in "" catppuccin monokai onedark vscode "$_HI_TEST_L24"; do
-    for name in $(_hi_palette_names); do
-      (
-        # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-        export _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1
-        _hi_assign_palette
-        _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-        for escape in "${_HI_YES[@]}" "${_HI_NO[@]}"; do
-          _hi_sgr_base want "$(printf '%b' "$escape")"
-          found=""
-          for candidate in "${_HI_COLOR_NAMES[@]}"; do
-            _hi_sgr_base have "$(printf '%b' "$(_hi_color_escape "$candidate")")"
-            [ "$have" = "$want" ] && found=1 && break
-          done
-          [ -n "$found" ] || exit 1
-        done
-      ) || return 1
+# every name in every ramp has to be a real _HI_COLOR_NAMES entry, or a
+# candidate ramp would ask _hi_ramp_escape for a slot that does not exist and
+# paint the header with nothing. A direct membership check now the ramps store
+# names: it used to render each escape and search the palette for one whose
+# 16-color half matched, which is the round trip storing names removes.
+function test_packages_palette_names_are_all_real_colors() {
+  local name entry found candidate
+  for name in $(_hi_palette_names); do
+    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+    for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
+      found=""
+      for candidate in "${_HI_COLOR_NAMES[@]}"; do
+        [ "$candidate" = "$entry" ] && found=1 && break
+      done
+      [ -n "$found" ] || return 1
     done
   done
   [ "$(_hi_palette_names | wc -l)" -ge 3 ]
@@ -1937,8 +1912,7 @@ function test_packages_palette_escapes_are_all_named_colors() {
 # A 24-word scheme: the check paints from the second bank, every other cell
 # from the first. Catppuccin's twelve then vscode's twelve, so bank 2's cyan
 # (slot 17, 11a8cd) is what cool's priority-0 installed color becomes.
-_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+# _HI_TEST_L12/_HI_TEST_L24: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_24_words() {
   local ok=0
@@ -2047,15 +2021,19 @@ function run_header_tests() {
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
   _hi_check "_hi_header_version resolves once per shell" test_header_version_resolves_once_per_shell
-  _hi_check "...and is \"unknown\" without a stamp or git" test_header_version_is_unknown_without_a_stamp_or_git
-  _hi_check "Shows a 6-char hash when not on a tag" test_hi_shorten_describe_shows_a_hash_when_not_on_a_tag
-  _hi_check "...drops the -dirty suffix" test_hi_shorten_describe_drops_the_dirty_suffix
-  _hi_check "...trims a bare hash too" test_hi_shorten_describe_trims_a_bare_hash
-  _hi_check "...leaves an exact tag alone" test_hi_shorten_describe_leaves_an_exact_tag_alone
-  _hi_check "...leaves a release stamp alone" test_hi_shorten_describe_leaves_a_release_stamp_alone
-  _hi_check "...leaves 'unknown' alone" test_hi_shorten_describe_leaves_unknown_alone
-  _hi_check "...caps a long exact tag at 10 columns" test_hi_shorten_describe_caps_a_long_exact_tag_at_ten
-  _hi_check "...drops a long tag when a hash is present" test_hi_shorten_describe_drops_a_long_tag_when_a_hash_is_present
+  # _hi_shorten_describe's own contract - not exactly on a tag (commits ahead,
+  # or no tag reachable at all) means it isn't a release, so only a 6-column
+  # commit hash shows, tag dropped rather than implied; a tag with no hash (an
+  # exact tag, a plain $_HI_RELEASE, "unknown") is a release and shows as-is,
+  # truncated to 10 since there's nothing to join it to
+  _hi_check_eq "Shows a 6-char hash when not on a tag" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f
+  _hi_check_eq "...drops the -dirty suffix" 9c1dd0 _hi_shorten_describe v1.0.0-5-g9c1dd0f-dirty
+  _hi_check_eq "...trims a bare hash too" 9c1dd0 _hi_shorten_describe 9c1dd0fabc
+  _hi_check_eq "...leaves an exact tag alone" v1.0.0 _hi_shorten_describe v1.0.0
+  _hi_check_eq "...leaves a release stamp alone" 1.2.3 _hi_shorten_describe 1.2.3
+  _hi_check_eq "...leaves 'unknown' alone" unknown _hi_shorten_describe unknown
+  _hi_check_eq "...caps a long exact tag at 10 columns" snapshot-6 _hi_shorten_describe snapshot-6fba937
+  _hi_check_eq "...drops a long tag when a hash is present" 200cef _hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
   _hi_check "System_info no longer shows uptime" test_system_info_no_longer_shows_uptime
@@ -2063,19 +2041,23 @@ function run_header_tests() {
   _hi_check "System_info's CPU cell sits next to Cores:" test_system_info_cpu_cell_sits_next_to_cores
   _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
   _hi_check "_hi_load_pct divides load by cores" test_hi_load_pct_divides_load_by_cores
-  _hi_check "...rounds to a whole percent" test_hi_load_pct_rounds_to_a_whole_percent
-  _hi_check "...empty without a load figure" test_hi_load_pct_empty_without_a_load_figure
-  _hi_check "...empty without a core count" test_hi_load_pct_empty_without_a_core_count
-  _hi_check "...empty when cores isn't numeric" test_hi_load_pct_empty_when_cores_is_not_numeric
-  _hi_check "...empty when cores is zero" test_hi_load_pct_empty_when_cores_is_zero
+  _hi_check_eq "...rounds to a whole percent" 33 _hi_load_pct_out 1.00 3
+  _hi_check_eq "...empty without a load figure" "" _hi_load_pct_out "" 4
+  _hi_check_eq "...empty without a core count" "" _hi_load_pct_out 2.00 ""
+  # "?" is the Windows fallback's own unresolved sentinel - never divided
+  # into, just passed straight through to the cell as "Cores: ?"
+  _hi_check_eq "...empty when cores isn't numeric" "" _hi_load_pct_out 2.00 "?"
+  _hi_check_eq "...empty when cores is zero" "" _hi_load_pct_out 2.00 0
   _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
   _hi_check "System_info's load figure rides the Cores cell" test_system_info_load_rides_the_cores_cell
   _hi_check "...and the GHz cell no longer carries it" test_system_info_cpu_cell_has_no_parenthetical
   _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
   _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
-  _hi_check "_hi_humanize_uptime: days and hours" test_hi_humanize_uptime_days_and_hours
-  _hi_check "_hi_humanize_uptime: hours and minutes" test_hi_humanize_uptime_hours_and_minutes
-  _hi_check "_hi_humanize_uptime: minutes only" test_hi_humanize_uptime_minutes_only
+  # _hi_humanize_uptime's own contract, independent of what this box's real
+  # uptime happens to be
+  _hi_check_eq "_hi_humanize_uptime: days and hours" "1d 1h" _hi_humanize_uptime 90000
+  _hi_check_eq "_hi_humanize_uptime: hours and minutes" "1h 30m" _hi_humanize_uptime 5400
+  _hi_check_eq "_hi_humanize_uptime: minutes only" 2m _hi_humanize_uptime 120
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
   _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found
@@ -2090,6 +2072,9 @@ function run_header_tests() {
   _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown
   _hi_check "System_info on a mac, from shims" test_system_info_on_a_mac
   _hi_check "Uptime and IP cells on a mac" test_uptime_and_ip_cells_on_a_mac
+  _hi_check "The ip cell reads iproute2 on Linux" test_ip_cell_on_linux_reads_iproute2
+  _hi_check "The ip cell falls back to hostname -I" test_ip_cell_on_linux_falls_back_to_hostname
+  _hi_check "Five cells cost one probe" test_system_info_probes_once_for_all_five_cells
   _hi_check "System_info on Windows (git-bash), from shims" test_system_info_on_windows
   _hi_check "Uptime and IP cells on Windows" test_uptime_and_ip_cells_on_windows
   _hi_check "_HI_IP_HIDE hides the bridge by default" test_ip_filter_hides_the_bridge_by_default
@@ -2154,10 +2139,12 @@ function run_header_tests() {
 
   _hi_h2 "Testing: check_line"
   _hi_check "Found primary -> visible, checked" test_check_line_found_primary_is_visible_checked
-  _hi_check "Installed on a - line -> hidden" test_check_line_dash_mode_hides_installed
+  # `-` is the mode hidden when the tool *is* there: it exists to speak up
+  # about absence, so a healthy box says nothing.
+  _hi_check "Installed on a - line -> hidden" _hi_no_visible_row "-$_HI_REAL_CMD:3"
   _hi_check "Missing on a - line -> visible, no leaked flag" test_check_line_dash_mode_missing_is_visible
   _hi_check "Installed on a + line -> visible" test_check_line_plus_mode_shows_installed
-  _hi_check "Missing on a + line -> hidden" test_check_line_plus_mode_hides_missing
+  _hi_check "Missing on a + line -> hidden" _hi_no_visible_row "+$_HI_FAKE_CMD:0"
   _hi_check "Missing priority 0 -> visible" test_check_line_missing_priority0_is_visible
   _hi_check "Missing priority 3 -> visible, crossed" test_check_line_missing_priority3_is_visible_crossed
   _hi_check "A priority above 3 clamps to 3" test_check_line_clamps_a_priority_above_three
@@ -2183,7 +2170,7 @@ function run_header_tests() {
   _hi_h2 "Testing: _hi_packages_palette"
   _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
   _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
-  _hi_check "Every escape names a real color" test_packages_palette_escapes_are_all_named_colors
+  _hi_check "Every escape names a real color" test_packages_palette_names_are_all_real_colors
   _hi_check "The check paints from the second bank under 24 words" test_packages_palette_uses_the_second_bank_under_24_words
   _hi_check "...and from the first under 12" test_packages_palette_keeps_the_first_bank_under_12_words
   _hi_check "...and stays empty under NO_COLOR" test_packages_palette_second_bank_is_inert_under_no_color

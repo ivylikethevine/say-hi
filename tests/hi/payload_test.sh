@@ -543,9 +543,7 @@ function run_hi_payload_tests() {
   _hi_check "A small overlay is well under a block" test_overlay_is_well_under_one_block
   _hi_check_requires bsdtar "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
   _hi_check_requires bsdtar "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
-
-  _hi_h2 "Testing: _hi_tar_gz's no-gzip fallback"
-  _hi_check "Falls back to tar's own -z" test_tar_gz_falls_back_to_tars_own_z_without_gzip
+  _hi_check "_hi_tar_gz falls back to tar's own -z without gzip" test_tar_gz_falls_back_to_tars_own_z_without_gzip
 
   _hi_h2 "Testing: the size hi reports"
   _hi_check "_hi_human_bytes matches du's shapes" test_human_bytes_matches_du_shapes

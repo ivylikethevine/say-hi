@@ -137,7 +137,7 @@ function run_ssh_tests() {
       exit $rc'
   }
 
-  _hi_pty_stdin auto "no tty and no python3 to fake one - ssh -t may not get a real pty, results may be unreliable"
+  _hi_pty_stdin auto
 
   _hi_suite_begin
 

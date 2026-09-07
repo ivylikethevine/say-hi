@@ -104,16 +104,14 @@ function _hi_relay_pair() {
 
   _HI_RELAY_C="hi-relaytest-c-$label-$$"
   _HI_RELAY_B="hi-relaytest-b-$label-$$"
-  # ClientAlive on both, as ssh_disconnect_test.sh sets it: it is what reaps a
-  # frozen client in seconds rather than hours, and the kill case needs it on
-  # each hop - B to notice this machine, C to notice B
-  local alive="SSHD_OPTS=-o ClientAliveInterval=2 -o ClientAliveCountMax=1"
+  # ClientAlive on both, as ssh_disconnect_test.sh sets it: the kill case needs
+  # it on each hop - B to notice this machine, C to notice B
   _hi_h2 "Booting the far end (C: $_HI_RELAY_C)"
   _hi_sshd_container "$_HI_RELAY_C" "$_HI_SSHD_IMAGE" \
-    --network "$_HI_RELAY_NET" -e "$alive" || return 1
+    --network "$_HI_RELAY_NET" -e "$_HI_SSHD_ALIVE" || return 1
   _hi_h2 "Booting the middle (B: $_HI_RELAY_B)"
   _hi_sshd_container "$_HI_RELAY_B" "$_HI_SSHD_IMAGE" \
-    --network "$_HI_RELAY_NET" -e "$alive" || return 1
+    --network "$_HI_RELAY_NET" -e "$_HI_SSHD_ALIVE" || return 1
   _hi_relay_arm_client || {
     _hi_cecho " | could not arm B as an ssh client" "$RED"
     return 1
@@ -250,7 +248,7 @@ function _hi_relay_disconnect_case() {
   out_file="$_HI_WORKDIR/relay-disconnect.out"
   : >"$out_file"
 
-  _hi_pty_wrap 0 force "no python3 to give the launcher its own pty - ssh will raw-mode this terminal and the test kills it before it can restore, expect garbled output afterwards"
+  _hi_pty_wrap 0 force
   _hi_ssh_launch "$_HI_SSH_PORT"
   # Two levels of quoting, one per hop: $_HI_CLEANUP and $_HI_LAUNCHER expand
   # on B, and \$_HI_CLEANUP survives B to expand on C. The sleep has to outlast
@@ -315,7 +313,7 @@ function run_relay_tests() {
   _hi_ssh_keypair
   _hi_sshd_image "the relay" || _hi_stand_down "sshd image build failed"
 
-  _hi_pty_stdin auto "no tty and no python3 to fake one - results may be unreliable"
+  _hi_pty_stdin auto
 
   # Two cases, two three-container fixtures, ~44s of a full run spent almost
   # entirely waiting on them - so they run together, each with its own network

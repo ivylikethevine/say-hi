@@ -637,6 +637,38 @@ function test_ci_runs_every_group_in_the_table() {
   }
 }
 
+# `kcov --merge` re-reads every source file at the absolute path its shard
+# recorded, so a gather job with no working tree merges to `"files": []` and a
+# run-wide 0.00 - a well-formed report, and a badge reading 0.00% rather than
+# an error. coverage.yml's kcov gather job shipped without a checkout and
+# published exactly that; nothing else in the tree would have caught it, since
+# the merge, the upload and the badge step all exit 0. Measured on kcov 43:
+# the same parts directory merges to 41.06% with the sources present and to
+# 0.00% with one moved away.
+function test_coverage_merge_jobs_check_out_the_tree() {
+  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job block missing=""
+  local seen=0 jobs
+  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
+  # from `jobs:` on, so the two-space keys under `on:` are not read as jobs -
+  # and `^ *kcov --merge`, so the header's own prose about the merge is not
+  # read as a job running it
+  jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
+  while read -r job; do
+    block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
+    printf '%s\n' "$block" | grep -qE '^ *kcov --merge' || continue
+    seen=$((seen + 1))
+    printf '%s\n' "$block" | grep -q 'uses: actions/checkout' || missing="$missing $job"
+  done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
+  [ "$seen" -gt 0 ] || {
+    _hi_cecho " | no coverage.yml job runs kcov --merge - has the job been renamed?" "$RED"
+    return 1
+  }
+  [ -z "$missing" ] || {
+    _hi_cecho " | coverage.yml jobs that merge kcov output without checking out the tree:$missing" "$RED"
+    return 1
+  }
+}
+
 # Each suite selectable on its own, and every group non-empty: together these
 # are what makes `--group` a safe thing for CI to depend on.
 # --group is what ci.yml invokes, so every group the table uses has to select
@@ -673,31 +705,6 @@ function _hi_shards_cover_group() {
     i=$((i + 1))
   done
   [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ]
-}
-
-# The count is a contract with the two sharded Windows jobs - each matrix
-# lists one entry per shard and each run passes HI_SHARDS as the divisor; the
-# halves CI runs under Git Bash, and again inside WSL, are exactly the fast
-# group.
-function test_windows_client_shards_cover_the_fast_group() {
-  _hi_shards_cover_group windows-client.yml - fast
-}
-
-function test_windows_e2e_wsl_shards_cover_the_fast_group() {
-  _hi_shards_cover_group windows-e2e.yml wsl-suites fast
-}
-
-function test_ci_e2e_shards_cover_the_e2e_group() {
-  _hi_shards_cover_group ci.yml e2e e2e
-}
-
-# Also the shape "one backend per runner" depends on: three suites, three
-# shards, so every shard really is exactly one backend - not asserted here
-# (that's install-step reasoning, not a suite-list one), but a shard count
-# that ever drifted from the group's suite count would fail this the same
-# way a missing HI_SHARDS or an incomplete matrix would.
-function test_ci_e2e_backends_shards_cover_the_backends_group() {
-  _hi_shards_cover_group ci.yml e2e-backends backends
 }
 
 function test_every_group_selects_only_its_own_suites() {
@@ -862,12 +869,23 @@ function run_runner_tests() {
   _hi_check "Lists a group and name per suite" test_shipped_table_lists_a_group_and_name_per_suite
   _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
-  _hi_check "The Windows client's shards cover the fast group" test_windows_client_shards_cover_the_fast_group
-  _hi_check "ci.yml's e2e shards cover the e2e group" test_ci_e2e_shards_cover_the_e2e_group
-  _hi_check "ci.yml's e2e-backends shards cover the backends group" test_ci_e2e_backends_shards_cover_the_backends_group
+  # The count is a contract with the two sharded Windows jobs - each matrix
+  # lists one entry per shard and each run passes HI_SHARDS as the divisor; the
+  # halves CI runs under Git Bash, and again inside WSL, are exactly the fast
+  # group.
+  _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
+  _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
+  _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
+  # Also the shape "one backend per runner" depends on: three suites, three
+  # shards, so every shard really is exactly one backend - not asserted here
+  # (that's install-step reasoning, not a suite-list one), but a shard count
+  # that ever drifted from the group's suite count would fail this the same
+  # way a missing HI_SHARDS or an incomplete matrix would.
+  _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
+  _hi_check "coverage.yml merges with the tree checked out" test_coverage_merge_jobs_check_out_the_tree
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
 
   _hi_suite_end "test_runner.sh"

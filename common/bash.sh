@@ -6,7 +6,13 @@
 # === start required configuration ===
 # $_HI_HOME first, this file's own path as the fallback for a hand-written
 # `source` (hi.sh and install.sh's rc line set it). GLOSSARY: HI.33
-: "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+# `${BASH_SOURCE%/*}` and not `$(dirname ...)`: header.sh:14 and core.sh:21
+# already spell it this way, and a fork here is one every hand-written
+# `source` pays.
+_hi_d="${BASH_SOURCE[0]}"
+case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
+: "${_HI_HOME:=$(cd -P "$_hi_d/../.." && pwd)}"
+unset _hi_d
 # shellcheck source=./core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
 # shellcheck source=./git_prompt.sh
@@ -89,8 +95,8 @@ function _hi_complete() {
   ((COMP_CWORD > 1)) && prev="${COMP_WORDS[COMP_CWORD - 1]}"
   # the word a flag takes - `hi --preview <TAB>`, `hi --use <TAB>` - is
   # neither a flag nor a target: targets.sh's words roster, no probe
-  case "$prev" in
-  --preview | --use)
+  case " $_HI_WORD_FLAGS " in
+  *" $prev "*)
     while IFS=$'\t' read -r n _; do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
     done < <(sh "$_HI_TARGETS" words "$prev")

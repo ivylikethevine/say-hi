@@ -41,6 +41,22 @@
 # not in test_lib.sh or the suites. If kcov's badge ever sags far under
 # bashcov's again, rerun that probe before believing either figure.
 #
+# THE MERGE RE-READS THE SOURCES
+#
+# `kcov --merge` opens every file its inputs recorded, at the absolute path
+# they recorded it under, to count that file's lines again. Merge somewhere
+# the tree is not and the result is not an error but a well-formed empty
+# report - `"files": []`, `"total_lines": 0`, `"percent_covered": "0.00"`.
+# coverage.yml's gather job had no `actions/checkout` and published exactly
+# that as the README's kcov badge. Measured here on kcov 43, three suites'
+# parts merged twice:
+#
+#   sources present ...... 41.06%, five files listed
+#   one source moved away . 0.00%, "files": []
+#
+# The gather job checks the tree out now, and tests/harness/runner_test.sh
+# asserts that every coverage.yml job running `kcov --merge` does.
+#
 # The topology below is what makes the trace work at all: one kcov per suite
 # with the suite script as the *top-level* process, merged at the end.
 # Wrapping test_runner.sh instead would put every suite in a child process

@@ -400,16 +400,6 @@ function test_use_backend_rejects_a_stranger() {
   ! _hi_use_backend frobnicate >/dev/null 2>&1
 }
 
-function test_parse_use_sets_backend_to_the_named_cli() {
-  [ "$(_hi_backend_parse_out --use nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ]
-}
-
-# --use and its word are both consumed, neither becomes the target or an
-# ssh option
-function test_parse_use_does_not_reach_sshargs() {
-  [ "$(_hi_parse_out --use podman myhost)" = "$(printf 'myhost\n\n')" ]
-}
-
 # --use=<backend> is the same flag with its word joined, the spelling
 # install.sh's --prefix and --preset already take; it used to fall through
 # to ssh as an unknown option
@@ -455,11 +445,6 @@ function test_parse_use_twice_agrees_or_refuses() {
   [ "$rc" -eq 1 ] || return 1
   out="$( (_hi_parse --use docker --use ssh myhost 2>&1 >/dev/null) || true)"
   [[ "$out" == *"--use ssh"*"--use docker"* ]]
-}
-
-# after the target, --use is the remote command's own word
-function test_parse_use_after_the_target_is_not_claimed() {
-  [ "$(_hi_backend_parse_out myhost --use nerdctl)" = "$(printf 'myhost\n\n')" ]
 }
 
 # BACKEND and PLAIN are _hi_parse's other outputs, alongside DOMAIN/CMDARG/
@@ -1016,7 +1001,7 @@ function _hi_subcmd_run() {
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag out
   home="$(_hi_subcmd_home subcmd-bare)"
-  for flag in --install --uninstall --configure "--preview colors" --doctor; do
+  for flag in --install --uninstall --configure "--preview colors" --doctor --update; do
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
     out="$(_hi_subcmd_run "$home" $flag)" && {
       _hi_cecho " | $flag exited 0 without a checkout" "$RED"
@@ -1027,132 +1012,6 @@ function test_local_subcommands_refuse_without_the_checkout() {
       return 1
     }
   done
-}
-
-# --update is the one that cannot borrow that sentence: .git, not scripts/
-function test_update_refuses_without_a_git_dir() {
-  local home out
-  home="$(_hi_subcmd_home subcmd-bare)"
-  out="$(_hi_subcmd_run "$home" --update)" && return 1
-  [[ "$out" == *"hi --update: no .git in"* ]]
-}
-
-# --help is hi's to answer, and it answers ahead of the .git check, so a
-# package install gets the text too
-function test_update_help_is_his_own() {
-  local home out
-  home="$(_hi_subcmd_home subcmd-bare)"
-  out="$(_hi_subcmd_run "$home" --update --help)" || return 1
-  [[ "$out" == "Usage: hi --update"* && "$out" == *"newest release tag"* ]]
-}
-
-# _hi_update_fixture <name> - a target-shaped tree that is also a git clone:
-# one commit and tag v0.0.1 locally, an origin.git with a second commit and
-# v0.0.2 that a fetch brings in. Prints the fixture's _HI_HOME.
-function _hi_update_fixture() {
-  local home tree work
-  home="$(_hi_subcmd_home "$1")"
-  tree="$home/say-hi"
-  work="$home/work"
-  (
-    cd "$tree" || exit 1
-    git init -q -b main . 2>/dev/null || { git init -q . && git checkout -q -b main; }
-    git add -A
-    git -c user.name=hi -c user.email=hi@example.invalid commit -q -m one
-    git -c tag.gpgsign=false tag v0.0.1
-    git clone -q --bare . "$home/origin.git"
-    git remote add origin "$home/origin.git"
-    git fetch -q origin
-    git branch -q --set-upstream-to=origin/main main
-  ) >/dev/null 2>&1 || return 1
-  (
-    git clone -q "$home/origin.git" "$work"
-    cd "$work" || exit 1
-    printf 'two\n' >two.txt
-    git add two.txt
-    git -c user.name=hi -c user.email=hi@example.invalid commit -q -m two
-    git -c tag.gpgsign=false tag v0.0.2
-    git push -q origin main --tags
-  ) >/dev/null 2>&1 || return 1
-  printf '%s' "$home"
-}
-
-function test_update_to_a_tag_detaches_there() {
-  local home out
-  home="$(_hi_update_fixture upd-tag)" || return 1
-  out="$(_hi_subcmd_run "$home" --update v0.0.2)" || return 1
-  [[ "$out" == *"now on v0.0.2"* ]] || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.2 ] || return 1
-  ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1
-}
-
-# bare: the newest tag by version, which the fetch brings in - and that
-# leaves a branch checkout detached too, since releases are tags and nothing
-# else
-function test_bare_update_moves_to_the_newest_tag() {
-  local home out
-  home="$(_hi_update_fixture upd-bare)" || return 1
-  out="$(_hi_subcmd_run "$home" --update)" || return 1
-  [[ "$out" == *"now on v0.0.2"* ]] || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.2 ] &&
-    [ -f "$home/say-hi/two.txt" ]
-}
-
-# ...by version, not by name: v0.0.10 beats v0.0.9, and a pre-release of the
-# next version is never chosen unasked
-function test_bare_update_sorts_tags_by_version() {
-  local home out
-  home="$(_hi_update_fixture upd-sort)" || return 1
-  (
-    cd "$home/work" || exit 1
-    git -c tag.gpgsign=false tag v0.0.10 && git -c tag.gpgsign=false tag v0.0.9 &&
-      git -c tag.gpgsign=false tag v0.0.11-rc.1 && git push -q origin --tags
-  ) >/dev/null 2>&1 || return 1
-  out="$(_hi_subcmd_run "$home" --update)" || return 1
-  [[ "$out" == *"now on v0.0.10"* ]]
-}
-
-function test_update_on_the_tag_already_says_so() {
-  local home out before after
-  home="$(_hi_update_fixture upd-same)" || return 1
-  _hi_subcmd_run "$home" --update v0.0.2 >/dev/null || return 1
-  before="$(git -C "$home/say-hi" rev-parse HEAD)"
-  out="$(_hi_subcmd_run "$home" --update)" || return 1
-  after="$(git -C "$home/say-hi" rev-parse HEAD)"
-  [[ "$out" == *"already on v0.0.2"* ]] && [ "$before" = "$after" ]
-}
-
-function test_update_refuses_a_dirty_tree() {
-  local home out before
-  home="$(_hi_update_fixture upd-dirty)" || return 1
-  printf '# hacked\n' >>"$home/say-hi/hi.sh"
-  before="$(git -C "$home/say-hi" rev-parse HEAD)"
-  out="$(_hi_subcmd_run "$home" --update v0.0.2)" && return 1
-  [[ "$out" == *"uncommitted changes"* ]] || return 1
-  [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ] || return 1
-  tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$'
-}
-
-# a branch name is no longer a thing to name: releases are tags
-function test_update_refuses_an_unknown_tag() {
-  local home out
-  home="$(_hi_update_fixture upd-nope)" || return 1
-  out="$(_hi_subcmd_run "$home" --update nope)" && return 1
-  [[ "$out" == *"no release tag named nope"* ]] || return 1
-  out="$(_hi_subcmd_run "$home" --update main)" && return 1
-  [[ "$out" == *"no release tag named main"* ]]
-}
-
-# no git-pull options any more, and no second word: both are errors before
-# anything moves
-function test_update_takes_one_tag_at_most() {
-  local home out
-  home="$(_hi_update_fixture upd-opts)" || return 1
-  out="$(_hi_subcmd_run "$home" --update v0.0.2 --ff-only)" && return 1
-  [[ "$out" == *"one release tag at most"* ]] || return 1
-  out="$(_hi_subcmd_run "$home" --update --ff-only)" && return 1
-  [[ "$out" == *"unknown option --ff-only"* ]] || return 1
-  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
 }
 
 # ...and --preview packages/header do not refuse at all: the check and the
@@ -1433,15 +1292,15 @@ function run_hi_parse_tests() {
   _hi_h2 "Testing: the arm override (--use <backend>)"
   _hi_check "Every arm resolves through --use, none has a row of its own" test_every_arm_resolves_through_use
   _hi_check "_hi_use_backend rejects a stranger" test_use_backend_rejects_a_stranger
-  _hi_check "--use <cli> sets BACKEND to that member" test_parse_use_sets_backend_to_the_named_cli
-  _hi_check "--use and its word never reach SSHARGS" test_parse_use_does_not_reach_sshargs
+  _hi_check_eq "--use <cli> sets BACKEND to that member" "$(printf 'myhost\nnerdctl\n')" _hi_backend_parse_out --use nerdctl myhost
+  _hi_check_eq "--use and its word never reach SSHARGS" "$(printf 'myhost\n\n')" _hi_parse_out --use podman myhost
   _hi_check "--use rejects a stranger, naming every arm" test_parse_use_rejects_a_stranger
   _hi_check "--use=<backend> is the same flag" test_parse_use_takes_the_equals_spelling
   _hi_check "--use=<stranger> is refused" test_parse_use_equals_rejects_a_stranger
   _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
   _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
-  _hi_check "--use after the target is the remote command's" test_parse_use_after_the_target_is_not_claimed
+  _hi_check_eq "--use after the target is the remote command's" "$(printf 'myhost\n\n')" _hi_backend_parse_out myhost --use nerdctl
   _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
   _hi_check "--plain combines with --use" test_parse_plain_combines_with_use
   _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix
@@ -1484,15 +1343,6 @@ function run_hi_parse_tests() {
 
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
-  _hi_check "--update refuses without a .git" test_update_refuses_without_a_git_dir
-  _hi_check "--update --help is hi's text" test_update_help_is_his_own
-  _hi_check_requires git "--update <tag> checks the tag out, detached" test_update_to_a_tag_detaches_there
-  _hi_check_requires git "A bare --update moves to the newest tag" test_bare_update_moves_to_the_newest_tag
-  _hi_check_requires git "...newest by version, pre-releases below" test_bare_update_sorts_tags_by_version
-  _hi_check_requires git "Already on the tag: says so, exits 0" test_update_on_the_tag_already_says_so
-  _hi_check_requires git "--update refuses a dirty tree" test_update_refuses_a_dirty_tree
-  _hi_check_requires git "--update refuses an unknown tag, a branch included" test_update_refuses_an_unknown_tag
-  _hi_check_requires git "--update takes one tag at most, no options" test_update_takes_one_tag_at_most
   _hi_check "--preview packages/header fall back instead" test_packages_preview_falls_back_to_the_shipped_check
   _hi_check "--preview wants one of three subjects" test_preview_refuses_an_unknown_subject
   _hi_check "--use's completion roster is hi's backend roster" test_use_words_match_the_backend_roster

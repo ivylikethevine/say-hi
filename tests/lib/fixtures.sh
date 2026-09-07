@@ -49,6 +49,22 @@ function _hi_within_percent() {
   [ "$delta" -le "$_HI_WITHIN_SLACK" ]
 }
 
+# A scheme of the user's own: 12 or 24 six-digit hex words in the setting
+# itself. Catppuccin's twelve, then vscode's twelve as the second bank. Shared
+# by common/core_test.sh and common/header_test.sh, which both build custom
+# color schemes off it - one copy so the two lists can't drift apart.
+_HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+
+# _hi_palette_names - header.sh's named package-check ramps, one per line,
+# read off _hi_packages_palette's own case rather than a second copy of the
+# list (common/header_test.sh and scripts/preview_test.sh each carried one, and
+# the two used to drift); cool is the default arm.
+function _hi_palette_names() {
+  printf 'cool\n'
+  sed -n '/^function _hi_packages_palette()/,/^}/p' "$_HI_HEADER" | sed -n 's/^  \([a-z][a-z]*\))$/\1/p'
+}
+
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one
 # function, so they cannot segment tables differently. A table is a run of
@@ -180,6 +196,30 @@ function _hi_can_trust_mode_bits() {
   esac
 }
 
+# _hi_can_mkdir_mode - whether `mkdir -m <mode>` both creates the directory
+# and exits 0. No on MSYS/Cygwin under a Windows-owned temp tree: a real
+# windows-latest run showed the mkdir half landing and the chmod half refused
+# ("mkdir: cannot change permissions of ...: Permission denied"), so the
+# directory is there and the exit status says it is not. That splits any
+# caller that reads mkdir's status as its verdict from one that re-tests
+# `[ -d ]` - hi.sh does both, deliberately, in _hi_runtime_dir and in
+# _say_hi_container's scratch probe.
+#
+# Probed rather than named by kernel, unlike its two neighbours above: what
+# decides is the filesystem being written to, not the runtime, so a tree where
+# it works would answer yes and still be honest. Lazy for _hi_can_symlink's
+# reason: $_HI_WORKDIR is not there at source time.
+_HI_CAP_MKDIR_MODE=""
+function _hi_can_mkdir_mode() {
+  local probe
+  if [ -z "$_HI_CAP_MKDIR_MODE" ]; then
+    probe="$_HI_WORKDIR/cap.mkdirmode"
+    if mkdir -m 700 "$probe" 2>/dev/null; then _HI_CAP_MKDIR_MODE=yes; else _HI_CAP_MKDIR_MODE=no; fi
+    rm -rf "$probe"
+  fi
+  [ "$_HI_CAP_MKDIR_MODE" = yes ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -200,6 +240,10 @@ function _hi_can_trust_mode_bits() {
 #   mode_bits        - a permission string reflects only chmod's bits, no
 #                       content-derived guess mixed in. No on MSYS/Cygwin -
 #                       see _hi_can_trust_mode_bits.
+#   mkdir_mode       - `mkdir -m` creates the directory *and* exits 0. No on
+#                       MSYS/Cygwin, where the chmod half is refused and the
+#                       status disagrees with the tree - see
+#                       _hi_can_mkdir_mode.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -210,6 +254,7 @@ function _hi_capable() {
   lockout) _hi_can_lock_out ;;
   fork_concurrency) _hi_can_fork_concurrently ;;
   mode_bits) _hi_can_trust_mode_bits ;;
+  mkdir_mode) _hi_can_mkdir_mode ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2
