@@ -13,7 +13,8 @@
 # tests/hi/parse_test.sh. <needs> is what a flag wants that the payload does
 # not carry: `-` for nothing (works in a session), `scripts` for scripts/ (a
 # package ships it, a session does not), `git` for .git (neither a package
-# nor a session has it). Rows print in this order.
+# nor a session has it). Rows print in this order. -h and -V are hi.sh's
+# short forms of --help and --version, not rows: --help renders them itself.
 --help||-|||this text
 --version||-|||hi's version: the packaging stamp, or git describe
 --use|<backend>|-|||skip probing and force that backend (ssh counts as one)

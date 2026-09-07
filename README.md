@@ -44,9 +44,8 @@ _Don't `ssh`ush your hosts, say `hi`!_
 
 ### Additional Documentation
 
-[docs/README.md](docs/README.md) indexes the rest: settings, support,
-alternatives, testing, the glossary, security, packaging, contributing and
-the OpenSSF answer sheet.
+[docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
+draft included.
 
 ---
 
@@ -217,9 +216,8 @@ everything weighed and answered **no**, and why.
 
   A packaged install still needs `hi --install` once per user, for the rc
   lines; it leaves the package's `/usr/bin/hi` to the package manager. macOS:
-  `brew install ivylikethevine/tap/say-hi` (the tap is
-  [ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap)),
-  then `hi --install`.
+  `brew install ivylikethevine/tap/say-hi`
+  ([the tap](docs/PACKAGING.md#homebrew-tap)), then `hi --install`.
 
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
@@ -269,9 +267,8 @@ everything weighed and answered **no**, and why.
   For anything you would hate to lose to a flaky link, start `hi` inside
   `tmux` or `screen` **on this machine**: the local multiplexer survives the
   drop, and reconnecting is another `hi <target>`
-  ([how it works](docs/SETTINGS.md#how-it-works)). `hi --mux <target>` (or
-  `_HI_MUX=1`) does that step for you: one local tmux session per target,
-  and a repeat reattaches instead of opening a second.
+  ([how it works](docs/SETTINGS.md#how-it-works)); `hi --mux <target>` does
+  that step for you.
 - done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a
@@ -338,12 +335,10 @@ side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
 [![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-Two coverage tools sit beside the suites — kcov and bashcov, each sweeping
-every suite the coverage runner can host, measured over the shipped product
-only. They cannot err in the same direction, so their landing within a few
-points of each other is what makes the number worth reading; each badge
-names its measurer, and neither gates anything. The residual per-file skews,
-and the profiler for a tripped bench ceiling, are
+kcov and bashcov each sweep every suite the coverage runner can host,
+measured over the shipped product only; neither gates anything, and their
+landing within a few points of each other is what makes the number worth
+reading. The per-file skews and the bench profiler are
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## AI Usage

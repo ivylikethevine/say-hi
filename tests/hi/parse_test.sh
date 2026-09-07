@@ -128,6 +128,20 @@ function test_parse_bare_flag_with_a_value_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--plain takes no value"* ]]
 }
 
+# ...and which flags are bare is common/flags' empty <argument> column plus
+# -h/-V, not a list of hi.sh's own: every such row is refused a value
+function test_parse_every_bare_flag_refuses_a_value() {
+  local flag out rc
+  for flag in $(sed -n 's/^\(--[a-z-]*\)||.*/\1/p' "$_HI_ROOT/common/flags") -h -V; do
+    rc=0
+    out="$( (_hi_parse "$flag=1" myhost 2>&1 >/dev/null) )" || rc=$?
+    [ "$rc" -eq 1 ] && [[ "$out" == *"$flag takes no value"* ]] || {
+      _hi_cecho " | $flag=1: exit $rc, [$out]" "$RED"
+      return 1
+    }
+  done
+}
+
 # -h behind an ssh option is still hi's question, not ssh's usage
 function test_parse_help_is_honoured_behind_an_ssh_option() {
   local out
@@ -1368,6 +1382,7 @@ function run_hi_parse_tests() {
   _hi_check "hi's own flag after the target is refused" test_parse_own_flag_after_the_target_is_refused
   _hi_check "hi's own flag with no target is hi's error" test_parse_own_flag_without_a_target_is_his_error
   _hi_check "A bare flag takes no value" test_parse_bare_flag_with_a_value_is_refused
+  _hi_check "...every bare row of common/flags, and -h/-V" test_parse_every_bare_flag_refuses_a_value
   _hi_check "-h behind an ssh option is still hi's" test_parse_help_is_honoured_behind_an_ssh_option
   _hi_check "help and version words are -h and -V" test_bare_help_and_version_words_are_his_own
   _hi_check "A Host * block names no target" test_is_ssh_host_ignores_a_wildcard_block

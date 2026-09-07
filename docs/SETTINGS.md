@@ -261,10 +261,6 @@ the `mktemp -d` directory holding the per-shell rc files a nested
 ([HI.46](GLOSSARY.md#hi46-session-rc-directory)). Everything else beginning
 `_HI_` is internal state, named that way to stay out of your namespace.
 
-A name that used to be a setting and no longer is (`_HI_EZA_OPTS_SIZE`, which
-nothing ever read) is ignored, and for one minor release `hi --doctor` and the
-connect header both say so while it is still in your `settings.sh`.
-
 ## System-wide settings
 
 `/etc/say-hi/settings.sh`, when it exists, is sourced **before** each user's
@@ -346,17 +342,6 @@ whatever does not fit opens the next line instead, cascading forward through
 the order above until the packages check (the one variable-length feature)
 absorbs the rest, or - with `check` hidden or left out - prints as its own
 trailing line.
-
-**Migrating an existing `_HI_HEADER_ORDER`**: the old four words
-(`timestamp`, `sysinfo`, `identity`, `check`) are gone along with the six
-`_HI_HEADER_*` row toggles they went with (`_HI_HEADER_BANNER` lives on as
-`_HI_DISABLE_BANNER`, above: `_HI_HEADER_BANNER=0` becomes
-`_HI_DISABLE_BANNER=1`) - none of them match anything in the new vocabulary,
-so a saved value using them silently shows nothing for the words it no
-longer recognizes. Replace `timestamp` with `utc version localtime`,
-`sysinfo` with `arch os cores cpu ram`, and `identity` with `gitid
-containers jobs pods auth pub uptime` (drop `uptime` from that if you had
-`_HI_HEADER_UPTIME=0` set).
 
 ### Others
 

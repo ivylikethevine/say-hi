@@ -71,7 +71,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   jobs running side by side rather than in sequence. Run both.
 - Run the suite at the **end** of a multi-step change — a structural refactor
   breaks loudly at source time.
-- Layout, the lint gate's four suites/seventeen checks and the coverage caveat
+- Layout, the lint gate's four suites/eighteen checks and the coverage caveat
   are [docs/TESTING.md](docs/TESTING.md)'s job. The two that bite most: a
   suite lives in `tests/<the directory it tests>/` and sources
   `tests/test_lib.sh` and nothing else (GLOSSARY: HI.34), and a new suite has
@@ -101,20 +101,19 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   `_HI_SC_WIDTH=1` does the same for the lint fan-out — for a flaky case or a
   transcript that needs reading live.
 - A `source "$_HI_CONFIG_DIR/<name>"` needs `# shellcheck source=/dev/null`
-  above it: `.shellcheckrc`'s `source-path=SCRIPTDIR` plus `shellcheck -x`
-  resolves the bare basename to the sourcing file itself and re-parses it
-  forever (~33GB resident, a global OOM). The lint suite refuses to start when
-  one is missing.
+  above it, or `shellcheck -x` re-parses the sourcing file forever (a global
+  OOM; the why is in [docs/TESTING.md](docs/TESTING.md)). The lint suite
+  refuses to start when one is missing.
 - `shfmt -w .` is **not** the fix for a red shfmt gate: `.` also reformats
   `common/zsh.zsh`, which is zsh and ships. Reformat the paths the failure
   names.
-- The e2e suites (ssh, docker, podman, nomad, kube) need real backends and do
-  run here (the sandbox allows the docker socket). A suite that stands down
+- The e2e suites (ssh, docker) and `--group backends` (podman, nomad, kube)
+  need real backends and do run here (the sandbox allows the docker socket).
+  A suite that stands down
   reports yellow **SKIPPED**, never green; `--require-run` turns skips into
   failures. Try e2e first and read the STATUS/SKIP columns.
-- Coverage figures are usable since the 2026-09 full-sweep + product-only
-  badge fix (kcov and bashcov land within a few points of each other).
-  Per-file skews remain — bashcov marks heredoc bodies covered and loses
+- Coverage figures are usable (kcov and bashcov land within a few points of
+  each other). Per-file skews remain — bashcov marks heredoc bodies covered and loses
   `env -i` children and in-container lines; kcov's DEBUG-trap history is
   `tests/coverage.sh`'s header, and is what to re-check if the two badges
   diverge again. Write tests for behavior the per-file report shows

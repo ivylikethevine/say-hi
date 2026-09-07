@@ -8,7 +8,7 @@
 #
 # GLOSSARY: HI.30 + HI.34. SC2317 rides along because sourcing doctor.sh reaches
 # hi.sh's trailing dispatch, which shellcheck thinks never returns (see
-# hi_test.sh for the long form of this story).
+# tests/hi/parse_test.sh for the long form of this story).
 # shellcheck disable=SC2329,SC2317
 set -euo pipefail
 
@@ -556,15 +556,6 @@ function test_plain_flag_is_accepted_on_the_text_report() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
 
-# a retired name still exported is a warn row that names the release and the
-# reason, and never a finding
-function test_config_warns_about_a_retired_setting() {
-  local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_EZA_OPTS_SIZE=x "$_HI_DOCTOR")" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_EZA_OPTS_SIZE is set but retired since 0.1.9"* ]]
-}
-
 function test_help_exits_zero() {
   "$_HI_DOCTOR" --help >/dev/null
 }
@@ -855,7 +846,6 @@ function run_doctor_tests() {
   _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
   _hi_h2 "Testing: the report"
-  _hi_check "A retired setting is a warn row" test_config_warns_about_a_retired_setting
   _hi_check "--help exits zero" test_help_exits_zero
   _hi_check "--help names what was typed" test_help_names_what_was_typed
   _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target

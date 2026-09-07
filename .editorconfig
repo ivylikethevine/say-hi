@@ -1,4 +1,6 @@
-# say-hi - keeps non-Zed editors in step with .zed/settings.json (tab_size 2).
+# say-hi - keeps other editors in step with .zed/settings.json (tab_size 2);
+# .vscode/settings.json is the same for VS Code, which reads this file only
+# through an extension.
 # No per-type exceptions on purpose: the tree is uniformly 2-space and has no
 # Makefiles; the only literal tabs are data inside sed replacements, which
 # EditorConfig never rewrites.

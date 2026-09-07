@@ -905,6 +905,39 @@ function test_flags_do_not_probe() {
 # paths.sh's $_HI_WORD_FLAGS is the membership test all four completions use;
 # targets.sh's `words` case is the content. Nothing made the two agree, so a
 # new word-taking flag could land here and silently never complete anywhere.
+# ...and common/flags' <argument> column is where a word-taking flag is
+# declared: a single <word> there is exactly what $_HI_WORD_FLAGS must list
+# (paths.sh cannot derive it - its dialect is plain exports, fish included)
+function test_word_flags_match_the_flags_table() {
+  local want got
+  want="$(sed -n 's/^\(--[a-z-]*\)|<[a-z]*>|.*/\1/p' "$_HI_ROOT/common/flags" | sort | tr '\n' ' ')"
+  # shellcheck disable=SC2086 # the split is the roster
+  got="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | common/flags takes a word for [$want], _HI_WORD_FLAGS names [$got]" "$RED"
+    return 1
+  }
+}
+
+# the --preview subjects are spelled three times - hi.sh's arms, targets.sh's
+# words roster and preview.sh's usage line - each with its own text, so the
+# three are pinned to each other rather than shared
+function test_preview_subjects_agree_everywhere() {
+  local want got
+  want="$(sh "$_HI_TARGETS" words --preview | cut -f1 | sort | tr '\n' ' ')"
+  got="$(sed -n '/^--preview | --preview=\*)$/,/^  esac$/p' "$_HI_LAUNCHER" |
+    sed -n 's/^  \([a-z]*\))$/\1/p' | sort | tr '\n' ' ')"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | targets.sh offers [$want], hi.sh dispatches on [$got]" "$RED"
+    return 1
+  }
+  got="$(sed -n 's/^Usage: .*<\([a-z|]*\)>$/\1/p' "$_HI_ROOT/scripts/preview.sh" | tr '|' '\n' | sort | tr '\n' ' ')"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | targets.sh offers [$want], preview.sh's usage names [$got]" "$RED"
+    return 1
+  }
+}
+
 function test_word_flags_match_the_words_roster() {
   local arms want got
   # the arm labels of the `words` case, in file order.
@@ -999,6 +1032,8 @@ function run_targets_tests() {
   _hi_check "flags: a dash word completes hi's options" test_complete_offers_hi_flags_for_a_dash_word
   _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
   _hi_check "words: the roster and \$_HI_WORD_FLAGS agree" test_word_flags_match_the_words_roster
+  _hi_check "words: \$_HI_WORD_FLAGS is common/flags' <word> column" test_word_flags_match_the_flags_table
+  _hi_check "words: --preview's subjects agree in all three files" test_preview_subjects_agree_everywhere
   _hi_check "flags: filtered by prefix, never a target" test_complete_flags_filter_by_prefix_and_never_reach_targets
 
   _hi_suite_end "targets.sh"

@@ -14,9 +14,9 @@ set -euo pipefail
 
 _HI_FEATURES_ONLY=""
 _HI_CHECK_CONFIGS_ONLY=""
-# _MODE, not a bare _HI_UNINSTALL: common/paths.sh once exported that name as
-# a path, and a sourced file overwriting a mode flag with a non-empty string
-# would turn every plain `install.sh` run into an uninstall.
+# _MODE, not a bare _HI_UNINSTALL: a sourced file exporting that name as a
+# path would overwrite a mode flag with a non-empty string and turn every
+# plain `install.sh` run into an uninstall.
 _HI_UNINSTALL_MODE=""
 _HI_ASSUME_YES=0
 # Skip config_hi's symlink. For installs where something else already owns the

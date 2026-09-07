@@ -1,8 +1,7 @@
 # OpenSSF improvements
 
-The Best Practices questionnaire answer sheet for this project - still to be
-entered by hand at
-[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit) -
+The Best Practices questionnaire answer sheet for this project, to enter at
+[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit),
 and what a single maintainer cannot close regardless of repo state. Work
 already shipped for the Scorecard and Best Practices badges is not repeated
 here; git history is the ledger, and
@@ -17,7 +16,7 @@ state of the two things this file used to narrate.
   - [Passing level](#passing-level)
   - [Silver level](#silver-level)
   - [Gold level](#gold-level)
-- [Left for a human](#left-for-a-human)
+- [Still to do](#still-to-do)
 
 ## What still needs a second person
 
@@ -50,7 +49,7 @@ Already 100%. Two corrections worth making:
 | Criterion                            | Now                                                                      | Change to               | Why                                                                                                                                                                                                                                                                            |
 | ------------------------------------ | ------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `dynamic_analysis_enable_assertions` | U, "No fuzzer for bash/shell scripts."                                   | **M**                   | Wrong question answered - this criterion is about run-time assertions during testing, not fuzzing. Every entry point runs `set -euo pipefail`; the suites assert invariants directly, and `--require-run` turns a stood-down backend into a failure rather than a silent pass. |
-| `dynamic_analysis`                   | U, "No sanitizer/fuzzer works for bash/shell scripts that I'm aware of." | **U**, tighten the text | Correct as-is. The alternate route ("an automated test suite with at least 80% branch coverage") doesn't apply either: kcov and bashcov both report _statement_ coverage (86.91% / 87.59%), not branch.                                                                        |
+| `dynamic_analysis`                   | U, "No sanitizer/fuzzer works for bash/shell scripts that I'm aware of." | **U**, tighten the text | Correct as-is. The alternate route ("an automated test suite with at least 80% branch coverage") doesn't apply either: kcov and bashcov both report _statement_ coverage (the README badges), not branch.                                                                      |
 
 ### Silver level
 
@@ -121,7 +120,7 @@ Already 100%. Two corrections worth making:
 | ------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `automated_integration_testing` | M      | `ci.yml` on every `pull_request` and `push` to `main`; seven required checks before a merge.                                                     |
 | `regression_tests_added50`      | M      | ~55 suites under `tests/`; `.github/pull_request_template.md` requires ≥75% coverage on new code.                                                |
-| `test_statement_coverage80`     | M      | 86.91% (kcov) / 87.59% (bashcov), measured over the shipped product.                                                                             |
+| `test_statement_coverage80`     | M      | README's kcov and bashcov badges, both past the bar, measured over the shipped product.                                                          |
 | `test_policy_mandated`          | M      | [CONTRIBUTING.md](CONTRIBUTING.md) - a new suite has a home and a `test_runner.sh` registration.                                                 |
 | `tests_documented_added`        | M      | `.github/pull_request_template.md` checklist.                                                                                                    |
 | `warnings_strict`               | M      | `.shellcheckrc` disables nothing globally; shellcheck runs `-x` as a required gate alongside actionlint, zizmor and `mandoc -T lint -W warning`. |
@@ -163,7 +162,7 @@ a consequence of `access_continuity`. The rest, for a complete entry:
 | `build_reproducible`                                                                | M                              | [PACKAGING.md#reproducibility](PACKAGING.md#reproducibility); byte-identical rebuild in CI.                                                                    |
 | `test_invocation`                                                                   | M                              | `tests/test_runner.sh` (also `hi --test`).                                                                                                                     |
 | `test_continuous_integration`                                                       | M                              | `.github/workflows/ci.yml`.                                                                                                                                    |
-| `test_statement_coverage90`                                                         | U                              | 86.91% / 87.59% - short of 90%.                                                                                                                                |
+| `test_statement_coverage90`                                                         | U                              | the README badges - short of 90%.                                                                                                                              |
 | `test_branch_coverage80`                                                            | N/A                            | No FLOSS tool measures branch coverage for shell; kcov and bashcov both report statements only.                                                                |
 | `crypto_used_network`                                                               | M                              | Same as silver.                                                                                                                                                |
 | `crypto_tls12`                                                                      | N/A                            | Does not use TLS.                                                                                                                                              |
@@ -173,11 +172,9 @@ a consequence of `access_continuity`. The rest, for a complete entry:
 | `dynamic_analysis`                                                                  | U                              | Same reasoning as passing's entry - the branch-coverage alternate route is unmeasurable here.                                                                  |
 | `dynamic_analysis_enable_assertions`                                                | M                              | `set -euo pipefail` throughout; e2e suites exercise real ssh/docker/podman/nomad/kube backends, and `--require-run` turns a stood-down backend into a failure. |
 
-## Left for a human
+## Still to do
 
-- Entering the answer sheet above at bestpractices.dev - this session cannot
-  log in to a third-party site.
-- Labeling `good first issue` on a couple of open issues, for `small_tasks`.
-- Confirming `secure_2FA` (TOTP/WebAuthn, not SMS) and checking
-  `hardened_site` against securityheaders.com before answering either.
-- All git operations (commit, push, tag) stay with the user, same as always.
+- Enter the answer sheet above at bestpractices.dev.
+- Label `good first issue` on a couple of open issues, for `small_tasks`.
+- Confirm `secure_2FA` (TOTP/WebAuthn, not SMS) and check `hardened_site`
+  against securityheaders.com before answering either.

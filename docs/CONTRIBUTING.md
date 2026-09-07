@@ -141,9 +141,8 @@ These are constraints the tree enforces, not requests:
   are CI-enforced against separate numbers. Touch a shipped file, run
   `--group bench` and check both. Tooling-only helpers do not belong in
   `common/core.sh`.
-- **A new suite has a home and a registration.** It lives in
-  `tests/<the directory it tests>/`, sources `tests/test_lib.sh` and nothing
-  else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS` table.
+- **A new suite has a home and a registration** —
+  [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 
@@ -172,9 +171,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The session commands** `hi_copy` and `hi_notify` — their names and the
   escapes they emit.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
-  type and default. A toggle that has to go **warns for one minor release**
-  (`hi --doctor` and the session header both say so, off `common/core.sh`'s
-  `_HI_RETIRED_SETTINGS` roster), then is removed in the next.
+  type and default. A toggle that has to go is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `vim.rc`, `nano.rc`, `aliases.sh` and the per-shell rc files), their
   formats, the XDG path and the `_HI_CONFIG_DIR` override.
@@ -200,6 +197,8 @@ and anything under `tests/` or `scripts/` a package does not ship.
 | a target hi does or doesn't answer to | `docs/SUPPORT.md`                            |
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag |
 | a release channel or the release flow | `docs/PACKAGING.md`                          |
+| the harness or the lint gate          | `docs/TESTING.md`                            |
+| a new document under `docs/`          | `docs/README.md`'s index                     |
 
 Three rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
 entry fails, so does a toggle in `common/core.sh` with no row in

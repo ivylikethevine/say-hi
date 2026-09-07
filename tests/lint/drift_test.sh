@@ -362,7 +362,7 @@ function lint_settings_table() {
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
   # a row for a variable nothing reads any more. A *read* - `$NAME`, `${NAME`,
   # fish's `$$NAME` or `set -q NAME` - not any mention: an assignment or a
-  # comment kept _HI_EZA_OPTS_SIZE green for months after its last reader
+  # comment kept a retired name green for months after its last reader
   # went. Names hi assembles at run time never appear whole in the tree -
   # core.sh reads `_HI_PROMPT_END_$1` through an eval - so a miss retries
   # against the literal prefix up to the last `_` before it is called a

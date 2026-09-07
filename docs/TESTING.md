@@ -107,15 +107,17 @@ Five groups (`--group <name>`; `--list` prints the membership):
 Fast cases stand down through two guards: `_hi_check_requires <bin>` skips a
 case when a _command_ is missing, `_hi_check_capable <capability>` when a
 _facility_ is — something `command -v` cannot answer. The roster,
-`_hi_capable` (`tests/lib/fixtures.sh`), has five entries. Two are probes
-rather than OS sniffs, both for Git Bash: `symlink` makes one and tests
+`_hi_capable` (`tests/lib/fixtures.sh`), has six entries. Three are probes
+rather than OS sniffs, all for Git Bash: `symlink` makes one and tests
 `[ -L ]`, so a filesystem that refuses _or_ silently copies reads as no; `pty`
-is python3 being able to `import pty`. The other three are `uname`-based
-guards for the same MSYS/Cygwin tier: `lockout` (a `chmod 555` directory
-actually refuses a write, rather than the runtime looking the other way),
-`fork_concurrency` (background subshells genuinely overlap) and `mode_bits`
-(a reported permission string reflects `chmod`'s own bits). `_hi_par_check_capable`
-is the parallel twin.
+is python3 being able to `import pty`; `mkdir_mode` is a `mkdir -m` whose
+mode actually lands (a Windows-owned temp tree makes the directory and
+refuses the chmod, which is the filesystem's doing, not the runtime's). The
+other three are `uname`-based guards for the same MSYS/Cygwin tier:
+`lockout` (a `chmod 555` directory actually refuses a write, rather than the
+runtime looking the other way), `fork_concurrency` (background subshells
+genuinely overlap) and `mode_bits` (a reported permission string reflects
+`chmod`'s own bits). `_hi_par_check_capable` is the parallel twin.
 
 ### Where a suite lives
 

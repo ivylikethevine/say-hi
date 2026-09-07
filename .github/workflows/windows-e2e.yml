@@ -220,17 +220,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # WSL 2 (the action's own default - this job used to pin 1): hosted
-      # Windows runners have carried the nested virtualization WSL 2's VM
-      # needs since the Dadsv5 image move, so the old "no nested virt" reason
-      # for WSL 1 no longer holds. The Windows -> Linux direction this job
-      # actually uses - Git Bash reaching the distribution's sshd on
-      # 127.0.0.1 below - is the one WSL 2's default NAT networking forwards
-      # on its own; only the *other* direction (WSL reaching a Windows-side
-      # service by 127.0.0.1) needs mirrored networking or the host's real
-      # IP, and nothing here does that. This job runs no docker/podman/nomad/
-      # kubectl - the `fast` group is backend-agnostic - so there is nothing
-      # backend-shaped to lose either way.
+      # WSL 2 for the same reasons wsl-suites gives above; this job's only
+      # traffic is Git Bash reaching the distribution's sshd on 127.0.0.1.
       - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04

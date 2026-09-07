@@ -30,9 +30,10 @@ to report what slipped through it.
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) —
   docs, tests, CI and editor config never leave the client; `hi.sh` is there so
   a session can say `hi` onward. Your overlay is a second, smaller allow list,
-  `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`, `vim.rc`,
-  `nano.rc`, `aliases.sh`, `bash.sh`, `zsh.zsh`, `config.fish` from
-  `~/.config/say-hi/`); anything else in that directory stays on the client.
+  `$_HI_OVERLAY_FILES` (the roster is in
+  [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break), read
+  from `~/.config/say-hi/`); anything else in that directory stays on the
+  client.
 - **base64 is armor, not crypto.** It gets the payload through the target's
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.

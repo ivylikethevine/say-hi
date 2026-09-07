@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Line coverage for the bash suites via bashcov - a dev tool to run
-# occasionally, deliberately not wired into CI (yet). Same job and same CLI as
-# tests/coverage.sh, different instrumentation, and that difference is the
-# whole point of the file existing.
+# Line coverage for the bash suites via bashcov - coverage.yml's shard-bashcov
+# matrix runs it and README's Bashcov badge is its output. Same job and same
+# CLI as tests/coverage.sh, different instrumentation, and that difference is
+# the whole point of the file existing.
 #
 # Usage: tests/coverage_v2.sh [outdir] [runner args...]
 #   outdir       where the report is written (default: $TMPDIR/say-hi-coverage-v2)

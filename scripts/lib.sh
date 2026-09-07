@@ -6,8 +6,8 @@
 # until the payload budget made the distinction matter - common/ ships in the
 # ssh payload and wears a CI-enforced size budget, and nothing a target runs
 # draws a heading or rewrites a file in place. Source it *after*
-# common/core.sh, whose _hi_repeat, _hi_cecho, palette and _hi_write_back it
-# uses; sourcing it does nothing else.
+# common/core.sh, whose _hi_repeat, _hi_cecho and palette it uses; sourcing
+# it does nothing else.
 
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured

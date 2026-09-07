@@ -285,7 +285,7 @@ function _hi_stage_tar() {
     # strip.awk itself sits at $stage and matches no name above, so a stage
     # rooted there does not feed the stripper its own script.
     find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
-    # `mv`, not core.sh's _hi_write_back. That helper writes *through* the
+    # `mv`, not scripts/lib.sh's _hi_write_back. That helper writes *through* the
     # existing inode to keep hardlinks and ACLs on a real destination
     # (GLOSSARY: HI.09) and costs a stat, a cat, a chmod and an rm per file;
     # here the destination is a tree tar just unpacked into a mktemp -d, where
@@ -790,6 +790,33 @@ printf "\nHIBOOT:%s\n" "$d"
 PROBE
 }
 
+# _hi_boot_why <status> <output> - why the boot probe left no scratch dir, as
+# a line naming $DOMAIN, or nothing. An empty $boot_tmp has four causes, and
+# only one of them is the host with no `sh` the PowerShell notice exists for.
+# Told apart by the write's status and what came back (GLOSSARY: HI.19): the
+# probe's own two codes; a path hi refused; and a *forced command* - sshd's
+# `ForceCommand`, or a `command=` on the key - which runs its own program
+# whatever the client asked, so `sh -c` never ran and the status and output
+# are that program's. A forced command that exits 0, or prints anything,
+# cannot be a host with no shell (cmd.exe and PowerShell both fail `sh`
+# non-zero and say so on stderr). Each of the three gets a line naming it
+# and the host's own session, which is what `ssh` would have given - and for
+# a forced command, the only session the host offers. One that exits
+# non-zero and prints nothing to stdout is indistinguishable from a missing
+# `sh`: nothing here, and the caller's PowerShell notice.
+function _hi_boot_why() {
+  case "$2" in *HIBOOT:*)
+    printf '%s\n' "[$DOMAIN] named a scratch directory hi will not use"
+    return 0
+    ;;
+  esac
+  case "$1:${2:+out}" in
+  64:*) printf '%s\n' "no base64 on [$DOMAIN]" ;;
+  65:*) printf '%s\n' "no writable temp directory on [$DOMAIN]" ;;
+  0:* | *:out) printf '%s\n' "a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
+  esac
+}
+
 # A path the target reported, or nothing. What comes back from a target is
 # interpolated into a script run back on that same target, so it is refused
 # rather than escaped, on the bootstrap directory's rule: absolute, and free of
@@ -1237,34 +1264,10 @@ $(_hi_remote_suffix)"
   # (_hi_container_cmds).
   local -a tflag=()
   [ -t 0 ] && tflag=(-t)
-  # An empty $boot_tmp has four causes, and only one of them is the host with
-  # no `sh` the PowerShell notice exists for. Told apart by the write's
-  # status and what came back (GLOSSARY: HI.19): the probe's own two codes;
-  # a path hi refused above; and a *forced command* - sshd's `ForceCommand`,
-  # or a `command=` on the key - which runs its own program whatever the
-  # client asked, so `sh -c` never ran and the status and output are that
-  # program's. A forced command that exits 0, or prints anything, cannot be
-  # a host with no shell (cmd.exe and PowerShell both fail `sh` non-zero and
-  # say so on stderr). Each of the three gets a line naming it and the host's
-  # own session, which is what `ssh` would have given - and for a forced
-  # command, the only session the host offers. One that exits non-zero and
-  # prints nothing to stdout is indistinguishable from a missing `sh` and
-  # gets the PowerShell notice, which it ignores like every other command.
+  # an empty $boot_tmp: _hi_boot_why names the cause it can, and the host
+  # with no `sh` the PowerShell notice exists for is the one it cannot
   local why=""
-  if [ -z "$boot_tmp" ]; then
-    case "$boot_out" in
-    *HIBOOT:*) why="[$DOMAIN] named a scratch directory hi will not use" ;;
-    *)
-      case "$boot_ec" in
-      64) why="no base64 on [$DOMAIN]" ;;
-      65) why="no writable temp directory on [$DOMAIN]" ;;
-      # exited 0, or printed something a host with no `sh` would not have
-      *) [ "$boot_ec" = 0 ] || [ -n "$boot_out" ] &&
-        why="a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
-      esac
-      ;;
-    esac
-  fi
+  [ -n "$boot_tmp" ] || why="$(_hi_boot_why "$boot_ec" "$boot_out")"
   if [ -n "$boot_tmp" ]; then
     # the client's own leg of the connect banner's timing - $ct is our own
     # _hi_elapsed digits-and-a-dot, never text a target sent back, so it is
@@ -1655,15 +1658,35 @@ function _hi_pick_target() {
   printf '%s' "$reply"
 }
 
-# _hi_is_own_flag <word> - is this one of hi's flags (a common/flags row, or
-# -h/-V), with or without a joined =value? What the after-target guard asks.
-function _hi_is_own_flag() {
-  local word="${1%%=*}" row
-  case "$word" in -h | -V) return 0 ;; esac
+# _hi_flag_takes <word> - the <argument> column of hi's flag <word> (-h/-V
+# stand for --help/--version): empty for a bare flag, status 1 when <word> is
+# not hi's. With the output dropped, the after-target guard's membership test.
+function _hi_flag_takes() {
+  local row
+  case "$1" in -h) set -- --help ;; -V) set -- --version ;; esac
   for row in "${_HI_FLAGS[@]}"; do
-    [ "${row%%|*}" = "$word" ] && return 0
+    [ "${row%%|*}" = "$1" ] || continue
+    row="${row#*|}"
+    printf '%s' "${row%%|*}"
+    return 0
   done
   return 1
+}
+
+# _hi_flag_word <outvar> <flag-word> [<next>...] - the word a flag takes,
+# joined (--use=docker) or as the next word (--use docker): status 2 when it
+# took <next> (the caller shifts once more), 1 for a bare flag with nothing
+# after it. printf -v, not a nameref: bash 3.2.
+function _hi_flag_word() {
+  printf -v "$1" ''
+  case "$2" in
+  *=*) printf -v "$1" '%s' "${2#*=}" ;;
+  *)
+    [ $# -ge 3 ] || return 1
+    printf -v "$1" '%s' "$3"
+    return 2
+    ;;
+  esac
 }
 
 # _hi_parse_command <words...> - everything after the target is the remote
@@ -1673,7 +1696,7 @@ function _hi_is_own_flag() {
 # mistake worth naming: it belongs before the target, and would otherwise run
 # on the far end as a command nobody has.
 function _hi_parse_command() {
-  if _hi_is_own_flag "$1"; then
+  if _hi_flag_takes "${1%%=*}" >/dev/null; then
     _hi_cecho "hi: $1 goes before the target (hi [options] <target> [command ...])" "$RED" >&2
     exit 1
   fi
@@ -1720,19 +1743,16 @@ function _hi_parse() {
     # hi's to answer: the ones below, or an error in hi's own voice rather
     # than ssh's "unknown option -- -".
     -*)
-      if [ "$1" = --use ] || [ "${1#--use=}" != "$1" ]; then
+      if [ "${1%%=*}" = --use ]; then
         # the one hi flag that takes a word: which arm, by name, as the next
         # word or after an = (install.sh's --prefix and --preset take both)
-        if [ "$1" = --use ]; then
-          [ $# -ge 2 ] || {
-            _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
-            exit 1
-          }
-          use_word="$2"
-          shift
-        else
-          use_word="${1#--use=}"
-        fi
+        _hi_flag_word use_word "$@" || case $? in
+        2) shift ;;
+        *)
+          _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
+          exit 1
+          ;;
+        esac
         backend_word="$(_hi_use_backend "$use_word")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
           _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
@@ -1749,16 +1769,16 @@ function _hi_parse() {
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
         SSHARGS+=("$1")
-      elif _hi_is_own_flag "$1"; then
+      elif _hi_flag_takes "${1%%=*}" >/dev/null; then
         # a bare flag with a value joined on (--plain=1) is one mistake; a
         # local command (--doctor, --preview, ...) behind an ssh option is
-        # another - those are dispatched on the first word alone
-        case "$1" in
-        --plain=* | --mux=* | --no-mux=* | --help=* | --version=* | -h=* | -V=*)
+        # another - those are dispatched on the first word alone. Bare flags
+        # were matched above, so an empty column here is the joined case.
+        if [ -z "$(_hi_flag_takes "${1%%=*}")" ]; then
           _hi_cecho "hi: ${1%%=*} takes no value" "$RED" >&2
-          ;;
-        *) _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2 ;;
-        esac
+        else
+          _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2
+        fi
         exit 1
       elif [ "${1#--}" != "$1" ]; then
         _hi_cecho "hi: unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)" "$RED" >&2
@@ -2140,12 +2160,6 @@ function _hi_preview_fallback() {
 
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
 
-# hi --update [<tag>]: move the checkout to a release tag - the newest one, or
-# the one named - detached, after a tag fetch. Releases are tags and nothing
-# else; following a branch is `git pull` in the checkout, by hand. A dirty
-# tree is refused before anything moves. Payloads and packages carry no .git
-# and say so; --help is answered ahead of that check so they get the text too.
-
 # sourcing this file defines its functions without connecting, for testing
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
@@ -2166,13 +2180,9 @@ case "${1:-}" in
 # shipped common/header.sh on a target, so the flag itself works anywhere.
 # `--preview=<subject>` is the same flag with its word joined.
 --preview | --preview=*)
-  _hi_subject="${1#--preview}"
-  _hi_subject="${_hi_subject#=}"
+  _hi_flag_word _hi_subject "$@" || [ $? -ne 2 ] || shift
   shift
-  [ -n "$_hi_subject" ] || {
-    _hi_subject="${1:-}"
-    [ $# -eq 0 ] || shift
-  }
+  # shellcheck disable=SC2154 # _hi_flag_word's printf -v assigned it
   case "$_hi_subject" in
   colors)
     _hi_run_script "--preview colors" "$_HI_PREVIEW" colors "$@"

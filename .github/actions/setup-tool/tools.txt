@@ -47,4 +47,6 @@ trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/
 hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint
 kcov|43|cmake|https://github.com/SimonKagstrom/kcov/archive/refs/tags/v%v.tar.gz|--version|github:SimonKagstrom/kcov
 typos|1.50.1|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos
+# mandoc's snapshots page has no feed the checker can read, so the pin is
+# frozen on purpose (1.14.6 is its current release); bump it by hand.
 mandoc|1.14.6|make|https://mandoc.bsd.lv/snapshots/mandoc-%v.tar.gz|-T lint -W error /dev/null|-

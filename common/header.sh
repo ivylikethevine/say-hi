@@ -204,7 +204,7 @@ function _hi_header_version() {
 # gets an empty cell, not two "command not found" lines across the header.
 # <var> gets one of timestamp()'s three cells - a pure getter, no header_row
 # call of its own. $_HI_HEADER_ORDER's flattened dispatch (_hi_collect_header_word,
-# below full_check's neighbor _hi_header_row) needs the *text*, not a line
+# below full_check's neighbor header_row) needs the *text*, not a line
 # printed on the spot: header_row always ends its own call with a newline
 # (_hi_row_line's final printf), so a getter that called it directly would
 # put every cell on its own line instead of letting several pack onto one -
@@ -902,24 +902,10 @@ function hi_header() {
   # dropped - a no-op when the order ends on "check", since full_check
   # absorbs the carry itself and leaves none behind.
   _hi_header_flush
-  # last, so the lines that say something is wrong sit next to the prompt.
+  # last, so the line that says something is wrong sits next to the prompt.
   # Connect only: load.sh's disconnect calls banner directly. No
-  # _HI_HEADER_ORDER word of their own - like passthrough_check always was,
-  # these are not words a reorder moves.
-  retired_check
+  # _HI_HEADER_ORDER word of its own - not a word a reorder moves.
   passthrough_check
-}
-
-# retired_check: one line per retired setting (core.sh's _HI_RETIRED_SETTINGS)
-# a settings.sh still exports - the header half of the one-minor-release
-# warning CONTRIBUTING.md promises; hi --doctor is the other half
-function retired_check() {
-  local name v why
-  while IFS='|' read -r name v why; do
-    [ -n "$name" ] || continue
-    header_row "${YELLOW}$name is retired since $v - ignored ($why)" \
-      "${BRYELLOW}drop it from settings.sh"
-  done < <(_hi_retired_set)
 }
 
 # Package priorities, lowest to highest, 0-3. A priority says how loudly you

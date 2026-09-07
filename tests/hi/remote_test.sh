@@ -458,6 +458,19 @@ function test_boot_probe_bakes_no_client_path() {
 # A bogus $TMPDIR was tried here first and only fails GNU's mktemp - BSD's
 # (macOS) falls back to a real temp dir and the probe exits 0, not 65. The
 # shim holds on every mktemp.
+# the sentence _say_hi prints for an empty scratch dir, per cause; a host
+# that exited non-zero and printed nothing gets none (the PowerShell notice
+# is the caller's)
+function test_boot_why_names_each_failure() {
+  local DOMAIN=h
+  [ "$(_hi_boot_why 64 '')" = "no base64 on [h]" ] || return 1
+  [ "$(_hi_boot_why 65 x)" = "no writable temp directory on [h]" ] || return 1
+  [ "$(_hi_boot_why 1 'HIBOOT:/nope')" = "[h] named a scratch directory hi will not use" ] || return 1
+  [[ "$(_hi_boot_why 0 '')" == "a forced command answered for [h]"* ]] || return 1
+  [[ "$(_hi_boot_why 1 motd)" == "a forced command answered for [h]"* ]] || return 1
+  [ -z "$(_hi_boot_why 1 '')" ]
+}
+
 function test_boot_probe_says_no_base64() {
   local ec=0 sh_bin
   sh_bin="$(command -v sh)"
@@ -492,6 +505,7 @@ function run_hi_remote_tests() {
   _hi_h2 "Testing: bootloader / fallback rc"
   _hi_check "The boot probe makes its scratch dir on the target" test_boot_probe_is_target_side
   _hi_check "...and bakes in no client path" test_boot_probe_bakes_no_client_path
+  _hi_check "...and _hi_boot_why names each failure" test_boot_why_names_each_failure
   _hi_check "...and says 64 with no base64" test_boot_probe_says_no_base64
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
