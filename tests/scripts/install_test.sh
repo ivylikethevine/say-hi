@@ -173,7 +173,19 @@ function test_unlink_hi_skips_when_link_missing() {
   (
     _HI_LINK="$link"
     unlink_hi
-  ) | grep -q "leaving it alone"
+  ) | grep -q "no $link to remove"
+}
+
+# --system-link on an uninstall names /usr/bin/hi once, not never: the
+# dedupe against the default link once skipped the only link there was
+function test_unlink_hi_with_the_system_link_checks_it_once() {
+  local out
+  out="$(
+    _HI_LINK=/usr/bin/hi
+    _HI_DRY_RUN=1
+    unlink_hi
+  )" || return 1
+  [ "$(printf '%s\n' "$out" | grep -c '/usr/bin/hi')" -eq 1 ]
 }
 
 function test_unlink_hi_skips_when_link_points_elsewhere() {
@@ -250,19 +262,19 @@ function test_usage_names_what_was_typed() {
 function test_prefix_flag_requires_a_path() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix requires a path"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs a path"* ]]
 }
 
 function test_preset_flag_requires_a_name() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --preset 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--preset requires a name"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--preset needs a name"* ]]
 }
 
 function test_an_unknown_argument_gets_the_usage() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"unrecognized argument: --bogus"* && "$out" == *"Usage: install.sh"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* && "$out" == *"Usage: install.sh"* ]]
 }
 
 # --check-configs is the pre-install validation alone: a clean home is a zero
@@ -571,7 +583,26 @@ function test_a_misnamed_clone_is_refused_by_name() {
 function test_errors_name_what_was_typed() {
   local out rc=0
   out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unrecognized argument: --bogus"* && "$out" == *"Usage: hi --uninstall"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unknown option --bogus"* && "$out" == *"Usage: hi --uninstall"* ]]
+}
+
+# every mode is a word, --install included, so a second one is refused
+# rather than silently taking over: `hi --install --uninstall` once uninstalled
+function test_install_plus_another_mode_is_refused() {
+  local out rc=0
+  out="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --install --uninstall --dry-run 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --install --uninstall"* && "$out" != *"Uninstalling"* ]]
+}
+
+# a switch that is not the mode's own is refused by name: `--uninstall --yes`
+# must not read as a confirmation that meant something
+function test_a_switch_outside_its_mode_is_refused() {
+  local out rc=0
+  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --yes 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--yes does not apply here"* ]] || return 1
+  rc=0
+  out="$(_HI_ARGV0="hi --configure" bash "$_HI_ROOT/scripts/install.sh" --features-only --no-link 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--no-link does not apply here"* ]]
 }
 
 function test_uninstall_help_is_its_own() {
@@ -780,6 +811,7 @@ function run_install_tests() {
 
   _hi_h2 "Testing: unlink_hi (skip paths only)"
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
+  _hi_check "--system-link is checked once, not skipped" test_unlink_hi_with_the_system_link_checks_it_once
   _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
   _hi_check_capable symlink "Names the package a foreign link belongs to" test_unlink_hi_names_the_owning_package
 
@@ -799,6 +831,8 @@ function run_install_tests() {
   _hi_check "Two modes at once are refused" test_two_modes_are_refused
   _hi_check "The usage line names what was typed" test_usage_names_what_was_typed
   _hi_check "Every error names what was typed" test_errors_name_what_was_typed
+  _hi_check "--install plus another mode is refused" test_install_plus_another_mode_is_refused
+  _hi_check "A switch outside its mode is refused" test_a_switch_outside_its_mode_is_refused
   _hi_check "--uninstall --help describes uninstalling" test_uninstall_help_is_its_own
   _hi_check "--configure --help describes the settings" test_configure_help_is_its_own
   _hi_check "--no-link and --system-link are one choice" test_no_link_and_system_link_are_one_choice

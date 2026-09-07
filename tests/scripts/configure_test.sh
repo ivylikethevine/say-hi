@@ -904,7 +904,8 @@ function test_prompt_group_carries_a_row_it_cannot_ask() {
 function test_validators_for_the_advanced_values() {
   _hi_is_shell_list "login zsh bash" && ! _hi_is_shell_list "login sh" && ! _hi_is_shell_list "" &&
     _hi_is_seconds 0.5 && _hi_is_seconds 3 && ! _hi_is_seconds abc &&
-    _hi_is_glyph_choice ascii && ! _hi_is_glyph_choice yes
+    _hi_is_glyph_choice ascii && ! _hi_is_glyph_choice yes &&
+    _hi_is_truecolor_choice on && _hi_is_truecolor_choice auto && ! _hi_is_truecolor_choice 1
 }
 
 # the closing report: what this run wrote against what the block held, as
@@ -1575,7 +1576,7 @@ function test_header_editor_refuses_a_move_that_cannot_happen() {
 function test_header_editor_junk_is_bounded() {
   _hi_cfg_pty hdr_junk 'x\ny\nz\n' '' config_header || return 1
   [ "$(_hi_cfg_rc hdr_junk)" = 0 ] &&
-    _hi_cfg_has hdr_junk "type an item number, up N, down N, p, w, c, k, 0, or Enter" &&
+    _hi_cfg_has hdr_junk "type an item number, up N, down N, p, w, i, c, k, 0, or Enter" &&
     [ -z "$(_hi_cfg_lines hdr_junk | tr -d '[:space:]')" ]
 }
 
@@ -1710,12 +1711,27 @@ function test_prompt_menu_toggles_starship() {
     [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT=starship"* ]]
 }
 
+# _hi_cfg_tmux - a tmux on PATH, so the _HI_MUX row (needs: tmux) is asked
+# wherever the suite runs: the walks below answer by position, and a box
+# without tmux (the macOS runner) would otherwise skip one question and
+# shift every answer after it
+function _hi_cfg_tmux() {
+  local dir="$_HI_WORKDIR/tmuxshim"
+  [ -x "$dir/tmux" ] || {
+    mkdir -p "$dir"
+    printf '#!/bin/sh\nexit 0\n' >"$dir/tmux"
+    chmod +x "$dir/tmux"
+  }
+  printf '%s' "$dir"
+}
+
 # the advanced section is a question walk with no gate of its own (the hub's
 # item is the gate), five questions and then an offer of the transport
 # internals: y opens those, and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n\n\n\ny\n\n\n\n\n\n\n' '' config_advanced || return 1
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n\n\ny\n\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "Shell a session runs in" &&
     _hi_cfg_has adv_walk "transport internals" &&
     _hi_cfg_has adv_walk "Swap a TERM" &&
@@ -1724,7 +1740,8 @@ function test_advanced_walks_the_questions() {
 
 # ...and Enter at the offer is a no: the transport questions are never asked
 function test_transport_walk_is_gated() {
-  _hi_cfg_pty adv_gate '\n\n\n\n\n\n' '' config_advanced || return 1
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_gate '\n\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_gate "transport internals" &&
     ! _hi_cfg_has adv_gate "Swap a TERM" &&
     ! _hi_cfg_has adv_gate "reuses its target list"
@@ -1733,10 +1750,12 @@ function test_transport_walk_is_gated() {
 # every advanced value typed for real, including the words-to-flag mapping
 # _HI_ASCII's question hides behind ("ascii" is stored as 1)
 function test_advanced_values_typed_interactively() {
-  _hi_cfg_pty adv_typed '\n\n\nzsh login\nascii\ny\n\n\n9\n0.5\npodman docker\n120\n' '' config_advanced || return 1
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\n\nzsh login\nascii\non\ny\n\n\n9\n0.5\npodman docker\n120\n' '' config_advanced || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
   [[ "$lines" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$lines" == *"export _HI_ASCII=1"* &&
+    "$lines" == *"export _HI_TRUECOLOR=1"* &&
     "$lines" == *"export _HI_TARGETS_TTL=9"* && "$lines" == *"export _HI_PROBE_TIMEOUT=0.5"* &&
     "$lines" == *"export _HI_CONTAINER_CLIS='podman docker'"* &&
     "$lines" == *"export _HI_CTL_PERSIST=120"* ]]
@@ -1817,7 +1836,8 @@ function test_hub_junk_is_bounded_and_saves() {
 # is drawn before the menu. The advanced walk is five Enters, a y at the
 # transport offer, then six more; a spare Enter at the hub only redraws it.
 function test_hub_opens_every_section() {
-  _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\ny\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\ny\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&

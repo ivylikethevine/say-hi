@@ -1,4 +1,4 @@
-.TH HI 1 "2026-09-06" "say-hi" "User Commands"
+.TH HI 1 "2026-09-07" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
 .SH SYNOPSIS
@@ -26,6 +26,7 @@ hi \- your shell config, on every host you say hi to
 .br
 .B hi \-\-configure
 .RB [ \-\-preset " " \fIname\fR]
+.RB [ \-\-dry\-run ]
 .br
 .B hi \-\-uninstall
 .RB [ \-\-dry\-run ]
@@ -288,7 +289,7 @@ on top of that, and a package carries none.
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, the shell rc files and the overlay's own shell files
-parsed by whatever will read them (what
+parsed by whatever will read them (the rc half is what
 .B \-\-install
 checks before it writes a line), the install itself \- each shell's rc lines
 and whether they name this tree, the
@@ -334,7 +335,14 @@ either way; the link is for scripts and other programs);
 .B \-\-system\-link
 links
 .B /usr/bin/hi
-instead, through sudo. A link a package owns is never touched by either.
+instead, through sudo. A link a package owns is never touched by either, and
+when a
+.B hi
+already on your
+.B PATH
+runs this tree (a package's
+.BR /usr/bin/hi ,
+Homebrew's wrapper) no link is made at all.
 .B \-\-preset
 .I name
 answers the settings without the menu, as under
@@ -359,7 +367,16 @@ user never needs.
 .TP
 .B \-\-uninstall \fR[\fB\-\-dry\-run\fR]
 take those lines back out again, remove the settings.sh the install wrote,
-and unlink hi where the link points at this tree. The tree itself, the rest
+and unlink hi where the link points at this tree \-
+.B ~/.local/bin/hi
+and a
+.B /usr/bin/hi
+of an earlier
+.BR \-\-system\-link ,
+never a package's. A file the install created and nothing else wrote into
+(a macOS
+.BR ~/.bash_profile )
+goes with its lines. The tree itself, the rest
 of the overlay and the one\-time
 .B .hi\-orig
 backups are left where they are.

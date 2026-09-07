@@ -254,7 +254,7 @@ jobs:
             echo "kcov badge: $pct%"
           else
             badge coverage.json kcov inactive "not measured"
-            echo "kcov badge: no figure published yet${pct:+ ('$pct' is not a measurement)}"
+            echo "kcov badge: no figure published yet${pct:+ ($pct is not a measurement)}"
           fi
 
           # The bashcov endpoint. Same treatment as the kcov one above: named

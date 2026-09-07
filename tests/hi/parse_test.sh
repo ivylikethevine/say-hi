@@ -89,7 +89,7 @@ SHIM
 # a stranger is hi's error and exit 1, never ssh's usage message
 function test_parse_unknown_double_dash_word_is_his_error() {
   local out rc=0
-  out="$( (_hi_parse --docter myhost 2>&1 >/dev/null))" || rc=$?
+  out="$( (_hi_parse --docter myhost 2>&1 >/dev/null) )" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"hi: unknown option --docter"* ]]
 }
 
@@ -97,7 +97,7 @@ function test_parse_unknown_double_dash_word_is_his_error() {
 # option it is named as out of place, not as a stranger
 function test_parse_local_command_behind_an_option_is_named() {
   local out rc=0
-  out="$( (_hi_parse -v --doctor myhost 2>&1 >/dev/null))" || rc=$?
+  out="$( (_hi_parse -v --doctor myhost 2>&1 >/dev/null) )" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--doctor goes first"* ]]
 }
 
@@ -106,8 +106,26 @@ function test_parse_local_command_behind_an_option_is_named() {
 # there is refused by name rather than run on the far end
 function test_parse_own_flag_after_the_target_is_refused() {
   local out rc=0
-  out="$( (_hi_parse myhost --use docker 2>&1 >/dev/null))" || rc=$?
+  out="$( (_hi_parse myhost --use docker 2>&1 >/dev/null) )" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--use goes before the target"* ]]
+}
+
+# hi's own flags with nothing to connect to and no terminal to pick from:
+# hi's error, never ssh's usage message (ssh saw none of them)
+function test_parse_own_flag_without_a_target_is_his_error() {
+  local out rc=0
+  out="$( (_hi_parse --plain </dev/null 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]] || return 1
+  rc=0
+  out="$( (_hi_parse --use docker </dev/null 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]]
+}
+
+# a bare flag given a joined value is told so, not told to go first
+function test_parse_bare_flag_with_a_value_is_refused() {
+  local out rc=0
+  out="$( (_hi_parse --plain=1 myhost 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--plain takes no value"* ]]
 }
 
 # -h behind an ssh option is still hi's question, not ssh's usage
@@ -1109,9 +1127,10 @@ function test_local_subcommands_exec_the_right_script() {
   local home out spec flag want
   home="$(_hi_subcmd_stubs)"
   for spec in \
-    '--install|STUB install' \
+    '--install|STUB install --install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
+    '--doctor=myhost|STUB doctor myhost' \
     '--preview colors|STUB preview colors' \
     '--preview=colors|STUB preview colors' \
     '--preview packages|STUB preview packages' \
@@ -1347,6 +1366,8 @@ function run_hi_parse_tests() {
   _hi_check "An unknown --word is hi's error, not ssh's" test_parse_unknown_double_dash_word_is_his_error
   _hi_check "A local command behind an option is named" test_parse_local_command_behind_an_option_is_named
   _hi_check "hi's own flag after the target is refused" test_parse_own_flag_after_the_target_is_refused
+  _hi_check "hi's own flag with no target is hi's error" test_parse_own_flag_without_a_target_is_his_error
+  _hi_check "A bare flag takes no value" test_parse_bare_flag_with_a_value_is_refused
   _hi_check "-h behind an ssh option is still hi's" test_parse_help_is_honoured_behind_an_ssh_option
   _hi_check "help and version words are -h and -V" test_bare_help_and_version_words_are_his_own
   _hi_check "A Host * block names no target" test_is_ssh_host_ignores_a_wildcard_block

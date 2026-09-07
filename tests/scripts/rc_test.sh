@@ -201,9 +201,21 @@ function test_darwin_bash_profile_sources_bashrc() {
   grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
     grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
     [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 2 ] || return 1
-  # ...and uninstall takes both lines back
+  # ...and uninstall takes the file with it: hi created it, and an empty
+  # .bash_profile would still keep a login bash from reading ~/.profile
   _hi_rc_in "$home" _HI_UNAME=Darwin -- strip_rc_lines || return 1
-  ! grep -qF "$_HI_MARKER" "$home/.bash_profile"
+  [ ! -e "$home/.bash_profile" ]
+}
+
+# a file hi wrote into, not created, keeps existing after the strip even
+# when the strip leaves it empty: the backup is the sign it was theirs
+function test_strip_keeps_a_file_that_was_not_his() {
+  local home="$_HI_WORKDIR/theirs"
+  mkdir -p "$home"
+  printf '# mine\n' >"$home/.bashrc"
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  _hi_rc_in "$home" -- strip_rc_lines || return 1
+  [ -f "$home/.bashrc" ] && [ "$(cat "$home/.bashrc")" = "# mine" ]
 }
 
 function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
@@ -360,6 +372,7 @@ function run_rc_lines_test() {
   _hi_check "macOS: a .bash_profile that already does is left alone" test_darwin_bash_profile_that_reads_bashrc_is_left_alone
   _hi_check "macOS: .bash_login is pointed at, not edited" test_darwin_bash_login_is_only_pointed_at
   _hi_check "Linux gets no .bash_profile" test_linux_gets_no_bash_profile
+  _hi_check "A file that was theirs survives an emptying strip" test_strip_keeps_a_file_that_was_not_his
 
   _hi_h2 "Testing: the syntax gate"
   _hi_check "check_one_config's four verdicts" test_check_one_config_verdicts

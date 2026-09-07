@@ -1682,7 +1682,7 @@ function _hi_parse_command() {
 }
 
 function _hi_parse() {
-  local backend_word use_word
+  local backend_word use_word own=""
   # every result of the parse starts empty here: these are plain globals, and
   # an inherited MUX=1 or PLAIN=1 in the environment must not stand in for a
   # flag that was never typed
@@ -1738,22 +1738,27 @@ function _hi_parse() {
           _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
           exit 1
         fi
-        BACKEND="$backend_word"
+        BACKEND="$backend_word" own=1
       elif [ "$1" = --plain ]; then
-        PLAIN=1
+        PLAIN=1 own=1
       elif [ "$1" = --mux ]; then
-        MUX=1
+        MUX=1 own=1
       elif [ "$1" = --no-mux ]; then
         # the last of --mux/--no-mux wins, and either beats _HI_MUX
-        MUX=0
+        MUX=0 own=1
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
         SSHARGS+=("$1")
       elif _hi_is_own_flag "$1"; then
-        # a local command (--doctor, --preview, ...) is dispatched on the
-        # first word alone; behind an ssh option it is out of place, not a
-        # stranger
-        _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2
+        # a bare flag with a value joined on (--plain=1) is one mistake; a
+        # local command (--doctor, --preview, ...) behind an ssh option is
+        # another - those are dispatched on the first word alone
+        case "$1" in
+        --plain=* | --mux=* | --no-mux=* | --help=* | --version=* | -h=* | -V=*)
+          _hi_cecho "hi: ${1%%=*} takes no value" "$RED" >&2
+          ;;
+        *) _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2 ;;
+        esac
         exit 1
       elif [ "${1#--}" != "$1" ]; then
         _hi_cecho "hi: unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)" "$RED" >&2
@@ -1786,6 +1791,12 @@ function _hi_parse() {
       # machine with nothing to offer (rc 2) falls through and says so the way
       # it always has.
       [ "$pick_rc" -eq 1 ] && exit 0
+    fi
+    # hi's own flags with nothing to connect to (`hi --plain` in a script)
+    # are hi's mistake to name: ssh saw none of them and has nothing to say
+    if [ -n "$own" ] && [ "${#SSHARGS[@]}" -eq 0 ]; then
+      _hi_cecho "hi: no target to connect to (hi [options] <target> [command ...])" "$RED" >&2
+      exit 1
     fi
     # ssh's own status comes back as hi's - not an exec, so the exit hook
     # still runs
@@ -2018,12 +2029,16 @@ function _hi_dispatch_subcommand() {
   # walk because this runs on every invocation, and each row costs a
   # here-string: a temp file in $TMPDIR on the bash 3.2 floor.
   case "${1:-}" in --*) ;; *) return 1 ;; esac
+  # `--update=v1.0.0` is `--update v1.0.0`: the joined word becomes the
+  # first argument, for every row alike
+  local word="${1%%=*}" joined=""
+  [ "$word" = "$1" ] || joined="${1#*=}"
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag _ _ var arg _ <<<"$row"
-    [ "$flag" = "${1:-}" ] || continue
+    [ "$flag" = "$word" ] || continue
     [ -n "$var" ] || return 1
     shift
-    _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} "$@"
+    _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} ${joined:+"$joined"} "$@"
   done
   return 1
 }
@@ -2087,11 +2102,11 @@ $(_hi_flag_help -)
 
 hi's local commands, which act on this machine instead of connecting. Each
 needs a part of the tree the payload does not carry, so inside a session it
-says so and stops:
+says so and stops (--update wants .git as well, which a package has not):
 $(_hi_flag_help local)
 
-An option that takes a word takes it joined too (--use=docker). \`hi help\`
-and \`hi version\` are -h and -V spelled as words. Every other option is
+Every option takes its word joined too (--use=docker, --update=v1.0.0).
+\`hi help\` and \`hi version\` are -h and -V spelled as words. Every other option is
 passed to ssh unchanged - -p, -i, -J, -o and the rest; ssh takes none that
 start with two dashes, so an unknown one is hi's error to report. Only the
 first non-option word is the target; everything after it is the remote

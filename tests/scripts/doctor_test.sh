@@ -117,7 +117,7 @@ function test_local_without_a_git_dir_reads_as_a_package_install() {
   local root out
   root="$(_hi_scratch_tree nogit common settings scripts hi.sh load.sh)/say-hi"
   out="$(_HI_ROOT="$root" doctor_local 2>/dev/null)"
-  [[ "$out" == *"no .git - a package-manager install"* ]]
+  [[ "$out" == *"no .git - a package or tarball install"* ]]
 }
 
 function test_local_reports_the_version() {

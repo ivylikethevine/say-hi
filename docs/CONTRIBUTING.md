@@ -162,7 +162,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   the remote command.
 - **The sub-command switches** — `--doctor --json`, `--install`'s
   `-y`/`--yes`, `--no-link`, `--system-link`, `--preset <name>` and
-  `--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>`,
+  `--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>` and
+  `--configure --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning; and the `--json`
   document's top-level keys (`version`, `target`, `findings`, `rows`) with
   each row's four fields.

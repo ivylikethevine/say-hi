@@ -32,8 +32,7 @@ source "$_hi_d/scripts/lib.sh"
 source "$_hi_d/scripts/rc.sh"
 unset _hi_d
 
-case "${1:-}" in
--h | --help)
+function _hi_doctor_help() {
   cat <<EOF
 Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [target]
 
@@ -57,8 +56,9 @@ Prints, in order:
 ssh options are not accepted here - the probe uses your ssh config as-is,
 which is exactly what completion and the header do. --use <backend> names the
 target's arm outright, the same one a real \`hi --use <backend> <target>\` would
-take, and skips the probe chain in the target report. --plain and --mux are
-accepted and ignored - doctor never connects, so it has nothing to report.
+take, and skips the probe chain in the target report. --plain, --mux and
+--no-mux are accepted and ignored - doctor never connects, so it has nothing
+to report.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -70,6 +70,11 @@ report should carry:
 severity is one of info, ok, warn, bad; findings counts the bad rows, and is
 the exit code either way.
 EOF
+}
+
+case "${1:-}" in
+-h | --help)
+  _hi_doctor_help
   exit 0
   ;;
 esac
@@ -108,13 +113,18 @@ for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   # doctor never connects, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
   --plain | --mux | --no-mux) ;;
+  # asked for anywhere on the line, not only first
+  -h | --help)
+    _hi_doctor_help
+    exit 0
+    ;;
   -*)
-    _hi_cecho "hi --doctor: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
+    _hi_cecho "${_HI_ARGV0:-doctor.sh}: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
     exit 1
     ;;
   *)
     [ -z "$_HI_DOC_TARGET" ] || {
-      _hi_cecho "hi --doctor: one target at a time ($_HI_DOC_TARGET and $_hi_arg)" "$RED" >&2
+      _hi_cecho "${_HI_ARGV0:-doctor.sh}: one target at a time ($_HI_DOC_TARGET and $_hi_arg)" "$RED" >&2
       exit 1
     }
     _HI_DOC_TARGET="$_hi_arg"
@@ -122,7 +132,7 @@ for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   esac
 done
 if [ -n "$_hi_via" ]; then
-  _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
+  _hi_cecho "${_HI_ARGV0:-doctor.sh}: --use needs a backend name (ssh counts as one)" "$RED" >&2
   exit 1
 fi
 unset _hi_arg _hi_doc_args _hi_via
@@ -242,7 +252,7 @@ function doctor_local() {
     changes="$(git -C "$_HI_ROOT" status --short 2>/dev/null | grep -c . || true)"
     doctor_row checkout "git, ${branch:-detached HEAD (a release tag?)}, $changes local change(s)"
   else
-    doctor_row checkout "no .git - a package-manager install (hi --update will say so too)"
+    doctor_row checkout "no .git - a package or tarball install (hi --update names the way forward for each)"
   fi
   # A machine missing the floor cannot ship a payload, so the size below is
   # not a number worth printing - computing it anyway would answer
@@ -316,10 +326,14 @@ function doctor_config() {
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do
     [ "$f" = settings.sh ] && continue
-    if [ -f "$_HI_CONFIG_DIR/$f" ]; then
-      doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
-    else
+    if [ ! -f "$_HI_CONFIG_DIR/$f" ]; then
       doctor_row "$f" "tree default"
+    elif [ -f "$_HI_ROOT/settings/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/settings/$f"; then
+      # what hi --install seeds: the tree's own file, byte for byte, so not
+      # an override yet
+      doctor_row "$f" "seeded by hi --install, unchanged from the tree's"
+    else
+      doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
   # only the non-default settings: a default setup stays one quiet line
@@ -416,19 +430,22 @@ function doctor_install() {
     ! grep -qF "$_HI_MARKER" "$ZDOTDIR/.zshrc" 2>/dev/null; then
     doctor_row zdotdir "$HOME/.zshrc has hi's lines, but ZDOTDIR points zsh at $ZDOTDIR/.zshrc (hi --install writes there now)" warn
   fi
-  # macOS: a login bash reads ~/.bash_profile (or ~/.bash_login, or
-  # ~/.profile), never ~/.bashrc - so the bashrc row above can be green and
-  # a Terminal.app shell still see none of it
+  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login
+  # and ~/.profile that exists - bash's own order - and never ~/.bashrc, so
+  # the bashrc row above can be green and a Terminal.app shell still see
+  # none of it
   if _hi_is_darwin && rc_shell_present bash; then
-    if [ -f "$HOME/.bash_login" ]; then
-      profile="$HOME/.bash_login"
-    elif [ -f "$HOME/.bash_profile" ]; then
+    if [ -f "$HOME/.bash_profile" ]; then
       profile="$HOME/.bash_profile"
+    elif [ -f "$HOME/.bash_login" ]; then
+      profile="$HOME/.bash_login"
     else
       profile="$HOME/.profile"
     fi
     if [ -f "$profile" ] && grep -qF '.bashrc' "$profile"; then
       doctor_row login-bash "$profile reads ~/.bashrc" ok
+    elif [ "$profile" = "$HOME/.bash_login" ]; then
+      doctor_row login-bash "a login bash reads $profile, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE" warn
     else
       doctor_row login-bash "a login bash reads $profile, which never reaches ~/.bashrc (hi --install adds the line to ~/.bash_profile)" warn
     fi
@@ -448,7 +465,7 @@ function doctor_install() {
   elif [ -n "$found" ] && _hi_link_runs_this_tree "$found"; then
     doctor_row link "no $_HI_LINK, none needed: $found runs this tree" ok
   else
-    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes it)" warn
+    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes one; --no-link chose none)" warn
   fi
   if [ -z "$found" ]; then
     doctor_row command "no hi on PATH (the wired shells alias it)"

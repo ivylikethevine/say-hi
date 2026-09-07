@@ -81,7 +81,7 @@ function test_mux_flag_sets_mux_ahead_of_the_target() {
 # name rather than run on the far end as a command nobody has
 function test_mux_flag_after_the_target_is_the_commands() {
   local out rc=0
-  out="$( (_hi_parse myhost --mux 2>&1 >/dev/null))" || rc=$?
+  out="$( (_hi_parse myhost --mux 2>&1 >/dev/null) )" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--mux goes before the target"* ]]
 }
 
@@ -102,7 +102,7 @@ function test_no_mux_flag_clears_mux_ahead_of_the_target() {
   )"
   [ "$out" = 1 ] || return 1
   local rc=0
-  out="$( (_hi_parse myhost --no-mux 2>&1 >/dev/null))" || rc=$?
+  out="$( (_hi_parse myhost --no-mux 2>&1 >/dev/null) )" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"--no-mux goes before the target"* ]]
 }
 

@@ -34,12 +34,19 @@ function config_shell() {
     [ -z "$desired" ] || printf '%s' "$desired" | sed 's/^/   /'
     return 0
   fi
-  _hi_cecho " local $name out of date, updating..." "$YELLOW"
+  if [ -n "$desired" ]; then
+    _hi_cecho " local $name out of date, updating..." "$YELLOW"
+  else
+    _hi_cecho " local $name has hi's lines, taking them out..." "$YELLOW"
+  fi
   mkdir -p "$(dirname "$target")"
   touch "$target"
   # one-time backup on hi's first write to a non-empty file; never overwritten,
-  # so it stays the pre-hi original. Uninstall leaves it, deliberately.
-  if [ -s "$target" ] && [ -z "$existing" ] && [ ! -e "$target.hi-orig" ]; then
+  # so it stays the pre-hi original. Uninstall leaves it, deliberately. Not
+  # for settings.sh: that file is hi's own, and its shebang line is no
+  # original to keep.
+  if [ -s "$target" ] && [ -z "$existing" ] && [ ! -e "$target.hi-orig" ] &&
+    [ "$target" != "${_HI_SETTINGS:-}" ]; then
     cp -p "$target" "$target.hi-orig"
     _hi_cecho " saved a one-time backup: $target.hi-orig" "$BLUE"
   fi
@@ -47,7 +54,20 @@ function config_shell() {
   grep -vF "$_HI_MARKER" "$target" >"$tmpfile" || true
   printf '%s' "$desired" >>"$tmpfile"
   _hi_write_back "$tmpfile" "$target"
-  _hi_cecho " local $name updated :)" "$GREEN"
+  # A strip that leaves nothing behind in a file hi itself created (no
+  # backup was ever taken, so there was nothing there before) takes the
+  # file with it: an empty ~/.bash_profile would still stop a login bash
+  # reading ~/.profile.
+  if [ -z "$desired" ] && [ ! -s "$target" ] && [ ! -e "$target.hi-orig" ]; then
+    rm -f "$target"
+    _hi_cecho " local $name removed - hi had created it, and nothing else was in it :)" "$GREEN"
+    return 0
+  fi
+  if [ -n "$desired" ]; then
+    _hi_cecho " local $name updated :)" "$GREEN"
+  else
+    _hi_cecho " local $name cleaned :)" "$GREEN"
+  fi
 }
 
 # The hi link, the other thing an install leaves on disk. Here beside the rc
@@ -161,8 +181,10 @@ function rc_shell_present() {
 # fix is the one line every macOS dotfile guide adds, tagged like the rest so
 # uninstall takes it back: source .bashrc from .bash_profile. A fresh
 # .bash_profile keeps .profile in the chain too, since its existence is what
-# stops bash reading that one. ~/.bash_login wins over both when present and
-# is nobody's to edit, so that case is a warning.
+# stops bash reading that one. bash reads the first of .bash_profile,
+# .bash_login and .profile that exists, so with no .bash_profile a
+# ~/.bash_login is the file that counts, and it is nobody's to edit: that
+# case is a warning.
 # shellcheck disable=SC2016 # the lines are the login shell's to expand
 _HI_BASH_PROFILE_LINE='[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"'
 # shellcheck disable=SC2016

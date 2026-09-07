@@ -232,6 +232,10 @@ function _hi_is_glyph_choice() {
   case "$1" in auto | glyphs | ascii) ;; *) return 1 ;; esac
 }
 
+function _hi_is_truecolor_choice() {
+  case "$1" in auto | on | off) ;; *) return 1 ;; esac
+}
+
 # $_HI_PACKAGES_PALETTE's vocabulary: the names header.sh's
 # _hi_packages_palette case understands
 function _hi_is_packages_palette() {
@@ -695,10 +699,11 @@ function preset_row() {
 }
 
 function preset_names() {
-  local row
+  local row out=""
   local -a _hi_names_rows
   _hi_prompt_rows "${1:-_HI_PRESETS}" _hi_names_rows
-  for row in "${_hi_names_rows[@]}"; do printf '%s ' "${row%%|*}"; done
+  for row in "${_hi_names_rows[@]}"; do out="$out${out:+ }${row%%|*}"; done
+  printf '%s' "$out"
 }
 
 # preset_shorthand <letter> - the one preset whose name starts with <letter>,
@@ -748,7 +753,7 @@ function apply_preset() {
 function config_preset() {
   [ -t 0 ] || return 0
   local row name desc reply="" shorts="" short
-  section "Starting point" "A preset answers the feature, header and prompt settings at once; change any of them after."
+  section "Starting point" "A preset answers the feature and header settings at once; change any of them after."
   for row in "${_HI_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
     printf '   %s) %-11s %s\n' "${name:0:1}" "$name" "$desc"
@@ -789,16 +794,19 @@ function config_hub() {
     _hi_h2 "hi --configure"
     show_preview _hi_config_preview
     printf '   1) %-10s %s\n' Preset "everything / balanced / minimal - a starting point"
-    printf '   2) %-10s %s\n' Header "which items the connect/disconnect header shows, and in what order"
+    printf '   2) %-10s %s\n' Header "what the header shows and in what order; its width, the package check's depth and palette, the addresses hidden"
     printf '   3) %-10s %s\n' Features "prompt, git status, editors, clipboard, notifications, ..."
     printf '   4) %-10s %s\n' Prompt "starship, and the character each shell's prompt ends with"
-    printf '   5) %-10s %s\n' Advanced "session shell, glyphs, TERM fallback, timeouts"
+    printf '   5) %-10s %s\n' Advanced "recent targets, the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
     printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
     printf '   s) %-10s %s\n' save "write the settings and exit"
     printf '   q) %-10s %s\n' quit "exit without writing anything"
     menu_read " > " reply || return 0
     case "$reply" in
-    '') continue ;;
+    '')
+      rejects=0
+      continue
+      ;;
     1 | p | preset) config_preset ;;
     2 | h | header) config_header ;;
     3 | f | features) config_features ;;
@@ -817,7 +825,7 @@ function config_hub() {
         _HI_CONFIGURE_QUIT=1
         return 0
       fi
-      _hi_cecho " type 1-6, s to save or q to quit" "$YELLOW"
+      _hi_cecho " type 1-6 (or p, h, f, r, a, c), s to save or q to quit" "$YELLOW"
       continue
       ;;
     esac
@@ -998,7 +1006,7 @@ function _hi_header_edit_list() {
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_cecho "   N toggles an item; up N / down N moves it; p header preset; w width (${width:-80})" "$BLUE"
+  _hi_cecho "   N toggles an item, 0 the whole header; up N / down N moves it; p header preset; w width (${width:-80})" "$BLUE"
   if _hi_header_edit_has ip; then
     _hi_cecho "   i hidden addresses (${iphide:-172.*})" "$BLUE"
   fi
@@ -1072,8 +1080,11 @@ function config_header() {
         fi
       else
         rejects=$((rejects + 1))
-        [ "$rejects" -ge "$max_rejects" ] && return 0
-        _hi_cecho " type an item number, up N, down N, p, w, c, k, 0, or Enter to go back" "$YELLOW"
+        [ "$rejects" -ge "$max_rejects" ] && {
+          _hi_cecho " not an item three times - back to the menu" "$YELLOW"
+          return 0
+        }
+        _hi_cecho " type an item number, up N, down N, p, w, i, c, k, 0, or Enter to go back" "$YELLOW"
         continue
       fi
       ;;
@@ -1178,6 +1189,11 @@ function config_color_scheme() {
   [ "$n" -gt 0 ] && shown=custom
   if [ -t 0 ]; then
     show_preview _hi_color_scheme_preview
+    # what hi --doctor and the previews say about the same value: a word
+    # nothing renders is ignored, and Enter would keep it
+    if [ -n "$current" ] && [ "$n" -eq 0 ] && ! _hi_scheme_ok "$current"; then
+      _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
+    fi
   fi
   value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 12/24 hex words, written into settings.sh by hand)?" \
     "$shown" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
@@ -1252,7 +1268,10 @@ function config_prompt() {
       continue
     fi
     rejects=$((rejects + 1))
-    [ "$rejects" -ge "$max_rejects" ] && return 0
+    [ "$rejects" -ge "$max_rejects" ] && {
+      _hi_cecho " not an item three times - back to the menu" "$YELLOW"
+      return 0
+    }
     _hi_cecho " type a number from 1 to $n, or Enter to go back" "$YELLOW"
   done
 }
@@ -1275,6 +1294,16 @@ function config_advanced_values() {
     "$choice" auto _hi_is_glyph_choice "answer auto, glyphs or ascii")"
   case "$value" in ascii) value=1 ;; glyphs) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_ASCII "$value"
+
+  # _HI_TRUECOLOR is the same shape as _HI_ASCII - the client's verdict on
+  # its terminal, shipped to the session - and asked the same way: on is the
+  # answer under tmux, which hides COLORTERM
+  setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
+  case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
+  value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
+    "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
+  case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
+  _hi_pending_set _HI_TRUECOLOR "$value"
 }
 
 # The transport internals' free-text half: the two timing dials completion
@@ -1302,7 +1331,7 @@ function config_transport_values() {
 # walk a person Enters through is five questions, not eleven.
 function config_advanced() {
   local more
-  section "Advanced settings" "Recent targets, the leading space, tmux, the session shell and the glyphs. Enter keeps each value."
+  section "Advanced settings" "Recent targets, the leading space, tmux, the session shell, the glyphs and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
   more="$(ask_value "Also tune the transport internals - TERM fallback, the payload cache, completion and probe timeouts, the container CLI roster, ssh connection reuse? (y/N)" \
@@ -1372,6 +1401,7 @@ function collect_setting_lines() {
   _hi_collect_group _HI_TRANSPORT_PROMPTS
   _hi_collect_value _HI_SHELL_PREFERENCE login quoted
   _hi_collect_value _HI_ASCII ""
+  _hi_collect_value _HI_TRUECOLOR ""
   _hi_collect_value _HI_TARGETS_TTL 5
   _hi_collect_value _HI_PROBE_TIMEOUT 2
   _hi_collect_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" quoted
