@@ -41,6 +41,11 @@ Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
   the config overlay settings.sh (and whether every shell can parse it),
                      colors/packages overrides, non-default toggles
+  the shell configs  every rc file and overlay shell file, parsed by the
+                     shell that will read it
+  the install        each shell's rc lines and whether they name this tree,
+                     the hi link and what \`hi\` on PATH runs, and the rc
+                     file a login bash or a ZDOTDIR zsh really reads
   the backends       ssh config, docker, podman, nomad, kubectl - each probed
                      with the same timeout the header and completion use, and
                      timed, so a slow TAB or connect banner names its culprit
@@ -378,6 +383,82 @@ function doctor_configs() {
   done
 }
 
+# _hi_rc_names_tree <rc-file> - the _HI_HOME a marker line in <rc-file>
+# states, on stdout; empty when none does
+function _hi_rc_names_tree() {
+  grep -F "$_HI_MARKER" "$1" 2>/dev/null | sed -n 's/.*_HI_HOME[= ]*"\([^"]*\)".*/\1/p' | sed -n '1p'
+}
+
+# The install's own footprint, as rows: is each shell's rc wired, and to this
+# tree; is there a hi link, and where does `hi` on PATH lead; and the two
+# ways a wired rc file is never read (a macOS login bash, a ZDOTDIR). The
+# section a half-finished `hi --install` shows up in - the one thing
+# "something is off, run hi --doctor" could not answer before.
+function doctor_install() {
+  local row shell label target dialect other found owner bindir profile
+  doctor_section install "The install (what hi --install wired up)"
+  for row in "${_HI_RC_TABLE[@]}"; do
+    IFS='|' read -r shell label target _ _ dialect <<<"$row"
+    if ! rc_shell_present "$shell"; then
+      doctor_row "$shell" "not installed here, nothing to wire"
+    elif [ ! -f "$target" ] || ! grep -qF "$_HI_MARKER" "$target"; then
+      doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
+    elif grep -qF "$(tmpdir_line "$dialect")" "$target"; then
+      doctor_row "$shell" "$target is wired to this tree" ok
+    else
+      other="$(_hi_rc_names_tree "$target")"
+      doctor_row "$shell" "$target names ${other:-another tree}, this is $_HI_HOME (hi --install repairs it)" bad
+    fi
+  done
+  # zsh reads $ZDOTDIR/.zshrc and never ~/.zshrc when ZDOTDIR is set: lines
+  # in the wrong one are the usual way a working install stops working
+  if [ -n "${ZDOTDIR:-}" ] && [ -f "$HOME/.zshrc" ] && grep -qF "$_HI_MARKER" "$HOME/.zshrc" &&
+    ! grep -qF "$_HI_MARKER" "$ZDOTDIR/.zshrc" 2>/dev/null; then
+    doctor_row zdotdir "$HOME/.zshrc has hi's lines, but ZDOTDIR points zsh at $ZDOTDIR/.zshrc (hi --install writes there now)" warn
+  fi
+  # macOS: a login bash reads ~/.bash_profile (or ~/.bash_login, or
+  # ~/.profile), never ~/.bashrc - so the bashrc row above can be green and
+  # a Terminal.app shell still see none of it
+  if _hi_is_darwin && rc_shell_present bash; then
+    if [ -f "$HOME/.bash_login" ]; then
+      profile="$HOME/.bash_login"
+    elif [ -f "$HOME/.bash_profile" ]; then
+      profile="$HOME/.bash_profile"
+    else
+      profile="$HOME/.profile"
+    fi
+    if [ -f "$profile" ] && grep -qF '.bashrc' "$profile"; then
+      doctor_row login-bash "$profile reads ~/.bashrc" ok
+    else
+      doctor_row login-bash "a login bash reads $profile, which never reaches ~/.bashrc (hi --install adds the line to ~/.bash_profile)" warn
+    fi
+  fi
+  found="$(command -v hi 2>/dev/null || true)"
+  # shellcheck disable=SC2153 # $_HI_LINK is paths.sh's, exported
+  if [ "$(readlink "$_HI_LINK" 2>/dev/null)" = "$_HI_LAUNCHER" ]; then
+    doctor_row link "$_HI_LINK -> $_HI_LAUNCHER" ok
+    bindir="${_HI_LINK%/*}"
+    case ":$PATH:" in
+    *":$bindir:"*) ;;
+    *) doctor_row PATH "$bindir is not on PATH - the wired shells alias hi; scripts and other programs need it there" warn ;;
+    esac
+  elif [ -e "$_HI_LINK" ] || [ -L "$_HI_LINK" ]; then
+    owner="$(link_owner "$_HI_LINK" 2>/dev/null || true)"
+    doctor_row link "$_HI_LINK is not this tree's: $(readlink "$_HI_LINK" 2>/dev/null || echo 'a regular file')${owner:+, the $owner package}" bad
+  elif [ -n "$found" ] && _hi_link_runs_this_tree "$found"; then
+    doctor_row link "no $_HI_LINK, none needed: $found runs this tree" ok
+  else
+    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes it)" warn
+  fi
+  if [ -z "$found" ]; then
+    doctor_row command "no hi on PATH (the wired shells alias it)"
+  elif _hi_link_runs_this_tree "$found"; then
+    doctor_row command "hi on PATH is $found, and runs this tree" ok
+  else
+    doctor_row command "hi on PATH is $found, which runs $(readlink "$found" 2>/dev/null || echo 'something else') - not this tree" warn
+  fi
+}
+
 function doctor_backend() {
   local name="$1" t0 t1 rc=0
   shift
@@ -601,6 +682,7 @@ function doctor_ssh_target() {
 doctor_local
 doctor_config
 doctor_configs
+doctor_install
 doctor_backends
 [ -n "${_HI_DOC_TARGET:-}" ] && doctor_target "$_HI_DOC_TARGET"
 if [ "$_HI_DOC_JSON" = 1 ]; then

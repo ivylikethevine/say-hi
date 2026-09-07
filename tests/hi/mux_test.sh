@@ -77,18 +77,16 @@ function test_mux_flag_sets_mux_ahead_of_the_target() {
   [ "$out" = "1|myhost|" ]
 }
 
+# the target ends the options, and hi's own flag after it is refused by
+# name rather than run on the far end as a command nobody has
 function test_mux_flag_after_the_target_is_the_commands() {
-  local out
-  out="$(
-    unset DOMAIN MUX
-    _hi_parse myhost --mux >/dev/null 2>&1
-    printf '%s|%s|%s' "${MUX:-0}" "${DOMAIN:-}" "${SSHARGS[*]:-}"
-  )"
-  [ "$out" = "0|myhost|--mux" ]
+  local out rc=0
+  out="$( (_hi_parse myhost --mux 2>&1 >/dev/null))" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--mux goes before the target"* ]]
 }
 
 # --no-mux is the per-connect way out of _HI_MUX=1, and the last of the two
-# flags wins; after the target it is the remote command's word like --mux
+# flags wins; after the target it is refused like --mux
 function test_no_mux_flag_clears_mux_ahead_of_the_target() {
   local out
   out="$(
@@ -103,12 +101,9 @@ function test_no_mux_flag_clears_mux_ahead_of_the_target() {
     printf '%s' "${MUX:-unset}"
   )"
   [ "$out" = 1 ] || return 1
-  out="$(
-    unset DOMAIN MUX
-    _hi_parse myhost --no-mux >/dev/null 2>&1
-    printf '%s|%s' "${MUX:-unset}" "${SSHARGS[*]:-}"
-  )"
-  [ "$out" = "unset|--no-mux" ]
+  local rc=0
+  out="$( (_hi_parse myhost --no-mux 2>&1 >/dev/null))" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--no-mux goes before the target"* ]]
 }
 
 function test_no_mux_beats_the_setting() {

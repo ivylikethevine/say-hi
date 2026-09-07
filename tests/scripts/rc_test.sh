@@ -28,12 +28,21 @@ function _hi_rc_in() {
   done
   shift
   mkdir -p "$home"
-  env HOME="$home" ${envs[@]+"${envs[@]}"} bash -c '
+  # XDG_CONFIG_HOME follows the fabricated home (the harness points it at a
+  # throwaway, and fish's rc lives under it); $_HI_RC_PRELUDE is eval'd after
+  # the sources, for a case that has to stage a box - a shell that is not
+  # there, a platform this is not
+  env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
     source "$_HI_HOME/say-hi/scripts/rc.sh"
+    eval "${_HI_RC_PRELUDE:-}"
     "$@"' rc_probe "$@" >/dev/null
 }
+
+# every roster shell "installed", whatever this box has: the roster cases
+# are about the lines, not about which shells are here
+_HI_RC_ALL='rc_shell_present() { return 0; }'
 
 function test_config_shell_fresh_write() {
   local home="$_HI_WORKDIR/fresh"
@@ -127,7 +136,7 @@ function test_tmpdir_line_dialects() {
 function test_install_rc_lines_covers_the_roster() {
   local home="$_HI_WORKDIR/roster"
   mkdir -p "$home/.config/fish"
-  _hi_rc_in "$home" -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
   local f
   for f in .bashrc .zshrc .config/fish/config.fish; do
     grep -qF "$_HI_MARKER" "$home/$f" || return 1
@@ -146,11 +155,78 @@ function test_strip_rc_lines_restores_the_originals() {
   printf 'echo bash-mine\n' >"$home/.bashrc"
   printf 'echo zsh-mine\n' >"$home/.zshrc"
   printf 'echo fish-mine\n' >"$home/.config/fish/config.fish"
-  _hi_rc_in "$home" -- install_rc_lines || return 1
+  _hi_rc_in "$home" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
   _hi_rc_in "$home" -- strip_rc_lines || return 1
   [ "$(cat "$home/.bashrc")" = "echo bash-mine" ] &&
     [ "$(cat "$home/.zshrc")" = "echo zsh-mine" ] &&
     [ "$(cat "$home/.config/fish/config.fish")" = "echo fish-mine" ]
+}
+
+# a shell that is not here gets no rc file invented for it
+function test_install_rc_lines_skips_an_absent_shell() {
+  local home="$_HI_WORKDIR/bash-only"
+  _hi_rc_in "$home" _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  grep -qF "$_HI_MARKER" "$home/.bashrc" &&
+    [ ! -e "$home/.zshrc" ] && [ ! -e "$home/.config/fish/config.fish" ]
+}
+
+# the rc file is where the user's shell reads it: zsh under $ZDOTDIR, fish
+# under $XDG_CONFIG_HOME - ~/.zshrc is not written when zsh never opens it
+function test_install_rc_lines_honours_zdotdir() {
+  local home="$_HI_WORKDIR/zdot"
+  _hi_rc_in "$home" ZDOTDIR="$home/zdot" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
+  grep -qF "$_HI_MARKER" "$home/zdot/.zshrc" && [ ! -e "$home/.zshrc" ]
+}
+
+function test_install_rc_lines_honours_fish_xdg_dir() {
+  local home="$_HI_WORKDIR/fishxdg"
+  _hi_rc_in "$home" XDG_CONFIG_HOME="$home/xdg" _HI_RC_PRELUDE="$_HI_RC_ALL" -- install_rc_lines || return 1
+  grep -qF "$_HI_MARKER" "$home/xdg/fish/config.fish" && [ ! -e "$home/.config/fish/config.fish" ]
+}
+
+# --dry-run: the block is reported, the file never touched - not even created
+function test_config_shell_dry_run_writes_nothing() {
+  local home="$_HI_WORKDIR/dry"
+  _hi_rc_in "$home" _HI_DRY_RUN=1 -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
+  [ ! -e "$home/.bashrc" ]
+}
+
+# macOS: a login bash reads ~/.bash_profile, never ~/.bashrc, so the install
+# teaches the one to read the other - a fresh file keeps ~/.profile in the
+# chain too, one that already reads .bashrc is left alone, and ~/.bash_login
+# (which wins over both) is only pointed at
+function test_darwin_bash_profile_sources_bashrc() {
+  local home="$_HI_WORKDIR/darwin-fresh"
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
+    grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
+    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 2 ] || return 1
+  # ...and uninstall takes both lines back
+  _hi_rc_in "$home" _HI_UNAME=Darwin -- strip_rc_lines || return 1
+  ! grep -qF "$_HI_MARKER" "$home/.bash_profile"
+}
+
+function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
+  local home="$_HI_WORKDIR/darwin-has"
+  mkdir -p "$home"
+  printf 'source ~/.bashrc\n' >"$home/.bash_profile"
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  [ "$(cat "$home/.bash_profile")" = 'source ~/.bashrc' ]
+}
+
+function test_darwin_bash_login_is_only_pointed_at() {
+  local home="$_HI_WORKDIR/darwin-login"
+  mkdir -p "$home"
+  : >"$home/.bash_login"
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  [ ! -e "$home/.bash_profile" ] && [ ! -s "$home/.bash_login" ]
+}
+
+# ...and nowhere else: Linux gets no .bash_profile
+function test_linux_gets_no_bash_profile() {
+  local home="$_HI_WORKDIR/linux"
+  _hi_rc_in "$home" _HI_UNAME=Linux _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  [ ! -e "$home/.bash_profile" ]
 }
 
 # check_shell_configs walks the whole roster and names the one that is
@@ -178,7 +254,7 @@ function _hi_rc_out() {
   done
   shift
   mkdir -p "$home"
-  env HOME="$home" ${envs[@]+"${envs[@]}"} bash -c '
+  env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c '
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
     source "$_HI_HOME/say-hi/scripts/rc.sh"
@@ -276,6 +352,14 @@ function run_rc_lines_test() {
   _hi_h2 "Testing: install_rc_lines / strip_rc_lines"
   _hi_check "Install covers the local roster, per dialect" test_install_rc_lines_covers_the_roster
   _hi_check "Strip restores the originals byte for byte" test_strip_rc_lines_restores_the_originals
+  _hi_check "A shell that is not installed gets no rc file" test_install_rc_lines_skips_an_absent_shell
+  _hi_check "zsh's rc lives under \$ZDOTDIR" test_install_rc_lines_honours_zdotdir
+  _hi_check "fish's rc lives under \$XDG_CONFIG_HOME" test_install_rc_lines_honours_fish_xdg_dir
+  _hi_check "--dry-run writes nothing" test_config_shell_dry_run_writes_nothing
+  _hi_check "macOS: .bash_profile learns to read .bashrc, and forgets on strip" test_darwin_bash_profile_sources_bashrc
+  _hi_check "macOS: a .bash_profile that already does is left alone" test_darwin_bash_profile_that_reads_bashrc_is_left_alone
+  _hi_check "macOS: .bash_login is pointed at, not edited" test_darwin_bash_login_is_only_pointed_at
+  _hi_check "Linux gets no .bash_profile" test_linux_gets_no_bash_profile
 
   _hi_h2 "Testing: the syntax gate"
   _hi_check "check_one_config's four verdicts" test_check_one_config_verdicts

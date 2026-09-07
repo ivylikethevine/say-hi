@@ -144,7 +144,7 @@ So the recipe is the plain in-place install, as the README's
 ```sh
 # on the NAS, as the user you ssh in as
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or unpack a release tarball there
-bash ~/say-hi/scripts/install.sh --no-link
+bash ~/say-hi/scripts/install.sh
 ```
 
 `~/say-hi` is on the probe's candidate list, so the tree is found with no rc
@@ -152,7 +152,8 @@ line at all - which matters on DSM, where a non-admin login lands in
 `/bin/sh` and never reads the `~/.bashrc` line `install.sh` writes. What the
 run of `install.sh` is for is the questions: its answers land in
 `~/.config/say-hi/settings.sh`, which the session reads from the tree, and
-`--no-link` keeps it away from `/usr/bin`. DSM and QTS ship `bash` beside
+the only link it makes is `~/.local/bin/hi`, on the data volume with the
+rest. DSM and QTS ship `bash` beside
 their busybox `sh`, which is all `install.sh` needs; `git` is not a given
 (DSM: the Git Server package, or the tarball). From then on `hi <nas>` from
 anywhere is the shorter, payload-free connect, and `hi --update` on the NAS

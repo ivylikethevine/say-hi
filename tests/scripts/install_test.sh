@@ -545,12 +545,204 @@ function test_unlink_hi_instructs_with_no_sudo_at_all() {
   chmod 555 "$dir/bin"
   out="$(
     hash -r
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
     PATH="$farm"
     _HI_LINK="$dir/bin/hi"
     unlink_hi
   )" || rc=$?
   chmod 755 "$dir/bin"
   [ "$rc" -eq 0 ] && [[ "$out" == *"no sudo here"* ]] && [ -L "$dir/bin/hi" ]
+}
+
+# The first command a fresh clone runs has to answer a checkout that is not
+# called say-hi by name - hi.sh has that guard, and install.sh reached it
+# first with a raw "No such file" from bash
+function test_a_misnamed_clone_is_refused_by_name() {
+  local dir="$_HI_WORKDIR/misnamed" out rc=0
+  mkdir -p "$dir"
+  cp -R "$_HI_RUN_TREE" "$dir/sayhi"
+  out="$(_hi_run_env misnamed-home bash "$dir/sayhi/scripts/install.sh" --check-configs 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"has to be a directory named say-hi"* ]]
+}
+
+# reached as `hi --uninstall`, every message says so - the usage line, the
+# argument error, and a --help that describes uninstalling rather than the
+# install it undoes
+function test_errors_name_what_was_typed() {
+  local out rc=0
+  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --bogus 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unrecognized argument: --bogus"* && "$out" == *"Usage: hi --uninstall"* ]]
+}
+
+function test_uninstall_help_is_its_own() {
+  local out
+  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --help)" || return 1
+  [[ "$out" == "Usage: hi --uninstall [--dry-run]"* && "$out" == *"inverse of the install"* && "$out" != *"Wires up"* ]]
+}
+
+function test_configure_help_is_its_own() {
+  local out
+  out="$(_HI_ARGV0="hi --configure" bash "$_HI_ROOT/scripts/install.sh" --features-only --help)" || return 1
+  [[ "$out" == "Usage: hi --configure [--preset <name>]"* && "$out" == *"Revisit the settings"* && "$out" != *"Wires up"* ]]
+}
+
+function test_no_link_and_system_link_are_one_choice() {
+  local out rc=0
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --no-link --system-link 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one"* ]]
+}
+
+# config_hi's user-local default: the bindir is made when it is missing, and
+# a bindir off $PATH is said so, once
+function test_config_hi_creates_the_user_bindir() {
+  local dir="$_HI_WORKDIR/userbin" out
+  mkdir -p "$dir"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  out="$(
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/.local/bin/hi"
+    config_hi
+  )" || return 1
+  [ "$(readlink "$dir/.local/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" == *"not on your PATH"* ]]
+}
+
+function test_config_hi_is_quiet_when_the_bindir_is_on_path() {
+  local dir="$_HI_WORKDIR/onpathbin" out
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  out="$(
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$dir/bin:$PATH"
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || return 1
+  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] && [[ "$out" != *"not on your PATH"* ]]
+}
+
+# something on PATH already runs this tree - Homebrew's wrapper, a package's
+# /usr/bin/hi - so no link is added beside it
+function test_config_hi_skips_when_hi_on_path_runs_this_tree() {
+  local dir="$_HI_WORKDIR/haswrapper" out
+  mkdir -p "$dir/wrap" "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$dir/hi.sh" >"$dir/wrap/hi"
+  chmod 755 "$dir/wrap/hi"
+  out="$(
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$dir/wrap:$PATH"
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || return 1
+  [[ "$out" == *"already on your PATH at $dir/wrap/hi"* ]] && [ ! -e "$dir/bin/hi" ]
+}
+
+# _hi_pkg_shim - a dpkg that says every path belongs to say-hi, first on
+# PATH; pacman (this box's, when it is one) answers "not owned" for a scratch
+# path and link_owner moves on to it
+function _hi_pkg_shim() {
+  local bin="$_HI_WORKDIR/pkgbin"
+  [ -x "$bin/dpkg" ] || {
+    mkdir -p "$bin"
+    # shellcheck disable=SC2016 # the shim's own $1/$2
+    printf '#!/bin/sh\n[ "$1" = -S ] || exit 1\nprintf "say-hi: %%s\\n" "$2"\n' >"$bin/dpkg"
+    chmod +x "$bin/dpkg"
+  }
+  printf '%s' "$bin"
+}
+
+function test_config_hi_refuses_a_package_owned_link() {
+  local dir="$_HI_WORKDIR/pkgowned" out
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  ln -sfn /bin/true "$dir/bin/hi"
+  out="$(
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$(_hi_pkg_shim):$PATH"
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || return 1
+  [[ "$out" == *"belongs to the say-hi package"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ]
+}
+
+function test_config_hi_refuses_a_foreign_link() {
+  local dir="$_HI_WORKDIR/foreign" out
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  ln -sfn /bin/true "$dir/bin/hi"
+  out="$(
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || return 1
+  [[ "$out" == *"is not hi's"* ]] && [ "$(readlink "$dir/bin/hi")" = /bin/true ]
+}
+
+function test_unlink_hi_names_the_owning_package() {
+  local dir="$_HI_WORKDIR/pkgunlink" out
+  mkdir -p "$dir/bin"
+  ln -sfn /bin/true "$dir/bin/hi"
+  out="$(
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$(_hi_pkg_shim):$PATH"
+    _HI_LINK="$dir/bin/hi"
+    unlink_hi
+  )" || return 1
+  [[ "$out" == *"(owned by the say-hi package), leaving it alone"* ]] && [ -L "$dir/bin/hi" ]
+}
+
+function test_config_hi_dry_run_makes_no_link() {
+  local dir="$_HI_WORKDIR/drylink" out
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  out="$(
+    _HI_DRY_RUN=1
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || return 1
+  [[ "$out" == *"would link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ]
+}
+
+# --dry-run through the whole install: every write is named, none is made -
+# no rc line, no seed, no settings.sh, no link
+function test_dry_run_install_writes_nothing() {
+  local home="$_HI_WORKDIR/dry" out rc=0
+  out="$(_hi_run_install_here dry --dry-run --preset balanced 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || return 1
+  [[ "$out" == *"dry run: would rewrite hi's lines in $home/.bashrc"* ]] &&
+    [[ "$out" == *"would seed $home/.config/say-hi/colors"* ]] &&
+    [[ "$out" == *"would link $home/.local/bin/hi"* ]] &&
+    [ ! -e "$home/.bashrc" ] && [ ! -e "$home/.config/say-hi/colors" ] &&
+    [ ! -e "$home/.config/say-hi/settings.sh" ] && [ ! -e "$home/.local/bin/hi" ]
+}
+
+function test_dry_run_uninstall_removes_nothing() {
+  local home="$_HI_WORKDIR/dryun" out rc=0
+  _hi_run_install_here dryun --no-link --yes --preset balanced >/dev/null 2>&1 || return 1
+  out="$(_hi_run_install_here dryun --uninstall --dry-run 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"would rewrite hi's lines in $home/.bashrc"* ]] &&
+    [[ "$out" == *"would remove $home/.config/say-hi/settings.sh"* ]] &&
+    grep -qF "$_HI_MARKER" "$home/.bashrc" && [ -f "$home/.config/say-hi/settings.sh" ]
+}
+
+# --system-link is the one link that reaches for /usr/bin; under --dry-run
+# the hi.sh step names that path and never the user's
+function test_system_link_flag_targets_usr_bin() {
+  local home="$_HI_WORKDIR/syslink" out
+  out="$(_hi_run_install_here syslink --dry-run --system-link --preset balanced 2>&1)" || return 1
+  [[ "$out" == *"/usr/bin/hi"* && "$out" != *"$home/.local/bin/hi"* ]]
+}
+
+function test_install_reports_the_version() {
+  local out
+  out="$(_HI_RELEASE=v9.9.9 _hi_run_install_here ver --dry-run --preset balanced 2>&1)" || return 1
+  [[ "$out" == *"version: v9.9.9"* ]]
 }
 
 function run_install_tests() {
@@ -579,10 +771,17 @@ function run_install_tests() {
   _hi_h2 "Testing: config_hi (--no-link only)"
   _hi_check "Skips the symlink entirely" test_config_hi_no_link_skips_the_symlink
   _hi_check "Flag is parsed and documented" test_no_link_flag_is_parsed_and_documented
+  _hi_check_capable symlink "Makes the user bindir, and says when it is off PATH" test_config_hi_creates_the_user_bindir
+  _hi_check_capable symlink "Quiet when the bindir is on PATH" test_config_hi_is_quiet_when_the_bindir_is_on_path
+  _hi_check "Skips when a hi on PATH already runs this tree" test_config_hi_skips_when_hi_on_path_runs_this_tree
+  _hi_check_capable symlink "Leaves a package's link to the package manager" test_config_hi_refuses_a_package_owned_link
+  _hi_check_capable symlink "Leaves a foreign link alone" test_config_hi_refuses_a_foreign_link
+  _hi_check "--dry-run names the link and makes none" test_config_hi_dry_run_makes_no_link
 
   _hi_h2 "Testing: unlink_hi (skip paths only)"
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
   _hi_check_capable symlink "Skips a foreign link" test_unlink_hi_skips_when_link_points_elsewhere
+  _hi_check_capable symlink "Names the package a foreign link belongs to" test_unlink_hi_names_the_owning_package
 
   _hi_h2 "Testing: unlink_hi (the removal ladder)"
   _hi_check_capable symlink "Removes its own link from a writable bindir" test_unlink_hi_removes_its_own_link
@@ -599,6 +798,15 @@ function run_install_tests() {
   _hi_check "An unknown argument gets the usage" test_an_unknown_argument_gets_the_usage
   _hi_check "Two modes at once are refused" test_two_modes_are_refused
   _hi_check "The usage line names what was typed" test_usage_names_what_was_typed
+  _hi_check "Every error names what was typed" test_errors_name_what_was_typed
+  _hi_check "--uninstall --help describes uninstalling" test_uninstall_help_is_its_own
+  _hi_check "--configure --help describes the settings" test_configure_help_is_its_own
+  _hi_check "--no-link and --system-link are one choice" test_no_link_and_system_link_are_one_choice
+  _hi_check "A clone not named say-hi is refused by name" test_a_misnamed_clone_is_refused_by_name
+  _hi_check "--dry-run installs nothing, and says what it would" test_dry_run_install_writes_nothing
+  _hi_check "--uninstall --dry-run removes nothing" test_dry_run_uninstall_removes_nothing
+  _hi_check "--system-link reaches for /usr/bin/hi" test_system_link_flag_targets_usr_bin
+  _hi_check "The banner names the version" test_install_reports_the_version
   _hi_check "--check-configs passes a clean home" test_check_configs_mode_passes_a_clean_home
   _hi_check "--check-configs fails on a broken .bashrc" test_check_configs_mode_fails_on_a_broken_bashrc
   _hi_check "A full install seeds the overlay" test_install_seeds_the_overlay

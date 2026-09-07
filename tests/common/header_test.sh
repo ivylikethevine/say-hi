@@ -1255,12 +1255,14 @@ function test_ip_filter_hides_the_bridge_by_default() {
   [ "$out" = "10.0.0.5,192.0.2.10" ]
 }
 
+# `none` hides nothing; an empty value is unset, so it hides the default
+# range - what the wizard's preview shows for it too
 function test_ip_filter_none_and_empty_keep_everything() {
   local out
   _HI_IP_HIDE=none _hi_ip_filter out "172.17.0.2,10.0.0.5"
   [ "$out" = "172.17.0.2,10.0.0.5" ] || return 1
   _HI_IP_HIDE="" _hi_ip_filter out "172.17.0.2,10.0.0.5"
-  [ "$out" = "172.17.0.2,10.0.0.5" ]
+  [ "$out" = "10.0.0.5" ]
 }
 
 function test_ip_filter_takes_a_glob_list() {

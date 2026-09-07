@@ -19,19 +19,24 @@ function config_shell() {
   shift 2
   _hi_h2 "Checking $name"
 
-  mkdir -p "$(dirname "$target")"
-  touch "$target"
   for line in "$@"; do
     [ -n "$line" ] && desired+="$(printf '%-45s %s' "$line" "$_HI_MARKER")"$'\n'
   done
 
-  existing="$(grep -F "$_HI_MARKER" "$target" || true)"
+  existing=""
+  [ -f "$target" ] && existing="$(grep -F "$_HI_MARKER" "$target" || true)"
   if [ "$existing" = "${desired%$'\n'}" ]; then
     _hi_cecho " local $name up to date :)" "$GREEN"
     return 0
   fi
 
+  if dry_run_say "rewrite hi's lines in $target"; then
+    [ -z "$desired" ] || printf '%s' "$desired" | sed 's/^/   /'
+    return 0
+  fi
   _hi_cecho " local $name out of date, updating..." "$YELLOW"
+  mkdir -p "$(dirname "$target")"
+  touch "$target"
   # one-time backup on hi's first write to a non-empty file; never overwritten,
   # so it stays the pre-hi original. Uninstall leaves it, deliberately.
   if [ -s "$target" ] && [ -z "$existing" ] && [ ! -e "$target.hi-orig" ]; then
@@ -43,6 +48,56 @@ function config_shell() {
   printf '%s' "$desired" >>"$tmpfile"
   _hi_write_back "$tmpfile" "$target"
   _hi_cecho " local $name updated :)" "$GREEN"
+}
+
+# The hi link, the other thing an install leaves on disk. Here beside the rc
+# lines because doctor.sh reads both and sources this file, not install.sh.
+#
+# link_owner <path> - the package that owns <path>, on stdout, through
+# whichever package manager is here; failure when none claims it. What keeps
+# a clone's install from taking over a package's /usr/bin/hi, and its
+# uninstall from deleting one.
+function link_owner() {
+  local out
+  if command -v pacman >/dev/null 2>&1 && out="$(pacman -Qqo "$1" 2>/dev/null)" && [ -n "$out" ]; then
+    printf '%s' "$out"
+    return 0
+  fi
+  if command -v dpkg >/dev/null 2>&1 && out="$(dpkg -S "$1" 2>/dev/null)" && [ -n "$out" ]; then
+    printf '%s' "${out%%:*}"
+    return 0
+  fi
+  if command -v rpm >/dev/null 2>&1 && out="$(rpm -qf "$1" 2>/dev/null)" && [ -n "$out" ]; then
+    printf '%s' "$out"
+    return 0
+  fi
+  if command -v apk >/dev/null 2>&1 && out="$(apk info -W "$1" 2>/dev/null)"; then
+    case "$out" in
+    *" is owned by "*)
+      printf '%s' "${out##* is owned by }"
+      return 0
+      ;;
+    esac
+  fi
+  return 1
+}
+
+# _hi_link_runs_this_tree <path> - does that `hi` run this tree's hi.sh: a
+# symlink to it, or a wrapper that execs it (Homebrew's bin/hi)
+function _hi_link_runs_this_tree() {
+  [ -e "$1" ] || return 1
+  [ "$(readlink "$1" 2>/dev/null)" = "$_HI_LAUNCHER" ] && return 0
+  [ -f "$1" ] && grep -qF -- "$_HI_LAUNCHER" "$1" 2>/dev/null
+}
+
+# dry_run_say <what> - under --dry-run (install.sh's $_HI_DRY_RUN), say what
+# would happen and succeed, so the caller returns before it writes; otherwise
+# fail quietly and the caller carries on. Every writer install.sh reaches
+# opens with one of these.
+function dry_run_say() {
+  [ -n "${_HI_DRY_RUN:-}" ] || return 1
+  _hi_cecho " dry run: would $1" "$BLUE"
+  return 0
 }
 
 # config_shell with an empty block, plus a quieter report for the common
@@ -79,12 +134,57 @@ function tmpdir_line() {
 # disjoint edits.
 #
 # The rows come from core.sh's _HI_SHELL_TABLE, filtered to the ones flagged
-# `local`, so a shell added to the roster cannot miss this half.
+# `local`, so a shell added to the roster cannot miss this half. The rc file
+# is where *this* user's shell reads it: zsh under $ZDOTDIR and fish under
+# $XDG_CONFIG_HOME when those are set. core.sh's column stays the plain
+# $HOME form, which is what hi.sh's permanent-install probe looks for on a
+# target it knows nothing else about.
 _HI_RC_TABLE=()
 while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
+  case "$_hi_shell" in
+  zsh) _hi_home_rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
+  fish) _hi_home_rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish" ;;
+  esac
   _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check|$_hi_tree_rc|$_hi_dialect")
 done < <(_hi_shell_rows local)
 unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect
+
+# rc_shell_present <shell> - is that shell here to read the lines? A
+# function, so a suite can stage a box without one.
+function rc_shell_present() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+# macOS: Terminal.app and iTerm open *login* shells, and a login bash reads
+# ~/.bash_profile and never ~/.bashrc - so the lines above land in a file
+# that shell never opens, and the install reads as "worked, did nothing". The
+# fix is the one line every macOS dotfile guide adds, tagged like the rest so
+# uninstall takes it back: source .bashrc from .bash_profile. A fresh
+# .bash_profile keeps .profile in the chain too, since its existence is what
+# stops bash reading that one. ~/.bash_login wins over both when present and
+# is nobody's to edit, so that case is a warning.
+# shellcheck disable=SC2016 # the lines are the login shell's to expand
+_HI_BASH_PROFILE_LINE='[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"'
+# shellcheck disable=SC2016
+_HI_PROFILE_LINE='[ -r "$HOME/.profile" ] && . "$HOME/.profile"'
+function install_bash_profile_line() {
+  _hi_is_darwin || return 0
+  local profile="$HOME/.bash_profile"
+  if [ -f "$profile" ]; then
+    if grep -v -F "$_HI_MARKER" "$profile" | grep -qF '.bashrc'; then
+      _hi_h2 "Checking bash_profile"
+      _hi_cecho " local bash_profile already reads .bashrc :)" "$GREEN"
+      return 0
+    fi
+    config_shell bash_profile "$profile" "$_HI_BASH_PROFILE_LINE"
+  elif [ -f "$HOME/.bash_login" ]; then
+    _hi_h2 "Checking bash_profile"
+    _hi_cecho " ~/.bash_login is what your login bash reads, so add this line to it yourself:" "$YELLOW"
+    _hi_cecho "   $_HI_BASH_PROFILE_LINE" "$YELLOW"
+  else
+    config_shell bash_profile "$profile" "$_HI_PROFILE_LINE" "$_HI_BASH_PROFILE_LINE"
+  fi
+}
 
 # What draws the prompt in this user's own rc files today, if anything hi
 # would replace: the name on stdout, failure when none is found. Read from
@@ -112,7 +212,10 @@ function detect_prompt_framework() {
   # rc_test.sh pins this list against the roster so a fourth wired shell
   # cannot be added to _HI_SHELL_TABLE and silently missed here.
   local -a rcs=("$_HI_HOME_BASHRC" "$_HI_HOME_ZSHRC" "$_HI_HOME_FISH_CONFIG")
+  # ...plus where zsh and fish really read when ZDOTDIR or XDG_CONFIG_HOME
+  # point elsewhere - live too, for the same reason
   [ -n "${ZDOTDIR:-}" ] && rcs+=("$ZDOTDIR/.zshrc")
+  [ -n "${XDG_CONFIG_HOME:-}" ] && rcs+=("$XDG_CONFIG_HOME/fish/config.fish")
   for rc in "${rcs[@]}"; do
     [ -f "$rc" ] || continue
     for row in "${_HI_PROMPT_FRAMEWORKS[@]}"; do
@@ -229,6 +332,13 @@ function install_rc_lines() {
   local -a lines
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label target check tree_rc dialect <<<"$row"
+    # a shell that is not here gets no rc file invented for it; the next
+    # `hi --install` after it arrives wires it up
+    rc_shell_present "$shell" || {
+      _hi_h2 "Checking $label"
+      _hi_cecho " $shell is not installed here - leaving $target alone (re-run hi --install once it is)" "$BLUE"
+      continue
+    }
     lines=("$(tmpdir_line "$dialect")")
     case "$dialect" in
     fish) lines+=('if status is-interactive' "  source \"$tree_rc\"" 'end') ;;
@@ -239,13 +349,19 @@ function install_rc_lines() {
     esac
     config_shell "$label" "$target" "${lines[@]}"
   done
+  install_bash_profile_line
 }
 
-# the inverse, for --uninstall
+# the inverse, for --uninstall. The bash_profile line goes too, wherever a
+# marker says it was written - not only on macOS, since a home directory can
+# travel.
 function strip_rc_lines() {
-  local row shell label target check
+  local row shell label target check profile="$HOME/.bash_profile"
   for row in "${_HI_RC_TABLE[@]}"; do
     IFS='|' read -r shell label target check _ <<<"$row"
     strip_marker "$label" "$target"
   done
+  if _hi_is_darwin || { [ -f "$profile" ] && grep -qF "$_HI_MARKER" "$profile"; }; then
+    strip_marker bash_profile "$profile"
+  fi
 }

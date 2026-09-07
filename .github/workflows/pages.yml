@@ -242,14 +242,19 @@ jobs:
           # blue rather than pass/fail green - no threshold gates on these.
           # No warning on the empty branch: no successful coverage run yet is
           # a normal state, not something to flag.
+          # An all-zero figure is kcov's checkout-less merge ("files": [],
+          # 0.00), not a measurement: coverage.yml refuses to publish one
+          # now, and this refuses to render one an older artifact still
+          # carries - release.yml's freeze step does the same.
+          pct_ok() { case "$1" in '' | *[!0-9.]* | 0 | 0.0 | 0.00 | 0.000) return 1 ;; esac; }
           pct=""
           [ -f "$COVPCT" ] && read -r pct <"$COVPCT" || true
-          if [ -n "$pct" ]; then
+          if pct_ok "$pct"; then
             badge coverage.json kcov informational "$pct%"
             echo "kcov badge: $pct%"
           else
             badge coverage.json kcov inactive "not measured"
-            echo "kcov badge: no figure published yet"
+            echo "kcov badge: no figure published yet${pct:+ ('$pct' is not a measurement)}"
           fi
 
           # The bashcov endpoint. Same treatment as the kcov one above: named
@@ -263,7 +268,7 @@ jobs:
           # state, not something to flag.
           pct2=""
           [ -f "$COVPCT2" ] && read -r pct2 <"$COVPCT2" || true
-          if [ -n "$pct2" ]; then
+          if pct_ok "$pct2"; then
             badge coverage-v2.json bashcov informational "$pct2%"
             echo "bashcov badge: $pct2%"
           else

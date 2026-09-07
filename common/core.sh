@@ -34,7 +34,7 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_PASSTHROUGH _HI_DISABLE_MARKS
-    _HI_DISABLE_TOOL_ALIASES)
+    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -713,6 +713,12 @@ function _hi_ssh_pattern_hit() {
     # skipped rather than matched: the zsh arm's eval would otherwise re-parse
     # a `)` or `;;` from ~/.ssh/config as case syntax.
     case "$pat" in *[!A-Za-z0-9_.:*?!-]*) continue ;; esac
+    # _HI_SSH_LITERAL_ONLY=1 is target resolution's view: a `Host *` block
+    # names no host, so a wildcard token is skipped and only a spelled-out
+    # entry counts. Tag colors keep reading the wildcards.
+    if [ -n "${_HI_SSH_LITERAL_ONLY:-}" ]; then
+      case "$pat" in *[*?]*) continue ;; esac
+    fi
     if [ -n "$zsh" ]; then
       # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
       # and cannot parse `${~pat}` (SC2296)

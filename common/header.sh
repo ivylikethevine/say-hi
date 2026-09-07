@@ -514,13 +514,14 @@ function _hi_cell_ip() {
 
 # _hi_ip_filter <outvar> <comma-joined addresses> - the same list minus every
 # address a $_HI_IP_HIDE glob matches. The setting is space-separated globs,
-# unset meaning `172.*` (the docker/podman bridge range, noise on any box that
-# runs containers); the word `none` (or an empty value) hides nothing. The
-# words are peeled off the string one at a time rather than word-split in a
-# `for`, which would also pathname-expand `172.*` against the cwd.
+# unset or empty meaning `172.*` (the docker/podman bridge range, noise on
+# any box that runs containers - empty is unset, as every other setting
+# reads it); the word `none` hides nothing. The words are peeled off the
+# string one at a time rather than word-split in a `for`, which would also
+# pathname-expand `172.*` against the cwd.
 function _hi_ip_filter() {
-  local _hi_if_hide="${_HI_IP_HIDE-172.*}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip
-  case "$_hi_if_hide" in '' | none)
+  local _hi_if_hide="${_HI_IP_HIDE:-172.*}" _hi_if_rest="$2" _hi_if_kept="" _hi_if_ip
+  case "$_hi_if_hide" in none)
     printf -v "$1" '%s' "$2"
     return 0
     ;;

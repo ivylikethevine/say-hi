@@ -445,7 +445,7 @@ function test_strip_keeps_hi_sh_executable() {
 function test_strip_spares_heredoc_bodies() {
   local dir
   dir="$(_hi_strip_unpack stripped)"
-  grep -q 'Everything else is passed to ssh' "$dir/say-hi/hi.sh"
+  grep -q 'passed to ssh unchanged' "$dir/say-hi/hi.sh"
 }
 
 # The data files' prose headers document the *installed* copies a user reads,

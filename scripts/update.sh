@@ -24,7 +24,7 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
 
-_HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates by installing the next release from https://github.com/ivylikethevine/say-hi/releases; a hi session updates on the machine say-hi lives on"
+_HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on"
 
 # the script's own usage line names what was typed, the way doctor.sh does
 me="${_HI_ARGV0:-hi --update}"
