@@ -46,9 +46,11 @@ export _HI_ZSHRC="$_HI_ROOT/common/zsh.zsh"
 export _HI_FISH_CONFIG="$_HI_ROOT/common/config.fish"
 
 # install.sh's line tag and managed symlink, so everything recognising hi's
-# lines reads one string
+# lines reads one string. The link is the user's own bin directory - no sudo
+# in a first install; install.sh's --system-link is /usr/bin/hi, and a
+# package's link there is the package's, never this one.
 export _HI_MARKER="# added by hi during install"
-export _HI_LINK="/usr/bin/hi"
+export _HI_LINK="$HOME/.local/bin/hi"
 
 # host paths hi reads or appends to
 export _HI_LINUX_RELEASE="/etc/os-release"
@@ -65,7 +67,7 @@ export _HI_HUMAN_SHORT_DATE="+%b %e %y %H:%M %Z"
 
 # What hi.sh's local sub-commands say when they cannot run: the payload ships
 # no scripts/, tests/ or .git. Exported from here so the wording has one home.
-export _HI_NO_CHECKOUT="needs the full say-hi checkout - not in a package or a hi session; git clone https://github.com/ivylikethevine/say-hi has one"
+export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - a hi session carries only the payload; git clone https://github.com/ivylikethevine/say-hi has one"
 
 # The flags that take a completable word of their own. Here because all four
 # shells need it and this is the only file all four read: bash.sh, zsh.zsh and
@@ -92,7 +94,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_PROMPT=1
 } || true
 
-# core.sh's _HI_TOGGLES minus the gate's own two inputs, spelled out because
+# core.sh's _HI_TOGGLES minus the gates' own three inputs, spelled out because
 # this dialect can't loop; paths_test.sh pins the two lists together.
 #
 # NOTHING INSIDE THE BRACES BUT `export NAME=value` LINES - no comments (blank
@@ -107,4 +109,5 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_PASSTHROUGH=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1
+  export _HI_DISABLE_BANNER=1
 } || true

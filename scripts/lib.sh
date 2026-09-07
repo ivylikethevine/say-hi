@@ -45,6 +45,12 @@ function _hi_h2() {
   _hi_hrule "$1" '-' 2 "${2:-$BRCYAN}"
 }
 
+# _hi_is_darwin - macOS, where a login bash reads ~/.bash_profile and never
+# ~/.bashrc. $_HI_UNAME lets a suite stage the other platform.
+function _hi_is_darwin() {
+  [ "${_HI_UNAME:-$(uname -s 2>/dev/null)}" = Darwin ]
+}
+
 # _hi_rewrite <file> <sed-expr>... - every expression in one pass, in place.
 # A temp file, not `sed -i`: its flag differs BSD/GNU, and -i replaces a
 # symlinked rc with a regular file. GLOSSARY: HI.08

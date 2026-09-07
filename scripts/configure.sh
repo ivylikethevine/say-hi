@@ -205,6 +205,8 @@ function menu_read() {
 }
 
 function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
+# a header width: 40 columns is the narrowest the banner and rows draw in
+function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
 
 # seconds, as timeout(1) takes them: whole or with a fraction
 function _hi_is_seconds() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
@@ -228,6 +230,10 @@ function _hi_is_shell_list() {
 
 function _hi_is_glyph_choice() {
   case "$1" in auto | glyphs | ascii) ;; *) return 1 ;; esac
+}
+
+function _hi_is_truecolor_choice() {
+  case "$1" in auto | on | off) ;; *) return 1 ;; esac
 }
 
 # $_HI_PACKAGES_PALETTE's vocabulary: the names header.sh's
@@ -367,7 +373,10 @@ function _hi_header_preview() {
 # escape `\$`, so one leading backslash comes off for display
 function _hi_prompt_end_shown() {
   local _hi_pe_end=""
+  # core.sh's _hi_prompt_end order: the shell's own, then the all-shells
+  # _HI_PROMPT_END (hand-written; no menu asks it), then the default
   setting_value "_HI_PROMPT_END_$1" "$_HI_SETTINGS" _hi_pe_end
+  [ -n "$_hi_pe_end" ] || setting_value _HI_PROMPT_END "$_HI_SETTINGS" _hi_pe_end
   [ -n "$_hi_pe_end" ] || _hi_pe_end="$(_hi_prompt_end_default "$1")"
   printf -v "$2" '%s' "${_hi_pe_end#\\}"
 }
@@ -593,16 +602,27 @@ _HI_PROMPT_PROMPTS=(
   "_HI_PROMPT||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
 )
 
-# The advanced section, behind the hub's last item: settings most installs
-# never touch, kept out of the default path so it stays short. Not opening
-# it keeps whatever each of these already holds.
+# The advanced section, behind the hub's Advanced item: settings most
+# installs never touch, kept out of the default path so it stays short. Not
+# opening it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
-  "_HI_TERM_FALLBACK|0||| (ssh only) Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?||"
   "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?||"
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
-  "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
   "_HI_MUX|0|1|| Wrap every session in a local tmux (one named session per target, reattached when you reconnect)?|tmux|"
 )
+
+# The transport internals, behind one more question at the end of that
+# walk: caches, timeouts and the container CLI roster, each with a default
+# that fits nearly every box. Asked only when the walk says yes, so the
+# Advanced walk itself stays five questions.
+_HI_TRANSPORT_PROMPTS=(
+  "_HI_TERM_FALLBACK|0||| (ssh only) Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?||"
+  "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
+)
+
+function _hi_is_yes_no() {
+  case "$1" in y | yes | n | no) ;; *) return 1 ;; esac
+}
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
 # through eval rather than `local -n rows="$1"`: namerefs are bash 4.3 and
@@ -643,15 +663,16 @@ function ask_prompt_group() {
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, editors, clipboard or notifications; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_PASSTHROUGH=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, clipboard, notifications or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_PASSTHROUGH=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
-# every variable a preset answers for: the yes/no tables above, plus the one
-# dial - so "not named by the preset" can mean "back to the default"
+# every variable a preset answers for: the feature and header yes/no tables,
+# plus the one dial - so "not named by the preset" can mean "back to the
+# default". _HI_PROMPT (starship) stays out, like the color scheme: it is
+# taste, not a feature level, and no preset has an opinion on it.
 function _hi_preset_vocab() {
   local row
-  for row in "${_HI_FEATURE_PROMPTS[@]}" "${_HI_HEADER_PROMPTS[@]}" \
-    "${_HI_PROMPT_PROMPTS[@]}"; do
+  for row in "${_HI_FEATURE_PROMPTS[@]}" "${_HI_HEADER_PROMPTS[@]}"; do
     printf '%s\n' "${row%%|*}"
   done
   printf '%s\n' _HI_PACKAGES_MIN_PRIORITY
@@ -678,10 +699,11 @@ function preset_row() {
 }
 
 function preset_names() {
-  local row
+  local row out=""
   local -a _hi_names_rows
   _hi_prompt_rows "${1:-_HI_PRESETS}" _hi_names_rows
-  for row in "${_hi_names_rows[@]}"; do printf '%s ' "${row%%|*}"; done
+  for row in "${_hi_names_rows[@]}"; do out="$out${out:+ }${row%%|*}"; done
+  printf '%s' "$out"
 }
 
 # preset_shorthand <letter> - the one preset whose name starts with <letter>,
@@ -731,7 +753,7 @@ function apply_preset() {
 function config_preset() {
   [ -t 0 ] || return 0
   local row name desc reply="" shorts="" short
-  section "Starting point" "A preset answers the feature, header and prompt settings at once; change any of them after."
+  section "Starting point" "A preset answers the feature and header settings at once; change any of them after."
   for row in "${_HI_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
     printf '   %s) %-11s %s\n' "${name:0:1}" "$name" "$desc"
@@ -758,12 +780,12 @@ function configure_intro() {
   _hi_cecho " settings: $_HI_SETTINGS ($state)" "$BLUE"
 }
 
-# The hub: the preview, five sections, save or quit. Every section returns
+# The hub: the preview, six sections, save or quit. Every section returns
 # here, and the preview re-renders with whatever it changed. EOF saves - the
 # same "no answer keeps what you have and the run completes" that every
-# question here has always meant - and so does the third junk answer in a
-# row, so a driver that never types `s` still terminates; `q` is the one
-# explicit way to write nothing. Enter alone redraws.
+# question here has always meant. The third junk answer in a row ends the
+# run too, but as a quit: three words that are not menu items are not an
+# instruction to write the file. Enter alone redraws.
 _HI_CONFIGURE_QUIT=""
 function config_hub() {
   local reply rejects=0 max_rejects=3
@@ -772,16 +794,19 @@ function config_hub() {
     _hi_h2 "hi --configure"
     show_preview _hi_config_preview
     printf '   1) %-10s %s\n' Preset "everything / balanced / minimal - a starting point"
-    printf '   2) %-10s %s\n' Header "which items the connect/disconnect header shows, and in what order"
+    printf '   2) %-10s %s\n' Header "what the header shows and in what order; its width, the package check's depth and palette, the addresses hidden"
     printf '   3) %-10s %s\n' Features "prompt, git status, editors, clipboard, notifications, ..."
     printf '   4) %-10s %s\n' Prompt "starship, and the character each shell's prompt ends with"
-    printf '   5) %-10s %s\n' Advanced "session shell, glyphs, TERM fallback, timeouts"
+    printf '   5) %-10s %s\n' Advanced "recent targets, the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
     printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
     printf '   s) %-10s %s\n' save "write the settings and exit"
     printf '   q) %-10s %s\n' quit "exit without writing anything"
     menu_read " > " reply || return 0
     case "$reply" in
-    '') continue ;;
+    '')
+      rejects=0
+      continue
+      ;;
     1 | p | preset) config_preset ;;
     2 | h | header) config_header ;;
     3 | f | features) config_features ;;
@@ -796,10 +821,11 @@ function config_hub() {
     *)
       rejects=$((rejects + 1))
       if [ "$rejects" -ge "$max_rejects" ]; then
-        _hi_cecho " not a menu item - saving what you have" "$YELLOW"
+        _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
+        _HI_CONFIGURE_QUIT=1
         return 0
       fi
-      _hi_cecho " type 1-6, s to save or q to quit" "$YELLOW"
+      _hi_cecho " type 1-6 (or p, h, f, r, a, c), s to save or q to quit" "$YELLOW"
       continue
       ;;
     esac
@@ -980,7 +1006,7 @@ function _hi_header_edit_list() {
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_cecho "   N toggles an item; up N / down N moves it; p header preset; w width (${width:-80})" "$BLUE"
+  _hi_cecho "   N toggles an item, 0 the whole header; up N / down N moves it; p header preset; w width (${width:-80})" "$BLUE"
   if _hi_header_edit_has ip; then
     _hi_cecho "   i hidden addresses (${iphide:-172.*})" "$BLUE"
   fi
@@ -1054,8 +1080,11 @@ function config_header() {
         fi
       else
         rejects=$((rejects + 1))
-        [ "$rejects" -ge "$max_rejects" ] && return 0
-        _hi_cecho " type an item number, up N, down N, p, w, c, k, 0, or Enter to go back" "$YELLOW"
+        [ "$rejects" -ge "$max_rejects" ] && {
+          _hi_cecho " not an item three times - back to the menu" "$YELLOW"
+          return 0
+        }
+        _hi_cecho " type an item number, up N, down N, p, w, i, c, k, 0, or Enter to go back" "$YELLOW"
         continue
       fi
       ;;
@@ -1160,6 +1189,11 @@ function config_color_scheme() {
   [ "$n" -gt 0 ] && shown=custom
   if [ -t 0 ]; then
     show_preview _hi_color_scheme_preview
+    # what hi --doctor and the previews say about the same value: a word
+    # nothing renders is ignored, and Enter would keep it
+    if [ -n "$current" ] && [ "$n" -eq 0 ] && ! _hi_scheme_ok "$current"; then
+      _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
+    fi
   fi
   value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 12/24 hex words, written into settings.sh by hand)?" \
     "$shown" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
@@ -1180,8 +1214,8 @@ function config_ip_hide() {
 # own built-in default, via ${_HI_MAX_WIDTH:-80}) clears the override instead
 # of writing it out.
 function config_max_width() {
-  ask_setting_value _HI_MAX_WIDTH 80 _hi_is_number "not a number" \
-    "Terminal width for the header/banner?"
+  ask_setting_value _HI_MAX_WIDTH 80 _hi_is_width "a number, 40 or more" \
+    "Terminal width for the header/banner (40 or more)?"
 }
 
 # The Prompt menu: the sample line rendered, starship as item 1, then what
@@ -1234,15 +1268,17 @@ function config_prompt() {
       continue
     fi
     rejects=$((rejects + 1))
-    [ "$rejects" -ge "$max_rejects" ] && return 0
+    [ "$rejects" -ge "$max_rejects" ] && {
+      _hi_cecho " not an item three times - back to the menu" "$YELLOW"
+      return 0
+    }
     _hi_cecho " type a number from 1 to $n, or Enter to go back" "$YELLOW"
   done
 }
 
-# The advanced section's free-text half: which shell a session runs in, the
-# glyph policy, and the two timing dials completion and the header run under.
-# Each keeps its current value on Enter and clears the override when the
-# answer is the shipped default, like config_max_width.
+# The advanced section's free-text half: which shell a session runs in and
+# the glyph policy. Each keeps its current value on Enter and clears the
+# override when the answer is the shipped default, like config_max_width.
 function config_advanced_values() {
   local current value choice
 
@@ -1259,6 +1295,21 @@ function config_advanced_values() {
   case "$value" in ascii) value=1 ;; glyphs) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_ASCII "$value"
 
+  # _HI_TRUECOLOR is the same shape as _HI_ASCII - the client's verdict on
+  # its terminal, shipped to the session - and asked the same way: on is the
+  # answer under tmux, which hides COLORTERM
+  setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
+  case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
+  value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
+    "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
+  case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
+  _hi_pending_set _HI_TRUECOLOR "$value"
+}
+
+# The transport internals' free-text half: the two timing dials completion
+# and the header run under, the container CLI roster, and ssh's connection
+# reuse. Same Enter-keeps rule as above.
+function config_transport_values() {
   ask_setting_value _HI_TARGETS_TTL 5 _hi_is_number "not a number" \
     "(completion) Seconds hi <TAB> reuses its target list for (0 = never)?"
 
@@ -1276,10 +1327,18 @@ function config_advanced_values() {
 # The advanced section: a short question walk rather than a menu - these are
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
+# The transport internals sit behind one more question at the end, so the
+# walk a person Enters through is five questions, not eleven.
 function config_advanced() {
-  section "Advanced settings" "Session shell, glyphs, TERM fallback, recent targets, completion timing, container CLIs, connection reuse. Enter keeps each value."
+  local more
+  section "Advanced settings" "Recent targets, the leading space, tmux, the session shell, the glyphs and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
+  more="$(ask_value "Also tune the transport internals - TERM fallback, the payload cache, completion and probe timeouts, the container CLI roster, ssh connection reuse? (y/N)" \
+    "" n _hi_is_yes_no "y or n")"
+  case "$more" in y | yes) ;; *) return 0 ;; esac
+  ask_prompt_group _HI_TRANSPORT_PROMPTS
+  config_transport_values
 }
 
 # The roster, walked once at save time: every setting the wizard writes, in
@@ -1339,12 +1398,45 @@ function collect_setting_lines() {
     _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
   done
   _hi_collect_group _HI_ADVANCED_PROMPTS
+  _hi_collect_group _HI_TRANSPORT_PROMPTS
   _hi_collect_value _HI_SHELL_PREFERENCE login quoted
   _hi_collect_value _HI_ASCII ""
+  _hi_collect_value _HI_TRUECOLOR ""
   _hi_collect_value _HI_TARGETS_TTL 5
   _hi_collect_value _HI_PROBE_TIMEOUT 2
   _hi_collect_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" quoted
   _hi_collect_value _HI_CTL_PERSIST 60
+}
+
+# _hi_has_setting_lines - is there anything to write? A loop, not
+# ${#a[@]}: an empty array under `set -u` is an unbound variable on bash 3.2.
+function _hi_has_setting_lines() {
+  local _hi_l
+  for _hi_l in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
+    return 0
+  done
+  return 1
+}
+
+# A line written by hand - `export _HI_COLOR_SCHEME=...` with no marker, the
+# way SETTINGS.md says to set a scheme of your own - is read by
+# setting_value (it sources the file) and then written again as a marker
+# line, and the two then survive every later run. Adopted instead: for every
+# name this run writes, the un-marked line goes and the marker line carries
+# its value. A hand line for a name this run does not write stays as it is.
+function settings_adopt_hand_lines() {
+  local line name
+  [ -f "$_HI_SETTINGS" ] || return 0
+  for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
+    name="${line#export }"
+    name="${name%%=*}"
+    grep -v -F "$_HI_MARKER" "$_HI_SETTINGS" |
+      grep -qE "^[[:space:]]*(export[[:space:]]+)?$name=" || continue
+    dry_run_say "adopt the hand-written $name line in $_HI_SETTINGS" && continue
+    _hi_rewrite "$_HI_SETTINGS" \
+      "/^[[:space:]]*\\(export[[:space:]]\\{1,\\}\\)\\{0,1\\}$name=/{/$_HI_MARKER/!d;}"
+    _hi_cecho " adopted your hand-written $name line into the settings block" "$BLUE"
+  done
 }
 
 # $_HI_SETTINGS is hi's own file, not one of the user's rc files, and it
@@ -1356,12 +1448,13 @@ function collect_setting_lines() {
 # config_shell rewrites only its own marker-tagged block, so this line stays.
 function ensure_settings_shebang() {
   local shebang='#!/bin/sh' first="" tmpfile
-  mkdir -p "$(dirname "$_HI_SETTINGS")"
   if [ -f "$_HI_SETTINGS" ]; then
     IFS= read -r first <"$_HI_SETTINGS" || first=""
   fi
   [ "$first" = "$shebang" ] && return 0
+  dry_run_say "put $shebang on line 1 of $_HI_SETTINGS" && return 0
 
+  mkdir -p "$(dirname "$_HI_SETTINGS")"
   tmpfile="$(mktemp -t hi.settings.XXXXXX)"
   printf '%s\n' "$shebang" >"$tmpfile"
   if [ -f "$_HI_SETTINGS" ]; then
@@ -1439,6 +1532,14 @@ function run_configure() {
     return 0
   fi
   collect_setting_lines
+  # No terminal, no preset, no file and nothing to say: a settings.sh with
+  # only a shebang in it would be a decision record with no decision in it -
+  # and its existence is what stops prompt_framework_default asking again.
+  if [ ! -t 0 ] && [ -z "$preset" ] && [ ! -f "$_HI_SETTINGS" ] && ! _hi_has_setting_lines; then
+    _hi_cecho " nothing to write - the defaults apply until hi --configure is run at a terminal" "$GREEN"
+    return 0
+  fi
+  settings_adopt_hand_lines
   ensure_settings_shebang
   settings_diff_before
   # ${a[@]+"${a[@]}"}, not a plain "${a[@]}": on bash 3.2 (macOS) expanding

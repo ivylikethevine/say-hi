@@ -155,12 +155,22 @@ function test_update_help_is_his_own() {
   [[ "$out" == "Usage: hi --update"* && "$out" == *"newest release tag"* ]]
 }
 
+# a tree with no .git is a package's or a tarball's, and the refusal names
+# the way forward for each - the package manager, not a releases page
+function test_update_without_git_points_at_the_package_manager() {
+  local home out rc=0
+  home="$(_hi_subcmd_home subcmd-bare)"
+  out="$(_hi_subcmd_run "$home" --update)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"package manager"* && "$out" == *"brew upgrade say-hi"* ]]
+}
+
 function run_update_tests() {
   _hi_workdir updatetest
   _hi_suite_begin
 
   _hi_h2 "Testing: scripts/update.sh"
   _hi_check "--update --help is its own text" test_update_help_is_his_own
+  _hi_check "No .git: the package manager is named" test_update_without_git_points_at_the_package_manager
   _hi_check_requires git "--update <tag> checks the tag out, detached" test_update_to_a_tag_detaches_there
   _hi_check_requires git "A bare --update moves to the newest tag" test_bare_update_moves_to_the_newest_tag
   _hi_check_requires git "...newest by version, pre-releases below" test_bare_update_sorts_tags_by_version

@@ -1,4 +1,4 @@
-.TH HI 1 "2026-09-06" "say-hi" "User Commands"
+.TH HI 1 "2026-09-07" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
 .SH SYNOPSIS
@@ -20,12 +20,19 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-install
 .RB [ \-\-yes ]
 .RB [ \-\-no\-link ]
-.RB [ \-\-prefix " " \fIdir\fR]
+.RB [ \-\-system\-link ]
+.RB [ \-\-preset " " \fIname\fR]
+.RB [ \-\-dry\-run ]
 .br
 .B hi \-\-configure
 .RB [ \-\-preset " " \fIname\fR]
+.RB [ \-\-dry\-run ]
 .br
-.BR "hi \-\-uninstall" " | " \-\-update " [" \fItag\fR "]"
+.B hi \-\-uninstall
+.RB [ \-\-dry\-run ]
+.br
+.B hi \-\-update
+.RI [ tag ]
 .br
 .B hi \-\-preview
 .RB { colors | packages | header }
@@ -164,14 +171,17 @@ and failing rather than waiting on a menu nobody can answer. An
 .I ssh\-option
 with no target does the same: an option without a host is an error for
 .BR ssh (1)
-to report, not a target to guess at.
+to report, not a target to guess at, and its exit status is what hi hands
+back.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
 print a usage summary \- the synopsis, the target resolution order, and hi's
 own options \- and exit. Everything here in short form; this page is the long
-one. Caught before the pass\-through below, so it never reaches
-.BR ssh (1).
+one. Caught anywhere ahead of the target, so it never reaches
+.BR ssh (1);
+.B hi help
+is the same request spelled as a word, as the first word only.
 .TP
 .B \-V\fR, \fB\-\-version
 print the version and exit: the version stamped in at packaging time, or
@@ -182,6 +192,8 @@ option hi claims for itself \- hi's version is the first thing a bug report
 asks for, and
 .B ssh \-V
 is a keystroke away for the other one.
+.B hi version
+is the same, as the first word only.
 .TP
 .B \-\-use \fIbackend\fR
 force that arm for
@@ -201,7 +213,10 @@ or
 The name has to be one hi was loaded with; a stranger is an error, not a
 guess.
 .B \-\-use=\fIbackend\fR
-is the same flag with its word joined.
+is the same flag with its word joined \- as every option that takes one word
+is:
+.B \-\-preview=colors
+too.
 .TP
 .B \-\-plain
 skip the payload entirely and hand over a bare shell on whichever arm
@@ -274,10 +289,18 @@ on top of that, and a package carries none.
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, the shell rc files and the overlay's own shell files
-parsed by whatever will read them (what
+parsed by whatever will read them (the rc half is what
 .B \-\-install
-checks before it writes a line), every backend probed and timed, and \- with
-a target \-
+checks before it writes a line), the install itself \- each shell's rc lines
+and whether they name this tree, the
+.B hi
+link and what
+.B hi
+on
+.B PATH
+runs, and the file a login bash or a
+.B ZDOTDIR
+zsh really reads \- every backend probed and timed, and \- with a target \-
 which backend the name resolves to plus an ssh reachability check.
 .B \-\-use
 reports the same forced backend a real connect with it would take, skipping
@@ -289,32 +312,74 @@ carry \- with the finding count in it as
 Exits 1 on any finding (see
 .BR "EXIT STATUS" ).
 .TP
-.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-no\-link\fR] [\fB\-\-prefix\fR \fIdir\fR]
-install or repair say-hi's lines in your shell rc files, asking before each,
-and seed the config overlay at
+.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-no\-link\fR] [\fB\-\-system\-link\fR] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
+install or repair say-hi's lines in your shell rc files (bash, zsh and fish,
+each only when it is installed; on macOS a line in
+.B ~/.bash_profile
+so a login bash reads
+.BR ~/.bashrc ),
+seed the config overlay at
 .B ~/.config/say-hi/
-with the shipped defaults (files already there are never touched).
-.B \-\-yes
-answers every prompt yes;
+with the shipped defaults (files already there are never touched), link
+.B ~/.local/bin/hi
+at this tree, and open the settings menu of
+.B \-\-configure
+at a terminal. Each rc file is syntax\-checked first, and a file that does
+not parse stops the install with a question; that is the one prompt, and
+.BR \-y / \-\-yes
+answers it.
 .B \-\-no\-link
-skips the
+makes no link at all (the wired shells alias
 .B hi
-symlink into
-.BR /usr/bin ;
-.B \-\-prefix
-is packaging mode \- stage the tree under
-.I dir
-and write nothing to a home \- which the package builds use and a user never
-needs. The script behind it,
+either way; the link is for scripts and other programs);
+.B \-\-system\-link
+links
+.B /usr/bin/hi
+instead, through sudo. A link a package owns is never touched by either, and
+when a
+.B hi
+already on your
+.B PATH
+runs this tree (a package's
+.BR /usr/bin/hi ,
+Homebrew's wrapper) no link is made at all.
+.B \-\-preset
+.I name
+answers the settings without the menu, as under
+.BR \-\-configure .
+.B \-\-dry\-run
+prints every write \- rc lines, the seed, settings.sh, the link \- and makes
+none of them. The script behind it,
 .BR scripts/install.sh ,
 also takes
-.BR \-\-check\-configs ,
-the same read\-only pre\-flight over your rc files and overlay that
-.B \-\-doctor
-reports, as an exit status alone.
+.BR \-\-features\-only " (what " \-\-configure " runs),"
+.B \-\-check\-configs
+(the rc syntax check alone, as an exit status) and
+.BR \-\-prefix " " \fIdir\fR,
+packaging mode \- stage the tree under
+.I dir
+with
+.B /usr/bin/hi
+and
+.B /etc/profile.d/say\-hi.sh
+beside it, and write nothing to a home \- which the package builds use and a
+user never needs.
 .TP
-.B \-\-uninstall
-take those lines back out again. The tree itself is left where it is.
+.B \-\-uninstall \fR[\fB\-\-dry\-run\fR]
+take those lines back out again, remove the settings.sh the install wrote,
+and unlink hi where the link points at this tree \-
+.B ~/.local/bin/hi
+and a
+.B /usr/bin/hi
+of an earlier
+.BR \-\-system\-link ,
+never a package's. A file the install created and nothing else wrote into
+(a macOS
+.BR ~/.bash_profile )
+goes with its lines. The tree itself, the rest
+of the overlay and the one\-time
+.B .hi\-orig
+backups are left where they are.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR]
 revisit the settings only, leaving the rc wiring alone: a menu over a live
@@ -350,19 +415,30 @@ unchanged \-
 .BR \-i ,
 .BR \-J ,
 .BR \-o ,
-and the rest behave exactly as they do there. Only the first
-non\-option word is taken as the target; everything after it is the
-remote command.
+and the rest behave exactly as they do there.
+.BR ssh (1)
+takes no option that starts with two dashes, so every one of those is hi's:
+one it does not know is hi's error, not ssh's usage message. Only the first
+non\-option word is taken as the target; everything after it, dashed or not,
+is the remote command \- so
+.B hi host ls \-la
+reads as it does for ssh, and one of hi's own options there is refused by
+name rather than run on the far end.
 .SH EXIT STATUS
 .TP
 .B a connect
 the session's, or the remote command's, own exit status \- what
 .BR ssh (1)
 would hand back \- once the target has been cleaned up. 1 when hi itself
-refused before connecting: a
+refused before connecting: an option it does not know, one of its own out of
+place, a
 .B \-\-use
 name it was not loaded with, two of them, or a local command run inside a
-session.
+session. An
+.I ssh\-option
+with no target hands back what
+.BR ssh (1)
+exited with.
 .TP
 .B \-\-doctor
 0 with nothing to report, 1 on any finding. The count is in the report
@@ -376,6 +452,30 @@ the script's own: 0 when it did what it says, 1 otherwise \- an rc file
 that fails its syntax check stops
 .B \-\-install
 at 1 before it writes a line.
+.SH SESSION COMMANDS
+Three commands hi's aliases define inside a session (and in the wired local
+shells), spelled with an underscore because they are shell functions, not
+flags of
+.BR hi :
+.TP
+.B hi_copy
+stdin to the clipboard of the terminal you are sitting at, as an OSC 52
+escape back through the connection \- nothing on the target touches a
+clipboard.
+.B vim
+yanks the same way. Off with
+.BR _HI_DISABLE_PASSTHROUGH=1 .
+.TP
+.B hi_notify \fIcommand\fR...
+run
+.I command
+and raise a desktop notification in that same terminal when it finishes,
+the same way. Off with the same toggle.
+.TP
+.B hi_info
+print where the running say\-hi lives \- its home, root and launcher. A
+diagnostic (the test harness's "the session is up" probe), and not part of
+the 1.x contract.
 .SH COMPLETION
 .B hi
 completes in bash, zsh and fish. All three read one list \-

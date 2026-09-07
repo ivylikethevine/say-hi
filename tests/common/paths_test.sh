@@ -22,7 +22,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
   _HI_DISABLE_PASSTHROUGH _HI_DISABLE_MARKS
-  _HI_DISABLE_TOOL_ALIASES)
+  _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
 # print "<var>=<value>" for every toggle the gate governs. core.sh does the
@@ -46,6 +46,12 @@ function _hi_all_gated() {
 }
 
 # _HI_DISABLE_LOCAL=1 on the install machine itself: hi stays out of the way
+# the link a plain install makes is the user's own, so no sudo stands in a
+# first install; /usr/bin/hi is install.sh's --system-link, asked for by name
+function test_link_is_under_home() {
+  [[ "$_HI_LINK" == "$HOME/"* ]]
+}
+
 function test_local_only_disables_every_toggle_locally() {
   _hi_all_gated "$(_hi_gate 1 0)" 1
 }
@@ -400,6 +406,7 @@ function run_paths_tests() {
   _hi_suite_begin
 
   _hi_h2 "Testing: _HI_DISABLE_LOCAL / _HI_REMOTE_SESSION"
+  _hi_check "The hi link is under \$HOME" test_link_is_under_home
   _hi_check "Local-only disables every toggle locally" test_local_only_disables_every_toggle_locally
   _hi_check "Local-only leaves a remote session alone" test_local_only_leaves_a_remote_session_alone
   _hi_check "Toggles stay on without local-only" test_toggles_stay_on_without_local_only

@@ -42,8 +42,8 @@ command -v shift >/dev/null 2>&1 &&
 
 # off on _HI_DISABLE_EDITORS=1; `|| true` keeps set -e sourcers alive
 [ "$_HI_DISABLE_EDITORS" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
-# this ladder is spelled again in scripts/install.sh's _hi_editors_preview,
-# which cannot share it (install.sh does not source aliases.sh, and fish
+# this ladder is spelled again in scripts/configure.sh's _hi_editors_preview,
+# which cannot share it (configure.sh does not source aliases.sh, and fish
 # parses this file). Fix one, fix both - alias_fallthrough_test.sh pins them.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
 

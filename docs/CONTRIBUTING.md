@@ -155,6 +155,22 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The twelve flags in `common/flags`** — name, argument shape and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
+- **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`
+  and the bare words `help`/`version` as their first-word spellings;
+  `--option=value` for every option that takes a word; every `--word` is
+  hi's (an unknown one is hi's error); and everything after the target is
+  the remote command.
+- **The sub-command switches** — `--doctor --json`, `--install`'s
+  `-y`/`--yes`, `--no-link`, `--system-link`, `--preset <name>` and
+  `--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>` and
+  `--configure --dry-run`,
+  `scripts/install.sh --prefix <dir>` — name and meaning; and the `--json`
+  document's top-level keys (`version`, `target`, `findings`, `rows`) with
+  each row's four fields.
+- **Exit status** — 0 for "did what it says", 1 for "hi refused before
+  connecting" or "a finding", and a connect's own status passed through.
+- **The session commands** `hi_copy` and `hi_notify` — their names and the
+  escapes they emit.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
   type and default. A toggle that has to go **warns for one minor release**
   (`hi --doctor` and the session header both say so, off `common/core.sh`'s
@@ -171,8 +187,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
 Versioning is semver: a fix is a patch, an addition a minor, a break to the
 list above a major. Not covered: the exact header and prompt text, colors,
-completion ordering, `--doctor`'s report shape, and anything under `tests/` or
-`scripts/` a package does not ship.
+completion ordering, the wording of any message or report row, `hi_info`,
+and anything under `tests/` or `scripts/` a package does not ship.
 
 ## Which docs change with what
 

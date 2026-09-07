@@ -26,7 +26,7 @@
 
 - Force a backend instead of probing, when a container shadows an SSH host of the same name:
 
-`hi --use {{ssh|docker|podman|nomad|kube}} {{container}}`
+`hi --use {{ssh|docker|podman|nerdctl|finch|nomad|kube}} {{container}}`
 
 - Keep the session in a local `tmux` that survives a dropped link (a repeat reattaches):
 

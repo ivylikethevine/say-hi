@@ -53,11 +53,15 @@ the OpenSSF answer sheet.
 ## In Sixty Seconds
 
 ```sh
-git clone https://github.com/ivylikethevine/say-hi ~/say-hi
-~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu
+git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
+~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu (s saves, q skips)
 exec $SHELL                    # reload
 hi <anything>                   # ssh, with your prompt, aliases and editors along
 ```
+
+No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
+and `~/.config/say-hi`. `--preset balanced` answers the menu without opening
+it, `--dry-run` shows every write first.
 
 `hi <anything>` & land in a session with your essential aliases, your essential
 packages checked, a color-coded prompt, your editor configured, and more.
@@ -212,19 +216,23 @@ everything weighed and answered **no**, and why.
   ```
 
   A packaged install still needs `hi --install` once per user, for the rc
-  lines. macOS: `brew install ivylikethevine/tap/say-hi` (the tap is
+  lines; it leaves the package's `/usr/bin/hi` to the package manager. macOS:
+  `brew install ivylikethevine/tap/say-hi` (the tap is
   [ivylikethevine/homebrew-tap](https://github.com/ivylikethevine/homebrew-tap)),
   then `hi --install`.
-  From a clone instead, pass `--no-link` to `install.sh` — `/usr/bin` is
-  read-only under SIP — and put `~/say-hi/hi.sh` on your `PATH` yourself.
 
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
-  each shell's own syntax checker first and asks before continuing if any has issues.
+  each shell's own syntax checker first and asks before continuing if any has
+  issues (the one prompt; `--yes` answers it). Shells that are not installed
+  get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
   A starship, powerlevel10k or oh-my-zsh prompt already in those files is
   found and kept on this machine (`_HI_DISABLE_LOCAL_PROMPT=1`); hi's prompt
   still draws on every target
-  ([docs/SETTINGS.md](docs/SETTINGS.md#others)).
+  ([docs/SETTINGS.md](docs/SETTINGS.md#others)). `hi` itself is linked at
+  `~/.local/bin/hi` (`--system-link` for `/usr/bin/hi`, `--no-link` for
+  none - the wired shells alias it either way), and `--dry-run` prints every
+  write without making it.
 - reload your shell!
 - `hi --configure` opens a menu over a live preview of the header and
   prompt: pick a preset (`everything`, `balanced`, `minimal`), or open a
@@ -235,7 +243,17 @@ everything weighed and answered **no**, and why.
   `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
   to edit, and to version however you keep your dotfiles.
   [docs/SETTINGS.md](docs/SETTINGS.md).
-- `hi --doctor [<target>]` when something is slow or failing to help diagnose.
+- `hi --doctor [<target>]` when something is slow or failing to help diagnose;
+  `--json` for a bug report. It also reports the install itself: which rc
+  files are wired, to which tree, and where `hi` on your `PATH` leads.
+- the whole surface is twelve flags (`hi --help` lists them, `man hi` is the
+  long form): `--help`/`-h` and `--version`/`-V` (or `hi help`, `hi version`);
+  `--use <backend>`, `--plain`, `--mux`/`--no-mux` on a connect;
+  `--preview colors|packages|header`; and the local commands `--doctor`,
+  `--install`, `--uninstall`, `--configure`, `--update [<tag>]`. Every option
+  that takes a word takes it joined too (`--use=docker`); everything else on
+  the line goes to `ssh`, and everything after the target is the remote
+  command.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
   `sk` if you have one, a numbered menu if not. GIF:
@@ -246,7 +264,8 @@ everything weighed and answered **no**, and why.
   host and your user resolve to.
 - **A dropped connection ends the session.** The target's tree is removed on
   any exit, a lost link included, and nothing on the target outlives it —
-  there is no `hi --tmux` ([why](docs/SUPPORT.md#what-would-change-an-answer)).
+  persistent sessions on the target were decided against
+  ([why](docs/SUPPORT.md#what-would-change-an-answer)).
   For anything you would hate to lose to a flaky link, start `hi` inside
   `tmux` or `screen` **on this machine**: the local multiplexer survives the
   drop, and reconnecting is another `hi <target>`
@@ -255,7 +274,8 @@ everything weighed and answered **no**, and why.
   and a repeat reattaches instead of opening a second.
 - done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
-  unlinks `/usr/bin/hi`. Left behind, on purpose: the checkout (or the
+  unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a
+  package's stays). Left behind, on purpose: the checkout (or the
   package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
   (your colors, packages and aliases), and the one-time `<rc>.hi-orig`
   backups. To take it all off a cloned install:

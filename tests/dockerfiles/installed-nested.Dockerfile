@@ -6,7 +6,7 @@
 # rc files, and without reading that back hi copies its payload over a curated
 # checkout that is already sitting there.
 #
-# --no-link because /usr/bin/hi wants sudo and nothing here needs the launcher
+# --no-link because nothing here needs the launcher
 # on $PATH (paths.sh's `hi` alias is what the session uses); -y because the
 # build has no tty to answer the pre-install validation on. The sentinel is
 # what the case greps for to prove which tree it landed in.

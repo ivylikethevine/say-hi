@@ -79,11 +79,10 @@ class SayHi < Formula
       `hi` is on your PATH now, but your shells are not wired up yet. To get the
       header, prompt, aliases and editor configs in your own shells, run:
 
-        #{libexec}/say-hi/scripts/install.sh --no-link
+        hi --install
 
-      That writes only to your rc files and ~/.config/say-hi - never into the keg.
-      --no-link is what skips the /usr/bin/hi symlink: Homebrew already put `hi`
-      on your PATH, and on macOS /usr/bin is read-only under SIP anyway.
+      That writes only to your rc files and ~/.config/say-hi - never into the keg,
+      and it makes no link of its own: Homebrew's `hi` already runs this tree.
 
       Re-run it as `hi --configure` any time to revisit the feature toggles.
       `hi --update` will tell you to update through Homebrew, which is correct -

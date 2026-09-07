@@ -498,12 +498,13 @@ docker run --rm -it -v "$PWD/dist:/dist" debian:stable \
 The tree is root-owned and holds nobody's settings. Each user runs, once:
 
 ```bash
-/usr/share/say-hi/scripts/install.sh --no-link
+hi --install
 ```
 
-`--no-link` skips the `/usr/bin/hi` symlink the package owns. Answers go to
-`~/.config/say-hi/`, never into the tree. `hi --update` refuses to move a
-packaged tree and points at the package manager.
+The package's `/usr/bin/hi` is already on `PATH` and runs this tree, so the
+install makes no link of its own (and never touches a link a package owns).
+Answers go to `~/.config/say-hi/`, never into the tree. `hi --update` refuses
+to move a packaged tree and points at the package manager.
 
 **Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
 `hi.sh`'s `_hi_remote_root` probe reads the package's

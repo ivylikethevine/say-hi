@@ -6,7 +6,7 @@
 # honest if say-hi.rb ever moves the tree.
 #
 # This is the one channel that announces itself nowhere. The formula writes no
-# rc line (its caveats ask you to run install.sh --no-link, and nobody has to)
+# rc line (its caveats ask you to run hi --install, and nobody has to)
 # and no /etc/profile.d snippet, so the probe's rc-file and $HOME candidates
 # both come up empty: only the standard-install-prefix tier can answer. The
 # prefix here is Linuxbrew's default, which is why the container can host it.

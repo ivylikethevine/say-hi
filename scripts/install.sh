@@ -22,95 +22,147 @@ _HI_ASSUME_YES=0
 # Skip config_hi's symlink. For installs where something else already owns the
 # `hi` on $PATH - see the note on config_hi itself.
 _HI_NO_LINK=""
+# --system-link: /usr/bin/hi (sudo) instead of the user's ~/.local/bin/hi
+_HI_SYSTEM_LINK=""
+# --dry-run: every writer says what it would do and stops (rc.sh's dry_run_say)
+_HI_DRY_RUN=""
 # --prefix, or a non-empty $DESTDIR, puts this script in packaging mode: lay the
 # tree down for someone else's package manager instead of wiring up this user's
 # shells. See install_tree below.
 _HI_PREFIX=""
 # --preset <name>: configure.sh's _HI_PRESETS, applied without asking
 _HI_PRESET=""
-_HI_USAGE="Usage: ${_HI_ARGV0:-install.sh} [--features-only] [--preset <name>] [--check-configs] [--uninstall] [--yes] [--no-link] [--prefix <dir>]"
-# the three modes are one choice: hi --configure and hi --uninstall each
-# inject one, so `hi --configure --uninstall` used to uninstall
-_HI_MODES=""
-# one `shift` after the case, not one per arm: an arm added without its own was
-# an infinite loop
-while [ $# -gt 0 ]; do
-  case "$1" in
-  --features-only) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
-  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
-  --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
-  --no-link) _HI_NO_LINK=1 ;;
-  -y | --yes) _HI_ASSUME_YES=1 ;;
-  --prefix)
-    [ $# -ge 2 ] || {
-      echo "install.sh: --prefix requires a path" >&2
-      exit 1
-    }
-    _HI_PREFIX="$2"
-    shift
+_HI_WANT_HELP=""
+# what this run is called, in its own messages: `hi --uninstall` when reached
+# that way (hi.sh sets $_HI_ARGV0), install.sh by hand
+_HI_ME="${_HI_ARGV0:-install.sh}"
+
+# _hi_install_mode - which of the four this run is, off the flags: install
+# (the default), configure (--features-only), uninstall, check (--check-configs)
+function _hi_install_mode() {
+  if [ -n "$_HI_UNINSTALL_MODE" ]; then
+    echo uninstall
+  elif [ -n "$_HI_FEATURES_ONLY" ]; then
+    echo configure
+  elif [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
+    echo check
+  else
+    echo install
+  fi
+}
+
+# _hi_install_usage - the usage line for this run's mode. Reached as
+# `hi --uninstall`, the mode flag is already in the name; by hand it is
+# spelled out, and the plain form lists the script-only modes too.
+function _hi_install_usage() {
+  local me="$_HI_ME" mode
+  mode="$(_hi_install_mode)"
+  case "$mode" in
+  uninstall)
+    [ -n "${_HI_ARGV0:-}" ] || me="$me --uninstall"
+    printf 'Usage: %s [--dry-run]\n' "$me"
     ;;
-  --prefix=*) _HI_PREFIX="${1#--prefix=}" ;;
-  --preset)
-    [ $# -ge 2 ] || {
-      echo "install.sh: --preset requires a name" >&2
-      exit 1
-    }
-    _HI_PRESET="$2"
-    shift
+  configure)
+    [ -n "${_HI_ARGV0:-}" ] || me="$me --features-only"
+    printf 'Usage: %s [--preset <name>] [--dry-run]\n' "$me"
     ;;
-  --preset=*) _HI_PRESET="${1#--preset=}" ;;
-  -h | --help)
+  check)
+    [ -n "${_HI_ARGV0:-}" ] || me="$me --check-configs"
+    printf 'Usage: %s\n' "$me"
+    ;;
+  *)
+    # wrapped under the same 80 columns hi --help keeps
+    printf 'Usage: %s [--yes] [--no-link] [--system-link]\n' "$me"
+    printf '       %*s [--preset <name>] [--dry-run]\n' "${#me}" ""
+    [ -n "${_HI_ARGV0:-}" ] ||
+      printf '       %s --features-only [--preset <name>] [--dry-run]\n       %s --uninstall [--dry-run] | --check-configs | --prefix <dir>\n' "$me" "$me"
+    ;;
+  esac
+}
+
+# _hi_install_help - the usage line plus the paragraphs this mode wants:
+# `hi --uninstall --help` describes uninstalling, not the install it undoes
+function _hi_install_help() {
+  _hi_install_usage
+  echo
+  case "$(_hi_install_mode)" in
+  uninstall)
     cat <<EOF
-$_HI_USAGE
+The inverse of the install: strip hi's lines back out of your shell rc files
+(bash, zsh, fish - and .bash_profile on macOS), remove the settings.sh the
+install wrote, and unlink hi if the link points at this say-hi. Safe to
+re-run. say-hi itself is left in place - rm -rf it yourself once you're done
+with it - and so is the one-time <rc-file>.hi-orig backup the install took
+before its first write to each rc file.
 
-Wires up the local shells to source this say-hi checkout and links hi.sh onto
-PATH. It also seeds the config overlay: copies the shipped
-colors/packages/vim.rc/nano.rc defaults into
-\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi for the files you have none of, a
-file already there never touched. Safe to re-run any time - it repairs its own lines and leaves
-everything else alone. The install location is always wherever this script
-lives (say-hi's parent directory), not a path you pass in - say-hi installs in
-place. Your own answers never land in the tree: they go to
-\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so this works against a checkout
-you don't own.
+  --dry-run        Say what would be removed and remove nothing.
+EOF
+    ;;
+  configure)
+    cat <<EOF
+Revisit the settings, leaving the rc wiring and the hi link alone: a preview
+of the header and prompt, then Preset / Header / Features / Prompt / Advanced
+/ Colors, s to save, q to leave the file alone. Answers go to
+\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
-Note: this needs sudo to link hi.sh into /usr/bin, and every prompt keeps
-its current setting when there is no tty to answer on.
-
-  --features-only  Skip the shell rc wiring and the hi.sh symlink - just
-                   open the settings menu: a preview of the header and
-                   prompt, then Preset / Header / Features / Prompt /
-                   Advanced, s to save, q to leave the file alone. This is
-                   what \`hi --configure\` calls once say-hi is installed.
-  --preset <name>  Answer the feature, header and prompt settings from a
+  --preset <name>  Answer the feature and header settings from a
                    preset - everything, balanced or minimal - without the
                    menu, and write that. The same presets are the menu's
                    first item. The header order, the width, the prompt
-                   separators and the advanced settings keep what they
-                   hold. Combines with --features-only:
-                   \`hi --configure --preset minimal\`.
-  --check-configs  Only run the pre-install validation of your existing
-                   ~/.bashrc, ~/.zshrc and ~/.config/fish/config.fish, plus
-                   the shell files in your config overlay (aliases.sh under
-                   both sh and fish) - skip everything else. This is what
-                   \`hi --doctor\` folds into its report.
-  --uninstall      The inverse: strip hi's lines back out of those three rc
-                   files, remove the settings.sh this wrote, and unlink
-                   /usr/bin/hi if it points at this say-hi. Safe to re-run.
-                   say-hi itself is left in place - rm -rf it yourself once
-                   you're done with it - and so is the one-time
-                   <rc-file>.hi-orig backup the install took before its
-                   first write to each rc file. This is what
-                   \`hi --uninstall\` calls.
-  -y, --yes        Install even if that validation finds problems. Without
-                   it, a non-interactive run stops rather than rewriting
-                   shell configs that don't parse.
-  --no-link        Wire up the shells as usual but leave /usr/bin/hi alone.
-                   For an install where something else already put \`hi\` on
-                   your PATH and owns that path: Homebrew, a distro package,
-                   or Git Bash on Windows (no sudo, no real /usr/bin). On
-                   macOS the symlink cannot be made at all - /usr/bin is
-                   read-only under SIP even for root.
+                   separators, the starship choice and the advanced
+                   settings keep what they hold.
+  --dry-run        Say what would be written to settings.sh and write
+                   nothing; s in the menu reports instead of saving.
+EOF
+    ;;
+  check)
+    cat <<EOF
+Only run the pre-install validation of your existing ~/.bashrc, ~/.zshrc and
+~/.config/fish/config.fish, plus the shell files in your config overlay
+(aliases.sh under both sh and fish) - skip everything else. Exits 0 when all
+of them parse, 1 otherwise. \`hi --doctor\` folds the same check into its
+report.
+EOF
+    ;;
+  *)
+    cat <<EOF
+Wires up the local shells to source this say-hi checkout and links hi.sh
+into ~/.local/bin. It also seeds the config overlay: copies the shipped
+colors/packages/vim.rc/nano.rc defaults into
+\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi for the files you have none of, a
+file already there never touched. Then the settings menu, at a terminal
+(--preset answers it without one). Safe to re-run any time - it repairs its
+own lines and leaves everything else alone. The install location is always
+wherever this script lives (say-hi's parent directory, which has to be named
+say-hi), not a path you pass in - say-hi installs in place. Your own answers
+never land in the tree: they go to
+\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so this works against a checkout
+you don't own.
+
+  -y, --yes        Install even if the rc files fail their syntax check.
+                   Without it, a non-interactive run stops rather than
+                   rewriting shell configs that don't parse. Nothing else
+                   asks.
+  --no-link        Wire up the shells as usual but make no hi link at all.
+                   The wired shells alias hi to this tree either way; the
+                   link is for scripts and other programs.
+  --system-link    Link /usr/bin/hi (sudo) instead of ~/.local/bin/hi. Not
+                   for a box where a package owns /usr/bin/hi - the install
+                   leaves a package's link to the package manager - and not
+                   possible on macOS, where /usr/bin is read-only under SIP.
+  --preset <name>  Answer the feature and header settings from a
+                   preset - everything, balanced or minimal - without the
+                   menu. The same presets are the menu's first item.
+  --dry-run        Say what would be written - rc lines, the overlay seed,
+                   settings.sh, the link - and write nothing. The menu
+                   still opens; s then reports instead of saving.
+EOF
+    [ -n "${_HI_ARGV0:-}" ] || cat <<EOF
+
+The script-only modes, one per run:
+  --features-only  The settings menu alone - what \`hi --configure\` runs.
+  --uninstall      The inverse of the install - what \`hi --uninstall\` runs.
+  --check-configs  The rc syntax check alone, as an exit status.
   --prefix <dir>   Packaging mode (also entered by setting \$DESTDIR): copy
                    the tree to \$DESTDIR<dir>/say-hi, link <dir>/say-hi/hi.sh in
                    /usr/bin, and drop an /etc/profile.d snippet - then stop.
@@ -119,11 +171,51 @@ its current setting when there is no tty to answer on.
                    package() or a deb/rpm recipe calls; each user then runs
                    \`hi --install\` once for their own shells.
 EOF
-    exit 0
     ;;
+  esac
+}
+
+# The four modes are one choice, and every one of them is a word: hi's
+# --install, --configure and --uninstall each inject theirs (common/flags),
+# so `hi --install --uninstall` is two modes and refused, not an uninstall.
+_HI_MODES=""
+# the switches seen, so a mode can refuse the ones that are not its own
+_HI_SEEN=""
+# one `shift` after the case, not one per arm: an arm added without its own was
+# an infinite loop
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --install) _HI_MODES="$_HI_MODES $1" ;;
+  --features-only) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
+  --no-link) _HI_NO_LINK=1 _HI_SEEN="$_HI_SEEN $1" ;;
+  --system-link) _HI_SYSTEM_LINK=1 _HI_SEEN="$_HI_SEEN $1" ;;
+  --dry-run) _HI_DRY_RUN=1 _HI_SEEN="$_HI_SEEN $1" ;;
+  -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
+  --prefix)
+    [ $# -ge 2 ] || {
+      echo "$_HI_ME: --prefix needs a path" >&2
+      exit 1
+    }
+    _HI_PREFIX="$2" _HI_SEEN="$_HI_SEEN --prefix"
+    shift
+    ;;
+  --prefix=*) _HI_PREFIX="${1#--prefix=}" _HI_SEEN="$_HI_SEEN --prefix" ;;
+  --preset)
+    [ $# -ge 2 ] || {
+      echo "$_HI_ME: --preset needs a name" >&2
+      exit 1
+    }
+    _HI_PRESET="$2" _HI_SEEN="$_HI_SEEN --preset"
+    shift
+    ;;
+  --preset=*) _HI_PRESET="${1#--preset=}" _HI_SEEN="$_HI_SEEN --preset" ;;
+  # answered after the loop, once the mode flags have all been read
+  -h | --help) _HI_WANT_HELP=1 ;;
   *)
-    echo "install.sh: unrecognized argument: $1" >&2
-    echo "$_HI_USAGE" >&2
+    echo "$_HI_ME: unknown option $1 ($_HI_ME --help lists them)" >&2
+    _hi_install_usage >&2
     exit 1
     ;;
   esac
@@ -131,12 +223,56 @@ EOF
 done
 case "$_HI_MODES" in
 ' '*' '*)
-  echo "install.sh: pick one of$_HI_MODES" >&2
-  echo "$_HI_USAGE" >&2
+  echo "$_HI_ME: pick one of$_HI_MODES - one mode per run" >&2
   exit 1
   ;;
 esac
 unset _HI_MODES
+if [ -n "$_HI_WANT_HELP" ]; then
+  _hi_install_help
+  exit 0
+fi
+# the switches each mode takes; anything else seen is refused by name, so
+# `hi --uninstall --yes` cannot read as a confirmation that meant something
+case "$(_hi_install_mode)" in
+uninstall) _hi_allowed=" --dry-run " ;;
+configure) _hi_allowed=" --preset --dry-run " ;;
+check) _hi_allowed=" " ;;
+*) _hi_allowed=" --yes --no-link --system-link --preset --dry-run --prefix " ;;
+esac
+for _hi_flag in $_HI_SEEN; do
+  case "$_hi_allowed" in
+  *" $_hi_flag "*) ;;
+  *)
+    echo "$_HI_ME: $_hi_flag does not apply here" >&2
+    _hi_install_usage >&2
+    exit 1
+    ;;
+  esac
+done
+unset _hi_allowed _hi_flag _HI_SEEN
+# packaging mode is scripts/install.sh's own: reached as `hi --install` it
+# would rm -rf a live prefix behind a user's flag; and the prefix lands in
+# /etc/profile.d as written, so a relative one is a wrong answer for every
+# login shell
+if [ -n "$_HI_PREFIX" ]; then
+  if [ -n "${_HI_ARGV0:-}" ]; then
+    echo "$_HI_ME: --prefix is packaging mode - run scripts/install.sh --prefix <dir> directly" >&2
+    exit 1
+  fi
+  case "$_HI_PREFIX" in
+  /*) ;;
+  *)
+    echo "$_HI_ME: --prefix needs an absolute path (got $_HI_PREFIX)" >&2
+    exit 1
+    ;;
+  esac
+fi
+if [ -n "$_HI_NO_LINK" ] && [ -n "$_HI_SYSTEM_LINK" ]; then
+  echo "$_HI_ME: --no-link and --system-link both name where the link goes; pick one" >&2
+  _hi_install_usage >&2
+  exit 1
+fi
 
 # Either flag alone is enough - a packager who passes only $DESTDIR still gets
 # /usr/share, and one who passes only --prefix is installing straight to a live
@@ -163,6 +299,13 @@ done
 _HI_HOME="$(cd -P "$(dirname "$_HI_SELF")/../.." && pwd)"
 export _HI_HOME
 
+# the same guard hi.sh has, and for the same reason: bash's own "No such
+# file" would name a path nobody typed. This is the first command a fresh
+# clone runs, so a checkout called anything but say-hi is answered here.
+[ -r "$_HI_HOME/say-hi/common/core.sh" ] || {
+  echo "$_HI_ME: no say-hi at $_HI_HOME/say-hi - the checkout has to be a directory named say-hi (this script is in ${_HI_SELF%/scripts/*})" >&2
+  exit 1
+}
 # shellcheck source=../common/core.sh
 source "$_HI_HOME/say-hi/common/core.sh"
 # the heading rules and _hi_rewrite; deliberately outside the shipped common/
@@ -176,35 +319,75 @@ source "$_HI_HOME/say-hi/scripts/rc.sh"
 # shellcheck source=./configure.sh
 source "$_HI_HOME/say-hi/scripts/configure.sh"
 
+# --system-link: the one link that wants sudo, asked for by name
+[ -z "$_HI_SYSTEM_LINK" ] || _HI_LINK="/usr/bin/hi"
+
+# link_owner and _hi_link_runs_this_tree are rc.sh's: doctor.sh reads the
+# same link this writes, and sources rc.sh rather than this file.
+
 function config_hi() {
   _hi_h2 "Checking hi.sh"
-  # --no-link. Three installs reach this step with no way to satisfy it and no
-  # need to: Homebrew (its own bin/hi is already on PATH, and /usr/bin is
-  # read-only under SIP on macOS even for root), a distro package (the packager
-  # owns /usr/bin/hi and install_tree already made it), and Git Bash on Windows
-  # (no sudo, no real /usr/bin). Without this, all three fail at the *last* step
-  # of an otherwise complete install, after every rc file has already been
-  # written - the worst place to fail, since it reads as "the install broke".
+  # Only when it isn't already executable, and never fatally: on a packaged
+  # install the tree is root-owned and hi.sh already has its mode set by the
+  # packager, so an unconditional chmod would abort the whole run under `set -e`
+  # for a user configuring a perfectly good install. Ahead of --no-link, since
+  # the `hi` alias every wired shell gets runs this file either way.
+  if [ ! -x "$_HI_LAUNCHER" ]; then
+    if dry_run_say "make $_HI_LAUNCHER executable"; then
+      :
+    elif ! chmod +x "$_HI_LAUNCHER" 2>/dev/null; then
+      _hi_cecho " couldn't make $_HI_LAUNCHER executable - is it owned by root?" "$YELLOW"
+    fi
+  fi
+  # --no-link: the wired shells alias hi to this tree anyway, so the link is
+  # for scripts and other programs, and an install that cannot make one (Git
+  # Bash on Windows, a read-only home) still counts as complete.
   [ -n "$_HI_NO_LINK" ] && {
     _hi_cecho " --no-link given, leaving $_HI_LINK alone :)" "$GREEN"
     return 0
   }
-  # Only when it isn't already executable, and never fatally: on a packaged
-  # install the tree is root-owned and hi.sh already has its mode set by the
-  # packager, so an unconditional chmod would abort the whole run under `set -e`
-  # for a user configuring a perfectly good install.
-  if [ ! -x "$_HI_LAUNCHER" ] && ! chmod +x "$_HI_LAUNCHER" 2>/dev/null; then
-    _hi_cecho " couldn't make $_HI_LAUNCHER executable - is it owned by root?" "$YELLOW"
-  fi
   if [ "$(readlink "$_HI_LINK" 2>/dev/null)" = "$_HI_LAUNCHER" ]; then
     _hi_cecho " $_HI_LINK already points at $_HI_LAUNCHER :)" "$GREEN"
     return 0
   fi
-  # A writable bindir needs no sudo, and a sudo-less box must not abort a
-  # *completed* install at its last step - from here it's warnings, not `set -e`.
-  if [ -w "$(dirname "$_HI_LINK")" ]; then
+  # something on PATH already runs this hi.sh - Homebrew's wrapper, a distro
+  # package's /usr/bin/hi, an earlier --system-link: nothing to add
+  local found
+  found="$(command -v hi 2>/dev/null || true)"
+  if [ -n "$found" ] && [ "$found" != "$_HI_LINK" ] && _hi_link_runs_this_tree "$found"; then
+    _hi_cecho " hi is already on your PATH at $found and runs this say-hi :)" "$GREEN"
+    return 0
+  fi
+  # a link that is somebody else's stays theirs: a package's is the package
+  # manager's to replace, and anything else is the user's to remove
+  if [ -e "$_HI_LINK" ] || [ -L "$_HI_LINK" ]; then
+    local owner
+    owner="$(link_owner "$_HI_LINK" || true)"
+    if [ -n "$owner" ]; then
+      _hi_cecho " $_HI_LINK belongs to the $owner package - leaving it to the package manager" "$YELLOW"
+    else
+      _hi_cecho " $_HI_LINK is not hi's ($(readlink "$_HI_LINK" 2>/dev/null || echo 'a regular file')) - leaving it alone" "$YELLOW"
+      _hi_cecho " remove it by hand and re-run, or pass --no-link to silence this" "$YELLOW"
+    fi
+    _hi_cecho " the wired shells alias hi to this tree either way" "$BLUE"
+    return 0
+  fi
+  dry_run_say "link $_HI_LINK -> $_HI_LAUNCHER" && return 0
+  # A writable bindir (the user's own, by default) needs no sudo, and a
+  # sudo-less box must not abort a *completed* install at its last step -
+  # from here it's warnings, not `set -e`.
+  local bindir="${_HI_LINK%/*}"
+  [ -d "$bindir" ] || mkdir -p "$bindir" 2>/dev/null || true
+  if [ -w "$bindir" ]; then
     ln -sfn "$_HI_LAUNCHER" "$_HI_LINK"
     _hi_cecho " linked $_HI_LINK -> $_HI_LAUNCHER :)" "$GREEN"
+    case ":$PATH:" in
+    *":$bindir:"*)
+      # an earlier hi on PATH (another install's) still wins for scripts
+      [ -z "$found" ] || _hi_cecho " $found comes first on your PATH and runs something else - it shadows the link for scripts" "$YELLOW"
+      ;;
+    *) _hi_cecho " $bindir is not on your PATH - the wired shells alias hi anyway; add it for scripts and other programs (a Debian-style ~/.profile adds it on the next login)" "$YELLOW" ;;
+    esac
   elif command -v sudo >/dev/null 2>&1; then
     _hi_cecho " Linking $_HI_LINK -> $_HI_LAUNCHER... [password required]" "$BLUE"
     sudo ln -sfn "$_HI_LAUNCHER" "$_HI_LINK" || link_hi_by_hand
@@ -231,26 +414,45 @@ function strip_settings() {
     _hi_cecho " no settings.sh to remove :)" "$GREEN"
     return 0
   fi
+  dry_run_say "remove $_HI_SETTINGS" && return 0
   rm -f "$_HI_SETTINGS"
   _hi_cecho " removed $_HI_SETTINGS :)" "$GREEN"
 }
 
+# unlink_hi - take hi's own link back out: $_HI_LINK, and /usr/bin/hi as
+# well when an earlier --system-link (or the old default) put it there. A
+# link that is not this tree's - a package's, another install's - is named
+# and left alone.
 function unlink_hi() {
   _hi_h2 "Checking hi.sh"
-  if [ "$(readlink "$_HI_LINK" 2>/dev/null)" != "$_HI_LAUNCHER" ]; then
-    _hi_cecho " $_HI_LINK doesn't point at this say-hi, leaving it alone" "$GREEN"
+  _hi_unlink_one "$_HI_LINK"
+  [ "$_HI_LINK" = /usr/bin/hi ] || _hi_unlink_one /usr/bin/hi
+}
+
+# _hi_unlink_one <link> - one link location: gone already, somebody
+# else's, or this tree's and removed
+function _hi_unlink_one() {
+  local link="$1" owner
+  if [ ! -e "$link" ] && [ ! -L "$link" ]; then
+    _hi_cecho " no $link to remove :)" "$GREEN"
     return 0
   fi
+  if [ "$(readlink "$link" 2>/dev/null)" != "$_HI_LAUNCHER" ]; then
+    owner="$(link_owner "$link" 2>/dev/null || true)"
+    _hi_cecho " $link doesn't point at this say-hi${owner:+ (owned by the $owner package)}, leaving it alone" "$GREEN"
+    return 0
+  fi
+  dry_run_say "remove $link" && return 0
   # same non-fatal ladder as config_hi
-  if [ -w "$(dirname "$_HI_LINK")" ]; then
-    rm -f "$_HI_LINK"
-    _hi_cecho " removed $_HI_LINK :)" "$GREEN"
+  if [ -w "$(dirname "$link")" ]; then
+    rm -f "$link"
+    _hi_cecho " removed $link :)" "$GREEN"
   elif command -v sudo >/dev/null 2>&1; then
-    _hi_cecho " Unlinking $_HI_LINK... [password required]" "$BLUE"
-    sudo rm -f "$_HI_LINK" ||
-      _hi_cecho " couldn't remove it - as root: rm '$_HI_LINK'" "$YELLOW"
+    _hi_cecho " Unlinking $link... [password required]" "$BLUE"
+    sudo rm -f "$link" ||
+      _hi_cecho " couldn't remove it - as root: rm '$link'" "$YELLOW"
   else
-    _hi_cecho " no sudo here - remove it as root: rm '$_HI_LINK'" "$YELLOW"
+    _hi_cecho " no sudo here - remove it as root: rm '$link'" "$YELLOW"
   fi
 }
 
@@ -285,6 +487,14 @@ function install_tree() {
   local dest="${DESTDIR:-}$_HI_PREFIX/say-hi" bindir="${DESTDIR:-}/usr/bin"
   local profile="${DESTDIR:-}/etc/profile.d/say-hi.sh" item line
   _hi_h2 "Installing the tree"
+  dry_run_say "clear and stage $dest, link $bindir/hi, write $profile" && return 0
+  # a live root (no $DESTDIR) that a package already owns is the package
+  # manager's to replace, not this script's to rm -rf
+  local owner=""
+  if [ -z "${DESTDIR:-}" ] && [ -e "$dest/hi.sh" ] && owner="$(link_owner "$dest/hi.sh" 2>/dev/null)"; then
+    _hi_cecho " $dest belongs to the $owner package - leave it to the package manager" "$RED" >&2
+    exit 1
+  fi
 
   # cp -R merges, so clear a pre-existing dest or removed files keep shipping
   # ($dest is built two lines up and always ends in /say-hi)
@@ -337,10 +547,11 @@ function install_tree() {
 # a `git init` of their own); hi neither inits nor commits there.
 function overlay_seed() {
   local _hi_seed seeded=""
-  mkdir -p "$_HI_CONFIG_DIR"
   for _hi_seed in colors packages vim.rc nano.rc; do
     [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
     [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
+    dry_run_say "seed $_HI_CONFIG_DIR/$_hi_seed from the tree's copy" && continue
+    mkdir -p "$_HI_CONFIG_DIR"
     cp "$_HI_ROOT/settings/$_hi_seed" "$_HI_CONFIG_DIR/$_hi_seed" && seeded="$seeded $_hi_seed"
   done
   [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults into $_HI_CONFIG_DIR:$seeded" "$BLUE"
@@ -365,11 +576,23 @@ elif [ -n "$_HI_FEATURES_ONLY" ]; then
 else
   _hi_h1 "Installing (or reinstalling) hi.sh!"
 fi
-_hi_cecho " | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | login shell: ${SHELL##*/}" "$BLUE"
+_hi_version_line="$(_hi_release_or_describe 2>/dev/null || true)"
+_hi_cecho " | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | version: ${_hi_version_line:-unknown} | login shell: ${SHELL##*/}" "$BLUE"
+unset _hi_version_line
+[ -z "$_HI_DRY_RUN" ] || _hi_cecho " | dry run: nothing below is written" "$BLUE"
+
+# _hi_done <banner> - the closing line, or the dry run's honest version of it
+function _hi_done() {
+  if [ -n "$_HI_DRY_RUN" ]; then
+    _hi_h1 "Dry run - nothing was written"
+  else
+    _hi_h1 "$1"
+  fi
+}
 
 if [ -n "$_HI_UNINSTALL_MODE" ]; then
   run_uninstall
-  _hi_h1 "Uninstalled!"
+  _hi_done "Uninstalled!"
   _hi_cecho " | say-hi itself is still at $_HI_ROOT - rm -rf it yourself if you're done with it" "$BLUE"
   exit 0
 fi
@@ -379,7 +602,7 @@ fi
 if [ -n "$_HI_PACKAGING" ]; then
   _hi_cecho " | destdir: ${DESTDIR:-<none>} | prefix: $_HI_PREFIX" "$BLUE"
   install_tree
-  _hi_h1 "Packaged!"
+  _hi_done "Packaged!"
   _hi_cecho " | each user runs hi --install once for their own shells; their settings go to \$XDG_CONFIG_HOME/say-hi" "$BLUE"
   exit 0
 fi
@@ -392,7 +615,7 @@ if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
 fi
 
 if [ -n "$_HI_PRESET" ] && ! preset_row "$_HI_PRESET" >/dev/null; then
-  _hi_cecho " no such preset: $_HI_PRESET (one of: $(preset_names))" "$RED" >&2
+  _hi_cecho "$_HI_ME: no such preset: $_HI_PRESET (one of: $(preset_names))" "$RED" >&2
   exit 1
 fi
 
@@ -410,7 +633,7 @@ if [ -n "$_HI_FEATURES_ONLY" ]; then
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then
     _hi_h1 "Settings left as they were"
   else
-    _hi_h1 "Features updated!"
+    _hi_done "Features updated!"
   fi
   exit 0
 fi
@@ -418,5 +641,5 @@ fi
 install_rc_lines
 config_hi
 
-_hi_h1 "Installed!"
+_hi_done "Installed!"
 _hi_cecho " next: reload your shell (exec \$SHELL), then \`hi --configure\` to tune it and \`hi --doctor\` to check it" "$BLUE"

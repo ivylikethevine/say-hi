@@ -24,11 +24,17 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
 
-_HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates by installing the next release from https://github.com/ivylikethevine/say-hi/releases; a hi session updates on the machine say-hi lives on"
+_HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on"
 
 # the script's own usage line names what was typed, the way doctor.sh does
 me="${_HI_ARGV0:-hi --update}"
 root="$_HI_ROOT" tag="" dirty="" here=""
+# --help anywhere on the line, and ahead of the .git check so a package gets
+# the text too
+for _hi_arg in "$@"; do
+  case "$_hi_arg" in -h | --help) set -- --help ;; esac
+done
+unset _hi_arg
 case "${1:-}" in
 -h | --help)
   cat <<EOF
@@ -66,7 +72,10 @@ dirty="$(git -C "$root" status --porcelain --untracked-files=no 2>/dev/null)"
   _hi_cecho "$me: uncommitted changes in $root; commit or stash them first" "$RED" >&2
   exit 1
 }
-git -C "$root" fetch --tags --quiet || exit 1
+git -C "$root" fetch --tags --quiet || {
+  _hi_cecho "$me: git fetch failed in $root (see above)" "$RED" >&2
+  exit 1
+}
 if [ -z "$tag" ]; then
   # newest release by version (v0.0.10 above v0.0.9); a pre-release
   # (v1.0.0-rc.1) is never chosen unasked - name it to move there
@@ -81,9 +90,12 @@ elif ! git -C "$root" show-ref --verify -q "refs/tags/$tag"; then
 fi
 here="$(exec git -C "$root" describe --tags --exact-match 2>/dev/null)" || here=""
 if [ "$here" = "$tag" ]; then
-  _hi_cecho "hi: already on $tag" "$GREEN"
+  _hi_cecho "$me: already on $tag" "$GREEN"
   exit 0
 fi
-git -C "$root" checkout -q "refs/tags/$tag" || exit 1
-_hi_cecho "hi: now on $tag (detached)" "$GREEN"
+git -C "$root" checkout -q "refs/tags/$tag" || {
+  _hi_cecho "$me: git checkout of $tag failed in $root (see above)" "$RED" >&2
+  exit 1
+}
+_hi_cecho "$me: now on $tag (detached)" "$GREEN"
 exit 0

@@ -1,8 +1,9 @@
-# Color pins, one "type,name,color" per line. Copy this file to
-# ~/.config/say-hi/colors and edit it there - the copy in the tree is the default
+# Color pins, one "type,name,color" per line. `hi --install` seeds a copy at
+# ~/.config/say-hi/colors; edit that one - the copy in the tree is the default
 # say-hi ships, and editing it dirties the checkout `hi --update` pulls into.
 #
 # type  = hosttag | username | hostname | usertag
+# usertag colors the username on every host carrying that # Tags: value
 # color = red, green, yellow, blue, magenta, cyan, brred, brgreen, bryellow, brblue, brmagenta, brcyan
 # a hostname name holding * or ? is a pattern: "hostname,10.0.1.*,red" colors
 # a whole subnet or domain at once. An exact pin and a hosttag both beat it.

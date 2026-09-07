@@ -53,28 +53,119 @@ function test_parse_turns_trailing_words_into_a_command() {
   [[ "$out" == myhost*"echo hello;"*exit* ]]
 }
 
+# ...dashed or not: the target ends the options, and `hi host -la` is ssh's
+# `ssh host -la` - the command's word, never an ssh argument
+function test_parse_dashed_word_after_the_target_is_the_command() {
+  local out
+  out="$(_hi_parse_out myhost -la)"
+  [[ "$out" == myhost*"-la;"*exit* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 2 ]
+}
+
 function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
   [ "$(_hi_parse_out myhost | sed -n 2p)" = "" ]
 }
 
-# ssh itself takes no "--" option (the loop's own comment says so), so "--"
-# just falls into the -* arm like any other unrecognized flag: it does not end
-# option parsing, and the word after it is still read as a flag, not a target.
-# With no DOMAIN set and SSHARGS non-empty, _hi_parse skips the picker and
-# execs a real ssh, then exits 1 unconditionally - it never returns to
-# _hi_parse_out, so this shims ssh to log its argv and asserts that instead.
+# "--" is ssh's own option terminator and rides along as one more ssh
+# argument: it does not end option parsing, and the word after it is still
+# read as a flag, not a target. With no DOMAIN set and SSHARGS non-empty,
+# _hi_parse skips the picker and runs a real ssh, then exits with ssh's own
+# status - it never returns to _hi_parse_out, so this shims ssh to log its
+# argv and exit 3, and asserts both.
 function test_parse_dashdash_does_not_end_option_parsing() {
   local bin="$_HI_WORKDIR/dashdash.bin" log="$_HI_WORKDIR/dashdash.log" rc=0
   mkdir -p "$bin"
   cat >"$bin/ssh" <<SHIM
 #!/bin/sh
 printf '%s\n' "\$*" >"$log"
-exit 0
+exit 3
 SHIM
   chmod +x "$bin/ssh"
   (PATH="$bin:$PATH" _hi_parse -- -oddtarget >/dev/null 2>&1) || rc=$?
-  [ "$rc" -eq 1 ] || return 1
+  [ "$rc" -eq 3 ] || return 1
   [ "$(cat "$log")" = "-- -oddtarget" ]
+}
+
+# ssh takes no option that starts with two dashes, so every --word is hi's:
+# a stranger is hi's error and exit 1, never ssh's usage message
+function test_parse_unknown_double_dash_word_is_his_error() {
+  local out rc=0
+  out="$( (_hi_parse --docter myhost 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"hi: unknown option --docter"* ]]
+}
+
+# a local command is dispatched on the first word alone; behind an ssh
+# option it is named as out of place, not as a stranger
+function test_parse_local_command_behind_an_option_is_named() {
+  local out rc=0
+  out="$( (_hi_parse -v --doctor myhost 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--doctor goes first"* ]]
+}
+
+# the target ends the options: a dashed word after it is the remote
+# command's, the way `ssh host ls -la` reads - and one of hi's own flags
+# there is refused by name rather than run on the far end
+function test_parse_own_flag_after_the_target_is_refused() {
+  local out rc=0
+  out="$( (_hi_parse myhost --use docker 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use goes before the target"* ]]
+}
+
+# hi's own flags with nothing to connect to and no terminal to pick from:
+# hi's error, never ssh's usage message (ssh saw none of them)
+function test_parse_own_flag_without_a_target_is_his_error() {
+  local out rc=0
+  out="$( (_hi_parse --plain </dev/null 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]] || return 1
+  rc=0
+  out="$( (_hi_parse --use docker </dev/null 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no target to connect to"* ]]
+}
+
+# a bare flag given a joined value is told so, not told to go first
+function test_parse_bare_flag_with_a_value_is_refused() {
+  local out rc=0
+  out="$( (_hi_parse --plain=1 myhost 2>&1 >/dev/null) )" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--plain takes no value"* ]]
+}
+
+# -h behind an ssh option is still hi's question, not ssh's usage
+function test_parse_help_is_honoured_behind_an_ssh_option() {
+  local out
+  out="$(_hi_help_out -o StrictHostKeyChecking=no -h)" || return 1
+  [[ "$out" == "Usage: hi "* && "$out" != *"ssh was called"* ]]
+}
+
+# `hi help` and `hi version` are -h and -V spelled as words - as the first
+# word only, so a host called help is still reachable behind an ssh option
+function test_bare_help_and_version_words_are_his_own() {
+  local out
+  out="$(_hi_help_out help)" || return 1
+  [[ "$out" == "Usage: hi "* ]] || return 1
+  out="$(_hi_help_out version)" || return 1
+  [ "$out" = "$(_hi_help_out --version)" ] || return 1
+  [ "$(_hi_parse_out -4 help | sed -n 1p)" = help ]
+}
+
+# _hi_is_ssh_host reads literal Host entries only: a `Host *` block claims
+# nothing, so a container of any name still reaches its own backend. The
+# tag walker itself keeps matching wildcards (core_test pins that), since
+# a `# Tags:` comment over `Host prod-*` is how a whole fleet gets a color.
+function _hi_wild_ssh_config() {
+  local f="$_HI_WORKDIR/wild_ssh_config"
+  [ -f "$f" ] || printf 'Host *\n    ForwardAgent no\n\nHost literal\n    HostName 1.2.3.4\n' >"$f"
+  printf '%s' "$f"
+}
+
+function test_is_ssh_host_ignores_a_wildcard_block() {
+  local cfg
+  cfg="$(_hi_wild_ssh_config)"
+  _HI_SSH_CONFIG="$cfg" _hi_is_ssh_host literal || return 1
+  ! _HI_SSH_CONFIG="$cfg" _hi_is_ssh_host yes
+}
+
+function test_select_arm_wildcard_host_does_not_shadow_a_container() {
+  local DOMAIN=yes BACKEND=
+  [ "$(_HI_SSH_CONFIG="$(_hi_wild_ssh_config)" PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ]
 }
 
 # a value-taking flag with nothing after it must report itself, not die on an
@@ -1022,7 +1113,13 @@ function test_packages_preview_falls_back_to_the_shipped_check() {
   out="$(_hi_subcmd_run "$home" --preview packages)" || return 1
   [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview header)" || return 1
-  [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]]
+  [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]] || return 1
+  # ...and the fallbacks answer --help and refuse a stray word, as
+  # preview.sh's subjects do
+  out="$(_hi_subcmd_run "$home" --preview header --help)" || return 1
+  [[ "$out" == "Usage: hi --preview header"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --preview packages stray)" && return 1
+  [[ "$out" == *"takes no arguments"* ]]
 }
 
 # the mapping itself: which script, with which arguments
@@ -1030,10 +1127,12 @@ function test_local_subcommands_exec_the_right_script() {
   local home out spec flag want
   home="$(_hi_subcmd_stubs)"
   for spec in \
-    '--install|STUB install' \
+    '--install|STUB install --install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --features-only' \
+    '--doctor=myhost|STUB doctor myhost' \
     '--preview colors|STUB preview colors' \
+    '--preview=colors|STUB preview colors' \
     '--preview packages|STUB preview packages' \
     '--doctor|STUB doctor'; do
     flag="${spec%%|*}"
@@ -1055,6 +1154,8 @@ function test_preview_refuses_an_unknown_subject() {
   home="$(_hi_subcmd_stubs)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
   [[ "$out" == *"one of colors, packages or header"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
+  [[ "$out" == *"one of colors, packages or header (not bogus)"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
   [[ "$out" == *"one of colors, packages or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
@@ -1081,7 +1182,9 @@ function test_local_subcommands_forward_extra_arguments() {
   out="$(_hi_subcmd_run "$home" --doctor myhost)" || return 1
   [ "$out" = "STUB doctor myhost" ] || return 1
   out="$(_hi_subcmd_run "$home" --preview colors --help)" || return 1
-  [ "$out" = "STUB preview colors --help" ]
+  [ "$out" = "STUB preview colors --help" ] || return 1
+  out="$(_hi_subcmd_run "$home" --preview header --help)" || return 1
+  [ "$out" = "STUB preview header --help" ]
 }
 
 # the other half of the move: paths.sh must not grow them back. hi_info is the
@@ -1250,14 +1353,24 @@ function run_hi_parse_tests() {
   # case arm "bastion" becomes DOMAIN and hi connects to the wrong machine
   _hi_check_eq "-J's value is not mistaken for the target" "$(printf 'myhost\n\n-J\nbastion\n')" _hi_parse_out -J bastion myhost
   _hi_check_eq "-B's value is not mistaken for the target" "$(printf 'myhost\n\n-B\neth0\n')" _hi_parse_out -B eth0 myhost
+  _hi_check_eq "-P's value is not mistaken for the target" "$(printf 'myhost\n\n-P\nmytag\n')" _hi_parse_out -P mytag myhost
   _hi_check "Several flags before the target" test_parse_handles_several_flags_before_the_target
-  _hi_check "'--' does not end option parsing" test_parse_dashdash_does_not_end_option_parsing
+  _hi_check "'--' does not end option parsing, and ssh's status comes back" test_parse_dashdash_does_not_end_option_parsing
 
   _hi_h2 "Testing: _hi_parse (commands and errors)"
   _hi_check "Trailing words become a command" test_parse_turns_trailing_words_into_a_command
+  _hi_check "A dashed word after the target is the command's" test_parse_dashed_word_after_the_target_is_the_command
   _hi_check "A plain session has no command" test_parse_leaves_cmdarg_empty_for_a_plain_session
   _hi_check "Rejects a flag missing its value" test_parse_rejects_a_flag_missing_its_value
   _hi_check "Names the offending flag" test_parse_names_the_offending_flag
+  _hi_check "An unknown --word is hi's error, not ssh's" test_parse_unknown_double_dash_word_is_his_error
+  _hi_check "A local command behind an option is named" test_parse_local_command_behind_an_option_is_named
+  _hi_check "hi's own flag after the target is refused" test_parse_own_flag_after_the_target_is_refused
+  _hi_check "hi's own flag with no target is hi's error" test_parse_own_flag_without_a_target_is_his_error
+  _hi_check "A bare flag takes no value" test_parse_bare_flag_with_a_value_is_refused
+  _hi_check "-h behind an ssh option is still hi's" test_parse_help_is_honoured_behind_an_ssh_option
+  _hi_check "help and version words are -h and -V" test_bare_help_and_version_words_are_his_own
+  _hi_check "A Host * block names no target" test_is_ssh_host_ignores_a_wildcard_block
 
   _hi_h2 "Testing: bare hi picks a target"
   _hi_check "fzf when it is there" test_pick_uses_fzf_when_it_is_there
@@ -1300,13 +1413,13 @@ function run_hi_parse_tests() {
   _hi_check "--use <backend> reaches ssh and every backend" test_parse_use_names_every_arm
   _hi_check "--use with no word exits 1" test_parse_use_without_a_word_exits_one
   _hi_check "--use twice: same arm agrees, different arms refuse, both named" test_parse_use_twice_agrees_or_refuses
-  _hi_check_eq "--use after the target is the remote command's" "$(printf 'myhost\n\n')" _hi_backend_parse_out myhost --use nerdctl
   _hi_check "--plain sets PLAIN, not SSHARGS" test_parse_plain_sets_plain_not_sshargs
   _hi_check "--plain combines with --use" test_parse_plain_combines_with_use
   _hi_check "RAWCMD carries no \"; exit\" suffix" test_parse_rawcmd_has_no_exit_suffix
   _hi_check "select_arm: the flag wins over a real match" test_select_arm_backend_flag_wins_over_a_real_match
   _hi_check "select_arm: the flag names the arm with no probe" test_select_arm_backend_flag_names_the_arm_with_no_probe
   _hi_check "select_arm: unset falls back to resolution" test_select_arm_falls_back_to_resolution_when_backend_unset
+  _hi_check "select_arm: a Host * block does not shadow a container" test_select_arm_wildcard_host_does_not_shadow_a_container
   _hi_check "report_failure: silent once hi already said it" test_report_failure_is_silent_once_hi_already_said_it
   _hi_check "report_failure: silent for a non-255 ssh exit" test_report_failure_is_silent_for_a_non_255_ssh_exit
   _hi_check "report_failure: speaks on 255" test_report_failure_speaks_on_255

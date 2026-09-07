@@ -258,8 +258,8 @@ function run_install_location_tests() {
   _hi_h2 "Testing: the rc wiring install.sh wrote"
   _hi_check "The install reported success" test_the_install_reported_success
   _hi_check "bashrc names the tree" test_bashrc_states_the_tree
-  _hi_check "zshrc names the tree" test_zshrc_states_the_tree
-  _hi_check "config.fish names the tree" test_fish_config_states_the_tree
+  _hi_check_requires zsh "zshrc names the tree" test_zshrc_states_the_tree
+  _hi_check_requires fish "config.fish names the tree" test_fish_config_states_the_tree
   _hi_check "The tree itself was not written to" test_the_install_wrote_nothing_into_the_tree
 
   # Read-only from here to the uninstall, so it runs in parallel: five

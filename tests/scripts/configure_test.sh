@@ -297,6 +297,10 @@ function test_header_presets_hold_the_vocabulary() {
 function test_validators_hold_their_grammars() {
   _hi_is_number 42 || return 1
   ! _hi_is_number 4.2 || return 1
+  _hi_is_width 80 || return 1
+  _hi_is_width 40 || return 1
+  ! _hi_is_width 39 || return 1
+  ! _hi_is_width 0 || return 1
   ! _hi_is_number '' || return 1
   ! _hi_is_number 4x || return 1
   _hi_is_seconds 2 || return 1
@@ -810,6 +814,77 @@ function test_advanced_defaults_write_nothing() {
   [ -z "$(_hi_section_lines adv_default config_advanced | tr -d ' ')" ]
 }
 
+# _hi_run_in <name> [settings-line ...] - run_configure with no tty against a
+# scratch settings.sh (absent when no line is given), the rc files pointed
+# at nothing so no prompt framework of this machine's is found. Prints the
+# file afterwards, or nothing when there is none.
+function _hi_run_in() {
+  local dir="$_HI_WORKDIR/run_$1"
+  local _HI_SETTINGS="$dir/settings.sh"
+  local _HI_HOME_BASHRC="$dir/none" _HI_HOME_ZSHRC="$dir/none" _HI_HOME_FISH_CONFIG="$dir/none"
+  local -a _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  _HI_CONFIGURE_QUIT=""
+  mkdir -p "$dir"
+  shift
+  [ "$#" -eq 0 ] || printf '#!/bin/sh\n%s\n' "$*" >"$_HI_SETTINGS"
+  run_configure "" </dev/null >/dev/null || return 1
+  [ -f "$_HI_SETTINGS" ] && cat "$_HI_SETTINGS"
+  return 0
+}
+
+# a line written by hand - the way SETTINGS.md says to set a scheme of your
+# own - is adopted into the block rather than written again beside itself
+function test_configure_adopts_a_hand_written_line() {
+  local out
+  out="$(_hi_run_in adopt "export _HI_COLOR_SCHEME=monokai")" || return 1
+  [ "$(printf '%s\n' "$out" | grep -c _HI_COLOR_SCHEME)" -eq 1 ] &&
+    [[ "$(printf '%s\n' "$out" | grep _HI_COLOR_SCHEME)" == *"monokai"*"$_HI_MARKER" ]]
+}
+
+# ...and a hand line for a name this run does not write is left as it is
+function test_configure_leaves_a_hand_line_it_does_not_write() {
+  local out
+  out="$(_hi_run_in keephand "export _HI_PROMPT_END='>'")" || return 1
+  [ "$(printf '%s\n' "$out" | grep -c _HI_PROMPT_END)" -eq 1 ] &&
+    [[ "$(printf '%s\n' "$out" | grep _HI_PROMPT_END)" != *"$_HI_MARKER"* ]]
+}
+
+# no tty, no preset, no file and nothing to say: no file - a shebang alone
+# would be a decision record with no decision in it, and its existence is
+# what stops the one-shot prompt-framework detection asking again
+function test_no_tty_run_with_defaults_writes_no_file() {
+  [ -z "$(_hi_run_in notty)" ] && [ ! -e "$_HI_WORKDIR/run_notty/settings.sh" ]
+}
+
+# a preset is a decision, so that run creates the file
+function test_preset_run_still_creates_the_file() {
+  local dir="$_HI_WORKDIR/run_preset"
+  local _HI_SETTINGS="$dir/settings.sh"
+  local _HI_HOME_BASHRC="$dir/none" _HI_HOME_ZSHRC="$dir/none" _HI_HOME_FISH_CONFIG="$dir/none"
+  local -a _HI_SETTING_LINES=()
+  _HI_SETTING_PENDING=()
+  mkdir -p "$dir"
+  run_configure balanced </dev/null >/dev/null || return 1
+  grep -qF '_HI_PACKAGES_MIN_PRIORITY=3' "$_HI_SETTINGS"
+}
+
+# the Prompt menu shows what the shell will draw: the shell's own separator,
+# then the all-shells _HI_PROMPT_END (hand-written; no menu asks it), then
+# the default - core.sh's own order
+function test_prompt_end_shown_falls_back_to_the_umbrella() {
+  local dir="$_HI_WORKDIR/pe_umbrella" out
+  local _HI_SETTINGS="$dir/settings.sh"
+  _HI_SETTING_PENDING=()
+  mkdir -p "$dir"
+  printf "export _HI_PROMPT_END='%%'\n" >"$_HI_SETTINGS"
+  _hi_prompt_end_shown ZSH out
+  [ "$out" = '%' ] || return 1
+  printf "export _HI_PROMPT_END='%%'\nexport _HI_PROMPT_END_ZSH='>'\n" >"$_HI_SETTINGS"
+  _hi_prompt_end_shown ZSH out
+  [ "$out" = '>' ]
+}
+
 # a row whose <needs> command is absent is not asked, and the collector
 # carries what the file holds for it rather than dropping it
 function test_prompt_group_carries_a_row_it_cannot_ask() {
@@ -829,7 +904,8 @@ function test_prompt_group_carries_a_row_it_cannot_ask() {
 function test_validators_for_the_advanced_values() {
   _hi_is_shell_list "login zsh bash" && ! _hi_is_shell_list "login sh" && ! _hi_is_shell_list "" &&
     _hi_is_seconds 0.5 && _hi_is_seconds 3 && ! _hi_is_seconds abc &&
-    _hi_is_glyph_choice ascii && ! _hi_is_glyph_choice yes
+    _hi_is_glyph_choice ascii && ! _hi_is_glyph_choice yes &&
+    _hi_is_truecolor_choice on && _hi_is_truecolor_choice auto && ! _hi_is_truecolor_choice 1
 }
 
 # the closing report: what this run wrote against what the block held, as
@@ -940,7 +1016,8 @@ function test_preset_vocab_excludes_palette_and_order() {
   ! grep -qx _HI_PACKAGES_PALETTE <<<"$vocab" &&
     ! grep -qx _HI_HEADER_ORDER <<<"$vocab" &&
     ! grep -qx _HI_COLOR_SCHEME <<<"$vocab" &&
-    ! grep -qx _HI_IP_HIDE <<<"$vocab"
+    ! grep -qx _HI_IP_HIDE <<<"$vocab" &&
+    ! grep -qx _HI_PROMPT <<<"$vocab"
 }
 
 # the whole run with --preset, no tty: exactly the preset's lines land in the
@@ -1337,7 +1414,7 @@ function test_ask_value_takes_a_typed_number() {
 # it - the message names the value kept, so both halves are one substring
 function test_ask_value_rejects_junk_and_keeps_current() {
   _hi_cfg_pty width_junk 'abc\n' 'export _HI_MAX_WIDTH=100' config_max_width || return 1
-  _hi_cfg_has width_junk "not a number, leaving it at 100" &&
+  _hi_cfg_has width_junk "a number, 40 or more, leaving it at 100" &&
     [ "$(_hi_cfg_lines width_junk)" = "export _HI_MAX_WIDTH=100" ]
 }
 
@@ -1499,7 +1576,7 @@ function test_header_editor_refuses_a_move_that_cannot_happen() {
 function test_header_editor_junk_is_bounded() {
   _hi_cfg_pty hdr_junk 'x\ny\nz\n' '' config_header || return 1
   [ "$(_hi_cfg_rc hdr_junk)" = 0 ] &&
-    _hi_cfg_has hdr_junk "type an item number, up N, down N, p, w, c, k, 0, or Enter" &&
+    _hi_cfg_has hdr_junk "type an item number, up N, down N, p, w, i, c, k, 0, or Enter" &&
     [ -z "$(_hi_cfg_lines hdr_junk | tr -d '[:space:]')" ]
 }
 
@@ -1513,7 +1590,7 @@ function test_header_editor_preset_refuses_a_stranger() {
 # w asks for the width and writes a typed one
 function test_header_editor_w_takes_a_width() {
   _hi_cfg_pty hdr_width 'w\n120\n\n' '' config_header || return 1
-  _hi_cfg_has hdr_width "Terminal width for the header/banner?" &&
+  _hi_cfg_has hdr_width "Terminal width for the header/banner (40 or more)?" &&
     [[ "$(_hi_cfg_lines hdr_width)" == *"export _HI_MAX_WIDTH=120"* ]]
 }
 
@@ -1634,23 +1711,51 @@ function test_prompt_menu_toggles_starship() {
     [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT=starship"* ]]
 }
 
-# the advanced section is a question walk with no gate of its own now (the
-# hub's item is the gate) - and Enter through all of it still writes
+# _hi_cfg_tmux - a tmux on PATH, so the _HI_MUX row (needs: tmux) is asked
+# wherever the suite runs: the walks below answer by position, and a box
+# without tmux (the macOS runner) would otherwise skip one question and
+# shift every answer after it
+function _hi_cfg_tmux() {
+  local dir="$_HI_WORKDIR/tmuxshim"
+  [ -x "$dir/tmux" ] || {
+    mkdir -p "$dir"
+    printf '#!/bin/sh\nexit 0\n' >"$dir/tmux"
+    chmod +x "$dir/tmux"
+  }
+  printf '%s' "$dir"
+}
+
+# the advanced section is a question walk with no gate of its own (the hub's
+# item is the gate), five questions and then an offer of the transport
+# internals: y opens those, and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n\n\n\n\n\n\n\n\n\n' '' config_advanced || return 1
-  _hi_cfg_has adv_walk "Swap a TERM" &&
-    _hi_cfg_has adv_walk "Shell a session runs in" &&
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n\n\ny\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_has adv_walk "Shell a session runs in" &&
+    _hi_cfg_has adv_walk "transport internals" &&
+    _hi_cfg_has adv_walk "Swap a TERM" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
+}
+
+# ...and Enter at the offer is a no: the transport questions are never asked
+function test_transport_walk_is_gated() {
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_gate '\n\n\n\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_has adv_gate "transport internals" &&
+    ! _hi_cfg_has adv_gate "Swap a TERM" &&
+    ! _hi_cfg_has adv_gate "reuses its target list"
 }
 
 # every advanced value typed for real, including the words-to-flag mapping
 # _HI_ASCII's question hides behind ("ascii" is stored as 1)
 function test_advanced_values_typed_interactively() {
-  _hi_cfg_pty adv_typed 'zsh login\nascii\n9\n0.5\npodman docker\n120\n' '' config_advanced_values || return 1
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\n\nzsh login\nascii\non\ny\n\n\n9\n0.5\npodman docker\n120\n' '' config_advanced || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
   [[ "$lines" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$lines" == *"export _HI_ASCII=1"* &&
+    "$lines" == *"export _HI_TRUECOLOR=1"* &&
     "$lines" == *"export _HI_TARGETS_TTL=9"* && "$lines" == *"export _HI_PROBE_TIMEOUT=0.5"* &&
     "$lines" == *"export _HI_CONTAINER_CLIS='podman docker'"* &&
     "$lines" == *"export _HI_CTL_PERSIST=120"* ]]
@@ -1659,7 +1764,7 @@ function test_advanced_values_typed_interactively() {
 # a CLI name hi.sh could not turn into a function name is refused in words
 # and the value left alone, like every other ask_value answer
 function test_advanced_container_clis_rejects_a_bad_name() {
-  _hi_cfg_pty adv_clis '\n\n\n\nno-dashes here\n\n' '' config_advanced_values || return 1
+  _hi_cfg_pty adv_clis '\n\nno-dashes here\n\n' '' config_transport_values || return 1
   _hi_cfg_has adv_clis "plain names" &&
     [[ "$(_hi_cfg_lines adv_clis)" != *"_HI_CONTAINER_CLIS"* ]]
 }
@@ -1719,18 +1824,20 @@ function test_hub_eof_saves() {
     grep -qF "export _HI_DISABLE_PASSTHROUGH=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
 }
 
-# ...and so does the third junk answer in a row: the bound, not the patience
+# ...and the third junk answer in a row ends the run too, but as a quit:
+# three words that are not menu items are not an instruction to write
 function test_hub_junk_is_bounded_and_saves() {
   _hi_cfg_pty hub_junk 'x\ny\nz\nq\n' '' run_configure "" || return 1
-  _hi_cfg_has hub_junk "saving what you have" &&
-    _hi_cfg_has hub_junk "CFGQUIT=none"
+  _hi_cfg_has hub_junk "leaving" &&
+    _hi_cfg_has hub_junk "CFGQUIT=1"
 }
 
 # every digit opens its section and comes back to the hub; the preview box
-# is drawn before the menu. The advanced walk takes up to ten Enters (one
-# fewer without fish here); a spare Enter at the hub only redraws it.
+# is drawn before the menu. The advanced walk is five Enters, a y at the
+# transport offer, then six more; a spare Enter at the hub only redraws it.
 function test_hub_opens_every_section() {
-  _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\ny\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&
@@ -1842,6 +1949,11 @@ function run_configure_tests() {
   _hi_check "starship is kept when chosen" test_starship_kept_when_chosen
   _hi_check "Advanced: unanswered keeps every value" test_advanced_declined_keeps_every_value
   _hi_check "Advanced: defaults write nothing" test_advanced_defaults_write_nothing
+  _hi_check "A hand-written line is adopted, not duplicated" test_configure_adopts_a_hand_written_line
+  _hi_check "A hand line this run does not write is left alone" test_configure_leaves_a_hand_line_it_does_not_write
+  _hi_check "No tty and nothing to say: no file" test_no_tty_run_with_defaults_writes_no_file
+  _hi_check "A preset run creates the file" test_preset_run_still_creates_the_file
+  _hi_check "The prompt end shown honours _HI_PROMPT_END" test_prompt_end_shown_falls_back_to_the_umbrella
   _hi_check "A row that cannot be asked is carried" test_prompt_group_carries_a_row_it_cannot_ask
   _hi_check "Validators for the advanced values" test_validators_for_the_advanced_values
   _hi_check "Diff reports added and removed lines" test_settings_diff_reports_added_and_removed
@@ -1922,6 +2034,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
   _hi_par_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
+  _hi_par_check_capable pty "Advanced: the transport internals are behind an offer" test_transport_walk_is_gated
   _hi_par_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
   _hi_par_check_capable pty "Advanced values: a bad CLI name is refused" test_advanced_container_clis_rejects_a_bad_name
   _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
@@ -1951,7 +2064,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Full run: preset, then save" test_full_run_preset_then_save
   _hi_par_check_capable pty "Full run: preset, then quit writes nothing" test_full_run_quit_writes_nothing
   _hi_par_check_capable pty "Hub: EOF saves" test_hub_eof_saves
-  _hi_par_check_capable pty "Hub: junk is bounded and saves" test_hub_junk_is_bounded_and_saves
+  _hi_par_check_capable pty "Hub: junk is bounded and quits" test_hub_junk_is_bounded_and_saves
   _hi_par_check_capable pty "Hub: every section opens and returns" test_hub_opens_every_section
   _hi_par_wait
 

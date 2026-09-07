@@ -2241,8 +2241,9 @@ function run_packaging_tests() {
   # the tree has to land in a directory called say-hi, or $_HI_HOME/say-hi misses it
   _hi_check "Installs into a say-hi/ directory" grep -qF '(libexec/"say-hi").install' "$_HI_FORMULA"
   _hi_check "Wrapper exports _HI_HOME" test_formula_ships_a_wrapper_that_exports_hi_home
-  # the caveats must not tell people to run an install that will fail on macOS
-  _hi_check "Caveats point at --no-link" grep -qF 'install.sh --no-link' "$_HI_FORMULA"
+  # the caveats send people to the per-user install, which sees Homebrew's own
+  # hi on PATH and makes no link of its own
+  _hi_check "Caveats point at hi --install" grep -qF 'hi --install' "$_HI_FORMULA"
 
   _hi_h2 "Testing: the PKGBUILDs"
   _hi_check "Both call install.sh --prefix" test_pkgbuilds_call_install_sh

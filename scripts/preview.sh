@@ -57,13 +57,13 @@ colors | packages | header) shift ;;
   # sourced with no subject (the test suite's hatch below): every function,
   # no render, nothing to refuse
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    echo "${_HI_ARGV0:-preview.sh}: one of colors, packages or header is required" >&2
+    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages or header is required" "$RED" >&2
     _hi_preview_usage >&2
     exit 1
   fi
   ;;
 *)
-  echo "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages or header" >&2
+  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages or header" "$RED" >&2
   _hi_preview_usage >&2
   exit 1
   ;;
@@ -131,7 +131,7 @@ EOF
   ;;
 '') ;;
 *)
-  echo "$_hi_argv0: takes no arguments (got: $*)" >&2
+  _hi_cecho "$_hi_argv0: takes no arguments (got: $*)" "$RED" >&2
   echo "Usage: $_hi_argv0" >&2
   exit 1
   ;;
@@ -757,9 +757,19 @@ packages)
   _hi_print_modes_table
   printf '\n'
   _hi_h2 "as the header will print it"
-  full_check
+  if [ "${_HI_PACKAGES_MIN_PRIORITY:-2}" -gt 3 ]; then
+    _hi_cecho " nothing - the check is off at this floor (_HI_PACKAGES_MIN_PRIORITY=$_HI_PACKAGES_MIN_PRIORITY)" "$YELLOW"
+  else
+    full_check
+  fi
   ;;
 header)
-  hi_header Preview
+  # the wizard's preview says the same in its box: a silent exit here read
+  # as "the header is empty", not "the header is off"
+  if [ "${_HI_DISABLE_HEADER:-0}" = 1 ]; then
+    _hi_cecho " header off (_HI_DISABLE_HEADER=1${_HI_DISABLE_LOCAL:+, through _HI_DISABLE_LOCAL=$_HI_DISABLE_LOCAL on this machine}) - nothing to draw" "$YELLOW"
+  else
+    hi_header Preview
+  fi
   ;;
 esac

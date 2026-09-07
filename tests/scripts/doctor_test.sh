@@ -32,7 +32,7 @@ source "$_HI_DOCTOR"
 # base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
   _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
-    timeout du date base64 tar gzip find
+    timeout du date base64 tar gzip find readlink uname
 }
 
 # A $HOME with one non-empty rc file, isolating doctor_configs()'s local-rc
@@ -117,7 +117,7 @@ function test_local_without_a_git_dir_reads_as_a_package_install() {
   local root out
   root="$(_hi_scratch_tree nogit common settings scripts hi.sh load.sh)/say-hi"
   out="$(_HI_ROOT="$root" doctor_local 2>/dev/null)"
-  [[ "$out" == *"no .git - a package-manager install"* ]]
+  [[ "$out" == *"no .git - a package or tarball install"* ]]
 }
 
 function test_local_reports_the_version() {
@@ -543,7 +543,7 @@ SHIM
 # count when a row went bad - and that count is the exit code
 function test_a_finding_turns_the_closing_line_red_and_is_the_exit_code() {
   local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" somehost)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"1 finding(s) above in red"* ]]
 }
@@ -551,7 +551,7 @@ function test_a_finding_turns_the_closing_line_red_and_is_the_exit_code() {
 # --plain is accepted on the text report too, and is not read as a target
 function test_plain_flag_is_accepted_on_the_text_report() {
   local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --plain)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
@@ -560,7 +560,7 @@ function test_plain_flag_is_accepted_on_the_text_report() {
 # reason, and never a finding
 function test_config_warns_about_a_retired_setting() {
   local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_EZA_OPTS_SIZE=x "$_HI_DOCTOR")" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_EZA_OPTS_SIZE is set but retired since 0.1.9"* ]]
 }
@@ -584,7 +584,7 @@ function test_unknown_flag_is_refused_not_taken_as_the_target() {
   out="$("$_HI_DOCTOR" --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* ]] || return 1
   rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --mux --no-mux)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]]
 }
@@ -613,8 +613,89 @@ _HI_DOC_PLAIN_RC=""
 function _hi_doctor_plain_report() {
   [ -n "$_HI_DOC_PLAIN_RC" ] && return 0
   _HI_DOC_PLAIN_RC=0
-  _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent \
+  # the fixture $HOME, as --json's runs use: the install section reads the
+  # rc files, and the real ones on a developer's box name another tree
+  _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" \
+  _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
+}
+
+# The install section, against a $HOME staged per case: doctor.sh runs as a
+# program (rc.sh's roster is a source-time snapshot of $HOME's rc paths, so
+# an in-process call would read this suite's own home). Text report, on the
+# toolbox PATH - no zsh, no fish, no hi - plus whatever env a case adds.
+# _hi_doctor_install_out <home> [NAME=VALUE...] - the report, exit status kept
+function _hi_doctor_install_out() {
+  local home="$1"
+  shift
+  mkdir -p "$home"
+  env "$@" PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+    _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" 2>&1
+}
+
+# _hi_wired_line <dialect> [home] - one marker-tagged _HI_HOME line, as
+# install.sh writes it
+function _hi_wired_line() {
+  printf '%-45s %s\n' "$(tmpdir_line "$@")" "$_HI_MARKER"
+}
+
+function test_install_section_reports_a_wired_shell() {
+  local home="$_HI_WORKDIR/inst-wired" out
+  mkdir -p "$home"
+  _hi_wired_line sh >"$home/.bashrc"
+  out="$(_hi_doctor_install_out "$home")" || return 1
+  [[ "$out" == *"$home/.bashrc is wired to this tree"* ]]
+}
+
+function test_install_section_flags_a_foreign_tree() {
+  local home="$_HI_WORKDIR/inst-foreign" out rc=0
+  mkdir -p "$home"
+  _hi_wired_line sh /elsewhere >"$home/.bashrc"
+  out="$(_hi_doctor_install_out "$home")" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"$home/.bashrc names /elsewhere, this is $_HI_HOME"* ]]
+}
+
+function test_install_section_warns_about_an_unwired_shell_and_a_missing_link() {
+  local home="$_HI_WORKDIR/inst-bare" out rc=0
+  mkdir -p "$home"
+  : >"$home/.bashrc"
+  out="$(_hi_doctor_install_out "$home")" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"$home/.bashrc has no hi lines"* ]] &&
+    [[ "$out" == *"no $home/.local/bin/hi"* ]] && [[ "$out" == *"zsh"*"not installed here"* ]]
+}
+
+function test_install_section_reports_the_link() {
+  local home="$_HI_WORKDIR/inst-link" out
+  mkdir -p "$home/.local/bin"
+  ln -sfn "$_HI_LAUNCHER" "$home/.local/bin/hi"
+  out="$(_hi_doctor_install_out "$home")" || return 1
+  [[ "$out" == *"$home/.local/bin/hi -> $_HI_LAUNCHER"* && "$out" == *"not on PATH"* ]]
+}
+
+function test_install_section_flags_a_foreign_link() {
+  local home="$_HI_WORKDIR/inst-badlink" out rc=0
+  mkdir -p "$home/.local/bin"
+  ln -sfn /bin/true "$home/.local/bin/hi"
+  out="$(_hi_doctor_install_out "$home")" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"$home/.local/bin/hi is not this tree's: /bin/true"* ]]
+}
+
+function test_install_section_warns_about_a_darwin_login_bash() {
+  local home="$_HI_WORKDIR/inst-darwin" out
+  mkdir -p "$home"
+  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
+  [[ "$out" == *"never reaches ~/.bashrc"* ]] || return 1
+  printf '. ~/.bashrc\n' >"$home/.bash_profile"
+  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
+  [[ "$out" == *"$home/.bash_profile reads ~/.bashrc"* ]]
+}
+
+function test_install_section_warns_on_a_zdotdir_mismatch() {
+  local home="$_HI_WORKDIR/inst-zdot" out
+  mkdir -p "$home/zdot"
+  _hi_wired_line sh >"$home/.zshrc"
+  out="$(_hi_doctor_install_out "$home" ZDOTDIR="$home/zdot")" || return 1
+  [[ "$out" == *"ZDOTDIR points zsh at $home/zdot/.zshrc"* ]]
 }
 
 # sections present and the exit code is the red-finding count (0 here -
@@ -648,7 +729,7 @@ assert d["findings"] == 0, d["findings"]
 assert d["target"] is None
 assert d["version"]
 secs = {r["section"] for r in d["rows"]}
-assert secs == {"local", "config", "configs", "backends"}, secs
+assert secs == {"local", "config", "configs", "install", "backends"}, secs
 sevs = {r["severity"] for r in d["rows"]}
 assert sevs <= {"info", "ok", "warn", "bad"}, sevs
 assert any(r["label"] == "docker" and r["severity"] == "ok" for r in d["rows"])
@@ -781,6 +862,15 @@ function run_doctor_tests() {
   _hi_check "A second target is refused" test_a_second_target_is_refused
   _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
+
+  _hi_h2 "Testing: the install section"
+  _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
+  _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
+  _hi_check "Unwired shells, absent shells and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
+  _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
+  _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
+  _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
+  _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
   _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
   _hi_check "--plain is accepted on the text report" test_plain_flag_is_accepted_on_the_text_report
 

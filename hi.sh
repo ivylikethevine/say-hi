@@ -51,7 +51,7 @@ export _HI_HOME
 # checked before the source: bash's own "No such file" would name a path
 # nobody typed. No _hi_cecho - core.sh is the file that's gone.
 [ -r "$_HI_HOME/say-hi/common/core.sh" ] || {
-  echo "hi: no say-hi at $_HI_HOME/say-hi - set _HI_HOME to the directory that holds it" >&2
+  echo "hi: no say-hi at $_HI_HOME/say-hi - set _HI_HOME to the directory that holds it (the checkout has to be a directory named say-hi)" >&2
   exit 1
 }
 # shellcheck source=./common/core.sh
@@ -506,9 +506,13 @@ function _hi_payload_stream() {
 }
 
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
+# Literal entries only: a `Host *` block would otherwise claim every
+# container, allocation and pod name for ssh (completion skips wildcards the
+# same way). The unmemoized walk, since the memo holds the wildcard-aware
+# answer the tag colors want.
 function _hi_is_ssh_host() {
   local rc=0
-  _hi_ssh_host_tag "$1" >/dev/null 2>&1 || rc=$?
+  _HI_SSH_LITERAL_ONLY=1 _hi_ssh_host_tag_walk "$1" >/dev/null 2>&1 || rc=$?
   [ "$rc" -ne 1 ]
 }
 
@@ -1651,17 +1655,49 @@ function _hi_pick_target() {
   printf '%s' "$reply"
 }
 
+# _hi_is_own_flag <word> - is this one of hi's flags (a common/flags row, or
+# -h/-V), with or without a joined =value? What the after-target guard asks.
+function _hi_is_own_flag() {
+  local word="${1%%=*}" row
+  case "$word" in -h | -V) return 0 ;; esac
+  for row in "${_HI_FLAGS[@]}"; do
+    [ "${row%%|*}" = "$word" ] && return 0
+  done
+  return 1
+}
+
+# _hi_parse_command <words...> - everything after the target is the remote
+# command: RAWCMD as typed, for --plain's direct ssh/exec (no bootloader to
+# embed them in, so no "; exit" to close a sourced script out with), and
+# CMDARG with that suffix for the bootloader. One of hi's own flags here is a
+# mistake worth naming: it belongs before the target, and would otherwise run
+# on the far end as a command nobody has.
+function _hi_parse_command() {
+  if _hi_is_own_flag "$1"; then
+    _hi_cecho "hi: $1 goes before the target (hi [options] <target> [command ...])" "$RED" >&2
+    exit 1
+  fi
+  RAWCMD="$*"
+  CMDARG="$*$([[ "$*" = *[![:space:]]* ]] && echo '; ') exit"
+}
+
 function _hi_parse() {
-  local backend_word use_word
+  local backend_word use_word own=""
   # every result of the parse starts empty here: these are plain globals, and
   # an inherited MUX=1 or PLAIN=1 in the environment must not stand in for a
   # flag that was never typed
   DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
   SSHARGS=()
   while [ $# -gt 0 ]; do
+    # the target ends the options: every word after it, dashed or not, is
+    # the remote command's, the way ssh itself reads `ssh host ls -la`
+    if [ -n "${DOMAIN:-}" ]; then
+      _hi_parse_command "$@"
+      return
+    fi
     case $1 in
     # every ssh option taking a separate value, so it is never read as the target
-    -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -p | -Q | -R | -S | -W | -w)
+    -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w)
       [ "$#" -ge 2 ] || {
         _hi_cecho "hi: $1 needs a value" "$RED" >&2
         exit 1
@@ -1669,15 +1705,22 @@ function _hi_parse() {
       SSHARGS+=("$1" "$2")
       shift
       ;;
+    # hi's own -h/-V, anywhere ahead of the target: `hi -o X=Y -h` is a
+    # question for hi, not ssh's usage message
+    -h | --help)
+      _hi_help
+      exit 0
+      ;;
+    -V | --version)
+      _hi_version
+      exit 0
+      ;;
     # --use names the arm outright, ahead of the target - like any other ssh
-    # option. ssh itself takes no `--` option, so claiming it here costs
-    # nothing: it would only ever be ssh's own "unknown option" to report.
-    # Only ahead of the target - one already chosen means this is the remote
-    # command's own word, not hi's.
+    # option. ssh itself takes no `--` option at all, so every `--word` is
+    # hi's to answer: the ones below, or an error in hi's own voice rather
+    # than ssh's "unknown option -- -".
     -*)
-      if [ -n "${DOMAIN:-}" ]; then
-        SSHARGS+=("$1")
-      elif [ "$1" = --use ] || [ "${1#--use=}" != "$1" ]; then
+      if [ "$1" = --use ] || [ "${1#--use=}" != "$1" ]; then
         # the one hi flag that takes a word: which arm, by name, as the next
         # word or after an = (install.sh's --prefix and --preset take both)
         if [ "$1" = --use ]; then
@@ -1695,28 +1738,37 @@ function _hi_parse() {
           _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
           exit 1
         fi
-        BACKEND="$backend_word"
+        BACKEND="$backend_word" own=1
       elif [ "$1" = --plain ]; then
-        PLAIN=1
+        PLAIN=1 own=1
       elif [ "$1" = --mux ]; then
-        MUX=1
+        MUX=1 own=1
       elif [ "$1" = --no-mux ]; then
         # the last of --mux/--no-mux wins, and either beats _HI_MUX
-        MUX=0
+        MUX=0 own=1
+      elif [ "$1" = -- ]; then
+        # ssh's own option terminator, passed along as-is
+        SSHARGS+=("$1")
+      elif _hi_is_own_flag "$1"; then
+        # a bare flag with a value joined on (--plain=1) is one mistake; a
+        # local command (--doctor, --preview, ...) behind an ssh option is
+        # another - those are dispatched on the first word alone
+        case "$1" in
+        --plain=* | --mux=* | --no-mux=* | --help=* | --version=* | -h=* | -V=*)
+          _hi_cecho "hi: ${1%%=*} takes no value" "$RED" >&2
+          ;;
+        *) _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2 ;;
+        esac
+        exit 1
+      elif [ "${1#--}" != "$1" ]; then
+        _hi_cecho "hi: unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)" "$RED" >&2
+        exit 1
       else
         SSHARGS+=("$1")
       fi
       ;;
     *)
-      if [ -z "${DOMAIN:-}" ]; then
-        DOMAIN="$1"
-      else
-        # the words as-is, for --plain's direct ssh/exec (no bootloader to
-        # embed them in, so no "; exit" to close a sourced script out with)
-        RAWCMD="$*"
-        CMDARG="$*$([[ "$*" = *[![:space:]]* ]] && echo '; ') exit"
-        return
-      fi
+      DOMAIN="$1"
       ;;
     esac
     shift
@@ -1740,8 +1792,16 @@ function _hi_parse() {
       # it always has.
       [ "$pick_rc" -eq 1 ] && exit 0
     fi
+    # hi's own flags with nothing to connect to (`hi --plain` in a script)
+    # are hi's mistake to name: ssh saw none of them and has nothing to say
+    if [ -n "$own" ] && [ "${#SSHARGS[@]}" -eq 0 ]; then
+      _hi_cecho "hi: no target to connect to (hi [options] <target> [command ...])" "$RED" >&2
+      exit 1
+    fi
+    # ssh's own status comes back as hi's - not an exec, so the exit hook
+    # still runs
     ssh "${SSHARGS[@]}"
-    exit 1
+    exit $?
   }
 }
 
@@ -1969,12 +2029,16 @@ function _hi_dispatch_subcommand() {
   # walk because this runs on every invocation, and each row costs a
   # here-string: a temp file in $TMPDIR on the bash 3.2 floor.
   case "${1:-}" in --*) ;; *) return 1 ;; esac
+  # `--update=v1.0.0` is `--update v1.0.0`: the joined word becomes the
+  # first argument, for every row alike
+  local word="${1%%=*}" joined=""
+  [ "$word" = "$1" ] || joined="${1#*=}"
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag _ _ var arg _ <<<"$row"
-    [ "$flag" = "${1:-}" ] || continue
+    [ "$flag" = "$word" ] || continue
     [ -n "$var" ] || return 1
     shift
-    _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} "$@"
+    _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} ${joined:+"$joined"} "$@"
   done
   return 1
 }
@@ -2007,6 +2071,73 @@ function _hi_flag_help() {
   done
 }
 
+# _hi_help - the --help text, one block: reached as `hi --help`, `hi help`,
+# and by _hi_parse for a -h behind an ssh option
+function _hi_help() {
+  cat <<EOF
+$_HI_USAGE
+
+Copies your say-hi to <target> and hands you an identical shell session there -
+header, colors, git prompt, aliases, vim/nano configs - then strips it all
+back out when the session ends.
+
+With [command ...], runs that inside hi's session instead: hi's aliases and
+environment, a pty when your own stdin is one, only the command's output on
+stdout. For a plain, pty-free remote command, use ssh itself.
+
+<target> is resolved in this order, first match wins:
+  1. a literal Host entry in ~/.ssh/config (a wildcard one does not count)
+  2. a running container, by name or ID, through docker, podman, nerdctl or
+     finch - whichever of \$_HI_CONTAINER_CLIS answers, in that order
+  3. a running nomad allocation, by ID or prefix
+  4. a kubernetes pod, in whatever context/namespace kubectl points at -
+     or namespace:pod / context:namespace:pod for another one
+A name none of them claims still goes to ssh, so unlisted hosts work too.
+
+With no target at all, hi offers that list to pick from: fzf or sk when you
+have one, a numbered menu when you do not.
+
+hi's own options, which work anywhere - a session included:
+$(_hi_flag_help -)
+
+hi's local commands, which act on this machine instead of connecting. Each
+needs a part of the tree the payload does not carry, so inside a session it
+says so and stops (--update wants .git as well, which a package has not):
+$(_hi_flag_help local)
+
+Every option takes its word joined too (--use=docker, --update=v1.0.0).
+\`hi help\` and \`hi version\` are -h and -V spelled as words. Every other option is
+passed to ssh unchanged - -p, -i, -J, -o and the rest; ssh takes none that
+start with two dashes, so an unknown one is hi's error to report. Only the
+first non-option word is the target; everything after it is the remote
+command.
+
+Configuration lives in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so it
+survives an upgrade. See \`man hi\` and the README for all of it.
+EOF
+}
+
+# _hi_preview_fallback <subject> <function> [args] - a target has no
+# scripts/, but common/header.sh ships: the check and the header are still
+# on offer there, with --help answered and anything else refused, the way
+# preview.sh does it
+function _hi_preview_fallback() {
+  local subject="$1" fn="$2"
+  shift 2
+  case "${1:-}" in
+  '') exec bash -c 'source "$1" && '"$fn" hi "$_HI_HEADER" ;;
+  -h | --help)
+    printf 'Usage: hi --preview %s\n\n%s, as it prints here at your settings.\n' \
+      "$subject" "$([ "$subject" = packages ] && echo "The package-priority legend" || echo "The connect header")"
+    exit 0
+    ;;
+  *)
+    _hi_cecho "hi --preview $subject: takes no arguments (got: $*)" "$RED" >&2
+    exit 1
+    ;;
+  esac
+}
+
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
 
 # hi --update [<tag>]: move the checkout to a release tag - the newest one, or
@@ -2024,72 +2155,38 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 _hi_dispatch_subcommand "$@"
 
 case "${1:-}" in
--h | --help)
-  cat <<EOF
-$_HI_USAGE
-
-Copies your say-hi to <target> and hands you an identical shell session there -
-header, colors, git prompt, aliases, vim/nano configs - then strips it all
-back out when the session ends.
-
-With [command ...], runs that inside hi's session instead: hi's aliases and
-environment, a pty when your own stdin is one, only the command's output on
-stdout. For a plain, pty-free remote command, use ssh itself.
-
-<target> is resolved in this order, first match wins:
-  1. a Host in ~/.ssh/config (or any name ssh can reach)
-  2. a running container, by name or ID, through docker, podman, nerdctl or
-     finch - whichever of \$_HI_CONTAINER_CLIS answers, in that order
-  3. a running nomad allocation, by ID or prefix
-  4. a kubernetes pod, in whatever context/namespace kubectl points at -
-     or namespace:pod / context:namespace:pod for another one
-
-With no target at all, hi offers that list to pick from: fzf or sk when you
-have one, a numbered menu when you do not.
-
-hi's own options, which work anywhere - a session included:
-$(_hi_flag_help -)
-
-hi's local commands, which act on this machine instead of connecting. Each
-needs a part of the tree the payload does not carry, so inside a session it
-says so and stops:
-$(_hi_flag_help local)
-
-Everything else is passed to ssh unchanged - -p, -i, -J, -o and the rest. Only
-the first non-option word is the target; everything after it is the remote
-command.
-
-Configuration lives in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so it
-survives an upgrade. See \`man hi\` and the README for all of it.
-EOF
+# the words are the flags spelled without their dashes - the first word only,
+# so a host that happens to be called help is still `hi -- help`'s to reach
+-h | --help | help)
+  _hi_help
   exit 0
   ;;
 # --preview <subject>: one scripts/preview.sh for all three. colors wants
 # scripts/ (and says so in a session); packages and header fall back to the
-# shipped common/header.sh on a target, so the flag itself works anywhere
---preview)
+# shipped common/header.sh on a target, so the flag itself works anywhere.
+# `--preview=<subject>` is the same flag with its word joined.
+--preview | --preview=*)
+  _hi_subject="${1#--preview}"
+  _hi_subject="${_hi_subject#=}"
   shift
-  case "${1:-}" in
+  [ -n "$_hi_subject" ] || {
+    _hi_subject="${1:-}"
+    [ $# -eq 0 ] || shift
+  }
+  case "$_hi_subject" in
   colors)
-    shift
     _hi_run_script "--preview colors" "$_HI_PREVIEW" colors "$@"
     ;;
   packages)
-    shift
     [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview packages" exec "$_HI_PREVIEW" packages "$@"
-    exec bash -c 'source "$1" && full_check' hi "$_HI_HEADER"
+    _hi_preview_fallback packages full_check "$@"
     ;;
   header)
-    shift
-    [ $# -eq 0 ] || {
-      _hi_cecho "hi --preview header: takes no arguments (got: $*)" "$RED" >&2
-      exit 1
-    }
     # the full form first, the way the packages arm does it. Without this the
     # scripts/ subject and its --help were reachable only by running
     # preview.sh by hand, while the shipped fallback below was the live path.
-    [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview header" exec "$_HI_PREVIEW" header
-    exec bash -c 'source "$1" && hi_header Preview' hi "$_HI_HEADER"
+    [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview header" exec "$_HI_PREVIEW" header "$@"
+    _hi_preview_fallback header 'hi_header Preview' "$@"
     ;;
   -h | --help)
     cat <<'EOF'
@@ -2108,7 +2205,7 @@ EOF
     exit 0
     ;;
   *)
-    _hi_cecho "hi --preview: one of colors, packages or header${1:+ (not $1)}" "$RED" >&2
+    _hi_cecho "hi --preview: one of colors, packages or header${_hi_subject:+ (not $_hi_subject)}" "$RED" >&2
     exit 1
     ;;
   esac
@@ -2116,7 +2213,7 @@ EOF
 # -V is hi's, like -h: the one ssh short option claimed on purpose, because
 # "which version of hi is this" is the question a bug report asks first and
 # `ssh -V` is a keystroke away for the other one
--V | --version)
+-V | --version | version)
   _hi_version
   exit 0
   ;;
