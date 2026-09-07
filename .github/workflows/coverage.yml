@@ -218,6 +218,16 @@ jobs:
       cancel-in-progress: true
     continue-on-error: true
     steps:
+      # Load-bearing, and not obvious: `kcov --merge` re-reads every source
+      # file at the absolute path its shard recorded, so a gather job with no
+      # working tree merges to `"files": []` and `"percent_covered": "0.00"`
+      # - a badge reading 0.00% rather than an error. That is what this job
+      # published until this checkout was added; gather-bashcov needs none
+      # because its ruby reads only the resultset's per-line arrays.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - uses: $/.github/actions/setup-tool
         with:
           tool: kcov
@@ -277,6 +287,14 @@ jobs:
           src="coverage-report/merged/kcov-merged/coverage.json"
           if [ ! -f "$src" ]; then
             echo "::warning::$src is missing - no badge figure to publish"
+            exit 0
+          fi
+          # A merge that resolved no sources still writes a well-formed
+          # report - `"files": []` with a run-wide 0.00 - and publishing that
+          # is worse than publishing nothing, because a grey "not measured"
+          # badge reads as broken while 0.00% reads as true. Refuse it.
+          if ! grep -q '"file"' "$src"; then
+            echo "::warning::$src lists no files - the merge resolved no sources, so there is no figure to publish"
             exit 0
           fi
           pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$src" | tail -1)"

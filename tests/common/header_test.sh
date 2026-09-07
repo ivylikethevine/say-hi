@@ -1116,6 +1116,98 @@ EOF
   printf '%s' "$dir"
 }
 
+# _hi_platform_header's Linux twin: same shim discipline, but
+# $_HI_LINUX_RELEASE points at a real file so the Linux arm is the one taken
+# whatever box this runs on - the mac and Windows helpers above get there by
+# pointing it at nothing, and there is no third way to reach this branch.
+# shellcheck disable=SC2016 # the probe expands in the child bash, not here
+function _hi_linux_header() {
+  local shims="$1" probe="$2" rel="$_HI_WORKDIR/os-release"
+  shift 2
+  [ -f "$rel" ] || printf 'PRETTY_NAME="Test Linux 1.0"\n' >"$rel"
+  env "$@" PATH="$shims:$(_hi_real_path platform-tools bash sh awk sed date fold mktemp rm sleep)" \
+    NO_COLOR=1 _HI_CASE_PROBE="$probe" _HI_TEST_RELEASE="$rel" \
+    bash -c 'source "$_HI_HEADER"; _HI_LINUX_RELEASE="$_HI_TEST_RELEASE"; eval "$_HI_CASE_PROBE"' 2>&1
+}
+
+# A Linux box whose `ip` can be silenced: the cell's first stage is `ip -4 -o
+# addr show scope global`, and `hostname -I` is the fallback for the hosts
+# where that prints nothing. Both answer the field layout header.sh's awk
+# reads, so a wrong field number changes the answer.
+function _hi_linux_ip_shims() {
+  local dir="$_HI_WORKDIR/linux-ip-shims"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    printf '#!/bin/sh\necho "Linux x86_64"\n' >"$dir/uname"
+    cat >"$dir/ip" <<'EOF'
+#!/bin/sh
+[ "${_HI_FAKE_IP_SILENT:-0}" = 1 ] && exit 0
+printf '%s\n' '2: eth0    inet 10.0.0.5/24 brd 10.0.0.255 scope global eth0' \
+  '3: eth1    inet 192.0.2.10/24 brd 192.0.2.255 scope global eth1'
+EOF
+    cat >"$dir/hostname" <<'EOF'
+#!/bin/sh
+[ "$1" = -I ] && printf '198.51.100.7 198.51.100.8 \n'
+EOF
+    chmod +x "$dir/uname" "$dir/ip" "$dir/hostname"
+  fi
+  printf '%s' "$dir"
+}
+
+function test_ip_cell_on_linux_reads_iproute2() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_ip_cell i; printf "[%s]" "$i"')"
+  [[ "$out" == *"[IP: 10.0.0.5,192.0.2.10]"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+# `ip` exists and answers nothing on a host with no routable address on an
+# iproute2-visible link - a container on a host network among them - and
+# `hostname -I` is the second opinion. A bare "?" is reserved for "neither
+# tool exists nor has anything to say".
+function test_ip_cell_on_linux_falls_back_to_hostname() {
+  local out
+  # shellcheck disable=SC2016 # the probe expands in the child bash, not here
+  out="$(_hi_linux_header "$(_hi_linux_ip_shims)" '_hi_ip_cell i; printf "[%s]" "$i"' _HI_FAKE_IP_SILENT=1)"
+  [[ "$out" == *"[IP: 198.51.100.7,198.51.100.8]"* ]] || {
+    _hi_cecho " | got: $out" "$RED"
+    return 1
+  }
+}
+
+# The five system_info cells share one memoized probe ($_HI_SI_PROBED), which
+# is what makes $_HI_HEADER_ORDER's per-word toggles free: asking for arch
+# alone pays for exactly one probe, and asking for all five pays for the same
+# one. Counted by standing a uname in front of the mac shims' that appends a
+# line per call, and reading the counter either side of the five getters.
+function test_system_info_probes_once_for_all_five_cells() {
+  local dir="$_HI_WORKDIR/probe-count" count out probe
+  count="$_HI_WORKDIR/uname.calls"
+  mkdir -p "$dir"
+  : >"$count"
+  cat >"$dir/uname" <<EOF
+#!/bin/sh
+printf 'x\n' >>"$count"
+echo "Darwin arm64"
+EOF
+  chmod +x "$dir/uname"
+  # awk, not wc: _hi_platform_header's PATH carries only the tools the probes
+  # themselves fork, and wc is not one of them
+  probe="pre=\$(awk 'END { print NR }' '$count')"
+  probe="$probe; v=''; _hi_cell_arch v; _hi_cell_os v; _hi_cell_cores v"
+  probe="$probe; _hi_cell_cpu v; _hi_cell_ram v"
+  probe="$probe; post=\$(awk 'END { print NR }' '$count')"
+  probe="$probe; printf 'delta=%s' \$((post - pre))"
+  out="$(_hi_platform_header "$dir:$(_hi_mac_shims)" "$probe")"
+  [[ "$out" == *"delta=1"* ]] || {
+    _hi_cecho " | five cells cost more than one probe: $out" "$RED"
+    return 1
+  }
+}
+
 function test_system_info_on_a_mac() {
   local out
   out="$(_hi_platform_header "$(_hi_mac_shims)" 'system_info')"
@@ -1994,6 +2086,9 @@ function run_header_tests() {
   _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown
   _hi_check "System_info on a mac, from shims" test_system_info_on_a_mac
   _hi_check "Uptime and IP cells on a mac" test_uptime_and_ip_cells_on_a_mac
+  _hi_check "The ip cell reads iproute2 on Linux" test_ip_cell_on_linux_reads_iproute2
+  _hi_check "The ip cell falls back to hostname -I" test_ip_cell_on_linux_falls_back_to_hostname
+  _hi_check "Five cells cost one probe" test_system_info_probes_once_for_all_five_cells
   _hi_check "System_info on Windows (git-bash), from shims" test_system_info_on_windows
   _hi_check "Uptime and IP cells on Windows" test_uptime_and_ip_cells_on_windows
   _hi_check "_HI_IP_HIDE hides the bridge by default" test_ip_filter_hides_the_bridge_by_default
