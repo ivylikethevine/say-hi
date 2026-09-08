@@ -549,18 +549,13 @@ workstation - and which header configuration and whose prompt is in the
 frame; `fixtures.sh`'s `up:<name>` arm writes exactly that settings.sh.
 Change the two together, and README's section for the GIF with them.
 
-By hand it is one `vhs docs/tapes/<name>.tape` per GIF from the repo root,
-with the backend running and `hi` on PATH; `docs/tapes/fixtures.sh` builds
-every target the tapes connect to, `fixtures.sh down` removes them. The set is
-organised by **feature**, not backend: each tape shows one thing hi brings
-along (the hero, the packages check, the editors, the picker, the overlay, the
-colors, completion, one-off commands), with the backends spread across them so
-every one is on screen somewhere. Two things the script handles that a hand
-run must: `hi` on `$PATH` must be _this_ checkout (the script shims its own
-onto the front of `$PATH`), and the sshd target image (`colors`, `run`) builds
-from `HEAD`, so uncommitted work shows on the client side of the GIF but not
-the target's; render from a commit, or set `HI_DEMO_SOURCE=worktree`, which
-the script picks on a dirty tree.
+The set is organised by **feature**, not backend: each tape shows one thing
+hi brings along (the hero, the packages check, the editors, the picker, the
+overlay, the colors, completion, one-off commands), with the backends spread
+across them so every one is on screen somewhere. A hand render is one
+`vhs docs/tapes/<name>.tape` from the repo root with the backend up; the two
+things it has to get right that `generate.sh` handles (which `hi` is on
+`$PATH`, and a dirty tree's client/target split) are that script's header.
 
 Both sides of every GIF are staged: each tape sources a small rc `fixtures.sh`
 writes, giving the outside shell hi's own prompt under a chosen `user@host`,

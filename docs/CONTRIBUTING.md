@@ -15,8 +15,8 @@ named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
 - [What 1.x will not break](#what-1x-will-not-break)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)
+- [When a push is refused](#when-a-push-is-refused)
 - [Governance](#governance)
-- [Reporting a vulnerability](#reporting-a-vulnerability)
 
 ## Before you start
 
@@ -28,6 +28,10 @@ say-hi is not trying to be. A "no" there is settled, not an oversight — though
 a reason that has stopped being true is worth an issue, and a good
 implementation would be considered.
 
+**Anything exploitable goes to
+[SECURITY.md](SECURITY.md#reporting-a-vulnerability)**, privately, not to a
+public issue or pull request.
+
 ## The gate
 
 ```sh
@@ -36,12 +40,10 @@ tests/test_runner.sh --group lint
 ```
 
 That is what CI runs on every push; both should be green before you open the
-pull request. What each group contains is [docs/TESTING.md](TESTING.md)'s job.
-
-The `e2e` and `backends` groups need real backends and stand down **yellow
-SKIPPED** when they can't run, never green. If your change touches one of
-those paths, run that group (or the suite by name) and say in the pull request
-whether it ran or skipped; `--require-run` turns a skip into a failure.
+pull request. If your change touches an ssh or container path, run the `e2e`
+or `backends` group too and say in the pull request whether it ran or stood
+down. What each group contains, and how a skip is reported, is
+[docs/TESTING.md](TESTING.md#running-the-tests)'s job.
 
 ### Don't reach for `act`
 
@@ -141,9 +143,8 @@ These are constraints the tree enforces, not requests:
   are CI-enforced against separate numbers. Touch a shipped file, run
   `--group bench` and check both. Tooling-only helpers do not belong in
   `common/core.sh`.
-- **A new suite has a home and a registration.** It lives in
-  `tests/<the directory it tests>/`, sources `tests/test_lib.sh` and nothing
-  else (`GLOSSARY: HI.34`), and goes in `test_runner.sh`'s `_HI_TESTS` table.
+- **A new suite has a home and a registration** —
+  [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
 
@@ -155,26 +156,24 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The twelve flags in `common/flags`** — name, argument shape and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
-- **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`
-  and the bare words `help`/`version` as their first-word spellings;
-  `--option=value` for every option that takes a word; every `--word` is
-  hi's (an unknown one is hi's error); and everything after the target is
-  the remote command.
+- **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
+  taking nothing after them; `--option=value` for every option that takes a word,
+  refused on one that takes none; every `--word` is hi's (an unknown one is
+  hi's error); and everything after the target is the remote command.
 - **The sub-command switches** — `--doctor --json`, `--install`'s
-  `-y`/`--yes`, `--no-link`, `--system-link`, `--preset <name>` and
-  `--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>` and
-  `--configure --dry-run`,
-  `scripts/install.sh --prefix <dir>` — name and meaning; and the `--json`
-  document's top-level keys (`version`, `target`, `findings`, `rows`) with
-  each row's four fields.
+  `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>` and
+  `-n`/`--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>`
+  and `--configure --dry-run`, `--update --dry-run`,
+  `scripts/install.sh --prefix <dir>` — name and meaning (`-n` is the short
+  form of `--dry-run` wherever it appears; no other switch has one); and the
+  `--json` document's top-level keys (`version`, `target`, `findings`,
+  `rows`) with each row's four fields.
 - **Exit status** — 0 for "did what it says", 1 for "hi refused before
   connecting" or "a finding", and a connect's own status passed through.
 - **The session commands** `hi_copy` and `hi_notify` — their names and the
   escapes they emit.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
-  type and default. A toggle that has to go **warns for one minor release**
-  (`hi --doctor` and the session header both say so, off `common/core.sh`'s
-  `_HI_RETIRED_SETTINGS` roster), then is removed in the next.
+  type and default. A toggle that has to go is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `vim.rc`, `nano.rc`, `aliases.sh` and the per-shell rc files), their
   formats, the XDG path and the `_HI_CONFIG_DIR` override.
@@ -200,6 +199,8 @@ and anything under `tests/` or `scripts/` a package does not ship.
 | a target hi does or doesn't answer to | `docs/SUPPORT.md`                            |
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag |
 | a release channel or the release flow | `docs/PACKAGING.md`                          |
+| the harness or the lint gate          | `docs/TESTING.md`                            |
+| a new document under `docs/`          | `docs/README.md`'s index                     |
 
 Three rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
 entry fails, so does a toggle in `common/core.sh` with no row in
@@ -229,6 +230,24 @@ would want on the release page, or `none` when nothing a user sees changes.
   the standard, and it applies to contributions: the tool is fine, and the code
   is still yours to have understood, reviewed and stood behind.
 
+## When a push is refused
+
+Secret scanning and push protection are on for this repository; push
+protection refuses the push outright, so the first thing you see is GitHub's
+own error.
+
+**That refusal is the guard working.** Take the credential out of the commit —
+amend, or rewrite the branch — and push again. Do not force it and do not
+bypass and clean up later: a secret that reaches the remote for even one push
+is a secret to rotate. For a false positive, GitHub's error links the bypass
+flow, which records why; take that route rather than reshaping the string.
+
+Four credentials are handled by hand — the two signing keys, `AUR_SSH_KEY` and
+`HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page and
+deleted; [PACKAGING.md](PACKAGING.md) walks each. GitHub's scanner is used
+rather than gitleaks or trufflehog because it runs on the push path, where a
+third-party action cannot.
+
 ## Governance
 
 Small on purpose, and written down so nobody has to guess:
@@ -251,9 +270,3 @@ Small on purpose, and written down so nobody has to guess:
 - **Sensitive access** — repository settings, secrets (signing and
   publishing keys) and the `release` environment are reachable by the
   maintainer alone; two-factor authentication is enabled on that account.
-
-## Reporting a vulnerability
-
-Report anything exploitable privately, per
-[docs/SECURITY.md](SECURITY.md#reporting-a-vulnerability) — not as a public
-issue.

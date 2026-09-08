@@ -122,17 +122,19 @@ function test_tarball_is_the_repository() {
 # _hi_repo_client <label> <image> <shell> <script> - one throwaway client
 # with the repository at /repo, read-only. The script subscribes, installs
 # and prints `hi --version` from a login shell as its last line; the case
-# passes when that line is the version the packages were stamped with, and
-# the transcript replays on failure.
+# passes when that line starts with the version the packages were stamped
+# with, and the transcript replays on failure.
 function _hi_repo_client() {
   local label="$1" image="$2" shell="$3" script="$4" log="$_HI_WORKDIR/$1.log" last
   if ! docker run --rm -v "$_HI_REPO:/repo:ro" -v "$_HI_PREV:/prev:ro" "$image" "$shell" -ec "$script" >"$log" 2>&1; then
     _hi_dump_log "$label client failed:" "$log" "$RED"
     return 1
   fi
+  # the stamped version, then where it came from - a package's tree, since
+  # that is what the client installed
   last="$(tail -n 1 "$log")"
-  [ "$last" = "$_HI_REPO_VERSION" ] || {
-    _hi_dump_log "$label: hi --version printed '$last', not $_HI_REPO_VERSION:" "$log" "$RED"
+  [[ "$last" == "$_HI_REPO_VERSION (package at "* ]] || {
+    _hi_dump_log "$label: hi --version printed '$last', not '$_HI_REPO_VERSION (package at ...)':" "$log" "$RED"
     return 1
   }
 }
@@ -199,7 +201,7 @@ function test_apt_client_upgrades_in_place() {
     mkdir -p /etc/apt/keyrings
     cp /repo/say-hi.asc /etc/apt/keyrings/say-hi.asc
     DEBIAN_FRONTEND=noninteractive apt-get -qq install -y /prev/say-hi_*_all.deb >/dev/null
-    test "$(bash -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
+    test "$(bash -lc "hi --version" | cut -d" " -f1)" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
     echo "deb [signed-by=/etc/apt/keyrings/say-hi.asc] file:///repo/apt stable main" >/etc/apt/sources.list.d/say-hi.list
     apt-get -qq update
     DEBIAN_FRONTEND=noninteractive apt-get -qq install -y say-hi >/dev/null
@@ -212,7 +214,7 @@ function test_dnf_client_upgrades_in_place() {
   _hi_repo_client dnf-upgrade fedora:44 bash '
     rpm --import /repo/say-hi.asc
     dnf -y -q install /prev/say-hi-*.noarch.rpm >/dev/null
-    test "$(bash -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
+    test "$(bash -lc "hi --version" | cut -d" " -f1)" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
     printf "[say-hi]\nname=say-hi\nbaseurl=file:///repo/rpm\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///repo/say-hi.asc\n" >/etc/yum.repos.d/say-hi.repo
     dnf -y -q upgrade say-hi >/dev/null
     rpm -q say-hi >/dev/null'"$_HI_UPGRADE_ASSERT"'
@@ -224,7 +226,7 @@ function test_apk_client_upgrades_in_place() {
   _hi_repo_client apk-upgrade alpine:3.24 sh '
     cp /repo/say-hi.rsa.pub /etc/apk/keys/
     apk add -q /prev/say-hi_*_noarch.apk
-    test "$(sh -lc "hi --version")" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
+    test "$(sh -lc "hi --version" | cut -d" " -f1)" = "'"$_HI_PREV_VERSION"'"'"$_HI_UPGRADE_CONFIG"'
     echo /repo/apk >>/etc/apk/repositories
     apk add -q -u say-hi
     apk info -e say-hi >/dev/null'"$_HI_UPGRADE_ASSERT"'

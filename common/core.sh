@@ -390,25 +390,6 @@ _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
 _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
   _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR)
 
-# Settings that were retired: a name here is no longer read anywhere, and a
-# settings.sh still exporting it gets one line from hi --doctor and the
-# session header for a minor release before the name leaves this list too
-# (CONTRIBUTING.md, What 1.x will not break). "<name>|<retired in>|<why>".
-_HI_RETIRED_SETTINGS=(
-  '_HI_EZA_OPTS_SIZE|0.1.9|nothing ever read it; eza --total-size is an alias of your own'
-)
-
-# _hi_retired_set - one "<name>|<retired in>|<why>" line per retired setting
-# that is still set in this shell, nothing when none is
-function _hi_retired_set() {
-  local _hi_row _hi_v
-  for _hi_row in "${_HI_RETIRED_SETTINGS[@]}"; do
-    eval "_hi_v=\"\${${_hi_row%%|*}:-}\""
-    [ -n "$_hi_v" ] && printf '%s\n' "$_hi_row"
-  done
-  return 0
-}
-
 # _hi_unexport - drop the export attribute from every _HI_* name not in
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
 # because a bare `typeset` in a function is local.
@@ -489,7 +470,7 @@ function _hi_setting_get() {
 
 # What each shell's prompt ends with unless overridden, <SHELL>:<char>. The
 # sh fallback hi.sh bakes on the client takes BASH's. config.fish keeps its
-# own copy; hi_test.sh pins it here.
+# own copy; tests/hi/prompt_test.sh pins it here.
 _HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:>' 'FISH:|')
 
 # _hi_prompt_end_default <SHELL> - the shipped default, empty if not listed

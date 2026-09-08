@@ -57,14 +57,12 @@ colors | packages | header) shift ;;
   # sourced with no subject (the test suite's hatch below): every function,
   # no render, nothing to refuse
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages or header is required" "$RED" >&2
-    _hi_preview_usage >&2
+    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages or header is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
     exit 1
   fi
   ;;
 *)
-  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages or header" "$RED" >&2
-  _hi_preview_usage >&2
+  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages or header (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
   exit 1
   ;;
 esac
@@ -131,8 +129,7 @@ EOF
   ;;
 '') ;;
 *)
-  _hi_cecho "$_hi_argv0: takes no arguments (got: $*)" "$RED" >&2
-  echo "Usage: $_hi_argv0" >&2
+  _hi_cecho "$_hi_argv0: takes no arguments (got: $*) - $_hi_argv0 --help" "$RED" >&2
   exit 1
   ;;
 esac

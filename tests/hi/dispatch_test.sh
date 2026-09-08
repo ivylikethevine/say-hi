@@ -73,7 +73,7 @@ args=--uninstall" ]
 function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
   _hi_ds_dispatch --configure --preset dev
   [ "$(cat "$_HI_DS_OUT")" = "argv0=hi --configure
-args=--features-only --preset dev" ]
+args=--configure --preset dev" ]
 }
 
 # a row with no script var is hi.sh's own case arm further down; dispatch has

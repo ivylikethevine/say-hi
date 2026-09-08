@@ -107,10 +107,12 @@ function _hi_complete() {
   # without touching the target cache or its probes. Uncached on purpose: the
   # roster is a dozen printfs in targets.sh.
   if [[ "$cur" == -* ]]; then
-    # "<flag>\t<help>" lines; bash's menu has no room for the second column
+    # "<flag>\t<help>" lines; bash's menu has no room for the second column.
+    # Behind a local command (`hi --install --<TAB>`) the roster is that
+    # command's own switches; targets.sh tells the two apart from the word.
     while IFS=$'\t' read -r n _; do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
-    done < <(sh "$_HI_TARGETS" flags)
+    done < <(sh "$_HI_TARGETS" flags "${COMP_WORDS[1]}")
     return 0
   fi
   _hi_target_names

@@ -82,6 +82,28 @@ if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   fi
 fi
 
+# the session-shell wrappers: present means the body leads with `command`
+# and names the rc load.sh wrote, or fish's alias-function would recurse
+if [ -n "${_HI_CHECK_SESSION:-}" ]; then
+  check_alias bash "$_HI_EXPECT_SESSION"
+  check_alias fish "$_HI_EXPECT_SESSION"
+  if [ "$_HI_EXPECT_SESSION" = 1 ]; then
+    case "$(alias bash 2>/dev/null)" in
+    *"command bash --rcfile $_HI_SESSION_RC/bashrc"*) : ;;
+    *) echo "bash wrapper body: $(alias bash 2>/dev/null)" >&2; fail=1 ;;
+    esac
+    case "$(alias fish 2>/dev/null)" in
+    *"command fish -C "*"$_HI_SESSION_RC/fish.config"*) : ;;
+    *) echo "fish wrapper body: $(alias fish 2>/dev/null)" >&2; fail=1 ;;
+    esac
+  fi
+fi
+
+if [ -n "${_HI_CHECK_PASSTHROUGH:-}" ]; then
+  check_alias hi_copy "$_HI_EXPECT_PASSTHROUGH"
+  check_alias hi_notify "$_HI_EXPECT_PASSTHROUGH"
+fi
+
 exit $fail
 EOF
 
@@ -131,6 +153,26 @@ if set -q _HI_CHECK_FLAGS
   if set -q _HI_EXPECT_LS_ALIAS
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
   end
+end
+
+if set -q _HI_CHECK_SESSION
+  check_alias bash "$_HI_EXPECT_SESSION"
+  check_alias fish "$_HI_EXPECT_SESSION"
+  if test "$_HI_EXPECT_SESSION" = 1
+    if not string match -q -- "*command bash --rcfile $_HI_SESSION_RC/bashrc*" (functions bash | string join \n)
+      echo "bash wrapper body: "(functions bash | string join \n) >&2
+      set fail 1
+    end
+    if not string match -q -- "*command fish -C *$_HI_SESSION_RC/fish.config*" (functions fish | string join \n)
+      echo "fish wrapper body: "(functions fish | string join \n) >&2
+      set fail 1
+    end
+  end
+end
+
+if set -q _HI_CHECK_PASSTHROUGH
+  check_alias hi_copy "$_HI_EXPECT_PASSTHROUGH"
+  check_alias hi_notify "$_HI_EXPECT_PASSTHROUGH"
 end
 
 exit $fail
@@ -386,6 +428,58 @@ function test_ladder_matches_the_install_preview() {
   }
 }
 
+# The bash/fish session wrappers (GLOSSARY: HI.46) are two-line statements,
+# which alias_test.sh's sampler skips on purpose, so this is their only
+# assertion: defined when _HI_REMOTE_SESSION=1 and load.sh's rc for that
+# shell exists, absent when either is missing - the install machine must
+# never have `bash` rebound, and the container fallback has no rc dir.
+function run_session_wrapper_tests() {
+  _hi_h1 "The bash/fish session wrappers"
+  local shell fakepath rcdir emptydir
+  fakepath="$(_hi_fake_path fp_session cat)"
+  rcdir="$_HI_WORKDIR/session_rc"
+  emptydir="$_HI_WORKDIR/session_rc_empty"
+  mkdir -p "$rcdir" "$emptydir"
+  printf '# bashrc\n' >"$rcdir/bashrc"
+  printf '# fish.config\n' >"$rcdir/fish.config"
+
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "remote session with both rcs: bash and fish are wrapped" \
+      _HI_REMOTE_SESSION=1 _HI_SESSION_RC="$rcdir" _HI_CHECK_SESSION=1 _HI_EXPECT_SESSION=1
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "remote session, rcs absent: neither is wrapped" \
+      _HI_REMOTE_SESSION=1 _HI_SESSION_RC="$emptydir" _HI_CHECK_SESSION=1 _HI_EXPECT_SESSION=0
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "not a remote session: neither is wrapped" \
+      _HI_REMOTE_SESSION=0 _HI_SESSION_RC="$rcdir" _HI_CHECK_SESSION=1 _HI_EXPECT_SESSION=0
+  done
+}
+
+# hi_copy/hi_notify are `sh $_HI_PASSTHROUGH ...`, so the file test on the
+# path is what keeps an empty $_HI_PASSTHROUGH (the container fallback, no
+# paths.sh) from aliasing a bare `sh`; the toggle is the user's off switch.
+function run_passthrough_guard_tests() {
+  _hi_h1 "hi_copy/hi_notify guard on \$_HI_PASSTHROUGH"
+  local shell fakepath
+  fakepath="$(_hi_fake_path fp_passthrough cat)"
+
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "a real passthrough.sh: both aliases" \
+      _HI_PASSTHROUGH="$_HI_ROOT/common/passthrough.sh" _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=1
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "a missing file: neither" \
+      _HI_PASSTHROUGH="$_HI_WORKDIR/no-such-passthrough.sh" _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=0
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "an empty path: neither" \
+      _HI_PASSTHROUGH= _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=0
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "_HI_DISABLE_PASSTHROUGH=1: neither" \
+      _HI_DISABLE_PASSTHROUGH=1 _HI_PASSTHROUGH="$_HI_ROOT/common/passthrough.sh" _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=0
+  done
+}
+
 function run_alias_fallthrough_test() {
   _hi_h1 "Testing aliases.sh fallthrough + flag logic across shells"
 
@@ -422,6 +516,8 @@ function run_alias_fallthrough_test() {
   run_overlay_tests
   run_overlay_poisoning_test
   run_overlay_bat_opts_test
+  run_session_wrapper_tests
+  run_passthrough_guard_tests
 
   _hi_suite_end "" \
     "All fallthrough + flag scenarios passed on every installed shell ($_HI_TOTAL scenarios)" \

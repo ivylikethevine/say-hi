@@ -12,7 +12,6 @@ to report what slipped through it.
 - [Trust boundaries](#trust-boundaries)
   - [What a process started from a session inherits](#what-a-process-started-from-a-session-inherits)
 - [Assurance case](#assurance-case)
-- [When a push is refused](#when-a-push-is-refused)
 - [Supported versions](#supported-versions)
 - [Reporting a vulnerability](#reporting-a-vulnerability)
   - [What happens to a report](#what-happens-to-a-report)
@@ -24,15 +23,17 @@ to report what slipped through it.
   against a target you named. No telemetry, no update checks, no
   `curl`/`wget` in the shipped tree.
 - **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
-  a distro package (deb/rpm/apk, AUR, Homebrew) built from that same script.
-  `hi --update` is a release-tag checkout in a checkout you can read.
+  a package built from that same script; the channels that are live are
+  [PACKAGING.md](PACKAGING.md)'s first paragraph. `hi --update` is a
+  release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) —
   docs, tests, CI and editor config never leave the client; `hi.sh` is there so
   a session can say `hi` onward. Your overlay is a second, smaller allow list,
-  `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`, `vim.rc`,
-  `nano.rc`, `aliases.sh`, `bash.sh`, `zsh.zsh`, `config.fish` from
-  `~/.config/say-hi/`); anything else in that directory stays on the client.
+  `$_HI_OVERLAY_FILES` (the roster is in
+  [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break), read
+  from `~/.config/say-hi/`); anything else in that directory stays on the
+  client.
 - **base64 is armor, not crypto.** It gets the payload through the target's
   login shell unmangled; confidentiality and integrity come entirely from the
   transport.
@@ -183,7 +184,7 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | Least privilege, minimal surface                          | hi adds no authentication of its own and listens on nothing - every check above is "no network calls of its own" or "trusts the transport you already run"                                                                                                                                                                                                                                         |
 | Fail loud, fail closed                                    | every entry point runs under `set -euo pipefail` (`hi.sh:9`, `load.sh:29`, `common/core.sh:4`, `scripts/install.sh:12`), each with a documented re-disable where an error must not close an interactive shell                                                                                                                                                                                      |
 | Untrusted input allowlisted, not sanitized after the fact | `_hi_safe_path` (`hi.sh:520`) checks the two strings a target hands back against an explicit `[bracket-class]` before either reaches a command run back on it; `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` skip an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` (`common/core.sh:283`) strips control characters and backslashes from target-derived text |
-| No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([When a push is refused](#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                               |
+| No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                       |
 
 **What is not (yet) countered.** `hi --update` verifies nothing about the
 release tag it checks out beyond git's transport to the remote; `git
@@ -192,24 +193,6 @@ is a documented, current gap. A packaged install updates through its
 package manager instead, with its own signing story ([PACKAGING.md](PACKAGING.md)).
 
 Last reviewed 2026-09, alongside the changes this argument describes.
-
-## When a push is refused
-
-Secret scanning and push protection are on for this repository; push
-protection refuses the push outright, so the first thing you see is GitHub's
-own error.
-
-**That refusal is the guard working.** Take the credential out of the commit —
-amend, or rewrite the branch — and push again. Do not force it and do not
-bypass and clean up later: a secret that reaches the remote for even one push
-is a secret to rotate. For a false positive, GitHub's error links the bypass
-flow, which records why; take that route rather than reshaping the string.
-
-Four credentials are handled by hand — the two signing keys, `AUR_SSH_KEY` and
-`HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page and
-deleted; [PACKAGING.md](PACKAGING.md) walks each. GitHub's scanner is used
-rather than gitleaks or trufflehog because it runs on the push path, where a
-third-party action cannot.
 
 ## Supported versions
 

@@ -1,8 +1,12 @@
 # Testing
 
 Every script resolves against `$_HI_HOME/say-hi`. The runner defaults
-`_HI_HOME` to this checkout's parent, so a fresh clone works with no setup —
-but never point anything at your real say-hi install:
+`_HI_HOME` to this checkout's parent, so a fresh clone works with no setup.
+With a second say-hi tree on the machine (an installed one beside a dev
+checkout), set it explicitly on every invocation, and check `env | grep
+'^_HI_'` first: a shell that has sourced an install exports the whole `_HI_*`
+set, those paths exist, and a suite run against the wrong tree reports
+fewer cases rather than failing.
 
 ```sh
 export _HI_HOME=/path/to/parent-of-say-hi
@@ -18,11 +22,10 @@ tests/test_runner.sh
   - [Coverage and profiling](#coverage-and-profiling)
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
     - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
-  - [The score has a ceiling here](#the-score-has-a-ceiling-here)
-- [Why the harness is hand-rolled](#why-the-harness-is-hand-rolled)
 - [The lint gate](#the-lint-gate)
 - [Relaying](#relaying)
 - [Local-only](#local-only)
+- [Why the harness is hand-rolled](#why-the-harness-is-hand-rolled)
 
 ## Running the tests
 
@@ -107,15 +110,17 @@ Five groups (`--group <name>`; `--list` prints the membership):
 Fast cases stand down through two guards: `_hi_check_requires <bin>` skips a
 case when a _command_ is missing, `_hi_check_capable <capability>` when a
 _facility_ is — something `command -v` cannot answer. The roster,
-`_hi_capable` (`tests/lib/fixtures.sh`), has five entries. Two are probes
-rather than OS sniffs, both for Git Bash: `symlink` makes one and tests
+`_hi_capable` (`tests/lib/fixtures.sh`), has six entries. Three are probes
+rather than OS sniffs, all for Git Bash: `symlink` makes one and tests
 `[ -L ]`, so a filesystem that refuses _or_ silently copies reads as no; `pty`
-is python3 being able to `import pty`. The other three are `uname`-based
-guards for the same MSYS/Cygwin tier: `lockout` (a `chmod 555` directory
-actually refuses a write, rather than the runtime looking the other way),
-`fork_concurrency` (background subshells genuinely overlap) and `mode_bits`
-(a reported permission string reflects `chmod`'s own bits). `_hi_par_check_capable`
-is the parallel twin.
+is python3 being able to `import pty`; `mkdir_mode` is a `mkdir -m` whose
+mode actually lands (a Windows-owned temp tree makes the directory and
+refuses the chmod, which is the filesystem's doing, not the runtime's). The
+other three are `uname`-based guards for the same MSYS/Cygwin tier:
+`lockout` (a `chmod 555` directory actually refuses a write, rather than the
+runtime looking the other way), `fork_concurrency` (background subshells
+genuinely overlap) and `mode_bits` (a reported permission string reflects
+`chmod`'s own bits). `_hi_par_check_capable` is the parallel twin.
 
 ### Where a suite lives
 
@@ -215,7 +220,12 @@ already passes `--shard` straight through to `test_runner.sh`.
   a **heredoc body** counts as covered whether or not it ran, and children
   under `env -i` or inside containers drop out of the trace — so a single
   file reads a few points off in either direction while the pair brackets
-  the truth. It needs `gem install --user-install bashcov`; the script
+  the truth. Three more readings are artifacts, not gaps: a script a suite
+  runs from a scratch-tree copy under `$_HI_WORKDIR` is filed under the
+  copy's path and reads 0% for the repo file (`scripts/update.sh`); an
+  `eval` anywhere inside a `$( )` zeroes every line of that subshell; and a
+  zsh-only arm is invisible to both tools. Rule those out before writing a
+  test against a number. It needs `gem install --user-install bashcov`; the script
   finds the binary off `$PATH`, writes a `.simplecov` into the checkout for
   the run, removes it after, and refuses to start rather than overwrite one
   you have.
@@ -305,138 +315,27 @@ tree disagrees with the digest-pinned ones in `tests/dockerfiles/`;
 
 **The three `curl | sh` framework installers are pinned to a release, and the
 fetched script itself to a hash.** `frameworks/atuin.sh` (v18.20.1, in the
-download URL), `frameworks/mise.sh` (v2026.8.14, via `MISE_VERSION`) and
+download URL), `frameworks/mise.sh` (v2026.8.14, in the download URL) and
 `frameworks/starship.sh` (v1.26.0, via `--version`) each name the version pin
 in their own header and are bumped by hand when that framework's own bugs are
 worth chasing, not on a schedule; `ci.yml`'s weekly run re-tests them against
 whatever else moved but does not touch the pin. Each now downloads to a file
 first and `sha256sum -c`s it before running `sh` on it, rather than piping
-`curl` straight into a shell. Atuin's URL names the release tag, so the hash
-tracks the version pin above it and both are bumped together. mise's and
-starship's own install scripts are generic bootstrap endpoints
-(`mise.run`, `starship.rs/install.sh`) that install whatever version their env
-var or flag names, so the hash pins _that day's copy of the installer_, not
-the app version - a hash mismatch means the framework's own installer
-changed, not that the pinned app version did, and needs a fresh hash rather
-than a version bump. Each script runs under `pipefail`, so a 404, a checksum
+`curl` straight into a shell. Atuin's and mise's URLs name the release tag,
+so the hash tracks the version pin above it and both are bumped together
+(mise.run was pinned once and drifted on the next mise release, since it is
+regenerated per release whatever `MISE_VERSION` says). starship's install
+script is a generic bootstrap endpoint (`starship.rs/install.sh`) that
+installs whatever version the flag names, so its hash pins _that day's copy
+of the installer_, not the app version - a hash mismatch there means the
+installer changed, not the pinned app, and needs a fresh hash rather than a
+version bump. Each script runs under `pipefail`, so a 404, a checksum
 mismatch or the framework's installer changing shape fails the build rather
 than shipping an image with the framework silently missing.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions
 the release path uses are SHA-pinned separately. What Scorecard still dings
 here, and how it's annotated, is [`.scorecard.yml`](../.scorecard.yml).
-
-### The score has a ceiling here
-
-Scorecard weights each check (Binary-Artifacts, License and the rest that sit
-at 10 count fully) and averages. Which of the low scores are fixable here:
-
-- **Code-Review sits at 0** — 0 of the last several changesets carry an
-  approved review: one maintainer, nobody else to approve a PR. A
-  `Reviewed-by:` trailer would satisfy the scanner without a review having
-  happened; that's not going to be added. The largest fixable-looking gap in
-  the report, and not fixable without a second person.
-- **Fuzzing sits at 0** — say-hi is bash; Scorecard's probe detects OSS-Fuzz,
-  ClusterFuzzLite, Go native fuzzing, cargo-fuzz and OneFuzz, none of which
-  targets shell. `.scorecard.yml` marks it `not-applicable`.
-- **Contributors sits at 3** — the check wants ≥2 contributing organizations
-  among recent contributors; there's one. `not-applicable` in
-  `.scorecard.yml` too.
-- **CII-Best-Practices** — the project is registered at
-  [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
-  Practices badge in README's badge block, a self-assessment questionnaire
-  separate from Scorecard). The score reflects registration; three MUST
-  criteria are release-shaped, and tagged releases now exist (`v0.1.0`
-  onward) - re-check the live questionnaire rather than assuming _Passing_
-  still waits on one.
-- **Signed-Releases** was `-1` (excluded from the average) before any tag
-  existed. `release.yml` ships `dist/SHA256SUMS.minisig` on every release,
-  which the check's signature probe recognizes for 8/10; the build-provenance
-  attestation `build` creates was invisible to it until `publish` also
-  downloads that attestation and re-uploads it as `dist/say-hi.intoto.jsonl` -
-  the literal filename the check's provenance probe looks for among release
-  assets, for the full 10/10. Re-check the live score against a tag cut after
-  that change; it doesn't move retroactively on tags that already shipped.
-- **Pinned-Dependencies reads low for a reason outside this repo.** GitHub
-  shipped same-repository `uses: $/...` references in July 2026
-  ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
-  a local action or reusable workflow resolves at the exact commit running,
-  with no `./` plus checkout and no separately-pinnable ref. `ci.yml` explains
-  why `actionlint` is pinned to a fork that understands it (upstream doesn't
-  yet); Scorecard's own dependency extraction is the same story - as of this
-  writing it reads every `$/...` reference as an unresolvable third-party
-  action with no `@sha`, which is where most of the check's "unpinned"
-  count comes from. The actual third-party (non-`$/`) actions in the tree are
-  100% SHA-pinned; re-run the numbers by hand
-  (`grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`) before
-  assuming a `$/` reference is the gap. Not something to revert to `./` to
-  chase a parser that hasn't caught up - that would trade a real improvement
-  for a score built on a five-week-old blind spot.
-- **Branch-Protection sits at 8, by choice.** The next tier up requires
-  "include administrators", which would remove the maintainer's own ability to
-  push past a failing check or merge without the full gate - kept, since
-  that's the emergency valve for a one-person project. 10 additionally needs
-  two required approving reviews, which needs a second person regardless.
-
-## Why the harness is hand-rolled
-
-The roadmap once asked whether to try [bats-core], [shellspec] and a
-python/pytest driver against `configure`, `doctor`, `ssh` and one lint suite,
-and either keep this harness or replace it. What follows is that decision.
-It's a paper study, not a bake-off: no suite was ported, and nothing below is
-a timing number. Speed was one of the things asked for, and a paper study
-can't produce it honestly - the reasoning for why it probably wouldn't have
-decided the answer anyway is at the end. Every other axis here is a
-documented fact about a candidate or a demonstrable fact about this tree,
-checked on 2026-09-05.
-
-The three candidates aren't really competing with `test_runner.sh` - nothing
-about `--group`, `--shard`, `--host-report`, the summary table or the
-`::group::`/`::error` folding that eight workflows are wired to changes if
-the suites underneath it move. What a candidate replaces is
-`tests/test_lib.sh` and the 2,517 lines of `tests/lib/*.sh` behind it, and
-then has to hand `test_runner.sh` back something it can still collect through
-`$_HI_COUNTS_FILE`/`$_HI_FAILS_FILE`. Scored on that basis:
-
-|                          | this harness                                               | [bats-core]                                                                       | [shellspec]                                                               | a pytest driver                                                       |
-| ------------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| macOS bash 3.2           | native (it's what's shipped)                               | claimed, "Bash 3.2 or above"                                                      | bash 3.2.57 named and CI-tested                                           | n/a - drives shells, isn't one                                        |
-| Git Bash, install step   | none - it's the tree                                       | source-only; no MSYS2/Cygwin/WSL tier documented                                  | Git Bash, msys2, cygwin, busybox-w32, WSL all tested                      | `import pty` fails - Unix only, stdlib says so                        |
-| runtime-generated cases  | plain bash `for`, unrestricted                             | `bats_test_function` (workaround; order is issue #860)                            | `Parameters:dynamic` allows a `for` loop, but no function/variable access | `parametrize`/`pytest_generate_tests`, fully dynamic                  |
-| skip vs. `--require-run` | three tiers, wrapper turns every skip into a fail          | `skip`; no fail-mode documented                                                   | `Skip`/`Pending`; no fail-mode documented                                 | needs `pytest-error-for-skips`, a second package                      |
-| parallel, ordered replay | own scheduler, submission-order replay                     | needs GNU parallel; **order not guaranteed**                                      | own `--jobs`; ordering undocumented                                       | needs `pytest-xdist`; reorders for scheduling                         |
-| coverage topology        | suite = top-level process, kcov + bashcov merged           | kcov known to read 0% on some `.bats` files (kcov#462)                            | built-in `--kcov`, same bash/zsh/ksh DEBUG-trap limit as ours             | coverage.py measures Python only - subprocess bash is invisible to it |
-| lint-gate reach          | already `*.sh`; shellcheck, shfmt, checkbashisms all apply | shellcheck parses `.bats` since 0.7; shfmt/checkbashisms don't know the extension | DSL keywords (`It`/`When`/`Then`); no shellcheck dialect found            | not shell at all - opts the driver out of the gate entirely           |
-| new dependency           | none                                                       | GNU parallel                                                                      | none found required                                                       | pytest + xdist + a pty replacement on Windows                         |
-
-Two blockers a pytest driver can't route around: `pty`/`tty` are Unix-only in
-CPython's own docs (`_hi_capable pty`, `tests/lib/fixtures.sh:206`, exists
-because Windows' `python3` fails `import pty`), and `coverage.py` never sees
-the bash it would be shelling out to - a different topology from
-`tests/coverage.sh`'s one-tracer-per-suite design, not a port of it.
-**bats-core** gets the bash-3.2 floor right but needs GNU parallel for
-`--jobs` (a new dependency, with its own "ordering not guaranteed" caveat)
-and `bats_test_function` in place of the plain `for` loops the ~230
-`_hi_check` call sites are written as today (its own open issue on execution
-order). **shellspec** is the strongest on paper - its shell matrix is
-better-documented than this harness's own `_hi_capable` probes - but no
-shellcheck dialect exists for its DSL, so the `source=` guard and the
-shellcheck fan-out stop applying the moment a suite becomes a `.spec`, and its
-`--kcov` integration carries the same bash/zsh/ksh-only limit kcov already
-has here.
-
-**Keep it.** Every candidate adds a dependency this repo doesn't vendor for
-anything else, gives up ordered parallel replay, drops out of the lint gate's
-`*.sh` reach, or breaks the coverage topology - usually more than one at
-once, and the sweep's wall clock is dominated by container boot and e2e
-deadlines rather than per-case dispatch overhead, so this doesn't turn on the
-missing speed numbers. Reopen it if Git Bash leaves the platform matrix, both
-coverage tools go unmaintained at once, or one of these three documents an
-ordered parallel mode and a skip-as-failure flag without a second package.
-
-[bats-core]: https://bats-core.readthedocs.io/
-[shellspec]: https://shellspec.info/
-[wexpect]: https://wexpect.readthedocs.io/
 
 ## The lint gate
 
@@ -548,3 +447,34 @@ against `common/targets.sh`'s completion roster by `tests/hi/parse_test.sh`.
 `hi --preview packages` and `hi --preview header` do not refuse: their full
 forms live in `scripts/`, but the check and the header they preview live in
 the shipped `common/header.sh`, so on a target they run that half instead.
+
+## Why the harness is hand-rolled
+
+[bats-core], [shellspec] and a python/pytest driver were weighed as
+replacements for `tests/test_lib.sh` and `tests/lib/*.sh` (a paper study, no
+suite was ported, no timings). `test_runner.sh` stays either way: a
+candidate has to hand it something it can still collect through
+`$_HI_COUNTS_FILE`/`$_HI_FAILS_FILE`. Scored on that basis:
+
+|                          | this harness                                               | [bats-core]                                                                       | [shellspec]                                                               | a pytest driver                                                       |
+| ------------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| macOS bash 3.2           | native (it's what's shipped)                               | claimed, "Bash 3.2 or above"                                                      | bash 3.2.57 named and CI-tested                                           | n/a - drives shells, isn't one                                        |
+| Git Bash, install step   | none - it's the tree                                       | source-only; no MSYS2/Cygwin/WSL tier documented                                  | Git Bash, msys2, cygwin, busybox-w32, WSL all tested                      | `import pty` fails - Unix only, stdlib says so                        |
+| runtime-generated cases  | plain bash `for`, unrestricted                             | `bats_test_function` (workaround; order is issue #860)                            | `Parameters:dynamic` allows a `for` loop, but no function/variable access | `parametrize`/`pytest_generate_tests`, fully dynamic                  |
+| skip vs. `--require-run` | three tiers, wrapper turns every skip into a fail          | `skip`; no fail-mode documented                                                   | `Skip`/`Pending`; no fail-mode documented                                 | needs `pytest-error-for-skips`, a second package                      |
+| parallel, ordered replay | own scheduler, submission-order replay                     | needs GNU parallel; **order not guaranteed**                                      | own `--jobs`; ordering undocumented                                       | needs `pytest-xdist`; reorders for scheduling                         |
+| coverage topology        | suite = top-level process, kcov + bashcov merged           | kcov known to read 0% on some `.bats` files (kcov#462)                            | built-in `--kcov`, same bash/zsh/ksh DEBUG-trap limit as ours             | coverage.py measures Python only - subprocess bash is invisible to it |
+| lint-gate reach          | already `*.sh`; shellcheck, shfmt, checkbashisms all apply | shellcheck parses `.bats` since 0.7; shfmt/checkbashisms don't know the extension | DSL keywords (`It`/`When`/`Then`); no shellcheck dialect found            | not shell at all - opts the driver out of the gate entirely           |
+| new dependency           | none                                                       | GNU parallel                                                                      | none found required                                                       | pytest + xdist + a pty replacement on Windows                         |
+
+**Keep it.** Every candidate adds a dependency this repo doesn't vendor for
+anything else, gives up ordered parallel replay, drops out of the lint gate's
+`*.sh` reach, or breaks the coverage topology - usually more than one at
+once; and the sweep's wall clock is container boot and e2e deadlines, not
+per-case dispatch, so speed would not have decided it. Reopen it if Git Bash
+leaves the platform matrix, both coverage tools go unmaintained at once, or
+one of these three documents an ordered parallel mode and a skip-as-failure
+flag without a second package.
+
+[bats-core]: https://bats-core.readthedocs.io/
+[shellspec]: https://shellspec.info/

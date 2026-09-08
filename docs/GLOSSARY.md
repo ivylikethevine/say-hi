@@ -705,7 +705,7 @@ is nine names:
 It works by taking the attribute off, not by never setting it. fish parses
 `common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
 accept is `export NAME=value`, so every name it sets arrives exported —
-sixty-odd. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
+nearly forty. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
 un-exports the lot as the last thing in its required block: `_hi_unexport` in
 core.sh (bash `export -n`, zsh `typeset -g +x` — a bare `typeset` inside a
 function declares a local), and a `set -gu NAME $NAME` loop in config.fish.

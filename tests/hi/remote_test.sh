@@ -282,6 +282,10 @@ function test_version_falls_back_to_git_describe() {
 }
 
 # ...and with neither stamp nor git, it says so instead of printing nothing
+function test_version_stamp_wins() {
+  [[ "$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)" == "1.2.3 ("* ]]
+}
+
 function test_version_is_candid_without_stamp_or_git() {
   [[ "$(_HI_RELEASE="" _HI_ROOT="$_HI_WORKDIR" _hi_version)" == unknown* ]]
 }
@@ -458,6 +462,19 @@ function test_boot_probe_bakes_no_client_path() {
 # A bogus $TMPDIR was tried here first and only fails GNU's mktemp - BSD's
 # (macOS) falls back to a real temp dir and the probe exits 0, not 65. The
 # shim holds on every mktemp.
+# the sentence _say_hi prints for an empty scratch dir, per cause; a host
+# that exited non-zero and printed nothing gets none (the PowerShell notice
+# is the caller's)
+function test_boot_why_names_each_failure() {
+  local DOMAIN=h
+  [ "$(_hi_boot_why 64 '')" = "no base64 on [h]" ] || return 1
+  [ "$(_hi_boot_why 65 x)" = "no writable temp directory on [h]" ] || return 1
+  [ "$(_hi_boot_why 1 'HIBOOT:/nope')" = "[h] named a scratch directory hi will not use" ] || return 1
+  [[ "$(_hi_boot_why 0 '')" == "a forced command answered for [h]"* ]] || return 1
+  [[ "$(_hi_boot_why 1 motd)" == "a forced command answered for [h]"* ]] || return 1
+  [ -z "$(_hi_boot_why 1 '')" ]
+}
+
 function test_boot_probe_says_no_base64() {
   local ec=0 sh_bin
   sh_bin="$(command -v sh)"
@@ -492,6 +509,7 @@ function run_hi_remote_tests() {
   _hi_h2 "Testing: bootloader / fallback rc"
   _hi_check "The boot probe makes its scratch dir on the target" test_boot_probe_is_target_side
   _hi_check "...and bakes in no client path" test_boot_probe_bakes_no_client_path
+  _hi_check "...and _hi_boot_why names each failure" test_boot_why_names_each_failure
   _hi_check "...and says 64 with no base64" test_boot_probe_says_no_base64
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
@@ -558,8 +576,9 @@ EOF
   _hi_check "So is every no-bash fallback" test_remote_suffix_fallbacks_are_interactive
 
   _hi_h2 "Testing: hi --version"
-  # a packager's stamp (here stood in for by the env seam) wins outright
-  _hi_check_eq "A stamp wins" 1.2.3 env _HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version
+  # a packager's stamp (here stood in for by the env seam) wins outright; the
+  # rest of the line is where the tree is, which is the launcher's business
+  _hi_check "A stamp wins" test_version_stamp_wins
   _hi_check "A checkout answers with git describe" test_version_falls_back_to_git_describe
   _hi_check "Candid with no stamp and no git" test_version_is_candid_without_stamp_or_git
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version

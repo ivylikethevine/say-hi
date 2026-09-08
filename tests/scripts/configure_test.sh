@@ -1041,7 +1041,7 @@ function test_preset_run_writes_the_preset() {
 }
 
 function test_install_rejects_an_unknown_preset() {
-  ! bash "$_HI_INSTALL" --features-only --preset nope </dev/null >/dev/null 2>&1
+  ! bash "$_HI_INSTALL" --configure --preset nope </dev/null >/dev/null 2>&1
 }
 
 function test_visible_len_plain_text() {
@@ -1180,7 +1180,7 @@ function test_config_hi_degrades_when_sudo_cannot_link() {
     config_hi
   )" || rc=$?
   chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"--no-link"* ]] && [ ! -e "$dir/bin/hi" ]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"--link none"* ]] && [ ! -e "$dir/bin/hi" ]
 }
 
 # ...and the sudo-less box: the same staging as the refused-sudo case, but
@@ -1203,7 +1203,7 @@ function test_config_hi_degrades_with_no_sudo_at_all() {
     config_hi
   )" || rc=$?
   chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"--no-link"* ]] && [ ! -e "$dir/bin/hi" ]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"--link none"* ]] && [ ! -e "$dir/bin/hi" ]
 }
 
 #

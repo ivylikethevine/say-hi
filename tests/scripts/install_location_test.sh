@@ -56,8 +56,8 @@ function _hi_loc_tree() {
   printf '%s' "$root"
 }
 
-# The nested install: a real `install.sh --no-link -y` from a tree at
-# $HOME/opt/nested/say-hi, against a $HOME of this suite's own. --no-link because
+# The nested install: a real `install.sh --link none -y` from a tree at
+# $HOME/opt/nested/say-hi, against a $HOME of this suite's own. --link none because
 # the symlink wants sudo and /usr/bin, neither of which a test may touch; -y
 # because there is no tty to answer the validation prompt on.
 _HI_LOC_HOME=""
@@ -69,7 +69,7 @@ function _hi_loc_install() {
   _HI_LOC_PARENT="$_HI_LOC_HOME/opt/nested"
   _HI_LOC_ROOT="$(_hi_loc_tree home/opt/nested)"
   _hi_loc_quiet_home "$_HI_LOC_HOME"
-  _hi_loc_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --no-link -y \
+  _hi_loc_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --link none -y \
     >"$_HI_WORKDIR/install.log" 2>&1
 }
 

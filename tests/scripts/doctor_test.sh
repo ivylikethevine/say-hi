@@ -8,7 +8,7 @@
 #
 # GLOSSARY: HI.30 + HI.34. SC2317 rides along because sourcing doctor.sh reaches
 # hi.sh's trailing dispatch, which shellcheck thinks never returns (see
-# hi_test.sh for the long form of this story).
+# tests/hi/parse_test.sh for the long form of this story).
 # shellcheck disable=SC2329,SC2317
 set -euo pipefail
 
@@ -392,7 +392,7 @@ function test_config_reports_the_system_layer() {
   [[ "$out" == *"per-user settings only"* ]]
 }
 
-# the folded-in `--check-configs`: each rc or overlay file through its parser,
+# the folded-in rc check: each rc or overlay file through its parser,
 # one row each, with the same skip rule install.sh's pre-flight has
 function test_config_rows_parse_the_files() {
   local dir="$_HI_WORKDIR/cfgrows" out
@@ -556,15 +556,6 @@ function test_plain_flag_is_accepted_on_the_text_report() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
 
-# a retired name still exported is a warn row that names the release and the
-# reason, and never a finding
-function test_config_warns_about_a_retired_setting() {
-  local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
-  _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" _HI_EZA_OPTS_SIZE=x "$_HI_DOCTOR")" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"_HI_EZA_OPTS_SIZE is set but retired since 0.1.9"* ]]
-}
-
 function test_help_exits_zero() {
   "$_HI_DOCTOR" --help >/dev/null
 }
@@ -602,6 +593,14 @@ function test_use_equals_spelling_names_the_arm() {
   rc=0
   out="$("$_HI_DOCTOR" --use= host 2>&1)" || rc=$?
   [ "$rc" -eq 1 ]
+}
+
+# --use last on the line, with nothing after it, is the one arm the loop
+# cannot answer from inside: it falls out still waiting for the name
+function test_use_needs_a_backend_name() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" --use 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use needs a backend name"* ]]
 }
 
 # The whole plain report, end to end, on the restricted PATH. Two cases
@@ -855,12 +854,12 @@ function run_doctor_tests() {
   _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure
 
   _hi_h2 "Testing: the report"
-  _hi_check "A retired setting is a warn row" test_config_warns_about_a_retired_setting
   _hi_check "--help exits zero" test_help_exits_zero
   _hi_check "--help names what was typed" test_help_names_what_was_typed
   _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
   _hi_check "A second target is refused" test_a_second_target_is_refused
   _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
+  _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
 
   _hi_h2 "Testing: the install section"

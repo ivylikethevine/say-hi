@@ -86,6 +86,17 @@ function test_header_subject_refuses_an_argument() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"takes no arguments"* ]]
 }
 
+# a header that is off says so, and names the toggle: the wizard's preview
+# box reads the same line, where a silent exit would look like an empty
+# header. The checkout's own script, so the coverage sweep sees the arm.
+function test_header_subject_says_when_the_header_is_off() {
+  local out
+  out="$(HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+    _HI_DISABLE_HEADER=1 _HI_TARGETS_TTL=0 \
+    "$_HI_ROOT/scripts/preview.sh" header 2>&1)" || return 1
+  [[ "$out" == *"header off (_HI_DISABLE_HEADER=1"* && "$out" != *"| "* ]]
+}
+
 #
 # colors
 #
@@ -381,6 +392,28 @@ function test_tables_name_the_matching_tag() {
 function test_tables_show_a_pattern_pin_example_row() {
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pattern:pat-\*' || return 1
   printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'pat-1'
+}
+
+# the users table carries the LOCALUSER pin and every usertag pin as example
+# rows of their own, each naming its source, since neither is a real user
+# targets.sh would list
+function test_tables_list_the_local_user_and_usertag_pins() {
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'LOCALUSER.*local:username' || return 1
+  printf '%s\n' "$_HI_COLORS_OUT" | grep -q 'ops.*usertag:ops'
+}
+
+# The same render off the checkout's own settings/colors (LOCALUSER and a
+# usertag are pinned there too), so the coverage sweep sees the users table
+# render; $HOME still supplies the fixture ssh config. With truecolor refused
+# the scheme line says the 16-color escapes are what is on show.
+function test_tables_render_from_the_checkout() {
+  local out
+  out="$(HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" \
+    _HI_LOCAL_USER=localdev _HI_LOCAL_HOSTNAME=localbox _HI_TARGETS_TTL=0 _HI_TRUECOLOR=0 \
+    "$_HI_ROOT/scripts/preview.sh" colors 2>&1)" || return 1
+  [[ "$out" == *"(no truecolor here"* ]] || return 1
+  printf '%s\n' "$out" | grep -q 'LOCALUSER.*local:username' || return 1
+  printf '%s\n' "$out" | grep -q 'usertag:'
 }
 
 # --help answers before reading any config, prints the usage text and exits 0
@@ -772,6 +805,14 @@ function test_preview_ends_with_the_real_check() {
   [[ "$(printf '%s\n' "$_HI_PACKAGES_OUT" | tail -3)" == *hialpha* ]]
 }
 
+# a floor above 3 turns the header's check off, and the preview's last
+# section says so in place of an empty check
+function test_preview_says_the_check_is_off_above_the_floor() {
+  local out
+  out="$(_HI_PACKAGES_MIN_PRIORITY=4 _hi_render_packages)" || return 1
+  [[ "$out" == *"the check is off at this floor (_HI_PACKAGES_MIN_PRIORITY=4)"* ]]
+}
+
 # Every section of the preview reads the packages file, so a missing one is
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
@@ -819,6 +860,7 @@ function run_preview_tests() {
   _hi_check "--help alone lists the subjects" test_bare_help_lists_the_subjects
   _hi_check "header renders the header" test_header_subject_renders_the_header
   _hi_check "header refuses an argument" test_header_subject_refuses_an_argument
+  _hi_check "header says when the header is off" test_header_subject_says_when_the_header_is_off
 
   _hi_h2 "Testing: colors - _hi_color_source"
   # <label>|<kind>|<name>|<want>. Five _hi_color_source cases that differed
@@ -889,6 +931,8 @@ EOF
   _hi_check "Skip hosts that render by default" test_tables_skip_hosts_that_render_by_default
   _hi_check "Name the matching tag" test_tables_name_the_matching_tag
   _hi_check "A pattern pin gets an example row" test_tables_show_a_pattern_pin_example_row
+  _hi_check "LOCALUSER and usertag pins get example rows" test_tables_list_the_local_user_and_usertag_pins
+  _hi_check "Render from the checkout, without truecolor" test_tables_render_from_the_checkout
   # Not the exact table shape - just that each table *is* one: every cell is
   # padded to its column's width, so every line has to come out the same printed
   # width once the color escapes are stripped. Catches a column measured in
@@ -956,6 +1000,7 @@ EOF
   _hi_check "Counts what it read" test_preview_counts_what_it_read
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
+  _hi_check "Says the check is off above the floor" test_preview_says_the_check_is_off_above_the_floor
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
   _hi_check "An exported $_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file

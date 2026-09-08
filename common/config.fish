@@ -77,9 +77,10 @@ complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct); and not 
   -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
 complete -c hi -f -k -n __hi_prev_takes_word \
   -a '(sh $_HI_TARGETS words (commandline -opc)[-1])'
-# hi's own options from the same file, so the two lists cannot drift
+# hi's own options from the same file, so the two lists cannot drift; behind
+# a local command (`hi --install --<TAB>`) that command's own switches
 complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
-  -a '(sh $_HI_TARGETS flags)'
+  -a '(sh $_HI_TARGETS flags (commandline -opc)[2])'
 complete exa --wraps eza
 
 # fish can't run hi's bash side, so the greeting, the package check and the

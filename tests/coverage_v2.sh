@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Line coverage for the bash suites via bashcov - a dev tool to run
-# occasionally, deliberately not wired into CI (yet). Same job and same CLI as
-# tests/coverage.sh, different instrumentation, and that difference is the
-# whole point of the file existing.
+# Line coverage for the bash suites via bashcov - coverage.yml's shard-bashcov
+# matrix runs it and README's Bashcov badge is its output. Same job and same
+# CLI as tests/coverage.sh, different instrumentation, and that difference is
+# the whole point of the file existing.
 #
 # Usage: tests/coverage_v2.sh [outdir] [runner args...]
 #   outdir       where the report is written (default: $TMPDIR/say-hi-coverage-v2)
@@ -32,6 +32,16 @@
 # side has skews of its own (heredoc bodies count as covered whether or not
 # they ran; `env -i` children and in-container lines drop out of the trace),
 # which is why both tools ship rather than one replacing the other.
+#
+# Three more readings here are artifacts, not gaps, and are worth ruling out
+# before writing a test against a number:
+#   - a script a suite *executes from a scratch-tree copy* under $_HI_WORKDIR
+#     is filed under the copy's path, which the filters drop, so the repo file
+#     reads 0% (scripts/update.sh; preview.sh's and install.sh's dispatch).
+#   - an `eval` anywhere inside a `$( )` zeroes every line of that subshell,
+#     the lines that ran included (core.sh's _hi_setting_get and the other
+#     out-var helpers); a probe calling the function directly still reads 0.
+#   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
 #
 # The topology is the one coverage.sh established and is unchanged: one run per
 # suite, with the suite script as the *top-level* process, merged at the end.

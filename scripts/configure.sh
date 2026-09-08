@@ -21,7 +21,7 @@
 
 # The live previews borrow header.sh's hi_header/banner/full_check and
 # git_prompt.sh's segment. Sourced on first use rather than up top:
-# --uninstall, --check-configs and packaging mode never
+# --uninstall and packaging mode never
 # render one, and never need $_HI_HEADER_ORDER_DEFAULT either.
 function _hi_load_preview_sources() {
   [ -n "${_hi_previews_loaded:-}" ] && return 0
@@ -1524,8 +1524,16 @@ function run_configure() {
   # after the preset so the machine's own fact wins over a vocabulary reset,
   # before the hub so the Features menu shows the answer
   prompt_framework_default
-  if [ -z "$preset" ] && [ -t 0 ]; then
-    config_hub
+  if [ -z "$preset" ]; then
+    if [ -t 0 ]; then
+      config_hub
+    elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then
+      # the menu is this run's whole job, and there is nobody to answer it
+      _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
+      return 1
+    else
+      _hi_cecho " no terminal for the settings menu - the defaults apply; hi --configure at a terminal, or --preset <name>, sets them" "$YELLOW"
+    fi
   fi
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then
     _hi_cecho " nothing written - $_HI_SETTINGS is as it was" "$GREEN"

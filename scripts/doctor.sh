@@ -344,12 +344,6 @@ function doctor_config() {
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
-  # a retired name still exported is a warning, not a finding: it is ignored
-  local r
-  while IFS='|' read -r r v why; do
-    [ -n "$r" ] || continue
-    doctor_row retired "$r is set but retired since $v ($why); it is ignored" warn
-  done < <(_hi_retired_set)
 }
 
 # The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS
@@ -378,8 +372,9 @@ function doctor_config_row() {
 
 # The syntax checks install.sh runs before it writes a line, as report rows:
 # the shell rc files it wires, then the overlay's own shell files against
-# every parser a target may source them with. This is where the old
-# `hi --check-configs` went - a read-only check is a doctor's row.
+# every parser a target may source them with. This is where `hi
+# --check-configs` went - a read-only check is a doctor's row; install.sh
+# keeps the same check as its pre-write gate.
 function doctor_configs() {
   local row shell target check file
   doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
@@ -465,7 +460,7 @@ function doctor_install() {
   elif [ -n "$found" ] && _hi_link_runs_this_tree "$found"; then
     doctor_row link "no $_HI_LINK, none needed: $found runs this tree" ok
   else
-    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes one; --no-link chose none)" warn
+    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes one; --link none chose none)" warn
   fi
   if [ -z "$found" ]; then
     doctor_row command "no hi on PATH (the wired shells alias it)"

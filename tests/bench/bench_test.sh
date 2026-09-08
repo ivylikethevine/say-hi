@@ -161,7 +161,7 @@ function bench_targets_warm() {
 # is the one every budget should be set against.
 function bench_payload_size() {
   local bytes budget=65536
-  set -- # hi.sh reads "$@"; make sure it sees none (same as hi_test.sh)
+  set -- # hi.sh reads "$@"; make sure it sees none
   # shellcheck source=../../hi.sh
   source "$_HI_LAUNCHER"
   bytes="$(_hi_payload_tar | wc -c)"
@@ -185,7 +185,7 @@ function bench_payload_size() {
 # fail it, while a real jump still does.
 function bench_payload_readme_badge() {
   local bytes kb badge
-  set -- # hi.sh reads "$@"; make sure it sees none (same as hi_test.sh)
+  set -- # hi.sh reads "$@"; make sure it sees none
   # shellcheck source=../../hi.sh
   source "$_HI_LAUNCHER"
   bytes="$(_hi_wire_bytes)"

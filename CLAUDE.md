@@ -65,17 +65,12 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 
 ## Testing
 
-- `tests/test_runner.sh` runs everything; the CI gate is `--group fast` (the
-  unit suites, side by side, ~15s) and `--group lint` (shellcheck, shfmt,
-  checkbashisms, the bash-4 grep and the doc drift checks, ~30s), as two CI
-  jobs running side by side rather than in sequence. Run both.
-- Run the suite at the **end** of a multi-step change — a structural refactor
-  breaks loudly at source time.
-- Layout, the lint gate's four suites/seventeen checks and the coverage caveat
-  are [docs/TESTING.md](docs/TESTING.md)'s job. The two that bite most: a
-  suite lives in `tests/<the directory it tests>/` and sources
-  `tests/test_lib.sh` and nothing else (GLOSSARY: HI.34), and a new suite has
-  to be registered in `test_runner.sh`'s `_HI_TESTS` table.
+- The CI gate is `--group fast` (~15s) and `--group lint` (~30s), two
+  parallel jobs; run both, at the **end** of a multi-step change.
+- A suite lives in `tests/<the directory it tests>/`, sources
+  `tests/test_lib.sh` and nothing else (GLOSSARY: HI.34), and is registered
+  in `test_runner.sh`'s `_HI_TESTS` table. The rest of the layout and the
+  lint gate's checks are [docs/TESTING.md](docs/TESTING.md).
 - **A green run here is not a green run in CI: `/bin/sh` is bash on this Arch
   box.** CI's ubuntu is dash and macOS's `/bin/sh` is bash in POSIX mode; both
   expand backslash escapes in `echo` where bash-as-sh leaves them as text.
@@ -89,51 +84,41 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
   ```
 
 - Skip the suite when the diff is prose only. "Only `.yml`/`.md`" is _not_
-  prose only: run it when the diff touches `.github/workflows/*.yml`
-  (`runner_test.sh` checks every `--group` name `ci.yml` invokes;
-  `packaging_test.sh` asserts against `release.yml` and scans every workflow
-  for `tool:` pins), `docs/GLOSSARY.md` (drift-checked against `GLOSSARY:`
-  tags), `docs/SETTINGS.md` (its _Every setting_ table is drift-checked against
-  `_HI_TOGGLES` and `scripts/configure.sh`'s prompt rosters) or
-  `packaging/nfpm/nfpm.yaml`. `README.md`'s payload badge is read by
-  `bench_test.sh` — `--group bench`, not fast.
+  prose only: `.github/workflows/*.yml`, `docs/GLOSSARY.md`,
+  `docs/SETTINGS.md`'s _Every setting_ table, `docs/hi.1`, `docs/tldr.md`
+  and `packaging/nfpm/nfpm.yaml` are all machine-read by a suite. `README.md`'s
+  payload badge is read by `--group bench`.
 - `_HI_PAR_WIDTH=1` runs a parallel container suite one case at a time;
   `_HI_SC_WIDTH=1` does the same for the lint fan-out — for a flaky case or a
   transcript that needs reading live.
 - A `source "$_HI_CONFIG_DIR/<name>"` needs `# shellcheck source=/dev/null`
-  above it: `.shellcheckrc`'s `source-path=SCRIPTDIR` plus `shellcheck -x`
-  resolves the bare basename to the sourcing file itself and re-parses it
-  forever (~33GB resident, a global OOM). The lint suite refuses to start when
-  one is missing.
-- `shfmt -w .` is **not** the fix for a red shfmt gate: `.` also reformats
-  `common/zsh.zsh`, which is zsh and ships. Reformat the paths the failure
-  names.
-- The e2e suites (ssh, docker, podman, nomad, kube) need real backends and do
-  run here (the sandbox allows the docker socket). A suite that stands down
+  above it, or `shellcheck -x` recurses to an OOM; the lint suite refuses to
+  start without it.
+- A red shfmt is fixed on the paths it names, never `shfmt -w .` (that also
+  reformats `common/zsh.zsh`, which is zsh and ships).
+- The e2e suites (ssh, docker) and `--group backends` (podman, nomad, kube)
+  need real backends and do run here (the sandbox allows the docker socket).
+  A suite that stands down
   reports yellow **SKIPPED**, never green; `--require-run` turns skips into
   failures. Try e2e first and read the STATUS/SKIP columns.
-- Coverage figures are usable since the 2026-09 full-sweep + product-only
-  badge fix (kcov and bashcov land within a few points of each other).
-  Per-file skews remain — bashcov marks heredoc bodies covered and loses
-  `env -i` children and in-container lines; kcov's DEBUG-trap history is
-  `tests/coverage.sh`'s header, and is what to re-check if the two badges
-  diverge again. Write tests for behavior the per-file report shows
-  untested, never bare line-executions to move a number.
+- Rank coverage gaps off `tests/coverage_v2.sh` (bashcov), and rule out the
+  artifacts its header lists before writing a test against a number; write
+  tests for untested behavior, never bare line-executions
+  ([docs/TESTING.md](docs/TESTING.md#coverage-and-profiling)).
 
 ## Hard constraints
 
+The full list, with the why, is
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on).
+
 - bash 3.2 floor: no mapfile/readarray, associative arrays, namerefs, or case
-  conversion. The lint suite greps for violations.
-- `common/`, `settings/`, `load.sh` and `hi.sh` ship in the ssh payload
-  (`$_HI_PAYLOAD`), CI-enforced against two numbers: `bench_payload_size`
-  budgets the gzipped tar (65536 B), and the README badge tracks
-  `_hi_wire_bytes` — the assembled script a session sends — to within 5%. Both
-  measure a **default** configuration (`_hi_payload_tar` trims files the
-  overlay has turned off). Tooling-only helpers must not go into
-  `common/core.sh`; check both numbers when touching shipped files.
-- Several files are dialect-constrained and say so at the top: paths.sh's
-  four-shell plain-export subset, aliases.sh's POSIX+fish subset, and
-  targets.sh's standalone POSIX. The stated subset wins over "cleaner" bash.
+  conversion; the lint suite greps for them.
+- `common/`, `settings/`, `load.sh` and `hi.sh` ship in the ssh payload,
+  budgeted twice (the gzipped tar, and the README's wire-bytes badge to
+  within 5%); tooling-only helpers stay out of `common/core.sh`, and
+  `--group bench` checks both numbers after touching a shipped file.
+- paths.sh, aliases.sh and targets.sh are dialect-constrained and say so at
+  the top; the stated subset wins over "cleaner" bash.
 
 ## Workflow
 
