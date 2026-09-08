@@ -105,6 +105,51 @@ if [ "$here" = "$tag" ]; then
   _hi_cecho "$me: already on $tag" "$GREEN"
   exit 0
 fi
+# The tag's signature, read off gpg's status lines rather than verify-tag's
+# exit code, which is 1 for "bad", "unsigned" and "signed by a key you have not
+# imported" alike. Only a bad signature refuses: an unsigned tag is what a
+# fork or a mirror has, and a missing key is most first installs - both are
+# said out loud and allowed, so the check never strands an update that plain
+# git would have made. docs/SECURITY.md names the key.
+sig="$(git -C "$root" verify-tag --raw "refs/tags/$tag" 2>&1)" || true
+case "$sig" in
+*'[GNUPG:] BADSIG'* | *'[GNUPG:] REVKEYSIG'*)
+  _hi_cecho "$me: the signature on $tag does not verify - refusing to check it out" "$RED" >&2
+  printf '%s\n' "$sig" | grep -v '^\[GNUPG:\]' >&2
+  exit 1
+  ;;
+*'[GNUPG:] GOODSIG'* | *'[GNUPG:] EXPKEYSIG'*)
+  # EXPKEYSIG: a good signature from a key that has since expired - still the
+  # maintainer's, so an update after the expiry date is not stranded
+  # the status line is "[GNUPG:] GOODSIG <key id> <user id>"; NEWSIG and the
+  # rest come first in the output, so cut at this line's own tag
+  case "$sig" in
+  *'[GNUPG:] GOODSIG '*) signer="${sig#*\[GNUPG:\] GOODSIG }" ;;
+  *) signer="${sig#*\[GNUPG:\] EXPKEYSIG }" ;;
+  esac
+  signer="${signer#* }"
+  signer="${signer%%$'\n'*}"
+  _hi_cecho "$me: $tag has a good signature from $signer" "$GREEN"
+  ;;
+*'Good "git" signature for '*)
+  # an ssh-signed tag (gpg.format=ssh) that a configured allowed-signers file
+  # vouches for; ssh-keygen's other verdicts land in the last arm
+  signer="${sig#*Good \"git\" signature for }"
+  signer="${signer%% with*}"
+  _hi_cecho "$me: $tag has a good ssh signature from $signer" "$GREEN"
+  ;;
+*'[GNUPG:] NO_PUBKEY'* | *'[GNUPG:] ERRSIG'*)
+  _hi_cecho "$me: $tag is signed by a key not in your keyring; checked nothing about the signature (docs/SECURITY.md has the key)" "$YELLOW"
+  ;;
+*'no signature found'* | *'cannot verify a non-tag object'*)
+  # the second is a lightweight tag - a bare ref, no tag object to sign
+  _hi_cecho "$me: $tag is not signed" "$YELLOW"
+  ;;
+*)
+  # gpg absent, or an output shape this script does not know: say so, no more
+  _hi_cecho "$me: could not check the signature on $tag (${sig:-no gpg?})" "$YELLOW"
+  ;;
+esac
 [ -z "$dry_run" ] || {
   _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
   exit 0

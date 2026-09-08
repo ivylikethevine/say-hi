@@ -136,10 +136,11 @@ set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_p
 # prompt: "<chroot> user@host cwd (git) [status] |", @ yellow over ssh; skipped
 # entirely when disabled, leaving fish's own default prompt in place
 if test "$_HI_DISABLE_PROMPT" != 1
-  # core.sh's _hi_wants_starship rule (fish can't call it); a missing starship
-  # falls back to hi's prompt below
-  if test "$_HI_PROMPT" = starship; and command -q starship
-    starship init fish | source
+  # core.sh's _hi_wants_prompt_tool rule (fish can't call it); a missing tool
+  # falls back to hi's prompt below. The tool's config variable is paths.sh's
+  # job, which fish sourced above
+  if contains -- "$_HI_PROMPT" starship oh-my-posh; and command -q $_HI_PROMPT
+    $_HI_PROMPT init fish | source
   else
     # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
     # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's

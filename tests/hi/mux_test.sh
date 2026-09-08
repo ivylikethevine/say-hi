@@ -6,7 +6,8 @@
 # stops (the trailing dispatch is guarded), so nothing here connects.
 #
 # GLOSSARY: HI.30 + HI.34
-# shellcheck disable=SC2329,SC2317,SC2030,SC2031
+# SC2016: the parsed-state strings are evaluated inside _hi_mux_run's subshell
+# shellcheck disable=SC2329,SC2317,SC2030,SC2031,SC2016
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -14,32 +15,50 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
-# _hi_mux_shim <log> - a tmux that appends its argv to <log>; has-session says
-# no, so the inside-tmux path has to create the session first
+# _hi_mux_shim <log> [tools...] - a shim per multiplexer (tmux alone by
+# default) that appends its argv to <log> under its own name in capitals.
+# tmux's has-session says no, so the inside-tmux path has to create the
+# session first; zellij's list-sessions answers with $_HI_TEST_ZSESSIONS, so a
+# case can make the session "already running".
 function _hi_mux_shim() {
-  local bin="$_HI_WORKDIR/muxbin"
+  local log="$1" bin="$_HI_WORKDIR/muxbin" tool
+  shift
+  rm -rf "$bin"
   mkdir -p "$bin"
-  cat >"$bin/tmux" <<SHIM
+  for tool in "${@:-tmux}"; do
+    cat >"$bin/$tool" <<SHIM
 #!/bin/sh
-printf 'TMUX %s\\n' "\$*" >>"$1"
-[ "\$1" != has-session ]
+printf '$(printf '%s' "$tool" | tr '[:lower:]' '[:upper:]') %s\\n' "\$*" >>"$log"
+case "\$1" in
+has-session) exit 1 ;;
+list-sessions) printf '%s\\n' \${_HI_TEST_ZSESSIONS:-} ;;
+esac
+exit 0
 SHIM
-  chmod +x "$bin/tmux"
+    chmod +x "$bin/$tool"
+  done
   printf '%s' "$bin"
 }
 
-# _hi_mux_run <log> <inside-tmux: 0|1> <parsed-state assignments> - run the
-# wrap in a subshell with the shim first on PATH, so its exec ends the subshell
-# rather than the suite; the log is what the shim saw, then RETURNED if the
-# wrap came back instead of exec'ing
+# _hi_mux_run <log> <inside: 0|1|tmux|screen|zellij> <parsed-state assignments>
+# [tools...] - run the wrap in a subshell with the shims first on PATH, so its
+# exec ends the subshell rather than the suite; the log is what the shims saw,
+# then RETURNED if the wrap came back instead of exec'ing. <inside> names the
+# multiplexer the client is already in (1 is tmux, for the older cases).
 function _hi_mux_run() {
   local log="$1" inside="$2" state="$3" bin
-  bin="$(_hi_mux_shim "$log")"
+  shift 3
+  bin="$(_hi_mux_shim "$log" "$@")"
   : >"$log"
   (
     export PATH="$bin:$PATH"
-    if [ "$inside" = 1 ]; then export TMUX=/tmp/tmux-0/default,1,0; else unset TMUX; fi
-    unset _HI_MUX_INNER
+    unset TMUX STY ZELLIJ
+    case "$inside" in
+    1 | tmux) export TMUX=/tmp/tmux-0/default,1,0 ;;
+    screen) export STY=1234.pts-0.host ;;
+    zellij) export ZELLIJ=0 ;;
+    esac
+    unset _HI_MUX_INNER _HI_MUX_TOOL
     MUX=1 DOMAIN=myhost SSHARGS=() BACKEND="" PLAIN="" RAWCMD=""
     eval "$state"
     _hi_mux_wrap
@@ -170,6 +189,94 @@ function test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state() {
   esac
 }
 
+# --- screen and zellij -----------------------------------------------------
+
+# no _HI_MUX_TOOL: the first of tmux, zellij, screen on PATH - here tmux is
+# absent from the shim dir and the real PATH is a toolbox without one
+function test_mux_tool_picks_the_first_present_in_order() {
+  local log="$_HI_WORKDIR/pick.log" out
+  # shellcheck disable=SC2016 # evaluated in the subshell
+  out="$(_hi_mux_run "$log" 0 'PATH="$bin:$(_hi_real_path muxpick sh sed cat printf grep)"' zellij screen)"
+  case "$out" in "ZELLIJ list-sessions --short"*) ;; *) return 1 ;; esac
+  case "$out" in *SCREEN*) return 1 ;; esac
+}
+
+# a tool named by the setting that is not here: connect un-wrapped, with the
+# warning naming the setting; an unknown name likewise
+function test_mux_tool_setting_names_an_absent_or_unknown_tool() {
+  local log="$_HI_WORKDIR/absent.log" out err
+  # shellcheck disable=SC2016
+  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=screen; PATH="$bin:$(_hi_real_path muxabsent sh sed cat printf grep)"' tmux)"
+  [ "$out" = RETURNED ] || return 1
+  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=byobu' tmux)"
+  [ "$out" = RETURNED ] || return 1
+  err="$( (
+    PATH="$(_hi_mux_shim "$log" tmux):$PATH"
+    _HI_MUX_TOOL=byobu _hi_mux_tool _hi_unused 2>&1 >/dev/null
+  ) || true)"
+  [[ "$err" == *"byobu"*"not one of tmux, zellij or screen"* ]]
+}
+
+function test_mux_screen_outside_execs_D_R_named_for_the_target() {
+  local log="$_HI_WORKDIR/screen.log" out
+  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=screen' tmux screen)"
+  case "$out" in
+  "SCREEN -D -R -S hi-myhost sh -c "*"_HI_MUX_INNER=1"*"$_HI_LAUNCHER"*"'myhost'"*) ;;
+  *) return 1 ;;
+  esac
+  case "$out" in *RETURNED*) return 1 ;; esac
+}
+
+# inside a screen there is no client to switch: a new window in this session,
+# and the wrap exits once it is made
+function test_mux_screen_inside_opens_a_window_and_stops() {
+  local log="$_HI_WORKDIR/screen-in.log" out
+  out="$(_hi_mux_run "$log" screen 'export _HI_MUX_TOOL=screen' tmux screen)"
+  [ "$(printf '%s\n' "$out" | grep -c '^SCREEN')" = 1 ] || return 1
+  case "$out" in "SCREEN -t hi-myhost sh -c "*"'myhost'"*) ;; *) return 1 ;; esac
+  case "$out" in *RETURNED*) return 1 ;; esac
+}
+
+# zellij starts a command from a layout file: the words of the inner argv,
+# each a KDL string, in a pane that closes with the session
+function test_mux_zellij_outside_writes_a_layout_and_starts_a_session() {
+  local log="$_HI_WORKDIR/zellij.log" out layout
+  out="$(_hi_mux_run "$log" 0 "export _HI_MUX_TOOL=zellij; RAWCMD=\"echo \\\"it's\\\"\"" tmux zellij)"
+  case "$out" in
+  *"ZELLIJ --session hi-myhost --new-session-with-layout "*) ;;
+  *) return 1 ;;
+  esac
+  case "$out" in *RETURNED*) return 1 ;; esac
+  layout="$(printf '%s\n' "$out" | sed -n 's/^ZELLIJ --session hi-myhost --new-session-with-layout //p')"
+  [ -f "$layout" ] || return 1
+  grep -q 'pane command="env" close_on_exit=true' "$layout" || return 1
+  grep -q 'args "_HI_MUX_INNER=1" "'"$_HI_LAUNCHER"'" "myhost" "echo \\"it'"'"'s\\""' "$layout"
+}
+
+function test_mux_zellij_reattaches_a_running_session() {
+  local log="$_HI_WORKDIR/zellij-re.log" out
+  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=zellij _HI_TEST_ZSESSIONS=hi-myhost' tmux zellij)"
+  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "ZELLIJ list-sessions --short" ] || return 1
+  [ "$(printf '%s\n' "$out" | sed -n '2p')" = "ZELLIJ attach hi-myhost" ] || return 1
+  case "$out" in *RETURNED*) return 1 ;; esac
+}
+
+function test_mux_zellij_inside_opens_a_tab_and_stops() {
+  local log="$_HI_WORKDIR/zellij-in.log" out
+  out="$(_hi_mux_run "$log" zellij 'export _HI_MUX_TOOL=zellij' tmux zellij)"
+  [ "$(printf '%s\n' "$out" | grep -c '^ZELLIJ')" = 1 ] || return 1
+  case "$out" in "ZELLIJ action new-tab --name hi-myhost --layout "*) ;; *) return 1 ;; esac
+  case "$out" in *RETURNED*) return 1 ;; esac
+}
+
+function test_kdl_quote_escapes_the_two_characters_kdl_reads() {
+  local q
+  _hi_kdl_quote q 'plain'
+  [ "$q" = '"plain"' ] || return 1
+  _hi_kdl_quote q 'a\b "c" $d'
+  [ "$q" = '"a\\b \"c\" $d"' ]
+}
+
 function run_hi_mux_tests() {
   _hi_workdir himuxtest
   _hi_suite_begin
@@ -191,6 +298,15 @@ function run_hi_mux_tests() {
   _hi_check "--no-mux beats _HI_MUX=1" test_no_mux_beats_the_setting
   _hi_check "Inside tmux: create detached, then switch-client" test_mux_wrap_inside_tmux_creates_then_switches
   _hi_check "The inner argv is the parsed state, quoted" test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state
-  _hi_suite_end "hi.sh (client-side tmux wrap)"
+  _hi_h2 "Testing: screen and zellij"
+  _hi_check "No setting: first of tmux, zellij, screen on PATH" test_mux_tool_picks_the_first_present_in_order
+  _hi_check "_HI_MUX_TOOL absent here, or unknown: un-wrapped, warned" test_mux_tool_setting_names_an_absent_or_unknown_tool
+  _hi_check "screen, outside: exec screen -D -R -S hi-<target>" test_mux_screen_outside_execs_D_R_named_for_the_target
+  _hi_check "screen, inside: a new window, then stop" test_mux_screen_inside_opens_a_window_and_stops
+  _hi_check "zellij, outside: a layout file, then a new session" test_mux_zellij_outside_writes_a_layout_and_starts_a_session
+  _hi_check "zellij: a running session is reattached" test_mux_zellij_reattaches_a_running_session
+  _hi_check "zellij, inside: a new tab, then stop" test_mux_zellij_inside_opens_a_tab_and_stops
+  _hi_check "_hi_kdl_quote escapes backslash and quote only" test_kdl_quote_escapes_the_two_characters_kdl_reads
+  _hi_suite_end "hi.sh (client-side multiplexer wrap)"
 }
 run_hi_mux_tests

@@ -257,7 +257,8 @@ everything weighed and answered **no**, and why.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/SUPPORT.md#what-would-change-an-answer)). For a
   flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
-  which survives the drop.
+  `zellij` or `screen` (whichever you have; `_HI_MUX_TOOL` picks), which
+  survives the drop.
 - done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a

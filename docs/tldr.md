@@ -28,7 +28,7 @@
 
 `hi --use {{ssh|docker|podman|nerdctl|finch|nomad|kube}} {{container}}`
 
-- Keep the session in a local `tmux` that survives a dropped link (a repeat reattaches):
+- Keep the session in a local `tmux`, `zellij` or `screen` that survives a dropped link (a repeat reattaches):
 
 `hi --mux {{target}}`
 

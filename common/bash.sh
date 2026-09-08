@@ -32,7 +32,7 @@ _hi_prime_identity
 _hi_host_escape >/dev/null
 _hi_user_escape >/dev/null
 
-if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_starship; then
+if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_prompt_tool; then
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
   HI_PS1_END=""
   _hi_prompt_end BASH HI_PS1_END
@@ -137,9 +137,9 @@ complete -F _hi_load_exa_completion exa
 
 # modified from: https://github.com/riobard/bash-powerline/blob/master/bash-powerline.sh
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  if _hi_wants_starship; then
+  if _hi_wants_prompt_tool; then
     # GLOSSARY: HI.32
-    eval "$(starship init bash)"
+    eval "$("$_HI_PROMPT" init bash)"
   else
     # Readline counts every $PS1 character it was not told to ignore, so an
     # unmarked color escape makes the typed line wrap back over the prompt.

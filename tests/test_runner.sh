@@ -20,14 +20,16 @@ if [ -z "${_HI_HOME:-}" ]; then
   _HI_HOME="$(cd -P "$_HI_RUNNER_TREE/.." && pwd)"
 fi
 export _HI_HOME
-# shellcheck source=../common/core.sh
-source "$_HI_HOME/say-hi/common/core.sh"
 # The scaffolding every suite sources; the runner wants the host report out of
-# it (and the tree check it prints on every run). Sourcing it here also puts
-# the runner behind test_lib.sh's config isolation - $XDG_CONFIG_HOME moves to
-# a path that does not exist, so nothing here can read the developer's real
-# ~/.config/say-hi. Each suite re-sources the file and re-derives that path from
-# its own $$, so what the suites see is unchanged.
+# it (and the tree check it prints on every run). It is also what puts the
+# runner behind the config isolation - $XDG_CONFIG_HOME moves to a path that
+# does not exist *before* core.sh is sourced, so nothing here can read the
+# developer's real ~/.config/say-hi. core.sh is deliberately not sourced ahead
+# of this line: it reads settings.sh from the real overlay, and every value it
+# exported (a palette, a priority floor) would ride into each suite's
+# environment, where an explicit value outranks the isolated directory. Each
+# suite re-sources the file and re-derives that path from its own $$, so what
+# the suites see is unchanged.
 # shellcheck source=./test_lib.sh
 source "$_HI_HOME/say-hi/tests/test_lib.sh"
 

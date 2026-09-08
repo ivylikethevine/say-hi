@@ -235,9 +235,14 @@ or
 either.
 .TP
 .B \-\-mux
-run the session inside a local
-.BR tmux (1)
-session named for the target
+run the session inside a local multiplexer session \-
+.BR tmux (1),
+.BR zellij (1)
+or
+.BR screen (1),
+whichever
+.B _HI_MUX_TOOL
+names, else the first of the three on your PATH \- named for the target
 .RB ( hi\-<target> ,
 with the characters tmux rejects turned into dashes), so a dropped link leaves
 the session running here: the next
@@ -245,7 +250,9 @@ the session running here: the next
 to the same target reattaches instead of opening a second one. Entirely
 client\-side \- the target sees the same disposable session as ever. From
 inside a tmux, the session is created detached and this client switches to
-it. Without a terminal, or without tmux on this machine, hi connects as usual.
+it; inside a screen or zellij, a new window or tab opens in the current
+session. Without a terminal, or without a multiplexer on this machine, hi
+connects as usual.
 .B _HI_MUX=1
 in the settings makes it the default.
 .TP

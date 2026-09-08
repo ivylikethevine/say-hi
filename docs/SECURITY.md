@@ -46,14 +46,19 @@ to report what slipped through it.
 hosts` line and the host-key fingerprint on a first connection reach your
   terminal exactly as they would without hi. Capturing them would turn
   trust-on-first-use into accepting a fingerprint nobody was shown.
-- **`hi --update` checks no signature.** Tagged releases exist (`v0.1.0`,
-  `v0.1.1`, … - see [Supported versions](#supported-versions)) and their tags
-  are themselves signed (`git verify-tag`), but `hi.sh`'s `--update` is
-  `git fetch --tags` plus `git checkout` of the tag, unmodified - it checks
-  no signature on what it fetched, so today it verifies only what git
-  always does: the transport to the remote, and nothing about the tag. A
-  packaged install updates through its package manager, which has its own
-  signing story.
+- **`hi --update` reads the tag's signature, and refuses only a bad one.**
+  Tagged releases exist (`v0.1.0`, `v0.1.1`, … - see
+  [Supported versions](#supported-versions)) and their tags are signed.
+  `--update` runs `git verify-tag` on the tag it is about to check out and
+  reads gpg's status lines rather than the exit code: a signature that does
+  not verify (`BADSIG`, a revoked key) refuses the checkout; a good one is
+  named with its signer; a key you have not imported, an unsigned tag (a
+  fork, a mirror) or no `gpg` at all is said out loud and allowed, since
+  refusing there would strand every first install that has not imported the
+  key. The check therefore proves integrity only once the maintainer's key
+  is in your keyring - [the package repository's key](PACKAGING.md#package-repository)
+  is the same one. `--dry-run` reports the same verdict. A packaged install
+  updates through its package manager, which has its own signing story.
 
 ## What runs where
 
@@ -129,6 +134,22 @@ a target" is one command.
   as with plain `ssh`; hi's own connect-failure report prints a target's
   stderr as text, never expanding it, so a backslash sequence a target wrote
   stays one.
+- **A target can write to your clipboard, and raise a notification.**
+  `hi_copy` and `hi_notify` work by emitting OSC 52 and OSC 9/777 escapes
+  that your terminal acts on; any program on the target can emit the same
+  bytes, with or without hi, and a terminal that honours OSC 52 will put
+  whatever they carry on your clipboard. hi adds the convenience, not the
+  exposure - but it does turn the passthrough on by default, so a session
+  into a host you do not trust is one to run with `_HI_DISABLE_PASSTHROUGH=1`
+  ([SETTINGS.md](SETTINGS.md#others)), or in a terminal that asks before
+  reading OSC 52 (most do; Konsole and gnome-terminal ignore it outright).
+  Reading your clipboard back is a different escape that hi never enables.
+- **What hi writes on the client.** The rc lines and `settings.sh` the
+  install asked about, a payload cache and the ssh `ControlMaster` socket
+  under a private runtime directory, and - with `_HI_RECENT=1`, the default
+  - `$XDG_STATE_HOME/say-hi/recent`: one `<epoch>\t<target>` line per
+  session that ended cleanly, which is a list of the hosts you visit.
+  `_HI_RECENT=0` stops it; deleting the file forgets them.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
 - The ssh `ControlMaster` socket lives at a name only this user's process can
@@ -186,11 +207,13 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | Untrusted input allowlisted, not sanitized after the fact | `_hi_safe_path` (`hi.sh:520`) checks the two strings a target hands back against an explicit `[bracket-class]` before either reaches a command run back on it; `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` skip an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` (`common/core.sh:283`) strips control characters and backslashes from target-derived text |
 | No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                       |
 
-**What is not (yet) countered.** `hi --update` verifies nothing about the
-release tag it checks out beyond git's transport to the remote; `git
-verify-tag` before `hi --update <tag>` is the manual step, and wiring it in
-is a documented, current gap. A packaged install updates through its
-package manager instead, with its own signing story ([PACKAGING.md](PACKAGING.md)).
+**What is not (yet) countered.** `hi --update` verifies the release tag's
+signature only as far as your keyring allows: with the maintainer's key
+imported a tampered tag is refused, without it the update is allowed with a
+notice ([What hi does](#what-hi-does---and-deliberately-doesnt)). Importing
+the key is the manual step that turns the notice into a check. A packaged
+install updates through its package manager instead, with its own signing
+story ([PACKAGING.md](PACKAGING.md)).
 
 Last reviewed 2026-09, alongside the changes this argument describes.
 

@@ -498,11 +498,15 @@ function _hi_prompt_end() {
   fi
 }
 
-# _HI_PROMPT=starship hands the prompt over when the target has it, keeping
-# hi's header and aliases; a missing starship falls back silently. Never
-# auto-detected - a target that happens to carry starship must not surprise.
-function _hi_wants_starship() {
-  [ "${_HI_PROMPT:-}" = starship ] && command -v starship >/dev/null 2>&1
+# _HI_PROMPT names a prompt program - starship or oh-my-posh - to hand the
+# prompt to when the target has it, keeping hi's header and aliases; a missing
+# one falls back silently to hi's prompt. Never auto-detected - a target that
+# happens to carry one must not surprise. GLOSSARY: HI.32
+function _hi_wants_prompt_tool() {
+  case "${_HI_PROMPT:-}" in
+  starship | oh-my-posh) command -v "$_HI_PROMPT" >/dev/null 2>&1 ;;
+  *) return 1 ;;
+  esac
 }
 
 # Does this terminal do color? $TERM, not `tput` (a fork per shell); a

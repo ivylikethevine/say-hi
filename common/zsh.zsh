@@ -22,9 +22,9 @@ _hi_interactive_extras
 _hi_prime_identity
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  if _hi_wants_starship; then
+  if _hi_wants_prompt_tool; then
     # GLOSSARY: HI.32
-    eval "$(starship init zsh)"
+    eval "$("$_HI_PROMPT" init zsh)"
   else
     # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
     # pw3nage-safe form bash.sh's ps1() uses

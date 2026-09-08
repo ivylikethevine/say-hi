@@ -242,60 +242,79 @@ function test_bash_starship_handoff_installs_no_ps1_hook() {
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t ps1 || true)"' \
-    "PATH=$(_hi_starship_stub_dir):$PATH" _HI_PROMPT=starship)"
+    "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship)"
   [[ "$out" != *ps1* ]]
 }
 
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
 # machine without one still runs (and honestly reports) the rest.
 
-# _HI_PROMPT=starship hands the prompt over when starship exists; a stub on a
+# _HI_PROMPT=<tool> hands the prompt over when the tool exists; a stub on a
 # prepended PATH stands in for it, answering `init <shell>` with a line whose
-# effect the case can see. Three assertions per family: deferred when asked
-# and present, hi's prompt kept when not asked, and hi's prompt kept - with
-# no error - when asked but starship is absent.
-function _hi_starship_stub_dir() {
-  local dir="$_HI_WORKDIR/starship-bin"
-  [ -x "$dir/starship" ] || {
+# effect the case can see - the same stub body for starship and oh-my-posh,
+# since both take `init <shell>`. Three assertions per family: deferred when
+# asked and present, hi's prompt kept when not asked, and hi's prompt kept -
+# with no error - when asked but the tool is absent.
+function _hi_prompt_stub_dir() {
+  local dir="$_HI_WORKDIR/$1-bin"
+  [ -x "$dir/$1" ] || {
     mkdir -p "$dir"
-    printf '#!/bin/sh\ncase "$2" in\nbash | zsh) echo "PS1=STARSHIP-STUB" ;;\nfish) echo "function fish_prompt; echo -n STARSHIP-STUB; end" ;;\nesac\n' >"$dir/starship"
-    chmod +x "$dir/starship"
+    printf '#!/bin/sh\ncase "$2" in\nbash | zsh) echo "PS1=PROMPT-STUB" ;;\nfish) echo "function fish_prompt; echo -n PROMPT-STUB; end" ;;\nesac\n' >"$dir/$1"
+    chmod +x "$dir/$1"
   }
   printf '%s' "$dir"
 }
 
-# One case for all three shells: the per-shell rc, prompt-print incantation
-# and expected shape live in the case's own table. Extra NAME=VALUE arguments
-# ride _hi_rc_shell (env applies the last assignment, so the prepended-PATH
-# override wins over the baseline), so there is one `env -i` block here rather
-# than one per case.
-function test_defers_to_starship_when_asked() {
-  local shell="$1" script want out
+# One case for all three shells and both tools: the per-shell rc, prompt-print
+# incantation and expected shape live in the case's own table. Extra
+# NAME=VALUE arguments ride _hi_rc_shell (env applies the last assignment, so
+# the prepended-PATH override wins over the baseline), so there is one `env -i`
+# block here rather than one per case.
+function test_defers_to_prompt_tool_when_asked() {
+  local shell="$1" tool="$2" script want out
   case "$shell" in
   bash)
     script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf "%s|%s" "$PS1" "${HI_PS1:-unset}"'
-    want="STARSHIP-STUB|unset"
+    want="PROMPT-STUB|unset"
     ;;
   zsh)
     script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "$PS1"'
-    want="STARSHIP-STUB"
+    want="PROMPT-STUB"
     ;;
   fish)
     script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; fish_prompt'
-    want="*STARSHIP-STUB*"
+    want="*PROMPT-STUB*"
     ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_starship_stub_dir):$PATH" _HI_PROMPT=starship)"
+    PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT="$tool")"
   # shellcheck disable=SC2053 # $want is a pattern (fish's is a glob)
   [[ "$out" == $want ]]
+}
+
+# on a target, the overlay's starship.toml / oh-my-posh.json becomes the
+# tool's config; at home the variable is left alone, whatever the overlay holds
+function test_remote_session_points_the_tool_at_the_overlay_config() {
+  local shell="$1" script out home
+  mkdir -p "$_HI_WORKDIR/cfg"
+  printf 'format = "$all"\n' >"$_HI_WORKDIR/cfg/starship.toml"
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${STARSHIP_CONFIG:-}"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $STARSHIP_CONFIG' ;;
+  esac
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
+    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship _HI_REMOTE_SESSION=1)"
+  home="$(_hi_rc_shell xterm-256color "$shell" "$script" \
+    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship)"
+  rm -f "$_HI_WORKDIR/cfg/starship.toml"
+  [ "$out" = "$_HI_WORKDIR/cfg/starship.toml" ] && [ -z "$home" ]
 }
 
 function test_bash_keeps_hi_prompt_without_the_setting() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
-    PATH="$(_hi_starship_stub_dir):$PATH")"
+    PATH="$(_hi_prompt_stub_dir starship):$PATH")"
   [[ "$out" == *'\u'* ]]
 }
 
@@ -606,12 +625,17 @@ function run_rc_tests() {
       test_shell_user_file_applies "$_hi_row"
   done
 
-  _hi_h2 "Testing: starship deference (_HI_PROMPT=starship)"
-  _hi_check "[bash] defers when asked and present" test_defers_to_starship_when_asked bash
+  _hi_h2 "Testing: prompt handoff (_HI_PROMPT=starship / oh-my-posh)"
+  _hi_check "[bash] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked bash starship
+  _hi_check "[bash] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked bash oh-my-posh
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
-  _hi_check_requires zsh "[zsh] defers when asked and present" test_defers_to_starship_when_asked zsh
-  _hi_check_requires fish "[fish] defers when asked and present" test_defers_to_starship_when_asked fish
+  _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_points_the_tool_at_the_overlay_config bash
+  _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
+  _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
+  _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
+  _hi_check_requires fish "[fish] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked fish oh-my-posh
+  _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_points_the_tool_at_the_overlay_config fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

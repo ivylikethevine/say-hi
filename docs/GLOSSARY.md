@@ -64,6 +64,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.50 truecolor color schemes](#hi50-truecolor-color-schemes)
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
 - [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
+- [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
 
 ## HI.01 empty-array guard
 
@@ -367,10 +368,20 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 ## HI.32 starship deference
 
 `_HI_PROMPT=starship` hands the prompt to [starship](https://starship.rs) when
-the target has it, keeping hi's header and aliases. `common/core.sh`'s
-`_hi_wants_starship` is the single predicate (the setting _and_ the binary);
-`common/bash.sh` and `common/zsh.zsh` each `eval` their own `starship init`
-behind it. Absent starship, the setting is ignored silently.
+the target has it, and `_HI_PROMPT=oh-my-posh` to
+[oh-my-posh](https://ohmyposh.dev), keeping hi's header and aliases either
+way. `common/core.sh`'s `_hi_wants_prompt_tool` is the single predicate (a
+setting naming one of the two _and_ the binary); `common/bash.sh` and
+`common/zsh.zsh` each `eval` their own `"$_HI_PROMPT" init <shell>` behind it,
+`common/config.fish` mirrors the rule since fish cannot call it. Both tools
+take `init <shell>`, which is what lets one predicate and one stub (the rc
+suite's `_hi_prompt_stub_dir`) cover both. `common/paths.sh` points the tool
+at the overlay's `starship.toml` / `oh-my-posh.json` (`$STARSHIP_CONFIG` /
+`$POSH_THEME`) on a target only (`_HI_REMOTE_SESSION=1`) and only when the
+file came along, so the prompt on every host is the one configured at home; at
+home the tool's own config is left in force. paths.sh rather than core.sh
+because fish sources paths.sh natively and the variables have to reach a fish
+session too. Absent the tool, the setting is ignored silently.
 
 ## HI.33 derived tree location
 
@@ -853,11 +864,26 @@ per-member predicate is `eval`-defined; `scripts/configure.sh` enforces it.
 ## HI.52 client multiplexer wrap
 
 `hi --mux <target>` (or `_HI_MUX=1`) re-executes the connect inside a local
-`tmux new-session -A -s hi-<target>` and never returns; the `-A` is the
-reattach, so a second `hi --mux` to the same target joins the running session.
-It is the client-side answer to a dropped link - the target-side `--tmux`
-was removed on 2026-08-21 because a disposable tree cannot outlive its own
-session, and this leaves the target untouched. Four rules in `_hi_mux_wrap`:
+multiplexer session named `hi-<target>` and never returns; a second `hi --mux`
+to the same target joins the running session. It is the client-side answer to
+a dropped link - the target-side `--tmux` was removed on 2026-08-21 because a
+disposable tree cannot outlive its own session, and this leaves the target
+untouched. `_hi_mux_tool` picks the multiplexer: `$_HI_MUX_TOOL` when set,
+else the first of tmux, zellij, screen on `PATH`, each driven in its own
+idiom:
+
+- **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.
+- **screen**: `-D -R -S <name> sh -c <one string>`; `-D -R` reattaches a
+  session of that name (detaching it elsewhere first) or creates it running
+  the command.
+- **zellij**: takes a session's command only from a layout file, never from
+  argv, so `_hi_mux_wrap` writes `hi.mux.<name>.kdl` under hi's runtime
+  directory (one per target, rewritten each connect: `pane command="env"
+  close_on_exit=true { args ... }`, each word a KDL string via
+  `_hi_kdl_quote`) and starts `--session <name> --new-session-with-layout`;
+  a name already in `list-sessions --short` is `attach`ed instead.
+
+Five rules in `_hi_mux_wrap`:
 
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
@@ -868,13 +894,37 @@ session, and this leaves the target untouched. Four rules in `_hi_mux_wrap`:
   the wrap returns at once when that is set, which is what keeps a
   `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It
   also stands down, un-wrapped, without a terminal on stdin (nothing to
-  attach) or without tmux on `PATH` (with a warning).
+  attach) or without a multiplexer to use (with a warning that names the
+  setting when `$_HI_MUX_TOOL` asked for one that is absent or unknown).
 - **One string.** tmux hands the command to its `default-shell`, which may be
-  fish, so the argv is joined into one string with `_hi_shquote` (HI.40):
-  single quotes are the one form every shell reads the same way, where `%q`'s
-  `$'...'` is bash's alone.
+  fish, and screen to `sh -c`, so the argv is joined into one string with
+  `_hi_shquote` (HI.40): single quotes are the one form every shell reads the
+  same way, where `%q`'s `$'...'` is bash's alone. zellij gets the words.
 - **The name.** `_hi_mux_name` keeps `[[:alnum:]_-]` and turns everything
-  else into `-`: tmux refuses `:` and `.` in a session name, and `/` and `@`
-  read badly in a status line, so a kube `ctx:ns:pod/ctr` is
-  `hi-ctx-ns-pod-ctr`. Inside an existing tmux (`$TMUX` set) nesting is
-  refused, so the session is created detached and the client switched to it.
+  else into `-`: tmux refuses `:` and `.` in a session name, zellij takes
+  the same class, and `/` and `@` read badly in a status line, so a kube
+  `ctx:ns:pod/ctr` is `hi-ctx-ns-pod-ctr`.
+- **Already inside one.** tmux (`$TMUX` set) refuses to nest, so the session
+  is created detached and the client switched to it. screen (`$STY`) has no
+  client switch: a new window in the current session (`screen -t <name>`),
+  and hi exits once it is made. zellij (`$ZELLIJ`) likewise gets a new tab
+  from the same layout (`zellij action new-tab --name <name> --layout`).
+
+## HI.53 terminal reset after a failed session
+
+`_hi_reset_terminal` (hi.sh) runs when a connect's exit status is not 0 and
+both stdin and stdout are terminals. ssh restores the tty's termios on its way
+out, but nothing restores the *terminal emulator's* modes a remote program
+switched on and never got to switch off when the link went: application
+cursor keys (`CSI ?1 l`), the application keypad (`ESC >`), bracketed paste
+(`CSI ?2004 l`), a pushed kitty keyboard mode (`CSI < u`), the alternate
+screen (`CSI ?1049 l`) and a hidden cursor (`CSI ?25 h`). It also closes the
+OSC 133 prompt-mark pair with a `D` carrying the status (unless
+`_HI_DISABLE_MARKS=1`): hi's remote prompt emits `C` before every command,
+`exit` included, and `load.sh` sends the closing `D` on a clean exit - a drop
+never reaches that line, and Konsole, left "inside a command", sends ↑ as ←
+until a `D` arrives. `stty sane` last, for the container arms whose exec does
+not always restore termios on a lost link. Every byte is a no-op on a terminal
+already in its normal state, which is why the caller need not know which
+mode applied. Never on exit 0 (the session closed itself down), never on a
+pipe (`hi host cmd | ...` gets the command's output and nothing else).

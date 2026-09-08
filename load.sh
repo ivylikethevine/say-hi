@@ -276,6 +276,14 @@ function load() {
   _hi_session_shell_cmd "$shell" shell_cmd
   "${shell_cmd[@]}" || shell_ec=$?
 
+  # The shell's last prompt mark was C - `exit` is a command like any other,
+  # so bash's PS0 and zsh's preexec fired for it - and the D that closes the
+  # pair never came: the shell is gone. A terminal tracking OSC 133 (Konsole)
+  # is left "inside a command" until the next D, and Konsole turns ↑ into ←
+  # while it waits. Close the pair here with the shell's own status. Same
+  # toggle as the marks themselves; nothing else reads the byte.
+  [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]] && printf '\e]133;D;%s\a' "$shell_ec"
+
   local size dur
   size="$(_hi_du_size "$_HI_ROOT")"
   # $start is load()'s own entry, before the "Connected" banner - so this is

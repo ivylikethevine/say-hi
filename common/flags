@@ -19,7 +19,7 @@
 --version||-|||hi's version: the packaging stamp, or git describe
 --use|<backend>|-|||skip probing and force that backend (ssh counts as one)
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
---mux||-|||a local tmux around the session; a repeat reattaches
+--mux||-|||a local tmux/zellij/screen session; a repeat reattaches
 --no-mux||-|||no tmux around this connect, whatever _HI_MUX says
 --preview|<subject>|-|||colors, packages or header; colors needs scripts/
 --doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report

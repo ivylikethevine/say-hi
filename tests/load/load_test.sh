@@ -539,6 +539,28 @@ function test_load_prints_the_disconnect_banner_and_footer() {
   return 1
 }
 
+# the session shell's last mark was C (its preexec fired for `exit`), so load
+# closes the pair with a D carrying the shell's status - Konsole otherwise
+# stays "inside a command" and sends ↑ as ← until the next D
+function test_load_closes_the_prompt_mark_pair_on_exit() {
+  local out
+  out="$(_hi_load_run 'exit 42' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=0)" || true
+  case "$out" in
+  *$'\e]133;D;42\a'*) return 0 ;;
+  esac
+  _hi_cecho " | no D mark in: $out" "$RED"
+  return 1
+}
+
+function test_load_marks_toggle_drops_the_closing_d() {
+  local out
+  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=1)" || return 1
+  case "$out" in
+  *$'\e]133;'*) _hi_cecho " | a mark leaked with _HI_DISABLE_MARKS=1: $out" "$RED"; return 1 ;;
+  esac
+  return 0
+}
+
 # the timestamp cells follow the connect header's order, not a toggle of their
 # own: an order naming none of utc/version/localtime keeps the banner and
 # drops the clock row (the UTC cell is the marker - `date -u` prints it)
@@ -652,6 +674,8 @@ EOF
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
+  _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit
+  _hi_check "_HI_DISABLE_MARKS=1 sends no closing D" test_load_marks_toggle_drops_the_closing_d
   _hi_check "Disconnect clock row follows \$_HI_HEADER_ORDER" test_load_disconnect_timestamp_follows_the_header_order
   _hi_check "_HI_DISABLE_HEADER=1 keeps the footer, drops the banner" test_load_disable_header_skips_the_banner
 

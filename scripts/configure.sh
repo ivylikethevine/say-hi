@@ -597,7 +597,8 @@ _HI_HEADER_PROMPTS=(
 )
 
 # whether to hand the prompt to starship where a target has one. An opt-in,
-# never auto-detected - core.sh's _hi_wants_starship
+# never auto-detected - core.sh's _hi_wants_prompt_tool, which also takes
+# _HI_PROMPT=oh-my-posh written by hand (no menu item: one toggle, one tool)
 _HI_PROMPT_PROMPTS=(
   "_HI_PROMPT||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
 )

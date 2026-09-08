@@ -855,15 +855,19 @@ function test_ascii_flag_ships_the_verdict() {
   )
 }
 
-# never auto-detected: the setting and the binary both have to say yes
-function test_wants_starship_needs_both_halves() {
+# never auto-detected: the setting and the binary both have to say yes, and
+# the setting has to name a tool hi knows how to init
+function test_wants_prompt_tool_needs_both_halves() {
   (
     unset _HI_PROMPT
-    ! _hi_wants_starship
+    ! _hi_wants_prompt_tool
   ) || return 1
-  ! _HI_PROMPT=starship PATH="$_HI_WORKDIR/empty.path" _hi_wants_starship || return 1
   mkdir -p "$_HI_WORKDIR/empty.path"
-  _HI_PROMPT=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_wants_starship
+  ! _HI_PROMPT=starship PATH="$_HI_WORKDIR/empty.path" _hi_wants_prompt_tool || return 1
+  _HI_PROMPT=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_wants_prompt_tool || return 1
+  _HI_PROMPT=oh-my-posh PATH="$(_hi_fake_path posh oh-my-posh):$PATH" _hi_wants_prompt_tool || return 1
+  # a tool hi has no init line for is not handed the prompt, present or not
+  ! _HI_PROMPT=powerline PATH="$(_hi_fake_path pl powerline):$PATH" _hi_wants_prompt_tool
 }
 
 function test_colors_lookup_verdicts() {
@@ -1082,7 +1086,7 @@ function run_core_tests() {
   _hi_h2 "Testing: the shipped verdicts"
   _hi_check "Local identity prefers the shipped verdict" test_local_identity_prefers_the_shipped_verdict
   _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
-  _hi_check "_hi_wants_starship needs setting and binary" test_wants_starship_needs_both_halves
+  _hi_check "_hi_wants_prompt_tool needs setting, binary and a known tool" test_wants_prompt_tool_needs_both_halves
 
   _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts

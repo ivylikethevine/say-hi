@@ -175,7 +175,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
   type and default. A toggle that has to go is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
-  `vim.rc`, `nano.rc`, `aliases.sh` and the per-shell rc files), their
+  `vim.rc`, `nano.rc`, `aliases.sh`, the per-shell rc files, `starship.toml`
+  and `oh-my-posh.json`), their
   formats, the XDG path and the `_HI_CONFIG_DIR` override.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,

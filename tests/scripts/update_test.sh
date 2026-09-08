@@ -77,6 +77,96 @@ function test_update_to_a_tag_detaches_there() {
   ! git -C "$home/say-hi" symbolic-ref -q HEAD >/dev/null 2>&1
 }
 
+# The signature check reads gpg's status lines, so the fixture's unsigned tags
+# (tag.gpgsign=false) are the "not signed" arm: said, and still checked out -
+# a fork or mirror has exactly these
+function test_update_says_an_unsigned_tag_is_unsigned() {
+  local home out
+  home="$(_hi_update_fixture upd-unsigned)" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.2)" || return 1
+  [[ "$out" == *"v0.0.2 is not signed"* && "$out" == *"now on v0.0.2"* ]]
+}
+
+# the verdict is part of what a dry run reports, since it is the one thing the
+# checkout would have refused on
+function test_update_dry_run_reports_the_signature() {
+  local home out
+  home="$(_hi_update_fixture upd-drysig)" || return 1
+  out="$(_hi_subcmd_run "$home" --update --dry-run v0.0.2)" || return 1
+  [[ "$out" == *"v0.0.2 is not signed"* && "$out" == *"dry run"* ]]
+}
+
+# _hi_update_gpg_home <name> - a throwaway keyring with one key in it, its
+# path on stdout. Every such home is $_HI_WORKDIR/gnupg-*, which is how the
+# agent each one starts is found and killed at suite end
+# (_hi_update_gpg_cleanup) - gpg-agent outlives the suite otherwise.
+function _hi_update_gpg_home() {
+  local home="$_HI_WORKDIR/gnupg-$1"
+  mkdir -p "$home" && chmod 700 "$home"
+  GNUPGHOME="$home" gpg --batch --quiet --passphrase '' --quick-gen-key "hi test <hi@example.invalid>" default default never >/dev/null 2>&1 || return 1
+  printf '%s' "$home"
+}
+function _hi_update_gpg_cleanup() {
+  local h
+  for h in "$_HI_WORKDIR"/gnupg-*; do
+    [ -d "$h" ] || continue
+    gpgconf --homedir "$h" --kill gpg-agent >/dev/null 2>&1 || true
+  done
+}
+
+# _hi_update_signed_fixture <name> <gnupghome> - the fixture plus a signed
+# v0.0.3 on origin, made by the key in <gnupghome>
+function _hi_update_signed_fixture() {
+  local home
+  home="$(_hi_update_fixture "$1")" || return 1
+  (
+    cd "$home/work" || exit 1
+    # gpg.format spelled out: a developer's global config may sign with ssh
+    GNUPGHOME="$2" git -c user.name=hi -c user.email=hi@example.invalid -c user.signingkey=hi@example.invalid \
+      -c gpg.format=openpgp -c gpg.program=gpg tag -s -m three v0.0.3 &&
+      git push -q origin --tags
+  ) >/dev/null 2>&1 || return 1
+  printf '%s' "$home"
+}
+
+# a good signature is named with its signer, and the update goes ahead
+function test_update_names_a_good_signature() {
+  local gh home out
+  gh="$(_hi_update_gpg_home good)" || return 1
+  home="$(_hi_update_signed_fixture upd-good "$gh")" || return 1
+  out="$(GNUPGHOME="$gh" _hi_subcmd_run "$home" --update v0.0.3)" || return 1
+  [[ "$out" == *"good signature from hi test"* && "$out" == *"now on v0.0.3"* ]]
+}
+
+# the same signed tag seen from a keyring without the key: said, allowed -
+# most first installs have not imported anything
+function test_update_allows_a_signature_it_cannot_check() {
+  local gh empty home out
+  gh="$(_hi_update_gpg_home unknown)" || return 1
+  home="$(_hi_update_signed_fixture upd-unknown "$gh")" || return 1
+  empty="$_HI_WORKDIR/gnupg-empty"
+  mkdir -p "$empty" && chmod 700 "$empty"
+  out="$(GNUPGHOME="$empty" _hi_subcmd_run "$home" --update v0.0.3)" || return 1
+  [[ "$out" == *"not in your keyring"* && "$out" == *"now on v0.0.3"* ]]
+}
+
+# a tag whose signed content was altered after signing: the one arm that
+# refuses. The tag object is rewritten with a changed message under the same
+# signature, then the ref moved onto it - what a tampered mirror looks like.
+function test_update_refuses_a_bad_signature() {
+  local gh home out rc=0 obj
+  gh="$(_hi_update_gpg_home bad)" || return 1
+  home="$(_hi_update_signed_fixture upd-bad "$gh")" || return 1
+  obj="$(git -C "$home/say-hi" fetch -q --tags && git -C "$home/say-hi" cat-file tag v0.0.3 | sed 's/^three$/tampered/' | git -C "$home/say-hi" hash-object -t tag -w --stdin)" || return 1
+  git -C "$home/say-hi" update-ref refs/tags/v0.0.3 "$obj" || return 1
+  # and on origin, so the fetch inside --update does not put the good one back
+  git -C "$home/say-hi" push -q -f origin "refs/tags/v0.0.3:refs/tags/v0.0.3" 2>/dev/null || return 1
+  out="$(GNUPGHOME="$gh" _hi_subcmd_run "$home" --update v0.0.3)" || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  [[ "$out" == *"does not verify"* ]] || return 1
+  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
+}
+
 # bare: the newest tag by version, which the fetch brings in - and that
 # leaves a branch checkout detached too, since releases are tags and nothing
 # else
@@ -217,6 +307,14 @@ function run_update_tests() {
   _hi_check_requires git "--update takes one tag at most, no options" test_update_takes_one_tag_at_most
   _hi_check_requires git "A failed fetch stops the update" test_update_stops_when_the_fetch_fails
   _hi_check_requires git "A bare --update with no release tag is refused" test_bare_update_needs_a_release_tag
+
+  _hi_h2 "Testing: the tag's signature"
+  _hi_check_requires git "An unsigned tag is said to be, and checked out" test_update_says_an_unsigned_tag_is_unsigned
+  _hi_check_requires git "--dry-run reports the signature verdict" test_update_dry_run_reports_the_signature
+  _hi_check_requires gpg "A good signature is named with its signer" test_update_names_a_good_signature
+  _hi_check_requires gpg "A key not in the keyring: said, allowed" test_update_allows_a_signature_it_cannot_check
+  _hi_check_requires gpg "A bad signature refuses the checkout" test_update_refuses_a_bad_signature
+  _hi_update_gpg_cleanup
 
   _hi_suite_end "scripts/update.sh"
 }

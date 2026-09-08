@@ -71,7 +71,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 _HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc aliases.sh
-  bash.sh zsh.zsh config.fish)
+  bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json)
 
 # What a bash-less target falls back to, best first: core.sh's $_HI_SHELL_TREE
 # minus bash, derived so the two orderings cannot drift.
@@ -1910,6 +1910,23 @@ function _hi_record_recent() {
   return 0
 }
 
+# _hi_reset_terminal <code> - what a dropped link leaves behind. ssh puts the
+# tty's termios back on its way out, but nothing restores the *terminal's*
+# modes a remote program switched on and never got to switch off: application
+# cursor keys, the keypad, bracketed paste, a pushed kitty keyboard mode, the
+# alternate screen, a hidden cursor - and the OSC 133 "command running" state
+# hi's own prompt marks leave a Konsole in (load.sh closes it on a clean exit;
+# a drop never reaches that line). Each byte here is a no-op on a terminal
+# already in its normal state, so the caller need not know which one applied.
+# `stty sane` is for the container arms, whose exec does not always restore
+# termios when the link goes. The caller checks for a terminal; this only
+# prints. GLOSSARY: HI.53
+function _hi_reset_terminal() {
+  printf '\033[?1l\033>\033[?2004l\033[<u\033[?1049l\033[?25h'
+  [ "${_HI_DISABLE_MARKS:-0}" = 1 ] || printf '\033]133;D;%s\a' "$1"
+  stty sane 2>/dev/null || true
+}
+
 # _hi_report_failure <code> <backend> <errlog> - what a failed connect says, at
 # most once. Three ways it says nothing at all, each because the failure was
 # already spoken for: $_HI_SAID means _hi_fail already printed the reason;
@@ -1948,40 +1965,119 @@ function _hi_mux_name() {
   printf 'hi-%s' "${1//[^[:alnum:]_-]/-}"
 }
 
+# _hi_mux_tool <outvar> - which multiplexer wraps the session: $_HI_MUX_TOOL
+# when set (tmux, zellij or screen), else the first of those three on PATH.
+# Empty, with the reason on stderr, when there is none to use.
+function _hi_mux_tool() {
+  local _hi_mt_tool
+  case "${_HI_MUX_TOOL:-}" in
+  tmux | zellij | screen)
+    if command -v "$_HI_MUX_TOOL" >/dev/null 2>&1; then
+      printf -v "$1" '%s' "$_HI_MUX_TOOL"
+      return 0
+    fi
+    _hi_cecho "hi: --mux wants $_HI_MUX_TOOL (\$_HI_MUX_TOOL), which is not on this machine; connecting without it" "$YELLOW" >&2
+    ;;
+  '')
+    for _hi_mt_tool in tmux zellij screen; do
+      if command -v "$_hi_mt_tool" >/dev/null 2>&1; then
+        printf -v "$1" '%s' "$_hi_mt_tool"
+        return 0
+      fi
+    done
+    _hi_cecho "hi: --mux needs tmux, zellij or screen on this machine; connecting without it" "$YELLOW" >&2
+    ;;
+  *)
+    _hi_cecho "hi: \$_HI_MUX_TOOL=$_HI_MUX_TOOL is not one of tmux, zellij or screen; connecting without a multiplexer" "$YELLOW" >&2
+    ;;
+  esac
+  printf -v "$1" ''
+  return 1
+}
+
+# _hi_kdl_quote <outvar> <word> - one KDL string, for a zellij layout: the
+# two characters KDL reads inside double quotes are the backslash and the quote
+# itself.
+function _hi_kdl_quote() {
+  local _hi_kq="$2"
+  _hi_kq="${_hi_kq//\\/\\\\}"
+  _hi_kq="${_hi_kq//\"/\\\"}"
+  printf -v "$1" '"%s"' "$_hi_kq"
+}
+
 # _hi_mux_wrap - with --mux or _HI_MUX=1, re-run this connect inside a local
-# tmux session named for the target, and never return. `new-session -A` is the
+# multiplexer session named for the target, and never return. A repeat is the
 # reattach: a second `hi --mux <target>` joins the session that is already
 # running instead of opening another. Everything here is client-side; the
 # target sees the same disposable session it always does.
-# GLOSSARY: HI.52 - the re-exec, its guard, the one-string command
+# GLOSSARY: HI.52 - the re-exec, its guard, the one-string command, the tools
 function _hi_mux_wrap() {
-  local name cmd="" word q
+  local name tool cmd="" word q layout
+  local -a inner=()
   [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
   # the inner hi, already inside the session: connect as usual
   [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0
-  command -v tmux >/dev/null 2>&1 || {
-    _hi_cecho "hi: --mux needs tmux on this machine; connecting without it" "$YELLOW" >&2
-    return 0
-  }
+  _hi_mux_tool tool || return 0
   name="$(_hi_mux_name "$DOMAIN")"
   # The inner argv is rebuilt from what _hi_parse settled on rather than
-  # replayed from "$@", so a target chosen by the picker rides along. One
-  # single-quoted string, not a word list: tmux hands it to its default-shell,
-  # which may be fish, and single quotes are the one form every shell reads
-  # the same way (%q's $'...' is bash's alone).
-  for word in env _HI_MUX_INNER=1 "$_HI_LAUNCHER" \
-    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain} \
-    ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"}; do
+  # replayed from "$@", so a target chosen by the picker rides along. tmux
+  # and screen take it as one single-quoted string, not a word list: tmux
+  # hands it to its default-shell, which may be fish, and screen to `sh -c`,
+  # and single quotes are the one form every shell reads the same way (%q's
+  # $'...' is bash's alone). zellij takes the words themselves, in a layout.
+  inner=(env _HI_MUX_INNER=1 "$_HI_LAUNCHER"
+    ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain}
+    ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"})
+  for word in "${inner[@]}"; do
     _hi_shquote q "$word"
     cmd="$cmd${cmd:+ }$q"
   done
-  if [ -n "${TMUX:-}" ]; then
-    # tmux refuses to nest: create detached if needed, then switch this client
-    tmux has-session -t "=$name" 2>/dev/null ||
-      tmux new-session -d -s "$name" "$cmd" || exit 1
-    exec tmux switch-client -t "=$name"
-  fi
-  exec tmux new-session -A -s "$name" "$cmd"
+  case "$tool" in
+  tmux)
+    if [ -n "${TMUX:-}" ]; then
+      # tmux refuses to nest: create detached if needed, then switch this client
+      tmux has-session -t "=$name" 2>/dev/null ||
+        tmux new-session -d -s "$name" "$cmd" || exit 1
+      exec tmux switch-client -t "=$name"
+    fi
+    exec tmux new-session -A -s "$name" "$cmd"
+    ;;
+  screen)
+    if [ -n "${STY:-}" ]; then
+      # screen has no client switch: a new window in this session is the
+      # nearest thing, and the wrap is done once it exists
+      screen -t "$name" sh -c "$cmd" || exit 1
+      exit 0
+    fi
+    # -D -R: reattach the session of that name if there is one (detaching it
+    # elsewhere first), else create it running the command
+    exec screen -D -R -S "$name" sh -c "$cmd"
+    ;;
+  zellij)
+    # zellij starts a session's command from a layout file, never from argv;
+    # one file per target, under hi's runtime directory, rewritten each time
+    _hi_runtime_dir layout
+    layout="${layout:-${TMPDIR:-/tmp}}/hi.mux.$name.kdl"
+    {
+      printf 'layout {\n    pane command=%s close_on_exit=true {\n        args' '"env"'
+      for word in "${inner[@]}"; do
+        [ "$word" = env ] && continue
+        _hi_kdl_quote q "$word"
+        printf ' %s' "$q"
+      done
+      printf '\n    }\n}\n'
+    } >"$layout" || exit 1
+    if [ -n "${ZELLIJ:-}" ]; then
+      # inside a zellij: a new tab in this session, named for the target
+      zellij action new-tab --name "$name" --layout "$layout" || exit 1
+      exit 0
+    fi
+    if zellij list-sessions --short 2>/dev/null | grep -qx -- "$name"; then
+      exec zellij attach "$name"
+    fi
+    exec zellij --session "$name" --new-session-with-layout "$layout"
+    ;;
+  esac
 }
 
 function _hi() {
@@ -2030,6 +2126,10 @@ function _hi() {
     _say_hi
   fi
   exit_code="$?"
+
+  # a session that did not end on its own terms may have left the terminal
+  # mid-state; only with a terminal on both ends to put right
+  [ "$exit_code" -eq 0 ] || { [ -t 0 ] && [ -t 1 ] && _hi_reset_terminal "$exit_code"; }
 
   # a session that ended cleanly is one worth offering first next time; one
   # that never connected (a typo, an unreachable host) is not
