@@ -672,9 +672,10 @@ function test_coverage_merge_jobs_check_out_the_tree() {
 # Neither tracer follows a non-bash child, and ubuntu's sh is dash, so the
 # `#!/bin/sh` files the suites execute as `sh <file>` (common/targets.sh,
 # common/passthrough.sh) read 0% unless a bash-as-sh sits first on PATH -
-# four points of the badge, and nothing else would notice the step going.
-# Every job that runs a coverage driver has to carry the shim, and the shim
-# has to come before the sweep it is for.
+# four points of the badge, and nothing else would notice the shim going.
+# Every job that runs a coverage driver has to create the shim before the
+# sweep and put it on that command's PATH (not GITHUB_PATH - zizmor's
+# github-env audit rejects that on a workflow_run workflow).
 function test_coverage_shard_jobs_shim_sh_to_bash() {
   local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job block missing=""
   local seen=0 jobs shim sweep
@@ -682,10 +683,11 @@ function test_coverage_shard_jobs_shim_sh_to_bash() {
   jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
   while read -r job; do
     block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
-    sweep="$(printf '%s\n' "$block" | grep -n -E '^ *run: .*tests/coverage(_v2)?\.sh' | head -1 | cut -d: -f1)"
+    sweep="$(printf '%s\n' "$block" | grep -n -E '^ *(run: *)?(PATH=[^ ]* )?tests/coverage(_v2)?\.sh' | head -1 | cut -d: -f1)"
     [ -n "$sweep" ] || continue
     seen=$((seen + 1))
     shim="$(printf '%s\n' "$block" | grep -n -E '^ *ln -sf .*bash.*/sh"?$' | head -1 | cut -d: -f1)"
+    printf '%s\n' "$block" | sed -n "${sweep}p" | grep -q 'PATH="[^"]*bashsh:' || shim=""
     [ -n "$shim" ] && [ "$shim" -lt "$sweep" ] || missing="$missing $job"
   done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
   [ "$seen" -gt 0 ] || {

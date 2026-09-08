@@ -42,7 +42,7 @@ name: Coverage
 # 0/220 and 0/32 under a dash sh, 96% and 100% under bash) read 0% here
 # and on no other box. settings/aliases.sh is `#!/bin/sh` too and
 # unaffected: its suite sources it into the traced bash. Each shard
-# therefore puts a `sh -> bash` symlink first on PATH before its sweep, the
+# therefore puts a `sh -> bash` symlink first on PATH for its sweep, the
 # mirror of the dash sweep CLAUDE.md prescribes locally: bash invoked as sh
 # runs in POSIX mode and the lines get counted. Correctness under dash is
 # ci.yml's job, not this workflow's - these figures gate nothing.
@@ -118,18 +118,18 @@ jobs:
       # shard, the same contract ci.yml's e2e job and windows-client.yml use.
       # No --group: the default selection is every suite, same as an
       # unsharded run.
-      - name: Put a bash-as-sh first on PATH, so the tracer follows `sh` children
+      # the sh -> bash shim is scoped to this one command rather than written
+      # to GITHUB_PATH (zizmor's github-env audit flags that on a workflow_run
+      # workflow): see the header for why the sweep needs it
+      - name: Run this shard of the suite sweep under kcov, with a bash-as-sh first on PATH
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          HI_SHARDS: 4
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bashsh"
           ln -sf "$(command -v bash)" "$RUNNER_TEMP/bashsh/sh"
-          echo "$RUNNER_TEMP/bashsh" >>"$GITHUB_PATH"
-
-      - name: Run this shard of the suite sweep under kcov
-        env:
-          HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
-        run: "tests/coverage.sh coverage-report --shard \"$HI_SHARD/$HI_SHARDS\""
+          PATH="$RUNNER_TEMP/bashsh:$PATH" tests/coverage.sh coverage-report --shard "$HI_SHARD/$HI_SHARDS"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -199,18 +199,18 @@ jobs:
       - name: Show the bashcov version
         run: bashcov --version
 
-      - name: Put a bash-as-sh first on PATH, so the tracer follows `sh` children
+      # the sh -> bash shim is scoped to this one command rather than written
+      # to GITHUB_PATH (zizmor's github-env audit flags that on a workflow_run
+      # workflow): see the header for why the sweep needs it
+      - name: Run this shard of the suite sweep under bashcov, with a bash-as-sh first on PATH
+        env:
+          HI_SHARD: ${{ matrix.shard }}
+          HI_SHARDS: 4
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bashsh"
           ln -sf "$(command -v bash)" "$RUNNER_TEMP/bashsh/sh"
-          echo "$RUNNER_TEMP/bashsh" >>"$GITHUB_PATH"
-
-      - name: Run this shard of the suite sweep under bashcov
-        env:
-          HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
-        run: "tests/coverage_v2.sh coverage-v2-report --shard \"$HI_SHARD/$HI_SHARDS\""
+          PATH="$RUNNER_TEMP/bashsh:$PATH" tests/coverage_v2.sh coverage-v2-report --shard "$HI_SHARD/$HI_SHARDS"
 
       # Only the resultset, not the whole coverage-v2-report tree: SimpleCov
       # writes an HTML report per shard too, and gather-bashcov has no use
