@@ -736,28 +736,6 @@ function banner() {
   printf '%b\n' "$lead$changes$color$start_tildes $label ${NC}[$host_esc$host$NC]$color $end_tildes$NC"
 }
 
-# tmux swallows the DCS passthrough common/passthrough.sh wraps its escapes
-# in unless `allow-passthrough` is on (off by default since tmux 3.3), and
-# nothing fails visibly - that is the "hi_copy does nothing" report, answered
-# here before it is filed. Three conditions: a tmux in the way ($TMUX, not
-# $TERM), the two features on (one toggle covers both), and the option not
-# set.
-# `show -Apv`: allow-passthrough is a *pane* option, -A includes the inherited
-# global; a tmux too old to have it answers nothing, and nothing is the right
-# thing to say back. `all` counts as on. No _HI_HEADER_* toggle: this row only
-# appears where something is broken, and fixing it silences it.
-function passthrough_check() {
-  local value
-  [ -n "${TMUX:-}" ] || return 0
-  [[ "${_HI_DISABLE_PASSTHROUGH:-0}" == 1 ]] && return 0
-  command -v tmux &>/dev/null || return 0
-  value="$(exec tmux show -Apv allow-passthrough 2>/dev/null)" || value=""
-  [ -n "$value" ] || value="$(exec tmux show -gv allow-passthrough 2>/dev/null)" || value=""
-  case "$value" in on | all | '') return 0 ;; esac
-  header_row "${YELLOW}tmux passthrough off - hi_copy/hi_notify muted" \
-    "${BRYELLOW}set -g allow-passthrough on"
-}
-
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
 # per feature, in the shipped default order - no more grouping: any word may
 # be reordered or left out on its own, independent of the others. Named here
@@ -902,10 +880,6 @@ function hi_header() {
   # dropped - a no-op when the order ends on "check", since full_check
   # absorbs the carry itself and leaves none behind.
   _hi_header_flush
-  # last, so the line that says something is wrong sits next to the prompt.
-  # Connect only: load.sh's disconnect calls banner directly. No
-  # _HI_HEADER_ORDER word of its own - not a word a reorder moves.
-  passthrough_check
 }
 
 # Package priorities, lowest to highest, 0-3. A priority says how loudly you

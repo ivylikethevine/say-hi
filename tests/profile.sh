@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Per-command profiles of hi's hot paths via timep - a dev tool to run when a
-# bench ceiling trips, deliberately not wired into CI.
+# Per-command profiles of hi's hot paths via timep - what to read when a bench
+# ceiling trips. ci.yml's `profile` job runs it on every push and uploads the
+# profiles as an artifact; advisory there, never a gate.
 #
 # `tests/bench/bench_test.sh` gives one average per hot path against a generous
 # ceiling. That answers *whether* something got slower and never *which command

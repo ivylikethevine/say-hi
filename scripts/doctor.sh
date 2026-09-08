@@ -100,6 +100,7 @@ source "$_HI_LAUNCHER"
 # takes it). Anything else that looks like a flag is an error, not a target -
 # a target never starts with a dash - and so is a second target.
 _hi_via=""
+# the guard: no arguments is an empty array (GLOSSARY: HI.01)
 for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   if [ -n "$_hi_via" ]; then
     _HI_DOC_BACKEND="$(_hi_use_backend "$_hi_arg")" || exit 1

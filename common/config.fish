@@ -13,7 +13,7 @@ end
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
-    _HI_DISABLE_PASSTHROUGH _HI_DISABLE_MARKS \
+    _HI_DISABLE_MARKS \
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
@@ -51,7 +51,7 @@ source $_HI_ALIASES
 # scope) rather than `-l`: a `-l` inside the `for` is gone by the time the
 # command runs. GLOSSARY: HI.47
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
-    _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_CONTAINER_CLIS _HI_RECENT _HI_RECENT_FILE
+    _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_CONTAINER_CLIS
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
     _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
 function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
@@ -64,7 +64,7 @@ end
 # Opposite conditions, so exactly one runs per TAB: without the negation
 # `hi --<TAB>` would fire the target sweep too, and a flag list must never
 # wait on a docker daemon (the promise targets.sh, bash.sh and zsh.zsh keep).
-# -k keeps targets.sh's order - recent targets first - instead of sorting.
+# -k keeps targets.sh's order instead of sorting.
 # the word after a flag that takes one - `hi --preview <TAB>`, `hi --use
 # <TAB>` - is neither a flag nor a target: targets.sh's words roster
 function __hi_prev_takes_word --description 'is the previous token one of $_HI_WORD_FLAGS'

@@ -134,22 +134,9 @@ a target" is one command.
   as with plain `ssh`; hi's own connect-failure report prints a target's
   stderr as text, never expanding it, so a backslash sequence a target wrote
   stays one.
-- **A target can write to your clipboard, and raise a notification.**
-  `hi_copy` and `hi_notify` work by emitting OSC 52 and OSC 9/777 escapes
-  that your terminal acts on; any program on the target can emit the same
-  bytes, with or without hi, and a terminal that honours OSC 52 will put
-  whatever they carry on your clipboard. hi adds the convenience, not the
-  exposure - but it does turn the passthrough on by default, so a session
-  into a host you do not trust is one to run with `_HI_DISABLE_PASSTHROUGH=1`
-  ([SETTINGS.md](SETTINGS.md#others)), or in a terminal that asks before
-  reading OSC 52 (most do; Konsole and gnome-terminal ignore it outright).
-  Reading your clipboard back is a different escape that hi never enables.
 - **What hi writes on the client.** The rc lines and `settings.sh` the
   install asked about, a payload cache and the ssh `ControlMaster` socket
-  under a private runtime directory, and - with `_HI_RECENT=1`, the default
-  - `$XDG_STATE_HOME/say-hi/recent`: one `<epoch>\t<target>` line per
-  session that ended cleanly, which is a list of the hosts you visit.
-  `_HI_RECENT=0` stops it; deleting the file forgets them.
+  under a private runtime directory.
 - Backend dispatch trusts your local `~/.ssh/config` and your
   `docker`/`podman`/`nomad`/`kubectl` CLIs — the same ones you already run.
 - The ssh `ControlMaster` socket lives at a name only this user's process can

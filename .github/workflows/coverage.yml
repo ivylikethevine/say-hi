@@ -37,9 +37,9 @@ name: Coverage
 # Both tracers follow a child only when it is bash: bashcov rides on
 # SHELLOPTS=xtrace and BASH_XTRACEFD, kcov on a bash-only DEBUG trap, and
 # dash reads neither. ubuntu's /bin/sh is dash, so the `#!/bin/sh` files
-# the suites *execute* as `sh <file>` children (common/targets.sh and
-# common/passthrough.sh - ~250 lines, four points of the badge; measured
-# 0/220 and 0/32 under a dash sh, 96% and 100% under bash) read 0% here
+# the suites *execute* as `sh <file>` children (common/targets.sh -
+# ~220 lines, three points of the badge; measured 0/220 under a dash sh,
+# 96% under bash) read 0% here
 # and on no other box. settings/aliases.sh is `#!/bin/sh` too and
 # unaffected: its suite sources it into the traced bash. Each shard
 # therefore puts a `sh -> bash` symlink first on PATH for its sweep, the

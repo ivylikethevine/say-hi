@@ -448,24 +448,10 @@ that fails its syntax check stops
 .B \-\-install
 at 1 before it writes a line.
 .SH SESSION COMMANDS
-Three commands hi's aliases define inside a session (and in the wired local
+One command hi's aliases define inside a session (and in the wired local
 shells), spelled with an underscore because they are shell functions, not
 flags of
 .BR hi :
-.TP
-.B hi_copy
-stdin to the clipboard of the terminal you are sitting at, as an OSC 52
-escape back through the connection \- nothing on the target touches a
-clipboard.
-.B vim
-yanks the same way. Off with
-.BR _HI_DISABLE_PASSTHROUGH=1 .
-.TP
-.B hi_notify \fIcommand\fR...
-run
-.I command
-and raise a desktop notification in that same terminal when it finishes,
-the same way. Off with the same toggle.
 .TP
 .B hi_info
 print where the running say\-hi lives \- its home, root and launcher. A
@@ -533,7 +519,7 @@ and
 written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
-variable toggle \- header, prompt, git status, editors, clipboard \- each on
+variable toggle \- header, prompt, git status, editors \- each on
 by default and tabulated in
 .IR docs/SETTINGS.md .
 The tree itself can be

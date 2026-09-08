@@ -365,48 +365,9 @@ kube_rows() {
   done
 }
 
-# Recent targets first. hi.sh appends "<epoch>\t<target>" to the recent file
-# after every clean session (client-side only); this ranks the rows it names
-# ahead of the rest by zoxide's frecency (4 within the hour, 2 within the day,
-# 0.5 within the week, 0.25 after). The file ranks, it never adds. Applied on
-# the way out, not before the cache, so a session reorders the next TAB
-# without waiting out the TTL. _HI_RECENT=0 turns it off; _HI_RECENT_FILE
-# points the file elsewhere (the suite does).
-rank_recent() {
-  _hi_recent="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
-  # pass-through without an exec: no recent file (or no coreutils, which the
-  # suite's toolbox is) must cost nothing here
-  if [ "${_HI_RECENT:-1}" = 0 ] || [ ! -r "$_hi_recent" ]; then
-    while IFS= read -r _hi_line || [ -n "$_hi_line" ]; do printf '%s\n' "$_hi_line"; done
-    return 0
-  fi
-  awk -F '\t' -v now="$now" '
-    FNR == NR {
-      if ($2 == "") next
-      age = now - $1
-      if (age < 0) age = 0
-      w = age < 3600 ? 4 : age < 86400 ? 2 : age < 604800 ? 0.5 : 0.25
-      score[$2] += w
-      next
-    }
-    { n++; row[n] = $0; name[n] = $1 }
-    END {
-      # scored rows highest first: a selection pass per row, nothing at this size
-      for (;;) {
-        best = 0
-        for (i = 1; i <= n; i++)
-          if (!(done[i]) && (name[i] in score) && (best == 0 || score[name[i]] > score[name[best]])) best = i
-        if (best == 0) break
-        done[best] = 1
-        print row[best]
-      }
-      for (i = 1; i <= n; i++) if (!(done[i])) print row[i]
-    }' "$_hi_recent" -
-}
-
 # No cache wanted: just answer, before the two forks below.
 if [ "$ttl" -le 0 ]; then
-  emit_targets | rank_recent
+  emit_targets
   exit 0
 fi
 
@@ -444,7 +405,7 @@ if [ -z "$cache_dir" ] || [ ! -d "$cache_dir" ]; then
     _hi_cache_ok=0
   fi
   if [ "$_hi_cache_ok" = 0 ]; then
-    emit_targets | rank_recent
+    emit_targets
     exit 0
   fi
 fi
@@ -486,7 +447,7 @@ if [ -f "$cache" ] && [ -r "$cache" ]; then
     if [ "$now" -ge "$stamp" ]; then
       age=$((now - stamp))
       if [ "$age" -lt "$ttl" ]; then
-        cache_body "$cache" | rank_recent
+        cache_body "$cache"
         exit 0
       fi
     fi
@@ -495,7 +456,7 @@ if [ -f "$cache" ] && [ -r "$cache" ]; then
 fi
 
 if [ -n "$age" ] && [ "$age" -lt "$stale_for" ]; then
-  cache_body "$cache" | rank_recent
+  cache_body "$cache"
   # One refresh at a time, or every TAB in the window a sweep takes would
   # start another. The lock is a directory (made or not in one call) holding
   # the time it was taken; one older than any sweep runs (a flat 30s) was left
@@ -523,5 +484,5 @@ fi
 
 out="$(emit_targets)"
 write_cache "$out"
-[ -n "$out" ] && printf '%s\n' "$out" | rank_recent
+[ -n "$out" ] && printf '%s\n' "$out"
 exit 0

@@ -596,7 +596,6 @@ EOF
   _hi_check_eq "Unknown TERM becomes xterm-256color" xterm-256color _hi_preamble_final_term TERM=hi-test-no-such-term
   _hi_check "A TERM with terminfo is kept" test_term_fallback_keeps_a_term_with_terminfo
   _hi_check_eq "Ubiquitous names skip the probe" xterm _hi_preamble_final_term TERM=xterm
-  _hi_check_eq "_HI_TERM_FALLBACK=0 opts out" hi-test-no-such-term _hi_preamble_final_term TERM=hi-test-no-such-term _HI_TERM_FALLBACK=0
   _hi_suite_end "hi.sh (target-side strings)"
 }
 

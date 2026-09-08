@@ -1110,43 +1110,11 @@ function test_paths_defines_no_command_aliases() {
   }
 }
 
-# _hi_record_recent: the client half of recent-targets-first (targets.sh's
-# ranking is targets_test.sh's). The file is pointed into the workdir.
-function test_record_recent_appends_a_line() {
-  local f="$_HI_WORKDIR/recent.append"
-  rm -f "$f"
-  _HI_RECENT_FILE="$f" _hi_record_recent alpha
-  _HI_RECENT_FILE="$f" _hi_record_recent beta
-  [ "$(grep -c . "$f")" -eq 2 ] &&
-    grep -qE $'^[0-9]+\talpha$' "$f" && grep -qE $'^[0-9]+\tbeta$' "$f"
-}
-# the promise the roadmap made: nothing about it reaches a target - a relay's
-# hi, which is the same file running in a session, records nothing there
-function test_record_recent_is_silent_in_a_session() {
-  local f="$_HI_WORKDIR/recent.session"
-  rm -f "$f"
-  _HI_REMOTE_SESSION=1 _HI_RECENT_FILE="$f" _hi_record_recent alpha
-  [ ! -e "$f" ]
-}
-function test_record_recent_is_silent_when_off() {
-  local f="$_HI_WORKDIR/recent.off"
-  rm -f "$f"
-  _HI_RECENT=0 _HI_RECENT_FILE="$f" _hi_record_recent alpha
-  [ ! -e "$f" ]
-}
-function test_record_recent_trims() {
-  local f="$_HI_WORKDIR/recent.trim" i
-  rm -f "$f"
-  for i in $(seq 1 500); do printf '1\told-%s\n' "$i"; done >"$f"
-  _HI_RECENT_FILE="$f" _hi_record_recent newest
-  [ "$(grep -c . "$f")" -eq 300 ] && [ "$(tail -1 "$f" | cut -f2)" = newest ]
-}
-
 # _hi is the dispatch function itself: the missing-$_HI_ROOT exit, the
 # PLAIN/arm 2x2 that picks which _say_hi* runs, and the record/report calls
 # that follow depending on the exit status. It calls `exit` outright, so
 # every case here redefines the four _say_hi* arms plus _hi_parse,
-# _hi_select_arm, _hi_record_recent and _hi_report_failure to markers instead
+# _hi_select_arm and _hi_report_failure to markers instead
 # of the real thing, in a subshell so none of it leaks to the next case.
 #
 # _hi_dispatch_probe <plain> <backend> <status> - runs _hi with $PLAIN=<plain> and
@@ -1179,9 +1147,6 @@ function _hi_dispatch_probe() {
     function _say_hi_container_plain() {
       printf 'say_hi_container_plain:%s\n' "$1" >>"$marker"
       return "$status"
-    }
-    function _hi_record_recent() {
-      printf 'record_recent:%s\n' "${1:-}" >>"$marker"
     }
     function _hi_report_failure() {
       printf 'report_failure:%s:%s\n' "${1:-}" "${2:-}" >>"$marker"
@@ -1234,17 +1199,10 @@ function test_hi_exit_code_is_the_arms() {
   [ "$(printf '%s\n' "$out" | sed -n 1p)" = 7 ]
 }
 
-# a typo or an unreachable host is not worth offering first next time
-function test_hi_records_recent_only_on_success() {
-  local out
-  out="$(_hi_dispatch_probe 0 "" 0)"
-  [[ "$out" == *"record_recent:probehost"* ]] && [[ "$out" != *report_failure* ]]
-}
-
 function test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp() {
   local out
   out="$(_hi_dispatch_probe 0 docker 3)"
-  [[ "$out" == *"report_failure:3:docker"* ]] && [[ "$out" != *record_recent* ]]
+  [[ "$out" == *"report_failure:3:docker"* ]]
 }
 
 function run_hi_parse_tests() {
@@ -1343,12 +1301,6 @@ function run_hi_parse_tests() {
   _hi_check "ssh: execs real ssh with RAWCMD" test_plain_ssh_execs_real_ssh_with_rawcmd
   _hi_check "ssh: no command means no trailing word" test_plain_ssh_with_no_command_passes_none
 
-  _hi_h2 "Testing: _hi_record_recent"
-  _hi_check "Appends a stamped line" test_record_recent_appends_a_line
-  _hi_check "Writes nothing in a session" test_record_recent_is_silent_in_a_session
-  _hi_check "Writes nothing when off" test_record_recent_is_silent_when_off
-  _hi_check "Trims past 500 lines to 300" test_record_recent_trims
-
   _hi_h2 "Testing: _hi (the dispatch)"
   _hi_check "Exits 1 when \$_HI_ROOT is missing" test_hi_exits_1_when_root_is_missing
   _hi_check "PLAIN=0, no arm -> _say_hi" test_hi_dispatch_plain0_no_arm_calls_say_hi
@@ -1356,7 +1308,6 @@ function run_hi_parse_tests() {
   _hi_check "PLAIN=1, no arm -> _say_hi_plain" test_hi_dispatch_plain1_no_arm_calls_say_hi_plain
   _hi_check "PLAIN=1, an arm -> _say_hi_container_plain" test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain
   _hi_check "Exits with the arm's own status" test_hi_exit_code_is_the_arms
-  _hi_check "Records recent only on success" test_hi_records_recent_only_on_success
   _hi_check "Reports failure only on non-zero, with arm+tmp" test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp
 
   _hi_h2 "Testing: hi's local sub-commands"

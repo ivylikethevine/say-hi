@@ -13,7 +13,7 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/settings.sh` | -                   | what `hi --configure` writes                                                                                                                  |
 | `~/.config/say-hi/colors`      | `settings/colors`   | your color pins                                                                                                                               |
 | `~/.config/say-hi/packages`    | `settings/packages` | what the package check looks for                                                                                                              |
-| `~/.config/say-hi/vim.rc`      | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale, so carry the OSC 52 yank block over if wanted      |
+| `~/.config/say-hi/vim.rc`      | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale                                                     |
 | `~/.config/say-hi/nano.rc`     | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
 | `~/.config/say-hi/aliases.sh`  | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
 | `~/.config/say-hi/bash.sh`     | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
@@ -73,8 +73,8 @@ prompt line as it would draw, at your current settings — over a short menu:
 3. **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
    each previewed as it flips.
 4. **Prompt** — starship, and the character each shell's prompt ends with.
-5. **Advanced** — the _advanced_ rows, as a short walk of questions: recent
-   targets, the leading space, tmux, the session shell, the glyphs and
+5. **Advanced** — the _advanced_ rows, as a short walk of questions:
+   the leading space, tmux, the session shell, the glyphs and
    24-bit color, then an offer of the transport internals (TERM fallback,
    the payload cache, the timeouts, the container CLI roster, ssh
    connection reuse) that Enter declines. A question whose tool is not on
@@ -104,7 +104,7 @@ without the menu:
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `everything` | every feature and every header item on — the shipped defaults                                                                                                                                                                                            |
 | `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`)                                                                                                                                                                        |
-| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors, clipboard, notifications or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`).                                                               |
+| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`).                                                               |
 
 A preset is an absolute answer over the feature and header settings: what it
 names is set, everything else in that vocabulary returns to its default, and
@@ -132,7 +132,7 @@ preview shows and `s` saves — a starting point, not a lock. The rows are
    the way in (about 40% of it).
 3. That assembled script is the size `hi` prints on connect and what the
    payload badge measures, for a _default_ configuration — an overlay that
-   turns off the editor overrides, OSC 52 or `hi_notify` sends less. It is the
+   turns off the editor overrides sends less. It is the
    per-session wire cost, not the package badge beside it, which is what a
    release downloads (`scripts/` and the docs ship in a package, never over
    the wire).
@@ -189,7 +189,6 @@ cannot land without a row here.
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                       |
 | `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the `vim`/`nano` config overrides                                                                                                                                                                                                                                                                                                                   |
 | `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa` and `eza` themselves stay available by name either way                                                                                                                                                                        |
-| `_HI_DISABLE_PASSTHROUGH`   | `0`                                                  | `hi --configure`          | turns off `hi_copy` (and the `vim` yank behind it) and `hi_notify`, the two features that reach back through the connection as terminal escapes, and keeps `common/passthrough.sh` off the ssh payload entirely. See [Others](#others)                                                                                                                        |
 | `_HI_DISABLE_MARKS`         | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)                                                                                                                                                                                                                                             |
 | `_HI_DISABLE_BANNER`        | `0`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                                                                                                                                                                                                                                                              |
 | `_HI_DISABLE_LOCAL`         | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                                                                                                                                                                     |
@@ -206,11 +205,9 @@ cannot land without a row here.
 | `_HI_PROMPT_END_BASH`       | `\$`                                                 | `hi --configure`          | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root"); also the plain `sh` prompt hi bakes on the client for a bash-less target                                                                                                                                                                                                      |
 | `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                   |
 | `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                       |
-| `_HI_RECENT`                | `1`                                                  | `hi --configure` advanced | `1` appends every target a session ended cleanly on to a recent file, and `hi <TAB>` offers those first (zoxide's frecency). Client-side only. `0` neither records nor ranks                                                                                                                                                                                  |
 | `_HI_NO_LEAD_SPACE`         | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                               |
 | `_HI_MUX`                   | `0`                                                  | `hi --configure` advanced | `1` wraps every session in a local multiplexer session named for the target and reattaches on the next connect, what `--mux` does for one connect (`--no-mux` skips it for one); needs tmux, zellij or screen here, not on the target                                                                                                                           |
 | `_HI_MUX_TOOL`              | unset                                                | you                       | which multiplexer `--mux`/`_HI_MUX` uses: `tmux`, `zellij` or `screen`. Unset picks the first of those three on your `PATH`; a name that is not installed here connects un-wrapped, with a warning                                                                                                                                                              |
-| `_HI_TERM_FALLBACK`         | `1`                                                  | `hi --configure` advanced | on ssh targets missing a terminfo entry for your `TERM` (ghostty's `xterm-ghostty`, typically), swap it for `xterm-256color` before the session starts; `0` keeps the original                                                                                                                                                                                |
 | `_HI_PAYLOAD_CACHE`         | `1`                                                  | `hi --configure` advanced | caches the gzipped payload and overlay archives between connects, rebuilding when a source file's mtime moves past the cache's own or a toggle changes what would ship; `0` rebuilds fresh every connect                                                                                                                                                      |
 | `_HI_SHELL_PREFERENCE`      | `login`, then fish, zsh, bash                        | `hi --configure` advanced | which shell a session runs in: an ordered list of `bash`/`zsh`/`fish`, plus `login`. First one installed on the target wins; `bash` is the floor, since `load.sh` needs it                                                                                                                                                                                    |
 | `_HI_ASCII`                 | by locale                                            | `hi --configure` advanced | `1` forces ASCII stand-ins for the banner/prompt/packages glyphs, `0` forces the glyphs; unset asks the locale, so `LANG=C` degrades cleanly instead of printing mojibake                                                                                                                                                                                     |
@@ -220,7 +217,6 @@ cannot land without a row here.
 | `_HI_CONTAINER_CLIS`        | `docker podman nerdctl finch`                        | `hi --configure` advanced | the docker-compatible CLIs, space-separated, `hi <TAB>` lists containers through and `hi <target>` resolves with; docker's grammar is what they all speak, so one arm serves the lot. See [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                                                                                                              |
 | `_HI_CTL_PERSIST`           | `60`                                                 | `hi --configure` advanced | seconds an ssh connection stays authenticated after you disconnect, so a second `hi <target>` within that window reuses the socket and skips the key exchange; `0` closes it right away                                                                                                                                                                       |
 | `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to `_HI_ASCII`                                                                                                                                                                                                 |
-| `_HI_RECENT_FILE`           | `$XDG_STATE_HOME/say-hi/recent`                      | you                       | that file, one `<epoch>\t<target>` line per session, trimmed to the newest 300 past 500                                                                                                                                                                                                                                                                       |
 | `_HI_BAT_OPTS`              | Monokai theme, `--tabs 2`, `changes,grid` style      | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                   |
 | `_HI_EXA_SHARED_OPTS`       | `-F -1 -l -m --group-directories-first`              | you                       | the flags the `exa`/`eza` aliases share before each one's own are appended                                                                                                                                                                                                                                                                                    |
 | `_HI_EXA_OPTS`              | `$_HI_EXA_SHARED_OPTS --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                        |
@@ -366,35 +362,6 @@ rc lines `install.sh` adds (marker-tagged, with a one-time `.hi-orig` backup,
 removed by `hi --uninstall`), and, in fish, three universal variables that
 memoize your prompt colors so only the first shell after a `colors` change
 pays for the bash call.
-
-`_HI_DISABLE_PASSTHROUGH` turns off the two features that reach back _through_
-the connection. A yank in `vim` on a target, or anything piped into `hi_copy`,
-is base64'd into an
-[OSC 52](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h4-Operating-System-Commands)
-escape written to the tty, so your local terminal emulator puts it on **your**
-clipboard — no X11 forwarding, no clipboard daemon, nothing installed on the
-target. `hi_notify <command>` runs the command on the target then writes an
-[OSC 9](https://iterm2.com/documentation-escape-codes.html)/OSC 777 escape to
-the tty so **your** terminal raises the notification, and exits with the
-command's own status so it drops into a pipeline unchanged; it is opt-in per
-invocation, never a prompt hook. One toggle covers both because one rule
-governs both: terminal support varies (tmux needs
-`set -g allow-passthrough on`; under `$ZELLIJ` the escape goes through raw),
-and turning them off also keeps their one emitter, `common/passthrough.sh`,
-off the payload.
-
-**The header says so when tmux is going to eat it.** `allow-passthrough` has
-been off by default since tmux 3.3, and nothing fails when it is: `hi_copy`
-exits 0, the escape is swallowed, and the next paste hands back your previous
-clipboard. A session that finds `$TMUX` set with the option off prints one
-line on connect —
-
-```text
- | tmux passthrough off - hi_copy/hi_notify muted | set -g allow-passthrough on
-```
-
-— and nowhere else, with no toggle of its own: turn the option on, or turn off
-the two features it is about, and it stops.
 
 `_HI_DISABLE_MARKS` turns off the two escapes every hi prompt emits for
 terminals that read them — kitty, WezTerm, ghostty, foot, iTerm2, Konsole:

@@ -225,7 +225,7 @@ already passes `--shard` straight through to `test_runner.sh`.
   copy's path and reads 0% for the repo file (`scripts/update.sh`); an
   `eval` anywhere inside a `$( )` zeroes every line of that subshell; a
   zsh-only arm is invisible to both tools; and a `#!/bin/sh` file a suite
-  executes as `sh …` (`common/targets.sh`, `common/passthrough.sh`) is
+  executes as `sh …` (`common/targets.sh`) is
   traced only where `sh` is bash — under a dash `/bin/sh` the whole file
   reads 0%, which is why `coverage.yml` puts a bash-as-`sh` first on PATH
   before each shard. Rule those out before writing a test against a
@@ -271,7 +271,9 @@ glibc ≥ 2.38, a bash with `enable -f`, and an **exec-capable** `/dev/shm`
 errors instead of times, so `profile.sh` grades the output, not the status.
 The checkout is mounted read-only; `$_HI_TIMEP` mounts a local copy of timep
 you have read. Read the ranking, not the milliseconds — they come from the
-container.
+container. `ci.yml`'s `profile` job runs it beside `bench` on every push and
+uploads the four profiles as the `profiles` artifact (14 days); it is
+advisory (`continue-on-error`), the bench ceilings stay the gate.
 
 ### The images are files; the build contexts are not
 

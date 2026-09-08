@@ -62,36 +62,12 @@ function test_payload_ships_everything_by_default() {
     return 1
     ;;
   esac
-  case "$listing" in *say-hi/common/passthrough.sh*) ;; *)
-    _hi_cecho " | a default client did not ship common/passthrough.sh" "$RED"
-    return 1
-    ;;
-  esac
   return 0
-}
-
-# The emitter goes off the wire: a client that never wants hi_copy or
-# hi_notify pays nothing for either. Same shape as the editors case above -
-# the file goes, the tree stays.
-function test_payload_trims_the_emitter() {
-  local dir="$_HI_WORKDIR/nopassthrough" listing
-  mkdir -p "$dir"
-  printf "#!/bin/sh\nexport _HI_DISABLE_PASSTHROUGH='1'\n" >"$dir/settings.sh"
-  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/common/passthrough.sh*)
-    _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 still shipped common/passthrough.sh" "$RED"
-    return 1
-    ;;
-  esac
-  # settings/aliases.sh is not collateral - it carries the toggle's guards
-  case "$listing" in *say-hi/settings/aliases.sh*) return 0 ;; esac
-  _hi_cecho " | _HI_DISABLE_PASSTHROUGH=1 took settings/aliases.sh with it" "$RED"
-  return 1
 }
 
 # settings/aliases.sh is trimmed by nothing, and no toggle exists that could:
 # the sudo/cat/ls preferences, once a settings/personal.sh of their own, now
-# live in this file beside the vim/nano and hi_copy aliases and fish's toggle
+# live in this file beside the vim/nano aliases and fish's toggle
 # backstop. Dropping it under any toggle would take all of those with it - a
 # behaviour change wearing a size saving's clothes - so this asserts against
 # every toggle at once rather than one in particular.
@@ -515,7 +491,6 @@ function run_hi_payload_tests() {
   _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
   _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
-  _hi_check "_HI_DISABLE_PASSTHROUGH trims passthrough.sh" test_payload_trims_the_emitter
   _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"

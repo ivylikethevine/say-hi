@@ -334,9 +334,8 @@ function _hi_probe_once() {
 # The real header, rendered at the answers this run holds so far: hi_header
 # itself, in a subshell that exports what it reads. _HI_DISABLE_HEADER is
 # read here rather than exported: a header switched off previews as a
-# sentence, not as an empty box show_preview would drop on the floor. TMUX
-# unset so passthrough_check's warning line stays out of a preview of the
-# header. Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
+# sentence, not as an empty box show_preview would drop on the floor.
+# Captured, not a tty, so _hi_draw_width draws to $_HI_MAX_WIDTH
 # exactly - which is what the width dial is previewing.
 function _hi_header_preview() {
   local order banner width floor palette lead iphide scheme
@@ -363,7 +362,7 @@ function _hi_header_preview() {
     export _HI_COLOR_SCHEME="$scheme"
     _hi_assign_palette
     _hi_packages_palette
-    unset _HI_DISABLE_HEADER TMUX
+    unset _HI_DISABLE_HEADER
     hi_header Connected
   )
 }
@@ -456,14 +455,6 @@ function _hi_tool_alias_preview() {
   else
     printf 'eza is not installed here - only targets that have it are affected\n'
   fi
-}
-
-# hi_copy and hi_notify share the toggle: both are escapes written to the tty
-# for the client's terminal to act on
-function _hi_passthrough_preview() {
-  printf 'vim yank  -> \\e]52;c;<base64> -> your local clipboard\n'
-  printf 'hi_copy   -> sh %s copy\n' "$_HI_PASSTHROUGH"
-  printf 'hi_notify -> sh %s notify\n' "$_HI_PASSTHROUGH"
 }
 
 function _hi_starship_preview() {
@@ -569,7 +560,6 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?||vim/nano config overrides"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
-  "_HI_DISABLE_PASSTHROUGH|1||_hi_passthrough_preview| Enable hi_copy and hi_notify (a yank or hi_copy on a target lands in your local clipboard; hi_notify raises a desktop notification here when a command finishes)?||hi_copy and hi_notify - clipboard and notifications back through the connection"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
   "_HI_DISABLE_LOCAL_PROMPT|1||| Enable hi's prompt on this machine too? (no keeps a starship, powerlevel10k or oh-my-zsh prompt you already have here; targets get hi's either way)||hi's prompt on this machine too - no keeps the prompt you already have here"
@@ -607,7 +597,6 @@ _HI_PROMPT_PROMPTS=(
 # installs never touch, kept out of the default path so it stays short. Not
 # opening it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
-  "_HI_RECENT|0||| Remember the targets you visit, so hi <TAB> offers the recent and frequent ones first?||"
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
   "_HI_MUX|0|1|| Wrap every session in a local tmux (one named session per target, reattached when you reconnect)?|tmux|"
 )
@@ -615,9 +604,8 @@ _HI_ADVANCED_PROMPTS=(
 # The transport internals, behind one more question at the end of that
 # walk: caches, timeouts and the container CLI roster, each with a default
 # that fits nearly every box. Asked only when the walk says yes, so the
-# Advanced walk itself stays five questions.
+# Advanced walk itself stays four questions.
 _HI_TRANSPORT_PROMPTS=(
-  "_HI_TERM_FALLBACK|0||| (ssh only) Swap a TERM the target has no terminfo for (xterm-ghostty, say) for xterm-256color before the session starts?||"
   "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
 )
 
@@ -664,7 +652,7 @@ function ask_prompt_group() {
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, clipboard, notifications or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_PASSTHROUGH=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -796,9 +784,9 @@ function config_hub() {
     show_preview _hi_config_preview
     printf '   1) %-10s %s\n' Preset "everything / balanced / minimal - a starting point"
     printf '   2) %-10s %s\n' Header "what the header shows and in what order; its width, the package check's depth and palette, the addresses hidden"
-    printf '   3) %-10s %s\n' Features "prompt, git status, editors, clipboard, notifications, ..."
+    printf '   3) %-10s %s\n' Features "prompt, git status, editors, prompt marks, ..."
     printf '   4) %-10s %s\n' Prompt "starship, and the character each shell's prompt ends with"
-    printf '   5) %-10s %s\n' Advanced "recent targets, the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
+    printf '   5) %-10s %s\n' Advanced "the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
     printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
     printf '   s) %-10s %s\n' save "write the settings and exit"
     printf '   q) %-10s %s\n' quit "exit without writing anything"
@@ -1329,10 +1317,10 @@ function config_transport_values() {
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
 # The transport internals sit behind one more question at the end, so the
-# walk a person Enters through is five questions, not eleven.
+# walk a person Enters through is four questions, not ten.
 function config_advanced() {
   local more
-  section "Advanced settings" "Recent targets, the leading space, tmux, the session shell, the glyphs and 24-bit color. Enter keeps each value."
+  section "Advanced settings" "The leading space, tmux, the session shell, the glyphs and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
   more="$(ask_value "Also tune the transport internals - TERM fallback, the payload cache, completion and probe timeouts, the container CLI roster, ssh connection reuse? (y/N)" \

@@ -26,7 +26,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
   - [Connect Via More Than SSH](#connect-via-more-than-ssh)
   - [The Header Tells You What's Missing](#the-header-tells-you-whats-missing)
   - [One Config Directory, Every Host, Every Shell](#one-config-directory-every-host-every-shell)
-  - [Your Editors & Clipboard](#your-editors--clipboard)
+  - [Your Editors](#your-editors)
   - [Know Where You Are at a Glance](#know-where-you-are-at-a-glance)
   - [One Command, Any Backend](#one-command-any-backend)
   - [Target Requirements](#target-requirements)
@@ -76,8 +76,7 @@ are in [docs/SETTINGS.md](docs/SETTINGS.md).
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
 running container, allocation and pod, each tagged with its backend; the
-targets you use most, and most recently, come first (zsh and fish keep that
-order; `_HI_RECENT=0` turns it off). `hi --<TAB>` answers hi's own flags
+`hi --<TAB>` answers hi's own flags
 without probing any backend. An operator at a bastion, in fish for its
 pager's description column.
 
@@ -105,17 +104,14 @@ the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
-### Your Editors & Clipboard
+### Your Editors
 
 `nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
-neither; `hi_copy` puts a target's output on _your_ clipboard and `hi_notify`
-raises a desktop notification in _your_ terminal when a command finishes.
-Both ride the pty back as escapes: nothing is installed or running on the
-target. A developer, zsh on a laptop into the team's shared dev box, where
-the prompt is starship's, not hi's (`_HI_PROMPT=starship`; hi keeps the
-header, editors, clipboard and aliases).
+neither: nothing is installed or running on the target. A developer, zsh on a
+laptop into the team's shared dev box, where the prompt is starship's, not
+hi's (`_HI_PROMPT=starship`; hi keeps the header, editors and aliases).
 
-![nano and vim with hi's rc files inside a session, then hi_copy and hi_notify](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
+![nano and vim with hi's rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
 ### Know Where You Are at a Glance
 

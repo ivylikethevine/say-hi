@@ -801,10 +801,10 @@ function test_starship_kept_when_chosen() {
 function test_advanced_declined_keeps_every_value() {
   local out
   out="$(_hi_section_lines adv_keep config_advanced \
-    "export _HI_TERM_FALLBACK=0" "export _HI_RECENT=0" \
+    "export _HI_PAYLOAD_CACHE=0" "export _HI_NO_LEAD_SPACE=1" \
     "export _HI_SHELL_PREFERENCE='zsh login'" "export _HI_ASCII=1" \
     "export _HI_TARGETS_TTL=9" "export _HI_PROBE_TIMEOUT=0.5")"
-  [[ "$out" == *"export _HI_TERM_FALLBACK=0"* && "$out" == *"export _HI_RECENT=0"* &&
+  [[ "$out" == *"export _HI_PAYLOAD_CACHE=0"* && "$out" == *"export _HI_NO_LEAD_SPACE=1"* &&
     "$out" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$out" == *"export _HI_ASCII=1"* &&
     "$out" == *"export _HI_TARGETS_TTL=9"* && "$out" == *"export _HI_PROBE_TIMEOUT=0.5"* ]]
 }
@@ -1238,12 +1238,6 @@ function test_editors_preview_names_both_overrides() {
   [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* ]]
 }
 
-function test_passthrough_preview_names_the_escape_and_the_helper() {
-  local out
-  out="$(_hi_passthrough_preview)"
-  [[ "$out" == *']52;c;'* && "$out" == *"$_HI_PASSTHROUGH copy"* && "$out" == *"$_HI_PASSTHROUGH notify"* ]]
-}
-
 function test_bat_preview_names_the_bat_it_found() {
   local dir out
   dir="$(_hi_fake_path preview_bat bat)"
@@ -1310,7 +1304,7 @@ function test_palette_preview_says_off_above_every_priority() {
 # block it found rather than dropping it
 function _hi_no_preset_run() {
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_PASSTHROUGH=1"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_MARKS=1"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   run_configure "" </dev/null
@@ -1320,7 +1314,7 @@ function test_run_configure_without_a_preset_keeps_the_block() {
   local block
   _hi_settings_fixture nopreset _hi_no_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings nopreset)")"
-  [[ "$block" == *"export _HI_DISABLE_PASSTHROUGH=1"* ]]
+  [[ "$block" == *"export _HI_DISABLE_MARKS=1"* ]]
 }
 
 # The interactive arms proper: ask_setting's tty prompt, ask_value's typed
@@ -1393,10 +1387,10 @@ function test_ask_setting_takes_a_no() {
 function test_ask_setting_takes_a_yes_over_an_off_state() {
   _hi_cfg_pty ask_yes 'y\n' 'export _HI_DISABLE_FOO=1' \
     ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_yes/config/settings.sh" 1 \
-    _hi_passthrough_preview || return 1
+    _hi_editors_preview || return 1
   [ "$(_hi_cfg_rc ask_yes)" = 0 ] &&
     _hi_cfg_has ask_yes "(currently off) [y/N]" &&
-    _hi_cfg_has ask_yes "hi_copy"
+    _hi_cfg_has ask_yes "nano --rcfile"
 }
 
 function test_ask_setting_enter_keeps_the_off_state() {
@@ -1726,24 +1720,24 @@ function _hi_cfg_tmux() {
 }
 
 # the advanced section is a question walk with no gate of its own (the hub's
-# item is the gate), five questions and then an offer of the transport
+# item is the gate), four questions and then an offer of the transport
 # internals: y opens those, and Enter through all of it still writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n\n\ny\n\n\n\n\n\n\n' '' config_advanced || return 1
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n\ny\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "Shell a session runs in" &&
     _hi_cfg_has adv_walk "transport internals" &&
-    _hi_cfg_has adv_walk "Swap a TERM" &&
+    _hi_cfg_has adv_walk "Cache the payload" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
 }
 
 # ...and Enter at the offer is a no: the transport questions are never asked
 function test_transport_walk_is_gated() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_gate '\n\n\n\n\n\n\n' '' config_advanced || return 1
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_gate '\n\n\n\n\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_gate "transport internals" &&
-    ! _hi_cfg_has adv_gate "Swap a TERM" &&
+    ! _hi_cfg_has adv_gate "Cache the payload" &&
     ! _hi_cfg_has adv_gate "reuses its target list"
 }
 
@@ -1751,7 +1745,7 @@ function test_transport_walk_is_gated() {
 # _HI_ASCII's question hides behind ("ascii" is stored as 1)
 function test_advanced_values_typed_interactively() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\n\nzsh login\nascii\non\ny\n\n\n9\n0.5\npodman docker\n120\n' '' config_advanced || return 1
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\nzsh login\nascii\non\ny\n\n9\n0.5\npodman docker\n120\n' '' config_advanced || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
   [[ "$lines" == *"export _HI_SHELL_PREFERENCE='zsh login'"* && "$lines" == *"export _HI_ASCII=1"* &&
@@ -1819,9 +1813,9 @@ function test_full_run_quit_writes_nothing() {
 # you have and finish" here - so a driver that stops typing still ends in
 # the write
 function test_hub_eof_saves() {
-  _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_PASSTHROUGH=1' run_configure "" || return 1
+  _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_MARKS=1' run_configure "" || return 1
   _hi_cfg_has hub_eof "CFGQUIT=none" &&
-    grep -qF "export _HI_DISABLE_PASSTHROUGH=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
+    grep -qF "export _HI_DISABLE_MARKS=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
 }
 
 # ...and the third junk answer in a row ends the run too, but as a quit:
@@ -1833,17 +1827,17 @@ function test_hub_junk_is_bounded_and_saves() {
 }
 
 # every digit opens its section and comes back to the hub; the preview box
-# is drawn before the menu. The advanced walk is five Enters, a y at the
-# transport offer, then six more; a spare Enter at the hub only redraws it.
+# is drawn before the menu. The advanced walk is four Enters, a y at the
+# transport offer, then five more; a spare Enter at the hub only redraws it.
 function test_hub_opens_every_section() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\ny\n\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\ny\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&
     _hi_cfg_has hub_all "Prompt" &&
     _hi_cfg_has hub_all "Advanced settings" &&
-    _hi_cfg_has hub_all "Swap a TERM" &&
+    _hi_cfg_has hub_all "Cache the payload" &&
     _hi_cfg_has hub_all "CFGQUIT=none"
 }
 
@@ -1999,7 +1993,6 @@ function run_configure_tests() {
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
   _hi_check "Editors preview names both overrides" test_editors_preview_names_both_overrides
-  _hi_check "Passthrough preview names the escape and both helpers" test_passthrough_preview_names_the_escape_and_the_helper
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one

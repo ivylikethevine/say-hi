@@ -322,6 +322,33 @@ jobs:
       - name: Run benchmarks
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group bench"
 
+  # Per-command profiles of the same four hot paths, through timep in the
+  # tests/dockerfiles/timep.Dockerfile box (tests/profile.sh's header says why a
+  # container, and why the numbers are rankings rather than milliseconds).
+  # Advisory: the bench above is the gate, this is what to read when it trips,
+  # so a red here - timep fetched from upstream main at run time, a box that
+  # will not build - never blocks a merge. The profiles land as an artifact.
+  profile:
+    name: hot-path profiles (timep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Profile the hot paths
+        run: "${{ github.workspace }}/tests/profile.sh --outdir ${{ runner.temp }}/profiles"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: profiles
+          path: ${{ runner.temp }}/profiles
+          retention-days: 14
+          if-no-files-found: ignore
+
   # catches nfpm.yaml/install_tree breakage on the PR that causes it, not at
   # the next release tag
   packaging-smoke:

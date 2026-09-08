@@ -109,19 +109,27 @@ function test_update_dry_run_reports_the_signature() {
 # loopback, because --batch --passphrase '' alone still has some builds
 # (Homebrew's, Git for Windows') reach for a pinentry a headless runner has
 # none of. Its stderr is kept and dumped on failure rather than discarded, so a
-# platform-only red says why.
+# platform-only red says why - dumped to *stderr*, because every caller captures
+# this function's stdout with $(...) and would swallow the dump with the path.
 _HI_UPDATE_GPG_BASE=""
 function _hi_update_gpg_home() {
   local home err="$_HI_WORKDIR/gnupg-$1.err"
   if [ -z "$_HI_UPDATE_GPG_BASE" ]; then
     _HI_UPDATE_GPG_BASE="$(mktemp -d /tmp/hi.upgpg.XXXXXX)" || return 1
     _hi_track_dir "$_HI_UPDATE_GPG_BASE"
+    # Git Bash: a POSIX /tmp/... is MSYS's own spelling, and the gpg that git.exe
+    # (a native binary) spawns may be a native build too - the runner images
+    # carry one beside Git's own - to which /tmp means C:\tmp. cygpath -m gives
+    # the mixed form (C:/Users/...) both kinds of program read the same way.
+    if command -v cygpath >/dev/null 2>&1; then
+      _HI_UPDATE_GPG_BASE="$(cygpath -m "$_HI_UPDATE_GPG_BASE")" || return 1
+    fi
   fi
   home="$_HI_UPDATE_GPG_BASE/$1"
   mkdir -p "$home" && chmod 700 "$home"
   if ! GNUPGHOME="$home" gpg --batch --quiet --pinentry-mode loopback --passphrase '' \
     --quick-gen-key "hi test <hi@example.invalid>" default default never >/dev/null 2>"$err"; then
-    _hi_dump_log "gpg --quick-gen-key ($1) failed" "$err"
+    _hi_dump_log "gpg --quick-gen-key ($1) failed" "$err" >&2
     return 1
   fi
   printf '%s' "$home"
@@ -149,7 +157,7 @@ function _hi_update_signed_fixture() {
       -c gpg.format=openpgp -c gpg.program=gpg tag -s -m three v0.0.3 &&
       git push -q origin --tags
   ) >/dev/null 2>"$_HI_WORKDIR/sign-$1.err" || {
-    _hi_dump_log "signing v0.0.3 in $1 failed" "$_HI_WORKDIR/sign-$1.err"
+    _hi_dump_log "signing v0.0.3 in $1 failed" "$_HI_WORKDIR/sign-$1.err" >&2
     return 1
   }
   printf '%s' "$home"

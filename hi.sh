@@ -133,7 +133,6 @@ function _hi_target_color() {
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
-  "_HI_DISABLE_PASSTHROUGH|say-hi/common/passthrough.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
@@ -1054,8 +1053,8 @@ function _hi_remote_preamble() {
       _hi_now() { d=\$(date +%s.%N 2>/dev/null); case "\$d" in *N*|'') date +%s ;; *) printf '%s' "\$d" ;; esac; }
       _hi_t0=\$(_hi_now)
 $(_hi_env_each '      export %s=%s\n')
-      case "\${_HI_TERM_FALLBACK:-1}:\$TERM" in
-      0:* | 1:xterm | 1:xterm-256color | 1:xterm-color | 1:screen | 1:screen-256color | 1:tmux | 1:tmux-256color | 1:linux | 1:vt100 | 1:vt220 | 1:dumb | 1:) ;;
+      case "\$TERM" in
+      xterm | xterm-256color | xterm-color | screen | screen-256color | tmux | tmux-256color | linux | vt100 | vt220 | dumb | '') ;;
       *)
         _hi_ti_ok=""
         _hi_ti_c=\${TERM%"\${TERM#?}"}
@@ -1825,30 +1824,6 @@ function _hi_select_arm() {
   _hi_resolve_backend "$DOMAIN"
 }
 
-# _hi_record_recent <target> - one "<epoch>\t<target>" line appended to the
-# recent-targets file common/targets.sh ranks completion by; client-side only,
-# quiet on failure, trimmed past 500 lines. GLOSSARY: HI.42
-function _hi_record_recent() {
-  local f n tmp
-  [ "${_HI_RECENT:-1}" != 0 ] || return 0
-  [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || return 0
-  f="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
-  [ -d "${f%/*}" ] || mkdir -p "${f%/*}" 2>/dev/null || return 0
-  local _hi_rr_now _hi_rr_n
-  _hi_rr_now="$(exec date +%s 2>/dev/null)" || _hi_rr_now=0
-  printf '%s\t%s\n' "$_hi_rr_now" "$1" >>"$f" 2>/dev/null || return 0
-  n="$(exec grep -c . "$f" 2>/dev/null)" || n=0
-  if [ "$n" -gt 500 ]; then
-    tmp="$f.$$"
-    if tail -n 300 "$f" >"$tmp" 2>/dev/null; then
-      mv "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-    else
-      rm -f "$tmp" 2>/dev/null
-    fi
-  fi
-  return 0
-}
-
 # _hi_reset_terminal <code> - what a dropped link leaves behind. ssh puts the
 # tty's termios back on its way out, but nothing restores the *terminal's*
 # modes a remote program switched on and never got to switch off: application
@@ -2069,10 +2044,6 @@ function _hi() {
   # a session that did not end on its own terms may have left the terminal
   # mid-state; only with a terminal on both ends to put right
   [ "$exit_code" -eq 0 ] || { [ -t 0 ] && [ -t 1 ] && _hi_reset_terminal "$exit_code"; }
-
-  # a session that ended cleanly is one worth offering first next time; one
-  # that never connected (a typo, an unreachable host) is not
-  [ "$exit_code" -eq 0 ] && _hi_record_recent "$DOMAIN"
 
   [ "$exit_code" -eq 0 ] || _hi_report_failure "$exit_code" "$arm" "$tmp"
   exit "$exit_code"

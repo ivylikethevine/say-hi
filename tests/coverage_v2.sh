@@ -42,11 +42,11 @@
 #     the lines that ran included (core.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.
 #   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
-#   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh,
-#     common/passthrough.sh) is traced only where sh is bash: the xtrace
+#   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh)
+#     is traced only where sh is bash: the xtrace
 #     rides on SHELLOPTS, which dash ignores, so the whole file reads 0%
 #     under a dash /bin/sh (ubuntu; CLAUDE.md's dash sweep - measured 0/220
-#     and 0/32 there, 96% and 100% under bash). settings/aliases.sh is
+#     there, 96% under bash). settings/aliases.sh is
 #     `#!/bin/sh` too but sourced by its suite, so it is unaffected.
 #     coverage.yml puts a bash-as-sh first on PATH for that reason.
 #

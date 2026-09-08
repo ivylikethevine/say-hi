@@ -670,9 +670,9 @@ function test_coverage_merge_jobs_check_out_the_tree() {
 }
 
 # Neither tracer follows a non-bash child, and ubuntu's sh is dash, so the
-# `#!/bin/sh` files the suites execute as `sh <file>` (common/targets.sh,
-# common/passthrough.sh) read 0% unless a bash-as-sh sits first on PATH -
-# four points of the badge, and nothing else would notice the shim going.
+# `#!/bin/sh` files the suites execute as `sh <file>` (common/targets.sh)
+# read 0% unless a bash-as-sh sits first on PATH -
+# three points of the badge, and nothing else would notice the shim going.
 # Every job that runs a coverage driver has to create the shim before the
 # sweep and put it on that command's PATH (not GITHUB_PATH - zizmor's
 # github-env audit rejects that on a workflow_run workflow).

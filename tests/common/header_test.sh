@@ -476,87 +476,6 @@ function test_banner_renders_without_coreutils() {
   [[ "$out" == *Connected* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
-# passthrough_check: the one header line that speaks only when something is
-# wrong. Every case below stands a fake `tmux` in front of the real one, so the
-# answer is the fixture's rather than this machine's - and so the suite runs
-# the same on a box with no tmux at all.
-#
-# The shim answers `show ... allow-passthrough` with $1 and exits 1 for
-# anything else, which is what a tmux too old for the option does.
-function _hi_tmux_shim() {
-  local dir="$_HI_WORKDIR/tmux-$1"
-  if [ ! -d "$dir" ]; then
-    mkdir -p "$dir"
-    {
-      printf '%s\n' '#!/bin/sh'
-      printf '%s\n' 'case "$*" in *allow-passthrough*) ;; *) exit 1 ;; esac'
-      printf 'printf %%s "%s"\n' "$2"
-    } >"$dir/tmux"
-    chmod +x "$dir/tmux"
-  fi
-  printf '%s' "$dir"
-}
-
-# passthrough_check with $TMUX set to something, a tmux answering $1, and the
-# rest of the environment left alone
-function _hi_passthrough() {
-  PATH="$(_hi_tmux_shim "$1" "$2"):$PATH" TMUX="/tmp/tmux-0/default,1,0" \
-    bash -c 'source "$_HI_HEADER"; passthrough_check' 2>&1
-}
-
-# the line itself: names the option, and names the fix
-function test_passthrough_warns_when_off() {
-  local out
-  out="$(_hi_passthrough off off)"
-  [[ "$out" == *"passthrough"* && "$out" == *"allow-passthrough on"* ]]
-}
-
-# ...and says nothing at all when tmux is passing escapes through, which is the
-# half that keeps it from being noise on a correctly configured box
-function test_passthrough_quiet_when_on() {
-  [ -z "$(_hi_passthrough on on)" ]
-}
-
-# `all` is tmux's other yes - passthrough from an invisible pane too - and has
-# to count as on rather than as an unrecognised value
-function test_passthrough_quiet_when_all() {
-  [ -z "$(_hi_passthrough all all)" ]
-}
-
-# A tmux too old to have the option answers nothing, and nothing is what to say
-# back: the line would name a fix that does not exist on that version.
-function test_passthrough_quiet_on_an_old_tmux() {
-  [ -z "$(_hi_passthrough old "")" ]
-}
-
-# no multiplexer in the way, no line - the check must not fire on the strength
-# of a stale $TMUX-less environment having tmux on $PATH
-function test_passthrough_quiet_without_tmux_in_the_env() {
-  local out
-  out="$(PATH="$(_hi_tmux_shim off off):$PATH" \
-    bash -c 'unset TMUX; source "$_HI_HEADER"; passthrough_check' 2>&1)"
-  [ -z "$out" ]
-}
-
-# ...and nothing to warn about once the two features it is about are off -
-# hi_copy and hi_notify share the one toggle, since the same option mutes both
-function test_passthrough_quiet_when_the_features_are_off() {
-  local out
-  out="$(PATH="$(_hi_tmux_shim off off):$PATH" TMUX="/tmp/tmux-0/default,1,0" \
-  _HI_DISABLE_PASSTHROUGH=1 \
-    bash -c 'source "$_HI_HEADER"; passthrough_check' 2>&1)"
-  [ -z "$out" ]
-}
-
-# it rides the header rather than standing on its own, and last: the line that
-# says something is wrong is the one left next to the prompt
-function test_passthrough_line_reaches_the_header() {
-  local out
-  out="$(PATH="$(_hi_tmux_shim off off):$PATH" TMUX="/tmp/tmux-0/default,1,0" \
-    bash -c 'source "$_HI_HEADER"; hi_header Connected' 2>&1)"
-  [[ "$out" == *Connected* && "$(printf '%s\n' "$out" | tail -n 1)" == *"allow-passthrough on"* ]]
-}
-
 function test_identity_includes_static_labels() {
   local out
   out="$(identity)"
@@ -2118,15 +2037,6 @@ function run_header_tests() {
   _hi_check "...nor in a pathological same-hue order" test_header_hues_never_repeat_in_a_pathological_order
   _hi_check "containers/jobs/pods are three distinct hue families" test_header_backend_trio_hues_are_three_families
   _hi_check "Hue resolution is inert under NO_COLOR" test_header_hues_are_inert_under_no_color
-
-  _hi_h2 "Testing: passthrough_check"
-  _hi_check "Warns under a tmux with passthrough off" test_passthrough_warns_when_off
-  _hi_check "Quiet with passthrough on" test_passthrough_quiet_when_on
-  _hi_check "Quiet with passthrough all" test_passthrough_quiet_when_all
-  _hi_check "Quiet on a tmux too old for the option" test_passthrough_quiet_on_an_old_tmux
-  _hi_check "Quiet with no tmux in the environment" test_passthrough_quiet_without_tmux_in_the_env
-  _hi_check "Quiet once the features are off" test_passthrough_quiet_when_the_features_are_off
-  _hi_check "The line is the header's last" test_passthrough_line_reaches_the_header
 
   _hi_h2 "Testing: check_line"
   _hi_check "Found primary -> visible, checked" test_check_line_found_primary_is_visible_checked

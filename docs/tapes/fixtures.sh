@@ -547,7 +547,7 @@ up:editors)
   # The developer on a shared dev box: maya, zsh on her mac, into the team's
   # debian where starship is installed. The compact header preset, and the
   # prompt handed to starship (_HI_PROMPT) - hi keeps the header, the
-  # editors, the clipboard and the aliases; the prompt is hers.
+  # editors and the aliases; the prompt is hers.
   client_rc zsh maya mbp
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods check'
@@ -559,14 +559,12 @@ up:overlay)
   # The ops persona: fish on a bastion, into a docker box and a podman box.
   # The header trimmed to what an operator looks at - clocks, the backend
   # counts, the check - painted with the mono ramp; the fish session on the
-  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here (podman
-  # lives under the real one), so the recents file is moved out of the
-  # renderer's state dir by hand.
+  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here: podman
+  # lives under the real one.
   client_rc fish ops bastion
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='mono'
-export _HI_RECENT_FILE='/tmp/hi-demo/home/recent'
 export _HI_SHELL_PREFERENCE='fish'
 EOF
   # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
