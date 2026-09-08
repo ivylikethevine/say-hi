@@ -80,7 +80,10 @@
 #     both are `#!/bin/sh` scripts their suites *execute* as children
 #     (targets_test.sh, passthrough_test.sh) rather than source -
 #     common/paths.sh is also `#!/bin/sh` and reads 100% here only because
-#     core.sh sources it into the traced process instead.
+#     core.sh sources it into the traced process instead. The same two
+#     files read 0% under coverage_v2.sh too wherever /bin/sh is dash
+#     rather than bash (0/220 and 0/32, measured): neither tracer can
+#     follow a non-bash child, so coverage.yml shims `sh` to bash on PATH.
 #   hi.sh                  64.77% here under --group fast, 84.56% under the
 #     full sweep, 97.80% under coverage_v2.sh's full sweep - the e2e/backends
 #     suites reach _say_hi/_say_hi_container/_hi themselves only inside a

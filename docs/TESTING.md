@@ -223,9 +223,13 @@ already passes `--shard` straight through to `test_runner.sh`.
   the truth. Three more readings are artifacts, not gaps: a script a suite
   runs from a scratch-tree copy under `$_HI_WORKDIR` is filed under the
   copy's path and reads 0% for the repo file (`scripts/update.sh`); an
-  `eval` anywhere inside a `$( )` zeroes every line of that subshell; and a
-  zsh-only arm is invisible to both tools. Rule those out before writing a
-  test against a number. It needs `gem install --user-install bashcov`; the script
+  `eval` anywhere inside a `$( )` zeroes every line of that subshell; a
+  zsh-only arm is invisible to both tools; and a `#!/bin/sh` file a suite
+  executes as `sh …` (`common/targets.sh`, `common/passthrough.sh`) is
+  traced only where `sh` is bash — under a dash `/bin/sh` the whole file
+  reads 0%, which is why `coverage.yml` puts a bash-as-`sh` first on PATH
+  before each shard. Rule those out before writing a test against a
+  number. It needs `gem install --user-install bashcov`; the script
   finds the binary off `$PATH`, writes a `.simplecov` into the checkout for
   the run, removes it after, and refuses to start rather than overwrite one
   you have.
