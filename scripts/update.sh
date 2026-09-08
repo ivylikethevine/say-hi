@@ -28,7 +28,7 @@ _HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates through its packag
 
 # the script's own usage line names what was typed, the way doctor.sh does
 me="${_HI_ARGV0:-hi --update}"
-root="$_HI_ROOT" tag="" dirty="" here=""
+root="$_HI_ROOT" tag="" dirty="" here="" dry_run=""
 # --help anywhere on the line, and ahead of the .git check so a package gets
 # the text too
 for _hi_arg in "$@"; do
@@ -38,7 +38,7 @@ unset _hi_arg
 case "${1:-}" in
 -h | --help)
   cat <<EOF
-Usage: $me [<tag>]
+Usage: $me [<tag>] [--dry-run]
 
 Moves the say-hi checkout this hi runs from to a release tag (needs its
 .git; a package has none, so it says so and stops):
@@ -48,10 +48,22 @@ $me <tag>     that release
 Either way the checkout is left detached on the tag. A tree with
 uncommitted changes is refused. \`git -C $root tag\` lists the releases;
 following a branch instead is \`git -C $root pull\`, by hand.
+
+  -n, --dry-run    Fetch the tags and say which one would be checked out,
+                   moving nothing.
 EOF
   exit 0
   ;;
 esac
+# --dry-run anywhere on the line; what is left is the tag, if any
+for _hi_arg in "$@"; do
+  case "$_hi_arg" in
+  -n | --dry-run) dry_run=1 ;;
+  *) set -- "$@" "$_hi_arg" ;;
+  esac
+  shift
+done
+unset _hi_arg
 [ -d "$root/.git" ] || {
   _hi_cecho "$me: $_HI_NO_GIT" "$RED" >&2
   exit 1
@@ -93,6 +105,10 @@ if [ "$here" = "$tag" ]; then
   _hi_cecho "$me: already on $tag" "$GREEN"
   exit 0
 fi
+[ -z "$dry_run" ] || {
+  _hi_cecho "$me: dry run - would check out $tag${here:+ (now on $here)}, moving nothing" "$BLUE"
+  exit 0
+}
 git -C "$root" checkout -q "refs/tags/$tag" || {
   _hi_cecho "$me: git checkout of $tag failed in $root (see above)" "$RED" >&2
   exit 1

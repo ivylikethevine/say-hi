@@ -118,10 +118,11 @@ _hi() {
     return 0
   fi
   if [[ "${words[CURRENT]}" == -* ]]; then
-    # "<flag>\t<help>" lines: the flag is the match, the help its description
+    # "<flag>\t<help>" lines: the flag is the match, the help its description;
+    # behind a local command (`hi --install --<TAB>`) its own switches instead
     local -a flags descs
     local row
-    for row in "${(@f)$(sh "$_HI_TARGETS" flags)}"; do
+    for row in "${(@f)$(sh "$_HI_TARGETS" flags "${words[2]}")}"; do
       flags+=("${row%%$'\t'*}")
       descs+=("${row%%$'\t'*} - ${row#*$'\t'}")
     done

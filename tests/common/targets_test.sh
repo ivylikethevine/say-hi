@@ -832,6 +832,30 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
     printf '%s\n' "$out" | grep -qx -- --preview
 }
 
+# behind a local command the roster is that command's own switches, read off
+# common/flags' argument column; behind anything else it is hi's own, as before
+function test_flags_behind_a_local_command_are_its_switches() {
+  local out
+  out="$(sh "$_HI_TARGETS" flags --install | cut -f1 | tr '\n' ' ')"
+  [ "$out" = "--yes --no-link --system-link --preset --dry-run " ] || {
+    _hi_cecho "   flags --install gave: $out" "$RED"
+    return 1
+  }
+  [ "$(sh "$_HI_TARGETS" flags --doctor | cut -f1 | tr '\n' ' ')" = "--json --use " ] || return 1
+  # a row with no switches offers nothing; a connect flag or a target first
+  # is not a local command, so the top-level roster stands
+  ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || return 1
+  [ "$(sh "$_HI_TARGETS" flags --plain)" = "$(sh "$_HI_TARGETS" flags)" ] &&
+    [ "$(sh "$_HI_TARGETS" flags somehost)" = "$(sh "$_HI_TARGETS" flags)" ]
+}
+function test_complete_offers_a_local_commands_switches() {
+  local out
+  out="$(_hi_completions_after --install --)"
+  printf '%s\n' "$out" | grep -qx -- --dry-run &&
+    printf '%s\n' "$out" | grep -qx -- --system-link &&
+    ! printf '%s\n' "$out" | grep -qx -- --doctor
+}
+
 # _hi_completions_after <prev> <cur> - _hi_complete with a flag already typed
 function _hi_completions_after() {
   PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
@@ -1030,6 +1054,8 @@ function run_targets_tests() {
   _hi_check "flags: a package is offered only what works there" test_flags_drop_what_a_package_lacks
   _hi_check "flags: answered without probing a backend" test_flags_do_not_probe
   _hi_check "flags: a dash word completes hi's options" test_complete_offers_hi_flags_for_a_dash_word
+  _hi_check "flags: behind a local command, its own switches" test_flags_behind_a_local_command_are_its_switches
+  _hi_check "...through the bash completion" test_complete_offers_a_local_commands_switches
   _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
   _hi_check "words: the roster and \$_HI_WORD_FLAGS agree" test_word_flags_match_the_words_roster
   _hi_check "words: \$_HI_WORD_FLAGS is common/flags' <word> column" test_word_flags_match_the_flags_table

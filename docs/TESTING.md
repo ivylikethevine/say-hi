@@ -315,20 +315,21 @@ tree disagrees with the digest-pinned ones in `tests/dockerfiles/`;
 
 **The three `curl | sh` framework installers are pinned to a release, and the
 fetched script itself to a hash.** `frameworks/atuin.sh` (v18.20.1, in the
-download URL), `frameworks/mise.sh` (v2026.8.14, via `MISE_VERSION`) and
+download URL), `frameworks/mise.sh` (v2026.8.14, in the download URL) and
 `frameworks/starship.sh` (v1.26.0, via `--version`) each name the version pin
 in their own header and are bumped by hand when that framework's own bugs are
 worth chasing, not on a schedule; `ci.yml`'s weekly run re-tests them against
 whatever else moved but does not touch the pin. Each now downloads to a file
 first and `sha256sum -c`s it before running `sh` on it, rather than piping
-`curl` straight into a shell. Atuin's URL names the release tag, so the hash
-tracks the version pin above it and both are bumped together. mise's and
-starship's own install scripts are generic bootstrap endpoints
-(`mise.run`, `starship.rs/install.sh`) that install whatever version their env
-var or flag names, so the hash pins _that day's copy of the installer_, not
-the app version - a hash mismatch means the framework's own installer
-changed, not that the pinned app version did, and needs a fresh hash rather
-than a version bump. Each script runs under `pipefail`, so a 404, a checksum
+`curl` straight into a shell. Atuin's and mise's URLs name the release tag,
+so the hash tracks the version pin above it and both are bumped together
+(mise.run was pinned once and drifted on the next mise release, since it is
+regenerated per release whatever `MISE_VERSION` says). starship's install
+script is a generic bootstrap endpoint (`starship.rs/install.sh`) that
+installs whatever version the flag names, so its hash pins _that day's copy
+of the installer_, not the app version - a hash mismatch there means the
+installer changed, not the pinned app, and needs a fresh hash rather than a
+version bump. Each script runs under `pipefail`, so a 404, a checksum
 mismatch or the framework's installer changing shape fails the build rather
 than shipping an image with the framework silently missing.
 

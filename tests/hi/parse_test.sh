@@ -887,6 +887,29 @@ function test_version_short_flag_is_hi_s_own() {
   [ -n "$short" ] && [ "$short" = "$long" ] && [[ "$short" != OpenSSH* ]]
 }
 
+# the version line also says which kind of tree answered, and where - the
+# next thing a bug report asks; this tree has a .git, so it is a checkout
+function test_version_line_names_the_tree() {
+  local out
+  out="$(_hi_help_out --version)" || return 1
+  [[ "$out" == *" (checkout at $_HI_ROOT)" ]]
+}
+
+# --help and --version take nothing after them, as the words and the short
+# forms alike; the stray word is named
+function test_help_and_version_refuse_a_trailing_word() {
+  local spec out rc
+  for spec in '--help extra' '-h extra' 'help me' '--version extra' '-V extra' 'version --json'; do
+    rc=0
+    # shellcheck disable=SC2086 # the spec is two words on purpose
+    out="$(_hi_help_out $spec)" || rc=$?
+    [ "$rc" -eq 1 ] && [[ "$out" == *"${spec%% *} takes no arguments (got: ${spec#* })"* ]] || {
+      _hi_cecho " | hi $spec: rc $rc, said: $out" "$RED"
+      return 1
+    }
+  done
+}
+
 function test_help_long_flag_prints_usage() {
   local out
   out="$(_hi_help_out --help)" || return 1
@@ -1134,6 +1157,21 @@ function test_packages_preview_falls_back_to_the_shipped_check() {
   [[ "$out" == "Usage: hi --preview header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview packages stray)" && return 1
   [[ "$out" == *"takes no arguments"* ]]
+}
+
+# a joined word stands for the row's first positional argument; a row with
+# none (switches only) refuses it here, before the script sees a stray word
+function test_joined_value_is_refused_where_nothing_is_positional() {
+  local home flag out rc
+  home="$(_hi_subcmd_stubs)"
+  for flag in --install=yes --uninstall=1 --configure=x; do
+    rc=0
+    out="$(_hi_subcmd_run "$home" "$flag")" || rc=$?
+    [ "$rc" -eq 1 ] && [[ "$out" == *"${flag%%=*} takes no joined value"* ]] && [[ "$out" != STUB* ]] || {
+      _hi_cecho " | $flag: rc $rc, said: $out" "$RED"
+      return 1
+    }
+  done
 }
 
 # the mapping itself: which script, with which arguments
@@ -1475,12 +1513,15 @@ function run_hi_parse_tests() {
   _hi_check "--preview wants one of three subjects" test_preview_refuses_an_unknown_subject
   _hi_check "--use's completion roster is hi's backend roster" test_use_words_match_the_backend_roster
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
+  _hi_check "A joined word needs a positional to stand for" test_joined_value_is_refused_where_nothing_is_positional
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments
   _hi_check "paths.sh defines no command aliases" test_paths_defines_no_command_aliases
 
   _hi_h2 "Testing: hi --help"
   _hi_check "--help prints the usage line" test_help_long_flag_prints_usage
   _hi_check "-V prints hi's version, not ssh's" test_version_short_flag_is_hi_s_own
+  _hi_check "...and names the tree it came from" test_version_line_names_the_tree
+  _hi_check "--help and --version take no trailing word" test_help_and_version_refuse_a_trailing_word
   _hi_check_eq "-h is the same text" "$(_hi_help_out --help)" _hi_help_out -h
   _hi_check "Lists hi's flags and the target ladder" test_help_lists_hi_s_own_flags
   _hi_check "Every flag is in the man page" test_help_flags_are_all_in_the_man_page

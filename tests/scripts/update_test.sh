@@ -103,6 +103,20 @@ function test_bare_update_sorts_tags_by_version() {
   [[ "$out" == *"now on v0.0.10"* ]]
 }
 
+# --dry-run (and -n) fetches, names the tag it would land on, and moves
+# nothing - a bare one the newest, a named one that tag
+function test_update_dry_run_moves_nothing() {
+  local home out before after
+  home="$(_hi_update_fixture upd-dry)" || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update --dry-run)" || return 1
+  [[ "$out" == *"would check out v0.0.2 (now on v0.0.1)"* ]] || return 1
+  out="$(_hi_subcmd_run "$home" --update -n v0.0.2)" || return 1
+  [[ "$out" == *"would check out v0.0.2"* ]] || return 1
+  after="$(git -C "$home/say-hi" rev-parse HEAD)"
+  [ "$before" = "$after" ] && git -C "$home/say-hi" show-ref --verify -q refs/tags/v0.0.2
+}
+
 function test_update_on_the_tag_already_says_so() {
   local home out before after
   home="$(_hi_update_fixture upd-same)" || return 1
@@ -174,7 +188,7 @@ function test_update_help_is_his_own() {
   local home out
   home="$(_hi_subcmd_home subcmd-bare)"
   out="$(_hi_subcmd_run "$home" --update --help)" || return 1
-  [[ "$out" == "Usage: hi --update"* && "$out" == *"newest release tag"* ]]
+  [[ "$out" == "Usage: hi --update"* && "$out" == *"newest release tag"* && "$out" == *"-n, --dry-run"* ]]
 }
 
 # a tree with no .git is a package's or a tarball's, and the refusal names
@@ -197,6 +211,7 @@ function run_update_tests() {
   _hi_check_requires git "A bare --update moves to the newest tag" test_bare_update_moves_to_the_newest_tag
   _hi_check_requires git "...newest by version, pre-releases below" test_bare_update_sorts_tags_by_version
   _hi_check_requires git "Already on the tag: says so, exits 0" test_update_on_the_tag_already_says_so
+  _hi_check_requires git "--dry-run / -n names the tag and moves nothing" test_update_dry_run_moves_nothing
   _hi_check_requires git "--update refuses a dirty tree" test_update_refuses_a_dirty_tree
   _hi_check_requires git "--update refuses an unknown tag, a branch included" test_update_refuses_an_unknown_tag
   _hi_check_requires git "--update takes one tag at most, no options" test_update_takes_one_tag_at_most

@@ -4,10 +4,11 @@
 # Everything `hi <target>` can connect to, one "<name>\t<kind>" line each; the
 # bash, zsh and fish completions all read it. Standalone POSIX - fish shells
 # out to it, and it runs on whatever /bin/sh a target has.
-# Usage: sh targets.sh [ssh|<cli>|nomad|kube|flags]
+# Usage: sh targets.sh [ssh|<cli>|nomad|kube|flags [<command>]|words <flag>]
 #        (<cli> = a member of $_HI_CONTAINER_CLIS: docker, podman, nerdctl,
 #        finch by default; no argument = every backend; `flags` = hi's own
-#        options instead)
+#        options instead, `flags --install` a local command's own switches,
+#        `words --use` the word a flag takes)
 # GLOSSARY: HI.26 - _HI_PROBE_TIMEOUT and _HI_TARGETS_TTL
 # GLOSSARY: HI.51 - the docker-compatible CLI family
 #
@@ -43,6 +44,22 @@ if [ "$kind" = flags ]; then
   */*) hi_tree="${0%/*}/.." ;;
   *) hi_tree=".." ;;
   esac
+  # `flags <command>`: the line's first word is a local command (a row with a
+  # script var), so `hi --install --<TAB>` offers that command's own switches,
+  # read off the row's argument column - `--preset <name>` is one switch, the
+  # word it takes is not. Anything else first (a connect flag, a target)
+  # falls through to hi's own roster, as before.
+  if [ -n "${2:-}" ]; then
+    while IFS='|' read -r flag arg _needs var _first _help; do
+      [ "$flag" = "$2" ] && [ -n "$var" ] || continue
+      for word in $(printf '%s' "$arg" | tr -d '[]'); do
+        case "$word" in
+        --*) printf '%s\t%s option\n' "$word" "$flag" ;;
+        esac
+      done
+      exit 0
+    done <"$hi_tree/common/flags"
+  fi
   while IFS='|' read -r flag _arg needs _var _first help; do
     case "$flag" in '#'* | '') continue ;; esac
     [ "$needs" = - ] || [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || continue

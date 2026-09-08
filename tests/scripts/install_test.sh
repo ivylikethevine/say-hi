@@ -251,7 +251,7 @@ function _hi_run_install_here() {
 function test_two_modes_are_refused() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --features-only --uninstall 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --features-only --uninstall"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"pick one of --configure --uninstall"* ]]
 }
 
 function test_usage_names_what_was_typed() {
@@ -294,10 +294,20 @@ function test_preset_flag_requires_a_name() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--preset needs a name"* ]]
 }
 
+# one red line naming --help, no usage dump: the shape every command's
+# refusal has
 function test_an_unknown_argument_gets_the_usage() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* && "$out" == *"Usage: install.sh"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus (install.sh --help lists them)"* ]] &&
+    [[ "$out" != *"Usage:"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ]
+}
+# --configure is the script-side spelling too, the same mode as --features-only
+function test_configure_is_features_only() {
+  local out
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --configure --help)" || return 1
+  [[ "$out" == "Usage: install.sh --configure ["* ]] &&
+    [ "$out" = "$(bash "$_HI_ROOT/scripts/install.sh" --features-only --help)" ]
 }
 
 # --check-configs is the pre-install validation alone: a clean home is a zero
@@ -351,6 +361,14 @@ function test_features_only_writes_settings_and_no_rc() {
 
 # a preset name is checked before a question is asked or a byte written: the
 # typo costs an exit 1 that names the real ones, and no settings.sh appears
+# the refusal is the first and only line: no section banner ahead of it
+function test_a_stranger_preset_is_refused_before_the_banner() {
+  local out rc=0
+  out="$(_hi_run_install_here preset-banner --features-only --preset=minimalist 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$(_hi_strip_ansi "$out")" == *"no such preset: minimalist"* ]] &&
+    [[ "$out" != *"Configuring"* ]] && [ "$(printf '%s\n' "$out" | wc -l)" -eq 1 ]
+}
+
 function test_a_stranger_preset_is_refused_before_anything_is_written() {
   local home="$_HI_WORKDIR/preset-typo" out rc=0
   out="$(_hi_run_install_here preset-typo --features-only --preset=minimalist 2>&1)" || rc=$?
@@ -606,7 +624,7 @@ function test_a_misnamed_clone_is_refused_by_name() {
 function test_errors_name_what_was_typed() {
   local out rc=0
   out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --bogus 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unknown option --bogus"* && "$out" == *"Usage: hi --uninstall"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"hi --uninstall: unknown option --bogus (hi --uninstall --help lists them)"* && "$out" != *"Usage:"* ]]
 }
 
 # every mode is a word, --install included, so a second one is refused
@@ -834,6 +852,16 @@ function test_dry_run_install_writes_nothing() {
     [ ! -e "$home/.config/say-hi/settings.sh" ] && [ ! -e "$home/.local/bin/hi" ]
 }
 
+# -n is --dry-run's short form on every mode
+function test_dry_run_short_form_is_the_same() {
+  local home="$_HI_WORKDIR/dryn" long short
+  _hi_run_install_here dryn --no-link --yes --preset balanced >/dev/null 2>&1 || return 1
+  long="$(_hi_run_install_here dryn --uninstall --dry-run 2>&1)" || return 1
+  short="$(_hi_run_install_here dryn --uninstall -n 2>&1)" || return 1
+  [ "$long" = "$short" ] && [[ "$short" == *"would remove $home/.config/say-hi/settings.sh"* ]] &&
+    [ -f "$home/.config/say-hi/settings.sh" ]
+}
+
 function test_dry_run_uninstall_removes_nothing() {
   local home="$_HI_WORKDIR/dryun" out rc=0
   _hi_run_install_here dryun --no-link --yes --preset balanced >/dev/null 2>&1 || return 1
@@ -915,6 +943,7 @@ function run_install_tests() {
   _hi_check "--check-configs --help names the mode" test_check_configs_help_is_its_own
   _hi_check "--preset requires a name" test_preset_flag_requires_a_name
   _hi_check "An unknown argument gets the usage" test_an_unknown_argument_gets_the_usage
+  _hi_check "--configure is --features-only" test_configure_is_features_only
   _hi_check "Two modes at once are refused" test_two_modes_are_refused
   _hi_check "The usage line names what was typed" test_usage_names_what_was_typed
   _hi_check "Every error names what was typed" test_errors_name_what_was_typed
@@ -934,6 +963,8 @@ function run_install_tests() {
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--features-only writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written
+  _hi_check "...and before the banner" test_a_stranger_preset_is_refused_before_the_banner
+  _hi_check "-n is --dry-run" test_dry_run_short_form_is_the_same
   _hi_check "run_uninstall strips rc, then settings, then the link" test_run_uninstall_strips_rc_then_settings_then_the_link
   _hi_check "No --yes over broken configs aborts" test_install_aborts_on_broken_configs_without_yes
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs

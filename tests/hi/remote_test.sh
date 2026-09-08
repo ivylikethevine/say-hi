@@ -282,6 +282,10 @@ function test_version_falls_back_to_git_describe() {
 }
 
 # ...and with neither stamp nor git, it says so instead of printing nothing
+function test_version_stamp_wins() {
+  [[ "$(_HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version)" == "1.2.3 ("* ]]
+}
+
 function test_version_is_candid_without_stamp_or_git() {
   [[ "$(_HI_RELEASE="" _HI_ROOT="$_HI_WORKDIR" _hi_version)" == unknown* ]]
 }
@@ -572,8 +576,9 @@ EOF
   _hi_check "So is every no-bash fallback" test_remote_suffix_fallbacks_are_interactive
 
   _hi_h2 "Testing: hi --version"
-  # a packager's stamp (here stood in for by the env seam) wins outright
-  _hi_check_eq "A stamp wins" 1.2.3 env _HI_RELEASE=1.2.3 bash "$_HI_LAUNCHER" --version
+  # a packager's stamp (here stood in for by the env seam) wins outright; the
+  # rest of the line is where the tree is, which is the launcher's business
+  _hi_check "A stamp wins" test_version_stamp_wins
   _hi_check "A checkout answers with git describe" test_version_falls_back_to_git_describe
   _hi_check "Candid with no stamp and no git" test_version_is_candid_without_stamp_or_git
   _hi_check "The preamble exports it" test_remote_preamble_exports_the_version

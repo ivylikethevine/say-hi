@@ -640,7 +640,7 @@ function _hi_use_backend() {
     [ "$1" = "${row%%|*}" ] && printf '%s' "$1" && return 0
     names="$names ${row%%|*}"
   done
-  _hi_cecho "hi: --use wants one of: $names" "$RED" >&2
+  _hi_cecho "${_HI_ARGV0:-hi}: --use wants one of: $names" "$RED" >&2
   return 1
 }
 
@@ -1015,6 +1015,21 @@ function _hi_version() {
   else
     printf 'unknown (no stamp, no git)\n'
   fi
+}
+
+# _hi_version_line - what `hi --version` prints: the version, then which kind
+# of tree answered and where, since "checkout or package" is the next thing a
+# bug report asks. _hi_version alone is what rides the wire as _HI_RELEASE.
+function _hi_version_line() {
+  local kind
+  if [ -d "$_HI_ROOT/.git" ]; then
+    kind=checkout
+  elif [ -n "${_HI_RELEASE:-}" ]; then
+    kind=package
+  else
+    kind=tree
+  fi
+  printf '%s (%s at %s)\n' "$(_hi_version)" "$kind" "$_HI_ROOT"
 }
 
 # _hi_env_each <printf-format> - _hi_session_env's NAME<TAB>value pairs through
@@ -1704,6 +1719,16 @@ function _hi_parse_command() {
   CMDARG="$*$([[ "$*" = *[![:space:]]* ]] && echo '; ') exit"
 }
 
+# _hi_only_word <flag> [more...] - --help and --version take nothing after
+# them: `hi --help extra` is a mistake worth naming, the way a stray word
+# after --preview <subject> or --update <tag> is
+function _hi_only_word() {
+  [ $# -le 1 ] || {
+    _hi_cecho "hi: $1 takes no arguments (got: ${*:2})" "$RED" >&2
+    exit 1
+  }
+}
+
 function _hi_parse() {
   local backend_word use_word own=""
   # every result of the parse starts empty here: these are plain globals, and
@@ -1730,12 +1755,9 @@ function _hi_parse() {
       ;;
     # hi's own -h/-V, anywhere ahead of the target: `hi -o X=Y -h` is a
     # question for hi, not ssh's usage message
-    -h | --help)
-      _hi_help
-      exit 0
-      ;;
-    -V | --version)
-      _hi_version
+    -h | --help | -V | --version)
+      _hi_only_word "$@"
+      case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
       exit 0
       ;;
     # --use names the arm outright, ahead of the target - like any other ssh
@@ -2051,12 +2073,31 @@ function _hi_dispatch_subcommand() {
   case "${1:-}" in --*) ;; *) return 1 ;; esac
   # `--update=v1.0.0` is `--update v1.0.0`: the joined word becomes the
   # first argument, for every row alike
-  local word="${1%%=*}" joined=""
+  local word="${1%%=*}" joined="" shape w prev positional
   [ "$word" = "$1" ] || joined="${1#*=}"
   for row in "${_HI_FLAGS[@]}"; do
-    IFS='|' read -r flag _ _ var arg _ <<<"$row"
+    IFS='|' read -r flag shape _ var arg _ <<<"$row"
     [ "$flag" = "$word" ] || continue
     [ -n "$var" ] || return 1
+    # The joined word stands for the row's first positional argument
+    # (--update=v1.0.0, --doctor=host). A row with none - only switches, and
+    # the <word> each switch takes - has nothing for it to be, so
+    # --install=yes is refused here rather than reaching the script as a
+    # stray first argument it reports as an unknown option.
+    if [ -n "$joined" ]; then
+      positional="" prev=""
+      for w in ${shape//[][]/}; do
+        case "$w" in
+        --*) prev=1 ;;
+        '<'*) [ -n "$prev" ] && prev="" || positional=1 ;;
+        *) positional=1 prev="" ;;
+        esac
+      done
+      [ -n "$positional" ] || {
+        _hi_cecho "hi: $word takes no joined value (hi $word${shape:+ $shape})" "$RED" >&2
+        exit 1
+      }
+    fi
     shift
     _hi_run_script "$flag" "${!var}" ${arg:+"$arg"} ${joined:+"$joined"} "$@"
   done
@@ -2125,7 +2166,8 @@ needs a part of the tree the payload does not carry, so inside a session it
 says so and stops (--update wants .git as well, which a package has not):
 $(_hi_flag_help local)
 
-Every option takes its word joined too (--use=docker, --update=v1.0.0).
+Every option that takes a word takes it joined too (--use=docker,
+--update=v1.0.0); one that takes none refuses it.
 \`hi help\` and \`hi version\` are -h and -V spelled as words. Every other option is
 passed to ssh unchanged - -p, -i, -J, -o and the rest; ssh takes none that
 start with two dashes, so an unknown one is hi's error to report. Only the
@@ -2152,7 +2194,7 @@ function _hi_preview_fallback() {
     exit 0
     ;;
   *)
-    _hi_cecho "hi --preview $subject: takes no arguments (got: $*)" "$RED" >&2
+    _hi_cecho "hi --preview $subject: takes no arguments (got: $*) - hi --preview $subject --help" "$RED" >&2
     exit 1
     ;;
   esac
@@ -2172,6 +2214,7 @@ case "${1:-}" in
 # the words are the flags spelled without their dashes - the first word only,
 # so a host that happens to be called help is still `hi -- help`'s to reach
 -h | --help | help)
+  _hi_only_word "$@"
   _hi_help
   exit 0
   ;;
@@ -2224,7 +2267,8 @@ EOF
 # "which version of hi is this" is the question a bug report asks first and
 # `ssh -V` is a keystroke away for the other one
 -V | --version | version)
-  _hi_version
+  _hi_only_word "$@"
+  _hi_version_line
   exit 0
   ;;
 esac

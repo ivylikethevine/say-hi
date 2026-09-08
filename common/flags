@@ -21,9 +21,9 @@
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
 --mux||-|||a local tmux around the session; a repeat reattaches
 --no-mux||-|||no tmux around this connect, whatever _HI_MUX says
---preview|<subject>|-|||colors, packages or header, as they resolve here
+--preview|<subject>|-|||colors, packages or header; colors needs scripts/
 --doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
 --install|[--yes] [--no-link] [--system-link] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
 --uninstall|[--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines back out again
 --configure|[--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--features-only|revisit the settings, leaving the rc wiring be
---update|[<tag>]|git|_HI_UPDATE||move the checkout to the newest release tag, or <tag>
+--update|[<tag>] [--dry-run]|git|_HI_UPDATE||move the checkout to the newest release tag, or <tag>

@@ -63,7 +63,7 @@ function _hi_install_usage() {
     printf 'Usage: %s [--dry-run]\n' "$me"
     ;;
   configure)
-    [ -n "${_HI_ARGV0:-}" ] || me="$me --features-only"
+    [ -n "${_HI_ARGV0:-}" ] || me="$me --configure"
     printf 'Usage: %s [--preset <name>] [--dry-run]\n' "$me"
     ;;
   check)
@@ -75,7 +75,7 @@ function _hi_install_usage() {
     printf 'Usage: %s [--yes] [--no-link] [--system-link]\n' "$me"
     printf '       %*s [--preset <name>] [--dry-run]\n' "${#me}" ""
     [ -n "${_HI_ARGV0:-}" ] ||
-      printf '       %s --features-only [--preset <name>] [--dry-run]\n       %s --uninstall [--dry-run] | --check-configs | --prefix <dir>\n' "$me" "$me"
+      printf '       %s --configure [--preset <name>] [--dry-run]\n       %s --uninstall [--dry-run] | --check-configs | --prefix <dir>\n' "$me" "$me"
     ;;
   esac
 }
@@ -95,7 +95,7 @@ re-run. say-hi itself is left in place - rm -rf it yourself once you're done
 with it - and so is the one-time <rc-file>.hi-orig backup the install took
 before its first write to each rc file.
 
-  --dry-run        Say what would be removed and remove nothing.
+  -n, --dry-run    Say what would be removed and remove nothing.
 EOF
     ;;
   configure)
@@ -111,7 +111,7 @@ of the header and prompt, then Preset / Header / Features / Prompt / Advanced
                    first item. The header order, the width, the prompt
                    separators, the starship choice and the advanced
                    settings keep what they hold.
-  --dry-run        Say what would be written to settings.sh and write
+  -n, --dry-run    Say what would be written to settings.sh and write
                    nothing; s in the menu reports instead of saving.
 EOF
     ;;
@@ -153,14 +153,15 @@ you don't own.
   --preset <name>  Answer the feature and header settings from a
                    preset - everything, balanced or minimal - without the
                    menu. The same presets are the menu's first item.
-  --dry-run        Say what would be written - rc lines, the overlay seed,
+  -n, --dry-run    Say what would be written - rc lines, the overlay seed,
                    settings.sh, the link - and write nothing. The menu
                    still opens; s then reports instead of saving.
 EOF
     [ -n "${_HI_ARGV0:-}" ] || cat <<EOF
 
 The script-only modes, one per run:
-  --features-only  The settings menu alone - what \`hi --configure\` runs.
+  --configure      The settings menu alone - what \`hi --configure\` runs
+                   (--features-only is the same switch).
   --uninstall      The inverse of the install - what \`hi --uninstall\` runs.
   --check-configs  The rc syntax check alone, as an exit status.
   --prefix <dir>   Packaging mode (also entered by setting \$DESTDIR): copy
@@ -174,112 +175,6 @@ EOF
     ;;
   esac
 }
-
-# The four modes are one choice, and every one of them is a word: hi's
-# --install, --configure and --uninstall each inject theirs (common/flags),
-# so `hi --install --uninstall` is two modes and refused, not an uninstall.
-_HI_MODES=""
-# the switches seen, so a mode can refuse the ones that are not its own
-_HI_SEEN=""
-# one `shift` after the case, not one per arm: an arm added without its own was
-# an infinite loop
-while [ $# -gt 0 ]; do
-  case "$1" in
-  --install) _HI_MODES="$_HI_MODES $1" ;;
-  --features-only) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
-  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
-  --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
-  --no-link) _HI_NO_LINK=1 _HI_SEEN="$_HI_SEEN $1" ;;
-  --system-link) _HI_SYSTEM_LINK=1 _HI_SEEN="$_HI_SEEN $1" ;;
-  --dry-run) _HI_DRY_RUN=1 _HI_SEEN="$_HI_SEEN $1" ;;
-  -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
-  --prefix)
-    [ $# -ge 2 ] || {
-      echo "$_HI_ME: --prefix needs a path" >&2
-      exit 1
-    }
-    _HI_PREFIX="$2" _HI_SEEN="$_HI_SEEN --prefix"
-    shift
-    ;;
-  --prefix=*) _HI_PREFIX="${1#--prefix=}" _HI_SEEN="$_HI_SEEN --prefix" ;;
-  --preset)
-    [ $# -ge 2 ] || {
-      echo "$_HI_ME: --preset needs a name" >&2
-      exit 1
-    }
-    _HI_PRESET="$2" _HI_SEEN="$_HI_SEEN --preset"
-    shift
-    ;;
-  --preset=*) _HI_PRESET="${1#--preset=}" _HI_SEEN="$_HI_SEEN --preset" ;;
-  # answered after the loop, once the mode flags have all been read
-  -h | --help) _HI_WANT_HELP=1 ;;
-  *)
-    echo "$_HI_ME: unknown option $1 ($_HI_ME --help lists them)" >&2
-    _hi_install_usage >&2
-    exit 1
-    ;;
-  esac
-  shift
-done
-case "$_HI_MODES" in
-' '*' '*)
-  echo "$_HI_ME: pick one of$_HI_MODES - one mode per run" >&2
-  exit 1
-  ;;
-esac
-unset _HI_MODES
-if [ -n "$_HI_WANT_HELP" ]; then
-  _hi_install_help
-  exit 0
-fi
-# the switches each mode takes; anything else seen is refused by name, so
-# `hi --uninstall --yes` cannot read as a confirmation that meant something
-case "$(_hi_install_mode)" in
-uninstall) _hi_allowed=" --dry-run " ;;
-configure) _hi_allowed=" --preset --dry-run " ;;
-check) _hi_allowed=" " ;;
-*) _hi_allowed=" --yes --no-link --system-link --preset --dry-run --prefix " ;;
-esac
-for _hi_flag in $_HI_SEEN; do
-  case "$_hi_allowed" in
-  *" $_hi_flag "*) ;;
-  *)
-    echo "$_HI_ME: $_hi_flag does not apply here" >&2
-    _hi_install_usage >&2
-    exit 1
-    ;;
-  esac
-done
-unset _hi_allowed _hi_flag _HI_SEEN
-# packaging mode is scripts/install.sh's own: reached as `hi --install` it
-# would rm -rf a live prefix behind a user's flag; and the prefix lands in
-# /etc/profile.d as written, so a relative one is a wrong answer for every
-# login shell
-if [ -n "$_HI_PREFIX" ]; then
-  if [ -n "${_HI_ARGV0:-}" ]; then
-    echo "$_HI_ME: --prefix is packaging mode - run scripts/install.sh --prefix <dir> directly" >&2
-    exit 1
-  fi
-  case "$_HI_PREFIX" in
-  /*) ;;
-  *)
-    echo "$_HI_ME: --prefix needs an absolute path (got $_HI_PREFIX)" >&2
-    exit 1
-    ;;
-  esac
-fi
-if [ -n "$_HI_NO_LINK" ] && [ -n "$_HI_SYSTEM_LINK" ]; then
-  echo "$_HI_ME: --no-link and --system-link both name where the link goes; pick one" >&2
-  _hi_install_usage >&2
-  exit 1
-fi
-
-# Either flag alone is enough - a packager who passes only $DESTDIR still gets
-# /usr/share, and one who passes only --prefix is installing straight to a live
-# root. Resolved before the prefix default so "was it asked for" is answerable.
-_HI_PACKAGING=""
-if [ -n "$_HI_PREFIX" ] || [ -n "${DESTDIR:-}" ]; then _HI_PACKAGING=1; fi
-: "${_HI_PREFIX:=/usr/share}"
 
 # Locate say-hi relative to this script (resolving symlinks) - say-hi's parent
 # directory is always the install dir, since this installs in place.
@@ -318,6 +213,117 @@ source "$_HI_HOME/say-hi/scripts/table.sh"
 source "$_HI_HOME/say-hi/scripts/rc.sh"
 # shellcheck source=./configure.sh
 source "$_HI_HOME/say-hi/scripts/configure.sh"
+
+# The four modes are one choice, and every one of them is a word: hi's
+# --install, --configure and --uninstall each inject theirs (common/flags),
+# so `hi --install --uninstall` is two modes and refused, not an uninstall.
+# Parsed here, after core.sh is in, so a refusal is the same red one-liner
+# every other command prints.
+_HI_MODES=""
+# the switches seen, so a mode can refuse the ones that are not its own
+_HI_SEEN=""
+# one `shift` after the case, not one per arm: an arm added without its own was
+# an infinite loop
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --install) _HI_MODES="$_HI_MODES $1" ;;
+  --configure | --features-only) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES --configure" ;;
+  --check-configs) _HI_CHECK_CONFIGS_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
+  --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
+  --no-link) _HI_NO_LINK=1 _HI_SEEN="$_HI_SEEN $1" ;;
+  --system-link) _HI_SYSTEM_LINK=1 _HI_SEEN="$_HI_SEEN $1" ;;
+  -n | --dry-run) _HI_DRY_RUN=1 _HI_SEEN="$_HI_SEEN --dry-run" ;;
+  -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
+  --prefix)
+    [ $# -ge 2 ] || {
+      _hi_cecho "$_HI_ME: --prefix needs a path" "$RED" >&2
+      exit 1
+    }
+    _HI_PREFIX="$2" _HI_SEEN="$_HI_SEEN --prefix"
+    shift
+    ;;
+  --prefix=*) _HI_PREFIX="${1#--prefix=}" _HI_SEEN="$_HI_SEEN --prefix" ;;
+  --preset)
+    [ $# -ge 2 ] || {
+      _hi_cecho "$_HI_ME: --preset needs a name" "$RED" >&2
+      exit 1
+    }
+    _HI_PRESET="$2" _HI_SEEN="$_HI_SEEN --preset"
+    shift
+    ;;
+  --preset=*) _HI_PRESET="${1#--preset=}" _HI_SEEN="$_HI_SEEN --preset" ;;
+  # answered after the loop, once the mode flags have all been read
+  -h | --help) _HI_WANT_HELP=1 ;;
+  *)
+    _hi_cecho "$_HI_ME: unknown option $1 ($_HI_ME --help lists them)" "$RED" >&2
+    exit 1
+    ;;
+  esac
+  shift
+done
+case "$_HI_MODES" in
+' '*' '*)
+  _hi_cecho "$_HI_ME: pick one of$_HI_MODES - one mode per run" "$RED" >&2
+  exit 1
+  ;;
+esac
+unset _HI_MODES
+if [ -n "$_HI_WANT_HELP" ]; then
+  _hi_install_help
+  exit 0
+fi
+# the switches each mode takes; anything else seen is refused by name, so
+# `hi --uninstall --yes` cannot read as a confirmation that meant something
+case "$(_hi_install_mode)" in
+uninstall) _hi_allowed=" --dry-run " ;;
+configure) _hi_allowed=" --preset --dry-run " ;;
+check) _hi_allowed=" " ;;
+*) _hi_allowed=" --yes --no-link --system-link --preset --dry-run --prefix " ;;
+esac
+for _hi_flag in $_HI_SEEN; do
+  case "$_hi_allowed" in
+  *" $_hi_flag "*) ;;
+  *)
+    _hi_cecho "$_HI_ME: $_hi_flag does not apply here ($_HI_ME --help lists what does)" "$RED" >&2
+    exit 1
+    ;;
+  esac
+done
+unset _hi_allowed _hi_flag _HI_SEEN
+# packaging mode is scripts/install.sh's own: reached as `hi --install` it
+# would rm -rf a live prefix behind a user's flag; and the prefix lands in
+# /etc/profile.d as written, so a relative one is a wrong answer for every
+# login shell
+if [ -n "$_HI_PREFIX" ]; then
+  if [ -n "${_HI_ARGV0:-}" ]; then
+    _hi_cecho "$_HI_ME: --prefix is packaging mode - run scripts/install.sh --prefix <dir> directly" "$RED" >&2
+    exit 1
+  fi
+  case "$_HI_PREFIX" in
+  /*) ;;
+  *)
+    _hi_cecho "$_HI_ME: --prefix needs an absolute path (got $_HI_PREFIX)" "$RED" >&2
+    exit 1
+    ;;
+  esac
+fi
+if [ -n "$_HI_NO_LINK" ] && [ -n "$_HI_SYSTEM_LINK" ]; then
+  _hi_cecho "$_HI_ME: --no-link and --system-link both name where the link goes; pick one" "$RED" >&2
+  exit 1
+fi
+
+# Either flag alone is enough - a packager who passes only $DESTDIR still gets
+# /usr/share, and one who passes only --prefix is installing straight to a live
+# root. Resolved before the prefix default so "was it asked for" is answerable.
+_HI_PACKAGING=""
+if [ -n "$_HI_PREFIX" ] || [ -n "${DESTDIR:-}" ]; then _HI_PACKAGING=1; fi
+: "${_HI_PREFIX:=/usr/share}"
+
+# a preset name is answered here, ahead of the banner and every write
+if [ -n "$_HI_PRESET" ] && ! preset_row "$_HI_PRESET" >/dev/null; then
+  _hi_cecho "$_HI_ME: no such preset: $_HI_PRESET (one of: $(preset_names))" "$RED" >&2
+  exit 1
+fi
 
 # --system-link: the one link that wants sudo, asked for by name
 [ -z "$_HI_SYSTEM_LINK" ] || _HI_LINK="/usr/bin/hi"
@@ -612,11 +618,6 @@ if [ -n "$_HI_CHECK_CONFIGS_ONLY" ]; then
   check_shell_configs || _hi_check_rc=1
   check_overlay_configs || _hi_check_rc=1
   exit $_hi_check_rc
-fi
-
-if [ -n "$_HI_PRESET" ] && ! preset_row "$_HI_PRESET" >/dev/null; then
-  _hi_cecho "$_HI_ME: no such preset: $_HI_PRESET (one of: $(preset_names))" "$RED" >&2
-  exit 1
 fi
 
 if [ -z "$_HI_FEATURES_ONLY" ]; then

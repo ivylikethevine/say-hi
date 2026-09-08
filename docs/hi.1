@@ -181,12 +181,14 @@ own options \- and exit. Everything here in short form; this page is the long
 one. Caught anywhere ahead of the target, so it never reaches
 .BR ssh (1);
 .B hi help
-is the same request spelled as a word, as the first word only.
+is the same request spelled as a word, as the first word only. Takes
+nothing after it; a stray word is refused.
 .TP
 .B \-V\fR, \fB\-\-version
 print the version and exit: the version stamped in at packaging time, or
 .B git describe
-output in a checkout. The one short
+output in a checkout, followed by which kind of tree answered (a checkout,
+a package, or a bare tree) and where it is. Takes nothing after it. The one short
 .BR ssh (1)
 option hi claims for itself \- hi's version is the first thing a bug report
 asks for, and
@@ -216,7 +218,9 @@ guess.
 is the same flag with its word joined \- as every option that takes one word
 is:
 .B \-\-preview=colors
-too.
+too. An option that takes no word refuses a joined one
+.RB ( \-\-plain=1 ,
+.BR \-\-install=yes ).
 .TP
 .B \-\-plain
 skip the payload entirely and hand over a bare shell on whichever arm
@@ -287,7 +291,9 @@ wants
 on top of that, and a package carries none.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
-print a read\-only pre\-flight report instead of connecting: the local tree,
+print a read\-only pre\-flight report instead of connecting
+.RB ( \-\-doctor=\fItarget\fR
+is the joined spelling, so a typo there is a target to probe, not an error): the local tree,
 the config overlay, the shell rc files and the overlay's own shell files
 parsed by whatever will read them (the rc half is what
 .B \-\-install
@@ -328,6 +334,8 @@ at a terminal. Each rc file is syntax\-checked first, and a file that does
 not parse stops the install with a question; that is the one prompt, and
 .BR \-y / \-\-yes
 answers it.
+.BR \-n / \-\-dry\-run
+is the short form on every local command that has one.
 .B \-\-no\-link
 makes no link at all (the wired shells alias
 .B hi
@@ -394,11 +402,13 @@ before either.
 .I name
 applies one without the menu.
 .TP
-.B \-\-update \fR[\fItag\fR]
+.B \-\-update \fR[\fItag\fR] [\fB\-\-dry\-run\fR]
 move the say-hi checkout to a release tag: the tags are fetched and the newest
 is checked out, detached \- or the
 .I tag
-named, to move on or back. Releases are tags and nothing else; following a
+named, to move on or back.
+.BR \-n / \-\-dry\-run
+fetches the tags and names the one it would check out, moving nothing. Releases are tags and nothing else; following a
 branch is
 .B git pull
 in the checkout, by hand.
@@ -439,6 +449,13 @@ session. An
 with no target hands back what
 .BR ssh (1)
 exited with.
+.TP
+.B the target's bootstrap
+64 when the target has no
+.BR base64 (1)
+to unpack the payload with, 65 when it could not make a scratch directory \-
+the two ways a target refuses a session before a shell opens, each reported
+by hi with the fix.
 .TP
 .B \-\-doctor
 0 with nothing to report, 1 on any finding. The count is in the report
@@ -505,6 +522,14 @@ and a package\-manager install is not offered
 .BR \-\-update ,
 which needs
 .BR .git .
+.TP
+.B hi \-\-install \-\-<TAB>
+behind a local command, that command's own switches instead \- the ones its
+usage line names \- and
+.B hi \-\-doctor \-\-use <TAB>
+the backends, as
+.B \-\-use
+completes on a connect.
 .SH CONFIGURATION
 Configuration lives outside the tree, in
 .B ~/.config/say-hi/
