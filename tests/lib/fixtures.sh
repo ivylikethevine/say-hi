@@ -220,6 +220,33 @@ function _hi_can_mkdir_mode() {
   [ "$_HI_CAP_MKDIR_MODE" = yes ]
 }
 
+# Whether gpg is here *and* can reach a gpg-agent from a fresh homedir - what
+# generating or using a throwaway key needs. `command -v gpg` alone is not
+# it: Git for Windows ships the MSYS gpg with no agent it can start (every
+# --quick-gen-key there ends "No agent running"), and a headless macOS with
+# a long $TMPDIR can lose the agent socket to the sockaddr_un cap, which is
+# why the probe's homedir sits under a short base on /tmp, the same place the
+# suites put theirs. Launched explicitly, asked to answer, then killed:
+# nothing this probe starts outlives it.
+_HI_CAP_GPG_AGENT=""
+function _hi_can_reach_gpg_agent() {
+  local home
+  if [ -z "$_HI_CAP_GPG_AGENT" ]; then
+    _HI_CAP_GPG_AGENT=no
+    if command -v gpg >/dev/null 2>&1 && command -v gpgconf >/dev/null 2>&1 &&
+      home="$(mktemp -d /tmp/hi.gpgcap.XXXXXX 2>/dev/null)"; then
+      chmod 700 "$home"
+      if gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 &&
+        gpg-connect-agent --homedir "$home" /bye >/dev/null 2>&1; then
+        _HI_CAP_GPG_AGENT=yes
+      fi
+      gpgconf --homedir "$home" --kill all >/dev/null 2>&1 || true
+      rm -rf "$home"
+    fi
+  fi
+  [ "$_HI_CAP_GPG_AGENT" = yes ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -255,6 +282,7 @@ function _hi_capable() {
   fork_concurrency) _hi_can_fork_concurrently ;;
   mode_bits) _hi_can_trust_mode_bits ;;
   mkdir_mode) _hi_can_mkdir_mode ;;
+  gpg_agent) _hi_can_reach_gpg_agent ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2

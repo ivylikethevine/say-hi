@@ -18,10 +18,12 @@
 # HOW FAR TO TRUST A NUMBER THIS PRINTS
 #
 # With the current kcov pin and the full-sweep default, this lands within a
-# few points of bashcov's figure (coverage_v2.sh), so the numbers are usable:
-# for finding untested arms and watching the trend - still never as a gate.
-# That sentence has to be re-earned whenever the two badges diverge, because
-# an earlier kcov lost the plot entirely, and the measured record of how is
+# few points of bashcov's figure (coverage_v2.sh), and has for many commits:
+# both are reliable, the average of the two badges is the coverage figure,
+# and the per-file report is for finding untested arms - still never a gate.
+# Only a massive divergence between the two badges (tens of points, not the
+# usual few) puts that in question, because an earlier kcov lost the plot
+# entirely, and the measured record of how is
 # kept here so the next person can rerun it instead of rediscovering it:
 #
 # That kcov stopped recording the moment tests/test_lib.sh finished being

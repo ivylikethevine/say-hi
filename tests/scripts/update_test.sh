@@ -117,16 +117,13 @@ function _hi_update_gpg_home() {
   if [ -z "$_HI_UPDATE_GPG_BASE" ]; then
     _HI_UPDATE_GPG_BASE="$(mktemp -d /tmp/hi.upgpg.XXXXXX)" || return 1
     _hi_track_dir "$_HI_UPDATE_GPG_BASE"
-    # Git Bash: a POSIX /tmp/... is MSYS's own spelling, and the gpg that git.exe
-    # (a native binary) spawns may be a native build too - the runner images
-    # carry one beside Git's own - to which /tmp means C:\tmp. cygpath -m gives
-    # the mixed form (C:/Users/...) both kinds of program read the same way.
-    if command -v cygpath >/dev/null 2>&1; then
-      _HI_UPDATE_GPG_BASE="$(cygpath -m "$_HI_UPDATE_GPG_BASE")" || return 1
-    fi
   fi
   home="$_HI_UPDATE_GPG_BASE/$1"
   mkdir -p "$home" && chmod 700 "$home"
+  # launched by hand ahead of the key: a gpg that cannot auto-start its agent
+  # (Git for Windows' MSYS build) fails --quick-gen-key with "No agent
+  # running" otherwise. Harmless where auto-start works.
+  gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 || true
   if ! GNUPGHOME="$home" gpg --batch --quiet --pinentry-mode loopback --passphrase '' \
     --quick-gen-key "hi test <hi@example.invalid>" default default never >/dev/null 2>"$err"; then
     _hi_dump_log "gpg --quick-gen-key ($1) failed" "$err" >&2
@@ -347,9 +344,11 @@ function run_update_tests() {
   _hi_h2 "Testing: the tag's signature"
   _hi_check_requires git "An unsigned tag is said to be, and checked out" test_update_says_an_unsigned_tag_is_unsigned
   _hi_check_requires git "--dry-run reports the signature verdict" test_update_dry_run_reports_the_signature
-  _hi_check_requires gpg "A good signature is named with its signer" test_update_names_a_good_signature
-  _hi_check_requires gpg "A key not in the keyring: said, allowed" test_update_allows_a_signature_it_cannot_check
-  _hi_check_requires gpg "A bad signature refuses the checkout" test_update_refuses_a_bad_signature
+  # gpg_agent, not `gpg`: the three need a keyring, which needs an agent gpg
+  # can reach - a facility, not a binary (Git Bash has the binary and no agent)
+  _hi_check_capable gpg_agent "A good signature is named with its signer" test_update_names_a_good_signature
+  _hi_check_capable gpg_agent "A key not in the keyring: said, allowed" test_update_allows_a_signature_it_cannot_check
+  _hi_check_capable gpg_agent "A bad signature refuses the checkout" test_update_refuses_a_bad_signature
   _hi_update_gpg_cleanup
 
   _hi_suite_end "scripts/update.sh"

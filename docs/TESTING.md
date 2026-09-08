@@ -110,12 +110,15 @@ Five groups (`--group <name>`; `--list` prints the membership):
 Fast cases stand down through two guards: `_hi_check_requires <bin>` skips a
 case when a _command_ is missing, `_hi_check_capable <capability>` when a
 _facility_ is — something `command -v` cannot answer. The roster,
-`_hi_capable` (`tests/lib/fixtures.sh`), has six entries. Three are probes
+`_hi_capable` (`tests/lib/fixtures.sh`), has seven entries. Four are probes
 rather than OS sniffs, all for Git Bash: `symlink` makes one and tests
 `[ -L ]`, so a filesystem that refuses _or_ silently copies reads as no; `pty`
 is python3 being able to `import pty`; `mkdir_mode` is a `mkdir -m` whose
 mode actually lands (a Windows-owned temp tree makes the directory and
-refuses the chmod, which is the filesystem's doing, not the runtime's). The
+refuses the chmod, which is the filesystem's doing, not the runtime's);
+`gpg_agent` launches a gpg-agent in a throwaway homedir and asks it to
+answer, because Git for Windows ships the gpg binary with no agent it can
+start, and a keyring is unusable without one. The
 other three are `uname`-based guards for the same MSYS/Cygwin tier:
 `lockout` (a `chmod 555` directory actually refuses a write, rather than the
 runtime looking the other way), `fork_concurrency` (background subshells
@@ -184,9 +187,12 @@ they actually run.
 Two coverage tools and a profiler. The coverage pair runs by hand (unsharded,
 the whole sweep in one process) and in CI (`coverage.yml`, after every green
 CI battery on a push to `main`) over the full suite sweep — every suite the
-box's backends can host — and their aggregates land within a few points of
-each other. That makes the figures usable: for finding untested arms in the
-per-file report and for watching the trend, never as a gate. Both sweeps pin
+box's backends can host. The two aggregates have tracked each other within a
+few points for many commits and both are reliable: **read the average of the
+two badges** as the coverage figure, and the per-file reports for finding
+untested arms. Only a massive divergence between them (tens of points, not
+the usual few) means one tool has lost the plot and needs its probe re-run
+before either is believed. Never a gate. Both sweeps pin
 `_HI_PAR_WIDTH=1`: a suite's cases share one trace stream, and a batch writing
 into it side by side loses lines. `_HI_SC_WIDTH` is unrelated (the shellcheck
 suite's own fan-out) and moot here besides — both drivers drop `shellcheck`
@@ -205,7 +211,7 @@ already passes `--shard` straight through to `test_runner.sh`.
   load-time-only (`common/git_prompt.sh` at 2.56% with seventeen cases
   passing against it); the header keeps the measured record of that
   failure, and its probe is the thing to re-run if the two badges ever
-  diverge again.
+  massively diverge again.
 - **`kcov --merge` re-reads the sources.** Every shard records absolute
   paths, and the merge opens each one again to count its lines — so a gather
   job with no working tree merges to `"files": []` and a run-wide `0.00`,
@@ -241,10 +247,11 @@ badge math excludes `tests/` and `docs/`, the same subject both reports
 declare. Each refreshes as soon as its sweep finishes — `pages.yml` redeploys
 on a completed Coverage run as well as on a green CI — so a badge is only ever
 as old as the sweep, never a push behind. Neither gates anything. Both stay
-because they cannot err in the
-same direction: a file that reads low in bashcov is genuinely uncovered, a
-line that reads covered in kcov genuinely ran, and the two agreeing is what
-makes the aggregate worth believing.
+because they cannot err in the same direction: a file that reads low in
+bashcov is genuinely uncovered, a line that reads covered in kcov genuinely
+ran. The average of the two badges is the figure to quote; a massive
+divergence, not the usual few points, is the signal that one tool needs its
+probe re-run.
 
 Two shipped files sit outside what either tool can report at all:
 `common/zsh.zsh` and `common/config.fish`. Both instrumentation methods need

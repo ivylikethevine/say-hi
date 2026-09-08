@@ -24,11 +24,13 @@ name: Coverage
 # independence a two-entry matrix bought before sharding existed: kcov's
 # queue must not wait behind bashcov's.
 #
-# The two figures land within a few points of each other and are usable -
-# for finding untested arms and watching the trend, never as a gate. Each
-# still skews a little, in opposite directions: kcov once lost its DEBUG
-# trap wholesale (tests/coverage.sh's header keeps the measured record; if
-# the two badges diverge again, re-run its probe before believing either),
+# The two figures have tracked each other within a few points for many
+# commits and both are reliable: the average of the two badges is the
+# coverage figure, the per-file reports are for finding untested arms, and
+# neither is a gate. Each still skews a little, in opposite directions: kcov
+# once lost its DEBUG trap wholesale (tests/coverage.sh's header keeps the
+# measured record; only if the two badges massively diverge again - tens of
+# points, not the usual few - re-run its probe before believing either),
 # and bashcov marks every heredoc-body line covered whether or not the run
 # executed it and cannot see into `env -i` children or containers - so a
 # single file reads a few points off in either direction while the pair
