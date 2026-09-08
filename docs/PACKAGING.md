@@ -550,7 +550,7 @@ frame; `fixtures.sh`'s `up:<name>` arm writes exactly that settings.sh.
 Change the two together, and README's section for the GIF with them.
 
 The set is organised by **feature**, not backend: each tape shows one thing
-hi brings along (the hero, the packages check, the editors, the picker, the
+hi brings along (the hero, the packages check, the editors, the
 overlay, the colors, completion, one-off commands), with the backends spread
 across them so every one is on screen somewhere. A hand render is one
 `vhs docs/tapes/<name>.tape` from the repo root with the backend up; the two

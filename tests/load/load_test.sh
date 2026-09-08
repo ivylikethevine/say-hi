@@ -556,7 +556,10 @@ function test_load_marks_toggle_drops_the_closing_d() {
   local out
   out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=1)" || return 1
   case "$out" in
-  *$'\e]133;'*) _hi_cecho " | a mark leaked with _HI_DISABLE_MARKS=1: $out" "$RED"; return 1 ;;
+  *$'\e]133;'*)
+    _hi_cecho " | a mark leaked with _HI_DISABLE_MARKS=1: $out" "$RED"
+    return 1
+    ;;
   esac
   return 0
 }

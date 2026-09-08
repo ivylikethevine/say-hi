@@ -97,21 +97,44 @@ function test_update_dry_run_reports_the_signature() {
 }
 
 # _hi_update_gpg_home <name> - a throwaway keyring with one key in it, its
-# path on stdout. Every such home is $_HI_WORKDIR/gnupg-*, which is how the
-# agent each one starts is found and killed at suite end
+# path on stdout. Every such home sits under one $_HI_UPDATE_GPG_BASE, which is
+# how the agent each one starts is found and killed at suite end
 # (_hi_update_gpg_cleanup) - gpg-agent outlives the suite otherwise.
+#
+# The homedir lives under a short base on /tmp, not $_HI_WORKDIR, for the reason
+# tests/packaging/packaging_test.sh's _hi_mkrepo_keys spells out: gpg talks to
+# gpg-agent over a sockaddr_un capped near 104 bytes, macOS's per-user $TMPDIR
+# plus the suite's mktemp -d spends most of that, and macOS has no /run/user
+# for the agent to fall back to. Same fixture, same two lessons: --pinentry-mode
+# loopback, because --batch --passphrase '' alone still has some builds
+# (Homebrew's, Git for Windows') reach for a pinentry a headless runner has
+# none of. Its stderr is kept and dumped on failure rather than discarded, so a
+# platform-only red says why.
+_HI_UPDATE_GPG_BASE=""
 function _hi_update_gpg_home() {
-  local home="$_HI_WORKDIR/gnupg-$1"
+  local home err="$_HI_WORKDIR/gnupg-$1.err"
+  if [ -z "$_HI_UPDATE_GPG_BASE" ]; then
+    _HI_UPDATE_GPG_BASE="$(mktemp -d /tmp/hi.upgpg.XXXXXX)" || return 1
+    _hi_track_dir "$_HI_UPDATE_GPG_BASE"
+  fi
+  home="$_HI_UPDATE_GPG_BASE/$1"
   mkdir -p "$home" && chmod 700 "$home"
-  GNUPGHOME="$home" gpg --batch --quiet --passphrase '' --quick-gen-key "hi test <hi@example.invalid>" default default never >/dev/null 2>&1 || return 1
+  if ! GNUPGHOME="$home" gpg --batch --quiet --pinentry-mode loopback --passphrase '' \
+    --quick-gen-key "hi test <hi@example.invalid>" default default never >/dev/null 2>"$err"; then
+    _hi_dump_log "gpg --quick-gen-key ($1) failed" "$err"
+    return 1
+  fi
   printf '%s' "$home"
 }
 function _hi_update_gpg_cleanup() {
   local h
-  for h in "$_HI_WORKDIR"/gnupg-*; do
+  [ -n "$_HI_UPDATE_GPG_BASE" ] || return 0
+  for h in "$_HI_UPDATE_GPG_BASE"/*; do
     [ -d "$h" ] || continue
-    gpgconf --homedir "$h" --kill gpg-agent >/dev/null 2>&1 || true
+    # all, not just gpg-agent: scdaemon and dirmngr outlive the suite too
+    gpgconf --homedir "$h" --kill all >/dev/null 2>&1 || true
   done
+  rm -rf "$_HI_UPDATE_GPG_BASE"
 }
 
 # _hi_update_signed_fixture <name> <gnupghome> - the fixture plus a signed
@@ -125,7 +148,10 @@ function _hi_update_signed_fixture() {
     GNUPGHOME="$2" git -c user.name=hi -c user.email=hi@example.invalid -c user.signingkey=hi@example.invalid \
       -c gpg.format=openpgp -c gpg.program=gpg tag -s -m three v0.0.3 &&
       git push -q origin --tags
-  ) >/dev/null 2>&1 || return 1
+  ) >/dev/null 2>"$_HI_WORKDIR/sign-$1.err" || {
+    _hi_dump_log "signing v0.0.3 in $1 failed" "$_HI_WORKDIR/sign-$1.err"
+    return 1
+  }
   printf '%s' "$home"
 }
 
@@ -144,7 +170,9 @@ function test_update_allows_a_signature_it_cannot_check() {
   local gh empty home out
   gh="$(_hi_update_gpg_home unknown)" || return 1
   home="$(_hi_update_signed_fixture upd-unknown "$gh")" || return 1
-  empty="$_HI_WORKDIR/gnupg-empty"
+  # under the same short base as the keyed homes: gpg may start an agent for
+  # this one too, and the socket-path cap applies to it just the same
+  empty="$_HI_UPDATE_GPG_BASE/empty"
   mkdir -p "$empty" && chmod 700 "$empty"
   out="$(GNUPGHOME="$empty" _hi_subcmd_run "$home" --update v0.0.3)" || return 1
   [[ "$out" == *"not in your keyring"* && "$out" == *"now on v0.0.3"* ]]

@@ -888,8 +888,8 @@ Five rules in `_hi_mux_wrap`:
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
   inner argv is rebuilt from the parsed state (`--use`, `--plain`, the ssh
-  options, `$DOMAIN`, the command), not replayed from `"$@"`, so a target the
-  picker chose rides along.
+  options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
+  settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
   the wrap returns at once when that is set, which is what keeps a
   `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It

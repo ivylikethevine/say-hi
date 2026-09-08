@@ -24,15 +24,16 @@ source "$_HI_DOCTOR"
 # case installs. Nothing else, so a backend "not installed" case is real
 # even on a machine with every backend.
 #
-# base64, tar, gzip and find are hi's own floor for building a payload, and
-# they belong here for the same reason `bash` does: leaving them off did not
+# base64, tar, gzip, find, mv and chmod are hi's own floor for building a
+# payload (the staging copy renames each stripped file back and restores the
+# launcher's exec bit), and they belong here for the same reason `bash` does: leaving them off did not
 # model a client without them, it just made the report print raw
 # "base64: command not found" lines out of _hi_wire_bytes into every case's
 # transcript, and measure a wire size nothing had packed. A *target* without
 # base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
   _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
-    timeout du date base64 tar gzip find readlink uname
+    timeout du date base64 tar gzip find readlink uname mv chmod mkdir
 }
 
 # A $HOME with one non-empty rc file, isolating doctor_configs()'s local-rc
@@ -542,16 +543,18 @@ SHIM
 # the text report's closing line: green with nothing to say, red with the
 # count when a row went bad - and that count is the exit code
 function test_a_finding_turns_the_closing_line_red_and_is_the_exit_code() {
-  local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
+  local out rc=0 home
+  home="$(_hi_doctor_home)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" somehost)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"1 finding(s) above in red"* ]]
 }
 
 # --plain is accepted on the text report too, and is not read as a target
 function test_plain_flag_is_accepted_on_the_text_report() {
-  local out rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
+  local out rc=0 home
+  home="$(_hi_doctor_home)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --plain)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Nothing looks broken"* && "$out" != *"Target: --plain"* ]]
 }
@@ -575,7 +578,8 @@ function test_unknown_flag_is_refused_not_taken_as_the_target() {
   out="$("$_HI_DOCTOR" --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* ]] || return 1
   rc=0
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" _HI_SSH_CONFIG=/nonexistent \
+  home="$(_hi_doctor_home)"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" --mux --no-mux)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" != *"Target: --"* ]]
 }
@@ -614,7 +618,9 @@ function _hi_doctor_plain_report() {
   _HI_DOC_PLAIN_RC=0
   # the fixture $HOME, as --json's runs use: the install section reads the
   # rc files, and the real ones on a developer's box name another tree
-  _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$(_hi_doctor_home)" \
+  local home
+  home="$(_hi_doctor_home)"
+  _HI_DOC_PLAIN_OUT="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
   _HI_SSH_CONFIG=/nonexistent \
   _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR")" || _HI_DOC_PLAIN_RC=$?
 }

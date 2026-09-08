@@ -29,8 +29,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
   - [Your Editors & Clipboard](#your-editors--clipboard)
   - [Know Where You Are at a Glance](#know-where-you-are-at-a-glance)
   - [One Command, Any Backend](#one-command-any-backend)
-  - [No Target at All?](#no-target-at-all)
-- [Target Requirements](#target-requirements)
+  - [Target Requirements](#target-requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
   - [Hostname, Username, and Group/Tag Colors](#hostname-username-and-grouptag-colors)
@@ -140,20 +139,6 @@ A researcher, in zsh, sweeping the cluster's backends.
 
 ![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
-### No Target at All?
-
-`hi` on its own offers the target list, backend-tagged and
-
-most-used-and-most-recent first, and connects to what you pick — `fzf` or `sk`
-if you have one, a numbered menu if not. It runs on the client, never reaches
-a target, and a `hi` in a script or CI job still fails rather than wait on a
-menu. The researcher, zsh on a laptop with a GPU cluster in `~/.ssh/config`,
-landing in a notebook container — with a prompt of their own, an oh-my-zsh
-look written into the overlay's `zsh.zsh`, which hi sources last on both
-ends.
-
-![bare hi offering its target list through fzf with the most recent target on top, then landing a session in it](https://ivylikethevine.github.io/say-hi/docs/tapes/pick.gif)
-
 ## Target Requirements
 
 ![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64-0A6E8A)
@@ -247,9 +232,7 @@ everything weighed and answered **no**, and why.
 - the whole surface is twelve flags: `hi --help` lists them, `man hi` is the
   long form, and everything hi does not answer goes to `ssh`.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
-- `hi` on its own offers that list and connects to what you pick — `fzf` or
-  `sk` if you have one, a numbered menu if not. GIF:
-  [no target at all](#no-target-at-all).
+- `hi` on its own prints the help.
 - [optional] configure `~/.ssh/config` tags via sshm
 - [optional] pin colors in `~/.config/say-hi/colors` (the install seeded it
   from `say-hi/settings/colors`); `hi --preview colors` shows what every ssh

@@ -141,38 +141,6 @@ before
 names the arm outright and skips every probe above it \- the fix for a
 container that shadows an unrelated ssh host of the same name, or the other
 way around.
-.SH NO TARGET
-.B hi
-with no
-.I target
-and no
-.I ssh\-options
-offers the list instead of failing \- the same rows the shell completions read,
-so the offer is backend\-tagged, ranked by what you connected to recently, and
-served out of the
-.B $_HI_TARGETS_TTL
-cache a
-.B TAB
-may already have warmed. Picking one connects to it.
-.PP
-.BR fzf (1)
-is used when it is on the client, then
-.BR sk (1);
-with neither, a numbered
-.B select
-menu, so nothing has to be installed for this to work. The picker runs on the
-client only and never reaches a target.
-.PP
-Both ends of a terminal are required, so
-.B hi
-in a script or a CI job goes on printing the usage message from
-.BR ssh (1)
-and failing rather than waiting on a menu nobody can answer. An
-.I ssh\-option
-with no target does the same: an option without a host is an error for
-.BR ssh (1)
-to report, not a target to guess at, and its exit status is what hi hands
-back.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
@@ -687,9 +655,7 @@ the pre\-flight report as a document, for a bug report; the exit status
 says whether anything was found.
 .TP
 .B hi
-no target: pick one from the list \- see
-.B NO TARGET
-above.
+no target: print this help and exit.
 .SH SEE ALSO
 .BR ssh (1)
 .PP
