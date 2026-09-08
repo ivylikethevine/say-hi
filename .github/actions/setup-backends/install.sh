@@ -27,4 +27,13 @@ echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://
   sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
 sudo apt-get update
 sudo apt-get -o "Dir::Cache::Archives=$HI_APT_CACHE" install -y podman nomad "$@"
+
+# apt (root) leaves its lock file and a root-only partial/ behind, and the
+# .debs root-owned; actions/cache's post-job save tars the directory as the
+# runner user and fails on the first unreadable entry ("partial: Cannot
+# open: Permission denied", exit 2 - the save is skipped, so every run
+# re-downloads). Drop apt's scratch and hand the .debs back to the runner;
+# the mkdir above recreates partial/ on the next run.
+sudo rm -rf "$HI_APT_CACHE/partial" "$HI_APT_CACHE/lock"
+sudo chown -R "$(id -u):$(id -g)" "$HI_APT_CACHE"
 nomad version

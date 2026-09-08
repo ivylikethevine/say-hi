@@ -8,10 +8,13 @@ name: Setup backends
 # The downloaded .debs are cached under $RUNNER_TEMP rather than apt's own
 # /var/cache/apt/archives: that directory is root-owned, and actions/cache
 # restores as the unprivileged runner user, so a hit there would fail to
-# write. podman/nomad aren't pinned like tools.txt's rows - they float with
-# apt/HashiCorp's latest - so the key is rounded to the week rather than held
-# forever: a hit skips the re-download, and the key rolls over on its own
-# before the packages can go stale for long.
+# write - and install.sh hands the directory back to the runner once apt is
+# done, since apt leaves a root-only lock and partial/ behind that the
+# post-job save would otherwise trip on. podman/nomad aren't pinned like
+# tools.txt's rows - they float with apt/HashiCorp's latest - so the key is
+# rounded to the week rather than held forever: a hit skips the re-download,
+# and the key rolls over on its own before the packages can go stale for
+# long.
 description: Install the backends the e2e suites and demo renders drive (podman, nomad, kind), plus any extra apt packages
 
 inputs:
