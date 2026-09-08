@@ -539,6 +539,32 @@ function test_load_prints_the_disconnect_banner_and_footer() {
   return 1
 }
 
+# the timestamp cells follow the connect header's order, not a toggle of their
+# own: an order naming none of utc/version/localtime keeps the banner and
+# drops the clock row (the UTC cell is the marker - `date -u` prints it)
+function test_load_disconnect_timestamp_follows_the_header_order() {
+  local out
+  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_HEADER_ORDER=utc)" || return 1
+  out="$(_hi_strip_ansi "$out")"
+  case "$out" in *"Disconnected ["*" UTC"*) ;; *)
+    _hi_cecho " | no UTC cell under _HI_HEADER_ORDER=utc: $out" "$RED"
+    return 1
+    ;;
+  esac
+  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_HEADER_ORDER=os)" || return 1
+  out="$(_hi_strip_ansi "$out")"
+  case "$out" in *"Disconnected ["*) ;; *)
+    _hi_cecho " | banner missing under _HI_HEADER_ORDER=os: $out" "$RED"
+    return 1
+    ;;
+  esac
+  case "${out#*Disconnected}" in *" UTC"*)
+    _hi_cecho " | clock row printed under _HI_HEADER_ORDER=os: $out" "$RED"
+    return 1
+    ;;
+  esac
+}
+
 # ...and with the header off the banner goes, while the plain size/duration
 # line stays - the session summary is not the header's to hide
 function test_load_disable_header_skips_the_banner() {
@@ -626,6 +652,7 @@ EOF
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
+  _hi_check "Disconnect clock row follows \$_HI_HEADER_ORDER" test_load_disconnect_timestamp_follows_the_header_order
   _hi_check "_HI_DISABLE_HEADER=1 keeps the footer, drops the banner" test_load_disable_header_skips_the_banner
 
   _hi_h2 "Testing: this checkout"

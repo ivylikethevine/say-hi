@@ -183,10 +183,10 @@ everything weighed and answered **no**, and why.
   floors for the other two shells hi styles; the lint gate checks both in a
   pinned container on every run
   ([docs/TESTING.md](docs/TESTING.md#the-lint-gate)).
-- **bash 3.2** is the floor on both ends (macOS still ships it): no
-  `mapfile`/`readarray` (`_hi_read_lines` in `common/core.sh` does that job),
-  associative arrays, namerefs or `${x,,}`. `tests/lint/drift_test.sh` greps
-  for those; `tests/targets/ssh_test.sh` runs a real bash 3.2 target.
+- **bash 3.2** is the floor on both ends (macOS still ships it);
+  `tests/targets/ssh_test.sh` runs a real bash 3.2 target, and what that
+  rules out of the code is
+  [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on).
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
 
@@ -241,17 +241,11 @@ everything weighed and answered **no**, and why.
   `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
   to edit, and to version however you keep your dotfiles.
   [docs/SETTINGS.md](docs/SETTINGS.md).
-- `hi --doctor [<target>]` when something is slow or failing to help diagnose;
-  `--json` for a bug report. It also reports the install itself: which rc
-  files are wired, to which tree, and where `hi` on your `PATH` leads.
-- the whole surface is twelve flags (`hi --help` lists them, `man hi` is the
-  long form): `--help`/`-h` and `--version`/`-V` (or `hi help`, `hi version`);
-  `--use <backend>`, `--plain`, `--mux`/`--no-mux` on a connect;
-  `--preview colors|packages|header`; and the local commands `--doctor`,
-  `--install`, `--uninstall`, `--configure`, `--update [<tag>]`. Every option
-  that takes a word takes it joined too (`--use=docker`); everything else on
-  the line goes to `ssh`, and everything after the target is the remote
-  command.
+- `hi --doctor [<target>]` when something is slow or failing (`--json` for
+  a bug report); it also reports which rc files are wired and where `hi` on
+  your `PATH` leads.
+- the whole surface is twelve flags: `hi --help` lists them, `man hi` is the
+  long form, and everything hi does not answer goes to `ssh`.
 - TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
 - `hi` on its own offers that list and connects to what you pick — `fzf` or
   `sk` if you have one, a numbered menu if not. GIF:
@@ -260,15 +254,10 @@ everything weighed and answered **no**, and why.
 - [optional] pin colors in `~/.config/say-hi/colors` (the install seeded it
   from `say-hi/settings/colors`); `hi --preview colors` shows what every ssh
   host and your user resolve to.
-- **A dropped connection ends the session.** The target's tree is removed on
-  any exit, a lost link included, and nothing on the target outlives it —
-  persistent sessions on the target were decided against
-  ([why](docs/SUPPORT.md#what-would-change-an-answer)).
-  For anything you would hate to lose to a flaky link, start `hi` inside
-  `tmux` or `screen` **on this machine**: the local multiplexer survives the
-  drop, and reconnecting is another `hi <target>`
-  ([how it works](docs/SETTINGS.md#how-it-works)); `hi --mux <target>` does
-  that step for you.
+- **A dropped connection ends the session** and nothing on the target
+  outlives it ([why](docs/SUPPORT.md#what-would-change-an-answer)). For a
+  flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
+  which survives the drop.
 - done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a
@@ -291,15 +280,10 @@ wizard, every toggle and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works).
 
-**_IMPORTANT: Local-only changes MUST stay in `~/.bashrc`, `~/.zshrc`,
-`~/.config/fish/config.fish`, etc. — everything in
-`${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` is copied to every host you say
-`hi` to, so a token, an internal hostname or a private path in your
-`aliases.sh` lands on each of them. See [docs/SECURITY.md](docs/SECURITY.md)._**
-
-hi writes nothing to a target outside its own temp directory, and removes
-that on exit:
-[What hi writes on a target](docs/SECURITY.md#what-hi-writes-on-a-target).
+**_IMPORTANT: everything in that directory is copied to every host you say
+`hi` to — keep local-only lines (a token, an internal hostname) in
+`~/.bashrc` and friends instead._** What lands on a target, and that it is
+removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
 
 ### Hostname, Username, and Group/Tag Colors
 
@@ -335,10 +319,8 @@ side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
 [![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-kcov and bashcov each sweep every suite the coverage runner can host,
-measured over the shipped product only; neither gates anything, and their
-landing within a few points of each other is what makes the number worth
-reading. The per-file skews and the bench profiler are
+Both coverage badges measure the shipped product over the full sweep and
+gate nothing; how to read them is
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
 
 ## AI Usage
@@ -387,3 +369,10 @@ an upstream review that lands when it lands.
        `publish-external.yml` handles the versioned package after.
        **Ticks when:** both packages are live on the AUR and a dispatch has
        kept `say-hi` current for one real release. <https://archlinux.org/news/>
+
+3. [ ] **Best Practices badge entry** — the answer sheet is
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       enter it at bestpractices.dev; label two or three open issues
+       `good first issue` (`small_tasks`); confirm `secure_2FA` is
+       TOTP/WebAuthn and check `hardened_site` on securityheaders.com before
+       answering either. **Ticks when:** the live entry matches the sheet.

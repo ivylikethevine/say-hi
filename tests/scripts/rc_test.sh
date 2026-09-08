@@ -327,6 +327,53 @@ function test_config_validate_shells_gate() {
   ! _hi_rc_in "$home" _HI_ASSUME_YES=0 -- config_validate_shells </dev/null 2>/dev/null
 }
 
+# link_owner asks whichever package manager is on PATH, first answer wins.
+# Each manager is a stub that prints its real tool's shape for an owned path
+# and fails for a foreign one; the child's PATH is the stub directory alone
+# (set after the sources - `env PATH=` would stop env finding bash), so the
+# verdicts are about the parsing, not about what this box has installed.
+function _hi_link_owner_with() {
+  local mgrdir="$1" path="$2"
+  bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/rc.sh"
+    PATH="$1"
+    link_owner "$2"' link_owner_probe "$mgrdir" "$path"
+}
+
+function test_link_owner_per_package_manager() {
+  local home="$_HI_WORKDIR/linkowner" mgr name answer want got
+  mkdir -p "$home/none.bin"
+  for mgr in 'pacman|say-hi|say-hi' 'dpkg|say-hi: /usr/bin/hi|say-hi' \
+    'rpm|say-hi-0.1.0-1.x86_64|say-hi-0.1.0-1.x86_64' \
+    'apk|/usr/bin/hi is owned by say-hi-0.1.0-r0|say-hi-0.1.0-r0'; do
+    name="${mgr%%|*}"
+    answer="${mgr#*|}"
+    want="${answer#*|}"
+    answer="${answer%%|*}"
+    mkdir -p "$home/$name.bin"
+    printf '%s\n' '#!/bin/sh' 'case "$*" in' "*/usr/bin/hi*) printf '%s\\n' '$answer' ;;" '*) exit 1 ;;' 'esac' \
+      >"$home/$name.bin/$name"
+    chmod +x "$home/$name.bin/$name"
+    got="$(_hi_link_owner_with "$home/$name.bin" /usr/bin/hi)" || {
+      _hi_cecho " | $name: link_owner failed on an owned path" "$RED"
+      return 1
+    }
+    [ "$got" = "$want" ] || {
+      _hi_cecho " | $name: got [$got] want [$want]" "$RED"
+      return 1
+    }
+    # the same manager, a path nothing owns: no answer, not an empty one
+    ! _hi_link_owner_with "$home/$name.bin" /usr/bin/other >/dev/null || {
+      _hi_cecho " | $name: claimed a path it does not own" "$RED"
+      return 1
+    }
+  done
+  # no manager at all: failure, not a crash
+  ! _hi_link_owner_with "$home/none.bin" /usr/bin/hi >/dev/null
+}
+
 # detect_prompt_framework reads $_HI_HOME_* live rather than _HI_RC_TABLE's
 # target column - the table is a source-time snapshot and the function is
 # called with those paths overridden. That makes the list hand-written, so
@@ -382,6 +429,9 @@ function run_rc_lines_test() {
   _hi_check "config_validate_shells: --yes vs non-interactive" test_config_validate_shells_gate
 
   _hi_check "detect_prompt_framework covers every wired shell" test_detect_covers_every_wired_shell
+
+  _hi_h2 "Testing: link_owner"
+  _hi_check "One verdict per package manager, none without one" test_link_owner_per_package_manager
 
   _hi_suite_end "rc.sh"
 }

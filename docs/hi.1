@@ -565,6 +565,12 @@ overwrites it.
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.
 .SH ENVIRONMENT
+Every setting is an environment variable, and the full table with defaults is
+.IR docs/SETTINGS.md ;
+.B hi \-\-configure
+writes them to
+.IR settings.sh .
+The ones that change what a connect does:
 .TP
 .B _HI_HOME
 the parent of the
@@ -587,7 +593,7 @@ order; default
 .BR "docker podman nerdctl finch" .
 Each is its own
 .B \-\-use
-name and its own completion tag; one that is not installed costs nothing.
+name and its own completion tag.
 .TP
 .B _HI_MUX
 .B 1
@@ -600,47 +606,13 @@ describes;
 skips it for one. Default
 .BR 0 .
 .TP
-.B _HI_RECENT, _HI_RECENT_FILE
-.B 1
-(the default) records every target a session ended cleanly on, in
-.B $XDG_STATE_HOME/say-hi/recent
-or wherever
-.B _HI_RECENT_FILE
-points, and completion and the bare\-hi picker offer those first;
-.B 0
-neither records nor ranks. Client\-side only.
-.TP
 .B _HI_TRUECOLOR
 .B 1
 or
 .BR 0 :
-whether the client's terminal renders 24\-bit color. Read off
+whether the client's terminal renders 24\-bit color; read off
 .B COLORTERM
-and shipped to the session, which ssh never forwards itself; set it to force
-(inside tmux, say) or refuse a scheme's hex.
-.TP
-.B _HI_TARGETS_TTL, _HI_PROBE_TIMEOUT
-completion's two knobs: seconds the target list is reused for (default 5)
-and seconds each backend gets to answer (default 2), in completion and in
-the connect header alike.
-.TP
-.B _HI_DISABLE_HEADER, _HI_DISABLE_PROMPT, ...
-per\-feature opt\-outs; see
-.I docs/SETTINGS.md
-for the full table.
-.TP
-.B _HI_COLOR_SCHEME
-render the twelve palette names as a truecolor scheme \-
-.BR catppuccin ,
-.BR monokai ,
-.BR onedark ,
-.BR vscode ,
-or your own: 12 six\-digit hex words, or 24 with the second twelve for the
-package check alone
-\- wherever hi paints, on a terminal that reports 24\-bit color
-.RB ( COLORTERM ;
-.B _HI_TRUECOLOR=1
-forces it, 0 refuses). Unset, the terminal's own sixteen colors.
+and shipped to the session, which ssh never forwards itself.
 .SH EXAMPLES
 .TP
 .B hi prod-db

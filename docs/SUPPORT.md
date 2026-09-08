@@ -138,26 +138,14 @@ rules set the shape:
   there is no `$HOME`, and no `hi` session at all), QTS at
   `/share/homes/<user>`; SCALE, Unraid and CORE have ordinary homes.
 
-So the recipe is the plain in-place install, as the README's
-[first steps](../README.md#in-sixty-seconds) describe it, done on the NAS:
-
-```sh
-# on the NAS, as the user you ssh in as
-git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # or unpack a release tarball there
-bash ~/say-hi/scripts/install.sh
-```
-
-`~/say-hi` is on the probe's candidate list, so the tree is found with no rc
-line at all - which matters on DSM, where a non-admin login lands in
-`/bin/sh` and never reads the `~/.bashrc` line `install.sh` writes. What the
-run of `install.sh` is for is the questions: its answers land in
-`~/.config/say-hi/settings.sh`, which the session reads from the tree, and
-the only link it makes is `~/.local/bin/hi`, on the data volume with the
-rest. DSM and QTS ship `bash` beside
-their busybox `sh`, which is all `install.sh` needs; `git` is not a given
-(DSM: the Git Server package, or the tarball). From then on `hi <nas>` from
-anywhere is the shorter, payload-free connect, and `hi --update` on the NAS
-itself (a clone) or a fresh tarball (otherwise) moves it forward.
+So the recipe is the README's
+[plain in-place install](../README.md#in-sixty-seconds), done on the NAS as
+the user you ssh in as (a release tarball where `git` is not a given - on
+DSM it is the Git Server package). `~/say-hi` is on the probe's candidate
+list, so the tree is found with no rc line at all, which matters on DSM,
+where a non-admin login lands in `/bin/sh` and never reads `~/.bashrc`.
+Everything the install writes stays on the data volume: `settings.sh` in
+`~/.config/say-hi/` and the `~/.local/bin/hi` link.
 
 ## The shell you end up in
 

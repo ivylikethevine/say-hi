@@ -265,6 +265,29 @@ function test_prefix_flag_requires_a_path() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs a path"* ]]
 }
 
+# --prefix is the packager's flag: reached through `hi --install` it would
+# rm -rf a live prefix, and a relative one lands in /etc/profile.d as typed
+function test_prefix_is_refused_through_hi_install() {
+  local out rc=0
+  out="$(_HI_ARGV0="hi --install" bash "$_HI_ROOT/scripts/install.sh" --prefix /opt 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix is packaging mode"* ]]
+}
+
+function test_prefix_must_be_absolute() {
+  local out rc=0
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --prefix opt 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--prefix needs an absolute path (got opt)"* ]]
+}
+
+# by hand the mode is spelled out in the usage line; under hi it is the name
+function test_check_configs_help_is_its_own() {
+  local out
+  out="$(bash "$_HI_ROOT/scripts/install.sh" --check-configs --help)" || return 1
+  [[ "$out" == "Usage: install.sh --check-configs"* ]] || return 1
+  out="$(_HI_ARGV0="hi --check-configs" bash "$_HI_ROOT/scripts/install.sh" --check-configs --help)" || return 1
+  [[ "$out" == "Usage: hi --check-configs"* ]]
+}
+
 function test_preset_flag_requires_a_name() {
   local out rc=0
   out="$(bash "$_HI_ROOT/scripts/install.sh" --preset 2>&1)" || rc=$?
@@ -727,6 +750,64 @@ function test_unlink_hi_names_the_owning_package() {
   [[ "$out" == *"(owned by the say-hi package), leaving it alone"* ]] && [ -L "$dir/bin/hi" ]
 }
 
+# an earlier hi on PATH that runs some other tree: the link is still made,
+# and the shadowing is said, since scripts will reach the other one
+function test_config_hi_warns_when_another_hi_shadows_the_link() {
+  local dir="$_HI_WORKDIR/shadowed" out
+  mkdir -p "$dir/other" "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  printf '#!/bin/sh\nexit 0\n' >"$dir/other/hi"
+  chmod 755 "$dir/other/hi"
+  out="$(
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$dir/other:$dir/bin:$PATH"
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || return 1
+  [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ] &&
+    [[ "$out" == *"$dir/other/hi comes first on your PATH"* ]]
+}
+
+# config_hi's own sudo ladder, the mirror of unlink_hi's below: a bindir
+# that refuses the write ends in instructions, not a `set -e` death
+function test_config_hi_instructs_when_sudo_is_refused() {
+  local dir="$_HI_WORKDIR/link-refused" out rc=0
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  chmod 555 "$dir/bin"
+  out="$(
+    function sudo() { return 1; }
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || rc=$?
+  chmod 755 "$dir/bin"
+  [ "$rc" -eq 0 ] && [[ "$out" == *"finish it as root with: ln -sfn '$dir/hi.sh' '$dir/bin/hi'"* ]] &&
+    [ ! -e "$dir/bin/hi" ]
+}
+
+function test_config_hi_instructs_with_no_sudo_at_all() {
+  local dir="$_HI_WORKDIR/link-none" farm out rc=0
+  farm="$(_hi_real_path link_tools readlink dirname)"
+  mkdir -p "$dir/bin"
+  printf '#!/bin/bash\n' >"$dir/hi.sh"
+  chmod 755 "$dir/hi.sh"
+  chmod 555 "$dir/bin"
+  out="$(
+    hash -r
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$farm"
+    _HI_LAUNCHER="$dir/hi.sh"
+    _HI_LINK="$dir/bin/hi"
+    config_hi
+  )" || rc=$?
+  chmod 755 "$dir/bin"
+  [ "$rc" -eq 0 ] && [[ "$out" == *"couldn't link $dir/bin/hi"* ]] && [ ! -e "$dir/bin/hi" ]
+}
+
 function test_config_hi_dry_run_makes_no_link() {
   local dir="$_HI_WORKDIR/drylink" out
   mkdir -p "$dir/bin"
@@ -808,6 +889,9 @@ function run_install_tests() {
   _hi_check_capable symlink "Leaves a package's link to the package manager" test_config_hi_refuses_a_package_owned_link
   _hi_check_capable symlink "Leaves a foreign link alone" test_config_hi_refuses_a_foreign_link
   _hi_check "--dry-run names the link and makes none" test_config_hi_dry_run_makes_no_link
+  _hi_check_capable symlink "Says when an earlier hi on PATH shadows the link" test_config_hi_warns_when_another_hi_shadows_the_link
+  _hi_check_capable lockout "Instructs when sudo is refused" test_config_hi_instructs_when_sudo_is_refused
+  _hi_check_capable lockout "Instructs with no sudo at all" test_config_hi_instructs_with_no_sudo_at_all
 
   _hi_h2 "Testing: unlink_hi (skip paths only)"
   _hi_check "Skips a missing link" test_unlink_hi_skips_when_link_missing
@@ -826,6 +910,9 @@ function run_install_tests() {
 
   _hi_h2 "Testing: install.sh run for real (flags and modes)"
   _hi_check "--prefix requires a path" test_prefix_flag_requires_a_path
+  _hi_check "--prefix is refused through hi --install" test_prefix_is_refused_through_hi_install
+  _hi_check "--prefix must be absolute" test_prefix_must_be_absolute
+  _hi_check "--check-configs --help names the mode" test_check_configs_help_is_its_own
   _hi_check "--preset requires a name" test_preset_flag_requires_a_name
   _hi_check "An unknown argument gets the usage" test_an_unknown_argument_gets_the_usage
   _hi_check "Two modes at once are refused" test_two_modes_are_refused

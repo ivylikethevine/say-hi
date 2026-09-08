@@ -15,8 +15,8 @@ named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
 - [What 1.x will not break](#what-1x-will-not-break)
 - [Which docs change with what](#which-docs-change-with-what)
 - [Opening the pull request](#opening-the-pull-request)
+- [When a push is refused](#when-a-push-is-refused)
 - [Governance](#governance)
-- [Reporting a vulnerability](#reporting-a-vulnerability)
 
 ## Before you start
 
@@ -28,6 +28,10 @@ say-hi is not trying to be. A "no" there is settled, not an oversight — though
 a reason that has stopped being true is worth an issue, and a good
 implementation would be considered.
 
+**Anything exploitable goes to
+[SECURITY.md](SECURITY.md#reporting-a-vulnerability)**, privately, not to a
+public issue or pull request.
+
 ## The gate
 
 ```sh
@@ -36,12 +40,10 @@ tests/test_runner.sh --group lint
 ```
 
 That is what CI runs on every push; both should be green before you open the
-pull request. What each group contains is [docs/TESTING.md](TESTING.md)'s job.
-
-The `e2e` and `backends` groups need real backends and stand down **yellow
-SKIPPED** when they can't run, never green. If your change touches one of
-those paths, run that group (or the suite by name) and say in the pull request
-whether it ran or skipped; `--require-run` turns a skip into a failure.
+pull request. If your change touches an ssh or container path, run the `e2e`
+or `backends` group too and say in the pull request whether it ran or stood
+down. What each group contains, and how a skip is reported, is
+[docs/TESTING.md](TESTING.md#running-the-tests)'s job.
 
 ### Don't reach for `act`
 
@@ -228,6 +230,24 @@ would want on the release page, or `none` when nothing a user sees changes.
   the standard, and it applies to contributions: the tool is fine, and the code
   is still yours to have understood, reviewed and stood behind.
 
+## When a push is refused
+
+Secret scanning and push protection are on for this repository; push
+protection refuses the push outright, so the first thing you see is GitHub's
+own error.
+
+**That refusal is the guard working.** Take the credential out of the commit —
+amend, or rewrite the branch — and push again. Do not force it and do not
+bypass and clean up later: a secret that reaches the remote for even one push
+is a secret to rotate. For a false positive, GitHub's error links the bypass
+flow, which records why; take that route rather than reshaping the string.
+
+Four credentials are handled by hand — the two signing keys, `AUR_SSH_KEY` and
+`HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page and
+deleted; [PACKAGING.md](PACKAGING.md) walks each. GitHub's scanner is used
+rather than gitleaks or trufflehog because it runs on the push path, where a
+third-party action cannot.
+
 ## Governance
 
 Small on purpose, and written down so nobody has to guess:
@@ -250,9 +270,3 @@ Small on purpose, and written down so nobody has to guess:
 - **Sensitive access** — repository settings, secrets (signing and
   publishing keys) and the `release` environment are reachable by the
   maintainer alone; two-factor authentication is enabled on that account.
-
-## Reporting a vulnerability
-
-Report anything exploitable privately, per
-[docs/SECURITY.md](SECURITY.md#reporting-a-vulnerability) — not as a public
-issue.

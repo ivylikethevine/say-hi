@@ -146,6 +146,28 @@ function test_update_takes_one_tag_at_most() {
   [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
 }
 
+# the fetch comes before the tag is resolved, so a fetch that fails stops
+# the run there rather than moving to whatever tag was already local
+function test_update_stops_when_the_fetch_fails() {
+  local home out before
+  home="$(_hi_update_fixture upd-fetch)" || return 1
+  git -C "$home/say-hi" remote set-url origin "$home/nonexistent.git" || return 1
+  before="$(git -C "$home/say-hi" rev-parse HEAD)"
+  out="$(_hi_subcmd_run "$home" --update)" && return 1
+  [[ "$out" == *"git fetch failed in $home/say-hi"* ]] &&
+    [ "$(git -C "$home/say-hi" rev-parse HEAD)" = "$before" ]
+}
+
+# a clone with commits and no v* tag anywhere has no release to move to
+function test_bare_update_needs_a_release_tag() {
+  local home out
+  home="$(_hi_update_fixture upd-untagged)" || return 1
+  git -C "$home/say-hi" tag -d v0.0.1 >/dev/null || return 1
+  git -C "$home/origin.git" tag -d v0.0.1 v0.0.2 >/dev/null || return 1
+  out="$(_hi_subcmd_run "$home" --update)" && return 1
+  [[ "$out" == *"no release tags in $home/say-hi"* ]]
+}
+
 # --help is hi's to answer, and it answers ahead of the .git check, so a
 # package install gets the text too
 function test_update_help_is_his_own() {
@@ -178,6 +200,8 @@ function run_update_tests() {
   _hi_check_requires git "--update refuses a dirty tree" test_update_refuses_a_dirty_tree
   _hi_check_requires git "--update refuses an unknown tag, a branch included" test_update_refuses_an_unknown_tag
   _hi_check_requires git "--update takes one tag at most, no options" test_update_takes_one_tag_at_most
+  _hi_check_requires git "A failed fetch stops the update" test_update_stops_when_the_fetch_fails
+  _hi_check_requires git "A bare --update with no release tag is refused" test_bare_update_needs_a_release_tag
 
   _hi_suite_end "scripts/update.sh"
 }

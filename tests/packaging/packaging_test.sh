@@ -1197,6 +1197,28 @@ function test_write_checksums_takes_a_tarball_already_in_the_outdir() {
   grep -q 'say-hi-1.0.0.tar.gz' "$d/ARTIFACTS"
 }
 
+# A tarball path that names nothing is refused by name before any sum is
+# written: a release that silently shipped without its source would pass
+# attestation on three artifacts instead of four.
+function test_write_checksums_refuses_a_missing_source_tarball() {
+  local d="$_HI_WORKDIR/artifacts-src-absent" out rc=0
+  mkdir -p "$d"
+  : >"$d/say-hi_1.0.0_amd64.deb"
+  : >"$d/say-hi-1.0.0.x86_64.rpm"
+  : >"$d/say-hi-1.0.0.apk"
+  out="$(
+    # shellcheck source=../../packaging/mkpkg.sh
+    source "$_HI_PKG_DIR/mkpkg.sh"
+    _HI_DIST="$d"
+    _HI_SRC_TARBALL="$d/absent.tar.gz"
+    write_checksums 2>&1
+  )" || rc=$?
+  [ "$rc" -ne 0 ] || return 1
+  [ ! -f "$d/SHA256SUMS" ] || return 1
+  case "$out" in *"no such source tarball: $d/absent.tar.gz"*) return 0 ;; esac
+  return 1
+}
+
 # src_tarball is the one implementation of "the bytes a release ships", called
 # by packaging/srctar.sh in release.yml and by bump.sh when it has no --tarball.
 # Two properties matter: the say-hi-<version>/ prefix, which is what the AUR
@@ -1993,14 +2015,15 @@ function test_mkrepo_main_refuses_without_a_reachable_docker() {
   [[ "$out" == *"docker is installed but not reachable"* ]]
 }
 
-# _hi_fake_deb <dir> - a structurally real .deb (ar of debian-binary +
+# _hi_fake_deb <dir> [member] - a structurally real .deb (ar of debian-binary +
 # control.tar.gz + data.tar.gz), enough for deb_control and build_apt; prints
-# its path
+# its path. <member> renames the control archive (gzip bytes whatever the
+# name), for deb_control's member switch.
 function _hi_fake_deb() {
-  local dir="$1" sub="$1/ctl"
+  local dir="$1" sub="$1/ctl" member="${2:-control.tar.gz}"
   mkdir -p "$sub"
   printf 'Package: say-hi\nVersion: 9.9.9\nArchitecture: all\nMaintainer: suite <test@localhost>\nDescription: fake deb for the packaging suite\n' >"$sub/control"
-  (cd "$sub" && tar -czf ../control.tar.gz ./control) || return 1
+  (cd "$sub" && tar -czf "../$member" ./control) || return 1
   (
     cd "$dir" || exit 1
     printf '2.0\n' >debian-binary
@@ -2011,7 +2034,7 @@ function _hi_fake_deb() {
     # stderr - which breaks deb_control's read of control.tar.gz back out
     # (deb_control reads the control paragraph, build_apt writes a whole apt
     # tree both failed on it). S skips that pass, on both GNU and BSD ar.
-    ar rcS say-hi_9.9.9_all.deb debian-binary control.tar.gz data.tar.gz
+    ar rcS say-hi_9.9.9_all.deb debian-binary "$member" data.tar.gz
   ) || return 1
   printf '%s' "$dir/say-hi_9.9.9_all.deb"
 }
@@ -2042,6 +2065,19 @@ function test_mkrepo_deb_control_reads_the_paragraph() {
   out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb")" || return 1
   case "$out" in *'Package: say-hi'*'Version: 9.9.9'*) return 0 ;; esac
   _hi_cecho " | deb_control read: [$out]" "$RED"
+  return 1
+}
+
+# a compression the switch has no arm for (zstd, dpkg 1.21's default on
+# Ubuntu) is named and refused, not read as an empty paragraph
+function test_mkrepo_deb_control_refuses_an_unknown_member() {
+  local d="$_HI_WORKDIR/deb-ctl-zst" deb out rc=0
+  mkdir -p "$d"
+  deb="$(_hi_fake_deb "$d" control.tar.zst)" || return 1
+  out="$(_hi_in_mkrepo "$d" "$d/repo" deb_control "$deb" 2>&1)" || rc=$?
+  [ "$rc" -ne 0 ] || return 1
+  case "$out" in *"unexpected control member in $deb: 'control.tar.zst'"*) return 0 ;; esac
+  _hi_cecho " | deb_control said: [$out]" "$RED"
   return 1
 }
 
@@ -2217,6 +2253,36 @@ function test_mkrepo_gpg_setup_verdicts() {
   }
 }
 
+# --public-key naming a file gpg cannot read as a key is its own verdict,
+# ahead of the fingerprint comparison: gpg_fpr comes back empty rather than
+# failing, so without the guard the mismatch arm would blame the wrong file
+function test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one() {
+  local d="$_HI_WORKDIR/gpg-notakey" out rc=0
+  mkdir -p "$d/repo"
+  _hi_mkrepo_keys || return 1
+  printf 'this is not a key\n' >"$d/plain.asc"
+  out="$(
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_OUT="$d/repo"
+    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
+    _HI_GPG_PUBLIC="$d/plain.asc"
+    gpg_setup 2>&1
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    exit "$st"
+  )" || rc=$?
+  [ "$rc" -ne 0 ] || return 1
+  [ ! -f "$d/repo/say-hi.asc" ] || return 1
+  case "$out" in *"$d/plain.asc is missing or not a key"*) return 0 ;; esac
+  _hi_cecho " | gpg_setup said: [$out]" "$RED"
+  return 1
+}
+
 function run_packaging_tests() {
   _hi_workdir packagingtest
 
@@ -2285,6 +2351,7 @@ function run_packaging_tests() {
   _hi_check "...and reports a missing artifact type" test_write_checksums_reports_a_missing_artifact_type
   _hi_check "...and ships the source tarball with them" test_write_checksums_ships_the_source_tarball
   _hi_check "...taking one already in the outdir" test_write_checksums_takes_a_tarball_already_in_the_outdir
+  _hi_check "...and refusing one that does not exist" test_write_checksums_refuses_a_missing_source_tarball
   _hi_check "release.yml builds that tarball itself" test_release_workflow_builds_the_source_tarball
   _hi_check "src_tarball uses prepare()'s prefix" test_src_tarball_uses_the_prepare_prefix
   _hi_check "src_tarball is byte-stable" test_src_tarball_is_byte_stable
@@ -2414,9 +2481,11 @@ function run_packaging_tests() {
   _hi_h2 "Testing: mkrepo.sh (offline half)"
   _hi_check "one_package enforces exactly one artifact" test_mkrepo_one_package_rule
   _hi_check_requires ar "deb_control reads the control paragraph" test_mkrepo_deb_control_reads_the_paragraph
+  _hi_check_requires ar "deb_control refuses an unknown control member" test_mkrepo_deb_control_refuses_an_unknown_member
   _hi_check_requires openssl "release_hashes writes apt's hash block shape" test_mkrepo_release_hashes_shape
   _hi_check_requires ar "build_apt writes a whole apt tree, no docker" test_mkrepo_build_apt_offline
   _hi_check_requires gpg "gpg_setup's four verdicts" test_mkrepo_gpg_setup_verdicts
+  _hi_check_requires gpg "gpg_setup refuses a --public-key that is not a key" test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one
   _hi_check "build_apk refuses a .PKGINFO-less apk" test_mkrepo_build_apk_refuses_a_pkginfo_less_apk
 
   _hi_suite_end "packaging"

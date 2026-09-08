@@ -595,6 +595,14 @@ function test_use_equals_spelling_names_the_arm() {
   [ "$rc" -eq 1 ]
 }
 
+# --use last on the line, with nothing after it, is the one arm the loop
+# cannot answer from inside: it falls out still waiting for the name
+function test_use_needs_a_backend_name() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" --use 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use needs a backend name"* ]]
+}
+
 # The whole plain report, end to end, on the restricted PATH. Two cases
 # assert against it with identical inputs, so it runs once and the transcript
 # and exit code are memoized here.
@@ -851,6 +859,7 @@ function run_doctor_tests() {
   _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
   _hi_check "A second target is refused" test_a_second_target_is_refused
   _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
+  _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
 
   _hi_h2 "Testing: the install section"

@@ -33,6 +33,16 @@
 # they ran; `env -i` children and in-container lines drop out of the trace),
 # which is why both tools ship rather than one replacing the other.
 #
+# Three more readings here are artifacts, not gaps, and are worth ruling out
+# before writing a test against a number:
+#   - a script a suite *executes from a scratch-tree copy* under $_HI_WORKDIR
+#     is filed under the copy's path, which the filters drop, so the repo file
+#     reads 0% (scripts/update.sh; preview.sh's and install.sh's dispatch).
+#   - an `eval` anywhere inside a `$( )` zeroes every line of that subshell,
+#     the lines that ran included (core.sh's _hi_setting_get and the other
+#     out-var helpers); a probe calling the function directly still reads 0.
+#   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
+#
 # The topology is the one coverage.sh established and is unchanged: one run per
 # suite, with the suite script as the *top-level* process, merged at the end.
 # Wrapping test_runner.sh instead would put every suite in a child process.

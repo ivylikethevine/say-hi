@@ -119,6 +119,35 @@ function test_hrule_clamps_and_overflows_for_a_wide_label() {
   [ "$n" -gt 40 ]
 }
 
+# _hi_scheme_label's four answers (scripts/lib.sh): the preview line and the
+# doctor report both print it, and only the default arm is reached by their
+# cases. A custom scheme is twelve (or twenty-four) hex words.
+function test_scheme_label_names_each_kind() {
+  local label custom
+  custom="$(printf 'abcdef %.0s' $(seq 1 12))"
+  custom="${custom% }"
+  _HI_COLOR_SCHEME="" _hi_scheme_label label
+  [ "$label" = default ] || return 1
+  _HI_COLOR_SCHEME="$custom" _hi_scheme_label label
+  [ "$label" = "custom (12)" ] || return 1
+  _HI_COLOR_SCHEME="$custom $custom" _hi_scheme_label label
+  [ "$label" = "custom (24)" ] || return 1
+  _HI_COLOR_SCHEME=monokai _hi_scheme_label label
+  [ "$label" = monokai ] || return 1
+  _HI_COLOR_SCHEME=nope _hi_scheme_label label
+  [ "$label" = "nope (ignored - not a scheme)" ]
+}
+
+# the box glyphs are chosen once at source time off _hi_use_ascii, so each
+# side is proven by re-sourcing lib.sh in a child with _HI_ASCII forced
+function test_box_glyphs_follow_the_ascii_switch() {
+  local out
+  out="$(_HI_ASCII=1 bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HOME/say-hi/scripts/lib.sh"; printf "%s%s%s%s%s%s" "$_HI_BOX_TL" "$_HI_BOX_H" "$_HI_BOX_TR" "$_HI_BOX_BL" "$_HI_BOX_V" "$_HI_BOX_BR"')" || return 1
+  [ "$out" = '+-++|+' ] || return 1
+  out="$(_HI_ASCII=0 bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HOME/say-hi/scripts/lib.sh"; printf "%s%s%s%s%s%s" "$_HI_BOX_TL" "$_HI_BOX_H" "$_HI_BOX_TR" "$_HI_BOX_BL" "$_HI_BOX_V" "$_HI_BOX_BR"')" || return 1
+  [ "$out" = '┌─┐└│┘' ]
+}
+
 function run_table_tests() {
   _hi_h1 "Testing scripts/table.sh"
   _hi_workdir table
@@ -144,6 +173,10 @@ function run_table_tests() {
   _hi_check "Spans _HI_MAX_WIDTH" test_hrule_spans_max_width
   _hi_check "_hi_h1/_hi_h2 span it too" test_h1_and_h2_span_max_width_too
   _hi_check "A wide label clamps and overflows" test_hrule_clamps_and_overflows_for_a_wide_label
+
+  _hi_h2 "Testing: _hi_scheme_label / the box glyphs (scripts/lib.sh)"
+  _hi_check "_hi_scheme_label names each kind of scheme" test_scheme_label_names_each_kind
+  _hi_check "Box glyphs follow _HI_ASCII" test_box_glyphs_follow_the_ascii_switch
 
   _hi_suite_end "table.sh"
 }

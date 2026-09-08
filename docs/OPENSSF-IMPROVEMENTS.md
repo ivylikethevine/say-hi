@@ -1,36 +1,78 @@
 # OpenSSF improvements
 
-The Best Practices questionnaire answer sheet for this project, to enter at
-[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit),
-and what a single maintainer cannot close regardless of repo state. Work
-already shipped for the Scorecard and Best Practices badges is not repeated
-here; git history is the ledger, and
-[TESTING.md#the-score-has-a-ceiling-here](TESTING.md#the-score-has-a-ceiling-here)
-and [SECURITY.md#assurance-case](SECURITY.md#assurance-case) are the current
-state of the two things this file used to narrate.
+Where the Scorecard number is capped for a one-maintainer project, and the
+Best Practices questionnaire answer sheet to enter at
+[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit).
+Work already shipped for either badge is not repeated here; git history is
+the ledger, and [SECURITY.md#assurance-case](SECURITY.md#assurance-case) is
+the security half. The account-side steps still open are in
+[README's Roadmap](../README.md#post-10).
 
 ## Contents
 
-- [What still needs a second person](#what-still-needs-a-second-person)
+- [The score has a ceiling here](#the-score-has-a-ceiling-here)
 - [The Best Practices answer sheet](#the-best-practices-answer-sheet)
   - [Passing level](#passing-level)
   - [Silver level](#silver-level)
   - [Gold level](#gold-level)
-- [Still to do](#still-to-do)
 
-## What still needs a second person
+## The score has a ceiling here
 
-Unchanged by anything above - a single maintainer cannot close these
-regardless of repo state:
+Scorecard weights each check (Binary-Artifacts, License and the rest that sit
+at 10 count fully) and averages. Which of the low scores are fixable here:
 
-- Scorecard's `Code-Review` (0 - no second approver), `Contributors` (3 - one
-  contributing organization).
-- The Best Practices badge's `access_continuity` (silver MUST - release
-  continuity within a week of losing the maintainer), and gold's
-  `bus_factor`, `contributors_unassociated`, `two_person_review`.
+- **Code-Review sits at 0** — 0 of the last several changesets carry an
+  approved review: one maintainer, nobody else to approve a PR. A
+  `Reviewed-by:` trailer would satisfy the scanner without a review having
+  happened; that's not going to be added. The largest fixable-looking gap in
+  the report, and not fixable without a second person.
+- **Fuzzing sits at 0** — say-hi is bash; Scorecard's probe detects OSS-Fuzz,
+  ClusterFuzzLite, Go native fuzzing, cargo-fuzz and OneFuzz, none of which
+  targets shell. `.scorecard.yml` marks it `not-applicable`.
+- **Contributors sits at 3** — the check wants ≥2 contributing organizations
+  among recent contributors; there's one. `not-applicable` in
+  `.scorecard.yml` too.
+- **CII-Best-Practices** — the project is registered at
+  [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
+  Practices badge in README's badge block, a self-assessment questionnaire
+  separate from Scorecard). The score reflects registration; three MUST
+  criteria are release-shaped, and tagged releases now exist (`v0.1.0`
+  onward) - re-check the live questionnaire rather than assuming _Passing_
+  still waits on one.
+- **Signed-Releases** was `-1` (excluded from the average) before any tag
+  existed. `release.yml` ships `dist/SHA256SUMS.minisig` on every release,
+  which the check's signature probe recognizes for 8/10; the build-provenance
+  attestation `build` creates was invisible to it until `publish` also
+  downloads that attestation and re-uploads it as `dist/say-hi.intoto.jsonl` -
+  the literal filename the check's provenance probe looks for among release
+  assets, for the full 10/10. Re-check the live score against a tag cut after
+  that change; it doesn't move retroactively on tags that already shipped.
+- **Pinned-Dependencies reads low for a reason outside this repo.** GitHub
+  shipped same-repository `uses: $/...` references in July 2026
+  ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
+  a local action or reusable workflow resolves at the exact commit running,
+  with no `./` plus checkout and no separately-pinnable ref. `ci.yml` explains
+  why `actionlint` is pinned to a fork that understands it (upstream doesn't
+  yet); Scorecard's own dependency extraction is the same story - as of this
+  writing it reads every `$/...` reference as an unresolvable third-party
+  action with no `@sha`, which is where most of the check's "unpinned"
+  count comes from. The actual third-party (non-`$/`) actions in the tree are
+  100% SHA-pinned; re-run the numbers by hand
+  (`grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`) before
+  assuming a `$/` reference is the gap. Not something to revert to `./` to
+  chase a parser that hasn't caught up - that would trade a real improvement
+  for a score built on a five-week-old blind spot.
+- **Branch-Protection sits at 8, by choice.** The next tier up requires
+  "include administrators", which would remove the maintainer's own ability to
+  push past a failing check or merge without the full gate - kept, since
+  that's the emergency valve for a one-person project. 10 additionally needs
+  two required approving reviews, which needs a second person regardless.
 
-Detail on each is [TESTING.md#the-score-has-a-ceiling-here](TESTING.md#the-score-has-a-ceiling-here)
-and the answer sheet below.
+A single maintainer cannot close these regardless of repo state: Scorecard's
+`Code-Review` and `Contributors`, the Best Practices badge's
+`access_continuity` (silver MUST - release continuity within a week of
+losing the maintainer), and gold's `bus_factor`, `contributors_unassociated`
+and `two_person_review`.
 
 ## The Best Practices answer sheet
 
@@ -38,7 +80,7 @@ Enter these at
 [bestpractices.dev/en/projects/14397/edit](https://www.bestpractices.dev/en/projects/14397/edit).
 **M** = Met, **N/A** = not applicable, **U** = Unmet. `access_continuity` (a
 silver MUST) is answered Unmet on purpose - see
-[above](#what-still-needs-a-second-person) - so silver will not be awarded
+[above](#the-score-has-a-ceiling-here) - so silver will not be awarded
 by filling in the rest; do it anyway, since a complete honest entry is the
 point and it's a prerequisite the day a second maintainer exists.
 
@@ -171,10 +213,3 @@ a consequence of `access_continuity`. The rest, for a complete entry:
 | `hardening`                                                                         | M                              | Same evidence as silver, with the assurance-case URL.                                                                                                          |
 | `dynamic_analysis`                                                                  | U                              | Same reasoning as passing's entry - the branch-coverage alternate route is unmeasurable here.                                                                  |
 | `dynamic_analysis_enable_assertions`                                                | M                              | `set -euo pipefail` throughout; e2e suites exercise real ssh/docker/podman/nomad/kube backends, and `--require-run` turns a stood-down backend into a failure. |
-
-## Still to do
-
-- Enter the answer sheet above at bestpractices.dev.
-- Label `good first issue` on a couple of open issues, for `small_tasks`.
-- Confirm `secure_2FA` (TOTP/WebAuthn, not SMS) and check `hardened_site`
-  against securityheaders.com before answering either.
