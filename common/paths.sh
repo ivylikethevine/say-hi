@@ -75,7 +75,7 @@ export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - 
 # word-taking flag landed in targets.sh and silently never completed anywhere.
 # targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
-export _HI_WORD_FLAGS="--preview --use"
+export _HI_WORD_FLAGS="--preview --use --update --link --preset"
 alias hi="$_HI_LAUNCHER"
 # The only hi_* alias left (the rest became `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.

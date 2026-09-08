@@ -638,6 +638,17 @@ function test_configure_help_is_its_own() {
   [[ "$out" == "Usage: hi --configure [--preset <name>]"* && "$out" == *"Revisit the settings"* && "$out" != *"Wires up"* ]]
 }
 
+# no terminal and no --preset: --configure has nothing to do and says so,
+# exit 1; an --install still completes and only mentions it
+function test_configure_without_a_terminal_says_so() {
+  local out rc=0
+  out="$(_hi_run_install_here nomenu --configure 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"no terminal for the menu - --preset <name>"* && "$out" == *"everything balanced minimal"* ]] || return 1
+  rc=0
+  out="$(_hi_run_install_here nomenu-install --dry-run --link none 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no terminal for the settings menu"* ]]
+}
+
 # the last --link on the line wins, the way --mux/--no-mux do
 function test_last_link_flag_wins() {
   local out
@@ -932,6 +943,7 @@ function run_install_tests() {
   _hi_check "--uninstall --help describes uninstalling" test_uninstall_help_is_its_own
   _hi_check "--configure --help describes the settings" test_configure_help_is_its_own
   _hi_check "The last --link on the line wins" test_last_link_flag_wins
+  _hi_check "--configure with no terminal says so" test_configure_without_a_terminal_says_so
   _hi_check "A clone not named say-hi is refused by name" test_a_misnamed_clone_is_refused_by_name
   _hi_check "--dry-run installs nothing, and says what it would" test_dry_run_install_writes_nothing
   _hi_check "--uninstall --dry-run removes nothing" test_dry_run_uninstall_removes_nothing

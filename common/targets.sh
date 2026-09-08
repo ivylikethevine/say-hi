@@ -34,16 +34,19 @@ clis="${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}"
 # file all three completions read and the only one fish can run. Answered
 # before the cache and the probes: a flag list must never wait on a docker
 # daemon. targets_test.sh drift-checks it against hi.sh's --help.
+# The tree this file sits in, derived from $0 since a completion can reach
+# this file without paths.sh (GLOSSARY: HI.33): the flags table and .git live
+# there.
+case $0 in
+*/*) hi_tree="${0%/*}/.." ;;
+*) hi_tree=".." ;;
+esac
+
 if [ "$kind" = flags ]; then
   # Out of common/flags, the table hi.sh dispatches from. <needs> is what a
   # flag wants that is not always on disk: `-` is offered everywhere; the rest
   # are withheld in a session and then checked against the tree (a package
-  # install ships scripts/ but not .git). Derived from $0, since
-  # a completion can reach this file without paths.sh (GLOSSARY: HI.33).
-  case $0 in
-  */*) hi_tree="${0%/*}/.." ;;
-  *) hi_tree=".." ;;
-  esac
+  # install ships scripts/ but not .git).
   # `flags <command>`: the line's first word is a local command (a row with a
   # script var), so `hi --install --<TAB>` offers that command's own switches,
   # read off the row's argument column - `--preset <name>` is one switch, the
@@ -77,9 +80,27 @@ fi
 # lines. --use's roster is the arms hi.sh dispatches on - ssh, every member of
 # $_HI_CONTAINER_CLIS, nomad, kube - spelled here because a completion can
 # reach this file without hi.sh (parse_test.sh pins the two against each
-# other). Answered before the probes, like the flags.
+# other); --preset's is configure.sh's table, pinned the same way by
+# targets_test.sh. Answered before the probes, like the flags. The membership
+# test is paths.sh's $_HI_WORD_FLAGS.
 if [ "$kind" = words ]; then
   case "${2:-}" in
+  --link)
+    printf 'user\t~/.local/bin/hi (the default)\n'
+    printf 'system\t/usr/bin/hi, through sudo\n'
+    printf 'none\tno link; the wired shells alias hi either way\n'
+    ;;
+  --preset)
+    printf 'everything\tevery feature and every header item on\n'
+    printf 'balanced\teverything but the noise\n'
+    printf 'minimal\ton targets only the colored prompt and the aliases\n'
+    ;;
+  --update)
+    # the release tags a checkout knows of, newest first; a package has no
+    # .git and gets nothing
+    [ -d "$hi_tree/.git" ] && git -C "$hi_tree" tag --list 'v*' --sort=-v:refname 2>/dev/null |
+      while IFS= read -r tag; do printf '%s\trelease tag\n' "$tag"; done
+    ;;
   --preview)
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'
     printf 'packages\tthe package-priority legend, as the header prints it\n'

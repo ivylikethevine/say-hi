@@ -626,7 +626,7 @@ if [ -z "$_HI_FEATURES_ONLY" ]; then
   overlay_seed
 fi
 
-run_configure "$_HI_PRESET"
+run_configure "$_HI_PRESET" || exit 1
 
 if [ -n "$_HI_FEATURES_ONLY" ]; then
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then

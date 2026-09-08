@@ -892,6 +892,35 @@ function test_complete_the_word_after_preview_and_use() {
   printf '%s\n' "$out" | grep -qx alpha
 }
 
+# --link and --preset complete their values; --update the checkout's release
+# tags, exactly git's own list (empty on a shallow, tagless CI checkout)
+function test_complete_the_word_after_link_preset_and_update() {
+  local out
+  out="$(_hi_completions_after --link "" | sort | tr '\n' ' ')"
+  [ "$out" = "none system user " ] || {
+    _hi_cecho "   --link: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_completions_after --preset "" | sort | tr '\n' ' ')"
+  [ "$out" = "balanced everything minimal " ] || {
+    _hi_cecho "   --preset: $out" "$RED"
+    return 1
+  }
+  [ "$(_hi_completions_after --update "")" = "$(git -C "$_HI_ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null)" ]
+}
+
+# the preset names targets.sh offers are configure.sh's table, spelled twice
+function test_preset_words_match_the_presets_table() {
+  local want got
+  want="$(sed -n '/^_HI_PRESETS=(/,/^)/p' "$_HI_ROOT/scripts/configure.sh" |
+    sed -n 's/^  "\([a-z]*\)|.*/\1/p' | sort | tr '\n' ' ')"
+  got="$(sh "$_HI_TARGETS" words --preset | cut -f1 | sort | tr '\n' ' ')"
+  [ "$got" = "$want" ] || {
+    _hi_cecho " | configure.sh's presets are [$want], targets.sh offers [$got]" "$RED"
+    return 1
+  }
+}
+
 # ...and the prefix filter is the completion's own, not targets.sh's: the
 # roster is emitted whole and matched here. The target assertion is the one
 # that matters - $_HI_SHIM_PATH has a docker answering `alpha`, so a dash word
@@ -934,7 +963,13 @@ function test_flags_do_not_probe() {
 # (paths.sh cannot derive it - its dialect is plain exports, fish included)
 function test_word_flags_match_the_flags_table() {
   local want got
-  want="$(sed -n 's/^\(--[a-z-]*\)|<[a-z]*>|.*/\1/p' "$_HI_ROOT/common/flags" | sort | tr '\n' ' ')"
+  # a flag whose argument column opens with a word (--use <backend>,
+  # --update [<tag>]), plus every switch inside any column that takes one
+  # (--preset <name>, --link {none,user,system})
+  want="$( (
+    sed -n 's/^\(--[a-z-]*\)|\[\{0,1\}<.*/\1/p' "$_HI_ROOT/common/flags"
+    grep -oE -- '--[a-z-]+ [<{]' "$_HI_ROOT/common/flags" | cut -d' ' -f1
+  ) | sort -u | tr '\n' ' ')"
   # shellcheck disable=SC2086 # the split is the roster
   got="$(printf '%s\n' $_HI_WORD_FLAGS | sort | tr '\n' ' ')"
   [ "$got" = "$want" ] || {
@@ -1057,6 +1092,8 @@ function run_targets_tests() {
   _hi_check "flags: behind a local command, its own switches" test_flags_behind_a_local_command_are_its_switches
   _hi_check "...through the bash completion" test_complete_offers_a_local_commands_switches
   _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
+  _hi_check "words: --link, --preset and --update too" test_complete_the_word_after_link_preset_and_update
+  _hi_check "words: --preset's names are configure.sh's" test_preset_words_match_the_presets_table
   _hi_check "words: the roster and \$_HI_WORD_FLAGS agree" test_word_flags_match_the_words_roster
   _hi_check "words: \$_HI_WORD_FLAGS is common/flags' <word> column" test_word_flags_match_the_flags_table
   _hi_check "words: --preview's subjects agree in all three files" test_preview_subjects_agree_everywhere
