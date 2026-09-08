@@ -228,7 +228,7 @@ everything weighed and answered **no**, and why.
   found and kept on this machine (`_HI_DISABLE_LOCAL_PROMPT=1`); hi's prompt
   still draws on every target
   ([docs/SETTINGS.md](docs/SETTINGS.md#others)). `hi` itself is linked at
-  `~/.local/bin/hi` (`--system-link` for `/usr/bin/hi`, `--no-link` for
+  `~/.local/bin/hi` (`--link system` for `/usr/bin/hi`, `--link none` for
   none - the wired shells alias it either way), and `--dry-run` prints every
   write without making it.
 - reload your shell!

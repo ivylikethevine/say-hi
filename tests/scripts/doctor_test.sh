@@ -392,7 +392,7 @@ function test_config_reports_the_system_layer() {
   [[ "$out" == *"per-user settings only"* ]]
 }
 
-# the folded-in `--check-configs`: each rc or overlay file through its parser,
+# the folded-in rc check: each rc or overlay file through its parser,
 # one row each, with the same skip rule install.sh's pre-flight has
 function test_config_rows_parse_the_files() {
   local dir="$_HI_WORKDIR/cfgrows" out

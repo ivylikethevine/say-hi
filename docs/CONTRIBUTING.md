@@ -156,13 +156,12 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The twelve flags in `common/flags`** — name, argument shape and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
-- **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`
-  and the bare words `help`/`version` as their first-word spellings, taking
-  nothing after them; `--option=value` for every option that takes a word,
+- **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
+  taking nothing after them; `--option=value` for every option that takes a word,
   refused on one that takes none; every `--word` is hi's (an unknown one is
   hi's error); and everything after the target is the remote command.
 - **The sub-command switches** — `--doctor --json`, `--install`'s
-  `-y`/`--yes`, `--no-link`, `--system-link`, `--preset <name>` and
+  `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>` and
   `-n`/`--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>`
   and `--configure --dry-run`, `--update --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning (`-n` is the short

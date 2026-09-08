@@ -47,7 +47,7 @@ function _hi_all_gated() {
 
 # _HI_DISABLE_LOCAL=1 on the install machine itself: hi stays out of the way
 # the link a plain install makes is the user's own, so no sudo stands in a
-# first install; /usr/bin/hi is install.sh's --system-link, asked for by name
+# first install; /usr/bin/hi is install.sh's --link system, asked for by name
 function test_link_is_under_home() {
   [[ "$_HI_LINK" == "$HOME/"* ]]
 }

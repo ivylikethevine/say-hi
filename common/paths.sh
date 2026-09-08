@@ -47,7 +47,7 @@ export _HI_FISH_CONFIG="$_HI_ROOT/common/config.fish"
 
 # install.sh's line tag and managed symlink, so everything recognising hi's
 # lines reads one string. The link is the user's own bin directory - no sudo
-# in a first install; install.sh's --system-link is /usr/bin/hi, and a
+# in a first install; install.sh's --link system is /usr/bin/hi, and a
 # package's link there is the package's, never this one.
 export _HI_MARKER="# added by hi during install"
 export _HI_LINK="$HOME/.local/bin/hi"

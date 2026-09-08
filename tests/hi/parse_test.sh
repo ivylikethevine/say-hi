@@ -149,15 +149,12 @@ function test_parse_help_is_honoured_behind_an_ssh_option() {
   [[ "$out" == "Usage: hi "* && "$out" != *"ssh was called"* ]]
 }
 
-# `hi help` and `hi version` are -h and -V spelled as words - as the first
-# word only, so a host called help is still reachable behind an ssh option
-function test_bare_help_and_version_words_are_his_own() {
-  local out
-  out="$(_hi_help_out help)" || return 1
-  [[ "$out" == "Usage: hi "* ]] || return 1
-  out="$(_hi_help_out version)" || return 1
-  [ "$out" = "$(_hi_help_out --version)" ] || return 1
-  [ "$(_hi_parse_out -4 help | sed -n 1p)" = help ]
+# the bare words help and version are targets like any other: -h and -V are
+# the only spellings hi claims, so a host called help needs no escaping
+function test_bare_help_and_version_words_are_targets() {
+  [ "$(_hi_parse_out help | sed -n 1p)" = help ] &&
+    [ "$(_hi_parse_out version | sed -n 1p)" = version ] &&
+    [ "$(_hi_parse_out -4 help | sed -n 1p)" = help ]
 }
 
 # _hi_is_ssh_host reads literal Host entries only: a `Host *` block claims
@@ -895,11 +892,11 @@ function test_version_line_names_the_tree() {
   [[ "$out" == *" (checkout at $_HI_ROOT)" ]]
 }
 
-# --help and --version take nothing after them, as the words and the short
-# forms alike; the stray word is named
+# --help and --version take nothing after them, the short forms alike; the
+# stray word is named
 function test_help_and_version_refuse_a_trailing_word() {
   local spec out rc
-  for spec in '--help extra' '-h extra' 'help me' '--version extra' '-V extra' 'version --json'; do
+  for spec in '--help extra' '-h extra' '--version extra' '-V extra'; do
     rc=0
     # shellcheck disable=SC2086 # the spec is two words on purpose
     out="$(_hi_help_out $spec)" || rc=$?
@@ -1103,7 +1100,7 @@ function _hi_subcmd_home() {
 
 # The same tree plus a stub for every script a flag reaches. Each stub prints
 # its own name and its argv verbatim, which is what lets the cases below pin
-# the mapping - `hi --configure` has to become install.sh --features-only, not
+# the mapping - `hi --configure` has to become install.sh --configure, not
 # just "some install.sh".
 function _hi_subcmd_stubs() {
   local home stub dir
@@ -1181,7 +1178,7 @@ function test_local_subcommands_exec_the_right_script() {
   for spec in \
     '--install|STUB install --install' \
     '--uninstall|STUB install --uninstall' \
-    '--configure|STUB install --features-only' \
+    '--configure|STUB install --configure' \
     '--doctor=myhost|STUB doctor myhost' \
     '--preview colors|STUB preview colors' \
     '--preview=colors|STUB preview colors' \
@@ -1422,7 +1419,7 @@ function run_hi_parse_tests() {
   _hi_check "A bare flag takes no value" test_parse_bare_flag_with_a_value_is_refused
   _hi_check "...every bare row of common/flags, and -h/-V" test_parse_every_bare_flag_refuses_a_value
   _hi_check "-h behind an ssh option is still hi's" test_parse_help_is_honoured_behind_an_ssh_option
-  _hi_check "help and version words are -h and -V" test_bare_help_and_version_words_are_his_own
+  _hi_check "help and version are plain target names" test_bare_help_and_version_words_are_targets
   _hi_check "A Host * block names no target" test_is_ssh_host_ignores_a_wildcard_block
 
   _hi_h2 "Testing: bare hi picks a target"

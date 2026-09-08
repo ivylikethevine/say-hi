@@ -374,7 +374,7 @@ function doctor_config_row() {
 # the shell rc files it wires, then the overlay's own shell files against
 # every parser a target may source them with. This is where `hi
 # --check-configs` went - a read-only check is a doctor's row; install.sh
-# keeps its own `--check-configs` as the pre-write gate.
+# keeps the same check as its pre-write gate.
 function doctor_configs() {
   local row shell target check file
   doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
@@ -460,7 +460,7 @@ function doctor_install() {
   elif [ -n "$found" ] && _hi_link_runs_this_tree "$found"; then
     doctor_row link "no $_HI_LINK, none needed: $found runs this tree" ok
   else
-    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes one; --no-link chose none)" warn
+    doctor_row link "no $_HI_LINK - the wired shells alias hi; scripts and other programs need one (hi --install makes one; --link none chose none)" warn
   fi
   if [ -z "$found" ]; then
     doctor_row command "no hi on PATH (the wired shells alias it)"

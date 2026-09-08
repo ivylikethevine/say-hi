@@ -179,10 +179,8 @@ back.
 print a usage summary \- the synopsis, the target resolution order, and hi's
 own options \- and exit. Everything here in short form; this page is the long
 one. Caught anywhere ahead of the target, so it never reaches
-.BR ssh (1);
-.B hi help
-is the same request spelled as a word, as the first word only. Takes
-nothing after it; a stray word is refused.
+.BR ssh (1).
+Takes nothing after it; a stray word is refused.
 .TP
 .B \-V\fR, \fB\-\-version
 print the version and exit: the version stamped in at packaging time, or
@@ -194,8 +192,6 @@ option hi claims for itself \- hi's version is the first thing a bug report
 asks for, and
 .B ssh \-V
 is a keystroke away for the other one.
-.B hi version
-is the same, as the first word only.
 .TP
 .B \-\-use \fIbackend\fR
 force that arm for
@@ -318,7 +314,7 @@ carry \- with the finding count in it as
 Exits 1 on any finding (see
 .BR "EXIT STATUS" ).
 .TP
-.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-no\-link\fR] [\fB\-\-system\-link\fR] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
+.B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 install or repair say-hi's lines in your shell rc files (bash, zsh and fish,
 each only when it is installed; on macOS a line in
 .B ~/.bash_profile
@@ -336,14 +332,21 @@ not parse stops the install with a question; that is the one prompt, and
 answers it.
 .BR \-n / \-\-dry\-run
 is the short form on every local command that has one.
-.B \-\-no\-link
-makes no link at all (the wired shells alias
+.B \-\-link
+says where the
 .B hi
-either way; the link is for scripts and other programs);
-.B \-\-system\-link
-links
-.B /usr/bin/hi
-instead, through sudo. A link a package owns is never touched by either, and
+link goes:
+.B user
+(the default,
+.BR ~/.local/bin/hi ),
+.B system
+.RB ( /usr/bin/hi ,
+through sudo), or
+.B none
+(no link at all \- the wired shells alias
+.B hi
+either way; the link is for scripts and other programs). A link a package
+owns is never touched, and
 when a
 .B hi
 already on your

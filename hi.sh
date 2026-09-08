@@ -2081,7 +2081,7 @@ function _hi_dispatch_subcommand() {
     [ -n "$var" ] || return 1
     # The joined word stands for the row's first positional argument
     # (--update=v1.0.0, --doctor=host). A row with none - only switches, and
-    # the <word> each switch takes - has nothing for it to be, so
+    # the <word> or {choice} each switch takes - has nothing for it to be, so
     # --install=yes is refused here rather than reaching the script as a
     # stray first argument it reports as an unknown option.
     if [ -n "$joined" ]; then
@@ -2089,7 +2089,7 @@ function _hi_dispatch_subcommand() {
       for w in ${shape//[][]/}; do
         case "$w" in
         --*) prev=1 ;;
-        '<'*) [ -n "$prev" ] && prev="" || positional=1 ;;
+        '<'* | '{'*) [ -n "$prev" ] && prev="" || positional=1 ;;
         *) positional=1 prev="" ;;
         esac
       done
@@ -2132,8 +2132,8 @@ function _hi_flag_help() {
   done
 }
 
-# _hi_help - the --help text, one block: reached as `hi --help`, `hi help`,
-# and by _hi_parse for a -h behind an ssh option
+# _hi_help - the --help text, one block: reached as `hi --help`, and by
+# _hi_parse for a -h behind an ssh option
 function _hi_help() {
   cat <<EOF
 $_HI_USAGE
@@ -2168,11 +2168,10 @@ $(_hi_flag_help local)
 
 Every option that takes a word takes it joined too (--use=docker,
 --update=v1.0.0); one that takes none refuses it.
-\`hi help\` and \`hi version\` are -h and -V spelled as words. Every other option is
-passed to ssh unchanged - -p, -i, -J, -o and the rest; ssh takes none that
-start with two dashes, so an unknown one is hi's error to report. Only the
-first non-option word is the target; everything after it is the remote
-command.
+Every other option is passed to ssh unchanged - -p, -i, -J, -o and the rest;
+ssh takes none that start with two dashes, so an unknown one is hi's error to
+report. Only the first non-option word is the target; everything after it is
+the remote command.
 
 Configuration lives in \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so it
 survives an upgrade. See \`man hi\` and the README for all of it.
@@ -2211,9 +2210,7 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 _hi_dispatch_subcommand "$@"
 
 case "${1:-}" in
-# the words are the flags spelled without their dashes - the first word only,
-# so a host that happens to be called help is still `hi -- help`'s to reach
--h | --help | help)
+-h | --help)
   _hi_only_word "$@"
   _hi_help
   exit 0
@@ -2266,7 +2263,7 @@ EOF
 # -V is hi's, like -h: the one ssh short option claimed on purpose, because
 # "which version of hi is this" is the question a bug report asks first and
 # `ssh -V` is a keystroke away for the other one
--V | --version | version)
+-V | --version)
   _hi_only_word "$@"
   _hi_version_line
   exit 0

@@ -837,7 +837,7 @@ function test_complete_offers_hi_flags_for_a_dash_word() {
 function test_flags_behind_a_local_command_are_its_switches() {
   local out
   out="$(sh "$_HI_TARGETS" flags --install | cut -f1 | tr '\n' ' ')"
-  [ "$out" = "--yes --no-link --system-link --preset --dry-run " ] || {
+  [ "$out" = "--yes --link --preset --dry-run " ] || {
     _hi_cecho "   flags --install gave: $out" "$RED"
     return 1
   }
@@ -852,7 +852,7 @@ function test_complete_offers_a_local_commands_switches() {
   local out
   out="$(_hi_completions_after --install --)"
   printf '%s\n' "$out" | grep -qx -- --dry-run &&
-    printf '%s\n' "$out" | grep -qx -- --system-link &&
+    printf '%s\n' "$out" | grep -qx -- --link &&
     ! printf '%s\n' "$out" | grep -qx -- --doctor
 }
 

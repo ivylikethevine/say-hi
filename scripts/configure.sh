@@ -21,7 +21,7 @@
 
 # The live previews borrow header.sh's hi_header/banner/full_check and
 # git_prompt.sh's segment. Sourced on first use rather than up top:
-# --uninstall, --check-configs and packaging mode never
+# --uninstall and packaging mode never
 # render one, and never need $_HI_HEADER_ORDER_DEFAULT either.
 function _hi_load_preview_sources() {
   [ -n "${_hi_previews_loaded:-}" ] && return 0
