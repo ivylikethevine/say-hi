@@ -62,11 +62,12 @@ which, and why). A setting a child must see — a script of your own reading
 `hi --configure` opens on a preview — the header as it would print and the
 prompt line as it would draw, at your current settings — over a short menu:
 
-1. **Preset** — `everything`, `balanced` or `minimal`, below.
+1. **Preset** — `[e]verything`, `[b]alanced` or `[m]inimal`, below. Every
+   menu option is typed by its number or by the letter shown in brackets.
 2. **Header** — the editor for everything in [Header details](#header-details):
    the real header rendered above a numbered list of the banner and every
-   item; a number toggles one, `up N`/`down N` moves it, `p` loads a header
-   preset (`full`, `compact`, `quiet`), and the width, the package check's
+   item; a number toggles one, `up N`/`down N` moves it, `[p]` loads a header
+   preset (`[f]ull`, `[c]ompact`, `[q]uiet`), and the width, the package check's
    depth and its palette live there too. Outside the menu, `hi --preview
    header` prints the header as it would draw at the saved settings, and
    `hi --preview packages` the check's legend.
@@ -75,8 +76,8 @@ prompt line as it would draw, at your current settings — over a short menu:
 4. **Prompt** — starship, and the character each shell's prompt ends with.
 5. **Advanced** — the _advanced_ rows, as a short walk of questions:
    the leading space, tmux, the session shell, the glyphs and
-   24-bit color, then an offer of the transport internals (TERM fallback,
-   the payload cache, the timeouts, the container CLI roster, ssh
+   24-bit color, then an offer of the transport internals (the payload
+   cache, the timeouts, the container CLI roster, ssh
    connection reuse) that Enter declines. A question whose tool is not on
    this machine (tmux) is skipped.
 6. **Colors** — `_HI_COLOR_SCHEME`, one of the truecolor schemes in
@@ -85,10 +86,10 @@ prompt line as it would draw, at your current settings — over a short menu:
    and Enter keeps it.
 
 Every section returns to the menu and the preview re-renders (each item
-also answers to its initial: `p`, `h`, `f`, `r` for Prompt, `a`, `c`). `s`
-writes the settings once; `q` leaves `settings.sh` untouched; nothing is
-written before either. End of input at the menu counts as `s`, three
-answers in a row that are not menu items count as `q`. With no terminal
+also answers to its bracketed letter: `[p]`, `[h]`, `[f]`, `p[r]ompt`, `[a]`,
+`[c]`). `[s]` writes the settings once; `[q]` leaves `settings.sh`
+untouched; nothing is written before either. End of input at the menu counts
+as `[s]`, three answers in a row that are not menu items count as `[q]`. With no terminal
 (`hi --configure </dev/null`, a script) there is no
 menu: what the file holds is written back as it stands, and when there is no
 file and nothing to say, none is created. A line you wrote into `settings.sh`
@@ -114,7 +115,7 @@ the advanced settings keep what they hold. `_HI_DISABLE_LOCAL_PROMPT` is in
 the vocabulary, so a preset also undoes the install's "keep the prompt you
 already have here" answer; the Features menu turns it back. From the menu
 its answers are what the
-preview shows and `s` saves — a starting point, not a lock. The rows are
+preview shows and `[s]` saves — a starting point, not a lock. The rows are
 `scripts/configure.sh`'s `_HI_PRESETS`; the header editor's own presets are
 `_HI_HEADER_PRESETS` beside them.
 

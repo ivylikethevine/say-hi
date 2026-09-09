@@ -1570,7 +1570,7 @@ function test_header_editor_refuses_a_move_that_cannot_happen() {
 function test_header_editor_junk_is_bounded() {
   _hi_cfg_pty hdr_junk 'x\ny\nz\n' '' config_header || return 1
   [ "$(_hi_cfg_rc hdr_junk)" = 0 ] &&
-    _hi_cfg_has hdr_junk "type an item number, up N, down N, p, w, i, c, k, 0, or Enter" &&
+    _hi_cfg_has hdr_junk "type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter" &&
     [ -z "$(_hi_cfg_lines hdr_junk | tr -d '[:space:]')" ]
 }
 

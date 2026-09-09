@@ -15,7 +15,7 @@
 # collect_setting_lines walking a fixed roster in a stable order, and
 # config_shell writes them in one call (it rewrites the *whole* marker block
 # in its target, so one call per section would each wipe the others').
-# Interactively that save is the hub's `s`; `q` writes nothing at all. With
+# Interactively that save is the hub's [s]; [q] writes nothing at all. With
 # no tty, or under --preset, there is no hub: the roster is collected from
 # the file (plus the preset) and written as it stands.
 
@@ -185,6 +185,20 @@ function ask_value() {
   fi
   [ "$value" = "$default" ] && value=""
   printf '%s' "$value"
+}
+
+# _hi_hotkey <name> <letter> <outvar> - <name> with its shortcut letter in
+# brackets, [e]verything or p[r]ompt: how every menu here spells an option
+# whose letter is typed rather than its number, so the key and the word
+# are read together and nothing has to say "or type e".
+function _hi_hotkey() {
+  local name="$1" key="$2" head
+  head="${name%%"$key"*}"
+  if [ "$head" = "$name" ]; then
+    printf -v "$3" '%s' "$name"
+  else
+    printf -v "$3" '%s[%s]%s' "$head" "$key" "${name#*"$key"}"
+  fi
 }
 
 # menu_read <prompt> <outvar> - one menu answer: trimmed, lower-cased (tr,
@@ -741,14 +755,14 @@ function apply_preset() {
 # hub comes round again.
 function config_preset() {
   [ -t 0 ] || return 0
-  local row name desc reply="" shorts="" short
+  local row name desc reply="" short shown
   section "Starting point" "A preset answers the feature and header settings at once; change any of them after."
   for row in "${_HI_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
-    printf '   %s) %-11s %s\n' "${name:0:1}" "$name" "$desc"
-    shorts="$shorts${name:0:1}/"
+    _hi_hotkey "$name" "${name:0:1}" shown
+    printf '   %-13s %s\n' "$shown" "$desc"
   done
-  menu_read " Start from a preset? (${shorts%/} or the full name, or Enter to keep your current settings) [keep] " reply || return 0
+  menu_read " Start from a preset? (the bracketed letter or the full name; Enter keeps your current settings) [keep] " reply || return 0
   [ -n "$reply" ] || return 0
   short="$(preset_shorthand "$reply")" && reply="$short"
   apply_preset "$reply" || return 0
@@ -765,7 +779,7 @@ function configure_intro() {
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null || echo 0) setting(s) stored"
   _hi_cecho " The preview shows what a session will look like at your current settings." "$BLUE"
   _hi_cecho " Pick a preset, or open a section and change what you like; each menu says" "$BLUE"
-  _hi_cecho " how. Nothing is written until you save (s); q leaves the file untouched." "$BLUE"
+  _hi_cecho " how. Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
   _hi_cecho " settings: $_HI_SETTINGS ($state)" "$BLUE"
 }
 
@@ -782,14 +796,14 @@ function config_hub() {
   while :; do
     _hi_h2 "hi --configure"
     show_preview _hi_config_preview
-    printf '   1) %-10s %s\n' Preset "everything / balanced / minimal - a starting point"
-    printf '   2) %-10s %s\n' Header "what the header shows and in what order; its width, the package check's depth and palette, the addresses hidden"
-    printf '   3) %-10s %s\n' Features "prompt, git status, editors, prompt marks, ..."
-    printf '   4) %-10s %s\n' Prompt "starship, and the character each shell's prompt ends with"
-    printf '   5) %-10s %s\n' Advanced "the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
-    printf '   6) %-10s %s\n' Colors "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
-    printf '   s) %-10s %s\n' save "write the settings and exit"
-    printf '   q) %-10s %s\n' quit "exit without writing anything"
+    printf '   1) %-12s %s\n' "[p]reset" "[e]verything / [b]alanced / [m]inimal - a starting point"
+    printf '   2) %-12s %s\n' "[h]eader" "what the header shows and in what order; its width, the package check's depth and palette, the addresses hidden"
+    printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
+    printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
+    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
+    printf '   6) %-12s %s\n' "[c]olors" "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
+    printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
+    printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
     menu_read " > " reply || return 0
     case "$reply" in
     '')
@@ -814,7 +828,7 @@ function config_hub() {
         _HI_CONFIGURE_QUIT=1
         return 0
       fi
-      _hi_cecho " type 1-6 (or p, h, f, r, a, c), s to save or q to quit" "$YELLOW"
+      _hi_cecho " type 1-6 or the bracketed letter ([p] [h] [f] [r] [a] [c]); [s] saves, [q] quits" "$YELLOW"
       continue
       ;;
     esac
@@ -995,12 +1009,12 @@ function _hi_header_edit_list() {
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_cecho "   N toggles an item, 0 the whole header; up N / down N moves it; p header preset; w width (${width:-80})" "$BLUE"
+  _hi_cecho "   N toggles an item, 0 the whole header; up N / down N moves it; [p] header preset; [w] width (${width:-80})" "$BLUE"
   if _hi_header_edit_has ip; then
-    _hi_cecho "   i hidden addresses (${iphide:-172.*})" "$BLUE"
+    _hi_cecho "   [i] hidden addresses (${iphide:-172.*})" "$BLUE"
   fi
   if _hi_header_edit_has check; then
-    _hi_cecho "   c check depth (${floor:-2}); k check palette (${palette:-cool}); Enter goes back" "$BLUE"
+    _hi_cecho "   [c] check depth (${floor:-2}); [k] check palette (${palette:-cool}); Enter goes back" "$BLUE"
   else
     _hi_cecho "   Enter goes back" "$BLUE"
   fi
@@ -1073,7 +1087,7 @@ function config_header() {
           _hi_cecho " not an item three times - back to the menu" "$YELLOW"
           return 0
         }
-        _hi_cecho " type an item number, up N, down N, p, w, i, c, k, 0, or Enter to go back" "$YELLOW"
+        _hi_cecho " type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter to go back" "$YELLOW"
         continue
       fi
       ;;
@@ -1084,12 +1098,13 @@ function config_header() {
 
 # the header editor's preset pick: one shot, like config_preset
 function config_header_preset() {
-  local row name desc reply="" short=""
+  local row name desc reply="" short="" shown
   for row in "${_HI_HEADER_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
-    printf '   %s) %-8s %s\n' "${name:0:1}" "$name" "$desc"
+    _hi_hotkey "$name" "${name:0:1}" shown
+    printf '   %-10s %s\n' "$shown" "$desc"
   done
-  menu_read " Header preset? (a letter or the name, Enter to keep the list as it is) [] " reply || return 0
+  menu_read " Header preset? (the bracketed letter or the name; Enter keeps the list as it is) [] " reply || return 0
   [ -n "$reply" ] || return 0
   # an exact name first, then an unambiguous first letter - config_preset's
   # own rule, through the same two helpers rather than a third copy of it
@@ -1323,7 +1338,7 @@ function config_advanced() {
   section "Advanced settings" "The leading space, tmux, the session shell, the glyphs and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
-  more="$(ask_value "Also tune the transport internals - TERM fallback, the payload cache, completion and probe timeouts, the container CLI roster, ssh connection reuse? (y/N)" \
+  more="$(ask_value "Also tune the transport internals - the payload cache, completion and probe timeouts, the container CLI roster, ssh connection reuse? (y/N)" \
     "" n _hi_is_yes_no "y or n")"
   case "$more" in y | yes) ;; *) return 0 ;; esac
   ask_prompt_group _HI_TRANSPORT_PROMPTS

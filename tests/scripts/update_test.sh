@@ -18,6 +18,15 @@ set -euo pipefail
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
+# Git Bash: git.exe is a native binary, and the MSYS runtime rewrites every
+# environment variable that looks like a POSIX path when it spawns one, so
+# GNUPGHOME=/tmp/hi.upgpg.x reaches `git tag -s` (and hi's `git verify-tag`)
+# as C:/Users/RUNNER~1/... - which the MSYS gpg that git then spawns reads as
+# a *relative* path under the repo ("keyblock resource .../work/C:/Users/...:
+# No such file"). This is the runtime's documented opt-out; a no-op anywhere
+# that is not MSYS.
+export MSYS2_ENV_CONV_EXCL="${MSYS2_ENV_CONV_EXCL:+$MSYS2_ENV_CONV_EXCL;}GNUPGHOME"
+
 # a checkout-shaped tree: the payload plus scripts/, which is what makes
 # --update reachable at all
 function _hi_upd_home() {

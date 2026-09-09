@@ -984,7 +984,6 @@ function _hi_ramp_escape() {
 # a stripped `env -i` in the suites and into callers running under their own
 # strict mode, and neither could be aborted by a plain array assignment.
 _hi_packages_palette || true
-_hi_packages_palette
 
 # For each "[-|+]cmd:priority[,...]": the highest-priority installed package
 # (or the first, if none) — a fully-missing line ranks at the max priority
