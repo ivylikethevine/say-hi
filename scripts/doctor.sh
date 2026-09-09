@@ -187,24 +187,19 @@ function doctor_row() {
   return 0
 }
 
-# What this client's toggles change on the wire, against the stock default -
+# What this client's overlay adds to the wire, against the stock default -
 # the same figure the README badge and bench_test.sh's budget both measure,
 # recomputed here rather than hardcoded so it can't drift from either. Pointing
-# $_HI_CONFIG_DIR at a path with no settings.sh makes _hi_payload_tar (the
-# only reader of the three trimming toggles) see no overlay at all, which is
-# exactly "stock" - the prefix assignment is scoped to this one call, so the
-# doctor's own environment is untouched either side of it.
+# $_HI_CONFIG_DIR at a path with no settings.sh makes the overlay stream see
+# no overlay at all, which is exactly "stock" - the prefix assignment is
+# scoped to this one call, so the doctor's own environment is untouched
+# either side of it.
 #
 # _hi_wire_bytes is not perfectly reproducible run to run - empirically a few
 # bytes to a couple dozen, gzip-level, the same imprecision
-# bench_payload_readme_badge gives the README's own badge a 5% window for. A
-# rounded-string comparison was tried first and was wrong the other direction:
-# _HI_DISABLE_EDITORS alone trims a few hundred bytes, comfortably real, but
-# that is _less_ than one _hi_human_bytes rounding step on a ~46KB payload, so it
-# silently vanished. 128 bytes is the fixed floor instead - roughly 9x the
-# worst jitter observed and 3x under the smallest single toggle's real effect,
-# with room on both sides for either to drift somewhat before this needs
-# revisiting.
+# bench_payload_readme_badge gives the README's own badge a 5% window for.
+# 128 bytes is the fixed floor - roughly 9x the worst jitter observed - so
+# the row never reports noise.
 _HI_PAYLOAD_DIFF_FLOOR=128
 # doctor_payload_diff [this_bytes] - doctor_local passes the figure it already
 # built, so the payload is assembled twice per run (this config and the stock
@@ -214,15 +209,9 @@ function doctor_payload_diff() {
   [ -n "$this_bytes" ] || this_bytes="$(_hi_wire_bytes)"
   default_bytes="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
   default_h="$(_hi_human_bytes "$default_bytes")"
-  if [ "$this_bytes" -lt "$default_bytes" ]; then
-    delta="$((default_bytes - this_bytes))"
-    [ "$delta" -lt "$_HI_PAYLOAD_DIFF_FLOOR" ] && return 0
-    doctor_row payload_diff "$(_hi_human_bytes "$delta") lighter than the stock default ($default_h) - your toggles trim the wire" ok
-  else
-    delta="$((this_bytes - default_bytes))"
-    [ "$delta" -lt "$_HI_PAYLOAD_DIFF_FLOOR" ] && return 0
-    doctor_row payload_diff "$(_hi_human_bytes "$delta") heavier than the stock default ($default_h) - your overlay adds more than its toggles trim" warn
-  fi
+  delta="$((this_bytes - default_bytes))"
+  [ "$delta" -ge "$_HI_PAYLOAD_DIFF_FLOOR" ] || return 0
+  doctor_row payload_diff "$(_hi_human_bytes "$delta") heavier than the stock default ($default_h) - your overlay" warn
 }
 
 # The tools hi needs *here* to ship a payload at all, and the one place the
@@ -288,7 +277,6 @@ function doctor_local() {
   # not by `cut`: one fork fewer, and a report that runs where coreutils does
   # not - which is exactly the machine most likely to be running it.
   local s have=""
-  # shellcheck disable=SC2119 # the flag filter is optional; no flag means all
   while IFS='|' read -r s _; do
     command -v "$s" >/dev/null 2>&1 && have="$have$s "
   done < <(_hi_shell_rows)

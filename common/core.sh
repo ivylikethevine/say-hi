@@ -29,9 +29,8 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry but
   # _HI_REMOTE_SESSION (hi's own "this is a session" mark, 1 on a target) is
   # a *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot
-  # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1; its
-  # narrower _HI_DISABLE_LOCAL_PROMPT gate sets only _HI_DISABLE_PROMPT.
-  _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER
+  # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
+  _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_MARKS
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER)
@@ -53,38 +52,26 @@ if [ -z "${_hi_core_loaded:-}" ]; then
 fi
 
 # Every shell hi wires up:
-# <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<flags>|<dialect>.
-# `local` = install.sh appends to the user's rc; the dialect is what an
+# <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<dialect>.
+# install.sh appends to the user's rc of every row; the dialect is what an
 # `export` line looks like (`sh` covers bash and zsh) - a new one gets an arm
 # in install.sh's tmpdir_line, not a special case per consumer.
 _HI_SHELL_TABLE=(
-  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local|sh"
-  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local|sh"
-  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local|fish"
+  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|sh"
+  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|sh"
+  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|fish"
 )
 
-# _hi_shell_rows [flag] - the roster, or only rows carrying <flag>, one per
-# line for `while IFS='|' read` callers.
+# _hi_shell_rows - the roster, one row per line for `while IFS='|' read`
+# callers.
 function _hi_shell_rows() {
-  [ -n "${1:-}" ] || {
-    printf '%s\n' "${_HI_SHELL_TABLE[@]}"
-    return 0
-  }
-  local row flags
-  for row in "${_HI_SHELL_TABLE[@]}"; do
-    flags="${row#*|*|*|*|*|}" flags="${flags%%|*}"
-    case ",$flags," in
-    *",$1,"*) printf '%s\n' "$row" ;;
-    esac
-  done
+  printf '%s\n' "${_HI_SHELL_TABLE[@]}"
 }
 
 # _hi_shell_wired <name> - is <name> a shell hi wires up? The table above is
 # the answer, and the header there says so ("a new one gets an arm in
 # install.sh's tmpdir_line, not a special case per consumer") - but load.sh's
-# session-shell filter and configure.sh's $_HI_SHELL_PREFERENCE validator each
-# spelled the roster out instead, and the two have to agree: configure.sh
-# accepts a word load.sh then has to honour.
+# session-shell filter spelled the roster out instead.
 function _hi_shell_wired() {
   local row
   for row in "${_HI_SHELL_TABLE[@]}"; do
@@ -441,7 +428,7 @@ function _hi_on_exit() {
 # _hi_setting_get <file> <name> [outvar] - what <name> holds after sourcing
 # <file>, or rc 1 when it never gets set. A subshell sources the file for real
 # (only <name> unset) rather than a hand-rolled grammar, so it agrees with
-# what a target would see; nothing outside it is touched (GLOSSARY: HI.36).
+# what a target would see; nothing outside it is touched.
 function _hi_setting_get() {
   # prefixed locals: a plain `val` would shadow the caller's (GLOSSARY: HI.04)
   local _hi_sg_file="$1" _hi_sg_name="$2" _hi_sg_outvar="${3:-}" _hi_sg_val
@@ -482,7 +469,7 @@ function _hi_prompt_end_default() {
 function _hi_prompt_end() {
   local _hi_pe
   eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
-  _hi_pe="${_hi_pe:-${_HI_PROMPT_END:-$(_hi_prompt_end_default "$1")}}"
+  _hi_pe="${_hi_pe:-$(_hi_prompt_end_default "$1")}"
   if [ -n "${2:-}" ]; then
     printf -v "$2" '%s' "$_hi_pe"
   else

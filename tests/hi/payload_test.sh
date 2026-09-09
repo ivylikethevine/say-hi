@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: the ssh payload, the config overlay stream, and the size
 # hi reports on connect. The payload is an allow list, so most of this file is
-# its drift guard - what ships, what an overlay trims, and what never trims.
+# its drift guard - what ships, whatever the overlay says.
 #
 # Sourcing hi.sh goes through the same `[[ BASH_SOURCE == $0 ]]` hatch install.sh
 # uses, which defines every function without connecting to anything - so the pure
@@ -22,35 +22,6 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
-# The overlay trims the tar. Pins one toggle to the file it stops shipping, and
-# the same run asserts the rest of the tree is still there - a broken --exclude
-# that dropped everything would satisfy "vim.rc is gone" just as well.
-function test_payload_trims_what_the_overlay_disabled() {
-  local dir="$_HI_WORKDIR/trim" listing
-  mkdir -p "$dir"
-  printf "#!/bin/sh\nexport _HI_DISABLE_EDITORS='1'\n" >"$dir/settings.sh"
-  listing="$(_HI_CONFIG_DIR="$dir" _hi_payload_tar | tar tzf - 2>/dev/null)"
-  case "$listing" in *say-hi/settings/vim.rc*)
-    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped settings/vim.rc" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/settings/nano.rc*)
-    _hi_cecho " | _HI_DISABLE_EDITORS=1 still shipped settings/nano.rc" "$RED"
-    return 1
-    ;;
-  esac
-  # ...and the tree is otherwise intact
-  case "$listing" in *say-hi/settings/aliases.sh*) ;; *)
-    _hi_cecho " | the trim took settings/aliases.sh with it" "$RED"
-    return 1
-    ;;
-  esac
-  case "$listing" in *say-hi/load.sh*) return 0 ;; esac
-  _hi_cecho " | the trim took load.sh with it" "$RED"
-  return 1
-}
-
 # An unconfigured client ships everything - which is also what both size budgets
 # are measuring, so this is the case that keeps those numbers meaning something.
 function test_payload_ships_everything_by_default() {
@@ -65,12 +36,10 @@ function test_payload_ships_everything_by_default() {
   return 0
 }
 
-# settings/aliases.sh is trimmed by nothing, and no toggle exists that could:
-# the sudo/cat/ls preferences, once a settings/personal.sh of their own, now
-# live in this file beside the vim/nano aliases and fish's toggle
-# backstop. Dropping it under any toggle would take all of those with it - a
-# behaviour change wearing a size saving's clothes - so this asserts against
-# every toggle at once rather than one in particular.
+# No toggle changes what ships: every one of them on at once still ships the
+# same tree as a default client - a toggle is read where it applies, never by
+# the tar. Asserted against every toggle at once rather than one in
+# particular.
 function test_payload_always_ships_aliases() {
   local dir="$_HI_WORKDIR/alloff" listing t
   mkdir -p "$dir"
@@ -489,9 +458,8 @@ function run_hi_payload_tests() {
 
   _hi_h2 "Testing: the payload list"
   _hi_check "Ships exactly common/settings/load.sh" test_payload_ships_exactly_the_travelled_paths
-  _hi_check "Overlay trims what it disabled" test_payload_trims_what_the_overlay_disabled
   _hi_check "A default client ships everything" test_payload_ships_everything_by_default
-  _hi_check "No toggle trims settings/aliases.sh" test_payload_always_ships_aliases
+  _hi_check "No toggle changes what ships" test_payload_always_ships_aliases
 
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments

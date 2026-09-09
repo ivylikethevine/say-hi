@@ -852,8 +852,8 @@ function test_help_fits_eighty_columns() {
 # they disagreed in both directions at once. --doctor was documented in the top
 # group while the roster correctly withheld it in a session (scripts/doctor.sh
 # is not in $_HI_PAYLOAD), and the packages preview was documented in the bottom
-# group while the roster correctly still offered it there (it falls back to the
-# shipped common/header.sh instead of refusing).
+# group while the roster still offered it there (a since-retired fallback to
+# the shipped common/header.sh).
 function test_man_page_option_groups_match_the_roster() {
   local man="$_HI_HOME/say-hi/docs/hi.1" zones all session flag bad=0
   [ -f "$man" ] || return 1
@@ -988,7 +988,7 @@ function _hi_subcmd_run() {
 function test_local_subcommands_refuse_without_the_checkout() {
   local home flag out
   home="$(_hi_subcmd_home subcmd-bare)"
-  for flag in --install --uninstall --configure "--preview colors" --doctor --update; do
+  for flag in --install --uninstall --configure "--preview colors" "--preview packages" "--preview header" --doctor --update; do
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
     out="$(_hi_subcmd_run "$home" $flag)" && {
       _hi_cecho " | $flag exited 0 without a checkout" "$RED"
@@ -999,23 +999,6 @@ function test_local_subcommands_refuse_without_the_checkout() {
       return 1
     }
   done
-}
-
-# ...and --preview packages/header do not refuse at all: the check and the
-# header ship in common/header.sh, so on a target they fall back to that
-function test_packages_preview_falls_back_to_the_shipped_check() {
-  local home out
-  home="$(_hi_subcmd_home subcmd-bare)"
-  out="$(_hi_subcmd_run "$home" --preview packages)" || return 1
-  [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]] || return 1
-  out="$(_hi_subcmd_run "$home" --preview header)" || return 1
-  [ -n "$out" ] && [[ "$out" != *"needs the full say-hi checkout"* ]] || return 1
-  # ...and the fallbacks answer --help and refuse a stray word, as
-  # preview.sh's subjects do
-  out="$(_hi_subcmd_run "$home" --preview header --help)" || return 1
-  [[ "$out" == "Usage: hi --preview header"* ]] || return 1
-  out="$(_hi_subcmd_run "$home" --preview packages stray)" && return 1
-  [[ "$out" == *"takes no arguments"* ]]
 }
 
 # a joined word stands for the row's first positional argument; a row with
@@ -1058,7 +1041,7 @@ function test_local_subcommands_exec_the_right_script() {
 }
 
 # a sub-command is still a command line: what follows the flag rides along
-# a subject that is not one of the three is an error naming them, and so is
+
 # no subject at all - `hi --preview` must never connect to a host by that name
 function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
@@ -1312,7 +1295,6 @@ function run_hi_parse_tests() {
 
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
-  _hi_check "--preview packages/header fall back instead" test_packages_preview_falls_back_to_the_shipped_check
   _hi_check "--preview wants one of three subjects" test_preview_refuses_an_unknown_subject
   _hi_check "--use's completion roster is hi's backend roster" test_use_words_match_the_backend_roster
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script

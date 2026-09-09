@@ -713,7 +713,7 @@ function test_flags_carry_their_help_as_a_second_column() {
 function test_flags_drop_local_subcommands_in_a_session() {
   local out flag
   out="$(_HI_REMOTE_SESSION=1 sh "$_HI_ROOT/common/targets.sh" flags | cut -f1)"
-  for flag in --install --doctor --update; do
+  for flag in --install --doctor --preview --update; do
     case $'\n'"$out"$'\n' in
     *$'\n'"$flag"$'\n'*)
       _hi_cecho "   a session was offered $flag" "$RED"
@@ -721,12 +721,11 @@ function test_flags_drop_local_subcommands_in_a_session() {
       ;;
     esac
   done
-  # ...while the one that does work there is still offered: --preview
-  # falls back to the shipped common/header.sh rather than refusing.
+  # ...while the connect flags, which do work there, are still offered
   case $'\n'"$out"$'\n' in
-  *$'\n--preview\n'*) return 0 ;;
+  *$'\n--use\n'*) return 0 ;;
   esac
-  _hi_cecho "   a session lost --preview, which works there" "$RED"
+  _hi_cecho "   a session lost --use, which works there" "$RED"
   return 1
 }
 
@@ -917,8 +916,9 @@ function test_word_flags_match_the_flags_table() {
 function test_preview_subjects_agree_everywhere() {
   local want got
   want="$(sh "$_HI_TARGETS" words --preview | cut -f1 | sort | tr '\n' ' ')"
+  # one arm lists the subjects `a | b | c)`; split it back into words
   got="$(sed -n '/^--preview | --preview=\*)$/,/^  esac$/p' "$_HI_LAUNCHER" |
-    sed -n 's/^  \([a-z]*\))$/\1/p' | sort | tr '\n' ' ')"
+    sed -n 's/^  \([a-z |]*\))$/\1/p' | tr '|' '\n' | tr -d ' ' | grep . | sort | tr '\n' ' ')"
   [ "$got" = "$want" ] || {
     _hi_cecho " | targets.sh offers [$want], hi.sh dispatches on [$got]" "$RED"
     return 1

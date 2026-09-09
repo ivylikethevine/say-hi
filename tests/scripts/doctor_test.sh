@@ -129,17 +129,6 @@ function test_local_reports_the_version() {
 
 # a settings.sh trimming toggle changes what leaves the wire, so the diff row
 # should appear and say lighter, not heavier
-function test_local_reports_payload_diff_when_toggled() {
-  local dir out
-  dir="$_HI_WORKDIR/payloaddiff_cfg"
-  mkdir -p "$dir"
-  printf "export _HI_DISABLE_EDITORS='1'\n" >"$dir/settings.sh"
-  out="$(_HI_CONFIG_DIR="$dir" doctor_local)"
-  [[ "$out" == *"payload_diff"* && "$out" == *"lighter than the stock default"* ]]
-}
-
-# stock config, nothing to diff against itself - the row should not print at
-# all rather than announce a 0-byte difference
 function test_local_omits_payload_diff_at_stock_defaults() {
   local dir out
   dir="$_HI_WORKDIR/payloaddiff_stock"
@@ -343,14 +332,13 @@ function test_doctor_probe_snippet_runs_under_sh() {
   return 1
 }
 
-# both arms, driven by explicit byte counts so no wire assembly runs: the
-# stock figure comes from a real _hi_wire_bytes against no overlay, and the
-# floor hides small deltas
+# driven by explicit byte counts so no wire assembly runs: the stock figure
+# comes from a real _hi_wire_bytes against no overlay, the floor hides small
+# deltas, and a lighter figure (gzip jitter) is never a row
 function test_doctor_payload_diff_arms() {
   local stock out
   stock="$(_HI_CONFIG_DIR=/nonexistent-hi-doctor-stock _hi_wire_bytes)"
-  out="$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))"
-  case "$out" in *'lighter than the stock default'*) ;; *) return 1 ;; esac
+  [ -z "$(doctor_payload_diff $((stock - _HI_PAYLOAD_DIFF_FLOOR - 1024)))" ] || return 1
   out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
   case "$out" in *'heavier than the stock default'*) ;; *) return 1 ;; esac
   [ -z "$(doctor_payload_diff "$stock")" ]
@@ -779,7 +767,6 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_local"
   _hi_check "Reports the version" test_local_reports_the_version
   _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
-  _hi_check "Payload diff shown when a toggle trims the wire" test_local_reports_payload_diff_when_toggled
   _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
   _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
   _hi_check "Warns without gzip" test_local_warns_without_gzip
@@ -803,7 +790,7 @@ function run_doctor_tests() {
   _hi_check "_hi_missing_tools lists only the absent" test_missing_tools_lists_only_the_absent
   _hi_check "_hi_ladder_first picks in ladder order" test_ladder_first_picks_in_ladder_order
   _hi_check "the probe snippet runs under sh" test_doctor_probe_snippet_runs_under_sh
-  _hi_check "doctor_payload_diff: both arms and the floor" test_doctor_payload_diff_arms
+  _hi_check "doctor_payload_diff: the heavier arm and the floor" test_doctor_payload_diff_arms
 
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container

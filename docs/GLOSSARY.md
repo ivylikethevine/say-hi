@@ -49,7 +49,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.33 derived tree location](#hi33-derived-tree-location)
 - [HI.34 test suite preamble](#hi34-test-suite-preamble)
 - [HI.35 payload comment strip](#hi35-payload-comment-strip)
-- [HI.36 overlay toggle source](#hi36-overlay-toggle-source)
 - [HI.37 zsh pattern-in-variable](#hi37-zsh-pattern-in-variable)
 - [HI.38 split tar and gzip](#hi38-split-tar-and-gzip)
 - [HI.39 payload staging](#hi39-payload-staging)
@@ -297,13 +296,13 @@ command appended to their rc (`_hi_command_append`).
 
 ## HI.25 session-shell ranking
 
-`$_HI_SHELL_PREFERENCE` is an ordered list of names hi styles, plus the token
-`login` for the user's login shell; the first entry installed wins, and bash is
-the floor because `load.sh` only runs where bash exists. Its default tail is
-not a literal: `_hi_session_shell` walks `common/core.sh`'s `$_HI_SHELL_TREE`
-(`fish zsh bash dash ash sh`) and drops the tiers that need bash to be
-_missing_, leaving `fish > zsh > bash`; `hi.sh`'s `$_HI_SHELL_LADDER` is the
-same tree with bash removed. One list, two consumers.
+The session shell is the user's login shell when hi styles it, else the first
+installed of the names hi styles; bash is the floor because `load.sh` only
+runs where bash exists. The tail is not a literal: `_hi_session_shell` walks
+`common/core.sh`'s `$_HI_SHELL_TREE` (`fish zsh bash dash ash sh`) and drops
+the tiers that need bash to be _missing_, leaving `fish > zsh > bash`;
+`hi.sh`'s `$_HI_SHELL_LADDER` is the same tree with bash removed. One list,
+two consumers.
 
 `login` leads because a ranking that leads with fish hands it to anyone whose
 box has it, so a user whose login shell is zsh-with-oh-my-zsh would never see
@@ -313,7 +312,8 @@ their own setup.
 
 `targets.sh` runs on every TAB after `hi` and a space — say-hi's most
 latency-sensitive path and its slowest (every backend but ssh is a
-subprocess, one per CLI on `$PATH`). Two knobs keep it honest.
+subprocess, one per CLI on `$PATH`). Two internal knobs keep it honest -
+environment variables the suites and the bench set, not settings.
 
 `_HI_PROBE_TIMEOUT` — seconds a backend CLI gets (default 2; needs GNU or
 busybox `timeout`; shared with `common/core.sh`'s `_hi_probe`). It bounds the
@@ -500,19 +500,6 @@ silently stop stripping the rest of the file.
 parses, and `hi.sh` keeps its exec bit — the write-back is HI.09's `cat`, for
 the same reason.
 
-## HI.36 overlay toggle source
-
-`_hi_overlay_toggle` (`hi.sh`, over `common/core.sh`'s `_hi_setting_get`)
-reads `$_HI_CONFIG_DIR/settings.sh` as a _file_, not off the exported
-environment: settings.sh rides along and is sourced on the target, so the file
-holds the value that will apply there. The client's exported copy means
-something else — `_HI_DISABLE_LOCAL=1` is "leave my machine alone but style
-the hosts I visit", and trimming the payload on it would stop shipping files
-to targets that never disabled them. `_hi_setting_get` sources the file in a
-subshell and reads one name back, so it sees what a real `.` would — quoted or
-bare values, the install marker after a bare one, last assignment wins — and
-nothing in the subshell reaches the caller.
-
 ## HI.37 zsh pattern-in-variable
 
 `_hi_ssh_pattern_hit` (`common/core.sh`) matches a name against `Host`/`Match
@@ -554,21 +541,16 @@ again on bsdtar, but a working payload.
 
 ## HI.39 payload staging
 
-`_hi_payload_tar` (`hi.sh`) ships the tree minus whatever the overlay has
-switched off, comment-stripped (HI.35).
-
-**Trimmed by toggle, on the client.** `$_HI_PAYLOAD` is whole directories, so
-without `_HI_TRIM_TABLE` a session ships files it has been told not to use;
-the client reads `settings.sh` (HI.36) before building the tar, so this costs
-no probe. One table feeds both halves — tree files and the overlay files a
-toggle takes off — because off has to take _both_ off or a switched-off toggle
-still ships a file. `settings/aliases.sh` is never trimmed: it carries the
-whole alias set, and the editor aliases test their rc files exist first, so
-trimming those is safe.
+`_hi_payload_tar` (`hi.sh`) ships the tree, comment-stripped (HI.35). What
+ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
+toggle is read where it applies, and a session that switched something off
+carries the file and leaves it alone (a per-toggle trim of the tar was tried
+and retired - it saved about a kilobyte for a cache key, a second table and
+an exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
-(same exclusion list; `-h` resolves symlinks so the stage holds real files).
+(`-h` resolves symlinks so the stage holds real files).
 The subshell lets cleanup be an `EXIT` trap rather than an `rm` on each way
 out — a ^C during a slow build would otherwise leave the stage in the client's
 tmp. `INT` and `TERM` are trapped explicitly to `exit`, since a signal that
@@ -853,9 +835,8 @@ multiplexer session named `hi-<target>` and never returns; a second `hi --mux`
 to the same target joins the running session. It is the client-side answer to
 a dropped link - the target-side `--tmux` was removed on 2026-08-21 because a
 disposable tree cannot outlive its own session, and this leaves the target
-untouched. `_hi_mux_tool` picks the multiplexer: `$_HI_MUX_TOOL` when set,
-else the first of tmux, zellij, screen on `PATH`, each driven in its own
-idiom:
+untouched. `_hi_mux_tool` picks the multiplexer: the first of tmux, zellij,
+screen on `PATH`, each driven in its own idiom:
 
 - **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.
 - **screen**: `-D -R -S <name> sh -c <one string>`; `-D -R` reattaches a
@@ -879,8 +860,7 @@ Five rules in `_hi_mux_wrap`:
   the wrap returns at once when that is set, which is what keeps a
   `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It
   also stands down, un-wrapped, without a terminal on stdin (nothing to
-  attach) or without a multiplexer to use (with a warning that names the
-  setting when `$_HI_MUX_TOOL` asked for one that is absent or unknown).
+  attach) or without a multiplexer to use.
 - **One string.** tmux hands the command to its `default-shell`, which may be
   fish, and screen to `sh -c`, so the argv is joined into one string with
   `_hi_shquote` (HI.40): single quotes are the one form every shell reads the

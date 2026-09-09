@@ -87,7 +87,7 @@ function _hi_draw_width() {
 # their own - the point of this whole cascade. Armed only for the span of
 # hi_header's row loop, the one caller with a "next row" to hand cells to;
 # every other caller (configure.sh's previews, `hi --doctor`, a suite calling
-# header_row/system_info/identity directly) stays unarmed, and unarmed
+# header_row directly) stays unarmed, and unarmed
 # header_row drains its own carry before returning - so standalone output is
 # unchanged from before this cascade existed.
 _HI_ROW_CARRY_ARMED=0
@@ -266,8 +266,7 @@ function _hi_load_pct() {
 }
 
 # <seconds> humanized to at most two units, largest first - a header cell,
-# not a stopwatch. Shared by _hi_cell_uptime and nothing else; system_info no
-# longer touches uptime at all.
+# not a stopwatch. Shared by _hi_cell_uptime and nothing else.
 function _hi_humanize_uptime() {
   local s="$1"
   if ((s >= 86400)); then
@@ -279,7 +278,7 @@ function _hi_humanize_uptime() {
   fi
 }
 
-# The detection system_info()'s five cells share, run once per shell and
+# The detection the five sysinfo cells (os arch cores cpu ram) share, run once per shell and
 # memoized into $_HI_SI_* (fully rendered, colored cell text - the same
 # memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells into
 # independently orderable/toggleable $_HI_HEADER_ORDER words costs nothing
@@ -422,24 +421,10 @@ function _hi_cell_cores() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CO
 function _hi_cell_cpu() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_CPU; }
 function _hi_cell_ram() { _hi_probed_cell "$1" _hi_system_info_probe _HI_SI_RAM; }
 
-# The group wrapper: unchanged output for tests/common/header_test.sh, which
-# uses it as a render entry point. Not a compatibility surface for anything
-# else - scripts/doctor.sh calls the probe, not this - and saying so is what
-# stops the next reader from keeping generality nothing wants.
-function system_info() {
-  local arch os cores cpu ram
-  _hi_cell_arch arch
-  _hi_cell_os os
-  _hi_cell_cores cores
-  _hi_cell_cpu cpu
-  _hi_cell_ram ram
-  header_row "$arch" "$os" "$cores" "$cpu" "$ram"
-}
-
-# <var> gets the uptime cell, folded into identity() rather than a row of its
-# own so it rides the wrap instead of always costing a line. Its own probe
-# rather than sharing system_info's state - only "which command answers how
-# long this box has been up" is common to the two - but the platform question
+# <var> gets the uptime cell, one of the identity-group words rather than a
+# row of its own so it rides the wrap instead of always costing a line. Its
+# own probe rather than sharing the sysinfo cells' state - only "which command
+# answers how long this box has been up" is common to the two - but the platform question
 # itself is _hi_platform's, so the `uname` behind it is paid once per session
 # rather than once per probe.
 function _hi_cell_uptime() {
@@ -537,7 +522,7 @@ function _hi_ip_filter() {
   printf -v "$1" '%s' "$_hi_if_kept"
 }
 
-# identity()'s backend probes are independent and each capped at
+# The identity cells' backend probes are independent and each capped at
 # $_HI_PROBE_TIMEOUT: started together they cost the longest, not the sum.
 # Files rather than process substitutions, which would wait on each in turn.
 # `wait <pid>` and never `wait -n`: macOS ships bash 3.2.
@@ -563,13 +548,13 @@ function _hi_probe_wait() {
 # so a host answering none of the three pays no mktemp and no rm.
 _HI_PROBE_DIR=""
 
-# Start whichever backends this host can answer, all at once. Split out of
-# identity() so hi_header can start them first and the other rows run in
-# their shadow.
+# Start whichever backends this host can answer, all at once. Its own
+# function so hi_header can start them first and the other rows run in their
+# shadow.
 function _hi_probe_launch() {
   local cli clis="" nomad=0 kube=0
-  # idempotent: hi_header starts these early, and identity() calls it too so a
-  # direct `identity` (the suites, hi --doctor) still probes
+  # idempotent: hi_header starts these early, and _hi_identity_probe calls it
+  # too so a direct cell read (the suites, hi --doctor) still probes
   [ -z "$_HI_PROBE_DIR" ] || return 0
   # one lane per docker-compatible CLI on $PATH (GLOSSARY: HI.51); the cell
   # below unions the lanes, so two CLIs fronting one daemon count once
@@ -591,8 +576,8 @@ function _hi_probe_launch() {
 }
 
 # git identity (domain masked), containers/jobs/pods, ssh key counts - the
-# detection identity()'s cells share, memoized into $_HI_ID_* the same way
-# _hi_system_info_probe memoizes system_info()'s. $_HI_ID_CONTAINERS/_JOBS/_PODS
+# detection the identity cells share, memoized into $_HI_ID_* the same way
+# _hi_system_info_probe memoizes the sysinfo cells'. $_HI_ID_CONTAINERS/_JOBS/_PODS
 # stay empty when that backend's probe never ran - a getter checks for that
 # itself, same "cell appears only when the probe actually ran" rule as
 # before. Uptime is not part of this probe: _hi_cell_uptime already has its
@@ -662,28 +647,6 @@ function _hi_cell_jobs() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_JOBS; 
 function _hi_cell_pods() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PODS; }
 function _hi_cell_auth() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_AUTH; }
 function _hi_cell_pub() { _hi_probed_cell "$1" _hi_identity_probe _HI_ID_PUB; }
-
-# The group wrapper: unchanged output for tests/common/header_test.sh, which
-# uses it as a render entry point. Not a compatibility surface for anything
-# else - scripts/doctor.sh calls the probe, not this - and saying so is what
-# stops the next reader from keeping generality nothing wants.
-function identity() {
-  local gitid containers jobs pods auth pub up_cell
-  local -a cells
-  _hi_cell_gitid gitid
-  _hi_cell_containers containers
-  _hi_cell_jobs jobs
-  _hi_cell_pods pods
-  _hi_cell_auth auth
-  _hi_cell_pub pub
-  _hi_cell_uptime up_cell
-  cells=("$gitid")
-  [ -n "$containers" ] && cells+=("$containers")
-  [ -n "$jobs" ] && cells+=("$jobs")
-  [ -n "$pods" ] && cells+=("$pods")
-  cells+=("$auth" "$pub" "$up_cell")
-  header_row "${cells[@]}"
-}
 
 # "~~~ <label> [host] ~~~" prefixed with say-hi's local change count, always
 # _hi_draw_width columns wide

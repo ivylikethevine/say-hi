@@ -58,7 +58,7 @@ function _hi_mux_run() {
     screen) export STY=1234.pts-0.host ;;
     zellij) export ZELLIJ=0 ;;
     esac
-    unset _HI_MUX_INNER _HI_MUX_TOOL
+    unset _HI_MUX_INNER
     MUX=1 DOMAIN=myhost SSHARGS=() BACKEND="" PLAIN="" RAWCMD=""
     eval "$state"
     _hi_mux_wrap
@@ -191,8 +191,8 @@ function test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state() {
 
 # --- screen and zellij -----------------------------------------------------
 
-# no _HI_MUX_TOOL: the first of tmux, zellij, screen on PATH - here tmux is
-# absent from the shim dir and the real PATH is a toolbox without one
+# the first of tmux, zellij, screen on PATH - here tmux is absent from the
+# shim dir and the real PATH is a toolbox without one
 function test_mux_tool_picks_the_first_present_in_order() {
   local log="$_HI_WORKDIR/pick.log" out
   # shellcheck disable=SC2016 # evaluated in the subshell
@@ -201,25 +201,10 @@ function test_mux_tool_picks_the_first_present_in_order() {
   case "$out" in *SCREEN*) return 1 ;; esac
 }
 
-# a tool named by the setting that is not here: connect un-wrapped, with the
-# warning naming the setting; an unknown name likewise
-function test_mux_tool_setting_names_an_absent_or_unknown_tool() {
-  local log="$_HI_WORKDIR/absent.log" out err
-  # shellcheck disable=SC2016
-  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=screen; PATH="$bin:$(_hi_real_path muxabsent sh sed cat printf grep)"' tmux)"
-  [ "$out" = RETURNED ] || return 1
-  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=byobu' tmux)"
-  [ "$out" = RETURNED ] || return 1
-  err="$( (
-    PATH="$(_hi_mux_shim "$log" tmux):$PATH"
-    _HI_MUX_TOOL=byobu _hi_mux_tool _hi_unused 2>&1 >/dev/null
-  ) || true)"
-  [[ "$err" == *"byobu"*"not one of tmux, zellij or screen"* ]]
-}
-
 function test_mux_screen_outside_execs_D_R_named_for_the_target() {
   local log="$_HI_WORKDIR/screen.log" out
-  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=screen' tmux screen)"
+  # shellcheck disable=SC2016 # evaluated in the subshell
+  out="$(_hi_mux_run "$log" 0 'PATH="$bin:$(_hi_real_path muxonly sh sed cat printf grep)"' screen)"
   case "$out" in
   "SCREEN -D -R -S hi-myhost sh -c "*"_HI_MUX_INNER=1"*"$_HI_LAUNCHER"*"'myhost'"*) ;;
   *) return 1 ;;
@@ -231,7 +216,8 @@ function test_mux_screen_outside_execs_D_R_named_for_the_target() {
 # and the wrap exits once it is made
 function test_mux_screen_inside_opens_a_window_and_stops() {
   local log="$_HI_WORKDIR/screen-in.log" out
-  out="$(_hi_mux_run "$log" screen 'export _HI_MUX_TOOL=screen' tmux screen)"
+  # shellcheck disable=SC2016 # evaluated in the subshell
+  out="$(_hi_mux_run "$log" screen 'PATH="$bin:$(_hi_real_path muxonly sh sed cat printf grep)"' screen)"
   [ "$(printf '%s\n' "$out" | grep -c '^SCREEN')" = 1 ] || return 1
   case "$out" in "SCREEN -t hi-myhost sh -c "*"'myhost'"*) ;; *) return 1 ;; esac
   case "$out" in *RETURNED*) return 1 ;; esac
@@ -241,7 +227,8 @@ function test_mux_screen_inside_opens_a_window_and_stops() {
 # each a KDL string, in a pane that closes with the session
 function test_mux_zellij_outside_writes_a_layout_and_starts_a_session() {
   local log="$_HI_WORKDIR/zellij.log" out layout
-  out="$(_hi_mux_run "$log" 0 "export _HI_MUX_TOOL=zellij; RAWCMD=\"echo \\\"it's\\\"\"" tmux zellij)"
+  # shellcheck disable=SC2016 # evaluated in the subshell
+  out="$(_hi_mux_run "$log" 0 'PATH="$bin:$(_hi_real_path muxonly sh sed cat printf grep)"; RAWCMD="echo \"it'"'"'s\""' zellij)"
   case "$out" in
   *"ZELLIJ --session hi-myhost --new-session-with-layout "*) ;;
   *) return 1 ;;
@@ -255,7 +242,8 @@ function test_mux_zellij_outside_writes_a_layout_and_starts_a_session() {
 
 function test_mux_zellij_reattaches_a_running_session() {
   local log="$_HI_WORKDIR/zellij-re.log" out
-  out="$(_hi_mux_run "$log" 0 'export _HI_MUX_TOOL=zellij _HI_TEST_ZSESSIONS=hi-myhost' tmux zellij)"
+  # shellcheck disable=SC2016 # evaluated in the subshell
+  out="$(_hi_mux_run "$log" 0 'PATH="$bin:$(_hi_real_path muxonly sh sed cat printf grep)"; export _HI_TEST_ZSESSIONS=hi-myhost' zellij)"
   [ "$(printf '%s\n' "$out" | sed -n '1p')" = "ZELLIJ list-sessions --short" ] || return 1
   [ "$(printf '%s\n' "$out" | sed -n '2p')" = "ZELLIJ attach hi-myhost" ] || return 1
   case "$out" in *RETURNED*) return 1 ;; esac
@@ -263,7 +251,8 @@ function test_mux_zellij_reattaches_a_running_session() {
 
 function test_mux_zellij_inside_opens_a_tab_and_stops() {
   local log="$_HI_WORKDIR/zellij-in.log" out
-  out="$(_hi_mux_run "$log" zellij 'export _HI_MUX_TOOL=zellij' tmux zellij)"
+  # shellcheck disable=SC2016 # evaluated in the subshell
+  out="$(_hi_mux_run "$log" zellij 'PATH="$bin:$(_hi_real_path muxonly sh sed cat printf grep)"' zellij)"
   [ "$(printf '%s\n' "$out" | grep -c '^ZELLIJ')" = 1 ] || return 1
   case "$out" in "ZELLIJ action new-tab --name hi-myhost --layout "*) ;; *) return 1 ;; esac
   case "$out" in *RETURNED*) return 1 ;; esac
@@ -300,7 +289,6 @@ function run_hi_mux_tests() {
   _hi_check "The inner argv is the parsed state, quoted" test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state
   _hi_h2 "Testing: screen and zellij"
   _hi_check "No setting: first of tmux, zellij, screen on PATH" test_mux_tool_picks_the_first_present_in_order
-  _hi_check "_HI_MUX_TOOL absent here, or unknown: un-wrapped, warned" test_mux_tool_setting_names_an_absent_or_unknown_tool
   _hi_check "screen, outside: exec screen -D -R -S hi-<target>" test_mux_screen_outside_execs_D_R_named_for_the_target
   _hi_check "screen, inside: a new window, then stop" test_mux_screen_inside_opens_a_window_and_stops
   _hi_check "zellij, outside: a layout file, then a new session" test_mux_zellij_outside_writes_a_layout_and_starts_a_session

@@ -2,8 +2,8 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's pure helpers: the quoting/armor pair every baked
-# script rides through, the target-grammar splitters, the size reporters, the
-# trim table, and the flags-table renderers. Sourcing hi.sh goes through the
+# script rides through, the target-grammar splitters, the size reporters and
+# the flags-table renderers. Sourcing hi.sh goes through the
 # same `[[ BASH_SOURCE == $0 ]]` hatch payload_test.sh uses; nothing here
 # connects to anything.
 #
@@ -77,24 +77,6 @@ function test_file_bytes_counts() {
   local f="$_HI_WORKDIR/five.bytes"
   printf '12345' >"$f"
   [ "$(_hi_file_bytes "$f")" = 5 ]
-}
-
-# the trim table, read through a real settings.sh rather than the environment
-function test_trimmed_reads_the_overlay() {
-  local dir="$_HI_WORKDIR/trim.cfg" tree overlay
-  mkdir -p "$dir"
-  printf 'export _HI_DISABLE_EDITORS=1\n' >"$dir/settings.sh"
-  _HI_CONFIG_DIR="$dir" _hi_trimmed tree tree
-  _HI_CONFIG_DIR="$dir" _hi_trimmed overlay overlay
-  case "$tree" in *say-hi/settings/vim.rc*say-hi/settings/nano.rc*) ;; *) return 1 ;; esac
-  case "$overlay" in *vim.rc*nano.rc*) ;; *) return 1 ;; esac
-}
-
-function test_trimmed_empty_without_settings() {
-  local dir="$_HI_WORKDIR/trim.none" tree
-  mkdir -p "$dir"
-  _HI_CONFIG_DIR="$dir" _hi_trimmed tree tree
-  [ -z "${tree// /}" ]
 }
 
 function test_target_color_memoizes_the_domain() {
@@ -272,9 +254,6 @@ function run_hi_helpers_test() {
   _hi_check "_hi_human_bytes picks the unit" test_human_bytes_units
   _hi_check "_hi_file_bytes counts bytes" test_file_bytes_counts
 
-  _hi_h2 "Testing: the trim table"
-  _hi_check "Reads the overlay's settings.sh" test_trimmed_reads_the_overlay
-  _hi_check "Empty without one" test_trimmed_empty_without_settings
   _hi_check "_hi_target_color memoizes the domain's color" test_target_color_memoizes_the_domain
 
   _hi_h2 "Testing: the command plumbing"

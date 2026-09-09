@@ -78,10 +78,6 @@ otherwise in the best of fish > zsh > bash. Both halves come off one
 ordering \- fish > zsh > bash > dash > ash > sh \- so a target with no bash
 at all falls back to the best of the rest of it: fish > zsh > dash > ash > sh,
 with hi's aliases and colored prompt but no header.
-.B _HI_SHELL_PREFERENCE
-(see
-.BR ENVIRONMENT )
-reorders the styled three.
 .SH TARGET RESOLUTION
 .I target
 is tried against each backend, in order; the first match wins:
@@ -208,9 +204,7 @@ run the session inside a local multiplexer session \-
 .BR zellij (1)
 or
 .BR screen (1),
-whichever
-.B _HI_MUX_TOOL
-names, else the first of the three on your PATH \- named for the target
+whichever is first on your PATH \- named for the target
 .RB ( hi\-<target> ,
 with the characters tmux rejects turned into dashes), so a dropped link leaves
 the session running here: the next
@@ -232,6 +226,16 @@ says \- the way out of that default for one connect. Of
 and
 .BR \-\-no\-mux ,
 the last one on the line wins.
+.PP
+The local commands act on this machine instead of connecting, and each needs
+a part of the tree that is not always present. All of them want
+.BR scripts/ ,
+which a package\-manager install ships but a hi session does not \- so inside a
+session each says so and stops.
+.B \-\-update
+wants
+.B .git
+on top of that, and a package carries none.
 .TP
 .B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
 print one of three things and exit, instead of connecting.
@@ -243,23 +247,6 @@ is the package\-priority legend, as the header's check prints it, with the
 ranks the floor silences marked.
 .B header
 is the connect header itself, as it prints here at your settings.
-.B colors
-wants
-.BR scripts/ ,
-so inside a session it says so and stops; the other two have a full form
-there too and fall back to the check and the header out of the shipped
-.B common/header.sh
-on a target.
-.PP
-The local commands act on this machine instead of connecting, and each needs
-a part of the tree that is not always present. All of them want
-.BR scripts/ ,
-which a package\-manager install ships but a hi session does not \- so inside a
-session each says so and stops.
-.B \-\-update
-wants
-.B .git
-on top of that, and a package carries none.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting
@@ -469,11 +456,8 @@ every target: the
 entries in
 .B ~/.ssh/config
 plus every running container, allocation and pod, each tagged with the
-backend it came from. The list is reused for
-.B $_HI_TARGETS_TTL
-seconds and each backend gets
-.B $_HI_PROBE_TIMEOUT
-to answer, because this runs on every keypress.
+backend it came from. The list is reused for five seconds and each backend
+gets two seconds to answer, because this runs on every keypress.
 .TP
 .B hi \-\-<TAB>
 hi's own options, each with its one\-line purpose where the shell has a
@@ -568,14 +552,6 @@ the parent of the
 directory; set by
 .B /etc/profile.d/say-hi.sh
 for packaged installs.
-.TP
-.B _HI_SHELL_PREFERENCE
-ordered list of session shells to try
-.RB ( login
-means your login shell); default
-.BR login ,
-then the shells hi styles in preference order:
-.BR "fish zsh bash" .
 .TP
 .B _HI_CONTAINER_CLIS
 the docker\-compatible CLIs a container is listed and reached through, in

@@ -172,8 +172,8 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
       -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image=hi-demo-tools-img
     ;;
-  # fish with bash beside it: a box hi can give a *full* session on, in fish,
-  # when _HI_SHELL_PREFERENCE says so - the overlay demo's second target, since
+  # fish with bash beside it: a box hi can give a *full* session on, in fish
+  # (fish leads the shell tree) - the overlay demo's second target, since
   # the bash-less aliases-only tier ships hi's own aliases and not the overlay
   fish-bash)
     "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
@@ -558,14 +558,12 @@ EOF
 up:overlay)
   # The ops persona: fish on a bastion, into a docker box and a podman box.
   # The header trimmed to what an operator looks at - clocks, the backend
-  # counts, the check - painted with the mono ramp; the fish session on the
-  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here: podman
+  # counts, the check - painted with the mono ramp. No throwaway $HOME here: podman
   # lives under the real one.
   client_rc fish ops bastion
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='mono'
-export _HI_SHELL_PREFERENCE='fish'
 EOF
   # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
   # says the file has to stay in, and one of the *_OPTS the shipped `cat` alias

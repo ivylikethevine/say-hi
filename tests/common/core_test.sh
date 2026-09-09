@@ -738,13 +738,13 @@ function test_zsh_rc_survives_ksharrays_being_on() {
   [ -n "$out" ]
 }
 
-# Every row has all six fields, both rc paths are absolute, and the flags
-# column names only mechanisms that exist. A row short a field silently
-# hands install.sh an empty rc path, which is a `touch ""` at install time.
+# Every row has all six fields and both rc paths are absolute. A row short a
+# field silently hands install.sh an empty rc path, which is a `touch ""` at
+# install time.
 function test_shell_table_rows_are_wellformed() {
-  local row shell label tree home check flags dialect rest
+  local row shell label tree home check dialect rest
   for row in "${_HI_SHELL_TABLE[@]}"; do
-    IFS='|' read -r shell label tree home check flags dialect rest <<<"$row"
+    IFS='|' read -r shell label tree home check dialect rest <<<"$row"
     [ -n "$shell" ] && [ -n "$label" ] && [ -n "$check" ] || {
       _hi_cecho " | thin row: $row" "$RED"
       return 1
@@ -764,13 +764,6 @@ function test_shell_table_rows_are_wellformed() {
     /*/*) ;;
     *)
       _hi_cecho " | rc paths must be absolute: $row" "$RED"
-      return 1
-      ;;
-    esac
-    case ",$flags," in
-    *,local,*) ;;
-    *)
-      _hi_cecho " | no known mechanism in flags: $row" "$RED"
       return 1
       ;;
     esac
@@ -896,17 +889,6 @@ function test_escape_var_forms_fill_the_caller() {
     _hi_user_escape u
     [ "$h" = "$(_hi_host_escape)" ] && [ "$u" = "$(_hi_user_escape)" ]
   )
-}
-
-# _hi_shell_rows with no argument is the whole roster; with one, only the rows
-# carrying that flag.
-function test_shell_rows_filters_by_flag() {
-  local all local_rows
-  all="$(_hi_shell_rows | wc -l)"
-  local_rows="$(_hi_shell_rows local | wc -l)"
-  [ "$all" -eq "${#_HI_SHELL_TABLE[@]}" ] || return 1
-  [ "$local_rows" -gt 0 ] && [ "$local_rows" -le "$all" ] || return 1
-  [ -z "$(_hi_shell_rows nosuchflag)" ]
 }
 
 # the version, unpresented: a packager's stamp wins outright, else git
@@ -1067,7 +1049,6 @@ function run_core_tests() {
   _hi_h2 "Testing: _HI_SHELL_TABLE"
   _hi_check "Every row is six well-formed fields" test_shell_table_rows_are_wellformed
   _hi_check "Every paths.sh rc var has a row" test_shell_table_covers_every_rc_path_var
-  _hi_check "_hi_shell_rows filters by flag" test_shell_rows_filters_by_flag
 
   _hi_h2 "Testing: the small formatters"
   _hi_check "_hi_repeat makes count copies" test_repeat_makes_count_copies

@@ -161,7 +161,7 @@ function test_remote_probe_covers_every_rc_in_the_roster() {
   while IFS='|' read -r _shell _label _tree_rc _home_rc _rest; do
     rel="${_home_rc#"$HOME/"}"
     case "$probe" in *"$rel"*) ;; *) return 1 ;; esac
-  done < <(_hi_shell_rows local)
+  done < <(_hi_shell_rows)
 }
 
 # an interactive session chainloads load.sh then calls load()
