@@ -533,15 +533,8 @@ branch protection refuses a bot commit, the same reason the tests badge is
 published rather than written into README.
 
 The top-of-README `demo.gif` claims to be the stock defaults, so it is stale
-the moment the header, the prompt or the tape changes.
-[`.github/hooks/demo_staleness.sh`](../.github/hooks/demo_staleness.sh) compares its
-last commit against the tape, the fixtures and the shipped tree; `ci.yml`'s
-`advisory-lint` job runs it on every pull request as a warning, and it only
-ever warns. To hear it before the push:
-
-```sh
-git config core.hooksPath .github/hooks
-```
+the moment the header, the prompt or the tape changes; re-render it by hand
+when one of those moves.
 
 Each tape's header names the persona it is shot for - the ops bastion, the
 developer on a shared dev box, the homelab tinkerer, the researcher at a

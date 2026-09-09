@@ -291,6 +291,63 @@ function demo_settings() { # [outfile] - body on stdin
   } >"$out"
 }
 
+# The same roster with real connection details for the sshd boxes named, for
+# the demos that both *list* hosts and *connect* to one from a throwaway $HOME:
+# the tape types `hi db-prod` bare, so its port and key have to be in the file
+# ssh reads. `# Tags:` stays above each live block - it is what the hosttag
+# pins resolve from, and a live host without one would color by its name hash
+# and quietly stop being the demo.
+function demo_ssh_config_live() { # <name:tag...>
+  local spec name tag
+  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
+  {
+    for spec in "$@"; do
+      name="${spec%%:*}"
+      tag="${spec#*:}"
+      [ -n "$tag" ] && printf '# Tags: %s\n' "$tag"
+      demo_ssh_block "$name"
+      echo
+    done
+    cat <<'EOF'
+# Tags: prod
+Host web-prod
+  User deploy
+
+# Tags: staging
+Host db-staging
+  User deploy
+
+# Tags: desktop
+Host workshop
+  User hitest
+
+Host build-box
+  User ci
+
+Host bastion
+  User root
+EOF
+  } >"$_HI_DEMO_DIR/home/.ssh/config"
+}
+
+# ...and the colors overlay, which lands somewhere else again: paths.sh:30
+# reads `colors` out of $_HI_CONFIG_DIR, the same overlay dir every other demo
+# writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
+# preview's table and the two sessions after it are the same names.
+function up_colors() {
+  up_ssh db-prod dev-1 || return 1
+  demo_ssh_config_live db-prod:prod dev-1:dev
+  demo_overlay colors <<'EOF'
+# pins beat the name hash; everything unpinned still resolves on its own
+username,root,red
+hostname,bastion,yellow
+hosttag,prod,red
+hosttag,dev,green
+hosttag,staging,yellow
+hosttag,desktop,green
+EOF
+}
+
 # The other overlay files a demo can ship, into the same $_HI_DEMO_DIR/config
 # that settings.sh lands in - hi.sh's _HI_OVERLAY_FILES carries both to the
 # target, which is the point of showing either. Body on stdin.

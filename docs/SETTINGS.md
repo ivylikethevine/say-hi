@@ -413,12 +413,19 @@ subnet or domain at once, no ssh-config entry needed — the first matching
 pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash; a pin always beats the hash.
 
-The vocabulary is those twelve names, and stays so - a pin, the hash and
-`hi --preview colors` never see anything else. What each name _renders as_
-is `_HI_COLOR_SCHEME`'s: unset, the terminal's own sixteen colors; set to
-`catppuccin`, `monokai`, `onedark` or `vscode`, that scheme's hex for each
-name, emitted as one escape that carries the 16-color code first and the
-24-bit color after it, so a terminal that ignores the second keeps the first.
+The vocabulary is twenty-four names: the terminal's twelve (`red`, `green`,
+`yellow`, `blue`, `magenta`, `cyan` and their `br` forms) and twelve more -
+`orange`, `pink`, `teal`, `lime`, `violet`, `salmon`, `gold`, `sky`,
+`indigo`, `mint`, `peach`, `lavender` - that a pin may name and the hash
+lands on as readily as the first twelve. A pin, the hash and `hi --preview
+colors` never see anything else. What each name _renders as_ is
+`_HI_COLOR_SCHEME`'s: unset, the terminal's own sixteen colors for the first
+twelve and a built-in 24-bit color for each extra (there is no 16-color
+orange); set to `catppuccin`, `monokai`, `onedark` or `vscode`, that scheme's
+hex for every name. Each is emitted as one escape that carries a 16-color
+code first and the 24-bit color after it, so a terminal that ignores the
+second keeps the first - an extra name's 16-color half is the nearest of the
+sixteen (orange reads as bright yellow there, teal as cyan).
 It paints everything hi paints - the prompt, the header's cells and packages
 check, the git segment - and only on a terminal that says it can:
 `COLORTERM` set to `truecolor` or `24bit`, which hi reads on the client and
@@ -432,21 +439,22 @@ which scheme they are rendering; `hi --configure`'s Colors section shows all
 four side by side. `settings.sh` ships to every target, so a scheme follows
 you.
 
-A scheme of your own is the setting itself: twelve six-digit hex words, one
-space apart, in the order of the names above (red, green, yellow, blue,
-magenta, cyan, then the six bright ones), or twenty-four - the second twelve
-paint only the package check, so a missing favorite can shout in a different
-red from the one your prompt wears. Write it into `settings.sh` by hand:
+A scheme of your own is the setting itself: twenty-four six-digit hex words,
+one space apart, in the order of the names above (red, green, yellow, blue,
+magenta, cyan, the six bright ones, then the twelve extras), or forty-eight -
+the second twenty-four paint only the package check, so a missing favorite
+can shout in a different red from the one your prompt wears. Write it into
+`settings.sh` by hand:
 
 ```sh
-export _HI_COLOR_SCHEME='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
+export _HI_COLOR_SCHEME='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca fab387 f2cdcd 81c8be c3e88d cba6f7 eba0ac e5c890 89dceb 7287fd 8be9b0 f5a97f b4befe'
 ```
 
 The quotes matter (the value holds spaces, and fish sources the file too).
-Anything that is neither a scheme name nor exactly 12 or 24 hex words renders
-as the plain sixteen colors, `hi --doctor` says so, and the previews label it
-`(ignored - not a scheme)`; a list that parses is labelled `custom (12)` or
-`custom (24)`, and `hi --configure`'s Colors section adds it to the swatches.
+Anything that is neither a scheme name nor exactly 24 or 48 hex words renders
+as the default, `hi --doctor` says so, and the previews label it
+`(ignored - not a scheme)`; a list that parses is labelled `custom (24)` or
+`custom (48)`, and `hi --configure`'s Colors section adds it to the swatches.
 
 `hi --preview colors` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:
@@ -464,7 +472,10 @@ variables for your own `bash.sh` or `zsh.zsh` (sourced at the end of hi's,
   embed directly (wrap it in `\[ \]` so readline doesn't count its width):
   `PS1="\[$_HI_HOST_ESC\]\h\[$NC\] \w "`.
 - `$_HI_HOST_COLOR`/`$_HI_USER_COLOR` — the color by name, for zsh's own
-  `%F{}`: `PS1='%F{$_HI_HOST_COLOR}%m%f %~ '`.
+  `%F{}`: `PS1='%F{$_HI_HOST_COLOR}%m%f %~ '`. One of the twelve extras is
+  not a name `%F{}` knows: `_hi_color_base b "$_HI_HOST_COLOR"` gives the
+  sixteen-color name behind it, and `_hi_color_hex h "$_HI_HOST_COLOR"` the
+  hex for `%F{#$h}`.
 - fish needs neither: `$fish_color_host`/`$fish_color_user` are already set
   by `common/config.fish`, unconditionally, for `set_color $fish_color_host`
   in your own `fish_prompt`.

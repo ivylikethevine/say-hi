@@ -186,15 +186,17 @@ function test_color_scheme_keeps_an_existing_override() {
   [[ "$out" == *"export _HI_COLOR_SCHEME=onedark"* ]]
 }
 
-# a hand-written 12/24-word list is kept as it was, quoted (it holds spaces),
-# and the preview grows a `custom` row for it - two under 24 words
+# a hand-written 24/48-word list is kept as it was, quoted (it holds spaces),
+# and the preview grows a `custom` row for it - two under 48 words. Every
+# row but default's first line carries the 24-bit tail: four schemes and two
+# custom rows of two lines each, plus default's extras line.
 function test_color_scheme_keeps_a_hand_written_list() {
   local out
-  out="$(_hi_section_lines scheme_list config_color_scheme "export _HI_COLOR_SCHEME='$_HI_TEST_L24'")"
-  [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_L24'"* ]] || return 1
+  out="$(_hi_section_lines scheme_list config_color_scheme "export _HI_COLOR_SCHEME='$_HI_TEST_L48'")"
+  [[ "$out" == *"export _HI_COLOR_SCHEME='$_HI_TEST_L48'"* ]] || return 1
   out="$(_HI_SETTINGS="$_HI_WORKDIR/section_scheme_list/settings.sh" _hi_color_scheme_preview)"
   [[ "$out" == *custom* && "$out" == *packages* ]] || return 1
-  [ "$(printf '%s\n' "$out" | grep -c ';38;2;')" -eq 6 ]
+  [ "$(printf '%s\n' "$out" | grep -c ';38;2;')" -eq 13 ]
 }
 
 # no scheme is the default, so nothing is ever written for it
@@ -204,16 +206,17 @@ function test_color_scheme_does_not_write_the_default() {
   [ -z "$(printf '%s' "$out" | tr -d ' ')" ]
 }
 
-# five rows, one per scheme, every one but default painted with the 24-bit
-# tail (forced, so the swatches show what a capable terminal would)
+# five rows of two lines, one per scheme, every line but default's first
+# painted with the 24-bit tail (forced, so the swatches show what a capable
+# terminal would; default's extras line carries their built-in hex)
 function test_color_scheme_preview_lists_every_scheme() {
   local out scheme
   out="$(_hi_color_scheme_preview)"
   for scheme in default catppuccin monokai onedark vscode; do
     [[ "$out" == *"$scheme"* ]] || return 1
   done
-  [[ "$out" == *";38;2;"* && "$out" == *"brcyan"* ]] || return 1
-  [ "$(printf '%s\n' "$out" | grep -c ';38;2;')" -eq 4 ]
+  [[ "$out" == *";38;2;"* && "$out" == *"brcyan"* && "$out" == *"lavender"* ]] || return 1
+  [ "$(printf '%s\n' "$out" | grep -c ';38;2;')" -eq 9 ]
 }
 
 function test_ip_hide_keeps_an_existing_override() {
@@ -321,10 +324,11 @@ function test_validators_hold_their_grammars() {
   _hi_is_color_scheme vscode || return 1
   ! _hi_is_color_scheme solarized || return 1
   ! _hi_is_color_scheme "" || return 1
-  _hi_is_color_scheme "$_HI_TEST_L12" || return 1
   _hi_is_color_scheme "$_HI_TEST_L24" || return 1
-  ! _hi_is_color_scheme "$_HI_TEST_L12 cd3131" || return 1
-  ! _hi_is_color_scheme "zzzzzz ${_HI_TEST_L12#* }" || return 1
+  _hi_is_color_scheme "$_HI_TEST_L48" || return 1
+  ! _hi_is_color_scheme "${_HI_TEST_L24% * * * * * * * * * * * *}" || return 1
+  ! _hi_is_color_scheme "$_HI_TEST_L24 cd3131" || return 1
+  ! _hi_is_color_scheme "zzzzzz ${_HI_TEST_L24#* }" || return 1
   ! _hi_is_color_scheme custom || return 1
   _hi_is_ip_hide '172.*' || return 1
   _hi_is_ip_hide '10.* 192.168.?.*' || return 1
@@ -1404,9 +1408,9 @@ function test_color_scheme_asked_interactively_takes_a_word() {
 
 # a hand-written list shows as `custom`, and Enter keeps the list
 function test_color_scheme_shows_a_list_as_custom_and_keeps_it() {
-  _hi_cfg_pty scheme_custom '\n' "export _HI_COLOR_SCHEME='$_HI_TEST_L12'" config_color_scheme || return 1
+  _hi_cfg_pty scheme_custom '\n' "export _HI_COLOR_SCHEME='$_HI_TEST_L24'" config_color_scheme || return 1
   _hi_cfg_has scheme_custom "[custom]" &&
-    [ "$(_hi_cfg_lines scheme_custom)" = "export _HI_COLOR_SCHEME='$_HI_TEST_L12'" ]
+    [ "$(_hi_cfg_lines scheme_custom)" = "export _HI_COLOR_SCHEME='$_HI_TEST_L24'" ]
 }
 
 # typing the default clears an override rather than restating it

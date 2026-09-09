@@ -750,11 +750,18 @@ hues.
 
 ## HI.50 truecolor color schemes
 
-`_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twelve palette names
-render as; it never adds a name. `_hi_hash_color`, the `settings/colors`
-pins, `_hi_color_escape` and `hi --preview colors` all keep the same
-vocabulary, so a scheme is invisible to everything that reasons about a
-color by name - only the bytes a name turns into change.
+`_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twenty-four palette
+names render as; it never adds a name. `_hi_hash_color`, the
+`settings/colors` pins, `_hi_color_escape` and `hi --preview colors` all keep
+the same vocabulary, so a scheme is invisible to everything that reasons
+about a color by name - only the bytes a name turns into change. The names
+are the terminal's twelve plus twelve extras (orange, pink, teal, ...) that
+no 16-color code spells: `_HI_COLOR_FALLBACK` gives every slot its
+`<bold><hue>` pair - an extra's is the nearest of the sixteen - and with no
+scheme the first twelve render as that pair alone while the extras carry a
+built-in hex, so a truecolor terminal shows an orange host as orange without
+anyone choosing a scheme. `_hi_color_base` is the pair as a name, for zsh's
+`%F{}` and fish's `set_color`, which know the sixteen and nothing else.
 
 Those bytes are **one SGR**, `\e[<bold>;3<n>;38;2;<r>;<g>;<b>m`: the
 16-color pair first, the 24-bit triple after it. A terminal that ignores
@@ -769,7 +776,8 @@ still the hue.
 The hex tables are a fixed-width string per scheme, sliced by offset
 (`_hi_scheme_hex`): no arrays, because zsh indexes them from 1 and sources
 this file; no separate data file, because the payload strips comments and
-the twelve six-digit words are the only bytes that cost anything on the wire.
+the twenty-four six-digit words are the only bytes that cost anything on the
+wire.
 `_hi_assign_palette` builds the exported `$RED..$BRCYAN` through the same
 primitive as `_hi_color_escape`, so the two can never disagree and
 `scripts/configure.sh`'s previews can rebuild the palette under a pending
@@ -777,12 +785,12 @@ answer.
 
 **A scheme of the user's own is the same string, in the setting.**
 `_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
-12, 24 or 0: exactly that many six-digit hex words one space apart is a
+24, 48 or 0: exactly that many six-digit hex words one space apart is a
 scheme, anything else is a name (or nothing), and a name the `case` does not
-know falls back to sixteen colors as it always did. Twenty-four words are
-two banks of the twelve names. `_hi_scheme_hex` takes slot indexes 0-23 and
-folds 12-23 onto 0-11 for every table but a 24-word list, and
-`_hi_color_escape_at` derives the 16-color half from the index mod 12, so a
+know renders as the default. Forty-eight words are two banks of the
+twenty-four names. `_hi_scheme_hex` takes slot indexes 0-47 and folds 24-47
+onto 0-23 for every table but a 48-word list, and `_hi_color_escape_at`
+reads the 16-color half off `_HI_COLOR_FALLBACK` at the index mod 24, so a
 second-bank escape wears the same `\e[<bold>;3<n>` as its name, so every hue
 and width reader above still works. Only `common/header.sh`'s packages check reads the
 second bank: `_hi_packages_palette` rebuilds `_HI_YES`/`_HI_NO` from it after

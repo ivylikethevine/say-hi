@@ -247,7 +247,7 @@ function _hi_is_packages_palette() {
 
 # $_HI_COLOR_SCHEME's vocabulary: the schemes core.sh's _hi_scheme_hex knows,
 # `default` for none (ask_value blanks it, which clears the line), or a list
-# of 12/24 hex words - a scheme of the user's own, which config_color_scheme
+# of 24/48 hex words - a scheme of the user's own, which config_color_scheme
 # keeps rather than asks for. `custom` is what that shows as, never a value.
 function _hi_is_color_scheme() {
   [ "$1" = default ] || _hi_scheme_ok "$1"
@@ -501,7 +501,8 @@ function _hi_packages_palette_preview() {
   fi
 }
 
-# One row per scheme, the twelve palette names painted as that scheme
+# One row per scheme, the twenty-four palette names painted as that scheme
+# (the twelve extras on a second line)
 # paints them. _HI_TRUECOLOR=1 is forced for the swatches on purpose: the
 # question is what a capable terminal will show, and the note below says so
 # when this one is not. Temporary-environment calls on a function, so
@@ -511,23 +512,27 @@ function _hi_color_scheme_preview() {
   # shellcheck disable=SC2153 # the roster is core.sh's, exported
   for scheme in default $_HI_COLOR_SCHEMES; do
     printf '   %-11s' "$scheme"
+    i=0
     for name in "${_HI_COLOR_NAMES[@]}"; do
+      [ "$i" -eq 12 ] && printf '\n   %-11s' ""
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_color_escape_var esc "$name"
       printf '%b%s%b ' "$esc" "$name" "$NC"
+      i=$((i + 1))
     done
     printf '\n'
   done
   # a hand-written list as its own row, and a second one for the bank the
-  # packages check paints from when it carries twenty-four words (HI.50)
+  # packages check paints from when it carries forty-eight words (HI.50)
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
   _HI_COLOR_SCHEME="$current" _hi_scheme_words n
   if [ "$n" -gt 0 ]; then
     for scheme in custom packages; do
-      [ "$scheme" = packages ] && [ "$n" -lt 24 ] && break
+      [ "$scheme" = packages ] && [ "$n" -lt 48 ] && break
       printf '   %-11s' "$scheme"
       i=0
-      [ "$scheme" = packages ] && i=12
+      [ "$scheme" = packages ] && i=24
       for name in "${_HI_COLOR_NAMES[@]}"; do
+        [ "$((i % 24))" -eq 12 ] && printf '\n   %-11s' ""
         _HI_COLOR_SCHEME="$current" _HI_TRUECOLOR=1 _hi_color_escape_at esc "$i"
         printf '%b%s%b ' "$esc" "$name" "$NC"
         i=$((i + 1))
@@ -1144,14 +1149,14 @@ function config_packages_palette() {
   _hi_pending_set _HI_PACKAGES_PALETTE "$value"
 }
 
-# Which truecolor scheme the twelve palette names render as, everywhere hi
+# Which truecolor scheme the palette names render as, everywhere hi
 # paints - the prompt, the header, the git segment, the packages check. A
 # word from a closed set, so ask_value; `default` clears the line. Not a
 # preset answer: a scheme is taste, not a feature level.
 function config_color_scheme() {
   local current="" shown value n
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
-  # a scheme of the user's own - 12 or 24 hex words, written into settings.sh
+  # a scheme of the user's own - 24 or 48 hex words, written into settings.sh
   # by hand - shows as `custom` and Enter keeps it; the list itself is never
   # typed at a prompt
   shown="$current"
@@ -1165,7 +1170,7 @@ function config_color_scheme() {
       _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
     fi
   fi
-  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 12/24 hex words, written into settings.sh by hand)?" \
+  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 24/48 hex words, written into settings.sh by hand)?" \
     "$shown" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
   [ "$value" = custom ] && value="$current"
   _hi_pending_set _HI_COLOR_SCHEME "$value"

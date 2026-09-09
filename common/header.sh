@@ -921,21 +921,21 @@ function _hi_packages_palette() {
 }
 
 # _hi_ramp_escape <outvar> <palette name> <scheme word count> - the escape a
-# ramp slot paints in. Normally the palette entry for <name>; with a 24-word
-# $_HI_COLOR_SCHEME, the same slot twelve further on, which is the second bank
-# that scheme carries for the check alone (HI.50). This used to read the slot
+# ramp slot paints in. Normally the palette entry for <name>; with a 48-word
+# $_HI_COLOR_SCHEME, the same slot twenty-four further on, which is the second
+# bank that scheme carries for the check alone (HI.50). This used to read the slot
 # back out of an escape's own bytes, because the ramps stored escapes.
 function _hi_ramp_escape() {
   local _hi_re_i=0 _hi_re_n
   printf -v "$1" '%s' ''
   [ -n "${NO_COLOR:-}" ] && return 0
-  [ "${3:-0}" = 24 ] || {
+  [ "${3:-0}" = 48 ] || {
     _hi_color_escape_var "$1" "$2"
     return 0
   }
   for _hi_re_n in "${_HI_COLOR_NAMES[@]}"; do
     [ "$_hi_re_n" = "$2" ] && {
-      _hi_color_escape_at "$1" $((_hi_re_i + 12))
+      _hi_color_escape_at "$1" $((_hi_re_i + 24))
       return 0
     }
     _hi_re_i=$((_hi_re_i + 1))

@@ -412,7 +412,6 @@ function run_rc_lines_test() {
   _hi_check_capable pty "config_validate_shells asks at a terminal" test_config_validate_shells_asks_at_a_terminal
   _hi_check "config_validate_shells: --yes vs non-interactive" test_config_validate_shells_gate
 
-
   _hi_h2 "Testing: link_owner"
   _hi_check "One verdict per package manager, none without one" test_link_owner_per_package_manager
 

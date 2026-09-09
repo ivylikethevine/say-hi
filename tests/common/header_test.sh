@@ -1857,18 +1857,18 @@ function test_packages_palette_names_are_all_real_colors() {
 # A 24-word scheme: the check paints from the second bank, every other cell
 # from the first. Catppuccin's twelve then vscode's twelve, so bank 2's cyan
 # (slot 17, 11a8cd) is what cool's priority-0 installed color becomes.
-# _HI_TEST_L12/_HI_TEST_L24: tests/lib/fixtures.sh, shared with core_test.sh
+# _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with core_test.sh
 
-function test_packages_palette_uses_the_second_bank_under_24_words() {
+function test_packages_palette_uses_the_second_bank_under_48_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
     local want
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
-    _hi_color_escape_at want 17
+    _hi_color_escape_at want 29
     [ "${_HI_YES[0]}" = "$want" ] && [ "${_HI_YES[0]}" != "$CYAN" ] &&
       [ "$want" = '\e[0;36;38;2;17;168;205m' ] &&
       [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ]
@@ -1877,12 +1877,12 @@ function test_packages_palette_uses_the_second_bank_under_24_words() {
 }
 
 # ...and stays the first bank - the palette variables themselves - under a
-# 12-word list, a name, or nothing
-function test_packages_palette_keeps_the_first_bank_under_12_words() {
+# 24-word list, a name, or nothing
+function test_packages_palette_keeps_the_first_bank_under_24_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
@@ -1897,7 +1897,7 @@ function test_packages_palette_second_bank_is_inert_under_no_color() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 NO_COLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 NO_COLOR=1
     _hi_assign_palette
     _hi_packages_palette
     [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ]
@@ -1909,7 +1909,7 @@ function test_header_hues_never_repeat_under_a_24_word_scheme() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
     _hi_assign_palette
     _hi_packages_palette
     test_header_hues_never_repeat_in_the_default_order
@@ -2106,8 +2106,8 @@ function run_header_tests() {
   _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
   _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
   _hi_check "Every escape names a real color" test_packages_palette_names_are_all_real_colors
-  _hi_check "The check paints from the second bank under 24 words" test_packages_palette_uses_the_second_bank_under_24_words
-  _hi_check "...and from the first under 12" test_packages_palette_keeps_the_first_bank_under_12_words
+  _hi_check "The check paints from the second bank under 48 words" test_packages_palette_uses_the_second_bank_under_48_words
+  _hi_check "...and from the first under 24" test_packages_palette_keeps_the_first_bank_under_24_words
   _hi_check "...and stays empty under NO_COLOR" test_packages_palette_second_bank_is_inert_under_no_color
 
   _hi_suite_end "header.sh"

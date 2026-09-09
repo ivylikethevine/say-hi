@@ -183,16 +183,13 @@ jobs:
         if: steps.actionlint.outcome == 'failure' || steps.zizmor.outcome == 'failure'
         run: exit 1
 
-  # Advisory, not a gate: a heading level, a dockerfile nit or a stale GIF has
-  # never shipped a bug. Each lint step keeps its exit code (`continue-on-error`
+  # Advisory, not a gate: a heading level or a dockerfile nit has never
+  # shipped a bug. Each lint step keeps its exit code (`continue-on-error`
   # on the *step*, or an output read afterwards, so findings still annotate the
   # diff) and ./.github/actions/advisory-note restates it as a warning in the
   # run summary; `continue-on-error` on the *job* would paint it green and hide
   # the result. Keep this job off branch protection's required checks when
   # they are set (docs/CONTRIBUTING.md) - it is designed to be ignorable.
-  # fetch-depth 0 is for the demo-staleness step alone: it compares commit
-  # dates with `git log`, and a shallow clone answers with the clone's own date
-  # for every path; markdownlint and hadolint share the checkout and its cost.
   advisory-lint:
     name: advisory lint
     runs-on: ubuntu-latest
@@ -200,7 +197,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - id: markdownlint
@@ -269,41 +265,6 @@ jobs:
             Advisory only: this job never blocks a merge. `.hadolint.yaml` carries a
             reason per silenced rule; anything reaching here is deliberately left visible.
           report-file: ${{ runner.temp }}/hadolint.truncated
-
-      # .github/hooks/demo_staleness.sh says when the tape, fixtures or shipped tree
-      # moved after docs/tapes/demo.gif (hand-rendered) was last rendered. As a
-      # hook it only speaks where `git config core.hooksPath .github/hooks` is set;
-      # here it speaks on every pull request - not on a push to main, where
-      # there is nobody left to warn. It always exits 0, so the verdict is read
-      # out of its output.
-      - id: demo-staleness
-        name: Compare demo.gif against what it renders
-        if: github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-          .github/hooks/demo_staleness.sh | tee "$RUNNER_TEMP/staleness.out"
-          if grep -q 'may be out of date' "$RUNNER_TEMP/staleness.out"; then
-            echo "stale=1" >>"$GITHUB_OUTPUT"
-          else
-            echo "demo.gif is newer than everything it renders"
-            echo "stale=0" >>"$GITHUB_OUTPUT"
-          fi
-
-      - name: Strip ANSI before it goes in the summary
-        if: steps.demo-staleness.outputs.stale == '1'
-        run: sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/staleness.out" >"$RUNNER_TEMP/staleness.plain"
-
-      - uses: $/.github/actions/advisory-note
-        if: steps.demo-staleness.outputs.stale == '1'
-        with:
-          title: demo.gif
-          warning-body: docs/tapes/demo.gif is older than something it renders - advisory, not blocking
-          heading: demo.gif may be out of date
-          body: |
-            Advisory only: this job never blocks a merge. Re-render with
-            `docs/tapes/generate.sh demo` (needs docker), look at the result, and commit it
-            in its own commit - see docs/PACKAGING.md, _Regenerating the demo GIFs_.
-          report-file: ${{ runner.temp }}/staleness.plain
 
   # Hot-path timings against generous ceilings: catches an order-of-magnitude
   # regression (a fork in a loop, a probe losing its timeout) and logs the

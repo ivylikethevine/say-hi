@@ -12,7 +12,7 @@ name: Demos
 # renderable tapes. demo.gif is hand-rendered, reviewed by eye and committed in
 # its own commit: it is the one GIF claiming stock defaults, it goes quietly
 # wrong when the header, the prompt or the tape moves, and only a person can
-# tell (.github/hooks/demo_staleness.sh says when). The other six each
+# tell. The other six each
 # advertise one feature, which a machine can render honestly, so `publish`
 # renders them.
 #
@@ -25,8 +25,7 @@ on:
   # pattern release.yml matches, prereleases included, since an rc's GIFs are
   # a useful rehearsal of what the release will show. The weekly run is for
   # changes that move a demo without a release in between (header, prompt,
-  # anything in the shipped tree - .github/hooks/demo_staleness.sh lists them
-  # as $_HI_DEMO_INPUTS) and keeps the render inside the artifact's 90-day
+  # anything in the shipped tree) and keeps the render inside the artifact's 90-day
   # retention. Rendering six of the seven renderable tapes stands a kind
   # cluster up and tears it down: a cadence, not a gate.
   push:

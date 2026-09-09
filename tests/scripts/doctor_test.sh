@@ -218,8 +218,8 @@ function test_config_reports_a_settings_file_that_parses() {
   [ "$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")" -eq 1 ]
 }
 
-# a scheme that is neither a name nor 12/24 hex words renders nothing, and
-# nothing else says so (core.sh falls back to 16 colors in silence)
+# a scheme that is neither a name nor 24/48 hex words renders nothing, and
+# nothing else says so (core.sh renders the default in silence)
 function test_config_flags_a_scheme_nothing_renders() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/badscheme.XXXXXX")"
@@ -234,7 +234,7 @@ function test_config_flags_a_scheme_nothing_renders() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_COLOR_SCHEME="$_HI_TEST_L12"
+    _HI_COLOR_SCHEME="$_HI_TEST_L24"
     doctor_config
   )"
   [[ "$out" != *"color-scheme"* ]]
