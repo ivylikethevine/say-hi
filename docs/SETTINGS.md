@@ -49,7 +49,6 @@ which, and why). A setting a child must see — a script of your own reading
 - [How it works](#how-it-works)
 - [Every setting](#every-setting)
   - [Not settings](#not-settings)
-- [System-wide settings](#system-wide-settings)
 - [Header details](#header-details)
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
@@ -237,11 +236,7 @@ cannot land without a row here.
 
 ### Not settings
 
-Eleven more names look like settings and are not. `$_HI_SYSTEM_SETTINGS` is
-where the [system-wide layer](#system-wide-settings) is read from
-(`/etc/say-hi/settings.sh` unless exported otherwise, before `settings.sh`
-is sourced - an administrator's or a test suite's override, not a line for
-the file). `$_HI_CONFIG_DIR` and
+Ten more names look like settings and are not. `$_HI_CONFIG_DIR` and
 `$_HI_HOME` (the **parent** of your `say-hi` directory - everything resolves
 `$_HI_HOME/say-hi`) are read **before** `settings.sh` is sourced, so a line
 there is too late; export them in your environment, as `hi.sh` and
@@ -260,24 +255,6 @@ the `mktemp -d` directory holding the per-shell rc files a nested
 `bash`/`zsh`/`fish`/`sh` reads, removed when the session ends
 ([HI.46](GLOSSARY.md#hi46-session-rc-directory)). Everything else beginning
 `_HI_` is internal state, named that way to stay out of your namespace.
-
-## System-wide settings
-
-`/etc/say-hi/settings.sh`, when it exists, is sourced **before** each user's
-own `settings.sh` — a platform team's defaults, in the same
-sh-and-fish-parseable dialect (`export NAME=value` lines only; `hi --doctor`
-parse-checks it both ways). Precedence, lowest to highest: the shipped
-defaults, `/etc/say-hi/settings.sh`, the user's `settings.sh`, then a value
-exported by hand in the running shell. Above all of those on this machine
-sits `_HI_DISABLE_LOCAL=1`, which forces every `_HI_DISABLE_*` toggle on
-whatever the file says for them, and `_HI_DISABLE_LOCAL_PROMPT=1`, which does
-the same for `_HI_DISABLE_PROMPT` alone.
-
-It applies to **this machine only**: a remote hi session is configured by the
-visitor's own overlay, and the target's `/etc` has no say in it. No package
-ships the file — an administrator creates it, and removing it restores
-per-user settings everywhere at the next shell. (`$_HI_SYSTEM_SETTINGS`
-points the read somewhere else; it exists for the test suites.)
 
 ## Header details
 

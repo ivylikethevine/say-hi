@@ -266,21 +266,6 @@ function test_config_flags_a_settings_file_that_is_not_fish() {
   [[ "$out" == *"settings.sh"*"has issues (fish)"* ]]
 }
 
-# the system layer gets the same two parse checks as settings.sh
-function test_config_flags_a_system_layer_that_does_not_parse() {
-  local dir sys out
-  dir="$(mktemp -d "$_HI_WORKDIR/badsys.XXXXXX")"
-  sys="$_HI_WORKDIR/broken.system.settings.sh"
-  printf 'if [ x\n' >"$sys"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_SYSTEM_SETTINGS="$sys"
-    doctor_config
-  )"
-  [[ "$out" == *"system"*"does NOT parse as sh"* ]]
-}
-
 # a non-default toggle is a row of its own - the one thing about a session
 # that a target-side report cannot see, named here so it is not a mystery
 function test_config_lists_a_non_default_toggle() {
@@ -369,28 +354,6 @@ function test_doctor_payload_diff_arms() {
   out="$(doctor_payload_diff $((stock + _HI_PAYLOAD_DIFF_FLOOR + 1024)))"
   case "$out" in *'heavier than the stock default'*) ;; *) return 1 ;; esac
   [ -z "$(doctor_payload_diff "$stock")" ]
-}
-
-# the system-wide layer's row: parse-checked when present, quiet when absent
-function test_config_reports_the_system_layer() {
-  local dir sys out
-  dir="$(mktemp -d "$_HI_WORKDIR/sysrow.XXXXXX")"
-  sys="$_HI_WORKDIR/system.settings.sh"
-  printf 'export _HI_MAX_WIDTH=100\n' >"$sys"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_SYSTEM_SETTINGS="$sys"
-    doctor_config
-  )"
-  [[ "$out" == *"system"*"present, parses"* ]] || return 1
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    _HI_SYSTEM_SETTINGS="$_HI_WORKDIR/absent.settings.sh"
-    doctor_config
-  )"
-  [[ "$out" == *"per-user settings only"* ]]
 }
 
 # the folded-in rc check: each rc or overlay file through its parser,
@@ -829,11 +792,9 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
-  _hi_check "The system layer gets a row" test_config_reports_the_system_layer
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
-  _hi_check "Flags a system layer that does not parse" test_config_flags_a_system_layer_that_does_not_parse
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
 
   _hi_h2 "Testing: the report primitives"

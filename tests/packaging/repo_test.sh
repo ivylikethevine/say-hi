@@ -40,7 +40,7 @@ _HI_REPO_VERSION=""
 # can install it first and then take the repository's as an upgrade. The
 # mechanics on trial are the package manager's - files replaced, the symlink
 # and profile.d snippet still there, the version stamp moved - and that
-# nothing the user wrote (/etc/say-hi/settings.sh, ~/.config/say-hi) is
+# nothing the user wrote (~/.config/say-hi) is
 # touched; those hold whatever version the packages carry.
 #
 # Both versions are named here, not derived, so the ordering the upgrade
@@ -179,19 +179,17 @@ function test_apk_client_installs_from_the_repository() {
 }
 
 # The upgrade every subscriber takes: the previous release installed from its
-# package file, a system layer and an overlay written, then the repository's
+# package file, an overlay written, then the repository's
 # release taken as an upgrade through the same manager. Each script checks
 # what it can only check from the inside - the version that was there before,
-# both config files intact after, the symlink and profile.d snippet still in
+# the overlay intact after, the symlink and profile.d snippet still in
 # place - and ends on `hi --version` for _hi_repo_client's verdict. The
 # upgrade is asked for the way a user would ask (`apt-get install`, `dnf
 # upgrade`, `apk add -u`), not with a path to the new file.
 _HI_UPGRADE_CONFIG='
-    mkdir -p /etc/say-hi /root/.config/say-hi
-    echo "export _HI_DISABLE_MARKS=1" >/etc/say-hi/settings.sh
+    mkdir -p /root/.config/say-hi
     echo "hostname,prod,red" >/root/.config/say-hi/colors'
 _HI_UPGRADE_ASSERT='
-    grep -q "_HI_DISABLE_MARKS=1" /etc/say-hi/settings.sh
     grep -q "hostname,prod,red" /root/.config/say-hi/colors
     test -L /usr/bin/hi && test -f /etc/profile.d/say-hi.sh && test -f /usr/share/say-hi/hi.sh'
 

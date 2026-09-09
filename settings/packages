@@ -68,15 +68,15 @@ hi:3
 
 # 2: bright cyan installed, bright yellow missing
 # useful tools: good to know either way
-apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,chocolatey:2,yay:2,paru:2,rpm:2,mas:2
-flatpak:2,snap:2,nix:2,guix:2,appimage:2
+apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,yay:2,paru:2,rpm:2,mas:2
+flatpak:2,snap:2,nix:2,guix:2
 nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2,hx:2,helix:2,kak:2
 zeditor:2,zed:2,code:2
 docker:2,podman:2,nerdctl:2
 kubectl:2
 nomad:2
 python3:2,python:2,python2:2
-go:2,golang:2
+go:2
 make:2,cmake:2
 curl:2,httpie:2,xh:2,httpstat:2
 wget:2,aria2:1
@@ -109,7 +109,7 @@ scc:1,cloc:1
 strace:1,ltrace:1
 dig:1,dog:1,doggo:1
 ffmpeg:1
-rust:1,rustc:1,rustup:1
+rustc:1,rustup:1
 act:1
 gh:1
 tailspin:1
@@ -122,16 +122,14 @@ pkgconf:0
 fusermount:0
 dotnet:0
 php:0
-pip:0,pyenv:0,pyvenv:0
+pip:0,pyenv:0
 n:0,npx:0,npm:0,nvm:0,node:0
 netstat:0,bandwhich:0,iftop:0,nethogs:0
 +dpkg:0,wpkg:0
 grc:0
 has:0
 nmcli:0
-msdnss:0
 nmap:0,rustscan:0
-envrc:0
 sshpass:0
 symlinks:0
 fdupes:0

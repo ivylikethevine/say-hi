@@ -147,6 +147,25 @@ function test_scheme_hex_is_six_hex_digits_for_every_slot() {
   done
 }
 
+# a scheme's bright six are a second bank, not a copy of the first: monokai
+# once repeated its dark six verbatim, so red and brred rendered alike, the
+# host/user hash lost half its range and HI.48's hue alternates stopped being
+# alternates. A palette may reuse one or two hexes across the banks (onedark
+# does, for yellow and blue); a bank that repeats *every* one is the bug.
+function test_scheme_bright_bank_is_not_the_dark_bank() {
+  local scheme i dark bright same
+  for scheme in catppuccin monokai onedark vscode; do
+    i=0 same=0
+    while [ "$i" -lt 6 ]; do
+      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex dark "$i"
+      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex bright "$((i + 6))"
+      [ "$dark" = "$bright" ] && same=$((same + 1))
+      i=$((i + 1))
+    done
+    [ "$same" -lt 6 ] || return 1
+  done
+}
+
 # the exported palette and the by-name escape share one primitive, so a
 # fresh shell under a scheme assigns $RED exactly what _hi_color_escape red
 # prints - preview.sh's reverse map depends on that
@@ -616,35 +635,6 @@ function test_hi_home_self_derives_from_a_bare_relative_source() {
 # That the user's settings.sh is sourced at all is paths_test.sh's
 # test_settings_beat_the_defaults; the cases here are the layers around it.
 #
-# The system-wide layer: sourced before the user's settings.sh (so the user
-# wins), and only on the machine say-hi is installed on. $_HI_SYSTEM_SETTINGS
-# stands in for /etc/say-hi/settings.sh so the cases need no root.
-function test_system_settings_apply_locally() {
-  local sys="$_HI_WORKDIR/sys.settings.sh"
-  printf 'export _HI_PROBE=system\n' >"$sys"
-  [ "$(env -u _hi_core_loaded -u _HI_PROBE -u _HI_REMOTE_SESSION _HI_HOME="$_HI_HOME" \
-    _HI_SYSTEM_SETTINGS="$sys" \
-    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = system ]
-}
-
-function test_user_settings_beat_system() {
-  local sys="$_HI_WORKDIR/sys2.settings.sh" dir="$_HI_WORKDIR/sys-user-overlay"
-  mkdir -p "$dir"
-  printf 'export _HI_PROBE=system\n' >"$sys"
-  printf 'export _HI_PROBE=user\n' >"$dir/settings.sh"
-  [ "$(env -u _hi_core_loaded -u _HI_PROBE -u _HI_REMOTE_SESSION _HI_HOME="$_HI_HOME" \
-    _HI_SYSTEM_SETTINGS="$sys" _HI_CONFIG_DIR="$dir" \
-    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = user ]
-}
-
-function test_system_settings_skipped_remotely() {
-  local sys="$_HI_WORKDIR/sys3.settings.sh"
-  printf 'export _HI_PROBE=system\n' >"$sys"
-  [ "$(env -u _hi_core_loaded -u _HI_PROBE _HI_REMOTE_SESSION=1 _HI_HOME="$_HI_HOME" \
-    _HI_SYSTEM_SETTINGS="$sys" \
-    bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${_HI_PROBE:-unset}"')" = unset ]
-}
-
 #
 # $_HI_CONFIG_DIR is derived from the XDG base, and an explicit value wins.
 # core.sh's preamble runs once per shell and is guarded by $_hi_core_loaded,
@@ -1042,6 +1032,7 @@ function run_core_tests() {
   _hi_check "Inert under NO_COLOR" test_scheme_is_inert_under_no_color
   _hi_check "An unknown scheme falls back to 16 colors" test_unknown_scheme_falls_back_to_16_color
   _hi_check "Every slot of every scheme is six hex digits" test_scheme_hex_is_six_hex_digits_for_every_slot
+  _hi_check "No scheme's bright bank repeats its dark bank" test_scheme_bright_bank_is_not_the_dark_bank
   _hi_check "The palette agrees with _hi_color_escape under a scheme" test_palette_vars_agree_with_color_escape_under_a_scheme
   _hi_check "The hash ignores the scheme" test_hash_color_ignores_the_scheme
   _hi_check "_hi_scheme_words counts a 12/24-word list" test_scheme_words_counts_a_list
@@ -1142,9 +1133,6 @@ function run_core_tests() {
   _hi_check "...and by a bare relative name from its own directory" test_hi_home_self_derives_from_a_bare_relative_source
 
   _hi_h2 "Testing: the settings overlay"
-  _hi_check "The system layer applies locally" test_system_settings_apply_locally
-  _hi_check "...the user's settings.sh beats it" test_user_settings_beat_system
-  _hi_check "...and a remote session skips it" test_system_settings_skipped_remotely
   _hi_check_eq "Defaults to ~/.config/say-hi" say-hi _hi_cfg_answer neither
   _hi_check_eq "Uses say-hi when it exists" say-hi _hi_cfg_answer new
   _hi_check "An explicit \$_HI_CONFIG_DIR wins" test_config_dir_explicit_value_wins

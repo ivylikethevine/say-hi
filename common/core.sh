@@ -43,14 +43,6 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
-  # A platform team's defaults, below the user's settings.sh (sourced next,
-  # so the user wins). Local machines only: a visiting session is configured
-  # by the visitor, and a target's /etc has no say in it. $_HI_SYSTEM_SETTINGS
-  # overrides the path - the suites' knob, not a setting. config.fish mirrors.
-  # shellcheck source=/dev/null # admin config, may not exist
-  if [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}" ]; then
-    . "${_HI_SYSTEM_SETTINGS:-/etc/say-hi/settings.sh}"
-  fi
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then
@@ -164,7 +156,7 @@ function _hi_scheme_hex() {
     _hi_sh_n=12
     case "${_HI_COLOR_SCHEME:-}" in
     catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca' ;;
-    monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4' ;;
+    monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 ff6188 a9dc76 ffd866 78dce8 ab9df2 78e8c6' ;;
     onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5' ;;
     vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db' ;;
     *) return 0 ;;
