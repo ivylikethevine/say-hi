@@ -8,7 +8,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". -->
 
-![Payload](https://img.shields.io/badge/ssh_payload-53KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-56KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -142,8 +142,8 @@ everything weighed and answered **no**, and why.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
   shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), `ssh` for
-  ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, see
-  `_HI_CONTAINER_CLIS`) and `nomad`/`kubectl` for those backends. hi has
+  ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, all four
+  tried) and `nomad`/`kubectl` for those backends. hi has
   no protocol of its own: `ssh` is the transport, `base64` is armor, not
   crypto ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod

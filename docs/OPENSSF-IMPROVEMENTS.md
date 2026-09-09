@@ -110,7 +110,7 @@ Already 100%. One correction worth making, and one answer worth keeping:
 
 | Criterion                      | Answer                    | Evidence                                                                                                           |
 | ------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `accessibility_best_practices` | M                         | `NO_COLOR` honored and propagated to the target (`hi.sh:97`, `hi.sh:589`); `_HI_ASCII` for a no-Unicode rendering. |
+| `accessibility_best_practices` | M                         | `NO_COLOR` honored and propagated to the target (`hi.sh:97`, `hi.sh:589`); a no-Unicode rendering when the locale is not UTF-8, propagated the same way. |
 | `internationalization`         | U (SHOULD, doesn't block) | Output is short English status text; no message catalog, not planned before 1.0.                                   |
 | `sites_password_security`      | N/A                       | GitHub/GitHub Pages; the project stores no passwords.                                                              |
 

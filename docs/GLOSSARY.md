@@ -63,6 +63,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
 - [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
+- [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 
 ## HI.01 empty-array guard
 
@@ -673,14 +674,14 @@ own. hi writes nothing into a target's login files
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is seven names:
+is six names:
 
 - `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
   `hi.sh` put it, and cannot be re-derived;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_CONTAINER_CLIS` — the knobs `sh targets.sh` reads straight off its
-  environment from a completion.
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT` — the knobs `sh targets.sh` reads
+  straight off its environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
 `common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
@@ -826,15 +827,21 @@ back to the plain name on their own.
 ## HI.51 docker-compatible CLI family
 
 docker, podman, nerdctl and finch take the same `ps --format`, `exec -i[t]`
-and `container inspect -f` grammar, so hi has one container arm and a
-setting, `_HI_CONTAINER_CLIS` (default `docker podman nerdctl finch`),
-naming which binaries to try, in that order. Each member is its own kind:
-`common/targets.sh` builds its roster from the list and emits `<name>\t<cli>`
-per lane, `hi.sh` generates one `_HI_BACKENDS` row and one predicate per
-member at load, and `common/header.sh` starts one probe lane per member on
-`$PATH`. A member that is absent costs a builtin `command -v` on TAB and one
-background subshell per `hi <target>` in `_hi_resolve_backend`; a present one
-is one parallel lane, capped like every other (HI.26).
+and `container inspect -f` grammar, so hi has one container arm and tries all
+four, in that order. Each member is its own kind: `common/targets.sh` builds
+its roster from the family and emits `<name>\t<cli>` per lane, `hi.sh`
+generates one `_HI_BACKENDS` row and one predicate per member at load, and
+`common/header.sh` starts one probe lane per member on `$PATH`. A member that
+is absent costs a builtin `command -v` on TAB and one background subshell per
+`hi <target>` in `_hi_resolve_backend`; a present one is one parallel lane,
+capped like every other (HI.26). That is the whole cost of a member nobody
+has installed, which is why the family is the same four words everywhere and
+not a setting: there was nothing for a shorter list to buy.
+
+The three files spell those words themselves - `hi.sh` builds a bash array,
+`common/targets.sh` is standalone POSIX that no bash file can source, and
+`common/header.sh` reads neither - so `tests/lint/drift_test.sh` pins the
+three spellings to each other.
 
 Two members can front one daemon — `podman-docker` ships a `docker` that
 execs podman, nerdctl and finch share a containerd — and would list every
@@ -844,14 +851,14 @@ files, since the IDs are the daemon's. The compose-service alias stays
 docker's: podman honours the `.Label` template, nerdctl and finch are
 unverified, and a template one rejects would empty its lane.
 
-`--use <backend>` forces any arm by name, ssh and every roster row included, and
-is the only way to: there is no per-backend flag, so a member added to the
-list is reachable with no second spelling. Names are plain identifiers (`[A-Za-z0-9_]`) because `hi.sh`'s
-per-member predicate is `eval`-defined; `scripts/configure.sh` enforces it.
+`--use <backend>` forces any arm by name, ssh and every roster row included,
+and is the only way to: there is no per-backend flag, so a member added to
+the family is reachable with no second spelling. Names stay plain identifiers
+(`[A-Za-z0-9_]`): `hi.sh`'s per-member predicate is `eval`-defined.
 
 ## HI.52 client multiplexer wrap
 
-`hi --mux <target>` (or `_HI_MUX=1`) re-executes the connect inside a local
+`hi --mux <target>` re-executes the connect inside a local
 multiplexer session named `hi-<target>` and never returns; a second `hi --mux`
 to the same target joins the running session. It is the client-side answer to
 a dropped link - the target-side `--tmux` was removed on 2026-08-21 because a
@@ -878,10 +885,11 @@ Five rules in `_hi_mux_wrap`:
   options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
   settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
-  the wrap returns at once when that is set, which is what keeps a
-  `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It
-  also stands down, un-wrapped, without a terminal on stdin (nothing to
-  attach) or without a multiplexer to use.
+  the wrap returns at once when that is set. The inner hi re-reads the flag it
+  was handed, so without the guard an `alias hi='hi --mux'` - which is how you
+  make the wrap your default, there being no setting for it - would nest
+  forever. It also stands down, un-wrapped, without a terminal on stdin
+  (nothing to attach) or without a multiplexer to use.
 - **One string.** tmux hands the command to its `default-shell`, which may be
   fish, and screen to `sh -c`, so the argv is joined into one string with
   `_hi_shquote` (HI.40): single quotes are the one form every shell reads the
@@ -904,13 +912,55 @@ out, but nothing restores the _terminal emulator's_ modes a remote program
 switched on and never got to switch off when the link went: application
 cursor keys (`CSI ?1 l`), the application keypad (`ESC >`), bracketed paste
 (`CSI ?2004 l`), a pushed kitty keyboard mode (`CSI < u`), the alternate
-screen (`CSI ?1049 l`) and a hidden cursor (`CSI ?25 h`). It also closes the
-OSC 133 prompt-mark pair with a `D` carrying the status (unless
+screen (`CSI ?1049 l`, wrapped - below) and a hidden cursor (`CSI ?25 h`). It
+also closes the OSC 133 prompt-mark pair with a `D` carrying the status (unless
 `_HI_DISABLE_MARKS=1`): hi's remote prompt emits `C` before every command,
 `exit` included, and `load.sh` sends the closing `D` on a clean exit - a drop
 never reaches that line, and Konsole, left "inside a command", sends ↑ as ←
 until a `D` arrives. `stty sane` last, for the container arms whose exec does
 not always restore termios on a lost link. Every byte is a no-op on a terminal
 already in its normal state, which is why the caller need not know which
-mode applied. Never on exit 0 (the session closed itself down), never on a
-pipe (`hi host cmd | ...` gets the command's output and nothing else).
+mode applied - but the alternate-screen exit only once it is wrapped in a
+`ESC 7`/`ESC 8` (DECSC/DECRC) pair. Konsole answers `CSI ?1049 l` with an
+unconditional cursor restore, and on a terminal still on its normal screen
+that slot holds what nothing ever saved, i.e. home: the failed connect's own
+message then landed at the top of the screen and painted over the session
+still on it. Saving first makes that restore a return to where the cursor
+already is; a terminal genuinely in the alternate screen saves to *that*
+screen's slot, so `CSI ?1049 l` still restores the pre-alt cursor and the
+DECRC only repeats it. Never on exit 0 (the session closed itself down),
+never on a pipe (`hi host cmd | ...` gets the command's output and nothing
+else).
+
+## HI.54 who draws the environment prefix
+
+`common/env_prompt.sh` names every active environment manager as the prompt's
+leading `(mise|direnv:proj|myproj)`. The awkward part is not the detection -
+every tool exports a variable, so a draw is parameter expansion and nothing
+else - it is that two of those tools draw a prefix of their own, and whether
+that prefix survives is a property of the *shell*, not of the tool.
+
+`python -m venv`'s activate script prepends to `$PS1` (bash, zsh) or copies
+`fish_prompt` to `_old_fish_prompt` and wraps it (fish); conda prepends
+`$CONDA_PROMPT_MODIFIER` unless `changeps1` is off. zsh and fish keep what
+those scripts did: zsh.zsh assigns `$PS1` once at rc time, and fish's
+`fish_prompt` is the very function activate wrapped. bash does not -
+`common/bash.sh`'s `ps1()` is a `PROMPT_COMMAND` hook that rebuilds `$PS1`
+from `$HI_PS1` on every draw, so the activate script's edit is gone by the
+second prompt.
+
+So `$_HI_ENV_DEFER` carries the shell's verdict rather than the tool's:
+zsh.zsh and config.fish set it to 1 and the venv and conda rows stand down
+when the tool's own marker is present (`$_OLD_VIRTUAL_PS1`, the
+`_old_fish_prompt` function, a non-empty `$CONDA_PROMPT_MODIFIER`); bash.sh
+sets it to 0, because there is provably nothing there to defer to. A venv is
+therefore named in all three shells - in its own styling under zsh and fish,
+in hi's under bash - and the tools with no prefix of their own are hi's
+everywhere. The alternative, exporting `VIRTUAL_ENV_DISABLE_PROMPT=1` to
+silence the tools and always draw hi's, would have hi overriding a setting
+the user configured for every other shell they open.
+
+fish carries a third copy of the source list, for the reason config.fish
+carries a second copy of the git glyphs: it cannot call the bash function, and
+a `bash -c` on every prompt draw is exactly the fork this prompt refuses
+everywhere else. `tests/hi/prompt_test.sh` pins the two lists together.

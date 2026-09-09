@@ -330,6 +330,43 @@ function lint_glossary_tags() {
   return "$bad"
 }
 
+# The docker-compatible family (GLOSSARY: HI.51) is four words that three
+# files spell for themselves, because none of the three can read another's:
+# `hi.sh` builds a bash array, `common/targets.sh` is standalone POSIX a bash
+# file cannot source, and `common/header.sh` starts its probe lanes off the
+# same names. They agreed for free while all three read one setting's default;
+# with the setting gone, a member added to one and forgotten in the others
+# would list on TAB and refuse to connect, or connect and never probe. This is
+# what keeps them one list.
+function lint_container_family() {
+  local file line where first="" bad=0
+  _hi_h2 "Checking the docker-compatible family across its three files"
+  # each pattern captures plain words only, so header.sh's second loop (`for
+  # cli in $clis`, the lanes that answered) is not a second list to compare
+  for where in 'hi.sh|^for _hi_cli in \([a-z][a-z ]*\); do$' \
+    'common/targets.sh|^clis="\([a-z][a-z ]*\)"$' \
+    'common/header.sh|^ *for cli in \([a-z][a-z ]*\); do$'; do
+    file="${where%%|*}"
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    line="$(sed -n "s/${where#*|}/\1/p" "$_HI_ROOT/$file")"
+    if [ -z "$line" ]; then
+      _hi_align " | $file: no family list where one is expected" "FAILED" "$RED"
+      _hi_note_failure "container family: $file has no list"
+      bad=$((bad + 1))
+      continue
+    fi
+    [ -n "$first" ] || first="$line"
+    if [ "$line" != "$first" ]; then
+      _hi_align " | $file: $line" "FAILED" "$RED"
+      _hi_note_failure "container family: $file drifted"
+      bad=$((bad + 1))
+      continue
+    fi
+    _hi_align " | $file: $line" "OK" "$GREEN"
+  done
+  return "$bad"
+}
+
 # The vocabulary a `settings.sh` may use has to be written down where a user
 # looks for it, and the tree is where it actually lives - in three places, at
 # that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
@@ -732,8 +769,9 @@ function run_drift() {
   _hi_workdir drifttest
 
   _hi_lint_halves lint_bash32 lint_home_default lint_glossary_tags \
-    lint_settings_table lint_liquid_docs lint_doc_contents lint_tldr_page \
-    lint_dockerfiles lint_image_tags lint_image_digests
+    lint_settings_table lint_container_family lint_liquid_docs \
+    lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
+    lint_image_digests
   _hi_lint_suite_end
 }
 

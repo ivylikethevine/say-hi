@@ -31,7 +31,8 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # a *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot
   # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
-    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
+    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
+    _HI_DISABLE_EDITORS
     _HI_DISABLE_MARKS
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
@@ -290,6 +291,15 @@ function _hi_repeat() {
   printf -v "$1" '%s' "${_hi_pad// /$3}"
 }
 
+# _hi_out <outvar> <value> - <value> into <outvar>, or on stdout when <outvar>
+# is empty: the tail of every "[outvar] or a $( )" helper in the tree
+# (GLOSSARY: HI.05), written once instead of once per helper. No locals at
+# all, so it can never shadow the name a caller asked it to fill
+# (GLOSSARY: HI.04).
+function _hi_out() {
+  if [ -n "$1" ]; then printf -v "$1" '%s' "$2"; else printf '%s' "$2"; fi
+}
+
 # The heading rules (_hi_hrule/_hi_h1/_hi_h2) and _hi_rewrite live in
 # scripts/lib.sh: they are tooling, and common/ ships in the ssh payload
 # under a size budget nothing a target runs should spend.
@@ -403,7 +413,7 @@ function _hi_interactive_extras() {
 # (paths.sh's dialect can only `export`). config.fish mirrors it;
 # exports_test.sh pins the two. GLOSSARY: HI.47
 _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
-  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT _HI_CONTAINER_CLIS)
+  _HI_TARGETS_TTL _HI_PROBE_TIMEOUT)
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
@@ -534,8 +544,11 @@ function _hi_has_color() {
   [ -z "${NO_COLOR:-}" ] && [ -n "${TERM:-}" ] && [ "$TERM" != dumb ]
 }
 
-# Can this session render multibyte glyphs? The locale says; _HI_ASCII
-# overrides both ways (1 forces ASCII, 0 forces glyphs).
+# Can this session render multibyte glyphs? The locale says. $_HI_ASCII
+# overrides it both ways (1 forces ASCII, 0 forces glyphs) and is not a
+# setting anyone is asked for: it carries the *client's* answer into a session,
+# because the glyphs render in the terminal the client is sitting at and not in
+# the target's (hi.sh's _hi_ascii_flag, docs/SETTINGS.md's _Not settings_).
 function _hi_use_ascii() {
   case "${_HI_ASCII:-}" in
   1) return 0 ;;
@@ -552,16 +565,17 @@ function _hi_use_ascii() {
 function _hi_ascii_flag() { _hi_use_ascii && printf '1\n' || printf '0\n'; }
 
 # One glyph set per session, decided at source time so hot paths read plain
-# variables; tests flip _HI_ASCII and re-call. The _W widths are visible
-# columns, not bytes (GLOSSARY: HI.12).
+# variables; tests flip _HI_ASCII and re-call. Every _HI_MARK_* is one visible
+# column in both sets, which is what lets the callers that pad around a mark
+# (header.sh's package rows, preview.sh's legend) treat its width as a
+# constant rather than carrying one per mark.
 function _hi_choose_glyphs() {
   if _hi_use_ascii; then
     _HI_GLYPH_AHEAD="^" _HI_GLYPH_BEHIND="v" _HI_GLYPH_STAGED="*"
     _HI_GLYPH_DIRTY="+" _HI_GLYPH_INVALID="x" _HI_GLYPH_UNTRACKED="?"
     _HI_GLYPH_STASH="\$" _HI_GLYPH_CLEAN="ok" _HI_GLYPH_ELLIPSIS=".."
     _HI_GLYPH_MASK="*"
-    _HI_MARK_OK="ok" _HI_MARK_NO="x"
-    _HI_MARK_OK_W=2
+    _HI_MARK_OK="+" _HI_MARK_NO="x"
   else
     _HI_GLYPH_AHEAD="↑" _HI_GLYPH_BEHIND="↓" _HI_GLYPH_STAGED="●"
     _HI_GLYPH_DIRTY="✚" _HI_GLYPH_INVALID="✖" _HI_GLYPH_UNTRACKED="…"
@@ -569,12 +583,10 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_MASK="●"
     _HI_MARK_OK="✓" # installed, and it is the preferred name
     _HI_MARK_NO="✗" # not installed
-    _HI_MARK_OK_W=1
   fi
   # Glyph-independent, so out of both arms rather than spelled twice: only
-  # _HI_MARK_OK and _HI_MARK_NO (and the ok width) actually change sets.
+  # _HI_MARK_OK and _HI_MARK_NO actually change sets.
   _HI_MARK_ALT="~" # installed, but via a fallback alternative
-  _HI_MARK_ALT_W=1 _HI_MARK_NO_W=1
 }
 _hi_choose_glyphs
 

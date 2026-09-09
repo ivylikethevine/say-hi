@@ -14,6 +14,12 @@
 # and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
 # since root is the session user here.
 FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+# The checksum assertion below is a pipe, and a pipe in a RUN needs pipefail or
+# a failing `echo` is masked by sha256sum's status - DL4006, which
+# .hadolint.yaml records as a finding that was real and got fixed. Same
+# spelling as framework.Dockerfile's. /bin/bash rather than /bin/sh because sh
+# here is dash, which has no `-o pipefail`.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git nano vim bat ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \

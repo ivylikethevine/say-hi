@@ -185,6 +185,102 @@ function test_remote_suffix_appends_the_prompt_for_posix_shells() {
     _hi_before "$out" '>> "\$_hi_rc_dir/.hi_fallback_rc"' 'ENV='
 }
 
+# --- the environment segment's fish copy (GLOSSARY: HI.54) -------------------
+#
+# config.fish cannot call common/env_prompt.sh and a `bash -c` per prompt draw
+# is the fork this prompt refuses, so fish carries its own copy of the source
+# list. These are the pins on it: a tool added to one file and not the other
+# means the same shell session names a different set of environments depending
+# on which shell you are in.
+
+# the words $_HI_ENV_ORDER_DEFAULT is built from, one per line
+function _hi_env_sources_core() {
+  sed -n 's/^_HI_ENV_ORDER_DEFAULT="\(.*\)"$/\1/p' "$_HI_ROOT/common/env_prompt.sh" |
+    tr ' ' '\n'
+}
+
+# the same list as config.fish's `set -l order ...` spells it
+function _hi_env_sources_fish() {
+  sed -n 's/^ *set -l order \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish" |
+    tr ' ' '\n'
+}
+
+function test_fish_env_order_default_matches_env_prompt() {
+  _hi_fish_agrees "environment sources" \
+    "$(_hi_env_sources_fish)" "$(_hi_env_sources_core)"
+}
+
+# the default list is also the roster both files branch on: a word in the
+# default with no arm behind it would silently name nothing
+function test_fish_env_sources_all_have_an_arm() {
+  local word missing=""
+  for word in $(_hi_env_sources_core); do
+    grep -q "^ *$word)" "$_HI_ROOT/common/env_prompt.sh" ||
+      missing="$missing env_prompt.sh:$word"
+    grep -q "^ *case $word\$" "$_HI_ROOT/common/config.fish" ||
+      missing="$missing config.fish:$word"
+  done
+  [ -z "$missing" ] || {
+    _hi_cecho " | source words with no branch:$missing" "$RED"
+    return 1
+  }
+}
+
+# every tool variable one file reads, the other has to read too
+_HI_ENV_VARS_READ=(MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION
+  NODENV_VERSION IN_NIX_SHELL GUIX_ENVIRONMENT DEVBOX_SHELL_ENABLED
+  DEVENV_ROOT DIRENV_DIR CONDA_DEFAULT_ENV CONDA_PROMPT_MODIFIER
+  VIRTUAL_ENV VIRTUAL_ENV_PROMPT)
+function test_fish_env_reads_the_same_variables() {
+  local var missing=""
+  # -F with both spellings: env_prompt.sh writes "${VAR:-}" under `set -u`,
+  # config.fish a bare "$VAR"
+  for var in "${_HI_ENV_VARS_READ[@]}"; do
+    grep -qF -e "\${$var" -e "\$$var" "$_HI_ROOT/common/env_prompt.sh" ||
+      missing="$missing env_prompt.sh:$var"
+    grep -qF -e "\${$var" -e "\$$var" "$_HI_ROOT/common/config.fish" ||
+      missing="$missing config.fish:$var"
+  done
+  [ -z "$missing" ] || {
+    _hi_cecho " | tool variables read by only one copy:$missing" "$RED"
+    return 1
+  }
+}
+
+# the segment is truncated at the same width, with core.sh's own ellipsis in
+# both glyph sets - config.fish's copy is two literals
+function test_fish_env_truncation_matches_core() {
+  local utf8 ascii want_utf8 want_ascii missing=""
+  grep -q 'string sub -l 31' "$_HI_ROOT/common/config.fish" ||
+    missing="$missing config.fish:width"
+  grep -q '#_hi_out} > 32' "$_HI_ROOT/common/env_prompt.sh" ||
+    missing="$missing env_prompt.sh:width"
+  utf8="$(sed -n 's/^set -g _hi_env_ellipsis \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish")"
+  ascii="$(sed -n "s/^ *set -g _hi_env_ellipsis '\(.*\)'\$/\1/p" "$_HI_ROOT/common/config.fish")"
+  want_utf8="$(_hi_core_values _HI_GLYPH_ 0 ELLIPSIS | sed 's/^[A-Z_]*=//')"
+  want_ascii="$(_hi_core_values _HI_GLYPH_ 1 ELLIPSIS | sed 's/^[A-Z_]*=//')"
+  [ "$utf8" = "$want_utf8" ] || missing="$missing ellipsis($utf8 vs $want_utf8)"
+  [ "$ascii" = "$want_ascii" ] || missing="$missing ascii-ellipsis($ascii vs $want_ascii)"
+  [ -z "$missing" ] || {
+    _hi_cecho " | truncation disagrees:$missing" "$RED"
+    return 1
+  }
+}
+
+# one color for the segment, named the same way in each shell's own vocabulary:
+# bash embeds the palette variable, zsh the %F{} name (which has no bright
+# variants - see the note above zsh.zsh's USER_COLOR block), fish the color name
+function test_fish_env_color_matches_the_other_shells() {
+  local missing=""
+  grep -q '\\\[\$BRCYAN\\\]' "$_HI_ROOT/common/bash.sh" || missing="$missing bash.sh"
+  grep -q '%F{cyan}\${__hi_env_info}' "$_HI_ROOT/common/zsh.zsh" || missing="$missing zsh.zsh"
+  grep -q 'set_color brcyan' "$_HI_ROOT/common/config.fish" || missing="$missing config.fish"
+  [ -z "$missing" ] || {
+    _hi_cecho " | the environment segment is uncolored in:$missing" "$RED"
+    return 1
+  }
+}
+
 function run_hi_prompt_tests() {
   _hi_workdir hiprompttest
 
@@ -206,6 +302,13 @@ function run_hi_prompt_tests() {
   _hi_check "config.fish's colors match core.sh" test_fish_colors_match_core
   _hi_check "config.fish's prompt end matches core.sh" test_fish_prompt_end_default_matches_core
   _hi_check "Both segments shorten at 32" test_branch_shorten_length_agrees
+
+  _hi_h2 "Testing: the fish environment segment's copy"
+  _hi_check "config.fish's source list matches env_prompt.sh" test_fish_env_order_default_matches_env_prompt
+  _hi_check "Every source word has a branch in both" test_fish_env_sources_all_have_an_arm
+  _hi_check "Both copies read the same tool variables" test_fish_env_reads_the_same_variables
+  _hi_check "Both truncate at 32 with core.sh's ellipsis" test_fish_env_truncation_matches_core
+  _hi_check "All three shells color the segment" test_fish_env_color_matches_the_other_shells
   _hi_suite_end "hi.sh (the bash-less prompt)"
 }
 

@@ -90,8 +90,7 @@ entry in
 (wildcard entries are not matched).
 .TP
 .B 2. container, through docker, podman, nerdctl or finch
-a running container, by name or ID, on whichever member of
-.B $_HI_CONTAINER_CLIS
+a running container, by name or ID, on whichever of the four
 answers, in that order.
 .TP
 .B 3. nomad allocation
@@ -167,13 +166,12 @@ above:
 (ssh's own error speaks if the host is not there), or a backend by name \-
 .BR docker ,
 .BR podman ,
-any other member of
-.BR $_HI_CONTAINER_CLIS ,
+.BR nerdctl ,
+.BR finch ,
 .B nomad
 or
 .BR kube .
-The name has to be one hi was loaded with; a stranger is an error, not a
-guess.
+The name has to be one of those; a stranger is an error, not a guess.
 .B \-\-use=\fIbackend\fR
 is the same flag with its word joined \- as every option that takes one word
 is:
@@ -215,17 +213,16 @@ inside a tmux, the session is created detached and this client switches to
 it; inside a screen or zellij, a new window or tab opens in the current
 session. Without a terminal, or without a multiplexer on this machine, hi
 connects as usual.
-.B _HI_MUX=1
-in the settings makes it the default.
+.B alias hi='hi \-\-mux'
+makes it the default.
 .TP
 .B \-\-no\-mux
-connect without the tmux wrap, whatever
-.B _HI_MUX
-says \- the way out of that default for one connect. Of
+connect without the tmux wrap \- the way out of that alias for one connect. Of
 .B \-\-mux
 and
 .BR \-\-no\-mux ,
-the last one on the line wins.
+the last one on the line wins, so the flag on the command line beats the one
+the alias put there.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -552,25 +549,6 @@ the parent of the
 directory; set by
 .B /etc/profile.d/say-hi.sh
 for packaged installs.
-.TP
-.B _HI_CONTAINER_CLIS
-the docker\-compatible CLIs a container is listed and reached through, in
-order; default
-.BR "docker podman nerdctl finch" .
-Each is its own
-.B \-\-use
-name and its own completion tag.
-.TP
-.B _HI_MUX
-.B 1
-wraps every connect in the local
-.BR tmux (1)
-session
-.B \-\-mux
-describes;
-.B \-\-no\-mux
-skips it for one. Default
-.BR 0 .
 .TP
 .B _HI_TRUECOLOR
 .B 1

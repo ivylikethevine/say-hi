@@ -245,14 +245,14 @@ function test_banner_ascii_fallback_uses_caret() {
   [[ "$out" == *"^"* ]] && [[ "$out" != *"↑"* ]]
 }
 
-# ...and the marks swap with it, keeping check_line's width math honest
-# (the ASCII ok is two columns and declares itself as such)
+# ...and the marks swap with it. All three are one visible column in either
+# set, which is what lets check_line's width math treat the mark as a constant
 function test_marks_swap_to_ascii_with_the_set() {
   (
     _HI_ASCII=1
     _hi_choose_glyphs
-    [ "$_HI_MARK_OK" = ok ] && [ "$_HI_MARK_OK_W" = 2 ] &&
-      [ "$_HI_MARK_NO" = x ] && [ "$_HI_MARK_NO_W" = 1 ]
+    [ "$_HI_MARK_OK" = "+" ] && [ "$_HI_MARK_NO" = x ] &&
+      [ "$_HI_MARK_ALT" = "~" ]
   )
 }
 

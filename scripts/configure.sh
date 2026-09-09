@@ -30,6 +30,8 @@ function _hi_load_preview_sources() {
   source "$_HI_HEADER"
   # shellcheck source=../common/git_prompt.sh
   source "$_HI_GIT_PROMPT"
+  # shellcheck source=../common/env_prompt.sh
+  source "$_HI_ENV_PROMPT"
 }
 
 # Answers this run has already taken, as "<var>=<value>" entries. An indexed
@@ -225,14 +227,8 @@ function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
 # seconds, as timeout(1) takes them: whole or with a fraction
 function _hi_is_seconds() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
 # plain identifiers, space-separated: hi.sh names a function after each one
-function _hi_is_cli_list() { [[ "$1" =~ ^[A-Za-z0-9_]+(\ [A-Za-z0-9_]+)*$ ]]; }
-
 function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
-}
-
-function _hi_is_glyph_choice() {
-  case "$1" in auto | glyphs | ascii) ;; *) return 1 ;; esac
 }
 
 function _hi_is_truecolor_choice() {
@@ -384,11 +380,22 @@ function _hi_git_status_preview() {
   (cd "$_HI_ROOT" 2>/dev/null && unset _HI_DISABLE_GIT_STATUS && _hi_git_prompt)
 }
 
+# the environment segment for whatever is active in this shell, with
+# _HI_DISABLE_ENV_STATUS unset for the call the way the git preview does it.
+# Most runs have nothing active, so the shape stands in for a blank line.
+function _hi_env_status_preview() {
+  local out
+  # shellcheck disable=SC2119 # stdout form on purpose - this feeds show_preview
+  out="$(unset _HI_DISABLE_ENV_STATUS && _hi_env_prompt)"
+  [ -n "$out" ] || out="(mise|direnv:proj|myproj) "
+  printf '%b\n' "$BRCYAN$out$NC"
+}
+
 # the whole prompt line as bash would draw it at this run's answers:
 # user@host cwd, the git segment when that is on, and the end character -
 # or a sentence, when the colored prompt itself is off
 function _hi_prompt_sample_preview() {
-  local prompt git="" end scheme
+  local prompt git="" env="" end scheme
   if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS" 1; then
     _hi_cecho " prompt off - your shell's own" "$YELLOW"
     return 0
@@ -404,8 +411,13 @@ function _hi_prompt_sample_preview() {
     _hi_prompt_preview
   )"
   setting_off _HI_DISABLE_GIT_STATUS "$_HI_SETTINGS" 1 || git="$(_hi_git_status_preview)"
+  # only what is really active here: the shape _hi_env_status_preview falls
+  # back to would be a fiction in a line claiming to be this session's prompt
+  # shellcheck disable=SC2119 # stdout form on purpose
+  setting_off _HI_DISABLE_ENV_STATUS "$_HI_SETTINGS" 1 || env="$(_hi_env_prompt)"
+  [ -n "$env" ] && env="$BRCYAN$env$NC"
   _hi_prompt_end_shown BASH end
-  printf '%s%s %s\n' "$prompt" "$git" "$end"
+  printf '%b%s%s %s\n' "$env" "$prompt" "$git" "$end"
 }
 
 # The hub's picture: the header as it would print, then the prompt line as
@@ -491,6 +503,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||_hi_header_preview| Enable the connect/disconnect header (system info, git identity, package check)?||connect/disconnect header - its contents are the Header menu"
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
+  "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview| Enable the environment segment in the prompt (the leading (myproj) naming an active venv, conda, direnv, nix or version manager)?||environment segment in the prompt"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?||vim/nano config overrides"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
@@ -518,7 +531,6 @@ _HI_PROMPT_PROMPTS=(
 # opening it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
-  "_HI_MUX|0|1|| Wrap every session in a local tmux (one named session per target, reattached when you reconnect)?|tmux|"
 )
 
 function _hi_is_yes_no() {
@@ -700,7 +712,7 @@ function config_hub() {
     printf '   2) %-12s %s\n' "[h]eader" "what the header shows and in what order; its width, the package check's depth, the addresses hidden"
     printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
     printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
-    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color, the container CLI roster"
+    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color"
     printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
     printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
     menu_read " > " reply || return 0
@@ -1131,41 +1143,32 @@ function config_prompt() {
   done
 }
 
-# The advanced section's free-text half: the glyph policy and the container
-# CLI roster. Each keeps its current value on Enter and clears the override
-# when the answer is the shipped default, like config_max_width.
+# The advanced section's free-text half: the 24-bit color verdict, and nothing
+# else since the glyph question retired. It keeps its current value on Enter
+# and clears the override when the answer is the shipped default, like
+# config_max_width.
+#
+# $_HI_TRUECOLOR is an unset/1/0 flag asked in words: "1" is a fact about the
+# implementation rather than an answer, so the words map in on the way to the
+# question and back out on the way to the file. `on` is the answer under tmux,
+# which hides COLORTERM. Glyphs are not asked at all any more - the locale
+# decides, and the client ships its verdict to the session (docs/SETTINGS.md's
+# _Not settings_).
 function config_advanced_values() {
   local current value choice
-
-  # _HI_ASCII is a 1/0/unset flag; the question uses words and maps both ways,
-  # since "1" for ASCII is a fact about the implementation, not an answer
-  setting_value _HI_ASCII "$_HI_SETTINGS" current
-  case "$current" in 1) choice=ascii ;; 0) choice=glyphs ;; *) choice="" ;; esac
-  value="$(ask_value "Banner/prompt/package glyphs: auto (by the locale), glyphs, or ascii?" \
-    "$choice" auto _hi_is_glyph_choice "answer auto, glyphs or ascii")"
-  case "$value" in ascii) value=1 ;; glyphs) value=0 ;; *) value="" ;; esac
-  _hi_pending_set _HI_ASCII "$value"
-
-  # _HI_TRUECOLOR is the same shape as _HI_ASCII - the client's verdict on
-  # its terminal, shipped to the session - and asked the same way: on is the
-  # answer under tmux, which hides COLORTERM
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
   case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
   value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
     "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
   case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_TRUECOLOR "$value"
-
-  ask_setting_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" _hi_is_cli_list \
-    "plain names separated by spaces, like: docker podman" \
-    "(containers) Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?"
 }
 
 # The advanced section: a short question walk rather than a menu - these are
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
 function config_advanced() {
-  section "Advanced settings" "The leading space, tmux, the glyphs, 24-bit color and the container CLI roster. Enter keeps each value."
+  section "Advanced settings" "The leading space and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
 }
@@ -1215,6 +1218,7 @@ function collect_setting_lines() {
   _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
+  _hi_collect_value _HI_ENV_ORDER "$_HI_ENV_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_MIN_PRIORITY 2
   _hi_collect_value _HI_PACKAGES_PALETTE ""
   _hi_collect_value _HI_COLOR_SCHEME ""
@@ -1227,9 +1231,7 @@ function collect_setting_lines() {
     _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
   done
   _hi_collect_group _HI_ADVANCED_PROMPTS
-  _hi_collect_value _HI_ASCII ""
   _hi_collect_value _HI_TRUECOLOR ""
-  _hi_collect_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" quoted
 }
 
 # _hi_has_setting_lines - is there anything to write? A loop, not

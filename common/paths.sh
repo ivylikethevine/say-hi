@@ -12,6 +12,7 @@ export _HI_LAUNCHER="$_HI_ROOT/hi.sh"
 export _HI_CORE="$_HI_ROOT/common/core.sh"
 export _HI_HEADER="$_HI_ROOT/common/header.sh"
 export _HI_GIT_PROMPT="$_HI_ROOT/common/git_prompt.sh"
+export _HI_ENV_PROMPT="$_HI_ROOT/common/env_prompt.sh"
 export _HI_TARGETS="$_HI_ROOT/common/targets.sh"
 export _HI_INSTALL="$_HI_ROOT/scripts/install.sh"
 export _HI_PREVIEW="$_HI_ROOT/scripts/preview.sh"
@@ -102,6 +103,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_HEADER=1
   export _HI_DISABLE_PROMPT=1
   export _HI_DISABLE_GIT_STATUS=1
+  export _HI_DISABLE_ENV_STATUS=1
   export _HI_DISABLE_EDITORS=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1

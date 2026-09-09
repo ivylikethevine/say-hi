@@ -266,8 +266,8 @@ function test_podman_kind_lists_running_containers() {
   _hi_has_row "$(_hi_targets "$_HI_CONFIG" podman)" pod-one podman
 }
 
-# every member of $_HI_CONTAINER_CLIS is a kind of its own, in the default
-# roster without anyone naming it (GLOSSARY: HI.51)
+# every member of the docker-compatible family is a kind of its own, and the
+# family is not configurable: all four are always tried (GLOSSARY: HI.51)
 function test_nerdctl_kind_lists_running_containers() {
   _hi_has_row "$(_hi_targets "$_HI_CONFIG" nerdctl)" nerd-one nerdctl
 }
@@ -279,20 +279,15 @@ function test_absent_family_member_is_silent() {
   [ -z "$out" ]
 }
 
-# the setting is the roster: a list without docker hides a docker on $PATH
-function test_container_clis_setting_narrows_the_family() {
+# the family's own order is the emission order, ahead of nomad and kube, and
+# nothing in the environment reorders or narrows it - a stale
+# _HI_CONTAINER_CLIS from an older install is just another unread name
+function test_family_order_is_emission_order() {
   local out
-  out="$(_HI_CONTAINER_CLIS=podman _hi_targets "$_HI_CONFIG")"
-  _hi_has_row "$out" pod-one podman || return 1
-  ! _hi_has_row "$out" alpha docker
-}
-
-# ...and its order is the emission order, ahead of nomad and kube
-function test_container_clis_order_is_emission_order() {
-  local out
-  out="$(_HI_CONTAINER_CLIS="podman docker" _hi_targets "$_HI_CONFIG" | grep -v $'\tssh$')"
-  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "pod-one"$'\t'"podman" ] || return 1
-  [ "$(printf '%s\n' "$out" | sed -n '2p')" = "alpha"$'\t'"docker" ]
+  out="$(_HI_CONTAINER_CLIS=podman _hi_targets "$_HI_CONFIG" | grep -v $'\tssh$')"
+  [ "$(printf '%s\n' "$out" | sed -n '1p')" = "alpha"$'\t'"docker" ] || return 1
+  printf '%s\n' "$out" | grep -qxF "pod-one"$'\t'"podman" || return 1
+  printf '%s\n' "$out" | grep -qxF "nerd-one"$'\t'"nerdctl"
 }
 
 # podman-docker's `docker` is podman: both lanes list the same container, and
@@ -971,8 +966,7 @@ function run_targets_tests() {
   _hi_check "docker -> no alias row for an empty label" test_docker_kind_omits_alias_row_when_label_is_empty
   _hi_check "nerdctl -> running containers, its own kind" test_nerdctl_kind_lists_running_containers
   _hi_check "an absent family member emits nothing" test_absent_family_member_is_silent
-  _hi_check "_HI_CONTAINER_CLIS narrows the family" test_container_clis_setting_narrows_the_family
-  _hi_check "_HI_CONTAINER_CLIS order is emission order" test_container_clis_order_is_emission_order
+  _hi_check "the family's order is the emission order" test_family_order_is_emission_order
   _hi_check "two CLIs on one daemon -> one row" test_duplicate_daemon_rows_are_emitted_once
   _hi_check "dedupe leaves nomad and kube rows alone" test_dedupe_leaves_nomad_and_kube_alone
   _hi_check "podman -> running containers" test_podman_kind_lists_running_containers

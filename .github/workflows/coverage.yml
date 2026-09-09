@@ -102,11 +102,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install zsh, fish, and kcov's runtime libraries
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y zsh fish libdw1 libelf1 libcurl4 zlib1g libstdc++6
+      - uses: $/.github/actions/setup-shells
+
+      # kcov's runtime libraries, on top of the shells that action installs -
+      # its apt-get update is the one this step's install reads
+      - name: Install kcov's runtime libraries
+        run: sudo apt-get install -y libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
       # built from its GitHub source tarball like every other tool setup-tool
       # knows: kcov publishes no binary asset and reaches Debian/Ubuntu only
@@ -161,11 +162,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install zsh and fish
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y zsh fish
+      - uses: $/.github/actions/setup-shells
 
       # bashcov is a rubygem, and none of tools.txt's kinds fetch one, so the
       # pin lives here by hand - which makes it the one tool

@@ -74,6 +74,7 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:hi_helpers:hi/helpers_test.sh"
     "fast:core:common/core_test.sh"
     "fast:git_prompt:common/git_prompt_test.sh"
+    "fast:env_prompt:common/env_prompt_test.sh"
     "fast:paths:common/paths_test.sh"
     "fast:exports:common/exports_test.sh"
     "fast:load:load/load_test.sh"

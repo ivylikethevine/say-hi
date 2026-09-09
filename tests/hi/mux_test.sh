@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/hi/mux_test.sh - the client-side tmux wrap: --mux, _HI_MUX, the
+# tests/hi/mux_test.sh - the client-side tmux wrap: --mux, --no-mux, the
 # session name a target maps to, and the tmux calls _hi_mux_wrap makes. tmux
 # is a shim that logs its argv; one case behind a real tmux proves the name
 # rule against the real thing. Sources hi.sh, which defines its functions and
@@ -104,7 +104,7 @@ function test_mux_flag_after_the_target_is_the_commands() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--mux goes before the target"* ]]
 }
 
-# --no-mux is the per-connect way out of _HI_MUX=1, and the last of the two
+# --no-mux is the per-connect way out of an `alias hi='hi --mux'`, and the last of the two
 # flags wins; after the target it is refused like --mux
 function test_no_mux_flag_clears_mux_ahead_of_the_target() {
   local out
@@ -125,15 +125,17 @@ function test_no_mux_flag_clears_mux_ahead_of_the_target() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--no-mux goes before the target"* ]]
 }
 
-function test_no_mux_beats_the_setting() {
-  local log="$_HI_WORKDIR/nomux.log" out
-  out="$(_hi_mux_run "$log" 0 'MUX=0; _HI_MUX=1')"
+function test_mux_wrap_is_a_no_op_without_the_flag() {
+  local log="$_HI_WORKDIR/off.log" out
+  out="$(_hi_mux_run "$log" 0 'MUX=0')"
   [ "$out" = RETURNED ]
 }
 
-function test_mux_wrap_is_a_no_op_without_the_flag() {
-  local log="$_HI_WORKDIR/off.log" out
-  out="$(_hi_mux_run "$log" 0 'MUX=0; unset _HI_MUX')"
+# there is no setting behind the flag any more, so a stray _HI_MUX in the
+# environment is a name hi does not read - the guard on the retirement
+function test_mux_wrap_ignores_a_stray_setting() {
+  local log="$_HI_WORKDIR/stray.log" out
+  out="$(_hi_mux_run "$log" 0 'MUX=""; export _HI_MUX=1')"
   [ "$out" = RETURNED ]
 }
 
@@ -160,13 +162,6 @@ function test_mux_wrap_execs_new_session_A_named_for_the_target() {
   *) return 1 ;;
   esac
   case "$out" in *RETURNED*) return 1 ;; esac
-}
-
-# the setting alone, no flag: the same wrap
-function test_mux_setting_wraps_without_the_flag() {
-  local log="$_HI_WORKDIR/setting.log" out
-  out="$(_hi_mux_run "$log" 0 'MUX=""; export _HI_MUX=1')"
-  case "$out" in "TMUX new-session -A -s hi-myhost "*) ;; *) return 1 ;; esac
 }
 
 # inside a tmux nesting is refused: create detached, then switch this client
@@ -279,12 +274,11 @@ function run_hi_mux_tests() {
   _hi_check "--mux after the target is the command's" test_mux_flag_after_the_target_is_the_commands
   _hi_check "--no-mux clears it, last one wins" test_no_mux_flag_clears_mux_ahead_of_the_target
   _hi_h2 "Testing: _hi_mux_wrap"
-  _hi_check "Without the flag or setting, nothing happens" test_mux_wrap_is_a_no_op_without_the_flag
+  _hi_check "Without the flag, nothing happens" test_mux_wrap_is_a_no_op_without_the_flag
+  _hi_check "A stray _HI_MUX=1 is not read" test_mux_wrap_ignores_a_stray_setting
   _hi_check "The inner hi does not wrap again" test_mux_wrap_stands_down_inside_the_wrapped_session
   _hi_check "No tmux here: connect un-wrapped, with a warning" test_mux_wrap_connects_plain_without_tmux
   _hi_check "Outside tmux: exec new-session -A -s hi-<target>" test_mux_wrap_execs_new_session_A_named_for_the_target
-  _hi_check "_HI_MUX=1 wraps without the flag" test_mux_setting_wraps_without_the_flag
-  _hi_check "--no-mux beats _HI_MUX=1" test_no_mux_beats_the_setting
   _hi_check "Inside tmux: create detached, then switch-client" test_mux_wrap_inside_tmux_creates_then_switches
   _hi_check "The inner argv is the parsed state, quoted" test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state
   _hi_h2 "Testing: screen and zellij"

@@ -6,8 +6,9 @@
 #
 # It sits in scripts/ rather than common/ on purpose - common/ ships in the ssh
 # payload and wears a CI-enforced size budget, and nothing a target runs draws
-# a table. Source it *after* common/core.sh, whose $NC and _hi_repeat it uses;
-# sourcing it does nothing else.
+# a table. Source it *after* common/core.sh, whose $NC and _hi_repeat it uses,
+# and after scripts/lib.sh, which decides the $_HI_BOX_* set every rule and
+# edge below is drawn from; sourcing it does nothing else.
 #
 # The measure-then-render split is the contract. Every column's width has to be
 # settled before the first cell prints, because a cell padded wider than the
@@ -61,15 +62,32 @@ function _hi_widen_to() {
   eval "$var=\$cur"
 }
 
-# _hi_hbar <width...> - the +---+---+ rule; each column is padded by one space
-# either side, so a width of n renders n+2 dashes
+# _hi_hbar <top|mid|bottom> <width...> - one horizontal rule; each column is
+# padded by one space either side, so a width of n renders n+2 fills. The
+# position picks the corners and the junction from lib.sh's $_HI_BOX_* set:
+# every one of them is `+` on the ASCII side, so the three positions render
+# identically there and differ only where the box glyphs do.
 function _hi_hbar() {
-  local seg="+" w dashes
+  local pos="$1" left mid right w fill seg
+  shift
+  case "$pos" in
+  top) left="$_HI_BOX_TL" mid="$_HI_BOX_T" right="$_HI_BOX_TR" ;;
+  bottom) left="$_HI_BOX_BL" mid="$_HI_BOX_B" right="$_HI_BOX_BR" ;;
+  *) left="$_HI_BOX_L" mid="$_HI_BOX_X" right="$_HI_BOX_R" ;;
+  esac
+  seg="$left"
   for w in "$@"; do
-    _hi_repeat dashes $((w + 2)) '-'
-    seg+="$dashes+"
+    [ "$seg" = "$left" ] || seg+="$mid"
+    _hi_repeat fill $((w + 2)) "$_HI_BOX_H"
+    seg+="$fill"
   done
-  printf '%s\n' "$seg"
+  printf '%s\n' "$seg$right"
+}
+
+# _hi_row_end - the closing edge every row ends with, so no caller spells the
+# glyph and a row cannot end in a different vocabulary than its rules
+function _hi_row_end() {
+  printf '%s\n' "$_HI_BOX_V"
 }
 
 # _hi_cell <width> <escape> <text> - one padded, colored cell of plain text; an
@@ -77,12 +95,12 @@ function _hi_hbar() {
 function _hi_cell() {
   local padded
   printf -v padded '%-*s' "$1" "$3"
-  printf '| %b ' "$2$padded$NC"
+  printf '%s %b ' "$_HI_BOX_V" "$2$padded$NC"
 }
 
 # _hi_cell_raw <width> <printed-width> <text> - a cell whose text carries its own
 # escapes (so it cannot be measured, and the caller hands in what it will print
 # as) and its own colors (so it is emitted as-is rather than wrapped in one).
 function _hi_cell_raw() {
-  printf '| %b%*s ' "$3$NC" "$(($1 - $2))" ''
+  printf '%s %b%*s ' "$_HI_BOX_V" "$3$NC" "$(($1 - $2))" ''
 }

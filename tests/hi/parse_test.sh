@@ -312,25 +312,26 @@ function test_header_probes_every_backend_in_the_roster() {
   # shellcheck disable=SC2031
   for row in "${_HI_BACKENDS[@]}"; do
     name="${row%%|*}"
-    # kube is probed by its CLI's name rather than the roster's; the family
-    # rows are whatever $_HI_CONTAINER_CLIS says, and the header walks that
-    # same list rather than spelling any member (GLOSSARY: HI.51)
+    # kube is probed by its CLI's name rather than the roster's; every family
+    # row is spelled in _hi_probe_launch itself, since header.sh cannot read
+    # this array - which is what pins the two lists together (GLOSSARY: HI.51)
     case "$name" in
     kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || return 1 ;;
     nomad) [[ "$launch" == *nomad* ]] || return 1 ;;
-    *) [[ "$launch" == *_HI_CONTAINER_CLIS* ]] || return 1 ;;
+    *) [[ "$launch" == *"$name"* ]] || return 1 ;;
     esac
   done
 }
 
-# the family rows follow the setting: a list of one is a roster of three, and
-# a member hi was not loaded with has no row to resolve through
-function test_backend_roster_follows_container_clis() {
+# the roster is the whole docker-compatible family and nothing in the
+# environment edits it: every member always has a row to resolve through, and
+# a stale _HI_CONTAINER_CLIS from an older install changes nothing
+function test_backend_roster_is_the_whole_family() {
   local names
   # sourced in a child bash with $0 left as "bash", so hi.sh's
   # `[[ BASH_SOURCE == $0 ]]` hatch reads it as a library, not a run
   names="$(_HI_CONTAINER_CLIS=nerdctl bash -c 'source "$1" >/dev/null 2>&1; printf "%s\n" "${_HI_BACKENDS[@]%%|*}"' bash "$_HI_LAUNCHER")"
-  [ "$names" = "$(printf 'nerdctl\nnomad\nkube\n')" ]
+  [ "$names" = "$(printf 'docker\npodman\nnerdctl\nfinch\nnomad\nkube\n')" ]
 }
 
 function test_resolve_backend_prints_nothing_for_a_stranger() {
@@ -479,6 +480,31 @@ function test_select_arm_backend_flag_names_the_arm_with_no_probe() {
 function test_select_arm_falls_back_to_resolution_when_backend_unset() {
   local DOMAIN=yes BACKEND=
   [ "$(PATH="$_HI_SHIM_PATH" _hi_select_arm)" = docker ]
+}
+
+# The alternate-screen exit is the one mode byte a terminal still on its
+# normal screen answers with a cursor move (Konsole restores from a slot
+# nothing saved, i.e. home), so it rides between a DECSC and a DECRC and the
+# whole string is inert on a terminal that never left the normal screen.
+# GLOSSARY: HI.53
+function test_reset_terminal_wraps_the_alt_screen_exit_in_decsc_decrc() {
+  local out
+  out="$(_HI_DISABLE_MARKS=1 _hi_reset_terminal 255 2>/dev/null)"
+  [[ "$out" == *$'\e7\e[?1049l\e8'* ]]
+}
+
+# the OSC 133 "command done" carries the status, so a Konsole left mid-command
+# by a drop stops reading the arrow keys as an edit of the last one
+function test_reset_terminal_closes_the_prompt_mark_with_the_status() {
+  local out
+  out="$(_hi_reset_terminal 130 2>/dev/null)"
+  [[ "$out" == *$'\e]133;D;130\a'* ]]
+}
+
+function test_reset_terminal_omits_the_prompt_mark_when_marks_are_off() {
+  local out
+  out="$(_HI_DISABLE_MARKS=1 _hi_reset_terminal 130 2>/dev/null)"
+  [[ "$out" != *'133;D'* ]]
 }
 
 function test_report_failure_is_silent_once_hi_already_said_it() {
@@ -1244,7 +1270,7 @@ function run_hi_parse_tests() {
   _hi_check "Picks the roster's first match" test_resolve_backend_picks_the_first_matching_row
   _hi_check "The roster decides, not the resolver" test_resolve_backend_follows_the_roster_order
   _hi_check "The header counts every backend the roster dispatches" test_header_probes_every_backend_in_the_roster
-  _hi_check "The family rows follow _HI_CONTAINER_CLIS" test_backend_roster_follows_container_clis
+  _hi_check "The family rows are the whole family" test_backend_roster_is_the_whole_family
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
 
@@ -1266,6 +1292,9 @@ function run_hi_parse_tests() {
   _hi_check "select_arm: the flag names the arm with no probe" test_select_arm_backend_flag_names_the_arm_with_no_probe
   _hi_check "select_arm: unset falls back to resolution" test_select_arm_falls_back_to_resolution_when_backend_unset
   _hi_check "select_arm: a Host * block does not shadow a container" test_select_arm_wildcard_host_does_not_shadow_a_container
+  _hi_check "reset_terminal: the alt-screen exit rides in DECSC/DECRC" test_reset_terminal_wraps_the_alt_screen_exit_in_decsc_decrc
+  _hi_check "reset_terminal: closes the prompt mark with the status" test_reset_terminal_closes_the_prompt_mark_with_the_status
+  _hi_check "reset_terminal: no prompt mark when marks are off" test_reset_terminal_omits_the_prompt_mark_when_marks_are_off
   _hi_check "report_failure: silent once hi already said it" test_report_failure_is_silent_once_hi_already_said_it
   _hi_check "report_failure: silent for a non-255 ssh exit" test_report_failure_is_silent_for_a_non_255_ssh_exit
   _hi_check "report_failure: speaks on 255" test_report_failure_speaks_on_255

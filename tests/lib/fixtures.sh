@@ -66,15 +66,32 @@ _HI_TEST_RAMP='yellow bryellow green brgreen magenta brmagenta red brred'
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one
 # function, so they cannot segment tables differently. A table is a run of
-# adjacent lines starting with `+` or `|`, so blank lines and prose between
-# two tables separate them without being measured.
+# adjacent lines starting with a left edge - scripts/lib.sh's $_HI_BOX_* set on
+# either side of _hi_use_ascii - so blank lines and prose between two tables
+# separate them without being measured.
+#
+# ${#} counts characters under a UTF-8 locale and bytes otherwise (GLOSSARY:
+# HI.12), so a rule of three-byte box glyphs would measure three times the
+# ASCII row beneath it and a table square on screen would be called crooked -
+# which is what a Windows runner with no locale set saw. The probe below is one
+# multibyte character: where ${#} already answers 1 nothing is subtracted, and
+# where it answers 3 the UTF-8 continuation bytes (0x80-0xBF, which never start
+# a character) come off first and turn the byte count back into a column count.
+# The probe is the literal glyph, not $'\uXXXX': that escape is bash 4.2, and
+# the floor here is 3.2.
+_HI_RECT_MB='─' # the box glyphs' own fill, so it is never a stranger here
 function _hi_table_is_rectangular() {
-  local line stripped width=0 len seen=0
+  local line stripped plain width=0 len seen=0
   while IFS= read -r line; do
     stripped="$(_hi_strip_ansi "$line")"
     case "$stripped" in
-    [+\|]*)
-      len=${#stripped}
+    [+\|┌├└│]*)
+      if [ "${#_HI_RECT_MB}" = 1 ]; then
+        len=${#stripped}
+      else
+        plain="${stripped//[$'\200'-$'\277']/}"
+        len=${#plain}
+      fi
       if [ "$width" -eq 0 ]; then
         width=$len
         seen=1

@@ -8,6 +8,7 @@
 : "${_HI_HOME:=${${(%):-%x}:A:h:h:h}}"
 source "$_HI_HOME/say-hi/common/core.sh"
 source "$_HI_GIT_PROMPT"
+source "$_HI_ENV_PROMPT"
 source "$_HI_ALIASES"
 
 # NOT setopt KSH_ARRAYS: it is global, hi's block runs after oh-my-zsh's, and
@@ -31,6 +32,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # pw3nage-safe form bash.sh's ps1() uses
     __hi_git_precmd() { _hi_git_prompt __hi_git_info; }
     precmd_functions+=(__hi_git_precmd)
+    # zsh keeps the $PS1 it was given, so another tool's prefix is still on
+    # screen and hi stands down for it. GLOSSARY: HI.54
+    _HI_ENV_DEFER=1
+    __hi_env_precmd() { _hi_env_prompt __hi_env_info; }
+    precmd_functions+=(__hi_env_precmd)
     # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
     # emits them; _HI_DISABLE_MARKS=1 turns them off
     _hi_marks_a="" _hi_marks_b=""
@@ -75,9 +81,9 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       fi
       _hi_at_color=plain
       [ -n "${SSH_TTY:-}" ] && _hi_at_color=yellow
-      PS1="$_hi_marks_a$_hi_lead"$'${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
+      PS1="$_hi_marks_a$_hi_lead"$'%F{cyan}${__hi_env_info}%f${debian_chroot:-}%F{$USER_COLOR}%n%f%F{$_hi_at_color}@%f%F{$HOST_COLOR}%m%f%F{cyan} %~%f%F{plain}%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
     else
-      PS1="$_hi_marks_a$_hi_lead"$'${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
+      PS1="$_hi_marks_a$_hi_lead"$'${__hi_env_info}${debian_chroot:-}%n@%m %~%{${__hi_git_info}%} '"$HI_PS1_END $_hi_marks_b"
     fi
     unset _hi_lead
   fi

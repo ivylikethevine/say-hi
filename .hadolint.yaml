@@ -27,8 +27,8 @@ ignored:
 
 # Not ignored, and not needed: DL3009 (apt lists left in the layer), DL3015
 # (no --no-install-recommends) and DL4006 (piped RUN without pipefail) were
-# all real findings and are fixed in the fixtures rather than silenced -
-# framework.Dockerfile sets `SHELL -o pipefail` and every script sets it
-# itself, and every apt RUN cleans the lists and passes
-# --no-install-recommends.
+# all real findings and are fixed in the fixtures rather than silenced - every
+# fixture with a pipe in a RUN sets `SHELL -o pipefail` first (framework,
+# fish37, fish4, zsh58, demo-debian) and every script sets it itself, and every
+# apt RUN cleans the lists and passes --no-install-recommends.
 failure-threshold: error

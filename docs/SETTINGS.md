@@ -72,8 +72,8 @@ prompt line as it would draw, at your current settings — over a short menu:
    each previewed as it flips.
 4. **Prompt** — starship, and the character each shell's prompt ends with.
 5. **Advanced** — the _advanced_ rows, as a short walk of questions:
-   the leading space, tmux, the glyphs, 24-bit color and the container CLI
-   roster. A question whose tool is not on this machine (tmux) is skipped.
+   the leading space, tmux, the glyphs and 24-bit color. A question whose tool
+   is not on this machine (tmux) is skipped.
 The wizard does not ask about colors: `_HI_COLOR_SCHEME` and
 `_HI_PACKAGES_PALETTE` are both written into `settings.sh` by hand — see
 [Colors](#colors) — and it keeps whatever they hold.
@@ -137,7 +137,8 @@ what the preview shows until `[s]` saves them. The rows are
    scratch rc directory. It runs on `SIGHUP` too, so a dropped connection
    cleans up the same way, with nothing left to reconnect to. Run `hi` inside
    `tmux` or `screen` on the _client_ to survive drops - `hi --mux <target>`
-   (or `_HI_MUX=1`) does that step for you and reattaches on the next connect;
+   does that step for you and reattaches on the next connect, and
+   `alias hi='hi --mux'` makes that the default (`--no-mux` skips it once);
    persistent sessions on the target were
    [decided against](SUPPORT.md#what-would-change-an-answer).
 6. `hi <target> 'some command'` runs the command inside that same session -
@@ -173,6 +174,7 @@ cannot land without a row here.
 | `_HI_DISABLE_HEADER`        | `0`                                                  | `hi --configure`          | turns off the whole connect/disconnect header, every line of it                                                                                                                                                                                                                                                                                                  |
 | `_HI_DISABLE_PROMPT`        | `0`                                                  | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                                                                                                                                               |
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                          |
+| `_HI_DISABLE_ENV_STATUS`    | `0`                                                  | `hi --configure`          | turns off the environment segment in the prompt - the leading `(myproj)` naming whatever venv, conda, direnv, nix, guix, devbox or version-manager environment is active. See [Others](#others)                                                                                                                                                                  |
 | `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the `vim`/`nano` config overrides                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa` and `eza` themselves stay available by name either way                                                                                                                                                                           |
 | `_HI_DISABLE_MARKS`         | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)                                                                                                                                                                                                                                                |
@@ -180,6 +182,7 @@ cannot land without a row here.
 | `_HI_DISABLE_LOCAL`         | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                                                                                                                                                                        |
 | `_HI_REMOTE_SESSION`        | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                                                                                                                                                                                                                                                                       |
 | `_HI_HEADER_ORDER`          | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                                                                                                                                                                                                                                                                |
+| `_HI_ENV_ORDER`             | `see [Others](#others)`                              | you                       | which environments the prompt's `(myproj)` segment names, and in what order: space-separated words from `mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv`. Every one, outermost first, is the default; drop a word to silence it. See [Others](#others)                                                                                    |
 | `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-4, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor`    |
 | `_HI_PACKAGES_PALETTE`      | unset                                                | you                       | the color the check paints each priority in: eight color names, four for installed then four for missing. Unset is the shipped ramp (cyan-green installed, blue-red missing); anything that is not eight names falls back to it. See [Colors](#colors), and judge one with `hi --preview packages`                                                               |
 | `_HI_COLOR_SCHEME`          | unset                                                | you                       | what the palette names render as on a terminal that reports 24-bit color: twenty-four or forty-eight six-digit hex words. Unset is the terminal's own sixteen colors. See [Colors](#colors) for the word count and order                                                                                                                                         |
@@ -190,11 +193,8 @@ cannot land without a row here.
 | `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                      |
 | `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                          |
 | `_HI_NO_LEAD_SPACE`         | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                  |
-| `_HI_MUX`                   | `0`                                                  | `hi --configure` advanced | `1` wraps every session in a local multiplexer session named for the target and reattaches on the next connect, what `--mux` does for one connect (`--no-mux` skips it for one); needs tmux, zellij or screen here, not on the target                                                                                                                            |
-| `_HI_ASCII`                 | by locale                                            | `hi --configure` advanced | `1` forces ASCII stand-ins for the banner/prompt/packages glyphs, `0` forces the glyphs; unset asks the locale, so `LANG=C` degrades cleanly instead of printing mojibake                                                                                                                                                                                        |
-| `_HI_TRUECOLOR`             | by terminal                                          | `hi --configure` advanced | `1`/`0`: does the terminal render 24-bit color. Unset, the client decides and ships the verdict to the session; see [Colors](#colors). The Advanced walk asks it as auto/on/off, beside `_HI_ASCII`                                                                                                                                                              |
-| `_HI_CONTAINER_CLIS`        | `docker podman nerdctl finch`                        | `hi --configure` advanced | the docker-compatible CLIs, space-separated, `hi <TAB>` lists containers through and `hi <target>` resolves with; docker's grammar is what they all speak, so one arm serves the lot. See [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                                                                                                                 |
-| `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to `_HI_ASCII`                                                                                                                                                                                                    |
+| `_HI_TRUECOLOR`             | by terminal                                          | `hi --configure` advanced | `1`/`0`: does the terminal render 24-bit color. Unset, the client decides and ships the verdict to the session; see [Colors](#colors). The Advanced walk asks it as auto/on/off, and is the only question left in it                                                                                                                                                              |
+| `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to [`_HI_ASCII`](#not-settings)                                                                                                                                                                                                    |
 | `_HI_BAT_OPTS`              | Monokai theme, `--tabs 2`, `changes,grid` style      | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                      |
 | `_HI_EXA_SHARED_OPTS`       | `-F -1 -l -m --group-directories-first`              | you                       | the flags the `exa`/`eza` aliases share before each one's own are appended                                                                                                                                                                                                                                                                                       |
 | `_HI_EXA_OPTS`              | `$_HI_EXA_SHARED_OPTS --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                           |
@@ -219,6 +219,12 @@ More names look like settings and are not:
   source - the last four resolving to the overlay's copy when you have one,
   else the tree's - so an exported value does not survive. Point `$_HI_HOME`
   or `$HOME` elsewhere, or put your file in the overlay.
+- `$_HI_ASCII` is the *client's* verdict on whether its terminal renders
+  multibyte glyphs, taken from the locale and shipped to the session next to
+  `$NO_COLOR` - the glyphs land in the terminal you are sitting at, not in the
+  target's. There is no question for it and no row above: a target whose own
+  `LANG` is `C` still shows glyphs when your terminal does, which is the whole
+  point of shipping it.
 - `$_HI_RELEASE` is the version `packaging/stamp.sh` stamps at build time,
   and `$_HI_SESSION_RC` the `mktemp -d` holding a session's per-shell rc
   files ([HI.46](GLOSSARY.md#hi46-session-rc-directory)).
@@ -313,6 +319,35 @@ rc lines `install.sh` adds (marker-tagged, with a one-time `.hi-orig` backup,
 removed by `hi --uninstall`), and, in fish, three universal variables that
 memoize your prompt colors so only the first shell after a `colors` change
 pays for the bash call.
+
+The prompt's leading `(myproj)` names every environment manager that is
+active, outermost first: `(mise|direnv:proj|myproj)` is mise activated, a
+direnv-loaded `proj`, and a venv inside it. It reads `$MISE_SHELL`,
+`$ASDF_DIR`, `$PYENV_VERSION`/`$RBENV_VERSION`/`$NODENV_VERSION`,
+`$IN_NIX_SHELL`, `$GUIX_ENVIRONMENT`, `$DEVBOX_SHELL_ENABLED`,
+`$DEVENV_ROOT`, `$DIRENV_DIR`, `$CONDA_DEFAULT_ENV` and
+`$VIRTUAL_ENV_PROMPT`/`$VIRTUAL_ENV` - variables the tools export, so a draw
+costs no probe and no fork. A `.venv` is named for the directory holding it,
+not for itself. `_HI_ENV_ORDER` reorders the list or drops words from it, and
+`_HI_DISABLE_ENV_STATUS=1` turns the whole segment off.
+
+hi stands down for a tool already drawing its own prefix, so nothing appears
+twice: a `source .venv/bin/activate` keeps its own `(myproj)` in zsh and fish,
+where the shell holds on to the prompt the activate script edited. bash is the
+exception - hi rebuilds `$PS1` on every draw, so the activate script's prefix
+cannot survive there and hi draws the segment itself. The upshot is that a
+venv is named in all three shells, in the venv's styling under zsh and fish
+and in hi's under bash; direnv, nix and the rest have no prefix of their own
+and are always hi's.
+
+To get hi's styling and naming everywhere instead, silence the tool's own
+prefix the way the tool documents: `VIRTUAL_ENV_DISABLE_PROMPT=1` for a venv
+(`export` it before you activate) and `conda config --set changeps1 false`.
+With no prefix of its own on screen, hi draws the segment in every shell -
+which is also how a `.venv` stops reading as `(.venv)`, since a venv names
+itself after its own directory and hi names it after the project holding it.
+hi never sets those two for you: they are your setting, and every other shell
+and prompt you open reads them too.
 
 `_HI_DISABLE_MARKS` turns off the two escapes every hi prompt emits for
 terminals that read them — kitty, WezTerm, ghostty, foot, iTerm2, Konsole:

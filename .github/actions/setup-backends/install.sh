@@ -20,12 +20,18 @@ mkdir -p "$HI_APT_CACHE/partial"
 # terminal to say so - which an Actions step does not have: "gpg: cannot open
 # '/dev/tty'". --batch --yes says there is nobody to ask, and the keyring
 # lands through tee, the way the repo list on the next line already does.
+# before the hashicorp list below is written, never after: the prune takes
+# out every *.list in sources.list.d, this one included (../apt/lib.sh)
+# shellcheck source=../apt/lib.sh
+source "$GITHUB_ACTION_PATH/../apt/lib.sh"
+_hi_apt_drop_vendor_lists
+
 curl -sSfL https://apt.releases.hashicorp.com/gpg |
   gpg --batch --yes --dearmor |
   sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" |
   sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
-sudo apt-get update
+_hi_apt_update
 sudo apt-get -o "Dir::Cache::Archives=$HI_APT_CACHE" install -y podman nomad "$@"
 
 # apt (root) leaves its lock file and a root-only partial/ behind, and the
