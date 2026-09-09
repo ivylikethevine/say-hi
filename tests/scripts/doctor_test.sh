@@ -240,6 +240,29 @@ function test_config_flags_a_scheme_nothing_renders() {
   [[ "$out" != *"color-scheme"* ]]
 }
 
+# ...and the same for a ramp nothing paints: both are hand-written into
+# settings.sh, so a stale preset name (mono, warm) or a typo would otherwise
+# be silent - header.sh just falls back to the shipped ramp
+function test_config_flags_a_ramp_nothing_paints() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/badramp.XXXXXX")"
+  printf "export _HI_PACKAGES_PALETTE='mono'\n" >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_PACKAGES_PALETTE=mono
+    doctor_config
+  )"
+  [[ "$out" == *"pkg-palette"*"'mono' is ignored"* ]] || return 1
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP"
+    doctor_config
+  )"
+  [[ "$out" != *"pkg-palette"* ]]
+}
+
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
 # has to say which of the two parsers refused it
 function test_config_flags_a_settings_file_that_is_not_fish() {
@@ -782,6 +805,7 @@ function run_doctor_tests() {
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
+  _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
 
   _hi_h2 "Testing: the report primitives"

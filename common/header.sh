@@ -870,6 +870,11 @@ function hi_header() {
 # 3 favorites and core (bat, fzf, awk)
 _HI_YES_NAMES=(cyan green brcyan brgreen)
 _HI_NO_NAMES=(blue magenta bryellow brred)
+# The shipped ramp as one string, in the eight-name shape
+# $_HI_PACKAGES_PALETTE takes - the fallback restores from here rather than
+# repeating the two literals above, which have to stay where they are for
+# preview.sh's scrape.
+_HI_PACKAGES_RAMP="${_HI_YES_NAMES[*]} ${_HI_NO_NAMES[*]}"
 
 # Palette *names*, not escapes: these are configuration - which of
 # _HI_COLOR_NAMES each priority paints in - and storing them rendered meant
@@ -879,37 +884,26 @@ _HI_NO_NAMES=(blue magenta bryellow brred)
 # header_test.sh existed only to keep that round trip honest. The escapes
 # _hi_packages_palette derives below are what check_line actually reads.
 
-# $_HI_PACKAGES_PALETTE picks one of the named ramps below over the two
-# tables just assigned - preview.sh's scrape (above) stops at the
-# first line starting "_HI_YES_NAMES=", so that assignment has to stay
-# exactly there and cannot move into the case. Every value is one of
-# _HI_COLOR_NAMES (core.sh), the vocabulary settings/colors and fish's
-# set_color both use. Each ramp is meant to read monotonic 0->3 in both directions - a
-# missing favorite the loudest thing on screen, installed trivia the
-# quietest - and legible on light and dark terminals alike; judge a
-# candidate with `hi --preview packages`. "cool" is the shipped default:
-# _HI_YES/_HI_NO as assigned just above, unchanged from a fresh source so
-# the common case (no override, no palette function call yet) costs nothing
-# extra to read.
+# $_HI_PACKAGES_PALETTE is the ramp itself: eight _HI_COLOR_NAMES words
+# (core.sh's vocabulary, the one settings/colors and fish's set_color both
+# use), four for installed then four for missing, written into settings.sh
+# by hand. Anything else - unset, a typo, the wrong count - is the shipped
+# ramp. preview.sh's scrape (above) stops at the first line starting
+# "_HI_YES_NAMES=", so that assignment has to stay exactly there.
+# A ramp is meant to read monotonic 0->3 in both directions - a missing
+# favorite the loudest thing on screen, installed trivia the quietest - and
+# legible on light and dark terminals alike; judge one with
+# `hi --preview packages`.
 function _hi_packages_palette() {
-  case "${_HI_PACKAGES_PALETTE:-cool}" in
-  warm)
-    _HI_YES_NAMES=(yellow bryellow green brgreen)
-    _HI_NO_NAMES=(magenta brmagenta red brred)
-    ;;
-  mono)
-    _HI_YES_NAMES=(blue cyan brblue brcyan)
-    _HI_NO_NAMES=(yellow bryellow red brred)
-    ;;
-  *)
-    _HI_YES_NAMES=(cyan green brcyan brgreen)
-    _HI_NO_NAMES=(blue magenta bryellow brred)
-    ;;
-  esac
+  local _hi_pp_n _hi_pp_i _hi_pp_e _hi_pp_r="$_HI_PACKAGES_RAMP"
+  _hi_ramp_ok "${_HI_PACKAGES_PALETTE:-}" && _hi_pp_r="$_HI_PACKAGES_PALETTE"
+  # shellcheck disable=SC2086 # eight names, checked by _hi_ramp_ok
+  set -- $_hi_pp_r
+  _HI_YES_NAMES=("$1" "$2" "$3" "$4")
+  _HI_NO_NAMES=("$5" "$6" "$7" "$8")
   # Names to escapes, here rather than at source time: configure.sh's
   # previews flip $_HI_COLOR_SCHEME and $_HI_PACKAGES_PALETTE between
   # renders, and full_check re-runs this before every check_line.
-  local _hi_pp_n _hi_pp_i _hi_pp_e
   _hi_scheme_words _hi_pp_n
   _HI_YES=() _HI_NO=()
   for _hi_pp_i in 0 1 2 3; do

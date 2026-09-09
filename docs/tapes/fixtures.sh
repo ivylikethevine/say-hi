@@ -60,7 +60,7 @@ function demo_sshd_image() {
   # is the demo's box rather than one that still needs configuring.
   demo_settings "$_HI_DEMO_DIR/ssh-target-settings.sh" <<'EOF'
 export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
-export _HI_COLOR_SCHEME='onedark'
+export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
 EOF
   # ...and the box's own prompt: hitest's login shell is fish, and this
   # config.fish is sourced after hi's, so the two-line prompt below replaces
@@ -626,12 +626,13 @@ EOF
 up:overlay)
   # The ops persona: fish on a bastion, into a docker box and a podman box.
   # The header trimmed to what an operator looks at - clocks, the backend
-  # counts, the check - painted with the mono ramp. No throwaway $HOME here: podman
+  # counts, the check - painted with a blue-to-red ramp of its own. No
+  # throwaway $HOME here: podman
   # lives under the real one.
   client_rc fish ops bastion
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
-export _HI_PACKAGES_PALETTE='mono'
+export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 EOF
   # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
   # says the file has to stay in, and one of the *_OPTS the shipped `cat` alias
@@ -665,14 +666,15 @@ EOF
 up:colors)
   # The sysadmin: kai, bash on a laptop, into two boxes that carry their own
   # permanent install (and their own prompt - see demo_sshd_image). This
-  # demo's configuration is the `colors` overlay up_colors writes plus the
-  # onedark scheme, set on the client here and baked into the targets, so
+  # demo's configuration is the `colors` overlay up_colors writes plus a
+  # hex scheme (atom's one dark), set on the client here and baked into the
+  # targets, so
   # the preview and both sessions paint with the same truecolor. The tape
   # exports a throwaway $HOME as well, for the ssh config the preview and
   # the two sessions read, and COLORTERM, which vhs's shell does not set.
   client_rc bash kai ops-laptop
   demo_settings <<'EOF'
-export _HI_COLOR_SCHEME='onedark'
+export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
 EOF
   up_colors
   ;;
