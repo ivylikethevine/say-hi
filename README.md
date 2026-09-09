@@ -279,8 +279,10 @@ side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
 Both coverage badges measure the shipped product over the full sweep and gate
-nothing; read their average as the figure, and
-[docs/TESTING.md](docs/TESTING.md#coverage-and-profiling) for why there are
+nothing. **Read the bashcov one as the figure**: kcov cannot instrument
+`common/targets.sh` at all and undercounts `common/git_prompt.sh`, so it is the
+cross-check rather than the number -
+[docs/TESTING.md](docs/TESTING.md#coverage-and-profiling) has why there are
 two.
 
 ## AI Usage

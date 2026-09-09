@@ -266,20 +266,21 @@ emit_targets() {
 
 # The family is one call (drop-in CLIs, the kind is the CLI's own name); the
 # tag is appended by the read loop, not a `sed`, on this every-TAB path. Docker
-# also carries the compose service label on the same call: a target one word
-# shorter than the container name, resolved back by hi.sh's
-# _hi_compose_container. Docker alone: podman honours the `.Label` template
-# too, but nerdctl and finch are unverified, and a template one of them
-# rejects would empty its lane.
+# and podman also carry the compose service label on the same call: a target
+# one word shorter than the container name, resolved back by hi.sh's
+# _hi_compose_container. Those two alone - both render `{{.Label "..."}}` and
+# both take the matching `label=` filter hi.sh resolves through, while nerdctl
+# and finch are unverified, and a template one of them rejects would empty its
+# lane.
 list_ps() {
-  if [ "$1" = docker ]; then
-    run_backend docker ps --format '{{.Names}} {{.Label "com.docker.compose.service"}}' 2>/dev/null |
+  if [ "$1" = docker ] || [ "$1" = podman ]; then
+    run_backend "$1" ps --format '{{.Names}} {{.Label "com.docker.compose.service"}}' 2>/dev/null |
       while read -r _hi_name _hi_svc || [ -n "$_hi_name" ]; do
         [ -n "$_hi_name" ] || continue
-        printf '%s\tdocker\n' "$_hi_name"
+        printf '%s\t%s\n' "$_hi_name" "$1"
         # only when it differs, or a container_name equal to the service name
         # would complete twice
-        [ -n "$_hi_svc" ] && [ "$_hi_svc" != "$_hi_name" ] && printf '%s\tdocker\n' "$_hi_svc"
+        [ -n "$_hi_svc" ] && [ "$_hi_svc" != "$_hi_name" ] && printf '%s\t%s\n' "$_hi_svc" "$1"
       done
   else
     run_backend "$1" ps --format '{{.Names}}' 2>/dev/null |

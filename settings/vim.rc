@@ -17,5 +17,3 @@ silent! source $VIMRUNTIME/defaults.vim
 " on already, and setting them twice costs nothing.
 syntax enable
 filetype plugin indent on
-  augroup END
-endif

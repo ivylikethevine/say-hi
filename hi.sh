@@ -438,25 +438,33 @@ function _hi_is_family_container() {
 
 # _hi_container_target <cli> <name> <outvar> - the container to exec into:
 # <name> itself when it is running, else whatever the CLI's alias mechanism
-# resolves it to; rc 1 when neither answers. The one place for "docker,
-# uniquely, resolves a compose service name". GLOSSARY: HI.43, HI.51.
+# resolves it to; rc 1 when neither answers. The one place for "docker and
+# podman, uniquely, resolve a compose service name" - the other two of the
+# family are left out on purpose, see _hi_compose_container.
+# GLOSSARY: HI.43, HI.51.
 function _hi_container_target() {
   if _hi_is_container_running "$1" "$2"; then
     printf -v "$3" '%s' "$2"
     return 0
   fi
   local _hi_ct_resolved
-  [ "$1" = docker ] || return 1
-  _hi_ct_resolved="$(_hi_compose_container "$2")" || return 1
+  case "$1" in docker | podman) ;; *) return 1 ;; esac
+  _hi_ct_resolved="$(_hi_compose_container "$1" "$2")" || return 1
   printf -v "$3" '%s' "$_hi_ct_resolved"
 }
 
-# _hi_compose_container <service> - the one running container behind a docker
+# _hi_compose_container <cli> <service> - the one running container behind a
 # compose service name, or failure; never a guess. GLOSSARY: HI.43
+#
+# docker and podman only, and that is the whole family that qualifies: both
+# take the `label=` filter and render `{{.Label "..."}}`, which is what
+# common/targets.sh needs to offer the service name on TAB in the first place.
+# nerdctl and finch are left out because nobody has checked them, and a
+# template one of them rejects would fail the lookup rather than decline it.
 function _hi_compose_container() {
-  command -v docker >/dev/null 2>&1 || return 1
+  command -v "$1" >/dev/null 2>&1 || return 1
   local matches
-  matches="$(_hi_probe docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Names}}' 2>/dev/null)"
+  matches="$(_hi_probe "$1" ps --filter "label=com.docker.compose.service=$2" --format '{{.Names}}' 2>/dev/null)"
   [ -n "$matches" ] || return 1
   # one line and not none - a `wc -l` here was two processes for a glob test
   case "$matches" in *$'\n'*) return 1 ;; esac

@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: MIT
 # The external-tool wrappers that ride along with the lint gate when their
 # tool is installed, and skip yellow when it isn't: shfmt as a formatting
-# gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, and
-# typos over the whole tree. CI always has all four (setup-tool actions pin
-# each one), so a local skip here is a local-only gap, never a green run that
-# CI would have failed.
+# gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim
+# over the vim rc that ships, and typos over the whole tree. CI always has them
+# (setup-tool actions pin each one), so a local skip here is a local-only gap,
+# never a green run that CI would have failed.
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -91,6 +91,53 @@ function lint_manpage() {
   fi
 }
 
+# The vim rc hi ships, parsed by the editor that reads it. Everything else in
+# the suite treats settings/vim.rc as *bytes* - payload_test.sh checks it ships
+# and survives the comment strip, load_test.sh checks $VIMINIT points at it - so
+# a syntax error in the file itself failed nothing and rode the wire to every
+# target (an orphaned `endif` left by a half-finished deletion did exactly
+# that). settings/aliases.sh prefers nvim over vim, so both are checked when
+# both are here, and each skips yellow on its own when it is not.
+#
+# `-u <rc> -es` is the production invocation (the alias's own), and the verdict
+# is $v:errmsg written to a file, not stderr and not the exit status: vim
+# prints the error to stderr in a full environment but goes silent under the
+# `env -i` a suite runs in, while nvim reports in both. v:errmsg is the one
+# signal that survives either.
+#
+# E484 on defaults.vim is the exception, and a deliberate one: the rc sources
+# it with `silent!` precisely because neovim ships no such file and needs none
+# (settings/vim.rc says so). `silent!` suppresses the message but still sets
+# v:errmsg, so the tolerated case has to be spelled out here too.
+#
+# No nano half: nano reports a bad rcfile only on its status bar and refuses to
+# start without a terminal, so there is nothing to assert on offline.
+function lint_editor_rc() {
+  local bin err out bad=0 rc="$_HI_ROOT/settings/vim.rc"
+  _hi_h2 "Checking the shipped editor rc (vim -u settings/vim.rc)"
+  for bin in vim nvim; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+      _hi_skip "$bin" "not installed"
+      continue
+    fi
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    err="$(mktemp -t hi.vimrc.XXXXXX)"
+    "$bin" -u "$rc" -es -c "call writefile([v:errmsg], '$err')" -c 'qa!' \
+      </dev/null >/dev/null 2>&1 || true
+    out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
+    if [ -n "$out" ]; then
+      _hi_align " | settings/vim.rc ($bin)" "FAILED" "$RED"
+      sed 's/^/      /' "$err"
+      _hi_note_failure "settings/vim.rc ($bin)"
+      bad=$((bad + 1))
+    else
+      _hi_align " | settings/vim.rc ($bin)" "OK" "$GREEN"
+    fi
+    rm -f "$err"
+  done
+  return "$bad"
+}
+
 # Spelling, over everything git tracks (typos honours .gitignore, so dist/ and
 # the like stay out). The allowlist is .typos.toml at the root - a term it
 # reads wrong goes there with a word on what it is, not into a wider ignore.
@@ -115,14 +162,14 @@ function lint_typos() {
 }
 
 function run_tools() {
-  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, typos)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, typos)"
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
   # and checkbashisms are separate processes and cannot read its variable
   local -a _HI_SH_FILES=()
   _hi_read_lines _HI_SH_FILES < <(_hi_lint_find -name '*.sh')
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_typos
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_editor_rc lint_typos
   _hi_lint_suite_end
 }
 

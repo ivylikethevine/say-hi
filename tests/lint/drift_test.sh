@@ -367,6 +367,62 @@ function lint_container_family() {
   return "$bad"
 }
 
+# hi.sh's _hi_runtime_dir and common/targets.sh's cache_dir independently build
+# the SAME directory - $XDG_RUNTIME_DIR, else a private ${TMPDIR:-/tmp}/hi-<uid>
+# - and hand it to different callers (the payload/overlay cache and the
+# ControlMaster socket on one side, the TAB completion cache on the other).
+# They cannot share code: targets.sh is standalone POSIX and sources nothing
+# (its own header says so), and hi.sh:_hi_runtime_dir says the two "only stay
+# in step by comment". Every other forced copy in this tree is pinned by a
+# check here; this one was not, and a divergence would not fail anything - it
+# would just put two caches in two places, or drop one file's ownership guard
+# on a shared /tmp.
+#
+# The name is normalised before comparing (the two spell the uid into
+# differently-named locals), and each guard is asserted in both files rather
+# than diffed, since the dialects genuinely differ - bash's $EUID against
+# POSIX `id -u`, `printf -v` against a plain assignment.
+function lint_runtime_dir() {
+  local file name first="" guard bad=0 lost
+  _hi_h2 "Checking the runtime-directory copy (hi.sh, common/targets.sh)"
+  for file in hi.sh common/targets.sh; do
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    # the fallback path, with whatever local holds the uid folded to $UID
+    # shellcheck disable=SC2016 # the $ are sed's, matching the literal
+    # "${TMPDIR:-/tmp}/hi-$<local>" text in the file - expanding them here
+    # would search for this shell's TMPDIR instead of the source's spelling
+    name="$(sed -n 's/.*="\${TMPDIR:-\/tmp}\/hi-\$[A-Za-z_][A-Za-z0-9_]*"$/${TMPDIR:-\/tmp}\/hi-$UID/p' "$_HI_ROOT/$file" | head -1)"
+    if [ -z "$name" ]; then
+      _hi_align " | $file: no \${TMPDIR:-/tmp}/hi-<uid> fallback" "FAILED" "$RED"
+      _hi_note_failure "runtime dir: $file has no fallback path"
+      bad=$((bad + 1))
+      continue
+    fi
+    if [ -n "$first" ] && [ "$name" != "$first" ]; then
+      _hi_align " | $file: $name" "FAILED" "$RED"
+      _hi_note_failure "runtime dir: $file names a different directory"
+      bad=$((bad + 1))
+      continue
+    fi
+    [ -n "$first" ] || first="$name"
+    # the three guards that make the shared name safe on a shared /tmp
+    local lost=0
+    for guard in 'XDG_RUNTIME_DIR' 'mkdir -m 700' 'ls -ldn'; do
+      if ! grep -qF -- "$guard" "$_HI_ROOT/$file"; then
+        _hi_align " | $file: lost the '$guard' guard" "FAILED" "$RED"
+        _hi_note_failure "runtime dir: $file lost '$guard'"
+        lost=$((lost + 1))
+      fi
+    done
+    if [ "$lost" -gt 0 ]; then
+      bad=$((bad + lost))
+      continue
+    fi
+    _hi_align " | $file: $name" "OK" "$GREEN"
+  done
+  return "$bad"
+}
+
 # The vocabulary a `settings.sh` may use has to be written down where a user
 # looks for it, and the tree is where it actually lives - in three places, at
 # that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
@@ -769,7 +825,7 @@ function run_drift() {
   _hi_workdir drifttest
 
   _hi_lint_halves lint_bash32 lint_home_default lint_glossary_tags \
-    lint_settings_table lint_container_family lint_liquid_docs \
+    lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests
   _hi_lint_suite_end

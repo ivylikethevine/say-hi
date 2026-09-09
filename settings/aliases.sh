@@ -14,7 +14,7 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_BATCAT_BIN="${_HI_BATCAT_BIN-}" _HI_BAT_REAL="${_HI_BAT_REAL-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_SHARED_OPTS="${_HI_EXA_SHARED_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_BATCAT_BIN="${_HI_BATCAT_BIN-}" _HI_BAT_REAL="${_HI_BAT_REAL-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists (and above the overlay source):
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -65,10 +65,12 @@ alias batn="batcat"
 # eza/exa (its predecessor) improved ls; time format per
 # https://docs.rs/chrono/latest/chrono/format/strftime/index.html. The two
 # styled wrappers are behind the same _HI_DISABLE_TOOL_ALIASES as cat/catn;
-# $_HI_EXA_BIN/$_HI_EZA_BIN stay resolvable either way.
-[ -z "$_HI_EXA_SHARED_OPTS" ] && export _HI_EXA_SHARED_OPTS='-F -1 -l -m --group-directories-first' || true
-[ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS="$_HI_EXA_SHARED_OPTS --group --no-filesize" || true
-[ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS="$_HI_EXA_SHARED_OPTS"' --smart-group --time-style="+%b %d %Y %H:%M"' || true
+# $_HI_EXA_BIN/$_HI_EZA_BIN stay resolvable either way. The shared leading
+# flags are spelled twice on purpose: the two binaries diverge after them
+# (--group/--no-filesize is exa's, --smart-group is eza-only), so a shared
+# variable bought one edit point and a third name to document.
+[ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
+[ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias exa="$_HI_EXA_BIN $_HI_EXA_OPTS" || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS" || true
 

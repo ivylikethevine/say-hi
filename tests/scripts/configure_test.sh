@@ -252,12 +252,15 @@ function test_pending_set_replaces_in_place() {
 # every header preset's word list validates, and the empty one is the
 # shipped order by the same spelling $_HI_HEADER_ORDER uses for it
 function test_header_presets_hold_the_vocabulary() {
-  local row words
+  local row words word
   _hi_load_preview_sources
   for row in "${_HI_HEADER_PRESETS[@]}"; do
     words="${row##*|}"
     [ -z "$words" ] && continue
-    _hi_is_header_order "$words" || return 1
+    # shellcheck disable=SC2086 # the split is the point: one word per feature
+    for word in $words; do
+      _hi_is_header_word "$word" || return 1
+    done
   done
   [ "$(preset_names)" != "" ]
 }
@@ -274,10 +277,6 @@ function test_validators_hold_their_grammars() {
   ! _hi_is_width 0 || return 1
   ! _hi_is_number '' || return 1
   ! _hi_is_number 4x || return 1
-  _hi_is_seconds 2 || return 1
-  _hi_is_seconds 0.25 || return 1
-  ! _hi_is_seconds .5 || return 1
-  ! _hi_is_seconds 2s || return 1
   _hi_has_no_single_quote "plain value" || return 1
   ! _hi_has_no_single_quote "don't" || return 1
   _hi_is_ip_hide none || return 1
@@ -286,11 +285,10 @@ function test_validators_hold_their_grammars() {
   ! _hi_is_ip_hide "" || return 1
   ! _hi_is_ip_hide "172.*;rm" || return 1
   ! _hi_is_ip_hide "all" || return 1
-  _hi_is_header_order "utc version localtime arch os cores cpu ram gitid containers jobs pods auth pub uptime check" || return 1
-  _hi_is_header_order "check gitid" || return 1
-  _hi_is_header_order utc || return 1
-  ! _hi_is_header_order "" || return 1
-  ! _hi_is_header_order "utc bogus"
+  _hi_is_header_word utc || return 1
+  _hi_is_header_word check || return 1
+  ! _hi_is_header_word bogus || return 1
+  ! _hi_is_header_word ""
 }
 
 function test_pending_answer_reads_this_runs_answers() {
@@ -834,8 +832,7 @@ function test_prompt_group_carries_a_row_it_cannot_ask() {
 }
 
 function test_validators_for_the_advanced_values() {
-  _hi_is_seconds 0.5 && _hi_is_seconds 3 && ! _hi_is_seconds abc &&
-    _hi_is_truecolor_choice on && _hi_is_truecolor_choice auto && ! _hi_is_truecolor_choice 1
+  _hi_is_truecolor_choice on && _hi_is_truecolor_choice auto && ! _hi_is_truecolor_choice 1
 }
 
 # the closing report: what this run wrote against what the block held, as
