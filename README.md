@@ -17,10 +17,11 @@ _Don't `ssh`ush your hosts, say `hi`!_
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
+> [docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
+> draft included.
 
 ## Contents
 
-- [Additional Documentation](#additional-documentation)
 - [In Sixty Seconds](#in-sixty-seconds)
 - [What You Get](#what-you-get)
   - [Connect Via More Than SSH](#connect-via-more-than-ssh)
@@ -29,7 +30,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
   - [Your Editors](#your-editors)
   - [Know Where You Are at a Glance](#know-where-you-are-at-a-glance)
   - [One Command, Any Backend](#one-command-any-backend)
-  - [Target Requirements](#target-requirements)
+- [Target Requirements](#target-requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
   - [Hostname, Username, and Group/Tag Colors](#hostname-username-and-grouptag-colors)
@@ -38,13 +39,8 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Testing](#testing)
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
-  - [What v1.0.0 means](#what-v100-means)
+  - [What v1.0.0 Means](#what-v100-means)
   - [Post 1.0](#post-10)
-
-### Additional Documentation
-
-[docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
-draft included.
 
 ---
 
@@ -60,12 +56,6 @@ hi <anything>                   # ssh, with your prompt, aliases and editors alo
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
 and `~/.config/say-hi`. `--preset balanced` answers the menu without opening
 it, `--dry-run` shows every write first.
-
-`hi <anything>` & land in a session with your essential aliases, your essential
-packages checked, a color-coded prompt, your editor configured, and more.
-Do it all via `ssh`, `docker`, `podman`, `nomad`, or `kube` with `hi <TAB>`. No
-fancy requirements on any target. Even an `alpine` container with `sh` will still
-respect your `ls` alias flags.
 
 ## What You Get
 
@@ -161,11 +151,8 @@ everything weighed and answered **no**, and why.
   shell the target has, with a smaller session
   ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 - **fish 3.7+** (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) are the
-  floors for the other two shells hi styles; the lint gate checks both in a
-  pinned container on every run
-  ([docs/TESTING.md](docs/TESTING.md#the-lint-gate)).
-- **bash 3.2** is the floor on both ends (macOS still ships it);
-  `tests/targets/ssh_test.sh` runs a real bash 3.2 target, and what that
+  floors for the other two shells hi styles.
+- **bash 3.2** is the floor on both ends (macOS still ships it); what that
   rules out of the code is
   [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on).
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
@@ -205,31 +192,26 @@ everything weighed and answered **no**, and why.
   each shell's own syntax checker first and asks before continuing if any has
   issues (the one prompt; `--yes` answers it). Shells that are not installed
   get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
-  `hi` itself is linked at
-  `~/.local/bin/hi` (`--link system` for `/usr/bin/hi`, `--link none` for
-  none - the wired shells alias it either way), and `--dry-run` prints every
-  write without making it.
+  `hi` itself is linked at `~/.local/bin/hi` (`--link system` for
+  `/usr/bin/hi`, `--link none` for none - the wired shells alias it either
+  way).
 - reload your shell!
-- `hi --configure` opens a menu over a live preview of the header and
-  prompt: pick a preset (`everything`, `balanced`, `minimal`), or open a
-  section - Header, Features, Prompt, Advanced, Colors - and save.
-  `hi --configure --preset <name>` skips the menu. Answers land in
-  `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --configure` reopens that menu later: pick a preset, or open a
+  section - Header, Features, Prompt, Advanced, Colors - and save. Answers
+  land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
   `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
-  to edit, and to version however you keep your dotfiles.
-  [docs/SETTINGS.md](docs/SETTINGS.md).
+  to edit, and to version however you keep your dotfiles
+  ([docs/SETTINGS.md](docs/SETTINGS.md)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
   a bug report); it also reports which rc files are wired and where `hi` on
   your `PATH` leads.
-- the whole surface is twelve flags: `hi --help` lists them, `man hi` is the
-  long form, and everything hi does not answer goes to `ssh`.
-- TAB: `hi <TAB>` completes every target, `hi --<TAB>` completes hi's flags. GIF: [completion](#connect-via-more-than-ssh).
-- `hi` on its own prints the help.
+- the whole surface is twelve flags: `hi --help` lists them (as does `hi` on
+  its own), `man hi` is the long form, and everything hi does not answer goes
+  to `ssh`.
 - [optional] configure `~/.ssh/config` tags via sshm
-- [optional] pin colors in `~/.config/say-hi/colors` (the install seeded it
-  from `say-hi/settings/colors`); `hi --preview colors` shows what every ssh
-  host and your user resolve to.
+- [optional] pin colors in `~/.config/say-hi/colors`; `hi --preview colors`
+  shows what every ssh host and your user resolve to.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/SUPPORT.md#what-would-change-an-answer)). For a
   flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
@@ -265,10 +247,10 @@ removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target)
 ### Hostname, Username, and Group/Tag Colors
 
 Every username and hostname gets a color derived from its name; a line in
-`~/.config/say-hi/colors` (`username,root,red`, `hostname,prod-db,yellow`,
-`hosttag,desktop,green`) pins one, and `hi --preview colors` shows what every
-host resolves to. Tags, patterns, truecolor schemes of your own and using the
-hash in your own prompt: [docs/SETTINGS.md](docs/SETTINGS.md#colors).
+`~/.config/say-hi/colors` (`hostname,prod-db,yellow`) pins one, and
+`hi --preview colors` shows what every host resolves to. Tags, patterns,
+truecolor schemes of your own and using the hash in your own prompt:
+[docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
 
@@ -296,10 +278,10 @@ side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
 [![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
-Both coverage badges measure the shipped product over the full sweep and
-gate nothing; the two have tracked each other for many commits, so read
-their average as the figure. How to read them is
-[docs/TESTING.md](docs/TESTING.md#coverage-and-profiling).
+Both coverage badges measure the shipped product over the full sweep and gate
+nothing; read their average as the figure, and
+[docs/TESTING.md](docs/TESTING.md#coverage-and-profiling) for why there are
+two.
 
 ## AI Usage
 
@@ -317,8 +299,7 @@ myself.
 ## Roadmap
 
 What's left. Every entry is open for consideration; nothing here is parked
-or descoped. Finished entries and questions decided against are **deleted**:
-git history is the ledger.
+or descoped, and finished entries are deleted rather than ticked.
 
 ### What v1.0.0 Means
 
@@ -339,18 +320,17 @@ an upstream review that lands when it lands.
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
-2. [ ] **AUR** — Registration is closed to new accounts (spam), and
-       `publish-external.yml`'s `aur` job stays written and unexercised
-       until it reopens. **When it reopens:** register; generate an ed25519
-       key, add the private half as the `AUR_SSH_KEY` repo secret; the first
-       push per package is manual, and dispatching
-       `publish-external.yml` handles the versioned package after.
-       **Ticks when:** both packages are live on the AUR and a dispatch has
-       kept `say-hi` current for one real release. <https://archlinux.org/news/>
+2. [ ] **AUR** — Registration is closed to new accounts (spam), so
+       `publish-external.yml`'s `aur` job stays written and unexercised.
+       **When it reopens:** register, then add an ed25519 private key as the
+       `AUR_SSH_KEY` repo secret; the first push per package is manual, and a
+       `publish-external.yml` dispatch handles the versioned package after.
+       **Ticks when:** both packages are live and a dispatch has kept
+       `say-hi` current for one real release. <https://archlinux.org/news/>
 
 3. [ ] **Best Practices badge entry** — the answer sheet is
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        enter it at bestpractices.dev; label two or three open issues
        `good first issue` (`small_tasks`); confirm `secure_2FA` is
-       TOTP/WebAuthn and check `hardened_site` on securityheaders.com before
-       answering either. **Ticks when:** the live entry matches the sheet.
+       TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.
+       **Ticks when:** the live entry matches the sheet.

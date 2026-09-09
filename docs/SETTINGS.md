@@ -8,39 +8,37 @@ and `packages` there override the tree's copies one file at a time.
 here. The tree's own `settings/` directory holds the shipped defaults. All of
 it rides along to every host you say `hi` to, in its own small archive.
 
-| overlay file                   | overrides           | what it is                                                                                                                                    |
-| ------------------------------ | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/say-hi/settings.sh` | -                   | what `hi --configure` writes                                                                                                                  |
-| `~/.config/say-hi/colors`      | `settings/colors`   | your color pins                                                                                                                               |
-| `~/.config/say-hi/packages`    | `settings/packages` | what the package check looks for                                                                                                              |
-| `~/.config/say-hi/vim.rc`      | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale                                                     |
-| `~/.config/say-hi/nano.rc`     | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
-| `~/.config/say-hi/aliases.sh`  | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
-| `~/.config/say-hi/bash.sh`     | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
-| `~/.config/say-hi/zsh.zsh`     | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
-| `~/.config/say-hi/config.fish` | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
-| `~/.config/say-hi/starship.toml` | -                 | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT=starship`; at home starship keeps reading its own                  |
-| `~/.config/say-hi/oh-my-posh.json` | -               | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT=oh-my-posh`                                                                         |
+| overlay file                       | overrides           | what it is                                                                                                                                    |
+| ---------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/say-hi/settings.sh`     | -                   | what `hi --configure` writes                                                                                                                  |
+| `~/.config/say-hi/colors`          | `settings/colors`   | your color pins                                                                                                                               |
+| `~/.config/say-hi/packages`        | `settings/packages` | what the package check looks for                                                                                                              |
+| `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale                                                     |
+| `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
+| `~/.config/say-hi/aliases.sh`      | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
+| `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
+| `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
+| `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
+| `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT=starship`; at home starship keeps reading its own                   |
+| `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT=oh-my-posh`                                                                          |
 
 `hi --install` seeds the overlay with the shipped
 `colors`/`packages`/`vim.rc`/`nano.rc` defaults — only for the files you have
 none of, so after a normal install all four are yours. A seeded copy stops
 tracking what `hi --update` delivers for that file; delete it from the overlay
-to track the tree's again. Versioning the directory is yours to do: a `git init`
-there, or a dotfile manager — if you already keep dotfiles in chezmoi, yadm,
-GNU Stow or a bare repo,
-[that directory is the whole integration](#keeping-the-overlay-in-a-dotfile-manager).
+to track the tree's again. Versioning the directory is yours to do — a
+`git init` there, or
+[a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager).
 
 Every setting below is an environment variable, checked where it is used.
 `hi --configure` writes your answers to `settings.sh` — a plain `#!/bin/sh`
 script of `export NAME=value` lines, valid in sh, bash, zsh and fish — which
 every shell sources ahead of `common/paths.sh`. Exporting one by hand works
 too and takes precedence for that shell. It does not reach programs started
-from a hi shell: once the rc has run, every `_HI_*` name except nine is a
+from a hi shell: once the rc has run, every `_HI_*` name except seven is a
 plain shell variable ([HI.47](GLOSSARY.md#hi47-what-a-child-inherits) says
-which, and why). A setting a child must see — a script of your own reading
-`$_HI_MAX_WIDTH`, say — is an `export` in the overlay's
-`bash.sh`/`zsh.zsh`/`config.fish`, which run last.
+which, and why). A setting a child must see is an `export` in
+[your own `bash.sh`/`zsh.zsh`/`config.fish`](#shells-you-drop-into-inside-a-session).
 
 ## Contents
 
@@ -61,16 +59,15 @@ which, and why). A setting a child must see — a script of your own reading
 `hi --configure` opens on a preview — the header as it would print and the
 prompt line as it would draw, at your current settings — over a short menu:
 
-1. **Preset** — `[e]verything`, `[b]alanced` or `[m]inimal`, below. Every
-   menu option is typed by its number or by the letter shown in brackets.
+1. **Preset** — `[e]verything`, `[b]alanced` or `[m]inimal`, below.
 2. **Header** — the editor for everything in [Header details](#header-details):
    the real header rendered above a numbered list of the banner and every
    item; a number toggles one, `up N`/`down N` moves it, `[p]` loads a header
    preset (`[f]ull`, `[c]ompact`, `[q]uiet`), and the width, the package check's
    depth and its palette (`[d]efault`, `[c]ool`, `[w]arm`, `[m]ono`, by the
-   letter or the name) live there too. Outside the menu, `hi --preview
-   header` prints the header as it would draw at the saved settings, and
-   `hi --preview packages` the check's legend.
+   letter or the name) live there too. Outside the menu,
+   `hi --preview header` prints the header as it would draw at the saved
+   settings, and `hi --preview packages` the check's legend.
 3. **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
    each previewed as it flips.
 4. **Prompt** — starship, and the character each shell's prompt ends with.
@@ -84,14 +81,14 @@ prompt line as it would draw, at your current settings — over a short menu:
    own is written into `settings.sh` by hand; the menu shows it as `custom`
    and Enter keeps it.
 
-Every section returns to the menu and the preview re-renders (each item
-also answers to its bracketed letter: `[p]`, `[h]`, `[f]`, `p[r]ompt`, `[a]`,
-`[c]`). `[s]` writes the settings once; `[q]` leaves `settings.sh`
-untouched; nothing is written before either. End of input at the menu counts
-as `[s]`, three answers in a row that are not menu items count as `[q]`. With no terminal
-(`hi --configure </dev/null`, a script) there is no
-menu: what the file holds is written back as it stands, and when there is no
-file and nothing to say, none is created. A line you wrote into `settings.sh`
+Every option is typed by its number or by the letter shown in brackets, and
+every section returns to the menu with the preview re-rendered. `[s]` writes
+the settings once, `[q]` leaves `settings.sh` untouched, and nothing is
+written before either. End of input at the menu counts as `[s]`; three answers
+in a row that are not menu items count as `[q]`; with no terminal
+(`hi --configure </dev/null`, a script) there is no menu at all — the file is
+written back as it stands, and none is created when there is nothing to say.
+A line you wrote into `settings.sh`
 by hand is adopted into hi's block the next time the wizard writes that
 setting, never duplicated beside it.
 
@@ -100,18 +97,18 @@ setting, never duplicated beside it.
 The menu's first item, and `hi --configure --preset <name>` applies one
 without the menu:
 
-| preset       | what it answers                                                                                                                                                                                                                                          |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `everything` | every feature and every header item on — the shipped defaults                                                                                                                                                                                            |
-| `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`)                                                                                                                                                                        |
-| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`).                                                               |
+| preset       | what it answers                                                                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `everything` | every feature and every header item on — the shipped defaults                                                                                             |
+| `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`)                                                                         |
+| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`). |
 
 A preset is an absolute answer over the feature and header settings: what it
 names is set, everything else in that vocabulary returns to its default, and
 the header order, the width, the package check's palette, the hidden
 addresses, the color scheme, the prompt separators, the starship choice and
-the advanced settings keep what they hold. From the menu its answers are what the
-preview shows and `[s]` saves — a starting point, not a lock. The rows are
+the advanced settings keep what they hold. From the menu its answers are only
+what the preview shows until `[s]` saves them. The rows are
 `scripts/configure.sh`'s `_HI_PRESETS`; the header editor's own presets are
 `_HI_HEADER_PRESETS` beside them.
 
@@ -174,71 +171,71 @@ The lint group checks `common/core.sh`'s `_HI_TOGGLES` and
 `scripts/configure.sh`'s prompt rosters against this table, so a new setting
 cannot land without a row here.
 
-| variable                    | default                                              | set by                    | what it does                                                                                                                                                                                                                                                                                                                                                  |
-| --------------------------- | ---------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_HI_DISABLE_HEADER`        | `0`                                                  | `hi --configure`          | turns off the whole connect/disconnect header, every line of it                                                                                                                                                                                                                                                                                               |
-| `_HI_DISABLE_PROMPT`        | `0`                                                  | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                                                                                                                                            |
-| `_HI_DISABLE_GIT_STATUS`    | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                       |
-| `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the `vim`/`nano` config overrides                                                                                                                                                                                                                                                                                                                   |
-| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa` and `eza` themselves stay available by name either way                                                                                                                                                                        |
-| `_HI_DISABLE_MARKS`         | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)                                                                                                                                                                                                                                             |
-| `_HI_DISABLE_BANNER`        | `0`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                                                                                                                                                                                                                                                              |
-| `_HI_DISABLE_LOCAL`         | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                                                                                                                                                                     |
-| `_HI_REMOTE_SESSION`        | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                                                                                                                                                                                                                                                                    |
-| `_HI_HEADER_ORDER`          | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                                                                                                                                                                                                                                                             |
-| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-4, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor` |
-| `_HI_PACKAGES_PALETTE`      | `cool`                                               | `hi --configure`          | which of `common/header.sh`'s named color tables the check paints with, per priority - `cool` (cyan-green installed, blue-red missing), `warm` (yellow-red) or `mono`; any other value falls back to `cool`. Judge one with `hi --preview packages`                                                                                                           |
-| `_HI_COLOR_SCHEME`          | unset                                                | `hi --configure`          | what the twelve palette names render as on a terminal that reports 24-bit color: `catppuccin` (Mocha), `monokai`, `onedark`, `vscode` (Dark+), or your own - 12 six-digit hex words in `_HI_COLOR_NAMES` order, or 24, the second twelve painting the package check alone. See [Colors](#colors)                                                              |
-| `_HI_IP_HIDE`               | `172.*`                                              | `hi --configure`          | space-separated globs over the dotted quad; the header's `ip` cell drops every address one matches, and drops itself when nothing is left. `none` hides nothing; an empty value counts as unset. See [Header details](#header-details)                                                                                                                         |
-| `_HI_MAX_WIDTH`             | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                    |
+| variable                    | default                                              | set by                    | what it does                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | ---------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_HI_DISABLE_HEADER`        | `0`                                                  | `hi --configure`          | turns off the whole connect/disconnect header, every line of it                                                                                                                                                                                                                                                                                                  |
+| `_HI_DISABLE_PROMPT`        | `0`                                                  | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                                                                                                                                               |
+| `_HI_DISABLE_GIT_STATUS`    | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                          |
+| `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the `vim`/`nano` config overrides                                                                                                                                                                                                                                                                                                                      |
+| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa` and `eza` themselves stay available by name either way                                                                                                                                                                           |
+| `_HI_DISABLE_MARKS`         | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)                                                                                                                                                                                                                                                |
+| `_HI_DISABLE_BANNER`        | `0`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                                                                                                                                                                                                                                                                 |
+| `_HI_DISABLE_LOCAL`         | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit                                                                                                                                                                                                                                                                        |
+| `_HI_REMOTE_SESSION`        | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                                                                                                                                                                                                                                                                       |
+| `_HI_HEADER_ORDER`          | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                                                                                                                                                                                                                                                                |
+| `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-4, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor`    |
+| `_HI_PACKAGES_PALETTE`      | `cool`                                               | `hi --configure`          | which of `common/header.sh`'s named color tables the check paints with, per priority - `cool` (cyan-green installed, blue-red missing), `warm` (yellow-red) or `mono`; any other value falls back to `cool`. Judge one with `hi --preview packages`                                                                                                              |
+| `_HI_COLOR_SCHEME`          | unset                                                | `hi --configure`          | what the palette names render as on a terminal that reports 24-bit color: `catppuccin` (Mocha), `monokai`, `onedark`, `vscode` (Dark+), or your own. See [Colors](#colors) for the word count and order                                                                                                                                                          |
+| `_HI_IP_HIDE`               | `172.*`                                              | `hi --configure`          | space-separated globs; the header's `ip` cell drops every address one matches. `none` hides nothing; an empty value counts as unset. See [Header details](#header-details)                                                                                                                                                                                       |
+| `_HI_MAX_WIDTH`             | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                       |
 | `_HI_PROMPT`                | unset                                                | `hi --configure`          | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, `oh-my-posh` to [oh-my-posh](https://ohmyposh.dev) (by hand; the menu offers starship), keeping hi's header and aliases either way. A `starship.toml` / `oh-my-posh.json` in the overlay becomes the tool's config on every target. Never auto-detected; hi ships neither |
-| `_HI_PROMPT_END_BASH`       | `\$`                                                 | `hi --configure`          | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root"); also the plain `sh` prompt hi bakes on the client for a bash-less target                                                                                                                                                                                                      |
-| `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                   |
-| `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                       |
-| `_HI_NO_LEAD_SPACE`         | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                               |
-| `_HI_MUX`                   | `0`                                                  | `hi --configure` advanced | `1` wraps every session in a local multiplexer session named for the target and reattaches on the next connect, what `--mux` does for one connect (`--no-mux` skips it for one); needs tmux, zellij or screen here, not on the target                                                                                                                           |
-| `_HI_ASCII`                 | by locale                                            | `hi --configure` advanced | `1` forces ASCII stand-ins for the banner/prompt/packages glyphs, `0` forces the glyphs; unset asks the locale, so `LANG=C` degrades cleanly instead of printing mojibake                                                                                                                                                                                     |
-| `_HI_TRUECOLOR`             | by terminal                                          | `hi --configure` advanced | `1`/`0`: does the terminal render 24-bit color. Unset, the client reads `COLORTERM` and ships the verdict to the session (ssh never forwards `COLORTERM` itself); `1` forces it (tmux hides `COLORTERM`), `0` refuses a scheme's hex. The Advanced walk asks it as auto/on/off, beside `_HI_ASCII`                                                            |
-| `_HI_CONTAINER_CLIS`        | `docker podman nerdctl finch`                        | `hi --configure` advanced | the docker-compatible CLIs, space-separated, `hi <TAB>` lists containers through and `hi <target>` resolves with; docker's grammar is what they all speak, so one arm serves the lot. See [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                                                                                                              |
-| `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to `_HI_ASCII`                                                                                                                                                                                                 |
-| `_HI_BAT_OPTS`              | Monokai theme, `--tabs 2`, `changes,grid` style      | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                   |
-| `_HI_EXA_SHARED_OPTS`       | `-F -1 -l -m --group-directories-first`              | you                       | the flags the `exa`/`eza` aliases share before each one's own are appended                                                                                                                                                                                                                                                                                    |
-| `_HI_EXA_OPTS`              | `$_HI_EXA_SHARED_OPTS --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                        |
-| `_HI_EZA_OPTS`              | `$_HI_EXA_SHARED_OPTS` + smart-group + a time format | you                       | the `eza` alias's flags                                                                                                                                                                                                                                                                                                                                       |
-| `_HI_BATCAT_BIN`            | first of `bat`, `batcat`, `ccat`, `cat` on PATH      | you                       | which binary the `bat` and `cat` aliases run (Debian ships bat as `batcat`; the tail keeps `cat` working where none is installed). From `settings.sh` or the environment only: `settings/aliases.sh` resolves it above the overlay `aliases.sh` source, unlike the `_OPTS` above                                                                              |
-| `_HI_BAT_REAL`              | first of `bat`, `batcat` on PATH                     | you                       | the bat-only tier behind it, what parses `_HI_BAT_OPTS` - two rungs shorter on purpose; set with it, or leave both alone                                                                                                                                                                                                                                      |
-| `_HI_EXA_BIN`               | first of `exa`, `eza`, `ls` on PATH                  | you                       | which binary the `exa` alias runs; the same `settings.sh`-or-environment rule                                                                                                                                                                                                                                                                                 |
-| `_HI_EZA_BIN`               | first of `eza`, `exa`, `ls` on PATH                  | you                       | which binary the `eza` alias runs; likewise                                                                                                                                                                                                                                                                                                                   |
+| `_HI_PROMPT_END_BASH`       | `\$`                                                 | `hi --configure`          | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root"); also the plain `sh` prompt hi bakes on the client for a bash-less target                                                                                                                                                                                                         |
+| `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                      |
+| `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                          |
+| `_HI_NO_LEAD_SPACE`         | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                  |
+| `_HI_MUX`                   | `0`                                                  | `hi --configure` advanced | `1` wraps every session in a local multiplexer session named for the target and reattaches on the next connect, what `--mux` does for one connect (`--no-mux` skips it for one); needs tmux, zellij or screen here, not on the target                                                                                                                            |
+| `_HI_ASCII`                 | by locale                                            | `hi --configure` advanced | `1` forces ASCII stand-ins for the banner/prompt/packages glyphs, `0` forces the glyphs; unset asks the locale, so `LANG=C` degrades cleanly instead of printing mojibake                                                                                                                                                                                        |
+| `_HI_TRUECOLOR`             | by terminal                                          | `hi --configure` advanced | `1`/`0`: does the terminal render 24-bit color. Unset, the client decides and ships the verdict to the session; see [Colors](#colors). The Advanced walk asks it as auto/on/off, beside `_HI_ASCII`                                                                                                                                                              |
+| `_HI_CONTAINER_CLIS`        | `docker podman nerdctl finch`                        | `hi --configure` advanced | the docker-compatible CLIs, space-separated, `hi <TAB>` lists containers through and `hi <target>` resolves with; docker's grammar is what they all speak, so one arm serves the lot. See [HI.51](GLOSSARY.md#hi51-docker-compatible-cli-family)                                                                                                                 |
+| `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to `_HI_ASCII`                                                                                                                                                                                                    |
+| `_HI_BAT_OPTS`              | Monokai theme, `--tabs 2`, `changes,grid` style      | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                      |
+| `_HI_EXA_SHARED_OPTS`       | `-F -1 -l -m --group-directories-first`              | you                       | the flags the `exa`/`eza` aliases share before each one's own are appended                                                                                                                                                                                                                                                                                       |
+| `_HI_EXA_OPTS`              | `$_HI_EXA_SHARED_OPTS --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                           |
+| `_HI_EZA_OPTS`              | `$_HI_EXA_SHARED_OPTS` + smart-group + a time format | you                       | the `eza` alias's flags                                                                                                                                                                                                                                                                                                                                          |
+| `_HI_BATCAT_BIN`            | first of `bat`, `batcat`, `ccat`, `cat` on PATH      | you                       | which binary the `bat` and `cat` aliases run (Debian ships bat as `batcat`; the tail keeps `cat` working where none is installed). From `settings.sh` or the environment only: `settings/aliases.sh` resolves it above the overlay `aliases.sh` source, unlike the `_OPTS` above                                                                                 |
+| `_HI_BAT_REAL`              | first of `bat`, `batcat` on PATH                     | you                       | the bat-only tier behind it, what parses `_HI_BAT_OPTS` - two rungs shorter on purpose; set with it, or leave both alone                                                                                                                                                                                                                                         |
+| `_HI_EXA_BIN`               | first of `exa`, `eza`, `ls` on PATH                  | you                       | which binary the `exa` alias runs; the same `settings.sh`-or-environment rule                                                                                                                                                                                                                                                                                    |
+| `_HI_EZA_BIN`               | first of `eza`, `exa`, `ls` on PATH                  | you                       | which binary the `eza` alias runs; likewise                                                                                                                                                                                                                                                                                                                      |
 
 ### Not settings
 
-More names look like settings and are not. `$_HI_CONFIG_DIR` and
-`$_HI_HOME` (the **parent** of your `say-hi` directory - everything resolves
-`$_HI_HOME/say-hi`) are read **before** `settings.sh` is sourced, so a line
-there is too late; export them in your environment, as `hi.sh` and
-`install.sh`'s rc line do, and each entry point derives `$_HI_HOME` from its
-own path when unset. `$_HI_ROOT` and `$_HI_SSH_CONFIG` (where ssh hosts and
-their `# Tags:` comments are read from) are derived from those two by
-`common/paths.sh` on every source, so an exported value does not survive;
-point `$_HI_HOME` or `$HOME` elsewhere instead. `$_HI_COLORS`,
-`$_HI_PACKAGES`, `$_HI_VIMRC` and `$_HI_NANORC` are derived the same way -
-the overlay's copy of `colors`/`packages`/`vim.rc`/`nano.rc` when you have
-one, else the tree's - so a file of yours goes into the overlay, not behind
-an export. `$_HI_RELEASE` is the
-version `packaging/stamp.sh` fills in at build time, so a session can say
-which say-hi it is running, and `$_HI_SESSION_RC` is set inside a session:
-the `mktemp -d` directory holding the per-shell rc files a nested
-`bash`/`zsh`/`fish`/`sh` reads, removed when the session ends
-([HI.46](GLOSSARY.md#hi46-session-rc-directory)). Eight are hi's own
-per-session facts, set from the client: `$_HI_TARGET_COLOR` and
-`$_HI_TARGET_TAG` (the color and `# Tags:` value the target resolved to),
-`$_HI_LOCAL_USER` and `$_HI_LOCAL_HOSTNAME` (the header's "from" half), and
-`$_HI_HOST_COLOR`/`$_HI_USER_COLOR`/`$_HI_HOST_ESC`/`$_HI_USER_ESC`, the
-resolved prompt colors for
-[your own prompt](#using-the-hash-in-your-own-prompt) to read. Setting one
-by hand tells the target something untrue about where it is. Everything else
-beginning `_HI_` is internal state, named that way to stay out of your
-namespace.
+More names look like settings and are not:
+
+- `$_HI_CONFIG_DIR` and `$_HI_HOME` (the **parent** of your `say-hi`
+  directory - everything resolves `$_HI_HOME/say-hi`) are read **before**
+  `settings.sh` is sourced, so a line there is too late. Export them in your
+  environment, as `hi.sh` and `install.sh`'s rc line do; unset, each entry
+  point derives `$_HI_HOME` from its own path.
+- `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:`
+  comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_VIMRC` and
+  `$_HI_NANORC` are derived from those two by `common/paths.sh` on every
+  source - the last four resolving to the overlay's copy when you have one,
+  else the tree's - so an exported value does not survive. Point `$_HI_HOME`
+  or `$HOME` elsewhere, or put your file in the overlay.
+- `$_HI_RELEASE` is the version `packaging/stamp.sh` stamps at build time,
+  and `$_HI_SESSION_RC` the `mktemp -d` holding a session's per-shell rc
+  files ([HI.46](GLOSSARY.md#hi46-session-rc-directory)).
+- Eight are hi's own per-session facts, set from the client:
+  `$_HI_TARGET_COLOR` and `$_HI_TARGET_TAG` (the color and `# Tags:` value
+  the target resolved to), `$_HI_LOCAL_USER` and `$_HI_LOCAL_HOSTNAME` (the
+  header's "from" half), and
+  `$_HI_HOST_COLOR`/`$_HI_USER_COLOR`/`$_HI_HOST_ESC`/`$_HI_USER_ESC`, the
+  resolved prompt colors for
+  [your own prompt](#using-the-hash-in-your-own-prompt) to read. Setting one
+  by hand tells the target something untrue about where it is.
+
+Everything else beginning `_HI_` is internal state, named that way to stay
+out of your namespace.
 
 ## Header details
 
@@ -352,17 +349,15 @@ Each rc sources the target's own `~/.bashrc` / `~/.zshrc` / `~/.zshenv` first
 and hi's on top, so the host's configuration still applies underneath. The
 mechanism is [HI.46](GLOSSARY.md#hi46-session-rc-directory).
 
-What no wrapper can reach is a bash or fish shell nothing typed - a `tmux`
-pane spawning a login shell, an editor shelling out - which comes up as the
-host's own. hi writes nothing to any login file on any host you visit, under
-any setting ([SUPPORT.md](SUPPORT.md#what-would-change-an-answer) has the
-reasoning).
-
-Nor can a change of user. `sudo -i`, `sudo -s`, `su -` and `doas -s` start
-_that_ user's login shell from _that_ user's rc files, and hi's session rc is
-neither — root's `.bashrc` is not hi's to touch, for the same reason. What
-survives is `sudo <command>`: `settings/aliases.sh` wraps `sudo` so hi's
-aliases expand in the one command it runs, and nothing past it.
+Two things no wrapper reaches. A bash or fish shell nothing typed - a `tmux`
+pane spawning a login shell, an editor shelling out - comes up as the host's
+own, because hi writes to no login file on any host you visit, under any
+setting ([SUPPORT.md](SUPPORT.md#what-would-change-an-answer) has the
+reasoning). Nor does a change of user: `sudo -i`, `sudo -s`, `su -` and
+`doas -s` start _that_ user's login shell from _that_ user's rc files, and
+root's `.bashrc` is not hi's to touch either. What survives is
+`sudo <command>` — `settings/aliases.sh` wraps `sudo` so hi's aliases expand
+in the one command it runs, and nothing past it.
 
 hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
 rules or fish palette. Each rc carries the prompt, the completions and the git
@@ -380,8 +375,7 @@ and define your own instead.
 There is no say-hi plugin for chezmoi, yadm, GNU Stow or a bare `$HOME` repo,
 and there should not be: the overlay is a **plain directory of plain files**,
 so pointing your tool at `~/.config/say-hi` is the whole integration. The
-properties that make this true are pinned by cases in
-`tests/hi/payload_test.sh`.
+three properties below are pinned by `tests/hi/payload_test.sh`.
 
 **Symlinks are fine, so Stow works.** hi dereferences on the way out, so a
 target receives real file contents — a symlink per file, or the whole `say-hi`

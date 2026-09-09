@@ -1,17 +1,14 @@
 # What hi supports, and what it doesn't
 
 `hi <name>` resolves one name through a ladder — an ssh host first, then four
-container backends — and lands you in the same styled session either way. The
-first half of this file is what hi can reach, what it does on a given OS, and
-which shell it hands you. The second half, from
-[Targets weighed and not shipped](#targets-weighed-and-not-shipped) down, is
-every answer that was **no**, with the reason: the runtimes it will not reach
-and the shells it will not style. A thing missing from the first half has a
-row in the second.
+container backends — and lands you in the same styled session either way.
+Everything hi reaches is above
+[Targets weighed and not shipped](#targets-weighed-and-not-shipped); every
+answer that was **no**, with the reason, is below it. A thing missing from the
+first half has a row in the second.
 
 **Legend:** ✅ exercised by a suite on every run · 🟡 expected to work, nobody
-has proven it · ⚠️ works, reduced · ❌ decided against, not pending. Nothing
-marked ❌ is open — see
+has proven it · ⚠️ works, reduced · ❌ decided against, not pending — see
 [What would change an answer](#what-would-change-an-answer) for the one thing
 that reopens a row.
 
@@ -58,8 +55,7 @@ predicate on every `hi <target>`, and `common/targets.sh` probes **every**
 backend on every TAB (GLOSSARY: HI.26), on machines with none of the runtime.
 One background subshell per row, installed or not, is the resolve-time part;
 on TAB the `command -v` guard is a shell builtin, so an absent CLI costs
-nothing there and a present one is one parallel lane. The subshell per
-`hi <target>` is what every row charges every host.
+nothing there and a present one is one parallel lane.
 
 **A row earns a yes by being something people actually sit in, not by being
 reachable.**
@@ -113,15 +109,14 @@ Can hi land a session there at all?
 | \*BSD, Solaris/illumos                                           | ✅ FreeBSD, full session — BSD userland and a pkg bash, client half included; 🟡 the rest, which share that userland                                                                                                                                                                       | `.github/workflows/freebsd-e2e.yml` (fast suites plus a loopback session in a FreeBSD VM), called by ci.yml on every push                                                                                                                                                               |
 | NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected - DSM and QTS ship `bash` beside a busybox `sh` with the `base64` and `mktemp` the bootstrap needs (DSM wants the user-home service on, or there is no `$HOME`); SCALE is Debian, Unraid is Slackware with bash as its shell, CORE is FreeBSD with a bash in base | the Alpine, glibc and FreeBSD rows above prove each shape; nobody has run it on an appliance - [the permanent-install recipe](#a-permanent-install-on-a-nas) is drafted, unverified                                                                                                     |
 | OpenWrt (and other busybox routers)                              | ⚠️ aliases-only — busybox `ash`, no bash, `base64` and `mktemp` present; `opkg install bash` makes it a full session. `/tmp` is RAM, and one payload a connect is fine there                                                                                                               | 🟡 the same shape as Alpine's bash-less case in `ssh_test.sh`; not run on a router                                                                                                                                                                                                      |
-| Termux (Android)                                                 | 🟡 as a **client**, bash and coreutils `base64` are there; install as usual (the link lands in `~/.local/bin`, which Termux puts on `$PATH`). 🟡 as a target, over Termux's own `sshd` (port 8022): full session, bash is Termux's shell                                                        | — the [adb row](#targets-weighed-and-not-shipped) is the other direction and stays a no                                                                                                                                                                                                 |
+| Termux (Android)                                                 | 🟡 as a **client**, bash and coreutils `base64` are there; install as usual (the link lands in `~/.local/bin`, which Termux puts on `$PATH`). 🟡 as a target, over Termux's own `sshd` (port 8022): full session, bash is Termux's shell                                                   | — the [adb row](#targets-weighed-and-not-shipped) is the other direction and stays a no                                                                                                                                                                                                 |
 | any of the above behind sshd `ForceCommand`, or a `command=` key | ⚠️ the host's own session — the forced program — after a line saying hi's bootstrap never ran; a forced program that exits non-zero and prints nothing gets the PowerShell notice instead                                                                                                  | `ssh_test.sh`'s two forced-command cases                                                                                                                                                                                                                                                |
 | any of the above with an `rbash` login shell, or `MaxSessions 1` | ✅ full session - `sh` has no `/` in its name, so rbash runs the bootstrap unrestricted (not a boundary hi respects, [SECURITY.md](SECURITY.md#what-runs-where)); the probe's channel closes before the session's opens                                                                    | `ssh_test.sh`'s rbash and maxsessions1 cases                                                                                                                                                                                                                                            |
 
 ## A permanent install on a NAS
 
-**Untested.** Drafted from the install path; nobody has run it on an
-appliance yet, which is why the NAS row above stays 🟡. If you do, what it
-gets wrong is a bug report.
+**Untested** — drafted from the install path, which is why the NAS row above
+stays 🟡. If you run it, what it gets wrong is a bug report.
 
 The point of a permanent tree on a NAS is the slow link: a disposable `hi`
 sends the whole payload on every connect, a tree already there sends none
@@ -172,8 +167,7 @@ in place and hi's draws on every target; see
 ## Targets weighed and not shipped
 
 Everything weighed and left off the roster above. Each would need everything
-in [What a "yes" costs](#what-a-yes-costs), and every row here is **❌
-decided against** - none of it is pending.
+in [What a "yes" costs](#what-a-yes-costs).
 
 | target                                                                                                    | why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -201,7 +195,7 @@ Every one of these still works from the other side: ssh into the host and run
 Each would need its own rc in `common/` (prompt, aliases, completion) plus a
 tier in the fallback ladder in `hi.sh`'s `_hi_remote_suffix` and `load.sh`'s
 `load()`. Using one of these as a _login_ shell still works - only the
-_session_ shell is limited, and every row below is **❌ decided against**.
+_session_ shell is limited.
 
 | shell        | why                                                                                                                                                                                                        |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -215,24 +209,16 @@ _session_ shell is limited, and every row below is **❌ decided against**.
 ## What would change an answer
 
 A "no" above is closed, not permanent, and the one thing that reopens it is
-the same in every section: **evidence of people sitting in it**, enough to be
-worth charging everyone who has never heard of it — a subshell on every
-`hi <target>` for a target, a second prompt implementation to keep in sync
-forever for a shell. A new exec CLI, a cleaner API or an easier integration
-moves neither, because neither is a "no" for being hard — unless the CLI
-speaks docker's grammar, in which case it is a word in `_HI_CONTAINER_CLIS`
-and needs no answer here at all.
+the same in every section: **evidence of people sitting in it** — who is in
+these, how often, and what they do today instead — enough to be worth what
+[a yes costs](#what-a-yes-costs) everyone who has never heard of it. A new
+exec CLI, a cleaner API or an easier integration moves nothing, because
+nothing here is a "no" for being hard.
 
-The useful shape of the argument: who is in these, how often, and what they do
-today instead.
-
-**Nothing is pending.** Every candidate anyone has raised is on a table above
-with a verdict and a reason. Two proposals about hi itself were weighed and
-declined without shipping: **persistent sessions on a target**
+Two proposals about hi itself were weighed and declined without shipping:
+**persistent sessions on a target**
 (`hi --session <name>`, a tree that outlives a dropped connection) — `tmux`
 or `screen` on the client already survives a drop, and a tree that outlives
 its session breaks [SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)'s
 footprint promise; and **a bash 4 floor for the client** — the 3.2 plumbing
-is tested on both ends, and a split floor is two dialects in one tree. A runtime that appears here for the first time
-is read against [What a "yes" costs](#what-a-yes-costs), and lands as a row
-either way.
+is tested on both ends, and a split floor is two dialects in one tree.

@@ -278,8 +278,8 @@ fi
 # and before --list, so `--group fast --shard 2/2 --list` shows what a CI
 # shard will run. windows-client.yml is the caller: the fast group takes about
 # seven minutes under Git Bash, where backgrounded suites barely overlap
-# (tests/lib/fixtures.sh's fork_concurrency), so two runners halve it where a
-# wider run would not.
+# (tests/lib/fixtures.sh's fork_concurrency), so four runners quarter it where
+# a wider run would not.
 if [ -n "$_HI_SHARD" ]; then
   _hi_shard_i="${_HI_SHARD%%/*}"
   _hi_shard_n="${_HI_SHARD#*/}"

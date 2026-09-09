@@ -2,10 +2,8 @@
 
 How `hi` ships through a package manager, plus [checking a download you did
 not build](#verifying-a-release-download) and [regenerating the demo
-GIFs](#regenerating-the-demo-gifs). Nothing publishes on its own: the
-publishing job waits on a manual approval; the Homebrew tap gets a PR from
-the same run once `brew` has passed the formula, and the AUR is updated only
-when someone dispatches `publish-external.yml` by hand, once its key exists.
+GIFs](#regenerating-the-demo-gifs). Nothing publishes on its own: every
+channel is behind a manual approval, a PR you merge, or a dispatch by hand.
 
 **What is live today: releases, the package repository and the Homebrew
 tap, not the AUR.** Tagged releases exist (`v0.1.1`, `v0.1.2`, …), the
@@ -31,6 +29,7 @@ Actions variable.
   - [AUR](#aur)
   - [Homebrew tap](#homebrew-tap)
   - [deb / rpm / apk](#deb--rpm--apk)
+  - [ubi / mise](#ubi--mise)
   - [Package repository](#package-repository)
 - [Verifying a packaged build locally](#verifying-a-packaged-build-locally)
   - [Reproducibility](#reproducibility)
@@ -92,12 +91,12 @@ The formula passes `--date <version>`, having no `SOURCE_DATE_EPOCH`;
 formula's shape (`$out/share/say-hi` plus a wrapped `$out/bin/hi` exporting
 `_HI_HOME`), not `scripts/install.sh --prefix` - `install_tree` hardcodes
 `/usr/bin` and `/etc/profile.d`, neither of which exists in a store path, and
-that's a *third* copy of `_HI_PACKAGE_CONTENTS` for `packaging_test.sh` to
-guard before anything ships. If it ships, it starts as a `flake.nix` in this
-repo (no external review, no source hash); nixpkgs, where nix users actually
-look, means upstream review and a standing maintainer entry, so it comes
-later. What would come free: nix builds are hermetic, so
-[reproducibility](#reproducibility) becomes a property rather than a CI check.
+that's a _third_ copy of `_HI_PACKAGE_CONTENTS` for `packaging_test.sh` to
+guard before anything ships. It would start as a `flake.nix` here and reach
+nixpkgs — where nix users actually look, and which wants upstream review and a
+standing maintainer entry — later. The one thing it buys:
+[reproducibility](#reproducibility) becomes a property of hermetic builds
+rather than a CI check.
 
 ## Cutting a release
 
@@ -123,9 +122,9 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    exact artifacts `build` produced. Packages, the source tarball,
    `SHA256SUMS` and manifests land on the release, and the package repository
    redeploys to the Pages site (`gh workflow run pages.yml`, since its own
-   `workflow_run` trigger cannot fire off a tag push). The manifests committed
-   in `packaging/aur/` and `packaging/homebrew/` stay permanent `v0.0.0`
-   templates — this workflow never writes to `main`.
+   `workflow_run` trigger cannot fire off a tag push). This workflow never
+   writes to `main`, so the manifests committed in `packaging/aur/` and
+   `packaging/homebrew/` stay permanent `v0.0.0` templates.
 4. `brew` installs, tests and audits the formula on a hosted mac against the
    published tarball, and when it passes, `tap` opens a PR against
    [homebrew-tap](https://github.com/ivylikethevine/homebrew-tap) with it
@@ -134,9 +133,8 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
 5. Once `AUR_SSH_KEY` exists, dispatch `publish-external.yml` with `tag:
 v1.0.0` to push the AUR — a separate, later, manual step so nothing reaches
    that channel just because a tag was pushed. It reads the manifest off the
-   release itself (`gh release download`), which is why the templates on
-   `main` never need to be current. Until the key exists, copy the manifest
-   by hand per [AUR](#aur).
+   release itself (`gh release download`), never the template. Until the key
+   exists, copy the manifest by hand per [AUR](#aur).
 
 **A release candidate is a GitHub Release and nothing more.** A prerelease
 tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-2 unchanged and
@@ -166,21 +164,15 @@ below it, the [verification checklist](#verifying-a-release-download) below
 those. A section left at `none` contributes nothing, and a release nobody
 wrote a note for falls back to the titles alone. Skim
 `gh pr list --state merged` before tagging and fix a PR's section in place if
-it reads badly; the release run reads the bodies as they are then. The body
-is composed rather than passed as `--generate-notes --notes` because `gh`
-appends generated notes **after** `--notes`, burying them under the
-checklist.
+it reads badly; the release run reads the bodies as they are then.
 
 **The body opens with the tag's own badges.** README's tests, kcov and
-bashcov badges read the newest green run of `main` and drift with it; the
-release body carries the same three figures as static `img.shields.io`
-badges, frozen at the tag. The publish job looks each one up by this
-commit's sha (`.github/actions/fetch-latest-artifact` with `head-sha`, the
-`tests` artifact of `ci.yml` and the two `pct` artifacts of `coverage.yml`)
-and a figure that is not there - a tag cut before the sweep finished, an
-artifact past its 14-day retention - reads `unknown` in grey rather than
-failing the release. Only a release the run creates gets them: an existing
-body is never rewritten.
+bashcov badges track the newest green `main`; the release body freezes the
+same three figures at the tag, looked up by this commit's sha
+(`.github/actions/fetch-latest-artifact` with `head-sha`). A figure that is
+not there - a tag cut before the sweep finished, an artifact past its 14-day
+retention - reads `unknown` in grey rather than failing the release. Only a
+release the run creates gets them: an existing body is never rewritten.
 
 ### The release environment
 
@@ -192,12 +184,10 @@ tree can set; `release.yml` only names them.
   and needs no gate of its own: it opens a PR). _Required reviewers_: you; that is the approval
   `publish` pauses for, and without it the job publishes unattended.
   _Deployment branches and tags_: a **tag** rule, `v*`, for `publish` running
-  on the tag ref - a policy listing only `main` refuses every release with
-  `Tag "v1.0.0" is not allowed to deploy to release due to environment
-protection rules` — `build` green, `publish` failed, the tag page showing
-  source archives alone. The rule is checked when the job starts, so once it
-  exists _Re-run failed jobs_ on that run goes on to the approval; no new tag
-  is needed. `aur` runs on `workflow_dispatch`, not a tag ref, so add `main`
+  on the tag ref - a policy listing only `main` refuses every release, leaving
+  `build` green and `publish` failed. The rule is checked when the job starts,
+  so once it exists _Re-run failed jobs_ on that run goes on to the approval;
+  no new tag is needed. `aur` runs on `workflow_dispatch`, not a tag ref, so add `main`
   (or wherever the dispatch is run from) to the same rule or it hits the
   identical refusal.
 - **`manual-dispatch`** — the rehearsal gate. _Required reviewers_: you, or a
@@ -205,14 +195,12 @@ protection rules` — `build` green, `publish` failed, the tag page showing
   rule `main` fits here: a dispatch runs on a branch.
 - **`MINISIGN_SECRET_KEY`** — an environment secret on `release` (an
   environment secret shadows a repository one of the same name; edit the one
-  that exists). Its value is the **whole** `minisign.key` file `minisign -G
--W` writes: line 1 `untrusted comment: …`, line 2 a 212-character base64
-  string - the `.pub`, or that line alone, truncated, wrapped or indented,
-  all fail the signing step (`base64 conversion failed`, or `Error while
-  loading the secret key file`). A key generated without `-W` stops at
-  `Password:` because the runner has no tty (`minisign -C -W -s minisign.key`
-  strips the passphrase and keeps the pair). Before pasting, check the file
-  signs and matches the public key this runbook publishes:
+  that exists). Its value is the **whole** `minisign.key` file `minisign -G -W`
+  writes - both lines, unwrapped and unindented; anything less fails the
+  signing step. Generate it with `-W`, or the runner, having no tty, stops at
+  `Password:` (`minisign -C -W -s minisign.key` strips a passphrase from an
+  existing pair). Before pasting, check the file signs and matches the public
+  key this runbook publishes:
 
   ```sh
   minisign -R -s minisign.key -p /tmp/check.pub &&
@@ -226,17 +214,13 @@ protection rules` — `build` green, `publish` failed, the tag page showing
 
 ## Publishing each channel
 
-The tap is part of the release (`release.yml`'s `tap` job, a PR you merge);
-the AUR is behind the manual approval on `publish-external.yml`, which you
-dispatch by hand against an already-published tag (`gh workflow run
-publish-external.yml -f tag=v1.0.0`, or the Actions UI) once its key exists -
-never automatically from a tag push, so the release and reaching the AUR are
-two separate decisions. Each section's checks are still yours to run first.
+The tap is a PR you merge; the AUR is a dispatch you run against an
+already-published tag (`gh workflow run publish-external.yml -f tag=v1.0.0`,
+or the Actions UI). Each section's checks are yours to run first.
 
-**A `v0.0.x` tag reaches neither, and neither does a prerelease tag.**
-`v0.0.x` are debug tags for exercising the release path and a `-` in the name
-(`v1.0.0-rc.1`) is a candidate; `brew`, `tap` and `aur` all skip on the tag
-name, and the GitHub Release is still created with the packages attached.
+`brew`, `tap` and `aur` all skip on the tag name, so neither a `v0.0.x` debug
+tag nor a candidate (`-` in the name) reaches a channel; the GitHub Release is
+still created with the packages attached.
 
 ### AUR
 
@@ -333,9 +317,9 @@ unreachable from that container):
 * HEAD: The URL https://github.com/ivylikethevine/say-hi.git is not a valid Git URL
 ```
 
-Two audit findings are already fixed: the description starts with a capital,
-and there is no `uses_from_macos "openssh"` (that macro is for formulae macOS
-provides _to Homebrew_). The formula declares no dependencies; `ssh` and
+The description starts with a capital and there is no
+`uses_from_macos "openssh"` — that macro is for formulae macOS provides _to
+Homebrew_. The formula declares no dependencies; `ssh` and
 `base64` ship with macOS and any Linux that would install this. Use a real mac
 before the first publish: the container exercises Linuxbrew's paths, not
 `/opt/homebrew`.
@@ -428,7 +412,7 @@ repository serves as `say-hi.rsa.pub`. A repository secret rather than one
 sealed to the `release` environment, for the apk key's reason: `build` is
 ungated and only signs what `publish` still has to approve. Without the
 secret the rpm builds unsigned and `publish` ships no repository, both
-loudly; a signed rpm is the one artifact that is not byte-reproducible
+loudly. A signed rpm is the one artifact that is not byte-reproducible
 ([Reproducibility](#reproducibility)).
 
 **Setting it up, once:**
@@ -479,8 +463,8 @@ CI pins nfpm 2.47.0 (`.github/actions/setup-tool/tools.txt`); `mkpkg.sh`
 takes whatever nfpm is on PATH, so a different local nfpm can produce
 different (still internally reproducible) bytes.
 
-The signed rpm is the exception: a GPG signature carries its signing time, so
-two builds with `HI_GPG_KEY` set differ in that header alone. The
+The signed rpm is the exception, because a GPG signature carries its signing
+time: two builds with `HI_GPG_KEY` set differ in that header alone. The
 packaging-smoke double build is unsigned for that reason, and a third, signed
 build feeds `mkrepo.sh`. The released rpm's provenance is the attestation and
 the signature itself, not a rebuild.
@@ -523,7 +507,7 @@ crashed run. `--version <v>` puts `<v>` in the header's version cell (and in
 `hi --version`, on both ends of the wire) instead of `git describe`, so a
 release's GIFs can be rendered before its tag exists.
 
-**Seven of the eight render themselves.**
+**Six of the seven render themselves.**
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
 but `demo` in CI (installing podman, nomad and kind on a hosted runner as
 `ci.yml`'s `e2e-backends` job does) on a tape change, weekly, or on dispatch,
@@ -536,23 +520,18 @@ The top-of-README `demo.gif` claims to be the stock defaults, so it is stale
 the moment the header, the prompt or the tape changes; re-render it by hand
 when one of those moves.
 
-Each tape's header names the persona it is shot for - the ops bastion, the
-developer on a shared dev box, the homelab tinkerer, the researcher at a
-workstation - and which header configuration and whose prompt is in the
-frame; `fixtures.sh`'s `up:<name>` arm writes exactly that settings.sh.
-Change the two together, and README's section for the GIF with them.
+Each tape's header names the persona it is shot for, and which header
+configuration and whose prompt is in the frame; `fixtures.sh`'s `up:<name>`
+arm writes exactly that settings.sh. Change the two together, and README's
+section for the GIF with them. Both sides of every GIF are staged — the
+outside shell gets hi's own prompt under a chosen `user@host`, and every
+target an explicit hostname rather than a random hex ID.
 
-The set is organised by **feature**, not backend: each tape shows one thing
-hi brings along (the hero, the packages check, the editors, the
-overlay, the colors, completion, one-off commands), with the backends spread
-across them so every one is on screen somewhere. A hand render is one
+The set is organised by **feature**, not backend, with the backends spread
+across the tapes so every one is on screen somewhere. A hand render is one
 `vhs docs/tapes/<name>.tape` from the repo root with the backend up; the two
 things it has to get right that `generate.sh` handles (which `hi` is on
 `$PATH`, and a dirty tree's client/target split) are that script's header.
-
-Both sides of every GIF are staged: each tape sources a small rc `fixtures.sh`
-writes, giving the outside shell hi's own prompt under a chosen `user@host`,
-and every target gets an explicit hostname rather than a random hex ID.
 
 ## Verifying a release download
 

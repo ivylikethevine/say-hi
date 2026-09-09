@@ -3,10 +3,9 @@
 Every script resolves against `$_HI_HOME/say-hi`. The runner defaults
 `_HI_HOME` to this checkout's parent, so a fresh clone works with no setup.
 With a second say-hi tree on the machine (an installed one beside a dev
-checkout), set it explicitly on every invocation, and check `env | grep
-'^_HI_'` first: a shell that has sourced an install exports the whole `_HI_*`
-set, those paths exist, and a suite run against the wrong tree reports
-fewer cases rather than failing.
+checkout), set it explicitly on every invocation: a shell that has sourced an
+install exports the whole `_HI_*` set at paths that all exist, and a suite run
+against the wrong tree reports fewer cases rather than failing.
 
 ```sh
 export _HI_HOME=/path/to/parent-of-say-hi
@@ -23,14 +22,15 @@ tests/test_runner.sh
   - [The images are files; the build contexts are not](#the-images-are-files-the-build-contexts-are-not)
     - [What is pinned, and what deliberately is not](#what-is-pinned-and-what-deliberately-is-not)
 - [The lint gate](#the-lint-gate)
+- [Test levers](#test-levers)
 - [Relaying](#relaying)
 - [Local-only](#local-only)
 - [Why the harness is hand-rolled](#why-the-harness-is-hand-rolled)
 
 ## Running the tests
 
-`tests/test_runner.sh` (`hi --test` once installed) times each suite and prints
-a colored pass/fail summary:
+`tests/test_runner.sh` times each suite and prints a colored pass/fail
+summary:
 
 ```sh
 tests/test_runner.sh                    # every suite
@@ -59,21 +59,18 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 - Every test script also runs directly, e.g. `tests/lint/shellcheck_test.sh`.
 - Under a wrapper that leaves the process a controlling terminal but puts it
   in a background process group — `timeout` from a shell prompt, or a
-  `wsl.exe` session, whose stdio are pipes but whose session still has a
-  terminal — run it as `setsid -w timeout … tests/test_runner.sh …`. The
-  `load` and `install_location` suites start `bash -i`/`zsh -i`/`fish -i`
-  sessions with stderr redirected; bash then opens `/dev/tty` for job control,
-  finds itself in the background, and stops on SIGTTIN until the wrapper's
-  deadline. `setsid` outside `timeout`, not inside, so `timeout` still kills
-  the runner's own process group. GitHub's ubuntu runner has no controlling
-  terminal, which is why the same run is clean there without it.
+  `wsl.exe` session — run it as `setsid -w timeout … tests/test_runner.sh …`,
+  `setsid` outside `timeout` so `timeout` still kills the runner's own process
+  group. Without it the interactive sessions the `load` and `install_location`
+  suites start stop on SIGTTIN until the wrapper's deadline. GitHub's ubuntu
+  runner has no controlling terminal and needs none of this.
 - Under WSL 2, drop the `/mnt/` entries from `$PATH` before running (the
-  `wsl-suites` job in `windows-e2e.yml` does). WSL's interop default appends
-  the Windows PATH, some fifty `/mnt/c/...` directories served over 9p, and
-  the package check is 279 `command -v` lookups per render with no miss
-  caching: one `full_check` took 30–37s there against 30ms on ext4, which
-  is past the `configure` suite's 30s pty cases and, over the `header` and
-  `preview` suites too, past the job's 900s kill.
+  `wsl-suites` job in `windows-e2e.yml` does). Interop appends some fifty
+  `/mnt/c/...` directories served over 9p, and the package check is 272
+  `command -v` lookups per render with no miss caching: one `full_check` takes
+  30–37s there against 30ms on ext4, past the `configure` suite's 30s pty
+  cases and, over the `header` and `preview` suites too, past the job's 900s
+  kill.
 
 Five groups (`--group <name>`; `--list` prints the membership):
 
@@ -86,7 +83,7 @@ Five groups (`--group <name>`; `--list` prints the membership):
   it back to one at a time; `--verbose` implies that, since two live
   transcripts would interleave. `--shard <i>/<n>` keeps every n-th suite of
   the selection from the i-th on, so one group can be split across runners:
-  the Windows client job runs `fast` as two shards, because backgrounded
+  the Windows client job runs `fast` as four shards, because backgrounded
   suites barely overlap under MSYS and only more machines shorten that run.
 - **`lint`** — [The lint gate](#the-lint-gate), run once as its own CI job on
   ubuntu against pinned tool versions, side by side with `fast`'s job. The
@@ -109,21 +106,20 @@ Five groups (`--group <name>`; `--list` prints the membership):
 
 Fast cases stand down through two guards: `_hi_check_requires <bin>` skips a
 case when a _command_ is missing, `_hi_check_capable <capability>` when a
-_facility_ is — something `command -v` cannot answer. The roster,
-`_hi_capable` (`tests/lib/fixtures.sh`), has seven entries. Four are probes
-rather than OS sniffs, all for Git Bash: `symlink` makes one and tests
-`[ -L ]`, so a filesystem that refuses _or_ silently copies reads as no; `pty`
-is python3 being able to `import pty`; `mkdir_mode` is a `mkdir -m` whose
-mode actually lands (a Windows-owned temp tree makes the directory and
-refuses the chmod, which is the filesystem's doing, not the runtime's);
-`gpg_agent` launches a gpg-agent in a throwaway homedir and asks it to
-answer, because Git for Windows ships the gpg binary with no agent it can
-start, and a keyring is unusable without one. The
-other three are `uname`-based guards for the same MSYS/Cygwin tier:
-`lockout` (a `chmod 555` directory actually refuses a write, rather than the
-runtime looking the other way), `fork_concurrency` (background subshells
-genuinely overlap) and `mode_bits` (a reported permission string reflects
-`chmod`'s own bits). `_hi_par_check_capable` is the parallel twin.
+_facility_ is — something `command -v` cannot answer. The roster is
+`_hi_capable` (`tests/lib/fixtures.sh`); `_hi_par_check_capable` is the
+parallel twin. Every entry exists for the MSYS/Cygwin tier, and the four
+probes ask the system rather than sniffing `uname`:
+
+| Capability         | How it answers                         | Why it can be no                                                    |
+| ------------------ | -------------------------------------- | ------------------------------------------------------------------- |
+| `symlink`          | probe: makes one, tests `[ -L ]`       | a filesystem that refuses _or_ silently copies reads as no          |
+| `pty`              | probe: python3 can `import pty`        | no pty layer to drive an interactive case with                      |
+| `mkdir_mode`       | probe: a `mkdir -m` whose mode lands   | a Windows-owned temp tree makes the directory and refuses the chmod |
+| `gpg_agent`        | probe: an agent in a throwaway homedir | Git for Windows ships gpg with no agent it can start                |
+| `lockout`          | `uname`                                | a `chmod 555` directory has to actually refuse a write              |
+| `fork_concurrency` | `uname`                                | background subshells have to genuinely overlap                      |
+| `mode_bits`        | `uname`                                | a reported permission string has to reflect `chmod`'s own bits      |
 
 ### Where a suite lives
 
@@ -194,24 +190,20 @@ untested arms. Only a massive divergence between them (tens of points, not
 the usual few) means one tool has lost the plot and needs its probe re-run
 before either is believed. Never a gate. Both sweeps pin
 `_HI_PAR_WIDTH=1`: a suite's cases share one trace stream, and a batch writing
-into it side by side loses lines. `_HI_SC_WIDTH` is unrelated (the shellcheck
-suite's own fan-out) and moot here besides — both drivers drop `shellcheck`
-from the sweep.
+into it side by side loses lines.
 
 In CI, each tool is sharded 4 ways (`--shard i/4`, the same knob
 `windows-client.yml` and `ci.yml`'s `e2e` job use) and merged by a gather job
 — `kcov --merge` over the four shards' `parts/` directories for kcov, a plain
 JSON hash union over the four shards' `--command-name`-keyed `.resultset.json`
 files for bashcov, since shards partition the suite table and so never share a
-suite name. No change to either driver script was needed: `_hi_cov_select_suites`
-already passes `--shard` straight through to `test_runner.sh`.
+suite name. `_hi_cov_select_suites` passes `--shard` straight through to
+`test_runner.sh`.
 
-- `tests/coverage.sh` runs the sweep under kcov. An earlier kcov lost its
-  DEBUG trap once the harness was sourced and read whole suites as
-  load-time-only (`common/git_prompt.sh` at 2.56% with seventeen cases
-  passing against it); the header keeps the measured record of that
-  failure, and its probe is the thing to re-run if the two badges ever
-  massively diverge again.
+- `tests/coverage.sh` runs the sweep under kcov. Its failure mode is losing
+  the DEBUG trap once the harness is sourced, which reads whole suites as
+  load-time-only; the script's header carries the probe to re-run if the two
+  badges ever diverge massively.
 - **`kcov --merge` re-reads the sources.** Every shard records absolute
   paths, and the merge opens each one again to count its lines — so a gather
   job with no working tree merges to `"files": []` and a run-wide `0.00`,
@@ -246,25 +238,19 @@ labelled by its measurer and computed over the shipped product only — the
 badge math excludes `tests/` and `docs/`, the same subject both reports
 declare. Each refreshes as soon as its sweep finishes — `pages.yml` redeploys
 on a completed Coverage run as well as on a green CI — so a badge is only ever
-as old as the sweep, never a push behind. Neither gates anything. Both stay
-because they cannot err in the same direction: a file that reads low in
-bashcov is genuinely uncovered, a line that reads covered in kcov genuinely
-ran. The average of the two badges is the figure to quote; a massive
-divergence, not the usual few points, is the signal that one tool needs its
-probe re-run.
+as old as the sweep, never a push behind. Both stay because they cannot err in
+the same direction: a file that reads low in bashcov is genuinely uncovered, a
+line that reads covered in kcov genuinely ran.
 
 Two shipped files sit outside what either tool can report at all:
 `common/zsh.zsh` and `common/config.fish`. Both instrumentation methods need
 a bash process — kcov's DEBUG trap and bashcov's `xtrace` are bash
 mechanisms — and neither zsh nor fish provides one, so no line-coverage
 percentage for these two is honest at any number. What stands in instead:
-`tests/lint/dialects_test.sh` sources `common/zsh.zsh` into a real
-interactive zsh and asserts four behaviors (the prompt, the aliases, a
-resolved host color, the prompt separator), and separately parses both files
-under real zsh and fish; `tests/common/exports_test.sh` and
-`tests/hi/prompt_test.sh` drift-check `common/config.fish` against
-`common/core.sh` (glyphs, colors, the prompt separator, the 32-column branch
-shorten) line by line rather than by running it.
+`tests/lint/dialects_test.sh`'s native roster ([check 5](#the-lint-gate)), and
+`tests/common/exports_test.sh` and `tests/hi/prompt_test.sh`, which drift-check
+`common/config.fish` against `common/core.sh` line by line rather than by
+running it.
 
 `tests/profile.sh` is for a tripped `--group bench` ceiling: `_hi_bench` says
 _whether_ a path got slower, this says _which command in it_ did. It profiles
@@ -303,15 +289,12 @@ Dockerfile that isn't there.
 
 ### What is pinned, and what deliberately is not
 
-Scorecard's Pinned-Dependencies check reports every line below and will keep
-reporting some of them.
-
 **Upstream base images are digest-pinned, non-negotiably.** Every `FROM` in
 `tests/dockerfiles/` that names an upstream image (11 of 19 - alpine, ubuntu,
 debian, fedora, bash) carries a `@sha256:`: a digest is what makes a failed
 e2e run reproducible and a base-image move a deliberate, reviewable act.
-Dependabot bumps the digests weekly; the Alpine 3.20 → 3.24 upgrade (3.20 past
-EOL since 2026-04-01) is the case for it. The other 8 are `FROM ${BASE}` over
+Dependabot bumps the digests weekly, which is how a base image reaching EOL
+gets noticed. The other 8 are `FROM ${BASE}` over
 an image the suite builds locally (`hi-test-sshd`, `hi-demo-sshd-base`,
 `hi-test-installed-prefix` - see `--build-arg BASE=` in
 `tests/targets/*_test.sh`), with no upstream digest to pin against; Scorecard
@@ -332,12 +315,12 @@ download URL), `frameworks/mise.sh` (v2026.8.14, in the download URL) and
 `frameworks/starship.sh` (v1.26.0, via `--version`) each name the version pin
 in their own header and are bumped by hand when that framework's own bugs are
 worth chasing, not on a schedule; `ci.yml`'s weekly run re-tests them against
-whatever else moved but does not touch the pin. Each now downloads to a file
-first and `sha256sum -c`s it before running `sh` on it, rather than piping
-`curl` straight into a shell. Atuin's and mise's URLs name the release tag,
-so the hash tracks the version pin above it and both are bumped together
-(mise.run was pinned once and drifted on the next mise release, since it is
-regenerated per release whatever `MISE_VERSION` says). starship's install
+whatever else moved but does not touch the pin. Each downloads to a file and
+`sha256sum -c`s it before running `sh` on it, rather than piping `curl`
+straight into a shell. Atuin's and mise's URLs name the release tag,
+so the hash tracks the version pin above it and both are bumped together —
+`mise.run` is regenerated per release whatever `MISE_VERSION` says, so pinning
+it alone drifts. starship's install
 script is a generic bootstrap endpoint (`starship.rs/install.sh`) that
 installs whatever version the flag names, so its hash pins _that day's copy
 of the installer_, not the app version - a hash mismatch there means the
@@ -347,12 +330,12 @@ mismatch or the framework's installer changing shape fails the build rather
 than shipping an image with the framework silently missing.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions
-the release path uses are SHA-pinned separately. What Scorecard still dings
-here, and how it's annotated, is [`.scorecard.yml`](../.scorecard.yml).
+the release path uses are SHA-pinned separately. What Scorecard dings here, and
+how it's annotated, is [`.scorecard.yml`](../.scorecard.yml).
 
 ## The lint gate
 
-`--group lint` is four suites, eighteen checks between them, and CI runs all
+`--group lint` is four suites, nineteen checks between them, and CI runs all
 of them. Each suite is its own process (`tests/test_runner.sh shellcheck`,
 `dialects`, `tools`, `drift`) with its own file/failure/skip tally in the
 summary table, so a failure in one never hides what the others found.
@@ -407,7 +390,7 @@ skipping yellow when its tool isn't installed locally (CI has all four):
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
 - **9. typos** over the whole tree, allowlisted by `.typos.toml`.
 
-**`drift`** (`tests/lint/drift_test.sh`) — nine repo-consistency sweeps, each
+**`drift`** (`tests/lint/drift_test.sh`) — ten repo-consistency sweeps, each
 a grep or small parser checking that something written down elsewhere still
 agrees with the tree:
 
@@ -427,26 +410,35 @@ agrees with the tree:
 - **14. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span - Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **15. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **15. Contents blocks**: in every page the Pages build renders, each `##`
+  and `###` heading has an entry in that doc's `## Contents` list and each
+  entry names a real heading, with an `###`'s entry indented under an `##`'s.
+  `_config.yml` runs just-the-docs with no page front matter, so these lists
+  are the site's only in-page navigation and nothing regenerates them.
+- **16. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples - the upstream
   cap.
-- **16. tests/dockerfiles/**: every image definition has a caller and vice
+- **17. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **17. Image tags**: every plain image tag named in shell or YAML is one of
+- **18. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **18. Image digests**: two Dockerfiles pinning the same `image:tag` must
-  agree on its digest - check 17 strips the digest before comparing, so it
+- **19. Image digests**: two Dockerfiles pinning the same `image:tag` must
+  agree on its digest - check 18 strips the digest before comparing, so it
   can't see one tag pinned to two; this one reads the digests back in.
 
 ## Test levers
 
-Four environment variables are read by the tree but are not settings: they
+Five environment variables are read by the tree but are not settings: they
 exist so a suite, the bench or a demo can pin what a real run derives.
 `_HI_TARGETS_TTL` (seconds `targets.sh` reuses its list; `0` sweeps every
 call), `_HI_PROBE_TIMEOUT` (seconds one backend CLI gets), `_HI_PAYLOAD_CACHE`
-(`0` builds the payload and overlay archives fresh) and `_HI_CTL_PERSIST`
-(`0` gives a connect a private ssh control socket, closed after). Their
-defaults are the shipped behaviour; nothing in `hi --configure` writes them.
+(`0` builds the payload and overlay archives fresh), `_HI_CTL_PERSIST` (`0`
+gives a connect a private ssh control socket, closed after) and
+`_HI_HEADER_VERSION` (the header's version cell, otherwise `git describe` —
+what `docs/tapes/generate.sh --version` sets). Their defaults are the shipped
+behaviour; nothing in `hi --configure` writes them. `_HI_LOAD_NO_INIT=1` is
+adjacent but not a lever: it makes `load.sh` define its functions without
+running the profile chain, for `scripts/install.sh` to source.
 
 ## Relaying
 
@@ -490,10 +482,8 @@ candidate has to hand it something it can still collect through
 | lint-gate reach          | already `*.sh`; shellcheck, shfmt, checkbashisms all apply | shellcheck parses `.bats` since 0.7; shfmt/checkbashisms don't know the extension | DSL keywords (`It`/`When`/`Then`); no shellcheck dialect found            | not shell at all - opts the driver out of the gate entirely           |
 | new dependency           | none                                                       | GNU parallel                                                                      | none found required                                                       | pytest + xdist + a pty replacement on Windows                         |
 
-**Keep it.** Every candidate adds a dependency this repo doesn't vendor for
-anything else, gives up ordered parallel replay, drops out of the lint gate's
-`*.sh` reach, or breaks the coverage topology - usually more than one at
-once; and the sweep's wall clock is container boot and e2e deadlines, not
+**Keep it.** Every candidate loses at least one row above, usually more, and
+the sweep's wall clock is container boot and e2e deadlines rather than
 per-case dispatch, so speed would not have decided it. Reopen it if Git Bash
 leaves the platform matrix, both coverage tools go unmaintained at once, or
 one of these three documents an ordered parallel mode and a skip-as-failure

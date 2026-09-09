@@ -64,16 +64,16 @@ to `xterm-256color`) rather than depending on your terminal.
 
 say-hi is a fork of [sshrc] (via [cdown's] and [danrabinowitz's] lines), and
 the core idea is unchanged: tar your config, base64 it, hand it to the login
-shell, source it on the far side. The original repository was deleted from
-GitHub, so links here point at [cdown's] fork, the maintained continuation,
-which carries the design (64KB argv ceiling included) unchanged.
+shell, source it on the far side. Links here point at [cdown's] fork, the
+maintained continuation, which carries the design (64KB argv ceiling included)
+unchanged.
 
 **Where sshrc still wins:** smaller and simpler, which counts in something
 that runs on every host you touch. If you just want your `.bashrc` and
 `.vimrc` over there, sshrc does it in a fraction of the code.
 
-**Where say-hi went further** (the table above has the transport, cleanup and
-target-needs deltas):
+**Where say-hi went further**, beyond the table's transport, cleanup and
+target-needs deltas:
 
 - **Cleanup, proven for the dropped link.** What say-hi adds beyond sshrc's
   own exit trap is the case where there is no exit: `load.sh`'s hook fires on
@@ -86,40 +86,36 @@ target-needs deltas):
 ### xxh — the one that solves a harder problem
 
 [xxh] uploads a **portable build of the shell itself**, so you can use fish or
-zsh on a host that has neither. (Its AUR package is orphaned and flagged out
-of date.)
+zsh on a host that has neither.
 
 **Where xxh wins outright:** that capability. say-hi cannot give you a shell
 the target lacks — its no-bash ladder (`fish > zsh > dash > ash > sh`) picks
 the best of what is installed and says so. Its plugin model is also more
 principled than copying dotfiles blind.
 
-**Where say-hi wins** (reach, weight, footprint and client dependencies are
-all in the table above): say-hi's suite runs real Debian, Alpine/musl and
-bash-3.2 targets every time, against xxh's single x86_64-Linux target.
+**Where say-hi wins**, beyond the table's reach and weight rows: say-hi's
+suite runs real Debian, Alpine/musl and bash-3.2 targets every time, against
+xxh's single x86_64-Linux target.
 
 ### kyrat — closest in spirit
 
 [kyrat] is the nearest neighbour: a bash ssh wrapper, base64+gzip through the
 command line, cleanup on exit, `KYRAT_SHELL` to pick bash/zsh/sh. If you don't
-use fish, kyrat is a lighter alternative — ssh only, no macOS because it
-requires bash ≥ 4.0, and not on the AUR, but simpler.
+use fish, kyrat is a lighter alternative — ssh only, and no macOS because it
+requires bash ≥ 4.0, but simpler.
 
 ### sshdot
 
 [sshdot] is sshrc without the size limit, achieved by not squeezing through
-the command line. Narrower than say-hi — it solves the one problem it names —
-and not on the AUR.
+the command line. Narrower than say-hi: it solves the one problem it names.
 
 ### homeshick — the same constraints, the opposite answer
 
 [homeshick] is a git dotfiles synchronizer in bash whose _constraints_ look
 most like say-hi's: "provided that at least Bash 3 and Git 1.5 are available
-you can use homeshick" — no Ruby, no Python, no root (its AUR package is
-orphaned). It answers the other half of the problem: `homeshick clone` a repo
-(a _castle_) into `~/.homesick/repos/`, `homeshick link` symlinks its `home/`
-into `$HOME`, and `track`/`pull`/`refresh` keep the castle and the machine in
-step.
+you can use homeshick" — no Ruby, no Python, no root. It answers the other
+half of the problem, symlinking a cloned repo's `home/` into `$HOME` and
+keeping the two in step.
 
 So it is not a competitor and is not in the table. It is the tool for a
 machine you own and will come back to: the checkout **stays**, the symlinks
@@ -171,20 +167,12 @@ proven-by-a-suite, expected, reduced, or unsupported. A target with no bash
 gets aliases, a colored prompt and a warning; a Windows OpenSSH host with no
 POSIX shell gets a plain PowerShell session rather than an error.
 
-Secondary but real: a per-user config overlay that rides along without dirtying
-the tree, `hi --doctor` for when something is slow, and detecting a permanent
-say-hi on the target to use in place.
-
 ## Sources
 
-- [sshrc] — say-hi's ancestor, via [cdown's] fork ([danrabinowitz's] is the
-  other line say-hi descends through)
-- [xxh] — portable shells over ssh (requires python)
-- [kyrat] — bash ssh wrapper with cleanup
-- [sshdot] — sshrc without the size limit
-- [kitty's ssh kitten] — terminfo and shell integration
-- [homeshick] — git dotfiles in bash; the install-it-there tool with say-hi's constraints
-- [chezmoi], [yadm], [GNU Stow], [dotbot], [rcm] — the install-it-there family
+[sshrc] (via [cdown's] fork; [danrabinowitz's] is the other line say-hi
+descends through), [xxh], [kyrat], [sshdot], [kitty's ssh kitten],
+[homeshick], and the install-it-there family — [chezmoi], [yadm], [GNU Stow],
+[dotbot], [rcm].
 
 [sshrc]: https://github.com/cdown/sshrc
 [cdown's]: https://github.com/cdown/sshrc
