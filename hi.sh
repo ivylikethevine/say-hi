@@ -1529,7 +1529,8 @@ function _hi_parse() {
       elif [ "$1" = --mux ]; then
         MUX=1 own=1
       elif [ "$1" = --no-mux ]; then
-        # the last of --mux/--no-mux wins, and either beats _HI_MUX
+        # the last of --mux/--no-mux wins - which is what makes --no-mux
+        # useful behind an `alias hi='hi --mux'`
         MUX=0 own=1
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
@@ -1692,14 +1693,14 @@ function _hi_kdl_quote() {
   printf -v "$1" '"%s"' "$_hi_kq"
 }
 
-# With --mux or _HI_MUX=1, re-run this connect inside a local multiplexer
+# With --mux, re-run this connect inside a local multiplexer
 # session named for the target and never return; a second `hi --mux <target>`
 # joins the one already running. All client-side - the target sees the same
 # session it always does. GLOSSARY: HI.52
 function _hi_mux_wrap() {
   local name tool cmd="" word q layout
   local -a inner=()
-  [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
+  [ "${MUX:-0}" = 1 ] || return 0
   [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0 # already inside: connect as usual
   _hi_mux_tool tool || return 0
   name="$(_hi_mux_name "$DOMAIN")"

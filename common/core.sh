@@ -544,8 +544,11 @@ function _hi_has_color() {
   [ -z "${NO_COLOR:-}" ] && [ -n "${TERM:-}" ] && [ "$TERM" != dumb ]
 }
 
-# Can this session render multibyte glyphs? The locale says; _HI_ASCII
-# overrides both ways (1 forces ASCII, 0 forces glyphs).
+# Can this session render multibyte glyphs? The locale says. $_HI_ASCII
+# overrides it both ways (1 forces ASCII, 0 forces glyphs) and is not a
+# setting anyone is asked for: it carries the *client's* answer into a session,
+# because the glyphs render in the terminal the client is sitting at and not in
+# the target's (hi.sh's _hi_ascii_flag, docs/SETTINGS.md's _Not settings_).
 function _hi_use_ascii() {
   case "${_HI_ASCII:-}" in
   1) return 0 ;;

@@ -231,10 +231,6 @@ function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
 }
 
-function _hi_is_glyph_choice() {
-  case "$1" in auto | glyphs | ascii) ;; *) return 1 ;; esac
-}
-
 function _hi_is_truecolor_choice() {
   case "$1" in auto | on | off) ;; *) return 1 ;; esac
 }
@@ -535,7 +531,6 @@ _HI_PROMPT_PROMPTS=(
 # opening it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
-  "_HI_MUX|0|1|| Wrap every session in a local tmux (one named session per target, reattached when you reconnect)?|tmux|"
 )
 
 function _hi_is_yes_no() {
@@ -1148,37 +1143,32 @@ function config_prompt() {
   done
 }
 
-# The advanced section's free-text half: the glyph policy and the 24-bit
-# color verdict. Each keeps its current value on Enter and clears the override
-# when the answer is the shipped default, like config_max_width.
-# _hi_ask_tristate <var> <on-word> <off-word> <validator> <question> - one
-# unset/1/0 setting asked in words. Both of the two are the client's verdict
-# about its own terminal, shipped to the session, and for both "1" is a fact
-# about the implementation rather than an answer - so each maps words in on the
-# way to the question and back out on the way to the file. Written once because
-# the two differ in nothing but their vocabulary.
-function _hi_ask_tristate() {
-  local var="$1" on="$2" off="$3" validate="$4" question="$5" current value choice
-  setting_value "$var" "$_HI_SETTINGS" current
-  case "$current" in 1) choice="$on" ;; 0) choice="$off" ;; *) choice="" ;; esac
-  value="$(ask_value "$question" "$choice" auto "$validate" "answer auto, $on or $off")"
-  case "$value" in "$on") value=1 ;; "$off") value=0 ;; *) value="" ;; esac
-  _hi_pending_set "$var" "$value"
-}
-
+# The advanced section's free-text half: the 24-bit color verdict, and nothing
+# else since the glyph question retired. It keeps its current value on Enter
+# and clears the override when the answer is the shipped default, like
+# config_max_width.
+#
+# $_HI_TRUECOLOR is an unset/1/0 flag asked in words: "1" is a fact about the
+# implementation rather than an answer, so the words map in on the way to the
+# question and back out on the way to the file. `on` is the answer under tmux,
+# which hides COLORTERM. Glyphs are not asked at all any more - the locale
+# decides, and the client ships its verdict to the session (docs/SETTINGS.md's
+# _Not settings_).
 function config_advanced_values() {
-  _hi_ask_tristate _HI_ASCII ascii glyphs _hi_is_glyph_choice \
-    "Banner/prompt/package glyphs: auto (by the locale), glyphs, or ascii?"
-  # on is the answer under tmux, which hides COLORTERM
-  _hi_ask_tristate _HI_TRUECOLOR on off _hi_is_truecolor_choice \
-    "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?"
+  local current value choice
+  setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
+  case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
+  value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
+    "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
+  case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
+  _hi_pending_set _HI_TRUECOLOR "$value"
 }
 
 # The advanced section: a short question walk rather than a menu - these are
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
 function config_advanced() {
-  section "Advanced settings" "The leading space, tmux, the glyphs and 24-bit color. Enter keeps each value."
+  section "Advanced settings" "The leading space and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
 }
@@ -1241,7 +1231,6 @@ function collect_setting_lines() {
     _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
   done
   _hi_collect_group _HI_ADVANCED_PROMPTS
-  _hi_collect_value _HI_ASCII ""
   _hi_collect_value _HI_TRUECOLOR ""
 }
 

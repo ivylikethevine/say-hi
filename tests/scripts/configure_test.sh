@@ -752,8 +752,8 @@ function test_starship_kept_when_chosen() {
 function test_advanced_declined_keeps_every_value() {
   local out
   out="$(_hi_section_lines adv_keep config_advanced \
-    "export _HI_NO_LEAD_SPACE=1" "export _HI_ASCII=1" "export _HI_TRUECOLOR=0")"
-  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* && "$out" == *"export _HI_ASCII=1"* &&
+    "export _HI_NO_LEAD_SPACE=1" "export _HI_TRUECOLOR=0")"
+  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* &&
     "$out" == *"export _HI_TRUECOLOR=0"* ]]
 }
 
@@ -835,7 +835,6 @@ function test_prompt_group_carries_a_row_it_cannot_ask() {
 
 function test_validators_for_the_advanced_values() {
   _hi_is_seconds 0.5 && _hi_is_seconds 3 && ! _hi_is_seconds abc &&
-    _hi_is_glyph_choice ascii && ! _hi_is_glyph_choice yes &&
     _hi_is_truecolor_choice on && _hi_is_truecolor_choice auto && ! _hi_is_truecolor_choice 1
 }
 
@@ -1426,12 +1425,13 @@ function test_prompt_menu_junk_is_bounded_and_a_quote_is_refused() {
     [[ "$(_hi_cfg_lines pe_quote)" != *"_HI_PROMPT_END_"* ]]
 }
 
-# the glyph question maps words both ways
-function test_advanced_values_map_glyph_words() {
-  _hi_cfg_pty adv_glyphs 'glyphs\n\n\n' '' config_advanced_values || return 1
+# the truecolor question maps its words both ways: `off` is stored as 0. The
+# glyph question that used to sit beside it retired with $_HI_ASCII.
+function test_advanced_values_map_truecolor_words() {
+  _hi_cfg_pty adv_tc 'off\n' '' config_advanced_values || return 1
   local lines
-  lines="$(_hi_cfg_lines adv_glyphs)"
-  [[ "$lines" == *"export _HI_ASCII=0"* ]]
+  lines="$(_hi_cfg_lines adv_tc)"
+  [[ "$lines" == *"export _HI_TRUECOLOR=0"* && "$lines" != *"_HI_ASCII"* ]]
 }
 
 function test_header_editor_takes_a_preset() {
@@ -1527,40 +1527,23 @@ function test_prompt_menu_toggles_starship() {
     [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT=starship"* ]]
 }
 
-# _hi_cfg_tmux - a tmux on PATH, so the _HI_MUX row (needs: tmux) is asked
-# wherever the suite runs: the walks below answer by position, and a box
-# without tmux (the macOS runner) would otherwise skip one question and
-# shift every answer after it
-function _hi_cfg_tmux() {
-  local dir="$_HI_WORKDIR/tmuxshim"
-  [ -x "$dir/tmux" ] || {
-    mkdir -p "$dir"
-    printf '#!/bin/sh\nexit 0\n' >"$dir/tmux"
-    chmod +x "$dir/tmux"
-  }
-  printf '%s' "$dir"
-}
-
 # the advanced section is a question walk with no gate of its own (the hub's
 # item is the gate), four questions, and Enter through all of it writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
-  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_pty adv_walk '\n\n' '' config_advanced || return 1
   _hi_cfg_has adv_walk "leading space" &&
     _hi_cfg_has adv_walk "24-bit color" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
 }
 
 # every advanced value typed for real, including the words-to-flag mapping
-# _HI_ASCII's question hides behind ("ascii" is stored as 1)
+# _HI_TRUECOLOR's question hides behind ("on" is stored as 1)
 function test_advanced_values_typed_interactively() {
-  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\nascii\non\n' '' config_advanced || return 1
+  _hi_cfg_pty adv_typed '\non\n' '' config_advanced || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
-  [[ "$lines" == *"export _HI_ASCII=1"* &&
-    "$lines" == *"export _HI_TRUECOLOR=1"* ]]
+  [[ "$lines" == *"export _HI_TRUECOLOR=1"* ]]
 }
 
 # Enter at the preset question keeps the current settings: nothing seeded,
@@ -1631,7 +1614,7 @@ function test_hub_junk_is_bounded_and_saves() {
 # at the hub only redraws it.
 function test_hub_opens_every_section() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+  _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\ns\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&
@@ -1833,7 +1816,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "w takes a width" test_header_editor_w_takes_a_width
   _hi_par_check_capable pty "i takes the hidden addresses" test_header_editor_i_takes_hidden_addresses
   _hi_par_check_capable pty "Prompt menu: junk bounded, a quote refused" test_prompt_menu_junk_is_bounded_and_a_quote_is_refused
-  _hi_par_check_capable pty "Advanced values: glyph words map, a bad shell list is refused" test_advanced_values_map_glyph_words
+  _hi_par_check_capable pty "Advanced values: truecolor words map both ways" test_advanced_values_map_truecolor_words
   _hi_par_check_capable pty "A number toggles and previews" test_features_menu_toggles_and_previews
   _hi_par_check_capable pty "The environment row toggles and previews" test_features_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "The header row previews the whole header" test_features_menu_header_row_previews_the_header

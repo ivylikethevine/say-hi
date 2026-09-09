@@ -213,17 +213,16 @@ inside a tmux, the session is created detached and this client switches to
 it; inside a screen or zellij, a new window or tab opens in the current
 session. Without a terminal, or without a multiplexer on this machine, hi
 connects as usual.
-.B _HI_MUX=1
-in the settings makes it the default.
+.B alias hi='hi \-\-mux'
+makes it the default.
 .TP
 .B \-\-no\-mux
-connect without the tmux wrap, whatever
-.B _HI_MUX
-says \- the way out of that default for one connect. Of
+connect without the tmux wrap \- the way out of that alias for one connect. Of
 .B \-\-mux
 and
 .BR \-\-no\-mux ,
-the last one on the line wins.
+the last one on the line wins, so the flag on the command line beats the one
+the alias put there.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -550,17 +549,6 @@ the parent of the
 directory; set by
 .B /etc/profile.d/say-hi.sh
 for packaged installs.
-.TP
-.B _HI_MUX
-.B 1
-wraps every connect in the local
-.BR tmux (1)
-session
-.B \-\-mux
-describes;
-.B \-\-no\-mux
-skips it for one. Default
-.BR 0 .
 .TP
 .B _HI_TRUECOLOR
 .B 1

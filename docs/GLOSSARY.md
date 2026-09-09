@@ -858,7 +858,7 @@ the family is reachable with no second spelling. Names stay plain identifiers
 
 ## HI.52 client multiplexer wrap
 
-`hi --mux <target>` (or `_HI_MUX=1`) re-executes the connect inside a local
+`hi --mux <target>` re-executes the connect inside a local
 multiplexer session named `hi-<target>` and never returns; a second `hi --mux`
 to the same target joins the running session. It is the client-side answer to
 a dropped link - the target-side `--tmux` was removed on 2026-08-21 because a
@@ -885,10 +885,11 @@ Five rules in `_hi_mux_wrap`:
   options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
   settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
-  the wrap returns at once when that is set, which is what keeps a
-  `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It
-  also stands down, un-wrapped, without a terminal on stdin (nothing to
-  attach) or without a multiplexer to use.
+  the wrap returns at once when that is set. The inner hi re-reads the flag it
+  was handed, so without the guard an `alias hi='hi --mux'` - which is how you
+  make the wrap your default, there being no setting for it - would nest
+  forever. It also stands down, un-wrapped, without a terminal on stdin
+  (nothing to attach) or without a multiplexer to use.
 - **One string.** tmux hands the command to its `default-shell`, which may be
   fish, and screen to `sh -c`, so the argv is joined into one string with
   `_hi_shquote` (HI.40): single quotes are the one form every shell reads the
