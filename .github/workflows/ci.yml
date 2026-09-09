@@ -1,7 +1,11 @@
 name: CI
 
 on:
+  # ready_for_review is not in the default type set (opened, synchronize,
+  # reopened); without it a draft marked ready fires nothing and the PR sits
+  # with no run at all - every job below is gated on `draft != true`.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   # Weekly re-test of what e2e-backends installs unpinned: nomad from
@@ -25,6 +29,16 @@ concurrency:
 
 jobs:
 
+  # Every job below carries `github.event.pull_request.draft != true`: a draft
+  # PR is a work in progress and burns no runners here. GitHub has no
+  # workflow-level `if`, and a `needs:` on one gate job would not do it either
+  # - a job with its own `if` runs even when a dependency skipped (which is
+  # exactly how the `changes` skip is read as "assume yes" below) - so the
+  # clause is repeated per job. The three e2e-* reusable-workflow jobs are the
+  # exception: they gate on `needs.e2e-gate.outputs.ok`, which is empty when
+  # that job skips. On push, schedule and dispatch `github.event.pull_request`
+  # is null, so the clause is true and nothing changes.
+  #
   # Whether anything besides workflow YAML or markdown changed: test,
   # test-macos, packaging-smoke, e2e and e2e-backends skip on a workflow-only
   # or docs-only diff. workflow-lint and advisory-lint are exempt - a
@@ -41,7 +55,9 @@ jobs:
   # check goes quiet.
   changes:
     name: detect changes
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: >-
+      github.event.pull_request.draft != true
+      && (github.event_name == 'push' || github.event_name == 'pull_request')
     # changes.yml asks for `pull-requests: read` (dorny/paths-filter lists a
     # PR's files via the API); a reusable workflow cannot request a scope its
     # caller does not hold, so it has to be granted here.
@@ -59,7 +75,9 @@ jobs:
   test:
     name: fast suites (ubuntu-latest)
     needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
+    if: >-
+      github.event.pull_request.draft != true
+      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -102,6 +120,7 @@ jobs:
   # e2e-gate's `needs:` to restore the old "lint blocks e2e" behaviour.
   lint:
     name: lint suites (ubuntu-latest)
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -112,6 +131,17 @@ jobs:
       # dialects_test.sh's native roster runs `zsh -n` / `fish --no-execute`;
       # its three floor-image checks use docker, preinstalled on this runner
       - uses: $/.github/actions/setup-shells
+
+      # tools_test.sh lints settings/vim.rc with each editor that is here, and
+      # the image ships vim but not neovim - which is the one aliases.sh
+      # prefers. Without it that half skips yellow and --require-run below
+      # turns the skip into this job's failure.
+      - name: Install neovim for the shipped-rc lint
+        shell: bash
+        # setup-shells has just dropped the vendor lists and updated the index
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y neovim
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here
@@ -128,7 +158,9 @@ jobs:
   test-macos:
     name: fast suites (macos-latest)
     needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
+    if: >-
+      github.event.pull_request.draft != true
+      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -154,6 +186,7 @@ jobs:
   # `uses:` to (tools.txt has the why).
   workflow-lint:
     name: workflow lint
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -192,6 +225,7 @@ jobs:
   # they are set (docs/CONTRIBUTING.md) - it is designed to be ignorable.
   advisory-lint:
     name: advisory lint
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -271,6 +305,7 @@ jobs:
   # numbers for eyeballing trends.
   bench:
     name: hot-path benchmarks
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -291,6 +326,7 @@ jobs:
   # will not build - never blocks a merge. The profiles land as an artifact.
   profile:
     name: hot-path profiles (timep)
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
@@ -315,7 +351,9 @@ jobs:
   packaging-smoke:
     name: package build (deb, rpm, apk)
     needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
+    if: >-
+      github.event.pull_request.draft != true
+      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -422,7 +460,9 @@ jobs:
     name: e2e (ssh, docker, shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
+    if: >-
+      github.event.pull_request.draft != true
+      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -459,7 +499,7 @@ jobs:
   e2e-check:
     name: e2e (ssh, docker)
     needs: [changes, e2e]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -488,7 +528,9 @@ jobs:
     name: e2e (podman, nomad, kube, shard ${{ matrix.shard }} of 3)
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true'
+    if: >-
+      github.event.pull_request.draft != true
+      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -518,7 +560,7 @@ jobs:
   e2e-backends-check:
     name: e2e (podman, nomad, kube)
     needs: [changes, e2e-backends]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -547,7 +589,7 @@ jobs:
   e2e-gate:
     name: e2e gate
     needs: [test, test-macos]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -602,8 +644,9 @@ jobs:
     name: fast suites (Windows client)
     needs: changes
     if: >-
-      (github.event_name == 'push'
-        || (github.event_name == 'pull_request'
-            && github.event.pull_request.head.repo.full_name == github.repository))
+      github.event.pull_request.draft != true
+      && (github.event_name == 'push'
+          || (github.event_name == 'pull_request'
+              && github.event.pull_request.head.repo.full_name == github.repository))
       && needs.changes.outputs.code == 'true'
     uses: $/.github/workflows/windows-client.yml
