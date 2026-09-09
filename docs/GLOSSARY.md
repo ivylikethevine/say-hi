@@ -420,36 +420,13 @@ With `$_HI_HOME` set, _everything_ comes from there, core.sh included:
 reaching core.sh through the script's own path while `$_HI_ROOT` came from
 `$_HI_HOME` runs two trees in one process, silently.
 
-Two places keep a fallback, and both say so out loud. `hi.sh` prints
+One place keeps a fallback, and says so out loud: `hi.sh` prints
 `set _HI_HOME to the directory that holds it` and exits when the derived path
-holds no tree. On a _target_ — the one machine with no checkout to derive
-from — `_hi_remote_root`'s probe asks in order:
-
-1. `export _HI_HOME=` / `set -gx _HI_HOME` in `~/.bashrc`, `~/.zshrc`,
-   `~/.config/fish/config.fish`, and `/etc/profile.d/say-hi.sh` for a packaged
-   install — read as _files_, since the probe runs under `sh -c` over ssh,
-   which sources none of them.
-2. `$HOME`.
-3. Where an install lands when nothing declared it: `~/.local/share`,
-   `/usr/local/share`, `/opt`, `/usr/share`, and Homebrew's four default keg
-   prefixes (`~/.linuxbrew`, `/home/linuxbrew/.linuxbrew`, `/opt/homebrew`,
-   `/usr/local`, each under `opt/say-hi/libexec`). Homebrew's formula writes no
-   rc line, so without this tier a brew-installed target gets the payload
-   copied over a tree already there. Best-effort, strictly a fallback, two
-   builtins per candidate and no forks.
-
-Each candidate is tried as `<home>/say-hi`. The probe's `sed`:
-
-- uses separate `-e` expressions, not `\(a\|b\)` — BRE alternation is a GNU
-  extension;
-- is followed by a second `sed` that unwraps the value, because
-  `config_shell` writes the path quoted _and_ pads a
-  `# added by hi during install` marker onto every line it owns;
-- is **ordered**: the comment strip first, addressed to lines that do _not_
-  begin with a quote (`/^"/!`), the unquoting second — the other order would
-  strip from a `#` inside the quotes;
-- loops over candidates with `IFS` set to a newline, so an install directory
-  with a space is one candidate.
+holds no tree. A _target_ needs no such rule — a session's tree is the one hi
+just unpacked there, and its `$_HI_HOME` is exported by the script that
+unpacked it, so nothing on the far end has to go looking. A say-hi the target
+already has is its own install, for that machine's own shells; hi does not
+read it from a session.
 
 `tests/lint/drift_test.sh`'s `lint_home_default` greps the tree, `.md`
 included, for the retired spellings — a doc teaching a retired spelling is
@@ -764,6 +741,16 @@ scheme the first twelve render as that pair alone while the extras carry a
 built-in hex, so a truecolor terminal shows an orange host as orange without
 anyone choosing a scheme. `_hi_color_base` is the pair as a name, for zsh's
 `%F{}` and fish's `set_color`, which know the sixteen and nothing else.
+
+A `settings/colors` row may also carry its own hex, in an optional fourth
+column, and that is the one thing that outranks the scheme — for that pin
+only. `_hi_colors_scan` joins it to the name (`brred#ff5f5f`) and
+`_hi_color_split` takes the two apart again, so the pinned color travels as
+one string through the memos, `$_HI_TARGET_COLOR` over the wire and
+`hi --preview colors`' grouping, and only the three readers above know it is
+two halves: the name is still the 16-color half of the escape (and all a
+terminal without truecolor is given), the hex replaces the scheme's word in
+the `38;2` triple.
 
 Those bytes are **one SGR**, `\e[<bold>;3<n>;38;2;<r>;<g>;<b>m`: the
 16-color pair first, the 24-bit triple after it. A terminal that ignores

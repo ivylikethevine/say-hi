@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: everything the client writes for the target to run.
-# The bootloader, the fallback rc, `_hi_remote_root`'s probe, the ssh preamble
+# The bootloader, the fallback rc, the ssh preamble
 # and `--version` - strings assembled on this side and executed on the other.
 #
 # Sourcing hi.sh goes through the same `[[ BASH_SOURCE == $0 ]]` hatch install.sh
@@ -21,148 +21,6 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
-
-#
-# The probe runs on the *target*, under whatever `sh` is there, so these cases
-# run it the same way: a real `sh -c` against a fake $HOME rather than the
-# bash this suite is written in. What it has to answer is where a permanent
-# say-hi is, and the only durable statement of that is the line
-# scripts/install.sh wrote into a login rc - which is why each fixture writes
-# one rather than relying on the tree being findable.
-
-# _hi_probe_tree <dir> - the two files _hi_remote_root_probe looks for, at
-# <dir>: an executable hi.sh and a common/paths.sh. The launcher gets a real
-# `#!/bin/sh` line rather than being an empty file, because MSYS answers
-# access(X_OK) from a file's magic or extension unless the mount carries `acl`
-# - so `chmod +x` on an empty file does not stick there, the probe's
-# `[ -x "$_h/say-hi/hi.sh" ]` (hi.sh) correctly answers "nothing installed",
-# and every case in this suite fails against a fixture that cannot say what it
-# means to say. The shebang costs nothing anywhere else.
-function _hi_probe_tree() {
-  mkdir -p "$1/common"
-  printf '#!/bin/sh\n' >"$1/hi.sh"
-  chmod +x "$1/hi.sh"
-  : >"$1/common/paths.sh"
-}
-
-# _hi_probe_home <name> <tree-parent-relative-path> - a fake $HOME under
-# $_HI_WORKDIR/<name> holding a tree at <path>/say-hi, printed. No rc line: the
-# cases that want one add it themselves, so "an installed tree nothing points
-# at" stays a shape the suite can build.
-function _hi_probe_home() {
-  local home="$_HI_WORKDIR/$1" tree="$_HI_WORKDIR/$1/${2#/}" name="say-hi"
-  rm -rf "$home"
-  mkdir -p "$home/.config/fish"
-  _hi_probe_tree "$tree/$name"
-  printf '%s' "$home"
-}
-
-# what a target would answer, run through a real sh
-function _hi_probe_answer() {
-  HOME="$1" sh -c "$(_hi_remote_root_probe)"
-}
-
-# _hi_probe_case <fixture> <tree> <rcfile> <style> <fmt> - build the fake $HOME,
-# write one rc line into it, and print what a target would answer. <style> is
-# `plain` (the format is the whole line) or `padded` (the format is the export
-# text, which install.sh pads to 45 columns and follows with its marker). An
-# empty <rcfile> writes nothing, which is the "installed but unannounced" case.
-function _hi_probe_case() {
-  local home fixture="$1" tree="$2" rcfile="$3" style="$4" fmt="$5" line
-  home="$(_hi_probe_home "$fixture" "$tree")"
-  if [ -n "$rcfile" ]; then
-    # shellcheck disable=SC2059 # the format is the table's, which is the point
-    printf -v line "$fmt" "$home"
-    if [ "$style" = padded ]; then
-      printf '%-45s %s\n' "$line" "$_HI_MARKER" >"$home/$rcfile"
-    else
-      printf '%s' "$line" >"$home/$rcfile"
-    fi
-  fi
-  _hi_probe_answer "$home"
-}
-
-# nothing installed anywhere is an empty answer, which is what sends hi down
-# the payload path
-function test_remote_probe_is_silent_with_no_tree_at_all() {
-  local home="$_HI_WORKDIR/probe_none"
-  rm -rf "$home"
-  mkdir -p "$home"
-  [ -z "$(_hi_probe_answer "$home")" ]
-}
-
-# a packaged install writes no rc line anywhere - /etc/profile.d is the only
-# place it can say where the tree went, so the probe reads that too
-function test_remote_probe_reads_the_packaging_profile_snippet() {
-  [[ "$(_hi_remote_root_probe)" == */etc/profile.d/say-hi.sh* ]]
-}
-
-# A packaged install is not the only one that can go unannounced: Homebrew's
-# formula writes no rc line at all (its caveats ask you to run install.sh, and
-# nobody has to), and an rc line can be edited away. So the tail of the
-# candidate list is where an install *lands* when nothing declared it. Asserted
-# on the probe's text, because these are absolute paths no fake $HOME can stand
-# in for - the two that can be faked are table cases above.
-#
-# Best-effort by construction: `brew --prefix` is user-settable, so only its
-# three defaults are here. The rc line stays the authoritative answer.
-function test_remote_probe_reads_the_standard_install_prefixes() {
-  local probe p
-  probe="$(_hi_remote_root_probe)"
-  for p in /usr/share /usr/local/share /opt \
-    /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec \
-    /home/linuxbrew/.linuxbrew/opt/say-hi/libexec; do
-    case "$probe" in
-    *"$p"*) ;;
-    *)
-      _hi_cecho " | the probe never looks in $p" "$RED"
-      return 1
-      ;;
-    esac
-  done
-  return 0
-}
-
-# ...and that tier is strictly a fallback. A target with both a $HOME tree and
-# one in an install prefix has to answer with the $HOME one, or adding a
-# candidate silently moved every existing target's answer.
-function test_remote_probe_prefers_home_over_an_install_prefix() {
-  local home
-  home="$(_hi_probe_home probe_precedence .)"
-  _hi_probe_tree "$home/.local/share/say-hi"
-  [ "$(_hi_probe_answer "$home")" = "$home/say-hi" ]
-}
-
-# The cases above retype install.sh's format. This one has install.sh write the
-# rc itself, so a change to tmpdir_line's quoting or config_shell's padding
-# turns this red instead of silently blinding the probe on every real target.
-function test_remote_probe_reads_what_install_sh_actually_wrote() {
-  local home
-  home="$(_hi_probe_home probe_real opt/nested)"
-  # a real bash, not a subshell: sourcing install.sh here would land its
-  # functions in this suite's shell. tmpdir_line's $2 names the tree, the same
-  # override packaging mode uses - install.sh derives its own $_HI_HOME.
-  bash -c '
-    _i="$1" _h="$2"
-    set -- # install.sh reads "$@" for its own args
-    source "$_i"
-    config_shell bashrc "$_h/.bashrc" "$(tmpdir_line sh "$_h/opt/nested")"
-  ' bash "$_HI_INSTALL" "$home" >/dev/null 2>&1
-  [ "$(_hi_probe_answer "$home")" = "$home/opt/nested/say-hi" ]
-}
-
-# The probe restates the rc roster core.sh single-homes as _HI_SHELL_TABLE.
-# Every shell install.sh writes a tree line for has to be a candidate here, or
-# a target running that shell goes invisible and gets the payload copied over
-# a curated tree.
-function test_remote_probe_covers_every_rc_in_the_roster() {
-  local probe rel _shell _label _tree_rc _home_rc _rest
-  probe="$(_hi_remote_root_probe)"
-  while IFS='|' read -r _shell _label _tree_rc _home_rc _rest; do
-    rel="${_home_rc#"$HOME/"}"
-    case "$probe" in *"$rel"*) ;; *) return 1 ;; esac
-  done < <(_hi_shell_rows)
-}
 
 # an interactive session chainloads load.sh then calls load()
 function test_bootloader_calls_load_for_a_session() {
@@ -329,27 +187,6 @@ function _hi_preamble_env_value() { # <name> - what the preamble delivers, via s
   script="$(DOMAIN=host _HI_HOSTNAME_CACHE="$_HI_MEAN" _hi_remote_preamble)"
   sh -c "$script"'
 printf %s "$'"$1"'"' 2>/dev/null
-}
-
-# The install path a target reports is interpolated into a script run on that
-# same target, so it is refused rather than escaped: relative, or carrying
-# anything a double-quoted heredoc expands or closes on, comes back empty and
-# the session takes the disposable path. A space is not hostile - an install
-# directory may carry one.
-function test_remote_root_is_refused_when_hostile() {
-  local ok bad
-  for ok in /usr/share/say-hi '/home/a user/say-hi' /opt/say-hi.v2+x; do
-    [ "$(_hi_trusted_path "$ok")" = "$ok" ] || {
-      _hi_cecho "   refused a legitimate path: $ok" "$RED"
-      return 1
-    }
-  done
-  for bad in 'relative/say-hi' '/tmp/x"; rm -rf /; echo "' '/tmp/$(id)' '/tmp/`id`' '/tmp/a\\b' "$(printf '/tmp/a\nrm -rf /')"; do
-    [ -z "$(_hi_trusted_path "$bad")" ] || {
-      _hi_cecho "   accepted a hostile path: $bad" "$RED"
-      return 1
-    }
-  done
 }
 
 # ...and the container transport folds the same stream into one `sh -c export`
@@ -525,52 +362,6 @@ function run_hi_remote_tests() {
   _hi_check "Fallback rc sources settings before paths" test_fallback_rc_sources_settings_before_paths
   _hi_check "Fallback rc points at the overlay config dir" test_fallback_rc_points_config_dir_at_the_overlay
 
-  _hi_h2 "Testing: _hi_remote_root's target-side probe"
-  # <label>|<fixture>|<tree>|<rcfile>|<style>|<rc-line format>|<want, under the
-  # fake $HOME>. Ten cases that differed only in those columns; the prose that
-  # explained each one is kept as a comment row. _hi_check_eq rather than
-  # _hi_check because every answer here is a path, and a wrong one is worth
-  # printing.
-  while IFS='|' read -r _label _fix _tree _rc _style _fmt _want; do
-    case "$_label" in '' | '#'*) continue ;; esac
-    _hi_check_eq "$_label" "$_HI_WORKDIR/$_fix/$_want" \
-      _hi_probe_case "$_fix" "$_tree" "$_rc" "$_style" "$_fmt"
-  done <<'EOF'
-Finds a tree at the default $HOME/say-hi|probe_default|.||plain||say-hi
-# the whole point: a curated tree somewhere else, named by the export
-# install.sh put in .bashrc, is found rather than copied over
-Finds a nested tree named by .bashrc|probe_bashrc|opt/nested|.bashrc|plain|export _HI_HOME="%s/opt/nested"\n|opt/nested/say-hi
-Reads fish's set -gx dialect|probe_fish|opt/nested|.config/fish/config.fish|plain|set -gx _HI_HOME "%s/opt/nested"\n|opt/nested/say-hi
-Reads .zshrc too|probe_zsh|opt/nested|.zshrc|plain|export _HI_HOME="%s/opt/nested"\n|opt/nested/say-hi
-# $HOME/say-hi stays the fallback, so a target that says nothing still resolves
-Falls back to $HOME when nothing says|probe_fallback|.|.bashrc|plain|export PATH="$PATH:/nowhere"\n|say-hi
-# The unannounced-install tier, in the two shapes a fake $HOME can build: an
-# XDG per-user install, and a Linuxbrew keg. Neither writes an rc line.
-Finds an unannounced per-user install|probe_xdg|.local/share||plain||.local/share/say-hi
-Finds an unannounced Homebrew keg|probe_brew|.linuxbrew/opt/say-hi/libexec||plain||.linuxbrew/opt/say-hi/libexec/say-hi
-# The line install.sh actually writes, marker and padding included - the probe
-# reads real rc files, so the shape config_shell pads onto them is the shape
-# that has to parse. A hand-written unquoted export works too.
-Reads install.sh's marker-padded line|probe_marker|opt/nested|.bashrc|padded|export _HI_HOME="%s/opt/nested"|opt/nested/say-hi
-Reads a hand-written unquoted export|probe_unquoted|opt/nested|.bashrc|plain|export _HI_HOME=%s/opt/nested\n|opt/nested/say-hi
-# a stale export outliving the tree it named must not be the answer, and must
-# not stop the fallback from being one
-Skips a stale export with no tree on it|probe_stale|.|.bashrc|plain|export _HI_HOME="%s/gone"\n|say-hi
-# an install path with a space in it survives the candidate list
-Handles a path with a space in it|probe_space|opt/my trees|.bashrc|plain|export _HI_HOME="%s/opt/my trees"\n|opt/my trees/say-hi
-# and one with a `#` in it: the value is quoted, so the marker strip must not
-# treat the first `#` on the line as the start of the comment. This is the case
-# the unwrapping sed's expression *order* exists for - reversed, it answers
-# "$home/opt/hash" and the probe silently falls back to $HOME/say-hi.
-Handles a path with a # in it|probe_hash|opt/hash#tree|.bashrc|padded|export _HI_HOME="%s/opt/hash#tree"|opt/hash#tree/say-hi
-EOF
-  _hi_check "Silent when nothing is installed" test_remote_probe_is_silent_with_no_tree_at_all
-  _hi_check "Looks in the packaging profile snippet" test_remote_probe_reads_the_packaging_profile_snippet
-  _hi_check "Looks in the standard install prefixes" test_remote_probe_reads_the_standard_install_prefixes
-  _hi_check "\$HOME still beats an install prefix" test_remote_probe_prefers_home_over_an_install_prefix
-  _hi_check "Reads what install.sh actually wrote" test_remote_probe_reads_what_install_sh_actually_wrote
-  _hi_check "Covers every rc in the shell roster" test_remote_probe_covers_every_rc_in_the_roster
-
   _hi_h2 "Testing: remote shell handoff"
   _hi_check "The bash handoff is explicitly interactive" test_remote_suffix_forces_an_interactive_bash
   _hi_check "So is every no-bash fallback" test_remote_suffix_fallbacks_are_interactive
@@ -590,7 +381,6 @@ EOF
   _hi_check "...and the container transport's export line" test_container_env_quotes_a_hostile_hostname
   _hi_check "A hostile target name is one quoted word in the suffix" test_suffix_quotes_a_hostile_target_name
   _hi_check "...and the sh-tier prompt renders it literally" test_fallback_prompt_escapes_a_hostile_host
-  _hi_check "A hostile install path from the target is refused" test_remote_root_is_refused_when_hostile
 
   _hi_h2 "Testing: the preamble's TERM fallback"
   _hi_check_eq "Unknown TERM becomes xterm-256color" xterm-256color _hi_preamble_final_term TERM=hi-test-no-such-term

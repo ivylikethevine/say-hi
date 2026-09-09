@@ -89,17 +89,14 @@ exec docker-probe "$@"
 EOF
     chmod +x "$dir/docker"
 
-    # connect ok; -O teardown ok; the install probe answers per $HI_FAKE_ROOT;
-    # the tool-inventory loop answers per $HI_FAKE_TOOLS. Each is matched on a
-    # string only that one script contains - /etc/profile.d/say-hi.sh is in
-    # hi.sh's _hi_remote_root_probe and nowhere else it could be confused with.
+    # connect ok; -O teardown ok; the tool-inventory loop answers per
+    # $HI_FAKE_TOOLS, matched on a string only that one script contains.
     cat >"$dir/ssh" <<'EOF'
 #!/bin/sh
 for a in "$@"; do
   [ "$a" = -O ] && exit 0
   [ "$a" = true ] && exit 0
   case "$a" in
-  */etc/profile.d/say-hi.sh*) printf '%s' "${HI_FAKE_ROOT:-}"; exit 0 ;;
   *'for c in base64'*) printf '%s' "${HI_FAKE_TOOLS:-}"; exit 0 ;;
   esac
 done
@@ -466,16 +463,18 @@ function test_target_names_use_for_a_rowless_member() {
 # forced --use ssh has to win over it rather than the roster ever being asked.
 function test_forced_ssh_overrides_a_real_container() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_ROOT="" HI_FAKE_TOOLS="base64 bash " \
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash " \
   _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target runningbox)"
   [[ "$out" == *"resolves"*"ssh host (forced by --use ssh)"* && "$out" == *"connect"*ok* ]]
 }
 
-function test_ssh_target_reports_a_permanent_install() {
+# every session ships the tree, so the install row is the wire figure - a
+# say-hi the target happens to have is not read from here
+function test_ssh_target_reports_the_wire_cost() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_ROOT=/home/u/say-hi \
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" \
   HI_FAKE_TOOLS="base64 bash " doctor_ssh_target somewhere)"
-  [[ "$out" == *"permanent /home/u/say-hi"* ]]
+  [[ "$out" == *install*"each session"* ]]
 }
 
 function test_ssh_target_flags_a_missing_base64() {
@@ -819,6 +818,8 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
   _hi_check "A flag forces the arm" test_target_forced_by_a_flag_skips_the_probe_chain
+  _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
+  _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
   _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
   _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh
@@ -826,7 +827,7 @@ function run_doctor_tests() {
   _hi_check "Container: fallback shell named" test_container_target_names_the_fallback_shell
   _hi_check "Container: silent target flagged" test_container_target_flags_a_silent_target
   _hi_check "Container with no known shell" test_container_target_flags_no_known_shell
-  _hi_check "Reports a permanent install" test_ssh_target_reports_a_permanent_install
+  _hi_check "Reports the per-session wire cost" test_ssh_target_reports_the_wire_cost
   _hi_check "Flags a target without base64" test_ssh_target_flags_a_missing_base64
   _hi_check "Flags a target without bash" test_ssh_target_flags_a_missing_bash
   _hi_check "Reports a connect failure" test_ssh_target_reports_a_connect_failure

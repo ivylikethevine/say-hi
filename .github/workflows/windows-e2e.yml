@@ -230,8 +230,11 @@ jobs:
 
       # The package layout, by the same call the .deb's package() step makes:
       # the tree under /usr/share/say-hi, /usr/bin/hi, /etc/profile.d/say-hi.sh.
-      # A session from outside then finds that permanent tree the way
-      # install_methods_test.sh's deb case does, and ships nothing.
+      # hi ships its payload to every ssh target now and does not read a
+      # say-hi the target already has, so what a session from outside proves
+      # is install_methods_test.sh's deb case: the session runs out of its own
+      # shipped tree, and the installed one is still sitting there untouched
+      # when it is gone.
       - name: Install the package layout inside WSL
         shell: wsl-bash {0}
         run: |
@@ -280,8 +283,8 @@ jobs:
           hostname -I | awk '{print $1}' >"$(wslpath -u "$USERPROFILE")/wsl-host"
 
       # From Git Bash into the distribution: a full bash session on a target
-      # that has a permanent say-hi (the header names its /usr/share tree),
-      # the command's output back, and nothing left in the target's /tmp.
+      # that has a permanent say-hi, the command's output back, and nothing
+      # left in the target's /tmp.
       - name: Say hi into WSL from Git Bash
         shell: bash
         run: |
@@ -308,12 +311,25 @@ jobs:
             -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || true
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q HI_WSL_OK
-          printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'
+          # the session runs out of the tree hi shipped - $_HI_HOME is a
+          # `mktemp -d -t <client user>.hi.XXXXXX` on the target, named for the
+          # *client's* user (hi.sh's _hi_whoami), which is why this matches the
+          # shape rather than a name. macos-e2e.yml asserts the same shape.
+          printf '%s\n' "$out" | grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi'
+          # and not out of the packaged tree: hi dropped target-side install
+          # detection, so a session reading /usr/share/say-hi would be a
+          # regression back to it.
+          ! printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'
 
+      # The other half of install_methods_test.sh's assertion, which a
+      # transcript cannot show: the shipped tree took itself with it
+      # (load.sh's clean_all), and the packaged tree is still whole.
       - name: Nothing left behind in the target
         shell: wsl-bash {0}
         run: |
+          set -eu
           if ls -d /tmp/*.hi.* 2>/dev/null; then
             echo "session directory survived the exit" >&2
             exit 1
           fi
+          test -x /usr/share/say-hi/hi.sh

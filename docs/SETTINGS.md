@@ -145,13 +145,11 @@ what the preview shows until `[s]` saves them. The rows are
    only its output; a plain, pty-free remote command is `ssh`'s job.
 
 The bootstrap is plain POSIX `sh`, so a target with no `bash` still gets a
-session in the best plain shell it has, aliases loaded. For ssh targets hi
-first checks, over the same connection, for a permanent say-hi: the `_HI_HOME`
-line `install.sh` wrote into the target's login rc files (or `/etc/profile.d`
-for a packaged install), then the home directory, then the places an install
-lands when nothing declared it — `~/.local/share`, `/usr/local/share`,
-`/opt`, `/usr/share` and Homebrew's default keg prefixes. `hi --doctor` prints
-the wire size and the unpacked size, labeled.
+session in the best plain shell it has, aliases loaded. Every ssh target gets
+the tree shipped to it, whether or not that machine has a say-hi of its own:
+an install there is for that machine's own shells, and a session neither reads
+nor touches it. `hi --doctor` prints the wire size and the unpacked size,
+labeled.
 
 ## Every setting
 
@@ -439,6 +437,16 @@ carries that tag, so `you@prod-db` reads as prod on both halves. A
 subnet or domain at once, no ssh-config entry needed — the first matching
 pattern in the file wins. Precedence, highest first: an exact pin, then a
 hosttag, then a pattern, then the hash; a pin always beats the hash.
+
+Any of those rows takes an optional fourth column, that pin's own 24-bit
+color as six hex digits (a leading `#` is fine):
+`hostname,prod-db,brred,ff5f5f` renders `prod-db` in exactly that red on a
+truecolor terminal. The third column is still a name from the vocabulary
+below and is what a 16-color terminal gets, so name the nearest one. A
+fourth column outranks `_HI_COLOR_SCHEME` for that one pin — the scheme says
+what a _name_ renders as, the column says what this host or user renders as —
+and anything that is not six hex digits is ignored, leaving the row to color
+by its name alone.
 
 The vocabulary is twenty-four names: the terminal's twelve (`red`, `green`,
 `yellow`, `blue`, `magenta`, `cyan` and their `br` forms) and twelve more -

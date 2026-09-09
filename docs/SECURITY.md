@@ -89,7 +89,7 @@ Default answer: one directory, and only for the life of the session.
 
 | what              | where                                            | when                                                                                                 |
 | ----------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always (unless the target has its own permanent say-hi, which is used in place and never written to) |
+| the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always                                                                                               |
 | the ssh bootstrap | `mkdir -m 700` under the target's temp directory | ssh targets only, removed by the session it starts                                                   |
 
 Your commands land in the target's own history file exactly as they would
@@ -109,11 +109,12 @@ a target" is one command.
 - The session tree is **not** added to `$PATH`; `hi` inside a session is an
   alias (`common/paths.sh`) instead. A `/tmp` path on `$PATH` is a finding on
   any host that is scanned for one.
-- A target with a permanent say-hi is used in place and nothing is deleted. hi
-  finds that tree by reading the target's login rc files, then the standard
-  install prefixes, so nothing has to be at a fixed path, and the tree never
-  needs to be writable by you — your config lives in `~/.config/say-hi/`.
-  `tests/targets/install_methods_test.sh` drives one target per install method.
+- A say-hi installed on the target is neither read nor written by a session:
+  every session runs out of the tree hi just unpacked, and removes that on the
+  way out. Nothing hi does needs the installed tree to be writable by you, or
+  to be at any fixed path.
+  `tests/targets/install_methods_test.sh` drives one target per install method
+  and asserts the install is still whole once the session is gone.
 - On the client, `install.sh` validates your rc files with each shell's own
   syntax checker before touching them, and `--uninstall` removes exactly what
   install wrote.

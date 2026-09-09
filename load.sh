@@ -6,11 +6,22 @@
 # `bash --rcfile` skips the startup chain; restore it before strict mode
 # (profile scripts aren't -e/-u safe), at source time ($CMDARG needs PATH too).
 #
+# $_HI_HOME and $_HI_ROOT are taken back afterwards. A target with a say-hi of
+# its own announces it in this very chain - a package's
+# /etc/profile.d/say-hi.sh exports `_HI_HOME=/usr/share` - and that export
+# would otherwise point this session at a tree hi did not ship: every path
+# below is derived from $_HI_HOME, so the session would unpack one tree and
+# then load another (a different version, in the general case) while its own
+# cleanup still removed the one it unpacked. hi does not read a target's
+# install; that tree is for that machine's own shells. Nothing else the
+# profile sets is touched.
+#
 # $_HI_ROOT is deliberately *not* put on $PATH: on a disposable session it is
 # a directory under /tmp, which every hardening baseline greps for, and it
 # would buy nothing - paths.sh already aliases `hi` to $_HI_LAUNCHER in all
 # four shells.
 function _hi_restore_profile() {
+  local _hi_rp_home="${_HI_HOME:-}" _hi_rp_root="${_HI_ROOT:-}"
   if [ -r /etc/profile ]; then source /etc/profile; fi
   # shellcheck disable=SC1090 # target-specific files, no fixed location
   if [ -r ~/.bash_profile ]; then
@@ -20,6 +31,9 @@ function _hi_restore_profile() {
   elif [ -r ~/.profile ]; then
     source ~/.profile
   fi
+  [ -n "$_hi_rp_home" ] && export _HI_HOME="$_hi_rp_home"
+  [ -n "$_hi_rp_root" ] && export _HI_ROOT="$_hi_rp_root"
+  return 0
 }
 
 # _HI_LOAD_NO_INIT=1: functions only, no profile chain - install.sh's source
@@ -51,7 +65,7 @@ source "$_HI_HEADER"
 # to a target's own login files, so there is nothing to strip back out.
 function clean_all() {
   # the rc directory nests under $_HI_CLEANUP when there is one; this removal
-  # is for the permanent-install path, which has none
+  # is for a session with no disposable tree - a local install's own shells
   [ -n "${_HI_SESSION_RC_DIR:-}" ] && rm -rf "$_HI_SESSION_RC_DIR"
   # $_HI_CLEANUP is $_HI_ROOT's parent - the whole disposable tree
   [ -n "${_HI_CLEANUP:-}" ] && rm -rf "$_HI_CLEANUP"

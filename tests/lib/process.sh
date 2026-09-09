@@ -20,14 +20,11 @@
 #   fallback_fish     the same, in fish's dialect (its aliases are functions)
 #   ssh_fallback      the ssh fallback rc *does* source paths.sh, so hi_info is
 #   ssh_fallback_fish ssh_fallback in fish's dialect
-#   installed         a permanent say-hi: asserts $_HI_ROOT is ~/say-hi, i.e.
-#                     _say_hi loaded it in place rather than shipping a tree
-#   installed_nested  the same, for a permanent say-hi that is *not* at ~/say-hi:
-#                     only _hi_remote_root reading install.sh's rc line can
-#                     have found it, so the path itself is the assertion
-#   installed_at      the general form: $3 is the tree the session must have
-#                     landed in. What install_methods_test.sh asserts, where the
-#                     path differs per packaging channel rather than per shell
+#   rooted_under      $3 is a directory the session's tree must sit under
+#   rooted_elsewhere  the inverse: $3 is a say-hi the target already has, and
+#                     the session must be running out of its own tree instead.
+#                     What ssh_test.sh and install_methods_test.sh assert on a
+#                     target that carries an install of its own
 #
 # Every string stays single-quoted: the variables expand on the target.
 # shellcheck disable=SC2016 # these expand later, on the target
@@ -42,10 +39,10 @@ function _hi_probe_cmd() {
   fallback_fish) printf '%s%s' 'functions -q sudo; and echo ' "$marker" ;;
   ssh_fallback) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh" && alias hi_info >/dev/null 2>&1 && echo ' "$marker" ;;
   ssh_fallback_fish) printf '%s%s' 'test -f "$_HI_ROOT/hi.sh"; and functions -q hi_info; and echo ' "$marker" ;;
-  installed) printf 'test "$_HI_ROOT" = "$HOME/say-hi" && %s%s' "$probe" "$marker" ;;
-  installed_nested) printf 'test "$_HI_ROOT" = "$HOME/opt/nested/say-hi" && %s%s' "$probe" "$marker" ;;
-  installed_at) printf 'test "$_HI_ROOT" = "%s" && %s%s' "$3" "$probe" "$marker" ;;
   rooted_under) printf 'case "$_HI_ROOT" in %s/*) %s%s ;; esac' "$3" "$probe" "$marker" ;;
+  # the inverse, for a target that *has* a say-hi installed at <path>: the
+  # session ships its own tree and must not be running out of that one
+  rooted_elsewhere) printf 'test "$_HI_ROOT" != "%s" && %s%s' "$3" "$probe" "$marker" ;;
   *)
     _hi_cecho "unknown probe shape: $2" "$RED" >&2
     return 1

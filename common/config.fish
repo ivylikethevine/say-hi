@@ -203,8 +203,14 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set -q SSH_TTY; and set color_at yellow
       set -l lead " "
       test "$_HI_NO_LEAD_SPACE" = 1; and set lead ""
+      # $lead is its own argument, never "$lead"(__hi_env_prompt): fish drops
+      # the *whole* concatenated word when a command substitution inside it
+      # produces nothing, so glued to an empty environment segment - which is
+      # every prompt outside a venv/conda/direnv - the leading space
+      # disappeared with it. `echo -ns` joins its arguments with no separator,
+      # so two words render exactly as the one did when the segment was there.
       echo -ns (set_color yellow) "$__fish_machine" \
-        (set_color brcyan) "$lead"(__hi_env_prompt) \
+        (set_color brcyan) "$lead" (__hi_env_prompt) \
         (set_color $fish_color_user) "$USER" \
         (set_color $color_at) @ \
         (set_color $fish_color_host) (prompt_hostname) (set_color normal)

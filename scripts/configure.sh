@@ -519,10 +519,6 @@ _HI_ADVANCED_PROMPTS=(
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
 )
 
-function _hi_is_yes_no() {
-  case "$1" in y | yes | n | no) ;; *) return 1 ;; esac
-}
-
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
 # through eval rather than `local -n rows="$1"`: namerefs are bash 4.3 and
 # macOS ships bash 3.2. The ${a[@]+"${a[@]}"} guard one eval deeper: an empty

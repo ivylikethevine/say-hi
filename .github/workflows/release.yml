@@ -5,9 +5,11 @@ name: Release
 # a fake version, and the publish job is hard-gated to tag pushes. A
 # prerelease tag (a `-` in the name, v1.0.0-rc.1) is a GitHub Release only,
 # marked as a prerelease; no channel job runs for it. Branch pushes and PRs
-# are ci.yml's. Needs the `release` environment with a required reviewer
-# (docs/PACKAGING.md); APK_SIGNING_KEY and MINISIGN_SECRET_KEY are each
-# optional and skip loudly. The tap PR and the AUR push are not here -
+# are ci.yml's. Needs the `release` environment, which seals
+# MINISIGN_SECRET_KEY (docs/PACKAGING.md) - no required reviewer on it: the
+# tag protection rule is the gate, so a tag that exists is a release that
+# publishes. APK_SIGNING_KEY and MINISIGN_SECRET_KEY are each optional and
+# skip loudly. The tap PR and the AUR push are not here -
 # publish-external.yml reaches those, by a separate manual dispatch against an
 # already-published tag, and holds HOMEBREW_TAP_TOKEN and AUR_SSH_KEY. The
 # manifests it builds (dist/manifests/) are release assets only - the
@@ -34,10 +36,8 @@ on:
 permissions:
   contents: read
 
-# Serialized, never cancelled: the release environment approval is one gate
-# for whichever tag is running, and two tags racing through publish would
-# otherwise dispatch pages.yml (below) out of order. The wait on environment
-# approval does not count against job timeouts.
+# Serialized, never cancelled: two tags racing through publish would dispatch
+# pages.yml (below) out of order.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -132,7 +132,7 @@ jobs:
       # Absent APK_SIGNING_KEY (forks, before first release) the apk builds
       # unsigned, as a keyless local build does. A plain repo secret, not the
       # release environment: this job is ungated (rehearsals run it) and the
-      # key only signs an artifact the gated publish job still has to approve.
+      # key only signs an artifact the tag-gated publish job ships.
       - name: Write the apk signing key
         env:
           APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
@@ -158,7 +158,7 @@ jobs:
       # The GPG key that signs the rpm here (nfpm, via HI_GPG_KEY) and, in
       # publish, the package repository's indexes. A plain repo secret like the
       # apk key, on the same reasoning: this job is ungated and only signs what
-      # publish still has to approve. Its fingerprint has to match the
+      # publish still has to ship. Its fingerprint has to match the
       # committed public half, packaging/gpg/say-hi.asc - the key every apt and
       # dnf client is told to trust (docs/PACKAGING.md's _Package repository_).
       # Absent, the rpm builds unsigned and publish ships no repository, both
@@ -270,13 +270,14 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-  # The only job that publishes. `environment: release` makes GitHub hold it
-  # for a required reviewer - BUT THAT REVIEWER IS A REPO SETTING, NOT THIS
-  # FILE: until Settings -> Environments -> "release" -> Required reviewers
-  # exists, there is no gate and this job runs unattended. See
-  # docs/PACKAGING.md.
+  # The only job that publishes. It runs unattended: the gate is the tag
+  # protection rule (only someone who can push a v* tag can start a release),
+  # not a person clicking approve. `environment: release` stays because
+  # MINISIGN_SECRET_KEY is sealed to it, and because its
+  # deployment-tags rule (`v*`) keeps the job to tag refs - a repo setting,
+  # not this file. See docs/PACKAGING.md.
   publish:
-    name: publish to the release (manual approval)
+    name: publish to the release
     needs: build
     # hard gate on top of the environment: a rehearsal dispatch must never
     # publish, however the environment happens to be configured. The explicit
@@ -667,8 +668,8 @@ jobs:
   # The Homebrew tap, as part of the release: a PR against
   # <owner>/homebrew-tap carrying the formula the `brew` job just installed,
   # tested and audited, opened only when that job passed. A PR rather than a
-  # push, so the tap's own merge stays the human step - there is no second
-  # `environment:` gate here, since `publish` was already approved in this
+  # push, so the tap's own merge stays the human step - there is no
+  # `environment:` gate here, since `publish` already ran in this
   # run and `brew` is the technical gate. No-ops loudly without the
   # HOMEBREW_TAP_TOKEN repo secret (a fine-grained PAT scoped to the tap repo,
   # contents + pull requests write). The AUR stays in publish-external.yml:
