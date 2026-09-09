@@ -1000,28 +1000,27 @@ function check_line() {
     ((++idx))
   done
 
-  local mark_w
   if ((found)); then
     [[ "$mode" == miss ]] && return 0
     color="${_HI_YES[best_priority]:-$NC}"
     if ((best_idx == 0)); then
-      symbol="$GREEN$_HI_MARK_OK" mark_w="$_HI_MARK_OK_W"
+      symbol="$GREEN$_HI_MARK_OK"
     else
-      symbol="$YELLOW$_HI_MARK_ALT$NC" mark_w="$_HI_MARK_ALT_W"
+      symbol="$YELLOW$_HI_MARK_ALT$NC"
     fi
   else
     [[ "$mode" == have ]] && return 0
     best_priority=$max_priority
     color="${_HI_NO[best_priority]:-$NC}"
-    symbol="$RED$_HI_MARK_NO" mark_w="$_HI_MARK_NO_W"
+    symbol="$RED$_HI_MARK_NO"
   fi
   rendered="$color $best $symbol"
-  # 4 = the "| " lead plus the spaces around the item; the mark's width comes
-  # from the chosen glyph set (ASCII "ok" is two columns, ✓ is one)
+  # 5 = the "| " lead, the spaces around the item, and the mark - one visible
+  # column in either glyph set (core.sh's _hi_choose_glyphs)
   # shellcheck disable=SC2034 # read by the eval below, which the linter
   # cannot see into - the point of building the record out here is that
   # everything *it* reads stays visible
-  local record="$best_priority"$'\x1f'"$((${#best} + 4 + mark_w))"$'\x1f'"$rendered"
+  local record="$best_priority"$'\x1f'"$((${#best} + 5))"$'\x1f'"$rendered"
   # appended by name, the idiom core.sh's _hi_read_lines uses. The record is
   # built first rather than inside the eval, which keeps the eval'd string
   # trivial and leaves every variable it reads visible to the linter.

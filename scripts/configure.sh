@@ -1151,27 +1151,27 @@ function config_prompt() {
 # The advanced section's free-text half: the glyph policy and the 24-bit
 # color verdict. Each keeps its current value on Enter and clears the override
 # when the answer is the shipped default, like config_max_width.
+# _hi_ask_tristate <var> <on-word> <off-word> <validator> <question> - one
+# unset/1/0 setting asked in words. Both of the two are the client's verdict
+# about its own terminal, shipped to the session, and for both "1" is a fact
+# about the implementation rather than an answer - so each maps words in on the
+# way to the question and back out on the way to the file. Written once because
+# the two differ in nothing but their vocabulary.
+function _hi_ask_tristate() {
+  local var="$1" on="$2" off="$3" validate="$4" question="$5" current value choice
+  setting_value "$var" "$_HI_SETTINGS" current
+  case "$current" in 1) choice="$on" ;; 0) choice="$off" ;; *) choice="" ;; esac
+  value="$(ask_value "$question" "$choice" auto "$validate" "answer auto, $on or $off")"
+  case "$value" in "$on") value=1 ;; "$off") value=0 ;; *) value="" ;; esac
+  _hi_pending_set "$var" "$value"
+}
+
 function config_advanced_values() {
-  local current value choice
-
-  # _HI_ASCII is a 1/0/unset flag; the question uses words and maps both ways,
-  # since "1" for ASCII is a fact about the implementation, not an answer
-  setting_value _HI_ASCII "$_HI_SETTINGS" current
-  case "$current" in 1) choice=ascii ;; 0) choice=glyphs ;; *) choice="" ;; esac
-  value="$(ask_value "Banner/prompt/package glyphs: auto (by the locale), glyphs, or ascii?" \
-    "$choice" auto _hi_is_glyph_choice "answer auto, glyphs or ascii")"
-  case "$value" in ascii) value=1 ;; glyphs) value=0 ;; *) value="" ;; esac
-  _hi_pending_set _HI_ASCII "$value"
-
-  # _HI_TRUECOLOR is the same shape as _HI_ASCII - the client's verdict on
-  # its terminal, shipped to the session - and asked the same way: on is the
-  # answer under tmux, which hides COLORTERM
-  setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
-  case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
-  value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
-    "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
-  case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
-  _hi_pending_set _HI_TRUECOLOR "$value"
+  _hi_ask_tristate _HI_ASCII ascii glyphs _hi_is_glyph_choice \
+    "Banner/prompt/package glyphs: auto (by the locale), glyphs, or ascii?"
+  # on is the answer under tmux, which hides COLORTERM
+  _hi_ask_tristate _HI_TRUECOLOR on off _hi_is_truecolor_choice \
+    "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?"
 }
 
 # The advanced section: a short question walk rather than a menu - these are

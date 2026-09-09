@@ -53,16 +53,57 @@ function test_widen_to_takes_widths_not_strings() {
   [ "$w" = 3 ]
 }
 
+# Built from the $_HI_BOX_* set in play rather than from a literal "+---+":
+# the runner's locale picks the set, so a literal would only pass on one side.
+function _hi_rule() { # <left> <junction> <right> <width...>
+  local left="$1" mid="$2" right="$3" w fill out="$1"
+  shift 3
+  for w in "$@"; do
+    [ "$out" = "$left" ] || out+="$mid"
+    _hi_repeat fill $((w + 2)) "$_HI_BOX_H"
+    out+="$fill"
+  done
+  printf '%s' "$out$right"
+}
+
 function test_hbar_pads_each_column_by_two() {
-  # width n renders n+2 dashes per segment
-  [ "$(_hi_hbar 1)" = "+---+" ] || return 1
-  [ "$(_hi_hbar 2 3)" = "+----+-----+" ]
+  # width n renders n+2 fills per segment
+  local l="$_HI_BOX_L" x="$_HI_BOX_X" r="$_HI_BOX_R"
+  [ "$(_hi_hbar mid 1)" = "$(_hi_rule "$l" "$x" "$r" 1)" ] || return 1
+  [ "$(_hi_hbar mid 2 3)" = "$(_hi_rule "$l" "$x" "$r" 2 3)" ]
+}
+
+# ASCII spells all nine corners `+`, so the three positions are one rule there
+# and the tables look exactly as they did before there was a set at all. Forced
+# through a child shell, since scripts/lib.sh decides the set at source time.
+function test_hbar_positions_are_one_rule_in_ascii() {
+  local out
+  out="$(_HI_ASCII=1 bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/table.sh"
+    _hi_hbar top 2 3
+    _hi_hbar mid 2 3
+    _hi_hbar bottom 2 3')" || return 1
+  [ "$out" = "$(printf '%s\n%s\n%s' '+----+-----+' '+----+-----+' '+----+-----+')" ]
+}
+
+function test_hbar_positions_differ_on_the_glyph_set() {
+  local out
+  out="$(_HI_ASCII=0 bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/scripts/lib.sh"
+    source "$_HI_HOME/say-hi/scripts/table.sh"
+    _hi_hbar top 1 1
+    _hi_hbar mid 1 1
+    _hi_hbar bottom 1 1')" || return 1
+  [ "$out" = "$(printf '%s\n%s\n%s' '┌───┬───┐' '├───┼───┤' '└───┴───┘')" ]
 }
 
 function test_cell_pads_to_the_width() {
   local want padded
   printf -v padded '%-5s' ab
-  printf -v want '| %b ' "${RED}${padded}${NC}"
+  printf -v want '%s %b ' "$_HI_BOX_V" "${RED}${padded}${NC}"
   [ "$(_hi_cell 5 "$RED" ab)" = "$want" ]
 }
 
@@ -77,7 +118,7 @@ function test_cell_visible_width_is_stable() {
 function test_cell_empty_renders_the_continuation_blank() {
   local want padded
   printf -v padded '%-4s' ''
-  printf -v want '| %b ' "${padded}${NC}"
+  printf -v want '%s %b ' "$_HI_BOX_V" "${padded}${NC}"
   [ "$(_hi_cell 4 '' '')" = "$want" ]
 }
 
@@ -85,7 +126,7 @@ function test_cell_raw_pads_by_the_declared_width() {
   local text want
   printf -v text '%b' "${BRCYAN}ab${NC}"
   # caller says the text prints as 2 columns; the cell pads the other 4
-  printf -v want '| %b%*s ' "${text}${NC}" 4 ''
+  printf -v want '%s %b%*s ' "$_HI_BOX_V" "${text}${NC}" 4 ''
   [ "$(_hi_cell_raw 6 2 "$text")" = "$want" ]
 }
 
@@ -137,13 +178,21 @@ function test_scheme_label_names_each_kind() {
 }
 
 # the box glyphs are chosen once at source time off _hi_use_ascii, so each
-# side is proven by re-sourcing lib.sh in a child with _HI_ASCII forced
+# side is proven by re-sourcing lib.sh in a child with _HI_ASCII forced. All
+# eleven, in reading order: the three rules, then the fill and the edge.
+_HI_BOX_NAMES="TL T TR L X R BL B BR H V"
+function _hi_box_glyphs() {
+  _HI_ASCII="$1" bash -c '
+    source "$_HI_HOME/say-hi/common/core.sh"
+    source "$_HI_HOME/say-hi/scripts/lib.sh"
+    for n in '"$_HI_BOX_NAMES"'; do eval "printf %s \"\$_HI_BOX_$n\""; done'
+}
 function test_box_glyphs_follow_the_ascii_switch() {
   local out
-  out="$(_HI_ASCII=1 bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HOME/say-hi/scripts/lib.sh"; printf "%s%s%s%s%s%s" "$_HI_BOX_TL" "$_HI_BOX_H" "$_HI_BOX_TR" "$_HI_BOX_BL" "$_HI_BOX_V" "$_HI_BOX_BR"')" || return 1
-  [ "$out" = '+-++|+' ] || return 1
-  out="$(_HI_ASCII=0 bash -c 'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HOME/say-hi/scripts/lib.sh"; printf "%s%s%s%s%s%s" "$_HI_BOX_TL" "$_HI_BOX_H" "$_HI_BOX_TR" "$_HI_BOX_BL" "$_HI_BOX_V" "$_HI_BOX_BR"')" || return 1
-  [ "$out" = '┌─┐└│┘' ]
+  out="$(_hi_box_glyphs 1)" || return 1
+  [ "$out" = '+++++++++-|' ] || return 1
+  out="$(_hi_box_glyphs 0)" || return 1
+  [ "$out" = '┌┬┐├┼┤└┴┘─│' ]
 }
 
 function run_table_tests() {
@@ -160,6 +209,8 @@ function run_table_tests() {
   _hi_check "Never shrinks" test_widen_never_shrinks
   _hi_check "_hi_widen_to takes widths, not strings" test_widen_to_takes_widths_not_strings
   _hi_check "_hi_hbar: each column is width+2 dashes" test_hbar_pads_each_column_by_two
+  _hi_check "_hi_hbar: one rule for all three positions in ASCII" test_hbar_positions_are_one_rule_in_ascii
+  _hi_check "_hi_hbar: corners and junctions on the glyph set" test_hbar_positions_differ_on_the_glyph_set
 
   _hi_h2 "Testing: _hi_cell / _hi_cell_raw"
   _hi_check "Pads to the width" test_cell_pads_to_the_width

@@ -66,14 +66,15 @@ _HI_TEST_RAMP='yellow bryellow green brgreen magenta brmagenta red brred'
 # _hi_table_is_rectangular <text> - every line of every boxed table in <text>
 # is the same printed width. Both preview suites assert it through this one
 # function, so they cannot segment tables differently. A table is a run of
-# adjacent lines starting with `+` or `|`, so blank lines and prose between
-# two tables separate them without being measured.
+# adjacent lines starting with a left edge - scripts/lib.sh's $_HI_BOX_* set on
+# either side of _hi_use_ascii - so blank lines and prose between two tables
+# separate them without being measured.
 function _hi_table_is_rectangular() {
   local line stripped width=0 len seen=0
   while IFS= read -r line; do
     stripped="$(_hi_strip_ansi "$line")"
     case "$stripped" in
-    [+\|]*)
+    [+\|┌├└│]*)
       len=${#stripped}
       if [ "$width" -eq 0 ]; then
         width=$len

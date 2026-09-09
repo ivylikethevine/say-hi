@@ -101,16 +101,27 @@ function _hi_ramp_label() {
   fi
 }
 
-# The preview box scripts/configure.sh draws. Here and not in core.sh's
-# _hi_choose_glyphs beside the mark glyphs, for the reason at the top of this
-# file: nothing a target runs draws a box, and common/ ships in the ssh
-# payload under a size budget. One set per session, decided at source time
-# the way the glyphs are - configure.sh is sourced by install.sh after this
-# file and never re-asks.
+# Every rule and edge scripts/table.sh and scripts/configure.sh draw with.
+# Here and not in core.sh's _hi_choose_glyphs beside the mark glyphs, for the
+# reason at the top of this file: nothing a target runs draws a box, and
+# common/ ships in the ssh payload under a size budget. One set per session,
+# decided at source time the way the glyphs are - configure.sh is sourced by
+# install.sh after this file and never re-asks.
+#
+# Eleven names rather than three strings to slice: under `_HI_ASCII=0` on a
+# non-UTF-8 locale a ${s:0:1} would cut a byte out of a three-byte glyph
+# (GLOSSARY: HI.12). The junctions (T/B/L/R/X) are what let a rule know
+# whether it is a table's top, its header separator, or its bottom; ASCII
+# spells all nine corners `+`, which is what the tables looked like before
+# there was a set at all.
 if _hi_use_ascii; then
-  _HI_BOX_TL="+" _HI_BOX_TR="+" _HI_BOX_BL="+" _HI_BOX_BR="+"
+  _HI_BOX_TL="+" _HI_BOX_T="+" _HI_BOX_TR="+"
+  _HI_BOX_L="+" _HI_BOX_X="+" _HI_BOX_R="+"
+  _HI_BOX_BL="+" _HI_BOX_B="+" _HI_BOX_BR="+"
   _HI_BOX_H="-" _HI_BOX_V="|"
 else
-  _HI_BOX_TL="┌" _HI_BOX_TR="┐" _HI_BOX_BL="└" _HI_BOX_BR="┘"
+  _HI_BOX_TL="┌" _HI_BOX_T="┬" _HI_BOX_TR="┐"
+  _HI_BOX_L="├" _HI_BOX_X="┼" _HI_BOX_R="┤"
+  _HI_BOX_BL="└" _HI_BOX_B="┴" _HI_BOX_BR="┘"
   _HI_BOX_H="─" _HI_BOX_V="│"
 fi

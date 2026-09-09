@@ -562,16 +562,17 @@ function _hi_use_ascii() {
 function _hi_ascii_flag() { _hi_use_ascii && printf '1\n' || printf '0\n'; }
 
 # One glyph set per session, decided at source time so hot paths read plain
-# variables; tests flip _HI_ASCII and re-call. The _W widths are visible
-# columns, not bytes (GLOSSARY: HI.12).
+# variables; tests flip _HI_ASCII and re-call. Every _HI_MARK_* is one visible
+# column in both sets, which is what lets the callers that pad around a mark
+# (header.sh's package rows, preview.sh's legend) treat its width as a
+# constant rather than carrying one per mark.
 function _hi_choose_glyphs() {
   if _hi_use_ascii; then
     _HI_GLYPH_AHEAD="^" _HI_GLYPH_BEHIND="v" _HI_GLYPH_STAGED="*"
     _HI_GLYPH_DIRTY="+" _HI_GLYPH_INVALID="x" _HI_GLYPH_UNTRACKED="?"
     _HI_GLYPH_STASH="\$" _HI_GLYPH_CLEAN="ok" _HI_GLYPH_ELLIPSIS=".."
     _HI_GLYPH_MASK="*"
-    _HI_MARK_OK="ok" _HI_MARK_NO="x"
-    _HI_MARK_OK_W=2
+    _HI_MARK_OK="+" _HI_MARK_NO="x"
   else
     _HI_GLYPH_AHEAD="↑" _HI_GLYPH_BEHIND="↓" _HI_GLYPH_STAGED="●"
     _HI_GLYPH_DIRTY="✚" _HI_GLYPH_INVALID="✖" _HI_GLYPH_UNTRACKED="…"
@@ -579,12 +580,10 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_MASK="●"
     _HI_MARK_OK="✓" # installed, and it is the preferred name
     _HI_MARK_NO="✗" # not installed
-    _HI_MARK_OK_W=1
   fi
   # Glyph-independent, so out of both arms rather than spelled twice: only
-  # _HI_MARK_OK and _HI_MARK_NO (and the ok width) actually change sets.
+  # _HI_MARK_OK and _HI_MARK_NO actually change sets.
   _HI_MARK_ALT="~" # installed, but via a fallback alternative
-  _HI_MARK_ALT_W=1 _HI_MARK_NO_W=1
 }
 _hi_choose_glyphs
 

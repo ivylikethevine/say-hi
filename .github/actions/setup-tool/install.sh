@@ -86,7 +86,10 @@ cmake)
   # OPENSSL_INCLUDE_DIR)" and configuring stops. (The "Could NOT find Bfd"
   # line above it in that log is not an error: bfd is optional here, and kcov
   # builds and runs without it.)
-  sudo apt-get update
+  # shellcheck source=../apt/lib.sh
+  source "$GITHUB_ACTION_PATH/../apt/lib.sh"
+  _hi_apt_drop_vendor_lists
+  _hi_apt_update
   sudo apt-get install -y --no-install-recommends \
     build-essential cmake libcurl4-openssl-dev libdw-dev libelf-dev \
     libssl-dev python3 zlib1g-dev

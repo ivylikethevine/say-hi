@@ -27,6 +27,14 @@ set -euo pipefail
 
 # shellcheck source=../test_lib.sh
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
+# Every case below matches a table's edges and marks as ASCII literals, so the
+# set is pinned rather than left to the runner's locale - scripts/lib.sh decides
+# $_HI_BOX_* at source time, which is why this comes first, and it is exported
+# because several cases render in a child. The other side of the switch is
+# tests/scripts/table_test.sh's business, plus the one case at the end here that
+# renders a real table under it.
+export _HI_ASCII=1
+
 # its own hatch stops it before it renders anything; sourcing hands over the
 # helpers, and (through it) header.sh's check_line
 # shellcheck source=../../scripts/preview.sh
@@ -577,11 +585,13 @@ function test_collect_reads_the_mark_not_the_name() {
 
 # The cell is nothing but color escapes and text, so its length is not its
 # width; handing the table a measured length is what pushes a column past its
-# own rule. Priority 3 shows both examples: "| hialpha X " and "| highost3 X ".
+# own rule. Priority 3 shows both examples: "| hialpha X " and "| highost3 X " -
+# each the name plus check_line's constant 5 (the lead, the two spaces, the
+# one-column mark).
 function test_example_cell_reports_its_printed_width() {
   local text width
   IFS=$'\t' read -r text width <<<"$(_hi_example_cell 3)"
-  [ "$width" -eq $((7 + 4 + _HI_MARK_OK_W + 8 + 4 + _HI_MARK_NO_W)) ] &&
+  [ "$width" -eq $((7 + 5 + 8 + 5)) ] &&
     [ "$width" -lt "${#text}" ]
 }
 
@@ -696,6 +706,19 @@ function test_modes_table_explains_every_mode() {
 
 function test_modes_table_is_rectangular() {
   _hi_table_is_rectangular "$(_hi_print_modes_table)"
+}
+
+# ...and the same table under the glyph set the rest of this suite pins away:
+# real corners and junctions, and still rectangular, since a column measured in
+# bytes rather than columns is exactly what a three-byte edge would expose
+# (GLOSSARY: HI.12)
+function test_modes_table_renders_the_glyph_set() {
+  local out
+  out="$(_HI_ASCII=0 bash -c '
+    source "$_HI_HOME/say-hi/scripts/preview.sh"
+    _hi_print_modes_table')" || return 1
+  [[ "$out" == *"┌─"* && "$out" == *"├─"* && "$out" == *"└─"* && "$out" == *"│ MODE "* ]] &&
+    _hi_table_is_rectangular "$out"
 }
 
 # The real script, in this tree, reading the exported fixture ($_HI_PACKAGES
@@ -912,8 +935,8 @@ EOF
   _hi_h2 "Testing: colors - layout helpers"
   # each column is padded by one space either side, so a width of n renders n+2
   # dashes between the separators
-  _hi_check_eq "hbar sizes each column" "+-----+---+" _hi_hbar 3 1
-  _hi_check_eq "hbar handles a single column" "+----+" _hi_hbar 2
+  _hi_check_eq "hbar sizes each column" "+-----+---+" _hi_hbar mid 3 1
+  _hi_check_eq "hbar handles a single column" "+----+" _hi_hbar mid 2
   _hi_check "Group preview width sums its hosts" test_group_preview_width_sums_its_hosts
   _hi_check "Group index finds an existing key" test_group_index_finds_an_existing_key
   _hi_check "Group index misses a new key" test_group_index_misses_a_new_key
@@ -993,6 +1016,7 @@ EOF
   _hi_check "Marks table is rectangular" test_marks_table_is_rectangular
   _hi_check "Modes table explains every mode" test_modes_table_explains_every_mode
   _hi_check "Modes table is rectangular" test_modes_table_is_rectangular
+  _hi_check "Modes table draws the glyph set's corners" test_modes_table_renders_the_glyph_set
 
   _hi_h2 "Testing: packages - the rendered preview"
   _hi_check "Help prints usage and stops" test_help_prints_usage_and_stops

@@ -43,13 +43,13 @@ function test_choose_glyphs_picks_a_whole_set() {
   (
     _HI_ASCII=1
     _hi_choose_glyphs
-    [ "$_HI_MARK_OK" = ok ] && [ "$_HI_MARK_NO" = x ] &&
-      [ "$_HI_GLYPH_AHEAD" = "^" ] && [ "$_HI_MARK_OK_W" = 2 ]
+    [ "$_HI_MARK_OK" = "+" ] && [ "$_HI_MARK_NO" = x ] &&
+      [ "$_HI_GLYPH_AHEAD" = "^" ]
   ) && (
     _HI_ASCII=0
     _hi_choose_glyphs
     [ "$_HI_MARK_OK" = "✓" ] && [ "$_HI_MARK_NO" = "✗" ] &&
-      [ "$_HI_GLYPH_AHEAD" = "↑" ] && [ "$_HI_MARK_OK_W" = 1 ]
+      [ "$_HI_GLYPH_AHEAD" = "↑" ]
   )
 }
 

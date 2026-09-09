@@ -297,9 +297,11 @@ function _hi_print_users_table() {
     _hi_widen w_source "usertag:$tag"
   done
 
-  _hi_hbar "$w_item" "$w_color" "$w_source"
-  printf '| %-*s | %-*s | %-*s |\n' "$w_item" "USER" "$w_color" "COLOR" "$w_source" "SOURCE"
-  _hi_hbar "$w_item" "$w_color" "$w_source"
+  _hi_hbar top "$w_item" "$w_color" "$w_source"
+  printf '%s %-*s %s %-*s %s %-*s %s\n' \
+    "$_HI_BOX_V" "$w_item" "USER" "$_HI_BOX_V" "$w_color" "COLOR" \
+    "$_HI_BOX_V" "$w_source" "SOURCE" "$_HI_BOX_V"
+  _hi_hbar mid "$w_item" "$w_color" "$w_source"
 
   uidx=0
   for user in "${users[@]}"; do
@@ -311,7 +313,7 @@ function _hi_print_users_table() {
     _hi_cell "$w_item" "$name_escape" "$user"
     _hi_cell "$w_color" "$name_escape" "$color_name"
     _hi_cell "$w_source" "$name_escape" "$source"
-    printf '|\n'
+    _hi_row_end
   done
 
   if localuser_color=$(_hi_override_color username LOCALUSER 2>/dev/null); then
@@ -319,7 +321,7 @@ function _hi_print_users_table() {
     _hi_cell "$w_item" "$name_escape" "LOCALUSER"
     _hi_cell "$w_color" "$name_escape" "$localuser_color"
     _hi_cell "$w_source" "$name_escape" "local:username"
-    printf '|\n'
+    _hi_row_end
   fi
 
   for tag in ${usertags[@]+"${usertags[@]}"}; do
@@ -328,10 +330,10 @@ function _hi_print_users_table() {
     _hi_cell "$w_item" "$name_escape" "$tag"
     _hi_cell "$w_color" "$name_escape" "$color_name"
     _hi_cell "$w_source" "$name_escape" "usertag:$tag"
-    printf '|\n'
+    _hi_row_end
   done
 
-  _hi_hbar "$w_item" "$w_color" "$w_source"
+  _hi_hbar bottom "$w_item" "$w_color" "$w_source"
 }
 
 # hosts table: a LOCALHOSTNAME row (the current machine) followed by every
@@ -426,10 +428,11 @@ function _hi_print_hosts_table() {
     done
   done
 
-  _hi_hbar "$w_item" "$w_color" "$w_source" "$w_preview"
-  printf '| %-*s | %-*s | %-*s | %-*s |\n' \
-    "$w_item" "HOST" "$w_color" "COLOR" "$w_source" "SOURCE" "$w_preview" "PREVIEW"
-  _hi_hbar "$w_item" "$w_color" "$w_source" "$w_preview"
+  _hi_hbar top "$w_item" "$w_color" "$w_source" "$w_preview"
+  printf '%s %-*s %s %-*s %s %-*s %s %-*s %s\n' \
+    "$_HI_BOX_V" "$w_item" "HOST" "$_HI_BOX_V" "$w_color" "COLOR" \
+    "$_HI_BOX_V" "$w_source" "SOURCE" "$_HI_BOX_V" "$w_preview" "PREVIEW" "$_HI_BOX_V"
+  _hi_hbar mid "$w_item" "$w_color" "$w_source" "$w_preview"
 
   for gidx in "${!group_order[@]}"; do
     source="${group_source[gidx]}"
@@ -492,13 +495,13 @@ function _hi_print_hosts_table() {
           # of these hosts is
           previewtext+="${user_escape}${user}${NC}${YELLOW}@${NC}${name_escape}${group_names[idx2]}$(printf '%*s' $((user_width - ${#user})) '')${NC}"
         done
-        printf '| %b%*s |\n' "$previewtext" "$pad_preview" ""
+        printf '%s %b%*s %s\n' "$_HI_BOX_V" "$previewtext" "$pad_preview" "" "$_HI_BOX_V"
       else
-        printf '| %*s |\n' "$w_preview" ""
+        printf '%s %*s %s\n' "$_HI_BOX_V" "$w_preview" "" "$_HI_BOX_V"
       fi
     done
 
-    _hi_hbar "$w_item" "$w_color" "$w_source" "$w_preview"
+    _hi_hbar bottom "$w_item" "$w_color" "$w_source" "$w_preview"
   done
 
   [[ -f "$_HI_SSH_CONFIG" ]] || _hi_cecho "No ssh config found at $_HI_SSH_CONFIG" "$RED"
@@ -638,11 +641,12 @@ function _hi_print_priorities_table() {
     i=$((i + 1))
   done
 
-  _hi_hbar "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
-  printf '| %-*s | %-*s | %-*s | %-*s | %-*s |\n' \
-    "$w_prio" "PRIORITY" "$w_meaning" "MEANING" "$w_yes" "INSTALLED" \
-    "$w_no" "MISSING" "$w_example" "EXAMPLE"
-  _hi_hbar "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
+  _hi_hbar top "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
+  printf '%s %-*s %s %-*s %s %-*s %s %-*s %s %-*s %s\n' \
+    "$_HI_BOX_V" "$w_prio" "PRIORITY" "$_HI_BOX_V" "$w_meaning" "MEANING" \
+    "$_HI_BOX_V" "$w_yes" "INSTALLED" "$_HI_BOX_V" "$w_no" "MISSING" \
+    "$_HI_BOX_V" "$w_example" "EXAMPLE" "$_HI_BOX_V"
+  _hi_hbar mid "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
 
   i=0
   for entry in ${rows[@]+"${rows[@]}"}; do
@@ -660,10 +664,10 @@ function _hi_print_priorities_table() {
     _hi_cell "$w_yes" "$yes_escape" "$yes_name"
     _hi_cell "$w_no" "$no_escape" "$no_name"
     _hi_cell_raw "$w_example" "$ex_width" "$example"
-    printf '|\n'
+    _hi_row_end
   done
 
-  _hi_hbar "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
+  _hi_hbar bottom "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
   _hi_cecho " | $_HI_PKG_LISTED listed, $((_HI_PKG_SHOWN - _HI_PKG_FLOORED)) shown, $((_HI_PKG_LISTED - _HI_PKG_SHOWN)) hidden by their priority"
   if ((_HI_PKG_MIN > 0)); then
     _hi_cecho " | $_HI_PKG_FLOORED more below \$_HI_PACKAGES_MIN_PRIORITY=$_HI_PKG_MIN, which this legend marks \"below floor\"" "$YELLOW"
@@ -674,30 +678,32 @@ function _hi_print_priorities_table() {
 # what each one is saying. The glyphs come from core.sh's _hi_choose_glyphs, so
 # this table follows a terminal onto the ASCII set the same way the header does.
 function _hi_print_marks_table() {
+  # every mark is one visible column, so the MARK column never grows past its
+  # own heading and nothing here has to measure a cell full of escapes
   local w_mark=4 w_means=5
   local -a marks=(
-    "$GREEN$_HI_MARK_OK|$_HI_MARK_OK_W|installed, under the first name the line lists"
-    "$YELLOW$_HI_MARK_ALT|$_HI_MARK_ALT_W|installed, but via one of the alternatives after it"
-    "$RED$_HI_MARK_NO|$_HI_MARK_NO_W|not installed - no name on the line resolved"
+    "$GREEN$_HI_MARK_OK|installed, under the first name the line lists"
+    "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it"
+    "$RED$_HI_MARK_NO|not installed - no name on the line resolved"
   )
-  local entry glyph width means
+  local entry glyph means
 
   for entry in "${marks[@]}"; do
-    IFS='|' read -r glyph width means <<<"$entry"
-    _hi_widen_to w_mark "$width"
+    IFS='|' read -r glyph means <<<"$entry"
     _hi_widen w_means "$means"
   done
 
-  _hi_hbar "$w_mark" "$w_means"
-  printf '| %-*s | %-*s |\n' "$w_mark" "MARK" "$w_means" "MEANS"
-  _hi_hbar "$w_mark" "$w_means"
+  _hi_hbar top "$w_mark" "$w_means"
+  printf '%s %-*s %s %-*s %s\n' \
+    "$_HI_BOX_V" "$w_mark" "MARK" "$_HI_BOX_V" "$w_means" "MEANS" "$_HI_BOX_V"
+  _hi_hbar mid "$w_mark" "$w_means"
   for entry in "${marks[@]}"; do
-    IFS='|' read -r glyph width means <<<"$entry"
-    _hi_cell_raw "$w_mark" "$width" "$glyph"
+    IFS='|' read -r glyph means <<<"$entry"
+    _hi_cell_raw "$w_mark" 1 "$glyph"
     _hi_cell "$w_means" "" "$means"
-    printf '|\n'
+    _hi_row_end
   done
-  _hi_hbar "$w_mark" "$w_means"
+  _hi_hbar bottom "$w_mark" "$w_means"
 }
 
 # the third axis of a line: its leading mode character, which decides whether
@@ -718,16 +724,17 @@ function _hi_print_modes_table() {
     _hi_widen w_means "$means"
   done
 
-  _hi_hbar "$w_mode" "$w_means"
-  printf '| %-*s | %-*s |\n' "$w_mode" "MODE" "$w_means" "MEANS"
-  _hi_hbar "$w_mode" "$w_means"
+  _hi_hbar top "$w_mode" "$w_means"
+  printf '%s %-*s %s %-*s %s\n' \
+    "$_HI_BOX_V" "$w_mode" "MODE" "$_HI_BOX_V" "$w_means" "MEANS" "$_HI_BOX_V"
+  _hi_hbar mid "$w_mode" "$w_means"
   for entry in "${modes[@]}"; do
     IFS='|' read -r flag means <<<"$entry"
     _hi_cell "$w_mode" "" "$flag"
     _hi_cell "$w_means" "" "$means"
-    printf '|\n'
+    _hi_row_end
   done
-  _hi_hbar "$w_mode" "$w_means"
+  _hi_hbar bottom "$w_mode" "$w_means"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions
