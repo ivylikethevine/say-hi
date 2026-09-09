@@ -4,34 +4,25 @@
 # forked from sshrc by Russell Stewart: https://github.com/danrabinowitz/sshrc & https://github.com/cdown/sshrc
 # Runs on the client - copies say-hi to the target and chainloads load.sh there.
 #
-# File-scope: almost everything here is a script assembled for *another*
-# machine, so a `$var` in single quotes is the target's to expand (SC2016) and
-# a command string sent to ssh is expanded here on purpose (SC2029).
+# Most of this file is a script assembled for *another* machine, so a `$var`
+# in single quotes is the target's to expand (SC2016) and a command string
+# sent to ssh is expanded here on purpose (SC2029).
 # shellcheck disable=SC2016,SC2029
-set -euo pipefail # off again below: this file is sourced by the interactive shell, where an error would close the session
+set -euo pipefail # off again below: sourced by the interactive shell, where an error would close the session
 
-# The client leg of the connect banner's timing (docs/SETTINGS.md's
-# "Everything else"): as close to the moment you hit enter as this file gets,
-# before $_HI_HOME is even resolved - _hi_now doesn't exist until core.sh is
-# sourced below, so this is the same one-liner _hi_remote_preamble inlines
-# for the target side, replaced by core.sh's fuller version the moment it
-# loads. _say_hi/_say_hi_container read it when they hand off to the session;
-# every other entry point through this file leaves it be.
+# The connect banner's client leg, stamped before core.sh exists - so this is
+# core.sh's _hi_now inlined, replaced by the real one the moment it loads.
 _hi_now() {
   d=$(date +%s.%N 2>/dev/null)
   case "$d" in *N* | '') date +%s ;; *) printf '%s' "$d" ;; esac
 }
-# the `||` matters under `set -e`, above: hi.sh's own source-time work has no
-# hard `date` requirement (tests/hi/parse_test.sh runs it with a PATH of
-# nothing but bash/sh/sed/cat), so a target this bare degrades to
-# an empty connect time rather than aborting the source before it defines
-# anything - _hi_elapsed then reads it as awk's own zero, not an error.
+# the `||` matters under `set -e`: a client with no `date` degrades to an
+# empty connect time rather than aborting before this file defines anything.
 _HI_CONNECT_T0="$(_hi_now)" || _HI_CONNECT_T0=""
 
-# $_HI_HOME is the directory *containing* say-hi, derived from this script's
-# own path behind a symlink walk (/usr/bin/hi -> <prefix>/say-hi/hi.sh). The
-# same walk as scripts/install.sh's and packaging/lib.sh's: fix one, fix all.
-# GLOSSARY: HI.33
+# The directory *containing* say-hi, off this script's own path behind a
+# symlink walk. Same walk as scripts/install.sh's and packaging/lib.sh's:
+# fix one, fix all. GLOSSARY: HI.33
 if [ -z "${_HI_HOME:-}" ]; then
   _hi_self="${BASH_SOURCE[0]}"
   while [ -L "$_hi_self" ]; do
@@ -49,7 +40,7 @@ if [ -z "${_HI_HOME:-}" ]; then
 fi
 export _HI_HOME
 # checked before the source: bash's own "No such file" would name a path
-# nobody typed. No _hi_cecho - core.sh is the file that's gone.
+# nobody typed, and _hi_cecho is in the file that's missing
 [ -r "$_HI_HOME/say-hi/common/core.sh" ] || {
   echo "hi: no say-hi at $_HI_HOME/say-hi - set _HI_HOME to the directory that holds it (the checkout has to be a directory named say-hi)" >&2
   exit 1
@@ -59,13 +50,13 @@ source "$_HI_HOME/say-hi/common/core.sh"
 
 _HI_RELEASE="${_HI_RELEASE:-}"
 
-# The synopsis, kept identical to docs/hi.1's first .SH SYNOPSIS line
-# (tests/hi/parse_test.sh compares the two); folded so --help fits 80 columns
+# Kept identical to docs/hi.1's SYNOPSIS (parse_test.sh compares the two);
+# folded so --help fits 80 columns
 _HI_USAGE="Usage: hi [ssh-options] [--use <backend>] [--plain] [--mux|--no-mux]
           <target> [command ...]"
 
 # What ships to a target - an allow list. hi.sh is in it so a disposable
-# session has a launcher to relay onward with (~14KB of wire inside the tar).
+# session has a launcher to relay onward with.
 _HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay: a second, smaller stream into its own config/ on
@@ -73,17 +64,14 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 _HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc aliases.sh
   bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json)
 
-# What a bash-less target falls back to, best first: core.sh's $_HI_SHELL_TREE
-# minus bash, derived so the two orderings cannot drift.
+# What a bash-less target falls back to, best first - derived from
+# $_HI_SHELL_TREE so the two orderings cannot drift.
 export _HI_SHELL_LADDER="${_HI_SHELL_TREE//bash /}"
 
-# stands in for the connect line's size until the script is measured; wider
-# than any figure. GLOSSARY: HI.44
+# stands in for the size until the script is measured. GLOSSARY: HI.44
 _HI_SIZE_TOKEN="@@SIZE@@"
 
-# GLOSSARY: HI.17 - why base64 over openssl, the -d/-D ladder, and the
-# `tr` fold $_HI_UNARMOR puts in front of the decode (armor that arrived as an
-# argv word could be space-folded; the stdin transport needs no fold)
+# GLOSSARY: HI.17 - base64 over openssl, the -d/-D ladder, and the `tr` fold
 _HI_ARMOR="base64"
 _HI_UNARMOR="tr -s ' ' '\n' | { base64 -d 2>/dev/null || base64 -D; }"
 
@@ -91,9 +79,9 @@ function _hi_armored_line() {
   printf 'echo "%s" | %s %s %s' "$($_HI_ARMOR)" "$_HI_UNARMOR" "$1" "$2"
 }
 
-# _hi_shquote <var> <value> - <value> as one single-quoted sh word, into <var>.
-# Every value baked into a target's script goes through here.
-# GLOSSARY: HI.40 - why a hand loop and not ${2//...}, and what it prevents
+# _hi_shquote <var> <value> - <value> as one single-quoted sh word, into <var>;
+# every value baked into a target's script goes through here.
+# GLOSSARY: HI.40 - why a hand loop and not ${2//...}
 function _hi_shquote() {
   local _s="$2" _o=""
   while [ "${_s#*\'}" != "$_s" ]; do
@@ -104,7 +92,7 @@ function _hi_shquote() {
 }
 
 # The client-derived env both transports export into the session, one
-# NAME<TAB>value pair per line (_hi_env_each renders it per transport)
+# NAME<TAB>value pair per line; _hi_env_each renders it per transport.
 function _hi_session_env() {
   printf '_HI_TARGET_COLOR\t%s\n' "$(_hi_target_color)"
   printf '_HI_TARGET_TAG\t%s\n' "$(_hi_ssh_host_tag "$DOMAIN" 2>/dev/null || true)"
@@ -113,11 +101,9 @@ function _hi_session_env() {
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
   # the client's glyph verdict, not the target's: see _hi_ascii_flag
   printf '_HI_ASCII\t%s\n' "${_HI_ASCII:-$(_hi_ascii_flag)}"
-  # and its 24-bit verdict: ssh never forwards COLORTERM, and the escapes a
-  # $_HI_COLOR_SCHEME paints with render here, not there (GLOSSARY: HI.50)
+  # the client's 24-bit verdict: ssh never forwards COLORTERM (GLOSSARY: HI.50)
   printf '_HI_TRUECOLOR\t%s\n' "${_HI_TRUECOLOR:-$(_hi_truecolor_flag)}"
-  # the client's no-color choice travels the same way (nothing when unset,
-  # which is the value https://no-color.org gives no meaning to)
+  # nothing when unset - the value no-color.org gives no meaning to
   [ -n "${NO_COLOR:-}" ] && printf 'NO_COLOR\t1\n'
   return 0
 }
@@ -129,8 +115,8 @@ function _hi_target_color() {
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
-# _hi_overlay_files - the overlay members that exist, one per line. Callers
-# read it once and hand the list to _hi_overlay_tar.
+# The overlay members that exist, one per line; callers read it once and hand
+# the list to _hi_overlay_tar.
 function _hi_overlay_files() {
   local f
   for f in "${_HI_OVERLAY_FILES[@]}"; do
@@ -140,39 +126,30 @@ function _hi_overlay_files() {
 }
 
 # _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
-# state (a shared ControlMaster socket, the payload/overlay cache), or empty
-# into <var> when there is none hi can vouch for. $XDG_RUNTIME_DIR when it
-# exists - per-user and already 0700 - else a directory of hi's own under
-# ${TMPDIR:-/tmp}, made with `mkdir -m 700` (never adopted if something else
-# is already there) and ownership-checked before use. Every caller degrades
-# to today's behaviour rather than trust a directory it cannot vouch for. The
-# same discipline common/targets.sh's completion cache uses for the same
-# reason - kept as its own copy because targets.sh is standalone POSIX and
-# sources nothing, so the two only stay in step by comment.
+# state (the ControlMaster socket, the payload/overlay caches), or empty when
+# there is none hi can vouch for: $XDG_RUNTIME_DIR, else a `mkdir -m 700`
+# directory of hi's own under ${TMPDIR:-/tmp}, never adopted if something else
+# is already there and ownership-checked before use. Every caller degrades
+# rather than trust a directory it cannot vouch for. common/targets.sh keeps
+# its own copy of this - it is standalone POSIX and sources nothing - so the
+# two only stay in step by comment.
 function _hi_runtime_dir() {
-  # prefixed locals: a plain `dir` would shadow the caller's outvar of the
-  # same name and the assignment below would never leave this function
-  # (GLOSSARY: HI.04)
+  # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
+  # outvar and the assignment would never leave this function
   local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid _hi_rtd_owner
-  # Memoized one deep and keyed on what it reads, the way _hi_ssh_host_tag is:
-  # a connect asks up to five times (the ControlPath, then both caches twice
-  # over, foreground and background warm), and without $XDG_RUNTIME_DIR -
-  # every macOS client, and any non-systemd Linux - each miss costs the
-  # id/ls branch below. The key rather than a bare memo because cache_test.sh
-  # asks against several $TMPDIRs in one process.
-  #
-  # Only a *found* directory is remembered. A refusal is re-probed: the
-  # directory it wanted can appear between two calls (mkdir -p by something
-  # else, an $XDG_RUNTIME_DIR mounted late), and caching "no" would hold a
-  # client to the degraded no-cache path for the rest of its life.
+  # Memoized one deep and keyed on what it reads: a connect asks up to five
+  # times, and without $XDG_RUNTIME_DIR each miss costs the id/ls branch below.
+  # Keyed rather than a bare memo because cache_test.sh asks against several
+  # $TMPDIRs in one process. Only a *found* directory is remembered - the one
+  # it wanted can appear between two calls, and caching "no" would hold a
+  # client to the degraded path for the rest of its life.
   local _hi_rtd_key="${XDG_RUNTIME_DIR:-}|${TMPDIR:-}"
   if [ "${_HI_RTD_KEY:-}" = "$_hi_rtd_key" ] && [ -n "${_HI_RTD_MEMO:-}" ]; then
     printf -v "$1" '%s' "$_HI_RTD_MEMO"
     return 0
   fi
   if [ -z "$_hi_rtd_dir" ] || [ ! -d "$_hi_rtd_dir" ]; then
-    # $EUID is bash's own, no fork; targets.sh keeps `id -u` because it is
-    # standalone POSIX, this file is not
+    # $EUID is bash's own, no fork; targets.sh keeps `id -u`, being POSIX
     _hi_rtd_uid="${EUID:-$(exec id -u 2>/dev/null)}"
     [ -n "$_hi_rtd_uid" ] || _hi_rtd_uid=unknown
     _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
@@ -181,13 +158,11 @@ function _hi_runtime_dir() {
       printf -v "$1" ''
       return 0
     fi
-    # shellcheck disable=SC2012 # same as common/targets.sh's copy of this
-    # check: `find -user` takes a user *name*, which is exactly what a host
-    # with no passwd entry for the caller cannot supply. SC2012's hazard is
-    # parsing file *names* out of ls; this reads a fixed column off one path
-    # this function built itself. `-n` prints the owner as a number, so the
-    # uid answers for a host with a passwd entry and one without alike - one
-    # comparison, and no second `id -un` fork to cover the difference.
+    # shellcheck disable=SC2012 # `find -user` takes a user *name*, which a
+    # host with no passwd entry cannot supply; SC2012's hazard is parsing file
+    # *names* out of ls, and this reads a fixed column off a path it built
+    # itself. `-n` gives the owner as a number, so one comparison answers for
+    # a host with a passwd entry and one without alike.
     _hi_rtd_owner="$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
     if [ -z "$_hi_rtd_owner" ] || [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; then
       printf -v "$1" ''
@@ -214,24 +189,20 @@ function _hi_tar_gz() {
   return 0
 }
 
-# The file names the comment-stripper is pointed at. One list rather than a
-# copy per stager: both walk the same shipped shapes, and the payload's extra
-# `flags` is inert against an overlay, which has no member by that name.
-# GLOSSARY: HI.09
+# What the comment-stripper is pointed at. One list, not a copy per stager:
+# both walk the same shapes, and `flags` is inert against an overlay, which
+# has no member by that name. GLOSSARY: HI.09
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc)
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
-# comments, gzip what comes out. Reads $stage_in (members to pull, relative to
-# <src-dir>), $stage_out (members to emit) and $stage_excl (tar --exclude
-# words) from its caller's scope, the convention _hi_container_cleanup and
-# _hi_remote_middle already use - the two stagers were the same fourteen lines
-# twice, and the staging rule is one thing to get right, not two.
+# comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
+# (members to emit) and $stage_excl (tar --exclude words) from its caller, the
+# convention _hi_container_cleanup and _hi_remote_middle also use.
 #
-# A subshell, so the stage's cleanup is a trap and a ^C mid-build leaves
-# nothing behind (GLOSSARY: HI.39).
-# prefixed locals (GLOSSARY: HI.04): `root` is _say_hi_container's own name
-# for the target's scratch tree, and this runs inside it
+# A subshell, so cleanup is a trap and a ^C mid-build leaves nothing behind
+# (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
+# _say_hi_container's name for the target's tree, and this runs inside it.
 function _hi_stage_tar() {
   local stage f _hi_st_root
   local -a _hi_st_names=()
@@ -246,24 +217,20 @@ function _hi_stage_tar() {
     trap 'exit 143' TERM
     _hi_st_root="$stage${2:+/$2}"
     # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
-    # marker and a GNU writer still has its record padding to send, which is
-    # an EPIPE and a "tar: Write error" on stderr - and pipefail is off here,
-    # so only the reader's status was ever checked
+    # marker while a GNU writer still has record padding to send, which is an
+    # EPIPE and a "tar: Write error" on stderr
     tar cf "$stage/in.tar" -h ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
     tar xf "$stage/in.tar" -C "$stage" || exit 1
     rm -f "$stage/in.tar"
     _hi_strip_awk >"$stage/strip.awk"
-    # one awk over every file. GLOSSARY: HI.09
-    # strip.awk itself sits at $stage and matches no name above, so a stage
-    # rooted there does not feed the stripper its own script.
+    # one awk over every file (GLOSSARY: HI.09); strip.awk sits at $stage and
+    # matches no name above, so the stripper never eats its own script
     find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
-    # `mv`, not scripts/lib.sh's _hi_write_back. That helper writes *through* the
-    # existing inode to keep hardlinks and ACLs on a real destination
-    # (GLOSSARY: HI.09) and costs a stat, a cat, a chmod and an rm per file;
-    # here the destination is a tree tar just unpacked into a mktemp -d, where
-    # nothing links to it and only the executable bit has to survive - hi.sh
-    # must stay 0755 for the relay. So: note which files were executable
-    # (a builtin test, no fork), rename, and restore the bit in one chmod.
+    # `mv`, not scripts/lib.sh's _hi_write_back: that one writes through the
+    # existing inode to keep hardlinks and ACLs (GLOSSARY: HI.09) at four
+    # processes a file, and here nothing links to a tree just unpacked into a
+    # mktemp -d. Only the executable bit has to survive - hi.sh must stay 0755
+    # for the relay - so note it, rename, and restore it in one chmod.
     local -a _hi_st_exec=()
     while IFS= read -r f; do
       [ -x "${f%.strip}" ] && _hi_st_exec+=("${f%.strip}")
@@ -275,12 +242,11 @@ function _hi_stage_tar() {
 }
 
 # _hi_overlay_tar [file...] - the overlay archive over the given members, or
-# over _hi_overlay_files when called bare; nothing at all when there are none.
-# Comment-stripped through a staging copy the way the payload is (the same
-# strip.awk, GLOSSARY: HI.35): the overlay is the user's prose-heavy files - a
-# seeded default is mostly header - and every byte rides each connect. The
-# first tar's -h is what resolves a dotfile manager's symlinks into content,
-# as before; the final tar names the members, so strip.awk itself never ships.
+# over _hi_overlay_files when called bare; nothing when there are none.
+# Comment-stripped through a staging copy like the payload (GLOSSARY: HI.35):
+# the overlay is the user's prose-heavy files and every byte rides each
+# connect. The first tar's -h resolves a dotfile manager's symlinks into
+# content; the final tar names the members, so strip.awk never ships.
 function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
@@ -289,43 +255,28 @@ function _hi_overlay_tar() {
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
 
-_HI_NL="
-"
-
-# _hi_cksum <string> - cksum's checksum field alone. `${k%% *}` rather than a
-# `cut`, which was a second process per key and there are three keys a connect.
+# cksum's checksum field alone; `${k%% *}` rather than a `cut`, which was a
+# second process per key and there are three keys a connect.
 function _hi_cksum() {
   local _hi_ck
   _hi_ck="$(printf '%s' "$1" | cksum)"
   printf '%s' "${_hi_ck%% *}"
 }
 
-# _hi_overlay_cache_key <file...> - one line identifying everything that
-# changes what _hi_overlay_tar would produce for exactly this member list
-# without touching a single overlay file's mtime: the list itself (a toggle
-# trimming a member changes it). Its own cksum, not the string itself, keeps
-# the cache filename short.
+# What changes an overlay tar without touching any member's mtime: the member
+# list itself. Cksummed, not spelled out, to keep the cache filename short.
 function _hi_overlay_cache_key() {
   _hi_cksum "$*"
 }
 
-# _hi_overlay_cached <outvar> <file...> - a warm gzipped tar for exactly
-# these overlay members, rebuilt when missing, stale (a member's mtime past
-# the cache's own) or _HI_PAYLOAD_CACHE=0. Written whole under a temp name and
-# `mv`d into place, so a mid-build reader never sees a half-written cache -
-# the same discipline common/targets.sh's own cache writer uses. Fails
-# (nothing in <outvar>) when there is no runtime directory or no member at
-# all; the caller falls back to building fresh either way.
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
-# callers. Rebuilt when it is missing, when any <watch> file is newer than it,
-# or when _HI_PAYLOAD_CACHE=0; written whole under a temp name and mv'd into
-# place, so a concurrent reader sees the old file or the new one and never a
-# half-written archive - the discipline common/targets.sh's completion cache
-# uses for the same reason. rc 1 means "no cache, build it yourself".
+# callers. Rebuilt when missing, when any <watch> is newer than it, or when
+# _HI_PAYLOAD_CACHE=0; written under a temp name and mv'd into place, so a
+# concurrent reader sees the old file or the new one and never a half-written
+# archive. rc 1 means "no cache, build it yourself".
 #
-# Prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` or `dir` would
-# shadow a caller's outvar of the same name - the two streams below each have
-# one called `cache` - and the printf -v would never leave this function.
+# Prefixed locals throughout (GLOSSARY: HI.04): a plain `cache` would shadow a
+# caller's outvar and the printf -v would never leave this function.
 function _hi_cached() {
   local _hi_c_outvar="$1" _hi_c_tag="$2" _hi_c_key="$3" _hi_c_pre="$4" _hi_c_build="$5"
   shift 5
@@ -348,6 +299,8 @@ function _hi_cached() {
   printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
 }
 
+# _hi_cached over exactly these overlay members, keyed on the list. Fails when
+# there is no member at all, on top of _hi_cached's own refusals.
 function _hi_overlay_cached() {
   local _hi_oc_outvar="$1"
   shift
@@ -356,32 +309,35 @@ function _hi_overlay_cached() {
     "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"
 }
 
-# _hi_payload_tar takes no arguments - the roster is its own - but it is
-# handed one anyway: the member list is what _hi_cached watches for staleness,
-# and passing it through keeps the builder and the watch list one statement.
+# The tree twin, against the ~70-130ms _hi_payload_tar otherwise costs on
+# every connect. _hi_payload_tar takes no arguments - the roster is its own -
+# but is handed one anyway: that list is what _hi_cached watches for staleness.
 function _hi_payload_cached() {
   _hi_cached "$1" payload tree \
     "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
 
-# _hi_overlay_stream <file...> - the overlay's armored `tar mxzf` line for
-# these members, through the cache when it's warm and clean, built fresh
-# otherwise. Kept apart from _say_hi so the branch that uses it reads as one
-# call regardless of which path answered.
-function _hi_overlay_stream() {
-  local cache=""
-  if _hi_overlay_cached cache "$@"; then
-    _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"' <"$cache"
+# The overlay tar on stdout: the cache when warm and clean, a fresh build
+# otherwise. An if/else and not `cat && || tar`, which would emit both halves
+# if the cat died partway through. Prefixed local: GLOSSARY: HI.04.
+function _hi_overlay_bytes() {
+  local _hi_ob_cache=""
+  if _hi_overlay_cached _hi_ob_cache "$@"; then
+    cat "$_hi_ob_cache"
   else
-    _hi_overlay_tar "$@" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"'
+    _hi_overlay_tar "$@"
   fi
 }
 
-# The comment stripper every shell file - and the settings/flags data files,
-# whose prose headers are for the *installed* copy a user reads, not the wire
-# - takes on its way into the payload. vim.rc's comment character is `"`; the
-# `#` rule already covers the rest of the data files.
-# GLOSSARY: HI.35 - the three rules, and why their order is the whole argument
+# _hi_overlay_bytes armored into the line that unpacks it on the target.
+function _hi_overlay_stream() {
+  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"'
+}
+
+# The comment stripper every payload file goes through: their prose headers
+# are for the installed copy a user reads, not the wire. vim.rc's comment
+# character is `"`; `#` covers the rest.
+# GLOSSARY: HI.35 - the three rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
 FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/) }
@@ -411,20 +367,17 @@ tag != "" {
 AWK
 }
 
-# _hi_require <tool> <why> - the tool, or a refusal that names it. Every
-# transport needs a handful of binaries that a stripped-down client may not
-# have, and "hi: requires tar on [box] ..." is the difference between a
-# session that says what is missing and one that prints line numbers.
+# _hi_require <tool> <why> - the tool, or a refusal that names it: the
+# difference between a session that says what is missing and one that prints
+# line numbers from a stripped-down client.
 function _hi_require() {
   command -v "$1" >/dev/null 2>&1 && return 0
   _hi_fail "hi: requires $1 on [$(_hi_hostname)] $2, but it is not installed. Aborting..."
   return 1
 }
 
-# _hi_fail <msg> - <msg> in red on stderr, and a mark that hi already said its
-# piece: _hi's end-of-connect report reads $_HI_SAID to tell "the transport
-# failed silently" from "hi already printed the reason", so a failure is never
-# announced twice.
+# <msg> in red on stderr, and a mark that hi already said its piece: _hi's
+# end-of-connect report reads $_HI_SAID so a failure is never announced twice.
 function _hi_fail() {
   _hi_cecho "$1" "$BRRED" >&2
   _HI_SAID=1
@@ -438,15 +391,8 @@ function _hi_payload_tar() {
   _hi_stage_tar "$_HI_HOME" say-hi
 }
 
-# _hi_payload_cached <outvar> - _hi_overlay_cached's tree twin: a warm
-# gzipped tar for today's tree, rebuilt when missing, stale (a payload
-# source file's mtime past the cache's own) or _HI_PAYLOAD_CACHE=0.
-# Same temp-file-and-mv as the overlay cache. Measured against the ~70-130ms
-# _hi_payload_tar otherwise costs on every single connect: the staleness
-# check alone is single-digit milliseconds.
-
-# _hi_payload_stream - _hi_overlay_stream's tree twin: the armored payload
-# tar, through the cache when it's warm and clean, built fresh otherwise.
+# The tree twin of _hi_overlay_stream: the armored payload tar, through the
+# cache when it is warm and clean.
 function _hi_payload_stream() {
   local cache=""
   if _hi_payload_cached cache; then
@@ -457,42 +403,43 @@ function _hi_payload_stream() {
 }
 
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
-# Literal entries only: a `Host *` block would otherwise claim every
-# container, allocation and pod name for ssh (completion skips wildcards the
-# same way). The unmemoized walk, since the memo holds the wildcard-aware
-# answer the tag colors want.
+# Literal entries only, or a `Host *` block would claim every container,
+# allocation and pod name for ssh. Unmemoized: the memo holds the
+# wildcard-aware answer the tag colors want.
 function _hi_is_ssh_host() {
   local rc=0
   _HI_SSH_LITERAL_ONLY=1 _hi_ssh_host_tag_walk "$1" >/dev/null 2>&1 || rc=$?
   [ "$rc" -ne 1 ]
 }
 
-# _hi_probe (core.sh) bounds the daemon round trip: _hi_resolve_backend fans
-# these four out and waits on all of them, so one downed daemon or a kubectl
-# pointed at a dead cluster would otherwise stall every connect with no cap.
-function _hi_is_container_running() {
+# _hi_probe_is <want> <cli> <args...> - the shape every liveness predicate
+# below shares, so the roster cannot grow a member that forgets the
+# `command -v` guard or the muted stderr. core.sh's _hi_probe bounds the
+# daemon round trip: _hi_resolve_backend waits on all four, so one downed
+# daemon would otherwise stall every connect with no cap.
+function _hi_probe_is() {
+  local want="$1"
+  shift
   command -v "$1" >/dev/null 2>&1 &&
-    [ "$(_hi_probe "$1" container inspect -f '{{.State.Running}}' "$2" 2>/dev/null)" = true ]
+    [ "$(_hi_probe "$@" 2>/dev/null)" = "$want" ]
 }
 
-# _hi_is_family_container <cli> <name> - the predicate every member of the
-# docker-compatible family shares (GLOSSARY: HI.51); the compose alias is
-# docker's alone. The roster below wraps it once per member, because a row's
-# predicate column is one word _hi_resolve_backend runs with the target as
-# its only argument.
+function _hi_is_container_running() {
+  _hi_probe_is true "$1" container inspect -f '{{.State.Running}}' "$2"
+}
+
+# The predicate every member of the docker-compatible family shares
+# (GLOSSARY: HI.51). The roster wraps it once per member, since a predicate
+# column is one word run with the target as its only argument.
 function _hi_is_family_container() {
   local _hi_fc
   _hi_container_target "$1" "$2" _hi_fc
 }
 
-# _hi_container_target <cli> <name> <outvar> - the container to exec into for
-# this typed target: <name> itself when it is running, else whatever the CLI's
-# alias mechanism resolves it to. rc 1 when neither answers.
-#
-# One place for "docker, uniquely, can resolve a compose service name" - the
-# detector above and _hi_container_cmds below each owned half of that fact and
-# each spelled the `[ "$1" = docker ]` arm out, so a second family member that
-# grew an alias mechanism needed both edits. GLOSSARY: HI.43, HI.51.
+# _hi_container_target <cli> <name> <outvar> - the container to exec into:
+# <name> itself when it is running, else whatever the CLI's alias mechanism
+# resolves it to; rc 1 when neither answers. The one place for "docker,
+# uniquely, resolves a compose service name". GLOSSARY: HI.43, HI.51.
 function _hi_container_target() {
   if _hi_is_container_running "$1" "$2"; then
     printf -v "$3" '%s' "$2"
@@ -512,22 +459,24 @@ function _hi_compose_container() {
   matches="$(_hi_probe docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Names}}' 2>/dev/null)"
   [ -n "$matches" ] || return 1
   # one line and not none - a `wc -l` here was two processes for a glob test
-  case "$matches" in *"$_HI_NL"*) return 1 ;; esac
+  case "$matches" in *$'\n'*) return 1 ;; esac
   printf '%s\n' "$matches"
 }
 
-# _hi_outer / _hi_inner <target> - the where and the what of `pod/container`
-# and `alloc/task`; docker and podman names are taken whole. GLOSSARY: HI.43
-function _hi_outer() { printf '%s' "${1%%/*}"; }
+# _hi_outer / _hi_inner <target> [outvar] - the where and the what of
+# `pod/container` and `alloc/task`; docker and podman names are taken whole.
+# GLOSSARY: HI.43. [outvar] because the bodies are pure parameter expansion,
+# so a $( ) was a fork for a value the shell already had (GLOSSARY: HI.05).
+function _hi_outer() { _hi_out "${2:-}" "${1%%/*}"; }
 function _hi_inner() {
   case "$1" in
-  */*) printf '%s' "${1#*/}" ;;
+  */*) _hi_out "${2:-}" "${1#*/}" ;;
+  *) _hi_out "${2:-}" "" ;;
   esac
 }
 
 function _hi_is_nomad_alloc() {
-  command -v nomad >/dev/null 2>&1 &&
-    [ "$(_hi_probe nomad alloc status -t '{{.ClientStatus}}' "$(_hi_outer "$1")" 2>/dev/null)" = running ]
+  _hi_probe_is running nomad alloc status -t '{{.ClientStatus}}' "${1%%/*}"
 }
 
 # _hi_kube_split <target> - `[[context:]namespace:]pod[/container]` into
@@ -553,19 +502,16 @@ function _hi_kube_split() {
 
 # resolves on the pod half; kubectl checks the container half at session time
 function _hi_is_k8s_pod() {
-  command -v kubectl >/dev/null 2>&1 || return 1
   _hi_kube_split "$1"
-  [ "$(_hi_probe kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} get pod "$_HI_K_POD" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]
+  _hi_probe_is Running kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} \
+    get pod "$_HI_K_POD" -o jsonpath='{.status.phase}'
 }
 
 # The backend roster, in resolution order:
 # "<name>|<what a target resolves as>|<liveness probe>|<predicate>". One list
-# for _hi's dispatch and scripts/doctor.sh's report. The family rows come
-# from $_HI_CONTAINER_CLIS (core.sh has sourced settings.sh by now), each with
-# a generated one-word predicate; the `eval` is why a member has to be a plain
-# identifier, which scripts/configure.sh's validator enforces. Absent members
-# cost one background subshell per `hi <target>` in _hi_resolve_backend and
-# nothing on TAB.
+# for _hi's dispatch and scripts/doctor.sh's report. The family rows come from
+# $_HI_CONTAINER_CLIS, each with a generated one-word predicate; the `eval` is
+# why a member has to be a plain identifier, which configure.sh enforces.
 _HI_BACKENDS=()
 for _hi_cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
   eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $_hi_cli \"\$1\"; }"
@@ -577,12 +523,10 @@ _HI_BACKENDS+=(
   "kube|kubernetes pod|kubectl get pods -o name|_hi_is_k8s_pod"
 )
 
-# _hi_use_backend <backend> - the arm name for `--use <backend>`, or a message and
-# failure: "ssh" or any roster name hi was loaded with, never a bare word (a
-# typo would otherwise force an arm nothing can run). The one way to force an
-# arm: reading the roster rather than a per-backend flag row means a backend
-# added to $_HI_BACKENDS (or a CLI added to $_HI_CONTAINER_CLIS) is reachable
-# with no second spelling anywhere.
+# _hi_use_backend <backend> - the arm name for `--use <backend>`, or a message
+# and failure: "ssh" or a roster name, never a bare word, since a typo would
+# force an arm nothing can run. Read off the roster, so a backend added there
+# is reachable with no second spelling anywhere.
 function _hi_use_backend() {
   local row names="ssh"
   [ "$1" = ssh ] && printf 'ssh' && return 0
@@ -605,50 +549,37 @@ function _hi_ssh_sh() {
 
 # _hi_ctl_open <run-persist-secs> <run|shared> [ssh-opts...] - a ControlMaster
 # socket into the caller's ctl_dir/ctl_path/ctl_opts/ctl_shared, so the
-# install probe and the session that follows multiplex one authentication;
-# _hi_ctl_close tears it down - except a shared one, which outlives the call
-# on purpose.
+# install probe and the session multiplex one authentication. _hi_ctl_close
+# tears it down, except a shared one, which outlives the call on purpose.
 #
-# `run` is always a fresh socket, matching the shape this function had before
-# persistence existed: it lives *inside* a `mktemp -d` (0700) rather than at a
-# `mktemp -u` name in a shared $TMPDIR (`mktemp -u` only promises the name was
-# free when it was printed, and `ControlMaster=auto` *joins* an existing
-# socket at that path rather than refusing it), and _hi_ctl_close removes it.
-# scripts/doctor.sh asks for `run` on purpose - a diagnostic should never
-# leave a socket behind.
+# `run` is always a fresh socket, *inside* a `mktemp -d` (0700) rather than at
+# a `mktemp -u` name: that only promises the name was free when printed, and
+# `ControlMaster=auto` joins an existing socket rather than refusing it.
+# doctor.sh asks for `run` - a diagnostic should leave no socket behind.
 #
-# `shared` additionally tries a stable per-(target, ssh-args) socket under
-# _hi_runtime_dir, so a second `hi <target>` within $_HI_CTL_PERSIST seconds
-# reuses the still-authenticated connection instead of paying a fresh key
-# exchange - the biggest single cost `hi <target>` pays over plain `ssh` with
-# a warm ControlMaster of its own. _HI_CTL_PERSIST=0, or a runtime directory
-# hi cannot vouch for, both fall back to `run`'s fresh-socket behaviour, same
-# as a host with no writable temp directory always got: ctl_opts stays empty,
-# ssh authenticates twice, everything still works.
+# `shared` tries a stable per-(target, ssh-args) socket under _hi_runtime_dir,
+# so a second `hi <target>` within $_HI_CTL_PERSIST seconds skips a fresh key
+# exchange - the biggest cost `hi` pays over plain ssh. _HI_CTL_PERSIST=0 or a
+# runtime directory hi cannot vouch for both fall back to `run`.
 #
-# "/s" for `run`, "hi.ctl.<key>" for `shared` - never a second random
-# component or a 40-hex `%C`: ControlPath goes into a sockaddr_un, capped
-# near 104 bytes, and macOS's per-user $TMPDIR already spends ~50 of them.
-# <key> is a cksum of $DOMAIN and $SSHARGS, not the text itself, for the same
-# reason - and so that a `-p`/`-l`/`-o` naming a different connection to the
-# same target gets its own socket rather than joining the wrong one.
+# "/s" and "hi.ctl.<key>", never a second random component or a 40-hex `%C`:
+# ControlPath goes into a sockaddr_un capped near 104 bytes, and macOS's
+# per-user $TMPDIR already spends ~50. <key> is a cksum of $DOMAIN and
+# $SSHARGS, so a `-p`/`-l`/`-o` naming a different connection to the same
+# target gets its own socket rather than joining the wrong one.
 function _hi_ctl_open() {
-  local persist="$1" scope="$2" dir key
+  local persist="$1" scope="$2" dir key words
   shift 2
   ctl_dir=""
   ctl_path=""
   ctl_opts=()
   ctl_shared=0
-  # No multiplexing at all from an MSYS/Cygwin client. ssh hands the session's
-  # file descriptors to the master over an AF_UNIX socket (SCM_RIGHTS), which
-  # that runtime does not carry: the master is reached and *then* the transfer
-  # fails ("mm_send_fd: sendmsg(2)", "mux_client_request_session: send fds
-  # failed"), so the connection dies rather than degrading to an ordinary one.
-  # Answered from $OSTYPE, which bash sets at build time - "msys" for both
-  # MSYS2 and Git Bash's MinGW - rather than forking `uname`.
-  #
-  # The result is the same state a host with nowhere to put a socket gets: no
-  # ctl_opts, ssh authenticates twice, everything still works.
+  # No multiplexing from an MSYS/Cygwin client: ssh passes the session's file
+  # descriptors to the master over SCM_RIGHTS, which that runtime does not
+  # carry, so the master is reached and *then* the transfer fails and the
+  # connection dies rather than degrading. Answered from $OSTYPE (bash sets it
+  # at build time, "msys" for both MSYS2 and Git Bash) rather than a `uname`
+  # fork. Lands in the same state as a host with nowhere to put a socket.
   case "${OSTYPE:-}" in
   msys* | cygwin*)
     ctl_opts+=("$@")
@@ -658,7 +589,10 @@ function _hi_ctl_open() {
   if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
-      key="$(_hi_cksum "$(printf '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"})")"
+      # printf -v, not a $( ): the joined words are a builtin away, and the
+      # capture around _hi_cksum is the only fork this key needs to cost
+      printf -v words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
+      key="$(_hi_cksum "$words")"
       ctl_path="$dir/hi.ctl.$key"
       ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
       ctl_shared=1
@@ -682,11 +616,10 @@ function _hi_ctl_close() {
 }
 
 # The sh script _hi_remote_root runs on the target: the path of a permanent
-# say-hi there, or nothing. Its own function so a suite can run it without an
-# ssh hop. GLOSSARY: HI.33 - the candidate order and the two ordered seds
+# say-hi there, or nothing. Its own function so a suite can run it with no ssh
+# hop. GLOSSARY: HI.33 - the candidate order and the two ordered seds
 function _hi_remote_root_probe() {
-  # core.sh's _HI_SHELL_TABLE home-rc column with the target's $HOME, plus the
-  # packaged snippet
+  # the home-rc column with the *target's* $HOME, plus the packaged snippet
   local rcs="" home_rc
   while IFS='|' read -r _ _ _ home_rc _; do
     rcs="$rcs \"\$HOME${home_rc#"$HOME"}\""
@@ -710,26 +643,20 @@ PROBE
 }
 
 # The sh script the first ssh call runs: check for base64, make a scratch
-# directory, take the bootloader off stdin, and say where it went. Its own
-# function so a suite can assert on it without an ssh hop, the same reason
-# _hi_remote_root_probe is one.
+# directory, take the bootloader off stdin, say where it went. Its own
+# function so a suite can assert on it with no ssh hop.
 #
-# Every path in it is the *target's*. Nothing here interpolates a client-side
-# value, and that is the whole point: a client `mktemp -u -t` names a path in
-# the client's $TMPDIR and then asks the target to mkdir it - fine while both
-# are /tmp, and a session that silently falls through to the PowerShell branch
-# the moment the client has $TMPDIR set, which is every macOS login shell.
+# Every path in it is the *target's*, and nothing interpolates a client-side
+# value: a client `mktemp -u -t` would name a path in the *client's* $TMPDIR
+# and ask the target to mkdir it - fine while both are /tmp, and a silent fall
+# through to the PowerShell branch the moment the client has $TMPDIR set.
 #
-# The two ways it can fail once `sh` is running each say which in the exit
-# status - 64 for no base64, 65 for no scratch directory - so _say_hi can name
-# the reason and hand over the host's own session. The PowerShell notice is
-# for the other shape, where `sh` never ran at all - and telling the two apart
-# is why those two lines are `if`s rather than `|| exit N`: stock Windows
-# OpenSSH hands the command to cmd.exe, which cannot run `sh` but *does*
-# honour `||`, so a `|| exit 64` would have cmd itself exit 64 and hi call a
-# Windows box "a host with no base64". As an argument to `sh`, the `if` is
-# nothing cmd acts on, and what comes back is cmd's own "not recognized" -
-# non-zero with nothing on stdout. GLOSSARY: HI.19
+# The two failures say which in the exit status (64 no base64, 65 no scratch
+# directory) so _say_hi can name the reason. They are `if`s rather than
+# `|| exit N` because Windows OpenSSH hands the command to cmd.exe, which
+# cannot run `sh` but does honour `||` - so `|| exit 64` would have cmd itself
+# exit 64 and hi would call a Windows box "a host with no base64".
+# GLOSSARY: HI.19
 function _hi_boot_probe() {
   cat <<'PROBE'
 if ! command -v base64 >/dev/null 2>&1; then exit 64; fi
@@ -740,19 +667,14 @@ PROBE
 }
 
 # _hi_boot_why <status> <output> - why the boot probe left no scratch dir, as
-# a line naming $DOMAIN, or nothing. An empty $boot_tmp has four causes, and
-# only one of them is the host with no `sh` the PowerShell notice exists for.
-# Told apart by the write's status and what came back (GLOSSARY: HI.19): the
-# probe's own two codes; a path hi refused; and a *forced command* - sshd's
-# `ForceCommand`, or a `command=` on the key - which runs its own program
-# whatever the client asked, so `sh -c` never ran and the status and output
-# are that program's. A forced command that exits 0, or prints anything,
-# cannot be a host with no shell (cmd.exe and PowerShell both fail `sh`
-# non-zero and say so on stderr). Each of the three gets a line naming it
-# and the host's own session, which is what `ssh` would have given - and for
-# a forced command, the only session the host offers. One that exits
-# non-zero and prints nothing to stdout is indistinguishable from a missing
-# `sh`: nothing here, and the caller's PowerShell notice.
+# a line naming $DOMAIN, or nothing. Four causes, told apart by the write's
+# status and what came back (GLOSSARY: HI.19): the probe's own two codes; a
+# path hi refused; and a *forced command* (sshd's `ForceCommand`, or a
+# `command=` on the key), which runs its own program whatever the client
+# asked. A forced command that exits 0 or prints anything cannot be a host
+# with no shell, since cmd.exe and PowerShell both fail `sh` non-zero and say
+# so on stderr. One that exits non-zero printing nothing is indistinguishable
+# from a missing `sh`: nothing here, and the caller's PowerShell notice.
 function _hi_boot_why() {
   case "$2" in *HIBOOT:*)
     printf '%s\n' "[$DOMAIN] named a scratch directory hi will not use"
@@ -766,13 +688,12 @@ function _hi_boot_why() {
   esac
 }
 
-# A path the target reported, or nothing. What comes back from a target is
-# interpolated into a script run back on that same target, so it is refused
-# rather than escaped, on the bootstrap directory's rule: absolute, and free of
-# anything a double-quoted heredoc expands or closes on. A refusal takes the
-# disposable path, which trusts the target for nothing. A space is not hostile
-# - an install directory may carry one. Always returns 0: an empty answer is
-# the verdict, not an error.
+# A path the target reported, or nothing. It is interpolated into a script run
+# back on that same target, so it is refused rather than escaped: absolute,
+# and free of anything a double-quoted heredoc expands or closes on. A space is
+# not hostile - an install directory may carry one. A refusal takes the
+# disposable path, which trusts the target for nothing. An empty answer is the
+# verdict, not an error, so this always returns 0.
 function _hi_trusted_path() {
   case "$1" in
   /*) ;;
@@ -785,12 +706,11 @@ function _hi_trusted_path() {
 }
 
 # _hi_safe_path <path> <bracket-class> - <path> when it is absolute and built
-# only from the class's characters, nothing otherwise. The whitelist twin of
-# _hi_trusted_path's blacklist, for the scratch directories a target names:
-# the value is interpolated into commands run back on that target (`rm -rf`
-# among them), so it can only be a path mktemp just made, and anything that is
-# not one is refused rather than escaped. The class varies per caller; the
-# rule does not. Always returns 0: an empty answer is the verdict.
+# only from the class's characters, nothing otherwise: the whitelist twin of
+# _hi_trusted_path, for the scratch directories a target names. Those reach
+# commands run back on that target, `rm -rf` among them, so anything that is
+# not a path mktemp just made is refused. The class varies per caller, the
+# rule does not. An empty answer is the verdict, so this always returns 0.
 function _hi_safe_path() {
   case "$1" in
   /*) ;;
@@ -802,23 +722,17 @@ function _hi_safe_path() {
   printf '%s' "$1"
 }
 
-# Prints the path of a permanent say-hi on $DOMAIN, if any.
+# The path of a permanent say-hi on $DOMAIN, if any.
 #
-# stderr is deliberately *not* redirected. This is the first of the two calls,
-# so it is the one that opens the ControlMaster - which makes it the call that
-# carries the server's `Banner`, the "Permanently added ... to the list of known
-# hosts" line, and, on a host nobody has met before, the key fingerprint the
-# user is being asked to compare. ssh reads the yes/no answer from /dev/tty but
+# stderr is deliberately *not* redirected: this call opens the ControlMaster,
+# so it carries the server's `Banner`, the "Permanently added" line and, on an
+# unknown host, the key fingerprint. ssh reads the yes/no from /dev/tty but
 # prints the fingerprint to stderr, so silencing it left the prompt on screen
-# with the thing it is a prompt *about* thrown away - trust-on-first-use with
-# nothing to base the trust on. The probe's own noise on an odd target is the
-# price, and it is the cheaper of the two.
+# with the thing it is a prompt *about* thrown away.
 #
-# stdin *is* redirected (-n): this ssh runs before the session exists, and
-# without it anything typed or piped ahead - a user's type-ahead, a driver's
-# `hi_info` - is forwarded to the probe's `sh -c`, which never reads it, and
-# the session shell then waits on input that is already gone. The prompts
-# above come from /dev/tty, so -n costs them nothing.
+# stdin *is* redirected (-n): without it, anything typed or piped ahead goes
+# to the probe's `sh -c`, which never reads it, and the session shell then
+# waits on input that is already gone. The prompts come from /dev/tty.
 function _hi_remote_root() {
   local out
   out="$(_hi_ssh_sh "$(_hi_remote_root_probe)" \
@@ -829,12 +743,10 @@ function _hi_remote_root() {
 # GLOSSARY: HI.15
 function _hi_bootloader() {
   local clear=""
-  # The connect marker every arm prints on the way in (" <size>", or
-  # "-> local say-hi install", with no newline) is overwritten by the header's
-  # banner. A command replaces the header, so it clears the marker itself -
-  # a line-clear on a tty, a newline on a pipe, the same two shapes
-  # _hi_report_failure uses - or the command's first line of output lands
-  # glued to it.
+  # The connect marker every arm prints on the way in has no newline and is
+  # normally overwritten by the header's banner. A command replaces the
+  # header, so it clears the marker itself - a line-clear on a tty, a newline
+  # on a pipe - or its first line of output lands glued to it.
   [ -n "${CMDARG:-}" ] &&
     clear=$'[ -t 2 ] && printf \'\\r\\033[K\' >&2 || printf \'\\n\' >&2\n'
   cat <<EOF
@@ -851,7 +763,7 @@ function _hi_fallback_rc() {
   local t aliases_dir=""
   [ "${1:-}" = --aliases-only ] && aliases_dir="$2"
   printf 'export _HI_REMOTE_SESSION=1\n'
-  # core.sh's _HI_TOGGLES: an unset one under `set -u` breaks a bash-less target
+  # an unset toggle under `set -u` breaks a bash-less target
   for t in "${_HI_TOGGLES[@]}"; do
     [ "$t" = _HI_REMOTE_SESSION ] || printf 'export %s=0\n' "$t"
   done
@@ -867,20 +779,20 @@ function _hi_fallback_rc() {
     printf '. $_HI_ROOT/common/paths.sh 2>/dev/null\n. $_HI_ROOT/settings/aliases.sh 2>/dev/null\n'
   fi
   # no $CMDARG here: the two helpers below hand it to each shell the way that
-  # shell honours it (GLOSSARY: HI.23 - fish ignores an `exit` in -C)
+  # shell honours it (GLOSSARY: HI.23)
   return 0
 }
 
-# _hi_command_append <file-word> - the `hi <target> <cmd>` line, armored like
-# the rc, appended to <file-word> on the target; nothing without a command.
-# For sh and zsh, which read their rc to the end; fish takes the flag below.
+# The `hi <target> <cmd>` line, armored like the rc and appended to <file-word>
+# on the target. For sh and zsh, which read their rc to the end; fish takes the
+# flag below.
 function _hi_command_append() {
   [ -n "${CMDARG:-}" ] || return 0
   printf '%s\n' "$CMDARG" | _hi_armored_line '>>' "$1"
 }
 
-# _hi_command_fish_flag - ` -c '<cmd>'` for the fish arm, or nothing: fish runs
-# -c after -C and exits from it (GLOSSARY: HI.23). Quoted for the target's sh.
+# ` -c '<cmd>'` for the fish arm: fish runs -c after -C and exits from it
+# (GLOSSARY: HI.23). Quoted for the target's sh.
 function _hi_command_fish_flag() {
   local q
   [ -n "${CMDARG:-}" ] || return 0
@@ -889,7 +801,7 @@ function _hi_command_fish_flag() {
 }
 
 # The fallback-shell probe both transports interpolate: one sh loop over
-# $_HI_SHELL_LADDER running $1 ($_hi_s names the hit) at the first shell found.
+# $_HI_SHELL_LADDER running $1 at the first shell found ($_hi_s names the hit).
 function _hi_ladder_probe() {
   printf 'for _hi_s in %s; do command -v "$_hi_s" >/dev/null 2>&1 && { %s; break; }; done' \
     "$_HI_SHELL_LADDER" "$1"
@@ -905,13 +817,18 @@ function _hi_fallback_prompt() {
   host="${host//\$/\\\$}"
   host="${host//\`/\\\`}"
   host="${host//\"/\\\"}"
-  # _hi_color_escape already emits real escapes; only $NC is a literal to expand
+  # the outvar forms (GLOSSARY: HI.05): through $( ) each memo would be filled
+  # in a subshell and die there, and _hi_remote_suffix builds this on every
+  # connect, not just a bash-less one
+  local ue ce pe
+  _hi_user_escape ue
+  _hi_prompt_end BASH pe
+  _hi_color_escape_var ce "$(_hi_target_color)"
+  printf -v ce '%b' "$ce" # the _var form leaves `\e` literal
   printf -v nc '%b' "$NC"
   printf '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}")\n'
-  # shellcheck disable=SC2119 # stdout form on purpose
   printf 'PS1=" %s${_hi_u}%s@%s%s%s %s "\n' \
-    "$(_hi_user_escape)" "$nc" "$(_hi_color_escape "$(_hi_target_color)")" \
-    "$host" "$nc" "$(_hi_prompt_end BASH)"
+    "$ue" "$nc" "$ce" "$host" "$nc" "$pe"
 }
 
 function _hi_size() {
@@ -939,7 +856,10 @@ function _hi_wire_estimate() {
 }
 
 function _hi_file_bytes() {
-  wc -c <"$1" | tr -d ' '
+  # ${n// /} rather than a `tr` fork to strip BSD wc's padding
+  local n
+  n="$(wc -c <"$1")"
+  printf '%s' "${n// /}"
 }
 
 function _hi_human_bytes() {
@@ -966,9 +886,9 @@ function _hi_version() {
   fi
 }
 
-# _hi_version_line - what `hi --version` prints: the version, then which kind
-# of tree answered and where, since "checkout or package" is the next thing a
-# bug report asks. _hi_version alone is what rides the wire as _HI_RELEASE.
+# What `hi --version` prints: the version, then which kind of tree answered
+# and where - the next thing a bug report asks. _hi_version alone rides the
+# wire as _HI_RELEASE.
 function _hi_version_line() {
   local kind
   if [ -d "$_HI_ROOT/.git" ]; then
@@ -981,9 +901,9 @@ function _hi_version_line() {
   printf '%s (%s at %s)\n' "$(_hi_version)" "$kind" "$_HI_ROOT"
 }
 
-# _hi_env_each <printf-format> - _hi_session_env's NAME<TAB>value pairs through
-# <format>, name then value already quoted (`%s=%s`, never `%s="%s"`); one
-# loop for both transports. GLOSSARY: HI.40
+# _hi_session_env's pairs through <printf-format>, name then value already
+# quoted (`%s=%s`, never `%s="%s"`); one loop for both transports.
+# GLOSSARY: HI.40
 function _hi_env_each() {
   local n v q
   while IFS=$'\t' read -r n v; do
@@ -994,10 +914,10 @@ function _hi_env_each() {
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
-# no backtick or unescaped $( ) below, not even inside a comment. The TERM
-# case swaps an unknown TERM for xterm-256color when the target's terminfo
-# has no entry for it (GLOSSARY: HI.22) - noted here rather than in the
-# heredoc, whose every byte rides the wire on every connect.
+# no backtick or unescaped $( ) below, not even in a comment. The TERM case
+# swaps an unknown TERM for xterm-256color when the target's terminfo has no
+# entry for it (GLOSSARY: HI.22) - said here and not in the heredoc, whose
+# every byte rides the wire on every connect.
 function _hi_remote_preamble() {
   cat <<REMOTE
       _hi_now() { d=\$(date +%s.%N 2>/dev/null); case "\$d" in *N*|'') date +%s ;; *) printf '%s' "\$d" ;; esac; }
@@ -1022,27 +942,23 @@ $(_hi_env_each '      export %s=%s\n')
 REMOTE
 }
 
-# What both _say_hi branches need once their setup is done: report copy time,
-# then hand off to bash or to the best fallback shell. Expects \$_hi_rc_dir to
-# point at wherever hi.bashrc/.hi_fallback_rc lives.
-# GLOSSARY: HI.23 - the flag order, and fish's -C arm (its rc goes through -C
-# and the command through -c). The `*)` arm (sh/dash/ash) appends the prompt
-# there rather than in the shared rc, which also feeds fish (no PS1) and zsh
-# (a different \$ escape).
-# _hi_esc_pair <outvar-esc> <outvar-nc> - hi's yellow and the reset as real
-# escape bytes. These used to be two more names the script builders read out
-# of _say_hi's scope, which made them part of an unstated caller contract -
-# and _hi_wire_bytes, the other caller, never filled them, so the README's
-# wire figure was assembled with the colors missing. Derived from the palette,
-# with no caller input, so they are nobody's contract now.
+# hi's yellow and the reset as real escape bytes. Derived from the palette
+# with no caller input: these were two more names the script builders read out
+# of _say_hi's scope, and _hi_wire_bytes never filled them, so the README's
+# wire figure was assembled with the colors missing.
 function _hi_esc_pair() {
   printf -v "$1" '%b' "$YELLOW"
   printf -v "$2" '%b' "$NC"
 }
 
+# What both _say_hi branches need once their setup is done: report copy time,
+# then hand off to bash or to the best fallback shell. Expects \$_hi_rc_dir to
+# point at wherever hi.bashrc/.hi_fallback_rc lives. GLOSSARY: HI.23 - the flag
+# order and fish's -C arm. The `*)` arm (sh/dash/ash) appends the prompt there
+# rather than in the shared rc, which also feeds fish (no PS1) and zsh.
 function _hi_remote_suffix() {
-  # the target as typed, single-quoted here so the fallback line below can
-  # name it without the session carrying a variable for it
+  # single-quoted here so the fallback line can name the target without the
+  # session carrying a variable for it
   local target_q _hi_esc _hi_nc
   _hi_esc_pair _hi_esc _hi_nc
   _hi_shquote target_q "$DOMAIN"
@@ -1073,19 +989,14 @@ REMOTE
 }
 
 # The disposable-tree half of the script: unpack the armored streams into a
-# fresh /tmp root. Reads $size and the streams from its caller,
-# so _say_hi and _hi_wire_bytes assemble one shape rather than two kept in step.
+# fresh /tmp root. Reads $size and the streams from its caller, so _say_hi and
+# _hi_wire_bytes assemble one shape rather than two kept in step.
 #
-# The `trap ... exit` below is a backstop, not a second owner: load.sh's
-# clean_all is what actually knows how to undo everything hi did on the
-# target - this tree and $_HI_SESSION_RC_DIR (nested under $_HI_CLEANUP for
-# exactly this reason) - and it runs
-# on every normal exit and on an abrupt disconnect alike (SIGHUP, tested by
-# tests/targets/ssh_disconnect_test.sh). This trap exists for the one thing
-# clean_all cannot survive: bash killed by a signal nothing can trap. It only
-# ever needs to remove the tree, since $_HI_SESSION_RC_DIR lives inside
-# it - kept out of the heredoc itself, since every byte here rides the wire
-# on every connect.
+# The `trap ... exit` is a backstop, not a second owner: load.sh's clean_all
+# knows how to undo everything hi did on the target and runs on a normal exit
+# and an abrupt disconnect alike. This trap covers the one thing it cannot
+# survive - bash killed by a signal nothing can trap - and only has to remove
+# the tree, since $_HI_SESSION_RC_DIR nests inside it.
 function _hi_remote_middle() {
   local tmpl _hi_esc _hi_nc
   _hi_esc_pair _hi_esc _hi_nc
@@ -1115,25 +1026,18 @@ function _say_hi() {
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
-  # only this path armors (containers stream via their CLI); tar is every
-  # transport's floor, and both are asked here rather than at the pipeline
-  # that needs them - `tree="$(_hi_payload_tar | base64)"` takes the armor's
-  # status, so a refusal further in is swallowed and the session carries on to
-  # the next missing binary, printing a raw "command not found" per pipe
-  # stage and handing the target an empty archive.
+  # Asked here rather than at the pipeline that needs them: a
+  # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
+  # refusal further in is swallowed and the target gets an empty archive.
   _hi_require base64 "to reach an ssh target" || return 1
   _hi_require tar "to pack the payload" || return 1
 
-  # the overlay member list is local-only - it never depends on what the
-  # round trip below finds - so it is resolved once, up here, and reused by
-  # both the background warm and (on the disposable branch) the real stream
+  # local-only, so resolved once here and reused by the warm below and the
+  # real stream
   _hi_read_lines overlay < <(_hi_overlay_files)
 
-  # warm the payload/overlay cache while ssh #1 (the round trip below) is in
-  # flight: a cache miss's ~70-130ms build then costs nothing once the
-  # disposable branch needs it, and is wasted only when the target turns out
-  # to have a permanent install (below) - free either way, since the socket
-  # is already open for that round trip regardless
+  # warm the caches while the round trip below is in flight, so a miss's
+  # ~70-130ms build costs nothing once the disposable branch needs it
   (
     _hi_payload_cached _hi_warm
     ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
@@ -1146,7 +1050,6 @@ function _say_hi() {
   _hi_ctl_open 30 shared
   remote_root="$(_hi_remote_root "${ctl_opts[@]}")"
   remote_root="$(_hi_trusted_path "$remote_root")"
-  wait "$warm_bg" 2>/dev/null || true
 
   if [ -n "$remote_root" ]; then
     # $remote_root is always <home>/<tree>
@@ -1162,6 +1065,10 @@ function _say_hi() {
 REMOTE
     )"
   else
+    # only this branch reads what the warm built, so only this branch waits:
+    # the permanent-install arm above never sends that tar. The orphan
+    # finishes its own atomic mv after hi has moved on.
+    wait "$warm_bg" 2>/dev/null || true
     bootloader="$(_hi_bootloader | $_HI_ARMOR)"
     tree="$(_hi_payload_stream)"
     # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
@@ -1183,49 +1090,36 @@ $(_hi_remote_suffix)"
     script="${script//$_HI_SIZE_TOKEN/$size}"
   fi
 
-  # The bootloader rides stdin of the first of two calls on one connection; the
-  # write doubles as the POSIX-shell-and-base64 probe that selects the
-  # PowerShell fallback. GLOSSARY: HI.19 - the argv cap, and why two calls
-  # ...and this one keeps its stderr too: where the ControlMaster could not be
-  # opened above, this is the call that authenticates, so it inherits the same
-  # duty. A target with no POSIX shell says so in one line before the PowerShell
-  # branch announces itself, which reads better than a silent swap anyway.
+  # The bootloader rides stdin of the first of two calls on one connection,
+  # and the write doubles as the POSIX-shell-and-base64 probe that selects the
+  # PowerShell fallback. GLOSSARY: HI.19 - the argv cap, and why two calls.
+  # Keeps its stderr for _hi_remote_root's reason: where the ControlMaster
+  # could not be opened, this is the call that authenticates.
   #
-  # The *target* names the directory and prints it back, rather than a
-  # client-side `mktemp -u` naming a path in the **client's** $TMPDIR for the
-  # target to `mkdir`: on any client with $TMPDIR set - every macOS login
-  # shell, where it is /var/folders/../T - that path would not exist on a
-  # Linux target, the mkdir would fail, and the whole session would fall
-  # through to the PowerShell branch on a host that has bash, invisibly to CI
-  # (whose macOS job only ever connects to 127.0.0.1, where the path does
-  # exist). The container arm already gets this right ("a literal /tmp",
-  # below).
-  #
-  # `mktemp -d` also creates at 0700 itself, so no separate mkdir flag is
-  # needed for the mode. Six X exactly: busybox mktemp accepts no other count.
+  # The *target* names the directory and prints it back. A client-side
+  # `mktemp -u` would name a path in the **client's** $TMPDIR - on every macOS
+  # login shell, /var/folders/../T - which does not exist on a Linux target,
+  # so the whole session would fall through to the PowerShell branch on a host
+  # that has bash, invisibly to a CI job that only connects to 127.0.0.1.
   local boot_out boot_ec=0
   boot_out="$(printf '%s\n' "$script" | _hi_ssh_sh "$(_hi_boot_probe)" "${ctl_opts[@]}")" || boot_ec=$?
 
-  # Tagged rather than taken whole: a target whose sh writes anything of its own
-  # to stdout would otherwise prepend it to the path. Everything after the last
-  # marker, up to the newline.
+  # Tagged rather than taken whole: a target whose sh writes anything of its
+  # own to stdout would otherwise prepend it to the path.
   boot_tmp=""
   case "$boot_out" in *HIBOOT:*)
     boot_tmp="${boot_out##*HIBOOT:}"
     boot_tmp="${boot_tmp%%$'\n'*}"
     ;;
   esac
-  # ...and it is a string from the target being interpolated into a command run
-  # back on that target - _hi_safe_path's rule, drawn from the characters a
-  # temp path is built out of ("+" included: macOS's /var/folders names use it)
+  # a target string reaching a command run back on that target: _hi_safe_path's
+  # rule, over the characters a temp path is built from ("+" for macOS)
   boot_tmp="$(_hi_safe_path "$boot_tmp" 'A-Za-z0-9._/+-')"
 
-  # `-t` only when there is a terminal to ask for. ssh already declines to
-  # allocate a pty when stdin is not one, so this changes no behaviour - it
-  # just stops "Pseudo-terminal will not be allocated because stdin is not a
-  # terminal" landing in the stderr of every piped `hi <host> <cmd>`. The
-  # container arms have to make the same decision for a harder reason
-  # (_hi_container_cmds).
+  # `-t` only when there is a terminal to ask for. ssh already declines a pty
+  # when stdin is not one, so this only stops "Pseudo-terminal will not be
+  # allocated" landing in the stderr of every piped `hi <host> <cmd>`. The
+  # container arms make the same decision for a harder reason.
   local -a tflag=()
   [ -t 0 ] && tflag=(-t)
   # an empty $boot_tmp: _hi_boot_why names the cause it can, and the host
@@ -1233,10 +1127,8 @@ $(_hi_remote_suffix)"
   local why=""
   [ -n "$boot_tmp" ] || why="$(_hi_boot_why "$boot_ec" "$boot_out")"
   if [ -n "$boot_tmp" ]; then
-    # the client's own leg of the connect banner's timing - $ct is our own
-    # _hi_elapsed digits-and-a-dot, never text a target sent back, so it is
-    # safe to interpolate straight into the command line (GLOSSARY: HI.19's
-    # neighbor rule, applied the other direction)
+    # $ct is our own _hi_elapsed digits-and-a-dot, never text a target sent
+    # back, so it interpolates straight into the command line
     ct="$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")"
     ssh ${tflag[@]+"${tflag[@]}"} "${ctl_opts[@]}" "${SSHARGS[@]}" "$DOMAIN" \
       "_HI_CONNECT_TIME=$ct sh \"$boot_tmp/bootloader\"; rm -rf \"$boot_tmp\"" || ec=$?
@@ -1260,17 +1152,14 @@ $(_hi_remote_suffix)"
 function _hi_container_cmds() {
   # the where/what halves (GLOSSARY: HI.43); $inner is empty for a plain target
   local outer inner
-  outer="$(_hi_outer "$DOMAIN")"
-  inner="$(_hi_inner "$DOMAIN")"
+  _hi_outer "$DOMAIN" outer
+  _hi_inner "$DOMAIN" inner
   local -a pick=()
-  # A tty only when there is one to hand over. `docker exec -it` with stdin on
-  # a pipe does not degrade - it refuses outright ("cannot attach stdin to a
-  # TTY-enabled container because stdin is not a terminal"), so
-  # `hi <container> <cmd> | ...` failed at the transport before the command
-  # ever ran. ssh -t merely warns and carries on, which is why only the
-  # container arms had this. The `-i`/`-it` split below is the same decision
-  # in each backend's spelling (nomad wants it explicit either way: its
-  # stdin-is-a-tty guess lands wrong on a wrapped pty and hangs the exec).
+  # A tty only when there is one to hand over. Unlike ssh -t, `docker exec -it`
+  # on a pipe refuses outright rather than degrading, so `hi <ctr> <cmd> | ...`
+  # failed at the transport before the command ran. The `-i`/`-it` split is the
+  # same decision in each backend's spelling; nomad wants it explicit either
+  # way, since its own guess hangs the exec on a wrapped pty.
   local it=-i nt=-t=false
   if [ -t 0 ]; then
     it=-it
@@ -1292,9 +1181,8 @@ function _hi_container_cmds() {
     attach=(kubectl ${_HI_K_ARGS[@]+"${_HI_K_ARGS[@]}"} exec "$it" "$_HI_K_POD" ${pick[@]+"${pick[@]}"} --)
     ;;
   *)
-    # the docker-compatible family (GLOSSARY: HI.51): the CLI is the arm's
-    # own name, and the grammar is docker's
-    # the literal name, or whatever the CLI's alias mechanism resolves it to
+    # the docker-compatible family (GLOSSARY: HI.51): the CLI is the arm's own
+    # name and the grammar is docker's
     local target="$DOMAIN"
     _hi_container_target "$1" "$DOMAIN" target || target="$DOMAIN"
     probe=("$1" exec "$target")
@@ -1304,34 +1192,29 @@ function _hi_container_cmds() {
   esac
 }
 
-# The client-side sweep of the scratch tree on every early exit and after the
-# session. Reads $root and the probe array from its caller's scope
-# (_say_hi_container's locals), the way _hi_remote_middle reads _say_hi's.
+# The sweep of the scratch tree on every early exit and after the session.
+# Reads $root and $probe from _say_hi_container, as _hi_remote_middle reads
+# _say_hi's locals.
 function _hi_container_cleanup() {
   "${probe[@]}" rm -rf "$root" >/dev/null 2>&1
   return 0
 }
 
-# _hi_container_abort <message> - every fatal arm of the ladder below, once:
-# say why, sweep the scratch tree off the target, fail. Spelled out at each
-# site before, and two of the five had quietly lost the sweep - the directory
-# exists from the moment the probe returns, so a bare `return 1` leaves it in
-# the container. The two arms that must *not* sweep (nothing created yet, or a
-# $root hi refused and must never rm -rf) stay written out.
+# Every fatal arm of the ladder below, once: say why, sweep the scratch tree,
+# fail. Spelled out per site before, and two of the five had quietly lost the
+# sweep. The two arms that must *not* sweep - nothing created yet, or a $root
+# hi refused and must never rm -rf - stay written out.
 function _hi_container_abort() {
   _hi_fail "$1"
   _hi_container_cleanup
   return 1
 }
 
-# _hi_container_fallback_shell [errlog] - the no-bash fallback, probed and
-# validated. The answer is a *word read back from the container* that gets
-# interpolated into an attach command, and the probe only ever echoes one of
-# $_HI_SHELL_LADDER's own names - so anything else means the answer did not
-# come from the probe (a busybox `echo` with a mind of its own, or a shell
-# that wrote something extra on the way past), and nothing is printed:
-# checked against the fixed list of right answers rather than sanitized.
-# Reads the probe array from its caller's scope.
+# The no-bash fallback, probed and validated. The answer is a word read back
+# from the container that reaches an attach command, and the probe only ever
+# echoes one of $_HI_SHELL_LADDER's own names - so it is checked against that
+# fixed list rather than sanitized, and anything else prints nothing.
+# Reads $probe from its caller.
 function _hi_container_fallback_shell() {
   local fallback
   fallback="$("${probe[@]}" sh -c "$(_hi_ladder_probe 'echo "$_hi_s"')" 2>"${1:-/dev/null}")"
@@ -1342,14 +1225,11 @@ function _hi_container_fallback_shell() {
 }
 
 # _hi_container_put <local-file> <target-path> - one local file onto the
-# target, proven to have landed rather than assumed from a zero exit: the
-# write can succeed at the transport and still deliver nothing, e.g. an
-# `exec -i` whose stdin closes before the target's cat drains it. $src has to
-# be a regular file, never a pipe - that race has only ever been seen on a
-# piped writer's stdin, not this shape's - so a caller building its content on
-# the fly stages it to a file first. Retried a few times rather than failing
-# on the first empty landing, since the race is transient. Reads cp/probe/tmp
-# from the caller's scope, as _hi_container_fallback_shell does above.
+# target, proven to have landed rather than assumed from a zero exit: an
+# `exec -i` whose stdin closes before the target's cat drains it succeeds at
+# the transport and delivers nothing. The race is transient, hence the retry,
+# and only ever seen on a piped writer's stdin - so $src is a regular file and
+# a caller stages its content first. Reads cp/probe/tmp from the caller.
 function _hi_container_put() {
   local src="$1" dest="$2" try
   # shellcheck disable=SC2034 # try only bounds the retry count, never read
@@ -1370,16 +1250,12 @@ function _say_hi_container() {
   _hi_require tar "to pack the payload" || return 1
   _hi_container_cmds "$label"
 
-  # The tree's parent is the *target's* `${TMPDIR:-/tmp}`, expanded on the
-  # target - the client's $TMPDIR has nothing to say about it - so a pod with
-  # a read-only root and an emptyDir wherever its $TMPDIR points still has
-  # somewhere to land. Mode 700 at creation and no -p, like the ssh path's
-  # boot_tmp: a directory that already exists is not adopted. The path comes
-  # back from the target and is interpolated into every command run there, so
-  # it is checked the way boot_tmp is - absolute, and drawn from the characters
-  # a temp path is built from - and refused rather than escaped. A target
-  # with nowhere writable says so here, naming the directory it tried, rather
-  # than at the copy with a message about the copy; --plain needs no tree.
+  # The parent is the *target's* `${TMPDIR:-/tmp}`, expanded there, so a pod
+  # with a read-only root and an emptyDir still has somewhere to land. Mode
+  # 700 and no -p, like the ssh path's boot_tmp: an existing directory is not
+  # adopted, and the path that comes back is checked the same way. A target
+  # with nowhere writable says so here, naming what it tried, rather than at
+  # the copy with a message about the copy.
   root="$("${probe[@]}" sh -c 'd="${TMPDIR:-/tmp}"; d="${d%/}/'"$(_hi_whoami).hi.log.$$"'"
 if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMPDIR:-/tmp}" >&2; exit 1; fi' 2>"$tmp")" || {
     _hi_fail " no writable temp directory ($(cat "$tmp")) in [$DOMAIN] - --plain needs none"
@@ -1410,12 +1286,9 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     fi
 
     # the shared fallback rc in its aliases-only shape, plus the POSIX prompt
-    # for the shells that can parse it - the ssh path's `*)` rule. Staged to a
-    # file rather than piped straight into _hi_container_put: its retry needs
-    # to replay the same bytes on a second try, which a pipe cannot do twice,
-    # and a regular-file $src is the shape the transport race doesn't hit -
-    # dropping $CMDARG along with the rest of the rc would otherwise leave a
-    # bare, uncommanded shell with no way to tell that from the ordinary kind
+    # for the shells that parse it - the ssh path's `*)` rule. Staged to a file
+    # because _hi_container_put's retry has to replay the same bytes, which a
+    # pipe cannot do twice.
     local -a fish_cmd=()
     {
       _hi_fallback_rc --aliases-only "$root"
@@ -1423,8 +1296,8 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
       zsh | fish) ;;
       *) _hi_fallback_prompt ;;
       esac
-      # the command last, for the shells that read the file to its end; fish
-      # takes it as -c below instead (GLOSSARY: HI.23)
+      # last, for the shells that read the file to its end; fish takes it as
+      # -c below instead (GLOSSARY: HI.23)
       [ "$fallback" = fish ] || [ -z "${CMDARG:-}" ] || printf '%s\n' "$CMDARG"
     } >"$rc_stage"
     if ! _hi_container_put "$rc_stage" "$root/.hi_fallback_rc"; then
@@ -1452,12 +1325,9 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     return $exit_code
   fi
 
-  # Staged to a file so the announced size is the one actually sent - and the
-  # cache already yields exactly that shape, so ask it first. The ssh arm has
-  # gone through _hi_payload_cached from the start; this arm was re-tarring,
-  # re-stripping and re-gzipping the whole tree on every single connect for no
-  # reason. $cached says whether the file is the cache's (leave it) or ours
-  # (delete it).
+  # Staged to a file so the announced size is the one actually sent, and asked
+  # of the cache first, which already holds that shape. $cached says whether
+  # the file is the cache's (leave it) or ours (delete it).
   local cached=1
   if ! _hi_payload_cached tarball; then
     cached=""
@@ -1468,8 +1338,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     fi
   fi
   size="$(_hi_human_bytes "$(_hi_file_bytes "$tarball")")"
-  # just the size, the way the ssh path's prefix reads
-  prefix=" $size"
+  prefix=" $size" # the shape the ssh path's prefix reads
   printf '%s' "$prefix" >&2
 
   if ! "${cp[@]}" sh -c "tar mxzf - -C '$root'" <"$tarball"; then
@@ -1480,27 +1349,17 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   [ -n "$cached" ] || rm -f "$tarball"
 
   _hi_read_lines overlay < <(_hi_overlay_files)
-  # from the cache when there is one, built fresh when there is not - an
-  # if/else and not `cat && || tar`, which would emit both halves if the cat
-  # died partway through
-  local ovl_cache=""
-  ((${#overlay[@]})) && _hi_overlay_cached ovl_cache "${overlay[@]}"
-  _hi_overlay_bytes() {
-    if [ -n "$ovl_cache" ]; then cat "$ovl_cache"; else _hi_overlay_tar "${overlay[@]}"; fi
-  }
   if ((${#overlay[@]})) &&
-    ! _hi_overlay_bytes |
+    ! _hi_overlay_bytes "${overlay[@]}" |
     "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar mxzf - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
   fi
 
-  # hi.sh rides the payload tar unpacked above, mode and all - no separate copy.
-  # Staged to a file and put through _hi_container_put like the fallback rc,
-  # not piped: the helper exists because a copy can succeed at the transport
-  # and deliver nothing, and its retry needs to replay the same bytes, which a
-  # pipe cannot do twice. An empty hi.bashrc is the worst failure this arm has
-  # - `bash --rcfile` below would start, source nothing, and hand over a bare
-  # shell with no error at all - so it is fatal rather than unchecked.
+  # hi.sh rides the payload tar unpacked above, mode and all - no separate
+  # copy. Staged and put like the fallback rc, for the same replay reason. An
+  # empty hi.bashrc is the worst failure this arm has - `bash --rcfile` would
+  # start, source nothing and hand over a bare shell with no error at all - so
+  # it is fatal rather than unchecked.
   _hi_bootloader >"$rc_stage"
   if ! _hi_container_put "$rc_stage" "$root/say-hi/hi.bashrc"; then
     rm -f "$rc_stage"
@@ -1509,47 +1368,40 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   fi
   rm -f "$rc_stage"
 
-  # `-i` explicitly, the way the ssh arm's _hi_remote_suffix has always spelled
-  # it. `--rcfile` is read by an *interactive* bash and nothing else, and until
-  # the tty became conditional above this line got its interactivity by
-  # accident: `docker exec -it` handed bash a terminal on stdin and stderr with
-  # no script argument, which is the other way bash decides it is interactive.
-  # Drop the tty for a piped `hi <container> <cmd>` and that inference goes with
-  # it - bash reads the (empty) pipe as a script, ignores the rcfile, never
-  # sources load.sh and never runs the command, and the caller gets a clean
-  # exit and no output.
+  # `-i` explicitly: `--rcfile` is read by an *interactive* bash and nothing
+  # else, and with a conditional tty that interactivity is no longer inferred
+  # from `exec -it`. Without it a piped `hi <container> <cmd>` reads the empty
+  # pipe as a script, ignores the rcfile, never sources load.sh and never runs
+  # the command - a clean exit and no output.
   #
   # _HI_CLEANUP marks the tree disposable for load.sh's clean_all, which owns
-  # undoing everything hi did here. The rm -rf below is a client-side
-  # backstop for the one thing clean_all cannot survive - bash killed by a
-  # signal nothing can trap - not a second place that has to know what to
-  # remove: $_HI_SESSION_RC_DIR nests under $_HI_CLEANUP, so this one `rm -rf`
-  # already covers it too.
+  # the teardown; $_HI_SESSION_RC_DIR nests under it, so the one `rm -rf`
+  # covers both.
   env_kv="$(_hi_env_each ' %s=%s')"
-  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$(_hi_now)")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$(_hi_now)")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
+  # one clock read for both legs: they are microseconds apart, and each
+  # _hi_now was a subshell and a `date` fork on the line before the attach
+  local now
+  now="$(_hi_now)"
+  "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
   exit_code=$?
 
   _hi_container_cleanup
   return $exit_code
 }
 
-# _say_hi_plain [ssh-opts...] - --plain over ssh: no bootstrap, no
-# local-install probe, no payload - just ssh handing over the target's own
-# login shell, the way it always would with no target-side config to try.
-# Needs nothing beyond sshd and a shell: no tar, no base64, no writable /tmp,
-# no $HOME. Also where _say_hi lands when the target refused its bootstrap,
-# which is when the ControlMaster options arrive in "$@".
+# --plain over ssh: no bootstrap, no install probe, no payload - just ssh
+# handing over the target's own login shell. Needs nothing beyond sshd and a
+# shell. Also where _say_hi lands when the target refused its bootstrap, which
+# is when the ControlMaster options arrive in "$@".
 function _say_hi_plain() {
   local -a tflag=()
   [ -t 0 ] && tflag=(-t)
   ssh ${tflag[@]+"${tflag[@]}"} "$@" "${SSHARGS[@]}" "$DOMAIN" ${RAWCMD:+"$RAWCMD"}
 }
 
-# _say_hi_container_plain <label> - --plain over a container backend: no
-# mkdir, no copy, straight into the best shell the target has - bash if a
-# read-only probe finds it, else the best of $_HI_SHELL_LADDER, else a bare
-# `sh`. _hi_container_cmds builds the same probe/attach the full path uses,
-# so the two can never disagree on how to reach the target.
+# --plain over a container backend: no mkdir, no copy, straight into the best
+# shell the target has. Built on the same _hi_container_cmds probe/attach as
+# the full path, so the two cannot disagree on how to reach the target.
 function _say_hi_container_plain() {
   local label="$1" shell
   local -a probe cp attach
@@ -1557,8 +1409,8 @@ function _say_hi_container_plain() {
   if "${probe[@]}" sh -c 'command -v bash' >/dev/null 2>&1; then
     shell=bash
   else
-    # a probe that answers nothing usable still gets a bare `sh` here - the
-    # full path refuses instead, since it has a payload at stake
+    # a bare `sh` when the probe answers nothing usable; the full path refuses
+    # instead, having a payload at stake
     shell="$(_hi_container_fallback_shell)"
     [ -n "$shell" ] || shell="sh"
   fi
@@ -1569,9 +1421,9 @@ function _say_hi_container_plain() {
   fi
 }
 
-# _hi_flag_takes <word> - the <argument> column of hi's flag <word> (-h/-V
-# stand for --help/--version): empty for a bare flag, status 1 when <word> is
-# not hi's. With the output dropped, the after-target guard's membership test.
+# The <argument> column of hi's flag <word> (-h/-V stand for their long
+# forms): empty for a bare flag, status 1 when <word> is not hi's. With the
+# output dropped, it is also the membership test.
 function _hi_flag_takes() {
   local row
   case "$1" in -h) set -- --help ;; -V) set -- --version ;; esac
@@ -1584,10 +1436,9 @@ function _hi_flag_takes() {
   return 1
 }
 
-# _hi_flag_word <outvar> <flag-word> [<next>...] - the word a flag takes,
-# joined (--use=docker) or as the next word (--use docker): status 2 when it
-# took <next> (the caller shifts once more), 1 for a bare flag with nothing
-# after it. printf -v, not a nameref: bash 3.2.
+# The word a flag takes, joined (--use=docker) or next (--use docker): status
+# 2 when it took <next> and the caller must shift again, 1 for a bare flag
+# with nothing after it. printf -v, not a nameref: bash 3.2.
 function _hi_flag_word() {
   printf -v "$1" ''
   case "$2" in
@@ -1600,12 +1451,10 @@ function _hi_flag_word() {
   esac
 }
 
-# _hi_parse_command <words...> - everything after the target is the remote
-# command: RAWCMD as typed, for --plain's direct ssh/exec (no bootloader to
-# embed them in, so no "; exit" to close a sourced script out with), and
-# CMDARG with that suffix for the bootloader. One of hi's own flags here is a
-# mistake worth naming: it belongs before the target, and would otherwise run
-# on the far end as a command nobody has.
+# Everything after the target is the remote command: RAWCMD as typed, for
+# --plain's direct ssh/exec, and CMDARG with a "; exit" suffix to close the
+# bootloader's sourced script out. One of hi's own flags here belongs before
+# the target and would otherwise run on the far end as a command nobody has.
 function _hi_parse_command() {
   if _hi_flag_takes "${1%%=*}" >/dev/null; then
     _hi_cecho "hi: $1 goes before the target (hi [options] <target> [command ...])" "$RED" >&2
@@ -1615,9 +1464,8 @@ function _hi_parse_command() {
   CMDARG="$*$([[ "$*" = *[![:space:]]* ]] && echo '; ') exit"
 }
 
-# _hi_only_word <flag> [more...] - --help and --version take nothing after
-# them: `hi --help extra` is a mistake worth naming, the way a stray word
-# after --preview <subject> or --update <tag> is
+# --help and --version take nothing after them: `hi --help extra` is a mistake
+# worth naming, the way a stray word after --preview <subject> is
 function _hi_only_word() {
   [ $# -le 1 ] || {
     _hi_cecho "hi: $1 takes no arguments (got: ${*:2})" "$RED" >&2
@@ -1627,9 +1475,8 @@ function _hi_only_word() {
 
 # split ssh's arguments from the target and any trailing remote command
 function _hi_parse() {
-  local backend_word use_word own=""
-  # every result of the parse starts empty here: these are plain globals, and
-  # an inherited MUX=1 or PLAIN=1 in the environment must not stand in for a
+  local backend_word use_word takes own=""
+  # plain globals, so an inherited MUX=1 or PLAIN=1 must not stand in for a
   # flag that was never typed
   DOMAIN="" BACKEND="" PLAIN="" MUX="" RAWCMD="" CMDARG=""
   SSHARGS=()
@@ -1657,14 +1504,11 @@ function _hi_parse() {
       case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
       exit 0
       ;;
-    # --use names the arm outright, ahead of the target - like any other ssh
-    # option. ssh itself takes no `--` option at all, so every `--word` is
-    # hi's to answer: the ones below, or an error in hi's own voice rather
-    # than ssh's "unknown option -- -".
+    # ssh takes no `--word` option at all, so every one is hi's to answer -
+    # the ones below, or an error in hi's own voice
     -*)
       if [ "${1%%=*}" = --use ]; then
-        # the one hi flag that takes a word: which arm, by name, as the next
-        # word or after an = (install.sh's --prefix and --preset take both)
+        # the arm by name, as the next word or after an =
         _hi_flag_word use_word "$@" || case $? in
         2) shift ;;
         *)
@@ -1688,12 +1532,12 @@ function _hi_parse() {
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
         SSHARGS+=("$1")
-      elif _hi_flag_takes "${1%%=*}" >/dev/null; then
-        # a bare flag with a value joined on (--plain=1) is one mistake; a
-        # local command (--doctor, --preview, ...) behind an ssh option is
-        # another - those are dispatched on the first word alone. Bare flags
-        # were matched above, so an empty column here is the joined case.
-        if [ -z "$(_hi_flag_takes "${1%%=*}")" ]; then
+      elif takes="$(_hi_flag_takes "${1%%=*}")"; then
+        # `--plain=1` is one mistake, a local command behind an ssh option is
+        # another - those dispatch on the first word alone. Bare flags matched
+        # above, so an empty column here is the joined case. One call, not two
+        # walks of the table.
+        if [ -z "$takes" ]; then
           _hi_cecho "hi: ${1%%=*} takes no value" "$RED" >&2
         else
           _hi_cecho "hi: $1 goes first on the line (hi ${1%%=*} ...)" "$RED" >&2
@@ -1713,41 +1557,35 @@ function _hi_parse() {
     shift
   done
   [ -n "${DOMAIN:-}" ] || {
-    # Bare `hi` - no target and no ssh option either - prints the help and
-    # stops. Any ssh option present and the old behaviour stands: `hi -V` has
-    # to go on being `ssh -V`, and an option without a host is ssh's error to
-    # report, not a target to guess at. Terminal or not: help is safe to print
-    # from a script, and nothing here can wait on input.
+    # Bare `hi` prints the help. With any ssh option present, ssh's behaviour
+    # stands: an option without a host is ssh's error to report, not a target
+    # to guess at.
     if [ "${#SSHARGS[@]}" -eq 0 ] && [ -z "$own" ]; then
       _hi_help
       exit 0
     fi
-    # hi's own flags with nothing to connect to (`hi --plain` in a script)
-    # are hi's mistake to name: ssh saw none of them and has nothing to say
+    # hi's own flags with nothing to connect to are hi's to name: ssh saw
+    # none of them and has nothing to say
     if [ -n "$own" ] && [ "${#SSHARGS[@]}" -eq 0 ]; then
       _hi_cecho "hi: no target to connect to (hi [options] <target> [command ...])" "$RED" >&2
       exit 1
     fi
-    # ssh's own status comes back as hi's - not an exec, so the exit hook
-    # still runs
+    # not an exec, so the exit hook still runs
     ssh "${SSHARGS[@]}"
     exit $?
   }
 }
 
-# `${!array[@]}`, not a counter kept in lockstep: the index is what pairs a row
-# with its pid. (bash 3.0+, not one of the bash-4 forms the lint suite greps.)
+# `${!array[@]}` pairs a row with its pid; bash 3.0, not a bash-4 form.
 function _hi_resolve_backend() {
   local target="$1" i
   local -a pids=()
   for i in "${!_HI_BACKENDS[@]}"; do
     # >/dev/null is what makes the early return below mean anything: the
-    # caller is `arm="$(_hi_select_arm)"`, and a backgrounded probe that keeps
-    # the substitution's stdout open holds the pipe until it exits - so the
-    # parent's read could not see EOF until the *slowest* probe finished, and
-    # a first match bought nothing. The predicates answer with their exit
-    # status alone, so nothing is lost by muting them. With one wedged daemon
-    # this was the full $_HI_PROBE_TIMEOUT on every connect.
+    # caller is `arm="$(_hi_select_arm)"`, and a backgrounded probe holding
+    # that substitution's stdout open would keep the parent from seeing EOF
+    # until the *slowest* probe finished. The predicates answer with their
+    # exit status alone, so nothing is lost by muting them.
     "${_HI_BACKENDS[i]##*|}" "$target" >/dev/null 2>&1 &
     pids+=("$!")
   done
@@ -1760,11 +1598,9 @@ function _hi_resolve_backend() {
   return 0
 }
 
-# _hi_select_arm - the arm $DOMAIN connects through: empty for ssh, one of
-# $_HI_BACKENDS' names otherwise. $BACKEND (a backend flag, set by _hi_parse)
-# wins outright and skips every probe below it - "ssh" means the empty arm,
-# same as an unforced ssh host. Its own function, apart from _hi, so a suite
-# can assert the choice without a real connect.
+# The arm $DOMAIN connects through: empty for ssh, else a roster name.
+# $BACKEND wins outright and skips every probe. Its own function so a suite
+# can assert the choice with no real connect.
 function _hi_select_arm() {
   if [ -n "${BACKEND:-}" ]; then
     [ "$BACKEND" = ssh ] || printf '%s' "$BACKEND"
@@ -1774,32 +1610,26 @@ function _hi_select_arm() {
   _hi_resolve_backend "$DOMAIN"
 }
 
-# _hi_reset_terminal <code> - what a dropped link leaves behind. ssh puts the
-# tty's termios back on its way out, but nothing restores the *terminal's*
-# modes a remote program switched on and never got to switch off: application
-# cursor keys, the keypad, bracketed paste, a pushed kitty keyboard mode, the
-# alternate screen, a hidden cursor - and the OSC 133 "command running" state
-# hi's own prompt marks leave a Konsole in (load.sh closes it on a clean exit;
-# a drop never reaches that line). Each byte here is a no-op on a terminal
-# already in its normal state, so the caller need not know which one applied.
-# `stty sane` is for the container arms, whose exec does not always restore
-# termios when the link goes. The caller checks for a terminal; this only
-# prints. GLOSSARY: HI.53
+# What a dropped link leaves behind. ssh restores the tty's termios, but not
+# the *terminal* modes a remote program switched on and never switched off -
+# application cursor keys, the keypad, bracketed paste, kitty keyboard mode,
+# the alternate screen, a hidden cursor - nor the OSC 133 "command running"
+# state hi's prompt marks leave a Konsole in, since a drop never reaches
+# load.sh's close. Every byte is a no-op on a terminal already normal, so the
+# caller need not know which applied; `stty sane` is for the container arms,
+# whose exec does not always restore termios. GLOSSARY: HI.53
 function _hi_reset_terminal() {
   printf '\033[?1l\033>\033[?2004l\033[<u\033[?1049l\033[?25h'
   [ "${_HI_DISABLE_MARKS:-0}" = 1 ] || printf '\033]133;D;%s\a' "$1"
   stty sane 2>/dev/null || true
 }
 
-# _hi_report_failure <code> <backend> <errlog> - what a failed connect says, at
-# most once. Three ways it says nothing at all, each because the failure was
-# already spoken for: $_HI_SAID means _hi_fail already printed the reason;
-# ssh reserves exit 255 for its own failures and prints them itself (the
-# comment above this function's caller explains why hi stopped wrapping the
-# whole connect to catch them again), so any other code from the ssh arm is
-# the session's or the remote command's own status - `hi host false` has to
-# stay as quiet as `ssh host false`; and an empty container errlog means
-# nothing hi ran on the way in complained, so the code is the session's too.
+# What a failed connect says, at most once. Three ways it says nothing, each
+# because the failure was already spoken for: $_HI_SAID means _hi_fail printed
+# the reason; ssh reserves 255 for its own failures, so any other code from
+# the ssh arm is the session's own status and `hi host false` stays as quiet
+# as `ssh host false`; and an empty container errlog means nothing hi ran on
+# the way in complained.
 function _hi_report_failure() {
   local code="$1" arm="$2" errlog="$3" errors
   [ "${_HI_SAID:-0}" != 1 ] || return 0
@@ -1809,9 +1639,8 @@ function _hi_report_failure() {
     [ "$code" -eq 255 ] || return 0
   fi
   errors="$(<"$errlog")"
-  # a real line-clear, not four bytes of \r: what this is clearing is the
-  # container arm's in-progress " <size>" (no trailing newline yet) - on a
-  # pipe there is no cursor to move, so a newline is the whole job instead
+  # clearing the container arm's in-progress " <size>", which has no newline
+  # yet; on a pipe there is no cursor to move, so a newline is the whole job
   if [ -t 2 ]; then
     printf '\r\033[K' >&2
   else
@@ -1821,10 +1650,8 @@ function _hi_report_failure() {
   [ -n "$errors" ] && _hi_cecho "$errors" "$BRRED" >&2
 }
 
-# _hi_mux_name <target> - the tmux session a target's wrapped session lives
-# in: `hi-` and the target, with every character tmux's session-name rules
-# reject (`:` and `.`) or that would read badly in a status line (`/`, `@`)
-# turned into `-`. A kube `ctx:ns:pod/ctr` becomes `hi-ctx-ns-pod-ctr`.
+# The session name for a target: every character tmux's rules reject, or that
+# reads badly in a status line, becomes `-`. `ctx:ns:pod/ctr` -> `hi-ctx-ns-pod-ctr`.
 function _hi_mux_name() {
   printf 'hi-%s' "${1//[^[:alnum:]_-]/-}"
 }
@@ -1845,9 +1672,8 @@ function _hi_mux_tool() {
   return 1
 }
 
-# _hi_kdl_quote <outvar> <word> - one KDL string, for a zellij layout: the
-# two characters KDL reads inside double quotes are the backslash and the quote
-# itself.
+# One KDL string, for a zellij layout: inside double quotes KDL reads only the
+# backslash and the quote itself.
 function _hi_kdl_quote() {
   local _hi_kq="$2"
   _hi_kq="${_hi_kq//\\/\\\\}"
@@ -1855,26 +1681,22 @@ function _hi_kdl_quote() {
   printf -v "$1" '"%s"' "$_hi_kq"
 }
 
-# _hi_mux_wrap - with --mux or _HI_MUX=1, re-run this connect inside a local
-# multiplexer session named for the target, and never return. A repeat is the
-# reattach: a second `hi --mux <target>` joins the session that is already
-# running instead of opening another. Everything here is client-side; the
-# target sees the same disposable session it always does.
-# GLOSSARY: HI.52 - the re-exec, its guard, the one-string command, the tools
+# With --mux or _HI_MUX=1, re-run this connect inside a local multiplexer
+# session named for the target and never return; a second `hi --mux <target>`
+# joins the one already running. All client-side - the target sees the same
+# session it always does. GLOSSARY: HI.52
 function _hi_mux_wrap() {
   local name tool cmd="" word q layout
   local -a inner=()
   [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
-  # the inner hi, already inside the session: connect as usual
-  [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0
+  [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0 # already inside: connect as usual
   _hi_mux_tool tool || return 0
   name="$(_hi_mux_name "$DOMAIN")"
-  # The inner argv is rebuilt from what _hi_parse settled on rather than
-  # replayed from "$@", so the target it settled on rides along. tmux
-  # and screen take it as one single-quoted string, not a word list: tmux
-  # hands it to its default-shell, which may be fish, and screen to `sh -c`,
-  # and single quotes are the one form every shell reads the same way (%q's
-  # $'...' is bash's alone). zellij takes the words themselves, in a layout.
+  # Rebuilt from what _hi_parse settled on, not replayed from "$@", so the
+  # resolved target rides along. tmux and screen take it as one single-quoted
+  # string: tmux hands it to its default-shell, which may be fish, and screen
+  # to `sh -c`, and single quotes are the one form every shell reads alike
+  # (%q's $'...' is bash's alone). zellij takes the words, in a layout.
   inner=(env _HI_MUX_INNER=1 "$_HI_LAUNCHER"
     ${BACKEND:+--use "$BACKEND"} ${PLAIN:+--plain}
     ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" ${RAWCMD:+"$RAWCMD"})
@@ -1899,8 +1721,7 @@ function _hi_mux_wrap() {
       screen -t "$name" sh -c "$cmd" || exit 1
       exit 0
     fi
-    # -D -R: reattach the session of that name if there is one (detaching it
-    # elsewhere first), else create it running the command
+    # -D -R: reattach that session, detaching it elsewhere first, else create it
     exec screen -D -R -S "$name" sh -c "$cmd"
     ;;
   zellij)
@@ -1943,26 +1764,21 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
-  # Primed here, in the shell that keeps them. Every production caller of
-  # these three reads them through $( ), so each memo was being filled in a
-  # subshell and dying with it - core.sh goes to some trouble to prime the
-  # identity pair for exactly this reason, and the script builders below ask
-  # six times between them. A bare call fills the variable; the subshells then
-  # inherit it. GLOSSARY: HI.05
+  # Primed in the shell that keeps them: every production caller reads these
+  # through $( ), so each memo was being filled in a subshell and dying there,
+  # and the script builders ask six times between them. GLOSSARY: HI.05
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   [ -z "${DOMAIN:-}" ] || _hi_target_color >/dev/null
-  # only with a terminal to attach: a piped `hi host cmd` keeps working, un-wrapped
+  # only with a terminal to attach: a piped `hi host cmd` keeps working
   if [ -t 0 ]; then _hi_mux_wrap; fi
-  # No `2>"$tmp"` around this block: wrapping the whole connect to reprint a
-  # failure in red at the end would also catch every word ssh says on a
-  # *successful* session - the server's `Banner` (the notice a regulated
-  # fleet is required to display), the "Permanently added" line, and the
-  # host-key fingerprint. Every backend probe already silences its own daemon
-  # chatter (_hi_is_container_running and friends), so that catch-all would be
-  # almost entirely the transport's noise, and the transport has the better
-  # claim on the terminal. $tmp is still handed to _say_hi_container, which
-  # redirects the individual commands whose noise is genuinely hi's.
+  # No `2>"$tmp"` around this block: catching a failure to reprint in red
+  # would also catch every word ssh says on a *successful* session - the
+  # server's `Banner`, the "Permanently added" line, the host-key fingerprint.
+  # The probes already silence their own daemon chatter, so that catch-all
+  # would be almost entirely the transport's noise, and the transport has the
+  # better claim on the terminal. $tmp still reaches _say_hi_container, which
+  # redirects the commands whose noise is genuinely hi's.
   arm="$(_hi_select_arm)"
   if [ "${PLAIN:-0}" = 1 ]; then
     if [ -n "$arm" ]; then
@@ -1977,30 +1793,29 @@ function _hi() {
   fi
   exit_code="$?"
 
-  # a session that did not end on its own terms may have left the terminal
-  # mid-state; only with a terminal on both ends to put right
-  [ "$exit_code" -eq 0 ] || { [ -t 0 ] && [ -t 1 ] && _hi_reset_terminal "$exit_code"; }
-
-  [ "$exit_code" -eq 0 ] || _hi_report_failure "$exit_code" "$arm" "$tmp"
+  if [ "$exit_code" -ne 0 ]; then
+    # a session that did not end on its own terms may have left the terminal
+    # mid-state; only with a terminal on both ends to put right
+    [ -t 0 ] && [ -t 1 ] && _hi_reset_terminal "$exit_code"
+    _hi_report_failure "$exit_code" "$arm" "$tmp"
+  fi
   exit "$exit_code"
 }
 
-# The scripts/ entry points, reached as `hi --flag`. The payload ships neither
-# scripts/ nor tests/, so on a target the file is absent and the flag has to
-# say which command wanted it; $_HI_NO_CHECKOUT (paths.sh) is that sentence.
+# The scripts/ entry points, reached as `hi --flag`. The payload ships no
+# scripts/, so on a target the file is absent and the flag says which command
+# wanted it - $_HI_NO_CHECKOUT is that sentence.
 function _hi_run_script() {
   local flag="$1" script="$2"
   shift 2
-  # the script's own usage line names what was typed - `hi --doctor`, not
-  # doctor.sh - when it is reached this way
+  # so the script's usage line names `hi --doctor`, not doctor.sh
   [ -f "$script" ] && _HI_ARGV0="hi $flag" exec "$script" "$@"
   _hi_cecho "hi $flag $_HI_NO_CHECKOUT" "$RED" >&2
   exit 1
 }
 
 # hi's flags, out of common/flags (its header has the row format): one table
-# for the dispatch here, --help's option lines and completion's roster. Rows
-# with a script var hand off; the rest have case arms below.
+# for the dispatch here, --help's option lines and completion's roster.
 _HI_FLAGS=()
 while IFS= read -r _hi_row || [ -n "$_hi_row" ]; do
   case "$_hi_row" in '#'* | '') continue ;; esac
@@ -2012,24 +1827,20 @@ unset _hi_row
 # the table names one; returns 1 otherwise. ${!var} is bash 2, not a bash-4 form.
 function _hi_dispatch_subcommand() {
   local row flag var arg
-  # Every row in common/flags is a `--word`, and _hi_parse hands any other
-  # `-word` to ssh - so a target name can never match one. Answered before the
-  # walk because this runs on every invocation, and each row costs a
-  # here-string: a temp file in $TMPDIR on the bash 3.2 floor.
+  # Every row is a `--word`, so a target name can never match one. Answered
+  # before the walk because this runs on every invocation and each row costs a
+  # here-string, which is a temp file on the bash 3.2 floor.
   case "${1:-}" in --*) ;; *) return 1 ;; esac
-  # `--update=v1.0.0` is `--update v1.0.0`: the joined word becomes the
-  # first argument, for every row alike
+  # `--update=v1.0.0` is `--update v1.0.0`, for every row alike
   local word="${1%%=*}" joined="" shape w prev positional
   [ "$word" = "$1" ] || joined="${1#*=}"
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag shape _ var arg _ <<<"$row"
     [ "$flag" = "$word" ] || continue
     [ -n "$var" ] || return 1
-    # The joined word stands for the row's first positional argument
-    # (--update=v1.0.0, --doctor=host). A row with none - only switches, and
-    # the <word> or {choice} each switch takes - has nothing for it to be, so
-    # --install=yes is refused here rather than reaching the script as a
-    # stray first argument it reports as an unknown option.
+    # The joined word stands for the row's first positional argument. A row
+    # with none has nothing for it to be, so --install=yes is refused here
+    # rather than reaching the script as a stray first argument.
     if [ -n "$joined" ]; then
       positional="" prev=""
       for w in ${shape//[][]/}; do
@@ -2050,11 +1861,9 @@ function _hi_dispatch_subcommand() {
   return 1
 }
 
-# _hi_flag_help <-|local> - the option lines of --help: `-` is what works
-# anywhere, `local` what needs a part of the tree the payload does not carry.
-# A label wider than the gutter gets its own line and the help below it, the
-# way GNU --help does, so the block fits 80 columns whatever the argument
-# column holds.
+# The option lines of --help: `-` is what works anywhere, `local` what needs a
+# part of the tree the payload does not carry. A label wider than the gutter
+# gets its own line, the way GNU --help does, so the block fits 80 columns.
 function _hi_flag_help() {
   local row flag arg needs help label
   for row in "${_HI_FLAGS[@]}"; do
@@ -2128,20 +1937,21 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 # sourcing this file defines its functions without connecting, for testing
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
-# hi's own flags, dispatched on $1 alone: _hi_parse hands every other -flag to
-# ssh, so anything hi answers itself is caught first. A bare `hi` prints the
-# help; `hi -V` and friends still reach ssh and behave as they do there.
+# hi's own flags, dispatched on $1 alone, since _hi_parse hands every other
+# -flag to ssh.
 _hi_dispatch_subcommand "$@"
 
 case "${1:-}" in
--h | --help)
+# -V is hi's, like -h: the one ssh short option claimed on purpose, since
+# "which version of hi is this" is what a bug report asks first and `ssh -V`
+# is a keystroke away. One arm, the way _hi_parse answers the pair.
+-h | --help | -V | --version)
   _hi_only_word "$@"
-  _hi_help
+  case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
   exit 0
   ;;
 # --preview <subject>: one scripts/preview.sh for all three, so it wants
 # scripts/ and says so in a session like the other local commands.
-# `--preview=<subject>` is the same flag with its word joined.
 --preview | --preview=*)
   _hi_flag_word _hi_subject "$@" || [ $? -ne 2 ] || shift
   shift
@@ -2170,14 +1980,6 @@ EOF
     exit 1
     ;;
   esac
-  ;;
-# -V is hi's, like -h: the one ssh short option claimed on purpose, because
-# "which version of hi is this" is the question a bug report asks first and
-# `ssh -V` is a keystroke away for the other one
--V | --version)
-  _hi_only_word "$@"
-  _hi_version_line
-  exit 0
   ;;
 esac
 

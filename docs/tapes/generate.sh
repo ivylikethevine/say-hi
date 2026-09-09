@@ -327,11 +327,28 @@ function gen_preflight() {
   return 0
 }
 
+# gen_log_errors <log> - the lines of a vhs log worth reading. A render that
+# fails with vhs exiting 0 ends with the tape's own echo and vhs's "Host your
+# GIF on vhs.charm.sh" hint, so `tail` is guaranteed to show the one part of
+# the log that never says why - six identical failures and not a word about
+# the cause. Grep for the shapes vhs and ffmpeg complain in instead, with the
+# line numbers, and fall back to the tail when nothing matches: a log that
+# names no error at all is itself the finding.
+function gen_log_errors() { # <log>
+  local hits
+  hits="$(grep -n -i -E 'error|cannot|can.t|no such|invalid|unable|fail|panic|not set|not found' "$1" 2>/dev/null | head -20)"
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/      /'
+  else
+    tail -20 "$1" | sed 's/^/      /'
+  fi
+}
+
 # One tape, start to finish. Returns non-zero only for a failed render: a tape
 # whose backend is missing stands down yellow, the same way the e2e suites do,
 # unless --require-run says otherwise.
 function gen_render() { # <name> <requires>
-  local name="$1" tape gif log stamp missing rc t0 secs size was
+  local name="$1" tape gif log stamp missing rc t0 secs size was why
   tape="docs/tapes/$name.tape"
   gif="docs/tapes/$name.gif"
   log="$_HI_GEN_SHIM/$name.log"
@@ -360,16 +377,23 @@ function gen_render() { # <name> <requires>
 
   if [ "$rc" -ne 0 ]; then
     gen_row "$name" FAILED "$RED" "vhs exited $rc after ${secs}s:"
-    tail -20 "$log" | sed 's/^/      /'
+    gen_log_errors "$log"
     _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
     return 1
   fi
   # vhs reports a Require failure on stderr and still exits 0 in some versions,
   # and a tape whose Output never fired leaves the committed GIF in place - both
-  # look like success from the exit status alone.
+  # look like success from the exit status alone. The two are different
+  # failures and said differently: nothing written at all is a renderer that
+  # never got to encode, a GIF left untouched is one whose Output did not fire.
   if [ ! "$gif" -nt "$stamp" ]; then
-    gen_row "$name" FAILED "$RED" "vhs exited 0 but $gif was not rewritten:"
-    tail -20 "$log" | sed 's/^/      /'
+    if [ -e "$gif" ]; then
+      why="left $gif untouched"
+    else
+      why="wrote no $gif at all"
+    fi
+    gen_row "$name" FAILED "$RED" "vhs exited 0 after ${secs}s but $why:"
+    gen_log_errors "$log"
     _HI_GEN_FAILED=$((_HI_GEN_FAILED + 1))
     return 1
   fi

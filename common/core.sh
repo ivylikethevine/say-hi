@@ -290,6 +290,15 @@ function _hi_repeat() {
   printf -v "$1" '%s' "${_hi_pad// /$3}"
 }
 
+# _hi_out <outvar> <value> - <value> into <outvar>, or on stdout when <outvar>
+# is empty: the tail of every "[outvar] or a $( )" helper in the tree
+# (GLOSSARY: HI.05), written once instead of once per helper. No locals at
+# all, so it can never shadow the name a caller asked it to fill
+# (GLOSSARY: HI.04).
+function _hi_out() {
+  if [ -n "$1" ]; then printf -v "$1" '%s' "$2"; else printf '%s' "$2"; fi
+}
+
 # The heading rules (_hi_hrule/_hi_h1/_hi_h2) and _hi_rewrite live in
 # scripts/lib.sh: they are tooling, and common/ ships in the ssh payload
 # under a size budget nothing a target runs should spend.
