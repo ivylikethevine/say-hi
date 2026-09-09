@@ -42,7 +42,7 @@ export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home
 # the tool's own config is already in force. Only the tool named reads its
-# variable, so neither needs an _HI_PROMPT gate. GLOSSARY: HI.32
+# variable, so neither needs an _HI_PROMPT_TOOL gate. GLOSSARY: HI.32
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/starship.toml" ] && export STARSHIP_CONFIG="$_HI_CONFIG_DIR/starship.toml"
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
 

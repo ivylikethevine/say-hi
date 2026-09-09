@@ -1784,23 +1784,22 @@ function _hi_dispatch_subcommand() {
   # here-string, which is a temp file on the bash 3.2 floor.
   case "${1:-}" in --*) ;; *) return 1 ;; esac
   # `--update=v1.0.0` is `--update v1.0.0`, for every row alike
-  local word="${1%%=*}" joined="" shape w prev positional
+  local word="${1%%=*}" joined="" shape w positional
   [ "$word" = "$1" ] || joined="${1#*=}"
   for row in "${_HI_FLAGS[@]}"; do
     IFS='|' read -r flag shape _ var arg _ <<<"$row"
     [ "$flag" = "$word" ] || continue
     [ -n "$var" ] || return 1
-    # The joined word stands for the row's first positional argument. A row
-    # with none has nothing for it to be, so --install=yes is refused here
-    # rather than reaching the script as a stray first argument.
+    # The joined word stands for the row's *first* argument, and only when
+    # that is a positional (--preview=colors, --update=v1.0.0). A row whose
+    # first argument is a switch has nothing for it to be: --install=yes is
+    # refused here rather than reaching the script as a stray first argument,
+    # and --doctor=json is an error rather than a host named json to probe.
     if [ -n "$joined" ]; then
-      positional="" prev=""
+      positional=""
       for w in ${shape//[][]/}; do
-        case "$w" in
-        --*) prev=1 ;;
-        '<'* | '{'*) [ -n "$prev" ] && prev="" || positional=1 ;;
-        *) positional=1 prev="" ;;
-        esac
+        case "$w" in --*) ;; *) positional=1 ;; esac
+        break
       done
       [ -n "$positional" ] || {
         _hi_cecho "hi: $word takes no joined value (hi $word${shape:+ $shape})" "$RED" >&2

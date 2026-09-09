@@ -129,8 +129,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
   # core.sh's _hi_wants_prompt_tool rule (fish can't call it); a missing tool
   # falls back to hi's prompt below. The tool's config variable is paths.sh's
   # job, which fish sourced above
-  if contains -- "$_HI_PROMPT" starship oh-my-posh; and command -q $_HI_PROMPT
-    $_HI_PROMPT init fish | source
+  if contains -- "$_HI_PROMPT_TOOL" starship oh-my-posh; and command -q $_HI_PROMPT_TOOL
+    $_HI_PROMPT_TOOL init fish | source
   else
     # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
     # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's
@@ -202,7 +202,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set -l color_at normal
       set -q SSH_TTY; and set color_at yellow
       set -l lead " "
-      test "$_HI_NO_LEAD_SPACE" = 1; and set lead ""
+      test "$_HI_DISABLE_LEAD_SPACE" = 1; and set lead ""
       # $lead is its own argument, never "$lead"(__hi_env_prompt): fish drops
       # the *whole* concatenated word when a command substitution inside it
       # produces nothing, so glued to an empty environment segment - which is

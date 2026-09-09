@@ -177,16 +177,16 @@ fish, and never leaves the alias pointing at a missing binary. The
 matches.
 
 A second, **narrower** chain over the same family delivers flags only to the
-tier that parses them: `$_HI_BAT_REAL` is `bat || batcat` where
-`$_HI_BATCAT_BIN` is `bat || batcat || ccat || cat`, so bat-syntax options
-attach behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and ccat and
+tier that parses them: `$_HI_BAT_BIN` is `bat || batcat` where
+`$_HI_CAT_BIN` is `bat || batcat || ccat || cat`, so bat-syntax options
+attach behind `[ -n "$_HI_BAT_BIN" ] && alias ... || true` and ccat and
 coreutils `cat` get the bare binary.
 
 Every such chain sits **above** the user's overlay `aliases.sh` source in
 `settings/aliases.sh`, though the overlay is otherwise sourced first: in zsh
 and dash (not bash, not fish) `command -v name` returns an _alias's_
 definition once one exists, so an overlay `alias cat=...` sourced first would
-leave `_HI_BATCAT_BIN` holding the alias body instead of a binary path.
+leave `_HI_CAT_BIN` holding the alias body instead of a binary path.
 `alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
@@ -368,12 +368,12 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 
 ## HI.32 starship deference
 
-`_HI_PROMPT=starship` hands the prompt to [starship](https://starship.rs) when
-the target has it, and `_HI_PROMPT=oh-my-posh` to
+`_HI_PROMPT_TOOL=starship` hands the prompt to [starship](https://starship.rs) when
+the target has it, and `_HI_PROMPT_TOOL=oh-my-posh` to
 [oh-my-posh](https://ohmyposh.dev), keeping hi's header and aliases either
 way. `common/core.sh`'s `_hi_wants_prompt_tool` is the single predicate (a
 setting naming one of the two _and_ the binary); `common/bash.sh` and
-`common/zsh.zsh` each `eval` their own `"$_HI_PROMPT" init <shell>` behind it,
+`common/zsh.zsh` each `eval` their own `"$_HI_PROMPT_TOOL" init <shell>` behind it,
 `common/config.fish` mirrors the rule since fish cannot call it. Both tools
 take `init <shell>`, which is what lets one predicate and one stub (the rc
 suite's `_hi_prompt_stub_dir`) cover both. `common/paths.sh` points the tool

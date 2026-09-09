@@ -555,8 +555,7 @@ function _hi_prompt_end_default() {
   done
 }
 
-# _hi_prompt_end <SHELL> [outvar] - per-shell setting, then the all-three one,
-# then the default; empty counts as unset (`' '` means "none"). Unescaped, so
+# _hi_prompt_end <SHELL> [outvar] - the per-shell setting, else the default; empty counts as unset (`' '` means "none"). Unescaped, so
 # `%#` and `\$` keep their meaning. config.fish mirrors this. GLOSSARY: HI.05
 function _hi_prompt_end() {
   local _hi_pe
@@ -569,13 +568,13 @@ function _hi_prompt_end() {
   fi
 }
 
-# _HI_PROMPT names a prompt program - starship or oh-my-posh - to hand the
+# _HI_PROMPT_TOOL names a prompt program - starship or oh-my-posh - to hand the
 # prompt to when the target has it, keeping hi's header and aliases; a missing
 # one falls back silently to hi's prompt. Never auto-detected - a target that
 # happens to carry one must not surprise. GLOSSARY: HI.32
 function _hi_wants_prompt_tool() {
-  case "${_HI_PROMPT:-}" in
-  starship | oh-my-posh) command -v "$_HI_PROMPT" >/dev/null 2>&1 ;;
+  case "${_HI_PROMPT_TOOL:-}" in
+  starship | oh-my-posh) command -v "$_HI_PROMPT_TOOL" >/dev/null 2>&1 ;;
   *) return 1 ;;
   esac
 }

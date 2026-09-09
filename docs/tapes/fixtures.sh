@@ -614,12 +614,12 @@ EOF
 up:editors)
   # The developer on a shared dev box: maya, zsh on her mac, into the team's
   # debian where starship is installed. The compact header preset, and the
-  # prompt handed to starship (_HI_PROMPT) - hi keeps the header, the
+  # prompt handed to starship (_HI_PROMPT_TOOL) - hi keeps the header, the
   # editors and the aliases; the prompt is hers.
   client_rc zsh maya mbp
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods check'
-export _HI_PROMPT='starship'
+export _HI_PROMPT_TOOL='starship'
 EOF
   up_container docker dev-box tools
   ;;

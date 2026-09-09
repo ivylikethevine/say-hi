@@ -242,14 +242,14 @@ function test_bash_starship_handoff_installs_no_ps1_hook() {
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t ps1 || true)"' \
-    "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship)"
+    "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship)"
   [[ "$out" != *ps1* ]]
 }
 
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
 # machine without one still runs (and honestly reports) the rest.
 
-# _HI_PROMPT=<tool> hands the prompt over when the tool exists; a stub on a
+# _HI_PROMPT_TOOL=<tool> hands the prompt over when the tool exists; a stub on a
 # prepended PATH stands in for it, answering `init <shell>` with a line whose
 # effect the case can see - the same stub body for starship and oh-my-posh,
 # since both take `init <shell>`. Three assertions per family: deferred when
@@ -287,7 +287,7 @@ function test_defers_to_prompt_tool_when_asked() {
     ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT="$tool")"
+    PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT_TOOL="$tool")"
   # shellcheck disable=SC2053 # $want is a pattern (fish's is a glob)
   [[ "$out" == $want ]]
 }
@@ -303,9 +303,9 @@ function test_remote_session_points_the_tool_at_the_overlay_config() {
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $STARSHIP_CONFIG' ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship _HI_REMOTE_SESSION=1)"
+    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship _HI_REMOTE_SESSION=1)"
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship)"
+    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship)"
   rm -f "$_HI_WORKDIR/cfg/starship.toml"
   [ "$out" = "$_HI_WORKDIR/cfg/starship.toml" ] && [ -z "$home" ]
 }
@@ -327,7 +327,7 @@ function test_bash_falls_back_when_starship_is_absent() {
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
     PATH="$(_hi_real_path starshipless bash sh sed awk grep tr cut hostname uname cksum git)" \
-    _HI_PROMPT=starship 2>&1)"
+    _HI_PROMPT_TOOL=starship 2>&1)"
   [[ "$out" == *'\u'* ]]
 }
 
@@ -402,10 +402,10 @@ function test_fish_prompt_keeps_the_lead_without_an_environment() {
   }
 }
 
-# ...and _HI_NO_LEAD_SPACE=1 is what takes it away, in the same place
+# ...and _HI_DISABLE_LEAD_SPACE=1 is what takes it away, in the same place
 function test_fish_prompt_drops_the_lead_when_asked() {
   local out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish _HI_NO_LEAD_SPACE=1)"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish _HI_DISABLE_LEAD_SPACE=1)"
   [[ "$out" != " "* ]]
 }
 
@@ -710,7 +710,7 @@ function run_rc_tests() {
   _hi_check_requires zsh "[zsh] PS1 puts the segment ahead of user@host" test_zsh_ps1_leads_with_the_environment_reference
   _hi_check_requires fish "[fish] the drawn prompt leads with it" test_fish_prompt_leads_with_the_environment
   _hi_check_requires fish "...and keeps the lead with no environment" test_fish_prompt_keeps_the_lead_without_an_environment
-  _hi_check_requires fish "..._HI_NO_LEAD_SPACE=1 takes the lead away" test_fish_prompt_drops_the_lead_when_asked
+  _hi_check_requires fish "..._HI_DISABLE_LEAD_SPACE=1 takes the lead away" test_fish_prompt_drops_the_lead_when_asked
 
   _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh
@@ -722,7 +722,7 @@ function run_rc_tests() {
       test_shell_user_file_applies "$_hi_row"
   done
 
-  _hi_h2 "Testing: prompt handoff (_HI_PROMPT=starship / oh-my-posh)"
+  _hi_h2 "Testing: prompt handoff (_HI_PROMPT_TOOL=starship / oh-my-posh)"
   _hi_check "[bash] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked bash starship
   _hi_check "[bash] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked bash oh-my-posh
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting

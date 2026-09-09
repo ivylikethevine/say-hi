@@ -9,7 +9,7 @@
 # throughout: nothing here modifies a thing, locally or remotely.
 # Run via `hi --doctor` or `hi --doctor [target]`. `--json` anywhere in the
 # arguments swaps the report for one JSON document on stdout - the same rows,
-# for a bug report or a script - and the exit code stays the finding count.
+# for a bug report or a script - and the exit status stays 1 on any finding.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` below into
 # hi.sh's trailing `_hi "$@"`, decides that call never returns, and marks
@@ -67,8 +67,8 @@ count as "findings").
 report should carry:
   {"version": ..., "target": ... or null, "findings": N,
    "rows": [{"section", "label", "text", "severity"}, ...]}
-severity is one of info, ok, warn, bad; findings counts the bad rows, and is
-the exit code either way.
+severity is one of info, ok, warn, bad; findings counts the bad rows. The
+exit status is 1 when that count is not 0, never the count itself.
 EOF
 }
 
@@ -99,17 +99,28 @@ source "$_HI_LAUNCHER"
 # takes it). Anything else that looks like a flag is an error, not a target -
 # a target never starts with a dash - and so is a second target.
 _hi_via=""
+# --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
+# not resolved last-wins: doctor reports the arm a connect would take
+function _hi_doctor_use() {
+  local arm
+  arm="$(_hi_use_backend "$1")" || exit 1
+  if [ -n "$_HI_DOC_BACKEND" ] && [ "$_HI_DOC_BACKEND" != "$arm" ]; then
+    _hi_cecho "hi: --use $1 and --use $_HI_DOC_BACKEND both name a backend; pick one" "$RED" >&2
+    exit 1
+  fi
+  _HI_DOC_BACKEND="$arm"
+}
 # the guard: no arguments is an empty array (GLOSSARY: HI.01)
 for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
   if [ -n "$_hi_via" ]; then
-    _HI_DOC_BACKEND="$(_hi_use_backend "$_hi_arg")" || exit 1
+    _hi_doctor_use "$_hi_arg"
     _hi_via=""
     continue
   fi
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
   --use) _hi_via=1 ;;
-  --use=*) _HI_DOC_BACKEND="$(_hi_use_backend "${_hi_arg#--use=}")" || exit 1 ;;
+  --use=*) _hi_doctor_use "${_hi_arg#--use=}" ;;
   # doctor never connects, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
   --plain | --mux | --no-mux) ;;
@@ -282,6 +293,11 @@ function doctor_local() {
   doctor_row shells "local: ${have:-none?!}"
 }
 
+# old:new, one per setting the 1.0 audit renamed; a row leaves once a release
+# has carried the new name long enough that no settings.sh spells the old one
+_HI_RETIRED_SETTINGS=(_HI_NO_LEAD_SPACE:_HI_DISABLE_LEAD_SPACE
+  _HI_BATCAT_BIN:_HI_CAT_BIN _HI_BAT_REAL:_HI_BAT_BIN _HI_PROMPT:_HI_PROMPT_TOOL)
+
 function doctor_config() {
   local f t v any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
@@ -299,6 +315,14 @@ function doctor_config() {
   fi
   if [ -n "${_HI_PACKAGES_PALETTE:-}" ] && ! _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
     doctor_row pkg-palette "'$_HI_PACKAGES_PALETTE' is ignored - not eight color names" bad
+  fi
+  # the names the 1.0 rename retired (docs/SETTINGS.md): a settings.sh still
+  # spelling one is read by nothing, and nothing else says so
+  if [ -f "$_HI_SETTINGS" ]; then
+    for t in "${_HI_RETIRED_SETTINGS[@]}"; do
+      grep -qE "^[[:space:]]*(export[[:space:]]+)?${t%%:*}=" "$_HI_SETTINGS" &&
+        doctor_row retired "${t%%:*} is now ${t#*:} - rename it in settings.sh" bad
+    done
   fi
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
   # minus settings.sh, which got its richer parse-checked row above

@@ -89,7 +89,7 @@ function setting_off() {
 
 # true if $1 is on. Two shapes of setting share this: a default-on toggle is
 # on unless its value is <off> ($3), and an opt-in - one whose on-value <on>
-# ($4) has to be written out, like _HI_PROMPT=starship - is on only when its
+# ($4) has to be written out, like _HI_PROMPT_TOOL=starship - is on only when its
 # value *is* that.
 function setting_on() {
   local var="$1" target="$2" off="${3:-1}" on="${4:-}" answer
@@ -320,13 +320,13 @@ function _hi_header_preview() {
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
-  setting_value _HI_NO_LEAD_SPACE "$_HI_SETTINGS" lead
+  setting_value _HI_DISABLE_LEAD_SPACE "$_HI_SETTINGS" lead
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
   (
     export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="${width:-80}"
     export _HI_PACKAGES_MIN_PRIORITY="${floor:-2}" _HI_PACKAGES_PALETTE="$palette"
-    export _HI_NO_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
+    export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
     # the palette and the check ramps were captured at source time;
     # rebuild both under this run's scheme so the preview paints with it
     # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
@@ -507,16 +507,16 @@ _HI_HEADER_PROMPTS=(
 
 # whether to hand the prompt to starship where a target has one. An opt-in,
 # never auto-detected - core.sh's _hi_wants_prompt_tool, which also takes
-# _HI_PROMPT=oh-my-posh written by hand (no menu item: one toggle, one tool)
+# _HI_PROMPT_TOOL=oh-my-posh written by hand (no menu item: one toggle, one tool)
 _HI_PROMPT_PROMPTS=(
-  "_HI_PROMPT||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
+  "_HI_PROMPT_TOOL||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
 )
 
 # The advanced section, behind the hub's Advanced item: settings most
 # installs never touch, kept out of the default path so it stays short. Not
 # opening it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
-  "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
+  "_HI_DISABLE_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
@@ -563,7 +563,7 @@ _HI_PRESETS=(
 
 # every variable a preset answers for: the feature and header yes/no tables,
 # plus the one dial - so "not named by the preset" can mean "back to the
-# default". _HI_PROMPT (starship) stays out, like the color scheme and the
+# default". _HI_PROMPT_TOOL (starship) stays out, like the color scheme and the
 # packages ramp: those are taste, not a feature level, and no preset has an
 # opinion on them. Neither is asked here at all - both are written into
 # settings.sh by hand (GLOSSARY: HI.50).
@@ -677,7 +677,7 @@ function configure_intro() {
   _hi_cecho " settings: $_HI_SETTINGS ($state)" "$BLUE"
 }
 
-# The hub: the preview, six sections, save or quit. Every section returns
+# The hub: the preview, five sections, save or quit. Every section returns
 # here, and the preview re-renders with whatever it changed. EOF saves - the
 # same "no answer keeps what you have and the run completes" that every
 # question here has always meant. The third junk answer in a row ends the
@@ -720,7 +720,7 @@ function config_hub() {
         _HI_CONFIGURE_QUIT=1
         return 0
       fi
-      _hi_cecho " type 1-6 or the bracketed letter ([p] [h] [f] [r] [a] [c]); [s] saves, [q] quits" "$YELLOW"
+      _hi_cecho " type 1-5 or the bracketed letter ([p] [h] [f] [r] [a]); [s] saves, [q] quits" "$YELLOW"
       continue
       ;;
     esac

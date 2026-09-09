@@ -32,8 +32,8 @@ hosttag,baremetal,brred
 hosttag,personal,brblue
 hosttag,work,brgreen
 hosttag,windows,bryellow
-username,root,magenta
-username,admin,red
+username,root,red
+username,admin,magenta
 username,ubuntu,yellow
 username,debian,blue
 usertag,personal,green

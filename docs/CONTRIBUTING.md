@@ -152,8 +152,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
-  taking nothing after them; `--option=value` for every option that takes a word,
-  refused on one that takes none; every `--word` is hi's (an unknown one is
+  taking nothing after them; `--option=value` for every option whose first
+  argument is a word (`--use`, `--preview`, `--update`), refused on the rest; every `--word` is hi's (an unknown one is
   hi's error); and everything after the target is the remote command.
 - **The sub-command switches** — `--doctor --json`, `--install`'s
   `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>` and
@@ -164,9 +164,14 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `--json` document's top-level keys (`version`, `target`, `findings`,
   `rows`) with each row's four fields.
 - **Exit status** — 0 for "did what it says", 1 for "hi refused before
-  connecting" or "a finding", and a connect's own status passed through.
-- **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
-  type and default. A toggle that has to go is a 2.0.
+  connecting" or "a finding", 64 and 65 for a target with no `base64` or no
+  scratch directory, and a connect's own status passed through.
+- **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name
+  and default (the type is what the row's prose says: `0`/`1`, a number, a
+  word list, a name from a fixed set). A toggle that has to go is a 2.0. A
+  new `_HI_DISABLE_*` toggle is a minor, and lands in `_HI_TOGGLES`,
+  `config.fish`'s mirror and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
+  together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `vim.rc`, `nano.rc`, `aliases.sh`, the per-shell rc files, `starship.toml`
   and `oh-my-posh.json`), their
@@ -181,13 +186,16 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 Versioning is semver: a fix is a patch, an addition a minor, a break to the
 list above a major. Not covered: the exact header and prompt text, colors,
 completion ordering, the wording of any message or report row, `hi_info`,
+the test levers [SETTINGS.md](SETTINGS.md#not-settings) lists, the `exa`
+alias with its `_HI_EXA_BIN`/`_HI_EXA_OPTS` rows (exa has been archived since
+2023; the `eza` rows are the contract and the exa ones may leave in a minor),
 and anything under `tests/` or `scripts/` a package does not ship.
 
 ## Which docs change with what
 
 | you changed                           | update                                       |
 | ------------------------------------- | -------------------------------------------- |
-| a flag, or `_hi_parse`                | `docs/hi.1` and `docs/tldr.md`               |
+| a flag, or `_hi_parse`                | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
 | an environment variable or toggle     | `docs/SETTINGS.md` (enforced, see below)     |
 | what hi leaves on a target            | `docs/SECURITY.md`                           |
 | a target hi does or doesn't answer to | `docs/SUPPORT.md`                            |

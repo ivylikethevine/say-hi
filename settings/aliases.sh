@@ -14,15 +14,15 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_BATCAT_BIN="${_HI_BATCAT_BIN-}" _HI_BAT_REAL="${_HI_BAT_REAL-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists (and above the overlay source):
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
-# chain. $_HI_BAT_REAL is the bat-only tier that parses $_HI_BAT_OPTS - cat
+# chain. $_HI_BAT_BIN is the bat-only tier that parses $_HI_BAT_OPTS - cat
 # and ccat reject that syntax, so the options only ever attach behind it.
 # GLOSSARY: HI.13.
-[ -z "$_HI_BATCAT_BIN" ] && export _HI_BATCAT_BIN="$(command -v bat || command -v batcat || command -v ccat || command -v cat)" || true
-[ -z "$_HI_BAT_REAL" ] && export _HI_BAT_REAL="$(command -v bat || command -v batcat)" || true
+[ -z "$_HI_CAT_BIN" ] && export _HI_CAT_BIN="$(command -v bat || command -v batcat || command -v ccat || command -v cat)" || true
+[ -z "$_HI_BAT_BIN" ] && export _HI_BAT_BIN="$(command -v bat || command -v batcat)" || true
 # exa and eza differ in preference order on purpose, so each needs its own var
 [ -z "$_HI_EXA_BIN" ] && export _HI_EXA_BIN="$(command -v exa || command -v eza || command -v ls)" || true
 [ -z "$_HI_EZA_BIN" ] && export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)" || true
@@ -45,20 +45,22 @@ command -v shift >/dev/null 2>&1 &&
 # this ladder is spelled again in scripts/configure.sh's _hi_editors_preview,
 # which cannot share it (configure.sh does not source aliases.sh, and fish
 # parses this file). Fix one, fix both - alias_fallthrough_test.sh pins them.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
+# A box with neither leaves vim alone (an alias of `" -u ..."` would report
+# `-u: command not found` where `vim: command not found` is the answer).
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ -n "$(command -v nvim || command -v vim)" ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
 
 alias sudo="command sudo " # works in bash/zsh, fish has a sudo wrapper in config.fish
 
 # cat is bat with our options when bat exists, plain cat otherwise. Everything
-# here is bat syntax (-P included), hence the $_HI_BAT_REAL gate. The cat/catn
+# here is bat syntax (-P included), hence the $_HI_BAT_BIN gate. The cat/catn
 # rebind (not bat/batcat/batn) is behind _HI_DISABLE_TOOL_ALIASES, together
 # with the exa/eza wrappers below: one toggle for the styled tool aliases.
 [ -z "$_HI_BAT_OPTS" ] && export _HI_BAT_OPTS='-P --tabs 2 --theme Monokai\ Extended\ Bright --style changes,grid' || true
-alias batcat="$_HI_BATCAT_BIN"
+alias batcat="$_HI_CAT_BIN"
 alias bat="batcat"
 alias batn="batcat"
-[ -n "$_HI_BAT_REAL" ] && alias bat="batcat $_HI_BAT_OPTS" || true
-[ -n "$_HI_BAT_REAL" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
+[ -n "$_HI_BAT_BIN" ] && alias bat="batcat $_HI_BAT_OPTS" || true
+[ -n "$_HI_BAT_BIN" ] && alias batn="batcat $_HI_BAT_OPTS,numbers" || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias cat="bat" || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias catn="batn" || true
 

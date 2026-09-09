@@ -58,8 +58,8 @@ check_alias() {
 
 if [ -n "${_HI_CHECK_VAR:-}" ]; then
   case "$_HI_CHECK_VAR" in
-  BATCAT_BIN) actual=$_HI_BATCAT_BIN ;;
-  BAT_REAL) actual=$_HI_BAT_REAL ;;
+  CAT_BIN) actual=$_HI_CAT_BIN ;;
+  BAT_BIN) actual=$_HI_BAT_BIN ;;
   EXA_BIN) actual=$_HI_EXA_BIN ;;
   EZA_BIN) actual=$_HI_EZA_BIN ;;
   esac
@@ -119,10 +119,10 @@ end
 
 if set -q _HI_CHECK_VAR
   switch "$_HI_CHECK_VAR"
-  case BATCAT_BIN
-    set actual $_HI_BATCAT_BIN
-  case BAT_REAL
-    set actual $_HI_BAT_REAL
+  case CAT_BIN
+    set actual $_HI_CAT_BIN
+  case BAT_BIN
+    set actual $_HI_BAT_BIN
   case EXA_BIN
     set actual $_HI_EXA_BIN
   case EZA_BIN
@@ -238,7 +238,7 @@ function _hi_run_overlay_case() {
 # The ordering hazard the reorder introduces: in zsh and dash (not bash, not
 # fish) `command -v name` returns an *alias's* definition once one exists, so
 # if the overlay ran before the command -v fallthrough chains, an overlay
-# `alias cat=...` would poison $_HI_BATCAT_BIN before it ever resolves to a
+# `alias cat=...` would poison $_HI_CAT_BIN before it ever resolves to a
 # real binary. settings/aliases.sh keeps the chains above the overlay source
 # specifically to avoid this (GLOSSARY: HI.13) - this is the regression test
 # for that ordering, over a fake PATH holding nothing but a fake `cat`.
@@ -252,8 +252,8 @@ function run_overlay_poisoning_test() {
 
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "[$shell] overlay alias cat= does not poison \$_HI_BATCAT_BIN" \
-      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_VAR=BATCAT_BIN _HI_EXPECT="$fakepath/cat"
+      "[$shell] overlay alias cat= does not poison \$_HI_CAT_BIN" \
+      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_VAR=CAT_BIN _HI_EXPECT="$fakepath/cat"
   done
 }
 
@@ -324,11 +324,11 @@ function run_fallthrough_tests() {
   _hi_h1 "Fallthrough (command -v a || b || ...) resolution"
   local var last mid installed expect fakepath shell
 
-  # BAT_REAL is the one chain here with no floor: it is deliberately empty when
+  # BAT_BIN is the one chain here with no floor: it is deliberately empty when
   # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
-  for var in BATCAT_BIN:"bat batcat ccat cat" BAT_REAL:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
+  for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
     local name="${var%%:*}" cands="${var#*:}"
     # shellcheck disable=SC2086 # word-splitting into positional candidates is intended
     set -- $cands
@@ -369,7 +369,7 @@ function run_flag_tests() {
   done
 }
 
-# The cat/catn rebind is unconditional once $_HI_BATCAT_BIN resolves to
+# The cat/catn rebind is unconditional once $_HI_CAT_BIN resolves to
 # anything - even down to plain cat, its floor - so the guard is tested the
 # same way as _HI_DISABLE_EDITORS's above: does the alias exist at all,
 # regardless of what it would ultimately run. The one toggle covers the

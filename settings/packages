@@ -37,10 +37,8 @@
 -gzip:3
 -od:3
 -stty:3
--bash:3
 -tar:3
 -git:3
--sudo:3
 -df:3
 -stat:3
 -scp:3
@@ -67,7 +65,10 @@ direnv:3
 hi:3
 
 # 2: bright cyan installed, bright yellow missing
-# useful tools: good to know either way
+# useful tools: good to know either way. bash and sudo sit here, not with the
+# core: a bash-less box gets hi's sh tier and a sudo-less one is a choice
+-bash:2
+-sudo:2
 apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,yay:2,paru:2,rpm:2,mas:2
 flatpak:2,snap:2,nix:2,guix:2
 nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2,hx:2,helix:2,kak:2

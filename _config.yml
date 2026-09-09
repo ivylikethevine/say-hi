@@ -41,7 +41,8 @@ readme_index:
 # demos.yml renders), and README.md links the GIFs at their published URLs.
 # docs/tldr.md is a draft for an upstream tldr-pages PR and has to keep tldr's
 # `{{placeholder}}` syntax byte-for-byte, which Liquid would parse, so it is
-# kept off the site rather than guarded; nothing links to it relatively.
+# kept off the site rather than guarded; docs/README.md links it and hi.1 by
+# their GitHub URLs, never relatively, so the site index has no dead rows.
 # tests/lint/drift_test.sh derives its Liquid sweep from this block: one bare
 # `- path` per line, comments on their own lines.
 exclude:

@@ -6,7 +6,7 @@
 #
 # Its configuration (docs/tapes/fixtures.sh, up:editors): the compact header
 # preset, so the header stays one line and the editors get the frame, and the
-# prompt handed to starship (_HI_PROMPT=starship - the box has it, and it is
+# prompt handed to starship (_HI_PROMPT_TOOL=starship - the box has it, and it is
 # the prompt this person already uses); hi keeps everything else.
 #
 # The Hide block paces itself with Wait+Screen on sentinel text instead of

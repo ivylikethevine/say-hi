@@ -40,6 +40,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
+  - [Before the tag](#before-the-tag)
   - [Post 1.0](#post-10)
 
 ---
@@ -99,7 +100,7 @@ the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 `nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
 neither: nothing is installed or running on the target. A developer, zsh on a
 laptop into the team's shared dev box, where the prompt is starship's, not
-hi's (`_HI_PROMPT=starship`; hi keeps the header, editors and aliases).
+hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors and aliases).
 
 ![nano and vim with hi's rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -189,14 +190,14 @@ everything weighed and answered **no**, and why.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has
-  issues (the one prompt; `--yes` answers it). Shells that are not installed
+  issues (the one question before the settings menu; `--yes` answers it). Shells that are not installed
   get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
   `hi` itself is linked at `~/.local/bin/hi` (`--link system` for
   `/usr/bin/hi`, `--link none` for none - the wired shells alias it either
   way).
 - reload your shell!
 - `hi --configure` reopens that menu later: pick a preset, or open a
-  section - Header, Features, Prompt, Advanced, Colors - and save. Answers
+  section - Header, Features, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
   `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
@@ -205,6 +206,9 @@ everything weighed and answered **no**, and why.
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
   a bug report); it also reports which rc files are wired and where `hi` on
   your `PATH` leads.
+- `hi --update` moves a cloned install to the newest release tag
+  (`--dry-run` names it first; a package upgrades through its package
+  manager instead).
 - the whole surface is twelve flags: `hi --help` lists them (as does `hi` on
   its own), `man hi` is the long form, and everything hi does not answer goes
   to `ssh`.
@@ -312,6 +316,15 @@ or descoped, and finished entries are deleted rather than ticked.
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises.
 
+### Before the tag
+
+The 1.0 audit's punch list; what it found and fixed is in git history, and
+these are the entries still open.
+
+- [ ] **Trim the README** — 14 badges in three clusters, a 19-entry contents
+      block, and _Target Requirements_ restating `docs/SUPPORT.md`. Move the
+      _Post 1.0_ items below to issues.
+
 ### Post 1.0
 
 Outside this checkout, and not what the tag waits on: each is an account or
@@ -330,7 +343,7 @@ an upstream review that lands when it lands.
        `say-hi` current for one real release. <https://archlinux.org/news/>
 
 3. [ ] **Best Practices badge entry** — the answer sheet is
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       [.github/OPENSSF-IMPROVEMENTS.md](.github/OPENSSF-IMPROVEMENTS.md). **Do:**
        enter it at bestpractices.dev; label two or three open issues
        `good first issue` (`small_tasks`); confirm `secure_2FA` is
        TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.

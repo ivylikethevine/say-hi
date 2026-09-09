@@ -682,7 +682,7 @@ function test_ask_setting_default_keeps_disabled() {
 
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
-# (_HI_NO_LEAD_SPACE=1, _HI_PROMPT=starship) is on only when its
+# (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=starship) is on only when its
 # on-value is. setting_on is the one reader of both, and ask_prompt_group
 # writes both.
 
@@ -690,14 +690,14 @@ function test_setting_on_opt_in_absent_is_off() {
   local target="$_HI_WORKDIR/opt_in_absent"
   : >"$target"
   _HI_SETTING_PENDING=()
-  ! setting_on _HI_NO_LEAD_SPACE "$target" 0 1
+  ! setting_on _HI_DISABLE_LEAD_SPACE "$target" 0 1
 }
 
 function test_setting_on_opt_in_present_is_on() {
   local target="$_HI_WORKDIR/opt_in_present"
-  printf 'export _HI_NO_LEAD_SPACE=1\n' >"$target"
+  printf 'export _HI_DISABLE_LEAD_SPACE=1\n' >"$target"
   _HI_SETTING_PENDING=()
-  setting_on _HI_NO_LEAD_SPACE "$target" 0 1
+  setting_on _HI_DISABLE_LEAD_SPACE "$target" 0 1
 }
 
 function test_setting_on_toggle_absent_is_on() {
@@ -741,8 +741,8 @@ function test_opt_in_off_writes_nothing() {
 
 function test_starship_kept_when_chosen() {
   local out
-  out="$(_hi_collected_lines starship "export _HI_PROMPT=starship")"
-  [[ "$out" == *"export _HI_PROMPT=starship"* ]]
+  out="$(_hi_collected_lines starship "export _HI_PROMPT_TOOL=starship")"
+  [[ "$out" == *"export _HI_PROMPT_TOOL=starship"* ]]
 }
 
 # the section opened with nobody to answer keeps every advanced value,
@@ -750,8 +750,8 @@ function test_starship_kept_when_chosen() {
 function test_advanced_declined_keeps_every_value() {
   local out
   out="$(_hi_section_lines adv_keep config_advanced \
-    "export _HI_NO_LEAD_SPACE=1" "export _HI_TRUECOLOR=0")"
-  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* &&
+    "export _HI_DISABLE_LEAD_SPACE=1" "export _HI_TRUECOLOR=0")"
+  [[ "$out" == *"export _HI_DISABLE_LEAD_SPACE=1"* &&
     "$out" == *"export _HI_TRUECOLOR=0"* ]]
 }
 
@@ -820,15 +820,15 @@ function test_preset_run_still_creates_the_file() {
 function test_prompt_group_carries_a_row_it_cannot_ask() {
   local out dir="$_HI_WORKDIR/needs"
   local _HI_SETTINGS="$dir/settings.sh"
-  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_NO_LEAD_SPACE|0|1|| moot?|no-such-command-$$|")
+  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_DISABLE_LEAD_SPACE|0|1|| moot?|no-such-command-$$|")
   _HI_SETTING_PENDING=()
   mkdir -p "$dir"
-  printf 'export _HI_NO_LEAD_SPACE=1\n' >"$_HI_SETTINGS"
+  printf 'export _HI_DISABLE_LEAD_SPACE=1\n' >"$_HI_SETTINGS"
   ask_prompt_group _HI_NEEDS_PROMPTS </dev/null
   [ "${#_HI_SETTING_PENDING[@]}" = 0 ] || return 1
   _hi_collect_group _HI_NEEDS_PROMPTS
   out="${_HI_SETTING_LINES[*]:-}"
-  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* ]]
+  [[ "$out" == *"export _HI_DISABLE_LEAD_SPACE=1"* ]]
 }
 
 function test_validators_for_the_advanced_values() {
@@ -944,7 +944,7 @@ function test_preset_vocab_excludes_palette_and_order() {
     ! grep -qx _HI_HEADER_ORDER <<<"$vocab" &&
     ! grep -qx _HI_COLOR_SCHEME <<<"$vocab" &&
     ! grep -qx _HI_IP_HIDE <<<"$vocab" &&
-    ! grep -qx _HI_PROMPT <<<"$vocab"
+    ! grep -qx _HI_PROMPT_TOOL <<<"$vocab"
 }
 
 # the whole run with --preset, no tty: exactly the preset's lines land in the
@@ -1521,7 +1521,7 @@ function test_prompt_end_typed_interactively_is_quoted() {
 function test_prompt_menu_toggles_starship() {
   _hi_cfg_pty pe_star '1\n\n' '' config_prompt || return 1
   _hi_cfg_has pe_star "starship: now on" &&
-    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT=starship"* ]]
+    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=starship"* ]]
 }
 
 # the advanced section is a question walk with no gate of its own (the hub's

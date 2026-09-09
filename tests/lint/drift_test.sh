@@ -452,31 +452,108 @@ function lint_settings_table() {
   done
   [ "$bad" -eq 0 ] && _hi_align " | every setting the tree defines has a row" "OK" "$GREEN"
 
+  # A name the doc files under `### Not settings` is by its own account not a
+  # setting, so a row for it contradicts the doc three sections down - and
+  # that is the list the roster above is filtered against, so the two halves
+  # cannot both be right about one name.
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  local levers lever=0
+  levers="$(_hi_settings_not_settings "$doc")"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    case "$documented" in *"|$name|"*) ;; *) continue ;; esac
+    _hi_align " | $name has a row, and a '### Not settings' entry saying it is none" "FAILED" "$RED"
+    _hi_note_failure "settings table: $name is both a row and not a setting"
+    lever=$((lever + 1))
+  done <<<"$levers"
+  [ "$lever" -eq 0 ] && _hi_align " | no row is also listed under '### Not settings'" "OK" "$GREEN"
+  bad=$((bad + lever))
+
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
   # a row for a variable nothing reads any more. A *read* - `$NAME`, `${NAME`,
   # fish's `$$NAME` or `set -q NAME` - not any mention: an assignment or a
   # comment kept a retired name green for months after its last reader
-  # went. Names hi assembles at run time never appear whole in the tree -
-  # core.sh reads `_HI_PROMPT_END_$1` through an eval - so a miss retries
-  # against the literal prefix up to the last `_` before it is called a
-  # failure.
+  # went. Only the shipped tree counts (common/, settings/, load.sh, hi.sh):
+  # a setting is what a *session* honours, and scripts/ never rides in the
+  # payload, so a name only the wizard or doctor reads is a row that promises
+  # nothing on a target. Names hi assembles at run time never appear whole
+  # in the tree - core.sh reads `_HI_PROMPT_END_$1` through an eval - and
+  # those, and only those, are excused by name in _hi_settings_dynamic. An
+  # earlier version retried a miss against the stem up to the last `_`,
+  # which let every `_HI_DISABLE_*` and `_HI_*_BIN` row ride on a sibling's
+  # read; each row now has to be found by its literal name.
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  local tree stale=0 stem
+  local tree stale=0 dynamic
   tree="$(grep -rhoE '(\$\{?|\$\$|set -q )_HI_[A-Z0-9_]+' "$_HI_ROOT/common" \
-    "$_HI_ROOT/settings" "$_HI_ROOT/scripts" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
+    "$_HI_ROOT/settings" "$_HI_ROOT/hi.sh" "$_HI_ROOT/load.sh" \
     2>/dev/null | grep -oE '_HI_[A-Z0-9_]+' | sort -u)"
+  dynamic="$(_hi_settings_dynamic)"
   while IFS= read -r name; do
     [ -n "$name" ] || continue
-    case "$tree" in *"$name"$'\n'* | *"$name") continue ;; esac
-    stem="${name%_*}_"
-    case "$tree" in *"$stem"*) continue ;; esac
-    _hi_align " | $name has a row but nothing in the tree reads it" "FAILED" "$RED"
+    case $'\n'"$tree"$'\n' in *$'\n'"$name"$'\n'*) continue ;; esac
+    case $'\n'"$dynamic"$'\n' in *$'\n'"$name"$'\n'*) continue ;; esac
+    _hi_align " | $name has a row but nothing in the shipped tree reads it" "FAILED" "$RED"
     _hi_note_failure "settings table: $name unread"
     stale=$((stale + 1))
   done <<<"$(printf '%s' "$documented" | tr '|' '\n')"
-  [ "$stale" -eq 0 ] && _hi_align " | every row names a variable the tree reads" "OK" "$GREEN"
+  [ "$stale" -eq 0 ] && _hi_align " | every row names a variable the shipped tree reads" "OK" "$GREEN"
   bad=$((bad + stale))
+
+  # The `## Presets` table is the other roster the doc keeps by hand: its
+  # first column has to be `_HI_PRESETS`' first column in configure.sh, both
+  # ways - a preset the wizard offers with no row is unfindable, a row for a
+  # preset the wizard no longer knows is `hi --configure --preset <name>`
+  # failing on a documented word.
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  local doc_presets tree_presets preset drift=0
+  # shellcheck disable=SC2016 # \1 is sed's backref, not shell
+  doc_presets="$(awk '/^## /{inside = ($0 == "## Presets")} inside' "$doc" |
+    sed -n 's/^| *`\([a-z][a-z0-9-]*\)`.*/\1/p' | sort -u)"
+  tree_presets="$(sed -n '/^_HI_PRESETS=(/,/^)$/p' "$_HI_ROOT/scripts/configure.sh" |
+    sed -n 's/^ *"\([a-z][a-z0-9-]*\)|.*/\1/p' | sort -u)"
+  if [ -z "$doc_presets" ] || [ -z "$tree_presets" ]; then
+    _hi_align " | the presets scrape came back empty" "FAILED" "$RED"
+    _hi_note_failure "settings table: presets scrape empty"
+    drift=1
+  fi
+  while IFS= read -r preset; do
+    [ -n "$preset" ] || continue
+    case $'\n'"$doc_presets"$'\n' in *$'\n'"$preset"$'\n'*) continue ;; esac
+    _hi_align " | preset '$preset' is in _HI_PRESETS with no row in '## Presets'" "FAILED" "$RED"
+    _hi_note_failure "settings table: preset $preset undocumented"
+    drift=$((drift + 1))
+  done <<<"$tree_presets"
+  while IFS= read -r preset; do
+    [ -n "$preset" ] || continue
+    case $'\n'"$tree_presets"$'\n' in *$'\n'"$preset"$'\n'*) continue ;; esac
+    _hi_align " | preset '$preset' has a row in '## Presets' but no _HI_PRESETS entry" "FAILED" "$RED"
+    _hi_note_failure "settings table: preset $preset unknown to configure.sh"
+    drift=$((drift + 1))
+  done <<<"$doc_presets"
+  [ "$drift" -eq 0 ] && _hi_align " | '## Presets' names exactly _HI_PRESETS' presets" "OK" "$GREEN"
+  bad=$((bad + drift))
   return "$bad"
+}
+
+# The rows the unread check excuses: names core.sh only ever reads through
+# `eval "\${_HI_PROMPT_END_$1:-}"` in _hi_prompt_end, one per shell of the
+# tree, so no grep for the literal can find them. Spelled out rather than
+# pattern-matched, and only while the eval is still there to justify it - if
+# _hi_prompt_end is rewritten to read the names whole, the list prints
+# nothing and the rows are held to the same grep as every other.
+function _hi_settings_dynamic() {
+  # shellcheck disable=SC2016 # the literal `$1` of core.sh's eval is the text sought
+  grep -q '_HI_PROMPT_END_\$1' "$_HI_ROOT/common/core.sh" || return 0
+  printf '%s\n' _HI_PROMPT_END_BASH _HI_PROMPT_END_ZSH _HI_PROMPT_END_FISH
+}
+
+# The `_HI_` names docs/SETTINGS.md's `### Not settings` subsection files as
+# look-alikes - derived paths, the client's `_HI_ASCII` verdict, the test
+# levers (`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, ...). One per line.
+function _hi_settings_not_settings() {
+  # shellcheck disable=SC2016 # a backticked `$_HI_X` in the doc, not an expansion
+  awk '/^##/{inside = ($0 == "### Not settings")} inside' "$1" |
+    grep -oE '`\$?_HI_[A-Z0-9_]+`' | tr -d '`$' | sort -u
 }
 
 # The `_HI_` names of the `## Every setting` table, `|`-delimited with a leading
@@ -494,9 +571,16 @@ function _hi_settings_documented() {
 # settings the wizard asks outside a table; a name assembled at run time,
 # `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).
 # Any table by that name counts, so a section added to the wizard cannot ask
-# about a setting this check never sees. `sort -u` because the toggles and
-# the tables overlap almost entirely - without it a toggle that is also a
-# question is reported missing twice.
+# about a setting this check never sees. Plus the knobs the wizard never asks
+# about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that settings/aliases.sh
+# reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_EZA_BIN"`) is a user-facing dial with
+# no question behind it, and the suffix is what tells those from the file's
+# own state (`_HI_SESSION_RC`, `_HI_CLEANUP`, `_HI_CONFIG_DIR`). Minus
+# whatever the doc itself files under `### Not settings` - the test levers
+# and the derived paths take effect the same way a row does and must not be
+# asked for as one. `sort -u` because the toggles and the tables overlap
+# almost entirely - without it a toggle that is also a question is reported
+# missing twice.
 function _hi_settings_roster() {
   {
     sed -n '/^  _HI_TOGGLES=(/,/)$/p' "$_HI_ROOT/common/core.sh" |
@@ -505,7 +589,9 @@ function _hi_settings_roster() {
       "$_HI_ROOT/scripts/configure.sh" | sed -n 's/^ *"\(_HI_[A-Z0-9_]*\)|.*/\1/p'
     sed -n 's/^ *_hi_collect_value "\{0,1\}\(_HI_[A-Z0-9_]*\)"\{0,1\} .*/\1/p' \
       "$_HI_ROOT/scripts/configure.sh" | grep -v '_$'
-  } | sort -u
+    grep -oE '\$\{?_HI_[A-Z0-9]+_(OPTS|BIN)[^A-Z0-9_]' "$_HI_ROOT/settings/aliases.sh" |
+      grep -oE '_HI_[A-Z0-9_]+'
+  } | sort -u | grep -vxF -f <(_hi_settings_not_settings "$_HI_ROOT/docs/SETTINGS.md")
 }
 
 # The markdown Jekyll actually turns into a page: every `*.md` in the tree,
