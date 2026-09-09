@@ -67,7 +67,8 @@ prompt line as it would draw, at your current settings — over a short menu:
    the real header rendered above a numbered list of the banner and every
    item; a number toggles one, `up N`/`down N` moves it, `[p]` loads a header
    preset (`[f]ull`, `[c]ompact`, `[q]uiet`), and the width, the package check's
-   depth and its palette live there too. Outside the menu, `hi --preview
+   depth and its palette (`[d]efault`, `[c]ool`, `[w]arm`, `[m]ono`, by the
+   letter or the name) live there too. Outside the menu, `hi --preview
    header` prints the header as it would draw at the saved settings, and
    `hi --preview packages` the check's legend.
 3. **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
@@ -77,7 +78,9 @@ prompt line as it would draw, at your current settings — over a short menu:
    the leading space, tmux, the glyphs, 24-bit color and the container CLI
    roster. A question whose tool is not on this machine (tmux) is skipped.
 6. **Colors** — `_HI_COLOR_SCHEME`, one of the truecolor schemes in
-   [Colors](#colors), previewed on the header and prompt. A scheme of your
+   [Colors](#colors), previewed on the header and prompt and chosen like a
+   preset: `[d]efault`, `[c]atppuccin`, `[m]onokai`, `[o]nedark` or
+   `[v]scode`, by the letter or the name. A scheme of your
    own is written into `settings.sh` by hand; the menu shows it as `custom`
    and Enter keeps it.
 

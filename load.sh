@@ -300,6 +300,6 @@ function load() {
     fi
   fi
   _hi_cecho " | " "$NC" 1
-  _hi_cecho "hi closing! " "$BRPURPLE" 1
+  _hi_cecho "hi closing!" "$BRPURPLE"
   exit "$shell_ec"
 }

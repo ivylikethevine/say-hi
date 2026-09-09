@@ -252,7 +252,17 @@ function gen_preflight() {
   # rm -rf on that directory and would delete the shim mid-run.
   was="$(command -v hi 2>/dev/null || true)"
   _HI_GEN_SHIM="$(mktemp -d "${TMPDIR:-/tmp}/hi-gifs.XXXXXX")"
-  ln -s "$_HI_ROOT/hi.sh" "$_HI_GEN_SHIM/hi"
+  # A script rather than a symlink, so --version survives the tape's shell:
+  # the client rc sources hi's bash.sh, whose _hi_unexport (HI.47) turns every
+  # inherited _HI_* but the child roster back into a plain shell variable -
+  # $_HI_RELEASE included - so an exported one never reaches the `hi` child.
+  # Baked into the shim it does, and rides the wire to the target from there.
+  {
+    printf '#!/bin/sh\n'
+    [ -n "$_HI_GEN_VERSION" ] && printf 'export _HI_RELEASE=%s\n' "$_HI_GEN_VERSION"
+    printf 'exec %s "$@"\n' "$_HI_ROOT/hi.sh"
+  } >"$_HI_GEN_SHIM/hi"
+  chmod +x "$_HI_GEN_SHIM/hi"
   PATH="$_HI_GEN_SHIM:$PATH"
   export PATH
   if [ "$(command -v hi 2>/dev/null || true)" != "$_HI_GEN_SHIM/hi" ]; then
@@ -260,19 +270,21 @@ function gen_preflight() {
     return 1
   fi
   gen_row hi ok "$GREEN" "$_HI_ROOT/hi.sh, $(hi --version 2>/dev/null || echo 'version unknown')"
-  if [ -n "$was" ] && [ "$was" != "$_HI_ROOT/hi.sh" ]; then
-    gen_row "" note "$BLUE" "shimmed past the $was already on \$PATH"
-  fi
   # The version the header's cell and `hi --version` show, when the render is
   # not happening on the tag it documents: a packager's stamp is the same
   # variable, so nothing downstream has to know. core.sh's ladder puts it ahead
-  # of git describe, hi.sh keeps an inherited one, and the ssh and container
-  # preambles ship it to the target, so both ends of every tape show it.
+  # of git describe, the shim above bakes it in for a non-interactive `hi`,
+  # fixtures.sh's client_rc re-exports it past the rc's un-export for the
+  # tape's aliased one, and the ssh and container preambles ship it to the
+  # target, so both ends of every tape show it.
   if [ -n "$_HI_GEN_VERSION" ]; then
     export _HI_RELEASE="$_HI_GEN_VERSION"
     gen_row version "$_HI_GEN_VERSION" "$GREEN" "the header's version cell, on both ends (--version)"
   fi
 
+  if [ -n "$was" ] && [ "$was" != "$_HI_ROOT/hi.sh" ]; then
+    gen_row "" note "$BLUE" "shimmed past the $was already on \$PATH"
+  fi
   # HEAD vs the working tree. Only demo_sshd_image reads HI_DEMO_SOURCE, so this
   # changes the sshd target (colors, run) and nothing else - every other tape's target gets the tree
   # over the wire from the client, which is the working tree either way.

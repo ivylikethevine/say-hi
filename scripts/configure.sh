@@ -246,9 +246,10 @@ function _hi_is_packages_palette() {
 }
 
 # $_HI_COLOR_SCHEME's vocabulary: the schemes core.sh's _hi_scheme_hex knows,
-# `default` for none (ask_value blanks it, which clears the line), or a list
-# of 24/48 hex words - a scheme of the user's own, which config_color_scheme
-# keeps rather than asks for. `custom` is what that shows as, never a value.
+# `default` for none, or a list of 24/48 hex words - a scheme of the user's
+# own, which config_color_scheme keeps rather than asks for. `custom` is what
+# that shows as, never a value. The menu reads _HI_SCHEME_ROWS; this is the
+# validator for a value that arrives by other roads (a preset, a test).
 function _hi_is_color_scheme() {
   [ "$1" = default ] || _hi_scheme_ok "$1"
 }
@@ -772,7 +773,7 @@ function config_hub() {
     printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
     printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
     printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color, the container CLI roster"
-    printf '   6) %-12s %s\n' "[c]olors" "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
+    printf '   6) %-12s %s\n' "[c]olors" "a truecolor scheme for prompt and header - [d]efault / [c]atppuccin / [m]onokai / [o]nedark / [v]scode, or your own hex list"
     printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
     printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
     menu_read " > " reply || return 0
@@ -1133,47 +1134,93 @@ function config_packages_floor() {
   _hi_pending_set _HI_PACKAGES_MIN_PRIORITY "$_hi_floor_candidate"
 }
 
-# Which of header.sh's named color ramps the packages check paints with - a
-# word from a closed set (cool/warm/mono), so ask_value rather than the
-# floor's re-rendering loop; the preview above still shows the check as it
-# renders right now, for a by-eye comparison against the name being typed.
+# Which of header.sh's named color ramps the packages check paints with,
+# the bracketed-letter menu the presets and the scheme use: one row per
+# ramp, answered by the letter or the name; `default` (and `cool`, which it
+# is) clears the line. The preview above still shows the check as it renders
+# right now, for a by-eye comparison against the name being picked.
+_HI_PALETTE_ROWS=(
+  "default|the shipped ramp, cool"
+  "cool|cyan and green for installed, blue to red for missing"
+  "warm|yellow and green for installed, magenta to red for missing"
+  "mono|blue and cyan for installed, yellow to red for missing"
+)
 function config_packages_palette() {
-  local current="" value
+  local current="" shown shown_row reply="" row name desc
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" current
-  if [ -t 0 ]; then
-    _hi_load_preview_sources
-    show_preview _hi_packages_palette_preview
+  shown="${current:-default}"
+  [ -t 0 ] || return 0
+  _hi_load_preview_sources
+  show_preview _hi_packages_palette_preview
+  for row in "${_HI_PALETTE_ROWS[@]}"; do
+    IFS='|' read -r name desc <<<"$row"
+    _hi_hotkey "$name" "${name:0:1}" shown_row
+    printf '   %-13s %s\n' "$shown_row" "$desc"
+  done
+  menu_read " Package check palette? (the bracketed letter or the name; Enter keeps it) [$shown] " reply || return 0
+  [ -n "$reply" ] || return 0
+  if preset_row "$reply" _HI_PALETTE_ROWS >/dev/null; then
+    name="$reply"
+  else
+    name="$(preset_shorthand "$reply" _HI_PALETTE_ROWS)" || {
+      _hi_cecho " no such palette: $reply - one of $(preset_names _HI_PALETTE_ROWS)" "$YELLOW"
+      return 0
+    }
   fi
-  value="$(ask_value "Package check palette: cool, warm, or mono?" \
-    "$current" cool _hi_is_packages_palette "answer cool, warm or mono")"
-  _hi_pending_set _HI_PACKAGES_PALETTE "$value"
+  case "$name" in default | cool) name="" ;; esac
+  _hi_pending_set _HI_PACKAGES_PALETTE "$name"
 }
 
 # Which truecolor scheme the palette names render as, everywhere hi
-# paints - the prompt, the header, the git segment, the packages check. A
-# word from a closed set, so ask_value; `default` clears the line. Not a
-# preset answer: a scheme is taste, not a feature level.
+# paints - the prompt, the header, the git segment, the packages check.
+# The same menu shape as the presets: one row per scheme with its first
+# letter bracketed, answered by that letter or the whole name; `default`
+# clears the line. Not a preset answer: a scheme is taste, not a feature
+# level. The rows are one table so preset_row/preset_shorthand read them.
+_HI_SCHEME_ROWS=(
+  "default|the terminal's own sixteen colors (the extras keep their built-in hex)"
+  "catppuccin|the mocha palette - pastel, low contrast"
+  "monokai|the classic editor palette - saturated, warm"
+  "onedark|atom's one dark - muted, cool"
+  "vscode|the vscode terminal defaults - bright, plain"
+)
 function config_color_scheme() {
-  local current="" shown value n
+  local current="" shown shown_row reply="" n row name desc
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
   # a scheme of the user's own - 24 or 48 hex words, written into settings.sh
   # by hand - shows as `custom` and Enter keeps it; the list itself is never
   # typed at a prompt
-  shown="$current"
+  shown="${current:-default}"
   _HI_COLOR_SCHEME="$current" _hi_scheme_words n
   [ "$n" -gt 0 ] && shown=custom
-  if [ -t 0 ]; then
-    show_preview _hi_color_scheme_preview
-    # what hi --doctor and the previews say about the same value: a word
-    # nothing renders is ignored, and Enter would keep it
-    if [ -n "$current" ] && [ "$n" -eq 0 ] && ! _hi_scheme_ok "$current"; then
-      _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
-    fi
+  [ -t 0 ] || return 0
+  show_preview _hi_color_scheme_preview
+  # what hi --doctor and the previews say about the same value: a word
+  # nothing renders is ignored, and Enter would keep it
+  if [ -n "$current" ] && [ "$n" -eq 0 ] && ! _hi_scheme_ok "$current"; then
+    _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
   fi
-  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 24/48 hex words, written into settings.sh by hand)?" \
-    "$shown" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
-  [ "$value" = custom ] && value="$current"
-  _hi_pending_set _HI_COLOR_SCHEME "$value"
+  for row in "${_HI_SCHEME_ROWS[@]}"; do
+    IFS='|' read -r name desc <<<"$row"
+    _hi_hotkey "$name" "${name:0:1}" shown_row
+    printf '   %-13s %s\n' "$shown_row" "$desc"
+  done
+  [ "$n" -gt 0 ] && printf '   %-13s %s\n' custom "your own $n hex words, as settings.sh holds them"
+  menu_read " Color scheme? (the bracketed letter or the name; Enter keeps it) [$shown] " reply || return 0
+  [ -n "$reply" ] || return 0
+  [ "$reply" = custom ] && [ "$n" -gt 0 ] && return 0
+  # an exact name first, then an unambiguous first letter - config_preset's
+  # own rule, through the same two helpers
+  if preset_row "$reply" _HI_SCHEME_ROWS >/dev/null; then
+    name="$reply"
+  else
+    name="$(preset_shorthand "$reply" _HI_SCHEME_ROWS)" || {
+      _hi_cecho " no such scheme: $reply - one of $(preset_names _HI_SCHEME_ROWS)${n:+, or custom}" "$YELLOW"
+      return 0
+    }
+  fi
+  [ "$name" = default ] && name=""
+  _hi_pending_set _HI_COLOR_SCHEME "$name"
 }
 
 # Which addresses the header's ip cell leaves out - header.sh's

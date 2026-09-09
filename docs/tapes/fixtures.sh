@@ -446,6 +446,17 @@ source "$_HI_ROOT/common/config.fish"
 EOF
     ;;
   esac
+  # generate.sh --version: the rc just sourced un-exports every inherited
+  # _HI_* but the child roster (HI.47), $_HI_RELEASE included, and the tape's
+  # `hi` is paths.sh's alias, not the shim - so the version is re-exported
+  # here, after the rc, where the alias's hi.sh will inherit it and ship it
+  # to the target. Nothing when the render carries no version.
+  if [ -n "${_HI_RELEASE:-}" ]; then
+    case "$shell" in
+    fish) printf "set -gx _HI_RELEASE '%s'\n" "$_HI_RELEASE" >>"$_HI_DEMO_DIR/clientrc.fish" ;;
+    *) printf "export _HI_RELEASE='%s'\n" "$_HI_RELEASE" >>"$_HI_DEMO_DIR/clientrc.$shell" ;;
+    esac
+  fi
 }
 
 # The demo ssh roster, written outside the overlay because neither thing that

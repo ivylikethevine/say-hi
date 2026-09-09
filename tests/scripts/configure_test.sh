@@ -1416,19 +1416,47 @@ function test_color_scheme_shows_a_list_as_custom_and_keeps_it() {
 # typing the default clears an override rather than restating it
 function test_color_scheme_default_answer_clears_it() {
   _hi_cfg_pty scheme_clear 'default\n' "export _HI_COLOR_SCHEME=vscode" config_color_scheme || return 1
-  [[ "$(_hi_cfg_lines scheme_clear)" != *"_HI_COLOR_SCHEME"* ]]
+  [[ "$(_hi_cfg_lines scheme_clear)" != *"_HI_COLOR_SCHEME"* ]] || return 1
+  # ...and by its letter, like every other bracketed menu
+  _hi_cfg_pty scheme_clear_d 'd\n' "export _HI_COLOR_SCHEME=vscode" config_color_scheme || return 1
+  [[ "$(_hi_cfg_lines scheme_clear_d)" != *"_HI_COLOR_SCHEME"* ]]
+}
+
+# the bracketed letter picks a scheme; a word that is neither a letter nor a
+# name is refused in words and the current value kept
+function test_color_scheme_takes_a_letter_and_refuses_a_stranger() {
+  _hi_cfg_pty scheme_letter 'o\n' '' config_color_scheme || return 1
+  _hi_cfg_has scheme_letter "[o]nedark" &&
+    [ "$(_hi_cfg_lines scheme_letter)" = "export _HI_COLOR_SCHEME=onedark" ] || return 1
+  _hi_cfg_pty scheme_stranger 'solarized\n' "export _HI_COLOR_SCHEME=monokai" config_color_scheme || return 1
+  _hi_cfg_has scheme_stranger "no such scheme: solarized" &&
+    [ "$(_hi_cfg_lines scheme_stranger)" = "export _HI_COLOR_SCHEME=monokai" ]
 }
 
 function test_hub_opens_colors() {
   _hi_cfg_pty hub_colors '6\nonedark\ns\n' '' run_configure "" || return 1
-  _hi_cfg_has hub_colors "Color scheme:" &&
+  _hi_cfg_has hub_colors "Color scheme?" &&
     [[ "$(_hi_cfg_lines hub_colors)" == *"export _HI_COLOR_SCHEME=onedark"* ]]
 }
 
 function test_palette_asked_interactively_takes_a_word() {
   _hi_cfg_pty pal_typed 'warm\n' '' config_packages_palette || return 1
-  _hi_cfg_has pal_typed "preview" &&
+  _hi_cfg_has pal_typed "preview" && _hi_cfg_has pal_typed "[w]arm" &&
     [ "$(_hi_cfg_lines pal_typed)" = "export _HI_PACKAGES_PALETTE=warm" ]
+}
+
+# the bracketed letter picks a ramp, default (or cool, which it is) clears
+# the line, and a stranger is refused in words with the value kept
+function test_palette_takes_a_letter_and_default_clears_it() {
+  _hi_cfg_pty pal_letter 'm\n' '' config_packages_palette || return 1
+  [ "$(_hi_cfg_lines pal_letter)" = "export _HI_PACKAGES_PALETTE=mono" ] || return 1
+  _hi_cfg_pty pal_default 'd\n' "export _HI_PACKAGES_PALETTE=warm" config_packages_palette || return 1
+  [[ "$(_hi_cfg_lines pal_default)" != *"_HI_PACKAGES_PALETTE"* ]] || return 1
+  _hi_cfg_pty pal_cool 'cool\n' "export _HI_PACKAGES_PALETTE=warm" config_packages_palette || return 1
+  [[ "$(_hi_cfg_lines pal_cool)" != *"_HI_PACKAGES_PALETTE"* ]] || return 1
+  _hi_cfg_pty pal_stranger 'neon\n' "export _HI_PACKAGES_PALETTE=warm" config_packages_palette || return 1
+  _hi_cfg_has pal_stranger "no such palette: neon" &&
+    [ "$(_hi_cfg_lines pal_stranger)" = "export _HI_PACKAGES_PALETTE=warm" ]
 }
 
 # The header editor: the real header boxed above the list, and every
@@ -1515,7 +1543,7 @@ function test_header_editor_w_takes_a_width() {
 # k asks for the check's palette once check is on, and writes the word
 function test_header_editor_k_takes_a_palette() {
   _hi_cfg_pty hdr_palette 'k\nwarm\n\n' "export _HI_HEADER_ORDER='check utc'" config_header || return 1
-  _hi_cfg_has hdr_palette "Package check palette: cool, warm, or mono?" &&
+  _hi_cfg_has hdr_palette "Package check palette?" &&
     [[ "$(_hi_cfg_lines hdr_palette)" == *"export _HI_PACKAGES_PALETTE=warm"* ]]
 }
 
@@ -1924,8 +1952,10 @@ function run_configure_tests() {
   _hi_par_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
   _hi_par_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
   _hi_par_check_capable pty "Palette: previewed once, then a typed word" test_palette_asked_interactively_takes_a_word
+  _hi_par_check_capable pty "Palette: a letter picks, default clears, a stranger is refused" test_palette_takes_a_letter_and_default_clears_it
   _hi_par_check_capable pty "Scheme: previewed, then a typed word" test_color_scheme_asked_interactively_takes_a_word
   _hi_par_check_capable pty "Scheme: the default clears an override" test_color_scheme_default_answer_clears_it
+  _hi_par_check_capable pty "Scheme: a letter picks, a stranger is refused" test_color_scheme_takes_a_letter_and_refuses_a_stranger
   _hi_par_check_capable pty "Scheme: a list shows as custom, and Enter keeps it" test_color_scheme_shows_a_list_as_custom_and_keeps_it
   _hi_par_check_capable pty "Hub: 6 opens Colors" test_hub_opens_colors
   _hi_par_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
