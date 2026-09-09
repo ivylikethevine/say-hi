@@ -85,9 +85,10 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 
 - Skip the suite when the diff is prose only. "Only `.yml`/`.md`" is _not_
   prose only: `.github/workflows/*.yml`, `docs/GLOSSARY.md`,
-  `docs/SETTINGS.md`'s _Every setting_ table, `docs/hi.1`, `docs/tldr.md`
-  and `packaging/nfpm/nfpm.yaml` are all machine-read by a suite. `README.md`'s
-  payload badge is read by `--group bench`.
+  `docs/SETTINGS.md`'s _Every setting_ table, `docs/hi.1`, `docs/tldr.md`,
+  every doc's `## Contents` block and `packaging/nfpm/nfpm.yaml` are all
+  machine-read by a suite. `README.md`'s payload badge is read by
+  `--group bench`.
 - `_HI_PAR_WIDTH=1` runs a parallel container suite one case at a time;
   `_HI_SC_WIDTH=1` does the same for the lint fan-out — for a flaky case or a
   transcript that needs reading live.

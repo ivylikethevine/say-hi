@@ -625,6 +625,106 @@ function lint_tldr_page() {
   return "$bad"
 }
 
+# GitHub derives a heading's anchor by lowercasing it, dropping everything
+# that is not a letter, digit, space, `-` or `_`, then turning spaces into
+# `-` - so ` - ` between words collapses to a double hyphen, which is why
+# several entries carry one. bash 3.2 has no ${x,,}, hence tr.
+function _hi_doc_anchor() {
+  printf '%s\n' "$1" |
+    sed -e 's/\[\([^]]*\)\]([^)]*)/\1/g' -e 's/[*`]//g' |
+    tr '[:upper:]' '[:lower:]' |
+    sed -e 's/[^a-z0-9 _-]//g' -e 's/^ *//' -e 's/ *$//' -e 's/ /-/g'
+}
+
+# _config.yml runs just-the-docs with no front matter on any page, so the
+# theme generates no in-page navigation: a doc's "## Contents" block is the
+# only intra-page nav the published site has, and nothing regenerates it. It
+# had drifted in three files before this check existed - a heading added
+# without its entry reads as no heading at all on the site. Both directions,
+# plus the nesting, since a ### filed at a ##'s indent reads as a peer.
+# Headings inside a fenced block are the page's content, not its structure,
+# and an h3's entry only has to be indented under an h2's, not at one depth -
+# TESTING.md groups two h3s under a third on purpose.
+function lint_doc_contents() {
+  local file rel line fence intoc depth text anchor want
+  local heads entries filebad bad=0
+  _hi_h2 "Checking each doc's Contents block against its headings"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    grep -q '^## Contents$' "$file" || continue
+    rel="${file#"$_HI_ROOT/"}"
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    heads=""
+    entries=""
+    fence=0
+    intoc=0
+    while IFS= read -r line; do
+      case "$line" in
+      '```'*) fence=$((1 - fence)) ;;
+      esac
+      [ "$fence" -eq 0 ] || continue
+      case "$line" in
+      '### '*)
+        intoc=0
+        text="${line#\#\#\# }"
+        heads="${heads}3 $(_hi_doc_anchor "$text")"$'\n'
+        continue
+        ;;
+      '## '*)
+        text="${line#\#\# }"
+        if [ "$text" = Contents ]; then
+          intoc=1
+          continue
+        fi
+        intoc=0
+        heads="${heads}2 $(_hi_doc_anchor "$text")"$'\n'
+        continue
+        ;;
+      esac
+      [ "$intoc" -eq 1 ] || continue
+      case "$line" in
+      '- ['*'](#'*')') entries="${entries}0 ${line##*\(#}"$'\n' ;;
+      ' '*'- ['*'](#'*')') entries="${entries}1 ${line##*\(#}"$'\n' ;;
+      esac
+    done <"$file"
+    entries="$(printf '%s' "$entries" | sed 's/)$//')"
+    filebad=0
+    while IFS=' ' read -r depth anchor; do
+      [ -n "$anchor" ] || continue
+      want=0
+      [ "$depth" = 3 ] && want=1
+      case $'\n'"$entries"$'\n' in
+      *$'\n'"$want $anchor"$'\n'*) ;;
+      *$'\n'*" $anchor"$'\n'*)
+        _hi_align " | $rel: #$anchor is an h$depth but sits at the wrong list level" "FAILED" "$RED"
+        filebad=$((filebad + 1))
+        ;;
+      *)
+        _hi_align " | $rel: no Contents entry for #$anchor" "FAILED" "$RED"
+        filebad=$((filebad + 1))
+        ;;
+      esac
+    done <<<"$heads"
+    while IFS=' ' read -r depth anchor; do
+      [ -n "$anchor" ] || continue
+      case $'\n'"$heads"$'\n' in
+      *" $anchor"$'\n'*) ;;
+      *)
+        _hi_align " | $rel: Contents links #$anchor, which is no heading" "FAILED" "$RED"
+        filebad=$((filebad + 1))
+        ;;
+      esac
+    done <<<"$entries"
+    if [ "$filebad" -eq 0 ]; then
+      _hi_align " | $rel" "OK" "$GREEN"
+    else
+      _hi_note_failure "$rel: Contents drift"
+      bad=$((bad + filebad))
+    fi
+  done < <(_hi_jekyll_md_files)
+  return "$bad"
+}
+
 function run_drift() {
   _hi_lint_suite_begin "Checking repo-consistency drift"
 
@@ -632,8 +732,8 @@ function run_drift() {
   _hi_workdir drifttest
 
   _hi_lint_halves lint_bash32 lint_home_default lint_glossary_tags \
-    lint_settings_table lint_liquid_docs lint_tldr_page lint_dockerfiles \
-    lint_image_tags lint_image_digests
+    lint_settings_table lint_liquid_docs lint_doc_contents lint_tldr_page \
+    lint_dockerfiles lint_image_tags lint_image_digests
   _hi_lint_suite_end
 }
 

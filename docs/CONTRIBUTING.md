@@ -47,17 +47,14 @@ down. What each group contains, and how a skip is reported, is
 
 ### Don't reach for `act`
 
-[act](https://github.com/nektos/act) is **not** the way to check a change here
-(measured with act 0.2.89): its container runs as root, so `act -j test` fails
-six fast-group cases a real runner passes — five fish prompt-separator cases
-in `tests/common/rc_test.sh`, plus `install: Degrades when sudo can't link` —
-and `--container-options "--user 1000"` doesn't rescue it, since the image has
-no passwordless sudo for the apt installs the job opens with. `advisory-lint`
-is the one job green under act, and every tool in it runs directly anyway.
-`workflow-lint`'s zizmor fails on act's empty `github.token`, so run
-`actionlint -color` directly instead. The macOS/Windows jobs have no container
-to run in; `bench`, `packaging-smoke` and the two `e2e` jobs want the Docker
-socket.
+[act](https://github.com/nektos/act) is **not** the way to check a change
+here: its container runs as root, which fails fast-group cases a real runner
+passes, and `--container-options "--user 1000"` doesn't rescue it. Run the
+suites directly instead — and `actionlint -color` for the workflows, since
+zizmor fails on act's empty `github.token`. `advisory-lint` is the one job
+green under act, and every tool in it runs directly anyway; the macOS/Windows
+jobs have no container to run in, and `bench`, `packaging-smoke` and the two
+`e2e` jobs want the Docker socket.
 
 ```sh
 act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/ubuntu:act-latest
@@ -66,28 +63,30 @@ act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/u
 ## What CI runs
 
 Every job `ci.yml` runs on your pull request, and whether a red one fails the
-run or only reports — twelve workflow files is more than `ci.yml`'s per-job
+run or only reports — seventeen workflow files is more than `ci.yml`'s per-job
 comments are convenient to read through by eye.
 
-| Job                                                      | Runs on your PR                                                     | Gate or advisory?                       |
-| -------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------- |
-| `fast suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                     | Gate                                    |
-| `lint suites (ubuntu-latest)`                            | Skipped on a workflow-only diff                                     | Gate                                    |
-| `fast suites (macos-latest)`                             | Skipped on a workflow-only diff                                     | Gate                                    |
-| `workflow lint` (actionlint + zizmor)                    | Always                                                              | Gate                                    |
-| `advisory lint` (markdownlint, hadolint, demo-staleness) | Always                                                              | Advisory — reports, never fails the job |
-| `hot-path benchmarks`                                    | Skipped on a workflow-only diff                                     | Gate                                    |
-| `package build (deb, rpm, apk)`                          | Skipped on a workflow-only diff                                     | Gate                                    |
-| `e2e (ssh, docker)`                                      | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
-| `e2e (podman, nomad, kube)`                              | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
-| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)`        | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass | Gate, but see below                     |
-| `fast suites (Windows client)`                           | Same-repo PRs and pushes to `main`; four runners, a quarter each    | Gate, but see below                     |
+| Job                                               | Runs on your PR                                                     | Gate or advisory?                       |
+| ------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------- |
+| `fast suites (ubuntu-latest)`                     | Skipped on a workflow-only diff                                     | Gate                                    |
+| `lint suites (ubuntu-latest)`                     | Always                                                              | Gate                                    |
+| `fast suites (macos-latest)`                      | Skipped on a workflow-only diff                                     | Gate                                    |
+| `workflow lint` (actionlint + zizmor)             | Always                                                              | Gate                                    |
+| `advisory lint` (markdownlint, hadolint)          | Always                                                              | Advisory — reports, never fails the job |
+| `hot-path benchmarks`                             | Always                                                              | Gate                                    |
+| `hot-path profiles (timep)`                       | Always                                                              | Advisory — `continue-on-error`          |
+| `package build (deb, rpm, apk)`                   | Skipped on a workflow-only diff                                     | Gate                                    |
+| `e2e (ssh, docker)`                               | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
+| `e2e (podman, nomad, kube)`                       | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
+| `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)` | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass | Gate, but see below                     |
+| `fast suites (Windows client)`                    | Same-repo PRs and pushes to `main`; four runners, a quarter each    | Gate, but see below                     |
 
 "Skipped on a workflow-only diff" is `changes.yml`: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
-`skipped` instead of re-running. `workflow-lint` and `advisory-lint` are
-exempt — a workflow-only change is exactly what the first audits, and a
-docs-only change is exactly when the second should run.
+`skipped` instead of re-running. Every other job carries no `changes` guard
+and runs on each push and pull request — a workflow-only change is exactly
+what `workflow lint` audits, and a docs-only change is exactly when
+`advisory lint` and the README-badge half of `hot-path benchmarks` should run.
 
 "Gate" means the job itself fails loudly rather than reporting and continuing
 — not, on its own, that GitHub's merge button is blocked by it. `main` now
@@ -99,21 +98,17 @@ per-shard one, since the shard count is a knob. `e2e (macOS)` /
 `e2e (Windows)` / `e2e (FreeBSD)` and `fast suites (Windows client)` run on a
 pull request only when its head branch lives in this repository: each stands
 up an sshd and authorizes a throwaway key, which is not something to hand a
-fork's PR (the first three sit behind `e2e-gate`, which opens on a push to
-`main` or a same-repo PR). They stay off the required list for that reason —
-a fork PR would never report them and could never merge. On a same-repo PR
-they are real checks all the same: none carries `continue-on-error`, so a red
-suite fails the run, and it is the PR, not the release, where that shows.
+fork's PR (the first three sit behind `e2e-gate`). They stay off the required
+list for that reason — a fork PR would never report them and could never
+merge. On a same-repo PR they are real checks all the same: none carries
+`continue-on-error`, so a red suite fails the run.
 
-The rest of `.github/workflows/` — `release.yml`, `publish-external.yml`,
-`pages.yml`, `codeql.yml`, `scorecard.yml`, `image-scan.yml`,
-`tool-versions.yml`, `link-check.yml`, `demos.yml` (a release tag, not
-`main`), and the dispatch-only `coverage.yml` (a kcov/bashcov matrix, both
-aggregates published as shields endpoints) — run on a schedule, a push to
-`main`, a tag or a manual dispatch, never on your pull request. Most report
-through a self-closing tracking issue rather than a red run; each file's
-header says why. `cancel-closed-pr.yml` runs once your PR is merged or
-closed and cancels whatever of the above is still in flight for it.
+Every other file in `.github/workflows/` runs on a schedule, a push to
+`main`, a tag or a manual dispatch, never on your pull request, and most
+report through a self-closing tracking issue rather than a red run; each
+file's header says which and why. The exception is `cancel-closed-pr.yml`,
+which runs once your PR is merged or closed and cancels whatever is still in
+flight for it.
 
 ## What a review will bounce on
 
@@ -200,22 +195,23 @@ and anything under `tests/` or `scripts/` a package does not ship.
 | a release channel or the release flow | `docs/PACKAGING.md`                          |
 | the harness or the lint gate          | `docs/TESTING.md`                            |
 | a new document under `docs/`          | `docs/README.md`'s index                     |
+| a heading in a doc with a `Contents`  | that doc's `Contents` list (enforced)        |
 
-Three rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
+Four rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
 entry fails, so does a toggle in `common/core.sh` with no row in
-[SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and so does a
-`docs/tldr.md` example whose flag is not a `common/flags` row (or a ninth
-example). The rest are on your honour and on review.
+[SETTINGS.md](SETTINGS.md)'s _Every setting_ table, so does a `docs/tldr.md`
+example whose flag is not a `common/flags` row (or a ninth example), and so
+does a heading with no `Contents` entry. The rest are on your honour and on
+review.
 
 Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
 `npx prettier --write '**/*.md'` by hand) and linted with markdownlint
-(`.markdownlint.yaml`, advisory in CI). The two agree by construction, and
-`.moxide.toml` keeps markdown-oxide from arguing with either.
+(`.markdownlint.yaml`, advisory in CI); the two agree by construction.
 
 [README's Roadmap](../README.md#roadmap) is a to-do list, not a changelog:
-finishing an entry means **deleting** it — git history is the ledger. What a
-_user_ reads is the pull request's `## Release note` section (the template
-has it): `release.yml` collects those from the PRs merged since the last tag
+finishing an entry means **deleting** it. What a _user_ reads is the pull
+request's `## Release note` section (the template has it): `release.yml`
+collects those from the PRs merged since the last tag
 into the release body, titles as the fallback. Write it as the sentence you
 would want on the release page, or `none` when nothing a user sees changes.
 

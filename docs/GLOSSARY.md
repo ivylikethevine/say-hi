@@ -396,15 +396,15 @@ under `/Users/runner` that was never there). Each file asks only when
 reaches core.sh through its own path. The files that derive have nothing above
 them to ask through:
 
-| where                                                           | how                                                                                                                                                                      |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `common/core.sh`                                                | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                |
+| where                                                           | how                                                                                                                                                                                                                        |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common/core.sh`                                                | `${BASH_SOURCE[0]}`, then `cd -P ../.. && pwd`; answers for every file sourced through it                                                                                                                                  |
 | `hi.sh`, `scripts/install.sh`, `packaging/lib.sh`               | the same behind a `readlink` walk - `$_HI_LINK` is `~/.local/bin/hi` (a package's is `/usr/bin/hi`), and unresolved it answers the link's own parent. Three copies: each must resolve itself before it can source anything |
-| `load.sh`, `tests/test_runner.sh`                               | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                            |
-| `scripts/doctor.sh`, `scripts/preview.sh`, `tests/test_lib.sh`  | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                           |
-| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                           |
-| fish (`common/config.fish`)                                     | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical      |
-| `common/bash.sh`                                                | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                  |
+| `load.sh`, `tests/test_runner.sh`                               | `${BASH_SOURCE[0]}` - entry points that _export_ for children                                                                                                                                                              |
+| `scripts/doctor.sh`, `scripts/preview.sh`, `tests/test_lib.sh`  | `${BASH_SOURCE[0]}`, then `$_HI_HOME` if set - the standalone-entry form below                                                                                                                                             |
+| zsh (`common/zsh.zsh`, and `common/core.sh` reached through it) | `${(%):-%x}` with zsh's `:A:h` modifiers; bash cannot parse `%x`, so core.sh's arm is `eval`'d                                                                                                                             |
+| fish (`common/config.fish`)                                     | `sh -c 'cd -P "$1/../.." && pwd'` - a builtin-only substitution would move the caller's cwd, and fish's `pwd` is logical where every other dialect here is physical                                                        |
+| `common/bash.sh`                                                | `$_HI_HOME` first, its own path as the fallback - `hi.sh`'s preamble and `install.sh`'s rc line both set it before this file is sourced                                                                                    |
 
 **The standalone-entry form, and why `$_HI_HOME` wins in it.** A script run
 on its own derives from `${BASH_SOURCE[0]}` only as the fallback:
@@ -853,7 +853,7 @@ screen on `PATH`, each driven in its own idiom:
 - **zellij**: takes a session's command only from a layout file, never from
   argv, so `_hi_mux_wrap` writes `hi.mux.<name>.kdl` under hi's runtime
   directory (one per target, rewritten each connect: `pane command="env"
-  close_on_exit=true { args ... }`, each word a KDL string via
+close_on_exit=true { args ... }`, each word a KDL string via
   `_hi_kdl_quote`) and starts `--session <name> --new-session-with-layout`;
   a name already in `list-sessions --short` is `attach`ed instead.
 
@@ -887,7 +887,7 @@ Five rules in `_hi_mux_wrap`:
 
 `_hi_reset_terminal` (hi.sh) runs when a connect's exit status is not 0 and
 both stdin and stdout are terminals. ssh restores the tty's termios on its way
-out, but nothing restores the *terminal emulator's* modes a remote program
+out, but nothing restores the _terminal emulator's_ modes a remote program
 switched on and never got to switch off when the link went: application
 cursor keys (`CSI ?1 l`), the application keypad (`ESC >`), bracketed paste
 (`CSI ?2004 l`), a pushed kitty keyboard mode (`CSI < u`), the alternate

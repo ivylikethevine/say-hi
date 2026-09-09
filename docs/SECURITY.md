@@ -144,15 +144,13 @@ a target" is one command.
   `ControlMaster=auto` _joins_ a socket it finds at the path it was given,
   and a name that was merely unused when printed is no guarantee about the
   moment it is used. Passed as `-o` on the command line, it also outranks a
-  `ControlMaster no` in your `~/.ssh/config`. `scripts/doctor.sh`'s own probe
-  always uses a fresh socket inside a `mktemp -d` of its own, closed the
-  moment the probe ends - a diagnostic should never leave one behind.
-  A real connect instead tries to reuse one: a stable path under the same
+  `ControlMaster no` in your `~/.ssh/config`. `scripts/doctor.sh`'s probe uses
+  a fresh socket in a `mktemp -d` of its own, closed when the probe ends; a
+  real connect instead reuses one, at a stable path under the same
   private runtime directory `hi <TAB>`'s own cache uses (below), named by a
   checksum of the target and your ssh options rather than either in the
-  clear, and torn down only when idle for sixty seconds.
-  Either way the socket only this user's directory permissions and ssh's own
-  authentication ever reach it; nothing here widens who can use it.
+  clear, and torn down only when idle for sixty seconds. Either way only this
+  user's directory permissions and ssh's own authentication reach the socket.
 - `hi <TAB>`'s target cache, and the reused-connection socket and
   payload/overlay cache above, are all written to `$XDG_RUNTIME_DIR`, or to a
   per-uid directory hi creates with `mkdir -m 700`. The name is predictable —
@@ -163,8 +161,8 @@ a target" is one command.
 
 ### What a process started from a session inherits
 
-Eight `_HI_*` names, and nothing else with the prefix: the tree and overlay
-pointers, the remote-session flag, the session rc directory, and the four
+`core.sh`'s `_HI_CHILD_ENV` roster, and nothing else with the prefix: the tree
+and overlay pointers, the remote-session flag, the session rc directory, and the
 completion knobs `targets.sh` reads from its environment. Everything else hi
 sets — sixty-odd paths and toggles — stays a shell variable in the session
 shell, so a service started by hand, a `sudo -E`, or a cron line pasted at the
@@ -182,8 +180,7 @@ and dash has no un-export.
 The argument that secure design principles were applied against the threat
 model ([What hi does](#what-hi-does---and-deliberately-doesnt), [What runs
 where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
-
-- not a claim that the tool is free of bugs.
+— not a claim that the tool is free of bugs.
 
 | principle                                                 | how it holds                                                                                                                                                                                                                                                                                                                                                                                       |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -193,14 +190,13 @@ where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 | No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                       |
 
 **What is not (yet) countered.** `hi --update` verifies the release tag's
-signature only as far as your keyring allows: with the maintainer's key
-imported a tampered tag is refused, without it the update is allowed with a
-notice ([What hi does](#what-hi-does---and-deliberately-doesnt)). Importing
-the key is the manual step that turns the notice into a check. A packaged
-install updates through its package manager instead, with its own signing
-story ([PACKAGING.md](PACKAGING.md)).
+signature only as far as your keyring allows
+([What hi does](#what-hi-does---and-deliberately-doesnt)); importing the
+maintainer's key is the manual step that turns its notice into a check. A
+packaged install updates through its package manager instead, with its own
+signing story ([PACKAGING.md](PACKAGING.md)).
 
-Last reviewed 2026-09, alongside the changes this argument describes.
+Last reviewed 2026-09.
 
 ## Supported versions
 
@@ -224,11 +220,9 @@ Please don't open a public issue for anything exploitable. Instead:
   one-maintainer project, and the private report reaches that maintainer
   directly.
 - **Coordinated disclosure.** A confirmed vulnerability is fixed before it is
-  discussed publicly; the aim is a fix within 60 days of the report
-  (the test suites and the release pipeline make a same-week patch the
-  normal case). Reporters are kept in the loop from acknowledgement to
-  advisory, and nothing about a report is published before the fix ships
-  unless the reporter and maintainer agree otherwise.
+  discussed publicly, unless the reporter and maintainer agree otherwise; the
+  aim is a fix within 60 days of the report. Reporters are kept in the loop
+  from acknowledgement to advisory.
 - **Advisories are public.** Every fixed vulnerability gets a
   [GitHub Security Advisory](https://github.com/ivylikethevine/say-hi/security/advisories)
   naming the affected versions and the fix, and the fixing release's notes

@@ -36,43 +36,32 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
   Practices badge in README's badge block, a self-assessment questionnaire
   separate from Scorecard). The score reflects registration; three MUST
-  criteria are release-shaped, and tagged releases now exist (`v0.1.0`
-  onward) - re-check the live questionnaire rather than assuming _Passing_
-  still waits on one.
-- **Signed-Releases** was `-1` (excluded from the average) before any tag
-  existed. `release.yml` ships `dist/SHA256SUMS.minisig` on every release,
-  which the check's signature probe recognizes for 8/10; the build-provenance
-  attestation `build` creates was invisible to it until `publish` also
-  downloads that attestation and re-uploads it as `dist/say-hi.intoto.jsonl` -
-  the literal filename the check's provenance probe looks for among release
-  assets, for the full 10/10. Re-check the live score against a tag cut after
-  that change; it doesn't move retroactively on tags that already shipped.
+  criteria are release-shaped and the project has tags, so re-check the live
+  questionnaire rather than assuming _Passing_ still waits on one.
+- **Signed-Releases** scores off release assets alone. `release.yml` ships
+  `dist/SHA256SUMS.minisig`, which the check's signature probe recognizes for
+  8/10, and `publish` re-uploads `build`'s provenance attestation as
+  `dist/say-hi.intoto.jsonl` - the literal filename the provenance probe looks
+  for - for the full 10/10. The score is per-tag and never moves
+  retroactively, so read it against the newest release, not an older one.
 - **Pinned-Dependencies reads low for a reason outside this repo.** GitHub
   shipped same-repository `uses: $/...` references in July 2026
   ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
   a local action or reusable workflow resolves at the exact commit running,
   with no `./` plus checkout and no separately-pinnable ref. `ci.yml` explains
-  why `actionlint` is pinned to a fork that understands it (upstream doesn't
-  yet); Scorecard's own dependency extraction is the same story - as of this
-  writing it reads every `$/...` reference as an unresolvable third-party
-  action with no `@sha`, which is where most of the check's "unpinned"
-  count comes from. The actual third-party (non-`$/`) actions in the tree are
-  100% SHA-pinned; re-run the numbers by hand
+  why `actionlint` is pinned to a fork that understands it; Scorecard's
+  dependency extraction is the same story, reading every `$/...` reference as
+  an unresolvable third-party action with no `@sha`, which is where most of
+  the "unpinned" count comes from. The actual third-party (non-`$/`) actions
+  are 100% SHA-pinned; re-run the numbers by hand
   (`grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`) before
-  assuming a `$/` reference is the gap. Not something to revert to `./` to
-  chase a parser that hasn't caught up - that would trade a real improvement
-  for a score built on a five-week-old blind spot.
+  assuming a `$/` reference is the gap. Reverting to `./` to satisfy the
+  parser would trade a real improvement for the score.
 - **Branch-Protection sits at 8, by choice.** The next tier up requires
   "include administrators", which would remove the maintainer's own ability to
   push past a failing check or merge without the full gate - kept, since
   that's the emergency valve for a one-person project. 10 additionally needs
   two required approving reviews, which needs a second person regardless.
-
-A single maintainer cannot close these regardless of repo state: Scorecard's
-`Code-Review` and `Contributors`, the Best Practices badge's
-`access_continuity` (silver MUST - release continuity within a week of
-losing the maintainer), and gold's `bus_factor`, `contributors_unassociated`
-and `two_person_review`.
 
 ## The Best Practices answer sheet
 
@@ -86,7 +75,7 @@ point and it's a prerequisite the day a second maintainer exists.
 
 ### Passing level
 
-Already 100%. Two corrections worth making:
+Already 100%. One correction worth making, and one answer worth keeping:
 
 | Criterion                            | Now                                                                      | Change to               | Why                                                                                                                                                                                                                                                                            |
 | ------------------------------------ | ------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -130,7 +119,7 @@ Already 100%. Two corrections worth making:
 | Criterion                        | Answer | Evidence                                                                                                                                            |
 | -------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `maintenance_or_update`          | M      | Semver, [CONTRIBUTING.md#what-1x-will-not-break](CONTRIBUTING.md#what-1x-will-not-break); a retiring toggle warns one minor release before it goes. |
-| `report_tracker`                 | M      | Already answered - GitHub issues.                                                                                                                   |
+| `report_tracker`                 | M      | GitHub issues.                                                                                                                                      |
 | `vulnerability_report_credit`    | N/A    | No vulnerabilities resolved in the last 12 months.                                                                                                  |
 | `vulnerability_response_process` | M      | [SECURITY.md#reporting-a-vulnerability](SECURITY.md#reporting-a-vulnerability) - 14-day acknowledgement, 60-day disclosure target.                  |
 
@@ -138,7 +127,7 @@ Already 100%. Two corrections worth making:
 
 | Criterion                                          | Answer | Evidence                                                                                                                                                                      |
 | -------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `coding_standards`                                 | M      | [CONTRIBUTING.md#what-a-review-will-bounce-on](CONTRIBUTING.md#what-a-review-will-bounce-on) - now names Google Shell Style Guide plus this project's deviations.             |
+| `coding_standards`                                 | M      | [CONTRIBUTING.md#what-a-review-will-bounce-on](CONTRIBUTING.md#what-a-review-will-bounce-on) - the Google Shell Style Guide plus this project's deviations.                   |
 | `coding_standards_enforced`                        | M      | `--group lint`, a required check: shellcheck, shfmt, checkbashisms, `zsh -n`/`fish --no-execute`. Exceptions are per-line `# shellcheck disable=` comments at their location. |
 | `build_standard_variables` / `build_non_recursive` | N/A    | No native binaries, no compile step.                                                                                                                                          |
 | `build_preserve_debug`                             | N/A    | Shell sources ship as-is.                                                                                                                                                     |
@@ -171,8 +160,8 @@ Already 100%. Two corrections worth making:
 
 | Criterion                                                                          | Answer | Evidence                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `implement_secure_design`                                                          | M      | [SECURITY.md#assurance-case](SECURITY.md#assurance-case) - new section.                                                                                                                                                                                                                                                    |
-| `crypto_weaknesses`                                                                | M      | Already answered.                                                                                                                                                                                                                                                                                                          |
+| `implement_secure_design`                                                          | M      | [SECURITY.md#assurance-case](SECURITY.md#assurance-case).                                                                                                                                                                                                                                                                  |
+| `crypto_weaknesses`                                                                | M      | No weak algorithms; the shipped product performs no cryptography.                                                                                                                                                                                                                                                          |
 | `crypto_algorithm_agility` / `crypto_credential_agility`                           | N/A    | The shipped product performs no cryptography and never processes credentials or private keys - ssh does.                                                                                                                                                                                                                   |
 | `crypto_used_network`                                                              | M      | All transport is ssh(2) or the container/orchestrator client's own channel; hi opens no socket of its own.                                                                                                                                                                                                                 |
 | `crypto_tls12` / `crypto_certificate_verification` / `crypto_verification_private` | N/A    | The software does not use TLS.                                                                                                                                                                                                                                                                                             |
@@ -180,10 +169,10 @@ Already 100%. Two corrections worth making:
 | `version_tags_signed`                                                              | M      | Tags verify - `git tag -v v0.1.5` returns a good signature.                                                                                                                                                                                                                                                                |
 | `input_validation`                                                                 | M      | `_hi_safe_path` (`hi.sh:520`), `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` (`common/core.sh`) - allowlisted, not evaluated.                                                                                                                                                                                                   |
 | `hardening`                                                                        | M      | `set -euo pipefail` in every entry point; session payload lands in a directory removed on exit.                                                                                                                                                                                                                            |
-| `assurance_case`                                                                   | M      | [SECURITY.md#assurance-case](SECURITY.md#assurance-case) - new section.                                                                                                                                                                                                                                                    |
+| `assurance_case`                                                                   | M      | [SECURITY.md#assurance-case](SECURITY.md#assurance-case).                                                                                                                                                                                                                                                                  |
 
 **Analysis** - `static_analysis_common_vulnerabilities` and
-`dynamic_analysis_unsafe` already Met, unchanged.
+`dynamic_analysis_unsafe` are Met.
 
 ### Gold level
 
@@ -196,13 +185,13 @@ a consequence of `access_continuity`. The rest, for a complete entry:
 | `achieve_silver` / `bus_factor` / `contributors_unassociated` / `two_person_review` | U                              | One maintainer, one contributing organization.                                                                                                                 |
 | `copyright_per_file`                                                                | M                              | `# Copyright the say-hi contributors.` at the top of every source file.                                                                                        |
 | `license_per_file`                                                                  | M                              | `# SPDX-License-Identifier: MIT` at the top of every source file; `LICENSE.md` holds the full text.                                                            |
-| `repo_distributed`                                                                  | M                              | Already answered.                                                                                                                                              |
+| `repo_distributed`                                                                  | M                              | git, hosted on GitHub.                                                                                                                                         |
 | `small_tasks`                                                                       | M _(needs one GitHub action)_  | Label two or three open issues `good first issue` and link the label URL - none exist yet.                                                                     |
 | `require_2FA`                                                                       | M                              | [CONTRIBUTING.md#governance](CONTRIBUTING.md#governance) states 2FA is enabled on the maintainer account.                                                      |
 | `secure_2FA`                                                                        | M _(confirm before answering)_ | TOTP/WebAuthn, not SMS.                                                                                                                                        |
 | `code_review_standards`                                                             | M                              | [CONTRIBUTING.md#what-a-review-will-bounce-on](CONTRIBUTING.md#what-a-review-will-bounce-on) + the required-checks list.                                       |
 | `build_reproducible`                                                                | M                              | [PACKAGING.md#reproducibility](PACKAGING.md#reproducibility); byte-identical rebuild in CI.                                                                    |
-| `test_invocation`                                                                   | M                              | `tests/test_runner.sh` (also `hi --test`).                                                                                                                     |
+| `test_invocation`                                                                   | M                              | `tests/test_runner.sh`.                                                                                                                                        |
 | `test_continuous_integration`                                                       | M                              | `.github/workflows/ci.yml`.                                                                                                                                    |
 | `test_statement_coverage90`                                                         | U                              | the README badges - short of 90%.                                                                                                                              |
 | `test_branch_coverage80`                                                            | N/A                            | No FLOSS tool measures branch coverage for shell; kcov and bashcov both report statements only.                                                                |
