@@ -12,7 +12,8 @@ end
 # GLOSSARY: HI.07 - defaulted, never assigned, so settings.sh still overrides.
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
-    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
+    _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
+    _HI_DISABLE_EDITORS \
     _HI_DISABLE_MARKS \
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
@@ -139,6 +140,60 @@ if test "$_HI_DISABLE_PROMPT" != 1
       end
     end
 
+    # The fish half of common/env_prompt.sh: the "(myproj) " prefix naming
+    # every active environment manager. Fish cannot call the bash copy, and a
+    # `bash -c` here would be a fork on every prompt draw, so the source list
+    # is a third copy on purpose - tests/hi/prompt_test.sh pins the two
+    # together. Fish always stands down for a tool drawing its own prefix,
+    # which is _HI_ENV_DEFER=1 on the bash side. GLOSSARY: HI.54
+    function __hi_env_prompt --description 'name every active environment manager'
+      test "$_HI_DISABLE_ENV_STATUS" = 1; and return
+      set -l order mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv
+      test -n "$_HI_ENV_ORDER"; and set order (string split -n ' ' -- $_HI_ENV_ORDER)
+      set -l names
+      for src in $order
+        switch $src
+          case mise
+            test -n "$MISE_SHELL"; and set -a names mise
+          case asdf
+            test -n "$ASDF_DIR"; and set -a names asdf
+          case pyenv
+            test -n "$PYENV_VERSION"; and set -a names "py:$PYENV_VERSION"
+          case rbenv
+            test -n "$RBENV_VERSION"; and set -a names "rb:$RBENV_VERSION"
+          case nodenv
+            test -n "$NODENV_VERSION"; and set -a names "node:$NODENV_VERSION"
+          case nix
+            if test -n "$IN_NIX_SHELL"
+              test -n "$name"; and set -a names "nix:$name"; or set -a names nix
+            end
+          case guix
+            test -n "$GUIX_ENVIRONMENT"; and set -a names guix
+          case devbox
+            test -n "$DEVBOX_SHELL_ENABLED"; and set -a names devbox
+          case devenv
+            test -n "$DEVENV_ROOT"; and set -a names devenv
+          case direnv
+            test -n "$DIRENV_DIR"; and set -a names "direnv:"(string replace -r '^-?.*/' '' -- $DIRENV_DIR)
+          case conda
+            test -n "$CONDA_DEFAULT_ENV"; and test -z "$CONDA_PROMPT_MODIFIER"
+            and set -a names $CONDA_DEFAULT_ENV
+          case venv
+            set -l venv_name "$VIRTUAL_ENV_PROMPT"
+            test -z "$venv_name"; and set venv_name (string replace -r '.*/' '' -- $VIRTUAL_ENV)
+            contains -- "$venv_name" .venv venv .env env
+            and set venv_name (string replace -r '.*/([^/]*)/[^/]*$' '$1' -- $VIRTUAL_ENV)
+            test -n "$venv_name"; and not functions -q _old_fish_prompt
+            and set -a names $venv_name
+        end
+      end
+      test -n "$names"; or return
+      set -l out (string join '|' $names)
+      test (string length -- "$out") -gt 32
+      and set out (string sub -l 31 -- "$out")$_hi_env_ellipsis
+      echo -n "($out) "
+    end
+
     function prompt_login --description "display user name for the prompt"
       if not set -q __fish_machine
         set -g __fish_machine ""
@@ -149,7 +204,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set -l lead " "
       test "$_HI_NO_LEAD_SPACE" = 1; and set lead ""
       echo -ns (set_color yellow) "$__fish_machine" \
-        (set_color $fish_color_user) "$lead$USER" \
+        (set_color brcyan) "$lead"(__hi_env_prompt) \
+        (set_color $fish_color_user) "$USER" \
         (set_color $color_at) @ \
         (set_color $fish_color_host) (prompt_hostname) (set_color normal)
     end
@@ -235,6 +291,8 @@ set -g __fish_git_prompt_color_stagedstate yellow
 set -g __fish_git_prompt_color_invalidstate red
 set -g __fish_git_prompt_color_cleanstate brgreen
 
+set -g _hi_env_ellipsis …
+
 # the ASCII fallback _hi_choose_glyphs gives bash/zsh, with _HI_ASCII
 # overriding the locale probe both ways
 if test "$_HI_ASCII" = 1
@@ -250,6 +308,7 @@ if test "$_HI_ASCII" = 1
     set -g __fish_git_prompt_char_untrackedfiles '?'
     set -g __fish_git_prompt_char_stashstate '$'
     set -g __fish_git_prompt_char_cleanstate 'ok'
+    set -g _hi_env_ellipsis '..'
 end
 
 # see common/bash.sh for why the paths are compared before sourcing

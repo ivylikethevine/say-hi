@@ -17,6 +17,8 @@ unset _hi_d
 source "$_HI_HOME/say-hi/common/core.sh"
 # shellcheck source=./git_prompt.sh
 source "$_HI_GIT_PROMPT"
+# shellcheck source=./env_prompt.sh
+source "$_HI_ENV_PROMPT"
 # shellcheck source=../settings/aliases.sh
 source "$_HI_ALIASES"
 
@@ -38,6 +40,10 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_prompt_tool; then
   _hi_prompt_end BASH HI_PS1_END
   _hi_ps1_lead=" "
   [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
+  # bash is the one shell where another tool's prefix cannot survive: ps1()
+  # below rebuilds $PS1 from scratch on every draw, so there is nothing to
+  # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
+  _HI_ENV_DEFER=0
   if _hi_has_color; then
     # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
     # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
@@ -45,12 +51,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_prompt_tool; then
     _hi_user_escape _hi_ps1_u
     _hi_host_escape _hi_ps1_h
     [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
-    HI_PS1="$_hi_ps1_lead${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
+    HI_PS1="${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
     unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
   else
-    HI_PS1="$_hi_ps1_lead${debian_chroot:-}\u@\h:\w"
+    HI_PS1="${debian_chroot:-}\u@\h:\w"
   fi
-  unset _hi_ps1_lead
 fi
 
 if ! shopt -oq posix; then
@@ -177,12 +182,15 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # strings is the pw3nage class of bug (github.com/njhartwell/pw3nage)
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt
       _hi_ps_mark __powerline_git_info
+      # plain text, so no _hi_ps_mark: the one color is in the template below,
+      # inside \[ \], where readline is already told to skip it
+      _hi_env_prompt __hi_env_info
       # shellcheck disable=SC2154 # assigned by the printf -v two lines up
       if shopt -q promptvars; then
-        PS1="$_hi_marks_a$HI_PS1\${__powerline_git_info}\[$NC\] $HI_PS1_END $_hi_marks_b"
+        PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]\${__hi_env_info}\[$NC\]$HI_PS1\${__powerline_git_info}\[$NC\] $HI_PS1_END $_hi_marks_b"
       else
-        # no expansion happens without promptvars, so the value goes in as text
-        PS1="$_hi_marks_a$HI_PS1$__powerline_git_info\[$NC\] $HI_PS1_END $_hi_marks_b"
+        # no expansion happens without promptvars, so the values go in as text
+        PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]$__hi_env_info\[$NC\]$HI_PS1$__powerline_git_info\[$NC\] $HI_PS1_END $_hi_marks_b"
       fi
     }
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"

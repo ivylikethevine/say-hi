@@ -63,6 +63,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.51 docker-compatible CLI family](#hi51-docker-compatible-cli-family)
 - [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
+- [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 
 ## HI.01 empty-array guard
 
@@ -929,3 +930,36 @@ screen's slot, so `CSI ?1049 l` still restores the pre-alt cursor and the
 DECRC only repeats it. Never on exit 0 (the session closed itself down),
 never on a pipe (`hi host cmd | ...` gets the command's output and nothing
 else).
+
+## HI.54 who draws the environment prefix
+
+`common/env_prompt.sh` names every active environment manager as the prompt's
+leading `(mise|direnv:proj|myproj)`. The awkward part is not the detection -
+every tool exports a variable, so a draw is parameter expansion and nothing
+else - it is that two of those tools draw a prefix of their own, and whether
+that prefix survives is a property of the *shell*, not of the tool.
+
+`python -m venv`'s activate script prepends to `$PS1` (bash, zsh) or copies
+`fish_prompt` to `_old_fish_prompt` and wraps it (fish); conda prepends
+`$CONDA_PROMPT_MODIFIER` unless `changeps1` is off. zsh and fish keep what
+those scripts did: zsh.zsh assigns `$PS1` once at rc time, and fish's
+`fish_prompt` is the very function activate wrapped. bash does not -
+`common/bash.sh`'s `ps1()` is a `PROMPT_COMMAND` hook that rebuilds `$PS1`
+from `$HI_PS1` on every draw, so the activate script's edit is gone by the
+second prompt.
+
+So `$_HI_ENV_DEFER` carries the shell's verdict rather than the tool's:
+zsh.zsh and config.fish set it to 1 and the venv and conda rows stand down
+when the tool's own marker is present (`$_OLD_VIRTUAL_PS1`, the
+`_old_fish_prompt` function, a non-empty `$CONDA_PROMPT_MODIFIER`); bash.sh
+sets it to 0, because there is provably nothing there to defer to. A venv is
+therefore named in all three shells - in its own styling under zsh and fish,
+in hi's under bash - and the tools with no prefix of their own are hi's
+everywhere. The alternative, exporting `VIRTUAL_ENV_DISABLE_PROMPT=1` to
+silence the tools and always draw hi's, would have hi overriding a setting
+the user configured for every other shell they open.
+
+fish carries a third copy of the source list, for the reason config.fish
+carries a second copy of the git glyphs: it cannot call the bash function, and
+a `bash -c` on every prompt draw is exactly the fork this prompt refuses
+everywhere else. `tests/hi/prompt_test.sh` pins the two lists together.

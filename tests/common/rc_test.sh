@@ -331,6 +331,79 @@ function test_bash_falls_back_when_starship_is_absent() {
   [[ "$out" == *'\u'* ]]
 }
 
+#
+# The environment segment (GLOSSARY: HI.54). Three implementations - the shared
+# common/env_prompt.sh for bash and zsh, config.fish's own copy for fish - and
+# three different answers to "is another tool's prefix already on screen", so
+# each shell is run for real rather than read.
+#
+
+# _hi_env_segment <shell> [pre] [NAME=VALUE ...] - what that shell's prompt
+# puts in front of user@host. <pre> is shell code run after hi's rc and before
+# the segment, for the cases that have to fake a venv activation.
+function _hi_env_segment() {
+  local shell="$1" pre="${2:-}" script
+  shift 2
+  case "$shell" in
+  # ps1 prints the OSC 133/7 marks as a side effect; they are not the segment
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; '"$pre"' ps1 >/dev/null; printf %s "$__hi_env_info"' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; '"$pre"' __hi_env_precmd; print -rn -- "$__hi_env_info"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; '"$pre"' __hi_env_prompt' ;;
+  esac
+  _hi_rc_shell xterm-256color "$shell" "$script" "$@"
+}
+
+# _hi_env_names <shell> <want> [pre] [NAME=VALUE ...]
+function _hi_env_names() {
+  local shell="$1" want="$2"
+  shift 2
+  [ "$(_hi_env_segment "$shell" "$@")" = "$want" ]
+}
+
+# The venv activate scripts leave a marker behind saying they ran in *this*
+# shell: $_OLD_VIRTUAL_PS1 for bash and zsh, an _old_fish_prompt function for
+# fish. These are those markers.
+_HI_VENV_ACTIVATED_bash='_OLD_VIRTUAL_PS1="$ ";'
+_HI_VENV_ACTIVATED_zsh='_OLD_VIRTUAL_PS1="$ ";'
+_HI_VENV_ACTIVATED_fish='function _old_fish_prompt; end;'
+
+function _hi_venv_activated() {
+  eval "printf '%s' \"\$_HI_VENV_ACTIVATED_$1\""
+}
+
+# zsh and fish keep the prompt the activate script edited, so hi leaves the
+# venv to it and names only what has no prefix of its own. bash's ps1() rebuilds
+# $PS1 every draw, so there is nothing there to defer to and hi draws both.
+function test_env_defers_to_an_activate_that_ran_here() {
+  local shell="$1" want="$2"
+  _hi_env_names "$shell" "$want" "$(_hi_venv_activated "$shell")" \
+    DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
+}
+
+# fish is the one shell whose prompt is actually run here, so it is the one
+# that can show the segment in place: leading, before user@host.
+function test_fish_prompt_leads_with_the_environment() {
+  local out
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish VIRTUAL_ENV=/x/proj/.venv)"
+  [[ "$out" == " (proj) "* ]]
+}
+
+# bash and zsh reach $PS1 through a reference filled by the hook, so what their
+# templates can be asked is the placement: the segment ahead of user@host.
+function test_bash_ps1_leads_with_the_environment_reference() {
+  local out
+  out="$(_hi_rc_shell xterm-256color bash \
+    'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; ps1; printf %s "$PS1"')"
+  [[ "$out" == *'${__hi_env_info}'*'\u'* ]]
+}
+
+function test_zsh_ps1_leads_with_the_environment_reference() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh \
+    'source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"')"
+  [[ "$out" == *'${__hi_env_info}'*%n* ]]
+}
+
 function test_zsh_prompt_is_built() {
   local out
   out="$(_hi_rc_shell xterm-256color zsh \
@@ -592,6 +665,29 @@ function run_rc_tests() {
   _hi_check_requires zsh "zsh builds its prompt" test_zsh_prompt_is_built
   _hi_check_requires zsh "zsh flag TAB completes hi's options" test_zsh_flag_completion_offers_hi_options
   _hi_check_requires zsh "zsh completes the word after --preview" test_zsh_completes_the_word_after_preview
+
+  _hi_h2 "Testing: the environment segment (venv, conda, direnv, nix, ...)"
+  local _hi_esh
+  for _hi_esh in bash zsh fish; do
+    _hi_check_requires "$_hi_esh" "[$_hi_esh] nothing active -> no segment" \
+      _hi_env_names "$_hi_esh" "" ""
+    _hi_check_requires "$_hi_esh" "[$_hi_esh] a .venv is named for its project" \
+      _hi_env_names "$_hi_esh" "(proj) " "" VIRTUAL_ENV=/x/proj/.venv
+    _hi_check_requires "$_hi_esh" "[$_hi_esh] direnv outside a venv, outermost first" \
+      _hi_env_names "$_hi_esh" "(direnv:proj|myproj) " "" \
+      DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
+    _hi_check_requires "$_hi_esh" "[$_hi_esh] _HI_DISABLE_ENV_STATUS silences it" \
+      _hi_env_names "$_hi_esh" "" "" VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1
+  done
+  _hi_check "[bash] draws the venv its PROMPT_COMMAND would have eaten" \
+    test_env_defers_to_an_activate_that_ran_here bash "(direnv:proj|myproj) "
+  _hi_check_requires zsh "[zsh] leaves an activate that ran here its own prefix" \
+    test_env_defers_to_an_activate_that_ran_here zsh "(direnv:proj) "
+  _hi_check_requires fish "[fish] leaves an activate that ran here its own prefix" \
+    test_env_defers_to_an_activate_that_ran_here fish "(direnv:proj) "
+  _hi_check "[bash] PS1 puts the segment ahead of user@host" test_bash_ps1_leads_with_the_environment_reference
+  _hi_check_requires zsh "[zsh] PS1 puts the segment ahead of user@host" test_zsh_ps1_leads_with_the_environment_reference
+  _hi_check_requires fish "[fish] the drawn prompt leads with it" test_fish_prompt_leads_with_the_environment
 
   _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh

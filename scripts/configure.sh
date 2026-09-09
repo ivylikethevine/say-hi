@@ -30,6 +30,8 @@ function _hi_load_preview_sources() {
   source "$_HI_HEADER"
   # shellcheck source=../common/git_prompt.sh
   source "$_HI_GIT_PROMPT"
+  # shellcheck source=../common/env_prompt.sh
+  source "$_HI_ENV_PROMPT"
 }
 
 # Answers this run has already taken, as "<var>=<value>" entries. An indexed
@@ -382,11 +384,22 @@ function _hi_git_status_preview() {
   (cd "$_HI_ROOT" 2>/dev/null && unset _HI_DISABLE_GIT_STATUS && _hi_git_prompt)
 }
 
+# the environment segment for whatever is active in this shell, with
+# _HI_DISABLE_ENV_STATUS unset for the call the way the git preview does it.
+# Most runs have nothing active, so the shape stands in for a blank line.
+function _hi_env_status_preview() {
+  local out
+  # shellcheck disable=SC2119 # stdout form on purpose - this feeds show_preview
+  out="$(unset _HI_DISABLE_ENV_STATUS && _hi_env_prompt)"
+  [ -n "$out" ] || out="(mise|direnv:proj|myproj) "
+  printf '%b\n' "$BRCYAN$out$NC"
+}
+
 # the whole prompt line as bash would draw it at this run's answers:
 # user@host cwd, the git segment when that is on, and the end character -
 # or a sentence, when the colored prompt itself is off
 function _hi_prompt_sample_preview() {
-  local prompt git="" end scheme
+  local prompt git="" env="" end scheme
   if setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS" 1; then
     _hi_cecho " prompt off - your shell's own" "$YELLOW"
     return 0
@@ -402,8 +415,13 @@ function _hi_prompt_sample_preview() {
     _hi_prompt_preview
   )"
   setting_off _HI_DISABLE_GIT_STATUS "$_HI_SETTINGS" 1 || git="$(_hi_git_status_preview)"
+  # only what is really active here: the shape _hi_env_status_preview falls
+  # back to would be a fiction in a line claiming to be this session's prompt
+  # shellcheck disable=SC2119 # stdout form on purpose
+  setting_off _HI_DISABLE_ENV_STATUS "$_HI_SETTINGS" 1 || env="$(_hi_env_prompt)"
+  [ -n "$env" ] && env="$BRCYAN$env$NC"
   _hi_prompt_end_shown BASH end
-  printf '%s%s %s\n' "$prompt" "$git" "$end"
+  printf '%b%s%s %s\n' "$env" "$prompt" "$git" "$end"
 }
 
 # The hub's picture: the header as it would print, then the prompt line as
@@ -489,6 +507,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||_hi_header_preview| Enable the connect/disconnect header (system info, git identity, package check)?||connect/disconnect header - its contents are the Header menu"
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
+  "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview| Enable the environment segment in the prompt (the leading (myproj) naming an active venv, conda, direnv, nix or version manager)?||environment segment in the prompt"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?||vim/nano config overrides"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
@@ -1209,6 +1228,7 @@ function collect_setting_lines() {
   _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
+  _hi_collect_value _HI_ENV_ORDER "$_HI_ENV_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_MIN_PRIORITY 2
   _hi_collect_value _HI_PACKAGES_PALETTE ""
   _hi_collect_value _HI_COLOR_SCHEME ""

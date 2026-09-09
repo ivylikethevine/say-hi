@@ -1480,10 +1480,21 @@ function test_header_editor_opens_the_check_depth() {
 
 # The Features menu: a number flips the row and shows its preview
 function test_features_menu_toggles_and_previews() {
-  _hi_cfg_pty feat_toggle '4\n\n' '' config_features || return 1
+  _hi_cfg_pty feat_toggle '5\n\n' '' config_features || return 1
   _hi_cfg_has feat_toggle "vim/nano config overrides: now off" &&
     _hi_cfg_has feat_toggle "nano --rcfile" &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
+}
+
+# The environment segment sits between git status and the editors. Its preview
+# falls back to the shape when nothing is active here, which is what a run on
+# a bare CI box sees - so the case asserts the toggle and the paren shape, not
+# a name only this machine would have.
+function test_features_menu_env_segment_toggles_and_previews() {
+  _hi_cfg_pty feat_env '4\n\n' '' config_features || return 1
+  _hi_cfg_has feat_env "environment segment in the prompt: now off" &&
+    _hi_cfg_has feat_env "myproj" &&
+    [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]
 }
 
 # ...and the header row previews the whole header, not just its banner
@@ -1824,6 +1835,7 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Prompt menu: junk bounded, a quote refused" test_prompt_menu_junk_is_bounded_and_a_quote_is_refused
   _hi_par_check_capable pty "Advanced values: glyph words map, a bad shell list is refused" test_advanced_values_map_glyph_words
   _hi_par_check_capable pty "A number toggles and previews" test_features_menu_toggles_and_previews
+  _hi_par_check_capable pty "The environment row toggles and previews" test_features_menu_env_segment_toggles_and_previews
   _hi_par_check_capable pty "The header row previews the whole header" test_features_menu_header_row_previews_the_header
   _hi_par_check_capable pty "Junk is bounded" test_features_menu_junk_is_bounded
   _hi_par_check_capable pty "Full run: preset, then save" test_full_run_preset_then_save
