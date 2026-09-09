@@ -615,8 +615,9 @@ pods outside the current namespace. A multi-container pod resolves on the pod
 half; kubectl checks the container half when the session runs and fails loudly
 on a missing name — better than declining silently and falling through to ssh.
 
-docker alone also answers to a compose service name (`_hi_compose_container`)
-when exactly one running container carries that label. Ambiguous (two
+docker and podman also answer to a compose service name
+(`_hi_compose_container`) when exactly one running container carries that
+label. Ambiguous (two
 projects, same service) and absent both fail rather than guess — a wrong guess
 lands a session in someone else's container — and the lookup runs only when
 the literal name does not resolve, so the common case pays one inspect.
@@ -847,9 +848,10 @@ Two members can front one daemon — `podman-docker` ships a `docker` that
 execs podman, nerdctl and finch share a containerd — and would list every
 container twice. `targets.sh`'s `dedupe_family` keeps the first lane's row in
 roster order (so a shim host sees `docker`), and the header unions the lane
-files, since the IDs are the daemon's. The compose-service alias stays
-docker's: podman honours the `.Label` template, nerdctl and finch are
-unverified, and a template one rejects would empty its lane.
+files, since the IDs are the daemon's. The compose-service alias is
+docker's and podman's: both render the `.Label` template and take the matching
+`label=` filter, while nerdctl and finch are unverified, and a template one
+rejects would empty its lane.
 
 `--use <backend>` forces any arm by name, ssh and every roster row included,
 and is the only way to: there is no per-backend flag, so a member added to

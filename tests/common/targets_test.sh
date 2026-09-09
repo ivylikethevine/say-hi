@@ -37,10 +37,12 @@ function _hi_write_shims() {
 printf 'alpha\nbeta compose-svc\n'
 EOF
 
+  # podman renders the same {{.Label ...}} template docker does (verified
+  # against a real podman), so its lane carries the compose column too
   cat >"$dir/podman" <<'EOF'
 #!/bin/sh
 [ "$1" = ps ] || exit 1
-printf 'pod-one\n'
+printf 'pod-one\npod-two compose-pod\n'
 EOF
 
   # a third family member (GLOSSARY: HI.51); finch is deliberately not
@@ -252,6 +254,18 @@ function test_docker_kind_lists_compose_service_alias() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" docker)"
   _hi_has_row "$out" compose-svc docker
+}
+
+# podman resolves a compose service name exactly as docker does - the same
+# `{{.Label ...}}` template on the way out and the same `label=` filter on the
+# way back through hi.sh's _hi_compose_container. pod-one carries no label, so
+# it stays one row while pod-two gains its service alias.
+function test_podman_kind_lists_compose_service_alias() {
+  local out
+  out="$(_hi_targets "$_HI_CONFIG" podman)"
+  _hi_has_row "$out" pod-one podman &&
+    _hi_has_row "$out" pod-two podman &&
+    _hi_has_row "$out" compose-pod podman
 }
 
 # alpha has no label, so its second field is empty - must not turn into a
@@ -964,6 +978,7 @@ function run_targets_tests() {
   _hi_check "docker -> running containers" test_docker_kind_lists_running_containers
   _hi_check "docker -> compose service alias" test_docker_kind_lists_compose_service_alias
   _hi_check "docker -> no alias row for an empty label" test_docker_kind_omits_alias_row_when_label_is_empty
+  _hi_check "podman -> compose service alias" test_podman_kind_lists_compose_service_alias
   _hi_check "nerdctl -> running containers, its own kind" test_nerdctl_kind_lists_running_containers
   _hi_check "an absent family member emits nothing" test_absent_family_member_is_silent
   _hi_check "the family's order is the emission order" test_family_order_is_emission_order

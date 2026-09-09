@@ -78,9 +78,9 @@ ssh host and a container name resolves as the ssh host.
 - **Anything that is a docker or podman container underneath** - distrobox,
   toolbx, devcontainers (under docker's `vsc-<project>-<hash>-uid` name, from
   _outside_; a devcontainer you already sit in has no client to say `hi`
-  from), compose services (`hi web` resolves the
-  `com.docker.compose.service` label; the same service in two projects
-  resolves to neither, on purpose), and any remote docker context, since the
+  from), compose services under docker and podman alike
+  (`hi web` resolves the `com.docker.compose.service` label; the same service
+  in two projects resolves to neither, on purpose), and any remote docker context, since the
   arm shells out to whatever `docker` is on `$PATH`. Sharing your real
   `$HOME` costs nothing: hi writes to no login file on a target.
 - **Anything that ends in a real OpenSSH connection** - AWS SSM,

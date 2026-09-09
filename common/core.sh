@@ -564,6 +564,22 @@ function _hi_use_ascii() {
 # *client's* terminal, so the client's verdict is the one the target honors
 function _hi_ascii_flag() { _hi_use_ascii && printf '1\n' || printf '0\n'; }
 
+# Does ${#} answer in columns or in bytes? A UTF-8 locale makes bash count
+# characters; anything else counts bytes - and the two part company exactly
+# where the glyph set is forced on rather than derived, which is the normal
+# case on a target: a client whose terminal renders glyphs ships _HI_ASCII=0,
+# and a target sitting in LC_ALL=C then draws them under a shell that measures
+# a three-byte ● as three columns. Header lines wrap that a real terminal
+# would have fitted.
+#
+# One multibyte character is the whole probe, and it is decided once here
+# because the callers are per-cell hot paths. The literal, not $'\uXXXX':
+# that escape is bash 4.2 and the floor is 3.2. GLOSSARY: HI.12
+_HI_MB_PROBE='─'
+_HI_BYTE_COUNTS=0
+[ "${#_HI_MB_PROBE}" = 1 ] || _HI_BYTE_COUNTS=1
+unset _HI_MB_PROBE
+
 # One glyph set per session, decided at source time so hot paths read plain
 # variables; tests flip _HI_ASCII and re-call. Every _HI_MARK_* is one visible
 # column in both sets, which is what lets the callers that pad around a mark

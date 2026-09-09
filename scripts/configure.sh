@@ -224,9 +224,7 @@ function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
 # a header width: 40 columns is the narrowest the banner and rows draw in
 function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
 
-# seconds, as timeout(1) takes them: whole or with a fraction
-function _hi_is_seconds() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
-# plain identifiers, space-separated: hi.sh names a function after each one
+# a settings.sh value has to survive being written into a single-quoted export
 function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
 }
@@ -254,18 +252,6 @@ function _hi_is_header_word() {
   *" $1 "*) return 0 ;;
   *) return 1 ;;
   esac
-}
-
-# $_HI_HEADER_ORDER's vocabulary: those words, any order, space-separated, a
-# feature skippable by leaving it out. Empty is refused - at runtime an empty
-# value falls back to the default order, so it is not a way to spell "none"
-function _hi_is_header_order() {
-  local word
-  [ -n "$1" ] || return 1
-  # shellcheck disable=SC2086 # the split is the point: one word per feature
-  for word in $1; do
-    _hi_is_header_word "$word" || return 1
-  done
 }
 
 # A section heading plus one line saying what the menu under it decides,
@@ -712,7 +698,7 @@ function config_hub() {
     printf '   2) %-12s %s\n' "[h]eader" "what the header shows and in what order; its width, the package check's depth, the addresses hidden"
     printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
     printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
-    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color"
+    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, and 24-bit color"
     printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
     printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
     menu_read " > " reply || return 0

@@ -12,8 +12,11 @@ on:
   # no `paths:` filter, deliberately: Scorecard's SAST check counts completed
   # CodeQL runs on the merged PRs behind the last 30 default-branch commits,
   # and most dev->main PRs touch no workflow file, so a scoped trigger reads
-  # as if CodeQL only sometimes existed
+  # as if CodeQL only sometimes existed. Drafts are gated out in `analyze`
+  # below; ready_for_review is what gets the run once a draft is marked ready
+  # (it is not one of the default types)
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   # the default-branch baseline code scanning diffs a PR against; without it
   # the first PR to touch a workflow has nothing to compare to
   schedule:
@@ -30,6 +33,9 @@ concurrency:
 jobs:
   analyze:
     name: CodeQL (actions)
+    # a draft PR is still being written; it gets its run when it is marked
+    # ready, the same rule ci.yml applies
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

@@ -19,6 +19,7 @@
 # "hostname,jeff-desktop,..." override still takes priority over these.
 # anything with no pin at all falls back to a hash of the name.
 # run `hi --preview colors` to preview what everything currently resolves to.
+# TODO: add hex_color as an optional 4th column
 #type,name,color
 hosttag,terminal,brmagenta
 hosttag,baremetal,brred

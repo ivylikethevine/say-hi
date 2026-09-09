@@ -238,7 +238,7 @@ function load() {
 
   # vim only: VIMINIT breaks a target that has just vi. Gated on
   # _HI_DISABLE_EDITORS too, since VIMINIT *is* the override that toggle turns
-  # off - and it needs the file, which the payload omits when it is off.
+  # off (settings/vim.rc ships either way - the payload roster is static).
   [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]] &&
     command -v vim &>/dev/null &&
     export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
