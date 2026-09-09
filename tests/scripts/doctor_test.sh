@@ -818,6 +818,8 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
   _hi_check "A flag forces the arm" test_target_forced_by_a_flag_skips_the_probe_chain
+  _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
+  _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
   _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member
   _hi_check "config rows: a parsing file is ok, a broken one is bad, an absent one is no row" test_config_rows_parse_the_files
   _hi_check "Falls through to ssh" test_target_falls_through_to_ssh

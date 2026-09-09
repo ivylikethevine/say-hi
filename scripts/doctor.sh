@@ -80,8 +80,7 @@ case "${1:-}" in
 esac
 
 # hi.sh's source hatch hands over everything this needs without connecting
-# anywhere: the backend predicates, _hi_remote_root, $_HI_PAYLOAD and
-# _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
+# anywhere: the backend predicates, $_HI_PAYLOAD and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
 # reads it at source time, and must see none) and classified after, so an arm
 # name is recognized through the one place that spells the roster rather than
 # a second list here.

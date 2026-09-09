@@ -111,8 +111,8 @@ function run_ssh_tests() {
       -f "$(_hi_dockerfile installed)" "$_HI_ROOT" && _HI_INSTALLED_OK=1
   fi
 
-  # The same tree, installed away from ~/say-hi - the shape _hi_remote_root's
-  # probe exists for. Same build context (the repo) as the image above.
+  # The same tree, installed away from ~/say-hi - the shape a `--prefix` or a
+  # dotfiles-managed install leaves. Same build context (the repo) as above.
   _HI_NESTED_OK=0
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
     _hi_build_image debian-nested "hi-sshtest-debian-nested-$$" "the non-default install path case" \

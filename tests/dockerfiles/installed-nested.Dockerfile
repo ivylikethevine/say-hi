@@ -1,10 +1,9 @@
 # A permanent say-hi on the target, installed *away* from the default path:
-# ~/opt/nested/say-hi, wired up by hi's own scripts/install.sh. What the
-# `installed` image (installed.Dockerfile) is to hi.sh's _hi_remote_root
-# probe's fallback, this one is to the probe itself - the only thing that can
-# find this tree is the `export _HI_HOME=...` install.sh writes into the login
-# rc files, and without reading that back hi copies its payload over a curated
-# checkout that is already sitting there.
+# ~/opt/nested/say-hi, wired up by hi's own scripts/install.sh. Where the
+# `installed` image (installed.Dockerfile) is a tree at the default path, this
+# one is the shape a `--prefix` or a dotfiles-managed install leaves. hi ships
+# its payload either way; the case is that a session over this box runs out of
+# its own tree and leaves this curated checkout exactly as it found it.
 #
 # --link none because nothing here needs the launcher
 # on $PATH (paths.sh's `hi` alias is what the session uses); -y because the

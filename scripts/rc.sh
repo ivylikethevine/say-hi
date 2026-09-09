@@ -135,9 +135,8 @@ function strip_marker() {
 # The rc line that states where say-hi is. Written for every install, not only
 # for one outside $HOME (GLOSSARY: HI.33 - "$HOME is a safe default" is no
 # part of that rule). It is the one place a *new* process can read the
-# answer without a tree to derive it from: a login shell, tmux's
-# update-environment, hi.sh's _hi_remote_root probing this machine from another
-# one. $2 overrides which home is meant, for the /etc/profile.d snippet
+# answer without a tree to derive it from: a login shell, or tmux's
+# update-environment. $2 overrides which home is meant, for the /etc/profile.d snippet
 # packaging mode writes: there the answer is the package's prefix, not where
 # this script happens to be running from.
 function tmpdir_line() {
