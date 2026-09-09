@@ -34,6 +34,11 @@ function _hi_visible_len() {
   }
   stripped="${2//$'\e'\[*([0-9;])m/}"
   ((restore)) && shopt -u extglob
+  # the same byte-vs-column split common/header.sh's _hi_visible_width takes,
+  # and for the same reason: the box glyphs a rule is drawn from are three
+  # bytes each, so a shell whose ${#} answers in bytes would size a column to
+  # three times the rule it has to fit under. GLOSSARY: HI.12
+  ((_HI_BYTE_COUNTS)) && stripped="${stripped//[$'\200'-$'\277']/}"
   printf -v "$1" '%s' "${#stripped}"
 }
 

@@ -62,6 +62,27 @@ function test_hi_visible_width_strips_a_leading_color() {
   [ "$n" -eq 2 ]
 }
 
+# Columns, never bytes. The header packs by this number, so where ${#}
+# answers in bytes - a target under LC_ALL=C drawing the glyph set its client
+# shipped it - a three-byte glyph measured as three would wrap a line the
+# terminal had room for. GLOSSARY: HI.12
+function test_hi_visible_width_counts_columns_not_bytes() {
+  local n
+  _hi_visible_width n "abc●●●"
+  [ "$n" = 6 ]
+}
+
+# ...and the byte-counting branch itself, forced on, so the case exercises it
+# on a UTF-8 runner too rather than only where the locale happens to trip it
+function test_hi_visible_width_counts_columns_where_length_counts_bytes() {
+  local n
+  (
+    _HI_BYTE_COUNTS=1
+    _hi_visible_width n "${GREEN}abc●●●"
+    [ "$n" = 6 ]
+  )
+}
+
 function test_hi_visible_width_plain_text_unchanged() {
   local n
   _hi_visible_width n "hi"
@@ -1950,6 +1971,8 @@ function run_header_tests() {
   _hi_check "Wrap keeps every cell intact" test_header_row_wrap_keeps_cells_intact
   _hi_check "_hi_visible_width strips a leading color" test_hi_visible_width_strips_a_leading_color
   _hi_check "...plain text is unchanged" test_hi_visible_width_plain_text_unchanged
+  _hi_check "...and a glyph counts one column, not three bytes" test_hi_visible_width_counts_columns_not_bytes
+  _hi_check "...on a shell whose \${#} answers in bytes too" test_hi_visible_width_counts_columns_where_length_counts_bytes
   _hi_check "Wrap math ignores color escape bytes" test_header_row_width_ignores_color_escape_bytes
   _hi_check "_hi_draw_width defaults to _HI_MAX_WIDTH when captured" test_hi_draw_width_defaults_to_max_width_when_captured
   _hi_check "_hi_draw_width honors an explicit _HI_TERM_COLS override" test_hi_draw_width_honors_an_explicit_override

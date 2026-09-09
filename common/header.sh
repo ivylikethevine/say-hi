@@ -27,6 +27,10 @@ unset _hi_d
 function _hi_visible_width() {
   local s="$2" re='^\\e\[[0-9;]*m(.*)$'
   [[ "$s" =~ $re ]] && s="${BASH_REMATCH[1]}"
+  # where ${#} counts bytes (core.sh's $_HI_BYTE_COUNTS), the UTF-8
+  # continuation bytes come off first: 0x80-0xBF never start a character, so
+  # what is left is one byte per column. GLOSSARY: HI.12
+  ((_HI_BYTE_COUNTS)) && s="${s//[$'\200'-$'\277']/}"
   printf -v "$1" '%d' "${#s}"
 }
 
