@@ -1008,7 +1008,11 @@ case "$2" in
 hw.ncpu) echo 8 ;;
 hw.memsize) echo 17179869184 ;;
 vm.loadavg) echo "{ 2.00 1.50 1.00 }" ;;
-kern.boottime) echo "{ sec = $(($(date +%s) - 5400)), usec = 0 } Thu Jan  1 00:00:00 2026" ;;
+# 5430, not 5400: header.sh reads its own `date +%s` on the other side
+# of the pipe, so the two clock reads can straddle a second tick and
+# land a second either way. Half a minute in puts the figure in the
+# middle of the minute the case asserts instead of on its edge.
+kern.boottime) echo "{ sec = $(($(date +%s) - 5430)), usec = 0 } Thu Jan  1 00:00:00 2026" ;;
 *) exit 1 ;;
 esac
 EOF
@@ -1167,7 +1171,7 @@ function test_uptime_and_ip_cells_on_a_mac() {
   local out
   # shellcheck disable=SC2016 # the probe expands in the child bash, not here
   out="$(_hi_platform_header "$(_hi_mac_shims)" '_hi_cell_uptime u; _hi_cell_ip i; printf "%s\n%s\n" "$u" "$i"')"
-  # kern.boottime 5400s ago; ifconfig's inet line, not inet6 and not lo0
+  # kern.boottime 5430s ago; ifconfig's inet line, not inet6 and not lo0
   [[ "$out" == *"Up: 1h 30m"* && "$out" == *"IP: 192.0.2.10"* ]] || {
     _hi_cecho " | got: $out" "$RED"
     return 1
