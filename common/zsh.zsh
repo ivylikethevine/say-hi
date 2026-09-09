@@ -138,7 +138,7 @@ _hi() {
     done < <(sh "$_HI_TARGETS")
     _HI_TARGET_ROWS_AT=$SECONDS
   fi
-  # -V: an unsorted group, so targets.sh's order (recent first) is the menu's
+  # -V: an unsorted group, so targets.sh's order is the menu's
   compadd -V hi-targets -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
 }
 compdef _hi hi

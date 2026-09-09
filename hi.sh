@@ -22,8 +22,8 @@ _hi_now() {
   case "$d" in *N* | '') date +%s ;; *) printf '%s' "$d" ;; esac
 }
 # the `||` matters under `set -e`, above: hi.sh's own source-time work has no
-# hard `date` requirement (tests/hi/parse_test.sh's picker cases run it with
-# a PATH of nothing but bash/sh/sed/cat), so a target this bare degrades to
+# hard `date` requirement (tests/hi/parse_test.sh runs it with a PATH of
+# nothing but bash/sh/sed/cat), so a target this bare degrades to
 # an empty connect time rather than aborting the source before it defines
 # anything - _hi_elapsed then reads it as awk's own zero, not an error.
 _HI_CONNECT_T0="$(_hi_now)" || _HI_CONNECT_T0=""
@@ -133,7 +133,6 @@ function _hi_target_color() {
 # toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
 _HI_TRIM_TABLE=(
   "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
-  "_HI_DISABLE_PASSTHROUGH|say-hi/common/passthrough.sh|"
 )
 
 # _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
@@ -1054,8 +1053,8 @@ function _hi_remote_preamble() {
       _hi_now() { d=\$(date +%s.%N 2>/dev/null); case "\$d" in *N*|'') date +%s ;; *) printf '%s' "\$d" ;; esac; }
       _hi_t0=\$(_hi_now)
 $(_hi_env_each '      export %s=%s\n')
-      case "\${_HI_TERM_FALLBACK:-1}:\$TERM" in
-      0:* | 1:xterm | 1:xterm-256color | 1:xterm-color | 1:screen | 1:screen-256color | 1:tmux | 1:tmux-256color | 1:linux | 1:vt100 | 1:vt220 | 1:dumb | 1:) ;;
+      case "\$TERM" in
+      xterm | xterm-256color | xterm-color | screen | screen-256color | tmux | tmux-256color | linux | vt100 | vt220 | dumb | '') ;;
       *)
         _hi_ti_ok=""
         _hi_ti_c=\${TERM%"\${TERM#?}"}
@@ -1620,59 +1619,6 @@ function _say_hi_container_plain() {
   fi
 }
 
-# split ssh's arguments from the target and any trailing remote command
-# A target chosen from the list, on stdout. What bare `hi` reaches instead of
-# falling through to ssh's usage message. Two failures, told apart because they
-# deserve different answers: 2 is "there was nothing to offer", which is still
-# ssh's usage message to print, and 1 is "you dismissed the menu", which is not.
-#
-# The rows are common/targets.sh's, the same "<name>\t<kind>" list the three
-# shell completions read - so the offer is backend-tagged, recency-ranked, and
-# served out of the $_HI_TARGETS_TTL cache a TAB may already have warmed. This
-# runs entirely on the client and connects to the result like any other target,
-# so nothing here reaches a payload or a target's disk.
-#
-# fzf or sk when the client has one, a numbered `select` when it does not:
-# nothing has to be installed for bare `hi` to work. Both write their menu to
-# the terminal rather than to stdout, which is this function's return value -
-# fzf and sk open /dev/tty themselves, and bash's `select` prompts on stderr.
-function _hi_pick_target() {
-  local picker rows reply name kind
-  rows="$(exec sh "$_HI_TARGETS" 2>/dev/null)" || rows=""
-  [ -n "$rows" ] || return 2
-  picker="$(command -v fzf || command -v sk || true)"
-  if [ -n "$picker" ]; then
-    # --with-nth over a tab delimiter shows the tag beside the name while
-    # keeping the whole row as the value, so the cut below is the same for
-    # both pickers
-    # stderr is deliberately not swallowed: the picker draws its pane on
-    # /dev/tty, so the only thing that reaches stderr is a complaint - a flag
-    # this build does not take, most likely - and silence there would read as
-    # "hi did nothing". A dismissal is an empty answer, not an error.
-    reply="$(printf '%s\n' "$rows" | "$picker" --prompt='hi ' \
-      --delimiter=$'\t' --with-nth=1,2 --height=40% --reverse --no-multi || true)"
-    reply="${reply%%$'\t'*}"
-  else
-    local -a menu=()
-    while IFS=$'\t' read -r name kind; do
-      [ -n "$name" ] || continue
-      # bash prints a `select` item verbatim, so "<name> (<kind>)" is all the
-      # formatting there is - and the cut below takes the name back off it
-      menu+=("$name (${kind:-ssh})")
-    done <<<"$rows"
-    ((${#menu[@]})) || return 2
-    # stdin, not an explicit /dev/tty: bare `hi` already established that stdin
-    # is a terminal, and reopening one here would ignore a redirect
-    local PS3="hi which? "
-    select reply in "${menu[@]}"; do
-      [ -n "$reply" ] && break
-    done
-    reply="${reply%% *}"
-  fi
-  [ -n "$reply" ] || return 1
-  printf '%s' "$reply"
-}
-
 # _hi_flag_takes <word> - the <argument> column of hi's flag <word> (-h/-V
 # stand for --help/--version): empty for a bare flag, status 1 when <word> is
 # not hi's. With the output dropped, the after-target guard's membership test.
@@ -1729,6 +1675,7 @@ function _hi_only_word() {
   }
 }
 
+# split ssh's arguments from the target and any trailing remote command
 function _hi_parse() {
   local backend_word use_word own=""
   # every result of the parse starts empty here: these are plain globals, and
@@ -1816,23 +1763,14 @@ function _hi_parse() {
     shift
   done
   [ -n "${DOMAIN:-}" ] || {
-    # Bare `hi` - no target and no ssh option either - has a list to offer
-    # rather than a usage message to print. Any ssh option present and the old
-    # behaviour stands: `hi -V` has to go on being `ssh -V`, and an option
-    # without a host is ssh's error to report, not a target to guess at.
-    #
-    # Both ends of a terminal are required. Without them there is nobody to
-    # answer the picker, and a `hi` in a script or a CI job would hang on a
-    # menu instead of failing the way it does today.
-    if [ "${#SSHARGS[@]}" -eq 0 ] && [ -t 0 ] && [ -t 2 ]; then
-      local pick_rc=0
-      DOMAIN="$(_hi_pick_target)" || pick_rc=$?
-      [ -n "${DOMAIN:-}" ] && return 0
-      # dismissed rather than empty: that is an answer, and printing ssh's
-      # usage over the top of the menu just closed is not a reply to it. A
-      # machine with nothing to offer (rc 2) falls through and says so the way
-      # it always has.
-      [ "$pick_rc" -eq 1 ] && exit 0
+    # Bare `hi` - no target and no ssh option either - prints the help and
+    # stops. Any ssh option present and the old behaviour stands: `hi -V` has
+    # to go on being `ssh -V`, and an option without a host is ssh's error to
+    # report, not a target to guess at. Terminal or not: help is safe to print
+    # from a script, and nothing here can wait on input.
+    if [ "${#SSHARGS[@]}" -eq 0 ] && [ -z "$own" ]; then
+      _hi_help
+      exit 0
     fi
     # hi's own flags with nothing to connect to (`hi --plain` in a script)
     # are hi's mistake to name: ssh saw none of them and has nothing to say
@@ -1884,30 +1822,6 @@ function _hi_select_arm() {
   fi
   _hi_is_ssh_host "$DOMAIN" && return 0
   _hi_resolve_backend "$DOMAIN"
-}
-
-# _hi_record_recent <target> - one "<epoch>\t<target>" line appended to the
-# recent-targets file common/targets.sh ranks completion by; client-side only,
-# quiet on failure, trimmed past 500 lines. GLOSSARY: HI.42
-function _hi_record_recent() {
-  local f n tmp
-  [ "${_HI_RECENT:-1}" != 0 ] || return 0
-  [ "${_HI_REMOTE_SESSION:-0}" != 1 ] || return 0
-  f="${_HI_RECENT_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/say-hi/recent}"
-  [ -d "${f%/*}" ] || mkdir -p "${f%/*}" 2>/dev/null || return 0
-  local _hi_rr_now _hi_rr_n
-  _hi_rr_now="$(exec date +%s 2>/dev/null)" || _hi_rr_now=0
-  printf '%s\t%s\n' "$_hi_rr_now" "$1" >>"$f" 2>/dev/null || return 0
-  n="$(exec grep -c . "$f" 2>/dev/null)" || n=0
-  if [ "$n" -gt 500 ]; then
-    tmp="$f.$$"
-    if tail -n 300 "$f" >"$tmp" 2>/dev/null; then
-      mv "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
-    else
-      rm -f "$tmp" 2>/dev/null
-    fi
-  fi
-  return 0
 }
 
 # _hi_reset_terminal <code> - what a dropped link leaves behind. ssh puts the
@@ -2020,7 +1934,7 @@ function _hi_mux_wrap() {
   _hi_mux_tool tool || return 0
   name="$(_hi_mux_name "$DOMAIN")"
   # The inner argv is rebuilt from what _hi_parse settled on rather than
-  # replayed from "$@", so a target chosen by the picker rides along. tmux
+  # replayed from "$@", so the target it settled on rides along. tmux
   # and screen take it as one single-quoted string, not a word list: tmux
   # hands it to its default-shell, which may be fish, and screen to `sh -c`,
   # and single quotes are the one form every shell reads the same way (%q's
@@ -2130,10 +2044,6 @@ function _hi() {
   # a session that did not end on its own terms may have left the terminal
   # mid-state; only with a terminal on both ends to put right
   [ "$exit_code" -eq 0 ] || { [ -t 0 ] && [ -t 1 ] && _hi_reset_terminal "$exit_code"; }
-
-  # a session that ended cleanly is one worth offering first next time; one
-  # that never connected (a typo, an unreachable host) is not
-  [ "$exit_code" -eq 0 ] && _hi_record_recent "$DOMAIN"
 
   [ "$exit_code" -eq 0 ] || _hi_report_failure "$exit_code" "$arm" "$tmp"
   exit "$exit_code"
@@ -2255,8 +2165,7 @@ stdout. For a plain, pty-free remote command, use ssh itself.
      or namespace:pod / context:namespace:pod for another one
 A name none of them claims still goes to ssh, so unlisted hosts work too.
 
-With no target at all, hi offers that list to pick from: fzf or sk when you
-have one, a numbered menu when you do not.
+With no target at all, hi prints this help.
 
 hi's own options, which work anywhere - a session included:
 $(_hi_flag_help -)
@@ -2305,8 +2214,8 @@ set +euo pipefail # the connection paths below run against unknown hosts, where 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
 
 # hi's own flags, dispatched on $1 alone: _hi_parse hands every other -flag to
-# ssh, so anything hi answers itself is caught first. A bare `hi` still execs
-# ssh, so `hi -V` and friends behave as they do there.
+# ssh, so anything hi answers itself is caught first. A bare `hi` prints the
+# help; `hi -V` and friends still reach ssh and behave as they do there.
 _hi_dispatch_subcommand "$@"
 
 case "${1:-}" in

@@ -55,7 +55,6 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.39 payload staging](#hi39-payload-staging)
 - [HI.40 hand-rolled sh quoting](#hi40-hand-rolled-sh-quoting)
 - [HI.41 overlay stream](#hi41-overlay-stream)
-- [HI.42 recent targets](#hi42-recent-targets)
 - [HI.43 container target grammar](#hi43-container-target-grammar)
 - [HI.44 wire size token](#hi44-wire-size-token)
 - [HI.46 session rc directory](#hi46-session-rc-directory)
@@ -281,7 +280,8 @@ entry for (ghostty's `xterm-ghostty`, kitty's `xterm-kitty`) breaks
 clear/backspace before hi even matters. The bootloader skips the probe for
 ubiquitous names; anything else must be found in a terminfo tree — plain dirs
 and the BSD/macOS single-hex-char layout both checked — or is swapped for
-`xterm-256color`. `_HI_TERM_FALLBACK=0` keeps the original.
+`xterm-256color`. Always on: there is no setting to keep a TERM the target
+cannot render.
 
 ## HI.23 bash --rcfile -i
 
@@ -563,8 +563,8 @@ the client reads `settings.sh` (HI.36) before building the tar, so this costs
 no probe. One table feeds both halves — tree files and the overlay files a
 toggle takes off — because off has to take _both_ off or a switched-off toggle
 still ships a file. `settings/aliases.sh` is never trimmed: it carries the
-whole alias set, and every consumer of `common/passthrough.sh` tests the file
-exists first, so trimming the emitter is safe.
+whole alias set, and the editor aliases test their rc files exist first, so
+trimming those is safe.
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
@@ -614,18 +614,6 @@ the tree copy is a default, and `common/paths.sh` points `$_HI_VIMRC` /
 guard could only fire on the client — an editor override working locally and
 silently reverting on every target, the asymmetry `paths_test.sh`'s
 guard/roster pin catches one layer up.
-
-## HI.42 recent targets
-
-`_hi_record_recent` (`hi.sh`) appends one `<epoch>\t<target>` line to the
-recent-targets file after a session that ended cleanly; `common/targets.sh`
-ranks completion by it (frecency: most and most recently connected first).
-Client-side only: a session's own `hi` (a relay hop) writes nothing, so
-nothing about a client's habits lands on a target, and the file is not in
-`$_HI_PAYLOAD`. `_HI_RECENT=0` turns off both halves. Every write may fail
-quietly — a read-only `$HOME` is no reason to fail a session that already
-ended well. Past 500 lines the file is trimmed in place to the newest 300, so
-it stays a few KB and the rank cost flat.
 
 ## HI.43 container target grammar
 
@@ -703,14 +691,13 @@ own. hi writes nothing into a target's login files
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is nine names:
+is seven names:
 
 - `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
   `hi.sh` put it, and cannot be re-derived;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_CONTAINER_CLIS`, `_HI_RECENT`,
-  `_HI_RECENT_FILE` — the knobs `sh targets.sh` reads straight off its
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_CONTAINER_CLIS` — the knobs `sh targets.sh` reads straight off its
   environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
@@ -783,7 +770,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twelve palette names
 render as; it never adds a name. `_hi_hash_color`, the `settings/colors`
-pins, `_hi_color_name_of` and `hi --preview colors` all keep the same
+pins, `_hi_color_escape` and `hi --preview colors` all keep the same
 vocabulary, so a scheme is invisible to everything that reasons about a
 color by name - only the bytes a name turns into change.
 
@@ -814,10 +801,8 @@ know falls back to sixteen colors as it always did. Twenty-four words are
 two banks of the twelve names. `_hi_scheme_hex` takes slot indexes 0-23 and
 folds 12-23 onto 0-11 for every table but a 24-word list, and
 `_hi_color_escape_at` derives the 16-color half from the index mod 12, so a
-second-bank escape wears the same `\e[<bold>;3<n>` as its name: every hue
-and width reader above still works, and `_hi_sgr_base` (`scripts/lib.sh`)
-is how the tooling names an escape from either bank - cut at `;38;2;`, what
-is left is the name. Only `common/header.sh`'s packages check reads the
+second-bank escape wears the same `\e[<bold>;3<n>` as its name, so every hue
+and width reader above still works. Only `common/header.sh`'s packages check reads the
 second bank: `_hi_packages_palette` rebuilds `_HI_YES`/`_HI_NO` from it after
 the named-ramp `case`, per render rather than at source time, because the
 ramps are the palette variables and those are the first bank by contract.
@@ -888,8 +873,8 @@ Five rules in `_hi_mux_wrap`:
 - **Where it sits.** After `_hi_parse`, before `_hi_select_arm`, so one
   insertion point covers every arm (ssh, `--plain`, docker, nomad, kube). The
   inner argv is rebuilt from the parsed state (`--use`, `--plain`, the ssh
-  options, `$DOMAIN`, the command), not replayed from `"$@"`, so a target the
-  picker chose rides along.
+  options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
+  settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
   the wrap returns at once when that is set, which is what keeps a
   `_HI_MUX=1` setting (read again by the inner hi) from nesting forever. It

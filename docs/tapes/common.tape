@@ -21,8 +21,8 @@
 #   zsh  (editors.tape, run.tape)                 Dracula
 #   fish (overlay.tape, complete.tape)            nord
 #
-# bash is the warm one on purpose: it is the shell four of the demos use -
-# demo, packages, colors and pick - so the odd one out in tone is the one you
+# bash is the warm one on purpose: it is the shell three of the demos use -
+# demo, packages and colors - so the odd one out in tone is the one you
 # see most, and the two cool themes then read as "not bash" at a glance.
 #
 # The bash one lives here because it is the default; the other two override it

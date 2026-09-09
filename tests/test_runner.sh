@@ -61,7 +61,6 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:install:scripts/install_test.sh"
     "fast:preview:scripts/preview_test.sh"
     "fast:aliases:settings/alias_test.sh"
-    "fast:passthrough:common/passthrough_test.sh"
     "fast:rc_lines:scripts/rc_test.sh"
     "fast:table:scripts/table_test.sh"
     "fast:hi:hi/parse_test.sh"

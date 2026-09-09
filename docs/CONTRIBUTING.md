@@ -170,8 +170,6 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `rows`) with each row's four fields.
 - **Exit status** — 0 for "did what it says", 1 for "hi refused before
   connecting" or "a finding", and a connect's own status passed through.
-- **The session commands** `hi_copy` and `hi_notify` — their names and the
-  escapes they emit.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name,
   type and default. A toggle that has to go is a 2.0.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,

@@ -15,7 +15,7 @@
 #
 # Not sourced by anything; invoked from the tapes' Hide blocks:
 #
-#   docs/tapes/fixtures.sh up demo|packages|editors|pick|overlay|colors|complete|run
+#   docs/tapes/fixtures.sh up demo|packages|editors|overlay|colors|complete|run
 #   docs/tapes/fixtures.sh down
 set -euo pipefail
 
@@ -159,7 +159,7 @@ function up_ssh() { # <name...> - one sshd box per name, off the one image
 # prompt shows the second, and a demo where those differ reads as a bug in hi.
 # It also gives the header's color-hash line something meaningful to hash
 # instead of the backend's random container ID.
-function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash|zsh-bash>
+function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|fish-bash>
   local backend="$1" name="$2" flavor="$3" image
   case "$flavor" in
   debian) image=debian:bookworm-slim ;;
@@ -179,13 +179,6 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
     "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
       -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image=hi-demo-fish-bash-img
-    ;;
-  # zsh with bash beside it, for the same reason: the picker demo's session
-  # lands in zsh (_HI_SHELL_PREFERENCE) with the full tier under it
-  zsh-bash)
-    "$backend" build -q -t hi-demo-zsh-bash-img --build-arg "PKGS=zsh bash git" \
-      -f "$_HI_ROOT/tests/dockerfiles/alpine-shell.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
-    image=hi-demo-zsh-bash-img
     ;;
   zsh | fish)
     "$backend" build -q -t "hi-demo-$flavor-img" --build-arg "PKGS=$flavor git" \
@@ -326,8 +319,9 @@ function client_rc() { # <shell> <user> <hostname> [stock]
   # would leak the same way.
   rm -rf "$_HI_DEMO_DIR/config"
   mkdir -p "$_HI_DEMO_DIR/config"
-  # the throwaway $HOME every tape stands in (pick.tape says why), whether or
-  # not its fixture puts anything there
+  # the throwaway $HOME every tape stands in - the client prompt then reads ~
+  # rather than the renderer's checkout path, and carries none of its git
+  # markers - whether or not its fixture puts anything there
   mkdir -p "$_HI_DEMO_DIR/home"
   # $_HI_HOME/$_HI_ROOT are baked in rather than inherited: vhs starts a bare
   # shell, and on a machine where /usr/bin/hi points at some other install (or
@@ -437,105 +431,6 @@ Host bastion
 EOF
 }
 
-# The researcher's roster (the picker demo): a small cluster reached from a
-# laptop. Read out of the file only, like demo_ssh_config's - no sshd runs
-# for any of them.
-function demo_ssh_config_research() {
-  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
-  cat >"$_HI_DEMO_DIR/home/.ssh/config" <<'EOF'
-# Tags: gpu
-Host gpu-01 gpu-02
-  User chen
-
-# Tags: gpu
-Host gpu-big
-  User chen
-
-Host jupyter
-  User chen
-
-Host storage
-  User chen
-
-Host login
-  User chen
-EOF
-}
-
-# The same roster with real connection details for the sshd boxes named, for
-# the demos that both *list* hosts and *connect* to one from a throwaway $HOME:
-# the tape types `hi db-prod` bare, so its port and key have to be in the file
-# ssh reads. `# Tags:` stays above each live block - it is what the hosttag
-# pins resolve from, and a live host without one would color by its name hash
-# and quietly stop being the demo.
-function demo_ssh_config_live() { # <name:tag...>
-  local spec name tag
-  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
-  {
-    for spec in "$@"; do
-      name="${spec%%:*}"
-      tag="${spec#*:}"
-      [ -n "$tag" ] && printf '# Tags: %s\n' "$tag"
-      demo_ssh_block "$name"
-      echo
-    done
-    cat <<'EOF'
-# Tags: prod
-Host web-prod
-  User deploy
-
-# Tags: staging
-Host db-staging
-  User deploy
-
-# Tags: desktop
-Host workshop
-  User hitest
-
-Host build-box
-  User ci
-
-Host bastion
-  User root
-EOF
-  } >"$_HI_DEMO_DIR/home/.ssh/config"
-}
-
-# ...and the colors overlay, which lands somewhere else again: paths.sh:30
-# reads `colors` out of $_HI_CONFIG_DIR, the same overlay dir every other demo
-# writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
-# preview's table and the two sessions after it are the same names.
-function up_colors() {
-  up_ssh db-prod dev-1 || return 1
-  demo_ssh_config_live db-prod:prod dev-1:dev
-  demo_overlay colors <<'EOF'
-# pins beat the name hash; everything unpinned still resolves on its own
-username,root,red
-hostname,bastion,yellow
-hosttag,prod,red
-hosttag,dev,green
-hosttag,staging,yellow
-hosttag,desktop,green
-EOF
-}
-
-# The recents file (GLOSSARY: HI.42) under the throwaway $HOME, seeded so the
-# picker's first row is settled in advance: <target> used most and last, with
-# two older visits to a roster host behind it. Epochs relative to now, so the
-# "recent" half of the order holds however long the fixture has been up.
-function demo_recents() { # <target>
-  local now
-  now="$(date +%s)"
-  mkdir -p "$_HI_DEMO_DIR/home/.local/state/say-hi"
-  printf '%s\t%s\n' \
-    "$((now - 90000))" bastion \
-    "$((now - 7200))" "$1" \
-    "$((now - 3600))" bastion \
-    "$((now - 600))" "$1" \
-    "$((now - 60))" "$1" \
-    >"$_HI_DEMO_DIR/home/.local/state/say-hi/recent"
-}
-
 # One of everything, at once - the completion demo's whole subject is that
 # `hi <TAB>` answers from every backend in one list, which is the one thing no
 # other fixture sets up: they each bring up the single target their tape
@@ -552,25 +447,6 @@ function demo_recents() { # <target>
 # which is all targets.sh reads for them (its `emit_targets` awks the file), so
 # a running sshd would cost four minutes of image build and change nothing on
 # screen.
-# The picker demo's stage: the ssh roster off a file, and one container to land
-# in.
-#
-# `app-1`, and neither of the two container names the other GIFs already use,
-# because both are wrong here for a different reason. `db-prod` is one of
-# demo_ssh_config's hosts, and a list naming the same word twice - once ssh,
-# once docker - reads as a bug rather than as two backends (up_complete makes
-# the same choice, from the same file). `cache-1` is the zsh-only box, so a
-# session landing in it prints the bash-less fallback notice instead of the
-# ordinary greeting: true, but not this one's subject.
-# Debian, therefore, under a name that is in no roster.
-function up_pick() {
-  demo_ssh_config_research
-  demo_recents notebook-1
-  # a zsh box, so the session lands in the shell the researcher's own
-  # prompt (the overlay's zsh.zsh) is written for
-  up_container docker notebook-1 zsh-bash || return 1
-}
-
 # The run demo's stage: one target per backend, reached from a throwaway $HOME
 # that carries the ssh host's port and key and the kind cluster's kubeconfig -
 # the two things a bare `hi <name> <cmd>` reads out of $HOME. The tools debian
@@ -671,7 +547,7 @@ up:editors)
   # The developer on a shared dev box: maya, zsh on her mac, into the team's
   # debian where starship is installed. The compact header preset, and the
   # prompt handed to starship (_HI_PROMPT) - hi keeps the header, the
-  # editors, the clipboard and the aliases; the prompt is hers.
+  # editors and the aliases; the prompt is hers.
   client_rc zsh maya mbp
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods check'
@@ -683,14 +559,12 @@ up:overlay)
   # The ops persona: fish on a bastion, into a docker box and a podman box.
   # The header trimmed to what an operator looks at - clocks, the backend
   # counts, the check - painted with the mono ramp; the fish session on the
-  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here (podman
-  # lives under the real one), so the recents file is moved out of the
-  # renderer's state dir by hand.
+  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here: podman
+  # lives under the real one.
   client_rc fish ops bastion
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='mono'
-export _HI_RECENT_FILE='/tmp/hi-demo/home/recent'
 export _HI_SHELL_PREFERENCE='fish'
 EOF
   # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
@@ -705,38 +579,6 @@ EOF
   up_container docker db-prod tools
   up_container podman edge-1 fish-bash
   ;;
-up:pick)
-  # Bare `hi` - the picker. Cheap on purpose: this demo's subject is the
-  # *choice*, not the roster, so it wants a list with more than one kind of row
-  # in it and one row that can actually be connected to. demo_ssh_config's six
-  # hosts supply the first (they are read out of a file, so no sshd is built for
-  # them) and one docker container supplies the second; demo_recents puts that
-  # container on top.
-  #
-  # _HI_TARGETS_TTL=0 for up:complete's reason: the sweep is cached for 5s in
-  # $XDG_RUNTIME_DIR, which the renderer shares with every other shell on their
-  # box, so a stale window would render *their* containers into a committed GIF.
-  # The researcher: chen, zsh on a thinkpad, picking among a GPU cluster's
-  # boxes. The header is what a workstation user reads - the clocks, cores,
-  # clock speed, memory, uptime and the check, on the warm ramp - and the
-  # prompt is theirs: the overlay's zsh.zsh below is the oh-my-zsh
-  # robbyrussell look, rewritten by hand, which hi sources last on the client
-  # and on every zsh target (_HI_SHELL_PREFERENCE lands the session in zsh).
-  client_rc zsh chen thinkpad
-  demo_settings <<'EOF'
-export _HI_TARGETS_TTL='0'
-export _HI_HEADER_ORDER='utc localtime cores cpu ram uptime check'
-export _HI_PACKAGES_PALETTE='warm'
-export _HI_SHELL_PREFERENCE='zsh'
-EOF
-  demo_overlay zsh.zsh <<'EOF'
-# ~/.config/say-hi/zsh.zsh - my prompt, sourced after hi's on every zsh
-setopt PROMPT_SUBST
-PROMPT='%(?:%F{green}➜ :%F{red}➜ )%F{cyan}%c%f${__hi_git_info} '
-EOF
-  up_pick
-  ;;
-
 up:complete)
   # The one demo whose subject is the *client* alone - nothing is connected to,
   # so the fixture exists only to be listed. fish for the client because its
@@ -788,7 +630,7 @@ up:demo)
   ;;
 down:) demo_down ;;
 *)
-  echo "usage: fixtures.sh up <demo|packages|editors|pick|overlay|colors|complete|run> | down" >&2
+  echo "usage: fixtures.sh up <demo|packages|editors|overlay|colors|complete|run> | down" >&2
   exit 1
   ;;
 esac

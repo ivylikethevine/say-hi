@@ -403,14 +403,14 @@ builds a repository on every PR, and `tests/packaging/repo_test.sh` (the
 `e2e` group, on every PR too) installs from one as all three clients,
 signatures verified - then installs a `0.0.1` build of the same tree first
 and takes the repository's `0.0.2` release as an **upgrade** through
-`apt-get`, `dnf upgrade` and `apk add -u`, with an `/etc/say-hi/settings.sh`
-and a `~/.config/say-hi/colors` written in between and checked after. Both
+`apt-get`, `dnf upgrade` and `apk add -u`, with a `~/.config/say-hi/colors`
+written in between and checked after. Both
 versions are named in `repo_test.sh` rather than derived, so the ordering the
 upgrade depends on holds in a shallow, tagless checkout too.
 
 **No maintainer scripts, no `conffiles`, on purpose.** Everything a user
-writes lives outside the package's paths - the system layer in `/etc/say-hi/`,
-the overlay under `$XDG_CONFIG_HOME` - and the package owns only
+writes lives outside the package's paths - the overlay under
+`$XDG_CONFIG_HOME` - and the package owns only
 `/usr/share/say-hi`, `/usr/bin/hi`, `/etc/profile.d/say-hi.sh` and the man
 page, none of which a user edits. So an upgrade is a plain file replacement
 with nothing to preserve, merge or prompt about, and `nfpm.yaml` stays a
@@ -550,7 +550,7 @@ frame; `fixtures.sh`'s `up:<name>` arm writes exactly that settings.sh.
 Change the two together, and README's section for the GIF with them.
 
 The set is organised by **feature**, not backend: each tape shows one thing
-hi brings along (the hero, the packages check, the editors, the picker, the
+hi brings along (the hero, the packages check, the editors, the
 overlay, the colors, completion, one-off commands), with the backends spread
 across them so every one is on screen somewhere. A hand render is one
 `vhs docs/tapes/<name>.tape` from the repo root with the backend up; the two

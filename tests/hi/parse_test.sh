@@ -68,7 +68,7 @@ function test_parse_leaves_cmdarg_empty_for_a_plain_session() {
 # "--" is ssh's own option terminator and rides along as one more ssh
 # argument: it does not end option parsing, and the word after it is still
 # read as a flag, not a target. With no DOMAIN set and SSHARGS non-empty,
-# _hi_parse skips the picker and runs a real ssh, then exits with ssh's own
+# _hi_parse skips the help and runs a real ssh, then exits with ssh's own
 # status - it never returns to _hi_parse_out, so this shims ssh to log its
 # argv and exit 3, and asserts both.
 function test_parse_dashdash_does_not_end_option_parsing() {
@@ -110,7 +110,7 @@ function test_parse_own_flag_after_the_target_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--use goes before the target"* ]]
 }
 
-# hi's own flags with nothing to connect to and no terminal to pick from:
+# hi's own flags with nothing to connect to:
 # hi's error, never ssh's usage message (ssh saw none of them)
 function test_parse_own_flag_without_a_target_is_his_error() {
   local out rc=0
@@ -193,182 +193,44 @@ function test_parse_names_the_offending_flag() {
   [[ "$out" == *"-o"* ]]
 }
 
-# _hi_pick_target - what bare `hi` reaches instead of ssh's usage message.
-#
-# $_HI_TARGETS is assigned *after* hi.sh is sourced in every case below, never
-# exported into it: sourcing hi.sh goes through common/paths.sh, which derives
-# that variable from the tree and would overwrite anything the environment had
-# to say about it - and the case would then quietly run against this machine's
-# real target list.
-#
-# _hi_pick_rows - a stand-in targets.sh printing three rows, one per backend
-# shape: a plain ssh host, a container, and a pod whose name carries a colon.
-function _hi_pick_rows() {
-  local f="$_HI_WORKDIR/pick-targets.sh"
-  if [ ! -f "$f" ]; then
-    mkdir -p "$_HI_WORKDIR"
-    printf '%s\n' '#!/bin/sh' \
-      'printf "web1\tssh\napi\tdocker\nteam:pod\tkube\n"' >"$f"
-    chmod +x "$f"
-  fi
-  printf '%s' "$f"
-}
-
-# an empty one, for the "nothing to offer" direction
-function _hi_pick_no_rows() {
-  local f="$_HI_WORKDIR/pick-empty.sh"
-  if [ ! -f "$f" ]; then
-    mkdir -p "$_HI_WORKDIR"
-    printf '%s\n' '#!/bin/sh' 'exit 0' >"$f"
-    chmod +x "$f"
-  fi
-  printf '%s' "$f"
-}
-
-# _hi_pick_shim <name> - a directory whose only executable is <name>, standing
-# in for fzf or sk: it takes the row the caller asks for by line number
-# ($_HI_PICK_LINE, default 1) and prints it back whole, tab and all, which is
-# what both real pickers do.
-function _hi_pick_shim() {
-  local dir="$_HI_WORKDIR/pick-$1"
-  if [ ! -d "$dir" ]; then
-    mkdir -p "$dir"
-    printf '%s\n' '#!/bin/sh' \
-      'sed -n "${_HI_PICK_LINE:-1}p"' >"$dir/$1"
-    chmod +x "$dir/$1"
-  fi
-  printf '%s' "$dir"
-}
-
-# _hi_pick <PATH> [stdin] - _hi_pick_target's stdout, then its exit code on a
-# line of its own. The PATH is total rather than prepended: fzf really is
-# installed on plenty of developer machines, and a case about the `select`
-# fallback has to be able to say it is not here.
-function _hi_pick() {
-  local path="$1" input="${2-}"
-  PATH="$path" bash -c '
+# Bare `hi` - no target, no ssh option - prints the help and exits 0, terminal
+# or not: help is safe to print from a script, and nothing in that arm can wait
+# on input. Run in a child bash because the arm exits.
+function _hi_bare_hi() {
+  bash -c '
     source "$_HI_LAUNCHER"
-    _HI_TARGETS="$1"
-    rc=0
-    _hi_pick_target || rc=$?
-    printf "\n%s\n" "$rc"' _ "$(_hi_pick_rows)" <<<"$input" 2>/dev/null
+    _hi_parse' </dev/null 2>/dev/null
 }
 
-# the tools _hi_pick_target and hi.sh's own source-time work need, and nothing
-# that could pick for them: fzf really is installed on plenty of developer
-# machines, and the `select` cases have to be able to say it is not here
-function _hi_pick_bare_path() {
-  _hi_real_path pickbare bash sh sed cat
-}
-
-function test_pick_uses_fzf_when_it_is_there() {
-  local out
-  out="$(_HI_PICK_LINE=2 _hi_pick "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)")"
-  [ "$out" = "$(printf 'api\n0\n')" ]
-}
-
-# sk is the second rung of the same ladder, reached only when fzf is absent
-function test_pick_falls_through_to_sk() {
-  local out
-  out="$(_HI_PICK_LINE=3 _hi_pick "$(_hi_pick_shim sk):$(_hi_pick_bare_path)")"
-  [ "$out" = "$(printf 'team:pod\n0\n')" ]
-}
-
-# ...and the tag is cut back off, whichever picker answered: fzf is shown two
-# columns so the backend is visible, but only the name is a target
-function test_pick_returns_the_name_without_its_tag() {
-  local out
-  out="$(_HI_PICK_LINE=1 _hi_pick "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)")"
-  [ "$out" = "$(printf 'web1\n0\n')" ]
-}
-
-# neither picker installed: a numbered `select`, so nothing has to be installed
-# for bare `hi` to work at all. The menu goes to stderr, the pick to stdout.
-function test_pick_falls_back_to_a_numbered_select() {
-  local out
-  out="$(_hi_pick "$(_hi_pick_bare_path)" 3)"
-  [ "$out" = "$(printf 'team:pod\n0\n')" ]
-}
-
-# the fallback names the backend beside each row, the way the pickers do
-function test_select_menu_tags_each_row() {
-  local menu
-  menu="$(PATH="$(_hi_pick_bare_path)" bash -c '
-    source "$_HI_LAUNCHER"
-    _HI_TARGETS="$1"
-    _hi_pick_target >/dev/null' _ "$(_hi_pick_rows)" <<<"3" 2>&1)"
-  [[ "$menu" == *"web1 (ssh)"* && "$menu" == *"api (docker)"* && "$menu" == *"team:pod (kube)"* ]]
-}
-
-# dismissed rather than chosen - a real fzf answers empty on Ctrl-C, and the
-# shim does the same asked for a line that is not there. 1, not 2: hi.sh tells
-# the two apart, because only one of them still owes the user ssh's usage.
-function test_pick_reports_a_dismissal_as_one() {
-  local out
-  out="$(_HI_PICK_LINE=99 _hi_pick "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)")"
-  [ "$out" = "$(printf '\n1\n')" ]
-}
-
-# nothing to offer is 2, which is what sends hi.sh back to ssh's usage rather
-# than exiting quietly on a machine that simply has no targets yet
-function test_pick_reports_an_empty_list_as_two() {
-  local out
-  out="$(PATH="$(_hi_pick_shim fzf):$(_hi_pick_bare_path)" bash -c '
-    source "$_HI_LAUNCHER"
-    _HI_TARGETS="$1"
-    rc=0
-    _hi_pick_target || rc=$?
-    printf "\n%s\n" "$rc"' _ "$(_hi_pick_no_rows)" </dev/null 2>/dev/null)"
-  [ "$out" = "$(printf '\n2\n')" ]
-}
-
-# ...and the arm itself: a bare `hi` on a terminal comes out of _hi_parse with
-# $DOMAIN filled in, which is what makes it land a session. Under a pty,
-# because the arm is gated on both ends of one - see the case below for why.
-# The PATH is narrowed *inside* the child rather than around it: the pty
-# wrapper is python3, and a PATH with no picker on it has no python3 either.
-function test_bare_hi_takes_a_target_from_the_picker() {
-  local out
-  out="$(_HI_PICK_LINE=2 "${_HI_PTY_FORCED[@]}" bash -c '
-      source "$_HI_LAUNCHER"
-      PATH="$2"
-      _HI_TARGETS="$1"
-      _hi_parse
-      printf "DOMAIN=%s\n" "${DOMAIN:-}"' _ "$(_hi_pick_rows)" \
-    "$(_hi_pick_shim fzf):$(_hi_pick_bare_path)" 2>/dev/null)"
-  [[ "$out" == *"DOMAIN=api"* ]]
-}
-
-# No terminal, no picker. A `hi` in a script or a CI job has nobody to answer a
-# menu, so it has to go on failing the way it always has rather than hang on
-# one - which is what the `-t 0` half of the guard is for.
-function test_bare_hi_without_a_terminal_still_reaches_ssh() {
+function test_bare_hi_prints_help() {
   local out rc=0
-  out="$(PATH="$(_hi_pick_shim fzf):$(_hi_real_path pickssh bash sh sed cat ssh)" bash -c '
-    source "$_HI_LAUNCHER"
-    _HI_TARGETS="$1"
-    _hi_parse' _ "$(_hi_pick_rows)" </dev/null 2>&1)" || rc=$?
-  # ssh with no arguments prints its usage and fails; either way the picker
-  # must not have spoken, so no target name can be in what came back
-  [ "$rc" -ne 0 ] && [[ "$out" != *api* ]]
+  out="$(_hi_bare_hi)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"${_HI_USAGE%%$'\n'*}"* ]] &&
+    [[ "$out" == *"hi's own options"* ]]
 }
 
-# an ssh option with no host is ssh's error to report, not a target to guess
-# at: `hi -V` has to stay `ssh -V`. The stub prints its argv, so the case can
-# say the flag arrived rather than merely that the picker stayed quiet.
-function test_an_ssh_option_without_a_target_never_picks() {
+# ...and the same under a pty, terminal or not
+function test_bare_hi_prints_help_on_a_terminal_too() {
+  local out rc=0
+  out="$("${_HI_PTY_FORCED[@]}" bash -c '
+      source "$_HI_LAUNCHER"
+      _hi_parse' 2>/dev/null)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"hi's own options"* ]]
+}
+
+# an ssh option with no host is ssh's error to report, not hi's help to print:
+# `hi -V` has to stay `ssh -V`. The stub prints its argv, so the case can say
+# the flag arrived.
+function test_an_ssh_option_without_a_target_reaches_ssh() {
   local dir out rc=0
-  dir="$_HI_WORKDIR/pick-sshstub"
+  dir="$_HI_WORKDIR/sshstub"
   mkdir -p "$dir"
   printf '%s\n' '#!/bin/sh' 'echo "ssh-stub: $*"' >"$dir/ssh"
   chmod +x "$dir/ssh"
-  out="$("${_HI_PTY_FORCED[@]}" bash -c '
-      source "$_HI_LAUNCHER"
-      PATH="$2"
-      _HI_TARGETS="$1"
-      _hi_parse -4' _ "$(_hi_pick_rows)" \
-    "$dir:$(_hi_pick_shim fzf):$(_hi_pick_bare_path)" 2>&1)" || rc=$?
-  [[ "$out" == *"ssh-stub: -4"* ]] && [[ "$out" != *api* ]]
+  out="$(PATH="$dir:$(_hi_real_path sshbare bash sh sed cat)" bash -c '
+    source "$_HI_LAUNCHER"
+    _hi_parse -4' </dev/null 2>&1)" || rc=$?
+  [[ "$out" == *"ssh-stub: -4"* ]] && [[ "$out" != *"hi's own options"* ]]
 }
 
 function test_is_docker_container_accepts_a_running_one() {
@@ -1248,43 +1110,11 @@ function test_paths_defines_no_command_aliases() {
   }
 }
 
-# _hi_record_recent: the client half of recent-targets-first (targets.sh's
-# ranking is targets_test.sh's). The file is pointed into the workdir.
-function test_record_recent_appends_a_line() {
-  local f="$_HI_WORKDIR/recent.append"
-  rm -f "$f"
-  _HI_RECENT_FILE="$f" _hi_record_recent alpha
-  _HI_RECENT_FILE="$f" _hi_record_recent beta
-  [ "$(grep -c . "$f")" -eq 2 ] &&
-    grep -qE $'^[0-9]+\talpha$' "$f" && grep -qE $'^[0-9]+\tbeta$' "$f"
-}
-# the promise the roadmap made: nothing about it reaches a target - a relay's
-# hi, which is the same file running in a session, records nothing there
-function test_record_recent_is_silent_in_a_session() {
-  local f="$_HI_WORKDIR/recent.session"
-  rm -f "$f"
-  _HI_REMOTE_SESSION=1 _HI_RECENT_FILE="$f" _hi_record_recent alpha
-  [ ! -e "$f" ]
-}
-function test_record_recent_is_silent_when_off() {
-  local f="$_HI_WORKDIR/recent.off"
-  rm -f "$f"
-  _HI_RECENT=0 _HI_RECENT_FILE="$f" _hi_record_recent alpha
-  [ ! -e "$f" ]
-}
-function test_record_recent_trims() {
-  local f="$_HI_WORKDIR/recent.trim" i
-  rm -f "$f"
-  for i in $(seq 1 500); do printf '1\told-%s\n' "$i"; done >"$f"
-  _HI_RECENT_FILE="$f" _hi_record_recent newest
-  [ "$(grep -c . "$f")" -eq 300 ] && [ "$(tail -1 "$f" | cut -f2)" = newest ]
-}
-
 # _hi is the dispatch function itself: the missing-$_HI_ROOT exit, the
 # PLAIN/arm 2x2 that picks which _say_hi* runs, and the record/report calls
 # that follow depending on the exit status. It calls `exit` outright, so
 # every case here redefines the four _say_hi* arms plus _hi_parse,
-# _hi_select_arm, _hi_record_recent and _hi_report_failure to markers instead
+# _hi_select_arm and _hi_report_failure to markers instead
 # of the real thing, in a subshell so none of it leaks to the next case.
 #
 # _hi_dispatch_probe <plain> <backend> <status> - runs _hi with $PLAIN=<plain> and
@@ -1317,9 +1147,6 @@ function _hi_dispatch_probe() {
     function _say_hi_container_plain() {
       printf 'say_hi_container_plain:%s\n' "$1" >>"$marker"
       return "$status"
-    }
-    function _hi_record_recent() {
-      printf 'record_recent:%s\n' "${1:-}" >>"$marker"
     }
     function _hi_report_failure() {
       printf 'report_failure:%s:%s\n' "${1:-}" "${2:-}" >>"$marker"
@@ -1372,17 +1199,10 @@ function test_hi_exit_code_is_the_arms() {
   [ "$(printf '%s\n' "$out" | sed -n 1p)" = 7 ]
 }
 
-# a typo or an unreachable host is not worth offering first next time
-function test_hi_records_recent_only_on_success() {
-  local out
-  out="$(_hi_dispatch_probe 0 "" 0)"
-  [[ "$out" == *"record_recent:probehost"* ]] && [[ "$out" != *report_failure* ]]
-}
-
 function test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp() {
   local out
   out="$(_hi_dispatch_probe 0 docker 3)"
-  [[ "$out" == *"report_failure:3:docker"* ]] && [[ "$out" != *record_recent* ]]
+  [[ "$out" == *"report_failure:3:docker"* ]]
 }
 
 function run_hi_parse_tests() {
@@ -1422,17 +1242,10 @@ function run_hi_parse_tests() {
   _hi_check "help and version are plain target names" test_bare_help_and_version_words_are_targets
   _hi_check "A Host * block names no target" test_is_ssh_host_ignores_a_wildcard_block
 
-  _hi_h2 "Testing: bare hi picks a target"
-  _hi_check "fzf when it is there" test_pick_uses_fzf_when_it_is_there
-  _hi_check "sk when fzf is not" test_pick_falls_through_to_sk
-  _hi_check "The tag is not part of the target" test_pick_returns_the_name_without_its_tag
-  _hi_check "A numbered select when neither is" test_pick_falls_back_to_a_numbered_select
-  _hi_check "The select menu is backend-tagged" test_select_menu_tags_each_row
-  _hi_check "A dismissal is 1" test_pick_reports_a_dismissal_as_one
-  _hi_check "An empty list is 2" test_pick_reports_an_empty_list_as_two
-  _hi_check_capable pty "Bare hi takes the pick as its target" test_bare_hi_takes_a_target_from_the_picker
-  _hi_check "No terminal, no picker" test_bare_hi_without_a_terminal_still_reaches_ssh
-  _hi_check_capable pty "An ssh option with no target still reaches ssh" test_an_ssh_option_without_a_target_never_picks
+  _hi_h2 "Testing: bare hi prints the help"
+  _hi_check "Bare hi prints the help, exit 0" test_bare_hi_prints_help
+  _hi_check_capable pty "...on a terminal too" test_bare_hi_prints_help_on_a_terminal_too
+  _hi_check "An ssh option with no target still reaches ssh" test_an_ssh_option_without_a_target_reaches_ssh
 
   _hi_h2 "Testing: backend predicates"
   _hi_check "docker: running" test_is_docker_container_accepts_a_running_one
@@ -1488,12 +1301,6 @@ function run_hi_parse_tests() {
   _hi_check "ssh: execs real ssh with RAWCMD" test_plain_ssh_execs_real_ssh_with_rawcmd
   _hi_check "ssh: no command means no trailing word" test_plain_ssh_with_no_command_passes_none
 
-  _hi_h2 "Testing: _hi_record_recent"
-  _hi_check "Appends a stamped line" test_record_recent_appends_a_line
-  _hi_check "Writes nothing in a session" test_record_recent_is_silent_in_a_session
-  _hi_check "Writes nothing when off" test_record_recent_is_silent_when_off
-  _hi_check "Trims past 500 lines to 300" test_record_recent_trims
-
   _hi_h2 "Testing: _hi (the dispatch)"
   _hi_check "Exits 1 when \$_HI_ROOT is missing" test_hi_exits_1_when_root_is_missing
   _hi_check "PLAIN=0, no arm -> _say_hi" test_hi_dispatch_plain0_no_arm_calls_say_hi
@@ -1501,7 +1308,6 @@ function run_hi_parse_tests() {
   _hi_check "PLAIN=1, no arm -> _say_hi_plain" test_hi_dispatch_plain1_no_arm_calls_say_hi_plain
   _hi_check "PLAIN=1, an arm -> _say_hi_container_plain" test_hi_dispatch_plain1_with_arm_calls_say_hi_container_plain
   _hi_check "Exits with the arm's own status" test_hi_exit_code_is_the_arms
-  _hi_check "Records recent only on success" test_hi_records_recent_only_on_success
   _hi_check "Reports failure only on non-zero, with arm+tmp" test_hi_reports_failure_only_on_nonzero_with_arm_and_tmp
 
   _hi_h2 "Testing: hi's local sub-commands"

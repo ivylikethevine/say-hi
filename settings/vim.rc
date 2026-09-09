@@ -1,6 +1,5 @@
 " hi's vim override, kept to the minimum that earns the `-u`: vim's own shipped
-" defaults, so the alias is not a downgrade, plus the OSC 52 yank autocmd,
-" which is hi's and has no other home. Nothing to taste lives here - your own
+" defaults, so the alias is not a downgrade. Nothing to taste lives here - your own
 " $_HI_CONFIG_DIR/vim.rc replaces this file wholesale.
 
 " must be first: `vim -u <file>` implies 'compatible', which disables <> key
@@ -18,18 +17,5 @@ silent! source $VIMRUNTIME/defaults.vim
 " on already, and setting them twice costs nothing.
 syntax enable
 filetype plugin indent on
-
-" Yank -> the client's clipboard; common/passthrough.sh does the encoding/wrapping,
-" this only decides *when*. Four honest conditions: the toggle, the event
-" (exists('##...') - neovim lies to has('patch-')), $_HI_PASSTHROUGH (empty outside
-" a session), and the unnamed register - "ay stays local, a delete a delete.
-if $_HI_DISABLE_PASSTHROUGH != '1' && exists('##TextYankPost') && filereadable($_HI_PASSTHROUGH)
-  augroup hi_osc52
-    autocmd!
-    autocmd TextYankPost *
-          \ if v:event.operator ==# 'y' && v:event.regname ==# '' |
-          \   silent call system('sh ' . shellescape($_HI_PASSTHROUGH) . ' copy',
-          \                      join(v:event.regcontents, "\n")) |
-          \ endif
   augroup END
 endif

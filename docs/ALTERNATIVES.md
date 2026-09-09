@@ -139,8 +139,7 @@ side.
 - **[mosh] / [Eternal Terminal]** replace ssh as the _transport_. hi's ssh path
   is two calls multiplexed on one OpenSSH connection, which neither of them is,
   so `hi` cannot ride them. What works: install say-hi permanently on the
-  target, then mosh in — `hi_copy` over mosh needs mosh ≥ 1.4, its first
-  release with OSC 52.
+  target, then mosh in.
 - **[Warp]'s SSH extension and "Warpify"** attack the same pain from the
   terminal side: a persistent remote component under `~/.warp*` plus a hook
   line in the remote's rc files. It ships Warp's features, not your config.

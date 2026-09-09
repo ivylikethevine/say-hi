@@ -46,7 +46,6 @@ export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
 
 export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
-export _HI_PASSTHROUGH="$_HI_ROOT/common/passthrough.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
 export _HI_ZSHRC="$_HI_ROOT/common/zsh.zsh"
 export _HI_FISH_CONFIG="$_HI_ROOT/common/config.fish"
@@ -112,7 +111,6 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_PROMPT=1
   export _HI_DISABLE_GIT_STATUS=1
   export _HI_DISABLE_EDITORS=1
-  export _HI_DISABLE_PASSTHROUGH=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1
   export _HI_DISABLE_BANNER=1

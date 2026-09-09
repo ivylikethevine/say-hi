@@ -22,8 +22,10 @@
 # and every line a suite ran *after* the harness finished loading went
 # unrecorded - common/git_prompt.sh reported 2 of 78 lines while its 17 cases
 # passed. coverage.sh's own header keeps that measured record; the current
-# pin lands within a few points of this script's figure, and the two staying
-# close is what makes either worth reading.
+# pin lands within a few points of this script's figure and has for many
+# commits: both are reliable, and the average of the two badges is the
+# coverage figure to quote. A massive divergence, not the usual few points,
+# is what would put either in question.
 #
 # bashcov instruments a different way: it runs the script under `set -x` with
 # a PS4 that names $BASH_SOURCE and $LINENO, and reads the trace off
@@ -42,11 +44,11 @@
 #     the lines that ran included (core.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.
 #   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
-#   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh,
-#     common/passthrough.sh) is traced only where sh is bash: the xtrace
+#   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh)
+#     is traced only where sh is bash: the xtrace
 #     rides on SHELLOPTS, which dash ignores, so the whole file reads 0%
 #     under a dash /bin/sh (ubuntu; CLAUDE.md's dash sweep - measured 0/220
-#     and 0/32 there, 96% and 100% under bash). settings/aliases.sh is
+#     there, 96% under bash). settings/aliases.sh is
 #     `#!/bin/sh` too but sourced by its suite, so it is unaffected.
 #     coverage.yml puts a bash-as-sh first on PATH for that reason.
 #

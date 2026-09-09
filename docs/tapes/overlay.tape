@@ -15,9 +15,8 @@
 # Its configuration: an `aliases.sh` overlay (docs/tapes/fixtures.sh writes it
 # - one alias in the POSIX+fish subset that file has to stay in, and a
 # _HI_BAT_OPTS so the shipped `cat` picks the overlay's theme) plus a package
-# floor of 5 to keep both headers short, _HI_SHELL_PREFERENCE=fish for the
-# second target, and _HI_RECENT_FILE under /tmp so a render never writes into
-# the renderer's own recents.
+# floor of 5 to keep both headers short, and _HI_SHELL_PREFERENCE=fish for
+# the second target.
 #
 # Not `hi --doctor`'s config rows, the natural next line: they validate
 # the *renderer's* ~/.bashrc and friends by path, and those paths belong in
@@ -47,7 +46,7 @@ Type "source /tmp/hi-demo/clientrc.fish"
 Enter
 # `cd` alone, not the throwaway $HOME the other tapes stand in: podman keeps
 # its storage under $HOME, and a faked one empties the backend this demo
-# exists to show. The recents file is pointed elsewhere by the fixture instead.
+# exists to show.
 Type "cd"
 Enter
 Type "clear"

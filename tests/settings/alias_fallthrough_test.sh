@@ -99,11 +99,6 @@ if [ -n "${_HI_CHECK_SESSION:-}" ]; then
   fi
 fi
 
-if [ -n "${_HI_CHECK_PASSTHROUGH:-}" ]; then
-  check_alias hi_copy "$_HI_EXPECT_PASSTHROUGH"
-  check_alias hi_notify "$_HI_EXPECT_PASSTHROUGH"
-fi
-
 exit $fail
 EOF
 
@@ -168,11 +163,6 @@ if set -q _HI_CHECK_SESSION
       set fail 1
     end
   end
-end
-
-if set -q _HI_CHECK_PASSTHROUGH
-  check_alias hi_copy "$_HI_EXPECT_PASSTHROUGH"
-  check_alias hi_notify "$_HI_EXPECT_PASSTHROUGH"
 end
 
 exit $fail
@@ -456,30 +446,6 @@ function run_session_wrapper_tests() {
   done
 }
 
-# hi_copy/hi_notify are `sh $_HI_PASSTHROUGH ...`, so the file test on the
-# path is what keeps an empty $_HI_PASSTHROUGH (the container fallback, no
-# paths.sh) from aliasing a bare `sh`; the toggle is the user's off switch.
-function run_passthrough_guard_tests() {
-  _hi_h1 "hi_copy/hi_notify guard on \$_HI_PASSTHROUGH"
-  local shell fakepath
-  fakepath="$(_hi_fake_path fp_passthrough cat)"
-
-  for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "a real passthrough.sh: both aliases" \
-      _HI_PASSTHROUGH="$_HI_ROOT/common/passthrough.sh" _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=1
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "a missing file: neither" \
-      _HI_PASSTHROUGH="$_HI_WORKDIR/no-such-passthrough.sh" _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=0
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "an empty path: neither" \
-      _HI_PASSTHROUGH= _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=0
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "_HI_DISABLE_PASSTHROUGH=1: neither" \
-      _HI_DISABLE_PASSTHROUGH=1 _HI_PASSTHROUGH="$_HI_ROOT/common/passthrough.sh" _HI_CHECK_PASSTHROUGH=1 _HI_EXPECT_PASSTHROUGH=0
-  done
-}
-
 function run_alias_fallthrough_test() {
   _hi_h1 "Testing aliases.sh fallthrough + flag logic across shells"
 
@@ -517,7 +483,6 @@ function run_alias_fallthrough_test() {
   run_overlay_poisoning_test
   run_overlay_bat_opts_test
   run_session_wrapper_tests
-  run_passthrough_guard_tests
 
   _hi_suite_end "" \
     "All fallthrough + flag scenarios passed on every installed shell ($_HI_TOTAL scenarios)" \

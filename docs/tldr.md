@@ -8,7 +8,7 @@
 
 `hi {{host}}`
 
-- Pick a target from the list of everything reachable:
+- Print the help:
 
 `hi`
 

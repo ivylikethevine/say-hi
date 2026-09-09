@@ -1268,13 +1268,18 @@ function test_release_workflow_builds_the_source_tarball() {
 # echoed. With `plain`, the man page is left ungzipped (the Homebrew shape).
 # shellcheck disable=SC2016 # hi.sh's ${...:-} default, written as literal text
 function _hi_stamp_fixture() {
-  local dir="$_HI_WORKDIR/stamp.$$.$RANDOM"
+  local dir
+  # mktemp, not $$.$RANDOM: every case runs in this one process, and two
+  # $RANDOM draws that collide land the second fixture in the first one's
+  # tree, where gzip refuses to overwrite hi.1.gz and stamp.sh then refuses to
+  # unpack it over the stray hi.1 - a flake that read as an exec-bit failure
+  dir="$(mktemp -d "$_HI_WORKDIR/stamp.XXXXXX")" || return 1
   mkdir -p "$dir/usr/share/say-hi" "$dir/usr/share/man/man1"
   printf '#!/bin/bash\n_HI_RELEASE="${_HI_RELEASE:-}"\n' >"$dir/usr/share/say-hi/hi.sh"
   chmod 755 "$dir/usr/share/say-hi/hi.sh"
   printf '.TH HI 1 "1970-01-01" "say-hi 0.0.0" "User Commands"\n.SH NAME\n' \
     >"$dir/usr/share/man/man1/hi.1"
-  [ "${1:-}" = plain ] || gzip -9n "$dir/usr/share/man/man1/hi.1"
+  [ "${1:-}" = plain ] || gzip -9n "$dir/usr/share/man/man1/hi.1" || return 1
   printf '%s' "$dir"
 }
 

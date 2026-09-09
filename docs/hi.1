@@ -141,38 +141,6 @@ before
 names the arm outright and skips every probe above it \- the fix for a
 container that shadows an unrelated ssh host of the same name, or the other
 way around.
-.SH NO TARGET
-.B hi
-with no
-.I target
-and no
-.I ssh\-options
-offers the list instead of failing \- the same rows the shell completions read,
-so the offer is backend\-tagged, ranked by what you connected to recently, and
-served out of the
-.B $_HI_TARGETS_TTL
-cache a
-.B TAB
-may already have warmed. Picking one connects to it.
-.PP
-.BR fzf (1)
-is used when it is on the client, then
-.BR sk (1);
-with neither, a numbered
-.B select
-menu, so nothing has to be installed for this to work. The picker runs on the
-client only and never reaches a target.
-.PP
-Both ends of a terminal are required, so
-.B hi
-in a script or a CI job goes on printing the usage message from
-.BR ssh (1)
-and failing rather than waiting on a menu nobody can answer. An
-.I ssh\-option
-with no target does the same: an option without a host is an error for
-.BR ssh (1)
-to report, not a target to guess at, and its exit status is what hi hands
-back.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
@@ -480,24 +448,10 @@ that fails its syntax check stops
 .B \-\-install
 at 1 before it writes a line.
 .SH SESSION COMMANDS
-Three commands hi's aliases define inside a session (and in the wired local
+One command hi's aliases define inside a session (and in the wired local
 shells), spelled with an underscore because they are shell functions, not
 flags of
 .BR hi :
-.TP
-.B hi_copy
-stdin to the clipboard of the terminal you are sitting at, as an OSC 52
-escape back through the connection \- nothing on the target touches a
-clipboard.
-.B vim
-yanks the same way. Off with
-.BR _HI_DISABLE_PASSTHROUGH=1 .
-.TP
-.B hi_notify \fIcommand\fR...
-run
-.I command
-and raise a desktop notification in that same terminal when it finishes,
-the same way. Off with the same toggle.
 .TP
 .B hi_info
 print where the running say\-hi lives \- its home, root and launcher. A
@@ -565,7 +519,7 @@ and
 written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
-variable toggle \- header, prompt, git status, editors, clipboard \- each on
+variable toggle \- header, prompt, git status, editors \- each on
 by default and tabulated in
 .IR docs/SETTINGS.md .
 The tree itself can be
@@ -580,11 +534,6 @@ works identically).
 .B ~/.config/say-hi/settings.sh
 feature toggles, written by
 .BR "hi \-\-configure" .
-.TP
-.B /etc/say-hi/settings.sh
-a platform team's defaults, sourced below each user's
-.BR settings.sh ;
-this machine only, never a target's.
 .TP
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
@@ -687,9 +636,7 @@ the pre\-flight report as a document, for a bug report; the exit status
 says whether anything was found.
 .TP
 .B hi
-no target: pick one from the list \- see
-.B NO TARGET
-above.
+no target: print this help and exit.
 .SH SEE ALSO
 .BR ssh (1)
 .PP

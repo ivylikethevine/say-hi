@@ -220,6 +220,33 @@ function _hi_can_mkdir_mode() {
   [ "$_HI_CAP_MKDIR_MODE" = yes ]
 }
 
+# Whether gpg is here *and* can reach a gpg-agent from a fresh homedir - what
+# generating or using a throwaway key needs. `command -v gpg` alone is not
+# it: Git for Windows ships the MSYS gpg with no agent it can start (every
+# --quick-gen-key there ends "No agent running"), and a headless macOS with
+# a long $TMPDIR can lose the agent socket to the sockaddr_un cap, which is
+# why the probe's homedir sits under a short base on /tmp, the same place the
+# suites put theirs. Launched explicitly, asked to answer, then killed:
+# nothing this probe starts outlives it.
+_HI_CAP_GPG_AGENT=""
+function _hi_can_reach_gpg_agent() {
+  local home
+  if [ -z "$_HI_CAP_GPG_AGENT" ]; then
+    _HI_CAP_GPG_AGENT=no
+    if command -v gpg >/dev/null 2>&1 && command -v gpgconf >/dev/null 2>&1 &&
+      home="$(mktemp -d /tmp/hi.gpgcap.XXXXXX 2>/dev/null)"; then
+      chmod 700 "$home"
+      if gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 &&
+        gpg-connect-agent --homedir "$home" /bye >/dev/null 2>&1; then
+        _HI_CAP_GPG_AGENT=yes
+      fi
+      gpgconf --homedir "$home" --kill all >/dev/null 2>&1 || true
+      rm -rf "$home"
+    fi
+  fi
+  [ "$_HI_CAP_GPG_AGENT" = yes ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -255,6 +282,7 @@ function _hi_capable() {
   fork_concurrency) _hi_can_fork_concurrently ;;
   mode_bits) _hi_can_trust_mode_bits ;;
   mkdir_mode) _hi_can_mkdir_mode ;;
+  gpg_agent) _hi_can_reach_gpg_agent ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2
@@ -406,93 +434,6 @@ case "\$3" in $running) printf 'Running\n' ;; *) printf 'Pending\n' ;; esac
 EOF
 
   chmod +x "$dir/docker" "$dir/podman" "$dir/nomad" "$dir/kubectl"
-}
-
-# _hi_alias_probe <shell> <name> [NAME=VALUE ...] - "yes"/"no": does sourcing
-# paths.sh then aliases.sh in a real <shell> leave alias (fish: function)
-# <name> defined? The fish-vs-POSIX dialect split lives here once rather than
-# per suite. _HI_CLEANUP is scrubbed so the runner's own session state can't
-# decide a tree-lifetime-gated alias; extra NAME=VALUE pairs ride the env.
-function _hi_alias_probe() {
-  local shell="$1" name="$2" script
-  shift 2
-  if [ "$shell" = fish ]; then
-    script="source $_HI_ROOT/common/paths.sh; source $_HI_ALIASES; functions -q -- $name; and echo yes; or echo no"
-  else
-    script=". $_HI_ROOT/common/paths.sh; . $_HI_ALIASES; alias $name >/dev/null 2>&1 && echo yes || echo no"
-  fi
-  env -u _HI_CLEANUP _HI_HOME="$_HI_HOME" "$@" "$shell" -c "$script" 2>/dev/null
-}
-
-# _hi_alias_probe_bare <name> [VAR ...] - _hi_alias_probe's other half: sources
-# aliases.sh *without* paths.sh first, which is the shape the container
-# fallback ships. The named VARs are unset for the probe, since what these
-# cases prove is that an alias whose path variable is undefined does not get
-# defined at all - `sh ` would otherwise be an alias that eats
-# the user's terminal. POSIX sh only: this shape never reaches fish.
-# GLOSSARY: HI.01 - the guard on an empty unset list.
-function _hi_alias_probe_bare() {
-  local name="$1" var
-  local -a scrub=()
-  shift
-  for var in "$@"; do scrub+=(-u "$var"); done
-  env ${scrub[@]+"${scrub[@]}"} sh -c \
-    ". $_HI_ALIASES; alias $name >/dev/null 2>&1 && echo yes || echo no" 2>/dev/null
-}
-
-# The escape-emitter family. tests/common/passthrough_test.sh's two halves,
-# copy and notify, test sibling features with the same shape - an emitter
-# whose output is exact bytes, an alias over it, a toggle mirrored into
-# config.fish - and tests/common/targets_test.sh runs a `#!/bin/sh` child the
-# same way, so what they share lives here once (HI.34).
-_HI_ESC=$'\033'
-_HI_BEL=$'\a'
-
-# What detaches an emitter from the controlling terminal. With a tty present
-# that has to be setsid, so the byte checks are gated on it (a skip, on the
-# rare interactive box without one - stock macOS). Without a tty there is
-# nothing to detach from, and gating on `sh` just means "always run".
-if { : </dev/tty; } 2>/dev/null; then
-  _HI_EMIT_GATE="setsid"
-else
-  _HI_EMIT_GATE="sh"
-fi
-
-function _hi_detached() {
-  if [ "$_HI_EMIT_GATE" = setsid ]; then
-    setsid -w "$@"
-  else
-    "$@"
-  fi
-}
-
-# _hi_alias_defined_in <shell> <name> <TOGGLE=value> <want> - the alias half
-# of the family: every shell aliases.sh has to parse, with the feature's
-# toggle set as given. _hi_alias_probe holds the two dialects.
-function _hi_alias_defined_in() {
-  [ "$(_hi_alias_probe "$1" "$2" "$3")" = "$4" ]
-}
-
-# _hi_no_alias_without_paths <name> <path-var> - the container fallback path
-# copies aliases.sh alone, with no paths.sh to define <path-var>. A bare
-# `alias <name>="sh "` there would drop the user into an interactive shell on
-# their own terminal, so the alias must not exist.
-function _hi_no_alias_without_paths() {
-  [ "$(_hi_alias_probe_bare "$1" "$2")" = no ]
-}
-
-function _hi_toggle_in_core_list() {
-  case " ${_HI_TOGGLES[*]} " in
-  *" $1 "*) return 0 ;;
-  esac
-  return 1
-}
-
-# config.fish keeps its own copy of the toggle list (fish can't read core.sh's
-# array); a toggle added to one and not the other is the exact drift this
-# catches.
-function _hi_toggle_in_fish_list() {
-  grep -q "$1" "$_HI_FISH_CONFIG"
 }
 
 # _hi_scratch_tree <name> <dir...> - a throwaway say-hi under $_HI_WORKDIR/<name>

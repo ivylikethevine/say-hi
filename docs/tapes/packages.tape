@@ -28,7 +28,7 @@ Wait+Screen@240s /fixture-ok/
 Type "source /tmp/hi-demo/clientrc.bash"
 Enter
 # stand in a throwaway $HOME: the client prompt then reads ~ rather than the
-# renderer's checkout path, and carries none of its git markers (pick.tape)
+# renderer's checkout path, and carries none of its git markers
 Type "export HOME=/tmp/hi-demo/home && cd"
 Enter
 Type "clear"
