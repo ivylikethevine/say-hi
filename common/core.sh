@@ -107,13 +107,9 @@ function _hi_has_truecolor() {
 }
 function _hi_truecolor_flag() { _hi_has_truecolor && printf '1\n' || printf '0\n'; }
 
-# the named schemes _hi_scheme_hex knows; configure.sh's validator and the
-# preview's label read the roster from here
-export _HI_COLOR_SCHEMES="catppuccin monokai onedark vscode"
-
 # _hi_scheme_words <outvar> - 24 or 48 when $_HI_COLOR_SCHEME is that many
-# six-digit hex words one space apart (a scheme of the user's own, written
-# into settings.sh), 0 for a name, nothing, or anything else. The shape is
+# six-digit hex words one space apart (the scheme itself, written into
+# settings.sh), 0 for nothing or anything else. The shape is
 # the one _hi_scheme_hex slices, so the walk is by offset: no read, no fork,
 # no arrays, and no variable in a `case` pattern (zsh reads one literally).
 # GLOSSARY: HI.50
@@ -131,16 +127,16 @@ function _hi_scheme_words() {
 
 # _hi_scheme_hex <outvar> <index> - rrggbb for _HI_COLOR_NAMES slot <index>
 # under $_HI_COLOR_SCHEME, empty when the terminal is not truecolor, and for
-# the first twelve slots when there is no scheme (or an unknown name): those
-# keep the terminal's own sixteen colors, while the twelve extras always
-# have a hex of their own, since no 16-color code is orange. Twenty-four
-# six-digit words per scheme in one fixed-width string, sliced by offset:
-# no arrays (zsh indexes them from 1), no read, no fork. The vocabulary is
-# the twenty-four names - a scheme changes what a name renders as, never
-# which name a host hashes to or what settings/colors may pin. <index> runs
-# 0-47: slots 24-47 are a second bank, the names again, which only a 48-word
-# list of the user's own fills (header.sh paints the packages check from
-# it); every other table answers them with the first bank. GLOSSARY: HI.50
+# the first twelve slots when there is no scheme: those keep the terminal's
+# own sixteen colors, while the twelve extras always have a hex of their
+# own, since no 16-color code is orange. Twenty-four six-digit words in one
+# fixed-width string, sliced by offset: no arrays (zsh indexes them from 1),
+# no read, no fork. The vocabulary is the twenty-four names - a scheme
+# changes what a name renders as, never which name a host hashes to or what
+# settings/colors may pin. <index> runs 0-47: slots 24-47 are a second bank,
+# the names again, which only a 48-word list fills (header.sh paints the
+# packages check from it); every other table answers them with the first
+# bank. GLOSSARY: HI.50
 function _hi_scheme_hex() {
   local _hi_sh_t _hi_sh_n _hi_sh_i="$2" _hi_sh_d=0
   printf -v "$1" '%s' ''
@@ -150,16 +146,8 @@ function _hi_scheme_hex() {
     _hi_sh_t="$_HI_COLOR_SCHEME"
   else
     _hi_sh_n=24
-    case "${_HI_COLOR_SCHEME:-}" in
-    catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca fab387 f2cdcd 81c8be c3e88d cba6f7 eba0ac e5c890 89dceb 7287fd 8be9b0 f5a97f b4befe' ;;
-    monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 ff6188 a9dc76 ffd866 78dce8 ab9df2 78e8c6 fd971f ff79c6 3ebfa5 b6e354 9d65ff ff8f79 e6db74 7fdbff 6f6fd3 93f7d6 ffb86c c3a6ff' ;;
-    onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0' ;;
-    vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db f28c28 ff6ec7 1abc9c a4e400 8e44ad fa8072 ffc107 5dade2 5c6bc0 66ffcc ffb380 c39bd3' ;;
-    *)
-      _hi_sh_d=1
-      _hi_sh_t='000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc'
-      ;;
-    esac
+    _hi_sh_d=1
+    _hi_sh_t='000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc'
   fi
   [ "$_hi_sh_i" -lt "$_hi_sh_n" ] || _hi_sh_i=$((_hi_sh_i - 24))
   [ "$_hi_sh_d" = 1 ] && [ "$_hi_sh_i" -lt 12 ] && return 0
@@ -197,6 +185,25 @@ function _hi_color_base() {
     }
     _hi_cb_i=$((_hi_cb_i + 1))
   done
+}
+
+# _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words,
+# the shape $_HI_PACKAGES_PALETTE takes (header.sh reads it per render,
+# scripts/lib.sh's _hi_ramp_label reports it, so both judge by this one
+# function). The `case` up front rejects every byte a name cannot hold; the
+# walk then trims a word at a time rather than splitting on $IFS, since zsh
+# sources this file and does not split unquoted parameters. A doubled space
+# leaves an empty word, which no name matches.
+function _hi_ramp_ok() {
+  local _hi_ro_s="$1" _hi_ro_w _hi_ro_c=0
+  case "$_hi_ro_s" in '' | *[!a-z\ ]*) return 1 ;; esac
+  while [ -n "$_hi_ro_s" ]; do
+    _hi_ro_w="${_hi_ro_s%% *}"
+    case " ${_HI_COLOR_NAMES[*]} " in *" $_hi_ro_w "*) ;; *) return 1 ;; esac
+    _hi_ro_c=$((_hi_ro_c + 1))
+    case "$_hi_ro_s" in *' '*) _hi_ro_s="${_hi_ro_s#* }" ;; *) _hi_ro_s="" ;; esac
+  done
+  [ "$_hi_ro_c" = 8 ]
 }
 
 # _hi_color_escape_var <outvar> <name> - by name; unknown names reset,

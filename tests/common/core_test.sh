@@ -110,22 +110,22 @@ function test_truecolor_override_wins_both_ways() {
 # finds what it found before
 function test_scheme_escape_keeps_the_16_color_prefix() {
   local red brred
-  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_var red red
-  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_var brred brred
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var red red
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var brred brred
   [ "$red" = '\e[0;31;38;2;243;139;168m' ] && [ "$brred" = '\e[1;31;38;2;243;119;153m' ] &&
-    [ "$(_HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape red)" = $'\e[0;31;38;2;243;139;168m' ]
+    [ "$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape red)" = $'\e[0;31;38;2;243;139;168m' ]
 }
 
 function test_scheme_is_inert_without_truecolor() {
   local out
-  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=0 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_escape_var out red
   [ "$out" = '\e[0;31m' ] || return 1
-  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=0 _hi_color_hex out red
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_hex out red
   [ -z "$out" ]
 }
 
 function test_scheme_is_inert_under_no_color() {
-  [ -z "$(NO_COLOR=1 _HI_COLOR_SCHEME=monokai _HI_TRUECOLOR=1 _hi_color_escape red)" ]
+  [ -z "$(NO_COLOR=1 _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape red)" ]
 }
 
 function test_unknown_scheme_falls_back_to_16_color() {
@@ -136,7 +136,7 @@ function test_unknown_scheme_falls_back_to_16_color() {
 
 function test_scheme_hex_is_six_hex_digits_for_every_slot() {
   local scheme i hex
-  for scheme in catppuccin monokai onedark vscode; do
+  for scheme in "$_HI_TEST_L24" "$_HI_TEST_L48"; do
     i=0
     while [ "$i" -lt "${#_HI_COLOR_NAMES[@]}" ]; do
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex hex "$i"
@@ -147,31 +147,12 @@ function test_scheme_hex_is_six_hex_digits_for_every_slot() {
   done
 }
 
-# a scheme's bright six are a second bank, not a copy of the first: monokai
-# once repeated its dark six verbatim, so red and brred rendered alike, the
-# host/user hash lost half its range and HI.48's hue alternates stopped being
-# alternates. A palette may reuse one or two hexes across the banks (onedark
-# does, for yellow and blue); a bank that repeats *every* one is the bug.
-function test_scheme_bright_bank_is_not_the_dark_bank() {
-  local scheme i dark bright same
-  for scheme in catppuccin monokai onedark vscode; do
-    i=0 same=0
-    while [ "$i" -lt 6 ]; do
-      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex dark "$i"
-      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex bright "$((i + 6))"
-      [ "$dark" = "$bright" ] && same=$((same + 1))
-      i=$((i + 1))
-    done
-    [ "$same" -lt 6 ] || return 1
-  done
-}
-
 # the exported palette and the by-name escape share one primitive, so a
 # fresh shell under a scheme assigns $RED exactly what _hi_color_escape red
 # prints - preview.sh's reverse map depends on that
 function test_palette_vars_agree_with_color_escape_under_a_scheme() {
   local out
-  out="$(env _HI_COLOR_SCHEME=onedark _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
+  out="$(env _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
     . "$_HI_HOME/say-hi/common/core.sh"
     for n in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
       eval "v=\$$n"; printf "%b" "$v"
@@ -183,7 +164,7 @@ function test_palette_vars_agree_with_color_escape_under_a_scheme() {
 
 # the hash is untouched by a scheme: a name, never a hex
 function test_hash_color_ignores_the_scheme() {
-  [ "$(_HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1 _hi_hash_color prod-db)" = "$(_hi_hash_color prod-db)" ]
+  [ "$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_hash_color prod-db)" = "$(_hi_hash_color prod-db)" ]
 }
 
 # _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with header_test.sh
@@ -199,7 +180,7 @@ function test_scheme_words_counts_a_list() {
   # twelve words, the shape before the extras: not a scheme any more
   _HI_COLOR_SCHEME="${_HI_TEST_L24% * * * * * * * * * * * *}" _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
-  _HI_COLOR_SCHEME=catppuccin _hi_scheme_words n
+  _HI_COLOR_SCHEME=solarized _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
   _HI_COLOR_SCHEME="" _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
@@ -226,8 +207,8 @@ function test_scheme_second_bank_folds_without_48_words() {
   local a b c
   _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_color_escape_at a 24
   _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_at b 24
-  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_at c 24
-  [ "$a" = '\e[0;31;38;2;205;49;49m' ] && [ "$b" = '\e[0;31;38;2;243;139;168m' ] && [ "$c" = "$b" ]
+  _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_color_escape_at c 24
+  [ "$a" = '\e[0;31;38;2;205;49;49m' ] && [ "$b" = '\e[0;31;38;2;243;139;168m' ] && [ "$c" = '\e[0;31m' ]
 }
 
 # a list that is not one is an unknown scheme: 16 colors for the sixteen's
@@ -243,19 +224,53 @@ function test_scheme_bad_list_falls_back_to_16_color() {
 # scripts/lib.sh's three readers of the setting, tested beside the primitive
 # they wrap (test_lib.sh sources lib.sh)
 function test_scheme_ok_takes_names_and_lists() {
-  _hi_scheme_ok catppuccin && _hi_scheme_ok "$_HI_TEST_L24" && _hi_scheme_ok "$_HI_TEST_L48" || return 1
+  _hi_scheme_ok "$_HI_TEST_L24" && _hi_scheme_ok "$_HI_TEST_L48" || return 1
+  # hi ships no named schemes any more, so a name is just a word
+  ! _hi_scheme_ok catppuccin || return 1
   ! _hi_scheme_ok solarized || return 1
   ! _hi_scheme_ok custom || return 1
   ! _hi_scheme_ok "$_HI_TEST_L24 cd3131" || return 1
   ! _hi_scheme_ok ""
 }
 
+# _hi_ramp_ok is the one judge of $_HI_PACKAGES_PALETTE - header.sh falls
+# back on it per render, doctor.sh and the previews report off it - so the
+# grammar is pinned here, beside the vocabulary it checks against.
+function test_ramp_ok_takes_eight_color_names() {
+  _hi_ramp_ok "$_HI_TEST_RAMP" || return 1
+  _hi_ramp_ok "cyan green brcyan brgreen blue magenta bryellow brred" || return 1
+  # the twelve extras are names too
+  _hi_ramp_ok "orange pink teal lime violet salmon gold sky" || return 1
+  ! _hi_ramp_ok "" || return 1
+  ! _hi_ramp_ok cool || return 1
+  ! _hi_ramp_ok "cyan green brcyan brgreen" || return 1
+  ! _hi_ramp_ok "$_HI_TEST_RAMP brred" || return 1
+  ! _hi_ramp_ok "cyan green brcyan brgreen blue magenta bryellow nosuch" || return 1
+  # a doubled space leaves an empty word, which no name matches
+  ! _hi_ramp_ok "cyan  green brcyan brgreen blue magenta bryellow brred" || return 1
+  # every byte a name cannot hold is refused before the walk, so nothing here
+  # can glob against the working directory or reach a `case` as a pattern
+  ! _hi_ramp_ok "* * * * * * * *" || return 1
+  ! _hi_ramp_ok "cyan green brcyan brgreen blue magenta bryellow BRRED" || return 1
+  ! _hi_ramp_ok "cyan;green brcyan brgreen blue magenta bryellow brred"
+}
+
+# ...and the label the previews and hi --doctor print for it, the three
+# shapes _hi_scheme_label prints for a scheme
+function test_ramp_label_names_every_shape() {
+  local l
+  _HI_PACKAGES_PALETTE="" _hi_ramp_label l
+  [ "$l" = default ] || return 1
+  _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_ramp_label l
+  [ "$l" = custom ] || return 1
+  _HI_PACKAGES_PALETTE=mono _hi_ramp_label l
+  [ "$l" = "mono (ignored - not eight color names)" ]
+}
+
 function test_scheme_label_names_every_shape() {
   local l
   _HI_COLOR_SCHEME="" _hi_scheme_label l
   [ "$l" = default ] || return 1
-  _HI_COLOR_SCHEME=monokai _hi_scheme_label l
-  [ "$l" = monokai ] || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_label l
   [ "$l" = "custom (24)" ] || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_L48" _hi_scheme_label l
@@ -336,7 +351,9 @@ function test_extra_names_render_by_fallback_and_hex() {
   [ "$out" = '\e[0;31m' ] || return 1
   _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_color_escape_var out teal
   [ "$out" = '\e[0;36;38;2;32;178;170m' ] || return 1
-  _HI_COLOR_SCHEME=monokai _HI_TRUECOLOR=1 _hi_color_escape_var out orange
+  # a list whose thirteenth word is not the built-in orange, so the assertion
+  # tells "the list's word for an extra" from "the built-in one"
+  _HI_COLOR_SCHEME="$_HI_TEST_L12 fd971f${_HI_TEST_L24#"$_HI_TEST_L12 ff8c00"}" _HI_TRUECOLOR=1 _hi_color_escape_var out orange
   [ "$out" = '\e[1;33;38;2;253;151;31m' ] || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_color_escape_at out 36
   [ "$out" = '\e[1;33;38;2;224;123;57m' ]
@@ -356,12 +373,13 @@ function test_color_base_names_the_16_color_half() {
   [ "$b" = nosuch ]
 }
 
-# every extra has a hex of its own in every table, none repeats one of the
-# first twelve's within a table, and the fallback string covers every slot
-function test_extra_names_have_a_hex_in_every_scheme() {
+# every extra has a hex of its own in the default table and in a list of the
+# user's own, none repeats one of the first twelve's within a table, and the
+# fallback string covers every slot
+function test_extra_names_have_a_hex_in_every_table() {
   local scheme i j hex other
   [ "${#_HI_COLOR_FALLBACK}" -eq $((${#_HI_COLOR_NAMES[@]} * 3 - 1)) ] || return 1
-  for scheme in "" catppuccin monokai onedark vscode; do
+  for scheme in "" "$_HI_TEST_L24" "$_HI_TEST_L48"; do
     i=12
     while [ "$i" -lt 24 ]; do
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex hex "$i"
@@ -761,7 +779,7 @@ function test_zsh_hash_color_agrees_with_bash() {
 }
 
 function test_zsh_scheme_escape_agrees_with_bash() {
-  _hi_shell_agrees 'export _HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1; _hi_assign_palette; _hi_color_hex h brcyan; printf "%s|%s|%s" "$RED" "$BRCYAN" "$h"'
+  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L24' _HI_TRUECOLOR=1; _hi_assign_palette; _hi_color_hex h brcyan; printf '%s|%s|%s' \"\$RED\" \"\$BRCYAN\" \"\$h\""
 }
 
 # the list form walks the setting by offset, which is where zsh and bash
@@ -1080,20 +1098,21 @@ function run_core_tests() {
   _hi_check "Inert without truecolor" test_scheme_is_inert_without_truecolor
   _hi_check "Inert under NO_COLOR" test_scheme_is_inert_under_no_color
   _hi_check "An unknown scheme falls back to 16 colors" test_unknown_scheme_falls_back_to_16_color
-  _hi_check "Every slot of every scheme is six hex digits" test_scheme_hex_is_six_hex_digits_for_every_slot
-  _hi_check "No scheme's bright bank repeats its dark bank" test_scheme_bright_bank_is_not_the_dark_bank
+  _hi_check "Every slot of a list is six hex digits" test_scheme_hex_is_six_hex_digits_for_every_slot
   _hi_check "The palette agrees with _hi_color_escape under a scheme" test_palette_vars_agree_with_color_escape_under_a_scheme
   _hi_check "The hash ignores the scheme" test_hash_color_ignores_the_scheme
   _hi_check "_hi_scheme_words counts a 24/48-word list" test_scheme_words_counts_a_list
   _hi_check "The extras render by fallback pair and hex" test_extra_names_render_by_fallback_and_hex
   _hi_check "_hi_color_base names the 16-color half" test_color_base_names_the_16_color_half
-  _hi_check "Every extra has its own hex in every scheme" test_extra_names_have_a_hex_in_every_scheme
+  _hi_check "Every extra has its own hex in every table" test_extra_names_have_a_hex_in_every_table
   _hi_check "fish gets the base name beside the hex" test_prompt_colors_hand_fish_the_base_name
   _hi_check "A 24-word list renders" test_scheme_list_of_twenty_four_renders
   _hi_check "Slots 24-47 fold to the first bank without 48 words" test_scheme_second_bank_folds_without_48_words
   _hi_check "A malformed list falls back to 16 colors" test_scheme_bad_list_falls_back_to_16_color
-  _hi_check "_hi_scheme_ok takes names and lists" test_scheme_ok_takes_names_and_lists
+  _hi_check "_hi_scheme_ok takes only lists" test_scheme_ok_takes_names_and_lists
   _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
+  _hi_check "_hi_ramp_ok takes eight color names" test_ramp_ok_takes_eight_color_names
+  _hi_check "_hi_ramp_label names every shape" test_ramp_label_names_every_shape
 
   _hi_h2 "Testing: _hi_cecho"
   _hi_check "Prints the text verbatim" test_cecho_prints_the_text_verbatim

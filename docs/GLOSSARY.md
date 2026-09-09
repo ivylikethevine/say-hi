@@ -773,32 +773,45 @@ suites' `_hi_strip_ansi` match `\e[[0-9;]*m` - and `_hi_cell_hue` (HI.48)
 needed only to accept `;` as well as `m` after the slot digit, which is
 still the hue.
 
-The hex tables are a fixed-width string per scheme, sliced by offset
-(`_hi_scheme_hex`): no arrays, because zsh indexes them from 1 and sources
-this file; no separate data file, because the payload strips comments and
-the twenty-four six-digit words are the only bytes that cost anything on the
-wire.
+The hex table is a fixed-width string sliced by offset (`_hi_scheme_hex`):
+no arrays, because zsh indexes them from 1 and sources this file; no
+separate data file, because the payload strips comments and the twenty-four
+six-digit words are the only bytes that cost anything on the wire. hi ships
+**no named schemes** — the only table in the tree is the default one, whose
+first twelve slots are `000000` (meaning "the terminal's own") and whose
+twelve extras carry a built-in hex. A scheme is always the user's own.
 `_hi_assign_palette` builds the exported `$RED..$BRCYAN` through the same
 primitive as `_hi_color_escape`, so the two can never disagree and
 `scripts/configure.sh`'s previews can rebuild the palette under a pending
 answer.
 
-**A scheme of the user's own is the same string, in the setting.**
+**The scheme is that same string, in the setting.**
 `_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
 24, 48 or 0: exactly that many six-digit hex words one space apart is a
-scheme, anything else is a name (or nothing), and a name the `case` does not
-know renders as the default. Forty-eight words are two banks of the
+scheme, anything else — a leftover name, a typo, nothing — renders as the
+default. Forty-eight words are two banks of the
 twenty-four names. `_hi_scheme_hex` takes slot indexes 0-47 and folds 24-47
 onto 0-23 for every table but a 48-word list, and `_hi_color_escape_at`
 reads the 16-color half off `_HI_COLOR_FALLBACK` at the index mod 24, so a
 second-bank escape wears the same `\e[<bold>;3<n>` as its name, so every hue
 and width reader above still works. Only `common/header.sh`'s packages check reads the
 second bank: `_hi_packages_palette` rebuilds `_HI_YES`/`_HI_NO` from it after
-the named-ramp `case`, per render rather than at source time, because the
+resolving the ramp, per render rather than at source time, because the
 ramps are the palette variables and those are the first bank by contract.
 The two `_hi_scheme_words` calls a render costs are offset arithmetic, no
 fork. `scripts/lib.sh`'s `_hi_scheme_ok` and `_hi_scheme_label` are the
 validator and the preview/doctor label; core.sh only ever renders.
+
+**The packages check's ramp is the same shape, one level down.**
+`$_HI_PACKAGES_PALETTE` is eight `_HI_COLOR_NAMES` words — four for
+installed, four for missing — and `_hi_ramp_ok` (`common/core.sh`, beside
+the vocabulary it checks against, so `scripts/doctor.sh` reaches it without
+sourcing `header.sh`) is the one judge: `_hi_packages_palette` falls back to
+`$_HI_PACKAGES_RAMP`, the shipped ramp as one string, whenever it says no,
+and `scripts/lib.sh`'s `_hi_ramp_label` names the same three shapes the
+scheme label does. Like the scheme, there are no named ramps to pick from —
+`hi --configure` does not ask about either, and neither is in a preset's
+vocabulary.
 
 The gate is `_hi_has_truecolor`: `COLORTERM` (`truecolor` or `24bit`), with
 `_HI_TRUECOLOR` overriding both ways. ssh never forwards `COLORTERM`, so

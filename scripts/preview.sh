@@ -100,8 +100,8 @@ Takes no arguments. Reads:
   settings/packages      the [-|+]package:priority lines (the overlay's
                      ~/.config/say-hi/packages wins when present)
   common/header.sh   the priority meanings and their two color tables
-  \$_HI_PACKAGES_PALETTE   which of the named color tables is active (cool, the
-                     default; warm; mono) - printed above the legend
+  \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
+                     eight color names of your own - printed above the legend
 
 A line's leading mode character decides which states speak at all: \`-\` only
 when the whole line is missing, \`+\` only when something on it is installed,
@@ -133,6 +133,14 @@ EOF
   exit 1
   ;;
 esac
+
+# which ramp the legend below is painted in - default, custom, or a value
+# nothing paints, exactly as hi --doctor names it
+function _hi_print_ramp_line() {
+  local label
+  _hi_ramp_label label
+  _hi_cecho " | palette: $label"
+}
 
 # what the swatches are painted under, so an eyeball pass of a
 # $_HI_COLOR_SCHEME says which one it is looking at (GLOSSARY: HI.50)
@@ -743,7 +751,7 @@ packages)
     exit 1
   fi
   _hi_cecho " | reading $_HI_PACKAGES"
-  _hi_cecho " | palette: ${_HI_PACKAGES_PALETTE:-cool}"
+  _hi_print_ramp_line
   _hi_print_scheme_line
   printf '\n'
   _hi_collect_examples

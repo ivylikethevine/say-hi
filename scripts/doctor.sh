@@ -292,10 +292,14 @@ function doctor_config() {
   # copy of the same ladder, so settings.sh got two verdicts in two sections.
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
-  # a scheme nothing renders: neither a name nor 12/24 hex words (HI.50).
-  # settings.sh is already sourced, so the exported value is the one to judge
+  # a scheme nothing renders, and a packages ramp nothing paints (HI.50):
+  # both are written into settings.sh by hand, so a typo is silent otherwise.
+  # settings.sh is already sourced, so the exported values are the ones to judge
   if [ -n "${_HI_COLOR_SCHEME:-}" ] && ! _hi_scheme_ok "$_HI_COLOR_SCHEME"; then
-    doctor_row color-scheme "'$_HI_COLOR_SCHEME' is ignored - not $(printf '%s' "$_HI_COLOR_SCHEMES" | tr ' ' '/') or 12/24 six-digit hex words" bad
+    doctor_row color-scheme "'$_HI_COLOR_SCHEME' is ignored - not 24 or 48 six-digit hex words" bad
+  fi
+  if [ -n "${_HI_PACKAGES_PALETTE:-}" ] && ! _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
+    doctor_row pkg-palette "'$_HI_PACKAGES_PALETTE' is ignored - not eight color names" bad
   fi
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
   # minus settings.sh, which got its richer parse-checked row above

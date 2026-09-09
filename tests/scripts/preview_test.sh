@@ -371,8 +371,8 @@ function test_tables_render_without_error() {
 # says which scheme it is (HI.50)
 function test_tables_render_under_a_scheme() {
   local out
-  out="$(_HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_render_colors)" || return 1
-  [[ "$out" == *"scheme: catppuccin"* && "$out" == *";38;2;"* ]] || return 1
+  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_render_colors)" || return 1
+  [[ "$out" == *"scheme: custom (24)"* && "$out" == *";38;2;"* ]] || return 1
   out="$(_HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_render_colors)" || return 1
   [[ "$out" == *"scheme: default"* && "$out" != *";38;2;"* ]]
 }
@@ -520,13 +520,13 @@ function test_meanings_take_only_the_block_above_the_table() {
 
 # every entry in the header's two ramps has to be a name the user can look up
 # in settings/colors, or the legend prints something meaningless - checked for
-# every named palette, not just whichever one is active when the suite runs,
-# since the ramps are _hi_packages_palette's output and this suite never sets
+# the shipped ramp and for one of the user's own, since the ramps are
+# _hi_packages_palette's output and this suite never sets
 # $_HI_PACKAGES_PALETTE itself
 function test_legend_names_every_header_color() {
-  local name entry
-  for name in $(_hi_palette_names); do
-    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
+  local ramp entry
+  for ramp in "" "$_HI_TEST_RAMP"; do
+    _HI_PACKAGES_PALETTE="$ramp" _hi_packages_palette
     for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
       [ -n "$entry" ] || return 1
       printf '%s\n' "${_HI_COLOR_NAMES[@]}" | grep -qx "$entry" || return 1
@@ -758,10 +758,16 @@ function test_preview_renders_without_error() {
   [[ "$_HI_PACKAGES_OUT" == *PRIORITY* && "$_HI_PACKAGES_OUT" == *MARK* ]]
 }
 
-# the eyeball pass _HI_PACKAGES_PALETTE's roadmap entry leans on: the legend
-# has to say which named ramp is on screen, not just render one
+# the eyeball pass _HI_PACKAGES_PALETTE leans on: the legend has to say which
+# ramp is on screen, not just render one - the same three shapes the scheme
+# line prints
 function test_preview_names_the_active_palette() {
-  [[ "$_HI_PACKAGES_OUT" == *"palette: cool"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]]
+  local out
+  [[ "$_HI_PACKAGES_OUT" == *"palette: default"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]] || return 1
+  out="$(_HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_render_packages)" || return 1
+  [[ "$out" == *"palette: custom"* ]] || return 1
+  out="$(_HI_PACKAGES_PALETTE=mono _hi_render_packages)" || return 1
+  [[ "$out" == *"palette: mono (ignored - not eight color names)"* ]]
 }
 
 # a scheme of the user's own is named by its shape, and a 48-word one paints

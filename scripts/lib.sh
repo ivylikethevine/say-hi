@@ -66,17 +66,15 @@ function _hi_rewrite() {
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh
 # answers "what does slot n render as", these answer "what is the setting".
-# _hi_scheme_ok <value> - a named scheme, or 24/48 hex words
+# _hi_scheme_ok <value> - 24/48 hex words, the only shape there is
 function _hi_scheme_ok() {
   local _hi_so_n
-  # shellcheck disable=SC2153 # the roster is core.sh's, exported
-  case " $_HI_COLOR_SCHEMES " in *" $1 "*) return 0 ;; esac
   _HI_COLOR_SCHEME="$1" _hi_scheme_words _hi_so_n
   [ "$_hi_so_n" -gt 0 ]
 }
 
 # _hi_scheme_label <outvar> - the scheme as a preview or report names it:
-# default, the name, custom (24|48), or the value and why it is ignored
+# default, custom (24|48), or the value and why it is ignored
 function _hi_scheme_label() {
   local _hi_sl_n
   _hi_scheme_words _hi_sl_n
@@ -84,10 +82,22 @@ function _hi_scheme_label() {
     printf -v "$1" '%s' default
   elif [ "$_hi_sl_n" -gt 0 ]; then
     printf -v "$1" 'custom (%s)' "$_hi_sl_n"
-  elif _hi_scheme_ok "$_HI_COLOR_SCHEME"; then
-    printf -v "$1" '%s' "$_HI_COLOR_SCHEME"
   else
     printf -v "$1" '%s (ignored - not a scheme)' "$_HI_COLOR_SCHEME"
+  fi
+}
+
+# _hi_ramp_label <outvar> - the same three shapes for the packages check's
+# ramp: default, custom, or the value and why it is ignored. header.sh's
+# _hi_ramp_ok is the judge, so a preview and a report can never disagree
+# with what full_check actually paints.
+function _hi_ramp_label() {
+  if [ -z "${_HI_PACKAGES_PALETTE:-}" ]; then
+    printf -v "$1" '%s' default
+  elif _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
+    printf -v "$1" '%s' custom
+  else
+    printf -v "$1" '%s (ignored - not eight color names)' "$_HI_PACKAGES_PALETTE"
   fi
 }
 

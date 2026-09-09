@@ -52,6 +52,7 @@ which, and why). A setting a child must see is an `export` in
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Colors](#colors)
+  - [The package check's ramp](#the-package-checks-ramp)
   - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
 
 ## The wizard
@@ -63,9 +64,8 @@ prompt line as it would draw, at your current settings — over a short menu:
 2. **Header** — the editor for everything in [Header details](#header-details):
    the real header rendered above a numbered list of the banner and every
    item; a number toggles one, `up N`/`down N` moves it, `[p]` loads a header
-   preset (`[f]ull`, `[c]ompact`, `[q]uiet`), and the width, the package check's
-   depth and its palette (`[d]efault`, `[c]ool`, `[w]arm`, `[m]ono`, by the
-   letter or the name) live there too. Outside the menu,
+   preset (`[f]ull`, `[c]ompact`, `[q]uiet`), and the width and the package
+   check's depth live there too. Outside the menu,
    `hi --preview header` prints the header as it would draw at the saved
    settings, and `hi --preview packages` the check's legend.
 3. **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
@@ -74,12 +74,9 @@ prompt line as it would draw, at your current settings — over a short menu:
 5. **Advanced** — the _advanced_ rows, as a short walk of questions:
    the leading space, tmux, the glyphs, 24-bit color and the container CLI
    roster. A question whose tool is not on this machine (tmux) is skipped.
-6. **Colors** — `_HI_COLOR_SCHEME`, one of the truecolor schemes in
-   [Colors](#colors), previewed on the header and prompt and chosen like a
-   preset: `[d]efault`, `[c]atppuccin`, `[m]onokai`, `[o]nedark` or
-   `[v]scode`, by the letter or the name. A scheme of your
-   own is written into `settings.sh` by hand; the menu shows it as `custom`
-   and Enter keeps it.
+The wizard does not ask about colors: `_HI_COLOR_SCHEME` and
+`_HI_PACKAGES_PALETTE` are both written into `settings.sh` by hand — see
+[Colors](#colors) — and it keeps whatever they hold.
 
 Every option is typed by its number or by the letter shown in brackets, and
 every section returns to the menu with the preview re-rendered. `[s]` writes
@@ -105,7 +102,7 @@ without the menu:
 
 A preset is an absolute answer over the feature and header settings: what it
 names is set, everything else in that vocabulary returns to its default, and
-the header order, the width, the package check's palette, the hidden
+the header order, the width, the package check's ramp, the hidden
 addresses, the color scheme, the prompt separators, the starship choice and
 the advanced settings keep what they hold. From the menu its answers are only
 what the preview shows until `[s]` saves them. The rows are
@@ -184,8 +181,8 @@ cannot land without a row here.
 | `_HI_REMOTE_SESSION`        | `0`                                                  | hi                        | `1` inside a hi session, which is what `_HI_DISABLE_LOCAL` reads to tell local from remote                                                                                                                                                                                                                                                                       |
 | `_HI_HEADER_ORDER`          | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order                                                                                                                                                                                                                                                                                |
 | `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority the header's check prints, 0-4, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, `4` turns the check off. `hi --preview packages` marks the ranks it silences `below floor`    |
-| `_HI_PACKAGES_PALETTE`      | `cool`                                               | `hi --configure`          | which of `common/header.sh`'s named color tables the check paints with, per priority - `cool` (cyan-green installed, blue-red missing), `warm` (yellow-red) or `mono`; any other value falls back to `cool`. Judge one with `hi --preview packages`                                                                                                              |
-| `_HI_COLOR_SCHEME`          | unset                                                | `hi --configure`          | what the palette names render as on a terminal that reports 24-bit color: `catppuccin` (Mocha), `monokai`, `onedark`, `vscode` (Dark+), or your own. See [Colors](#colors) for the word count and order                                                                                                                                                          |
+| `_HI_PACKAGES_PALETTE`      | unset                                                | you                       | the color the check paints each priority in: eight color names, four for installed then four for missing. Unset is the shipped ramp (cyan-green installed, blue-red missing); anything that is not eight names falls back to it. See [Colors](#colors), and judge one with `hi --preview packages`                                                               |
+| `_HI_COLOR_SCHEME`          | unset                                                | you                       | what the palette names render as on a terminal that reports 24-bit color: twenty-four or forty-eight six-digit hex words. Unset is the terminal's own sixteen colors. See [Colors](#colors) for the word count and order                                                                                                                                         |
 | `_HI_IP_HIDE`               | `172.*`                                              | `hi --configure`          | space-separated globs; the header's `ip` cell drops every address one matches. `none` hides nothing; an empty value counts as unset. See [Header details](#header-details)                                                                                                                                                                                       |
 | `_HI_MAX_WIDTH`             | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                       |
 | `_HI_PROMPT`                | unset                                                | `hi --configure`          | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, `oh-my-posh` to [oh-my-posh](https://ohmyposh.dev) (by hand; the menu offers starship), keeping hi's header and aliases either way. A `starship.toml` / `oh-my-posh.json` in the overlay becomes the tool's config on every target. Never auto-detected; hi ships neither |
@@ -418,8 +415,8 @@ lands on as readily as the first twelve. A pin, the hash and `hi --preview
 colors` never see anything else. What each name _renders as_ is
 `_HI_COLOR_SCHEME`'s: unset, the terminal's own sixteen colors for the first
 twelve and a built-in 24-bit color for each extra (there is no 16-color
-orange); set to `catppuccin`, `monokai`, `onedark` or `vscode`, that scheme's
-hex for every name. Each is emitted as one escape that carries a 16-color
+orange); set to a hex list of your own, that list's hex for every name. Each
+is emitted as one escape that carries a 16-color
 code first and the 24-bit color after it, so a terminal that ignores the
 second keeps the first - an extra name's 16-color half is the nearest of the
 sixteen (orange reads as bright yellow there, teal as cyan).
@@ -432,11 +429,10 @@ Inside tmux or on a terminal that renders 24-bit color without announcing it,
 takes the hex from 5.7 on and keeps the plain name below that; macOS
 Terminal.app never sets `COLORTERM` and so keeps its own sixteen. Judge a
 scheme with `hi --preview colors` and `hi --preview packages`, which each say
-which scheme they are rendering; `hi --configure`'s Colors section shows all
-four side by side. `settings.sh` ships to every target, so a scheme follows
-you.
+which scheme they are rendering. `settings.sh` ships to every target, so a
+scheme follows you.
 
-A scheme of your own is the setting itself: twenty-four six-digit hex words,
+hi ships no named schemes: the scheme _is_ the setting — twenty-four six-digit hex words,
 one space apart, in the order of the names above (red, green, yellow, blue,
 magenta, cyan, the six bright ones, then the twelve extras), or forty-eight -
 the second twenty-four paint only the package check, so a missing favorite
@@ -448,10 +444,28 @@ export _HI_COLOR_SCHEME='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b
 ```
 
 The quotes matter (the value holds spaces, and fish sources the file too).
-Anything that is neither a scheme name nor exactly 24 or 48 hex words renders
-as the default, `hi --doctor` says so, and the previews label it
-`(ignored - not a scheme)`; a list that parses is labelled `custom (24)` or
-`custom (48)`, and `hi --configure`'s Colors section adds it to the swatches.
+Anything that is not exactly 24 or 48 hex words renders as the default,
+`hi --doctor` says so, and the previews label it `(ignored - not a scheme)`;
+a list that parses is labelled `custom (24)` or `custom (48)`.
+
+### The package check's ramp
+
+`_HI_PACKAGES_PALETTE` is the same idea one level down: which of the
+twenty-four names the header's package check paints each priority in. It is
+eight of those names, one space apart — four for installed, rising 0→3, then
+four for missing:
+
+```sh
+export _HI_PACKAGES_PALETTE='cyan green brcyan brgreen blue magenta bryellow brred'
+```
+
+That line is the shipped ramp, so writing it changes nothing; unset means the
+same. A ramp reads best when both halves climb in one direction — a missing
+favorite the loudest thing on screen, installed trivia the quietest — and
+stay legible on light and dark terminals alike. Anything that is not eight
+names from the vocabulary above falls back to the shipped ramp, `hi --doctor`
+says so, and `hi --preview packages` labels the line `default`, `custom`, or
+`(ignored - not eight color names)`.
 
 `hi --preview colors` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:

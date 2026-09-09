@@ -1814,53 +1814,67 @@ function test_full_check_emits_a_row_for_an_installed_package() {
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
 }
 
-# _hi_packages_palette's contract: each named ramp is exactly four entries -
-# one per priority 0-3 - in both tables. `VAR=val func` on a shell function
-# (not an external command) reverts VAR once the call returns, so this leaves
-# no _HI_PACKAGES_PALETTE behind for a case after it.
-function test_packages_palette_each_name_has_four_entries() {
-  local name
-  for name in $(_hi_palette_names); do
-    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-    [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ] || return 1
-  done
-}
-
-# an unrecognized name falls back to the same tables an unset one resolves to
-# (cool) - checked by content, not by name, since header.sh's own comment
-# above _HI_YES is the only place "cool" is defined as those four escapes
-function test_packages_palette_unknown_falls_back_to_cool() {
-  local -a cool_yes cool_no
+# _hi_packages_palette's contract: exactly four entries - one per priority
+# 0-3 - in both tables, whichever ramp is in force. `VAR=val func` on a shell
+# function (not an external command) reverts VAR once the call returns, so
+# this leaves no _HI_PACKAGES_PALETTE behind for a case after it.
+function test_packages_palette_fills_four_slots_each_way() {
   unset _HI_PACKAGES_PALETTE
   _hi_packages_palette
-  cool_yes=("${_HI_YES[@]}") cool_no=("${_HI_NO[@]}")
-  _HI_PACKAGES_PALETTE=bogus _hi_packages_palette
-  [ "${_HI_YES[*]}" = "${cool_yes[*]}" ] && [ "${_HI_NO[*]}" = "${cool_no[*]}" ]
+  [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ] || return 1
+  _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_packages_palette
+  [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ]
 }
 
-# every name in every ramp has to be a real _HI_COLOR_NAMES entry, or a
-# candidate ramp would ask _hi_ramp_escape for a slot that does not exist and
-# paint the header with nothing. A direct membership check now the ramps store
-# names: it used to render each escape and search the palette for one whose
-# 16-color half matched, which is the round trip storing names removes.
-function test_packages_palette_names_are_all_real_colors() {
-  local name entry found candidate
-  for name in $(_hi_palette_names); do
-    _HI_PACKAGES_PALETTE="$name" _hi_packages_palette
-    for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
-      found=""
-      for candidate in "${_HI_COLOR_NAMES[@]}"; do
-        [ "$candidate" = "$entry" ] && found=1 && break
-      done
-      [ -n "$found" ] || return 1
-    done
+# eight names of the user's own become the two tables verbatim, in order:
+# the first four installed, the last four missing
+function test_packages_palette_takes_a_ramp_verbatim() {
+  _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_packages_palette
+  [ "${_HI_YES_NAMES[*]} ${_HI_NO_NAMES[*]}" = "$_HI_TEST_RAMP" ]
+}
+
+# anything that is not eight names resolves to the same tables an unset one
+# does - checked by content, not by name, since header.sh's own assignment
+# above is the only place the shipped ramp is spelled out. The fallback has
+# to survive a *previous* call having installed a ramp of the user's own,
+# which is what configure.sh's previews do between renders.
+function test_packages_palette_bad_value_falls_back_to_the_shipped_ramp() {
+  local -a shipped_yes shipped_no
+  local bad
+  unset _HI_PACKAGES_PALETTE
+  _hi_packages_palette
+  shipped_yes=("${_HI_YES[@]}") shipped_no=("${_HI_NO[@]}")
+  for bad in bogus "" "cyan green brcyan" "$_HI_TEST_RAMP brred" \
+    "cyan green brcyan brgreen blue magenta bryellow nosuch" \
+    "cyan  green brcyan brgreen blue magenta bryellow brred" "* * * * * * * *"; do
+    _HI_PACKAGES_PALETTE="$_HI_TEST_RAMP" _hi_packages_palette
+    _HI_PACKAGES_PALETTE="$bad" _hi_packages_palette
+    [ "${_HI_YES[*]}" = "${shipped_yes[*]}" ] && [ "${_HI_NO[*]}" = "${shipped_no[*]}" ] || return 1
   done
-  [ "$(_hi_palette_names | wc -l)" -ge 3 ]
 }
 
-# A 24-word scheme: the check paints from the second bank, every other cell
-# from the first. Catppuccin's twelve then vscode's twelve, so bank 2's cyan
-# (slot 17, 11a8cd) is what cool's priority-0 installed color becomes.
+# every name in the shipped ramp has to be a real _HI_COLOR_NAMES entry, or
+# _hi_ramp_escape would be asked for a slot that does not exist and the
+# header would paint with nothing. A direct membership check now the ramps
+# store names: it used to render each escape and search the palette for one
+# whose 16-color half matched, which is the round trip storing names removes.
+function test_shipped_ramp_names_are_all_real_colors() {
+  local entry found candidate
+  unset _HI_PACKAGES_PALETTE
+  _hi_packages_palette
+  [ "${_HI_YES_NAMES[*]} ${_HI_NO_NAMES[*]}" = "$_HI_PACKAGES_RAMP" ] || return 1
+  for entry in "${_HI_YES_NAMES[@]}" "${_HI_NO_NAMES[@]}"; do
+    found=""
+    for candidate in "${_HI_COLOR_NAMES[@]}"; do
+      [ "$candidate" = "$entry" ] && found=1 && break
+    done
+    [ -n "$found" ] || return 1
+  done
+}
+
+# A 48-word scheme: the check paints from the second bank, every other cell
+# from the first, so bank 2's cyan (slot 17, 11a8cd) is what the shipped
+# ramp's priority-0 installed color becomes.
 # _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with core_test.sh
 
 function test_packages_palette_uses_the_second_bank_under_48_words() {
@@ -1881,7 +1895,7 @@ function test_packages_palette_uses_the_second_bank_under_48_words() {
 }
 
 # ...and stays the first bank - the palette variables themselves - under a
-# 24-word list, a name, or nothing
+# 24-word list or nothing
 function test_packages_palette_keeps_the_first_bank_under_24_words() {
   local ok=0
   (
@@ -2107,9 +2121,10 @@ function run_header_tests() {
   _hi_check "Empty carry, no packages: still silent" test_full_check_empty_carry_and_no_packages_prints_nothing
 
   _hi_h2 "Testing: _hi_packages_palette"
-  _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
-  _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
-  _hi_check "Every escape names a real color" test_packages_palette_names_are_all_real_colors
+  _hi_check "Four entries per table, either way" test_packages_palette_fills_four_slots_each_way
+  _hi_check "Eight names of your own are taken verbatim" test_packages_palette_takes_a_ramp_verbatim
+  _hi_check "Anything else falls back to the shipped ramp" test_packages_palette_bad_value_falls_back_to_the_shipped_ramp
+  _hi_check "Every shipped entry names a real color" test_shipped_ramp_names_are_all_real_colors
   _hi_check "The check paints from the second bank under 48 words" test_packages_palette_uses_the_second_bank_under_48_words
   _hi_check "...and from the first under 24" test_packages_palette_keeps_the_first_bank_under_24_words
   _hi_check "...and stays empty under NO_COLOR" test_packages_palette_second_bank_is_inert_under_no_color

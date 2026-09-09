@@ -132,8 +132,6 @@ function test_scheme_label_names_each_kind() {
   [ "$label" = "custom (24)" ] || return 1
   _HI_COLOR_SCHEME="$custom $custom" _hi_scheme_label label
   [ "$label" = "custom (48)" ] || return 1
-  _HI_COLOR_SCHEME=monokai _hi_scheme_label label
-  [ "$label" = monokai ] || return 1
   _HI_COLOR_SCHEME=nope _hi_scheme_label label
   [ "$label" = "nope (ignored - not a scheme)" ]
 }

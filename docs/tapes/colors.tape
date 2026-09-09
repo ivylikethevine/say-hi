@@ -6,7 +6,7 @@
 # root, docker running, hi on PATH. Manual artifact, reviewed by eye.
 #
 # Its configuration (docs/tapes/fixtures.sh, up:colors): the `colors` overlay
-# with hosttag pins, and _HI_COLOR_SCHEME=onedark on the client and baked
+# with hosttag pins, and a one-dark _HI_COLOR_SCHEME hex list on the client and baked
 # into both targets, so the preview and the sessions paint with the same
 # truecolor - COLORTERM is exported below because vhs's shell does not set
 # it. The targets keep a short header of their own (_HI_HEADER_ORDER in the
@@ -38,7 +38,7 @@ Enter
 Show
 
 Sleep 1s
-Type "# tags in ~/.ssh/config, pins in the colors overlay, the onedark scheme"
+Type "# tags in ~/.ssh/config, pins in the colors overlay, a hex scheme"
 Enter
 Type "hi --preview colors"
 Enter
