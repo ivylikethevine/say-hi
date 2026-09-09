@@ -820,15 +820,15 @@ function _hi_fallback_prompt() {
   # the outvar forms (GLOSSARY: HI.05): through $( ) each memo would be filled
   # in a subshell and die there, and _hi_remote_suffix builds this on every
   # connect, not just a bash-less one
-  local ue ce pe
-  _hi_user_escape ue
+  local user_esc ce pe
+  _hi_user_escape user_esc
   _hi_prompt_end BASH pe
   _hi_color_escape_var ce "$(_hi_target_color)"
   printf -v ce '%b' "$ce" # the _var form leaves `\e` literal
   printf -v nc '%b' "$NC"
   printf '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}")\n'
   printf 'PS1=" %s${_hi_u}%s@%s%s%s %s "\n' \
-    "$ue" "$nc" "$ce" "$host" "$nc" "$pe"
+    "$user_esc" "$nc" "$ce" "$host" "$nc" "$pe"
 }
 
 function _hi_size() {
@@ -1615,11 +1615,20 @@ function _hi_select_arm() {
 # application cursor keys, the keypad, bracketed paste, kitty keyboard mode,
 # the alternate screen, a hidden cursor - nor the OSC 133 "command running"
 # state hi's prompt marks leave a Konsole in, since a drop never reaches
-# load.sh's close. Every byte is a no-op on a terminal already normal, so the
-# caller need not know which applied; `stty sane` is for the container arms,
-# whose exec does not always restore termios. GLOSSARY: HI.53
+# load.sh's close. Every byte is a no-op on a terminal already normal (the
+# alternate-screen exit only once wrapped, below), so the caller need not know
+# which applied; `stty sane` is for the container arms, whose exec does not
+# always restore termios. GLOSSARY: HI.53
 function _hi_reset_terminal() {
-  printf '\033[?1l\033>\033[?2004l\033[<u\033[?1049l\033[?25h'
+  # DECSC/DECRC (`ESC 7`/`ESC 8`) around the alternate-screen exit: it is the
+  # one byte here that is not a no-op on a terminal still on its normal
+  # screen. Konsole answers `CSI ?1049 l` with an unconditional cursor
+  # restore, and with nothing ever saved that slot is home, so a failed
+  # connect went on to overwrite the visible screen from the top. Saving
+  # first makes the restore land where we already are; on a terminal really
+  # in the alternate screen the save goes to *that* screen's own slot, 1049l
+  # still restores the pre-alt cursor, and the DECRC repeats it. GLOSSARY: HI.53
+  printf '\033[?1l\033>\033[?2004l\033[<u\0337\033[?1049l\0338\033[?25h'
   [ "${_HI_DISABLE_MARKS:-0}" = 1 ] || printf '\033]133;D;%s\a' "$1"
   stty sane 2>/dev/null || true
 }

@@ -904,13 +904,22 @@ out, but nothing restores the _terminal emulator's_ modes a remote program
 switched on and never got to switch off when the link went: application
 cursor keys (`CSI ?1 l`), the application keypad (`ESC >`), bracketed paste
 (`CSI ?2004 l`), a pushed kitty keyboard mode (`CSI < u`), the alternate
-screen (`CSI ?1049 l`) and a hidden cursor (`CSI ?25 h`). It also closes the
-OSC 133 prompt-mark pair with a `D` carrying the status (unless
+screen (`CSI ?1049 l`, wrapped - below) and a hidden cursor (`CSI ?25 h`). It
+also closes the OSC 133 prompt-mark pair with a `D` carrying the status (unless
 `_HI_DISABLE_MARKS=1`): hi's remote prompt emits `C` before every command,
 `exit` included, and `load.sh` sends the closing `D` on a clean exit - a drop
 never reaches that line, and Konsole, left "inside a command", sends ↑ as ←
 until a `D` arrives. `stty sane` last, for the container arms whose exec does
 not always restore termios on a lost link. Every byte is a no-op on a terminal
 already in its normal state, which is why the caller need not know which
-mode applied. Never on exit 0 (the session closed itself down), never on a
-pipe (`hi host cmd | ...` gets the command's output and nothing else).
+mode applied - but the alternate-screen exit only once it is wrapped in a
+`ESC 7`/`ESC 8` (DECSC/DECRC) pair. Konsole answers `CSI ?1049 l` with an
+unconditional cursor restore, and on a terminal still on its normal screen
+that slot holds what nothing ever saved, i.e. home: the failed connect's own
+message then landed at the top of the screen and painted over the session
+still on it. Saving first makes that restore a return to where the cursor
+already is; a terminal genuinely in the alternate screen saves to *that*
+screen's slot, so `CSI ?1049 l` still restores the pre-alt cursor and the
+DECRC only repeats it. Never on exit 0 (the session closed itself down),
+never on a pipe (`hi host cmd | ...` gets the command's output and nothing
+else).
