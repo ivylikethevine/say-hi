@@ -29,9 +29,8 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # GLOSSARY: HI.07 + HI.04. config.fish keeps its own copy. Every entry but
   # _HI_REMOTE_SESSION (hi's own "this is a session" mark, 1 on a target) is
   # a *disable* (0 = shipped behaviour): hi.sh's fallback rc exports the lot
-  # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1; its
-  # narrower _HI_DISABLE_LOCAL_PROMPT gate sets only _HI_DISABLE_PROMPT.
-  _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER
+  # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
+  _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS
     _HI_DISABLE_MARKS
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER)
@@ -53,38 +52,26 @@ if [ -z "${_hi_core_loaded:-}" ]; then
 fi
 
 # Every shell hi wires up:
-# <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<flags>|<dialect>.
-# `local` = install.sh appends to the user's rc; the dialect is what an
+# <shell>|<rc label>|<hi's rc>|<the user's rc>|<syntax check>|<dialect>.
+# install.sh appends to the user's rc of every row; the dialect is what an
 # `export` line looks like (`sh` covers bash and zsh) - a new one gets an arm
 # in install.sh's tmpdir_line, not a special case per consumer.
 _HI_SHELL_TABLE=(
-  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|local|sh"
-  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|local|sh"
-  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|local|fish"
+  "bash|bashrc|$_HI_BASHRC|$_HI_HOME_BASHRC|bash -n|sh"
+  "zsh|zshrc|$_HI_ZSHRC|$_HI_HOME_ZSHRC|zsh -n|sh"
+  "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|fish"
 )
 
-# _hi_shell_rows [flag] - the roster, or only rows carrying <flag>, one per
-# line for `while IFS='|' read` callers.
+# _hi_shell_rows - the roster, one row per line for `while IFS='|' read`
+# callers.
 function _hi_shell_rows() {
-  [ -n "${1:-}" ] || {
-    printf '%s\n' "${_HI_SHELL_TABLE[@]}"
-    return 0
-  }
-  local row flags
-  for row in "${_HI_SHELL_TABLE[@]}"; do
-    flags="${row#*|*|*|*|*|}" flags="${flags%%|*}"
-    case ",$flags," in
-    *",$1,"*) printf '%s\n' "$row" ;;
-    esac
-  done
+  printf '%s\n' "${_HI_SHELL_TABLE[@]}"
 }
 
 # _hi_shell_wired <name> - is <name> a shell hi wires up? The table above is
 # the answer, and the header there says so ("a new one gets an arm in
 # install.sh's tmpdir_line, not a special case per consumer") - but load.sh's
-# session-shell filter and configure.sh's $_HI_SHELL_PREFERENCE validator each
-# spelled the roster out instead, and the two have to agree: configure.sh
-# accepts a word load.sh then has to honour.
+# session-shell filter spelled the roster out instead.
 function _hi_shell_wired() {
   local row
   for row in "${_HI_SHELL_TABLE[@]}"; do
@@ -99,7 +86,14 @@ function _hi_shell_wired() {
 export _HI_SHELL_TREE="fish zsh bash dash ash sh"
 
 # fish's set_color vocabulary; no greys, since fish has none
-_HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan)
+_HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan
+  orange pink teal lime violet salmon gold sky indigo mint peach lavender)
+# The 16-color half of every slot, "<bold><hue>" two digits each in slot
+# order, sliced by offset like the scheme tables (GLOSSARY: HI.50): the first
+# twelve are their own pair, the twelve extras wear the nearest of them
+# (orange as bright yellow, teal as cyan, ...) on a terminal with no 24-bit
+# color, and that pair is what zsh's %F{} and fish's set_color get by name.
+_HI_COLOR_FALLBACK='01 02 03 04 05 06 11 12 13 14 15 16 13 15 06 12 05 11 03 14 04 16 13 15'
 
 # Does this terminal do 24-bit color? $COLORTERM is the de facto signal;
 # _HI_TRUECOLOR overrides both ways (1 forces, 0 refuses) and is what hi.sh
@@ -117,7 +111,7 @@ function _hi_truecolor_flag() { _hi_has_truecolor && printf '1\n' || printf '0\n
 # preview's label read the roster from here
 export _HI_COLOR_SCHEMES="catppuccin monokai onedark vscode"
 
-# _hi_scheme_words <outvar> - 12 or 24 when $_HI_COLOR_SCHEME is that many
+# _hi_scheme_words <outvar> - 24 or 48 when $_HI_COLOR_SCHEME is that many
 # six-digit hex words one space apart (a scheme of the user's own, written
 # into settings.sh), 0 for a name, nothing, or anything else. The shape is
 # the one _hi_scheme_hex slices, so the walk is by offset: no read, no fork,
@@ -126,7 +120,7 @@ export _HI_COLOR_SCHEMES="catppuccin monokai onedark vscode"
 function _hi_scheme_words() {
   local _hi_sw_s="${_HI_COLOR_SCHEME:-}" _hi_sw_n _hi_sw_i=0
   printf -v "$1" '%s' 0
-  case "${#_hi_sw_s}" in 83) _hi_sw_n=12 ;; 167) _hi_sw_n=24 ;; *) return 0 ;; esac
+  case "${#_hi_sw_s}" in 167) _hi_sw_n=24 ;; 335) _hi_sw_n=48 ;; *) return 0 ;; esac
   while [ "$_hi_sw_i" -lt "$_hi_sw_n" ]; do
     case "${_hi_sw_s:$((_hi_sw_i * 7)):6}" in *[!0-9a-fA-F]*) return 0 ;; esac
     case "${_hi_sw_s:$((_hi_sw_i * 7 + 6)):1}" in '' | ' ') ;; *) return 0 ;; esac
@@ -136,33 +130,39 @@ function _hi_scheme_words() {
 }
 
 # _hi_scheme_hex <outvar> <index> - rrggbb for _HI_COLOR_NAMES slot <index>
-# under $_HI_COLOR_SCHEME, empty when there is no scheme, the name is
-# unknown, or the terminal is not truecolor. Twelve six-digit words per
-# scheme in one fixed-width string, sliced by offset: no arrays (zsh indexes
-# them from 1), no read, no fork. The vocabulary is still the twelve names -
-# a scheme changes what a name renders as, never which name a host hashes
-# to or what settings/colors may pin. <index> runs 0-23: slots 12-23 are a
-# second bank, the twelve names again, which only a 24-word list of the
-# user's own fills (header.sh paints the packages check from it); every
-# other table answers them with the first bank. GLOSSARY: HI.50
+# under $_HI_COLOR_SCHEME, empty when the terminal is not truecolor, and for
+# the first twelve slots when there is no scheme (or an unknown name): those
+# keep the terminal's own sixteen colors, while the twelve extras always
+# have a hex of their own, since no 16-color code is orange. Twenty-four
+# six-digit words per scheme in one fixed-width string, sliced by offset:
+# no arrays (zsh indexes them from 1), no read, no fork. The vocabulary is
+# the twenty-four names - a scheme changes what a name renders as, never
+# which name a host hashes to or what settings/colors may pin. <index> runs
+# 0-47: slots 24-47 are a second bank, the names again, which only a 48-word
+# list of the user's own fills (header.sh paints the packages check from
+# it); every other table answers them with the first bank. GLOSSARY: HI.50
 function _hi_scheme_hex() {
-  local _hi_sh_t _hi_sh_n _hi_sh_i="$2"
+  local _hi_sh_t _hi_sh_n _hi_sh_i="$2" _hi_sh_d=0
   printf -v "$1" '%s' ''
   _hi_has_truecolor || return 0
   _hi_scheme_words _hi_sh_n
   if [ "$_hi_sh_n" -gt 0 ]; then
     _hi_sh_t="$_HI_COLOR_SCHEME"
   else
-    _hi_sh_n=12
+    _hi_sh_n=24
     case "${_HI_COLOR_SCHEME:-}" in
-    catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca' ;;
-    monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 ff6188 a9dc76 ffd866 78dce8 ab9df2 78e8c6' ;;
-    onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5' ;;
-    vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db' ;;
-    *) return 0 ;;
+    catppuccin) _hi_sh_t='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca fab387 f2cdcd 81c8be c3e88d cba6f7 eba0ac e5c890 89dceb 7287fd 8be9b0 f5a97f b4befe' ;;
+    monokai) _hi_sh_t='f92672 a6e22e f4bf75 66d9ef ae81ff a1efe4 ff6188 a9dc76 ffd866 78dce8 ab9df2 78e8c6 fd971f ff79c6 3ebfa5 b6e354 9d65ff ff8f79 e6db74 7fdbff 6f6fd3 93f7d6 ffb86c c3a6ff' ;;
+    onedark) _hi_sh_t='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0' ;;
+    vscode) _hi_sh_t='cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db f28c28 ff6ec7 1abc9c a4e400 8e44ad fa8072 ffc107 5dade2 5c6bc0 66ffcc ffb380 c39bd3' ;;
+    *)
+      _hi_sh_d=1
+      _hi_sh_t='000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 000000 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc'
+      ;;
     esac
   fi
-  [ "$_hi_sh_i" -lt "$_hi_sh_n" ] || _hi_sh_i=$((_hi_sh_i - 12))
+  [ "$_hi_sh_i" -lt "$_hi_sh_n" ] || _hi_sh_i=$((_hi_sh_i - 24))
+  [ "$_hi_sh_d" = 1 ] && [ "$_hi_sh_i" -lt 12 ] && return 0
   printf -v "$1" '%s' "${_hi_sh_t:$((_hi_sh_i * 7)):6}"
 }
 
@@ -171,14 +171,32 @@ function _hi_scheme_hex() {
 # holds; a consumer's final printf '%b' makes it an ESC). One SGR: the
 # 16-color pair first, then ;38;2;r;g;b when the scheme and the terminal
 # both say so, so a terminal that ignores the second keeps the first, and
-# header.sh's hue and width readers still see one escape. The pair comes
-# from <index> mod 12, so a second-bank slot wears the same 16-color half
-# as its name. GLOSSARY: HI.50
+# header.sh's hue and width readers still see one escape. The pair is
+# $_HI_COLOR_FALLBACK's for <index> mod 24, so a second-bank slot wears the
+# same 16-color half as its name. GLOSSARY: HI.50
 function _hi_color_escape_at() {
-  local _hi_ce_h _hi_ce_rgb=""
+  local _hi_ce_h _hi_ce_rgb="" _hi_ce_p
   _hi_scheme_hex _hi_ce_h "$2"
   [ -n "$_hi_ce_h" ] && _hi_ce_rgb=";38;2;$((16#${_hi_ce_h:0:2}));$((16#${_hi_ce_h:2:2}));$((16#${_hi_ce_h:4:2}))"
-  printf -v "$1" '\\e[%d;3%d%sm' "$(($2 % 12 / 6))" "$(($2 % 6 + 1))" "$_hi_ce_rgb"
+  _hi_ce_p="${_HI_COLOR_FALLBACK:$(($2 % 24 * 3)):2}"
+  printf -v "$1" '\\e[%s;3%s%sm' "${_hi_ce_p:0:1}" "${_hi_ce_p:1:1}" "$_hi_ce_rgb"
+}
+
+# _hi_color_base <outvar> <name> - the 16-color name behind <name>: itself
+# for the first twelve, the fallback pair's name for an extra (orange gives
+# bryellow). What zsh's %F{} and fish's set_color take when there is no hex
+# to hand them; an unknown name answers itself.
+function _hi_color_base() {
+  local _hi_cb_i=0 _hi_cb_n _hi_cb_p
+  printf -v "$1" '%s' "$2"
+  for _hi_cb_n in "${_HI_COLOR_NAMES[@]}"; do
+    [ "$_hi_cb_n" = "$2" ] && {
+      _hi_cb_p="${_HI_COLOR_FALLBACK:$((_hi_cb_i * 3)):2}"
+      printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
+      return 0
+    }
+    _hi_cb_i=$((_hi_cb_i + 1))
+  done
 }
 
 # _hi_color_escape_var <outvar> <name> - by name; unknown names reset,
@@ -213,9 +231,11 @@ function _hi_color_hex() {
   done
 }
 
-# The twelve exported palette variables, under the scheme and terminal of
-# the moment; re-callable (configure.sh's previews flip $_HI_COLOR_SCHEME and
-# call again). $PURPLE is the magenta slot's variable, as it always was.
+# The twelve exported palette variables - the sixteen-color names, which are
+# what hi's own output paints with; the extras are for pins and the hash -
+# under the scheme and terminal of the moment; re-callable (configure.sh's
+# previews flip $_HI_COLOR_SCHEME and call again). $PURPLE is the magenta
+# slot's variable, as it always was.
 function _hi_assign_palette() {
   local _hi_ap_i=0 _hi_ap_v
   for _hi_ap_v in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
@@ -441,7 +461,7 @@ function _hi_on_exit() {
 # _hi_setting_get <file> <name> [outvar] - what <name> holds after sourcing
 # <file>, or rc 1 when it never gets set. A subshell sources the file for real
 # (only <name> unset) rather than a hand-rolled grammar, so it agrees with
-# what a target would see; nothing outside it is touched (GLOSSARY: HI.36).
+# what a target would see; nothing outside it is touched.
 function _hi_setting_get() {
   # prefixed locals: a plain `val` would shadow the caller's (GLOSSARY: HI.04)
   local _hi_sg_file="$1" _hi_sg_name="$2" _hi_sg_outvar="${3:-}" _hi_sg_val
@@ -482,7 +502,7 @@ function _hi_prompt_end_default() {
 function _hi_prompt_end() {
   local _hi_pe
   eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
-  _hi_pe="${_hi_pe:-${_HI_PROMPT_END:-$(_hi_prompt_end_default "$1")}}"
+  _hi_pe="${_hi_pe:-$(_hi_prompt_end_default "$1")}"
   if [ -n "${2:-}" ]; then
     printf -v "$2" '%s' "$_hi_pe"
   else
@@ -560,16 +580,18 @@ function _hi_color_escape() {
   printf '%b' "$_hi_ce"
 }
 
-# two lines, "<hex> <name>" (or the bare name) for the user then the host:
-# what fish's set_color takes as a list and picks the first its terminal
-# renders (config.fish memoizes the answer)
+# two lines, "<hex> <16-color name>" (or the bare name) for the user then
+# the host: what fish's set_color takes as a list and picks the first its
+# terminal renders (config.fish memoizes the answer). The name is the base
+# (_hi_color_base): set_color knows no orange.
 function _hi_prompt_colors() {
-  local _hi_pc_n _hi_pc_h
+  local _hi_pc_n _hi_pc_h _hi_pc_b
   _hi_user_color >/dev/null # prime both memos; read the variables, not $( )
   _hi_host_color >/dev/null
   for _hi_pc_n in "$_HI_USER_COLOR" "$_HI_HOST_COLOR"; do
     _hi_color_hex _hi_pc_h "$_hi_pc_n"
-    printf '%s%s\n' "${_hi_pc_h:+$_hi_pc_h }" "$_hi_pc_n"
+    _hi_color_base _hi_pc_b "$_hi_pc_n"
+    printf '%s%s\n' "${_hi_pc_h:+$_hi_pc_h }" "$_hi_pc_b"
   done
 }
 

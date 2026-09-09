@@ -624,13 +624,11 @@ function run_rc_tests() {
   _hi_h2 "Testing: the prompt separator"
   # The shells install.sh wires up locally, and their shipped defaults, both
   # read off core.sh's rosters rather than spelled again here. Per shell: the
-  # shipped default lands, the shell-specific setting wins, the global
-  # _HI_PROMPT_END covers it (for people who want the same character
-  # everywhere) with the specific one still beating it, and an empty value is
+  # shipped default lands, the shell-specific setting wins, and an empty value is
   # "unset", not "no separator" - a prompt ending in a bare space is never
   # what someone meant, and ' ' still expresses it.
   local shell upper var default
-  for shell in $(_hi_shell_rows local | cut -d'|' -f1); do
+  for shell in $(_hi_shell_rows | cut -d'|' -f1); do
     upper="$(printf '%s' "$shell" | tr '[:lower:]' '[:upper:]')"
     var="_HI_PROMPT_END_$upper"
     # bash's default ships as the two characters `\$`, which bash renders as $
@@ -640,8 +638,6 @@ function run_rc_tests() {
     default="${default#\\}"
     _hi_check_requires "$shell" "[$shell] default is '$default'" _hi_prompt_ends no "$shell" "$default"
     _hi_check_requires "$shell" "[$shell] $var wins" _hi_prompt_ends no "$shell" @@ "$var=@@"
-    _hi_check_requires "$shell" "[$shell] _HI_PROMPT_END covers it" _hi_prompt_ends no "$shell" %% _HI_PROMPT_END=%%
-    _hi_check_requires "$shell" "[$shell] the specific one beats it" _hi_prompt_ends no "$shell" @@ _HI_PROMPT_END=%% "$var=@@"
     _hi_check_requires "$shell" "[$shell] empty falls back to '$default'" _hi_prompt_ends no "$shell" "$default" "$var="
   done
   # Root gets '#' - but as the *default* giving way, never as an override,

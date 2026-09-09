@@ -150,9 +150,7 @@ a target" is one command.
   A real connect instead tries to reuse one: a stable path under the same
   private runtime directory `hi <TAB>`'s own cache uses (below), named by a
   checksum of the target and your ssh options rather than either in the
-  clear, and torn down only when idle past `_HI_CTL_PERSIST` seconds
-  ([Every setting](SETTINGS.md#every-setting)) - `0` restores the
-  always-fresh, always-closed behaviour this had before persistence existed.
+  clear, and torn down only when idle for sixty seconds.
   Either way the socket only this user's directory permissions and ssh's own
   authentication ever reach it; nothing here widens who can use it.
 - `hi <TAB>`'s target cache, and the reused-connection socket and

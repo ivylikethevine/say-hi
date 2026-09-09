@@ -11,7 +11,7 @@ if not set -q _HI_HOME
 end
 # GLOSSARY: HI.07 - defaulted, never assigned, so settings.sh still overrides.
 # Mirrors core.sh's _HI_TOGGLES.
-for _hi_toggle in _HI_DISABLE_LOCAL _HI_DISABLE_LOCAL_PROMPT _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
+for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_EDITORS \
     _HI_DISABLE_MARKS \
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER
@@ -116,11 +116,10 @@ function sudo
 end
 
 # the prompt's end character, mirroring core.sh's _hi_prompt_end: fish
-# setting, then all-three, then default; empty counts as unset. Whether a
+# setting, then default; empty counts as unset. Whether a
 # setting spoke is remembered, because root's '#' replaces the *default* only.
 set -g _hi_prompt_end '|'
 set -g _hi_prompt_end_explicit 0
-set -q _HI_PROMPT_END; and test -n "$_HI_PROMPT_END"; and set -g _hi_prompt_end $_HI_PROMPT_END; and set -g _hi_prompt_end_explicit 1
 set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_prompt_end $_HI_PROMPT_END_FISH; and set -g _hi_prompt_end_explicit 1
 
 # prompt: "<chroot> user@host cwd (git) [status] |", @ yellow over ssh; skipped

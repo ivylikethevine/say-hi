@@ -80,12 +80,12 @@ function _hi_login_shell() {
 # The default tail is core.sh's $_HI_SHELL_TREE, not a literal of its own. The
 # case below is the allow list, so the tree's bash-less tiers fall through it
 # unmatched - they are reachable only where bash is absent, and this file is
-# bash. What survives is fish > zsh > bash, $_HI_SHELL_PREFERENCE's documented
-# default. GLOSSARY: HI.25 - why login leads the default
+# bash. What survives is fish > zsh > bash, behind the login shell.
+# GLOSSARY: HI.25 - why login leads
 # [outvar] too, for _hi_login_shell's reason - load() asks once per session
 function _hi_session_shell() {
   local want _hi_ss_out="${1:-}"
-  for want in ${_HI_SHELL_PREFERENCE:-login} $_HI_SHELL_TREE; do
+  for want in login $_HI_SHELL_TREE; do
     [ "$want" = login ] && _hi_login_shell want
     if _hi_shell_wired "$want" && command -v "$want" >/dev/null 2>&1; then
       if [ -n "$_hi_ss_out" ]; then printf -v "$_hi_ss_out" '%s' "$want"; else printf '%s' "$want"; fi
@@ -300,6 +300,6 @@ function load() {
     fi
   fi
   _hi_cecho " | " "$NC" 1
-  _hi_cecho "hi closing! " "$BRPURPLE" 1
+  _hi_cecho "hi closing!" "$BRPURPLE"
   exit "$shell_ec"
 }

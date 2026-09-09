@@ -39,7 +39,7 @@ checkbashisms|2.26.11|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/s
 # is stuck on 1.7.12 and rejects zizmor's `$/...` self-repository syntax
 # (rhysd/actionlint#732 open, unmerged); the fork added `$/...` support in
 # v1.9.0 and is what unblocks the zizmor pin below.
-actionlint|1.15.1|tar.gz|https://github.com/kjanat/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:kjanat/actionlint
+actionlint|1.16.0|tar.gz|https://github.com/kjanat/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:kjanat/actionlint
 zizmor|1.30.0|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor
 nfpm|2.47.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm
 minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign

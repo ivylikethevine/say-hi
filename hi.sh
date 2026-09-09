@@ -129,38 +129,11 @@ function _hi_target_color() {
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
-# <toggle>|<tree files, under $_HI_HOME>|<overlay files>: what each settings.sh
-# toggle takes off the wire; one table for both halves. GLOSSARY: HI.39
-_HI_TRIM_TABLE=(
-  "_HI_DISABLE_EDITORS|say-hi/settings/vim.rc say-hi/settings/nano.rc|vim.rc nano.rc"
-)
-
-# _hi_trimmed <tree|overlay> <outvar> - that column of every _HI_TRIM_TABLE row
-# whose setting the overlay answers the way the row asks, space-separated, into
-# <outvar>.
-function _hi_trimmed() {
-  local row val out=""
-  for row in "${_HI_TRIM_TABLE[@]}"; do
-    val=""
-    _hi_overlay_toggle "${row%%|*}" val
-    # anything that is not a literal 1 is "off"; an absent setting reads empty
-    [ "$val" = 1 ] || continue
-    row="${row#*|}"
-    case "$1" in
-    tree) out="$out ${row%%|*}" ;;
-    overlay) out="$out ${row#*|}" ;;
-    esac
-  done
-  printf -v "$2" '%s' "$out"
-}
-
-# _hi_overlay_files - the overlay members that exist and are not trimmed, one
-# per line. Callers read it once and hand the list to _hi_overlay_tar.
+# _hi_overlay_files - the overlay members that exist, one per line. Callers
+# read it once and hand the list to _hi_overlay_tar.
 function _hi_overlay_files() {
-  local f skip=""
-  _hi_trimmed overlay skip
+  local f
   for f in "${_HI_OVERLAY_FILES[@]}"; do
-    case " $skip " in *" $f "*) continue ;; esac
     [ -f "$_HI_CONFIG_DIR/$f" ] && printf '%s\n' "$f"
   done
   return 0
@@ -387,7 +360,7 @@ function _hi_overlay_cached() {
 # handed one anyway: the member list is what _hi_cached watches for staleness,
 # and passing it through keeps the builder and the watch list one statement.
 function _hi_payload_cached() {
-  _hi_cached "$1" payload "$(_hi_payload_cache_key)" \
+  _hi_cached "$1" payload tree \
     "$_HI_HOME/say-hi/" _hi_payload_tar "${_HI_PAYLOAD[@]}"
 }
 
@@ -402,13 +375,6 @@ function _hi_overlay_stream() {
   else
     _hi_overlay_tar "$@" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"'
   fi
-}
-
-# _hi_overlay_toggle <name> [outvar] - what the overlay's settings.sh sets it
-# to, read from the file rather than off the environment.
-# GLOSSARY: HI.36 - why the file and not the environment
-function _hi_overlay_toggle() {
-  _hi_setting_get "$_HI_CONFIG_DIR/settings.sh" "$@"
 }
 
 # The comment stripper every shell file - and the settings/flags data files,
@@ -464,31 +430,17 @@ function _hi_fail() {
   _HI_SAID=1
 }
 
-# The tree minus what the overlay switched off, comment-stripped through a
-# staging copy; both size budgets measure a *default* configuration.
-# GLOSSARY: HI.39 + HI.35
+# The tree, comment-stripped through a staging copy; both size budgets
+# measure this. GLOSSARY: HI.39 + HI.35
 function _hi_payload_tar() {
   local -a stage_in stage_out=(say-hi) stage_excl=()
-  local _hi_trim="" _hi_f
-  _hi_trimmed tree _hi_trim
-  for _hi_f in $_hi_trim; do stage_excl+=("--exclude=$_hi_f"); done
   stage_in=("${_HI_PAYLOAD[@]/#/say-hi/}")
   _hi_stage_tar "$_HI_HOME" say-hi
 }
 
-# _hi_payload_cache_key - _hi_overlay_cache_key's tree twin: the trim list
-# (what the overlay's toggles read, _hi_trimmed) - everything that changes
-# what _hi_payload_tar would produce without touching a single source file's
-# mtime.
-function _hi_payload_cache_key() {
-  local trim=""
-  _hi_trimmed tree trim
-  _hi_cksum "$trim"
-}
-
 # _hi_payload_cached <outvar> - _hi_overlay_cached's tree twin: a warm
-# gzipped tar for today's tree and toggles, rebuilt when missing, stale (a
-# payload source file's mtime past the cache's own) or _HI_PAYLOAD_CACHE=0.
+# gzipped tar for today's tree, rebuilt when missing, stale (a payload
+# source file's mtime past the cache's own) or _HI_PAYLOAD_CACHE=0.
 # Same temp-file-and-mv as the overlay cache. Measured against the ~70-130ms
 # _hi_payload_tar otherwise costs on every single connect: the staleness
 # check alone is single-digit milliseconds.
@@ -560,7 +512,6 @@ function _hi_compose_container() {
   matches="$(_hi_probe docker ps --filter "label=com.docker.compose.service=$1" --format '{{.Names}}' 2>/dev/null)"
   [ -n "$matches" ] || return 1
   # one line and not none - a `wc -l` here was two processes for a glob test
-  [ -n "$matches" ] || return 1
   case "$matches" in *"$_HI_NL"*) return 1 ;; esac
   printf '%s\n' "$matches"
 }
@@ -737,7 +688,6 @@ function _hi_remote_root_probe() {
   # core.sh's _HI_SHELL_TABLE home-rc column with the target's $HOME, plus the
   # packaged snippet
   local rcs="" home_rc
-  # shellcheck disable=SC2119 # no flag: every row of the roster, unfiltered
   while IFS='|' read -r _ _ _ home_rc _; do
     rcs="$rcs \"\$HOME${home_rc#"$HOME"}\""
   done < <(_hi_shell_rows)
@@ -1879,32 +1829,18 @@ function _hi_mux_name() {
   printf 'hi-%s' "${1//[^[:alnum:]_-]/-}"
 }
 
-# _hi_mux_tool <outvar> - which multiplexer wraps the session: $_HI_MUX_TOOL
-# when set (tmux, zellij or screen), else the first of those three on PATH.
-# Empty, with the reason on stderr, when there is none to use.
+# _hi_mux_tool <outvar> - which multiplexer wraps the session: the first of
+# tmux, zellij and screen on PATH. Empty, with the reason on stderr, when
+# there is none to use.
 function _hi_mux_tool() {
   local _hi_mt_tool
-  case "${_HI_MUX_TOOL:-}" in
-  tmux | zellij | screen)
-    if command -v "$_HI_MUX_TOOL" >/dev/null 2>&1; then
-      printf -v "$1" '%s' "$_HI_MUX_TOOL"
+  for _hi_mt_tool in tmux zellij screen; do
+    if command -v "$_hi_mt_tool" >/dev/null 2>&1; then
+      printf -v "$1" '%s' "$_hi_mt_tool"
       return 0
     fi
-    _hi_cecho "hi: --mux wants $_HI_MUX_TOOL (\$_HI_MUX_TOOL), which is not on this machine; connecting without it" "$YELLOW" >&2
-    ;;
-  '')
-    for _hi_mt_tool in tmux zellij screen; do
-      if command -v "$_hi_mt_tool" >/dev/null 2>&1; then
-        printf -v "$1" '%s' "$_hi_mt_tool"
-        return 0
-      fi
-    done
-    _hi_cecho "hi: --mux needs tmux, zellij or screen on this machine; connecting without it" "$YELLOW" >&2
-    ;;
-  *)
-    _hi_cecho "hi: \$_HI_MUX_TOOL=$_HI_MUX_TOOL is not one of tmux, zellij or screen; connecting without a multiplexer" "$YELLOW" >&2
-    ;;
-  esac
+  done
+  _hi_cecho "hi: --mux needs tmux, zellij or screen on this machine; connecting without it" "$YELLOW" >&2
   printf -v "$1" ''
   return 1
 }
@@ -2187,27 +2123,6 @@ survives an upgrade. See \`man hi\` and the README for all of it.
 EOF
 }
 
-# _hi_preview_fallback <subject> <function> [args] - a target has no
-# scripts/, but common/header.sh ships: the check and the header are still
-# on offer there, with --help answered and anything else refused, the way
-# preview.sh does it
-function _hi_preview_fallback() {
-  local subject="$1" fn="$2"
-  shift 2
-  case "${1:-}" in
-  '') exec bash -c 'source "$1" && '"$fn" hi "$_HI_HEADER" ;;
-  -h | --help)
-    printf 'Usage: hi --preview %s\n\n%s, as it prints here at your settings.\n' \
-      "$subject" "$([ "$subject" = packages ] && echo "The package-priority legend" || echo "The connect header")"
-    exit 0
-    ;;
-  *)
-    _hi_cecho "hi --preview $subject: takes no arguments (got: $*) - hi --preview $subject --help" "$RED" >&2
-    exit 1
-    ;;
-  esac
-}
-
 set +euo pipefail # the connection paths below run against unknown hosts, where a probe that fails is normal, not fatal
 
 # sourcing this file defines its functions without connecting, for testing
@@ -2224,28 +2139,16 @@ case "${1:-}" in
   _hi_help
   exit 0
   ;;
-# --preview <subject>: one scripts/preview.sh for all three. colors wants
-# scripts/ (and says so in a session); packages and header fall back to the
-# shipped common/header.sh on a target, so the flag itself works anywhere.
+# --preview <subject>: one scripts/preview.sh for all three, so it wants
+# scripts/ and says so in a session like the other local commands.
 # `--preview=<subject>` is the same flag with its word joined.
 --preview | --preview=*)
   _hi_flag_word _hi_subject "$@" || [ $? -ne 2 ] || shift
   shift
   # shellcheck disable=SC2154 # _hi_flag_word's printf -v assigned it
   case "$_hi_subject" in
-  colors)
-    _hi_run_script "--preview colors" "$_HI_PREVIEW" colors "$@"
-    ;;
-  packages)
-    [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview packages" exec "$_HI_PREVIEW" packages "$@"
-    _hi_preview_fallback packages full_check "$@"
-    ;;
-  header)
-    # the full form first, the way the packages arm does it. Without this the
-    # scripts/ subject and its --help were reachable only by running
-    # preview.sh by hand, while the shipped fallback below was the live path.
-    [ -f "$_HI_PREVIEW" ] && _HI_ARGV0="hi --preview header" exec "$_HI_PREVIEW" header "$@"
-    _hi_preview_fallback header 'hi_header Preview' "$@"
+  colors | packages | header)
+    _hi_run_script "--preview $_hi_subject" "$_HI_PREVIEW" "$_hi_subject" "$@"
     ;;
   -h | --help)
     cat <<'EOF'
@@ -2258,8 +2161,7 @@ One of:
   packages   the package-priority legend, as the header's check prints it
   header     the connect header, as it prints here at your settings
 
-colors needs scripts/, so inside a session it says so and stops; the other
-two fall back to the shipped common/header.sh there.
+All three need scripts/, so inside a session --preview says so and stops.
 EOF
     exit 0
     ;;

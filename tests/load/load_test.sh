@@ -300,8 +300,8 @@ EOF
   return 0
 }
 
-# Which shell the session runs in - $_HI_SHELL_PREFERENCE is the whole rule, and
-# load.sh's own comment says why `login` leads its default.
+# Which shell the session runs in - the login shell when hi styles it, else
+# the tree; load.sh's own comment says why `login` leads.
 
 # _hi_shell_answer <"bins..."> [NAME=VALUE ...] - the shell chosen when those
 # binaries, and only those, are on $PATH.
@@ -326,8 +326,7 @@ function _hi_shell_answer() {
 
 # _hi_shell_case <installed> <env-string> - _hi_shell_answer with the env
 # pairs taken from one table field. eval'd so a value with spaces in it
-# (_HI_SHELL_PREFERENCE="fish zsh bash") stays one argument; the field is
-# literal text in this file, not input.
+# stays one argument; the field is literal text in this file, not input.
 function _hi_shell_case() {
   local installed="$1" envs="$2"
   eval "set -- $envs"
@@ -408,13 +407,6 @@ function test_login_shell_steps_past_a_silent_getent() {
   [ "$got" = "$want" ]
 }
 
-# `login` is a word in $_HI_SHELL_PREFERENCE's vocabulary, not only its
-# implied default first entry - spelled mid-list it still expands and still
-# gives way to the entries after it.
-function test_session_shell_expands_a_spelled_out_login_word() {
-  [ "$(SHELL=/bin/mksh _HI_SHELL_PREFERENCE="login bash" _hi_session_shell)" = bash ]
-}
-
 # The printf floor itself, below even the table's "Floors at bash" row (which
 # had a bash *installed*): with no styled shell on $PATH at all, the answer is
 # still bash - this file only runs where bash exists, PATH notwithstanding.
@@ -454,7 +446,7 @@ function _hi_load_run() {
 # fixed transcript lines bracket it
 function test_load_propagates_the_session_shells_exit_code() {
   local out rc=0
-  out="$(_hi_load_run 'exit 42' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1)" || rc=$?
+  out="$(_hi_load_run 'exit 42' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || rc=$?
   [ "$rc" -eq 42 ] || {
     _hi_cecho " | exit code $rc, want 42" "$RED"
     return 1
@@ -470,7 +462,7 @@ function test_load_propagates_the_session_shells_exit_code() {
 # actually got, in that shell's own words
 function test_load_greets_the_chosen_shell() {
   local shell="$1" want="$2" out
-  out="$(_hi_load_run 'exit 0' "_HI_SHELL_PREFERENCE=$shell" _HI_DISABLE_HEADER=1)" || return 1
+  out="$(_hi_load_run 'exit 0' "SHELL=$(command -v "$shell")" _HI_DISABLE_HEADER=1)" || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"$want"*) return 0 ;;
   esac
@@ -485,7 +477,7 @@ function test_load_greets_the_chosen_shell() {
 function test_load_exports_viminit_for_vim_sessions() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
   case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
@@ -497,7 +489,7 @@ function test_load_exports_viminit_for_vim_sessions() {
 function test_load_editors_toggle_blocks_viminit() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
-    _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_EDITORS=1 \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_EDITORS=1 \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
   case "$out" in *"VIM=unset"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
@@ -510,7 +502,7 @@ function test_load_cleans_up_its_session_rc_dir() {
   local marker="$_HI_WORKDIR/load.rcdir" dir
   rm -f "$marker"
   _hi_load_run "[ -d \"\$_HI_SESSION_RC\" ] && printf 'live:%s' \"\$_HI_SESSION_RC\" >\"$marker\"; exit 0" \
-    _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 || return 1
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 || return 1
   dir="$(cat "$marker" 2>/dev/null)"
   case "$dir" in live:?*) dir="${dir#live:}" ;; *)
     _hi_cecho " | the session never saw a live rc dir" "$RED"
@@ -530,7 +522,7 @@ function test_load_cleans_up_its_session_rc_dir() {
 # system_info.
 function test_load_prints_the_disconnect_banner_and_footer() {
   local out
-  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash \
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash \
     "_HI_HEADER_ORDER= ")" || return 1
   case "$(_hi_strip_ansi "$out")" in
   *"| session: "*" Disconnected ["*) return 0 ;;
@@ -544,7 +536,7 @@ function test_load_prints_the_disconnect_banner_and_footer() {
 # stays "inside a command" and sends ↑ as ← until the next D
 function test_load_closes_the_prompt_mark_pair_on_exit() {
   local out
-  out="$(_hi_load_run 'exit 42' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=0)" || true
+  out="$(_hi_load_run 'exit 42' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=0)" || true
   case "$out" in
   *$'\e]133;D;42\a'*) return 0 ;;
   esac
@@ -554,7 +546,7 @@ function test_load_closes_the_prompt_mark_pair_on_exit() {
 
 function test_load_marks_toggle_drops_the_closing_d() {
   local out
-  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=1)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=1)" || return 1
   case "$out" in
   *$'\e]133;'*)
     _hi_cecho " | a mark leaked with _HI_DISABLE_MARKS=1: $out" "$RED"
@@ -569,14 +561,14 @@ function test_load_marks_toggle_drops_the_closing_d() {
 # drops the clock row (the UTC cell is the marker - `date -u` prints it)
 function test_load_disconnect_timestamp_follows_the_header_order() {
   local out
-  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_HEADER_ORDER=utc)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=utc)" || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*" UTC"*) ;; *)
     _hi_cecho " | no UTC cell under _HI_HEADER_ORDER=utc: $out" "$RED"
     return 1
     ;;
   esac
-  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_HEADER_ORDER=os)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_HEADER_ORDER=os)" || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected ["*) ;; *)
     _hi_cecho " | banner missing under _HI_HEADER_ORDER=os: $out" "$RED"
@@ -594,7 +586,7 @@ function test_load_disconnect_timestamp_follows_the_header_order() {
 # line stays - the session summary is not the header's to hide
 function test_load_disable_header_skips_the_banner() {
   local out
-  out="$(_hi_load_run 'exit 0' _HI_SHELL_PREFERENCE=bash _HI_DISABLE_HEADER=1)" || return 1
+  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || return 1
   out="$(_hi_strip_ansi "$out")"
   case "$out" in *"Disconnected"*)
     _hi_cecho " | banner printed despite _HI_DISABLE_HEADER=1" "$RED"
@@ -641,9 +633,8 @@ function run_load_tests() {
   _hi_check "Falls back to /etc/passwd without getent" test_login_shell_falls_back_to_etc_passwd_without_getent
 
   _hi_h2 "Testing: _hi_session_shell"
-  # <label>|<installed shells>|<env pairs>|<want>. Six cases, three of which
-  # asserted twice in one body - split into a row each, so a failure names the
-  # half that broke and _hi_check_eq prints the shell it actually chose.
+  # <label>|<installed shells>|<env pairs>|<want>. A row each, so a failure
+  # names the half that broke and _hi_check_eq prints the shell it chose.
   while IFS='|' read -r _label _installed _env _want; do
     case "$_label" in '' | '#'*) continue ;; esac
     _hi_check_eq "$_label" "$_want" _hi_shell_case "$_installed" "$_env"
@@ -654,18 +645,14 @@ Prefers the login shell (bash)|bash zsh fish|SHELL=/usr/bin/bash|bash
 Falls back for a shell hi doesn't style|bash zsh fish|SHELL=/bin/mksh|fish
 # ...nor is one that isn't installed here
 Falls back when it isn't installed|bash zsh|SHELL=/usr/bin/fish|zsh
-_HI_SHELL_PREFERENCE decides|bash zsh fish|SHELL=/bin/zsh _HI_SHELL_PREFERENCE=bash|bash
-# the pre-login-shell behaviour, for anyone who liked it
-_HI_SHELL_PREFERENCE decides (full list)|bash zsh fish|SHELL=/bin/bash _HI_SHELL_PREFERENCE="fish zsh bash"|fish
 # load.sh only runs where bash exists, so bash is the floor no matter what
-Floors at bash|bash|SHELL=/usr/bin/fish _HI_SHELL_PREFERENCE="fish zsh"|bash
+Floors at bash|bash|SHELL=/usr/bin/fish|bash
 # The default tail is $_HI_SHELL_TREE, which carries the bash-less tiers
 # (dash, ash, sh) after bash - they are hi.sh's ladder's business, not this
 # file's, and _hi_session_shell's allow-list `case` is what keeps them out. A
 # tree walked without that filter would answer "dash" here.
 A bash-less tier is never the session shell (dash)|bash dash zsh|SHELL=/bin/dash|zsh
 EOF
-  _hi_check "login can be spelled mid-preference" test_session_shell_expands_a_spelled_out_login_word
   _hi_check "...and bash is the answer even off-PATH" test_session_shell_floors_at_bash_even_off_path
 
   _hi_h2 "Testing: load()"

@@ -438,6 +438,16 @@ agrees with the tree:
   agree on its digest - check 17 strips the digest before comparing, so it
   can't see one tag pinned to two; this one reads the digests back in.
 
+## Test levers
+
+Four environment variables are read by the tree but are not settings: they
+exist so a suite, the bench or a demo can pin what a real run derives.
+`_HI_TARGETS_TTL` (seconds `targets.sh` reuses its list; `0` sweeps every
+call), `_HI_PROBE_TIMEOUT` (seconds one backend CLI gets), `_HI_PAYLOAD_CACHE`
+(`0` builds the payload and overlay archives fresh) and `_HI_CTL_PERSIST`
+(`0` gives a connect a private ssh control socket, closed after). Their
+defaults are the shipped behaviour; nothing in `hi --configure` writes them.
+
 ## Relaying
 
 `hi` chains: from a session on B you can `hi C`, and the second hop is a full

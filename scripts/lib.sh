@@ -66,7 +66,7 @@ function _hi_rewrite() {
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh
 # answers "what does slot n render as", these answer "what is the setting".
-# _hi_scheme_ok <value> - a named scheme, or 12/24 hex words
+# _hi_scheme_ok <value> - a named scheme, or 24/48 hex words
 function _hi_scheme_ok() {
   local _hi_so_n
   # shellcheck disable=SC2153 # the roster is core.sh's, exported
@@ -76,7 +76,7 @@ function _hi_scheme_ok() {
 }
 
 # _hi_scheme_label <outvar> - the scheme as a preview or report names it:
-# default, the name, custom (12|24), or the value and why it is ignored
+# default, the name, custom (24|48), or the value and why it is ignored
 function _hi_scheme_label() {
   local _hi_sl_n
   _hi_scheme_words _hi_sl_n

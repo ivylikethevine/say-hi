@@ -205,10 +205,7 @@ everything weighed and answered **no**, and why.
   each shell's own syntax checker first and asks before continuing if any has
   issues (the one prompt; `--yes` answers it). Shells that are not installed
   get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
-  A starship, powerlevel10k or oh-my-zsh prompt already in those files is
-  found and kept on this machine (`_HI_DISABLE_LOCAL_PROMPT=1`); hi's prompt
-  still draws on every target
-  ([docs/SETTINGS.md](docs/SETTINGS.md#others)). `hi` itself is linked at
+  `hi` itself is linked at
   `~/.local/bin/hi` (`--link system` for `/usr/bin/hi`, `--link none` for
   none - the wired shells alias it either way), and `--dry-run` prints every
   write without making it.
@@ -236,7 +233,7 @@ everything weighed and answered **no**, and why.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/SUPPORT.md#what-would-change-an-answer)). For a
   flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
-  `zellij` or `screen` (whichever you have; `_HI_MUX_TOOL` picks), which
+  `zellij` or `screen` (whichever you have), which
   survives the drop.
 - done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and

@@ -764,13 +764,13 @@ function test_preview_names_the_active_palette() {
   [[ "$_HI_PACKAGES_OUT" == *"palette: cool"* && "$_HI_PACKAGES_OUT" == *"scheme: default"* ]]
 }
 
-# a scheme of the user's own is named by its shape, and a 24-word one paints
+# a scheme of the user's own is named by its shape, and a 48-word one paints
 # the legend from its second bank - which the reverse map still names, since
 # the name is the 16-color half (HI.50)
 function test_preview_names_a_custom_scheme_and_its_bank() {
   local out row
-  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_render_packages)" || return 1
-  [[ "$out" == *"scheme: custom (24)"* ]] || return 1
+  out="$(_HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_render_packages)" || return 1
+  [[ "$out" == *"scheme: custom (48)"* ]] || return 1
   row="$(printf '%s\n' "$out" | grep '^| 3 ')"
   # bank 2's brgreen (23d18b) and brred (f14c4c), named as such
   [[ "$row" == *";38;2;35;209;139m"*brgreen* && "$row" == *";38;2;241;76;76m"*brred* ]] || return 1

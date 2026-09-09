@@ -177,7 +177,7 @@ function test_palette_vars_agree_with_color_escape_under_a_scheme() {
       eval "v=\$$n"; printf "%b" "$v"
     done | od -An -c | tr -d " \n"
     printf "|"
-    for n in "${_HI_COLOR_NAMES[@]}"; do _hi_color_escape "$n"; done | od -An -c | tr -d " \n"')"
+    for n in "${_HI_COLOR_NAMES[@]:0:12}"; do _hi_color_escape "$n"; done | od -An -c | tr -d " \n"')"
   [ -n "${out%%|*}" ] && [ "${out%%|*}" = "${out#*|}" ] && [[ "${out%%|*}" == *"38;2;"* ]]
 }
 
@@ -186,63 +186,67 @@ function test_hash_color_ignores_the_scheme() {
   [ "$(_HI_COLOR_SCHEME=vscode _HI_TRUECOLOR=1 _hi_hash_color prod-db)" = "$(_hi_hash_color prod-db)" ]
 }
 
-# _HI_TEST_L12/_HI_TEST_L24: tests/lib/fixtures.sh, shared with header_test.sh
+# _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with header_test.sh
 
 function test_scheme_words_counts_a_list() {
   local n
-  _HI_COLOR_SCHEME="$_HI_TEST_L12" _hi_scheme_words n
-  [ "$n" -eq 12 ] || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_words n
   [ "$n" -eq 24 ] || return 1
-  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L12#* }" _hi_scheme_words n
-  [ "$n" -eq 12 ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L48" _hi_scheme_words n
+  [ "$n" -eq 48 ] || return 1
+  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L24#* }" _hi_scheme_words n
+  [ "$n" -eq 24 ] || return 1
+  # twelve words, the shape before the extras: not a scheme any more
+  _HI_COLOR_SCHEME="${_HI_TEST_L24% * * * * * * * * * * * *}" _hi_scheme_words n
+  [ "$n" -eq 0 ] || return 1
   _HI_COLOR_SCHEME=catppuccin _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
   _HI_COLOR_SCHEME="" _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L12 cd3131" _hi_scheme_words n
+  _HI_COLOR_SCHEME="$_HI_TEST_L24 cd3131" _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
-  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L12#* }" _hi_scheme_words n
+  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L24#* }" _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
-  _HI_COLOR_SCHEME="$(printf '%s' "$_HI_TEST_L12" | tr ' ' ',')" _hi_scheme_words n
+  _HI_COLOR_SCHEME="$(printf '%s' "$_HI_TEST_L24" | tr ' ' ',')" _hi_scheme_words n
   [ "$n" -eq 0 ]
 }
 
 # the first word paints red, with the 16-color half in front as ever
-function test_scheme_list_of_twelve_renders() {
+function test_scheme_list_of_twenty_four_renders() {
   local out
-  _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var out red
   [ "$out" = '\e[0;31;38;2;243;139;168m' ] || return 1
-  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L12#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L24#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out red
   [ "$out" = '\e[0;31;38;2;243;139;168m' ]
 }
 
-# slot 12 is red again: the second bank under a 24-word list, the first bank
+# slot 24 is red again: the second bank under a 48-word list, the first bank
 # under everything else - and always red's 16-color half
-function test_scheme_second_bank_folds_without_24_words() {
+function test_scheme_second_bank_folds_without_48_words() {
   local a b c
-  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_at a 12
-  _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1 _hi_color_escape_at b 12
-  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_at c 12
+  _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_color_escape_at a 24
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_at b 24
+  _HI_COLOR_SCHEME=catppuccin _HI_TRUECOLOR=1 _hi_color_escape_at c 24
   [ "$a" = '\e[0;31;38;2;205;49;49m' ] && [ "$b" = '\e[0;31;38;2;243;139;168m' ] && [ "$c" = "$b" ]
 }
 
-# a list that is not one is an unknown scheme: 16 colors, no complaint here
+# a list that is not one is an unknown scheme: 16 colors for the sixteen's
+# names, no complaint here
 function test_scheme_bad_list_falls_back_to_16_color() {
   local out
-  _HI_COLOR_SCHEME="$_HI_TEST_L12 cd3131" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  _HI_COLOR_SCHEME="$_HI_TEST_L24 cd3131" _HI_TRUECOLOR=1 _hi_color_escape_var out red
   [ "$out" = '\e[0;31m' ] || return 1
-  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L12#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
+  _HI_COLOR_SCHEME="zzzzzz ${_HI_TEST_L24#* }" _HI_TRUECOLOR=1 _hi_color_escape_var out brcyan
   [ "$out" = '\e[1;36m' ]
 }
 
 # scripts/lib.sh's three readers of the setting, tested beside the primitive
 # they wrap (test_lib.sh sources lib.sh)
 function test_scheme_ok_takes_names_and_lists() {
-  _hi_scheme_ok catppuccin && _hi_scheme_ok "$_HI_TEST_L12" && _hi_scheme_ok "$_HI_TEST_L24" || return 1
+  _hi_scheme_ok catppuccin && _hi_scheme_ok "$_HI_TEST_L24" && _hi_scheme_ok "$_HI_TEST_L48" || return 1
   ! _hi_scheme_ok solarized || return 1
   ! _hi_scheme_ok custom || return 1
-  ! _hi_scheme_ok "$_HI_TEST_L12 cd3131" || return 1
+  ! _hi_scheme_ok "$_HI_TEST_L24 cd3131" || return 1
   ! _hi_scheme_ok ""
 }
 
@@ -252,10 +256,10 @@ function test_scheme_label_names_every_shape() {
   [ "$l" = default ] || return 1
   _HI_COLOR_SCHEME=monokai _hi_scheme_label l
   [ "$l" = monokai ] || return 1
-  _HI_COLOR_SCHEME="$_HI_TEST_L12" _hi_scheme_label l
-  [ "$l" = "custom (12)" ] || return 1
   _HI_COLOR_SCHEME="$_HI_TEST_L24" _hi_scheme_label l
   [ "$l" = "custom (24)" ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L48" _hi_scheme_label l
+  [ "$l" = "custom (48)" ] || return 1
   _HI_COLOR_SCHEME=solarized _hi_scheme_label l
   [ "$l" = "solarized (ignored - not a scheme)" ]
 }
@@ -311,10 +315,73 @@ function test_now_answers_without_date() {
 }
 
 function test_hash_color_matches_hand_computed_bucket() {
-  # ord('a')=97, 97 % 12 == 1 -> _HI_COLOR_NAMES[1] == green
+  # ord('a')=97, 97 % 24 == 1 -> _HI_COLOR_NAMES[1] == green
   [ "$(_hi_hash_color a)" = "green" ] || return 1
-  # ord('a')+ord('b')=97+98=195, 195 % 12 == 3 -> _HI_COLOR_NAMES[3] == blue
-  [ "$(_hi_hash_color ab)" = "blue" ]
+  # ord('a')+ord('b')=97+98=195, 195 % 24 == 3 -> _HI_COLOR_NAMES[3] == blue
+  [ "$(_hi_hash_color ab)" = "blue" ] || return 1
+  # ord('m')=109, 109 % 24 == 13 -> the extras are in the hash's range
+  [ "$(_hi_hash_color m)" = "pink" ]
+}
+
+# The twelve extras: a 16-color pair of their own (orange is bright yellow
+# there), a built-in hex under no scheme on a truecolor terminal, the
+# scheme's word under a scheme, and the base name for %F{}/set_color.
+function test_extra_names_render_by_fallback_and_hex() {
+  local out
+  _HI_COLOR_SCHEME="" _HI_TRUECOLOR=0 _hi_color_escape_var out orange
+  [ "$out" = '\e[1;33m' ] || return 1
+  _HI_COLOR_SCHEME="" _HI_TRUECOLOR=1 _hi_color_escape_var out orange
+  [ "$out" = '\e[1;33;38;2;255;140;0m' ] || return 1
+  _HI_COLOR_SCHEME="" _HI_TRUECOLOR=1 _hi_color_escape_var out red
+  [ "$out" = '\e[0;31m' ] || return 1
+  _HI_COLOR_SCHEME=solarized _HI_TRUECOLOR=1 _hi_color_escape_var out teal
+  [ "$out" = '\e[0;36;38;2;32;178;170m' ] || return 1
+  _HI_COLOR_SCHEME=monokai _HI_TRUECOLOR=1 _hi_color_escape_var out orange
+  [ "$out" = '\e[1;33;38;2;253;151;31m' ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 _hi_color_escape_at out 36
+  [ "$out" = '\e[1;33;38;2;224;123;57m' ]
+}
+
+function test_color_base_names_the_16_color_half() {
+  local b
+  _hi_color_base b orange
+  [ "$b" = bryellow ] || return 1
+  _hi_color_base b teal
+  [ "$b" = cyan ] || return 1
+  _hi_color_base b lavender
+  [ "$b" = brmagenta ] || return 1
+  _hi_color_base b brred
+  [ "$b" = brred ] || return 1
+  _hi_color_base b nosuch
+  [ "$b" = nosuch ]
+}
+
+# every extra has a hex of its own in every table, none repeats one of the
+# first twelve's within a table, and the fallback string covers every slot
+function test_extra_names_have_a_hex_in_every_scheme() {
+  local scheme i j hex other
+  [ "${#_HI_COLOR_FALLBACK}" -eq $((${#_HI_COLOR_NAMES[@]} * 3 - 1)) ] || return 1
+  for scheme in "" catppuccin monokai onedark vscode; do
+    i=12
+    while [ "$i" -lt 24 ]; do
+      _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex hex "$i"
+      [ "${#hex}" -eq 6 ] || return 1
+      j=0
+      while [ "$j" -lt 12 ]; do
+        _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_scheme_hex other "$j"
+        [ "$hex" != "$other" ] || return 1
+        j=$((j + 1))
+      done
+      i=$((i + 1))
+    done
+  done
+}
+
+# fish is handed the base name beside the hex: set_color knows no orange
+function test_prompt_colors_hand_fish_the_base_name() {
+  local out
+  out="$(_HI_USER_COLOR=orange _HI_HOST_COLOR=red _HI_TRUECOLOR=1 _hi_prompt_colors)"
+  [ "$out" = $'ff8c00 bryellow\nred' ]
 }
 
 function test_override_color_exact_match() {
@@ -700,7 +767,7 @@ function test_zsh_scheme_escape_agrees_with_bash() {
 # the list form walks the setting by offset, which is where zsh and bash
 # most easily part ways; both banks and the word count have to agree
 function test_zsh_scheme_list_agrees_with_bash() {
-  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L24' _HI_TRUECOLOR=1; _hi_scheme_words n; _hi_assign_palette; _hi_color_hex h brcyan; _hi_color_escape_at e 17; printf '%s|%s|%s|%s|%s' \"\$n\" \"\$RED\" \"\$BRCYAN\" \"\$h\" \"\$e\""
+  _hi_shell_agrees "export _HI_COLOR_SCHEME='$_HI_TEST_L48' _HI_TRUECOLOR=1; _hi_scheme_words n; _hi_assign_palette; _hi_color_hex h brcyan; _hi_color_escape_at e 17; printf '%s|%s|%s|%s|%s' \"\$n\" \"\$RED\" \"\$BRCYAN\" \"\$h\" \"\$e\""
 }
 
 function test_zsh_host_tag_agrees_with_bash() {
@@ -738,13 +805,13 @@ function test_zsh_rc_survives_ksharrays_being_on() {
   [ -n "$out" ]
 }
 
-# Every row has all six fields, both rc paths are absolute, and the flags
-# column names only mechanisms that exist. A row short a field silently
-# hands install.sh an empty rc path, which is a `touch ""` at install time.
+# Every row has all six fields and both rc paths are absolute. A row short a
+# field silently hands install.sh an empty rc path, which is a `touch ""` at
+# install time.
 function test_shell_table_rows_are_wellformed() {
-  local row shell label tree home check flags dialect rest
+  local row shell label tree home check dialect rest
   for row in "${_HI_SHELL_TABLE[@]}"; do
-    IFS='|' read -r shell label tree home check flags dialect rest <<<"$row"
+    IFS='|' read -r shell label tree home check dialect rest <<<"$row"
     [ -n "$shell" ] && [ -n "$label" ] && [ -n "$check" ] || {
       _hi_cecho " | thin row: $row" "$RED"
       return 1
@@ -764,13 +831,6 @@ function test_shell_table_rows_are_wellformed() {
     /*/*) ;;
     *)
       _hi_cecho " | rc paths must be absolute: $row" "$RED"
-      return 1
-      ;;
-    esac
-    case ",$flags," in
-    *,local,*) ;;
-    *)
-      _hi_cecho " | no known mechanism in flags: $row" "$RED"
       return 1
       ;;
     esac
@@ -896,17 +956,6 @@ function test_escape_var_forms_fill_the_caller() {
     _hi_user_escape u
     [ "$h" = "$(_hi_host_escape)" ] && [ "$u" = "$(_hi_user_escape)" ]
   )
-}
-
-# _hi_shell_rows with no argument is the whole roster; with one, only the rows
-# carrying that flag.
-function test_shell_rows_filters_by_flag() {
-  local all local_rows
-  all="$(_hi_shell_rows | wc -l)"
-  local_rows="$(_hi_shell_rows local | wc -l)"
-  [ "$all" -eq "${#_HI_SHELL_TABLE[@]}" ] || return 1
-  [ "$local_rows" -gt 0 ] && [ "$local_rows" -le "$all" ] || return 1
-  [ -z "$(_hi_shell_rows nosuchflag)" ]
 }
 
 # the version, unpresented: a packager's stamp wins outright, else git
@@ -1035,9 +1084,13 @@ function run_core_tests() {
   _hi_check "No scheme's bright bank repeats its dark bank" test_scheme_bright_bank_is_not_the_dark_bank
   _hi_check "The palette agrees with _hi_color_escape under a scheme" test_palette_vars_agree_with_color_escape_under_a_scheme
   _hi_check "The hash ignores the scheme" test_hash_color_ignores_the_scheme
-  _hi_check "_hi_scheme_words counts a 12/24-word list" test_scheme_words_counts_a_list
-  _hi_check "A 12-word list renders" test_scheme_list_of_twelve_renders
-  _hi_check "Slots 12-23 fold to the first bank without 24 words" test_scheme_second_bank_folds_without_24_words
+  _hi_check "_hi_scheme_words counts a 24/48-word list" test_scheme_words_counts_a_list
+  _hi_check "The extras render by fallback pair and hex" test_extra_names_render_by_fallback_and_hex
+  _hi_check "_hi_color_base names the 16-color half" test_color_base_names_the_16_color_half
+  _hi_check "Every extra has its own hex in every scheme" test_extra_names_have_a_hex_in_every_scheme
+  _hi_check "fish gets the base name beside the hex" test_prompt_colors_hand_fish_the_base_name
+  _hi_check "A 24-word list renders" test_scheme_list_of_twenty_four_renders
+  _hi_check "Slots 24-47 fold to the first bank without 48 words" test_scheme_second_bank_folds_without_48_words
   _hi_check "A malformed list falls back to 16 colors" test_scheme_bad_list_falls_back_to_16_color
   _hi_check "_hi_scheme_ok takes names and lists" test_scheme_ok_takes_names_and_lists
   _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
@@ -1067,7 +1120,6 @@ function run_core_tests() {
   _hi_h2 "Testing: _HI_SHELL_TABLE"
   _hi_check "Every row is six well-formed fields" test_shell_table_rows_are_wellformed
   _hi_check "Every paths.sh rc var has a row" test_shell_table_covers_every_rc_path_var
-  _hi_check "_hi_shell_rows filters by flag" test_shell_rows_filters_by_flag
 
   _hi_h2 "Testing: the small formatters"
   _hi_check "_hi_repeat makes count copies" test_repeat_makes_count_copies

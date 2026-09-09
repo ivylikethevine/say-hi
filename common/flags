@@ -21,7 +21,7 @@
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
 --mux||-|||a local tmux/zellij/screen session; a repeat reattaches
 --no-mux||-|||no tmux around this connect, whatever _HI_MUX says
---preview|<subject>|-|||colors, packages or header; colors needs scripts/
+--preview|<subject>|scripts|||colors, packages or header, as they print here
 --doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
 --install|[--yes] [--link {none,user,system}] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
 --uninstall|[--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines back out again

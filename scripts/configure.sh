@@ -231,17 +231,6 @@ function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
 }
 
-# _HI_SHELL_PREFERENCE's vocabulary: `login` and the shells hi styles, in any
-# order, space-separated
-function _hi_is_shell_list() {
-  local word
-  [ -n "$1" ] || return 1
-  # shellcheck disable=SC2086 # the split is the point: one word per shell
-  for word in $1; do
-    [ "$word" = login ] || _hi_shell_wired "$word" || return 1
-  done
-}
-
 function _hi_is_glyph_choice() {
   case "$1" in auto | glyphs | ascii) ;; *) return 1 ;; esac
 }
@@ -257,9 +246,10 @@ function _hi_is_packages_palette() {
 }
 
 # $_HI_COLOR_SCHEME's vocabulary: the schemes core.sh's _hi_scheme_hex knows,
-# `default` for none (ask_value blanks it, which clears the line), or a list
-# of 12/24 hex words - a scheme of the user's own, which config_color_scheme
-# keeps rather than asks for. `custom` is what that shows as, never a value.
+# `default` for none, or a list of 24/48 hex words - a scheme of the user's
+# own, which config_color_scheme keeps rather than asks for. `custom` is what
+# that shows as, never a value. The menu reads _HI_SCHEME_ROWS; this is the
+# validator for a value that arrives by other roads (a preset, a test).
 function _hi_is_color_scheme() {
   [ "$1" = default ] || _hi_scheme_ok "$1"
 }
@@ -386,10 +376,8 @@ function _hi_header_preview() {
 # escape `\$`, so one leading backslash comes off for display
 function _hi_prompt_end_shown() {
   local _hi_pe_end=""
-  # core.sh's _hi_prompt_end order: the shell's own, then the all-shells
-  # _HI_PROMPT_END (hand-written; no menu asks it), then the default
+  # core.sh's _hi_prompt_end order: the shell's own, then the default
   setting_value "_HI_PROMPT_END_$1" "$_HI_SETTINGS" _hi_pe_end
-  [ -n "$_hi_pe_end" ] || setting_value _HI_PROMPT_END "$_HI_SETTINGS" _hi_pe_end
   [ -n "$_hi_pe_end" ] || _hi_pe_end="$(_hi_prompt_end_default "$1")"
   printf -v "$2" '%s' "${_hi_pe_end#\\}"
 }
@@ -514,7 +502,8 @@ function _hi_packages_palette_preview() {
   fi
 }
 
-# One row per scheme, the twelve palette names painted as that scheme
+# One row per scheme, the twenty-four palette names painted as that scheme
+# (the twelve extras on a second line)
 # paints them. _HI_TRUECOLOR=1 is forced for the swatches on purpose: the
 # question is what a capable terminal will show, and the note below says so
 # when this one is not. Temporary-environment calls on a function, so
@@ -524,23 +513,27 @@ function _hi_color_scheme_preview() {
   # shellcheck disable=SC2153 # the roster is core.sh's, exported
   for scheme in default $_HI_COLOR_SCHEMES; do
     printf '   %-11s' "$scheme"
+    i=0
     for name in "${_HI_COLOR_NAMES[@]}"; do
+      [ "$i" -eq 12 ] && printf '\n   %-11s' ""
       _HI_COLOR_SCHEME="$scheme" _HI_TRUECOLOR=1 _hi_color_escape_var esc "$name"
       printf '%b%s%b ' "$esc" "$name" "$NC"
+      i=$((i + 1))
     done
     printf '\n'
   done
   # a hand-written list as its own row, and a second one for the bank the
-  # packages check paints from when it carries twenty-four words (HI.50)
+  # packages check paints from when it carries forty-eight words (HI.50)
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
   _HI_COLOR_SCHEME="$current" _hi_scheme_words n
   if [ "$n" -gt 0 ]; then
     for scheme in custom packages; do
-      [ "$scheme" = packages ] && [ "$n" -lt 24 ] && break
+      [ "$scheme" = packages ] && [ "$n" -lt 48 ] && break
       printf '   %-11s' "$scheme"
       i=0
-      [ "$scheme" = packages ] && i=12
+      [ "$scheme" = packages ] && i=24
       for name in "${_HI_COLOR_NAMES[@]}"; do
+        [ "$((i % 24))" -eq 12 ] && printf '\n   %-11s' ""
         _HI_COLOR_SCHEME="$current" _HI_TRUECOLOR=1 _hi_color_escape_at esc "$i"
         printf '%b%s%b ' "$esc" "$name" "$NC"
         i=$((i + 1))
@@ -576,20 +569,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
-  "_HI_DISABLE_LOCAL_PROMPT|1||| Enable hi's prompt on this machine too? (no keeps a starship, powerlevel10k or oh-my-zsh prompt you already have here; targets get hi's either way)||hi's prompt on this machine too - no keeps the prompt you already have here"
 )
-
-# First configure only (no settings.sh yet): a prompt framework found in the
-# user's rc files answers _HI_DISABLE_LOCAL_PROMPT with "keep theirs", said
-# once so the choice is visible. After that the stored answer stands and the
-# Features menu is where it changes - detection never overrides a decision.
-function prompt_framework_default() {
-  local found
-  [ -f "$_HI_SETTINGS" ] && return 0
-  found="$(detect_prompt_framework)" || return 0
-  _hi_pending_set _HI_DISABLE_LOCAL_PROMPT 1
-  _hi_cecho " found $found in your shell config - keeping that prompt on this machine (hi's still draws on every target; Features menu to change)" "$GREEN"
-}
 
 # The one row that survives from the old row toggles: banner is not part of
 # $_HI_HEADER_ORDER's reorderable feature list (it always leads), so it still
@@ -613,14 +593,6 @@ _HI_PROMPT_PROMPTS=(
 _HI_ADVANCED_PROMPTS=(
   "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
   "_HI_MUX|0|1|| Wrap every session in a local tmux (one named session per target, reattached when you reconnect)?|tmux|"
-)
-
-# The transport internals, behind one more question at the end of that
-# walk: caches, timeouts and the container CLI roster, each with a default
-# that fits nearly every box. Asked only when the walk says yes, so the
-# Advanced walk itself stays four questions.
-_HI_TRANSPORT_PROMPTS=(
-  "_HI_PAYLOAD_CACHE|0||| Cache the payload/overlay archives between connects, rebuilding only when a source file changes?||"
 )
 
 function _hi_is_yes_no() {
@@ -800,8 +772,8 @@ function config_hub() {
     printf '   2) %-12s %s\n' "[h]eader" "what the header shows and in what order; its width, the package check's depth and palette, the addresses hidden"
     printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
     printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
-    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, session shell, glyphs, 24-bit color; then the transport internals"
-    printf '   6) %-12s %s\n' "[c]olors" "a truecolor scheme for prompt and header - catppuccin, monokai, onedark, vscode, or your own hex list"
+    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color, the container CLI roster"
+    printf '   6) %-12s %s\n' "[c]olors" "a truecolor scheme for prompt and header - [d]efault / [c]atppuccin / [m]onokai / [o]nedark / [v]scode, or your own hex list"
     printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
     printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
     menu_read " > " reply || return 0
@@ -1162,47 +1134,93 @@ function config_packages_floor() {
   _hi_pending_set _HI_PACKAGES_MIN_PRIORITY "$_hi_floor_candidate"
 }
 
-# Which of header.sh's named color ramps the packages check paints with - a
-# word from a closed set (cool/warm/mono), so ask_value rather than the
-# floor's re-rendering loop; the preview above still shows the check as it
-# renders right now, for a by-eye comparison against the name being typed.
+# Which of header.sh's named color ramps the packages check paints with,
+# the bracketed-letter menu the presets and the scheme use: one row per
+# ramp, answered by the letter or the name; `default` (and `cool`, which it
+# is) clears the line. The preview above still shows the check as it renders
+# right now, for a by-eye comparison against the name being picked.
+_HI_PALETTE_ROWS=(
+  "default|the shipped ramp, cool"
+  "cool|cyan and green for installed, blue to red for missing"
+  "warm|yellow and green for installed, magenta to red for missing"
+  "mono|blue and cyan for installed, yellow to red for missing"
+)
 function config_packages_palette() {
-  local current="" value
+  local current="" shown shown_row reply="" row name desc
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" current
-  if [ -t 0 ]; then
-    _hi_load_preview_sources
-    show_preview _hi_packages_palette_preview
+  shown="${current:-default}"
+  [ -t 0 ] || return 0
+  _hi_load_preview_sources
+  show_preview _hi_packages_palette_preview
+  for row in "${_HI_PALETTE_ROWS[@]}"; do
+    IFS='|' read -r name desc <<<"$row"
+    _hi_hotkey "$name" "${name:0:1}" shown_row
+    printf '   %-13s %s\n' "$shown_row" "$desc"
+  done
+  menu_read " Package check palette? (the bracketed letter or the name; Enter keeps it) [$shown] " reply || return 0
+  [ -n "$reply" ] || return 0
+  if preset_row "$reply" _HI_PALETTE_ROWS >/dev/null; then
+    name="$reply"
+  else
+    name="$(preset_shorthand "$reply" _HI_PALETTE_ROWS)" || {
+      _hi_cecho " no such palette: $reply - one of $(preset_names _HI_PALETTE_ROWS)" "$YELLOW"
+      return 0
+    }
   fi
-  value="$(ask_value "Package check palette: cool, warm, or mono?" \
-    "$current" cool _hi_is_packages_palette "answer cool, warm or mono")"
-  _hi_pending_set _HI_PACKAGES_PALETTE "$value"
+  case "$name" in default | cool) name="" ;; esac
+  _hi_pending_set _HI_PACKAGES_PALETTE "$name"
 }
 
-# Which truecolor scheme the twelve palette names render as, everywhere hi
-# paints - the prompt, the header, the git segment, the packages check. A
-# word from a closed set, so ask_value; `default` clears the line. Not a
-# preset answer: a scheme is taste, not a feature level.
+# Which truecolor scheme the palette names render as, everywhere hi
+# paints - the prompt, the header, the git segment, the packages check.
+# The same menu shape as the presets: one row per scheme with its first
+# letter bracketed, answered by that letter or the whole name; `default`
+# clears the line. Not a preset answer: a scheme is taste, not a feature
+# level. The rows are one table so preset_row/preset_shorthand read them.
+_HI_SCHEME_ROWS=(
+  "default|the terminal's own sixteen colors (the extras keep their built-in hex)"
+  "catppuccin|the mocha palette - pastel, low contrast"
+  "monokai|the classic editor palette - saturated, warm"
+  "onedark|atom's one dark - muted, cool"
+  "vscode|the vscode terminal defaults - bright, plain"
+)
 function config_color_scheme() {
-  local current="" shown value n
+  local current="" shown shown_row reply="" n row name desc
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" current
-  # a scheme of the user's own - 12 or 24 hex words, written into settings.sh
+  # a scheme of the user's own - 24 or 48 hex words, written into settings.sh
   # by hand - shows as `custom` and Enter keeps it; the list itself is never
   # typed at a prompt
-  shown="$current"
+  shown="${current:-default}"
   _HI_COLOR_SCHEME="$current" _hi_scheme_words n
   [ "$n" -gt 0 ] && shown=custom
-  if [ -t 0 ]; then
-    show_preview _hi_color_scheme_preview
-    # what hi --doctor and the previews say about the same value: a word
-    # nothing renders is ignored, and Enter would keep it
-    if [ -n "$current" ] && [ "$n" -eq 0 ] && ! _hi_scheme_ok "$current"; then
-      _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
-    fi
+  [ -t 0 ] || return 0
+  show_preview _hi_color_scheme_preview
+  # what hi --doctor and the previews say about the same value: a word
+  # nothing renders is ignored, and Enter would keep it
+  if [ -n "$current" ] && [ "$n" -eq 0 ] && ! _hi_scheme_ok "$current"; then
+    _hi_cecho " $current is not a scheme, so it is ignored - Enter keeps it, default clears it" "$YELLOW"
   fi
-  value="$(ask_value "Color scheme: default, catppuccin, monokai, onedark, or vscode (or 12/24 hex words, written into settings.sh by hand)?" \
-    "$shown" default _hi_is_color_scheme "answer default, catppuccin, monokai, onedark or vscode")"
-  [ "$value" = custom ] && value="$current"
-  _hi_pending_set _HI_COLOR_SCHEME "$value"
+  for row in "${_HI_SCHEME_ROWS[@]}"; do
+    IFS='|' read -r name desc <<<"$row"
+    _hi_hotkey "$name" "${name:0:1}" shown_row
+    printf '   %-13s %s\n' "$shown_row" "$desc"
+  done
+  [ "$n" -gt 0 ] && printf '   %-13s %s\n' custom "your own $n hex words, as settings.sh holds them"
+  menu_read " Color scheme? (the bracketed letter or the name; Enter keeps it) [$shown] " reply || return 0
+  [ -n "$reply" ] || return 0
+  [ "$reply" = custom ] && [ "$n" -gt 0 ] && return 0
+  # an exact name first, then an unambiguous first letter - config_preset's
+  # own rule, through the same two helpers
+  if preset_row "$reply" _HI_SCHEME_ROWS >/dev/null; then
+    name="$reply"
+  else
+    name="$(preset_shorthand "$reply" _HI_SCHEME_ROWS)" || {
+      _hi_cecho " no such scheme: $reply - one of $(preset_names _HI_SCHEME_ROWS)${n:+, or custom}" "$YELLOW"
+      return 0
+    }
+  fi
+  [ "$name" = default ] && name=""
+  _hi_pending_set _HI_COLOR_SCHEME "$name"
 }
 
 # Which addresses the header's ip cell leaves out - header.sh's
@@ -1280,15 +1298,11 @@ function config_prompt() {
   done
 }
 
-# The advanced section's free-text half: which shell a session runs in and
-# the glyph policy. Each keeps its current value on Enter and clears the
-# override when the answer is the shipped default, like config_max_width.
+# The advanced section's free-text half: the glyph policy and the container
+# CLI roster. Each keeps its current value on Enter and clears the override
+# when the answer is the shipped default, like config_max_width.
 function config_advanced_values() {
   local current value choice
-
-  ask_setting_value _HI_SHELL_PREFERENCE login _hi_is_shell_list \
-    "only login, bash, zsh and fish are understood" \
-    "Shell a session runs in, in order of preference (login = your own login shell; bash, zsh, fish)?"
 
   # _HI_ASCII is a 1/0/unset flag; the question uses words and maps both ways,
   # since "1" for ASCII is a fact about the implementation, not an answer
@@ -1308,41 +1322,19 @@ function config_advanced_values() {
     "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
   case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_TRUECOLOR "$value"
-}
-
-# The transport internals' free-text half: the two timing dials completion
-# and the header run under, the container CLI roster, and ssh's connection
-# reuse. Same Enter-keeps rule as above.
-function config_transport_values() {
-  ask_setting_value _HI_TARGETS_TTL 5 _hi_is_number "not a number" \
-    "(completion) Seconds hi <TAB> reuses its target list for (0 = never)?"
-
-  ask_setting_value _HI_PROBE_TIMEOUT 2 _hi_is_seconds "not a number of seconds" \
-    "(completion and the header) Seconds any one backend (docker, kubectl, ...) gets to answer?"
 
   ask_setting_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" _hi_is_cli_list \
     "plain names separated by spaces, like: docker podman" \
     "(containers) Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?"
-
-  ask_setting_value _HI_CTL_PERSIST 60 _hi_is_number "not a number" \
-    "(ssh only) Seconds an ssh connection stays authenticated after you disconnect, so a second hi <target> within that window skips the key exchange (0 = never - a fresh socket every connect, closed after)?"
 }
 
 # The advanced section: a short question walk rather than a menu - these are
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
-# The transport internals sit behind one more question at the end, so the
-# walk a person Enters through is four questions, not ten.
 function config_advanced() {
-  local more
-  section "Advanced settings" "The leading space, tmux, the session shell, the glyphs and 24-bit color. Enter keeps each value."
+  section "Advanced settings" "The leading space, tmux, the glyphs, 24-bit color and the container CLI roster. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
-  more="$(ask_value "Also tune the transport internals - the payload cache, completion and probe timeouts, the container CLI roster, ssh connection reuse? (y/N)" \
-    "" n _hi_is_yes_no "y or n")"
-  case "$more" in y | yes) ;; *) return 0 ;; esac
-  ask_prompt_group _HI_TRANSPORT_PROMPTS
-  config_transport_values
 }
 
 # The roster, walked once at save time: every setting the wizard writes, in
@@ -1402,14 +1394,9 @@ function collect_setting_lines() {
     _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
   done
   _hi_collect_group _HI_ADVANCED_PROMPTS
-  _hi_collect_group _HI_TRANSPORT_PROMPTS
-  _hi_collect_value _HI_SHELL_PREFERENCE login quoted
   _hi_collect_value _HI_ASCII ""
   _hi_collect_value _HI_TRUECOLOR ""
-  _hi_collect_value _HI_TARGETS_TTL 5
-  _hi_collect_value _HI_PROBE_TIMEOUT 2
   _hi_collect_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" quoted
-  _hi_collect_value _HI_CTL_PERSIST 60
 }
 
 # _hi_has_setting_lines - is there anything to write? A loop, not
@@ -1525,9 +1512,6 @@ function run_configure() {
   if [ -n "$preset" ]; then
     apply_preset "$preset" || return 1
   fi
-  # after the preset so the machine's own fact wins over a vocabulary reset,
-  # before the hub so the Features menu shows the answer
-  prompt_framework_default
   if [ -z "$preset" ]; then
     if [ -t 0 ]; then
       config_hub
@@ -1545,8 +1529,7 @@ function run_configure() {
   fi
   collect_setting_lines
   # No terminal, no preset, no file and nothing to say: a settings.sh with
-  # only a shebang in it would be a decision record with no decision in it -
-  # and its existence is what stops prompt_framework_default asking again.
+  # only a shebang in it would be a decision record with no decision in it.
   if [ ! -t 0 ] && [ -z "$preset" ] && [ ! -f "$_HI_SETTINGS" ] && ! _hi_has_setting_lines; then
     _hi_cecho " nothing to write - the defaults apply until hi --configure is run at a terminal" "$GREEN"
     return 0

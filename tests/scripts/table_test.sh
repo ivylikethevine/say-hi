@@ -121,17 +121,17 @@ function test_hrule_clamps_and_overflows_for_a_wide_label() {
 
 # _hi_scheme_label's four answers (scripts/lib.sh): the preview line and the
 # doctor report both print it, and only the default arm is reached by their
-# cases. A custom scheme is twelve (or twenty-four) hex words.
+# cases. A custom scheme is twenty-four (or forty-eight) hex words.
 function test_scheme_label_names_each_kind() {
   local label custom
-  custom="$(printf 'abcdef %.0s' $(seq 1 12))"
+  custom="$(printf 'abcdef %.0s' $(seq 1 24))"
   custom="${custom% }"
   _HI_COLOR_SCHEME="" _hi_scheme_label label
   [ "$label" = default ] || return 1
   _HI_COLOR_SCHEME="$custom" _hi_scheme_label label
-  [ "$label" = "custom (12)" ] || return 1
-  _HI_COLOR_SCHEME="$custom $custom" _hi_scheme_label label
   [ "$label" = "custom (24)" ] || return 1
+  _HI_COLOR_SCHEME="$custom $custom" _hi_scheme_label label
+  [ "$label" = "custom (48)" ] || return 1
   _HI_COLOR_SCHEME=monokai _hi_scheme_label label
   [ "$label" = monokai ] || return 1
   _HI_COLOR_SCHEME=nope _hi_scheme_label label

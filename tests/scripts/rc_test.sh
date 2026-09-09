@@ -374,22 +374,6 @@ function test_link_owner_per_package_manager() {
   ! _hi_link_owner_with "$home/none.bin" /usr/bin/hi >/dev/null
 }
 
-# detect_prompt_framework reads $_HI_HOME_* live rather than _HI_RC_TABLE's
-# target column - the table is a source-time snapshot and the function is
-# called with those paths overridden. That makes the list hand-written, so
-# this is what keeps a fourth wired shell from being added to the roster and
-# silently never searched for a prompt framework.
-function test_detect_covers_every_wired_shell() {
-  local body n_rcs n_shells
-  body="$(sed -n '/^function detect_prompt_framework/,/^}/p' "$_HI_ROOT/scripts/rc.sh")"
-  n_rcs="$(printf '%s\n' "$body" | grep -c '\$_HI_HOME_[A-Z_]*')"
-  n_shells="${#_HI_RC_TABLE[@]}"
-  [ "$n_rcs" -ge "$n_shells" ] || {
-    _hi_cecho " | detect_prompt_framework names $n_rcs rc files, the roster has $n_shells shells" "$RED"
-    return 1
-  }
-}
-
 function run_rc_lines_test() {
   _hi_h1 "Testing scripts/rc.sh (the lines hi owns in a user's rc files)"
   _hi_workdir rc_lines
@@ -427,8 +411,6 @@ function run_rc_lines_test() {
   _hi_check_requires fish "check_shell_configs names the broken roster file" test_check_shell_configs_names_the_broken_roster_file
   _hi_check_capable pty "config_validate_shells asks at a terminal" test_config_validate_shells_asks_at_a_terminal
   _hi_check "config_validate_shells: --yes vs non-interactive" test_config_validate_shells_gate
-
-  _hi_check "detect_prompt_framework covers every wired shell" test_detect_covers_every_wired_shell
 
   _hi_h2 "Testing: link_owner"
   _hi_check "One verdict per package manager, none without one" test_link_owner_per_package_manager

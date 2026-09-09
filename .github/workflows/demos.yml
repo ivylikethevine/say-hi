@@ -8,11 +8,11 @@ name: Demos
 # commit on top of the author's is what branch protection refuses. Needs
 # docker, podman, nomad and kind.
 #
-# Of the nine .tape files, common.tape is the shared include, leaving eight
+# Of the eight .tape files, common.tape is the shared include, leaving seven
 # renderable tapes. demo.gif is hand-rendered, reviewed by eye and committed in
 # its own commit: it is the one GIF claiming stock defaults, it goes quietly
 # wrong when the header, the prompt or the tape moves, and only a person can
-# tell (.github/hooks/demo_staleness.sh says when). The other seven each
+# tell. The other six each
 # advertise one feature, which a machine can render honestly, so `publish`
 # renders them.
 #
@@ -25,9 +25,8 @@ on:
   # pattern release.yml matches, prereleases included, since an rc's GIFs are
   # a useful rehearsal of what the release will show. The weekly run is for
   # changes that move a demo without a release in between (header, prompt,
-  # anything in the shipped tree - .github/hooks/demo_staleness.sh lists them
-  # as $_HI_DEMO_INPUTS) and keeps the render inside the artifact's 90-day
-  # retention. Rendering seven of the eight renderable tapes stands a kind
+  # anything in the shipped tree) and keeps the render inside the artifact's 90-day
+  # retention. Rendering six of the seven renderable tapes stands a kind
   # cluster up and tears it down: a cadence, not a gate.
   push:
     tags:
@@ -47,7 +46,7 @@ concurrency:
 jobs:
   publish:
     name: render every tape but demo
-    # Every one of these seven tapes needs docker, podman, nomad or kind; the
+    # Every one of these six tapes needs docker, podman, nomad or kind; the
     # hosted runner carries docker and the steps below install the other three
     # (as ci.yml's e2e-backends does). --require-run makes a tape that stands
     # down for a missing backend a failure, never a green run that rendered

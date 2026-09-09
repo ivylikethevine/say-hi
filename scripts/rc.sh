@@ -153,21 +153,21 @@ function tmpdir_line() {
 # this roster, so adding a shell is one row plus its lines rather than three
 # disjoint edits.
 #
-# The rows come from core.sh's _HI_SHELL_TABLE, filtered to the ones flagged
-# `local`, so a shell added to the roster cannot miss this half. The rc file
+# The rows come from core.sh's _HI_SHELL_TABLE, so a shell added to the
+# roster cannot miss this half. The rc file
 # is where *this* user's shell reads it: zsh under $ZDOTDIR and fish under
 # $XDG_CONFIG_HOME when those are set. core.sh's column stays the plain
 # $HOME form, which is what hi.sh's permanent-install probe looks for on a
 # target it knows nothing else about.
 _HI_RC_TABLE=()
-while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect; do
+while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_dialect; do
   case "$_hi_shell" in
   zsh) _hi_home_rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
   fish) _hi_home_rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish" ;;
   esac
   _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check|$_hi_tree_rc|$_hi_dialect")
-done < <(_hi_shell_rows local)
-unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_flags _hi_dialect
+done < <(_hi_shell_rows)
+unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_dialect
 
 # rc_shell_present <shell> - is that shell here to read the lines? A
 # function, so a suite can stage a box without one.
@@ -206,58 +206,6 @@ function install_bash_profile_line() {
   else
     config_shell bash_profile "$profile" "$_HI_PROFILE_LINE" "$_HI_BASH_PROFILE_LINE"
   fi
-}
-
-# What draws the prompt in this user's own rc files today, if anything hi
-# would replace: the name on stdout, failure when none is found. Read from
-# the user's rc files (core.sh's _HI_SHELL_TABLE), never hi's own, and hi's
-# marker-tagged lines are skipped so a previous install does not read as a
-# framework. Two shapes: a file that sources or inits one by name, and fish's
-# fish_prompt.fish function file, which is a hand-written prompt by definition.
-_HI_PROMPT_FRAMEWORKS=(
-  "starship|starship init"
-  "powerlevel10k|powerlevel10k|p10k"
-  "oh-my-zsh|oh-my-zsh|ZSH_THEME="
-  "prezto|prezto"
-  "zimfw|zimfw|zmodule"
-  "oh-my-bash|oh-my-bash|OSH_THEME="
-  "bash-it|bash-it|BASH_IT_THEME="
-  "liquidprompt|liquidprompt"
-)
-
-function detect_prompt_framework() {
-  local rc row name pat rest hit=""
-  # The variables, not _HI_RC_TABLE's target column: that table is built once
-  # when this file is sourced, so it holds a snapshot of these paths, and this
-  # function is called with them pointed elsewhere (configure_test.sh's
-  # _hi_detect_in does exactly that). Reading them live is the contract.
-  # rc_test.sh pins this list against the roster so a fourth wired shell
-  # cannot be added to _HI_SHELL_TABLE and silently missed here.
-  local -a rcs=("$_HI_HOME_BASHRC" "$_HI_HOME_ZSHRC" "$_HI_HOME_FISH_CONFIG")
-  # ...plus where zsh and fish really read when ZDOTDIR or XDG_CONFIG_HOME
-  # point elsewhere - live too, for the same reason
-  [ -n "${ZDOTDIR:-}" ] && rcs+=("$ZDOTDIR/.zshrc")
-  [ -n "${XDG_CONFIG_HOME:-}" ] && rcs+=("$XDG_CONFIG_HOME/fish/config.fish")
-  for rc in "${rcs[@]}"; do
-    [ -f "$rc" ] || continue
-    for row in "${_HI_PROMPT_FRAMEWORKS[@]}"; do
-      IFS='|' read -r name rest <<<"$row"
-      while [ -n "$rest" ]; do
-        pat="${rest%%|*}"
-        [ "$pat" = "$rest" ] && rest="" || rest="${rest#*|}"
-        if grep -v -F "$_HI_MARKER" "$rc" 2>/dev/null | grep -q -F -- "$pat"; then
-          hit="$name"
-          break 2
-        fi
-      done
-    done
-    [ -n "$hit" ] && break
-  done
-  if [ -z "$hit" ] && [ -f "${_HI_HOME_FISH_CONFIG%/*}/functions/fish_prompt.fish" ]; then
-    hit="your own fish_prompt"
-  fi
-  [ -n "$hit" ] || return 1
-  printf '%s' "$hit"
 }
 
 # Runs $@'s syntax-check flag against an existing rc file (without executing it)

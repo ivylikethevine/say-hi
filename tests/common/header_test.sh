@@ -304,16 +304,50 @@ function test_timestamp_version_cell_is_shortened() {
     [ "${#version}" -le 10 ]
 }
 
+# The two row renders the suite asserts on, kept here rather than in header.sh
+# since hi_header draws through _hi_cell_* directly and nothing else wants a
+# whole row at once. The text form is what a fresh-bash case evals after
+# sourcing header.sh (_hi_stripped_header, _hi_identity_with).
+# shellcheck disable=SC2016 # function text, expanded where it is eval'd
+_HI_ROW_FNS='
+function _hi_sysinfo_row() {
+  local arch os cores cpu ram
+  _hi_cell_arch arch
+  _hi_cell_os os
+  _hi_cell_cores cores
+  _hi_cell_cpu cpu
+  _hi_cell_ram ram
+  header_row "$arch" "$os" "$cores" "$cpu" "$ram"
+}
+function _hi_identity_row() {
+  local gitid containers jobs pods auth pub up_cell
+  local -a cells
+  _hi_cell_gitid gitid
+  _hi_cell_containers containers
+  _hi_cell_jobs jobs
+  _hi_cell_pods pods
+  _hi_cell_auth auth
+  _hi_cell_pub pub
+  _hi_cell_uptime up_cell
+  cells=("$gitid")
+  [ -n "$containers" ] && cells+=("$containers")
+  [ -n "$jobs" ] && cells+=("$jobs")
+  [ -n "$pods" ] && cells+=("$pods")
+  cells+=("$auth" "$pub" "$up_cell")
+  header_row "${cells[@]}"
+}'
+eval "$_HI_ROW_FNS"
+
 function test_system_info_includes_static_labels() {
   local out
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   [[ "$out" == *"Cores:"* && "$out" == *"RAM:"* && "$out" == *"CPU:"* ]]
 }
 
-# the uptime cell lives in identity() now - system_info must not carry it too
+# the uptime cell is an identity-group word - the sysinfo row must not carry it
 function test_system_info_no_longer_shows_uptime() {
   local out
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   [[ "$out" != *"Up:"* ]]
 }
 
@@ -321,7 +355,7 @@ function test_system_info_no_longer_shows_uptime() {
 # back to whole MHz integers is caught
 function test_system_info_cpu_cell_is_ghz() {
   local out
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   [[ "$out" == *"GHz"* ]]
 }
 
@@ -329,7 +363,7 @@ function test_system_info_cpu_cell_is_ghz() {
 # rather than separated from it by RAM
 function test_system_info_cpu_cell_sits_next_to_cores() {
   local out cores_pos cpu_pos ram_pos
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   cores_pos="$(_hi_pos "$out" "Cores:")"
   cpu_pos="$(_hi_pos "$out" "CPU:")"
   ram_pos="$(_hi_pos "$out" "RAM:")"
@@ -394,7 +428,7 @@ function test_ip_cell_has_a_shape() {
 # assertion.
 function test_system_info_ram_cell_is_used_over_total() {
   local out
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   [[ "$out" =~ RAM:\ ([0-9]+/[0-9]+G|[0-9]+G|\?) ]] && [[ "$out" != *"G/"* ]]
 }
 
@@ -406,7 +440,7 @@ function test_system_info_ram_cell_is_used_over_total() {
 # integer percentage, never garbage from an unguarded parse.
 function test_system_info_load_rides_the_cores_cell() {
   local out load
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   load="$(printf '%s' "$out" | sed -n 's/.*Cores: [0-9?]* (\([^)]*\)).*/\1/p')"
   [[ -z "$load" || "$load" =~ ^[0-9]+%$ ]]
 }
@@ -415,7 +449,7 @@ function test_system_info_load_rides_the_cores_cell() {
 # thing this rides on is the clock figure itself
 function test_system_info_cpu_cell_has_no_parenthetical() {
   local out
-  out="$(system_info)"
+  out="$(_hi_sysinfo_row)"
   [[ "$out" != *"GHz ("* ]]
 }
 
@@ -423,7 +457,7 @@ function test_system_info_cpu_cell_has_no_parenthetical() {
 # box, one layer up. The header is the first thing a session prints, so a
 # missing uname or date greeting the user with "command not found" across the
 # banner would be a bad first impression; the cells say "?" instead, the way
-# every other probe in system_info answers a missing binary.
+# every other sysinfo probe answers a missing binary.
 # shellcheck disable=SC2016 # the probe expands in the child bash, not here
 function _hi_stripped_header() {
   local nocfg="$_HI_WORKDIR/stripped-nocfg"
@@ -435,7 +469,7 @@ function _hi_stripped_header() {
 
 function test_system_info_without_uname_says_unknown() {
   local out
-  out="$(_hi_stripped_header system_info)"
+  out="$(_hi_stripped_header "$_HI_ROW_FNS; _hi_sysinfo_row")"
   [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
@@ -445,7 +479,7 @@ function test_timestamp_without_date_says_unknown() {
   [[ "$out" == *"?"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
-# unlike system_info's other cells, _hi_cell_uptime's only external dependency
+# unlike the other sysinfo cells, _hi_cell_uptime's only external dependency
 # on Linux is awk - which "stripped" still carries, since most probes need it -
 # so this stays a smoke test for "no raw shell error leaks out", not a claim
 # that the cell renders "?": a real /proc/uptime under a real Linux kernel
@@ -478,15 +512,15 @@ function test_banner_renders_without_coreutils() {
 
 function test_identity_includes_static_labels() {
   local out
-  out="$(identity)"
+  out="$(_hi_identity_row)"
   [[ "$out" == *"Auth:"* && "$out" == *"Pub:"* ]]
 }
 
-# uptime rides at the end of the identity row now, after Auth:/Pub: - not a
+# uptime rides at the end of the identity row, after Auth:/Pub: - not a
 # row of its own
 function test_identity_includes_uptime_cell_last() {
   local out auth_pos pub_pos up_pos
-  out="$(identity)"
+  out="$(_hi_identity_row)"
   auth_pos="$(_hi_pos "$out" "Auth:")"
   pub_pos="$(_hi_pos "$out" "Pub:")"
   up_pos="$(_hi_pos "$out" "Up:")"
@@ -494,7 +528,7 @@ function test_identity_includes_uptime_cell_last() {
     ((auth_pos < pub_pos)) && ((pub_pos < up_pos))
 }
 
-# A restricted PATH with just what identity()/_hi_probe_launch need, and none
+# A restricted PATH with just what the identity cells/_hi_probe_launch need, and none
 # of docker/podman/nomad/kubectl - so "backend absent" is guaranteed
 # regardless of what is actually installed on the box running this suite.
 function _hi_identity_path() {
@@ -505,7 +539,7 @@ function _hi_identity_path() {
 # _hi_identity_path with one fake <name> prepended, answering
 # _hi_probe_launch's own invocation shape for it - docker/podman get
 # "container ls -q" (one line per fake container), nomad gets "job status" (a
-# header line, since identity() drops line 1, then one line per fake job).
+# header line, since the jobs cell drops line 1, then one line per fake job).
 function _hi_backend_shim() {
   local name="$1" count="$2" i=0
   local dir="$_HI_WORKDIR/backend-$name-$count"
@@ -524,7 +558,7 @@ function _hi_backend_shim() {
   printf '%s:%s' "$dir" "$(_hi_identity_path)"
 }
 
-# ...and kubectl, which identity() reaches through targets.sh (sh
+# ...and kubectl, which the pods cell reaches through targets.sh (sh
 # "$_HI_TARGETS" kube) rather than a direct call - a fake answering both
 # invocations targets.sh's kube lane makes: `config view ...` (the namespace
 # lookup, left empty here) and `get pods ...` ($1 fake running pods, one
@@ -552,13 +586,13 @@ function _hi_kube_shim() {
   printf '%s:%s' "$dir" "$(_hi_identity_path)"
 }
 
-# identity(), run in a fresh bash with $1 as PATH - isolates which backend
+# The identity row, run in a fresh bash with $1 as PATH - isolates which backend
 # binaries _hi_probe_launch actually finds from whatever is really installed
 # on the box running this suite. _HI_TARGETS_TTL=0 sends the kube lane
 # straight past targets.sh's own cache/lock files (real state this suite does
 # not own, under /run or $TMPDIR) to a fresh sweep every call.
 function _hi_identity_with() {
-  PATH="$1" _HI_TARGETS_TTL=0 bash -c 'source "$_HI_HEADER"; identity' 2>&1
+  PATH="$1" _HI_TARGETS_TTL=0 bash -c "source \"\$_HI_HEADER\"; $_HI_ROW_FNS; _hi_identity_row" 2>&1
 }
 
 # One rule for all three: no cell at all when the backend was never found -
@@ -898,7 +932,7 @@ function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
 # so uptime's overflow (guaranteed last of the identity-group words here)
 # rides into the packages row's first line instead of standing alone. A
 # restricted PATH (no docker/podman/nomad/kubectl, the same fixture
-# identity()'s own backend-cell tests use via _hi_identity_path) keeps these
+# the identity row's own backend-cell tests use via _hi_identity_path) keeps these
 # cells short and deterministic; one priority-3 package guarantees
 # full_check has something to open with.
 function test_hi_header_cascades_identity_overflow_into_check() {
@@ -938,7 +972,7 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
     [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
 }
 
-# --- the non-Linux arms of system_info, uptime and ip, on shims ------------
+# --- the non-Linux arms of the sysinfo cells, uptime and ip, on shims ------
 #
 # The macOS and Windows probes cannot run here, so each platform is a PATH
 # dir of fake tools answering exactly the invocations header.sh makes, and
@@ -1087,7 +1121,7 @@ function test_ip_cell_on_linux_falls_back_to_hostname() {
   }
 }
 
-# The five system_info cells share one memoized probe ($_HI_SI_PROBED), which
+# The five sysinfo cells share one memoized probe ($_HI_SI_PROBED), which
 # is what makes $_HI_HEADER_ORDER's per-word toggles free: asking for arch
 # alone pays for exactly one probe, and asking for all five pays for the same
 # one. Counted by standing a uname in front of the mac shims' that appends a
@@ -1119,7 +1153,7 @@ EOF
 
 function test_system_info_on_a_mac() {
   local out
-  out="$(_hi_platform_header "$(_hi_mac_shims)" 'system_info')"
+  out="$(_hi_platform_header "$(_hi_mac_shims)" "$_HI_ROW_FNS; _hi_sysinfo_row")"
   # used = (200000 + 50000 + 12500) pages * 16K = 4.0G of 16G; 2.00 on 8
   # cores is 25%; sysctl answered no clock, so the cpu cell fails closed
   [[ "$out" == *"macOS 15.1"* && "$out" == *"arm64"* && "$out" == *"Cores: 8 (25%)"* &&
@@ -1142,7 +1176,7 @@ function test_uptime_and_ip_cells_on_a_mac() {
 
 function test_system_info_on_windows() {
   local out
-  out="$(_hi_platform_header "$(_hi_windows_shims)" 'system_info' NUMBER_OF_PROCESSORS=4)"
+  out="$(_hi_platform_header "$(_hi_windows_shims)" "$_HI_ROW_FNS; _hi_sysinfo_row" NUMBER_OF_PROCESSORS=4)"
   # wmic exposes the rated clock
   [[ "$out" == *"Windows (MINGW64_NT-10.0-22631)"* && "$out" == *"Cores: 4"* &&
     "$out" == *"RAM: 16G"* && "$out" == *"CPU: 2.4 GHz"* ]] || {
@@ -1248,7 +1282,7 @@ function test_uptime_and_ip_cells_on_windows() {
 # cells say "?" rather than guessing at macOS
 function test_system_info_with_no_kernel_and_no_release_says_unknown() {
   local out
-  out="$(_hi_platform_header "$(_hi_fake_path no-kernel-tools true)" 'system_info')"
+  out="$(_hi_platform_header "$(_hi_fake_path no-kernel-tools true)" "$_HI_ROW_FNS; _hi_sysinfo_row")"
   [[ "$out" == *"?"* && "$out" != *"macOS"* ]] && ! grep -qE "$_HI_SHELL_ERROR_RE" <<<"$out"
 }
 
@@ -1287,7 +1321,7 @@ function test_header_row_with_no_cells_prints_a_bare_line() {
 function test_identity_without_a_git_email_says_so() {
   local out
   out="$(cd "$_HI_WORKDIR" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 NO_COLOR=1 \
-    PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c 'source "$_HI_HEADER"; identity')"
+    PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c "source \"\$_HI_HEADER\"; $_HI_ROW_FNS; _hi_identity_row")"
   [[ "$out" == *"No Git ID Found"* ]]
 }
 
@@ -1823,18 +1857,18 @@ function test_packages_palette_names_are_all_real_colors() {
 # A 24-word scheme: the check paints from the second bank, every other cell
 # from the first. Catppuccin's twelve then vscode's twelve, so bank 2's cyan
 # (slot 17, 11a8cd) is what cool's priority-0 installed color becomes.
-# _HI_TEST_L12/_HI_TEST_L24: tests/lib/fixtures.sh, shared with core_test.sh
+# _HI_TEST_L24/_HI_TEST_L48: tests/lib/fixtures.sh, shared with core_test.sh
 
-function test_packages_palette_uses_the_second_bank_under_24_words() {
+function test_packages_palette_uses_the_second_bank_under_48_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
     local want
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
-    _hi_color_escape_at want 17
+    _hi_color_escape_at want 29
     [ "${_HI_YES[0]}" = "$want" ] && [ "${_HI_YES[0]}" != "$CYAN" ] &&
       [ "$want" = '\e[0;36;38;2;17;168;205m' ] &&
       [ "${#_HI_YES[@]}" -eq 4 ] && [ "${#_HI_NO[@]}" -eq 4 ]
@@ -1843,12 +1877,12 @@ function test_packages_palette_uses_the_second_bank_under_24_words() {
 }
 
 # ...and stays the first bank - the palette variables themselves - under a
-# 12-word list, a name, or nothing
-function test_packages_palette_keeps_the_first_bank_under_12_words() {
+# 24-word list, a name, or nothing
+function test_packages_palette_keeps_the_first_bank_under_24_words() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L12" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
     _hi_assign_palette
     unset _HI_PACKAGES_PALETTE
     _hi_packages_palette
@@ -1863,7 +1897,7 @@ function test_packages_palette_second_bank_is_inert_under_no_color() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # per-scheme, in its own subshell on purpose
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 NO_COLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1 NO_COLOR=1
     _hi_assign_palette
     _hi_packages_palette
     [ -z "${_HI_YES[0]}" ] && [ -z "${_HI_NO[3]}" ]
@@ -1875,7 +1909,7 @@ function test_header_hues_never_repeat_under_a_24_word_scheme() {
   local ok=0
   (
     # shellcheck disable=SC2030,SC2031 # the scheme lives and dies in this subshell
-    export _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1
+    export _HI_COLOR_SCHEME="$_HI_TEST_L48" _HI_TRUECOLOR=1
     _hi_assign_palette
     _hi_packages_palette
     test_header_hues_never_repeat_in_the_default_order
@@ -1927,7 +1961,7 @@ function run_header_tests() {
   _hi_check "Branch stays out of Connected/Disconnected" test_banner_branch_stays_out_of_remote_banners
   _hi_check "Branch spends tilde budget, not width" test_banner_branch_shrinks_padding
 
-  _hi_h2 "Testing: timestamp / system_info / identity (smoke tests)"
+  _hi_h2 "Testing: timestamp / sysinfo / identity rows (smoke tests)"
   _hi_check "Timestamp prints three cells" test_timestamp_runs_and_has_three_cells
   _hi_check "The version sits between the clocks" test_timestamp_puts_the_version_between_the_clocks
   _hi_check "Without a stamp the version still resolves" test_timestamp_version_falls_back_without_a_stamp
@@ -2072,8 +2106,8 @@ function run_header_tests() {
   _hi_check "Each named palette has four entries per table" test_packages_palette_each_name_has_four_entries
   _hi_check "An unknown name falls back to cool" test_packages_palette_unknown_falls_back_to_cool
   _hi_check "Every escape names a real color" test_packages_palette_names_are_all_real_colors
-  _hi_check "The check paints from the second bank under 24 words" test_packages_palette_uses_the_second_bank_under_24_words
-  _hi_check "...and from the first under 12" test_packages_palette_keeps_the_first_bank_under_12_words
+  _hi_check "The check paints from the second bank under 48 words" test_packages_palette_uses_the_second_bank_under_48_words
+  _hi_check "...and from the first under 24" test_packages_palette_keeps_the_first_bank_under_24_words
   _hi_check "...and stays empty under NO_COLOR" test_packages_palette_second_bank_is_inert_under_no_color
 
   _hi_suite_end "header.sh"

@@ -4,8 +4,8 @@
 # overlay, sourced on every target: it works in a bash session on a debian
 # container and a fish session on an
 # alpine box - via docker and podman, so no two of client, target shell and
-# backend match. The alpine has bash beside its fish, and _HI_SHELL_PREFERENCE
-# picks fish: that is a *full* session in fish. (A fish-only box was tried
+# backend match. The alpine has bash beside its fish, and fish leads hi's
+# shell tree: that is a *full* session in fish. (A fish-only box was tried
 # here first and taken out - the bash-less aliases-only tier ships hi's own
 # aliases and not the overlay, which is the tier's documented shape and not
 # this demo's subject.) Render with `vhs docs/tapes/overlay.tape` from the
@@ -15,8 +15,7 @@
 # Its configuration: an `aliases.sh` overlay (docs/tapes/fixtures.sh writes it
 # - one alias in the POSIX+fish subset that file has to stay in, and a
 # _HI_BAT_OPTS so the shipped `cat` picks the overlay's theme) plus a package
-# floor of 5 to keep both headers short, and _HI_SHELL_PREFERENCE=fish for
-# the second target.
+# floor of 5 to keep both headers short.
 #
 # Not `hi --doctor`'s config rows, the natural next line: they validate
 # the *renderer's* ~/.bashrc and friends by path, and those paths belong in

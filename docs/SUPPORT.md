@@ -159,16 +159,15 @@ Everything the install writes stays on the data volume: `settings.sh` in
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                               |
 
 **A shell framework loads normally on a target**: hi lands you in your own
-login shell, which is what `_HI_SHELL_PREFERENCE`'s default (`login`, then
-`fish zsh bash`) means. `tests/targets/framework_test.sh` covers nine — oh-my-zsh,
+login shell when hi styles it, else the best of `fish zsh bash` it has. `tests/targets/framework_test.sh` covers nine — oh-my-zsh,
 powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise — each
 asserting no shell errors and the framework's own hook left intact: zsh's
 array base unchanged, `PROMPT_COMMAND` chained rather than replaced, `bind -x`
 bindings in place.
 
-**On your own machine the prompt is the one thing that gives way** to a
-detected framework - your prompt locally, hi's on every target. See
-[SETTINGS.md](SETTINGS.md#others) for the detection rule.
+**On your own machine** `_HI_DISABLE_LOCAL=1` leaves the framework's prompt
+in place and hi's draws on every target; see
+[SETTINGS.md](SETTINGS.md#others).
 
 ## Targets weighed and not shipped
 

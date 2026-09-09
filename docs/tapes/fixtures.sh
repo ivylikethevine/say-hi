@@ -172,8 +172,8 @@ function up_container() { # <backend> <name> <flavor: debian|tools|zsh|fish|ash|
       -f "$_HI_ROOT/tests/dockerfiles/demo-debian.Dockerfile" "$_HI_DEMO_DIR" >/dev/null
     image=hi-demo-tools-img
     ;;
-  # fish with bash beside it: a box hi can give a *full* session on, in fish,
-  # when _HI_SHELL_PREFERENCE says so - the overlay demo's second target, since
+  # fish with bash beside it: a box hi can give a *full* session on, in fish
+  # (fish leads the shell tree) - the overlay demo's second target, since
   # the bash-less aliases-only tier ships hi's own aliases and not the overlay
   fish-bash)
     "$backend" build -q -t hi-demo-fish-bash-img --build-arg "PKGS=fish bash git" \
@@ -291,6 +291,63 @@ function demo_settings() { # [outfile] - body on stdin
   } >"$out"
 }
 
+# The same roster with real connection details for the sshd boxes named, for
+# the demos that both *list* hosts and *connect* to one from a throwaway $HOME:
+# the tape types `hi db-prod` bare, so its port and key have to be in the file
+# ssh reads. `# Tags:` stays above each live block - it is what the hosttag
+# pins resolve from, and a live host without one would color by its name hash
+# and quietly stop being the demo.
+function demo_ssh_config_live() { # <name:tag...>
+  local spec name tag
+  mkdir -p "$_HI_DEMO_DIR/home/.ssh"
+  {
+    for spec in "$@"; do
+      name="${spec%%:*}"
+      tag="${spec#*:}"
+      [ -n "$tag" ] && printf '# Tags: %s\n' "$tag"
+      demo_ssh_block "$name"
+      echo
+    done
+    cat <<'EOF'
+# Tags: prod
+Host web-prod
+  User deploy
+
+# Tags: staging
+Host db-staging
+  User deploy
+
+# Tags: desktop
+Host workshop
+  User hitest
+
+Host build-box
+  User ci
+
+Host bastion
+  User root
+EOF
+  } >"$_HI_DEMO_DIR/home/.ssh/config"
+}
+
+# ...and the colors overlay, which lands somewhere else again: paths.sh:30
+# reads `colors` out of $_HI_CONFIG_DIR, the same overlay dir every other demo
+# writes its settings.sh into. Two live sshd boxes, one per pinned tag, so the
+# preview's table and the two sessions after it are the same names.
+function up_colors() {
+  up_ssh db-prod dev-1 || return 1
+  demo_ssh_config_live db-prod:prod dev-1:dev
+  demo_overlay colors <<'EOF'
+# pins beat the name hash; everything unpinned still resolves on its own
+username,root,red
+hostname,bastion,yellow
+hosttag,prod,red
+hosttag,dev,green
+hosttag,staging,yellow
+hosttag,desktop,green
+EOF
+}
+
 # The other overlay files a demo can ship, into the same $_HI_DEMO_DIR/config
 # that settings.sh lands in - hi.sh's _HI_OVERLAY_FILES carries both to the
 # target, which is the point of showing either. Body on stdin.
@@ -389,6 +446,17 @@ source "$_HI_ROOT/common/config.fish"
 EOF
     ;;
   esac
+  # generate.sh --version: the rc just sourced un-exports every inherited
+  # _HI_* but the child roster (HI.47), $_HI_RELEASE included, and the tape's
+  # `hi` is paths.sh's alias, not the shim - so the version is re-exported
+  # here, after the rc, where the alias's hi.sh will inherit it and ship it
+  # to the target. Nothing when the render carries no version.
+  if [ -n "${_HI_RELEASE:-}" ]; then
+    case "$shell" in
+    fish) printf "set -gx _HI_RELEASE '%s'\n" "$_HI_RELEASE" >>"$_HI_DEMO_DIR/clientrc.fish" ;;
+    *) printf "export _HI_RELEASE='%s'\n" "$_HI_RELEASE" >>"$_HI_DEMO_DIR/clientrc.$shell" ;;
+    esac
+  fi
 }
 
 # The demo ssh roster, written outside the overlay because neither thing that
@@ -558,14 +626,12 @@ EOF
 up:overlay)
   # The ops persona: fish on a bastion, into a docker box and a podman box.
   # The header trimmed to what an operator looks at - clocks, the backend
-  # counts, the check - painted with the mono ramp; the fish session on the
-  # second target is _HI_SHELL_PREFERENCE. No throwaway $HOME here: podman
+  # counts, the check - painted with the mono ramp. No throwaway $HOME here: podman
   # lives under the real one.
   client_rc fish ops bastion
   demo_settings <<'EOF'
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='mono'
-export _HI_SHELL_PREFERENCE='fish'
 EOF
   # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
   # says the file has to stay in, and one of the *_OPTS the shipped `cat` alias

@@ -54,7 +54,8 @@ function _hi_within_percent() {
 # by common/core_test.sh and common/header_test.sh, which both build custom
 # color schemes off it - one copy so the two lists can't drift apart.
 _HI_TEST_L12='f38ba8 a6e3a1 f9e2af 89b4fa f5c2e7 94e2d5 f37799 89d88b ebd391 74a8fc f2aede 6bd7ca'
-_HI_TEST_L24="$_HI_TEST_L12 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db"
+_HI_TEST_L24="$_HI_TEST_L12 ff8c00 ff69b4 20b2aa 9acd32 8a2be2 fa8072 ffd700 87ceeb 6a5acd 98ff98 ffb07c b57edc"
+_HI_TEST_L48="$_HI_TEST_L24 cd3131 0dbc79 e5e510 2472c8 bc3fbc 11a8cd f14c4c 23d18b f5f543 3b8eea d670d6 29b8db e07b39 e75480 2a9d8f 7bc043 7b2cbf f08080 e6b800 5bc0eb 4b0082 3eb489 ffcba4 967bb6"
 
 # _hi_palette_names - header.sh's named package-check ramps, one per line,
 # read off _hi_packages_palette's own case rather than a second copy of the

@@ -18,7 +18,8 @@ _hi_interactive_extras
 
 # Primed unconditionally, so a custom PROMPT in the user's own zsh.zsh
 # (sourced at the end of this file) can use hi's color hashing with
-# _HI_DISABLE_PROMPT=1 - $_HI_HOST_COLOR/$_HI_USER_COLOR are the names %F{} wants.
+# _HI_DISABLE_PROMPT=1 - $_HI_HOST_COLOR/$_HI_USER_COLOR are the names; %F{} wants
+# _hi_color_base's answer for one of the extras.
 _hi_prime_identity
 
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
@@ -54,10 +55,13 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     if _hi_has_color; then
       export CLICOLOR=1
       export LSCOLORS=gafacadabaegedabagacad
-      # %F{} has no bright variants, so brred/brblue/... fall back to their
-      # base color. The memos, not $( ): _hi_prime_identity filled both.
-      USER_COLOR="${_HI_USER_COLOR//br/}"
-      HOST_COLOR="${_HI_HOST_COLOR//br/}"
+      # %F{} knows the sixteen and no bright variants: an extra name (orange)
+      # is its 16-color base first, then brred/brblue/... lose the br. The
+      # memos, not $( ): _hi_prime_identity filled both.
+      _hi_color_base USER_COLOR "$_HI_USER_COLOR"
+      _hi_color_base HOST_COLOR "$_HI_HOST_COLOR"
+      USER_COLOR="${USER_COLOR//br/}"
+      HOST_COLOR="${HOST_COLOR//br/}"
       # under a color scheme the hex form instead, which %F{} takes from
       # 5.7 on; an older zsh keeps the name (GLOSSARY: HI.50)
       autoload -Uz is-at-least

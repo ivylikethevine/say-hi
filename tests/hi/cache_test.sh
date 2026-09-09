@@ -138,13 +138,6 @@ function test_overlay_cache_key_changes_with_the_member_list() {
   [ "$full" != "$trimmed" ] && [ "$full" != "$reordered" ]
 }
 
-function test_payload_cache_key_is_stable_and_nonempty() {
-  local a b
-  a="$(_hi_payload_cache_key)"
-  b="$(_hi_payload_cache_key)"
-  [ -n "$a" ] && [ "$a" = "$b" ]
-}
-
 # ---------------------------------------------------------------------------
 # _hi_overlay_cached
 # ---------------------------------------------------------------------------
@@ -251,7 +244,7 @@ function test_payload_cached_builds_cold_then_reuses_it() {
   local out="" dir
   dir="$(_hi_cache_rt pc.warm)"
   XDG_RUNTIME_DIR="$dir" _hi_payload_cached out || return 1
-  [ "$out" = "$dir/hi.payload.$(_hi_payload_cache_key)" ] || return 1
+  [ "$out" = "$dir/hi.payload.tree" ] || return 1
   [ -s "$out" ] || return 1
   _hi_cache_mark "$out"
   touch -t 203001010000 "$out"
@@ -538,7 +531,6 @@ function run_cache_tests() {
   _hi_h2 "Testing: the cache keys"
   _hi_check "Overlay key is stable for one member list" test_overlay_cache_key_is_stable_for_one_member_list
   _hi_check "Overlay key changes with the member list" test_overlay_cache_key_changes_with_the_member_list
-  _hi_check "Payload key is stable and non-empty" test_payload_cache_key_is_stable_and_nonempty
 
   _hi_h2 "Testing: _hi_overlay_cached"
   _hi_check "Refuses an empty member list" test_overlay_cached_refuses_an_empty_member_list
