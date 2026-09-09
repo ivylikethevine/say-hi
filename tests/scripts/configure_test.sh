@@ -752,10 +752,9 @@ function test_starship_kept_when_chosen() {
 function test_advanced_declined_keeps_every_value() {
   local out
   out="$(_hi_section_lines adv_keep config_advanced \
-    "export _HI_NO_LEAD_SPACE=1" "export _HI_ASCII=1" \
-    "export _HI_CONTAINER_CLIS='podman docker'")"
+    "export _HI_NO_LEAD_SPACE=1" "export _HI_ASCII=1" "export _HI_TRUECOLOR=0")"
   [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* && "$out" == *"export _HI_ASCII=1"* &&
-    "$out" == *"export _HI_CONTAINER_CLIS='podman docker'"* ]]
+    "$out" == *"export _HI_TRUECOLOR=0"* ]]
 }
 
 # and with nothing set, writes nothing - the defaults live in the code
@@ -1532,13 +1531,13 @@ function _hi_cfg_tmux() {
 }
 
 # the advanced section is a question walk with no gate of its own (the hub's
-# item is the gate), five questions, and Enter through all of it writes
+# item is the gate), four questions, and Enter through all of it writes
 # nothing, since the defaults live in the code
 function test_advanced_walks_the_questions() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n\n' '' config_advanced || return 1
-  _hi_cfg_has adv_walk "24-bit color" &&
-    _hi_cfg_has adv_walk "Docker-compatible CLIs" &&
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_walk '\n\n\n\n' '' config_advanced || return 1
+  _hi_cfg_has adv_walk "leading space" &&
+    _hi_cfg_has adv_walk "24-bit color" &&
     [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
 }
 
@@ -1546,20 +1545,11 @@ function test_advanced_walks_the_questions() {
 # _HI_ASCII's question hides behind ("ascii" is stored as 1)
 function test_advanced_values_typed_interactively() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\nascii\non\npodman docker\n' '' config_advanced || return 1
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty adv_typed '\n\nascii\non\n' '' config_advanced || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
   [[ "$lines" == *"export _HI_ASCII=1"* &&
-    "$lines" == *"export _HI_TRUECOLOR=1"* &&
-    "$lines" == *"export _HI_CONTAINER_CLIS='podman docker'"* ]]
-}
-
-# a CLI name hi.sh could not turn into a function name is refused in words
-# and the value left alone, like every other ask_value answer
-function test_advanced_container_clis_rejects_a_bad_name() {
-  _hi_cfg_pty adv_clis '\n\nno-dashes here\n' '' config_advanced_values || return 1
-  _hi_cfg_has adv_clis "plain names" &&
-    [[ "$(_hi_cfg_lines adv_clis)" != *"_HI_CONTAINER_CLIS"* ]]
+    "$lines" == *"export _HI_TRUECOLOR=1"* ]]
 }
 
 # Enter at the preset question keeps the current settings: nothing seeded,
@@ -1626,17 +1616,17 @@ function test_hub_junk_is_bounded_and_saves() {
 }
 
 # every digit opens its section and comes back to the hub; the preview box
-# is drawn before the menu. The advanced walk is five Enters; a spare Enter
+# is drawn before the menu. The advanced walk is four Enters; a spare Enter
 # at the hub only redraws it.
 function test_hub_opens_every_section() {
   # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+  PATH="$(_hi_cfg_tmux):$PATH" _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\ns\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
     _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&
     _hi_cfg_has hub_all "Prompt" &&
     _hi_cfg_has hub_all "Advanced settings" &&
-    _hi_cfg_has hub_all "Docker-compatible CLIs" &&
+    _hi_cfg_has hub_all "24-bit color" &&
     _hi_cfg_has hub_all "CFGQUIT=none"
 }
 
@@ -1813,7 +1803,6 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
   _hi_par_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
   _hi_par_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
-  _hi_par_check_capable pty "Advanced values: a bad CLI name is refused" test_advanced_container_clis_rejects_a_bad_name
   _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run

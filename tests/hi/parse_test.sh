@@ -312,25 +312,26 @@ function test_header_probes_every_backend_in_the_roster() {
   # shellcheck disable=SC2031
   for row in "${_HI_BACKENDS[@]}"; do
     name="${row%%|*}"
-    # kube is probed by its CLI's name rather than the roster's; the family
-    # rows are whatever $_HI_CONTAINER_CLIS says, and the header walks that
-    # same list rather than spelling any member (GLOSSARY: HI.51)
+    # kube is probed by its CLI's name rather than the roster's; every family
+    # row is spelled in _hi_probe_launch itself, since header.sh cannot read
+    # this array - which is what pins the two lists together (GLOSSARY: HI.51)
     case "$name" in
     kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || return 1 ;;
     nomad) [[ "$launch" == *nomad* ]] || return 1 ;;
-    *) [[ "$launch" == *_HI_CONTAINER_CLIS* ]] || return 1 ;;
+    *) [[ "$launch" == *"$name"* ]] || return 1 ;;
     esac
   done
 }
 
-# the family rows follow the setting: a list of one is a roster of three, and
-# a member hi was not loaded with has no row to resolve through
-function test_backend_roster_follows_container_clis() {
+# the roster is the whole docker-compatible family and nothing in the
+# environment edits it: every member always has a row to resolve through, and
+# a stale _HI_CONTAINER_CLIS from an older install changes nothing
+function test_backend_roster_is_the_whole_family() {
   local names
   # sourced in a child bash with $0 left as "bash", so hi.sh's
   # `[[ BASH_SOURCE == $0 ]]` hatch reads it as a library, not a run
   names="$(_HI_CONTAINER_CLIS=nerdctl bash -c 'source "$1" >/dev/null 2>&1; printf "%s\n" "${_HI_BACKENDS[@]%%|*}"' bash "$_HI_LAUNCHER")"
-  [ "$names" = "$(printf 'nerdctl\nnomad\nkube\n')" ]
+  [ "$names" = "$(printf 'docker\npodman\nnerdctl\nfinch\nnomad\nkube\n')" ]
 }
 
 function test_resolve_backend_prints_nothing_for_a_stranger() {
@@ -1269,7 +1270,7 @@ function run_hi_parse_tests() {
   _hi_check "Picks the roster's first match" test_resolve_backend_picks_the_first_matching_row
   _hi_check "The roster decides, not the resolver" test_resolve_backend_follows_the_roster_order
   _hi_check "The header counts every backend the roster dispatches" test_header_probes_every_backend_in_the_roster
-  _hi_check "The family rows follow _HI_CONTAINER_CLIS" test_backend_roster_follows_container_clis
+  _hi_check "The family rows are the whole family" test_backend_roster_is_the_whole_family
   _hi_check "Nothing for an unknown target" test_resolve_backend_prints_nothing_for_a_stranger
   _hi_check "Nothing with no backend CLI at all" test_resolve_backend_prints_nothing_without_any_cli
 

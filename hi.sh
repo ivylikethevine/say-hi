@@ -509,11 +509,13 @@ function _hi_is_k8s_pod() {
 
 # The backend roster, in resolution order:
 # "<name>|<what a target resolves as>|<liveness probe>|<predicate>". One list
-# for _hi's dispatch and scripts/doctor.sh's report. The family rows come from
-# $_HI_CONTAINER_CLIS, each with a generated one-word predicate; the `eval` is
-# why a member has to be a plain identifier, which configure.sh enforces.
+# for _hi's dispatch and scripts/doctor.sh's report. The family rows are the
+# docker-compatible CLIs, every one of them, each with a generated one-word
+# predicate. The same four words are spelled in common/targets.sh and
+# common/header.sh, which cannot read this array; the drift suite pins the
+# three together. GLOSSARY: HI.51
 _HI_BACKENDS=()
-for _hi_cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+for _hi_cli in docker podman nerdctl finch; do
   eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $_hi_cli \"\$1\"; }"
   _HI_BACKENDS+=("$_hi_cli|$_hi_cli container|$_hi_cli ps -q|_hi_is_${_hi_cli}_container")
 done
@@ -1913,7 +1915,7 @@ stdout. For a plain, pty-free remote command, use ssh itself.
 <target> is resolved in this order, first match wins:
   1. a literal Host entry in ~/.ssh/config (a wildcard one does not count)
   2. a running container, by name or ID, through docker, podman, nerdctl or
-     finch - whichever of \$_HI_CONTAINER_CLIS answers, in that order
+     finch - whichever of them answers, in that order
   3. a running nomad allocation, by ID or prefix
   4. a kubernetes pod, in whatever context/namespace kubectl points at -
      or namespace:pod / context:namespace:pod for another one

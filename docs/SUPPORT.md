@@ -27,10 +27,9 @@ that reopens a row.
 
 A backend is not one function. A docker-compatible CLI is the exception:
 podman, nerdctl and finch share docker's `ps`/`exec`/`inspect` grammar, so
-they are one arm and a name in `_HI_CONTAINER_CLIS`
-([SETTINGS.md](SETTINGS.md#every-setting), GLOSSARY: HI.51) — a new
-drop-in costs a word in a setting, not a row here. Anything else touches
-seven places:
+they are one arm and a word in the family the tree hardcodes
+(GLOSSARY: HI.51) — a new drop-in costs that word, not a row here. Anything
+else touches seven places:
 
 - **a row in `_HI_BACKENDS`** (`hi.sh`): `<name>|<what a target resolves
 as>|<liveness probe>|<predicate>`, walked by the dispatch and by
@@ -67,7 +66,7 @@ Four arms, one of which answers to four CLIs.
 | target                               | what a name resolves as                                                                         | proven by                                                                                                                                                                                                                                                           |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ssh host ✅                          | a `Host` entry in `~/.ssh/config`, or any name ssh will take                                    | `tests/targets/ssh_test.sh`, plus `ssh_disconnect_test.sh` (cleanup on an abrupt drop), `ssh_relay_test.sh` and `ssh_wire_test.sh` (bytes on the wire vs the printed size)                                                                                          |
-| docker ✅, podman ✅, nerdctl, finch | a running container, through the one docker-grammar arm (`_HI_CONTAINER_CLIS`, GLOSSARY: HI.51) | `tests/targets/docker_test.sh` and `podman_test.sh` - six shell environments each (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case. nerdctl and finch have no hosted runner, so the two suites are what prove the arm they share |
+| docker ✅, podman ✅, nerdctl, finch | a running container, through the one docker-grammar arm (all four, always on; GLOSSARY: HI.51) | `tests/targets/docker_test.sh` and `podman_test.sh` - six shell environments each (bash, bash interactive, zsh, fish, dash, busybox `sh`) plus the compose-alias case. nerdctl and finch have no hosted runner, so the two suites are what prove the arm they share |
 | nomad ✅                             | a running allocation, or `alloc/task`                                                           | `tests/targets/nomad_test.sh`, against a real `nomad agent -dev`                                                                                                                                                                                                    |
 | kubernetes ✅                        | a running pod, `pod/container`, `ns:pod`, `ctx:ns:pod`                                          | `tests/targets/kube_test.sh`, against a real kind cluster                                                                                                                                                                                                           |
 

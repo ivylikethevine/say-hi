@@ -673,14 +673,14 @@ own. hi writes nothing into a target's login files
 
 `env | grep ^_HI_` in a process started from an interactive hi shell shows
 core.sh's `_HI_CHILD_ENV` roster and nothing else with the prefix. The roster
-is seven names:
+is six names:
 
 - `$_HI_HOME` and `$_HI_CONFIG_DIR` — the overlay on a target is wherever
   `hi.sh` put it, and cannot be re-derived;
 - `$_HI_REMOTE_SESSION`;
 - `$_HI_SESSION_RC` — HI.46's wrappers are re-defined in every nested shell;
-- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, `_HI_CONTAINER_CLIS` — the knobs `sh targets.sh` reads straight off its
-  environment from a completion.
+- `_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT` — the knobs `sh targets.sh` reads
+  straight off its environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
 `common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
@@ -826,15 +826,21 @@ back to the plain name on their own.
 ## HI.51 docker-compatible CLI family
 
 docker, podman, nerdctl and finch take the same `ps --format`, `exec -i[t]`
-and `container inspect -f` grammar, so hi has one container arm and a
-setting, `_HI_CONTAINER_CLIS` (default `docker podman nerdctl finch`),
-naming which binaries to try, in that order. Each member is its own kind:
-`common/targets.sh` builds its roster from the list and emits `<name>\t<cli>`
-per lane, `hi.sh` generates one `_HI_BACKENDS` row and one predicate per
-member at load, and `common/header.sh` starts one probe lane per member on
-`$PATH`. A member that is absent costs a builtin `command -v` on TAB and one
-background subshell per `hi <target>` in `_hi_resolve_backend`; a present one
-is one parallel lane, capped like every other (HI.26).
+and `container inspect -f` grammar, so hi has one container arm and tries all
+four, in that order. Each member is its own kind: `common/targets.sh` builds
+its roster from the family and emits `<name>\t<cli>` per lane, `hi.sh`
+generates one `_HI_BACKENDS` row and one predicate per member at load, and
+`common/header.sh` starts one probe lane per member on `$PATH`. A member that
+is absent costs a builtin `command -v` on TAB and one background subshell per
+`hi <target>` in `_hi_resolve_backend`; a present one is one parallel lane,
+capped like every other (HI.26). That is the whole cost of a member nobody
+has installed, which is why the family is the same four words everywhere and
+not a setting: there was nothing for a shorter list to buy.
+
+The three files spell those words themselves - `hi.sh` builds a bash array,
+`common/targets.sh` is standalone POSIX that no bash file can source, and
+`common/header.sh` reads neither - so `tests/lint/drift_test.sh` pins the
+three spellings to each other.
 
 Two members can front one daemon — `podman-docker` ships a `docker` that
 execs podman, nerdctl and finch share a containerd — and would list every
@@ -844,10 +850,10 @@ files, since the IDs are the daemon's. The compose-service alias stays
 docker's: podman honours the `.Label` template, nerdctl and finch are
 unverified, and a template one rejects would empty its lane.
 
-`--use <backend>` forces any arm by name, ssh and every roster row included, and
-is the only way to: there is no per-backend flag, so a member added to the
-list is reachable with no second spelling. Names are plain identifiers (`[A-Za-z0-9_]`) because `hi.sh`'s
-per-member predicate is `eval`-defined; `scripts/configure.sh` enforces it.
+`--use <backend>` forces any arm by name, ssh and every roster row included,
+and is the only way to: there is no per-backend flag, so a member added to
+the family is reachable with no second spelling. Names stay plain identifiers
+(`[A-Za-z0-9_]`): `hi.sh`'s per-member predicate is `eval`-defined.
 
 ## HI.52 client multiplexer wrap
 

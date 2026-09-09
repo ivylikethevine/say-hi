@@ -225,8 +225,6 @@ function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
 # seconds, as timeout(1) takes them: whole or with a fraction
 function _hi_is_seconds() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
 # plain identifiers, space-separated: hi.sh names a function after each one
-function _hi_is_cli_list() { [[ "$1" =~ ^[A-Za-z0-9_]+(\ [A-Za-z0-9_]+)*$ ]]; }
-
 function _hi_has_no_single_quote() {
   case "$1" in *\'*) return 1 ;; esac
 }
@@ -700,7 +698,7 @@ function config_hub() {
     printf '   2) %-12s %s\n' "[h]eader" "what the header shows and in what order; its width, the package check's depth, the addresses hidden"
     printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
     printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
-    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color, the container CLI roster"
+    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, tmux, glyphs, 24-bit color"
     printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
     printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
     menu_read " > " reply || return 0
@@ -1131,8 +1129,8 @@ function config_prompt() {
   done
 }
 
-# The advanced section's free-text half: the glyph policy and the container
-# CLI roster. Each keeps its current value on Enter and clears the override
+# The advanced section's free-text half: the glyph policy and the 24-bit
+# color verdict. Each keeps its current value on Enter and clears the override
 # when the answer is the shipped default, like config_max_width.
 function config_advanced_values() {
   local current value choice
@@ -1155,17 +1153,13 @@ function config_advanced_values() {
     "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
   case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_TRUECOLOR "$value"
-
-  ask_setting_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" _hi_is_cli_list \
-    "plain names separated by spaces, like: docker podman" \
-    "(containers) Docker-compatible CLIs hi lists and reaches containers through, in order (space-separated; podman, nerdctl and finch all speak docker's grammar)?"
 }
 
 # The advanced section: a short question walk rather than a menu - these are
 # asked once in a blue moon, and Enter through them keeps every value. The
 # hub's menu item is the gate; a run that never opens it never changes them.
 function config_advanced() {
-  section "Advanced settings" "The leading space, tmux, the glyphs, 24-bit color and the container CLI roster. Enter keeps each value."
+  section "Advanced settings" "The leading space, tmux, the glyphs and 24-bit color. Enter keeps each value."
   ask_prompt_group _HI_ADVANCED_PROMPTS
   config_advanced_values
 }
@@ -1229,7 +1223,6 @@ function collect_setting_lines() {
   _hi_collect_group _HI_ADVANCED_PROMPTS
   _hi_collect_value _HI_ASCII ""
   _hi_collect_value _HI_TRUECOLOR ""
-  _hi_collect_value _HI_CONTAINER_CLIS "docker podman nerdctl finch" quoted
 }
 
 # _hi_has_setting_lines - is there anything to write? A loop, not

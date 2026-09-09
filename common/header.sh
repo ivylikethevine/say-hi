@@ -557,8 +557,10 @@ function _hi_probe_launch() {
   # too so a direct cell read (the suites, hi --doctor) still probes
   [ -z "$_HI_PROBE_DIR" ] || return 0
   # one lane per docker-compatible CLI on $PATH (GLOSSARY: HI.51); the cell
-  # below unions the lanes, so two CLIs fronting one daemon count once
-  for cli in ${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}; do
+  # below unions the lanes, so two CLIs fronting one daemon count once. The
+  # same four words are in hi.sh and common/targets.sh, pinned together by
+  # the drift suite
+  for cli in docker podman nerdctl finch; do
     command -v "$cli" &>/dev/null && clis="$clis${clis:+ }$cli"
   done
   command -v nomad &>/dev/null && nomad=1

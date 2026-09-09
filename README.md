@@ -142,8 +142,8 @@ everything weighed and answered **no**, and why.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
   shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), `ssh` for
-  ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, see
-  `_HI_CONTAINER_CLIS`) and `nomad`/`kubectl` for those backends. hi has
+  ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, all four
+  tried) and `nomad`/`kubectl` for those backends. hi has
   no protocol of its own: `ssh` is the transport, `base64` is armor, not
   crypto ([docs/SECURITY.md](docs/SECURITY.md)).
 - **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod

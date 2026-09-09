@@ -5,8 +5,8 @@
 # bash, zsh and fish completions all read it. Standalone POSIX - fish shells
 # out to it, and it runs on whatever /bin/sh a target has.
 # Usage: sh targets.sh [ssh|<cli>|nomad|kube|flags [<command>]|words <flag>]
-#        (<cli> = a member of $_HI_CONTAINER_CLIS: docker, podman, nerdctl,
-#        finch by default; no argument = every backend; `flags` = hi's own
+#        (<cli> = one of the docker-compatible CLIs: docker, podman, nerdctl
+#        or finch; no argument = every backend; `flags` = hi's own
 #        options instead, `flags --install` a local command's own switches,
 #        `words --use` the word a flag takes)
 # GLOSSARY: HI.26 - _HI_PROBE_TIMEOUT and _HI_TARGETS_TTL
@@ -24,8 +24,10 @@
 kind="${1:-all}"
 # The docker-compatible family, once: the `words` arm below and the probe
 # roster further down both walk it, and the two exits are far enough apart
-# that they read as unrelated files. GLOSSARY: HI.51
-clis="${_HI_CONTAINER_CLIS:-docker podman nerdctl finch}"
+# that they read as unrelated files. hi.sh and common/header.sh spell the same
+# four words - neither can source this file - and the drift suite pins the
+# three together. GLOSSARY: HI.51
+clis="docker podman nerdctl finch"
 
 # hi's own flags, so `hi --<TAB>` completes them like a target: one
 # "<flag>\t<help>" line each, the target lines' shape, so fish shows the
@@ -77,8 +79,8 @@ fi
 
 # The word after a flag that takes one, so `hi --preview <TAB>` and
 # `hi --use <TAB>` complete it the way a flag completes: "<word>\t<help>"
-# lines. --use's roster is the arms hi.sh dispatches on - ssh, every member of
-# $_HI_CONTAINER_CLIS, nomad, kube - spelled here because a completion can
+# lines. --use's roster is the arms hi.sh dispatches on - ssh, the whole
+# docker-compatible family, nomad, kube - spelled here because a completion can
 # reach this file without hi.sh (parse_test.sh pins the two against each
 # other); --preset's is configure.sh's table, pinned the same way by
 # targets_test.sh. Answered before the probes, like the flags. The membership
