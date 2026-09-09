@@ -625,33 +625,6 @@ function _hi_ctl_close() {
   return 0
 }
 
-# The sh script _hi_remote_root runs on the target: the path of a permanent
-# say-hi there, or nothing. Its own function so a suite can run it with no ssh
-# hop. GLOSSARY: HI.33 - the candidate order and the two ordered seds
-function _hi_remote_root_probe() {
-  # the home-rc column with the *target's* $HOME, plus the packaged snippet
-  local rcs="" home_rc
-  while IFS='|' read -r _ _ _ home_rc _; do
-    rcs="$rcs \"\$HOME${home_rc#"$HOME"}\""
-  done < <(_hi_shell_rows)
-  printf '_c=$(for _f in%s /etc/profile.d/say-hi.sh; do\n' "$rcs"
-  cat <<'PROBE'
-  [ -f "$_f" ] && sed -n -e 's/^[[:space:]]*export  *_HI_HOME=//p' -e 's/^[[:space:]]*set -gx  *_HI_HOME  *//p' "$_f"
-done | sed -e '/^"/!s/[[:space:]]*#.*$//' -e 's/^"\([^"]*\)".*$/\1/' -e 's/[[:space:]]*$//')
-IFS='
-'
-for _h in $_c "$HOME" "$HOME/.local/share" /usr/local/share /opt /usr/share \
-  "$HOME/.linuxbrew/opt/say-hi/libexec" /home/linuxbrew/.linuxbrew/opt/say-hi/libexec \
-  /opt/homebrew/opt/say-hi/libexec /usr/local/opt/say-hi/libexec; do
-  [ -n "$_h" ] || continue
-  [ -x "$_h/say-hi/hi.sh" ] && [ -f "$_h/say-hi/common/paths.sh" ] && {
-    printf "%s" "$_h/say-hi"
-    exit 0
-  }
-done
-PROBE
-}
-
 # The sh script the first ssh call runs: check for base64, make a scratch
 # directory, take the bootloader off stdin, say where it went. Its own
 # function so a suite can assert on it with no ssh hop.
@@ -698,26 +671,9 @@ function _hi_boot_why() {
   esac
 }
 
-# A path the target reported, or nothing. It is interpolated into a script run
-# back on that same target, so it is refused rather than escaped: absolute,
-# and free of anything a double-quoted heredoc expands or closes on. A space is
-# not hostile - an install directory may carry one. A refusal takes the
-# disposable path, which trusts the target for nothing. An empty answer is the
-# verdict, not an error, so this always returns 0.
-function _hi_trusted_path() {
-  case "$1" in
-  /*) ;;
-  *) return 0 ;;
-  esac
-  case "$1" in
-  *[\"\$\`\\]* | *$'\n'*) return 0 ;;
-  esac
-  printf '%s' "$1"
-}
-
 # _hi_safe_path <path> <bracket-class> - <path> when it is absolute and built
-# only from the class's characters, nothing otherwise: the whitelist twin of
-# _hi_trusted_path, for the scratch directories a target names. Those reach
+# only from the class's characters, nothing otherwise: the gate on every
+# scratch directory a target names. Those reach
 # commands run back on that target, `rm -rf` among them, so anything that is
 # not a path mktemp just made is refused. The class varies per caller, the
 # rule does not. An empty answer is the verdict, so this always returns 0.
@@ -730,24 +686,6 @@ function _hi_safe_path() {
   *[!$2]*) return 0 ;;
   esac
   printf '%s' "$1"
-}
-
-# The path of a permanent say-hi on $DOMAIN, if any.
-#
-# stderr is deliberately *not* redirected: this call opens the ControlMaster,
-# so it carries the server's `Banner`, the "Permanently added" line and, on an
-# unknown host, the key fingerprint. ssh reads the yes/no from /dev/tty but
-# prints the fingerprint to stderr, so silencing it left the prompt on screen
-# with the thing it is a prompt *about* thrown away.
-#
-# stdin *is* redirected (-n): without it, anything typed or piped ahead goes
-# to the probe's `sh -c`, which never reads it, and the session shell then
-# waits on input that is already gone. The prompts come from /dev/tty.
-function _hi_remote_root() {
-  local out
-  out="$(_hi_ssh_sh "$(_hi_remote_root_probe)" \
-    "$@" -n -o ConnectTimeout=5)" || out=""
-  printf '%s' "$out"
 }
 
 # GLOSSARY: HI.15
@@ -961,7 +899,7 @@ function _hi_esc_pair() {
   printf -v "$2" '%b' "$NC"
 }
 
-# What both _say_hi branches need once their setup is done: report copy time,
+# What _say_hi needs once its setup is done: report copy time,
 # then hand off to bash or to the best fallback shell. Expects \$_hi_rc_dir to
 # point at wherever hi.bashrc/.hi_fallback_rc lives. GLOSSARY: HI.23 - the flag
 # order and fish's -C arm. The `*)` arm (sh/dash/ash) appends the prompt there
@@ -1020,7 +958,15 @@ function _hi_remote_middle() {
       trap 'rm -rf \$_HI_CLEANUP' exit
       _hi_rc_dir="\$_HI_ROOT"
       printf '%s %s%s' "$_hi_esc" "$_hi_nc" "$size" >&2
-      echo "$bootloader" | $_HI_UNARMOR > "\$_hi_rc_dir/hi.bashrc"
+      { printf 'export _HI_HOME="%s"\nexport _HI_ROOT="%s"\n' "\$_HI_HOME" "\$_HI_ROOT"
+        echo "$bootloader" | $_HI_UNARMOR
+      } > "\$_hi_rc_dir/hi.bashrc"
+      # ^ the rc names this session's tree itself rather than trusting the
+      # environment to still hold it: a target that carries a say-hi of its own
+      # exports _HI_HOME for it from the startup files bash reads before an
+      # --rcfile (load.sh's _hi_restore_profile guards the same thing on the
+      # chain it sources itself). The fallback rc below needs no such line - no
+      # profile chain runs on that tier.
       echo "$tree" | $_HI_UNARMOR | tar mxzf - -C "\$_HI_HOME"
       $overlay_line
       export _HI_CONNECT_PREFIX=" $size"
@@ -1030,7 +976,7 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size script middle boot_tmp remote_root tmp_root ctl_path ctl_dir ctl_shared ct ec=0
+  local size script middle boot_tmp ctl_path ctl_dir ctl_shared ct ec=0
   local _hi_esc _hi_nc
   _hi_esc_pair _hi_esc _hi_nc
   local bootloader="" tree="" overlay_line=""
@@ -1046,8 +992,8 @@ function _say_hi() {
   # real stream
   _hi_read_lines overlay < <(_hi_overlay_files)
 
-  # warm the caches while the round trip below is in flight, so a miss's
-  # ~70-130ms build costs nothing once the disposable branch needs it
+  # warm the caches while _hi_ctl_open below settles, so a miss's ~70-130ms
+  # build is not paid in series with the connect
   (
     _hi_payload_cached _hi_warm
     ((${#overlay[@]})) && _hi_overlay_cached _hi_warm "${overlay[@]}"
@@ -1055,56 +1001,42 @@ function _say_hi() {
   ) >/dev/null 2>&1 &
   local warm_bg=$!
 
-  # multiplex the install-probe and the real session over one ssh connection;
-  # `shared` tries to reuse one already authenticated for this target
+  # multiplex the bootloader write and the real session over one ssh
+  # connection; `shared` tries to reuse one already authenticated for this
+  # target
   _hi_ctl_open 30 shared
-  remote_root="$(_hi_remote_root "${ctl_opts[@]}")"
-  remote_root="$(_hi_trusted_path "$remote_root")"
 
-  if [ -n "$remote_root" ]; then
-    # $remote_root is always <home>/<tree>
-    tmp_root="${remote_root%/*}"
-    middle="$(
-      cat <<REMOTE
-      export _HI_HOME="$tmp_root"
-      export _HI_ROOT="$remote_root"
-      _hi_rc_dir="\$(dirname "\$0")"
-      printf '%s %s%s' "$_hi_esc" "$_hi_nc" "-> local say-hi install" >&2
-      $(_hi_bootloader | _hi_armored_line '>' '"$_hi_rc_dir/hi.bashrc"')
-      export _HI_CONNECT_PREFIX="-> local say-hi install"
-REMOTE
-    )"
-  else
-    # only this branch reads what the warm built, so only this branch waits:
-    # the permanent-install arm above never sends that tar. The orphan
-    # finishes its own atomic mv after hi has moved on.
-    wait "$warm_bg" 2>/dev/null || true
-    bootloader="$(_hi_bootloader | $_HI_ARMOR)"
-    tree="$(_hi_payload_stream)"
-    # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
-    if ((${#overlay[@]})); then
-      overlay_line="mkdir -p \"\$_HI_ROOT/config\"
+  # the tars the script carries. The orphaned warm finishes its own atomic mv
+  # after hi has moved on.
+  wait "$warm_bg" 2>/dev/null || true
+  bootloader="$(_hi_bootloader | $_HI_ARMOR)"
+  tree="$(_hi_payload_stream)"
+  # the overlay's own stream, omitted when empty (GLOSSARY: HI.41)
+  if ((${#overlay[@]})); then
+    overlay_line="mkdir -p \"\$_HI_ROOT/config\"
 $(_hi_overlay_stream "${overlay[@]}")"
-    fi
-    size="$_HI_SIZE_TOKEN"
-    middle="$(_hi_remote_middle)"
   fi
+  size="$_HI_SIZE_TOKEN"
+  middle="$(_hi_remote_middle)"
 
   script="$(_hi_remote_preamble)
 $middle
 $(_hi_remote_suffix)"
 
   # the true byte count, substituted for the token (GLOSSARY: HI.44)
-  if [ -z "$remote_root" ]; then
-    size="$(_hi_human_bytes "${#script}")"
-    script="${script//$_HI_SIZE_TOKEN/$size}"
-  fi
+  size="$(_hi_human_bytes "${#script}")"
+  script="${script//$_HI_SIZE_TOKEN/$size}"
 
   # The bootloader rides stdin of the first of two calls on one connection,
   # and the write doubles as the POSIX-shell-and-base64 probe that selects the
   # PowerShell fallback. GLOSSARY: HI.19 - the argv cap, and why two calls.
-  # Keeps its stderr for _hi_remote_root's reason: where the ControlMaster
-  # could not be opened, this is the call that authenticates.
+  #
+  # Its stderr is deliberately *not* redirected: this is the call that opens
+  # the ControlMaster and authenticates, so it carries the server's `Banner`,
+  # the "Permanently added" line and, on an unknown host, the key fingerprint.
+  # ssh reads the yes/no from /dev/tty but prints the fingerprint to stderr,
+  # so silencing it would leave the prompt on screen with the thing it is a
+  # prompt *about* thrown away.
   #
   # The *target* names the directory and prints it back. A client-side
   # `mktemp -u` would name a path in the **client's** $TMPDIR - on every macOS

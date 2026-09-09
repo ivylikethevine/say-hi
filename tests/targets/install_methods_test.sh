@@ -5,13 +5,12 @@
 # the .apk, a Homebrew-shaped keg, a system-wide `install.sh --prefix`, and a
 # packaged tree whose /etc/profile.d announcement has been taken away.
 #
-# One question in all six: hi has to *find the tree that is already there and
-# use it in place*, rather than armoring its payload over the wire on top of it.
-# That is what _hi_remote_root's probe decides, and each method reaches a
-# different tier of it - profile.d for the three packages, the standard install
-# prefixes for the two that announce themselves nowhere. A case that merely
-# produced a working session would prove nothing: hi copying its payload over
-# produces one too. So every case asserts $_HI_ROOT *is* the installed path.
+# One question in all six: the method leaves a *working* say-hi on that box,
+# and a hi session to it is unaffected by one being there. hi ships its payload
+# to every ssh target now - it does not read a say-hi the target already has -
+# so each case asserts the session runs out of its own tree ($_HI_ROOT is not
+# the installed path) and that the installed tree is still sitting there,
+# whole, when the session is gone.
 #
 # ssh_test.sh is the sibling suite, and the split is deliberate: that one varies
 # the login shell against one install, this one varies the install against one
@@ -72,15 +71,15 @@ function _hi_build_packages() {
 }
 
 # _hi_method_case <label> <image> <login-shell> <installed-root> <post> - one
-# installation method. The probe command is the whole assertion: $_HI_ROOT has
-# to be the tree the installer left, which only happens when _hi_remote_root
-# answered. <post> runs inside the container afterwards, for the half a
-# transcript cannot show - that hi wrote no second tree anywhere.
+# installation method. The probe command is half the assertion: the session
+# has to work *and* run out of a tree that is not the installed one. <post>
+# runs inside the container afterwards, for the half a transcript cannot show
+# - that the installed tree is still there and untouched.
 function _hi_method_case() {
   local label="$1" image="$2" shell="$3" root="$4" post="${5:-}"
   _hi_run_case "$label" "$image" "$shell" \
-    "$(_hi_probe_cmd "$_HI_TEST_MARKER" installed_at "$root")" \
-    "$post" 'local say-hi install'
+    "$(_hi_probe_cmd "$_HI_TEST_MARKER" rooted_elsewhere "$root")" \
+    "$post"
 }
 
 # shellcheck disable=SC2034 # the <method>_ok flags are read as ${!okvar} at the dispatch loop
@@ -162,19 +161,18 @@ function run_install_methods_tests() {
   _hi_pty_stdin auto
   _hi_par_begin "install methods"
 
-  # Every case's post-check says the same thing in its own words: no tree was
-  # written anywhere but where the installer put it. /tmp/*.hi.* is what a
-  # payload unpack leaves, and it is the failure this whole suite exists to
-  # catch - a green session over a wastefully copied tree.
-  local no_copy='! ls -d /tmp/*.hi.* >/dev/null 2>&1 && ! test -e /home/hitest/say-hi'
+  # Every case's post-check says the same thing in its own words: the tree the
+  # installer put there is still whole once the session has gone, and the
+  # session's own disposable tree took itself with it (load.sh's clean_all).
+  # A leftover /tmp/*.hi.* is the failure this half exists to catch.
+  local intact='! ls -d /tmp/*.hi.* >/dev/null 2>&1'
 
-  # <label>:<suffix>:<remote root>:<skip reason>:<extra post-check>. The
+  # <label>:<suffix>:<installed root>:<skip reason>:<extra post-check>. The
   # suffix names both the <suffix>_ok flag the build phase above set and the
   # $_HI_SSH_CASE_PREFIX-<suffix>-img-$$ image it built; the extra post-check
-  # (last field, so its spaces survive the split) joins $no_copy with &&. The
-  # brew, prefix and unannounced tiers-of-last-resort each carry the sentinel
-  # their fixture planted, so the post-check proves the session landed in
-  # *that* tree rather than in one hi built at the same path.
+  # (last field, so its spaces survive the split) joins $intact with &&. Each
+  # case checks the installer's own hi.sh is still executable where it put it,
+  # and the three tiers whose fixture plants a sentinel check that too.
   local -a methods=(
     "deb:deb:/usr/share/say-hi:no nfpm to build the .deb, or the image failed:"
     "rpm:rpm:/usr/share/say-hi:no nfpm to build the .rpm, or the fedora image failed:"
@@ -190,7 +188,7 @@ function run_install_methods_tests() {
     okvar="${suffix}_ok" # ${!okvar} is bash 2, not a bash-4 form
     if [ "${!okvar}" -eq 1 ]; then
       _hi_par_case "$label" _hi_method_case "$label" "$_HI_SSH_CASE_PREFIX-$suffix-img-$$" /bin/bash \
-        "$root" "$no_copy${extra:+ && $extra}"
+        "$root" "$intact && test -x $root/hi.sh${extra:+ && $extra}"
     else
       _hi_skip "[$label]" "$reason"
     fi

@@ -155,31 +155,61 @@ function _hi_scheme_hex() {
   printf -v "$1" '%s' "${_hi_sh_t:$((_hi_sh_i * 7)):6}"
 }
 
-# _hi_color_escape_at <outvar> <index> - the literal '\e[..m' string for
+# _hi_color_escape_at <outvar> <index> [hex] - the literal '\e[..m' string for
 # slot <index> (the two characters backslash-e, which every palette variable
 # holds; a consumer's final printf '%b' makes it an ESC). One SGR: the
 # 16-color pair first, then ;38;2;r;g;b when the scheme and the terminal
 # both say so, so a terminal that ignores the second keeps the first, and
 # header.sh's hue and width readers still see one escape. The pair is
 # $_HI_COLOR_FALLBACK's for <index> mod 24, so a second-bank slot wears the
-# same 16-color half as its name. GLOSSARY: HI.50
+# same 16-color half as its name. <hex> is a settings/colors row's own
+# rrggbb (its optional fourth column): it stands in for the scheme's hex for
+# this one escape, and a terminal with no 24-bit color still gets the slot's
+# pair, so a pinned hex never costs a pin its 16-color half. GLOSSARY: HI.50
 function _hi_color_escape_at() {
-  local _hi_ce_h _hi_ce_rgb="" _hi_ce_p
-  _hi_scheme_hex _hi_ce_h "$2"
+  local _hi_ce_h="${3:-}" _hi_ce_rgb="" _hi_ce_p
+  if [ -n "$_hi_ce_h" ]; then
+    _hi_has_truecolor || _hi_ce_h=""
+  else
+    _hi_scheme_hex _hi_ce_h "$2"
+  fi
   [ -n "$_hi_ce_h" ] && _hi_ce_rgb=";38;2;$((16#${_hi_ce_h:0:2}));$((16#${_hi_ce_h:2:2}));$((16#${_hi_ce_h:4:2}))"
   _hi_ce_p="${_HI_COLOR_FALLBACK:$(($2 % 24 * 3)):2}"
   printf -v "$1" '\\e[%s;3%s%sm' "${_hi_ce_p:0:1}" "${_hi_ce_p:1:1}" "$_hi_ce_rgb"
 }
 
+# _hi_color_split <namevar> <hexvar> <value> - a resolved color as its two
+# halves: the palette name, and the rrggbb a settings/colors row pinned for
+# it in its optional fourth column (empty when there was none). Every
+# resolved color is one shape or the other - "brgreen" or "brgreen#3ba55d" -
+# so the three readers below answer a pinned color exactly where they answer
+# a bare name, and everything between _hi_colors_scan and them (the memos,
+# $_HI_TARGET_COLOR over the wire, preview.sh's grouping) carries one string
+# and needs to know nothing. GLOSSARY: HI.50
+function _hi_color_split() {
+  case "$3" in
+  *'#'*)
+    printf -v "$1" '%s' "${3%%#*}"
+    printf -v "$2" '%s' "${3#*#}"
+    ;;
+  *)
+    printf -v "$1" '%s' "$3"
+    printf -v "$2" '%s' ''
+    ;;
+  esac
+}
+
 # _hi_color_base <outvar> <name> - the 16-color name behind <name>: itself
 # for the first twelve, the fallback pair's name for an extra (orange gives
 # bryellow). What zsh's %F{} and fish's set_color take when there is no hex
-# to hand them; an unknown name answers itself.
+# to hand them; an unknown name answers itself, and a pinned hex is dropped -
+# the name half is the whole of what those two understand.
 function _hi_color_base() {
-  local _hi_cb_i=0 _hi_cb_n _hi_cb_p
-  printf -v "$1" '%s' "$2"
+  local _hi_cb_i=0 _hi_cb_n _hi_cb_p _hi_cb_b _hi_cb_h
+  _hi_color_split _hi_cb_b _hi_cb_h "$2"
+  printf -v "$1" '%s' "$_hi_cb_b"
   for _hi_cb_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_cb_n" = "$2" ] && {
+    [ "$_hi_cb_n" = "$_hi_cb_b" ] && {
       _hi_cb_p="${_HI_COLOR_FALLBACK:$((_hi_cb_i * 3)):2}"
       printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
       return 0
@@ -207,15 +237,19 @@ function _hi_ramp_ok() {
   [ "$_hi_ro_c" = 8 ]
 }
 
-# _hi_color_escape_var <outvar> <name> - by name; unknown names reset,
-# $NO_COLOR blanks the lot. Every hashed color comes through here.
+# _hi_color_escape_var <outvar> <name> - by name, or by a pinned
+# "<name>#<rrggbb>"; unknown names reset, $NO_COLOR blanks the lot. A pinned
+# hex still has to name a palette color, since that name is the 16-color half
+# of the escape (and all a 16-color terminal will see). Every hashed color
+# comes through here.
 function _hi_color_escape_var() {
-  local _hi_cv_i=0 _hi_cv_n
+  local _hi_cv_i=0 _hi_cv_n _hi_cv_b _hi_cv_h
   printf -v "$1" '%s' ''
   [ -n "${NO_COLOR:-}" ] && return 0
+  _hi_color_split _hi_cv_b _hi_cv_h "$2"
   for _hi_cv_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_cv_n" = "$2" ] && {
-      _hi_color_escape_at "$1" "$_hi_cv_i"
+    [ "$_hi_cv_n" = "$_hi_cv_b" ] && {
+      _hi_color_escape_at "$1" "$_hi_cv_i" "$_hi_cv_h"
       return 0
     }
     _hi_cv_i=$((_hi_cv_i + 1))
@@ -223,16 +257,24 @@ function _hi_color_escape_var() {
   printf -v "$1" '%s' "$NC"
 }
 
-# _hi_color_hex <outvar> <name> - rrggbb for <name> under the scheme, empty
-# when the escape would be the plain 16-color one; zsh's %F{#..} and fish's
-# set_color take the hex where the escape form does not fit
+# _hi_color_hex <outvar> <name> - rrggbb for <name> under the scheme, or the
+# row's own hex when the pin carried one, empty when the escape would be the
+# plain 16-color one; zsh's %F{#..} and fish's set_color take the hex where
+# the escape form does not fit. A pin's hex outranks the scheme, which is the
+# point of writing one: the scheme says what a *name* renders as, a fourth
+# column says what this one host or user renders as.
 function _hi_color_hex() {
-  local _hi_ch_i=0 _hi_ch_n
+  local _hi_ch_i=0 _hi_ch_n _hi_ch_b _hi_ch_h
   printf -v "$1" '%s' ''
   [ -n "${NO_COLOR:-}" ] && return 0
+  _hi_color_split _hi_ch_b _hi_ch_h "$2"
   for _hi_ch_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_ch_n" = "$2" ] && {
-      _hi_scheme_hex "$1" "$_hi_ch_i"
+    [ "$_hi_ch_n" = "$_hi_ch_b" ] && {
+      if [ -n "$_hi_ch_h" ]; then
+        _hi_has_truecolor && printf -v "$1" '%s' "$_hi_ch_h"
+      else
+        _hi_scheme_hex "$1" "$_hi_ch_i"
+      fi
       return 0
     }
     _hi_ch_i=$((_hi_ch_i + 1))
@@ -660,14 +702,19 @@ function _hi_local_hostname() {
   if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$v"; else printf '%s\n' "$v"; fi
 }
 
-# The two readers of settings/colors' "<type>,<name>,<color>" lines. One walk
-# behind both: they differ only in whether the name field is compared or
-# matched, and the two wrappers below are what the callers and the suites name.
+# The two readers of settings/colors' "<type>,<name>,<color>[,<rrggbb>]"
+# lines. One walk behind both: they differ only in whether the name field is
+# compared or matched, and the two wrappers below are what the callers and
+# the suites name. A row's optional fourth column is that pin's own 24-bit
+# color; it comes back joined to the name as "<color>#<rrggbb>", the shape
+# _hi_color_split reads, and only when it is six hex digits (a leading `#` is
+# allowed and dropped) - anything else is ignored and the row colors by name
+# alone, since a colors file is hand-written and a typo must not cost the pin.
 # _hi_colors_scan <type> <name> <glob?>
 function _hi_colors_scan() {
-  local cur_type cur_name color
+  local cur_type cur_name color hex
   [[ -f "$_HI_COLORS" ]] || return 1
-  while IFS=',' read -r cur_type cur_name color; do
+  while IFS=',' read -r cur_type cur_name color hex; do
     [[ "$cur_type" = "$1" ]] || continue
     if [ -n "$3" ]; then
       case "$cur_name" in
@@ -677,6 +724,10 @@ function _hi_colors_scan() {
     else
       [[ "$cur_name" = "$2" ]] || continue
     fi
+    hex="${hex#\#}"
+    case "$hex" in
+    [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) color="$color#$hex" ;;
+    esac
     printf '%s\n' "$color"
     return 0
   done <"$_HI_COLORS"

@@ -44,22 +44,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: render every tape but demo
+  # One runner per tape. The renders are independent - each tape stands its own
+  # fixtures up and takes them down - and serially they cost the sum of six
+  # renders plus one backend install; in parallel they cost the slowest tape
+  # plus that install, paid six times over on six runners. The `run` tape's
+  # teardown deleting the kind cluster is no longer a reason to order the
+  # roster either: nothing else is sharing its machine.
+  #
+  # A tape added to docs/tapes/generate.sh's roster must be added to `tape`
+  # below too, deciding whether a hosted runner may render it. `demo` is not
+  # here: it is the committed, hand-rendered one.
+  render:
+    name: render ${{ matrix.tape }}
     # Every one of these six tapes needs docker, podman, nomad or kind; the
     # hosted runner carries docker and the steps below install the other three
     # (as ci.yml's e2e-backends does). --require-run makes a tape that stands
     # down for a missing backend a failure, never a green run that rendered
-    # nothing - pages.yml serves the last *successful* run's artifact.
+    # nothing - pages.yml serves the last *successful* run's artifact, and
+    # `collect` below only runs when every tape rendered.
     runs-on: ubuntu-latest
     # Never on a pull request: a tag push, the weekly cron, dispatch only. No
     # trigger above admits pull_request, but this is the same belt-and-braces
     # guard the other non-PR workflows carry.
     if: ${{ github.event_name != 'pull_request' }}
-    # the hosted path pays the apt and kind installs on top of the render
-    timeout-minutes: 60
+    # the hosted path pays the apt and kind installs on top of one render
+    timeout-minutes: 30
     permissions:
       contents: read
+    strategy:
+      # one tape failing must not cancel the five that would have rendered:
+      # the transcripts of the others are what say whether it is that tape or
+      # the renderer
+      fail-fast: false
+      matrix:
+        tape: [packages, editors, overlay, colors, complete, run]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -72,7 +90,9 @@ jobs:
       # the *renderer*, and a missing one is a vhs error rather than a clean
       # stand-down, so the shells go in too (editors and run want zsh, overlay
       # and complete want fish) and --require-run turns each missing one into
-      # a failed tape.
+      # a failed tape. Installed unconditionally rather than per tape: the
+      # roster is generate.sh's to state, and a matrix that had to restate it
+      # would be a second copy to keep true.
       - uses: $/.github/actions/setup-backends
         with:
           extra-packages: zsh fish
@@ -92,14 +112,8 @@ jobs:
           version: v0.11.0
           install-fonts: "true"
 
-      # Named rather than "everything except demo": generate.sh's roster is
-      # ordered on purpose (cheapest first, run last since its teardown deletes
-      # the kind cluster) and naming the tapes keeps it. A tape added to the
-      # roster must be added here too, deciding whether a machine may render it.
-      - name: Render every tape but demo
-        run: >-
-          docs/tapes/generate.sh --require-run
-          packages editors overlay colors complete run
+      - name: Render ${{ matrix.tape }}
+        run: docs/tapes/generate.sh --require-run ${{ matrix.tape }}
 
       # A run that died mid-tape leaves its fixture up on a machine that
       # persists between jobs; always, so a failed render still cleans up.
@@ -107,16 +121,43 @@ jobs:
         if: ${{ always() }}
         run: docs/tapes/generate.sh --down || true
 
+      # One GIF per job, named for its tape; `collect` merges them into the
+      # single artifact pages.yml reads. Short retention: these are the parts,
+      # kept only long enough to debug a run that never reached `collect`.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: demo-gif-${{ matrix.tape }}
+          path: docs/tapes/${{ matrix.tape }}.gif
+          retention-days: 7
+          if-no-files-found: error
+
+  # The six parts as the one artifact pages.yml fetches by name. `needs:` with
+  # no status function, so a single failed tape skips this job and the run is
+  # not a success - which is what keeps the site on the last render where
+  # every GIF was fresh, rather than publishing five new ones beside a stale
+  # sixth.
+  collect:
+    name: collect the GIFs
+    needs: render
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: demo-gif-*
+          merge-multiple: true
+          path: gifs
+
       # pages.yml collects this into the site. 90 days because the site reads
       # the newest successful run, which may be older than the deploy that
-      # wants it (the coverage badge's shape).
+      # wants it (the coverage badge's shape). demo.gif is never here: it is
+      # the committed hand-rendered one and must not ride along as though
+      # fresh - no render job produces it.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: demo-gifs
-          # everything this job rendered and nothing else: demo.gif is the
-          # committed hand-rendered one and must not ride along as though fresh
-          path: |
-            docs/tapes/*.gif
-            !docs/tapes/demo.gif
+          path: gifs
           retention-days: 90
           if-no-files-found: error

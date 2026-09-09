@@ -103,6 +103,23 @@ function test_profile_falls_back_to_bash_login() {
   [[ "${out%%|*}" == bash_login ]]
 }
 
+# A target that carries a say-hi of its own says so in this very chain - a
+# package's /etc/profile.d/say-hi.sh exports `_HI_HOME=/usr/share`, and
+# install.sh writes the same line into a login rc. hi ships its own tree to
+# every target and must go on using it: without the save/restore, the session
+# unpacked one tree and then loaded the target's (paths.sh derives everything
+# from $_HI_HOME), while its own cleanup still removed the tree it unpacked.
+# The e2e suites caught this on four install methods at once; here it is one
+# .profile and no container.
+function test_profile_cannot_move_the_session_tree() {
+  local home="$_HI_WORKDIR/profilehome-hijack" out
+  mkdir -p "$home"
+  printf 'export _HI_HOME=/somewhere/else\nexport _HI_ROOT=/somewhere/else/say-hi\n' >"$home/.profile"
+  out="$(_HI_LOAD_NO_INIT=0 HOME="$home" bash -c \
+    'source "$1/load.sh"; printf "%s|%s" "$_HI_HOME" "$_HI_ROOT"' _ "$_HI_ROOT")"
+  [ "${out%%|*}" = "$_HI_HOME" ] && [ "${out#*|}" = "$_HI_ROOT" ]
+}
+
 # The tree must NOT land on $PATH: on a disposable session $_HI_ROOT is a
 # directory under /tmp, and "no /tmp on PATH" is a line item in every
 # hardening baseline an admin has to answer to. paths.sh's `alias hi=` is
@@ -617,6 +634,7 @@ function run_load_tests() {
   _hi_check ".bash_profile outranks .bash_login and .profile" test_profile_prefers_bash_profile_first
   _hi_check ".bash_login outranks .profile" test_profile_falls_back_to_bash_login
   _hi_check "the tree is never put on PATH" test_tree_is_never_put_on_path
+  _hi_check "A target's profile cannot move the session tree" test_profile_cannot_move_the_session_tree
   _hi_check "the session rc dir carries every shell (HI.46)" test_session_rc_setup_writes_every_shell_and_exports_the_pointers
   _hi_check "only the set session vars are written (HI.47)" test_session_rc_setup_writes_only_the_set_vars
   _hi_check "the session shell reads hi's rc, not \$HOME's" test_session_shell_cmd_points_each_shell_at_his_rc

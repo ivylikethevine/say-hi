@@ -108,9 +108,8 @@ hi's (`_HI_PROMPT=starship`; hi keeps the header, editors and aliases).
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --preview colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
-ssh hosts that carry their own `~/say-hi` (the permanent-install path, hence
-their shorter headers) and their own two-line fish prompt, drawn on the
-colors hi resolved.
+ssh hosts with their own two-line fish prompt, drawn on the colors hi
+resolved.
 
 ![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 

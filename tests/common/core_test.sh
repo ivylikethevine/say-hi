@@ -426,6 +426,78 @@ function test_override_color_localhostname_special_case() {
   [ "$(_HI_COLORS="$colors" _HI_LOCAL_HOSTNAME=testhost _hi_override_color hostname testhost)" = "magenta" ]
 }
 
+# A row's optional fourth column - that pin's own 24-bit color. It comes back
+# joined to the name, "<color>#<rrggbb>", from every reader of the file: the
+# exact pin, the pattern row and the hosttag alike.
+function test_pin_hex_joins_the_name() {
+  local colors="$_HI_WORKDIR/colors.hex"
+  printf 'username,alice,red,3ba55d\nhostname,10.0.1.*,blue,102030\nhosttag,prod,brred,ff5f5f\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_lookup username alice)" = 'red#3ba55d' ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_colors_pattern hostname 10.0.1.7)" = 'blue#102030' ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_override_color hosttag prod)" = 'brred#ff5f5f' ] || return 1
+  [ "$(_HI_COLORS="$colors" _hi_resolve_color username alice)" = 'red#3ba55d' ]
+}
+
+# a leading `#` is how a hex is usually written down, and the digits are
+# read in either case
+function test_pin_hex_accepts_a_leading_hash_and_either_case() {
+  local colors="$_HI_WORKDIR/colors.hexhash"
+  printf 'username,alice,red,#FF00AA\n' >"$colors"
+  [ "$(_HI_COLORS="$colors" _hi_colors_lookup username alice)" = 'red#FF00AA' ]
+}
+
+# The pinned hex is the escape's 24-bit half and outranks the scheme, while
+# the 16-color pair stays the third column's - which is all a terminal
+# without truecolor is given.
+function test_pin_hex_paints_the_escape_over_the_scheme() {
+  local out
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_escape_var out 'red#3ba55d'
+  [ "$out" = '\e[0;31;38;2;59;165;93m' ] || return 1
+  _HI_COLOR_SCHEME="" _HI_TRUECOLOR=1 _hi_color_escape_var out 'brgreen#3ba55d'
+  [ "$out" = '\e[1;32;38;2;59;165;93m' ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_escape_var out 'red#3ba55d'
+  [ "$out" = '\e[0;31m' ] || return 1
+  [ -z "$(NO_COLOR=1 _HI_TRUECOLOR=1 _hi_color_escape 'red#3ba55d')" ] || return 1
+  # the name half still has to be one of the twenty-four: it is the escape's
+  # 16-color half, so an unknown name resets exactly as it does without a hex
+  _HI_TRUECOLOR=1 _hi_color_escape_var out 'nosuch#3ba55d'
+  [ "$out" = "$NC" ]
+}
+
+# zsh's %F{#..} and fish's set_color take the hex; both take the base name,
+# which is the third column's and never carries the pin
+function test_pin_hex_reaches_the_hex_and_base_readers() {
+  local out
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _hi_color_hex out 'red#3ba55d'
+  [ "$out" = '3ba55d' ] || return 1
+  _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=0 _hi_color_hex out 'red#3ba55d'
+  [ -z "$out" ] || return 1
+  _hi_color_base out 'orange#3ba55d'
+  [ "$out" = bryellow ] || return 1
+  out="$(_HI_USER_COLOR='orange#fd971f' _HI_HOST_COLOR=red _HI_TRUECOLOR=1 _hi_prompt_colors)"
+  [ "$out" = $'fd971f bryellow\nred' ]
+}
+
+# A colors file is hand-written: a typo in the fourth column costs the row
+# its hex, never its color.
+function test_pin_hex_ignores_a_malformed_fourth_column() {
+  local colors="$_HI_WORKDIR/colors.hexbad"
+  printf 'username,a,red,zzz\nusername,b,red,12345\nusername,c,red,12345g\nusername,d,red,3ba55d,extra\nusername,e,red,\n' >"$colors"
+  local name
+  for name in a b c d e; do
+    [ "$(_HI_COLORS="$colors" _hi_colors_lookup username "$name")" = red ] || return 1
+  done
+}
+
+function test_zsh_pin_hex_agrees_with_bash() {
+  local colors="$_HI_WORKDIR/colors.hexzsh"
+  printf 'username,alice,orange,3ba55d\n' >"$colors"
+  _hi_shell_agrees "export _HI_COLORS='$colors' _HI_TRUECOLOR=1
+    c=\"\$(_hi_colors_lookup username alice)\"
+    _hi_color_escape_var e \"\$c\"; _hi_color_hex h \"\$c\"; _hi_color_base b \"\$c\"
+    printf '%s|%s|%s|%s' \"\$c\" \"\$e\" \"\$h\" \"\$b\""
+}
+
 # The one ssh_config every tag case reads. Built once by run_core_tests, and
 # $_HI_SSH_TAG_FIXTURE holds the path from then on - the zsh-agreement cases
 # reach the same file through _hi_in_shell's constant _HI_SSH_CONFIG.
@@ -1127,6 +1199,14 @@ function run_core_tests() {
   _hi_check "No match fails" test_override_color_no_match_fails
   _hi_check "LOCALUSER special case" test_override_color_localuser_special_case
   _hi_check "LOCALHOSTNAME special case" test_override_color_localhostname_special_case
+
+  _hi_h2 "Testing: a pin's own hex (settings/colors' fourth column)"
+  _hi_check "The hex joins the name, from every reader" test_pin_hex_joins_the_name
+  _hi_check "A leading # is allowed, either case" test_pin_hex_accepts_a_leading_hash_and_either_case
+  _hi_check "The hex paints the escape, over any scheme" test_pin_hex_paints_the_escape_over_the_scheme
+  _hi_check "zsh and fish get the hex and the base name" test_pin_hex_reaches_the_hex_and_base_readers
+  _hi_check "A malformed fourth column is ignored" test_pin_hex_ignores_a_malformed_fourth_column
+  _hi_check_requires zsh "A pinned hex agrees in zsh" test_zsh_pin_hex_agrees_with_bash
 
   _hi_h2 "Testing: a target with nothing but a shell"
   _hi_check_eq "Hostname falls back to the shell's own" probe-host _hi_barebones _HI_CASE_PROBE=_hi_hostname HOSTNAME=probe-host

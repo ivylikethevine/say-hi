@@ -80,7 +80,7 @@ appear in, alongside *why* they resolve that way (an exact override, an
 ssh-config tag, or the hash of the name).
 
 Takes no arguments. Reads:
-  settings/colors        the type,name,color pins (its own comments explain them)
+  settings/colors        the type,name,color[,rrggbb] pins (its own comments explain them)
   ~/.ssh/config      hosts, and the "# Tags: ..." comments above them
 
 Hosts with no override and no usable tag are left out: they'd render exactly
@@ -267,14 +267,17 @@ function _hi_group_index() {
 # users table: every known real user with a non-default color, plus LOCALUSER
 # and every usertag override as its own "example" row
 function _hi_print_users_table() {
-  local user tag source color_name name_escape uidx=0
-  local users=() usertags=() u_source=()
+  local user tag source color_name name_escape uidx=0 tidx=0
+  local users=() usertags=() u_source=() u_color=() t_color=()
   local w_item=9 w_color=5 w_source=6
   local localuser_color=""
 
   _hi_read_lines users < <(_hi_known_users)
   _hi_read_lines usertags < <(_hi_known_usertags)
 
+  # every palette name fits, and a pin carrying a fourth-column hex resolves
+  # to "<name>#<rrggbb>", which does not - so the widths below are taken from
+  # the colors these rows actually resolve to as well as from the names
   _hi_widen w_color "${_HI_COLOR_NAMES[@]}"
   # ${a[@]+"${a[@]}"} throughout this file, not a plain "${a[@]}": on bash 3.2
   # (macOS) expanding an *empty* array under `set -u` is a fatal "unbound
@@ -289,12 +292,21 @@ function _hi_print_users_table() {
   # a second time for every user.
   for user in "${users[@]}"; do
     u_source[uidx]="$(_hi_color_source username "$user")"
+    u_color[uidx]="$(_hi_resolve_color username "$user")"
     _hi_widen w_source "${u_source[uidx]}"
+    # a default row never renders (the loop below skips it), so it must not
+    # widen the column either
+    [[ "${u_source[uidx]}" = default ]] || _hi_widen w_color "${u_color[uidx]}"
     uidx=$((uidx + 1))
   done
   _hi_widen w_source "local:username"
+  localuser_color=$(_hi_override_color username LOCALUSER 2>/dev/null) || localuser_color=""
+  [[ -n "$localuser_color" ]] && _hi_widen w_color "$localuser_color"
   for tag in ${usertags[@]+"${usertags[@]}"}; do
     _hi_widen w_source "usertag:$tag"
+    t_color[tidx]="$(_hi_override_color usertag "$tag")" || t_color[tidx]=""
+    [[ -n "${t_color[tidx]}" ]] && _hi_widen w_color "${t_color[tidx]}"
+    tidx=$((tidx + 1))
   done
 
   _hi_hbar top "$w_item" "$w_color" "$w_source"
@@ -306,9 +318,9 @@ function _hi_print_users_table() {
   uidx=0
   for user in "${users[@]}"; do
     source="${u_source[uidx]}"
+    color_name="${u_color[uidx]}"
     uidx=$((uidx + 1))
     [[ "$source" = default ]] && continue
-    color_name=$(_hi_resolve_color username "$user")
     name_escape=$(_hi_color_escape "$color_name")
     _hi_cell "$w_item" "$name_escape" "$user"
     _hi_cell "$w_color" "$name_escape" "$color_name"
@@ -316,7 +328,7 @@ function _hi_print_users_table() {
     _hi_row_end
   done
 
-  if localuser_color=$(_hi_override_color username LOCALUSER 2>/dev/null); then
+  if [[ -n "$localuser_color" ]]; then
     name_escape=$(_hi_color_escape "$localuser_color")
     _hi_cell "$w_item" "$name_escape" "LOCALUSER"
     _hi_cell "$w_color" "$name_escape" "$localuser_color"
@@ -324,8 +336,11 @@ function _hi_print_users_table() {
     _hi_row_end
   fi
 
+  tidx=0
   for tag in ${usertags[@]+"${usertags[@]}"}; do
-    color_name=$(_hi_override_color usertag "$tag") || continue
+    color_name="${t_color[tidx]}"
+    tidx=$((tidx + 1))
+    [[ -n "$color_name" ]] || continue
     name_escape=$(_hi_color_escape "$color_name")
     _hi_cell "$w_item" "$name_escape" "$tag"
     _hi_cell "$w_color" "$name_escape" "$color_name"
@@ -415,6 +430,7 @@ function _hi_print_hosts_table() {
 
   for gidx in "${!group_order[@]}"; do
     _hi_widen w_source "${group_source[gidx]}"
+    _hi_widen w_color "${group_color[gidx]}"
     read -ra group_names <<<"${group_hosts[gidx]}"
     group_pw[gidx]="$(_hi_group_preview_width "${group_names[@]}")"
     _hi_widen_to w_preview "${group_pw[gidx]}"

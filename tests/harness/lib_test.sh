@@ -67,11 +67,11 @@ function _hi_probe_fixture() {
 }
 
 function _hi_probe_says_ok() {
-  local shape="$1" prelude="$2" root_override="${3:-}" shell="${4:-bash}" home root out
+  local shape="$1" prelude="$2" root_override="${3:-}" shell="${4:-bash}" arg="${5:-}" home root out
   home="$(mktemp -d "$_HI_WORKDIR/probe.XXXXXX")"
   root="$(_hi_probe_fixture "$home")"
   out="$(HOME="$home" _HI_ROOT="${root_override:-$root}" _HI_ALIASES="$root/aliases.sh" \
-    "$shell" -c "$prelude$(_hi_probe_cmd MARK "$shape")" 2>/dev/null)" || true
+    "$shell" -c "$prelude$(_hi_probe_cmd MARK "$shape" "$arg")" 2>/dev/null)" || true
   [[ "$out" == *MARK* ]]
 }
 
@@ -90,9 +90,11 @@ function test_probe_cmd_ssh_fallback_fires_only_with_hi_info() {
     ! _hi_probe_says_ok ssh_fallback "alias hi_info='x'; " /nonexistent/say-hi
 }
 
-function test_probe_cmd_installed_shape_fires_only_when_root_is_home() {
-  _hi_probe_says_ok installed "" &&
-    ! _hi_probe_says_ok installed "" /somewhere/else/say-hi
+# the shape a target that carries its own say-hi is asserted with: the session
+# has to be running out of some other tree than the one named
+function test_probe_cmd_rooted_elsewhere_fires_off_another_tree() {
+  _hi_probe_says_ok rooted_elsewhere "" "" bash /somewhere/else/say-hi &&
+    ! _hi_probe_says_ok rooted_elsewhere "" /somewhere/else/say-hi bash /somewhere/else/say-hi
 }
 
 function test_probe_cmd_fish_shapes_run_under_fish() {
@@ -235,9 +237,12 @@ function test_probe_cmd_rejects_an_unknown_shape() {
 
 function test_probe_cmd_every_shape_ends_with_the_marker() {
   local shape
-  for shape in bash fallback fallback_fish ssh_fallback ssh_fallback_fish installed; do
+  for shape in bash fallback fallback_fish ssh_fallback ssh_fallback_fish; do
     [[ "$(_hi_probe_cmd HI_MARKER_XYZ "$shape")" == *"HI_MARKER_XYZ" ]] || return 1
   done
+  # rooted_elsewhere takes a path; rooted_under is not here because its `case`
+  # wraps the marker and ends with `esac`
+  [[ "$(_hi_probe_cmd HI_MARKER_XYZ rooted_elsewhere /tmp/tree)" == *"HI_MARKER_XYZ" ]]
 }
 
 function test_poll_bool_returns_one_when_never_true() {
@@ -641,7 +646,7 @@ function run_lib_process_tests() {
   _hi_check "Container fallback fires only with the alias" test_probe_cmd_fallback_shape_fires_only_with_the_alias
   _hi_check "Ssh fallback fires only with hi_info" test_probe_cmd_ssh_fallback_fires_only_with_hi_info
   _hi_check_requires fish "Fish shapes run under fish" test_probe_cmd_fish_shapes_run_under_fish
-  _hi_check "Installed shape fires only when \$_HI_ROOT is ~/say-hi" test_probe_cmd_installed_shape_fires_only_when_root_is_home
+  _hi_check "rooted_elsewhere fires only off another tree" test_probe_cmd_rooted_elsewhere_fires_off_another_tree
   _hi_check "Every shape ends with the marker" test_probe_cmd_every_shape_ends_with_the_marker
   _hi_check "Rejects an unknown shape" test_probe_cmd_rejects_an_unknown_shape
 

@@ -2,8 +2,8 @@
 
 How `hi` ships through a package manager, plus [checking a download you did
 not build](#verifying-a-release-download) and [regenerating the demo
-GIFs](#regenerating-the-demo-gifs). Nothing publishes on its own: every
-channel is behind a manual approval, a PR you merge, or a dispatch by hand.
+GIFs](#regenerating-the-demo-gifs). Nothing publishes without an intentional
+act: a `v*` tag only you can push, a PR you merge, or a dispatch by hand.
 
 **What is live today: releases, the package repository and the Homebrew
 tap, not the AUR.** Tagged releases exist (`v0.1.1`, `v0.1.2`, …), the
@@ -180,13 +180,15 @@ Two repository settings under _Settings → Environments_ that no file in the
 tree can set; `release.yml` only names them.
 
 - **`release`** — what `release.yml`'s `publish` and `publish-external.yml`'s
-  `aur` both run in (`tap` runs behind `publish`'s approval in the same run
-  and needs no gate of its own: it opens a PR). _Required reviewers_: you; that is the approval
-  `publish` pauses for, and without it the job publishes unattended.
+  `aur` both run in (`tap` runs behind `publish` in the same run and needs no
+  gate of its own: it opens a PR). _Required reviewers_: **none** - the gate
+  is the branch/tag protection on `v*`, so whoever can push the tag has
+  already made the decision, and `publish` runs unattended. (Adding a reviewer
+  here is what would pause it, and nothing in the tree can set that.)
   _Deployment branches and tags_: a **tag** rule, `v*`, for `publish` running
   on the tag ref - a policy listing only `main` refuses every release, leaving
   `build` green and `publish` failed. The rule is checked when the job starts,
-  so once it exists _Re-run failed jobs_ on that run goes on to the approval;
+  so once it exists _Re-run failed jobs_ on that run goes straight through;
   no new tag is needed. `aur` runs on `workflow_dispatch`, not a tag ref, so add `main`
   (or wherever the dispatch is run from) to the same rule or it hits the
   identical refusal.
@@ -410,7 +412,7 @@ client is told to trust is always the one that signed. The `APKINDEX` is
 signed with the apk's own key (`APK_SIGNING_KEY`), whose public half the
 repository serves as `say-hi.rsa.pub`. A repository secret rather than one
 sealed to the `release` environment, for the apk key's reason: `build` is
-ungated and only signs what `publish` still has to approve. Without the
+ungated and only signs what `publish` still has to ship. Without the
 secret the rpm builds unsigned and `publish` ships no repository, both
 loudly. A signed rpm is the one artifact that is not byte-reproducible
 ([Reproducibility](#reproducibility)).
@@ -491,11 +493,15 @@ Answers go to `~/.config/say-hi/`, never into the tree. `hi --update` refuses
 to move a packaged tree and points at the package manager.
 
 **Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
-`hi.sh`'s `_hi_remote_root` probe reads the package's
-`/etc/profile.d/say-hi.sh` to find `/usr/share/say-hi` and use it in place,
-and `/usr/share` is on the probe's install-prefix list even without that
-snippet (GLOSSARY: HI.33). `tests/targets/install_methods_test.sh` installs a
-real `.deb`, `.rpm` and `.apk` on real targets and asserts exactly that.
+A session ships its own tree to every ssh target and runs out of that, so the
+package on the far end is neither needed nor read — it is there for that
+machine's own shells, and a session leaves it alone.
+`tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm` and
+`.apk` on real targets and asserts exactly that: the session works, out of its
+own tree, and the installed one is untouched afterwards.
+
+The `/etc/profile.d/say-hi.sh` snippet the packages ship is what wires the
+package into a login shell on the machine it is installed on.
 
 ## Regenerating the demo GIFs
 
@@ -512,7 +518,11 @@ release's GIFs can be rendered before its tag exists.
 but `demo` in CI (installing podman, nomad and kind on a hosted runner as
 `ci.yml`'s `e2e-backends` job does) on a tape change, weekly, or on dispatch,
 and hands the GIFs to the Pages build, which serves them from `docs/tapes/`
-beside each tape and the committed `demo.gif`. Nothing is committed back:
+beside each tape and the committed `demo.gif`. One runner per tape, in
+parallel - a `collect` job merges the six into the single `demo-gifs` artifact
+Pages fetches, and is skipped if any tape failed, so the site never mixes a
+fresh render with a stale one. A tape added to `generate.sh`'s roster has to
+be added to that workflow's `tape` matrix as well. Nothing is committed back:
 branch protection refuses a bot commit, the same reason the tests badge is
 published rather than written into README.
 

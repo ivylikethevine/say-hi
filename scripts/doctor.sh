@@ -619,12 +619,12 @@ function _hi_ladder_first() {
 }
 
 # The ssh half: one BatchMode connection, multiplexed exactly like a real
-# session, then the permanent-install probe and a tool inventory over the
-# same socket - so the whole section costs a single authentication.
+# session, then a tool inventory over the same socket - so the whole section
+# costs a single authentication.
 function doctor_ssh_target() {
   DOMAIN="$1"
   SSHARGS=()
-  local ctl_path t0 t1 root tools err
+  local ctl_path t0 t1 tools err
   err="$(mktemp -t hi.doc.err.XXXXXX)"
   # hi.sh's own socket helper, so this probe multiplexes exactly like a real
   # session; BatchMode keeps an unanswerable auth prompt a finding, not a hang
@@ -643,12 +643,7 @@ function doctor_ssh_target() {
   t1="$(_hi_now)"
   rm -f "$err"
   doctor_row connect "ok ($(_hi_elapsed "$t0" "$t1")s to authenticate - later probes reuse the socket)" ok
-  root="$(_hi_remote_root "${ctl_opts[@]}")"
-  if [ -n "$root" ]; then
-    doctor_row install "permanent $root - hi loads it in place, ships nothing"
-  else
-    doctor_row install "none - hi ships $(_hi_wire_estimate) each session"
-  fi
+  doctor_row install "hi ships $(_hi_wire_estimate) each session - a say-hi installed on the target is not used from here"
   # through _hi_ssh_sh, like every other command hi sends: unwrapped, a fish
   # login shell cannot parse the loop and the report claimed the target had
   # nothing - no base64, no bash, all of it false

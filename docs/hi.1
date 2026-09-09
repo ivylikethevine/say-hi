@@ -67,11 +67,8 @@ The payload is base64\-armored through the target's login shell for ssh
 targets, unpacked into a private
 .BR mktemp (1)
 directory, and removed by cleanup traps on exit \- including on an abrupt
-disconnect. If the target has a permanent say-hi (installed with
-.BR install.sh ,
-anywhere \- the location is read from that target's login rc files, and failing
-that from the standard install prefixes), that copy is used in place and left
-alone.
+disconnect. A say-hi installed on the target itself is neither read nor
+touched by a session: it is there for that machine's own shells.
 .SH SESSION SHELL
 The session runs in your login shell when hi styles it (bash, zsh or fish),
 otherwise in the best of fish > zsh > bash. Both halves come off one

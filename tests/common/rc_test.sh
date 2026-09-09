@@ -388,6 +388,27 @@ function test_fish_prompt_leads_with_the_environment() {
   [[ "$out" == " (proj) "* ]]
 }
 
+# ...and with no environment active at all - every prompt outside a venv - the
+# leading space is still there. fish drops a whole concatenated word when a
+# command substitution inside it produces nothing, so the lead written as
+# "$lead"(__hi_env_prompt) vanished on exactly the prompts that had no segment,
+# which is most of them.
+function test_fish_prompt_keeps_the_lead_without_an_environment() {
+  local out
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish)"
+  [[ "$out" == " "* ]] || {
+    _hi_cecho " | fish prompt did not start with the lead: [${out:0:24}]" "$RED"
+    return 1
+  }
+}
+
+# ...and _HI_NO_LEAD_SPACE=1 is what takes it away, in the same place
+function test_fish_prompt_drops_the_lead_when_asked() {
+  local out
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish _HI_NO_LEAD_SPACE=1)"
+  [[ "$out" != " "* ]]
+}
+
 # bash and zsh reach $PS1 through a reference filled by the hook, so what their
 # templates can be asked is the placement: the segment ahead of user@host.
 function test_bash_ps1_leads_with_the_environment_reference() {
@@ -688,6 +709,8 @@ function run_rc_tests() {
   _hi_check "[bash] PS1 puts the segment ahead of user@host" test_bash_ps1_leads_with_the_environment_reference
   _hi_check_requires zsh "[zsh] PS1 puts the segment ahead of user@host" test_zsh_ps1_leads_with_the_environment_reference
   _hi_check_requires fish "[fish] the drawn prompt leads with it" test_fish_prompt_leads_with_the_environment
+  _hi_check_requires fish "...and keeps the lead with no environment" test_fish_prompt_keeps_the_lead_without_an_environment
+  _hi_check_requires fish "..._HI_NO_LEAD_SPACE=1 takes the lead away" test_fish_prompt_drops_the_lead_when_asked
 
   _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh

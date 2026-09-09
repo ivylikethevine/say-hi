@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# What hi actually puts on the wire, measured rather than computed. Two
-# containers, one session each through a byte-counting ProxyCommand: a bare
-# target, where the whole tree goes over, and one with say-hi already
-# installed, where only the bootloader should. Each count is set against the
-# figure hi prints on its connect line - the number _hi_wire_bytes computes,
-# and what the README's payload badge tracks - so the claim is checked against
-# reality on both ends of its range.
+# What hi actually puts on the wire, measured rather than computed. One
+# container, one session, through a byte-counting ProxyCommand: every ssh
+# target gets the whole tree, so there is one cost to measure. The count is
+# set against the figure hi prints on its connect line - the number
+# _hi_wire_bytes computes, and what the README's payload badge tracks - so the
+# claim is checked against reality.
 #
 # The proxy sits between ssh and the socket, so it counts every byte of the
-# SSH stream in each direction: key exchange, authentication, the install
-# probe, the script carrying the armored payload, the session's own traffic.
-# That is the true cost of a connection, and the assertion is that hi's
-# figure is that cost minus a bounded, small overhead - if the overhead grows,
-# something is being sent that the figure does not account for. The
-# container's own eth0 counter is printed beside it (TCP/IP framing included)
-# for the reader, not asserted: docker's port mapping sits between the two.
+# SSH stream in each direction: key exchange, authentication, the script
+# carrying the armored payload, the session's own traffic. That is the true
+# cost of a connection, and the assertion is that hi's figure is that cost
+# minus a bounded, small overhead - if the overhead grows, something is being
+# sent that the figure does not account for. The container's own eth0 counter
+# is printed beside it (TCP/IP framing included) for the reader, not asserted:
+# docker's port mapping sits between the two.
 #
 # Needs docker and a real ssh client, like every ssh-family suite; stands down
-# yellow without them. Not parallel: two cases, and the counts read cleanest
-# one at a time.
+# yellow without them.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -172,11 +170,9 @@ function _hi_wire_rx_bytes() {
 }
 
 # _hi_wire_case <label> <image> <shape> - one measured session. <shape> is
-# `payload` (a bare target: the tree goes over, and the count has to be the
-# claim plus a bounded overhead) or `installed` (a permanent say-hi: hi loads
-# it in place, and the count has to be a small fraction of the claim). Both
-# also assert the session itself worked - a count of a failed connection
-# measures nothing.
+# `payload` is the one shape: the tree goes over, and the count has to be the
+# claim plus a bounded overhead. It also asserts the session itself worked - a
+# count of a failed connection measures nothing.
 function _hi_wire_case() {
   local label="$1" image="$2" shape="$3" name counts out_file exit_code t0 t1 ok=1
   local up down rx0 rx1 claim human overhead limit probe floor printed printed_bytes
@@ -197,7 +193,6 @@ function _hi_wire_case() {
 
   case "$shape" in
   payload) probe="$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)" ;;
-  installed) probe="$(_hi_probe_cmd "$_HI_TEST_MARKER" installed)" ;;
   esac
 
   claim="$(_hi_wire_claim "$probe")"
@@ -259,16 +254,6 @@ function _hi_wire_case() {
     _hi_assert "[$label] the connect line's figure is within $_HI_WIRE_MARGIN% of the claim ($human)" \
       _hi_within_percent "$printed_bytes" "$claim" "$_HI_WIRE_MARGIN" || ok=0
     ;;
-  installed)
-    # no tree crosses: the bootloader, the probe and the handshake are all
-    # there is, and that has to be a small fraction of what a bare target
-    # costs - the point of finding an install in place
-    limit=$((claim / 4))
-    [ "$limit" -lt 16384 ] && limit=16384
-    _hi_cecho " | a bare target would have cost $claim B; limit here $limit B" "$BLUE"
-    _hi_assert "[$label] the session found the install in place" grep -qF 'local say-hi install' "$out_file" || ok=0
-    _hi_assert "[$label] the wire carried a fraction of a bare target's cost" [ "$up" -le "$limit" ] || ok=0
-    ;;
   esac
   [ "$ok" -eq 1 ]
 }
@@ -283,14 +268,8 @@ function run_wire_tests() {
   _hi_wire_proxy_file
 
   _hi_h2 "Building test images"
-  local debian_ok=1 installed_ok=0
+  local debian_ok=1
   _hi_sshd_image "the bare-target measurement" || debian_ok=0
-  # the repo itself is the build context: the working tree lands at ~/say-hi
-  if [ "$debian_ok" -eq 1 ]; then
-    _hi_build_image installed "$_HI_SSH_CASE_PREFIX-installed-$$" "the installed-target measurement" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed)" "$_HI_ROOT" && installed_ok=1
-  fi
   [ "$debian_ok" -eq 1 ] || _hi_stand_down "the sshd image did not build"
 
   _HI_TEST_MARKER="HI_WIRE_TEST_OK"
@@ -298,12 +277,6 @@ function run_wire_tests() {
 
   _hi_suite_begin
   _hi_case _hi_wire_case payload "$_HI_SSHD_IMAGE" payload
-  if [ "$installed_ok" -eq 1 ]; then
-    _hi_case _hi_wire_case installed "$_HI_SSH_CASE_PREFIX-installed-$$" installed
-    docker rmi "$_HI_SSH_CASE_PREFIX-installed-$$" >/dev/null 2>&1 || true
-  else
-    _hi_skip "[installed] the installed image did not build"
-  fi
   _hi_suite_end "wire measurement"
 }
 

@@ -1,4 +1,4 @@
-# Color pins, one "type,name,color" per line. `hi --install` seeds a copy at
+# Color pins, one "type,name,color[,rrggbb]" per line. `hi --install` seeds a copy at
 # ~/.config/say-hi/colors; edit that one - the copy in the tree is the default
 # say-hi ships, and editing it dirties the checkout `hi --update` pulls into.
 #
@@ -9,6 +9,13 @@
 #   teal, lime, violet, salmon, gold, sky, indigo, mint, peach, lavender (a
 #   24-bit color of their own on a truecolor terminal, the nearest of the
 #   sixteen elsewhere)
+# an optional fourth column is that pin's own 24-bit color, six hex digits
+# (a leading # is fine): "hostname,prod-db,brred,ff5f5f" renders prod-db in
+# exactly that red on a truecolor terminal. The third column still has to be
+# a name from the list above and is what a 16-color terminal gets, so pick
+# the nearest one. It beats _HI_COLOR_SCHEME, which says what a *name*
+# renders as; six hex digits is the whole of what is accepted, and anything
+# else is ignored and the row colors by its name alone.
 # a hostname name holding * or ? is a pattern: "hostname,10.0.1.*,red" colors
 # a whole subnet or domain at once. An exact pin and a hosttag both beat it.
 # LOCALUSER and LOCALHOSTNAME are special username/hostname names that match
@@ -19,8 +26,7 @@
 # "hostname,jeff-desktop,..." override still takes priority over these.
 # anything with no pin at all falls back to a hash of the name.
 # run `hi --preview colors` to preview what everything currently resolves to.
-# TODO: add hex_color as an optional 4th column
-#type,name,color
+#type,name,color[,rrggbb]
 hosttag,terminal,brmagenta
 hosttag,baremetal,brred
 hosttag,personal,brblue
