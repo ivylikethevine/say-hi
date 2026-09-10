@@ -71,15 +71,13 @@ function test_config_shell_appends_at_the_end() {
   [[ "$(tail -1 "$target")" == *"hi line"* ]]
 }
 
-# mode read via ls's first field - stat's flags differ GNU/BSD
-# shellcheck disable=SC2012 # the paths are fixtures this suite just wrote
 function test_config_shell_preserves_target_mode() {
   local target="$_HI_WORKDIR/mode" before
   printf 'content\n' >"$target"
   chmod 640 "$target"
-  before="$(ls -l "$target" | awk '{ print $1 }')"
+  before="$(_hi_mode_string "$target")"
   config_shell mode "$target" "hi line"
-  [ "$(ls -l "$target" | awk '{ print $1 }')" = "$before" ]
+  [ "$(_hi_mode_string "$target")" = "$before" ]
 }
 
 # a dotfile manager's hardlinked ~/.bashrc must not be severed by a mv

@@ -213,6 +213,15 @@ function _hi_can_trust_mode_bits() {
   esac
 }
 
+# _hi_mode_string <file> - <file>'s permission string, for a "did the mode
+# survive a rewrite" before/after compare. Read via `ls -l`'s first field,
+# not `stat`, whose flags differ GNU/BSD - `stat -c` is Linux-only, `stat -f`
+# BSD/macOS-only, and there is no portable third spelling.
+function _hi_mode_string() {
+  # shellcheck disable=SC2012 # every caller's path is a fixture it just wrote
+  ls -l "$1" | awk '{ print $1 }'
+}
+
 # _hi_can_mkdir_mode - whether `mkdir -m <mode>` both creates the directory
 # and exits 0. No on MSYS/Cygwin under a Windows-owned temp tree: a real
 # windows-latest run showed the mkdir half landing and the chmod half refused
@@ -235,6 +244,27 @@ function _hi_can_mkdir_mode() {
     rm -rf "$probe"
   fi
   [ "$_HI_CAP_MKDIR_MODE" = yes ]
+}
+
+# _hi_gpg_test_key <homedir> <identity> <err-file> <quick-generate-key args...>
+# - one throwaway, passphrase-free GPG key generated into <homedir> (already
+# made and chmod 700 by the caller, since callers differ on whether a homedir
+# holds one key or several). Launched by hand ahead of the key: a gpg that
+# cannot auto-start its agent (Git for Windows' MSYS build) fails
+# --quick-generate-key with "No agent running" otherwise - harmless where
+# auto-start already works. --pinentry-mode loopback: --batch --passphrase ''
+# alone still has some GnuPG builds (Homebrew's, Git for Windows') reach for a
+# pinentry a headless runner has none of. <err-file>'s stderr is dumped on
+# failure so a platform-only red says why.
+function _hi_gpg_test_key() {
+  local home="$1" identity="$2" err="$3"
+  shift 3
+  gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 || true
+  if ! GNUPGHOME="$home" gpg --batch --quiet --pinentry-mode loopback --passphrase '' \
+    --quick-generate-key "$identity" "$@" 2>"$err"; then
+    _hi_dump_log "gpg --quick-generate-key ($identity) failed" "$err" >&2
+    return 1
+  fi
 }
 
 # Whether gpg is here *and* can reach a gpg-agent from a fresh homedir - what

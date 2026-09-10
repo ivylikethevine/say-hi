@@ -106,8 +106,6 @@ function test_cleanup_sweeps_containers_then_networks() {
 # assertable without docker, which is the point: the suites that use it need a
 # container backend, and a harness bug there looks like a product bug.
 
-function _hi_par_ok() { return 0; }
-function _hi_par_bad() { return 1; }
 function _hi_par_skipper() { _hi_skip "[a skipped case]" "on purpose"; }
 function _hi_par_exits() { exit 0; }
 function _hi_par_says() { printf '%s\n' "$1"; }
@@ -129,8 +127,8 @@ function test_par_case_tallies_pass_fail_and_skip() {
   (
     _hi_suite_begin
     _hi_par_begin "harness probe"
-    _hi_par_case ok _hi_par_ok
-    _hi_par_case bad _hi_par_bad
+    _hi_par_case ok _hi_true
+    _hi_par_case bad _hi_false
     _hi_par_case skipped _hi_par_skipper
     _hi_par_wait
     [ "$_HI_TOTAL" -eq 2 ] && [ "$_HI_FAILED" -eq 1 ] && [ "$_HI_SKIPPED" -eq 1 ]
@@ -148,7 +146,7 @@ function test_par_skip_is_not_reported_as_a_pass() {
   (
     _hi_suite_begin
     _hi_par_begin "harness probe"
-    _hi_par_case ok _hi_par_ok
+    _hi_par_case ok _hi_true
     _hi_par_case skipped _hi_par_skipper
     _hi_par_wait
     printf '%s %s %s\n' "$_HI_TOTAL" "$_HI_FAILED" "${_HI_SKIPPED:-0}" >"$tally"
@@ -169,7 +167,7 @@ function test_par_failed_assertion_is_recapped_once() {
     _HI_FAILS_FILE="$fails"
     _hi_suite_begin
     _hi_par_begin "recap probe"
-    _hi_par_check "a failing case" _hi_par_bad
+    _hi_par_check "a failing case" _hi_false
     _hi_par_wait
   ) >/dev/null 2>&1 || true
   [ "$(grep -c . "$fails")" -eq 1 ] && grep -qxF "a failing case" "$fails"

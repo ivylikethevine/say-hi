@@ -90,21 +90,16 @@ function test_update_dry_run_reports_the_signature() {
   [[ "$out" == *"v0.0.2 is not signed"* && "$out" == *"dry run"* ]]
 }
 
-# _hi_update_gpg_home <name> - a throwaway keyring with one key in it, its
-# path on stdout. Every such home sits under one $_HI_UPDATE_GPG_BASE, which is
-# how the agent each one starts is found and killed at suite end
-# (_hi_update_gpg_cleanup) - gpg-agent outlives the suite otherwise.
+# _hi_update_gpg_home <name> - a throwaway keyring with one key in it (via
+# lib/fixtures.sh's _hi_gpg_test_key), its path on stdout. Every such home
+# sits under one $_HI_UPDATE_GPG_BASE, which is how the agent each one starts
+# is found and killed at suite end (_hi_update_gpg_cleanup) - gpg-agent
+# outlives the suite otherwise.
 #
-# The homedir lives under a short base on /tmp, not $_HI_WORKDIR, for the reason
-# tests/packaging/packaging_test.sh's _hi_mkrepo_keys spells out: gpg talks to
+# The homedir lives under a short base on /tmp, not $_HI_WORKDIR: gpg talks to
 # gpg-agent over a sockaddr_un capped near 104 bytes, macOS's per-user $TMPDIR
 # plus the suite's mktemp -d spends most of that, and macOS has no /run/user
-# for the agent to fall back to. Same fixture, same two lessons: --pinentry-mode
-# loopback, because --batch --passphrase '' alone still has some builds
-# (Homebrew's, Git for Windows') reach for a pinentry a headless runner has
-# none of. Its stderr is kept and dumped on failure rather than discarded, so a
-# platform-only red says why - dumped to *stderr*, because every caller captures
-# this function's stdout with $(...) and would swallow the dump with the path.
+# for the agent to fall back to.
 _HI_UPDATE_GPG_BASE=""
 function _hi_update_gpg_home() {
   local home err="$_HI_WORKDIR/gnupg-$1.err"
@@ -114,15 +109,7 @@ function _hi_update_gpg_home() {
   fi
   home="$_HI_UPDATE_GPG_BASE/$1"
   mkdir -p "$home" && chmod 700 "$home"
-  # launched by hand ahead of the key: a gpg that cannot auto-start its agent
-  # (Git for Windows' MSYS build) fails --quick-gen-key with "No agent
-  # running" otherwise. Harmless where auto-start works.
-  gpgconf --homedir "$home" --launch gpg-agent >/dev/null 2>&1 || true
-  if ! GNUPGHOME="$home" gpg --batch --quiet --pinentry-mode loopback --passphrase '' \
-    --quick-gen-key "hi test <hi@example.invalid>" default default never >/dev/null 2>"$err"; then
-    _hi_dump_log "gpg --quick-gen-key ($1) failed" "$err" >&2
-    return 1
-  fi
+  _hi_gpg_test_key "$home" "hi test <hi@example.invalid>" "$err" default default never || return 1
   printf '%s' "$home"
 }
 function _hi_update_gpg_cleanup() {

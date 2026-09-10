@@ -1022,15 +1022,13 @@ function test_bump_b2_fallback_agrees_with_b2sum() {
   [ "$(b2_of "$f")" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ]
 }
 
-# mode read via ls's first field - stat's flags differ GNU/BSD
-# shellcheck disable=SC2012 # the path is a fixture this suite just wrote
 function test_bump_rewrite_preserves_file_mode() {
   local f="$_HI_WORKDIR/modefix" before
   printf 'pkgver=0\n' >"$f"
   chmod 604 "$f"
-  before="$(ls -l "$f" | awk '{ print $1 }')"
+  before="$(_hi_mode_string "$f")"
   _hi_rewrite "$f" 's/^pkgver=.*/pkgver=1.2.3/'
-  [ "$(ls -l "$f" | awk '{ print $1 }')" = "$before" ]
+  [ "$(_hi_mode_string "$f")" = "$before" ]
 }
 
 # Every channel stamps `^_HI_RELEASE=` into the hi.sh it installs, and the
@@ -2188,7 +2186,8 @@ function test_mkrepo_build_apt_offline() {
 # socket that is a sockaddr_un, capped near 104-108 bytes (hi.sh's ssh
 # ControlPath hits the same cap), and $_HI_WORKDIR's own mktemp -d -t already
 # spends most of that under macOS's long per-user $TMPDIR, which has no
-# /run/user for gpg-agent to fall back to the way it does on Linux.
+# /run/user for gpg-agent to fall back to the way it does on Linux. Each key
+# itself comes from lib/fixtures.sh's _hi_gpg_test_key.
 function _hi_mkrepo_keys() {
   local kd="$_HI_WORKDIR/gpg"
   [ -f "$kd/main.key" ] && return 0
@@ -2199,15 +2198,7 @@ function _hi_mkrepo_keys() {
   for hd in main other; do
     mkdir -p "$hb/$hd"
     chmod 700 "$hb/$hd"
-    # --pinentry-mode loopback: --batch --passphrase '' alone still has
-    # gpg-agent try to confirm the (empty) passphrase through a pinentry
-    # program on some GnuPG builds, which a headless runner has none of.
-    # loopback keeps the confirmation inside gpg itself.
-    if ! gpg --batch --quiet --homedir "$hb/$hd" --pinentry-mode loopback --passphrase '' \
-      --quick-generate-key "say-hi suite $hd" ed25519 sign never 2>"$err"; then
-      _hi_dump_log "gpg --quick-generate-key ($hd) failed" "$err"
-      return 1
-    fi
+    _hi_gpg_test_key "$hb/$hd" "say-hi suite $hd" "$err" ed25519 sign never || return 1
     if ! gpg --batch --quiet --homedir "$hb/$hd" --armor \
       --export-secret-keys >"$kd/$hd.key" 2>"$err"; then
       _hi_dump_log "gpg --export-secret-keys ($hd) failed" "$err"

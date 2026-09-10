@@ -418,13 +418,12 @@ function _hi_env_names() {
 
 # The venv activate scripts leave a marker behind saying they ran in *this*
 # shell: $_OLD_VIRTUAL_PS1 for bash and zsh, an _old_fish_prompt function for
-# fish. These are those markers.
-_HI_VENV_ACTIVATED_bash='_OLD_VIRTUAL_PS1="$ ";'
-_HI_VENV_ACTIVATED_zsh='_OLD_VIRTUAL_PS1="$ ";'
-_HI_VENV_ACTIVATED_fish='function _old_fish_prompt; end;'
-
+# fish. This is that marker, per shell.
 function _hi_venv_activated() {
-  eval "printf '%s' \"\$_HI_VENV_ACTIVATED_$1\""
+  case "$1" in
+  bash | zsh) printf '%s' '_OLD_VIRTUAL_PS1="$ ";' ;;
+  fish) printf '%s' 'function _old_fish_prompt; end;' ;;
+  esac
 }
 
 # zsh and fish keep the prompt the activate script edited, so hi leaves the

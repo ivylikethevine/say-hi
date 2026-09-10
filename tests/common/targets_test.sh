@@ -437,16 +437,13 @@ function test_cache_expires_with_its_ttl() {
 # refresher holds goes away when its mv lands, and the file then says what
 # the shim answers. (An hour-old one, above, is past $stale_for and waits.)
 function test_stale_cache_answers_now_and_refreshes_behind() {
-  local dir="$_HI_WORKDIR/cache-swr" out i
+  local dir="$_HI_WORKDIR/cache-swr" out
   mkdir -p "$dir"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
   ! _hi_has_row "$out" alpha docker || return 1
-  for ((i = 0; i < 50; i++)); do
-    [ -d "$dir/hi.targets.docker.lock" ] || break
-    sleep 0.1
-  done
+  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
@@ -467,16 +464,13 @@ function test_stale_cache_refresh_is_not_doubled() {
 # ...but a lock nobody could still be holding - taken longer ago than any
 # sweep runs - is a dead refresher's, and is taken over rather than obeyed
 function test_stale_cache_dead_lock_is_taken_over() {
-  local dir="$_HI_WORKDIR/cache-swr-dead" out i
+  local dir="$_HI_WORKDIR/cache-swr-dead" out
   mkdir -p "$dir/hi.targets.docker.lock"
   printf '%s\n' "$(($(date +%s) - 120))" >"$dir/hi.targets.docker.lock/at"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
-  for ((i = 0; i < 50; i++)); do
-    [ -d "$dir/hi.targets.docker.lock" ] || break
-    sleep 0.1
-  done
+  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
