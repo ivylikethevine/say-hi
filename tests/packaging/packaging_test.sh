@@ -1855,6 +1855,35 @@ function _hi_in_mkrepo() {
   )
 }
 
+# _hi_in_mkrepo_gpg <dist> <out> <gpg-key> [gpg-public] - _hi_in_mkrepo's
+# shape for gpg_setup specifically: the two _HI_GPG_* variables it reads, and
+# the agent teardown its own trap (below the HI.06 source guard, so sourcing
+# it here never runs the trap) would otherwise have done - kill gpg-agent and
+# remove $_HI_GNUPGHOME once gpg_setup has run, whatever its verdict. Neither
+# gpg_setup's stdout nor its stderr is redirected here, so a caller composes
+# capture/discard on the call exactly as it would around a bare command
+# (`>/dev/null 2>"$err"`, `2>&1`, `2>/dev/null`, ...); the exit status is
+# gpg_setup's own.
+function _hi_in_mkrepo_gpg() {
+  local dist="$1" out="$2" key="$3" public="${4:-}" st
+  (
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_DIST="$dist"
+    _HI_OUT="$out"
+    _HI_GPG_KEY="$key"
+    _HI_GPG_PUBLIC="$public"
+    gpg_setup
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    exit "$st"
+  )
+}
+
 # _hi_mkrepo_docker - a PATH whose `docker` answers `info` and, on `run`,
 # lays down in the mounted /work what the real container would (createrepo_c's
 # repodata/repomd.xml, apk index's per-arch APKINDEX.tar.gz) and keeps the
@@ -2111,8 +2140,8 @@ function test_mkrepo_release_hashes_shape() {
       esac
     fi
   fi
-  # A failure here once had nothing to go on but "FAILED" - dump what
-  # release_hashes actually produced so a repeat names the real shape.
+  # dump what release_hashes actually produced, so a failure names the real
+  # shape rather than a bare "FAILED"
   printf '%s\n' "$out" >"$d/hashes.actual"
   _hi_dump_log "release_hashes' actual output (wanted a lowercase-hex sha256 line)" "$d/hashes.actual"
   return 1
@@ -2203,56 +2232,20 @@ function test_mkrepo_gpg_setup_verdicts() {
     return 1
   }
   # ...a named-but-missing key is a refusal...
-  ! (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$d/absent.key"
-    gpg_setup
-  ) 2>/dev/null || {
+  ! _hi_in_mkrepo_gpg "$d" "$d/repo" "$d/absent.key" 2>/dev/null || {
     _hi_cecho " | a missing --gpg-key should have been refused" "$RED"
     return 1
   }
   _hi_mkrepo_keys || return 1
-  # ...the real key exports its public half beside the repo. gpg_setup's own
-  # $_HI_GNUPGHOME (mkrepo.sh) talks to gpg-agent too, and its trap cleanup
-  # sits below the HI.06 source guard, so sourcing it here never runs it -
-  # kill the agent and remove the homedir ourselves.
-  (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
-    _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/main.asc"
-    gpg_setup >/dev/null
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    [ "$st" -eq 0 ] && [ -s "$d/repo/say-hi.asc" ]
-  ) 2>"$err" || {
+  # ...the real key exports its public half beside the repo...
+  _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/main.asc" \
+    >/dev/null 2>"$err" && [ -s "$d/repo/say-hi.asc" ] || {
     _hi_dump_log "the real key should have exported say-hi.asc" "$err"
     return 1
   }
   # ...and a key that is not the one --public-key names is refused
-  ! (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
-    _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/other.asc"
-    gpg_setup >/dev/null
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    exit "$st"
-  ) 2>/dev/null || {
+  ! _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/other.asc" \
+    >/dev/null 2>&1 || {
     _hi_cecho " | a mismatched --public-key should have been refused" "$RED"
     return 1
   }
@@ -2266,21 +2259,7 @@ function test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one() {
   mkdir -p "$d/repo"
   _hi_mkrepo_keys || return 1
   printf 'this is not a key\n' >"$d/plain.asc"
-  out="$(
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
-    _HI_GPG_PUBLIC="$d/plain.asc"
-    gpg_setup 2>&1
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    exit "$st"
-  )" || rc=$?
+  out="$(_hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$d/plain.asc" 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || return 1
   [ ! -f "$d/repo/say-hi.asc" ] || return 1
   case "$out" in *"$d/plain.asc is missing or not a key"*) return 0 ;; esac
@@ -2413,8 +2392,10 @@ function run_packaging_tests() {
   # only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
   # to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
   _hi_check "The formula dates .TH with the version" grep -qF -- '"--date", version' "$_HI_FORMULA"
-  _hi_check "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
-  _hi_check "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
+  # install_tree links usr/bin/hi, and a host without symlinks (Git Bash) aborts
+  # the stage there - every case that stages through mkpkg.sh needs one
+  _hi_check_capable symlink "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
+  _hi_check_capable symlink "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
 
   _hi_h2 "Testing: packaging/stamp.sh"
   _hi_check "Writes the release line" test_stamp_writes_the_release_line
@@ -2436,9 +2417,9 @@ function run_packaging_tests() {
   _hi_check "Refuses with nothing to stamp" test_stamp_refuses_with_nothing_to_stamp
 
   _hi_h2 "Testing: mkpkg.sh (offline half)"
-  _hi_check "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
+  _hi_check_capable symlink "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
   _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
-  _hi_check "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
+  _hi_check_capable symlink "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
   _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
   _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
   _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
@@ -2460,7 +2441,7 @@ function run_packaging_tests() {
   _hi_check "mkpkg.sh --help names its flags" test_mkpkg_help_names_its_flags
   _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
   _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
-  _hi_check "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
+  _hi_check_capable symlink "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
   _hi_check "touch_epoch falls back without GNU touch" test_mkpkg_touch_epoch_falls_back_without_gnu_touch
 
   _hi_h2 "Testing: packaging/lib.sh's primitives"

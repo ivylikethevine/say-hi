@@ -92,8 +92,8 @@ function _hi_draw_width() {
 # hi_header's row loop, the one caller with a "next row" to hand cells to;
 # every other caller (configure.sh's previews, `hi --doctor`, a suite calling
 # header_row directly) stays unarmed, and unarmed
-# header_row drains its own carry before returning - so standalone output is
-# unchanged from before this cascade existed.
+# header_row drains its own carry before returning - so standalone output
+# carries no cascade.
 _HI_ROW_CARRY_ARMED=0
 declare -a _HI_ROW_CARRY=()
 
@@ -561,10 +561,10 @@ function _hi_probe_launch() {
   # too so a direct cell read (the suites, hi --doctor) still probes
   [ -z "$_HI_PROBE_DIR" ] || return 0
   # one lane per docker-compatible CLI on $PATH (GLOSSARY: HI.51); the cell
-  # below unions the lanes, so two CLIs fronting one daemon count once. The
-  # same four words are in hi.sh and common/targets.sh, pinned together by
-  # the drift suite
-  for cli in docker podman nerdctl finch; do
+  # below unions the lanes, so two CLIs fronting one daemon count once.
+  # $_HI_CONTAINER_CLIS (core.sh); common/targets.sh spells the same four
+  # words again and the drift suite pins the two together.
+  for cli in $_HI_CONTAINER_CLIS; do
     command -v "$cli" &>/dev/null && clis="$clis${clis:+ }$cli"
   done
   command -v nomad &>/dev/null && nomad=1
@@ -610,9 +610,8 @@ function _hi_identity_probe() {
   # One rule for all three backends: a cell appears only when its binary was
   # found and its probe actually ran - the file's existence is that signal,
   # never its content - and once it has, the count prints as-is, zero
-  # included. A reachable-but-idle nomad or kube used to render exactly like
-  # an absent one; a probed-and-empty docker/podman already didn't, and this
-  # brings the other two in line with it rather than the other way round.
+  # included: a reachable-but-idle backend renders its zero, not like an
+  # absent one.
   if [ -n "$_HI_PROBE_DIR" ]; then
     local -a lanes=("$_HI_PROBE_DIR"/containers.*)
     if [ -f "${lanes[0]}" ]; then
@@ -638,7 +637,14 @@ function _hi_identity_probe() {
     _HI_PROBE_DIR=""
   fi
   [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_read_lines lines <"$_HI_SSH_AUTHORIZED_KEYS" && authorized=${#lines[@]}
-  [ -d "$_HI_SSH_DIR" ] && _hi_read_lines lines < <(find "$_HI_SSH_DIR" -type f -name "*.pub") && public=${#lines[@]}
+  # A count only, so no array to build (and no per-line eval to pay for):
+  # _hi_read_lines exists for a caller that wants the lines themselves.
+  if [ -d "$_HI_SSH_DIR" ]; then
+    local _hi_pub_line
+    while IFS= read -r _hi_pub_line || [ -n "$_hi_pub_line" ]; do
+      public=$((public + 1))
+    done < <(find "$_HI_SSH_DIR" -type f -name "*.pub")
+  fi
   _HI_ID_GITID="$user_part"
   _HI_ID_CONTAINERS="${containers:+$BLUE$containers}"
   _HI_ID_JOBS="${jobs:+$BRGREEN$jobs}"
@@ -866,21 +872,20 @@ function hi_header() {
 # priority to the next never reverses direction. A ramp that alternates
 # normal/bright/normal/bright reads a lower priority as louder than the one
 # above it - what "monotonic in both directions" below is guarding against.
+# The shipped ramp, in the eight-name shape $_HI_PACKAGES_PALETTE takes: four
+# installed colors then four missing. _hi_packages_palette below is what
+# splits this into the _HI_YES_NAMES/_HI_NO_NAMES arrays its callers index
+# by priority - the one spelling of the eight names, not two kept in step.
+#
 # The numbered lines below are scraped verbatim by scripts/preview.sh
-# (the run directly above _HI_YES_NAMES, parentheticals dropped): keep the
-# "# <n> <meaning> (<examples>)" shape and add nothing between them and the
-# table.
+# (the run directly above _HI_PACKAGES_RAMP, parentheticals dropped): keep
+# the "# <n> <meaning> (<examples>)" shape and add nothing between them and
+# the assignment.
 # 0 platform trivia (sw_vers, kitty)
 # 1 optional extras (gping, navi)
 # 2 useful tools (make, vim, python3)
 # 3 favorites and core (bat, fzf, awk)
-_HI_YES_NAMES=(cyan green brcyan brgreen)
-_HI_NO_NAMES=(blue magenta bryellow brred)
-# The shipped ramp as one string, in the eight-name shape
-# $_HI_PACKAGES_PALETTE takes - the fallback restores from here rather than
-# repeating the two literals above, which have to stay where they are for
-# preview.sh's scrape.
-_HI_PACKAGES_RAMP="${_HI_YES_NAMES[*]} ${_HI_NO_NAMES[*]}"
+_HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 
 # Palette *names*, not escapes: these are configuration - which of
 # _HI_COLOR_NAMES each priority paints in - and storing them rendered meant
@@ -895,7 +900,7 @@ _HI_PACKAGES_RAMP="${_HI_YES_NAMES[*]} ${_HI_NO_NAMES[*]}"
 # use), four for installed then four for missing, written into settings.sh
 # by hand. Anything else - unset, a typo, the wrong count - is the shipped
 # ramp. preview.sh's scrape (above) stops at the first line starting
-# "_HI_YES_NAMES=", so that assignment has to stay exactly there.
+# "_HI_PACKAGES_RAMP=", so that assignment has to stay exactly there.
 # A ramp is meant to read monotonic 0->3 in both directions - a missing
 # favorite the loudest thing on screen, installed trivia the quietest - and
 # legible on light and dark terminals alike; judge one with
@@ -923,23 +928,17 @@ function _hi_packages_palette() {
 # _hi_ramp_escape <outvar> <palette name> <scheme word count> - the escape a
 # ramp slot paints in. Normally the palette entry for <name>; with a 48-word
 # $_HI_COLOR_SCHEME, the same slot twenty-four further on, which is the second
-# bank that scheme carries for the check alone (HI.50). This used to read the slot
-# back out of an escape's own bytes, because the ramps stored escapes.
+# bank that scheme carries for the check alone (HI.50).
 function _hi_ramp_escape() {
-  local _hi_re_i=0 _hi_re_n
+  local _hi_re_i
   printf -v "$1" '%s' ''
   [ -n "${NO_COLOR:-}" ] && return 0
   [ "${3:-0}" = 48 ] || {
     _hi_color_escape_var "$1" "$2"
     return 0
   }
-  for _hi_re_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_re_n" = "$2" ] && {
-      _hi_color_escape_at "$1" $((_hi_re_i + 24))
-      return 0
-    }
-    _hi_re_i=$((_hi_re_i + 1))
-  done
+  _hi_color_index _hi_re_i "$2" || return 0
+  _hi_color_escape_at "$1" $((_hi_re_i + 24))
 }
 
 # Assigned at source time, as the two escape arrays were before. `|| true`
@@ -971,9 +970,9 @@ function _hi_row_max() {
   printf -v "$1" '%s' "$_hi_rm_max"
 }
 
-# check_line <out-array-name> <line>. The array is the caller's to name: it
-# used to append into a bare `visible`, so both callers had to know that name
-# *and* the \x1f record shape, and one of them is in another file.
+# check_line <out-array-name> <line>. The array is the caller's to name: one
+# caller is in another file, and neither has to know a bare name here or the
+# \x1f record shape.
 function check_line() {
   local pair cmd priority color best best_priority max_priority best_idx=0 idx=0 found=0 symbol rendered
   local mode=both line=$2

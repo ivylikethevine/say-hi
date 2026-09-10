@@ -763,7 +763,7 @@ function test_help_prints_usage_and_stops() {
 }
 
 # anything that is not -h/--help is an error: the flag takes no arguments,
-# and a stray one used to be ignored
+# and a stray one must not be ignored
 function test_packages_stray_argument_is_refused() {
   local out rc=0
   out="$(_hi_render_packages_help nonsense)" || rc=$?

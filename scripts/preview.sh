@@ -13,7 +13,6 @@
 #
 # One script for the three subjects: they share the boxed table (table.sh),
 # the palette they paint with, and the scheme line above every table.
-set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
@@ -158,35 +157,45 @@ function _hi_print_scheme_line() {
 # colors
 #
 
+# _hi_colors_rows <type> - every pinned name of that type, one per line, file
+# order, not deduped - the one walk of $_HI_COLORS behind _hi_pattern_for,
+# _hi_pattern_pins and _hi_colors_names below. Not in core.sh: the colors
+# preview is its only caller, and core.sh ships in the ssh payload under a
+# size budget nothing a target runs should spend.
+function _hi_colors_rows() {
+  local cur_type cur_name
+  [[ -f "$_HI_COLORS" ]] || return 0
+  while IFS=',' read -r cur_type cur_name _; do
+    [[ "$cur_type" = "$1" ]] || continue
+    printf '%s\n' "$cur_name"
+  done <"$_HI_COLORS"
+}
+
 # _hi_pattern_for <name> - the subnet-style pin (hostname row whose name field
 # is a glob) that would color <name>, printed as the glob itself; core.sh's
 # _hi_colors_pattern answers with the color, but the source cell wants the why
 function _hi_pattern_for() {
-  local cur_type cur_name _
-  [[ -f "$_HI_COLORS" ]] || return 1
-  while IFS=',' read -r cur_type cur_name _; do
-    [[ "$cur_type" = hostname ]] || continue
+  local cur_name
+  while IFS= read -r cur_name; do
     case "$cur_name" in
     *[\*\?]*) _hi_ssh_pattern_hit "$1" "$cur_name" || continue ;;
     *) continue ;;
     esac
     printf '%s' "$cur_name"
     return 0
-  done <"$_HI_COLORS"
+  done < <(_hi_colors_rows hostname)
   return 1
 }
 
 # every subnet-style pin, deduped in file order - each gets an example row in
 # the hosts table, since a globbed name never appears in targets.sh's list
 function _hi_pattern_pins() {
-  local cur_type cur_name _
-  [[ -f "$_HI_COLORS" ]] || return 0
-  while IFS=',' read -r cur_type cur_name _; do
-    [[ "$cur_type" = hostname ]] || continue
+  local cur_name
+  while IFS= read -r cur_name; do
     case "$cur_name" in
     *[\*\?]*) printf '%s\n' "$cur_name" ;;
     esac
-  done <"$_HI_COLORS" | awk '!seen[$0]++'
+  done < <(_hi_colors_rows hostname) | awk '!seen[$0]++'
 }
 
 function _hi_color_source() {
@@ -208,15 +217,12 @@ function _hi_color_source() {
 }
 
 # _hi_colors_names <type> [skip-name] - deduped pinned names of that type.
-# Not in core.sh: the colors preview is its only caller, and core.sh ships in
-# the ssh payload under a size budget nothing a target runs should spend.
 function _hi_colors_names() {
-  local cur_type cur_name
-  [[ -f "$_HI_COLORS" ]] || return 0
-  while IFS=',' read -r cur_type cur_name _; do
-    [[ "$cur_type" = "$1" && "$cur_name" != "${2:-}" ]] || continue
+  local cur_name
+  while IFS= read -r cur_name; do
+    [ "$cur_name" != "${2:-}" ] || continue
     printf '%s\n' "$cur_name"
-  done <"$_HI_COLORS" | awk '!seen[$0]++'
+  done < <(_hi_colors_rows "$1") | awk '!seen[$0]++'
 }
 
 # both read settings/colors through the _hi_colors_names above
@@ -262,6 +268,34 @@ function _hi_group_index() {
     i=$((i + 1))
   done
   return 1
+}
+
+# _hi_user_color_memo <user> <tag> <color-outvar> <escape-outvar> - most
+# groups share the same (user, tag) pair (usually the empty tag), and
+# _hi_resolve_color walks settings/colors and ~/.ssh/config to answer one.
+# Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
+# dynamic scoping, the same as _hi_group_index above; _hi_color_escape_var
+# is core.sh's no-fork escape form (core.sh:671), which a memo answering
+# through an outvar can use directly rather than through _hi_color_escape's
+# $( ) wrapper.
+function _hi_user_color_memo() {
+  local i=0 existing color escape
+  for existing in ${_hi_upc_keys[@]+"${_hi_upc_keys[@]}"}; do
+    if [ "$existing" = "$1"$'\x1f'"$2" ]; then
+      printf -v "$3" '%s' "${_hi_upc_colors[i]}"
+      printf -v "$4" '%s' "${_hi_upc_escapes[i]}"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  color="$(_hi_resolve_color username "$1" "$2")"
+  _hi_color_escape_var escape "$color"
+  printf -v escape '%b' "$escape"
+  _hi_upc_keys+=("$1"$'\x1f'"$2")
+  _hi_upc_colors+=("$color")
+  _hi_upc_escapes+=("$escape")
+  printf -v "$3" '%s' "$color"
+  printf -v "$4" '%s' "$escape"
 }
 
 # users table: every known real user with a non-default color, plus LOCALUSER
@@ -356,10 +390,13 @@ function _hi_print_users_table() {
 # combines every real known user plus the "example" users from the users
 # table (LOCALUSER, each usertag) against that host's name(s)
 function _hi_print_hosts_table() {
+  # shellcheck disable=SC2034 # user_color: a required outvar of
+  # _hi_user_color_memo below (its color half), never read on its own - only
+  # user_escape, the memo's second outvar, feeds the render loop
   local name color_name source user user_color user_escape name_escape key
   local cur_line sep sep_w candidate idx idx2 li total_lines itemtext previewtext
   local tag has_usertag
-  local user_width=0 pw pad_preview local_hostname
+  local user_width=0 pw pad pad_preview local_hostname
   local preview_users=() group_order=() group_names=() item_lines=()
   # Five *parallel* indexed arrays sharing one index, rather than associative
   # arrays keyed by $key: `local -A` is bash 4 and macOS ships bash 3.2, where
@@ -367,6 +404,9 @@ function _hi_print_hosts_table() {
   # group_order holds the keys, so it doubles as the lookup table below.
   local group_hosts=() group_source=() group_color=() group_tag=() group_pw=()
   local gidx localhostname_color=""
+  # (user, tag) -> (color, escape), so the render loop below asks
+  # _hi_resolve_color once per pair instead of once per (pair, group)
+  local _hi_upc_keys=() _hi_upc_colors=() _hi_upc_escapes=()
 
   _hi_read_lines preview_users < <(_hi_preview_users)
   _hi_widen user_width ${preview_users[@]+"${preview_users[@]}"}
@@ -499,17 +539,18 @@ function _hi_print_hosts_table() {
 
       if ((li < ${#preview_users[@]})); then
         user="${preview_users[li]}"
-        user_color=$(_hi_resolve_color username "$user" "${group_tag[gidx]}")
-        user_escape=$(_hi_color_escape "$user_color")
+        _hi_user_color_memo "$user" "${group_tag[gidx]}" user_color user_escape
+        # pad after the hostname so the next column lands at the same spot in
+        # every user row beneath it, regardless of that user's name length;
+        # depends only on $user, so once per row rather than once per column
+        printf -v pad '%*s' $((user_width - ${#user})) ''
         previewtext=""
         for idx2 in "${!group_names[@]}"; do
           ((idx2 > 0)) && previewtext+='  '
-          # pad after the hostname so the next column lands at the same spot
-          # in every user row beneath it, regardless of that user's name
-          # length; mirrors HI_PS1 in common/bash.sh - the "@" is yellow,
-          # same as a live ssh session, since that's what connecting to one
-          # of these hosts is
-          previewtext+="${user_escape}${user}${NC}${YELLOW}@${NC}${name_escape}${group_names[idx2]}$(printf '%*s' $((user_width - ${#user})) '')${NC}"
+          # mirrors HI_PS1 in common/bash.sh - the "@" is yellow, same as a
+          # live ssh session, since that's what connecting to one of these
+          # hosts is
+          previewtext+="${user_escape}${user}${NC}${YELLOW}@${NC}${name_escape}${group_names[idx2]}${pad}${NC}"
         done
         printf '%s %b%*s %s\n' "$_HI_BOX_V" "$previewtext" "$pad_preview" "" "$_HI_BOX_V"
       else
@@ -528,15 +569,15 @@ function _hi_print_hosts_table() {
 #
 
 # _hi_priority_meanings - "<priority>\t<meaning>" per priority, read from the
-# comment block header.sh keeps directly above _HI_YES_NAMES, not copied here:
-# that block is the only description of the priorities there is, and a copy
-# would be a second thing to keep true. Only the run of lines immediately
-# preceding _HI_YES counts, so an unrelated "# 2 ..." elsewhere can't join in.
-# The parenthetical examples are dropped - the EXAMPLE column below shows real
-# ones, from the file the header will actually read.
+# comment block header.sh keeps directly above _HI_PACKAGES_RAMP, not copied
+# here: that block is the only description of the priorities there is, and a
+# copy would be a second thing to keep true. Only the run of lines
+# immediately preceding it counts, so an unrelated "# 2 ..." elsewhere can't
+# join in. The parenthetical examples are dropped - the EXAMPLE column below
+# shows real ones, from the file the header will actually read.
 function _hi_priority_meanings() {
   awk '
-    /^_HI_YES_NAMES=/ {
+    /^_HI_PACKAGES_RAMP=/ {
       for (i = 1; i <= n; i++) print buf[i]
       exit
     }
@@ -693,69 +734,66 @@ function _hi_print_priorities_table() {
 # the other half of a rendered row: which of the three marks it ends in, and
 # what each one is saying. The glyphs come from core.sh's _hi_choose_glyphs, so
 # this table follows a terminal onto the ASCII set the same way the header does.
-function _hi_print_marks_table() {
-  # every mark is one visible column, so the MARK column never grows past its
-  # own heading and nothing here has to measure a cell full of escapes
-  local w_mark=4 w_means=5
-  local -a marks=(
-    "$GREEN$_HI_MARK_OK|installed, under the first name the line lists"
-    "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it"
-    "$RED$_HI_MARK_NO|not installed - no name on the line resolved"
-  )
-  local entry glyph means
+# _hi_print_pair_table <heading1> <heading2> <raw|plain> <"<col1>|<col2>" rows...>
+# - the boxed two-column shape _hi_print_marks_table and _hi_print_modes_table
+# both want: measured from the rows (column 1's width starts at its heading's
+# own length, same as each caller's own hardcoded start), then rendered.
+# <raw> skips measuring column 1 and prints it through _hi_cell_raw ... 1 - a
+# mark is one visible column by construction, and measuring it against an
+# escape sequence would be wrong; <plain> measures it and prints it through
+# _hi_cell like column 2.
+function _hi_print_pair_table() {
+  local h1="$1" h2="$2" mode="$3" w1=${#1} w2=${#2}
+  shift 3
+  local -a rows=("$@")
+  local entry c1 c2
 
-  for entry in "${marks[@]}"; do
-    IFS='|' read -r glyph means <<<"$entry"
-    _hi_widen w_means "$means"
+  for entry in "${rows[@]}"; do
+    IFS='|' read -r c1 c2 <<<"$entry"
+    [ "$mode" = raw ] || _hi_widen w1 "$c1"
+    _hi_widen w2 "$c2"
   done
 
-  _hi_hbar top "$w_mark" "$w_means"
+  _hi_hbar top "$w1" "$w2"
   printf '%s %-*s %s %-*s %s\n' \
-    "$_HI_BOX_V" "$w_mark" "MARK" "$_HI_BOX_V" "$w_means" "MEANS" "$_HI_BOX_V"
-  _hi_hbar mid "$w_mark" "$w_means"
-  for entry in "${marks[@]}"; do
-    IFS='|' read -r glyph means <<<"$entry"
-    _hi_cell_raw "$w_mark" 1 "$glyph"
-    _hi_cell "$w_means" "" "$means"
+    "$_HI_BOX_V" "$w1" "$h1" "$_HI_BOX_V" "$w2" "$h2" "$_HI_BOX_V"
+  _hi_hbar mid "$w1" "$w2"
+  for entry in "${rows[@]}"; do
+    IFS='|' read -r c1 c2 <<<"$entry"
+    if [ "$mode" = raw ]; then _hi_cell_raw "$w1" 1 "$c1"; else _hi_cell "$w1" "" "$c1"; fi
+    _hi_cell "$w2" "" "$c2"
     _hi_row_end
   done
-  _hi_hbar bottom "$w_mark" "$w_means"
+  _hi_hbar bottom "$w1" "$w2"
+}
+
+function _hi_print_marks_table() {
+  _hi_print_pair_table MARK MEANS raw \
+    "$GREEN$_HI_MARK_OK|installed, under the first name the line lists" \
+    "$YELLOW$_HI_MARK_ALT|installed, but via one of the alternatives after it" \
+    "$RED$_HI_MARK_NO|not installed - no name on the line resolved"
 }
 
 # the third axis of a line: its leading mode character, which decides whether
 # the row speaks at all. No glyph negotiation here - `-` and `+` are the
 # literal characters the packages file uses.
 function _hi_print_modes_table() {
-  local w_mode=4 w_means=5
-  local -a modes=(
-    "-|speaks only when the whole line is missing"
-    "+|speaks only when something on the line is installed"
+  _hi_print_pair_table MODE MEANS plain \
+    "-|speaks only when the whole line is missing" \
+    "+|speaks only when something on the line is installed" \
     "none|speaks both ways - the default"
-  )
-  local entry flag means
-
-  for entry in "${modes[@]}"; do
-    IFS='|' read -r flag means <<<"$entry"
-    _hi_widen w_mode "$flag"
-    _hi_widen w_means "$means"
-  done
-
-  _hi_hbar top "$w_mode" "$w_means"
-  printf '%s %-*s %s %-*s %s\n' \
-    "$_HI_BOX_V" "$w_mode" "MODE" "$_HI_BOX_V" "$w_means" "MEANS" "$_HI_BOX_V"
-  _hi_hbar mid "$w_mode" "$w_means"
-  for entry in "${modes[@]}"; do
-    IFS='|' read -r flag means <<<"$entry"
-    _hi_cell "$w_mode" "" "$flag"
-    _hi_cell "$w_means" "" "$means"
-    _hi_row_end
-  done
-  _hi_hbar bottom "$w_mode" "$w_means"
 }
 
 # same hatch as scripts/install.sh: sourcing this file defines its functions
 # without rendering anything, which is what tests/scripts/preview_test.sh needs
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
+# Strict mode for the real run only, from here down: core.sh (sourced above)
+# ends with `set +euo pipefail`, so a `set` line placed before it is silently
+# undone, and a script-wide `set -euo pipefail` above the return guard would
+# leak into every test that sources this file for its functions instead of
+# running it. GLOSSARY: HI.15
+set -euo pipefail
 
 case "$_hi_subject" in
 colors)

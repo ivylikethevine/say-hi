@@ -106,7 +106,11 @@ function _hi_run_case() {
     return 1
   fi
 
-  _hi_exec_case "$label" "kube path" "$_HI_TEST_MARKER" "$timeout_s" "$name" "$cmd" && ok=1
+  # a real CI run saw the [sh] shape fail once with no marker and no ash
+  # startup banner - a transient this tree could not reproduce locally, on a
+  # pod _hi_pod_running had already polled Running; see _hi_exec_case in
+  # tests/lib/process.sh for what the retry does and doesn't cover
+  _hi_exec_case "$label" "kube path" "$_HI_TEST_MARKER" "$timeout_s" "$name" "$cmd" "" 2 && ok=1
   kubectl delete pod "$name" --now >/dev/null 2>&1
   [ "$ok" -eq 1 ]
 }
@@ -204,8 +208,8 @@ function _hi_kube_namespace_case() {
 function _hi_pod_running_in() { [ "$(kubectl -n "$1" get pod "$2" -o jsonpath='{.status.phase}' 2>/dev/null)" = Running ]; }
 
 function run_kube_test() {
-  _hi_require kind
-  _hi_require kubectl
+  _hi_require_bin kind
+  _hi_require_bin kubectl
   _hi_require_backend docker "not installed (kind needs it to run cluster nodes)"
 
   _hi_workdir kubetest _hi_kube_cleanup
@@ -260,12 +264,6 @@ function run_kube_test() {
   cat "$_HI_WORKDIR/preload.out" 2>/dev/null || true
 
   _HI_TEST_MARKER="HI_KUBE_TEST_OK"
-
-  # a real CI run saw the [sh] shape fail once with no marker and no ash
-  # startup banner - a transient this tree could not reproduce locally; see
-  # _hi_exec_case in tests/lib/process.sh for what the retry does and doesn't
-  # cover
-  _HI_EXEC_ATTEMPTS=2
 
   _hi_pty_stdin auto "no tty and no python3 to fake one - kubectl exec -it will fail outright, results may be unreliable"
 

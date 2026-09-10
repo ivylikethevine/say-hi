@@ -306,7 +306,7 @@ function _hi_relay_disconnect_case() {
 
 function run_relay_tests() {
   _hi_require_backend docker
-  _hi_require pgrep
+  _hi_require_bin pgrep
 
   _hi_workdir relaytest _hi_relay_cleanup
   _hi_h1 "Testing hi relayed: A -> B -> C"

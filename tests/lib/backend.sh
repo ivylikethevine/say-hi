@@ -111,19 +111,29 @@ function _hi_container_backend_test() {
   # cannot follow (the name is a string there)
   local shell shell_ok=""
   local -a built_images=()
+  # Three independent builds off the same daemon, backgrounded together
+  # rather than run in turn: each writes its own verdict to
+  # $_HI_WORKDIR/<shell>.built and its own heading/log-dump text to
+  # <shell>.par.log, so the presentation still replays in table order below
+  # even though the work overlapped.
   for shell in zsh fish dash; do
     # an empty context: alpine-shell.Dockerfile has no COPY, and the build
     # still wants a directory to be handed
     mkdir -p "$_HI_WORKDIR/$shell"
-    if _hi_build_image "$shell" "hi-${backend}test-$shell-$$" "the $shell fallback" \
-      --build-arg "PKGS=$shell" -f "$(_hi_dockerfile alpine-shell)" "$_HI_WORKDIR/$shell"; then
-      _hi_kv_set shell_ok "$shell" 1
-    else
-      _hi_kv_set shell_ok "$shell" 0
-    fi
-    # recorded whether or not the build succeeded: a half-built tag still
-    # wants removing, and `image rm -f` on a name that never existed is a no-op
     built_images+=("hi-${backend}test-$shell-$$")
+    (
+      if _hi_build_image "$shell" "hi-${backend}test-$shell-$$" "the $shell fallback" \
+        --build-arg "PKGS=$shell" -f "$(_hi_dockerfile alpine-shell)" "$_HI_WORKDIR/$shell"; then
+        printf '1' >"$_HI_WORKDIR/$shell.built"
+      else
+        printf '0' >"$_HI_WORKDIR/$shell.built"
+      fi
+    ) >"$_HI_WORKDIR/$shell.par.log" 2>&1 &
+  done
+  wait
+  for shell in zsh fish dash; do
+    cat "$_HI_WORKDIR/$shell.par.log"
+    _hi_kv_set shell_ok "$shell" "$(cat "$_HI_WORKDIR/$shell.built" 2>/dev/null || printf 0)"
   done
 
   _HI_TEST_MARKER="HI_$(printf '%s' "$backend" | tr '[:lower:]' '[:upper:]')_TEST_OK"

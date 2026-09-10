@@ -27,31 +27,16 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # that is not MSYS.
 export MSYS2_ENV_CONV_EXCL="${MSYS2_ENV_CONV_EXCL:+$MSYS2_ENV_CONV_EXCL;}GNUPGHOME"
 
-# a checkout-shaped tree: the payload plus scripts/, which is what makes
-# --update reachable at all
-function _hi_upd_home() {
-  local home="$_HI_WORKDIR/$1" f
-  mkdir -p "$home/say-hi"
-  for f in common settings load.sh hi.sh scripts; do
-    cp -R "$_HI_ROOT/$f" "$home/say-hi/$f"
-  done
-  printf '%s' "$home"
-}
-
-function _hi_subcmd_home() { _hi_upd_home "$@"; }
-
-function _hi_subcmd_run() {
-  local home="$1"
-  shift
-  (_HI_HOME="$home" "$home/say-hi/hi.sh" "$@" 2>&1)
-}
-
 # _hi_update_fixture <name> - a target-shaped tree that is also a git clone:
 # one commit and tag v0.0.1 locally, an origin.git with a second commit and
 # v0.0.2 that a fetch brings in. Prints the fixture's _HI_HOME.
+#
+# tests/lib/fixtures.sh's _hi_scratch_tree, with scripts/ added to the
+# payload - what makes --update reachable at all; _hi_subcmd_run (same
+# file) runs hi.sh as a process against the result.
 function _hi_update_fixture() {
   local home tree work
-  home="$(_hi_subcmd_home "$1")"
+  home="$(_hi_scratch_tree "$1" common settings load.sh hi.sh scripts)"
   tree="$home/say-hi"
   work="$home/work"
   (
@@ -270,7 +255,7 @@ function test_update_refuses_a_dirty_tree() {
   tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$'
 }
 
-# a branch name is no longer a thing to name: releases are tags
+# a branch name is not a thing to name: releases are tags
 function test_update_refuses_an_unknown_tag() {
   local home out
   home="$(_hi_update_fixture upd-nope)" || return 1
@@ -318,7 +303,7 @@ function test_bare_update_needs_a_release_tag() {
 # package install gets the text too
 function test_update_help_is_his_own() {
   local home out
-  home="$(_hi_subcmd_home subcmd-bare)"
+  home="$(_hi_scratch_tree subcmd-bare common settings load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --update --help)" || return 1
   [[ "$out" == "Usage: hi --update"* && "$out" == *"newest release tag"* && "$out" == *"-n, --dry-run"* ]]
 }
@@ -327,7 +312,7 @@ function test_update_help_is_his_own() {
 # the way forward for each - the package manager, not a releases page
 function test_update_without_git_points_at_the_package_manager() {
   local home out rc=0
-  home="$(_hi_subcmd_home subcmd-bare)"
+  home="$(_hi_scratch_tree subcmd-bare common settings load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --update)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"package manager"* && "$out" == *"brew upgrade say-hi"* ]]
 }

@@ -16,7 +16,6 @@
 # everything after the source line unreachable - it doesn't model hi.sh's
 # BASH_SOURCE guard (same story as tests/hi/parse_test.sh).
 # shellcheck disable=SC2317,SC2329
-set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
@@ -293,18 +292,12 @@ function doctor_local() {
   doctor_row shells "local: ${have:-none?!}"
 }
 
-# old:new, one per setting the 1.0 audit renamed; a row leaves once a release
-# has carried the new name long enough that no settings.sh spells the old one
-_HI_RETIRED_SETTINGS=(_HI_NO_LEAD_SPACE:_HI_DISABLE_LEAD_SPACE
-  _HI_BATCAT_BIN:_HI_CAT_BIN _HI_BAT_REAL:_HI_BAT_BIN _HI_PROMPT:_HI_PROMPT_TOOL)
-
 function doctor_config() {
   local f t v any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
   # Only the absent case here. When the file *is* there, rc.sh's
-  # _HI_OVERLAY_CHECKS already carries a row per parser that reads it, and
-  # doctor_configs walks that table below - this arm was a third hand-written
-  # copy of the same ladder, so settings.sh got two verdicts in two sections.
+  # _HI_OVERLAY_CHECKS carries a row per parser that reads it, and
+  # doctor_configs walks that table below, so settings.sh gets one verdict.
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
   # a scheme nothing renders, and a packages ramp nothing paints (HI.50):
@@ -315,14 +308,6 @@ function doctor_config() {
   fi
   if [ -n "${_HI_PACKAGES_PALETTE:-}" ] && ! _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
     doctor_row pkg-palette "'$_HI_PACKAGES_PALETTE' is ignored - not eight color names" bad
-  fi
-  # the names the 1.0 rename retired (docs/SETTINGS.md): a settings.sh still
-  # spelling one is read by nothing, and nothing else says so
-  if [ -f "$_HI_SETTINGS" ]; then
-    for t in "${_HI_RETIRED_SETTINGS[@]}"; do
-      grep -qE "^[[:space:]]*(export[[:space:]]+)?${t%%:*}=" "$_HI_SETTINGS" &&
-        doctor_row retired "${t%%:*} is now ${t#*:} - rename it in settings.sh" bad
-    done
   fi
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
   # minus settings.sh, which got its richer parse-checked row above
@@ -353,21 +338,19 @@ function doctor_config() {
 # directly rather than a copy of it that could drift from the dispatch.
 # doctor_backends probes column 3, doctor_target times column 4.
 
-# doctor_backend <name> <cli> <probe...> - installed, answering, and how long
-# the answer took; the same _hi_probe ceiling the header and completion use
 # doctor_config_row <label> <file> <check...> - one rc or overlay file through
 # the parser that will read it, as a row; an absent file or an absent parser
-# is no row at all, as in rc.sh's check_one_config (the same rule, so what
-# install.sh would wave through, this waves through).
+# is no row at all. rc.sh's _hi_config_check is the shared gate (the same
+# rule, so what install.sh would wave through, this waves through).
 function doctor_config_row() {
-  local label="$1" target="$2" out
+  local label="$1" target="$2" rc=0
   shift 2
-  command -v "$1" >/dev/null 2>&1 || return 0
-  [ -s "$target" ] || return 0
-  if out="$("$@" "$target" 2>&1)"; then
+  _hi_config_check "$target" "$@" || rc=$?
+  [ "$rc" -ne 2 ] || return 0
+  if [ "$rc" -eq 0 ]; then
     doctor_row "$label" "$target parses ($1)" ok
   else
-    doctor_row "$label" "$target has issues ($1): $(printf '%s' "$out" | sed -n '1p')" bad
+    doctor_row "$label" "$target has issues ($1): $(printf '%s' "$_HI_CONFIG_CHECK_OUT" | sed -n '1p')" bad
   fi
   return 0
 }
@@ -381,14 +364,14 @@ function doctor_configs() {
   local row shell target check file
   doctor_section configs "Shell configs (the rc files and the overlay's shell files, parsed)"
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell _ target check _ <<<"$row"
+    IFS='|' read -r shell _ _ target check _ <<<"$row"
     # shellcheck disable=SC2086 # the check column is a command plus its flag
     doctor_config_row "$shell" "$target" $check
   done
   # the file as the label (the parser is in the row's text): rc.sh's longer
   # labels overflow the report's label column
   for row in "${_HI_OVERLAY_CHECKS[@]}"; do
-    IFS='|' read -r file _ check <<<"$row"
+    IFS='|' read -r file check <<<"$row"
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done
@@ -409,7 +392,7 @@ function doctor_install() {
   local row shell label target dialect other found owner bindir profile
   doctor_section install "The install (what hi --install wired up)"
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target _ _ dialect <<<"$row"
+    IFS='|' read -r shell label _ target _ dialect <<<"$row"
     if ! rc_shell_present "$shell"; then
       doctor_row "$shell" "not installed here, nothing to wire"
     elif [ ! -f "$target" ] || ! grep -qF "$_HI_MARKER" "$target"; then
@@ -473,6 +456,8 @@ function doctor_install() {
   fi
 }
 
+# doctor_backend <name> <cli> <probe...> - installed, answering, and how long
+# the answer took; the same _hi_probe ceiling the header and completion use
 function doctor_backend() {
   local name="$1" t0 t1 rc=0
   shift
@@ -686,6 +671,13 @@ function doctor_ssh_target() {
 
 # GLOSSARY: HI.06 - executed, it runs the report
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
+# Strict mode for the real run only, from here down: core.sh (sourced above)
+# ends with `set +euo pipefail`, so a `set` line placed before it is silently
+# undone, and a script-wide `set -euo pipefail` above the return guard would
+# leak into every test that sources this file for its functions instead of
+# running it. GLOSSARY: HI.15
+set -euo pipefail
 
 [ "$_HI_DOC_JSON" = 1 ] || _hi_h1 "hi doctor"
 doctor_local

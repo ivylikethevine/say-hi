@@ -251,8 +251,7 @@ function test_settings_point_at_the_overlay_before_it_exists() {
 
 # The seven files with a tree default, and the path variable each resolves
 # into. Derived only: an exported value of your own does not survive the
-# source, so the overlay is the one way to move a file (it used to be one
-# of two, until the per-file override went in 0.1.9).
+# source, so the overlay is the one way to move a file.
 _HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_KAKRC)
 
 # the overlay basename each of the seven resolves to, in the same order
@@ -270,7 +269,7 @@ function _hi_full_overlay_dir() {
 
 # an exported path of the user's is re-derived over: with a full overlay it
 # resolves to the overlay's copy, with none to the tree's - never to the
-# export. The inverse of the override that used to live here.
+# export.
 function test_an_exported_path_does_not_survive() {
   local dir i var
   dir="$(_hi_full_overlay_dir)"

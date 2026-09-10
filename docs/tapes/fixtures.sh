@@ -22,6 +22,12 @@ set -euo pipefail
 _HI_DEMO_DIR=/tmp/hi-demo
 _HI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# the sshd entrypoint's common tail - shared with tests/lib/ssh.sh's
+# _hi_sshd_entrypoint so a demo box and an e2e one are locked down the same
+# way, rather than this file drifting its own copy the way it once had
+# shellcheck source=../../tests/dockerfiles/sshd-entrypoint.sh
+source "$_HI_ROOT/tests/dockerfiles/sshd-entrypoint.sh"
+
 # demo_wait_for <what> <cmd...> - poll <cmd> once a second for 30s. Returns 0
 # the first time it succeeds; otherwise names <what> on stderr and returns 1,
 # so a fixture that never came up says which one rather than failing the tape
@@ -77,16 +83,10 @@ end
 EOF
 
   mkdir -p "$_HI_DEMO_DIR/base"
-  cat >"$_HI_DEMO_DIR/base/entrypoint.sh" <<'EOF'
-#!/bin/bash
-set -eu
-mkdir -p /home/hitest/.ssh
-printf '%s\n' "$PUBKEY" >/home/hitest/.ssh/authorized_keys
-chown -R hitest:hitest /home/hitest/.ssh
-chmod 700 /home/hitest/.ssh
-ssh-keygen -A
-exec /usr/sbin/sshd -D -e
-EOF
+  {
+    printf '#!/bin/bash\nset -e\n'
+    printf '%s\n' "$_HI_SSHD_ENTRYPOINT_BODY"
+  } >"$_HI_DEMO_DIR/base/entrypoint.sh"
   docker build -q -t hi-demo-sshd-base \
     -f "$_HI_ROOT/tests/dockerfiles/sshd-debian.Dockerfile" "$_HI_DEMO_DIR/base" >/dev/null
   # A clean copy rather than the live checkout as context: .git and dist/ would

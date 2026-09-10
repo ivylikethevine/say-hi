@@ -34,7 +34,7 @@ function _hi_counting_fixture() {
   _hi_fixture "$1" "$3" "$2 $3${4:+ $4}"
 }
 
-# a suite that stood down without running anything - what _hi_require does
+# a suite that stood down without running anything - what _hi_require_bin does
 # when its backend is missing. Exits 0 like a passing suite, so only the SKIP
 # line in $_HI_COUNTS_FILE tells the runner the two apart.
 function _hi_skipping_fixture() {
@@ -511,7 +511,7 @@ function test_failing_suite_output_replays() {
   [[ "$_HI_RUN_OUT" == *"ran:red"* ]]
 }
 
-# ...and _HI_VERBOSE=1 streams everything, the pre-collapse behavior
+# ...and _HI_VERBOSE=1 streams everything, passing output included
 function test_verbose_streams_passing_output() {
   _HI_RUN_WITH="_HI_VERBOSE=1" _hi_run_runner $'a:green.sh'
   [[ "$_HI_RUN_OUT" == *"ran:green"* ]]

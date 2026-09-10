@@ -305,7 +305,7 @@ function test_out_var_is_precleared_outside_a_repo() {
 # slowest call in the file) keyed on branch.oid, so it only re-runs once HEAD
 # actually moves. Every case above captures output via $( _hi_git_prompt ),
 # which forks a subshell per call and throws the global-var assignment away
-# before it returns - so the memo has never actually fired under test. These
+# before it returns - so the memo never fires in those cases. These
 # two use the out-var form instead (no fork), which is the only way to
 # observe it, and also happens to be the form both production callers use
 # (common/bash.sh, common/zsh.zsh) specifically to skip that per-prompt fork.
@@ -366,7 +366,7 @@ function test_a_new_commit_drops_the_describe_memo() {
 }
 
 function run_git_prompt_tests() {
-  _hi_require git
+  _hi_require_bin git
 
   _hi_workdir gitprompttest
 

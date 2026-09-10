@@ -133,7 +133,7 @@ A researcher, in zsh, sweeping the cluster's backends.
 ![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)
 ![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)
 ![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)
-![Windows MSYS2](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)
+![Windows client](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)
 
 Two questions, answered at two moments: **can hi land a session on that OS at
 all**, and **what shell do you end up in**. Both tables, with a legend and what

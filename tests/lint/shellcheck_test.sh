@@ -104,9 +104,9 @@ function lint_config_dir_sources() {
 # Raising it past the CPU count is not the lever it looks like: shellcheck is
 # single-threaded, and on a 4-core/8-thread box the tests/ subdirectories
 # checked 4 at a time took 12.7s where 8 at a time took 16s (hyperthreads
-# contending), and 12/16/24/32 sat in the same noise. What used to flatten the
-# curve entirely was one 45s chunk no width could split - see _hi_sc_chunks
-# below, which is where the time actually went.
+# contending), and 12/16/24/32 sat in the same noise. What flattens the curve
+# is a chunk no width can split - see _hi_sc_chunks below, which is where
+# the time actually goes.
 function _hi_sc_width() {
   local cpus
   if [ -n "${_HI_SC_WIDTH:-}" ]; then
@@ -137,20 +137,20 @@ function _hi_sc_width() {
 # by file, 32s by directory, repeatably.
 #
 # One tree is the exception: tests/ is 56 of the 105 files, and dealt as one
-# group it was a 45s chunk at every width - the whole lint gate's critical
-# path, whatever the other cores did. Dealt by its second-level directory
+# group it is a 45s chunk at every width - the whole lint gate's critical
+# path, whatever the other cores do. Dealt by its second-level directory
 # instead (tests/lib, tests/hi, tests/common, ...) the largest group is ten
 # files and ~9s, each subdirectory's invocation re-parses the harness tree
 # once (a second or so apiece, the header's own by-file numbers scaled), and
-# the bin-pack below finally has something to balance. Measured on a 4-core
-# box: 50s for the lint group before, ~20s after.
+# the bin-pack below has something to balance. Measured on a 4-core box:
+# 50s for the lint group dealt as one group, ~20s dealt this way.
 #
 # What groups land *with* each other still matters: dealing by `idx % width`
 # (first-seen order) can pile unrelated small groups onto the same chunk as
 # the biggest one purely by index arithmetic, while another chunk sits
-# near-empty - at CI's width=4, `.github` and a root-level file have landed
-# in the biggest chunk this way, inflating the run's critical path for no
-# reason. _hi_sc_chunks below bin-packs groups onto chunks instead (largest
+# near-empty - at CI's width=4, `.github` and a root-level file land in the
+# biggest chunk this way, inflating the run's critical path for no reason.
+# _hi_sc_chunks below bin-packs groups onto chunks instead (largest
 # group first, always onto the currently-smallest chunk) so the chunks come
 # out balanced without ever splitting a group. Width past the number of
 # groups still buys nothing - there is no eighteenth group to hand another
@@ -278,7 +278,7 @@ function _hi_shellcheck_all() {
 }
 
 function run_shellcheck() {
-  # deliberately *not* _hi_require: every other suite skips cleanly when its
+  # deliberately *not* _hi_require_bin: every other suite skips cleanly when its
   # backend is missing, but this one is the lint gate - a missing shellcheck
   # means the check didn't run, which must not read as a pass.
   if ! command -v shellcheck >/dev/null 2>&1; then

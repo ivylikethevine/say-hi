@@ -24,22 +24,19 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # every batch here is plain local processes, no container daemon to spare
 _HI_PAR_LOCAL=1
 
-function _hi_true() { return 0; }
-function _hi_false() { return 1; }
-
 function test_require_returns_for_an_installed_command() {
-  (_hi_require sh)
+  (_hi_require_bin sh)
 }
 
 function test_require_exits_zero_and_warns_when_missing() {
   local out rc=0
-  out="$( (_hi_require definitely-not-a-real-hi-test-command-xyz) )" || rc=$?
+  out="$( (_hi_require_bin definitely-not-a-real-hi-test-command-xyz) )" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"not installed, skipping"* ]]
 }
 
 function test_require_uses_a_custom_reason() {
   local out
-  out="$( (_hi_require definitely-not-a-real-hi-test-command-xyz "unavailable here") )"
+  out="$( (_hi_require_bin definitely-not-a-real-hi-test-command-xyz "unavailable here") )"
   [[ "$out" == *"unavailable here, skipping"* ]]
 }
 
@@ -387,13 +384,14 @@ function test_case_result_says_timed_out_by_name() {
 }
 
 # _hi_retry_run <label> <timeout_s> <shim line>... - one _hi_exec_case run
-# against a fake launcher, proving _HI_EXEC_ATTEMPTS directly rather than only
-# through kube's happy path, which never exercises the retry branch at all
-# when the target answers first try. _HI_PTY_WRAP=() skips pty wrapping (there
-# is nothing to spawn one for); fd 3 is the stdin _hi_exec_case reads via <&3
-# (see _hi_pty_stdin); _HI_FAILS_FILE is emptied so the FAILED verdicts these
-# tests provoke don't land in this suite's own recap, the same trick
-# test_case_result_fails_a_timed_out_case_despite_its_marker uses above.
+# against a fake launcher, proving its <attempts> argument directly rather
+# than only through kube's happy path, which never exercises the retry
+# branch at all when the target answers first try. _HI_PTY_WRAP=() skips pty
+# wrapping (there is nothing to spawn one for); fd 3 is the stdin
+# _hi_exec_case reads via <&3 (see _hi_pty_stdin); _HI_FAILS_FILE is emptied
+# so the FAILED verdicts these tests provoke don't land in this suite's own
+# recap, the same trick test_case_result_fails_a_timed_out_case_despite_its_marker
+# uses above.
 function _hi_retry_run() {
   local label="$1" timeout_s="$2" fake="$_HI_WORKDIR/$1.sh"
   shift 2
@@ -403,8 +401,8 @@ function _hi_retry_run() {
   _HI_RETRY_OUT="$(
     local _HI_PTY_WRAP=()
     exec 3<&0
-    _HI_FAILS_FILE="" _HI_LAUNCHER="$fake" _HI_EXEC_ATTEMPTS=2 \
-      _hi_exec_case "$label" "$label" HI_RETRY_TEST_OK "$timeout_s" t c 2>&1
+    _HI_FAILS_FILE="" _HI_LAUNCHER="$fake" \
+      _hi_exec_case "$label" "$label" HI_RETRY_TEST_OK "$timeout_s" t c "" 2 2>&1
   )" || _HI_RETRY_RC=$?
 }
 
@@ -619,7 +617,7 @@ function run_lib_process_tests() {
   _hi_par_check_requires ssh "Reachability probe fails on a dead port" test_ssh_reachable_fails_against_a_dead_port
   _hi_par_wait
 
-  _hi_h2 "Testing: _hi_require / _hi_require_backend"
+  _hi_h2 "Testing: _hi_require_bin / _hi_require_backend"
   _hi_check "Returns for an installed command" test_require_returns_for_an_installed_command
   _hi_check "Skips (exit 0) when missing" test_require_exits_zero_and_warns_when_missing
   _hi_check "Uses a custom reason" test_require_uses_a_custom_reason

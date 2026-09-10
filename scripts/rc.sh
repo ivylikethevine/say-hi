@@ -73,32 +73,51 @@ function config_shell() {
 # The hi link, the other thing an install leaves on disk. Here beside the rc
 # lines because doctor.sh reads both and sources this file, not install.sh.
 #
+# "<package manager>|<query flags>|<transform>": link_owner's roster, one row
+# per manager instead of one near-identical `if` block. <transform> is empty
+# for "print the output as-is, once it's non-empty", "dpkg" for pkg:arch's
+# leading "<pkg>:" (%%:* strips it), or "apk" for the one manager that answers
+# in a sentence rather than a name (and needs no non-empty check of its own -
+# a sentence without "is owned by" just falls through the case).
+_HI_PKG_QUERY=(
+  "pacman|-Qqo|"
+  "dpkg|-S|dpkg"
+  "rpm|-qf|"
+  "apk|info -W|apk"
+)
+
 # link_owner <path> - the package that owns <path>, on stdout, through
 # whichever package manager is here; failure when none claims it. What keeps
 # a clone's install from taking over a package's /usr/bin/hi, and its
 # uninstall from deleting one.
 function link_owner() {
-  local out
-  if command -v pacman >/dev/null 2>&1 && out="$(pacman -Qqo "$1" 2>/dev/null)" && [ -n "$out" ]; then
-    printf '%s' "$out"
-    return 0
-  fi
-  if command -v dpkg >/dev/null 2>&1 && out="$(dpkg -S "$1" 2>/dev/null)" && [ -n "$out" ]; then
-    printf '%s' "${out%%:*}"
-    return 0
-  fi
-  if command -v rpm >/dev/null 2>&1 && out="$(rpm -qf "$1" 2>/dev/null)" && [ -n "$out" ]; then
-    printf '%s' "$out"
-    return 0
-  fi
-  if command -v apk >/dev/null 2>&1 && out="$(apk info -W "$1" 2>/dev/null)"; then
-    case "$out" in
-    *" is owned by "*)
-      printf '%s' "${out##* is owned by }"
+  local row tool args xform out
+  for row in "${_HI_PKG_QUERY[@]}"; do
+    IFS='|' read -r tool args xform <<<"$row"
+    command -v "$tool" >/dev/null 2>&1 || continue
+    # shellcheck disable=SC2086 # args is a flag list, split on purpose
+    out="$("$tool" $args "$1" 2>/dev/null)" || continue
+    case "$xform" in
+    dpkg)
+      [ -n "$out" ] || continue
+      printf '%s' "${out%%:*}"
+      return 0
+      ;;
+    apk)
+      case "$out" in
+      *" is owned by "*)
+        printf '%s' "${out##* is owned by }"
+        return 0
+        ;;
+      esac
+      ;;
+    *)
+      [ -n "$out" ] || continue
+      printf '%s' "$out"
       return 0
       ;;
     esac
-  fi
+  done
   return 1
 }
 
@@ -147,13 +166,14 @@ function tmpdir_line() {
   esac
 }
 
-# One row per shell hi wires up locally: <shell>|<rc label>|<rc file>|<syntax
-# check cmd>|<hi's rc>|<dialect>. Validation, install and uninstall all loop
-# this roster, so adding a shell is one row plus its lines rather than three
-# disjoint edits.
+# One row per shell hi wires up locally: <shell>|<rc label>|<hi's rc>|<the
+# user's rc>|<syntax check cmd>|<dialect> - _HI_SHELL_TABLE's own column
+# order (core.sh), the fourth column substituted. Validation, install and
+# uninstall all loop this roster, so adding a shell is one row plus its
+# lines rather than three disjoint edits.
 #
 # The rows come from core.sh's _HI_SHELL_TABLE, so a shell added to the
-# roster cannot miss this half. The rc file
+# roster cannot miss this half. The substituted rc file
 # is where *this* user's shell reads it: zsh under $ZDOTDIR and fish under
 # $XDG_CONFIG_HOME when those are set. core.sh's column stays the plain
 # $HOME form, which is what hi.sh's permanent-install probe looks for on a
@@ -164,7 +184,7 @@ while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_
   zsh) _hi_home_rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
   fish) _hi_home_rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish" ;;
   esac
-  _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_home_rc|$_hi_check|$_hi_tree_rc|$_hi_dialect")
+  _HI_RC_TABLE+=("$_hi_shell|$_hi_label|$_hi_tree_rc|$_hi_home_rc|$_hi_check|$_hi_dialect")
 done < <(_hi_shell_rows)
 unset _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_dialect
 
@@ -207,21 +227,38 @@ function install_bash_profile_line() {
   fi
 }
 
+# _hi_config_check <target> <check...> - runs <check...>'s syntax-check flag
+# against <target> (without executing it) and captures its output into
+# $_HI_CONFIG_CHECK_OUT: rc 0 parsed clean, 1 had issues (output in the var),
+# 2 nothing to check (the checker isn't installed, or <target> is
+# missing/empty - "no row at all", as doctor_config_row's comment puts it).
+# The one rule check_one_config and doctor_config_row both render: what
+# install.sh would wave through, hi --doctor waves through too.
+function _hi_config_check() {
+  local target="$1"
+  shift
+  _HI_CONFIG_CHECK_OUT=""
+  command -v "$1" >/dev/null 2>&1 || return 2
+  [ -s "$target" ] || return 2
+  _HI_CONFIG_CHECK_OUT="$("$@" "$target" 2>&1)" && return 0
+  return 1
+}
+
 # Runs $@'s syntax-check flag against an existing rc file (without executing it)
 # and reports what it finds. Skipped silently when the shell isn't installed or
 # $target is missing/empty. The shell is read off the front of $@ rather than
 # passed twice, which every call site had to keep in agreement.
 function check_one_config() {
-  local label="$1" target="$2" out
+  local label="$1" target="$2" rc=0
   shift 2
-  command -v "$1" >/dev/null 2>&1 || return 0
-  [ -s "$target" ] || return 0
-  if out="$("$@" "$target" 2>&1)"; then
+  _hi_config_check "$target" "$@" || rc=$?
+  [ "$rc" -ne 2 ] || return 0
+  if [ "$rc" -eq 0 ]; then
     _hi_cecho " $label ($target) looks valid :)" "$GREEN"
     return 0
   fi
   _hi_cecho " $label ($target) has issues:" "$RED"
-  printf '%s\n' "$out" | sed 's/^/   /'
+  printf '%s\n' "$_HI_CONFIG_CHECK_OUT" | sed 's/^/   /'
   return 1
 }
 
@@ -230,9 +267,9 @@ function check_one_config() {
 # failed so callers can decide what to do about it.
 function check_shell_configs() {
   _hi_h2 "Checking existing shell configs"
-  local bad=0 row shell label target check
+  local bad=0 row shell target check
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check _ <<<"$row"
+    IFS='|' read -r shell _ _ target check _ <<<"$row"
     # the check-column word split is the point: it is a command plus its flag
     # shellcheck disable=SC2086
     check_one_config "$shell" "$target" $check || bad=1
@@ -241,34 +278,22 @@ function check_shell_configs() {
 }
 
 # The overlay's shell-dialect files, each against the parser(s) that will read
-# it on a target: <file>|<label>|<syntax check cmd>. aliases.sh is the one
-# with two rows - it is sourced by bash, zsh *and* fish on every target, in
-# the POSIX+fish subset, and nothing else warns when it steps outside that:
-# an `if` in it works locally and breaks on the first fish target. Rows are
-# skipped silently when the file is not overridden or the parser is not
-# installed, the same way check_one_config treats a missing rc file.
+# it on a target: <file>|<syntax check cmd>, walked by doctor.sh's
+# doctor_configs. aliases.sh is the one with two rows - it is sourced by bash,
+# zsh *and* fish on every target, in the POSIX+fish subset, and nothing else
+# warns when it steps outside that: an `if` in it works locally and breaks on
+# the first fish target. Rows are skipped silently when the file is not
+# overridden or the parser is not installed, the same way check_one_config
+# treats a missing rc file.
 _HI_OVERLAY_CHECKS=(
-  "settings.sh|settings.sh overlay (sh)|sh -n"
-  "settings.sh|settings.sh overlay (fish)|fish --no-execute"
-  "aliases.sh|aliases.sh overlay (sh)|sh -n"
-  "aliases.sh|aliases.sh overlay (fish)|fish --no-execute"
-  "bash.sh|bash.sh overlay|bash -n"
-  "zsh.zsh|zsh.zsh overlay|zsh -n"
-  "config.fish|config.fish overlay|fish --no-execute"
+  "settings.sh|sh -n"
+  "settings.sh|fish --no-execute"
+  "aliases.sh|sh -n"
+  "aliases.sh|fish --no-execute"
+  "bash.sh|bash -n"
+  "zsh.zsh|zsh -n"
+  "config.fish|fish --no-execute"
 )
-
-# Validates whatever of the overlay's shell files exist, before a session
-# ships them to a target. Non-zero if any failed, like check_shell_configs.
-function check_overlay_configs() {
-  _hi_h2 "Checking the config overlay"
-  local bad=0 row file label check
-  for row in "${_HI_OVERLAY_CHECKS[@]}"; do
-    IFS='|' read -r file label check <<<"$row"
-    # shellcheck disable=SC2086 # the check column is a command plus its flag
-    check_one_config "$label" "$_HI_CONFIG_DIR/$file" $check || bad=1
-  done
-  return $bad
-}
 
 # Gate the install on check_shell_configs. Unlike ask_setting, a
 # non-interactive run does *not* wave this through: install.sh rewrites the
@@ -297,10 +322,10 @@ function config_validate_shells() {
 # source of hi's rc for that shell, interactive shells only. bash is the one
 # shell whose rc runs for non-interactive shells too, hence its extra line.
 function install_rc_lines() {
-  local row shell label target check tree_rc dialect
+  local row shell label target tree_rc dialect
   local -a lines
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check tree_rc dialect <<<"$row"
+    IFS='|' read -r shell label tree_rc target _ dialect <<<"$row"
     # a shell that is not here gets no rc file invented for it; the next
     # `hi --install` after it arrives wires it up
     rc_shell_present "$shell" || {
@@ -325,9 +350,9 @@ function install_rc_lines() {
 # marker says it was written - not only on macOS, since a home directory can
 # travel.
 function strip_rc_lines() {
-  local row shell label target check profile="$HOME/.bash_profile"
+  local row shell label target profile="$HOME/.bash_profile"
   for row in "${_HI_RC_TABLE[@]}"; do
-    IFS='|' read -r shell label target check _ <<<"$row"
+    IFS='|' read -r shell label _ target _ _ <<<"$row"
     strip_marker "$label" "$target"
   done
   if _hi_is_darwin || { [ -f "$profile" ] && grep -qF "$_HI_MARKER" "$profile"; }; then

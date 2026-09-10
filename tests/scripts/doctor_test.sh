@@ -198,8 +198,7 @@ function test_config_counts_an_overlay_file() {
 # at their defaults folded into one quiet line
 # the parse verdict is doctor_configs', off rc.sh's _HI_OVERLAY_CHECKS - one
 # row per parser that reads the file. doctor_config only says when it is
-# absent; it used to carry a third hand-written copy of the same ladder, so a
-# present settings.sh was reported twice in two sections.
+# absent, so a present settings.sh is reported once.
 function test_config_reports_a_settings_file_that_parses() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/goodcfg.XXXXXX")"
@@ -213,6 +212,16 @@ function test_config_reports_a_settings_file_that_parses() {
   [[ "$out" == *"settings.sh"*"parses (sh)"* && "$out" == *"all defaults"* ]] || return 1
   # and exactly once per parser, not once more from a hand-written arm
   [ "$(printf '%s\n' "$out" | grep -c "settings.sh.*parses (sh)")" -eq 1 ]
+}
+
+# what the aliases.sh fish row of _HI_OVERLAY_CHECKS pins: an `if` block is
+# valid sh and invalid fish, so the sh row alone would wave it through
+function test_configs_fish_row_catches_sh_only_aliases() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/shonly.XXXXXX")"
+  printf 'if true; then alias ll=ls; fi\n' >"$dir/aliases.sh"
+  out="$(_HI_CONFIG_DIR="$dir" doctor_configs)"
+  [[ "$out" == *"aliases.sh"*"parses (sh)"* && "$out" == *"aliases.sh"*"has issues (fish)"* ]]
 }
 
 # a scheme that is neither a name nor 24/48 hex words renders nothing, and
@@ -258,30 +267,6 @@ function test_config_flags_a_ramp_nothing_paints() {
     doctor_config
   )"
   [[ "$out" != *"pkg-palette"* ]]
-}
-
-# a settings.sh still spelling a name the 1.0 rename retired is read by
-# nothing; the row names the replacement. _HI_PROMPT= must not match
-# _HI_PROMPT_END_BASH=, and a fresh file gets no row at all
-function test_config_flags_a_retired_setting_name() {
-  local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/retired.XXXXXX")"
-  printf "export _HI_NO_LEAD_SPACE=1\nexport _HI_PROMPT_END_BASH='>'\n  _HI_PROMPT=starship\n" >"$dir/settings.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
-  [[ "$out" == *"retired"*"_HI_NO_LEAD_SPACE is now _HI_DISABLE_LEAD_SPACE"* ]] || return 1
-  [[ "$out" == *"_HI_PROMPT is now _HI_PROMPT_TOOL"* ]] || return 1
-  [ "$(printf '%s\n' "$out" | grep -c " is now ")" -eq 2 ] || return 1
-  printf "export _HI_DISABLE_LEAD_SPACE=1\nexport _HI_PROMPT_TOOL=starship\n" >"$dir/settings.sh"
-  out="$(
-    _HI_CONFIG_DIR="$dir"
-    _HI_SETTINGS="$dir/settings.sh"
-    doctor_config
-  )"
-  [[ "$out" != *" is now "* ]]
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -568,7 +553,7 @@ function test_help_names_what_was_typed() {
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
-# is an error rather than the target it used to become; --mux and --no-mux
+# is an error rather than the target; --mux and --no-mux
 # are the connect-time flags with nothing to report here, like --plain
 function test_unknown_flag_is_refused_not_taken_as_the_target() {
   local out rc=0
@@ -827,9 +812,9 @@ function run_doctor_tests() {
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
+  _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
-  _hi_check "Config flags a retired setting name" test_config_flags_a_retired_setting_name
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
 
   _hi_h2 "Testing: the report primitives"

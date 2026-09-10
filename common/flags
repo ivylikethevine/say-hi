@@ -21,7 +21,7 @@
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
 --mux||-|||a local tmux/zellij/screen session; a repeat reattaches
 --no-mux||-|||skip the multiplexer this once, past an earlier --mux
---preview|<subject>|scripts|||colors, packages or header, as they print here
+--preview|<subject>|scripts|_HI_PREVIEW||colors, packages or header, as they print here
 --doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
 --install|[--yes] [--link {none,user,system}] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
 --uninstall|[--purge] [--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines out; --purge removes the overlay too

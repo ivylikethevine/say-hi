@@ -76,10 +76,10 @@ function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
 args=--configure --preset dev" ]
 }
 
-# a row with no script var is hi.sh's own case arm further down; dispatch has
-# to decline it rather than exec nothing
+# a row with no script var (--plain, --mux and the like) is hi.sh's own
+# case arm further down; dispatch has to decline it rather than exec nothing
 function test_dispatch_declines_a_row_with_no_script() {
-  _hi_ds_dispatch --preview colors
+  _hi_ds_dispatch --plain
   [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ]
 }
 
@@ -170,9 +170,8 @@ function test_ssh_sh_needs_no_ssh_options_at_all() {
 # ---------------------------------------------------------------------------
 
 # the caller's locals this reads, in one place; remote_test.sh covers the
-# preamble and suffix halves the same way. The color escapes used to be two
-# more of them - _hi_remote_middle derives its own now, so they are gone from
-# the contract rather than restated here.
+# preamble and suffix halves the same way. _hi_remote_middle derives its own
+# color escapes, so they are not part of the contract.
 function _hi_ds_middle() {
   local size="54 KB"
   local bootloader="Ym9vdA==" tree="dHJlZQ==" overlay_line="${1:-}"

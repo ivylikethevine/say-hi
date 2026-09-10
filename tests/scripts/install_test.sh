@@ -957,7 +957,8 @@ function run_install_tests() {
   _hi_check "--yes continues over broken configs" test_install_with_yes_continues_over_broken_configs
   _hi_check_capable pty "Declined at a terminal, the gate aborts" test_install_gate_declined_at_a_terminal_aborts
   _hi_check_capable pty "Accepted at a terminal, the install goes on" test_install_gate_accepted_at_a_terminal_continues
-  _hi_check "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
+  # install_tree links usr/bin/hi, so a host without symlinks cannot stage
+  _hi_check_capable symlink "--prefix=<dir> stages under DESTDIR" test_prefix_equals_spelling_stages_under_destdir
   _hi_check "hi's own rc lines never read as a framework" test_install_ignores_its_own_rc_lines
 
   _hi_h2 "Testing: the locator walk through a symlink"

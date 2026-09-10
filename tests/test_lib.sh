@@ -20,6 +20,12 @@ set -euo pipefail
 # and _hi_test_cleanup takes it away again. Same rule as never touching the
 # real ~/say-hi.
 export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/hi.testcfg.$$"
+# The developer's ~/.gitconfig is the same hazard for every git fixture:
+# `commit.gpgsign` signs each fixture commit with a key CI does not have, and
+# `rebase.updateRefs` makes git refuse `rebase --apply` outright, so
+# git_prompt's REBASE case never reaches rebase state. Fixtures set their own
+# identity (_hi_git_fixture), so nothing here needs the global file.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ...and the four files that carry a path variable of their own, for the same
 # reason one line later. Each now takes an explicit value over the overlay's
@@ -34,6 +40,18 @@ unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_K
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
+# GIT_CONFIG_GLOBAL=/dev/null above also takes the global safe.directory with
+# it, and that is what lets git read a checkout another uid owns: the FreeBSD
+# job's rsync'd tree, tests/profile.sh's bind mount. Without it every git call
+# against this tree dies on "dubious ownership". The tree under test is the one
+# repository a suite has to trust, so it rides in command scope - protected
+# configuration, the only place git reads safe.directory from - and nothing
+# else does: `*` would also trust a .git another user planted above a scratch
+# dir. Appended, so a GIT_CONFIG_COUNT the caller already set survives.
+_hi_n="${GIT_CONFIG_COUNT:-0}"
+export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
+  "GIT_CONFIG_VALUE_$_hi_n=$(cd -P "$_hi_d/.." && pwd)"
+unset _hi_n
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
 # the heading rules the harness and the suites print with

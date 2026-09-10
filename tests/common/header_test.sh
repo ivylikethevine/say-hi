@@ -366,7 +366,7 @@ function test_system_info_includes_static_labels() {
 }
 
 # the uptime cell is an identity-group word - the sysinfo row must not carry it
-function test_system_info_no_longer_shows_uptime() {
+function test_system_info_does_not_show_uptime() {
   local out
   out="$(_hi_sysinfo_row)"
   [[ "$out" != *"Up:"* ]]
@@ -394,7 +394,7 @@ function test_system_info_cpu_cell_sits_next_to_cores() {
 
 # _hi_ghz's own contract, from its comment: rounded to tenths *before*
 # splitting, so a carry lands in the whole-GHz digit (2950 -> 3.0) rather than
-# spilling into a second decimal (2.10) - _hi_cpu_clocks' cases above only
+# spilling into a second decimal (2.10) - the CPU cell's cases above only
 # ever see the already-rounded strings this produces.
 function test_ghz_rounds_the_carry_into_the_whole_digit() {
   local out
@@ -617,8 +617,7 @@ function _hi_identity_with() {
 }
 
 # One rule for all three: no cell at all when the backend was never found -
-# not even the old "No docker/podman :(" fallback text, which used to be the
-# one backend that always showed something
+# no fallback text either
 function test_identity_hides_all_backend_cells_when_none_found() {
   local out
   out="$(_hi_identity_with "$(_hi_identity_path)")"
@@ -626,7 +625,7 @@ function test_identity_hides_all_backend_cells_when_none_found() {
 }
 
 # ...and once found, the count shows even at zero - a probed-and-idle backend
-# is no longer indistinguishable from an absent one
+# is distinguishable from an absent one
 function test_identity_shows_containers_zero_when_docker_found_but_empty() {
   local out
   out="$(_hi_identity_with "$(_hi_backend_shim docker 0)")"
@@ -1345,7 +1344,7 @@ function test_header_row_with_no_cells_prints_a_bare_line() {
 # a git identity has to exist to be masked; none at all is its own text
 function test_identity_without_a_git_email_says_so() {
   local out
-  out="$(cd "$_HI_WORKDIR" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 NO_COLOR=1 \
+  out="$(cd "$_HI_WORKDIR" && NO_COLOR=1 \
     PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c "source \"\$_HI_HEADER\"; $_HI_ROW_FNS; _hi_identity_row")"
   [[ "$out" == *"No Git ID Found"* ]]
 }
@@ -1543,8 +1542,7 @@ function test_header_backend_trio_hues_are_three_families() {
 
 # Under NO_COLOR every color var is blank (core.sh), so _hi_cell_hue reads
 # nothing on any cell and the resolver has nothing to compare - the whole
-# header comes out with zero escape sequences, exactly as it did before this
-# feature existed.
+# header comes out with zero escape sequences.
 function test_header_hues_are_inert_under_no_color() {
   local out
   out="$(NO_COLOR=1 PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 \
@@ -1793,8 +1791,8 @@ function test_full_check_consumes_the_carry() {
 }
 
 # a carry still has to print even when the packages file itself yields
-# nothing visible - guards the floor check that used to be `return 0` the
-# moment $visible was empty, before it had a second source to consider
+# nothing visible - the floor check must not return the moment $visible is
+# empty, before it considers its second source
 function test_full_check_prints_carry_even_with_no_visible_packages() {
   local pkgfile="$_HI_WORKDIR/carry-no-packages" out
   : >"$pkgfile"
@@ -1876,9 +1874,8 @@ function test_packages_palette_bad_value_falls_back_to_the_shipped_ramp() {
 
 # every name in the shipped ramp has to be a real _HI_COLOR_NAMES entry, or
 # _hi_ramp_escape would be asked for a slot that does not exist and the
-# header would paint with nothing. A direct membership check now the ramps
-# store names: it used to render each escape and search the palette for one
-# whose 16-color half matched, which is the round trip storing names removes.
+# header would paint with nothing. A direct membership check, since the ramps
+# store names.
 function test_shipped_ramp_names_are_all_real_colors() {
   local entry found candidate
   unset _HI_PACKAGES_PALETTE
@@ -2022,7 +2019,7 @@ function run_header_tests() {
   _hi_check_eq "...drops a long tag when a hash is present" 200cef _hi_shorten_describe snapshot-6fba937-1-g200cef5-dirty
   _hi_check "The version cell itself is shortened" test_timestamp_version_cell_is_shortened
   _hi_check "System_info includes its static labels" test_system_info_includes_static_labels
-  _hi_check "System_info no longer shows uptime" test_system_info_no_longer_shows_uptime
+  _hi_check "System_info does not show uptime" test_system_info_does_not_show_uptime
   _hi_check "System_info's CPU cell renders GHz" test_system_info_cpu_cell_is_ghz
   _hi_check "System_info's CPU cell sits next to Cores:" test_system_info_cpu_cell_sits_next_to_cores
   _hi_check "_hi_ghz rounds the carry into the whole digit" test_ghz_rounds_the_carry_into_the_whole_digit
@@ -2036,7 +2033,7 @@ function run_header_tests() {
   _hi_check_eq "...empty when cores is zero" "" _hi_load_pct_out 2.00 0
   _hi_check "System_info's RAM cell is used/total" test_system_info_ram_cell_is_used_over_total
   _hi_check "System_info's load figure rides the Cores cell" test_system_info_load_rides_the_cores_cell
-  _hi_check "...and the GHz cell no longer carries it" test_system_info_cpu_cell_has_no_parenthetical
+  _hi_check "...and the GHz cell does not carry it" test_system_info_cpu_cell_has_no_parenthetical
   _hi_check "The uptime cell is humanized" test_uptime_cell_is_humanized
   _hi_check "The ip cell has a shape" test_ip_cell_has_a_shape
   # _hi_humanize_uptime's own contract, independent of what this box's real

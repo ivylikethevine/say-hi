@@ -47,7 +47,7 @@ function _hi_run_interactive_case() {
 # hi's command would have printed has to be *absent*, since the session
 # handed over is the host's own program and not a shell that ran anything.
 # The mirror of every other case's marker check, which is why it cannot be
-# asserted inside _hi_run_case.
+# asserted inside _hi_ssh_run_case.
 function _hi_forced_session_is_the_hosts() {
   local label="$1" file="$2"
   if [ -f "$file" ] && ! grep -qF "$_HI_TEST_MARKER" "$file"; then
@@ -67,8 +67,19 @@ function run_ssh_tests() {
   _hi_ssh_keypair
 
   _hi_h2 "Building test images"
-  _HI_DEBIAN_OK=1
-  _hi_sshd_image "its shells" || _HI_DEBIAN_OK=0
+
+  # Five independent builds - the sshd image, the three alpine variants and
+  # bash32 - backgrounded together rather than run in turn, on one daemon
+  # that was going to serialize them at the docker-server end regardless of
+  # how many clients ask at once. Each writes its own verdict to
+  # $_HI_WORKDIR/<name>.built and its own heading/log-dump text to
+  # <name>.par.log, so the presentation still replays in table order below
+  # even though the work overlapped. debian-installed/debian-nested depend
+  # on this wave (both build atop $_HI_SSHD_IMAGE) and form their own wave
+  # further down.
+  (
+    if _hi_sshd_image "its shells"; then printf '1' >"$_HI_WORKDIR/sshd.built"; else printf '0' >"$_HI_WORKDIR/sshd.built"; fi
+  ) >"$_HI_WORKDIR/sshd.par.log" 2>&1 &
 
   # "+" separates extra packages, not a space: the specs are split on
   # whitespace by the loop itself.
@@ -80,44 +91,80 @@ function run_ssh_tests() {
     _hi_sshd_entrypoint "$_hi_ctx" /bin/sh
 
     _HI_SSH_IMAGES+=("hi-sshtest-$_hi_label-$$")
-    if _hi_build_image "$_hi_label" "hi-sshtest-$_hi_label-$$" "its fallback case" \
-      --build-arg "PKGS=$(printf '%s' "${_hi_img#*:}" | tr '+' ' ')" \
-      -f "$(_hi_dockerfile sshd-alpine)" "$_hi_ctx"; then
-      _hi_kv_set _HI_ALPINE_OK "$_hi_label" 1
-    else
-      _hi_kv_set _HI_ALPINE_OK "$_hi_label" 0
-    fi
+    (
+      if _hi_build_image "$_hi_label" "hi-sshtest-$_hi_label-$$" "its fallback case" \
+        --build-arg "PKGS=$(printf '%s' "${_hi_img#*:}" | tr '+' ' ')" \
+        -f "$(_hi_dockerfile sshd-alpine)" "$_hi_ctx"; then
+        printf '1' >"$_HI_WORKDIR/$_hi_label.built"
+      else
+        printf '0' >"$_HI_WORKDIR/$_hi_label.built"
+      fi
+    ) >"$_HI_WORKDIR/$_hi_label.par.log" 2>&1 &
   done
 
   # A bash 3.2 target - see tests/dockerfiles/sshd-bash32.Dockerfile for what
   # that image is and why the suite wants one.
-  _HI_BASH32_OK=0
   _hi_ctx="$_HI_WORKDIR/bash32"
   mkdir -p "$_hi_ctx"
   _hi_sshd_entrypoint "$_hi_ctx" /bin/sh
-  _hi_build_image bash32 "hi-sshtest-bash32-$$" "the bash 3.2 case" \
-    -f "$(_hi_dockerfile sshd-bash32)" "$_hi_ctx" && _HI_BASH32_OK=1
+  (
+    if _hi_build_image bash32 "hi-sshtest-bash32-$$" "the bash 3.2 case" \
+      -f "$(_hi_dockerfile sshd-bash32)" "$_hi_ctx"; then
+      printf '1' >"$_HI_WORKDIR/bash32.built"
+    else
+      printf '0' >"$_HI_WORKDIR/bash32.built"
+    fi
+  ) >"$_HI_WORKDIR/bash32.par.log" 2>&1 &
 
-  # the repo itself is this one's build context - it is the working tree that
-  # lands at ~/say-hi in the image
+  wait
+
+  cat "$_HI_WORKDIR/sshd.par.log"
+  _HI_DEBIAN_OK="$(cat "$_HI_WORKDIR/sshd.built" 2>/dev/null || printf 0)"
+  for _hi_img in alpine: alpine-zsh:zsh alpine-fish:fish; do
+    _hi_label="${_hi_img%%:*}"
+    cat "$_HI_WORKDIR/$_hi_label.par.log"
+    _hi_kv_set _HI_ALPINE_OK "$_hi_label" "$(cat "$_HI_WORKDIR/$_hi_label.built" 2>/dev/null || printf 0)"
+  done
+  cat "$_HI_WORKDIR/bash32.par.log"
+  _HI_BASH32_OK="$(cat "$_HI_WORKDIR/bash32.built" 2>/dev/null || printf 0)"
+
+  # the repo itself is these two's build context - it is the working tree
+  # that lands at ~/say-hi in the image - and both depend only on
+  # $_HI_SSHD_IMAGE from the wave above, not on each other, so they overlap
+  # the same way.
   _HI_INSTALLED_OK=0
-  if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
-    # $_HI_SSHD_IMAGE is tests/lib/ssh.sh's, reached two sources deep through
-    # test_lib.sh - a depth SC2153's misspelling heuristic stops counting
-    # assignments at, so it offers this file's own _HI_SSH_IMAGES instead
-    # shellcheck disable=SC2153
-    _hi_build_image debian-installed "hi-sshtest-debian-installed-$$" "the pre-installed case" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed)" "$_HI_ROOT" && _HI_INSTALLED_OK=1
-  fi
-
-  # The same tree, installed away from ~/say-hi - the shape a `--prefix` or a
-  # dotfiles-managed install leaves. Same build context (the repo) as above.
   _HI_NESTED_OK=0
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
-    _hi_build_image debian-nested "hi-sshtest-debian-nested-$$" "the non-default install path case" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-nested)" "$_HI_ROOT" && _HI_NESTED_OK=1
+    (
+      # $_HI_SSHD_IMAGE is tests/lib/ssh.sh's, reached two sources deep
+      # through test_lib.sh - a depth SC2153's misspelling heuristic stops
+      # counting assignments at, so it offers this file's own
+      # _HI_SSH_IMAGES instead
+      # shellcheck disable=SC2153
+      if _hi_build_image debian-installed "hi-sshtest-debian-installed-$$" "the pre-installed case" \
+        --build-arg "BASE=$_HI_SSHD_IMAGE" \
+        -f "$(_hi_dockerfile installed)" "$_HI_ROOT"; then
+        printf '1' >"$_HI_WORKDIR/debian-installed.built"
+      else
+        printf '0' >"$_HI_WORKDIR/debian-installed.built"
+      fi
+    ) >"$_HI_WORKDIR/debian-installed.par.log" 2>&1 &
+    # The same tree, installed away from ~/say-hi - the shape a `--prefix`
+    # or a dotfiles-managed install leaves.
+    (
+      if _hi_build_image debian-nested "hi-sshtest-debian-nested-$$" "the non-default install path case" \
+        --build-arg "BASE=$_HI_SSHD_IMAGE" \
+        -f "$(_hi_dockerfile installed-nested)" "$_HI_ROOT"; then
+        printf '1' >"$_HI_WORKDIR/debian-nested.built"
+      else
+        printf '0' >"$_HI_WORKDIR/debian-nested.built"
+      fi
+    ) >"$_HI_WORKDIR/debian-nested.par.log" 2>&1 &
+    wait
+    cat "$_HI_WORKDIR/debian-installed.par.log"
+    _HI_INSTALLED_OK="$(cat "$_HI_WORKDIR/debian-installed.built" 2>/dev/null || printf 0)"
+    cat "$_HI_WORKDIR/debian-nested.par.log"
+    _HI_NESTED_OK="$(cat "$_HI_WORKDIR/debian-nested.built" 2>/dev/null || printf 0)"
   fi
 
   _HI_TEST_MARKER="HI_SSH_TEST_OK"
@@ -149,7 +196,7 @@ function run_ssh_tests() {
 
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
     for _hi_pair in bash:/bin/bash dash:/bin/dash zsh:/usr/bin/zsh fish:/usr/bin/fish; do
-      _hi_par_case "${_hi_pair%%:*}" _hi_run_case "${_hi_pair%%:*}" "$_HI_SSHD_IMAGE" "${_hi_pair#*:}" "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+      _hi_par_case "${_hi_pair%%:*}" _hi_ssh_run_case "${_hi_pair%%:*}" "$_HI_SSHD_IMAGE" "${_hi_pair#*:}" "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     done
 
     # The preamble's TERM fallback, all three arms: an unknown name (kitty's
@@ -163,7 +210,7 @@ function run_ssh_tests() {
     for _hi_term_spec in swap:xterm-kitty:xterm-256color known:xterm-256color:xterm-256color \
       terminfo:xterm-mono:xterm-mono; do
       IFS=: read -r _hi_label _hi_client _hi_want <<<"$_hi_term_spec"
-      TERM="$_hi_client" _hi_par_case "term-$_hi_label" _hi_run_case "term-$_hi_label" "$_HI_SSHD_IMAGE" /bin/bash \
+      TERM="$_hi_client" _hi_par_case "term-$_hi_label" _hi_ssh_run_case "term-$_hi_label" "$_HI_SSHD_IMAGE" /bin/bash \
         "echo TERMPROBE=\$TERM; echo $_HI_TEST_MARKER" "" "TERMPROBE=$_hi_want"
     done
 
@@ -175,22 +222,22 @@ function run_ssh_tests() {
     # ever been seen on a fast box. The number that matters is the time in
     # the verdict line: the case's own timeout is the budget hi gets on such
     # a target, and a change that pushes it past that has to say so here
-    # before a user does (7-8 s here at the time of writing, against ~1.5 s
-    # for the same probe unshaped). netem goes on inside the container (NET_ADMIN,
+    # before a user does (7-8 s here, against ~1.5 s for the same probe
+    # unshaped). netem goes on inside the container (NET_ADMIN,
     # iproute2 in the image), where it shapes the container's own eth0 and
     # nothing on the host.
     _HI_SSH_RUN_ARGS="--cpus 0.1 --memory 64m --cap-add NET_ADMIN" \
       _HI_SSH_SHAPE_CMD="tc qdisc add dev eth0 root netem delay 300ms rate 128kbit" \
       _HI_SSH_CASE_TIMEOUT=300 \
-      _hi_par_case starved _hi_run_case starved "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+      _hi_par_case starved _hi_ssh_run_case starved "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
 
     # sshd shapes that never hand the command to the user's shell, or hand
     # it to a restricted one. `ForceCommand` (and a `command=` on the key,
     # the same mechanism) runs its own program whatever the client asked:
     # hi's bootstrap never runs, and what comes back is that program's status
-    # and output. Two shapes - one silent and exiting 0 (`true`, which hi
-    # used to take for a session that worked, exiting 0 with nothing said)
-    # and one that prints (`id`) - both have to be named in the transcript
+    # and output. Two shapes - one silent and exiting 0 (`true`, which must
+    # not pass for a session that worked) and one that prints (`id`) - both
+    # have to be named in the transcript
     # (the marker, overridden for these two), and the session handed over is
     # the host's own, so the command's own marker must not appear: the serial
     # check after the batch. rbash forbids `/` in a command name and little
@@ -204,23 +251,23 @@ function run_ssh_tests() {
     for _hi_forced in true id; do
       _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oForceCommand=/usr/bin/$_hi_forced" \
         _HI_TEST_MARKER="a forced command answered" \
-        _hi_par_case "forced-$_hi_forced" _hi_run_case "forced-$_hi_forced" "$_HI_SSHD_IMAGE" /bin/bash "$_hi_forced_cmd"
+        _hi_par_case "forced-$_hi_forced" _hi_ssh_run_case "forced-$_hi_forced" "$_HI_SSHD_IMAGE" /bin/bash "$_hi_forced_cmd"
     done
     _HI_SSH_RUN_ARGS="-e SSHD_OPTS=-oMaxSessions=1" \
-      _hi_par_case maxsessions1 _hi_run_case maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
-    _hi_par_case rbash _hi_run_case rbash "$_HI_SSHD_IMAGE" /bin/rbash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+      _hi_par_case maxsessions1 _hi_ssh_run_case maxsessions1 "$_HI_SSHD_IMAGE" /bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    _hi_par_case rbash _hi_ssh_run_case rbash "$_HI_SSHD_IMAGE" /bin/rbash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
   fi
 
   for _hi_case_spec in nobash:alpine:ssh_fallback nobash-zsh:alpine-zsh:ssh_fallback \
     nobash-fish:alpine-fish:ssh_fallback_fish; do
     IFS=: read -r _hi_label _hi_image _hi_shape <<<"$_hi_case_spec"
     if [ "$(_hi_kv_get _HI_ALPINE_OK "$_hi_image")" = 1 ]; then
-      _hi_par_case "$_hi_label" _hi_run_case "$_hi_label" "hi-sshtest-$_hi_image-$$" /bin/ash "$(_hi_probe_cmd "$_HI_TEST_MARKER" "$_hi_shape")"
+      _hi_par_case "$_hi_label" _hi_ssh_run_case "$_hi_label" "hi-sshtest-$_hi_image-$$" /bin/ash "$(_hi_probe_cmd "$_HI_TEST_MARKER" "$_hi_shape")"
     fi
   done
 
   if [ "$_HI_BASH32_OK" -eq 1 ]; then
-    _hi_par_case bash32 _hi_run_case bash32 "hi-sshtest-bash32-$$" /usr/local/bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
+    _hi_par_case bash32 _hi_ssh_run_case bash32 "hi-sshtest-bash32-$$" /usr/local/bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     # The shape that matters for bash 3.2: $CMDARG replaces load() outright in
     # the bootloader, so a command-shaped case never reaches the header, the
     # session rc, the shell handoff or clean_all - which is where every bash-4-only
@@ -242,7 +289,7 @@ function run_ssh_tests() {
   # marker asserts $_HI_ROOT is *not* that install, and the post-check that it
   # is still sitting there afterwards.
   if [ "$_HI_INSTALLED_OK" -eq 1 ]; then
-    _hi_par_case installed _hi_run_case installed "hi-sshtest-debian-installed-$$" /bin/bash \
+    _hi_par_case installed _hi_ssh_run_case installed "hi-sshtest-debian-installed-$$" /bin/bash \
       "$(_hi_probe_cmd "$_HI_TEST_MARKER" rooted_elsewhere /home/hitest/say-hi)" \
       'test -f /home/hitest/say-hi/.installed_sentinel'
     # the one case that catches load.sh's clean_all deleting the target's own
@@ -257,7 +304,7 @@ function run_ssh_tests() {
   # dotfiles-managed install leaves. Same two assertions: the session runs out
   # of its own tree, that one is untouched.
   if [ "$_HI_NESTED_OK" -eq 1 ]; then
-    _hi_par_case installed-nested _hi_run_case installed-nested "hi-sshtest-debian-nested-$$" /bin/bash \
+    _hi_par_case installed-nested _hi_ssh_run_case installed-nested "hi-sshtest-debian-nested-$$" /bin/bash \
       "$(_hi_probe_cmd "$_HI_TEST_MARKER" rooted_elsewhere /home/hitest/opt/nested/say-hi)" \
       'test -f /home/hitest/opt/nested/say-hi/.installed_sentinel'
   fi

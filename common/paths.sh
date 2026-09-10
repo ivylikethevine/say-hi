@@ -83,7 +83,6 @@ export _HI_HOME_FISH_CONFIG="$HOME/.config/fish/config.fish"
 
 # GLOSSARY: HI.10. Self-contained strings - fish can't call a bash helper.
 export _HI_HUMAN_CENTRIC_DATE="+%a %b %e %Y %H:%M:%S %Z"
-export _HI_HUMAN_SHORT_DATE="+%b %e %y %H:%M %Z"
 
 # What hi.sh's local sub-commands say when they cannot run: the payload ships
 # no scripts/, tests/ or .git. Exported from here so the wording has one home.

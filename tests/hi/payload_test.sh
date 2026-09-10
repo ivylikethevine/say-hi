@@ -284,12 +284,12 @@ function test_overlay_is_not_block_padded_under_bsdtar() {
   [ "$n" -gt 0 ] && [ "$n" -lt $((_HI_BLOCK / 4)) ]
 }
 
-# This block exists because both halves were wrong at once: the connect line
-# reported `du` over the payload directories (the uncompressed tree, roughly
-# double the truth), and the armored script had grown to within a few kilobytes
-# of the *single-argument* execve limit, which is 128KB on Linux however large
-# ARG_MAX is. The second one is a hard failure - "Argument list too long", no
-# session at all - so it gets a guard with headroom rather than a comment.
+# Two numbers guarded here: the connect line must report the wire bytes, not
+# `du` over the payload directories (the uncompressed tree, roughly double
+# the truth), and the armored script must stay clear of the *single-argument*
+# execve limit, which is 128KB on Linux however large ARG_MAX is. The second
+# one is a hard failure - "Argument list too long", no session at all - so it
+# gets a guard with headroom rather than a comment.
 
 function test_human_bytes_matches_du_shapes() {
   [ "$(_hi_human_bytes 0)" = 0B ] || return 1

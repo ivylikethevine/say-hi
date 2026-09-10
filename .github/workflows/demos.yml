@@ -48,8 +48,8 @@ jobs:
   # fixtures up and takes them down - and serially they cost the sum of six
   # renders plus one backend install; in parallel they cost the slowest tape
   # plus that install, paid six times over on six runners. The `run` tape's
-  # teardown deleting the kind cluster is no longer a reason to order the
-  # roster either: nothing else is sharing its machine.
+  # teardown deletes its kind cluster, which is no reason to order the roster:
+  # nothing else is sharing its machine.
   #
   # A tape added to docs/tapes/generate.sh's roster must be added to `tape`
   # below too, deciding whether a hosted runner may render it. `demo` is not

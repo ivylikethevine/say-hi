@@ -107,13 +107,28 @@ function setting_on() {
 # on-value, turned off gets "". <outvar> gets the new state, on or off - an
 # outvar rather than stdout, since a `$( )` around this would record the
 # answer in a subshell and lose it.
+# _hi_pending_state <var> <off> <on> <on|off> - which of two value shapes a
+# setting takes, in one place: an opt-in (a nonempty <on>) writes its
+# on-value when switched on and clears the pending line when switched off; a
+# default-on toggle (empty <on>) does the reverse - clears when on, writes
+# its off-value when off. Getting this backwards writes a silently inverted
+# setting, which is why it had a copy at every site that flips one.
+function _hi_pending_state() {
+  local var="$1" off="$2" on="$3" want="$4"
+  if [ "$want" = on ]; then
+    if [ -n "$on" ]; then _hi_pending_set "$var" "$on"; else _hi_pending_set "$var" ""; fi
+  else
+    if [ -n "$on" ]; then _hi_pending_set "$var" ""; else _hi_pending_set "$var" "$off"; fi
+  fi
+}
+
 function _hi_setting_flip() {
   local var="$1" off="$2" on="$3"
   if setting_on "$var" "$_HI_SETTINGS" "$off" "$on"; then
-    if [ -n "$on" ]; then _hi_pending_set "$var" ""; else _hi_pending_set "$var" "$off"; fi
+    _hi_pending_state "$var" "$off" "$on" off
     printf -v "$4" '%s' off
   else
-    if [ -n "$on" ]; then _hi_pending_set "$var" "$on"; else _hi_pending_set "$var" ""; fi
+    _hi_pending_state "$var" "$off" "$on" on
     printf -v "$4" '%s' on
   fi
 }
@@ -143,13 +158,6 @@ function ask_setting() {
   [[ "$reply" =~ ^[Yy] ]]
 }
 
-# ask_value <question> <current> <default> <validator-fn> <invalid-msg> -
-# one free-text prompt, printed value on stdout: entering nothing keeps
-# <current> (or the default when there is no override yet), a rejected answer
-# says why and keeps it too, and an answer equal to <default> comes back
-# empty - the caller records nothing rather than restating a shipped default.
-# Non-interactive runs keep what is configured, like ask_setting. The
-# messages go to stderr: stdout is the captured answer.
 # ask_setting_value <var> <default> <validator-fn> <invalid-msg> <question> -
 # ask_value against a setting, recorded. The whole shape of every free-text
 # question here: this run's answer (or the file's) is the current value, and
@@ -171,6 +179,13 @@ function _hi_shell_var() {
   printf -v "$1" '%s' "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
 }
 
+# ask_value <question> <current> <default> <validator-fn> <invalid-msg> -
+# one free-text prompt, printed value on stdout: entering nothing keeps
+# <current> (or the default when there is no override yet), a rejected answer
+# says why and keeps it too, and an answer equal to <default> comes back
+# empty - the caller records nothing rather than restating a shipped default.
+# Non-interactive runs keep what is configured, like ask_setting. The
+# messages go to stderr: stdout is the captured answer.
 function ask_value() {
   local question="$1" current="$2" default="$3" validate="$4" invalid_msg="$5"
   local value reply=""
@@ -220,6 +235,19 @@ function menu_read() {
   printf -v "$2" '%s' "$_hi_mr_reply"
 }
 
+# _hi_menu_reject <counter-var> <max> <hint> - increments <counter-var> by
+# name; true, with <hint> printed, while still under <max> - every call site
+# follows it with `continue`. False, nothing printed, at the limit, for the
+# caller's own exceeded-message and exit (`return 0` or `break` differ by
+# site, so that much stays local). This is the one guarantee that no menu can
+# hang on a driver out of sensible input - five call sites used to keep it
+# independently.
+function _hi_menu_reject() {
+  printf -v "$1" '%s' "$((${!1} + 1))"
+  [ "${!1}" -lt "$2" ] || return 1
+  _hi_cecho " $3" "$YELLOW"
+}
+
 function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
 # a header width: 40 columns is the narrowest the banner and rows draw in
 function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
@@ -245,7 +273,7 @@ function _hi_is_ip_hide() {
 
 # _hi_is_header_word <word> - one of $_HI_HEADER_ORDER's vocabulary, read off
 # header.sh's own $_HI_HEADER_ORDER_DEFAULT rather than a second copy of the
-# word list here (the two used to drift)
+# word list here (a second copy would drift)
 function _hi_is_header_word() {
   _hi_load_preview_sources
   case " $_HI_HEADER_ORDER_DEFAULT " in
@@ -415,16 +443,26 @@ function _hi_config_preview() {
   _hi_prompt_sample_preview
 }
 
-# what each editor alias actually resolves to with the override on. The vim
-# and helix ladders are settings/aliases.sh's, spelled again because this file cannot source it -
-# see the note there; alias_fallthrough_test.sh fails when the two drift.
+# what each editor alias actually resolves to with the override on - read
+# back from settings/aliases.sh itself (the overlay's copy on a target)
+# rather than restated here, so a box with neither nvim nor vim, say, shows
+# nothing for that line instead of a resolved command that was never real. A
+# subshell: nothing this defines should survive past the preview.
+# load.sh's _hi_session_editor reads an alias body back the same way; the
+# eval re-parses bash's own quoting of it (kak's alias nests a quote).
 function _hi_editors_preview() {
-  printf 'nano -> nano --rcfile %s\n' "$_HI_NANORC"
-  printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
-  printf 'emacs -> emacs -q -l %s\n' "$_HI_EMACSRC"
-  printf 'hx   -> %s -c %s\n' "$(command -v hx || command -v helix)" "$_HI_HELIXRC"
-  printf "kak  -> kak -e 'source %s'\n" "$_HI_KAKRC"
-  printf 'micro -> micro %s\n' "${_HI_MICRO_OPTS:--backup false -savehistory false -mkparents true -diffgutter true}"
+  (
+    _HI_DISABLE_EDITORS=0
+    # shellcheck disable=SC2031 # lives and dies in this subshell
+    # shellcheck source=../settings/aliases.sh
+    source "$_HI_ALIASES" >/dev/null 2>&1
+    local e body
+    for e in nano vim emacs hx kak micro; do
+      body="$(alias "$e" 2>/dev/null)" || continue
+      eval "body=${body#*=}"
+      printf '%-5s -> %s\n' "$e" "$body"
+    done
+  )
 }
 
 # what `cat` and `eza` resolve to with the rebinds on. settings/aliases.sh's
@@ -515,11 +553,10 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
 )
 
-# The one row that survives from the old row toggles: banner is not part of
-# $_HI_HEADER_ORDER's reorderable feature list (it always leads), so it still
-# needs its own hide switch. Every other former row toggle (TIMESTAMP/
-# SYSINFO/UPTIME/IDENTITY/CHECK) is retired - that content is addressed at
-# the finer feature grain, through the header editor (config_header).
+# The one header row with a hide switch of its own: banner is not part of
+# $_HI_HEADER_ORDER's reorderable feature list (it always leads). Every other
+# row is addressed at the finer feature grain, through the header editor
+# (config_header).
 _HI_HEADER_PROMPTS=(
   "_HI_DISABLE_BANNER|1||_hi_header_preview| Show the connect/disconnect banner line?||banner"
 )
@@ -560,9 +597,9 @@ function ask_prompt_group() {
       continue
     fi
     if ask_setting "$var" "$question" "$target" "$off" "$preview" "$on"; then
-      if [ -n "$on" ]; then _hi_pending_set "$var" "$on"; else _hi_pending_set "$var" ""; fi
+      _hi_pending_state "$var" "$off" "$on" on
     else
-      if [ -n "$on" ]; then _hi_pending_set "$var" ""; else _hi_pending_set "$var" "$off"; fi
+      _hi_pending_state "$var" "$off" "$on" off
     fi
   done
 }
@@ -596,11 +633,10 @@ function _hi_preset_vocab() {
 
 # preset_row <name> - its table row, or failure for a name that is not one
 # The three helpers take an optional table name so the header presets can use
-# them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, and
-# config_header_preset used to re-implement all three - the listing, the row
-# lookup, and the first-letter match. That third copy had no ambiguity guard
-# and no break, so it silently took the *last* preset whose name started with
-# the typed letter, and a prefix match could clobber an exact name match.
+# them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, so
+# config_header_preset shares the listing, the row lookup and the
+# first-letter match - with its ambiguity guard and exact-name-first order -
+# rather than carrying a third copy.
 function preset_row() {
   local row
   local -a _hi_pr_rows
@@ -733,14 +769,11 @@ function config_hub() {
       return 0
       ;;
     *)
-      rejects=$((rejects + 1))
-      if [ "$rejects" -ge "$max_rejects" ]; then
-        _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
-        _HI_CONFIGURE_QUIT=1
-        return 0
-      fi
-      _hi_cecho " type 1-5 or the bracketed letter ([p] [h] [f] [r] [a]); [s] saves, [q] quits" "$YELLOW"
-      continue
+      _hi_menu_reject rejects "$max_rejects" \
+        "type 1-5 or the bracketed letter ([p] [h] [f] [r] [a]); [s] saves, [q] quits" && continue
+      _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
+      _HI_CONFIGURE_QUIT=1
+      return 0
       ;;
     esac
     rejects=0
@@ -777,9 +810,7 @@ function config_features() {
       [ -n "$preview" ] && show_preview "$preview"
       continue
     fi
-    rejects=$((rejects + 1))
-    [ "$rejects" -ge "$max_rejects" ] && return 0
-    _hi_cecho " type a number from 1 to $n, or Enter to go back" "$YELLOW"
+    _hi_menu_reject rejects "$max_rejects" "type a number from 1 to $n, or Enter to go back" || return 0
   done
 }
 
@@ -989,13 +1020,10 @@ function config_header() {
           _hi_header_edit_commit
         fi
       else
-        rejects=$((rejects + 1))
-        [ "$rejects" -ge "$max_rejects" ] && {
-          _hi_cecho " not an item three times - back to the menu" "$YELLOW"
-          return 0
-        }
-        _hi_cecho " type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter to go back" "$YELLOW"
-        continue
+        _hi_menu_reject rejects "$max_rejects" \
+          "type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter to go back" && continue
+        _hi_cecho " not an item three times - back to the menu" "$YELLOW"
+        return 0
       fi
       ;;
     esac
@@ -1044,18 +1072,15 @@ function config_packages_floor() {
     _hi_load_preview_sources
     while :; do
       show_preview _hi_packages_floor_preview "$_hi_floor_candidate"
-      # menu_read carries the EOF contract (read, close the prompt line, rc 1)
-      # this used to restate; its lowercase-and-squeeze is a no-op on a number
+      # menu_read carries the EOF contract (read, close the prompt line, rc 1);
+      # its lowercase-and-squeeze is a no-op on a number
       menu_read " Lowest package priority to show (0-3, or 4 to turn the check off)? [$_hi_floor_candidate] " reply || break
       [ -z "$reply" ] && break
       if ! _hi_is_number "$reply" || [ "$reply" -gt 4 ]; then
-        rejects=$((rejects + 1))
-        if [ "$rejects" -ge "$max_rejects" ]; then
-          _hi_cecho " not 0-4, leaving it at $_hi_floor_candidate" "$YELLOW"
-          break
-        fi
-        _hi_cecho " not 0-4 - type a priority, 4 to turn the check off, or press Enter to keep $_hi_floor_candidate" "$YELLOW"
-        continue
+        _hi_menu_reject rejects "$max_rejects" \
+          "not 0-4 - type a priority, 4 to turn the check off, or press Enter to keep $_hi_floor_candidate" && continue
+        _hi_cecho " not 0-4, leaving it at $_hi_floor_candidate" "$YELLOW"
+        break
       fi
       rejects=0
       [ "$reply" = "$_hi_floor_candidate" ] && break
@@ -1123,6 +1148,9 @@ function config_prompt() {
       continue
     fi
     if _hi_is_number "$reply" && [ "$reply" -ge 2 ] && [ "$reply" -le "$n" ]; then
+      # shellcheck disable=SC2034 # read by _hi_menu_reject's ${!1} below, not
+      # by name here - a false positive shellcheck reaches only for the
+      # second of this function's two reset sites, not the first
       rejects=0
       name="${shells[$((reply - 2))]}"
       _hi_shell_var shell "$name"
@@ -1135,12 +1163,10 @@ function config_prompt() {
       _hi_pending_set "$var" "$value"
       continue
     fi
-    rejects=$((rejects + 1))
-    [ "$rejects" -ge "$max_rejects" ] && {
+    _hi_menu_reject rejects "$max_rejects" "type a number from 1 to $n, or Enter to go back" || {
       _hi_cecho " not an item three times - back to the menu" "$YELLOW"
       return 0
     }
-    _hi_cecho " type a number from 1 to $n, or Enter to go back" "$YELLOW"
   done
 }
 
@@ -1235,16 +1261,6 @@ function collect_setting_lines() {
   _hi_collect_value _HI_TRUECOLOR ""
 }
 
-# _hi_has_setting_lines - is there anything to write? A loop, not
-# ${#a[@]}: an empty array under `set -u` is an unbound variable on bash 3.2.
-function _hi_has_setting_lines() {
-  local _hi_l
-  for _hi_l in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
-    return 0
-  done
-  return 1
-}
-
 # A line written by hand - `export _HI_COLOR_SCHEME=...` with no marker, the
 # way SETTINGS.md says to set a scheme of your own - is read by
 # setting_value (it sources the file) and then written again as a marker
@@ -1309,25 +1325,27 @@ function settings_diff_before() {
   done < <(grep -F "$_HI_MARKER" "$_HI_SETTINGS" || true)
 }
 
+# _hi_in_list <needle> <haystack...> - is <needle> one of the rest?
+function _hi_in_list() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
 function settings_diff_report() {
-  local line other found changes=0
+  local line other changes=0
   for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
     [ -n "$line" ] || continue
-    found=0
-    for other in ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"}; do
-      [ "$other" = "$line" ] && found=1 && break
-    done
-    [ "$found" = 1 ] || {
+    _hi_in_list "$line" ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"} || {
       _hi_cecho "   + $line" "$GREEN"
       changes=$((changes + 1))
     }
   done
   for other in ${_HI_SETTINGS_BEFORE[@]+"${_HI_SETTINGS_BEFORE[@]}"}; do
-    found=0
-    for line in ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"}; do
-      [ "$other" = "$line" ] && found=1 && break
-    done
-    [ "$found" = 1 ] || {
+    _hi_in_list "$other" ${_HI_SETTING_LINES[@]+"${_HI_SETTING_LINES[@]}"} || {
       _hi_cecho "   - $other (back to the default)" "$YELLOW"
       changes=$((changes + 1))
     }
@@ -1366,7 +1384,7 @@ function run_configure() {
   collect_setting_lines
   # No terminal, no preset, no file and nothing to say: a settings.sh with
   # only a shebang in it would be a decision record with no decision in it.
-  if [ ! -t 0 ] && [ -z "$preset" ] && [ ! -f "$_HI_SETTINGS" ] && ! _hi_has_setting_lines; then
+  if [ ! -t 0 ] && [ -z "$preset" ] && [ ! -f "$_HI_SETTINGS" ] && ((${#_HI_SETTING_LINES[@]} == 0)); then
     _hi_cecho " nothing to write - the defaults apply until hi --configure is run at a terminal" "$GREEN"
     return 0
   fi

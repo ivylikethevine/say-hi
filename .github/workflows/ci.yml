@@ -47,8 +47,8 @@ jobs:
   # reason: drift_test.sh (in lint) drift-checks docs/GLOSSARY.md and
   # docs/SETTINGS.md, and bench_test.sh checks README.md's payload badge - a
   # docs-only diff is exactly what those exist to catch, and both suites are
-  # cheap enough (~40s each) that running them unconditionally costs nothing
-  # on the diffs that used to skip them. Fork-PR-safe mechanics are in
+  # cheap enough (~40s each) that running them unconditionally on a docs-only
+  # diff costs nothing. Fork-PR-safe mechanics are in
   # changes.yml. Only push and pull_request are filtered; on schedule or
   # workflow_dispatch this job does not run and the jobs below treat the skip
   # as "assume yes" - a diff against the wrong commit must never be why a real
@@ -111,13 +111,12 @@ jobs:
   # The lint group's four suites (shellcheck, dialects, tools, drift), against
   # the pinned tools below - text linting does not depend on the userland, so
   # the macOS, Windows and FreeBSD jobs run `--group fast` alone and this is
-  # the one gate. Its own job, not a step of `test`: the two groups now run
-  # side by side instead of one after the other, and `test` no longer installs
-  # five tools it never calls. Not in e2e-gate's `needs:` - a red lint has no
-  # bearing on whether an ssh session works, and gating on it would only make
-  # the platform e2e jobs wait on tool installs they don't use. That is a
-  # deliberate loosening from when lint lived inside `test`; add `lint` to
-  # e2e-gate's `needs:` to restore the old "lint blocks e2e" behaviour.
+  # the one gate. Its own job, not a step of `test`: the two groups run side
+  # by side, and `test` installs none of the five tools only the linters call.
+  # Not in e2e-gate's `needs:` - a red lint has no bearing on whether an ssh
+  # session works, and gating on it would only make the platform e2e jobs
+  # wait on tool installs they don't use. Add `lint` to e2e-gate's `needs:`
+  # to make lint block e2e.
   lint:
     name: lint suites (ubuntu-latest)
     if: github.event.pull_request.draft != true
@@ -634,8 +633,8 @@ jobs:
 
   # The client-side half of Windows. Not behind e2e-gate: it is the fast
   # suites on another client, not an e2e that wants green targets first, and
-  # at seven minutes (now two shards of half that) it was the long pole of
-  # every push when it also waited for `test`. Pushes and same-repo PRs, the
+  # waiting on `test` as well would make it the long pole of every push.
+  # Pushes and same-repo PRs, the
   # same audience as e2e-gate (spelled out here because it does not sit
   # behind the gate), and gated on `changes` like the other fast-suite jobs.
   # A real check, not advisory: windows-client.yml carries no

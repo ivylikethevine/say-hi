@@ -115,10 +115,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # WSL 2 (the action's own default - this job used to pin 1): hosted
-      # Windows runners have carried the nested virtualization WSL 2's VM
-      # needs since the Dadsv5 image move, so the old "no nested virt" reason
-      # for WSL 1 no longer holds. The Windows -> Linux direction this job
+      # WSL 2 (the action's own default): hosted Windows runners carry the
+      # nested virtualization WSL 2's VM needs, so nothing here asks for
+      # WSL 1. The Windows -> Linux direction this job
       # actually uses - Git Bash reaching the distribution's sshd on
       # 127.0.0.1 below - is the one WSL 2's default NAT networking forwards
       # on its own; only the *other* direction (WSL reaching a Windows-side
@@ -199,8 +198,8 @@ jobs:
           [ "$RESULT" = success ]
 
   # The target side: a fresh distribution takes the package layout and is
-  # said hi to from Git Bash. The fast suites used to run here first and
-  # moved to wsl-suites above, so this job is only the session.
+  # said hi to from Git Bash. The fast suites are wsl-suites above, so this
+  # job is only the session.
   wsl:
     name: hi into WSL (Ubuntu, Git Bash client)
     runs-on: windows-latest
