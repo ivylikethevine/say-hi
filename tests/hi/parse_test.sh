@@ -830,6 +830,139 @@ function test_help_flags_are_all_in_the_man_page() {
   done
 }
 
+# Every `--word` a stretch of roff names, unescaped (`\-\-dry\-run` is
+# --dry-run) and one per line; the font escapes and brackets around them are
+# what the [a-z-] class stops at. Used on the page's headings and synopsis
+# lines below, where every long option is hi's or one of a local command's
+# own switches.
+function _hi_roff_switches() {
+  printf '%s\n' "$1" | sed 's/\\-/-/g' | grep -oE -- '--[a-z][a-z-]*' | sort -u
+}
+
+# The `--switches` common/flags' <argument> column names for one flag - the
+# sub-switches a local command takes (`--doctor` takes --json and --use,
+# `--install` takes --yes, --link, --preset and --dry-run). Empty for a flag
+# whose argument is a bare positional (`--use <backend>`, `--update [<tag>]`
+# has --dry-run beside it).
+function _hi_flag_switches() {
+  local row arg
+  row="$(grep -- "^$1|" "$_HI_ROOT/common/flags")" || return 1
+  arg="$(printf '%s\n' "$row" | cut -d'|' -f2)"
+  printf '%s\n' "$arg" | grep -oE -- '--[a-z][a-z-]*' | sort -u
+}
+
+# The local commands: every common/flags row whose <needs> column is not `-`,
+# the ones that want scripts/ or .git and so have a synopsis line and an
+# OPTIONS heading of their own with sub-switches after the name.
+function _hi_local_flags() {
+  grep -vE '^(#|$)' "$_HI_ROOT/common/flags" | awk -F'|' '$3 != "-" { print $1 }'
+}
+
+# ...and the check above is one-way: a flag --help knows has to be in the
+# page, but a `--word` the page invents is never asked about, and the page
+# said `--used` where --help said --use without anything noticing, because
+# the grep there is a substring match. The reverse: every long option the
+# SYNOPSIS (`.RB [ \-\-yes ]`, `.B hi \-\-doctor`) or an OPTIONS heading
+# (`.B \-\-install \fR[\fB\-\-yes\fR] ...`, the line after a `.TP`) names has
+# to be one of hi's own flags, one of the sub-switches common/flags'
+# <argument> column gives a local command, or --prefix - scripts/install.sh's
+# packaging switch, which the page describes in prose under --install and
+# which is deliberately not a row, since a user never types it. The match is
+# on the whole word, so --used cannot ride on --use.
+function test_man_page_options_are_all_hi_s() {
+  local man="$_HI_HOME/say-hi/docs/hi.1" text known flag name bad=0
+  [ -f "$man" ] || return 1
+  # common/flags' own columns rather than the live roster, which withholds
+  # --update on a checkout without .git and would report the page for it
+  known="$(grep -vE '^(#|$)' "$_HI_ROOT/common/flags" | cut -d'|' -f1,2 |
+    grep -oE -- '--[a-z][a-z-]*')"$'\n'"--prefix"
+  [ -n "$known" ] || return 1
+  # the synopsis lines, and the OPTIONS headings (the `.B`/`.BR` line that
+  # follows a `.TP`), nothing else - the prose names ssh's and kubectl's
+  # options too, and those are not hi's to keep
+  text="$(awk '
+    /^\.SH / { syn = ($0 == ".SH SYNOPSIS"); opt = ($0 == ".SH OPTIONS") }
+    syn { print }
+    opt && prev == ".TP" && /^\.BR? / { print }
+    { prev = $0 }
+  ' "$man")"
+  [ -n "$text" ] || return 1
+  # a scrape that found no option at all would pass as an empty loop
+  name="$(_hi_roff_switches "$text")"
+  [ -n "$name" ] || return 1
+  while IFS= read -r flag; do
+    [ -n "$flag" ] || continue
+    case $'\n'"$known"$'\n' in *$'\n'"$flag"$'\n'*) continue ;; esac
+    _hi_cecho "   hi.1 names $flag in its synopsis or an OPTIONS heading, and neither hi nor common/flags knows it" "$RED"
+    bad=1
+  done <<<"$name"
+  [ "$bad" = 0 ]
+}
+
+# The synopsis check above stops at the first `.br`, which leaves every local
+# command's own form - `hi --install [--yes] [--link ...] ...` - unread. Each
+# of those is common/flags' <argument> column written a second time, and the
+# page kept --link on --configure for a release after the wizard stopped
+# taking it. Every local command has to have a form, and each form has to
+# name exactly the switches its column does - as a set, since the page may
+# order them for reading; `--link " " {none|user|system}` counts as --link.
+function test_local_synopsis_forms_match_common_flags() {
+  local man="$_HI_HOME/say-hi/docs/hi.1" flag block page want bad=0
+  [ -f "$man" ] || return 1
+  while IFS= read -r flag; do
+    [ -n "$flag" ] || continue
+    # the form is `.B hi \-\-<flag>` up to the next `.br`
+    block="$(awk -v head=".B hi ${flag//-/\\\\-}" '
+      /^\.SH SYNOPSIS/ { syn = 1; next }
+      /^\.SH / { syn = 0 }
+      syn && $0 == head { on = 1; next }
+      on && /^\.br/ { exit }
+      on { print }
+    ' "$man")"
+    if [ -z "$block" ] && ! grep -qF -- ".B hi ${flag//-/\\-}" "$man"; then
+      _hi_cecho "   $flag has no synopsis form of its own in hi.1" "$RED"
+      bad=1
+      continue
+    fi
+    page="$(_hi_roff_switches "$block")"
+    want="$(_hi_flag_switches "$flag")" || return 1
+    [ "$page" = "$want" ] || {
+      _hi_cecho "   $flag: hi.1's synopsis says '${page//$'\n'/ }', common/flags says '${want//$'\n'/ }'" "$RED"
+      bad=1
+    }
+  done < <(_hi_local_flags)
+  [ "$bad" = 0 ]
+}
+
+# ...and the OPTIONS heading for each is the same column a third time
+# (`.B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]`),
+# held to the same set. The heading is the line after the `.TP` that starts
+# with the flag's own name; the name itself is dropped before comparing.
+function test_local_option_headings_match_common_flags() {
+  local man="$_HI_HOME/say-hi/docs/hi.1" flag head page want bad=0
+  [ -f "$man" ] || return 1
+  while IFS= read -r flag; do
+    [ -n "$flag" ] || continue
+    head="$(awk -v name="${flag//-/\\\\-}" '
+      /^\.SH / { opt = ($0 == ".SH OPTIONS") }
+      opt && prev == ".TP" && index($0, ".B " name) == 1 { print; exit }
+      { prev = $0 }
+    ' "$man")"
+    if [ -z "$head" ]; then
+      _hi_cecho "   $flag has no OPTIONS entry of its own in hi.1" "$RED"
+      bad=1
+      continue
+    fi
+    page="$(_hi_roff_switches "$head" | grep -vx -- "$flag")"
+    want="$(_hi_flag_switches "$flag")" || return 1
+    [ "$page" = "$want" ] || {
+      _hi_cecho "   $flag: hi.1's OPTIONS heading says '${page//$'\n'/ }', common/flags says '${want//$'\n'/ }'" "$RED"
+      bad=1
+    }
+  done < <(_hi_local_flags)
+  [ "$bad" = 0 ]
+}
+
 # The synopsis is one sentence written twice - $_HI_USAGE and the page's
 # first .SH SYNOPSIS line - and this is the check the comment above
 # _HI_USAGE promises. The roff is flattened: the request names, font
@@ -1027,12 +1160,14 @@ function test_local_subcommands_refuse_without_the_checkout() {
   done
 }
 
-# a joined word stands for the row's first positional argument; a row with
+# a joined word stands for the row's *first* argument, when that is a
+# positional (--doctor's first is --json, so --doctor=json is refused rather
+# than probed as a host named json); a row with
 # none (switches only) refuses it here, before the script sees a stray word
 function test_joined_value_is_refused_where_nothing_is_positional() {
   local home flag out rc
   home="$(_hi_subcmd_stubs)"
-  for flag in --install=yes --uninstall=1 --configure=x; do
+  for flag in --install=yes --uninstall=1 --configure=x --doctor=json --doctor=myhost; do
     rc=0
     out="$(_hi_subcmd_run "$home" "$flag")" || rc=$?
     [ "$rc" -eq 1 ] && [[ "$out" == *"${flag%%=*} takes no joined value"* ]] && [[ "$out" != STUB* ]] || {
@@ -1050,7 +1185,7 @@ function test_local_subcommands_exec_the_right_script() {
     '--install|STUB install --install' \
     '--uninstall|STUB install --uninstall' \
     '--configure|STUB install --configure' \
-    '--doctor=myhost|STUB doctor myhost' \
+    '--doctor myhost|STUB doctor myhost' \
     '--preview colors|STUB preview colors' \
     '--preview=colors|STUB preview colors' \
     '--preview packages|STUB preview packages' \
@@ -1339,6 +1474,9 @@ function run_hi_parse_tests() {
   _hi_check_eq "-h is the same text" "$(_hi_help_out --help)" _hi_help_out -h
   _hi_check "Lists hi's flags and the target ladder" test_help_lists_hi_s_own_flags
   _hi_check "Every flag is in the man page" test_help_flags_are_all_in_the_man_page
+  _hi_check "...and every option the man page names is hi's" test_man_page_options_are_all_hi_s
+  _hi_check "Each local command's synopsis form is its flags row" test_local_synopsis_forms_match_common_flags
+  _hi_check "...and so is its OPTIONS heading" test_local_option_headings_match_common_flags
   _hi_check "The usage line is the man page's synopsis" test_usage_line_matches_the_man_page_synopsis
   _hi_check "Every line fits 80 columns" test_help_fits_eighty_columns
   _hi_check "The man page groups them as the roster does" test_man_page_option_groups_match_the_roster

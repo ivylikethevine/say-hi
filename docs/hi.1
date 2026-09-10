@@ -1,3 +1,5 @@
+.\" The .TH line is a placeholder: packaging/stamp.sh rewrites its date and
+.\" version at build time, so neither is kept current here by hand.
 .TH HI 1 "2026-09-07" "say-hi" "User Commands"
 .SH NAME
 hi \- your shell config, on every host you say hi to
@@ -19,8 +21,7 @@ hi \- your shell config, on every host you say hi to
 .br
 .B hi \-\-install
 .RB [ \-\-yes ]
-.RB [ \-\-no\-link ]
-.RB [ \-\-system\-link ]
+.RB [ \-\-link " " {none|user|system}]
 .RB [ \-\-preset " " \fIname\fR]
 .RB [ \-\-dry\-run ]
 .br
@@ -29,10 +30,12 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-uninstall
+.RB [ \-\-purge ]
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-update
 .RI [ tag ]
+.RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
 .RB { colors | packages | header }
@@ -170,11 +173,14 @@ or
 .BR kube .
 The name has to be one of those; a stranger is an error, not a guess.
 .B \-\-use=\fIbackend\fR
-is the same flag with its word joined \- as every option that takes one word
-is:
+is the same flag with its word joined. The joined word is always the option's
+\fIfirst\fR argument, so every option that opens on a word takes it:
 .B \-\-preview=colors
-too. An option that takes no word refuses a joined one
-.RB ( \-\-plain=1 ,
+and
+.B \-\-update=v1.0.0
+too. One that opens on a switch, or takes nothing, refuses a joined word
+.RB ( \-\-doctor=json ,
+.BR \-\-plain=1 ,
 .BR \-\-install=yes ).
 .TP
 .B \-\-plain
@@ -214,7 +220,7 @@ connects as usual.
 makes it the default.
 .TP
 .B \-\-no\-mux
-connect without the tmux wrap \- the way out of that alias for one connect. Of
+connect without the multiplexer \- the way out of that alias for one connect. Of
 .B \-\-mux
 and
 .BR \-\-no\-mux ,
@@ -243,9 +249,7 @@ ranks the floor silences marked.
 is the connect header itself, as it prints here at your settings.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
-print a read\-only pre\-flight report instead of connecting
-.RB ( \-\-doctor=\fItarget\fR
-is the joined spelling, so a typo there is a target to probe, not an error): the local tree,
+print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, the shell rc files and the overlay's own shell files
 parsed by whatever will read them (the rc half is what
 .B \-\-install
@@ -262,7 +266,14 @@ zsh really reads \- every backend probed and timed, and \- with a target \-
 which backend the name resolves to plus an ssh reachability check.
 .B \-\-use
 reports the same forced backend a real connect with it would take, skipping
-the probe chain. With
+the probe chain, and two of them are refused as a connect refuses them.
+.BR \-\-plain ,
+.B \-\-mux
+and
+.B \-\-no\-mux
+are accepted and ignored, so a connect line can be pasted behind
+.BR \-\-doctor .
+With
 .BR \-\-json ,
 the same rows as one JSON document on stdout \- what a bug report should
 carry \- with the finding count in it as
@@ -319,9 +330,6 @@ prints every write \- rc lines, the seed, settings.sh, the link \- and makes
 none of them. The script behind it,
 .BR scripts/install.sh ,
 also takes
-.BR \-\-features\-only " (what " \-\-configure " runs),"
-.B \-\-check\-configs
-(the rc syntax check alone, as an exit status) and
 .BR \-\-prefix " " \fIdir\fR,
 packaging mode \- stage the tree under
 .I dir
@@ -332,15 +340,18 @@ and
 beside it, and write nothing to a home \- which the package builds use and a
 user never needs.
 .TP
-.B \-\-uninstall \fR[\fB\-\-dry\-run\fR]
+.B \-\-uninstall \fR[\fB\-\-purge\fR] [\fB\-\-dry\-run\fR]
 take those lines back out again, remove the settings.sh the install wrote,
 and unlink hi where the link points at this tree \-
 .B ~/.local/bin/hi
 and a
 .B /usr/bin/hi
 of an earlier
-.BR \-\-system\-link ,
-never a package's. A file the install created and nothing else wrote into
+.BR "\-\-link system" ,
+never a package's. With
+.B \-\-purge
+the overlay directory (\fB~/.config/say-hi\fR) goes too; without it, it stays,
+since what is there is yours. A file the install created and nothing else wrote into
 (a macOS
 .BR ~/.bash_profile )
 goes with its lines. The tree itself, the rest
@@ -348,7 +359,7 @@ of the overlay and the one\-time
 .B .hi\-orig
 backups are left where they are.
 .TP
-.B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR]
+.B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 revisit the settings only, leaving the rc wiring alone: a menu over a live
 preview of the header and the prompt. Pick a preset (\fBeverything\fR,
 \fBbalanced\fR, \fBminimal\fR), or open a section \- Header (the real header
@@ -359,7 +370,9 @@ Prompt, Advanced \- then
 before either.
 .B \-\-preset
 .I name
-applies one without the menu.
+applies one without the menu, and
+.B \-\-dry\-run
+prints the settings.sh it would write and writes nothing.
 .TP
 .B \-\-update \fR[\fItag\fR] [\fB\-\-dry\-run\fR]
 move the say-hi checkout to a release tag: the tags are fetched and the newest
@@ -484,17 +497,28 @@ Configuration lives outside the tree, in
 .RB ( settings.sh ,
 .BR colors ,
 .BR packages ,
-.BR vim.rc
-and
+.BR vim.rc ,
 .BR nano.rc ,
+.BR emacs.el ,
+.BR helix.toml
+and
+.BR kak.rc ,
 additive
 .BR aliases.sh ,
-and per-shell
+per-shell
 .BR bash.sh ,
 .B zsh.zsh
 and
-.BR config.fish ),
-written by
+.BR config.fish ,
+and a
+.B starship.toml
+or
+.B oh-my-posh.json
+for the prompt program
+.B _HI_PROMPT_TOOL
+names, and a
+.B theme.yml
+for eza), written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
 variable toggle \- header, prompt, git status, editors \- each on
@@ -516,7 +540,7 @@ feature toggles, written by
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
 .TP
-.B ~/.config/say-hi/vim.rc, ~/.config/say-hi/nano.rc
+.B ~/.config/say-hi/vim.rc, nano.rc, emacs.el, helix.toml, kak.rc
 per\-user replacements of the tree's editor configs, used whole rather than
 merged.
 .TP
@@ -532,6 +556,25 @@ overwrites it.
 .TP
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.
+.TP
+.B ~/.config/say-hi/starship.toml, ~/.config/say-hi/oh-my-posh.json
+the prompt program's own config, carried to every target as its
+.B STARSHIP_CONFIG
+or
+.B POSH_THEME
+when
+.B _HI_PROMPT_TOOL
+names that program; at home the program keeps reading its own.
+.TP
+.B ~/.config/say-hi/bat.conf
+a bat config file, carried to every target as its
+.B BAT_CONFIG_PATH
+\- the aliases then leave their own theme flag out so the file's wins.
+.TP
+.B ~/.config/say-hi/theme.yml
+an eza theme, carried to every target with the overlay as its
+.B EZA_CONFIG_DIR
+(eza reads that file name and no other); at home eza keeps reading its own.
 .SH ENVIRONMENT
 Every setting is an environment variable, and the full table with defaults is
 .IR docs/SETTINGS.md ;

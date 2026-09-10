@@ -450,7 +450,7 @@ function _hi_load_run() {
   mkdir -p "$_HI_WORKDIR/loadroot" "$_HI_WORKDIR/loadhome"
   (
     local _HI_ROOT="$_HI_WORKDIR/loadroot" _HI_SESSION_RC_DIR=""
-    unset _HI_CLEANUP VIMINIT TMUX
+    unset _HI_CLEANUP VIMINIT EDITOR VISUAL SUDO_EDITOR TMUX
     export HOME="$_HI_WORKDIR/loadhome"
     local _hi_pair
     for _hi_pair in "$@"; do export "${_hi_pair?}"; done
@@ -497,6 +497,51 @@ function test_load_exports_viminit_for_vim_sessions() {
     SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
     "PATH=$(_hi_fake_path withvim vim):$PATH")" || return 1
   case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# $EDITOR/$VISUAL/$SUDO_EDITOR carry the alias's flags into git, crontab and
+# sudo -e: the ladder's first hit (nvim here) with hi's rc
+function test_load_exports_editor_with_hi_flags() {
+  local out
+  out="$(_hi_load_run 'printf "E=%s|V=%s|S=%s\n" "${EDITOR-unset}" "${VISUAL-unset}" "${SUDO_EDITOR-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
+    "PATH=$(_hi_fake_path withnvim nvim nano):$PATH")" || return 1
+  case "$out" in *"E=nvim -u $_HI_VIMRC|V=nvim -u $_HI_VIMRC|S=nvim -u $_HI_VIMRC"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# _HI_EDITOR names a preference: nano over the nvim that is also there
+function test_load_honours_hi_editor() {
+  local out
+  out="$(_hi_load_run 'printf "E=%s\n" "${EDITOR-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_EDITOR=nano \
+    "PATH=$(_hi_fake_path withnvim nvim nano):$PATH")" || return 1
+  case "$out" in *"E=nano --rcfile $_HI_NANORC"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# ...and a preference the target lacks falls back to the ladder
+function test_load_hi_editor_falls_back_when_absent() {
+  local out
+  out="$(_hi_load_run 'printf "E=%s\n" "${EDITOR-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_EDITOR=hx \
+    "PATH=$(_hi_fake_path withnvim nvim nano):$PATH")" || return 1
+  case "$out" in *"E=nvim -u $_HI_VIMRC"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# the editors toggle blocks the export too
+function test_load_editors_toggle_blocks_editor_export() {
+  local out
+  out="$(_hi_load_run 'printf "E=%s\n" "${EDITOR-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_EDITORS=1 \
+    "PATH=$(_hi_fake_path withnvim nvim nano):$PATH")" || return 1
+  case "$out" in *"E=unset"*) return 0 ;; esac
   _hi_cecho " | $out" "$RED"
   return 1
 }
@@ -680,6 +725,10 @@ EOF
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
+  _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" test_load_exports_editor_with_hi_flags
+  _hi_check "_HI_EDITOR picks the editor" test_load_honours_hi_editor
+  _hi_check "...and falls back down the ladder when absent" test_load_hi_editor_falls_back_when_absent
+  _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" test_load_editors_toggle_blocks_editor_export
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
   _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit

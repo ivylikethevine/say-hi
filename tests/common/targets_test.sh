@@ -786,6 +786,8 @@ function test_flags_behind_a_local_command_are_its_switches() {
   # a row with no switches offers nothing; a connect flag or a target first
   # is not a local command, so the top-level roster stands
   ! sh "$_HI_TARGETS" flags --update | grep -qv -- --dry-run || return 1
+  # --preview acts locally too but has no switches: nothing, not hi's roster
+  [ -z "$(sh "$_HI_TARGETS" flags --preview)" ] || return 1
   [ "$(sh "$_HI_TARGETS" flags --plain)" = "$(sh "$_HI_TARGETS" flags)" ] &&
     [ "$(sh "$_HI_TARGETS" flags somehost)" = "$(sh "$_HI_TARGETS" flags)" ]
 }

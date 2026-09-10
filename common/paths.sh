@@ -39,12 +39,26 @@ export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
 [ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
 export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
 [ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
+export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
+[ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
+export _HI_HELIXRC="$_HI_ROOT/settings/helix.toml"
+[ -f "$_HI_CONFIG_DIR/helix.toml" ] && export _HI_HELIXRC="$_HI_CONFIG_DIR/helix.toml"
+export _HI_KAKRC="$_HI_ROOT/settings/kak.rc"
+[ -f "$_HI_CONFIG_DIR/kak.rc" ] && export _HI_KAKRC="$_HI_CONFIG_DIR/kak.rc"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home
 # the tool's own config is already in force. Only the tool named reads its
-# variable, so neither needs an _HI_PROMPT gate. GLOSSARY: HI.32
+# variable, so neither needs an _HI_PROMPT_TOOL gate. GLOSSARY: HI.32
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/starship.toml" ] && export STARSHIP_CONFIG="$_HI_CONFIG_DIR/starship.toml"
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
+# eza the same way: it reads $EZA_CONFIG_DIR/theme.yml and nothing else from
+# that directory, and the file has to carry that exact name, so the overlay
+# itself is the directory (docs/SETTINGS.md says how to put one there).
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
+# bat too: a bat.conf in the overlay is its config file on every target, and
+# settings/aliases.sh drops its own --theme flag when this is set so the
+# file's theme wins.
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/bat.conf" ] && export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
 
 export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
@@ -107,5 +121,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_EDITORS=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1
+  export _HI_DISABLE_TOOL_INIT=1
+  export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1
 } || true

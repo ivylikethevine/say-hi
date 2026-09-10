@@ -39,7 +39,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_prompt_tool; then
   HI_PS1_END=""
   _hi_prompt_end BASH HI_PS1_END
   _hi_ps1_lead=" "
-  [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
+  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
   # bash is the one shell where another tool's prefix cannot survive: ps1()
   # below rebuilds $PS1 from scratch on every draw, so there is nothing to
   # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
@@ -144,7 +144,7 @@ complete -F _hi_load_exa_completion exa
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   if _hi_wants_prompt_tool; then
     # GLOSSARY: HI.32
-    eval "$("$_HI_PROMPT" init bash)"
+    eval "$("$_HI_PROMPT_TOOL" init bash)"
   else
     # Readline counts every $PS1 character it was not told to ignore, so an
     # unmarked color escape makes the typed line wrap back over the prompt.

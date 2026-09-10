@@ -260,6 +260,30 @@ function test_config_flags_a_ramp_nothing_paints() {
   [[ "$out" != *"pkg-palette"* ]]
 }
 
+# a settings.sh still spelling a name the 1.0 rename retired is read by
+# nothing; the row names the replacement. _HI_PROMPT= must not match
+# _HI_PROMPT_END_BASH=, and a fresh file gets no row at all
+function test_config_flags_a_retired_setting_name() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/retired.XXXXXX")"
+  printf "export _HI_NO_LEAD_SPACE=1\nexport _HI_PROMPT_END_BASH='>'\n  _HI_PROMPT=starship\n" >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"retired"*"_HI_NO_LEAD_SPACE is now _HI_DISABLE_LEAD_SPACE"* ]] || return 1
+  [[ "$out" == *"_HI_PROMPT is now _HI_PROMPT_TOOL"* ]] || return 1
+  [ "$(printf '%s\n' "$out" | grep -c " is now ")" -eq 2 ] || return 1
+  printf "export _HI_DISABLE_LEAD_SPACE=1\nexport _HI_PROMPT_TOOL=starship\n" >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" != *" is now "* ]]
+}
+
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
 # has to say which of the two parsers refused it
 function test_config_flags_a_settings_file_that_is_not_fish() {
@@ -805,6 +829,7 @@ function run_doctor_tests() {
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
+  _hi_check "Config flags a retired setting name" test_config_flags_a_retired_setting_name
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
 
   _hi_h2 "Testing: the report primitives"

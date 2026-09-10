@@ -26,7 +26,7 @@ _hi_prime_identity
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
   if _hi_wants_prompt_tool; then
     # GLOSSARY: HI.32
-    eval "$("$_HI_PROMPT" init zsh)"
+    eval "$("$_HI_PROMPT_TOOL" init zsh)"
   else
     # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
     # pw3nage-safe form bash.sh's ps1() uses
@@ -53,11 +53,11 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     fi
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment. $_hi_lead is
-    # a plain double-quoted segment instead - $_HI_NO_LEAD_SPACE is a static
+    # a plain double-quoted segment instead - $_HI_DISABLE_LEAD_SPACE is a static
     # setting, not something that needs re-deciding on every prompt draw.
     _hi_prompt_end ZSH HI_PS1_END
     _hi_lead=" "
-    [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && _hi_lead=""
+    [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_lead=""
     if _hi_has_color; then
       export CLICOLOR=1
       export LSCOLORS=gafacadabaegedabagacad

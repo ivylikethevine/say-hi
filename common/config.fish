@@ -15,7 +15,8 @@ for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
     _HI_DISABLE_EDITORS \
     _HI_DISABLE_MARKS \
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER
+    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS \
+    _HI_DISABLE_BANNER
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -105,15 +106,25 @@ set -gx fish_color_host $__hi_color_host
 set -gx fish_color_host_remote $fish_color_host
 
 # wrapper so aliases (functions, in fish) work under sudo; args ride fish's own
-# argv after --, never a re-parsed string - that invites injection
-function sudo
-  if functions -q -- "$argv[1]"
-    set -lx hi_sudo_fn $argv[1]
-    set -lx function_src (string join "\n" (string escape --style=var (functions -- $hi_sudo_fn)))
-    command sudo -E fish -c 'string unescape --style=var (string split "\n" $function_src) | source; $hi_sudo_fn $argv' -- $argv[2..]
-  else
-    command sudo $argv
+# argv after --, never a re-parsed string - that invites injection. Off with
+# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as settings/aliases.sh's sudo alias.
+if test "$_HI_DISABLE_SUDO_ALIAS" != 1
+  function sudo
+    if functions -q -- "$argv[1]"
+      set -lx hi_sudo_fn $argv[1]
+      set -lx function_src (string join "\n" (string escape --style=var (functions -- $hi_sudo_fn)))
+      command sudo -E fish -c 'string unescape --style=var (string split "\n" $function_src) | source; $hi_sudo_fn $argv' -- $argv[2..]
+    else
+      command sudo $argv
+    end
   end
+end
+
+# zoxide and atuin, mirroring core.sh's _hi_tool_init: only when the box has
+# them and nothing has wired them in yet
+if test "$_HI_DISABLE_TOOL_INIT" != 1
+  command -q zoxide; and not functions -q __zoxide_z; and zoxide init fish | source
+  command -q atuin; and not functions -q _atuin_search; and atuin init fish | source
 end
 
 # the prompt's end character, mirroring core.sh's _hi_prompt_end: fish
@@ -129,8 +140,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
   # core.sh's _hi_wants_prompt_tool rule (fish can't call it); a missing tool
   # falls back to hi's prompt below. The tool's config variable is paths.sh's
   # job, which fish sourced above
-  if contains -- "$_HI_PROMPT" starship oh-my-posh; and command -q $_HI_PROMPT
-    $_HI_PROMPT init fish | source
+  if contains -- "$_HI_PROMPT_TOOL" starship oh-my-posh; and command -q $_HI_PROMPT_TOOL
+    $_HI_PROMPT_TOOL init fish | source
   else
     # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
     # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's
@@ -202,7 +213,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       set -l color_at normal
       set -q SSH_TTY; and set color_at yellow
       set -l lead " "
-      test "$_HI_NO_LEAD_SPACE" = 1; and set lead ""
+      test "$_HI_DISABLE_LEAD_SPACE" = 1; and set lead ""
       # $lead is its own argument, never "$lead"(__hi_env_prompt): fish drops
       # the *whole* concatenated word when a command substitution inside it
       # produces nothing, so glued to an empty environment segment - which is

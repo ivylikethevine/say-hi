@@ -1313,11 +1313,11 @@ function test_system_info_with_no_kernel_and_no_release_says_unknown() {
 
 # --- the row painter's two width-neutral switches -----------------------
 
-# $_HI_NO_LEAD_SPACE drops the leading space and only that: the " | " between
+# $_HI_DISABLE_LEAD_SPACE drops the leading space and only that: the " | " between
 # cells stays, on a header row and on the packages check's own rows
 function test_no_lead_space_drops_only_the_leading_space() {
   local out
-  out="$(NO_COLOR=1 _HI_NO_LEAD_SPACE=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
+  out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
   [ "$out" = "| alpha | beta" ] || {
     _hi_cecho " | got: [$out]" "$RED"
     return 1
@@ -1330,7 +1330,7 @@ function test_no_lead_space_applies_to_the_packages_check() {
   local pkgfile="$_HI_WORKDIR/nolead-pkgs" out
   printf '%s:3\n' "$_HI_REAL_CMD" >"$pkgfile"
   mkdir -p "$_HI_WORKDIR/pkgcfg" && cp "$pkgfile" "$_HI_WORKDIR/pkgcfg/packages"
-  out="$(NO_COLOR=1 _HI_NO_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
+  out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 _HI_CONFIG_DIR="$_HI_WORKDIR/pkgcfg" bash -c 'source "$_HI_HEADER"; full_check')"
   [[ "$out" == "|"* && "$out" == *"$_HI_REAL_CMD"* ]]
 }
 
@@ -2069,7 +2069,7 @@ function run_header_tests() {
   _hi_check "The ip cell is empty when every address is hidden" test_ip_cell_is_empty_when_every_address_is_hidden
   _hi_check "The header omits a hidden ip cell" test_header_omits_the_ip_cell_when_hidden
   _hi_check "System_info with no kernel and no os-release says ?" test_system_info_with_no_kernel_and_no_release_says_unknown
-  _hi_check "_HI_NO_LEAD_SPACE drops only the leading space" test_no_lead_space_drops_only_the_leading_space
+  _hi_check "_HI_DISABLE_LEAD_SPACE drops only the leading space" test_no_lead_space_drops_only_the_leading_space
   _hi_check "...on the packages check too" test_no_lead_space_applies_to_the_packages_check
   _hi_check "A row with no cells prints a bare line" test_header_row_with_no_cells_prints_a_bare_line
   _hi_check "Identity without a git email says so" test_identity_without_a_git_email_says_so

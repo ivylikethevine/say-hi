@@ -128,7 +128,7 @@ _hi_git_prompt() {
   [[ -n "$state" ]] && out+="|${state}"
   [[ -n "$upstream" ]] && out+="|${upstream}"
   local lead=" "
-  [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && lead=""
+  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && lead=""
   if [[ -n "${1:-}" ]]; then
     printf -v "$1" "${lead}%b" "$out|${flags})"
   else

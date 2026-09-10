@@ -89,7 +89,7 @@ function setting_off() {
 
 # true if $1 is on. Two shapes of setting share this: a default-on toggle is
 # on unless its value is <off> ($3), and an opt-in - one whose on-value <on>
-# ($4) has to be written out, like _HI_PROMPT=starship - is on only when its
+# ($4) has to be written out, like _HI_PROMPT_TOOL=starship - is on only when its
 # value *is* that.
 function setting_on() {
   local var="$1" target="$2" off="${3:-1}" on="${4:-}" answer
@@ -320,13 +320,13 @@ function _hi_header_preview() {
   setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
   setting_value _HI_PACKAGES_PALETTE "$_HI_SETTINGS" palette
-  setting_value _HI_NO_LEAD_SPACE "$_HI_SETTINGS" lead
+  setting_value _HI_DISABLE_LEAD_SPACE "$_HI_SETTINGS" lead
   setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
   setting_value _HI_COLOR_SCHEME "$_HI_SETTINGS" scheme
   (
     export _HI_HEADER_ORDER="$order" _HI_DISABLE_BANNER="${banner:-0}" _HI_MAX_WIDTH="${width:-80}"
     export _HI_PACKAGES_MIN_PRIORITY="${floor:-2}" _HI_PACKAGES_PALETTE="$palette"
-    export _HI_NO_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
+    export _HI_DISABLE_LEAD_SPACE="${lead:-0}" _HI_IP_HIDE="${iphide:-172.*}"
     # the palette and the check ramps were captured at source time;
     # rebuild both under this run's scheme so the preview paints with it
     # shellcheck disable=SC2030 # the scheme lives and dies in this subshell
@@ -415,12 +415,16 @@ function _hi_config_preview() {
   _hi_prompt_sample_preview
 }
 
-# what `nano`/`vim` actually resolve to with the override on. The vim ladder
-# is settings/aliases.sh's, spelled again because this file cannot source it -
+# what each editor alias actually resolves to with the override on. The vim
+# and helix ladders are settings/aliases.sh's, spelled again because this file cannot source it -
 # see the note there; alias_fallthrough_test.sh fails when the two drift.
 function _hi_editors_preview() {
   printf 'nano -> nano --rcfile %s\n' "$_HI_NANORC"
   printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
+  printf 'emacs -> emacs -q -l %s\n' "$_HI_EMACSRC"
+  printf 'hx   -> %s -c %s\n' "$(command -v hx || command -v helix)" "$_HI_HELIXRC"
+  printf 'kak  -> kak -e '"'"'source %s'"'"'\n' "$_HI_KAKRC"
+  printf 'micro -> micro %s\n' "${_HI_MICRO_OPTS:--backup false -savehistory false -mkparents true -diffgutter true}"
 }
 
 # what `cat` and `eza` resolve to with the rebinds on. settings/aliases.sh's
@@ -439,6 +443,19 @@ function _hi_tool_alias_preview() {
     printf 'eza -> %s -F -1 -l -m --group-directories-first --smart-group --time-style="+%%b %%d %%Y %%H:%%M"\n' "$eza_bin"
   else
     printf 'eza is not installed here - only targets that have it are affected\n'
+  fi
+}
+
+# what the tool integration would wire in here: only the tools installed
+function _hi_tool_init_preview() {
+  local t found=""
+  for t in zoxide atuin; do
+    command -v "$t" >/dev/null 2>&1 && found="$found $t"
+  done
+  if [ -n "$found" ]; then
+    printf 'installed here:%s - wired into every session on a target that has it\n' "$found"
+  else
+    printf 'neither zoxide nor atuin is installed here - only targets that have one are affected\n'
   fi
 }
 
@@ -490,8 +507,10 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview| Enable the environment segment in the prompt (the leading (myproj) naming an active venv, conda, direnv, nix or version manager)?||environment segment in the prompt"
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano config overrides?||vim/nano config overrides"
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the editor config overrides (vim, nano, emacs, helix, kakoune, micro)?||editor config overrides - vim, nano, emacs, helix, kakoune, micro"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
+  "_HI_DISABLE_TOOL_INIT|1||_hi_tool_init_preview| Enable shell integration for zoxide and atuin (their init hooks: ranked cd, ctrl-r history) where the target has them?||zoxide/atuin shell integration"
+  "_HI_DISABLE_SUDO_ALIAS|1||| Enable the sudo alias ('sudo vim' and friends keep hi's flags - a trailing-space alias in bash/zsh, a wrapper function in fish)?||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
 )
@@ -507,16 +526,16 @@ _HI_HEADER_PROMPTS=(
 
 # whether to hand the prompt to starship where a target has one. An opt-in,
 # never auto-detected - core.sh's _hi_wants_prompt_tool, which also takes
-# _HI_PROMPT=oh-my-posh written by hand (no menu item: one toggle, one tool)
+# _HI_PROMPT_TOOL=oh-my-posh written by hand (no menu item: one toggle, one tool)
 _HI_PROMPT_PROMPTS=(
-  "_HI_PROMPT||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
+  "_HI_PROMPT_TOOL||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
 )
 
 # The advanced section, behind the hub's Advanced item: settings most
 # installs never touch, kept out of the default path so it stays short. Not
 # opening it keeps whatever each of these already holds.
 _HI_ADVANCED_PROMPTS=(
-  "_HI_NO_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
+  "_HI_DISABLE_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
@@ -558,12 +577,12 @@ function ask_prompt_group() {
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, tool integration or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_TOOL_INIT=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
 # plus the one dial - so "not named by the preset" can mean "back to the
-# default". _HI_PROMPT (starship) stays out, like the color scheme and the
+# default". _HI_PROMPT_TOOL (starship) stays out, like the color scheme and the
 # packages ramp: those are taste, not a feature level, and no preset has an
 # opinion on them. Neither is asked here at all - both are written into
 # settings.sh by hand (GLOSSARY: HI.50).
@@ -677,7 +696,7 @@ function configure_intro() {
   _hi_cecho " settings: $_HI_SETTINGS ($state)" "$BLUE"
 }
 
-# The hub: the preview, six sections, save or quit. Every section returns
+# The hub: the preview, five sections, save or quit. Every section returns
 # here, and the preview re-renders with whatever it changed. EOF saves - the
 # same "no answer keeps what you have and the run completes" that every
 # question here has always meant. The third junk answer in a row ends the
@@ -720,7 +739,7 @@ function config_hub() {
         _HI_CONFIGURE_QUIT=1
         return 0
       fi
-      _hi_cecho " type 1-6 or the bracketed letter ([p] [h] [f] [r] [a] [c]); [s] saves, [q] quits" "$YELLOW"
+      _hi_cecho " type 1-5 or the bracketed letter ([p] [h] [f] [r] [a]); [s] saves, [q] quits" "$YELLOW"
       continue
       ;;
     esac

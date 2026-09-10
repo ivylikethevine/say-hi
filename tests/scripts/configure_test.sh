@@ -309,13 +309,13 @@ function test_ask_value_non_interactive_keeps_current() {
   [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
 }
 
-# The seed: a fresh overlay gets the four shipped defaults, byte for byte,
+# The seed: a fresh overlay gets the seven shipped defaults, byte for byte,
 # for the files the user has none of - and nothing else: no repo, no commit,
 # versioning is the user's own (each case gets a fresh scratch directory)
 function test_overlay_seed_copies_the_shipped_defaults() {
   local dir="$_HI_WORKDIR/ovl-seed" f
   (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  for f in colors packages vim.rc nano.rc; do
+  for f in colors packages vim.rc nano.rc emacs.el helix.toml kak.rc; do
     cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
       _hi_cecho " | $f was not seeded from the tree" "$RED"
       return 1
@@ -682,7 +682,7 @@ function test_ask_setting_default_keeps_disabled() {
 
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
-# (_HI_NO_LEAD_SPACE=1, _HI_PROMPT=starship) is on only when its
+# (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=starship) is on only when its
 # on-value is. setting_on is the one reader of both, and ask_prompt_group
 # writes both.
 
@@ -690,14 +690,14 @@ function test_setting_on_opt_in_absent_is_off() {
   local target="$_HI_WORKDIR/opt_in_absent"
   : >"$target"
   _HI_SETTING_PENDING=()
-  ! setting_on _HI_NO_LEAD_SPACE "$target" 0 1
+  ! setting_on _HI_DISABLE_LEAD_SPACE "$target" 0 1
 }
 
 function test_setting_on_opt_in_present_is_on() {
   local target="$_HI_WORKDIR/opt_in_present"
-  printf 'export _HI_NO_LEAD_SPACE=1\n' >"$target"
+  printf 'export _HI_DISABLE_LEAD_SPACE=1\n' >"$target"
   _HI_SETTING_PENDING=()
-  setting_on _HI_NO_LEAD_SPACE "$target" 0 1
+  setting_on _HI_DISABLE_LEAD_SPACE "$target" 0 1
 }
 
 function test_setting_on_toggle_absent_is_on() {
@@ -741,8 +741,8 @@ function test_opt_in_off_writes_nothing() {
 
 function test_starship_kept_when_chosen() {
   local out
-  out="$(_hi_collected_lines starship "export _HI_PROMPT=starship")"
-  [[ "$out" == *"export _HI_PROMPT=starship"* ]]
+  out="$(_hi_collected_lines starship "export _HI_PROMPT_TOOL=starship")"
+  [[ "$out" == *"export _HI_PROMPT_TOOL=starship"* ]]
 }
 
 # the section opened with nobody to answer keeps every advanced value,
@@ -750,8 +750,8 @@ function test_starship_kept_when_chosen() {
 function test_advanced_declined_keeps_every_value() {
   local out
   out="$(_hi_section_lines adv_keep config_advanced \
-    "export _HI_NO_LEAD_SPACE=1" "export _HI_TRUECOLOR=0")"
-  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* &&
+    "export _HI_DISABLE_LEAD_SPACE=1" "export _HI_TRUECOLOR=0")"
+  [[ "$out" == *"export _HI_DISABLE_LEAD_SPACE=1"* &&
     "$out" == *"export _HI_TRUECOLOR=0"* ]]
 }
 
@@ -820,15 +820,15 @@ function test_preset_run_still_creates_the_file() {
 function test_prompt_group_carries_a_row_it_cannot_ask() {
   local out dir="$_HI_WORKDIR/needs"
   local _HI_SETTINGS="$dir/settings.sh"
-  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_NO_LEAD_SPACE|0|1|| moot?|no-such-command-$$|")
+  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_DISABLE_LEAD_SPACE|0|1|| moot?|no-such-command-$$|")
   _HI_SETTING_PENDING=()
   mkdir -p "$dir"
-  printf 'export _HI_NO_LEAD_SPACE=1\n' >"$_HI_SETTINGS"
+  printf 'export _HI_DISABLE_LEAD_SPACE=1\n' >"$_HI_SETTINGS"
   ask_prompt_group _HI_NEEDS_PROMPTS </dev/null
   [ "${#_HI_SETTING_PENDING[@]}" = 0 ] || return 1
   _hi_collect_group _HI_NEEDS_PROMPTS
   out="${_HI_SETTING_LINES[*]:-}"
-  [[ "$out" == *"export _HI_NO_LEAD_SPACE=1"* ]]
+  [[ "$out" == *"export _HI_DISABLE_LEAD_SPACE=1"* ]]
 }
 
 function test_validators_for_the_advanced_values() {
@@ -944,7 +944,7 @@ function test_preset_vocab_excludes_palette_and_order() {
     ! grep -qx _HI_HEADER_ORDER <<<"$vocab" &&
     ! grep -qx _HI_COLOR_SCHEME <<<"$vocab" &&
     ! grep -qx _HI_IP_HIDE <<<"$vocab" &&
-    ! grep -qx _HI_PROMPT <<<"$vocab"
+    ! grep -qx _HI_PROMPT_TOOL <<<"$vocab"
 }
 
 # the whole run with --preset, no tty: exactly the preset's lines land in the
@@ -1159,10 +1159,22 @@ function test_prompt_sample_preview_says_off_when_disabled() {
   [ "$out" = " prompt off - your shell's own" ]
 }
 
-function test_editors_preview_names_both_overrides() {
+function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* ]]
+  [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* &&
+    "$out" == *"emacs -q -l $_HI_EMACSRC"* && "$out" == *"-c $_HI_HELIXRC"* &&
+    "$out" == *"source $_HI_KAKRC"* && "$out" == *"micro -> micro -backup false"* ]]
+}
+
+function test_tool_init_preview_names_what_is_here() {
+  local dir out
+  dir="$(_hi_fake_path preview_zoxide zoxide)"
+  # shellcheck disable=SC2031 # the swaps here live and die in their own $( )
+  out="$(PATH="$dir:$PATH" _hi_tool_init_preview)"
+  [[ "$out" == *"installed here: zoxide"* ]] || return 1
+  out="$(PATH="$(_hi_real_path preview_notools bash sh)" _hi_tool_init_preview)"
+  [[ "$out" == *"neither zoxide nor atuin"* ]]
 }
 
 function test_bat_preview_names_the_bat_it_found() {
@@ -1478,7 +1490,7 @@ function test_header_editor_opens_the_check_depth() {
 # The Features menu: a number flips the row and shows its preview
 function test_features_menu_toggles_and_previews() {
   _hi_cfg_pty feat_toggle '5\n\n' '' config_features || return 1
-  _hi_cfg_has feat_toggle "vim/nano config overrides: now off" &&
+  _hi_cfg_has feat_toggle "editor config overrides: now off" &&
     _hi_cfg_has feat_toggle "nano --rcfile" &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
 }
@@ -1521,7 +1533,7 @@ function test_prompt_end_typed_interactively_is_quoted() {
 function test_prompt_menu_toggles_starship() {
   _hi_cfg_pty pe_star '1\n\n' '' config_prompt || return 1
   _hi_cfg_has pe_star "starship: now on" &&
-    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT=starship"* ]]
+    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=starship"* ]]
 }
 
 # the advanced section is a question walk with no gate of its own (the hub's
@@ -1765,7 +1777,8 @@ function run_configure_tests() {
   _hi_h2 "Testing: the question previews"
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
-  _hi_check "Editors preview names both overrides" test_editors_preview_names_both_overrides
+  _hi_check "Editors preview names every override" test_editors_preview_names_every_override
+  _hi_check "Tool init preview names what is here" test_tool_init_preview_names_what_is_here
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one

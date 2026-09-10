@@ -34,7 +34,8 @@ if [ -z "${_hi_core_loaded:-}" ]; then
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
     _HI_DISABLE_EDITORS
     _HI_DISABLE_MARKS
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER)
+    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS
+    _HI_DISABLE_BANNER)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
   done
@@ -448,6 +449,23 @@ function _hi_interactive_extras() {
   [ -z "${LESSOPEN:-}" ] && [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
   # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
+  _hi_tool_init
+}
+
+# zoxide and atuin, wired in when the box has them and nothing has done it
+# yet: a user's own rc at home has usually run `init` already, and each tool
+# leaves a function behind (__zoxide_z; _atuin_search in zsh, __atuin_history
+# in bash) that says so. Both take `init <shell>`, and the shell is the one
+# this file is running under. config.fish mirrors the rule.
+function _hi_tool_init() {
+  [ "${_HI_DISABLE_TOOL_INIT:-0}" != 1 ] || return 0
+  local _hi_ti_sh=bash
+  [ -n "${ZSH_VERSION:-}" ] && _hi_ti_sh=zsh
+  command -v zoxide >/dev/null 2>&1 && ! command -v __zoxide_z >/dev/null 2>&1 &&
+    eval "$(zoxide init "$_hi_ti_sh")"
+  command -v atuin >/dev/null 2>&1 && ! command -v _atuin_search >/dev/null 2>&1 &&
+    ! command -v __atuin_history >/dev/null 2>&1 && eval "$(atuin init "$_hi_ti_sh")"
+  return 0
 }
 
 # The _HI_* names an exec'd child really reads from its environment; the rc
@@ -555,8 +573,7 @@ function _hi_prompt_end_default() {
   done
 }
 
-# _hi_prompt_end <SHELL> [outvar] - per-shell setting, then the all-three one,
-# then the default; empty counts as unset (`' '` means "none"). Unescaped, so
+# _hi_prompt_end <SHELL> [outvar] - the per-shell setting, else the default; empty counts as unset (`' '` means "none"). Unescaped, so
 # `%#` and `\$` keep their meaning. config.fish mirrors this. GLOSSARY: HI.05
 function _hi_prompt_end() {
   local _hi_pe
@@ -569,13 +586,13 @@ function _hi_prompt_end() {
   fi
 }
 
-# _HI_PROMPT names a prompt program - starship or oh-my-posh - to hand the
+# _HI_PROMPT_TOOL names a prompt program - starship or oh-my-posh - to hand the
 # prompt to when the target has it, keeping hi's header and aliases; a missing
 # one falls back silently to hi's prompt. Never auto-detected - a target that
 # happens to carry one must not surprise. GLOSSARY: HI.32
 function _hi_wants_prompt_tool() {
-  case "${_HI_PROMPT:-}" in
-  starship | oh-my-posh) command -v "$_HI_PROMPT" >/dev/null 2>&1 ;;
+  case "${_HI_PROMPT_TOOL:-}" in
+  starship | oh-my-posh) command -v "$_HI_PROMPT_TOOL" >/dev/null 2>&1 ;;
   *) return 1 ;;
   esac
 }

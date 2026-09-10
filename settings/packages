@@ -37,10 +37,8 @@
 -gzip:3
 -od:3
 -stty:3
--bash:3
 -tar:3
 -git:3
--sudo:3
 -df:3
 -stat:3
 -scp:3
@@ -52,14 +50,14 @@
 bat:3,batcat:3,ccat:3,cat:2
 eza:3,exa:3,lsd:3
 fd:3,fdfind:3,find:2
-rg:3,ag:2,ugrep:2,ack:1
+rg:3,ag:2,ugrep:2,ack:1,rga:1
 fzf:3,sk:3,skim:3
 jq:3,gojq:3,jaq:3
 tmux:3,zellij:3,screen:2,dtach:1
 zoxide:3,autojump:2
 atuin:3,mcfly:2
-starship:3
-lazygit:3,tig:2
+starship:3,oh-my-posh:3
+lazygit:3,gitui:3,tig:2
 tldr:3,tlrc:3,tealdeer:3,man:2
 just:3,task:3
 asdf:3,mise:3
@@ -67,35 +65,42 @@ direnv:3
 hi:3
 
 # 2: bright cyan installed, bright yellow missing
-# useful tools: good to know either way
+# useful tools: good to know either way. bash and sudo sit here, not with the
+# core: a bash-less box gets hi's sh tier and a sudo-less one is a choice
+-bash:2
+-sudo:2,doas:2
 apt-get:2,dnf:2,pacman:2,zypper:2,apk:2,pkg:2,emerge:2,xbps-install:2,brew:2,choco:2,yay:2,paru:2,rpm:2,mas:2
 flatpak:2,snap:2,nix:2,guix:2
 nano:2,micro:2,vim:2,pico:2,nvim:2,vi:2,emacs:2,hx:2,helix:2,kak:2
 zeditor:2,zed:2,code:2
-docker:2,podman:2,nerdctl:2
+docker:2,podman:2,nerdctl:2,finch:2
 kubectl:2
 nomad:2
 python3:2,python:2,python2:2
 go:2
 make:2,cmake:2
-curl:2,httpie:2,xh:2,httpstat:2
+curl:2,httpie:2,xh:2,curlie:2,httpstat:2
 wget:2,aria2:1
 rsync:2
-top:2,btop:2,htop:2,btm:2
+top:2,btop:2,htop:2,btm:2,glances:1
 sd:2,sed:2
-delta:2,diff-so-fancy:2,icdiff:2,xdelta3:1
+delta:2,difft:2,diff-so-fancy:2,icdiff:2,xdelta3:1
 zsh:2,fish:2
-dust:2,ncdu:2
+dust:2,ncdu:2,gdu:2
 hyperfine:2
 zip:2,unzip:2
 yq:2
 sshfs:2,rclone:1
 sshm:2
+less:2,moar:1,most:1
+watchexec:2,entr:2
 -gpg:2
+-tput:2
+-ip:2,ifconfig:2
 
 # 1: green installed, magenta missing
 # optional extras: nice, not load-bearing
-gping:1,prettyping:1
+gping:1,prettyping:1,mtr:1
 navi:1,cheat:1
 tre:1,tree:1,broot:1
 dua:1
@@ -104,15 +109,23 @@ procs:1,pstree:1
 ctop:1,lazydocker:1
 k9s:1,helm:1,kind:0,minikube:0
 pv:1,progress:1
-scc:1,cloc:1
-7z:1,zstd:1,xz:1
+scc:1,tokei:1,cloc:1
+ouch:1,7z:1,zstd:1,xz:1
 strace:1,ltrace:1
 dig:1,dog:1,doggo:1
 ffmpeg:1
 rustc:1,rustup:1
 act:1
-gh:1
-tailspin:1
+gh:1,glab:1
+tailspin:1,lnav:1
+yazi:1,ranger:1,lf:1,nnn:1,mc:1
+jless:1,fx:1
+choose:1,mlr:1,qsv:1,xsv:1
+hexyl:1,xxd:0,hexdump:0
+fastfetch:1,neofetch:0
+viddy:1,hwatch:1,watch:0
+croc:1,wormhole:1
+pyenv:1,rbenv:1,nodenv:1,conda:1,devbox:1,devenv:1
 
 # 0: cyan installed, blue missing
 # platform trivia; `+` where a presence is a fact and an absence is noise
@@ -122,8 +135,8 @@ pkgconf:0
 fusermount:0
 dotnet:0
 php:0
-pip:0,pyenv:0
-n:0,npx:0,npm:0,nvm:0,node:0
+uv:1,pip:0,pipx:0
+n:0,npx:0,npm:0,nvm:0,node:0,bun:0,pnpm:0,fnm:0
 netstat:0,bandwhich:0,iftop:0,nethogs:0
 +dpkg:0,wpkg:0
 grc:0
@@ -164,4 +177,6 @@ b2sum:0,sha256sum:0
 +toolbox:0
 +devpod:0
 +xpipe:0
-+sw_vers:0,wmic:0,sysctl:0
++sw_vers:0,wmic:0,sysctl:0,vm_stat:0
++getent:0
++dash:0

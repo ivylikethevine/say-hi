@@ -132,10 +132,10 @@ function _hi_row_line() {
     fi
     if ((count == 0)); then
       width=0
-      # $_HI_NO_LEAD_SPACE drops just this one leading space - the "| "
+      # $_HI_DISABLE_LEAD_SPACE drops just this one leading space - the "| "
       # between later cells is the structural separator, not "the initial
       # space", and stays either way
-      if [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]]; then
+      if [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
         out+="$NC| $cell"
       else
         out+="$NC | $cell"
@@ -684,7 +684,7 @@ function banner() {
     fi
   fi
   local host tildes start_len end_len start_tildes end_tildes width left core lead=" "
-  [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]] && lead=""
+  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && lead=""
   # memoized for the same reason: two forks a banner for a fixed name
   [ -n "${_HI_BANNER_HOST+x}" ] || _hi_sanitize_var _HI_BANNER_HOST "$(_hi_hostname)"
   host="$_HI_BANNER_HOST"
@@ -1086,7 +1086,7 @@ function full_check() {
     piece="${row_pieces[$i]}"
     if ((width + width_item > max)); then # start of a row
       ((count == 0)) || printf '\n'
-      if [[ "${_HI_NO_LEAD_SPACE:-0}" == 1 ]]; then
+      if [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
         width=0
       else
         printf ' '

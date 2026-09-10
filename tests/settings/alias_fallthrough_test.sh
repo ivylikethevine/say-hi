@@ -58,8 +58,8 @@ check_alias() {
 
 if [ -n "${_HI_CHECK_VAR:-}" ]; then
   case "$_HI_CHECK_VAR" in
-  BATCAT_BIN) actual=$_HI_BATCAT_BIN ;;
-  BAT_REAL) actual=$_HI_BAT_REAL ;;
+  CAT_BIN) actual=$_HI_CAT_BIN ;;
+  BAT_BIN) actual=$_HI_BAT_BIN ;;
   EXA_BIN) actual=$_HI_EXA_BIN ;;
   EZA_BIN) actual=$_HI_EZA_BIN ;;
   esac
@@ -73,8 +73,17 @@ if [ -n "${_HI_CHECK_BAT_OPTS:-}" ]; then
   esac
 fi
 
+if [ -n "${_HI_CHECK_BAT_NO_THEME:-}" ]; then
+  case "$(alias bat 2>/dev/null)" in
+  *--theme*) echo "bat alias still carries --theme with BAT_CONFIG_PATH set: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
+  esac
+fi
+
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   check_alias nano "$_HI_EXPECT_NANO"
+  check_alias emacs "$_HI_EXPECT_NANO"
+  check_alias kak "$_HI_EXPECT_NANO"
+  check_alias micro "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
@@ -119,10 +128,10 @@ end
 
 if set -q _HI_CHECK_VAR
   switch "$_HI_CHECK_VAR"
-  case BATCAT_BIN
-    set actual $_HI_BATCAT_BIN
-  case BAT_REAL
-    set actual $_HI_BAT_REAL
+  case CAT_BIN
+    set actual $_HI_CAT_BIN
+  case BAT_BIN
+    set actual $_HI_BAT_BIN
   case EXA_BIN
     set actual $_HI_EXA_BIN
   case EZA_BIN
@@ -141,8 +150,18 @@ if set -q _HI_CHECK_BAT_OPTS
   end
 end
 
+if set -q _HI_CHECK_BAT_NO_THEME
+  if string match -q -- "*--theme*" (functions bat | string join \n)
+    echo "bat alias still carries --theme with BAT_CONFIG_PATH set" >&2
+    set fail 1
+  end
+end
+
 if set -q _HI_CHECK_FLAGS
   check_alias nano "$_HI_EXPECT_NANO"
+  check_alias emacs "$_HI_EXPECT_NANO"
+  check_alias kak "$_HI_EXPECT_NANO"
+  check_alias micro "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if set -q _HI_EXPECT_LS_ALIAS
@@ -238,7 +257,7 @@ function _hi_run_overlay_case() {
 # The ordering hazard the reorder introduces: in zsh and dash (not bash, not
 # fish) `command -v name` returns an *alias's* definition once one exists, so
 # if the overlay ran before the command -v fallthrough chains, an overlay
-# `alias cat=...` would poison $_HI_BATCAT_BIN before it ever resolves to a
+# `alias cat=...` would poison $_HI_CAT_BIN before it ever resolves to a
 # real binary. settings/aliases.sh keeps the chains above the overlay source
 # specifically to avoid this (GLOSSARY: HI.13) - this is the regression test
 # for that ordering, over a fake PATH holding nothing but a fake `cat`.
@@ -252,8 +271,8 @@ function run_overlay_poisoning_test() {
 
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "[$shell] overlay alias cat= does not poison \$_HI_BATCAT_BIN" \
-      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_VAR=BATCAT_BIN _HI_EXPECT="$fakepath/cat"
+      "[$shell] overlay alias cat= does not poison \$_HI_CAT_BIN" \
+      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_VAR=CAT_BIN _HI_EXPECT="$fakepath/cat"
   done
 }
 
@@ -306,7 +325,8 @@ function _hi_run_scenario() {
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
-    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
+    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/emacs.el" \
+    _HI_HELIXRC="$_HI_WORKDIR/helix.toml" _HI_KAKRC="$_HI_WORKDIR/kak.rc" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
@@ -324,11 +344,11 @@ function run_fallthrough_tests() {
   _hi_h1 "Fallthrough (command -v a || b || ...) resolution"
   local var last mid installed expect fakepath shell
 
-  # BAT_REAL is the one chain here with no floor: it is deliberately empty when
+  # BAT_BIN is the one chain here with no floor: it is deliberately empty when
   # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
-  for var in BATCAT_BIN:"bat batcat ccat cat" BAT_REAL:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
+  for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
     local name="${var%%:*}" cands="${var#*:}"
     # shellcheck disable=SC2086 # word-splitting into positional candidates is intended
     set -- $cands
@@ -347,10 +367,10 @@ function run_fallthrough_tests() {
   done
 }
 
-# The convenience aliases are the tail of settings/aliases.sh and
-# unconditional, so `sudo` is asserted *present* on both rows. It stays in the table rather than being dropped from it: it is
-# the cheapest pin on the merged tail being reached at all in three dialects,
-# and the shape that would regress is it quietly acquiring a guard.
+# The convenience aliases are the tail of settings/aliases.sh, so `sudo` is
+# asserted *present* on both editor rows: the cheapest pin on the merged tail
+# being reached at all in three dialects. Its own guard is
+# _HI_DISABLE_SUDO_ALIAS, exercised on its own row below.
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
@@ -369,7 +389,7 @@ function run_flag_tests() {
   done
 }
 
-# The cat/catn rebind is unconditional once $_HI_BATCAT_BIN resolves to
+# The cat/catn rebind is unconditional once $_HI_CAT_BIN resolves to
 # anything - even down to plain cat, its floor - so the guard is tested the
 # same way as _HI_DISABLE_EDITORS's above: does the alias exist at all,
 # regardless of what it would ultimately run. The one toggle covers the
@@ -377,6 +397,23 @@ function run_flag_tests() {
 # (run_fallthrough_tests already covers that), so the same pass checks that
 # both families go together.
 function run_tool_aliases_flag_tests() {
+  _hi_h1 "_HI_DISABLE_SUDO_ALIAS guard"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "_HI_DISABLE_SUDO_ALIAS=1 drops the sudo alias" \
+      _HI_DISABLE_SUDO_ALIAS=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=0 _HI_EXPECT_CAT_ALIAS=1
+  done
+
+  _hi_h1 "A bat config file takes the theme flag out of the default opts"
+  fakepath="$(_hi_fake_path fp_batconf bat)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "BAT_CONFIG_PATH set: default _HI_BAT_OPTS carry no --theme" \
+      BAT_CONFIG_PATH="$_HI_WORKDIR/bat.conf" _HI_CHECK_BAT_NO_THEME=1
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "BAT_CONFIG_PATH unset: the theme is in" \
+      _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--theme'
+  done
   _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa)"
@@ -474,6 +511,8 @@ function run_alias_fallthrough_test() {
   _hi_suite_begin
   _hi_check "The vim ladder matches install.sh's preview" \
     test_ladder_matches_the_install_preview 'command -v nvim || command -v vim'
+  _hi_check "The helix ladder matches install.sh's preview" \
+    test_ladder_matches_the_install_preview 'command -v hx || command -v helix'
   _hi_check "The bat ladder matches install.sh's preview" \
     test_ladder_matches_the_install_preview 'command -v bat || command -v batcat'
   run_fallthrough_tests

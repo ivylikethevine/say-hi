@@ -9,7 +9,7 @@
 # debian pin to bump. Root, on purpose: a container's shell is root's, and
 # `root` is the username whose color the colors overlay pins.
 #
-# starship too, for the editors tape's developer persona (_HI_PROMPT=starship
+# starship too, for the editors tape's developer persona (_HI_PROMPT_TOOL=starship
 # hands the prompt over only where the binary is): the same pinned installer
 # and version as tests/dockerfiles/frameworks/starship.sh, into /usr/local/bin
 # since root is the session user here.

@@ -1,12 +1,14 @@
 # Packaging & Releases
 
-How `hi` ships through a package manager, plus [checking a download you did
-not build](#verifying-a-release-download) and [regenerating the demo
+The user's half first - [checking a download you did not
+build](#verifying-a-release-download) and [what a package leaves for you to
+do](#after-installing-from-a-package) - then the maintainer's runbook: how
+`hi` ships through each package manager, and [regenerating the demo
 GIFs](#regenerating-the-demo-gifs). Nothing publishes without an intentional
 act: a `v*` tag only you can push, a PR you merge, or a dispatch by hand.
 
 **What is live today: releases, the package repository and the Homebrew
-tap, not the AUR.** Tagged releases exist (`v0.1.1`, `v0.1.2`, …), the
+tap, not the AUR.** Tagged releases exist (`v0.1.0`, `v0.1.1`, …), the
 apt/rpm/apk repository is live and signed at
 `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, and
 `brew install ivylikethevine/tap/say-hi` installs from
@@ -20,6 +22,8 @@ Actions variable.
 
 ## Contents
 
+- [Verifying a release download](#verifying-a-release-download)
+- [After installing from a package](#after-installing-from-a-package)
 - [The one idea](#the-one-idea)
 - [Layout](#layout)
 - [Channels weighed and not shipped](#channels-weighed-and-not-shipped)
@@ -33,11 +37,57 @@ Actions variable.
   - [Package repository](#package-repository)
 - [Verifying a packaged build locally](#verifying-a-packaged-build-locally)
   - [Reproducibility](#reproducibility)
-- [After installing from a package](#after-installing-from-a-package)
 - [Regenerating the demo GIFs](#regenerating-the-demo-gifs)
-- [Verifying a release download](#verifying-a-release-download)
+
+## Verifying a release download
+
+Releases ship a `SHA256SUMS`, signed build provenance, and a detached
+[minisign](https://jedisct1.github.io/minisign/) signature over the sums (the
+offline half — no `gh`, no network, one static public key):
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS                        # the bytes match the release
+minisign -Vm SHA256SUMS -P 'RWR2I3MAqExrIMvAdepnWzlWlaWyvb6bEJiFmsU6lAoE10FnZPSizkAA'
+gh attestation verify say-hi_*_all.deb --repo ivylikethevine/say-hi # which CI run built them
+```
+
+**That `minisign` line is load-bearing.** `release.yml`'s publish job `sed`s
+the public key out of it into every release body's checklist and fails the
+release if the pattern stops matching, so the key has one copy in the tree.
+Keep it a single line starting `minisign -Vm SHA256SUMS -P '`, with the key in
+single quotes.
+
+That covers **every** file on the release, `say-hi-<version>.tar.gz` included:
+`gh attestation verify say-hi-*.tar.gz --repo ivylikethevine/say-hi` answers
+for the sources as the line above does for the `.deb`.
+## After installing from a package
+
+The tree is root-owned and holds nobody's settings. Each user runs, once:
+
+```bash
+hi --install
+```
+
+The package's `/usr/bin/hi` is already on `PATH` and runs this tree, so the
+install makes no link of its own (and never touches a link a package owns).
+Answers go to `~/.config/say-hi/`, never into the tree. `hi --update` refuses
+to move a packaged tree and points at the package manager.
+
+**Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
+A session ships its own tree to every ssh target and runs out of that, so the
+package on the far end is neither needed nor read — it is there for that
+machine's own shells, and a session leaves it alone.
+`tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm` and
+`.apk` on real targets and asserts exactly that: the session works, out of its
+own tree, and the installed one is untouched afterwards.
+
+The `/etc/profile.d/say-hi.sh` snippet the packages ship is what wires the
+package into a login shell on the machine it is installed on.
 
 ## The one idea
+
+Everything from here down is the maintainer's runbook: nothing in it is
+needed to install or use hi.
 
 `hi.sh` locates itself: it walks `$0` through symlinks and takes the tree from
 where it lands, so `/usr/bin/hi` pointing into a package prefix resolves on its
@@ -479,30 +529,6 @@ docker run --rm -it -v "$PWD/dist:/dist" debian:stable \
   bash -lc 'apt-get update -qq && apt-get install -y /dist/say-hi_*_all.deb && echo "$_HI_HOME" && hi'
 ```
 
-## After installing from a package
-
-The tree is root-owned and holds nobody's settings. Each user runs, once:
-
-```bash
-hi --install
-```
-
-The package's `/usr/bin/hi` is already on `PATH` and runs this tree, so the
-install makes no link of its own (and never touches a link a package owns).
-Answers go to `~/.config/say-hi/`, never into the tree. `hi --update` refuses
-to move a packaged tree and points at the package manager.
-
-**Saying `hi` _to_ a packaged machine works whether or not anyone ran that.**
-A session ships its own tree to every ssh target and runs out of that, so the
-package on the far end is neither needed nor read — it is there for that
-machine's own shells, and a session leaves it alone.
-`tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm` and
-`.apk` on real targets and asserts exactly that: the session works, out of its
-own tree, and the installed one is untouched afterwards.
-
-The `/etc/profile.d/say-hi.sh` snippet the packages ship is what wires the
-package into a login shell on the machine it is installed on.
-
 ## Regenerating the demo GIFs
 
 [`docs/tapes/generate.sh`](tapes/generate.sh) renders all of them: one `vhs`
@@ -543,24 +569,3 @@ across the tapes so every one is on screen somewhere. A hand render is one
 things it has to get right that `generate.sh` handles (which `hi` is on
 `$PATH`, and a dirty tree's client/target split) are that script's header.
 
-## Verifying a release download
-
-Releases ship a `SHA256SUMS`, signed build provenance, and a detached
-[minisign](https://jedisct1.github.io/minisign/) signature over the sums (the
-offline half — no `gh`, no network, one static public key):
-
-```sh
-sha256sum -c --ignore-missing SHA256SUMS                        # the bytes match the release
-minisign -Vm SHA256SUMS -P 'RWR2I3MAqExrIMvAdepnWzlWlaWyvb6bEJiFmsU6lAoE10FnZPSizkAA'
-gh attestation verify say-hi_*_all.deb --repo ivylikethevine/say-hi # which CI run built them
-```
-
-**That `minisign` line is load-bearing.** `release.yml`'s publish job `sed`s
-the public key out of it into every release body's checklist and fails the
-release if the pattern stops matching, so the key has one copy in the tree.
-Keep it a single line starting `minisign -Vm SHA256SUMS -P '`, with the key in
-single quotes.
-
-That covers **every** file on the release, `say-hi-<version>.tar.gz` included:
-`gh attestation verify say-hi-*.tar.gz --repo ivylikethevine/say-hi` answers
-for the sources as the line above does for the `.deb`.

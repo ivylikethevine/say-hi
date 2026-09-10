@@ -8,7 +8,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". -->
 
-![Payload](https://img.shields.io/badge/ssh_payload-56KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-59KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -17,6 +17,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
+
 > [docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
 > draft included.
 
@@ -99,7 +100,7 @@ the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 `nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
 neither: nothing is installed or running on the target. A developer, zsh on a
 laptop into the team's shared dev box, where the prompt is starship's, not
-hi's (`_HI_PROMPT=starship`; hi keeps the header, editors and aliases).
+hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors and aliases).
 
 ![nano and vim with hi's rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -189,22 +190,25 @@ everything weighed and answered **no**, and why.
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
   It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has
-  issues (the one prompt; `--yes` answers it). Shells that are not installed
+  issues (the one question before the settings menu; `--yes` answers it). Shells that are not installed
   get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
   `hi` itself is linked at `~/.local/bin/hi` (`--link system` for
   `/usr/bin/hi`, `--link none` for none - the wired shells alias it either
   way).
 - reload your shell!
 - `hi --configure` reopens that menu later: pick a preset, or open a
-  section - Header, Features, Prompt, Advanced, Colors - and save. Answers
+  section - Header, Features, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
-  `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
+  `packages` and the editor rcs (vim, nano, emacs, helix, kakoune), for the ones you have none of - yours
   to edit, and to version however you keep your dotfiles
   ([docs/SETTINGS.md](docs/SETTINGS.md)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
   a bug report); it also reports which rc files are wired and where `hi` on
   your `PATH` leads.
+- `hi --update` moves a cloned install to the newest release tag
+  (`--dry-run` names it first; a package upgrades through its package
+  manager instead).
 - the whole surface is twelve flags: `hi --help` lists them (as does `hi` on
   its own), `man hi` is the long form, and everything hi does not answer goes
   to `ssh`.
@@ -330,7 +334,7 @@ an upstream review that lands when it lands.
        `say-hi` current for one real release. <https://archlinux.org/news/>
 
 3. [ ] **Best Practices badge entry** — the answer sheet is
-       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
+       [.github/OPENSSF-IMPROVEMENTS.md](.github/OPENSSF-IMPROVEMENTS.md). **Do:**
        enter it at bestpractices.dev; label two or three open issues
        `good first issue` (`small_tasks`); confirm `secure_2FA` is
        TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.

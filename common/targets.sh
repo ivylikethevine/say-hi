@@ -49,14 +49,15 @@ if [ "$kind" = flags ]; then
   # flag wants that is not always on disk: `-` is offered everywhere; the rest
   # are withheld in a session and then checked against the tree (a package
   # install ships scripts/ but not .git).
-  # `flags <command>`: the line's first word is a local command (a row with a
-  # script var), so `hi --install --<TAB>` offers that command's own switches,
-  # read off the row's argument column - `--preset <name>` is one switch, the
-  # word it takes is not. Anything else first (a connect flag, a target)
-  # falls through to hi's own roster, as before.
+  # `flags <command>`: the line's first word is a local command (a row whose
+  # needs column is not `-`), so `hi --install --<TAB>` offers that command's
+  # own switches, read off the row's argument column - `--preset <name>` is
+  # one switch, the word it takes is not, and `hi --preview --<TAB>` offers
+  # nothing rather than hi's roster. Anything else first (a connect flag, a
+  # target) falls through to hi's own roster, as before.
   if [ -n "${2:-}" ]; then
-    while IFS='|' read -r flag arg _needs var _first _help; do
-      [ "$flag" = "$2" ] && [ -n "$var" ] || continue
+    while IFS='|' read -r flag arg needs _var _first _help; do
+      [ "$flag" = "$2" ] && [ "$needs" != - ] || continue
       for word in $(printf '%s' "$arg" | tr -d '[]'); do
         case "$word" in
         --*) printf '%s\t%s option\n' "$word" "$flag" ;;

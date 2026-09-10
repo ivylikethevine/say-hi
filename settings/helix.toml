@@ -1,0 +1,17 @@
+# hi's helix override, kept to the minimum that earns the `-c`: helix's own
+# defaults, which are already the modern set, plus the two or three things a
+# visitor wants on a box that is not theirs. Nothing to taste lives here - your
+# own $_HI_CONFIG_DIR/helix.toml replaces this file wholesale. Only the editor
+# config is replaced: the target's languages.toml and themes still apply.
+
+[editor]
+# mouse and a scrollbar-free line count are helix's defaults; these are not
+line-number = "relative"
+cursorline = true
+color-modes = true
+bufferline = "multiple"
+true-color = true
+
+[editor.file-picker]
+# dotfiles are half of what one edits over ssh
+hidden = false

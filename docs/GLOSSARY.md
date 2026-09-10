@@ -177,16 +177,16 @@ fish, and never leaves the alias pointing at a missing binary. The
 matches.
 
 A second, **narrower** chain over the same family delivers flags only to the
-tier that parses them: `$_HI_BAT_REAL` is `bat || batcat` where
-`$_HI_BATCAT_BIN` is `bat || batcat || ccat || cat`, so bat-syntax options
-attach behind `[ -n "$_HI_BAT_REAL" ] && alias ... || true` and ccat and
+tier that parses them: `$_HI_BAT_BIN` is `bat || batcat` where
+`$_HI_CAT_BIN` is `bat || batcat || ccat || cat`, so bat-syntax options
+attach behind `[ -n "$_HI_BAT_BIN" ] && alias ... || true` and ccat and
 coreutils `cat` get the bare binary.
 
 Every such chain sits **above** the user's overlay `aliases.sh` source in
 `settings/aliases.sh`, though the overlay is otherwise sourced first: in zsh
 and dash (not bash, not fish) `command -v name` returns an _alias's_
 definition once one exists, so an overlay `alias cat=...` sourced first would
-leave `_HI_BATCAT_BIN` holding the alias body instead of a binary path.
+leave `_HI_CAT_BIN` holding the alias body instead of a binary path.
 `alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit
@@ -368,12 +368,12 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 
 ## HI.32 starship deference
 
-`_HI_PROMPT=starship` hands the prompt to [starship](https://starship.rs) when
-the target has it, and `_HI_PROMPT=oh-my-posh` to
+`_HI_PROMPT_TOOL=starship` hands the prompt to [starship](https://starship.rs) when
+the target has it, and `_HI_PROMPT_TOOL=oh-my-posh` to
 [oh-my-posh](https://ohmyposh.dev), keeping hi's header and aliases either
 way. `common/core.sh`'s `_hi_wants_prompt_tool` is the single predicate (a
 setting naming one of the two _and_ the binary); `common/bash.sh` and
-`common/zsh.zsh` each `eval` their own `"$_HI_PROMPT" init <shell>` behind it,
+`common/zsh.zsh` each `eval` their own `"$_HI_PROMPT_TOOL" init <shell>` behind it,
 `common/config.fish` mirrors the rule since fish cannot call it. Both tools
 take `init <shell>`, which is what lets one predicate and one stub (the rc
 suite's `_hi_prompt_stub_dir`) cover both. `common/paths.sh` points the tool
@@ -460,10 +460,11 @@ HI.30. Both stay verbatim above their statement.
 ## HI.35 payload comment strip
 
 Every `*.sh`, `*.zsh` and `*.fish` file — and the `flags`/`colors`/`packages`/
-`vim.rc`/`nano.rc` data files, whose prose headers document the _installed_
+`vim.rc`/`nano.rc`/`emacs.el`/`helix.toml`/`kak.rc` data files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
-vim.rc's comment character is `"`, its own rule in the stripper.
+vim.rc's comment character is `"` and emacs.el's is `;`, each its own rule in
+the stripper.
 `bench_payload_readme_badge` checks README's badge against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
@@ -568,9 +569,15 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-`vim.rc` and `nano.rc` ride it for the same reason `colors` and `packages` do:
-the tree copy is a default, and `common/paths.sh` points `$_HI_VIMRC` /
-`$_HI_NANORC` at the overlay's when there is one. Left out of the stream, that
+The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml` and
+bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
+`common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
+`$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
+fixes the file name) at the overlay on a target only (HI.32).
+
+The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`) ride
+it for the same reason `colors` and `packages` do: the tree copy is a default,
+and `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one. Left out of the stream, that
 guard could only fire on the client — an editor override working locally and
 silently reverting on every target, the asymmetry `paths_test.sh`'s
 guard/roster pin catches one layer up.

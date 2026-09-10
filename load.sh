@@ -234,6 +234,27 @@ function _hi_session_shell_cmd() {
   eval "$2=(\"\${_hi_sc[@]}\")"
 }
 
+# The editor a session exports, with hi's config flags: $_HI_EDITOR's pick when
+# it names something installed here, else the first of the ladder. kak goes
+# bare - sudoedit splits the value on whitespace with no quoting, and kak's
+# config flag needs one quoted word. The micro default is aliases.sh's.
+function _hi_session_editor() {
+  local e
+  for e in ${_HI_EDITOR:-} nvim vim hx helix micro nano emacs kak; do
+    command -v "$e" &>/dev/null || continue
+    case "$e" in
+    nvim | vim) printf '%s -u %s' "$e" "$_HI_VIMRC" ;;
+    hx | helix) printf '%s -c %s' "$e" "$_HI_HELIXRC" ;;
+    micro) printf 'micro %s' "${_HI_MICRO_OPTS:--backup false -savehistory false -mkparents true -diffgutter true}" ;;
+    nano) printf 'nano --rcfile %s' "$_HI_NANORC" ;;
+    emacs) printf 'emacs -q -l %s' "$_HI_EMACSRC" ;;
+    *) printf '%s' "$e" ;;
+    esac
+    return 0
+  done
+  return 0
+}
+
 function load() {
   local start total
   start="$(_hi_now)"
@@ -256,6 +277,15 @@ function load() {
   [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]] &&
     command -v vim &>/dev/null &&
     export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
+  # $EDITOR, $VISUAL and $SUDO_EDITOR: an alias reaches an interactive prompt
+  # and nothing else, so `git commit`, `crontab -e` and `sudo -e` on the
+  # target would still open whatever vi it has. Exported for the session shell
+  # to inherit, carrying the same flags the alias does.
+  if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
+    local editor
+    editor="$(_hi_session_editor)"
+    [[ -n "$editor" ]] && export EDITOR="$editor" VISUAL="$editor" SUDO_EDITOR="$editor"
+  fi
   _hi_cecho " | " "$NC" 1
   _hi_cecho "hi loaded with... " "$BRCYAN" 1
 

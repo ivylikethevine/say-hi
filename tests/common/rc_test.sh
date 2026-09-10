@@ -242,14 +242,14 @@ function test_bash_starship_handoff_installs_no_ps1_hook() {
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     printf "%s|%s" "${PROMPT_COMMAND-}" "$(type -t ps1 || true)"' \
-    "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship)"
+    "PATH=$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship)"
   [[ "$out" != *ps1* ]]
 }
 
 # zsh/fish presence is handled by _hi_check_requires at the registration, so a
 # machine without one still runs (and honestly reports) the rest.
 
-# _HI_PROMPT=<tool> hands the prompt over when the tool exists; a stub on a
+# _HI_PROMPT_TOOL=<tool> hands the prompt over when the tool exists; a stub on a
 # prepended PATH stands in for it, answering `init <shell>` with a line whose
 # effect the case can see - the same stub body for starship and oh-my-posh,
 # since both take `init <shell>`. Three assertions per family: deferred when
@@ -287,7 +287,7 @@ function test_defers_to_prompt_tool_when_asked() {
     ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT="$tool")"
+    PATH="$(_hi_prompt_stub_dir "$tool"):$PATH" _HI_PROMPT_TOOL="$tool")"
   # shellcheck disable=SC2053 # $want is a pattern (fish's is a glob)
   [[ "$out" == $want ]]
 }
@@ -303,11 +303,91 @@ function test_remote_session_points_the_tool_at_the_overlay_config() {
   fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $STARSHIP_CONFIG' ;;
   esac
   out="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship _HI_REMOTE_SESSION=1)"
+    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship _HI_REMOTE_SESSION=1)"
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" \
-    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT=starship)"
+    PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship)"
   rm -f "$_HI_WORKDIR/cfg/starship.toml"
   [ "$out" = "$_HI_WORKDIR/cfg/starship.toml" ] && [ -z "$home" ]
+}
+
+# eza's theme the same way, except the variable names the directory: eza
+# reads $EZA_CONFIG_DIR/theme.yml and no other name, so the overlay is the dir
+function test_remote_session_points_eza_at_the_overlay() {
+  local shell="$1" script out home
+  mkdir -p "$_HI_WORKDIR/cfg"
+  printf 'filekinds:\n  directory: {foreground: Blue}\n' >"$_HI_WORKDIR/cfg/theme.yml"
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${EZA_CONFIG_DIR:-}"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $EZA_CONFIG_DIR' ;;
+  esac
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1)"
+  home="$(_hi_rc_shell xterm-256color "$shell" "$script")"
+  rm -f "$_HI_WORKDIR/cfg/theme.yml"
+  [ "$out" = "$_HI_WORKDIR/cfg" ] && [ -z "$home" ]
+}
+
+# bat's config file rides the same way, as $BAT_CONFIG_PATH
+function test_remote_session_points_bat_at_the_overlay_conf() {
+  local shell="$1" script out home
+  mkdir -p "$_HI_WORKDIR/cfg"
+  printf -- '--theme="ansi"\n' >"$_HI_WORKDIR/cfg/bat.conf"
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${BAT_CONFIG_PATH:-}"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $BAT_CONFIG_PATH' ;;
+  esac
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1)"
+  home="$(_hi_rc_shell xterm-256color "$shell" "$script")"
+  rm -f "$_HI_WORKDIR/cfg/bat.conf"
+  [ "$out" = "$_HI_WORKDIR/cfg/bat.conf" ] && [ -z "$home" ]
+}
+
+# a stub zoxide/atuin whose `init <shell>` prints one line the session can be
+# asked about: the tool is "installed", and what it prints is what got eval'd
+function _hi_tool_stub_dir() {
+  local dir="$_HI_WORKDIR/$1-bin"
+  [ -x "$dir/$1" ] || {
+    mkdir -p "$dir"
+    printf '#!/bin/sh\ncase "$2" in\nfish) echo "set -g HI_%s_INIT $2" ;;\n*) echo "HI_%s_INIT=$2" ;;\nesac\n' "$1" "$1" >"$dir/$1"
+    chmod +x "$dir/$1"
+  }
+  printf '%s' "$dir"
+}
+
+# the session runs `<tool> init <shell>` when the tool is there...
+function test_tool_init_wires_the_tool_in() {
+  local shell="$1" tool="$2" script out
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
+  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $HI_'"$tool"'_INIT' ;;
+  esac
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" PATH="$(_hi_tool_stub_dir "$tool"):$PATH")"
+  [ "$out" = "$shell" ]
+}
+
+# ...not when the toggle is off, and not when something already did (the
+# function the real init leaves behind is the mark)
+function test_tool_init_stands_down() {
+  local shell="$1" tool="$2" fn="$3" pre body wired toggled plain
+  case "$shell" in
+  bash) pre="$fn() { :; }; " body='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
+  zsh) pre="$fn() { :; }; " body='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
+  fish) pre="function $fn; end; " body='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $HI_'"$tool"'_INIT' ;;
+  esac
+  # the control: with neither the mark nor the toggle, the same body wires it
+  plain="$(_hi_rc_shell xterm-256color "$shell" "$body" PATH="$(_hi_tool_stub_dir "$tool"):$PATH")"
+  wired="$(_hi_rc_shell xterm-256color "$shell" "$pre$body" PATH="$(_hi_tool_stub_dir "$tool"):$PATH")"
+  toggled="$(_hi_rc_shell xterm-256color "$shell" "$body" PATH="$(_hi_tool_stub_dir "$tool"):$PATH" _HI_DISABLE_TOOL_INIT=1)"
+  [ "$plain" = "$shell" ] && [ -z "$wired" ] && [ -z "$toggled" ]
+}
+
+# fish's sudo wrapper is a function behind _HI_DISABLE_SUDO_ALIAS, the same
+# toggle as the POSIX alias; off, `sudo` is the command and nothing else
+function test_fish_sudo_wrapper_follows_the_toggle() {
+  local script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; functions -q sudo; and echo wrapped; or echo bare' on off
+  on="$(_hi_rc_shell xterm-256color fish "$script")"
+  off="$(_hi_rc_shell xterm-256color fish "$script" _HI_DISABLE_SUDO_ALIAS=1)"
+  [ "$on" = wrapped ] && [ "$off" = bare ]
 }
 
 function test_bash_keeps_hi_prompt_without_the_setting() {
@@ -327,7 +407,7 @@ function test_bash_falls_back_when_starship_is_absent() {
   out="$(_hi_rc_shell xterm-256color bash \
     'source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "$HI_PS1"' \
     PATH="$(_hi_real_path starshipless bash sh sed awk grep tr cut hostname uname cksum git)" \
-    _HI_PROMPT=starship 2>&1)"
+    _HI_PROMPT_TOOL=starship 2>&1)"
   [[ "$out" == *'\u'* ]]
 }
 
@@ -402,10 +482,10 @@ function test_fish_prompt_keeps_the_lead_without_an_environment() {
   }
 }
 
-# ...and _HI_NO_LEAD_SPACE=1 is what takes it away, in the same place
+# ...and _HI_DISABLE_LEAD_SPACE=1 is what takes it away, in the same place
 function test_fish_prompt_drops_the_lead_when_asked() {
   local out
-  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish _HI_NO_LEAD_SPACE=1)"
+  out="$(_HI_AS_ROOT=no _hi_prompt_tail fish _HI_DISABLE_LEAD_SPACE=1)"
   [[ "$out" != " "* ]]
 }
 
@@ -710,7 +790,7 @@ function run_rc_tests() {
   _hi_check_requires zsh "[zsh] PS1 puts the segment ahead of user@host" test_zsh_ps1_leads_with_the_environment_reference
   _hi_check_requires fish "[fish] the drawn prompt leads with it" test_fish_prompt_leads_with_the_environment
   _hi_check_requires fish "...and keeps the lead with no environment" test_fish_prompt_keeps_the_lead_without_an_environment
-  _hi_check_requires fish "..._HI_NO_LEAD_SPACE=1 takes the lead away" test_fish_prompt_drops_the_lead_when_asked
+  _hi_check_requires fish "..._HI_DISABLE_LEAD_SPACE=1 takes the lead away" test_fish_prompt_drops_the_lead_when_asked
 
   _hi_h2 "Testing: the per-shell override files"
   local _hi_row _hi_sh
@@ -722,17 +802,30 @@ function run_rc_tests() {
       test_shell_user_file_applies "$_hi_row"
   done
 
-  _hi_h2 "Testing: prompt handoff (_HI_PROMPT=starship / oh-my-posh)"
+  _hi_h2 "Testing: prompt handoff (_HI_PROMPT_TOOL=starship / oh-my-posh)"
   _hi_check "[bash] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked bash starship
   _hi_check "[bash] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked bash oh-my-posh
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_points_the_tool_at_the_overlay_config bash
+  _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_points_eza_at_the_overlay bash
+  _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_points_bat_at_the_overlay_conf bash
+  _hi_check "[bash] zoxide init runs when zoxide is there" test_tool_init_wires_the_tool_in bash zoxide
+  _hi_check "[bash] atuin init runs when atuin is there" test_tool_init_wires_the_tool_in bash atuin
+  _hi_check "[bash] zoxide init stands down: toggle, or already wired" test_tool_init_stands_down bash zoxide __zoxide_z
+  _hi_check "[bash] atuin init stands down: toggle, or already wired" test_tool_init_stands_down bash atuin __atuin_history
+  _hi_check_requires zsh "[zsh] zoxide init runs when zoxide is there" test_tool_init_wires_the_tool_in zsh zoxide
+  _hi_check_requires zsh "[zsh] atuin init stands down: toggle, or already wired" test_tool_init_stands_down zsh atuin _atuin_search
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
   _hi_check_requires fish "[fish] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked fish oh-my-posh
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_points_the_tool_at_the_overlay_config fish
+  _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_points_eza_at_the_overlay fish
+  _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_points_bat_at_the_overlay_conf fish
+  _hi_check_requires fish "[fish] zoxide init runs when zoxide is there" test_tool_init_wires_the_tool_in fish zoxide
+  _hi_check_requires fish "[fish] atuin init stands down: toggle, or already wired" test_tool_init_stands_down fish atuin _atuin_search
+  _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

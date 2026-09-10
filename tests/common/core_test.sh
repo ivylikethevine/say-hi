@@ -999,15 +999,15 @@ function test_ascii_flag_ships_the_verdict() {
 # the setting has to name a tool hi knows how to init
 function test_wants_prompt_tool_needs_both_halves() {
   (
-    unset _HI_PROMPT
+    unset _HI_PROMPT_TOOL
     ! _hi_wants_prompt_tool
   ) || return 1
   mkdir -p "$_HI_WORKDIR/empty.path"
-  ! _HI_PROMPT=starship PATH="$_HI_WORKDIR/empty.path" _hi_wants_prompt_tool || return 1
-  _HI_PROMPT=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_wants_prompt_tool || return 1
-  _HI_PROMPT=oh-my-posh PATH="$(_hi_fake_path posh oh-my-posh):$PATH" _hi_wants_prompt_tool || return 1
+  ! _HI_PROMPT_TOOL=starship PATH="$_HI_WORKDIR/empty.path" _hi_wants_prompt_tool || return 1
+  _HI_PROMPT_TOOL=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_wants_prompt_tool || return 1
+  _HI_PROMPT_TOOL=oh-my-posh PATH="$(_hi_fake_path posh oh-my-posh):$PATH" _hi_wants_prompt_tool || return 1
   # a tool hi has no init line for is not handed the prompt, present or not
-  ! _HI_PROMPT=powerline PATH="$(_hi_fake_path pl powerline):$PATH" _hi_wants_prompt_tool
+  ! _HI_PROMPT_TOOL=powerline PATH="$(_hi_fake_path pl powerline):$PATH" _hi_wants_prompt_tool
 }
 
 function test_colors_lookup_verdicts() {
