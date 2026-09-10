@@ -40,6 +40,18 @@ unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_K
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"
 case "$_hi_d" in */*) _hi_d="${_hi_d%/*}" ;; *) _hi_d="." ;; esac
+# GIT_CONFIG_GLOBAL=/dev/null above also takes the global safe.directory with
+# it, and that is what lets git read a checkout another uid owns: the FreeBSD
+# job's rsync'd tree, tests/profile.sh's bind mount. Without it every git call
+# against this tree dies on "dubious ownership". The tree under test is the one
+# repository a suite has to trust, so it rides in command scope - protected
+# configuration, the only place git reads safe.directory from - and nothing
+# else does: `*` would also trust a .git another user planted above a scratch
+# dir. Appended, so a GIT_CONFIG_COUNT the caller already set survives.
+_hi_n="${GIT_CONFIG_COUNT:-0}"
+export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
+  "GIT_CONFIG_VALUE_$_hi_n=$(cd -P "$_hi_d/.." && pwd)"
+unset _hi_n
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
 # the heading rules the harness and the suites print with

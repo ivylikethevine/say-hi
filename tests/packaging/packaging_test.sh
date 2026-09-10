@@ -2417,7 +2417,7 @@ function run_packaging_tests() {
   _hi_check "Refuses with nothing to stamp" test_stamp_refuses_with_nothing_to_stamp
 
   _hi_h2 "Testing: mkpkg.sh (offline half)"
-  _hi_check "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
+  _hi_check_capable symlink "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
   _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
   _hi_check_capable symlink "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
   _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
