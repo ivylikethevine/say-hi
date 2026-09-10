@@ -39,6 +39,8 @@ export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
 [ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
 export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
 [ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
+export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
+[ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home
 # the tool's own config is already in force. Only the tool named reads its

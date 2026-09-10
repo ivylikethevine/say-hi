@@ -75,6 +75,7 @@ fi
 
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   check_alias nano "$_HI_EXPECT_NANO"
+  check_alias emacs "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
@@ -143,6 +144,7 @@ end
 
 if set -q _HI_CHECK_FLAGS
   check_alias nano "$_HI_EXPECT_NANO"
+  check_alias emacs "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if set -q _HI_EXPECT_LS_ALIAS
@@ -306,7 +308,7 @@ function _hi_run_scenario() {
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
-    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" \
+    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/emacs.el" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then

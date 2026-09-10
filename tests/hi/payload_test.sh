@@ -395,7 +395,8 @@ function test_strip_spares_heredoc_bodies() {
 
 # The data files' prose headers document the *installed* copies a user reads,
 # so they ship stripped too: flags/colors/packages/nano.rc through the same
-# `#` rule as the shell, vim.rc through its own rule for vim's `"`.
+# `#` rule as the shell, vim.rc and emacs.el through their own rules for
+# vim's `"` and elisp's `;`.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
@@ -409,6 +410,11 @@ function test_strip_covers_the_data_files() {
   n="$(grep -cE '^[[:space:]]*"' "$dir/say-hi/settings/vim.rc" || true)"
   [ "$n" -eq 0 ] || {
     _hi_cecho " | settings/vim.rc kept $n vim comment line(s)" "$RED"
+    bad=1
+  }
+  n="$(grep -cE '^[[:space:]]*;' "$dir/say-hi/settings/emacs.el" || true)"
+  [ "$n" -eq 0 ] || {
+    _hi_cecho " | settings/emacs.el kept $n elisp comment line(s)" "$RED"
     bad=1
   }
   [ "$bad" -eq 0 ]
@@ -428,6 +434,11 @@ function test_strip_keeps_every_data_line() {
   diff <(grep -vE '^[[:space:]]*"|^$' "$_HI_ROOT/settings/vim.rc") \
     <(grep -vE '^[[:space:]]*"|^$' "$dir/say-hi/settings/vim.rc") >/dev/null || {
     _hi_cecho " | settings/vim.rc lost or changed a line" "$RED"
+    bad=1
+  }
+  diff <(grep -vE '^[[:space:]]*;|^$' "$_HI_ROOT/settings/emacs.el") \
+    <(grep -vE '^[[:space:]]*;|^$' "$dir/say-hi/settings/emacs.el") >/dev/null || {
+    _hi_cecho " | settings/emacs.el lost or changed a line" "$RED"
     bad=1
   }
   [ "$bad" -eq 0 ]

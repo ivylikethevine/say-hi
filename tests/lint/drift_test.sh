@@ -547,9 +547,9 @@ function _hi_settings_dynamic() {
   printf '%s\n' _HI_PROMPT_END_BASH _HI_PROMPT_END_ZSH _HI_PROMPT_END_FISH
 }
 
-# The `_HI_` names docs/SETTINGS.md's `### Not settings` subsection files as
-# look-alikes - derived paths, the client's `_HI_ASCII` verdict, the test
-# levers (`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, ...). One per line.
+# The `_HI_` names docs/SETTINGS.md's `### Not settings` subsection lists as
+# settings-shaped names - derived paths, the client's `_HI_ASCII` verdict, the
+# test levers (`_HI_TARGETS_TTL`, `_HI_PROBE_TIMEOUT`, ...). One per line.
 function _hi_settings_not_settings() {
   # shellcheck disable=SC2016 # a backticked `$_HI_X` in the doc, not an expansion
   awk '/^##/{inside = ($0 == "### Not settings")} inside' "$1" |

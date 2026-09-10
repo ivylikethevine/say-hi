@@ -309,13 +309,13 @@ function test_ask_value_non_interactive_keeps_current() {
   [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
 }
 
-# The seed: a fresh overlay gets the four shipped defaults, byte for byte,
+# The seed: a fresh overlay gets the five shipped defaults, byte for byte,
 # for the files the user has none of - and nothing else: no repo, no commit,
 # versioning is the user's own (each case gets a fresh scratch directory)
 function test_overlay_seed_copies_the_shipped_defaults() {
   local dir="$_HI_WORKDIR/ovl-seed" f
   (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  for f in colors packages vim.rc nano.rc; do
+  for f in colors packages vim.rc nano.rc emacs.el; do
     cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
       _hi_cecho " | $f was not seeded from the tree" "$RED"
       return 1
@@ -1159,10 +1159,11 @@ function test_prompt_sample_preview_says_off_when_disabled() {
   [ "$out" = " prompt off - your shell's own" ]
 }
 
-function test_editors_preview_names_both_overrides() {
+function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* ]]
+  [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* &&
+    "$out" == *"emacs -q -l $_HI_EMACSRC"* ]]
 }
 
 function test_bat_preview_names_the_bat_it_found() {
@@ -1478,7 +1479,7 @@ function test_header_editor_opens_the_check_depth() {
 # The Features menu: a number flips the row and shows its preview
 function test_features_menu_toggles_and_previews() {
   _hi_cfg_pty feat_toggle '5\n\n' '' config_features || return 1
-  _hi_cfg_has feat_toggle "vim/nano config overrides: now off" &&
+  _hi_cfg_has feat_toggle "vim/nano/emacs config overrides: now off" &&
     _hi_cfg_has feat_toggle "nano --rcfile" &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
 }
@@ -1765,7 +1766,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: the question previews"
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
-  _hi_check "Editors preview names both overrides" test_editors_preview_names_both_overrides
+  _hi_check "Editors preview names every override" test_editors_preview_names_every_override
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one

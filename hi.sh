@@ -61,7 +61,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
-_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc aliases.sh
+_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el aliases.sh
   bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json)
 
 # What a bash-less target falls back to, best first - derived from
@@ -192,7 +192,7 @@ function _hi_tar_gz() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc)
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc emacs.el)
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -336,13 +336,14 @@ function _hi_overlay_stream() {
 
 # The comment stripper every payload file goes through: their prose headers
 # are for the installed copy a user reads, not the wire. vim.rc's comment
-# character is `"`; `#` covers the rest.
+# character is `"` and emacs.el's is `;`; `#` covers the rest.
 # GLOSSARY: HI.35 - the three rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/) }
+FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/) }
 FNR == 1 && /^#!/ { print > out; next }
 vim && /^[ \t]*"/ { next }
+el && /^[ \t]*;/ { next }
 tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)

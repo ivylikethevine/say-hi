@@ -48,6 +48,9 @@ command -v shift >/dev/null 2>&1 &&
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
 # `-u: command not found` where `vim: command not found` is the answer).
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ -n "$(command -v nvim || command -v vim)" ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
+# -q skips the target's own init, -l loads hi's in its place. The command word
+# is a literal, so no presence gate: a box without emacs says so itself.
+[ "$_HI_DISABLE_EDITORS" != 1 ] && alias emacs="emacs -q -l $_HI_EMACSRC" || true
 
 alias sudo="command sudo " # works in bash/zsh, fish has a sudo wrapper in config.fish
 

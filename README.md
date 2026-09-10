@@ -17,6 +17,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
+
 > [docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
 > draft included.
 
@@ -40,7 +41,6 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
-  - [Before the tag](#before-the-tag)
   - [Post 1.0](#post-10)
 
 ---
@@ -200,7 +200,7 @@ everything weighed and answered **no**, and why.
   section - Header, Features, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
-  `packages`, `vim.rc` and `nano.rc`, for the ones you have none of - yours
+  `packages`, `vim.rc`, `nano.rc` and `emacs.el`, for the ones you have none of - yours
   to edit, and to version however you keep your dotfiles
   ([docs/SETTINGS.md](docs/SETTINGS.md)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
@@ -315,15 +315,6 @@ or descoped, and finished entries are deleted rather than ticked.
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises.
-
-### Before the tag
-
-The 1.0 audit's punch list; what it found and fixed is in git history, and
-these are the entries still open.
-
-- [ ] **Trim the README** — 14 badges in three clusters, a 19-entry contents
-      block, and _Target Requirements_ restating `docs/SUPPORT.md`. Move the
-      _Post 1.0_ items below to issues.
 
 ### Post 1.0
 

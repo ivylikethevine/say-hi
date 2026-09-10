@@ -134,14 +134,15 @@ jobs:
 
       # tools_test.sh lints settings/vim.rc with each editor that is here, and
       # the image ships vim but not neovim - which is the one aliases.sh
-      # prefers. Without it that half skips yellow and --require-run below
-      # turns the skip into this job's failure.
-      - name: Install neovim for the shipped-rc lint
+      # prefers - nor emacs, which reads settings/emacs.el. Without them those
+      # halves skip yellow and --require-run below turns the skip into this
+      # job's failure.
+      - name: Install neovim and emacs for the shipped-rc lints
         shell: bash
         # setup-shells has just dropped the vendor lists and updated the index
         run: |
           set -euo pipefail
-          sudo apt-get install -y neovim
+          sudo apt-get install -y neovim emacs-nox
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here

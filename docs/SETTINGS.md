@@ -15,6 +15,7 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/packages`        | `settings/packages` | what the package check looks for                                                                                                              |
 | `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale                                                     |
 | `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
+| `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`)                                                                                 |
 | `~/.config/say-hi/aliases.sh`      | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
@@ -23,8 +24,8 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
 
 `hi --install` seeds the overlay with the shipped
-`colors`/`packages`/`vim.rc`/`nano.rc` defaults — only for the files you have
-none of, so after a normal install all four are yours. A seeded copy stops
+`colors`/`packages`/`vim.rc`/`nano.rc`/`emacs.el` defaults — only for the
+files you have none of, so after a normal install all five are yours. A seeded copy stops
 tracking what `hi --update` delivers for that file; delete it from the overlay
 to track the tree's again. Versioning the directory is yours to do — a
 `git init` there, or
@@ -210,9 +211,9 @@ More names look like settings and are not:
   environment, as `hi.sh` and `install.sh`'s rc line do; unset, each entry
   point derives `$_HI_HOME` from its own path.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:`
-  comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_VIMRC` and
-  `$_HI_NANORC` are derived from those two by `common/paths.sh` on every
-  source - the last four resolving to the overlay's copy when you have one,
+  comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_VIMRC`,
+  `$_HI_NANORC` and `$_HI_EMACSRC` are derived from those two by
+  `common/paths.sh` on every source - the last five resolving to the overlay's copy when you have one,
   else the tree's - so an exported value does not survive. Point `$_HI_HOME`
   or `$HOME` elsewhere, or put your file in the overlay.
 - `$_HI_ASCII` is the *client's* verdict on whether its terminal renders

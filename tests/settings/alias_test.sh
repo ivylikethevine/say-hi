@@ -19,9 +19,12 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # anchored to the start of the line so a mention of `alias x=` in a comment
 # can't match. What that excludes on purpose: a two-line statement (the
 # `bash`/`fish` session wrappers, whose guard and `alias` sit on separate
-# physical lines) and anything gated on more than two brackets.
-_HI_SAMPLE_ALIASES=$(grep -oE '^(\[[^]]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*alias +//; s/=$//' | tr '\n' ' ')
-_HI_SAMPLE_VARS=$(grep -oE '^(\[[^]]*\] && ){0,2}export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*export +//; s/=$//' | tr '\n' ' ')
+# physical lines), anything gated on more than two brackets, and a guard that
+# holds a `$(...)` - that is a presence probe (`[ -n "$(command -v nvim ||
+# command -v vim)" ]`), not a toggle, so the alias behind it is conditional
+# by design and _hi_test_vim_presence checks it against the host instead.
+_HI_SAMPLE_ALIASES=$(grep -oE '^(\[[^](]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*alias +//; s/=$//' | tr '\n' ' ')
+_HI_SAMPLE_VARS=$(grep -oE '^(\[[^](]*\] && ){0,2}export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*export +//; s/=$//' | tr '\n' ' ')
 
 # posix `alias name` / `test -n "${v+x}"` work unmodified in dash, bash and zsh;
 # fish has neither - aliases are functions there, and `set -q` is its "is set"
@@ -73,6 +76,27 @@ function _hi_test_shell() {
   return "$exit_code"
 }
 
+# _hi_test_vim_presence <shell> <dir> - the vim alias is gated on an editor
+# being on PATH (settings/aliases.sh: a box with neither is left with its own
+# `vim: command not found`). Assert it landed exactly when the host has one.
+# shellcheck disable=SC2016 # the scripts we write out, not code to run here
+function _hi_test_vim_presence() {
+  local shell="$1" script="$2/$1.vim.test" want=absent output rc=0
+  command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1 && want=present
+  if [ "$shell" = fish ]; then
+    printf '%s\n' 'source "$_HI_ALIASES"; or exit 2' 'functions -q -- vim' >"$script"
+  else
+    printf '%s\n' '. "$_HI_ALIASES" || exit 2' 'alias vim >/dev/null 2>&1' >"$script"
+  fi
+  output=$("$shell" "$script" 2>&1) || rc=$?
+  case "$want:$rc" in
+  present:0 | absent:1) return 0 ;;
+  esac
+  printf '  [%s] -- vim alias: wanted %s, got exit %s\n' "$shell" "$want" "$rc"
+  [ -n "$output" ] && printf '%s\n' "$output" | sed 's/^/      /'
+  return 1
+}
+
 function run_alias_test() {
   _hi_h1 "Testing aliases.sh across shells"
   _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases and $(wc -w <<<"$_HI_SAMPLE_VARS") variables"
@@ -90,6 +114,7 @@ function run_alias_test() {
     fi
     _hi_case _hi_test_shell "$_hi_shell" "$_HI_WORKDIR"
     _hi_case _hi_test_shell "$_hi_shell" "$_HI_WORKDIR" strict
+    _hi_case _hi_test_vim_presence "$_hi_shell" "$_HI_WORKDIR"
   done
 
   _hi_suite_end "" \

@@ -121,7 +121,7 @@ EOF
     cat <<EOF
 Wires up the local shells to source this say-hi checkout and links hi.sh
 into ~/.local/bin. It also seeds the config overlay: copies the shipped
-colors/packages/vim.rc/nano.rc defaults into
+colors/packages/vim.rc/nano.rc/emacs.el defaults into
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi for the files you have none of, a
 file already there never touched. Then the settings menu, at a terminal
 (--preset answers it without one). Safe to re-run any time - it repairs its
@@ -560,7 +560,7 @@ function install_tree() {
 # a `git init` of their own); hi neither inits nor commits there.
 function overlay_seed() {
   local _hi_seed seeded=""
-  for _hi_seed in colors packages vim.rc nano.rc; do
+  for _hi_seed in colors packages vim.rc nano.rc emacs.el; do
     [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
     [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
     dry_run_say "seed $_HI_CONFIG_DIR/$_hi_seed from the tree's copy" && continue

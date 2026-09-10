@@ -460,10 +460,11 @@ HI.30. Both stay verbatim above their statement.
 ## HI.35 payload comment strip
 
 Every `*.sh`, `*.zsh` and `*.fish` file — and the `flags`/`colors`/`packages`/
-`vim.rc`/`nano.rc` data files, whose prose headers document the _installed_
+`vim.rc`/`nano.rc`/`emacs.el` data files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
-vim.rc's comment character is `"`, its own rule in the stripper.
+vim.rc's comment character is `"` and emacs.el's is `;`, each its own rule in
+the stripper.
 `bench_payload_readme_badge` checks README's badge against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
@@ -568,9 +569,9 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-`vim.rc` and `nano.rc` ride it for the same reason `colors` and `packages` do:
-the tree copy is a default, and `common/paths.sh` points `$_HI_VIMRC` /
-`$_HI_NANORC` at the overlay's when there is one. Left out of the stream, that
+`vim.rc`, `nano.rc` and `emacs.el` ride it for the same reason `colors` and
+`packages` do: the tree copy is a default, and `common/paths.sh` points
+`$_HI_VIMRC` / `$_HI_NANORC` / `$_HI_EMACSRC` at the overlay's when there is one. Left out of the stream, that
 guard could only fire on the client — an editor override working locally and
 silently reverting on every target, the asymmetry `paths_test.sh`'s
 guard/roster pin catches one layer up.

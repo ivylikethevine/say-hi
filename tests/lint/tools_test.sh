@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 # The external-tool wrappers that ride along with the lint gate when their
 # tool is installed, and skip yellow when it isn't: shfmt as a formatting
-# gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim
-# over the vim rc that ships, and typos over the whole tree. CI always has them
+# gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim and
+# emacs over the editor rcs that ship, and typos over the whole tree. CI always has them
 # (setup-tool actions pin each one), so a local skip here is a local-only gap,
 # never a green run that CI would have failed.
 set -euo pipefail
@@ -112,6 +112,10 @@ function lint_manpage() {
 #
 # No nano half: nano reports a bad rcfile only on its status bar and refuses to
 # start without a terminal, so there is nothing to assert on offline.
+#
+# The emacs half is lint_emacs_rc below: `--batch -q -l` loads the file the
+# way the alias does and exits non-zero on an elisp error, so there the exit
+# status is the verdict.
 function lint_editor_rc() {
   local bin err out bad=0 rc="$_HI_ROOT/settings/vim.rc"
   _hi_h2 "Checking the shipped editor rc (vim -u settings/vim.rc)"
@@ -138,6 +142,27 @@ function lint_editor_rc() {
   return "$bad"
 }
 
+function lint_emacs_rc() {
+  local err rc="$_HI_ROOT/settings/emacs.el"
+  _hi_h2 "Checking the shipped editor rc (emacs -q -l settings/emacs.el)"
+  if ! command -v emacs >/dev/null 2>&1; then
+    _hi_skip emacs "not installed"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  err="$(mktemp -t hi.emacsrc.XXXXXX)"
+  if emacs --batch -q -l "$rc" --eval '(kill-emacs 0)' </dev/null >"$err" 2>&1; then
+    _hi_align " | settings/emacs.el (emacs)" "OK" "$GREEN"
+    rm -f "$err"
+    return 0
+  fi
+  _hi_align " | settings/emacs.el (emacs)" "FAILED" "$RED"
+  sed 's/^/      /' "$err"
+  _hi_note_failure "settings/emacs.el (emacs)"
+  rm -f "$err"
+  return 1
+}
+
 # Spelling, over everything git tracks (typos honours .gitignore, so dist/ and
 # the like stay out). The allowlist is .typos.toml at the root - a term it
 # reads wrong goes there with a word on what it is, not into a wider ignore.
@@ -162,14 +187,14 @@ function lint_typos() {
 }
 
 function run_tools() {
-  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, typos)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, emacs, typos)"
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
   # and checkbashisms are separate processes and cannot read its variable
   local -a _HI_SH_FILES=()
   _hi_read_lines _HI_SH_FILES < <(_hi_lint_find -name '*.sh')
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_editor_rc lint_typos
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_editor_rc lint_emacs_rc lint_typos
   _hi_lint_suite_end
 }
 
