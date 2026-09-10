@@ -57,26 +57,12 @@ function stage_tree() {
   # touch_epoch follows it: the man page is recompressed above, so its mtime
   # needs clamping after, not before.
   "$_HI_ROOT/packaging/stamp.sh" --root "$_HI_DIST/staging" --version "$_HI_VERSION"
-  touch_epoch
-}
-
-# Clamp every staged mtime to $SOURCE_DATE_EPOCH: install_tree's cp stamps
-# each file "now", which nfpm faithfully preserves into the package as the one
-# run-to-run difference. Files and directories only - the staged /usr/bin/hi
-# symlink points at its installed (not-yet-existing) target, and nfpm builds
-# its own symlink entry from nfpm.yaml anyway. GNU touch takes -d @epoch;
-# BSD/macOS needs -t with a stamp its own date -r builds (TZ pinned, -t reads
-# local time) - the same dual-implementation shape as bump.sh's checksums.
-function touch_epoch() {
-  local stamp
-  if touch -d "@$SOURCE_DATE_EPOCH" "$_HI_DIST/staging" 2>/dev/null; then
-    find "$_HI_DIST/staging" \( -type f -o -type d \) \
-      -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
-  else
-    stamp="$(TZ=UTC date -u -r "$SOURCE_DATE_EPOCH" +%Y%m%d%H%M.%S)"
-    find "$_HI_DIST/staging" \( -type f -o -type d \) \
-      -exec env TZ=UTC touch -t "$stamp" {} +
-  fi
+  # lib.sh's touch_epoch: install_tree's cp stamps each file "now", which nfpm
+  # faithfully preserves into the package as the one run-to-run difference.
+  # Files and directories only - the staged /usr/bin/hi symlink points at its
+  # installed (not-yet-existing) target, and nfpm builds its own symlink entry
+  # from nfpm.yaml anyway.
+  touch_epoch "$_HI_DIST/staging"
 }
 
 function run_nfpm() {

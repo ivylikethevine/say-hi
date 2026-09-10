@@ -50,9 +50,8 @@ function asset_url() {
 }
 
 # One verify-and-report row of --check: <ok-msg> <fail-msg> <predicate...>.
-# Green ":)" or red plus bad=1 - `bad` is check_manifests' local, reached
-# through bash's dynamic scoping, which is what replaces seven copies of the
-# same if/else plumbing.
+# Green ":)", or red and a nonzero return - callers do `_hi_manifest_check
+# ... || bad=1`, which is what replaces seven copies of the same if/else.
 function _hi_manifest_check() {
   local ok_msg="$1" bad_msg="$2"
   shift 2
@@ -60,7 +59,7 @@ function _hi_manifest_check() {
     _hi_cecho " $ok_msg :)" "$GREEN"
   else
     _hi_cecho " $bad_msg" "$RED"
-    bad=1
+    return 1
   fi
 }
 
@@ -75,7 +74,7 @@ function _hi_nonempty_match() {
 }
 
 function check_manifests() {
-  local bad=0 pkgver sha b2 srcinfo_b2
+  local bad=0 pkgver sha b2 srcinfo_b2 url
   _hi_h2 "Checking the manifests say $_HI_VERSION"
 
   # errors (a PKGBUILD with no pkgver line) become an empty string here, so
@@ -86,28 +85,31 @@ function check_manifests() {
   # the AUR consumes .SRCINFO, not the PKGBUILD, so its b2sums/source lines
   # are checked too - pkgver alone lets a stale checksum through
   srcinfo_b2="$(sed -n 's/^[[:space:]]*b2sums = //p' "$_HI_SRCINFO" | head -1)"
+  # computed once and reused below - both the formula and .SRCINFO checks
+  # want the same asset URL
+  url="$(asset_url "$_HI_VERSION")"
 
   _hi_manifest_check "PKGBUILD pkgver=$pkgver" \
     "PKGBUILD pkgver=$pkgver, expected $_HI_VERSION" \
-    [ "$pkgver" = "$_HI_VERSION" ]
+    [ "$pkgver" = "$_HI_VERSION" ] || bad=1
   _hi_manifest_check "PKGBUILD b2sums is a real sum" \
     "PKGBUILD b2sums is still SKIP - run bump.sh $_HI_VERSION" \
-    _hi_real_sum "$b2" SKIP
+    _hi_real_sum "$b2" SKIP || bad=1
   _hi_manifest_check "formula url points at the v$_HI_VERSION release asset" \
     "formula url does not point at the v$_HI_VERSION release asset" \
-    grep -qF "$(asset_url "$_HI_VERSION")" "$_HI_FORMULA"
+    grep -qF "$url" "$_HI_FORMULA" || bad=1
   _hi_manifest_check "formula sha256 is a real sum" \
     "formula sha256 is still the placeholder - run bump.sh $_HI_VERSION" \
-    _hi_real_sum "$sha" "$_HI_PLACEHOLDER_SHA"
+    _hi_real_sum "$sha" "$_HI_PLACEHOLDER_SHA" || bad=1
   _hi_manifest_check ".SRCINFO pkgver=$_HI_VERSION" \
     ".SRCINFO is stale - regenerate with makepkg --printsrcinfo" \
-    grep -qF "pkgver = $_HI_VERSION" "$_HI_SRCINFO"
+    grep -qF "pkgver = $_HI_VERSION" "$_HI_SRCINFO" || bad=1
   _hi_manifest_check ".SRCINFO b2sums matches the PKGBUILD's" \
     ".SRCINFO b2sums does not match the PKGBUILD's - regenerate it" \
-    _hi_nonempty_match "$b2" "$srcinfo_b2"
+    _hi_nonempty_match "$b2" "$srcinfo_b2" || bad=1
   _hi_manifest_check ".SRCINFO source points at the v$_HI_VERSION release asset" \
     ".SRCINFO source does not point at the v$_HI_VERSION release asset" \
-    grep -qF "$(asset_url "$_HI_VERSION")" "$_HI_SRCINFO"
+    grep -qF "$url" "$_HI_SRCINFO" || bad=1
 
   return "$bad"
 }

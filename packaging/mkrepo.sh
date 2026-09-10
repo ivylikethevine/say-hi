@@ -131,35 +131,18 @@ function in_container() {
 
 _HI_GNUPGHOME=""
 function gpg_setup() {
-  local have want
+  local have
   [ -n "$_HI_GPG_KEY" ] || return 0
   [ -f "$_HI_GPG_KEY" ] || {
     _hi_cecho " no such GPG key file: $_HI_GPG_KEY" "$RED" >&2
     return 1
   }
   need gpg
-  # /tmp, not `-t` ($TMPDIR): --import of a secret key and --export-secret-keys
-  # both talk to gpg-agent over a socket that is a sockaddr_un, capped near
-  # 104-108 bytes (hi.sh's ssh ControlPath hits the same cap) - and macOS's
-  # per-user $TMPDIR already spends ~50 of them, with no /run/user for
-  # gpg-agent to fall back to the way it does on Linux.
-  _HI_GNUPGHOME="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
-  chmod 700 "$_HI_GNUPGHOME"
-  gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --import "$_HI_GPG_KEY"
+  # kept alive for gpg_sign below, unlike verify_signing_key's own use of
+  # gpg_import - torn down by the _hi_on_exit trap near the bottom of this file
+  _HI_GNUPGHOME="$(gpg_import "$_HI_GPG_KEY")" || return 1
   have="$(gpg_fpr --homedir "$_HI_GNUPGHOME" --list-secret-keys)"
-  if [ -n "$_HI_GPG_PUBLIC" ]; then
-    # gpg_fpr comes back empty (never fatal) on a missing/unreadable file, so
-    # the guard below gets to name the problem
-    want="$(gpg_fpr --homedir "$_HI_GNUPGHOME" --quiet --show-keys "$_HI_GPG_PUBLIC")"
-    [ -n "$want" ] || {
-      _hi_cecho " $_HI_GPG_PUBLIC is missing or not a key" "$RED" >&2
-      return 1
-    }
-    [ "$have" = "$want" ] || {
-      _hi_cecho " --gpg-key is $have, not the key $_HI_GPG_PUBLIC names ($want)" "$RED" >&2
-      return 1
-    }
-  fi
+  [ -z "$_HI_GPG_PUBLIC" ] || gpg_check_fpr "--gpg-key" "$have" "$_HI_GPG_PUBLIC" "$_HI_GNUPGHOME" || return 1
   gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --armor --export >"$_HI_OUT/say-hi.asc"
   _hi_cecho " | signing with $have" "$BLUE"
 }
@@ -226,12 +209,16 @@ function build_apt() {
     printf 'SHA256: %s\n' "$(sha256_of "$deb")"
     printf '\n'
   } >"$packages"
+  # gzipped once: -n makes it deterministic, and the same package is listed
+  # under every arch (the note up top), so every arch's copy would be
+  # byte-for-byte the same gzip anyway
+  gzip -9 -n -c "$packages" >"$packages.gz"
   for arch in $_HI_DEB_ARCHES; do
     mkdir -p "$dists/main/binary-$arch"
     cp "$packages" "$dists/main/binary-$arch/Packages"
-    gzip -9 -n -c "$packages" >"$dists/main/binary-$arch/Packages.gz"
+    cp "$packages.gz" "$dists/main/binary-$arch/Packages.gz"
   done
-  rm -f "$packages"
+  rm -f "$packages" "$packages.gz"
   # the Release file: metadata, then a size and hash per index it covers
   {
     printf 'Origin: say-hi\nLabel: say-hi\nSuite: stable\nCodename: stable\n'

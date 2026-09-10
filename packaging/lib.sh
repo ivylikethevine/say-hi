@@ -67,6 +67,44 @@ function gpg_fpr() {
     awk -F: '$1 == "fpr" { print $10; exit }' || true
 }
 
+# gpg_import <secret> - a fresh, 0700 GNUPGHOME with <secret> imported into
+# it; prints the homedir's path. /tmp, not `-t` ($TMPDIR): --import and
+# --export-secret-keys both talk to gpg-agent over a socket that is a
+# sockaddr_un, capped near 104-108 bytes (hi.sh's ssh ControlPath hits the
+# same cap) - and macOS's per-user $TMPDIR already spends ~50 of them, with
+# no /run/user for gpg-agent to fall back to the way it does on Linux. The
+# caller owns the homedir from here: `gpgconf --homedir <it> --kill gpg-agent`
+# then `rm -rf` it once done (mkrepo.sh's gpg_setup keeps it alive longer, to
+# sign with after; verify_signing_key below tears it down before returning).
+function gpg_import() {
+  local secret="$1" home
+  home="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
+  chmod 700 "$home"
+  if ! gpg --batch --quiet --homedir "$home" --import "$secret" 2>/dev/null; then
+    rm -rf "$home"
+    _hi_cecho " could not import the secret key $secret" "$RED" >&2
+    return 1
+  fi
+  printf '%s' "$home"
+}
+
+# gpg_check_fpr <label> <have> <public> <home> - refuse a <have> fingerprint
+# that is not <public>'s own key's. <label> names the secret in the caller's
+# own words ("the secret key", "--gpg-key") - verify_signing_key and
+# mkrepo.sh's gpg_setup read differently in a bare-verify vs a --flag context.
+function gpg_check_fpr() {
+  local label="$1" have="$2" public="$3" home="$4" want
+  want="$(gpg_fpr --homedir "$home" --quiet --show-keys "$public")"
+  [ -n "$want" ] || {
+    _hi_cecho " $public is missing or not a key" "$RED" >&2
+    return 1
+  }
+  [ "$have" = "$want" ] || {
+    _hi_cecho " $label is $have, not the key $public names ($want)" "$RED" >&2
+    return 1
+  }
+}
+
 # verify_signing_key <gpg|rsa> <secret-key-file> <public-half-file> - refuse a
 # secret signing key that is not the one the committed public half names: a
 # secret that is another key signs artifacts no client can verify. gpg mode
@@ -74,29 +112,15 @@ function gpg_fpr() {
 # public key byte-for-byte against <public-half-file>. release.yml's build
 # job runs both before letting a key anywhere near a package.
 function verify_signing_key() {
-  local mode="$1" secret="$2" public="$3" home have want
+  local mode="$1" secret="$2" public="$3" home have rc=0
   case "$mode" in
   gpg)
-    # /tmp, not `-t`: gpg-agent's socket path cap - see mkrepo.sh's gpg_setup
-    home="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
-    chmod 700 "$home"
-    if ! gpg --batch --quiet --homedir "$home" --import "$secret" 2>/dev/null; then
-      rm -rf "$home"
-      _hi_cecho " could not import the secret key $secret" "$RED" >&2
-      return 1
-    fi
+    home="$(gpg_import "$secret")" || return 1
     have="$(gpg_fpr --homedir "$home" --list-secret-keys)"
-    want="$(gpg_fpr --homedir "$home" --quiet --show-keys "$public")"
+    gpg_check_fpr "the secret key" "$have" "$public" "$home" || rc=1
     gpgconf --homedir "$home" --kill gpg-agent >/dev/null 2>&1 || true
     rm -rf "$home"
-    [ -n "$want" ] || {
-      _hi_cecho " $public is missing or not a key" "$RED" >&2
-      return 1
-    }
-    [ "$have" = "$want" ] || {
-      _hi_cecho " the secret key is $have, not the key $public names ($want)" "$RED" >&2
-      return 1
-    }
+    [ "$rc" -eq 0 ] || return 1
     printf '%s' "$have"
     ;;
   rsa)
@@ -132,6 +156,23 @@ function b2_of() {
   fi
 }
 
+# touch_epoch <dir> - clamp every file/dir mtime under <dir> to
+# $SOURCE_DATE_EPOCH, so a build over the same commit reproduces byte-for-byte
+# regardless of when the tree was staged. GNU touch takes -d @epoch; BSD/macOS
+# needs -t with a stamp its own date -r builds (TZ pinned, -t reads local
+# time) - the same dual-implementation shape as sha256_lines/b2_of above.
+function touch_epoch() {
+  local dir="$1" stamp
+  if touch -d "@$SOURCE_DATE_EPOCH" "$dir" 2>/dev/null; then
+    find "$dir" \( -type f -o -type d \) \
+      -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
+  else
+    stamp="$(TZ=UTC date -u -r "$SOURCE_DATE_EPOCH" +%Y%m%d%H%M.%S)"
+    find "$dir" \( -type f -o -type d \) \
+      -exec env TZ=UTC touch -t "$stamp" {} +
+  fi
+}
+
 # src_tarball <version> <ref> <outfile> - the source tarball a release ships.
 # Built here rather than fetched: GitHub's auto-generated /archive/ tarball is
 # the one released artifact with nothing signed over it, and its bytes are not
@@ -148,19 +189,24 @@ function src_tarball() {
   git -C "$_HI_ROOT" archive --prefix "say-hi-$version/" -o "$out" "$ref"
 }
 
-# The version of record lives in the versioned PKGBUILD (a release's build
-# writes it there, in its own disposable checkout - never committed back, see
-# bump.sh's header); reading it back rather than keeping copies is what stops
-# the channels disagreeing within one build. Reads $1, defaulting to the
-# caller's $_HI_PKGBUILD.
-function pkgbuild_version() {
-  local file="${1:-$_HI_PKGBUILD}" v
-  v="$(sed -n 's/^pkgver=//p' "$file" | head -1)"
+# _hi_pkgbuild_field <file> <sed-expr> <label> - one field out of a PKGBUILD,
+# read back rather than kept as a separate copy: pkgbuild_version and
+# pkgbuild_url below are this against pkgver= and url=, the two fields a
+# release's build writes into its own disposable checkout's PKGBUILD (see
+# bump.sh's header) and that every other channel must then agree with.
+function _hi_pkgbuild_field() {
+  local file="$1" v
+  v="$(sed -n "$2" "$file" | head -1)"
   [ -n "$v" ] || {
-    _hi_cecho " no pkgver= in $file" "$RED" >&2
+    _hi_cecho " no $3 in $file" "$RED" >&2
     return 1
   }
   printf '%s' "$v"
+}
+
+# Reads $1, defaulting to the caller's $_HI_PKGBUILD.
+function pkgbuild_version() {
+  _hi_pkgbuild_field "${1:-$_HI_PKGBUILD}" 's/^pkgver=//p' 'pkgver='
 }
 
 # The URL of record the same way: the PKGBUILD's url= is what makepkg expands
@@ -170,13 +216,7 @@ function pkgbuild_version() {
 # no makepkg exists to expand the real one. Reads $1, defaulting to the
 # caller's $_HI_PKGBUILD.
 function pkgbuild_url() {
-  local file="${1:-$_HI_PKGBUILD}" u
-  u="$(sed -n 's/^url="\(.*\)"/\1/p' "$file" | head -1)"
-  [ -n "$u" ] || {
-    _hi_cecho " no url= in $file" "$RED" >&2
-    return 1
-  }
-  printf '%s' "$u"
+  _hi_pkgbuild_field "${1:-$_HI_PKGBUILD}" 's/^url="\(.*\)"/\1/p' 'url='
 }
 
 # What a build defaults to when nobody named one. The committed PKGBUILD is a

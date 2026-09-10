@@ -1831,7 +1831,7 @@ function test_mkpkg_touch_epoch_falls_back_without_gnu_touch() {
   fi
   chmod +x "$shim/date"
   SOURCE_DATE_EPOCH=946684800 PATH="$shim:$PATH" \
-    _hi_in_mkpkg "$dist" touch_epoch || return 1
+    _hi_in_mkpkg "$dist" touch_epoch "$dist/staging" || return 1
   got="$(stat -c '%Y' "$dist/staging/probe" 2>/dev/null || stat -f '%m' "$dist/staging/probe")"
   [ "$got" -eq 946684800 ]
 }
