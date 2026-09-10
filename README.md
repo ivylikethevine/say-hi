@@ -196,8 +196,8 @@ everything weighed and answered **no**, and why.
   `/usr/bin/hi`, `--link none` for none - the wired shells alias it either
   way).
 - reload your shell!
-- `hi --configure` reopens that menu later: pick a preset, or open a
-  section - Header, Features, Prompt, Advanced - and save. Answers
+- `hi --configure` reopens that menu later: pick a preset, or flip any
+  setting in its one list - Features, Header, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
   `packages` and the editor rcs (vim, nano, emacs, helix, kakoune), for the ones you have none of - yours

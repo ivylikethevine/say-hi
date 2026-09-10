@@ -315,8 +315,8 @@ _HI_OVERLAY_CHECKS=(
   "config.fish|fish --no-execute"
 )
 
-# Gate the install on check_shell_configs. Unlike ask_setting, a
-# non-interactive run does *not* wave this through: install.sh rewrites the
+# Gate the install on check_shell_configs. Unlike configure.sh's questions,
+# a non-interactive run does *not* wave this through: install.sh rewrites the
 # very files that failed to parse and nobody is watching. --yes
 # ($_HI_ASSUME_YES, install.sh's flag) decides up front.
 function config_validate_shells() {

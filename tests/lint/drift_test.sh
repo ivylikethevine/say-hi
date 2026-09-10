@@ -589,7 +589,7 @@ function _hi_settings_documented() {
 
 # Every name the tree treats as a setting: core.sh's toggle roster, plus the
 # variable column of every `_HI_*_PROMPTS` table in configure.sh (the yes/no
-# groups `hi --configure` asks, `<var>|<off>|<on>|<preview>|<question>|<needs>`
+# groups `hi --configure` asks, `<var>|<off>|<on>|<preview>|<needs>|<label>`
 # rows), plus every name a `_hi_collect_value` call writes (the free-text
 # settings the wizard asks outside a table; a name assembled at run time,
 # `_HI_PROMPT_END_$shell`, is skipped here and caught by its literal rows).

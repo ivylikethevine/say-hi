@@ -46,7 +46,7 @@ has it, and `_HI_PROMPT_TOOL=oh-my-posh` to oh-my-posh, through the tool's own
 still prints the header and sets up the aliases and editors. A target without
 the tool keeps hi's prompt and says nothing. The setting is never
 auto-detected, so a box that happens to carry starship does not change your
-prompt until you ask for it. `hi --configure`'s Prompt menu offers starship;
+prompt until you ask for it. `hi --configure` offers starship under Prompt;
 oh-my-posh is a line you write into `settings.sh` by hand.
 `_HI_DISABLE_PROMPT=1` beats both: hi starts no prompt at all, its own or the
 tool's.
@@ -75,8 +75,8 @@ search, in bash, zsh and fish alike. A tool something has already wired in is
 left alone - each leaves a function behind (`__zoxide_z`; atuin's
 `_atuin_search` in zsh and fish, `__atuin_history` in bash), and hi checks for
 it first - so the `init` your own rc runs at home is never run twice.
-`_HI_DISABLE_TOOL_INIT=1` turns both off; `hi --configure`'s Features menu
-asks it, and the `minimal` preset answers it off.
+`_HI_DISABLE_TOOL_INIT=1` turns both off; `hi --configure` lists it under
+Features, and the `minimal` preset answers it off.
 
 hi writes nothing for either, but once started the tools keep state of their
 own: zoxide's directory database and atuin's history, wherever each keeps them

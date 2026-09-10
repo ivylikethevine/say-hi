@@ -118,11 +118,19 @@ tar.gz | tar.xz)
   tar.gz) tar -xzf "$_hi_tmp/archive" -C "$_hi_tmp" ;;
   tar.xz) tar -xJf "$_hi_tmp/archive" -C "$_hi_tmp" ;;
   esac
-  _hi_bin="$(find "$_hi_tmp" -type f -name "$HI_TOOL" -perm -u+x | head -1)"
-  [ -n "$_hi_bin" ] || {
-    echo "setup-tool: no executable named $HI_TOOL inside $_hi_url" >&2
+  _hi_bin="$(find "$_hi_tmp" -type f -name "$HI_TOOL" -perm -u+x)"
+  # several matches are one build per arch (minisign ships x86_64/ and
+  # aarch64/ side by side, and find walks them in readdir order): keep this
+  # machine's, and refuse anything still ambiguous rather than take the first
+  case "$_hi_bin" in
+  *$'\n'*) _hi_bin="$(grep "/$(uname -m)/" <<<"$_hi_bin" || true)" ;;
+  esac
+  case "$_hi_bin" in
+  "" | *$'\n'*)
+    echo "setup-tool: no single $(uname -m) executable named $HI_TOOL inside $_hi_url" >&2
     exit 1
-  }
+    ;;
+  esac
   ;;
 *)
   echo "setup-tool: unknown kind '$_hi_kind' for $HI_TOOL" >&2
