@@ -2,12 +2,12 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The tooling-side helpers scripts/, packaging/, docs/tapes/ and tests/ share:
-# the heading rules and the sed-rewrite primitive. They lived in common/core.sh
-# until the payload budget made the distinction matter - common/ ships in the
-# ssh payload and wears a CI-enforced size budget, and nothing a target runs
-# draws a heading or rewrites a file in place. Source it *after*
-# common/core.sh, whose _hi_repeat, _hi_cecho and palette it uses; sourcing
-# it does nothing else.
+# flag parsing, the heading rules, the sed-rewrite primitive, the settings and
+# scheme readers, and the box glyphs. None of it belongs in common/core.sh -
+# common/ ships in the ssh payload and wears a CI-enforced size budget, and
+# nothing a target runs draws a heading or rewrites a file in place. Source it
+# *after* common/core.sh, whose _hi_repeat, _hi_cecho and palette it uses;
+# sourcing it does nothing else.
 
 # _hi_flag_word <outvar> <flag> [next] - the word a flag takes, joined
 # (--x=y) or as the next argument (--x y): status 2 when it took <next> and
@@ -16,7 +16,7 @@
 # cannot depend on a file outside common/ - two copies of six lines rather
 # than a payload file reaching into scripts/.
 function _hi_flag_word() {
-  printf -v "$1" ''
+  printf -v "$1" '%s' ''
   case "$2" in
   *=*) printf -v "$1" '%s' "${2#*=}" ;;
   *)
@@ -106,6 +106,40 @@ function _hi_rewrite() {
   tmp="$(mktemp -t hi.rewrite.XXXXXX)"
   sed "${exprs[@]}" "$file" >"$tmp"
   _hi_write_back "$tmp" "$file"
+}
+
+# _hi_shell_rows - core.sh's $_HI_SHELL_TABLE, one row per line for
+# `while IFS='|' read` callers.
+function _hi_shell_rows() {
+  printf '%s\n' "${_HI_SHELL_TABLE[@]}"
+}
+
+# _hi_setting_get <file> <name> [outvar] - what <name> holds after sourcing
+# <file>, or rc 1 when it never gets set. A subshell sources the file for real
+# (only <name> unset) rather than a hand-rolled grammar, so it agrees with
+# what a target would see; nothing outside it is touched.
+function _hi_setting_get() {
+  # prefixed locals: a plain `val` would shadow the caller's (GLOSSARY: HI.04)
+  local _hi_sg_file="$1" _hi_sg_name="$2" _hi_sg_outvar="${3:-}" _hi_sg_val
+  [ -f "$_hi_sg_file" ] || return 1
+  _hi_sg_val="$(
+    unset "$_hi_sg_name"
+    # shellcheck source=/dev/null # a config file, or one a test wrote - not one shellcheck can trace
+    . "$_hi_sg_file" >/dev/null 2>&1
+    eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
+    eval "printf '%s' \"\$${_hi_sg_name}\""
+  )" || return 1
+  _hi_out "$_hi_sg_outvar" "$_hi_sg_val"
+}
+
+# _hi_color_escape <name> [outvar] - the ANSI escape for a palette name
+# (_HI_COLOR_NAMES) as a real ESC byte, where core.sh's _hi_color_escape_var
+# leaves the two characters `\e`
+function _hi_color_escape() {
+  local _hi_ce
+  _hi_color_escape_var _hi_ce "$1"
+  printf -v _hi_ce '%b' "$_hi_ce"
+  _hi_out "${2:-}" "$_hi_ce"
 }
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh

@@ -37,10 +37,8 @@ source "$_HI_HOME/say-hi/tests/test_lib.sh"
 # local checks first, the docker/kind/nomad-backed end-to-end tests after.
 # Within the fast section the slowest suites lead: the parallel runner starts
 # suites in table order, so a heavy suite starting last is the whole group's
-# scheduling tail (leading with the six heaviest - packaging, doctor,
-# test_runner, test_lib, configure, header, each 5-8s where the rest are
-# under 4 - keeps a run near its packing bound; re-sort from the summary
-# table when a suite's weight changes).
+# scheduling tail. Re-sort from the summary table's TIME column when a
+# suite's weight changes.
 #
 # The group is here rather than in .github/workflows/ci.yml: with CI spelling
 # out which suites are fast and which are e2e, a suite added to this table but
@@ -50,15 +48,17 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
   _HI_TESTS=(
     "fast:packaging:packaging/packaging_test.sh"
     "fast:doctor:scripts/doctor_test.sh"
-    "fast:update:scripts/update_test.sh"
-    "fast:test_runner:harness/runner_test.sh"
-    "fast:test_lib:harness/lib_test.sh"
-    "fast:configure:scripts/configure_test.sh"
-    "fast:header:common/header_test.sh"
-    "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
-    "fast:install_location:scripts/install_location_test.sh"
-    "fast:targets:common/targets_test.sh"
     "fast:install:scripts/install_test.sh"
+    "fast:test_runner:harness/runner_test.sh"
+    "fast:configure:scripts/configure_test.sh"
+    "fast:test_lib:harness/lib_test.sh"
+    "fast:targets:common/targets_test.sh"
+    "fast:rc:common/rc_test.sh"
+    "fast:install_location:scripts/install_location_test.sh"
+    "fast:update:scripts/update_test.sh"
+    "fast:header:common/header_test.sh"
+    "fast:load:load/load_test.sh"
+    "fast:alias_fallthrough:settings/alias_fallthrough_test.sh"
     "fast:preview:scripts/preview_test.sh"
     "fast:aliases:settings/alias_test.sh"
     "fast:rc_lines:scripts/rc_test.sh"
@@ -77,8 +77,6 @@ if ! declare -p _HI_TESTS >/dev/null 2>&1; then
     "fast:env_prompt:common/env_prompt_test.sh"
     "fast:paths:common/paths_test.sh"
     "fast:exports:common/exports_test.sh"
-    "fast:load:load/load_test.sh"
-    "fast:rc:common/rc_test.sh"
     "fast:test_lib_report:harness/lib_report_test.sh"
     "fast:test_lib_par:harness/lib_parallel_test.sh"
     "lint:shellcheck:lint/shellcheck_test.sh"
@@ -210,32 +208,19 @@ EOF
     _HI_LIST_PATHS=1
     ;;
   --require-run) _HI_REQUIRE_RUN=1 ;;
-  --totals-file | --totals-file=*)
-    _hi_flag_word _HI_TOTALS_FILE "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "test_runner.sh: --totals-file needs a value" "$RED" >&2
-      exit 1
-      ;;
-    esac
-    ;;
   # the flag half of _HI_VERBOSE; the default below is `:-0`, so setting it
   # here wins and the two spellings need no further reconciling
   --verbose) _HI_VERBOSE=1 ;;
-  --group | --group=*)
-    _hi_flag_word _HI_GROUP "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "test_runner.sh: --group needs a value" "$RED" >&2
-      exit 1
-      ;;
+  --totals-file | --totals-file=* | --group | --group=* | --shard | --shard=*)
+    case "${1%%=*}" in
+    --totals-file) _hi_v=_HI_TOTALS_FILE ;;
+    --group) _hi_v=_HI_GROUP ;;
+    *) _hi_v=_HI_SHARD ;;
     esac
-    ;;
-  --shard | --shard=*)
-    _hi_flag_word _HI_SHARD "$@" || case $? in
+    _hi_flag_word "$_hi_v" "$@" || case $? in
     2) shift ;;
     *)
-      _hi_cecho "test_runner.sh: --shard needs a value" "$RED" >&2
+      _hi_cecho "test_runner.sh: ${1%%=*} needs a value" "$RED" >&2
       exit 1
       ;;
     esac
@@ -507,11 +492,8 @@ function _hi_collect_suite() {
 # $_HI_RUNNER_WIDTH overrides (1 is a plain serial run) - both phases below,
 # since a bench/e2e/backends suite in the selection no longer collapses the
 # whole run to width 1, only its own phase.
-_HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-}"
-if [ -z "$_HI_RUNNER_WIDTH" ]; then
-  _HI_RUNNER_WIDTH="$(_hi_host_cores)"
-  [ -n "$_HI_RUNNER_WIDTH" ] || _HI_RUNNER_WIDTH=2
-fi
+# parallel.sh's width rule, uncapped as a local-process suite gets it
+_HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-$(_HI_PAR_WIDTH='' _HI_PAR_LOCAL=1 _hi_par_width)}"
 [ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1
 [ "$_HI_VERBOSE" = 1 ] && _HI_RUNNER_WIDTH=1
 
@@ -531,8 +513,6 @@ done
 [ "$_HI_RUNNER_WIDTH" -le 1 ] || [ "${#_HI_SELECTED_PAR[@]}" -le 1 ] ||
   _hi_cecho " | $_HI_RUNNER_WIDTH suites at a time, transcripts replayed in table order (_HI_RUNNER_WIDTH=1 for one by one)" "$BLUE"
 
-declare -a _hi_running=()
-
 # the one spelling of a suite invocation, for all three paths below - the
 # tally files and --require-run ride the environment; reads the loop's
 # current $_hi_counts/$_hi_fails/$_hi_path
@@ -543,11 +523,12 @@ function _hi_run_suite() {
 # _hi_run_batch <width> <suite-entry...> - the scheduling loop plus its
 # parallel-run collection pass, over one homogeneous batch. $_hi_i is global
 # and never reset between calls, so the two batches' $_HI_RUN_DIR files never
-# collide; _hi_running is local, so each batch's semaphore starts empty.
+# collide. parallel.sh's _hi_par_slot is the semaphore, over locals of its
+# names, so each batch's starts empty.
 function _hi_run_batch() {
   local width="$1" _hi_t _hi_rest _hi_name _hi_path _hi_counts _hi_fails _hi_log
-  local _hi_t0 _hi_code _hi_pid _hi_dur _hi_batch_i0=$_hi_i
-  local -a _hi_running=() _hi_keep=() _hi_batch_names=()
+  local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1"
+  local -a _HI_PAR_RUNNING=() _hi_batch_names=()
   shift
   for _hi_t in "$@"; do
     # the accessors' own expansions, inlined: this runs once per selected
@@ -571,21 +552,13 @@ function _hi_run_batch() {
     fi
 
     if [ "$width" -gt 1 ]; then
-      # a slot: `wait <pid>` in turn and never `wait -n` (bash 3.2)
-      while [ "${#_hi_running[@]}" -ge "$width" ]; do
-        _hi_keep=()
-        for _hi_pid in "${_hi_running[@]}"; do
-          if kill -0 "$_hi_pid" 2>/dev/null; then _hi_keep+=("$_hi_pid"); else wait "$_hi_pid" 2>/dev/null || true; fi
-        done
-        _hi_running=(${_hi_keep[@]+"${_hi_keep[@]}"})
-        [ "${#_hi_running[@]}" -ge "$width" ] && sleep 0.05
-      done
+      _hi_par_slot
       (
         _hi_t0="$(_hi_now)"
         if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
         printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
       ) &
-      _hi_running+=("$!")
+      _HI_PAR_RUNNING+=("$!")
       continue
     fi
 

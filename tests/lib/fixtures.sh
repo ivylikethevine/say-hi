@@ -318,6 +318,8 @@ function _hi_can_reach_gpg_agent() {
 #                       MSYS/Cygwin, where the chmod half is refused and the
 #                       status disagrees with the tree - see
 #                       _hi_can_mkdir_mode.
+#   gpg_agent        - a gpg-agent can be started and asked - see
+#                       _hi_can_reach_gpg_agent.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -596,4 +598,27 @@ function _hi_has_rendered() {
   local needle
   printf -v needle '%b' "$2"
   [[ "$1" == *"$needle"* ]]
+}
+
+# _hi_login_env <home> <cmd...> - `env -i` plus only what a login shell has:
+# no _HI_HOME (it would answer what install.sh derives) and no _HI_CONFIG_DIR;
+# $SHELL because install.sh reports ${SHELL##*/} under `set -u`
+function _hi_login_env() {
+  local home="$1"
+  shift
+  env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
+    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" "$@"
+}
+
+# _hi_bare_bash <toolbox> <tools> <script> [NAME=VALUE...] - <script> in an
+# `env -i` bash with only <tools> on PATH, 2>&1. The overlay is aimed at a
+# directory never created: left unset, core.sh would source the real
+# ~/.config/say-hi of whoever runs the suite into the probe.
+function _hi_bare_bash() {
+  local box="$1" tools="$2" script="$3" nocfg="$_HI_WORKDIR/$1-nocfg"
+  shift 3
+  # shellcheck disable=SC2086 # the tool list splits on purpose
+  env -i PATH="$(_hi_real_path "$box" $tools)" HOME="$HOME" NO_COLOR=1 \
+    XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
+    _HI_HOME="$_HI_HOME" "$@" bash -c "$script" 2>&1
 }

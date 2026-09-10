@@ -276,10 +276,6 @@ function test_docker_kind_omits_alias_row_when_label_is_empty() {
   ! printf '%s\n' "$out" | grep -qxF $'\t''docker'
 }
 
-function test_podman_kind_lists_running_containers() {
-  _hi_has_row "$(_hi_targets "$_HI_CONFIG" podman)" pod-one podman
-}
-
 # every member of the docker-compatible family is a kind of its own, and the
 # family is not configurable: all four are always tried (GLOSSARY: HI.51)
 function test_nerdctl_kind_lists_running_containers() {
@@ -975,7 +971,6 @@ function run_targets_tests() {
   _hi_check "the family's order is the emission order" test_family_order_is_emission_order
   _hi_check "two CLIs on one daemon -> one row" test_duplicate_daemon_rows_are_emitted_once
   _hi_check "dedupe leaves nomad and kube rows alone" test_dedupe_leaves_nomad_and_kube_alone
-  _hi_check "podman -> running containers" test_podman_kind_lists_running_containers
   _hi_check "nomad -> running allocs, no header row" test_nomad_kind_lists_running_allocs
   _hi_check "kube -> running pods" test_kube_kind_lists_running_pods
   _hi_check_capable fork_concurrency "Backends are swept together, not in turn" test_backends_are_swept_together

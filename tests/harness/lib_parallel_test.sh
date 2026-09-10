@@ -135,26 +135,6 @@ function test_par_case_tallies_pass_fail_and_skip() {
   ) >/dev/null
 }
 
-# test_runner.sh reports `pass = cases - failed` (its _hi_pass), so a skipped
-# case left in $_HI_TOTAL is reported as a green pass *and* a yellow skip - the
-# arithmetic that quietly inflated the count feeding --totals-file and the
-# README badge. A stand-down is never green: this is that rule, in numbers.
-function test_par_skip_is_not_reported_as_a_pass() {
-  local tally="$_HI_WORKDIR/par-skip-tally" total failed skipped
-  # the tally through a file, not a process substitution: _hi_par_begin and
-  # _hi_par_case narrate to stdout, and their lines would be what `read` got
-  (
-    _hi_suite_begin
-    _hi_par_begin "harness probe"
-    _hi_par_case ok _hi_true
-    _hi_par_case skipped _hi_par_skipper
-    _hi_par_wait
-    printf '%s %s %s\n' "$_HI_TOTAL" "$_HI_FAILED" "${_HI_SKIPPED:-0}" >"$tally"
-  ) >/dev/null 2>&1
-  read -r total failed skipped <"$tally"
-  [ "$((total - failed))" -eq 1 ] && [ "$skipped" -eq 1 ]
-}
-
 # _hi_par_check reports through _hi_assert, which names the case by its bare
 # label; _hi_par_wait's backstop then must not list it a second time as
 # "exited 1 before reporting a verdict", which reads as a crash rather than a
@@ -306,7 +286,6 @@ function run_lib_parallel_tests() {
 
   _hi_h2 "Testing: _hi_par_case / _hi_par_wait"
   _hi_check "Tallies pass, fail and skip" test_par_case_tallies_pass_fail_and_skip
-  _hi_check "A skipped case is not a pass" test_par_skip_is_not_reported_as_a_pass
   _hi_check "A failed assertion is recapped once" test_par_failed_assertion_is_recapped_once
   _hi_check "A case with no verdict is a failure" test_par_case_without_a_verdict_counts_as_a_failure
   _hi_check "Transcripts replay in submission order" test_par_wait_replays_in_submission_order

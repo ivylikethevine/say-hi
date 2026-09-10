@@ -84,8 +84,7 @@ function lint_manpage() {
     _hi_align " | docs/hi.1" "OK" "$GREEN"
   else
     _hi_align " | docs/hi.1" "FAILED" "$RED"
-    printf '%s
-' "$out" | sed 's/^/      /'
+    printf '%s\n' "$out" | sed 's/^/      /'
     _hi_note_failure "docs/hi.1 (mandoc)"
     return 1
   fi
@@ -125,7 +124,7 @@ function lint_vim_rc() {
       continue
     fi
     _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    err="$(mktemp -t hi.vimrc.XXXXXX)"
+    err="$_HI_WORKDIR/$bin.err"
     "$bin" -u "$rc" -es -c "call writefile([v:errmsg], '$err')" -c 'qa!' \
       </dev/null >/dev/null 2>&1 || true
     out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
@@ -137,7 +136,6 @@ function lint_vim_rc() {
     else
       _hi_align " | settings/vim.rc ($bin)" "OK" "$GREEN"
     fi
-    rm -f "$err"
   done
   return "$bad"
 }
@@ -150,16 +148,14 @@ function lint_emacs_rc() {
     return 0
   fi
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  err="$(mktemp -t hi.emacsrc.XXXXXX)"
+  err="$_HI_WORKDIR/emacs.err"
   if emacs --batch -q -l "$rc" --eval '(kill-emacs 0)' </dev/null >"$err" 2>&1; then
     _hi_align " | settings/emacs.el (emacs)" "OK" "$GREEN"
-    rm -f "$err"
     return 0
   fi
   _hi_align " | settings/emacs.el (emacs)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
   _hi_note_failure "settings/emacs.el (emacs)"
-  rm -f "$err"
   return 1
 }
 
@@ -179,8 +175,7 @@ function lint_typos() {
     _hi_align " | typos $(typos --version | awk '{print $2}'): nothing misspelt" "OK" "$GREEN"
   else
     _hi_align " | typos: misspellings below (a term that is right goes in .typos.toml)" "FAILED" "$RED"
-    printf '%s
-' "$out" | sed 's/^/      /'
+    printf '%s\n' "$out" | sed 's/^/      /'
     _hi_note_failure "spelling (typos)"
     return 1
   fi
@@ -188,6 +183,7 @@ function lint_typos() {
 
 function run_tools() {
   _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, emacs, typos)"
+  _hi_workdir toolstest
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
   # and checkbashisms are separate processes and cannot read its variable

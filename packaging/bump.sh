@@ -123,12 +123,11 @@ function check_manifests() {
 # at exactly the moment a release runs.
 function write_manifests() {
   local url tarball="${1:-}" sha b2
+  # once, for the fetch and all three manifests below
+  url="$(asset_url "$_HI_VERSION")"
   if [ -n "$tarball" ]; then
     _hi_h2 "Using the local tarball $tarball"
-    [ -f "$tarball" ] || {
-      _hi_cecho " no such file: $tarball" "$RED" >&2
-      return 1
-    }
+    need_file "$tarball" file || return 1
   else
     tarball="$(mktemp -t hi.tarball.XXXXXX)"
     _hi_on_exit "rm -f '$tarball'"
@@ -139,7 +138,6 @@ function write_manifests() {
         return 1
       }
     else
-      url="$(asset_url "$_HI_VERSION")"
       _hi_h2 "No local v$_HI_VERSION tag - fetching $url"
       curl -fsSL -o "$tarball" "$url" || {
         _hi_cecho " could not fetch it - has v$_HI_VERSION been released, or is its tag in this checkout?" "$RED" >&2
@@ -161,7 +159,7 @@ function write_manifests() {
   _hi_cecho " $_HI_PKGBUILD :)" "$GREEN"
 
   _hi_rewrite "$_HI_FORMULA" \
-    "s|^  url \".*\"|  url \"$(asset_url "$_HI_VERSION")\"|" \
+    "s|^  url \".*\"|  url \"$url\"|" \
     "s/^  sha256 \".*\"/  sha256 \"$sha\"/"
   _hi_cecho " $_HI_FORMULA :)" "$GREEN"
 
@@ -169,7 +167,7 @@ function write_manifests() {
     (cd "$(dirname "$_HI_PKGBUILD")" && makepkg --printsrcinfo >.SRCINFO)
     _hi_cecho " $_HI_SRCINFO :)" "$GREEN"
   else
-    rewrite_srcinfo_lines "$b2"
+    rewrite_srcinfo_lines "$b2" "$url"
     _hi_cecho " $_HI_SRCINFO (pkgver/source/b2sums only - rerun makepkg --printsrcinfo on an Arch box if any other PKGBUILD field changed)" "$YELLOW"
   fi
 }
@@ -178,10 +176,11 @@ function write_manifests() {
 # the three lines a bump changes are derivable, so rewrite them in place. The
 # \([[:space:]]*\) capture keeps .SRCINFO's leading tab.
 function rewrite_srcinfo_lines() {
-  local b2="$1"
+  local b2="$1" url="${2:-}"
+  [ -n "$url" ] || url="$(asset_url "$_HI_VERSION")"
   _hi_rewrite "$_HI_SRCINFO" \
     "s/^\\([[:space:]]*\\)pkgver = .*/\\1pkgver = $_HI_VERSION/" \
-    "s|^\\([[:space:]]*\\)source = .*|\\1source = $(asset_url "$_HI_VERSION")|" \
+    "s|^\\([[:space:]]*\\)source = .*|\\1source = $url|" \
     "s/^\\([[:space:]]*\\)b2sums = .*/\\1b2sums = $b2/"
 }
 

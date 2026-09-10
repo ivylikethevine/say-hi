@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# `apt-get update` on a GitHub-hosted runner, made survivable. Sourced by the
-# actions and workflow steps that install a package - ../setup-shells,
-# ../setup-backends, ../setup-tool and ../../workflows/coverage.yml - so the
-# two mitigations below are written once rather than per caller.
+# `apt-get update` on a GitHub-hosted runner, made survivable. Sourced by
+# ../setup-shells, ../setup-backends and ../setup-tool/install.sh, so the two
+# mitigations below are written once rather than per caller.
 #
 # Nothing here runs on a target: this directory is CI-only and never ships.
 

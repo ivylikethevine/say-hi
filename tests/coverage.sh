@@ -12,7 +12,7 @@
 #                "every suite" test_runner.sh itself defaults to, e2e and
 #                backends groups included; pass e.g. --group fast to narrow
 #                it). The `shellcheck` suite is dropped from whatever this
-#                selects, wherever it appears - see the loop below.
+#                selects, wherever it appears - see tests/lib/coverage.sh.
 #
 # ---------------------------------------------------------------------------
 # HOW FAR TO TRUST A NUMBER THIS PRINTS

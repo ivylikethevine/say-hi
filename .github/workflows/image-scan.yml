@@ -45,9 +45,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: trivy
+          tools: trivy
 
       # Advisory, like markdownlint and link-check: a CVE landing upstream is no
       # reason to redden an unrelated PR, so never make this a required check.

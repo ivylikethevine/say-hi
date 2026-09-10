@@ -9,9 +9,7 @@
 # non-bash shell parses for itself through that shell's own syntax checker
 # (native, plus a pinned floor and ceiling build). tools_test.sh wraps shfmt,
 # checkbashisms, mandoc and typos. drift_test.sh is the repo-consistency
-# sweeps: the bash-3.2 grep, the $HOME default grep, GLOSSARY tags, the
-# settings roster, Liquid syntax, and the tests/dockerfiles/ caller and
-# image-tag checks. See each file's own header; all four are registered under
+# sweeps. See each file's own header; all four are registered under
 # `lint` in test_runner.sh's _HI_TESTS table.
 set -euo pipefail
 
@@ -49,8 +47,7 @@ function lint_config_dir_sources() {
   needle='"$_HI_CONFIG'"_DIR/"
   _hi_h2 "Checking config-dir sources carry a shellcheck directive"
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  for file in "${_HI_SH_FILES[@]}"; do
-    case "$(<"$file")" in *"$needle"*) ;; *) continue ;; esac
+  while IFS= read -r file; do
     _hi_read_lines lines <"$file"
     total="${#lines[@]}"
     for ((i = 0; i < total; i++)); do
@@ -81,7 +78,7 @@ function lint_config_dir_sources() {
       _hi_note_failure "config-dir source: $rel:$((i + 1))"
       bad=$((bad + 1))
     done
-  done
+  done < <(grep -lF -- "$needle" "${_HI_SH_FILES[@]}")
   [ "$bad" -eq 0 ] && _hi_align " | every config-dir source is directive-guarded" "OK" "$GREEN"
   return "$bad"
 }
@@ -108,15 +105,7 @@ function lint_config_dir_sources() {
 # is a chunk no width can split - see _hi_sc_chunks below, which is where
 # the time actually goes.
 function _hi_sc_width() {
-  local cpus
-  if [ -n "${_HI_SC_WIDTH:-}" ]; then
-    printf '%s' "$_HI_SC_WIDTH"
-    return 0
-  fi
-  cpus="$(_hi_host_cores)"
-  [ -n "$cpus" ] || cpus=2
-  [ "$cpus" -lt 1 ] && cpus=1
-  printf '%s' "$cpus"
+  _HI_PAR_WIDTH="${_HI_SC_WIDTH:-}" _HI_PAR_LOCAL=1 _hi_par_width
 }
 
 # _hi_sc_chunks <outdir> <width> <file...> - the file list dealt into <width>
@@ -163,8 +152,11 @@ function _hi_sc_chunks() {
   # directory - $_HI_ROOT-relative, so a root-level file (hi.sh, load.sh) is
   # its own group, sharing a sourced tree with nothing. First-seen order
   # picks <idx>, keeping the deal stable for a given (sorted) file list;
-  # groupsize[idx] counts how many files landed in it.
-  local -a groupsize
+  # groupsize[idx] sums the bytes that landed in it, since shellcheck's time
+  # follows what it parses rather than how many files carry it (one wc).
+  local -a groupsize sizes
+  local nf=0
+  _hi_read_lines sizes < <(wc -c -- "$@" | awk '{ print $1 }')
   for f in "$@"; do
     rel="${f#"$_HI_ROOT"/}"
     # tests/ is dealt by its second-level directory (tests/lib, tests/hi,
@@ -187,12 +179,13 @@ function _hi_sc_chunks() {
       [ "$s" = "$top" ] && break
       idx=$((idx + 1))
     done
-    groupsize[idx]=$((${groupsize[idx]:-0} + 1))
+    groupsize[idx]=$((${groupsize[idx]:-0} + ${sizes[nf]:-1}))
+    nf=$((nf + 1))
     printf '%s\0' "$f" >>"$out/group.$idx"
   done
 
   # second pass: greedy bin-pack whole groups onto chunks - largest group
-  # first, always onto the chunk with the fewest files placed so far. Every
+  # first, always onto the chunk with the fewest bytes placed so far. Every
   # file that shares a sourced tree still lands in one shellcheck invocation
   # together; only which chunk that invocation is changes.
   local n_groups=0 gi picked best best_size c smallest smallest_size

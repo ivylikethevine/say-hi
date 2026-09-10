@@ -151,7 +151,6 @@ function test_strip_settings_leaves_the_rest_of_the_overlay() {
 # `sudo ln`, which has no business firing from a suite. --link none returns before
 # that, which is the whole point of it - a Homebrew/distro/Git Bash install has
 # nothing to link and no way to link it.
-
 function test_config_hi_no_link_skips_the_symlink() {
   local link="$_HI_WORKDIR/no-link-link"
   (
@@ -220,8 +219,7 @@ function _hi_run_env() {
   local home="$_HI_WORKDIR/$1"
   shift
   mkdir -p "$home"
-  env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
-    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" "$@" </dev/null
+  _hi_login_env "$home" "$@" </dev/null
 }
 
 # _hi_run_install <home-name> <flag...> - the scratch tree's install.sh, for
@@ -251,8 +249,6 @@ function _hi_run_install_here() {
     bash "$_HI_ROOT/scripts/install.sh" "$@" </dev/null
 }
 
-# the three argument errors: each has to stop before anything is sourced,
-# written or asked, with the message naming what was missing
 # the four modes are one choice: `hi --configure` injects --configure,
 # so `hi --configure --uninstall` reached run_uninstall
 function test_two_modes_are_refused() {
@@ -445,9 +441,7 @@ function _hi_run_install_pty() {
   mkdir -p "$home"
   : >"$out"
   printf '%b' "$input" |
-    env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
-      SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" \
-      "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" "$@" >"$out" 2>&1 &
+    _hi_login_env "$home" "${_HI_PTY_FORCED[@]}" bash "$_HI_RUN_TREE/scripts/install.sh" "$@" >"$out" 2>&1 &
   _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$name" "${_HI_CASE_TIMEOUT:-30}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }

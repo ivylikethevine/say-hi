@@ -90,6 +90,16 @@ function _hi_hbar() {
   printf '%s\n' "$seg$right"
 }
 
+# _hi_head_row <width> <label>... - the header row, each label padded to its column
+function _hi_head_row() {
+  local out="$_HI_BOX_V"
+  while [ $# -ge 2 ]; do
+    printf -v out '%s %-*s %s' "$out" "$1" "$2" "$_HI_BOX_V"
+    shift 2
+  done
+  printf '%s\n' "$out"
+}
+
 # _hi_row_end - the closing edge every row ends with, so no caller spells the
 # glyph and a row cannot end in a different vocabulary than its rules
 function _hi_row_end() {

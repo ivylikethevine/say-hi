@@ -272,7 +272,7 @@ function test_out_var_and_stdout_form_agree() {
   [ "$stdout_form" = "$outvar_form" ]
 }
 
-# line 10 clears the out-var unconditionally, before either early return
+# _hi_git_prompt's first line clears the out-var, before either early return
 # (disabled / outside a repo) - a stale value from a previous prompt draw
 # must not survive into a draw that has nothing to say.
 function test_out_var_is_precleared_when_disabled() {

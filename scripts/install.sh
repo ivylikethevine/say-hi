@@ -340,7 +340,7 @@ function config_hi() {
     _hi_cecho " --link none given, leaving $_HI_LINK alone :)" "$GREEN"
     return 0
   }
-  if [ "$(readlink "$_HI_LINK" 2>/dev/null)" = "$_HI_LAUNCHER" ]; then
+  if _hi_link_is_ours "$_HI_LINK"; then
     _hi_cecho " $_HI_LINK already points at $_HI_LAUNCHER :)" "$GREEN"
     return 0
   fi
@@ -430,7 +430,7 @@ function _hi_unlink_one() {
     _hi_cecho " no $link to remove :)" "$GREEN"
     return 0
   fi
-  if [ "$(readlink "$link" 2>/dev/null)" != "$_HI_LAUNCHER" ]; then
+  if ! _hi_link_is_ours "$link"; then
     owner="$(link_owner "$link" 2>/dev/null || true)"
     _hi_cecho " $link doesn't point at this say-hi${owner:+ (owned by the $owner package)}, leaving it alone" "$GREEN"
     return 0

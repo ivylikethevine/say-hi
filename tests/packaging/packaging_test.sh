@@ -606,7 +606,7 @@ function test_publish_job_signs_the_sums() {
   publish="$(sed -n '/^  publish:/,$p' "$_HI_RELEASE_WF")"
   [[ "$publish" == *'MINISIGN_SECRET_KEY'* ]] &&
     [[ "$publish" == *'minisign -S'* ]] &&
-    [[ "$publish" == *'tool: minisign'* ]]
+    [[ "$publish" == *'tools: minisign'* ]]
 }
 
 # The package repository (docs/PACKAGING.md's _Package repository_), in four
@@ -717,11 +717,9 @@ function test_tool_manifest_rows_are_wellformed() {
   [ "$bad" = 0 ]
 }
 
-# ...and every setup-tool call names a row. Stricter than a literal roster
-# grep: it also catches a `uses: ./.github/actions/setup-<x>` path that does
-# not exist at all. It reads `tool:` lines out of the workflows, so an
-# unrelated future `tool:` input would be checked too - which
-# fails loudly rather than silently, and is the right way round.
+# ...and every setup-tools call names only rows. It reads every word of the
+# workflows' `tools:` lines, so an unrelated future `tools:` input would be
+# checked too - which fails loudly rather than silently, the right way round.
 function test_every_setup_tool_call_names_a_manifest_row() {
   [ -f "$_HI_TOOLS_TXT" ] || return 0
   local want bad=0
@@ -730,7 +728,7 @@ function test_every_setup_tool_call_names_a_manifest_row() {
       _hi_cecho " | a workflow asks for '$want', which tools.txt does not list" "$RED"
       bad=1
     }
-  done < <(sed -n 's/^ *tool: *\([a-z0-9._-]*\) *$/\1/p' "$_HI_ROOT"/.github/workflows/*.yml | sort -u)
+  done < <(sed -n 's/^ *tools: *//p' "$_HI_ROOT"/.github/workflows/*.yml | tr ' ' '\n' | grep . | sort -u)
   [ "$bad" = 0 ]
 }
 
@@ -1331,14 +1329,13 @@ function test_stamp_is_idempotent() {
 }
 
 # the launcher has to stay executable - `cat` back rather than `mv`, the same
-# reason core.sh's _hi_rewrite does (see test_bump_rewrite_preserves_file_mode)
-# shellcheck disable=SC2012 # ls -l for the mode column is the point
+# reason scripts/lib.sh's _hi_rewrite does (see test_bump_rewrite_preserves_file_mode)
 function test_stamp_keeps_the_launcher_exec_bit() {
   local d before after
   d="$(_hi_stamp_fixture)"
-  before="$(ls -l "$d/usr/share/say-hi/hi.sh" | awk '{ print $1 }')"
+  before="$(_hi_mode_string "$d/usr/share/say-hi/hi.sh")"
   _hi_stamp --root "$d" --version 4.4.4 --date 2026-01-02 || return 1
-  after="$(ls -l "$d/usr/share/say-hi/hi.sh" | awk '{ print $1 }')"
+  after="$(_hi_mode_string "$d/usr/share/say-hi/hi.sh")"
   [ "$before" = "$after" ]
 }
 

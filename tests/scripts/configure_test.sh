@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Unit tests for hi --configure's settings wizard - scripts/configure.sh - and
-# the rc.sh/table.sh helpers it and install.sh's own rc handling share
-# (config_shell, tmpdir_line, check_one_config, _hi_visible_len). This half is
+# Unit tests for hi --configure's settings wizard - scripts/configure.sh (the
+# rc.sh and table.sh helpers it shares have their own suites). This half is
 # everything a plain install's second stage, or a later `hi --configure`,
 # touches - every question, its validation, and the one write to
 # $_HI_SETTINGS. tests/scripts/install_test.sh is the other half:
@@ -23,95 +22,6 @@ _HI_PAR_LOCAL=1
 set -- # install.sh reads "$@" for its own args; make sure it sees none
 # shellcheck source=../../scripts/install.sh
 source "$_HI_INSTALL"
-
-function test_config_shell_fresh_insert() {
-  local target="$_HI_WORKDIR/fresh"
-  : >"$target"
-  config_shell "fresh block" "$target" "line one" "line two"
-  grep -qF "line one" "$target" && grep -qF "line two" "$target" && grep -qF "$_HI_MARKER" "$target"
-}
-
-function test_config_shell_idempotent() {
-  local target="$_HI_WORKDIR/idempotent" before after
-  : >"$target"
-  config_shell idempotent "$target" "line one"
-  before="$(cat "$target")"
-  config_shell idempotent "$target" "line one"
-  after="$(cat "$target")"
-  [ "$before" = "$after" ]
-}
-
-function test_config_shell_repairs_stale_line() {
-  local target="$_HI_WORKDIR/repair"
-  : >"$target"
-  config_shell repair "$target" "old line"
-  config_shell repair "$target" "new line"
-  grep -qF "new line" "$target" && ! grep -qF "old line" "$target"
-}
-
-function test_config_shell_preserves_unrelated_content() {
-  local target="$_HI_WORKDIR/preserve"
-  printf '%s\n' "# a user comment" "alias ll='ls -la'" >"$target"
-  config_shell preserve "$target" "hi line"
-  grep -qF "# a user comment" "$target" && grep -qF "alias ll='ls -la'" "$target" && grep -qF "hi line" "$target"
-}
-
-function test_config_shell_skips_empty_args() {
-  local target="$_HI_WORKDIR/emptyargs"
-  : >"$target"
-  config_shell emptyargs "$target" "" "real line" ""
-  [ "$(grep -cF "$_HI_MARKER" "$target")" -eq 1 ]
-}
-
-# the block goes at the end, after whatever the file already had
-function test_config_shell_appends_at_the_end() {
-  local target="$_HI_WORKDIR/appends"
-  printf '%s\n' "first line" >"$target"
-  config_shell appends "$target" "hi line"
-  [[ "$(tail -1 "$target")" == *"hi line"* ]]
-}
-
-function test_config_shell_preserves_target_mode() {
-  local target="$_HI_WORKDIR/mode" before
-  printf 'content\n' >"$target"
-  chmod 640 "$target"
-  before="$(_hi_mode_string "$target")"
-  config_shell mode "$target" "hi line"
-  [ "$(_hi_mode_string "$target")" = "$before" ]
-}
-
-# a dotfile manager's hardlinked ~/.bashrc must not be severed by a mv
-function test_config_shell_preserves_hardlinks() {
-  local target="$_HI_WORKDIR/hardlink" twin="$_HI_WORKDIR/hardlink.twin"
-  printf 'content\n' >"$target"
-  ln "$target" "$twin"
-  config_shell hardlink "$target" "hi line"
-  grep -qF "hi line" "$twin"
-}
-
-function test_config_shell_backs_up_on_first_insert() {
-  local target="$_HI_WORKDIR/backup"
-  printf 'original content\n' >"$target"
-  config_shell backup "$target" "hi line"
-  [ -f "$target.hi-orig" ] && [ "$(cat "$target.hi-orig")" = "original content" ]
-}
-
-# the backup stays the pre-hi original - a rerun must not overwrite it
-function test_config_shell_backup_survives_reruns() {
-  local target="$_HI_WORKDIR/backup2"
-  printf 'original\n' >"$target"
-  config_shell backup2 "$target" "hi line"
-  config_shell backup2 "$target" "another line"
-  [ "$(cat "$target.hi-orig")" = "original" ]
-}
-
-# nothing to preserve, nothing to back up
-function test_config_shell_no_backup_for_empty_target() {
-  local target="$_HI_WORKDIR/backup3"
-  : >"$target"
-  config_shell backup3 "$target" "hi line"
-  [ ! -e "$target.hi-orig" ]
-}
 
 # Nothing is spliced into common/paths.sh any more - the settings live in
 # $_HI_SETTINGS, which every entry point sources *ahead* of paths.sh so that
@@ -558,18 +468,13 @@ function _hi_shebang_mode() {
   mkdir -p "$_HI_CONFIG_DIR"
   printf 'X=1\n' >"$_HI_SETTINGS"
   chmod 604 "$_HI_SETTINGS"
-  # shellcheck disable=SC2012 # fixture paths, mode via ls as elsewhere here
-  ls -l "$_HI_SETTINGS" | awk '{ print $1 }' >"$_HI_WORKDIR/shebang_mode.before"
+  _hi_mode_string "$_HI_SETTINGS" >"$_HI_WORKDIR/shebang_mode.before"
   ensure_settings_shebang
 }
 
-# shellcheck disable=SC2012 # fixture paths, mode via ls as above
 function test_settings_shebang_preserves_mode() {
   _hi_settings_fixture shebang_mode _hi_shebang_mode
-  local before after
-  before="$(cat "$_HI_WORKDIR/shebang_mode.before")"
-  after="$(ls -l "$(_hi_fixture_settings shebang_mode)" | awk '{ print $1 }')"
-  [ "$after" = "$before" ]
+  [ "$(_hi_mode_string "$(_hi_fixture_settings shebang_mode)")" = "$(cat "$_HI_WORKDIR/shebang_mode.before")" ]
 }
 
 # the three config_* groups accumulate rather than each calling config_shell,
@@ -656,27 +561,6 @@ function test_setting_get_leaves_other_variables_ambient() {
   # shellcheck disable=SC2016 # the file's own text, for it to expand when sourced - not ours to expand now
   printf 'export _HI_DISABLE_FOO="$_HI_CONFIG_DIR/marker"\n' >"$target"
   [ "$(_HI_CONFIG_DIR=/probe-dir _hi_setting_get "$target" _HI_DISABLE_FOO)" = /probe-dir/marker ]
-}
-
-# Written even for a tree at the default location: nothing defaults to $HOME
-# any more, and a new process with no tree to derive from reads this line or
-# nothing at all (GLOSSARY: HI.33)
-function test_tmpdir_line_states_the_tree_even_at_home() {
-  local out
-  out="$(_HI_HOME="$HOME" tmpdir_line sh)"
-  [ "$out" = "export _HI_HOME=\"$HOME\"" ]
-}
-
-function test_tmpdir_line_posix_variant() {
-  local out
-  out="$(_HI_HOME=/opt/elsewhere tmpdir_line sh)"
-  [ "$out" = 'export _HI_HOME="/opt/elsewhere"' ]
-}
-
-function test_tmpdir_line_fish_variant() {
-  local out
-  out="$(_HI_HOME=/opt/elsewhere tmpdir_line fish)"
-  [ "$out" = 'set -gx _HI_HOME "/opt/elsewhere"' ]
 }
 
 function test_ask_setting_default_keeps_enabled() {
@@ -979,43 +863,6 @@ function test_preset_run_writes_the_preset() {
 
 function test_install_rejects_an_unknown_preset() {
   ! bash "$_HI_INSTALL" --configure --preset nope </dev/null >/dev/null 2>&1
-}
-
-function test_visible_len_plain_text() {
-  local len
-  _hi_visible_len len "hello"
-  [ "$len" -eq 5 ]
-}
-
-function test_visible_len_strips_color_codes() {
-  local colored len
-  colored="$(_hi_rendered "${GREEN}hi${NC}")"
-  _hi_visible_len len "$colored"
-  [ "$len" -eq 2 ]
-}
-
-function test_check_one_config_valid_bash() {
-  local target="$_HI_WORKDIR/valid.bashrc"
-  printf 'echo hi\n' >"$target"
-  check_one_config bash "$target" bash -n
-}
-
-function test_check_one_config_invalid_bash() {
-  local target="$_HI_WORKDIR/invalid.bashrc"
-  printf 'if [ 1 = 1 ]; then\n' >"$target" # unterminated if
-  ! check_one_config bash "$target" bash -n
-}
-
-function test_check_one_config_skips_missing_shell() {
-  local target="$_HI_WORKDIR/whatever"
-  printf 'irrelevant\n' >"$target"
-  check_one_config nope "$target" definitely-not-a-real-shell-xyz
-}
-
-function test_check_one_config_skips_empty_file() {
-  local target="$_HI_WORKDIR/empty.bashrc"
-  : >"$target"
-  check_one_config bash "$target" bash -n
 }
 
 function test_config_hi_skips_when_already_linked() {
@@ -1357,8 +1204,6 @@ function test_header_editor_banner_never_moves() {
     [[ "$lines" == *"export _HI_DISABLE_BANNER=1"* && "$lines" != *"_HI_HEADER_ORDER"* ]]
 }
 
-# a header preset loads its words, on and in its order, everything else off
-
 # a name off the preset roster is a non-zero return and no pending write
 function test_header_edit_preset_refuses_a_stranger() {
   local out
@@ -1383,7 +1228,7 @@ function test_header_editor_refuses_a_move_that_cannot_happen() {
 function test_header_editor_junk_is_bounded() {
   _hi_cfg_pty hdr_junk 'x\ny\nz\n' '' config_header || return 1
   [ "$(_hi_cfg_rc hdr_junk)" = 0 ] &&
-    _hi_cfg_has hdr_junk "type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter" &&
+    _hi_cfg_has hdr_junk "type an item number, up N, down N, [p], [w], [i], [c], 0, or Enter" &&
     [ -z "$(_hi_cfg_lines hdr_junk | tr -d '[:space:]')" ]
 }
 
@@ -1623,18 +1468,6 @@ function run_configure_tests() {
 
   _hi_suite_begin
 
-  _hi_h2 "Testing: config_shell"
-  _hi_check "Fresh insert" test_config_shell_fresh_insert
-  _hi_check "Idempotent re-run" test_config_shell_idempotent
-  _hi_check "Repairs a stale line" test_config_shell_repairs_stale_line
-  _hi_check "Preserves unrelated content" test_config_shell_preserves_unrelated_content
-  _hi_check "Skips empty args" test_config_shell_skips_empty_args
-  _hi_check "Appends at the end" test_config_shell_appends_at_the_end
-  _hi_check "Preserves the target's mode" test_config_shell_preserves_target_mode
-  _hi_check "Preserves hardlinks" test_config_shell_preserves_hardlinks
-  _hi_check "Backs up on the first insert" test_config_shell_backs_up_on_first_insert
-  _hi_check "Backup survives reruns" test_config_shell_backup_survives_reruns
-  _hi_check "No backup for an empty target" test_config_shell_no_backup_for_empty_target
 
   _hi_h2 "Testing: settings are sourced ahead of paths.sh"
   _hi_check "common/core.sh" _hi_sources_settings_before_paths "$_HI_ROOT/common/core.sh"
@@ -1695,10 +1528,6 @@ function run_configure_tests() {
   _hi_check "Reads a two-statement assignment" test_setting_get_reads_a_two_statement_assignment
   _hi_check "Leaves other variables ambient" test_setting_get_leaves_other_variables_ambient
 
-  _hi_h2 "Testing: tmpdir_line"
-  _hi_check "States the tree even at \$HOME" test_tmpdir_line_states_the_tree_even_at_home
-  _hi_check "Posix export line" test_tmpdir_line_posix_variant
-  _hi_check "Fish set -gx line" test_tmpdir_line_fish_variant
 
   _hi_h2 "Testing: ask_setting (non-interactive)"
   _hi_check "Keeps enabled default" test_ask_setting_default_keeps_enabled
@@ -1734,15 +1563,7 @@ function run_configure_tests() {
   _hi_check "install.sh refuses an unknown --preset" test_install_rejects_an_unknown_preset
   _hi_check "No preset and no tty keeps the block" test_run_configure_without_a_preset_keeps_the_block
 
-  _hi_h2 "Testing: _hi_visible_len"
-  _hi_check "Plain text" test_visible_len_plain_text
-  _hi_check "Strips color codes" test_visible_len_strips_color_codes
 
-  _hi_h2 "Testing: check_one_config"
-  _hi_check_requires bash "Valid bash syntax" test_check_one_config_valid_bash
-  _hi_check_requires bash "Invalid bash syntax" test_check_one_config_invalid_bash
-  _hi_check "Skips a missing shell" test_check_one_config_skips_missing_shell
-  _hi_check_requires bash "Skips an empty file" test_check_one_config_skips_empty_file
 
   _hi_h2 "Testing: config_hi (skip path only)"
   _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked

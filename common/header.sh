@@ -106,19 +106,16 @@ _HI_PREV_HUE=""
 
 # Fills exactly one line at _hi_draw_width from <cells...>, prints it, and
 # leaves whatever didn't fit in $_HI_ROW_CARRY (reset on entry) for a caller
-# to hand to the next row. `width` starts at `max` so the first cell always
-# looks like an overflow and takes the same branch a real wrap does, minus
-# the `count == 0` guard that places it anyway - the first cell is always
-# placed even when it alone exceeds the width. Stops at the first cell that
+# to hand to the next row. The first cell is always placed, even when it
+# alone exceeds the width. Stops at the first cell that
 # doesn't fit and carries the rest wholesale, rather than scanning for a
 # smaller cell further along that would still fit - that would reorder the
 # header. Every cell keeps its own trailing reset before a line break, since
 # a color left open would otherwise bleed onto the next physical line.
 # Returns 1 and prints nothing for zero cells.
 function _hi_row_line() {
-  local cell out="" max vislen count=0 width i n
+  local cell out="" max vislen count=0 width=0 i n
   _hi_draw_width max
-  width=$max
   _HI_ROW_CARRY=()
   local -a args=("$@")
   n=${#args[@]}
@@ -130,16 +127,11 @@ function _hi_row_line() {
       _HI_ROW_CARRY=("${args[@]:$i}")
       break
     fi
-    if ((count == 0)); then
-      width=0
-      # $_HI_DISABLE_LEAD_SPACE drops just this one leading space - the "| "
-      # between later cells is the structural separator, not "the initial
-      # space", and stays either way
-      if [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
-        out+="$NC| $cell"
-      else
-        out+="$NC | $cell"
-      fi
+    # $_HI_DISABLE_LEAD_SPACE drops just the first cell's leading space - the
+    # "| " between later cells is the structural separator, not "the initial
+    # space", and stays either way
+    if ((count == 0)) && [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]]; then
+      out+="$NC| $cell"
     else
       out+="$NC | $cell"
     fi
@@ -181,15 +173,15 @@ function header_row() {
 # implied: just a 6-column commit hash, `-dirty` included in neither case.
 # Never `hi --version`'s own answer (hi.sh's _hi_version calls
 # _hi_release_or_describe directly) - this is a display-only shortening of the
-# header's copy.
+# header's copy. [outvar]: GLOSSARY: HI.05.
 function _hi_shorten_describe() {
-  local v="${1%-dirty}" hash=""
+  local _hi_sd_v="${1%-dirty}"
   local re_g='^.*-[0-9]+-g([0-9a-f]{4,})$' re_bare='^([0-9a-f]{4,})$'
-  if [[ "$v" =~ $re_g ]] || [[ "$v" =~ $re_bare ]]; then
-    hash="${BASH_REMATCH[1]}"
-    printf '%s' "${hash:0:6}"
+  if [[ "$_hi_sd_v" =~ $re_g ]] || [[ "$_hi_sd_v" =~ $re_bare ]]; then
+    _hi_sd_v="${BASH_REMATCH[1]}"
+    _hi_out "${2:-}" "${_hi_sd_v:0:6}"
   else
-    printf '%s' "${v:0:10}"
+    _hi_out "${2:-}" "${_hi_sd_v:0:10}"
   fi
 }
 
@@ -199,7 +191,7 @@ function _hi_header_version() {
   if [ -z "${_HI_HEADER_VERSION+x}" ]; then
     _hi_sanitize_var _HI_HEADER_VERSION "$(_hi_release_or_describe)"
     [ -n "$_HI_HEADER_VERSION" ] || _HI_HEADER_VERSION="unknown"
-    _HI_HEADER_VERSION="$(_hi_shorten_describe "$_HI_HEADER_VERSION")"
+    _hi_shorten_describe "$_HI_HEADER_VERSION" _HI_HEADER_VERSION
   fi
   printf '%s\n' "$_HI_HEADER_VERSION"
 }
@@ -207,15 +199,9 @@ function _hi_header_version() {
 # UTC | version | local. `|| :` on both clocks: a target with no date(1)
 # gets an empty cell, not two "command not found" lines across the header.
 # <var> gets one of timestamp()'s three cells - a pure getter, no header_row
-# call of its own. $_HI_HEADER_ORDER's flattened dispatch (_hi_collect_header_word,
-# below full_check's neighbor header_row) needs the *text*, not a line
-# printed on the spot: header_row always ends its own call with a newline
-# (_hi_row_line's final printf), so a getter that called it directly would
-# put every cell on its own line instead of letting several pack onto one -
-# exactly the row concept this flattening is supposed to remove, not
-# reintroduce one cell at a time. timestamp() below still calls header_row
-# itself, once, with the getters' three answers together - unchanged output
-# for load.sh's disconnect banner and any other direct caller.
+# call of its own: $_HI_HEADER_ORDER's dispatch (_hi_collect_header_word,
+# below) packs cells onto shared lines, and header_row always ends its call
+# with a newline. timestamp() below calls header_row once with all three.
 # <outvar> <color> [utc] - the two clock cells differ by `date -u` and a hue.
 # Prefixed local: timestamp() below passes "utc" and "localtime" as $1, and a
 # getter's own local of that name would shadow the caller's right back -
@@ -235,7 +221,7 @@ function _hi_cell_version() {
 
 function _hi_cell_localtime() { _hi_cell_clock "$1" "$BRYELLOW"; }
 
-# The group wrapper, kept for load.sh's disconnect banner and for
+# The group wrapper, kept for hi_footer's disconnect row and for
 # tests/common/header_test.sh, which drives the clock cells through it. Not a
 # compatibility surface for anything else: scripts/doctor.sh does not call it,
 # and neither does hi.sh - naming a caller that does not exist is what stops
@@ -269,24 +255,20 @@ function _hi_load_pct() {
   printf -v "$1" '%s' "$(awk -v l="$load" -v c="$cpus" 'BEGIN { printf "%.0f", (l / c) * 100 }')"
 }
 
-# <seconds> humanized to at most two units, largest first - a header cell,
-# not a stopwatch. Shared by _hi_cell_uptime and nothing else.
+# <seconds> [outvar] humanized to at most two units, largest first - a header
+# cell, not a stopwatch. Shared by _hi_cell_uptime and nothing else.
 function _hi_humanize_uptime() {
-  local s="$1"
-  if ((s >= 86400)); then
-    printf '%dd %dh' "$((s / 86400))" "$((s % 86400 / 3600))"
-  elif ((s >= 3600)); then
-    printf '%dh %dm' "$((s / 3600))" "$((s % 3600 / 60))"
+  local _hi_hu_s="$1" _hi_hu
+  if ((_hi_hu_s >= 86400)); then
+    printf -v _hi_hu '%dd %dh' "$((_hi_hu_s / 86400))" "$((_hi_hu_s % 86400 / 3600))"
+  elif ((_hi_hu_s >= 3600)); then
+    printf -v _hi_hu '%dh %dm' "$((_hi_hu_s / 3600))" "$((_hi_hu_s % 3600 / 60))"
   else
-    printf '%dm' "$((s / 60))"
+    printf -v _hi_hu '%dm' "$((_hi_hu_s / 60))"
   fi
+  _hi_out "${2:-}" "$_hi_hu"
 }
 
-# The detection the five sysinfo cells (os arch cores cpu ram) share, run once per shell and
-# memoized into $_HI_SI_* (fully rendered, colored cell text - the same
-# memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells into
-# independently orderable/toggleable $_HI_HEADER_ORDER words costs nothing
-# extra: arch alone still pays for exactly one probe, not five.
 # _hi_platform <outvar> - linux, windows, bsd or unknown: the one question
 # the three probes below all asked, in three spellings that had already
 # drifted apart (only the first had an "unknown" arm). Every platform test in
@@ -315,6 +297,11 @@ function _hi_platform() {
   fi
 }
 
+# The detection the five sysinfo cells (os arch cores cpu ram) share, run once
+# per shell and memoized into $_HI_SI_* (fully rendered, colored cell text -
+# the same memo-once shape $_HI_HEADER_VERSION uses) so splitting the cells
+# into independently orderable/toggleable $_HI_HEADER_ORDER words costs
+# nothing extra: arch alone still pays for exactly one probe, not five.
 function _hi_system_info_probe() {
   [ -z "${_HI_SI_PROBED:-}" ] || return 0
   _HI_SI_PROBED=1
@@ -341,7 +328,7 @@ function _hi_system_info_probe() {
         if (avail != "") printf "%.0f/%.0fG", (total - avail) / 1048576, total / 1048576
         else if (total != "") printf "%.0fG", total / 1048576
       }' /proc/meminfo 2>/dev/null || true)
-    load=$(exec awk '{ printf "%s", $1 }' /proc/loadavg 2>/dev/null) || true
+    read -r load _ 2>/dev/null </proc/loadavg || load=""
     # base clock from the model name ("... @ 2.80GHz"); AMD chips print none,
     # so fall back to cpufreq's base_frequency, then amd-pstate-epp's
     # lowest_nonlinear_freq (the driver's floor, but it beats "?").
@@ -435,7 +422,8 @@ function _hi_cell_uptime() {
   local uptime_s="" up="" plat
   _hi_platform plat
   if [ "$plat" = linux ]; then
-    uptime_s=$(exec awk '{ printf "%d", $1; exit }' /proc/uptime 2>/dev/null) || true
+    read -r uptime_s _ 2>/dev/null </proc/uptime || uptime_s=""
+    uptime_s="${uptime_s%%.*}"
   elif [ "$plat" = bsd ]; then
     # kern.boottime prints "{ sec = <epoch>, usec = ... } <date>"; the split on
     # "sec = " makes $2 lead with the epoch, which awk's coercion reads whole.
@@ -446,7 +434,7 @@ function _hi_cell_uptime() {
   # the guard drops anything non-numeric - a skewed clock can make the macOS
   # probe negative, and a stripped-down awk fails closed the same way
   case "$uptime_s" in '' | *[!0-9]*) uptime_s="" ;; esac
-  [ -n "$uptime_s" ] && up="$(_hi_humanize_uptime "$uptime_s")"
+  [ -n "$uptime_s" ] && _hi_humanize_uptime "$uptime_s" up
   printf -v "$1" '%s' "${BRBLUE}Up: ${up:-?}"
 }
 
@@ -592,8 +580,7 @@ function _hi_probe_launch() {
 function _hi_identity_probe() {
   [ -z "${_HI_ID_PROBED:-}" ] || return 0
   _HI_ID_PROBED=1
-  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0
-  local -a lines
+  local email="" domain user_part bullets containers="" jobs="" pods="" authorized=0 public=0 n
   command -v git &>/dev/null && { email=$(exec git config --get user.email 2>/dev/null) || email=""; }
   _hi_sanitize_var email "$email"
   if [ -n "$email" ]; then
@@ -616,35 +603,28 @@ function _hi_identity_probe() {
     local -a lanes=("$_HI_PROBE_DIR"/containers.*)
     if [ -f "${lanes[0]}" ]; then
       if [ "${#lanes[@]}" -eq 1 ]; then
-        _hi_read_lines lines <"${lanes[0]}"
+        _hi_count_lines n <"${lanes[0]}"
       else
         # IDs are the daemon's, so a shim's lane repeats another's and the
         # union is the count - one fork, only on a host with two CLIs
-        _hi_read_lines lines < <(sort -u "${lanes[@]}")
+        _hi_count_lines n < <(sort -u "${lanes[@]}")
       fi
-      containers="Containers: ${#lines[@]}"
+      containers="Containers: $n"
     fi
     if [ -f "$_HI_PROBE_DIR/nomad" ]; then
-      _hi_read_lines lines <"$_HI_PROBE_DIR/nomad"
-      lines=("${lines[@]:1}") # drop the header row
-      jobs="Jobs: ${#lines[@]}"
+      _hi_count_lines n <"$_HI_PROBE_DIR/nomad"
+      ((n > 0)) && n=$((n - 1)) # drop the header row
+      jobs="Jobs: $n"
     fi
     if [ -f "$_HI_PROBE_DIR/kube" ]; then
-      _hi_read_lines lines <"$_HI_PROBE_DIR/kube"
-      pods="Pods: ${#lines[@]}"
+      _hi_count_lines n <"$_HI_PROBE_DIR/kube"
+      pods="Pods: $n"
     fi
     command rm -rf "$_HI_PROBE_DIR"
     _HI_PROBE_DIR=""
   fi
-  [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_read_lines lines <"$_HI_SSH_AUTHORIZED_KEYS" && authorized=${#lines[@]}
-  # A count only, so no array to build (and no per-line eval to pay for):
-  # _hi_read_lines exists for a caller that wants the lines themselves.
-  if [ -d "$_HI_SSH_DIR" ]; then
-    local _hi_pub_line
-    while IFS= read -r _hi_pub_line || [ -n "$_hi_pub_line" ]; do
-      public=$((public + 1))
-    done < <(find "$_HI_SSH_DIR" -type f -name "*.pub")
-  fi
+  [ -f "$_HI_SSH_AUTHORIZED_KEYS" ] && _hi_count_lines authorized <"$_HI_SSH_AUTHORIZED_KEYS"
+  [ -d "$_HI_SSH_DIR" ] && _hi_count_lines public < <(find "$_HI_SSH_DIR" -type f -name "*.pub")
   _HI_ID_GITID="$user_part"
   _HI_ID_CONTAINERS="${containers:+$BLUE$containers}"
   _HI_ID_JOBS="${jobs:+$BRGREEN$jobs}"
@@ -670,14 +650,19 @@ function banner() {
   # .git/index - cheap on ext4, a 9p round trip per file on a /mnt checkout.
   if [ -d "$_HI_ROOT/.git" ]; then
     if [ -z "${_HI_BANNER_CHANGES+x}" ]; then
-      local -a lines
-      _hi_read_lines lines < <(git -C "$_HI_ROOT" --no-optional-locks status --short 2>/dev/null)
-      _HI_BANNER_CHANGES="${#lines[@]}"
-      # symbolic-ref is empty on detached HEAD and main is blanked, so only
-      # an unusual branch earns a callout
-      _hi_sanitize_var _HI_BANNER_BRANCH \
-        "$(git -C "$_HI_ROOT" symbolic-ref --short -q HEAD 2>/dev/null || true)"
-      [ "$_HI_BANNER_BRANCH" = main ] && _HI_BANNER_BRANCH=""
+      # one porcelain pass for both, parsed as git_prompt.sh parses it
+      local line
+      _HI_BANNER_CHANGES=0 _HI_BANNER_BRANCH=""
+      while IFS= read -r line; do
+        case "$line" in
+        "# branch.head "*) _HI_BANNER_BRANCH="${line#"# branch.head "}" ;;
+        "#"*) ;;
+        *) _HI_BANNER_CHANGES=$((_HI_BANNER_CHANGES + 1)) ;;
+        esac
+      done < <(git -C "$_HI_ROOT" --no-optional-locks status --porcelain=v2 --branch 2>/dev/null)
+      # detached and main are blanked: only an unusual branch earns a callout
+      _hi_sanitize_var _HI_BANNER_BRANCH "$_HI_BANNER_BRANCH"
+      case "$_HI_BANNER_BRANCH" in main | "(detached)") _HI_BANNER_BRANCH="" ;; esac
     fi
     changes="$BRYELLOW$_HI_BANNER_CHANGES $_HI_GLYPH_AHEAD "
     # columns, not ${#} bytes (GLOSSARY: HI.12): the digits, then "␣↑␣"
@@ -691,8 +676,11 @@ function banner() {
   fi
   local host tildes start_len end_len start_tildes end_tildes width left core lead=" "
   [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && lead=""
-  # memoized for the same reason: two forks a banner for a fixed name
-  [ -n "${_HI_BANNER_HOST+x}" ] || _hi_sanitize_var _HI_BANNER_HOST "$(_hi_hostname)"
+  # memoized for the same reason; the hostname memo primed in this shell
+  if [ -z "${_HI_BANNER_HOST+x}" ]; then
+    _hi_hostname >/dev/null
+    _hi_sanitize_var _HI_BANNER_HOST "$_HI_HOSTNAME_CACHE"
+  fi
   host="$_HI_BANNER_HOST"
   _hi_draw_width width
   # split so "label [host]" lands at the center with at least 1 tilde on the left
@@ -745,11 +733,8 @@ function _hi_header_word_cell() {
 # holds - the substitution can never itself collide. That property is
 # load-bearing and not enforced by the shell; a new header word's entry here
 # must keep it (tests/common/header_test.sh checks it mechanically).
-# "<word>:<bright palette variable>", one row per header word - sixteen case
-# arms whose bodies differed only in a colour name were data written as
-# control flow. GLOSSARY: HI.48 - every alternate's hue must differ from its
-# own word's primary, which is what makes a substitution unable to collide,
-# and header_test.sh checks it. The variable *name* is stored, not its value.
+# "<word>:<bright palette variable>", one row per header word; the variable
+# *name* is stored, not its value.
 _HI_HEADER_ALTS="utc:BRCYAN version:BRCYAN localtime:BRRED os:BRPURPLE\
  arch:BRCYAN cores:BRGREEN cpu:BRPURPLE ram:BRGREEN ip:BRCYAN gitid:BRRED\
  containers:BRYELLOW jobs:BRYELLOW pods:BRCYAN auth:BRYELLOW pub:BRRED\
@@ -857,6 +842,17 @@ function hi_header() {
   _hi_header_flush
 }
 
+# The disconnect side: the banner, then timestamp()'s row when one of its
+# three words survives in $_HI_HEADER_ORDER - the connect header's toggle
+# and order, rather than a disconnect setting of its own.
+function hi_footer() {
+  [[ "${_HI_DISABLE_HEADER:-0}" == 1 ]] && return 0
+  banner "$@"
+  if _hi_order_has utc || _hi_order_has version || _hi_order_has localtime; then
+    timestamp
+  fi
+}
+
 # Package priorities, lowest to highest, 0-3. A priority says how loudly you
 # want to hear about a tool; $_HI_PACKAGES_MIN_PRIORITY gates display and
 # ships at 2, so tiers 0-1 (trivia and optional extras) are hidden until asked
@@ -888,13 +884,10 @@ function hi_header() {
 _HI_PACKAGES_RAMP="cyan green brcyan brgreen blue magenta bryellow brred"
 
 # Palette *names*, not escapes: these are configuration - which of
-# _HI_COLOR_NAMES each priority paints in - and storing them rendered meant
-# every consumer that wanted the name back had to invert the mapping.
-# header.sh recovered the slot by reading digits out of the escape's bytes,
-# preview.sh forked twelve escapes to build a reverse lookup, and a case in
-# header_test.sh existed only to keep that round trip honest. The escapes
-# _hi_packages_palette derives below are what check_line actually reads.
-
+# _HI_COLOR_NAMES each priority paints in - so a consumer that wants the name
+# never has to invert an escape. The escapes _hi_packages_palette derives
+# below are what check_line actually reads.
+#
 # $_HI_PACKAGES_PALETTE is the ramp itself: eight _HI_COLOR_NAMES words
 # (core.sh's vocabulary, the one settings/colors and fish's set_color both
 # use), four for installed then four for missing, written into settings.sh
@@ -932,7 +925,6 @@ function _hi_packages_palette() {
 function _hi_ramp_escape() {
   local _hi_re_i
   printf -v "$1" '%s' ''
-  [ -n "${NO_COLOR:-}" ] && return 0
   [ "${3:-0}" = 48 ] || {
     _hi_color_escape_var "$1" "$2"
     return 0
@@ -947,11 +939,6 @@ function _hi_ramp_escape() {
 # strict mode, and neither could be aborted by a plain array assignment.
 _hi_packages_palette || true
 
-# For each "[-|+]cmd:priority[,...]": the highest-priority installed package
-# (or the first, if none) — a fully-missing line ranks at the max priority
-# among its alternatives — colored and marked per above. `-` drops the row
-# when something is installed, `+` when nothing is. The marks live in
-# core.sh's _hi_choose_glyphs.
 # _hi_row_max <outvar> <line> - the highest rank a roster row could reach:
 # its largest `:N`, clamped the way the loop below clamps. Lets full_check
 # apply $_HI_PACKAGES_MIN_PRIORITY *before* the probe rather than after -
@@ -970,6 +957,11 @@ function _hi_row_max() {
   printf -v "$1" '%s' "$_hi_rm_max"
 }
 
+# For each "[-|+]cmd:priority[,...]": the highest-priority installed package
+# (or the first, if none) — a fully-missing line ranks at the max priority
+# among its alternatives — colored and marked per above. `-` drops the row
+# when something is installed, `+` when nothing is. The marks live in
+# core.sh's _hi_choose_glyphs.
 # check_line <out-array-name> <line>. The array is the caller's to name: one
 # caller is in another file, and neither has to know a bare name here or the
 # \x1f record shape.

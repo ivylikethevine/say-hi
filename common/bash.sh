@@ -185,13 +185,13 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # plain text, so no _hi_ps_mark: the one color is in the template below,
       # inside \[ \], where readline is already told to skip it
       _hi_env_prompt __hi_env_info
-      # shellcheck disable=SC2154 # assigned by the printf -v two lines up
-      if shopt -q promptvars; then
-        PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]\${__hi_env_info}\[$NC\]$HI_PS1\${__powerline_git_info}\[$NC\] $HI_PS1_END $_hi_marks_b"
-      else
-        # no expansion happens without promptvars, so the values go in as text
-        PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]$__hi_env_info\[$NC\]$HI_PS1$__powerline_git_info\[$NC\] $HI_PS1_END $_hi_marks_b"
-      fi
+      # the segments as references; no expansion happens without promptvars,
+      # so there the values go in as text
+      # shellcheck disable=SC2016 # the single quotes are the reference
+      local e='${__hi_env_info}' g='${__powerline_git_info}'
+      # shellcheck disable=SC2154 # assigned by the printf -v calls above
+      shopt -q promptvars || e="$__hi_env_info" g="$__powerline_git_info"
+      PS1="$_hi_marks_a$_hi_ps1_lead\[$BRCYAN\]$e\[$NC\]$HI_PS1$g\[$NC\] $HI_PS1_END $_hi_marks_b"
     }
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   fi

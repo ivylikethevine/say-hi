@@ -598,10 +598,10 @@ function _hi_prompt_tail() {
   zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; print -rn -- "$PS1"' ;;
   fish) script="source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null; $root fish_prompt" ;;
   esac
-  # the OSC 133 mark that closes every prompt (and bash's \[ \] around it)
-  # is not part of the separator, so it comes off before the tail is read
+  # _hi_strip_ansi takes the OSC 133 mark that closes every prompt; bash's
+  # \[ \] and zsh's %{ %} around it come off here, before the tail is read
   _hi_strip_ansi "$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")" |
-    sed -e $'s/\x1b\\][^\x07]*\x07//g' -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g'
+    sed -e 's/\\\[//g' -e 's/\\\]//g' -e 's/%{%}//g'
 }
 
 # _hi_prompt_ends <as_root> <shell> <want> [NAME=VALUE ...] - does the prompt

@@ -107,8 +107,11 @@ EOF
   printf '%s' "$dir"
 }
 
-# the first doctor_local case: the version row, carrying whatever _hi_version
-# answers (a stamp here, so the row is deterministic)
+# _hi_doc_target [NAME=VALUE...] <target> - doctor_target on the shims, no ssh config
+function _hi_doc_target() {
+  PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target "$@"
+}
+
 # a tree with no .git is what a package manager laid down, and the row says
 # so rather than calling git on it
 function test_local_without_a_git_dir_reads_as_a_package_install() {
@@ -118,14 +121,14 @@ function test_local_without_a_git_dir_reads_as_a_package_install() {
   [[ "$out" == *"no .git - a package or tarball install"* ]]
 }
 
+# the version row carries whatever _hi_version answers (a stamp here)
 function test_local_reports_the_version() {
   local out
   out="$(_HI_RELEASE=1.2.3 doctor_local)"
   [[ "$out" == *version* && "$out" == *"1.2.3"* ]]
 }
 
-# a settings.sh trimming toggle changes what leaves the wire, so the diff row
-# should appear and say lighter, not heavier
+# an overlay that adds nothing to the wire gets no diff row
 function test_local_omits_payload_diff_at_stock_defaults() {
   local dir out
   dir="$_HI_WORKDIR/payloaddiff_stock"
@@ -388,19 +391,9 @@ function test_config_rows_parse_the_files() {
   [ -z "$(doctor_config_row noparser "$dir/good.bash" no-such-parser-anywhere -n)" ]
 }
 
-# --use docker / --use ssh force an arm: the probe chain is skipped and the row says
-# which flag decided it
-function test_target_forced_by_a_flag_skips_the_probe_chain() {
-  local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=docker doctor_target runningbox)" || true
-  [[ "$out" == *"docker container (forced by --use docker)"* ]] || return 1
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target somewhere)" || true
-  [[ "$out" == *"ssh host (forced by --use ssh)"* ]]
-}
-
 function test_target_resolves_a_running_container() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
+  out="$(_hi_doc_target runningbox)"
   [[ "$out" == *"resolves"*"docker container"* ]]
 }
 
@@ -408,8 +401,7 @@ function test_target_resolves_a_running_container() {
 # row. bash present is the full tier; the interesting case is the other one.
 function test_container_target_reports_the_full_tier() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
-  _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doc_target runningbox)"
   [[ "$out" == *"session"*"full"* && "$out" == *"ships"*gzipped* ]]
 }
 
@@ -418,8 +410,7 @@ function test_container_target_reports_the_full_tier() {
 # question somebody runs this to answer
 function test_container_target_names_the_fallback_shell() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 ash sh " \
-  _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 ash sh " _hi_doc_target runningbox)"
   [[ "$out" == *"aliases only"* && "$out" == *"lands in ash"* ]]
 }
 
@@ -427,8 +418,7 @@ function test_container_target_names_the_fallback_shell() {
 # land, and the row says so rather than naming an empty fallback
 function test_container_target_flags_no_known_shell() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 " \
-  _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 " _hi_doc_target runningbox)"
   [[ "$out" == *"no shell hi knows"* ]]
 }
 
@@ -436,15 +426,13 @@ function test_container_target_flags_no_known_shell() {
 # inventory row that reads as "it has nothing installed"
 function test_container_target_flags_a_silent_target() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="" \
-  _HI_SSH_CONFIG=/nonexistent doctor_target runningbox)"
+  out="$(HI_FAKE_TOOLS="" _hi_doc_target runningbox)"
   [[ "$out" == *"not running"* ]]
 }
 
 function test_target_falls_through_to_ssh() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash " \
-  _HI_SSH_CONFIG=/nonexistent doctor_target unknownbox)"
+  out="$(HI_FAKE_TOOLS="base64 bash " _hi_doc_target unknownbox)"
   [[ "$out" == *"nothing matched"* && "$out" == *"connect"*ok* ]]
 }
 
@@ -453,8 +441,7 @@ function test_target_falls_through_to_ssh() {
 # reports it as a container without ever asking whether one is running.
 function test_target_honors_a_forced_backend() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
-  _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=docker doctor_target ghostbox)"
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=docker _hi_doc_target ghostbox)"
   [[ "$out" == *"resolves"*"docker container"*"forced by --use docker"* && "$out" != *checked* ]]
 }
 
@@ -462,8 +449,7 @@ function test_target_honors_a_forced_backend() {
 # the report says so in the user's own spelling
 function test_target_names_use_for_a_rowless_member() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash sh " \
-  _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=nerdctl doctor_target ghostbox)"
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _HI_DOC_BACKEND=nerdctl _hi_doc_target ghostbox)"
   [[ "$out" == *"resolves"*"nerdctl container"*"forced by --use nerdctl"* && "$out" != *checked* ]]
 }
 
@@ -472,8 +458,7 @@ function test_target_names_use_for_a_rowless_member() {
 # forced --use ssh has to win over it rather than the roster ever being asked.
 function test_forced_ssh_overrides_a_real_container() {
   local out
-  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HI_FAKE_TOOLS="base64 bash " \
-  _HI_SSH_CONFIG=/nonexistent _HI_DOC_BACKEND=ssh doctor_target runningbox)"
+  out="$(HI_FAKE_TOOLS="base64 bash " _HI_DOC_BACKEND=ssh _hi_doc_target runningbox)"
   [[ "$out" == *"resolves"*"ssh host (forced by --use ssh)"* && "$out" == *"connect"*ok* ]]
 }
 
@@ -556,7 +541,7 @@ function test_help_names_what_was_typed() {
 # is an error rather than the target; --mux and --no-mux
 # are the connect-time flags with nothing to report here, like --plain
 function test_unknown_flag_is_refused_not_taken_as_the_target() {
-  local out rc=0
+  local out rc=0 home
   out="$("$_HI_DOCTOR" --bogus 2>&1)" || rc=$?
   [ "$rc" -eq 1 ] && [[ "$out" == *"unknown option --bogus"* ]] || return 1
   rc=0
@@ -827,7 +812,6 @@ function run_doctor_tests() {
 
   _hi_h2 "Testing: doctor_target / doctor_ssh_target"
   _hi_check "Resolves a running container" test_target_resolves_a_running_container
-  _hi_check "A flag forces the arm" test_target_forced_by_a_flag_skips_the_probe_chain
   _hi_check "--use docker skips the probe chain" test_target_honors_a_forced_backend
   _hi_check "--use ssh wins over a running container" test_forced_ssh_overrides_a_real_container
   _hi_check "--use names the member in the forced-arm row" test_target_names_use_for_a_rowless_member

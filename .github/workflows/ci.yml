@@ -40,37 +40,44 @@ jobs:
   # is null, so the clause is true and nothing changes.
   #
   # Whether anything besides workflow YAML or markdown changed: test,
-  # test-macos, packaging-smoke, e2e and e2e-backends skip on a workflow-only
-  # or docs-only diff. workflow-lint and advisory-lint are exempt - a
-  # workflow-only change is what workflow-lint audits and a docs-only one is
-  # when advisory-lint should run. lint and bench are exempt for the same
-  # reason: drift_test.sh (in lint) drift-checks docs/GLOSSARY.md and
-  # docs/SETTINGS.md, and bench_test.sh checks README.md's payload badge - a
-  # docs-only diff is exactly what those exist to catch, and both suites are
-  # cheap enough (~40s each) that running them unconditionally on a docs-only
-  # diff costs nothing. Fork-PR-safe mechanics are in
-  # changes.yml. Only push and pull_request are filtered; on schedule or
-  # workflow_dispatch this job does not run and the jobs below treat the skip
-  # as "assume yes" - a diff against the wrong commit must never be why a real
-  # check goes quiet.
+  # test-macos, profile, packaging-smoke, e2e and e2e-backends skip on a
+  # workflow-only or docs-only diff. workflow-lint and advisory-lint are
+  # exempt - such a change is what they audit - and so are lint and bench:
+  # drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md, bench_test.sh
+  # README.md's payload badge, and both are cheap (~40s). Only push and
+  # pull_request are filtered; on schedule or dispatch this job does not run
+  # and the jobs below read the skip as "assume yes" - a diff against the
+  # wrong commit must never be why a real check goes quiet.
   changes:
     name: detect changes
     if: >-
       github.event.pull_request.draft != true
       && (github.event_name == 'push' || github.event_name == 'pull_request')
-    # changes.yml asks for `pull-requests: read` (dorny/paths-filter lists a
-    # PR's files via the API); a reusable workflow cannot request a scope its
-    # caller does not hold, so it has to be granted here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       contents: read
-      pull-requests: read
-    uses: $/.github/workflows/changes.yml
-    with:
-      filters: |
-        code:
-          - '**'
-          - '!.github/workflows/**'
-          - '!**/*.md'
+      pull-requests: read # dorny/paths-filter lists a PR's files via the API
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      # a PR's files come from the API; only a push diffs the tree
+      - if: github.event_name != 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # some-with-excludes, not `some`: a bare negated pattern matches nothing
+      # on its own, and `some` would count workflow files since `**` matches them
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            code:
+              - '**'
+              - '!.github/workflows/**'
+              - '!**/*.md'
 
   test:
     name: fast suites (ubuntu-latest)
@@ -87,13 +94,10 @@ jobs:
 
       - uses: $/.github/actions/setup-shells
 
-      # No --verbose: dropping it lets the runner's own suite-level fan-out
-      # run several suites side by side (test_runner.sh:493-505 caps it at
-      # four or the core count) instead of forcing width 1 for live
-      # streaming. A passing suite's transcript still folds into a
-      # ::group:: block and a failing one still replays in full and gets an
-      # ::error annotation (test_runner.sh:360-366) - collapsed mode loses
-      # nothing on Actions, only the live stream.
+      # No --verbose: the runner then fans suites out to the core count
+      # instead of width 1 for live streaming. A passing transcript still
+      # folds into a ::group:: and a failing one replays in full with an
+      # ::error annotation - only the live stream is lost.
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast --totals-file ${{ runner.temp }}/totals"
 
@@ -127,21 +131,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # dialects_test.sh's native roster runs `zsh -n` / `fish --no-execute`;
-      # its three floor-image checks use docker, preinstalled on this runner
+      # dialects_test.sh runs `zsh -n` / `fish --no-execute` (its floor-image
+      # checks use the preinstalled docker); tools_test.sh lints the shipped
+      # rcs with neovim and emacs, which the image lacks - a skip there is a
+      # failure under --require-run below
       - uses: $/.github/actions/setup-shells
-
-      # tools_test.sh lints settings/vim.rc with each editor that is here, and
-      # the image ships vim but not neovim - which is the one aliases.sh
-      # prefers - nor emacs, which reads settings/emacs.el. Without them those
-      # halves skip yellow and --require-run below turns the skip into this
-      # job's failure.
-      - name: Install neovim and emacs for the shipped-rc lints
-        shell: bash
-        # setup-shells has just dropped the vendor lists and updated the index
-        run: |
-          set -euo pipefail
-          sudo apt-get install -y neovim emacs-nox
+        with:
+          extra-packages: neovim emacs-nox
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
       # are absent - these pinned installs are what make them enforce here
@@ -168,8 +164,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install fish
-        run: brew install fish
+      - uses: $/.github/actions/setup-shells
 
       # No --verbose - see the `test` job's comment on the same flag.
       - name: Run fast test suites
@@ -262,9 +257,9 @@ jobs:
       # DL4006 (curl piped into sh with no pipefail, where a 404 builds a
       # green image with the framework missing), is fixed in the fixtures
       # rather than ignored here.
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: hadolint
+          tools: hadolint
 
       # `|| true` and a verdict read afterwards rather than continue-on-error:
       # hadolint exits non-zero per file and every one must be linted first.
@@ -278,16 +273,14 @@ jobs:
           done
           if [ -s "$RUNNER_TEMP/hadolint.out" ]; then
             cat "$RUNNER_TEMP/hadolint.out"
+            # the summary gets the first 80 lines
+            sed -n '1,80p' "$RUNNER_TEMP/hadolint.out" >"$RUNNER_TEMP/hadolint.truncated"
             echo "found=1" >>"$GITHUB_OUTPUT"
           else
             set -- tests/dockerfiles/*.Dockerfile
             echo "hadolint: clean across $# Dockerfiles"
             echo "found=0" >>"$GITHUB_OUTPUT"
           fi
-
-      - name: Truncate the findings before they go in the summary
-        if: steps.hadolint.outputs.found == '1'
-        run: sed -n '1,80p' "$RUNNER_TEMP/hadolint.out" >"$RUNNER_TEMP/hadolint.truncated"
 
       - uses: $/.github/actions/advisory-note
         if: steps.hadolint.outputs.found == '1'
@@ -326,7 +319,10 @@ jobs:
   # will not build - never blocks a merge. The profiles land as an artifact.
   profile:
     name: hot-path profiles (timep)
-    if: github.event.pull_request.draft != true
+    needs: changes
+    if: >-
+      github.event.pull_request.draft != true
+      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
@@ -361,9 +357,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: nfpm
+          tools: nfpm
 
       # a throwaway key so the smoke covers the signed shape end to end - the
       # real key is the APK_SIGNING_KEY secret, release.yml's business only
@@ -476,9 +472,9 @@ jobs:
       # install_methods_test.sh builds real .deb/.rpm/.apk with mkpkg.sh and
       # installs them on its targets; without nfpm those cases stand down and
       # --require-run fails the gate, so the pin is what makes them run.
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: nfpm
+          tools: nfpm
 
       # --require-run: here a skip is a broken runner, not an optional
       # backend. HI_SHARDS is the divisor and the matrix above lists one

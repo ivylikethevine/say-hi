@@ -42,14 +42,11 @@ _HI_TEST_MARKER="HI_RELAY_TEST_OK"
 _HI_RELAY_HOST=relayc
 
 # _hi_test_cleanup takes the containers down; the network can only go after
-# them, hence a suite hook rather than a trap of its own. The thaw rides along
-# because _hi_workdir takes one hook and this suite freezes processes too -
-# an abort mid-kill must not leave a stopped ssh client behind.
-# Also registered on the teardown ledger by _hi_relay_pair, which is what covers
-# an abort; this is the eager path, so a finished case frees its network rather
-# than leaving it for the trap.
+# them, hence a suite hook rather than a trap of its own. Also registered on
+# the teardown ledger by _hi_relay_pair, which is what covers an abort; this
+# is the eager path, so a finished case frees its network rather than leaving
+# it for the trap.
 function _hi_relay_cleanup() {
-  _hi_thaw_frozen
   [ -n "${_HI_RELAY_NET:-}" ] || return 0
   docker network rm "$_HI_RELAY_NET" >/dev/null 2>&1 || true
   return 0
@@ -308,7 +305,7 @@ function run_relay_tests() {
   _hi_require_backend docker
   _hi_require_bin pgrep
 
-  _hi_workdir relaytest _hi_relay_cleanup
+  _hi_workdir relaytest
   _hi_h1 "Testing hi relayed: A -> B -> C"
   _hi_ssh_keypair
   _hi_sshd_image "the relay" || _hi_stand_down "sshd image build failed"

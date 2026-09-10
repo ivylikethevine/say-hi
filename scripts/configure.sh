@@ -39,11 +39,12 @@ function _hi_load_preview_sources() {
 # ships 3.2. A linear scan over a few dozen answers costs nothing.
 _HI_SETTING_PENDING=()
 
+# pending_answer <var> [outvar] - this run's answer for <var>, or rc 1
 function pending_answer() {
-  local entry
-  for entry in ${_HI_SETTING_PENDING[@]+"${_HI_SETTING_PENDING[@]}"}; do
-    [ "${entry%%=*}" = "$1" ] || continue
-    printf '%s' "${entry#*=}"
+  local _hi_pa_entry
+  for _hi_pa_entry in ${_HI_SETTING_PENDING[@]+"${_HI_SETTING_PENDING[@]}"}; do
+    [ "${_hi_pa_entry%%=*}" = "$1" ] || continue
+    _hi_out "${2:-}" "${_hi_pa_entry#*=}"
     return 0
   done
   return 1
@@ -68,15 +69,10 @@ function _hi_pending_set() {
 # write path would have to remember to clear). Empty when neither has it.
 function setting_value() {
   local _hi_sv_var="$1" _hi_sv_target="$2" _hi_sv_val=""
-  if ! _hi_sv_val="$(pending_answer "$_hi_sv_var")"; then
-    # core.sh's reader, which knows config_shell's marker-padded spelling
+  # scripts/lib.sh's reader, which knows config_shell's marker-padded spelling
+  pending_answer "$_hi_sv_var" _hi_sv_val ||
     _hi_setting_get "$_hi_sv_target" "$_hi_sv_var" _hi_sv_val || _hi_sv_val=""
-  fi
-  if [ -n "${3:-}" ]; then
-    printf -v "$3" '%s' "$_hi_sv_val"
-  else
-    printf '%s' "$_hi_sv_val"
-  fi
+  _hi_out "${3:-}" "$_hi_sv_val"
 }
 
 # true if $1 is turned off: its value is $3. hi's own _HI_DISABLE_* vars use 1
@@ -101,12 +97,6 @@ function setting_on() {
   fi
 }
 
-# _hi_setting_flip <var> <off> <on> <outvar> - turn a setting the other way
-# and record it: a default-on toggle turned off gets its off-value, turned on
-# gets "" (the default, nothing written); an opt-in turned on gets its
-# on-value, turned off gets "". <outvar> gets the new state, on or off - an
-# outvar rather than stdout, since a `$( )` around this would record the
-# answer in a subshell and lose it.
 # _hi_pending_state <var> <off> <on> <on|off> - which of two value shapes a
 # setting takes, in one place: an opt-in (a nonempty <on>) writes its
 # on-value when switched on and clears the pending line when switched off; a
@@ -116,12 +106,20 @@ function setting_on() {
 function _hi_pending_state() {
   local var="$1" off="$2" on="$3" want="$4"
   if [ "$want" = on ]; then
-    if [ -n "$on" ]; then _hi_pending_set "$var" "$on"; else _hi_pending_set "$var" ""; fi
+    _hi_pending_set "$var" "$on"
+  elif [ -n "$on" ]; then
+    _hi_pending_set "$var" ""
   else
-    if [ -n "$on" ]; then _hi_pending_set "$var" ""; else _hi_pending_set "$var" "$off"; fi
+    _hi_pending_set "$var" "$off"
   fi
 }
 
+# _hi_setting_flip <var> <off> <on> <outvar> - turn a setting the other way
+# and record it: a default-on toggle turned off gets its off-value, turned on
+# gets "" (the default, nothing written); an opt-in turned on gets its
+# on-value, turned off gets "". <outvar> gets the new state, on or off - an
+# outvar rather than stdout, since a `$( )` around this would record the
+# answer in a subshell and lose it.
 function _hi_setting_flip() {
   local var="$1" off="$2" on="$3"
   if setting_on "$var" "$_HI_SETTINGS" "$off" "$on"; then
@@ -172,9 +170,7 @@ function ask_setting_value() {
 
 # _hi_shell_var <outvar> <shell> - the uppercase half of a $_HI_PROMPT_END_<SHELL>
 # name. _HI_RC_TABLE carries the shell lowercase and the setting is spelled
-# uppercase, so three sites bridged the two with their own `tr` - two forks
-# apiece, and one of them runs per wired shell on every redraw of the Prompt
-# menu. bash 3.2 has no ${x^^}, so a helper is the fork-free-ish form.
+# uppercase; bash 3.2 has no ${x^^}, so one `tr` for all three callers.
 function _hi_shell_var() {
   printf -v "$1" '%s' "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
 }
@@ -738,7 +734,8 @@ function config_preset() {
 function configure_intro() {
   [ -t 0 ] || return 0
   local state="none yet - defaults apply"
-  [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null || echo 0) setting(s) stored"
+  # no `|| echo 0`: grep -c already prints 0 on no match, then exits 1
+  [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   _hi_cecho " The preview shows what a session will look like at your current settings." "$BLUE"
   _hi_cecho " Pick a preset, or open a section and change what you like; each menu says" "$BLUE"
   _hi_cecho " how. Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
@@ -1034,7 +1031,7 @@ function config_header() {
         fi
       else
         _hi_menu_reject rejects "$max_rejects" \
-          "type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter to go back" && continue
+          "type an item number, up N, down N, [p], [w], [i], [c], 0, or Enter to go back" && continue
         _hi_cecho " not an item three times - back to the menu" "$YELLOW"
         return 0
       fi

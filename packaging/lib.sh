@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh): locate
+# Shared plumbing for packaging/'s entry points (bump.sh, mkpkg.sh, mkrepo.sh,
+# srctar.sh): locate
 # the tree, source core.sh, and hold the primitives they share.
 # scripts/install.sh keeps its own locator on purpose - it ships in packages
 # *without* packaging/, so it cannot source this file; that boundary-forced
@@ -37,6 +38,14 @@ source "$_HI_HOME/say-hi/scripts/lib.sh"
 function need() {
   command -v "$1" >/dev/null 2>&1 || {
     _hi_cecho " $1 is not installed${2:+ - $2}" "$RED" >&2
+    return 1
+  }
+}
+
+# need_file <path> <what> - its file-missing twin: " no such <what>: <path>"
+function need_file() {
+  [ -f "$1" ] || {
+    _hi_cecho " no such $2: $1" "$RED" >&2
     return 1
   }
 }

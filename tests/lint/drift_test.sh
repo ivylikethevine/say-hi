@@ -130,17 +130,6 @@ function lint_bash32() {
   _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "bash-4 construct" "${_HI_BASH32_LINT[@]}"
 }
 
-# The same sweep for a $HOME-shaped tree default, over a wider file list. Every
-# file that needs the tree can derive it from its own path (GLOSSARY: HI.33);
-# guessing $HOME does not fail when it is wrong, it silently reads *another
-# tree*, which is how both platform e2e jobs spent their first run sourcing a
-# say-hi that was never there.
-#
-# Wider than the shellcheck list, which is *.sh only: zsh.zsh and config.fish
-# are the files that most want this, and .md carries the rule as documentation
-# - docs/PACKAGING.md taught the retired default, which is what a packager
-# reads. Not .rb: _hi_lint_table drops comments, and the formula's only
-# occurrence is one, so it would buy a file list and no coverage.
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
 # local notices: the suites read the working tree. settings/helix.toml sat
 # under a blanket `*.toml` for a whole feature. Asked of git itself, over
@@ -163,6 +152,17 @@ function lint_ignored_payload() {
   return "$bad"
 }
 
+# The same sweep for a $HOME-shaped tree default, over a wider file list. Every
+# file that needs the tree can derive it from its own path (GLOSSARY: HI.33);
+# guessing $HOME does not fail when it is wrong, it silently reads *another
+# tree*, which is how both platform e2e jobs spent their first run sourcing a
+# say-hi that was never there.
+#
+# Wider than the shellcheck list, which is *.sh only: zsh.zsh and config.fish
+# are the files that most want this, and .md carries the rule as documentation
+# - docs/PACKAGING.md taught the retired default, which is what a packager
+# reads. Not .rb: _hi_lint_table drops comments, and the formula's only
+# occurrence is one, so it would buy a file list and no coverage.
 function lint_home_default() {
   _hi_h2 "Checking for a \$HOME default for the say-hi tree"
   _hi_lint_mirror
@@ -239,9 +239,7 @@ function lint_image_tags() {
       bad=$((bad + 1))
     fi
   done
-
-  [ "$bad" -eq 0 ] || return "$bad"
-  return 0
+  return "$bad"
 }
 
 # Two Dockerfiles legitimately pin the same image:tag - see lint_image_tags

@@ -31,8 +31,9 @@ concurrency:
 
 jobs:
   # A plain git push over ssh - the AUR has no PR mechanism - so the safety is
-  # the human gate above (`environment: release`) plus pushing exactly the two
-  # files the release carries. Deliberately does NOT run namcap (it needs an
+  # the manual dispatch against a published tag, AUR_SSH_KEY sealed in
+  # `environment: release`, and pushing exactly the two files the release
+  # carries. Deliberately does NOT run namcap (it needs an
   # Arch box, so each package's first push is still a manual, namcap'd one -
   # docs/PACKAGING.md) and does NOT touch say-hi-git (it builds from `main`
   # and has no version to bump). No secret, no push: it prints what to copy
@@ -46,8 +47,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
-    permissions:
-      contents: read
     steps:
       - name: Download the manifests off the release
         env:

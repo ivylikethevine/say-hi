@@ -101,9 +101,6 @@ function test_probe_cmd_fish_shapes_run_under_fish() {
     ! _hi_probe_says_ok ssh_fallback_fish "function hi_info; end; " /nonexistent/say-hi fish
 }
 
-# $_HI_ROOT is read at call time, so a case can point the tree check anywhere
-# from inside a subshell without disturbing this suite's own environment.
-
 # The plain report is deterministic within a run and costs ~0.4s (a docker and
 # a podman probe plus a dozen --version forks), and five read-only cases ask
 # for the same one - so run_lib_process_tests captures it once (eagerly: a

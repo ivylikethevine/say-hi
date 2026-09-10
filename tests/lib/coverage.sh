@@ -87,7 +87,7 @@ function _hi_cov_counts_files() {
 function _hi_cov_trace_all() {
   local _hi_i _hi_suite _hi_path
   _HI_FAILED=""
-  for _hi_i in $(seq 0 $((${#_HI_PATHS[@]} - 1))); do
+  for _hi_i in "${!_HI_PATHS[@]}"; do
     _hi_suite="${_HI_NAMES[$_hi_i]}"
     _hi_path="${_HI_PATHS[$_hi_i]}"
     _hi_cecho " | coverage: tracing $_hi_suite" "$BRCYAN"

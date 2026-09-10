@@ -1,45 +1,25 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# The install half of ./action.yml, in a real file so the repo's own lint suite
-# (shellcheck, shfmt, the bash-3.2 grep) reads it - a `run:` block inside a
-# composite action is code nothing here would otherwise lint, and this one
-# curls, untars and sudo mvs.
-#
-# Two subcommands, because actions/cache needs the version as an expression
-# before the install step runs:
-#   resolve   write the effective version to $GITHUB_OUTPUT
-#   install   download it and put it on PATH
+# `install.sh install` - download $HI_TOOL at its ./tools.txt pin and put it
+# on PATH. ../setup-tools runs it per tool; a real file rather than a `run:`
+# block so the repo's own lint suite reads the code that curls and sudo mvs.
 set -euo pipefail
 
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-: "${HI_TOOL:?set by action.yml}"
+: "${HI_TOOL:?set by the caller}"
+[ "${1:-}" = install ] || {
+  echo "setup-tool: expected 'install', got '${1:-}'" >&2
+  exit 1
+}
 
 # the row is captured first rather than read straight from a here-string: a
 # failing command substitution inside `read <<<` is not the read's status, so
 # an unknown tool would print its error and still exit 0
 _hi_row="$(_hi_tool_row "$HI_TOOL")" || exit 1
-IFS='|' read -r _ _hi_pin _hi_kind _hi_url _hi_verify _ <<<"$_hi_row"
-
-# an explicit `version:` input wins over the manifest's pin; empty means "use
-# the pin", which is what every call site passes
-_hi_version="${HI_TOOL_VERSION:-}"
-[ -n "$_hi_version" ] || _hi_version="$_hi_pin"
-
-case "${1:-}" in
-resolve)
-  : "${GITHUB_OUTPUT:?set by the runner}"
-  printf 'version=%s\n' "$_hi_version" >>"$GITHUB_OUTPUT"
-  exit 0
-  ;;
-install) ;;
-*)
-  echo "setup-tool: expected 'resolve' or 'install', got '${1:-}'" >&2
-  exit 1
-  ;;
-esac
+IFS='|' read -r _ _hi_version _hi_kind _hi_url _hi_verify _ <<<"$_hi_row"
 
 # %a: only shellcheck ships more than one asset, because it is the only tool
 # installed on macOS as well. Resolved before %v so a version can never look
@@ -76,7 +56,7 @@ cmake)
   # something to pin - the *version* is pinned, which is what the roster is
   # for. Only the built binary is cached and installed, so the caller is the
   # one that has to keep kcov's runtime libs (libdw1, libelf1, libcurl4,
-  # zlib1g, libstdc++6) around - see coverage.yml's apt step.
+  # zlib1g, libstdc++6) around - coverage.yml's setup-shells extra-packages.
   #
   # libssl-dev is named explicitly and is not redundant: kcov's
   # src/CMakeLists.txt does `find_package(OpenSSL REQUIRED)`, and the OpenSSL
