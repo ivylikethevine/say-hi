@@ -243,7 +243,7 @@ function menu_read() {
 # hang on a driver out of sensible input - five call sites used to keep it
 # independently.
 function _hi_menu_reject() {
-  (($1 = $1 + 1))
+  printf -v "$1" '%s' "$((${!1} + 1))"
   [ "${!1}" -lt "$2" ] || return 1
   _hi_cecho " $3" "$YELLOW"
 }

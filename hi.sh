@@ -511,7 +511,7 @@ function _hi_ssh_sh() {
   local script="$1" q
   shift
   _hi_shquote q "$script"
-  ssh "$@" "${SSHARGS[@]}" "$DOMAIN" "sh -c $q"
+  ssh "$@" ${SSHARGS[@]+"${SSHARGS[@]}"} "$DOMAIN" "sh -c $q"
 }
 
 # _hi_ctl_open <run-persist-secs> <run|shared> [ssh-opts...] - a ControlMaster

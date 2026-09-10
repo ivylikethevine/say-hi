@@ -214,7 +214,10 @@ function _hi_color_split() {
 function _hi_color_index() {
   local _hi_ci_i=0 _hi_ci_n
   for _hi_ci_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_ci_n" = "$2" ] && { printf -v "$1" '%s' "$_hi_ci_i"; return 0; }
+    [ "$_hi_ci_n" = "$2" ] && {
+      printf -v "$1" '%s' "$_hi_ci_i"
+      return 0
+    }
     _hi_ci_i=$((_hi_ci_i + 1))
   done
   return 1

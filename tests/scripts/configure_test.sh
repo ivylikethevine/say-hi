@@ -1145,7 +1145,8 @@ function test_editor_preview_matches_its_alias() {
   from_alias="$(
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this $( )
-    # shellcheck source=/dev/null # settings/aliases.sh or the overlay's copy
+    # shellcheck source=/dev/null # settings/aliases.sh, or the copy in the overlay
+    # (no apostrophe in a comment inside a $( ): bash 3.2 reads it as a quote)
     source "$_HI_ALIASES" >/dev/null 2>&1
     alias "$tool" 2>/dev/null
   )"

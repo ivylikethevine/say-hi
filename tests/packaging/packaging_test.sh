@@ -2392,8 +2392,10 @@ function run_packaging_tests() {
   # only channel that does: it has no $SOURCE_DATE_EPOCH, and stamp.sh refuses
   # to guess. Pinned so it cannot be "fixed" into an irreproducible Time.now.
   _hi_check "The formula dates .TH with the version" grep -qF -- '"--date", version' "$_HI_FORMULA"
-  _hi_check "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
-  _hi_check "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
+  # install_tree links usr/bin/hi, and a host without symlinks (Git Bash) aborts
+  # the stage there - every case that stages through mkpkg.sh needs one
+  _hi_check_capable symlink "mkpkg.sh stamps the staged copy" test_package_sh_stamps_the_staged_launcher
+  _hi_check_capable symlink "mkpkg.sh stamps the staged man page" test_package_sh_stamps_the_staged_man_page
 
   _hi_h2 "Testing: packaging/stamp.sh"
   _hi_check "Writes the release line" test_stamp_writes_the_release_line
@@ -2417,7 +2419,7 @@ function run_packaging_tests() {
   _hi_h2 "Testing: mkpkg.sh (offline half)"
   _hi_check "--stage-only stages without nfpm" test_package_sh_stage_only_needs_no_nfpm
   _hi_check "--version beats the PKGBUILD's" test_package_sh_version_flag_wins
-  _hi_check "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
+  _hi_check_capable symlink "Staged mtimes are clamped and reproducible" test_stage_mtimes_are_clamped_and_reproducible
   _hi_check "Unknown arguments are an error" test_package_sh_rejects_unknown_arguments
   _hi_check_capable symlink "staged_launcher shims a misnamed checkout" test_staged_launcher_shims_a_misnamed_checkout
   _hi_check "release.yml ships SHA256SUMS" test_release_workflow_uploads_sha256sums
@@ -2439,7 +2441,7 @@ function run_packaging_tests() {
   _hi_check "mkpkg.sh --help names its flags" test_mkpkg_help_names_its_flags
   _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
   _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
-  _hi_check "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
+  _hi_check_capable symlink "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
   _hi_check "touch_epoch falls back without GNU touch" test_mkpkg_touch_epoch_falls_back_without_gnu_touch
 
   _hi_h2 "Testing: packaging/lib.sh's primitives"

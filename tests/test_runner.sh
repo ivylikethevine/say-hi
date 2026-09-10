@@ -520,10 +520,10 @@ fi
 # that parallel noise would corrupt), each keeping its own table order. A
 # `--group` run is homogeneous, so one of the two is always empty and this
 # is a no-op split; a bare `test_runner.sh` is the case it is for.
-declare -a _HI_SELECTED_PAR=() _HI_SELECTED_SER=()
+declare -a _HI_SELECTED_PAR=() _HI_SELECTED_SERIAL=()
 for _hi_t in "${_HI_SELECTED[@]}"; do
   case "${_hi_t%%:*}" in
-  bench | e2e | backends) _HI_SELECTED_SER+=("$_hi_t") ;;
+  bench | e2e | backends) _HI_SELECTED_SERIAL+=("$_hi_t") ;;
   *) _HI_SELECTED_PAR+=("$_hi_t") ;;
   esac
 done
@@ -620,7 +620,7 @@ function _hi_run_batch() {
 
 _hi_i=0
 _hi_run_batch "$_HI_RUNNER_WIDTH" ${_HI_SELECTED_PAR[@]+"${_HI_SELECTED_PAR[@]}"}
-_hi_run_batch 1 ${_HI_SELECTED_SER[@]+"${_HI_SELECTED_SER[@]}"}
+_hi_run_batch 1 ${_HI_SELECTED_SERIAL[@]+"${_HI_SELECTED_SERIAL[@]}"}
 
 _hi_h1 "Summary"
 _hi_width=5 # "TOTAL" is the widest the name column can need on its own
