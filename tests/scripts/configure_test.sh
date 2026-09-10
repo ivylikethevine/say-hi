@@ -1468,7 +1468,6 @@ function run_configure_tests() {
 
   _hi_suite_begin
 
-
   _hi_h2 "Testing: settings are sourced ahead of paths.sh"
   _hi_check "common/core.sh" _hi_sources_settings_before_paths "$_HI_ROOT/common/core.sh"
   _hi_check "common/config.fish" _hi_sources_settings_before_paths "$_HI_ROOT/common/config.fish"
@@ -1528,7 +1527,6 @@ function run_configure_tests() {
   _hi_check "Reads a two-statement assignment" test_setting_get_reads_a_two_statement_assignment
   _hi_check "Leaves other variables ambient" test_setting_get_leaves_other_variables_ambient
 
-
   _hi_h2 "Testing: ask_setting (non-interactive)"
   _hi_check "Keeps enabled default" test_ask_setting_default_keeps_enabled
   _hi_check "Keeps disabled default" test_ask_setting_default_keeps_disabled
@@ -1562,8 +1560,6 @@ function run_configure_tests() {
   _hi_check "--preset writes exactly the preset" test_preset_run_writes_the_preset
   _hi_check "install.sh refuses an unknown --preset" test_install_rejects_an_unknown_preset
   _hi_check "No preset and no tty keeps the block" test_run_configure_without_a_preset_keeps_the_block
-
-
 
   _hi_h2 "Testing: config_hi (skip path only)"
   _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked
