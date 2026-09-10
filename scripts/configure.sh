@@ -446,6 +446,19 @@ function _hi_tool_alias_preview() {
   fi
 }
 
+# what the tool integration would wire in here: only the tools installed
+function _hi_tool_init_preview() {
+  local t found=""
+  for t in zoxide atuin; do
+    command -v "$t" >/dev/null 2>&1 && found="$found $t"
+  done
+  if [ -n "$found" ]; then
+    printf 'installed here:%s - wired into every session on a target that has it\n' "$found"
+  else
+    printf 'neither zoxide nor atuin is installed here - only targets that have one are affected\n'
+  fi
+}
+
 function _hi_starship_preview() {
   if command -v starship >/dev/null 2>&1; then
     printf "starship is installed here (%s); a target without it keeps hi's prompt\n" \
@@ -496,6 +509,8 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview| Enable the environment segment in the prompt (the leading (myproj) naming an active venv, conda, direnv, nix or version manager)?||environment segment in the prompt"
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the editor config overrides (vim, nano, emacs, helix, kakoune, micro)?||editor config overrides - vim, nano, emacs, helix, kakoune, micro"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
+  "_HI_DISABLE_TOOL_INIT|1||_hi_tool_init_preview| Enable shell integration for zoxide and atuin (their init hooks: ranked cd, ctrl-r history) where the target has them?||zoxide/atuin shell integration"
+  "_HI_DISABLE_SUDO_ALIAS|1||| Enable the sudo alias ('sudo vim' and friends keep hi's flags - a trailing-space alias in bash/zsh, a wrapper function in fish)?||sudo alias - aliases survive under sudo"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
 )
@@ -562,7 +577,7 @@ function ask_prompt_group() {
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, tool integration or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_TOOL_INIT=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,

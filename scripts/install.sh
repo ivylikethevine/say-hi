@@ -57,7 +57,7 @@ function _hi_install_usage() {
   case "$mode" in
   uninstall)
     [ -n "${_HI_ARGV0:-}" ] || me="$me --uninstall"
-    printf 'Usage: %s [--dry-run]\n' "$me"
+    printf 'Usage: %s [--purge] [--dry-run]\n' "$me"
     ;;
   configure)
     [ -n "${_HI_ARGV0:-}" ] || me="$me --configure"
@@ -68,7 +68,7 @@ function _hi_install_usage() {
     printf 'Usage: %s [--yes] [--link {none,user,system}]\n' "$me"
     printf '       %*s [--preset <name>] [--dry-run]\n' "${#me}" ""
     [ -n "${_HI_ARGV0:-}" ] ||
-      printf '       %s --configure [--preset <name>] [--dry-run]\n       %s --uninstall [--dry-run] | --prefix <dir>\n' "$me" "$me"
+      printf '       %s --configure [--preset <name>] [--dry-run]\n       %s --uninstall [--purge] [--dry-run] | --prefix <dir>\n' "$me" "$me"
     ;;
   esac
 }
@@ -88,6 +88,9 @@ re-run. say-hi itself is left in place - rm -rf it yourself once you're done
 with it - and so is the one-time <rc-file>.hi-orig backup the install took
 before its first write to each rc file.
 
+  --purge          Remove ~/.config/say-hi as well - the seeded defaults,
+                   your aliases.sh, every overlay file. Without it the
+                   overlay stays, since what is there is yours.
   -n, --dry-run    Say what would be removed and remove nothing.
 EOF
     ;;
@@ -245,6 +248,7 @@ while [ $# -gt 0 ]; do
     _HI_SEEN="$_HI_SEEN --link"
     ;;
   -n | --dry-run) _HI_DRY_RUN=1 _HI_SEEN="$_HI_SEEN --dry-run" ;;
+  --purge) _HI_PURGE=1 _HI_SEEN="$_HI_SEEN --purge" ;;
   -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
   --prefix)
     [ $# -ge 2 ] || {
@@ -287,7 +291,7 @@ fi
 # the switches each mode takes; anything else seen is refused by name, so
 # `hi --uninstall --yes` cannot read as a confirmation that meant something
 case "$(_hi_install_mode)" in
-uninstall) _hi_allowed=" --dry-run " ;;
+uninstall) _hi_allowed=" --dry-run --purge " ;;
 configure) _hi_allowed=" --preset --dry-run " ;;
 *) _hi_allowed=" --yes --link --preset --dry-run --prefix " ;;
 esac
@@ -476,6 +480,23 @@ function run_uninstall() {
   strip_rc_lines
   strip_settings
   unlink_hi
+  [ -n "${_HI_PURGE:-}" ] && purge_overlay
+  return 0
+}
+
+# --purge: the overlay directory too - the seeded colors/packages/editor rcs,
+# the user's aliases.sh, every tool config that rode along. The plain
+# uninstall leaves it, since the seed is theirs to version; this is the "and
+# forget I was here" form.
+function purge_overlay() {
+  _hi_h2 "Purging the overlay"
+  if [ ! -d "$_HI_CONFIG_DIR" ]; then
+    _hi_cecho " no $_HI_CONFIG_DIR to remove :)" "$GREEN"
+    return 0
+  fi
+  dry_run_say "remove $_HI_CONFIG_DIR and everything in it" && return 0
+  rm -rf "$_HI_CONFIG_DIR"
+  _hi_cecho " removed $_HI_CONFIG_DIR :)" "$GREEN"
 }
 
 # What a package ships. Deliberately spelled out rather than derived from

@@ -24,6 +24,6 @@
 --preview|<subject>|scripts|||colors, packages or header, as they print here
 --doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
 --install|[--yes] [--link {none,user,system}] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
---uninstall|[--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines back out again
+--uninstall|[--purge] [--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines out; --purge removes the overlay too
 --configure|[--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--configure|revisit the settings, leaving the rc wiring be
 --update|[<tag>] [--dry-run]|git|_HI_UPDATE||move the checkout to the newest release tag, or <tag>

@@ -62,7 +62,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 _HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el helix.toml kak.rc aliases.sh
-  bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json theme.yml)
+  bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json theme.yml bat.conf)
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.

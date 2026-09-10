@@ -55,6 +55,10 @@ export _HI_KAKRC="$_HI_ROOT/settings/kak.rc"
 # that directory, and the file has to carry that exact name, so the overlay
 # itself is the directory (docs/SETTINGS.md says how to put one there).
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
+# bat too: a bat.conf in the overlay is its config file on every target, and
+# settings/aliases.sh drops its own --theme flag when this is set so the
+# file's theme wins.
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/bat.conf" ] && export BAT_CONFIG_PATH="$_HI_CONFIG_DIR/bat.conf"
 
 export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"
@@ -117,5 +121,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_EDITORS=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1
+  export _HI_DISABLE_TOOL_INIT=1
+  export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1
 } || true

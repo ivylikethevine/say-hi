@@ -30,6 +30,7 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-uninstall
+.RB [ \-\-purge ]
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-update
@@ -339,7 +340,7 @@ and
 beside it, and write nothing to a home \- which the package builds use and a
 user never needs.
 .TP
-.B \-\-uninstall \fR[\fB\-\-dry\-run\fR]
+.B \-\-uninstall \fR[\fB\-\-purge\fR] [\fB\-\-dry\-run\fR]
 take those lines back out again, remove the settings.sh the install wrote,
 and unlink hi where the link points at this tree \-
 .B ~/.local/bin/hi
@@ -347,7 +348,10 @@ and a
 .B /usr/bin/hi
 of an earlier
 .BR "\-\-link system" ,
-never a package's. A file the install created and nothing else wrote into
+never a package's. With
+.B \-\-purge
+the overlay directory (\fB~/.config/say-hi\fR) goes too; without it, it stays,
+since what is there is yours. A file the install created and nothing else wrote into
 (a macOS
 .BR ~/.bash_profile )
 goes with its lines. The tree itself, the rest
@@ -561,6 +565,11 @@ or
 when
 .B _HI_PROMPT_TOOL
 names that program; at home the program keeps reading its own.
+.TP
+.B ~/.config/say-hi/bat.conf
+a bat config file, carried to every target as its
+.B BAT_CONFIG_PATH
+\- the aliases then leave their own theme flag out so the file's wins.
 .TP
 .B ~/.config/say-hi/theme.yml
 an eza theme, carried to every target with the overlay as its

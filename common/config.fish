@@ -15,7 +15,8 @@ for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
     _HI_DISABLE_EDITORS \
     _HI_DISABLE_MARKS \
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_BANNER
+    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS \
+    _HI_DISABLE_BANNER
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
 set -e _hi_toggle
@@ -105,15 +106,25 @@ set -gx fish_color_host $__hi_color_host
 set -gx fish_color_host_remote $fish_color_host
 
 # wrapper so aliases (functions, in fish) work under sudo; args ride fish's own
-# argv after --, never a re-parsed string - that invites injection
-function sudo
-  if functions -q -- "$argv[1]"
-    set -lx hi_sudo_fn $argv[1]
-    set -lx function_src (string join "\n" (string escape --style=var (functions -- $hi_sudo_fn)))
-    command sudo -E fish -c 'string unescape --style=var (string split "\n" $function_src) | source; $hi_sudo_fn $argv' -- $argv[2..]
-  else
-    command sudo $argv
+# argv after --, never a re-parsed string - that invites injection. Off with
+# _HI_DISABLE_SUDO_ALIAS=1, the same toggle as settings/aliases.sh's sudo alias.
+if test "$_HI_DISABLE_SUDO_ALIAS" != 1
+  function sudo
+    if functions -q -- "$argv[1]"
+      set -lx hi_sudo_fn $argv[1]
+      set -lx function_src (string join "\n" (string escape --style=var (functions -- $hi_sudo_fn)))
+      command sudo -E fish -c 'string unescape --style=var (string split "\n" $function_src) | source; $hi_sudo_fn $argv' -- $argv[2..]
+    else
+      command sudo $argv
+    end
   end
+end
+
+# zoxide and atuin, mirroring core.sh's _hi_tool_init: only when the box has
+# them and nothing has wired them in yet
+if test "$_HI_DISABLE_TOOL_INIT" != 1
+  command -q zoxide; and not functions -q __zoxide_z; and zoxide init fish | source
+  command -q atuin; and not functions -q _atuin_search; and atuin init fish | source
 end
 
 # the prompt's end character, mirroring core.sh's _hi_prompt_end: fish

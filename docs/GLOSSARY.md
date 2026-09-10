@@ -569,8 +569,8 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-The prompt tools' `starship.toml` / `oh-my-posh.json` and eza's `theme.yml`
-ride it so a tool's config on every target is the one configured at home;
+The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml` and
+bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
 fixes the file name) at the overlay on a target only (HI.32).

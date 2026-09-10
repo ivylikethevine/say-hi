@@ -73,6 +73,12 @@ if [ -n "${_HI_CHECK_BAT_OPTS:-}" ]; then
   esac
 fi
 
+if [ -n "${_HI_CHECK_BAT_NO_THEME:-}" ]; then
+  case "$(alias bat 2>/dev/null)" in
+  *--theme*) echo "bat alias still carries --theme with BAT_CONFIG_PATH set: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
+  esac
+fi
+
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   check_alias nano "$_HI_EXPECT_NANO"
   check_alias emacs "$_HI_EXPECT_NANO"
@@ -140,6 +146,13 @@ end
 if set -q _HI_CHECK_BAT_OPTS
   if not string match -q -- "*$_HI_EXPECT_BAT_OPTS*" (functions bat | string join \n)
     echo "bat alias missing overlay opts [$_HI_EXPECT_BAT_OPTS]" >&2
+    set fail 1
+  end
+end
+
+if set -q _HI_CHECK_BAT_NO_THEME
+  if string match -q -- "*--theme*" (functions bat | string join \n)
+    echo "bat alias still carries --theme with BAT_CONFIG_PATH set" >&2
     set fail 1
   end
 end
@@ -354,10 +367,10 @@ function run_fallthrough_tests() {
   done
 }
 
-# The convenience aliases are the tail of settings/aliases.sh and
-# unconditional, so `sudo` is asserted *present* on both rows. It stays in the table rather than being dropped from it: it is
-# the cheapest pin on the merged tail being reached at all in three dialects,
-# and the shape that would regress is it quietly acquiring a guard.
+# The convenience aliases are the tail of settings/aliases.sh, so `sudo` is
+# asserted *present* on both editor rows: the cheapest pin on the merged tail
+# being reached at all in three dialects. Its own guard is
+# _HI_DISABLE_SUDO_ALIAS, exercised on its own row below.
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
@@ -384,6 +397,23 @@ function run_flag_tests() {
 # (run_fallthrough_tests already covers that), so the same pass checks that
 # both families go together.
 function run_tool_aliases_flag_tests() {
+  _hi_h1 "_HI_DISABLE_SUDO_ALIAS guard"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "_HI_DISABLE_SUDO_ALIAS=1 drops the sudo alias" \
+      _HI_DISABLE_SUDO_ALIAS=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=0 _HI_EXPECT_CAT_ALIAS=1
+  done
+
+  _hi_h1 "A bat config file takes the theme flag out of the default opts"
+  fakepath="$(_hi_fake_path fp_batconf bat)"
+  for shell in $_HI_INSTALLED_SHELLS; do
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "BAT_CONFIG_PATH set: default _HI_BAT_OPTS carry no --theme" \
+      BAT_CONFIG_PATH="$_HI_WORKDIR/bat.conf" _HI_CHECK_BAT_NO_THEME=1
+    _hi_case _hi_run_scenario "$shell" "$fakepath" \
+      "BAT_CONFIG_PATH unset: the theme is in" \
+      _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--theme'
+  done
   _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa)"

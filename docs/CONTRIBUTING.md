@@ -174,7 +174,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`, `aliases.sh`, the per-shell rc files, `starship.toml`,
-  `oh-my-posh.json` and eza's `theme.yml`), their
+  `oh-my-posh.json`, eza's `theme.yml` and bat's `bat.conf`), their
   formats, the XDG path and the `_HI_CONFIG_DIR` override.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,

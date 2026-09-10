@@ -328,6 +328,32 @@ function test_uninstall_mode_is_safe_on_a_fresh_home() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"Uninstalled!"* && "$out" == *"no settings.sh to remove"* ]]
 }
 
+# --uninstall --purge takes the overlay directory with it; without the flag
+# the overlay stays, and --dry-run names it and removes nothing
+function test_uninstall_purge_removes_the_overlay() {
+  local home="$_HI_WORKDIR/un-purge" out rc=0
+  mkdir -p "$home/.config/say-hi"
+  printf 'hostname,mine,red\n' >"$home/.config/say-hi/colors"
+  out="$(_hi_run_install un-purge --uninstall 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [ -f "$home/.config/say-hi/colors" ] || return 1
+  out="$(_hi_run_install un-purge --uninstall --purge --dry-run 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"would remove $home/.config/say-hi"* ]] &&
+    [ -f "$home/.config/say-hi/colors" ] || return 1
+  out="$(_hi_run_install un-purge --uninstall --purge 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"removed $home/.config/say-hi"* ]] &&
+    [ ! -e "$home/.config/say-hi" ] || return 1
+  # a second purge has nothing to do and says so
+  out="$(_hi_run_install un-purge --uninstall --purge 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] && [[ "$out" == *"no $home/.config/say-hi to remove"* ]]
+}
+
+# ...and --purge is --uninstall's alone
+function test_purge_is_refused_outside_uninstall() {
+  local out rc=0
+  out="$(_hi_run_install un-purge-mode --install --purge 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--purge does not apply here"* ]]
+}
+
 # --configure (the `hi --configure` shape) writes the overlay's settings
 # and nothing else: no rc file appears, and the run says which mode it was.
 # --preset=<name> is the one-token spelling of the flag.
@@ -598,7 +624,7 @@ function test_a_switch_outside_its_mode_is_refused() {
 function test_uninstall_help_is_its_own() {
   local out
   out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --help)" || return 1
-  [[ "$out" == "Usage: hi --uninstall [--dry-run]"* && "$out" == *"inverse of the install"* && "$out" != *"Wires up"* ]]
+  [[ "$out" == "Usage: hi --uninstall [--purge] [--dry-run]"* && "$out" == *"inverse of the install"* && "$out" != *"Wires up"* ]]
 }
 
 function test_configure_help_is_its_own() {
@@ -920,6 +946,8 @@ function run_install_tests() {
   _hi_check "The banner names the version" test_install_reports_the_version
   _hi_check "A full install seeds the overlay" test_install_seeds_the_overlay
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
+  _hi_check "--uninstall --purge removes the overlay, dry-run keeps it" test_uninstall_purge_removes_the_overlay
+  _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written
   _hi_check "...and before the banner" test_a_stranger_preset_is_refused_before_the_banner
