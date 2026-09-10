@@ -116,7 +116,7 @@ function lint_manpage() {
 # The emacs half is lint_emacs_rc below: `--batch -q -l` loads the file the
 # way the alias does and exits non-zero on an elisp error, so there the exit
 # status is the verdict.
-function lint_editor_rc() {
+function lint_vim_rc() {
   local bin err out bad=0 rc="$_HI_ROOT/settings/vim.rc"
   _hi_h2 "Checking the shipped editor rc (vim -u settings/vim.rc)"
   for bin in vim nvim; do
@@ -194,7 +194,7 @@ function run_tools() {
   local -a _HI_SH_FILES=()
   _hi_read_lines _HI_SH_FILES < <(_hi_lint_find -name '*.sh')
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_editor_rc lint_emacs_rc lint_typos
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_emacs_rc lint_typos
   _hi_lint_suite_end
 }
 

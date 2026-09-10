@@ -370,21 +370,21 @@ function run_fallthrough_tests() {
 # The convenience aliases are the tail of settings/aliases.sh, so `sudo` is
 # asserted *present* on both editor rows: the cheapest pin on the merged tail
 # being reached at all in three dialects. Its own guard is
-# _HI_DISABLE_SUDO_ALIAS, exercised on its own row below.
+# _HI_DISABLE_SUDO_ALIAS, the third row.
 function run_flag_tests() {
   _hi_h1 "_HI_DISABLE_EDITORS guard"
   local shell fakepath
   fakepath="$(_hi_fake_path fp_flags vi)"
 
-  for combo in "0 1 1" "1 0 1"; do
-    # shellcheck disable=SC2086 # fixed 3-field combo, splitting is intended
+  for combo in "0 1 1 0" "1 0 1 0" "0 1 0 1"; do
+    # shellcheck disable=SC2086 # fixed 4-field combo, splitting is intended
     set -- $combo
-    local de="$1" want_nano="$2" want_sudo="$3"
+    local de="$1" want_nano="$2" want_sudo="$3" ds="$4"
     for shell in $_HI_INSTALLED_SHELLS; do
       _HI_DISABLE_EDITORS="$de" \
         _hi_case _hi_run_scenario "$shell" "$fakepath" \
-        "_HI_DISABLE_EDITORS=$de" \
-        _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
+        "_HI_DISABLE_EDITORS=$de _HI_DISABLE_SUDO_ALIAS=$ds" \
+        _HI_DISABLE_SUDO_ALIAS="$ds" _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO="$want_nano" _HI_EXPECT_SUDO="$want_sudo" _HI_EXPECT_CAT_ALIAS=1
     done
   done
 }
@@ -397,13 +397,7 @@ function run_flag_tests() {
 # (run_fallthrough_tests already covers that), so the same pass checks that
 # both families go together.
 function run_tool_aliases_flag_tests() {
-  _hi_h1 "_HI_DISABLE_SUDO_ALIAS guard"
-  for shell in $_HI_INSTALLED_SHELLS; do
-    _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "_HI_DISABLE_SUDO_ALIAS=1 drops the sudo alias" \
-      _HI_DISABLE_SUDO_ALIAS=1 _HI_CHECK_FLAGS=1 _HI_EXPECT_NANO=1 _HI_EXPECT_SUDO=0 _HI_EXPECT_CAT_ALIAS=1
-  done
-
+  local shell fakepath
   _hi_h1 "A bat config file takes the theme flag out of the default opts"
   fakepath="$(_hi_fake_path fp_batconf bat)"
   for shell in $_HI_INSTALLED_SHELLS; do
@@ -415,7 +409,6 @@ function run_tool_aliases_flag_tests() {
       _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--theme'
   done
   _hi_h1 "_HI_DISABLE_TOOL_ALIASES guard"
-  local shell fakepath
   fakepath="$(_hi_fake_path fp_toolflags cat vi eza exa)"
 
   for combo in "0 1" "1 0"; do

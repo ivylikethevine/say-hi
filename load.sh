@@ -235,21 +235,28 @@ function _hi_session_shell_cmd() {
 }
 
 # The editor a session exports, with hi's config flags: $_HI_EDITOR's pick when
-# it names something installed here, else the first of the ladder. kak goes
-# bare - sudoedit splits the value on whitespace with no quoting, and kak's
-# config flag needs one quoted word. The micro default is aliases.sh's.
+# it names something installed here, else the first of the ladder. The flags
+# are read off the alias settings/aliases.sh builds (sourced here, in the
+# caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
+# editor's invocation, and the overlay's own _HI_MICRO_OPTS reaches $EDITOR
+# the way it reaches the alias. kak goes bare - sudoedit splits the value on
+# whitespace with no quoting, and kak's config flag needs one quoted word.
 function _hi_session_editor() {
-  local e
+  local e name body
+  # shellcheck source=./settings/aliases.sh
+  source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} nvim vim hx helix micro nano emacs kak; do
-    command -v "$e" &>/dev/null || continue
+    type -P "$e" &>/dev/null || continue
     case "$e" in
-    nvim | vim) printf '%s -u %s' "$e" "$_HI_VIMRC" ;;
-    hx | helix) printf '%s -c %s' "$e" "$_HI_HELIXRC" ;;
-    micro) printf 'micro %s' "${_HI_MICRO_OPTS:--backup false -savehistory false -mkparents true -diffgutter true}" ;;
-    nano) printf 'nano --rcfile %s' "$_HI_NANORC" ;;
-    emacs) printf 'emacs -q -l %s' "$_HI_EMACSRC" ;;
-    *) printf '%s' "$e" ;;
+    nvim) name=vim ;;
+    helix) name=hx ;;
+    kak) name="" ;;
+    *) name="$e" ;;
     esac
+    body="$([ -n "$name" ] && alias "$name" 2>/dev/null)"
+    body="${body#alias "$name"=\'}"
+    body="${body%\'}"
+    printf '%s' "${body:-$e}"
     return 0
   done
   return 0

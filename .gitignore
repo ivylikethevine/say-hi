@@ -47,8 +47,11 @@
 # the typos allowlist, read by the lint gate (tests/lint/tools_test.sh)
 !.typos.toml
 !.moxide.toml
-# the helix config that ships (settings/aliases.sh's hx alias, hi --preview)
-!settings/helix.toml
+# everything under the payload directories ships, whatever it is named: the
+# blanket rules above once swallowed settings/helix.toml (drift_test.sh's
+# lint_ignored_payload keeps it that way)
+!settings/**
+!common/**
 # packaging/mkpkg.sh's staging and output directory. Not "build/" or
 # "output/": the blanket rules above would swallow those.
 dist/

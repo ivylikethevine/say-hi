@@ -141,6 +141,28 @@ function lint_bash32() {
 # - docs/PACKAGING.md taught the retired default, which is what a packager
 # reads. Not .rb: _hi_lint_table drops comments, and the formula's only
 # occurrence is one, so it would buy a file list and no coverage.
+# A shipped file that .gitignore swallows never reaches a commit, and nothing
+# local notices: the suites read the working tree. settings/helix.toml sat
+# under a blanket `*.toml` for a whole feature. Asked of git itself, over
+# every file the payload and the package ship.
+function lint_ignored_payload() {
+  local f bad=0
+  _hi_h2 "Checking no shipped file is gitignored"
+  if [ ! -d "$_HI_ROOT/.git" ] || ! command -v git >/dev/null 2>&1; then
+    _hi_skip "shipped files vs .gitignore" "no git checkout"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  while IFS= read -r f; do
+    _hi_align " | $f" "IGNORED" "$RED"
+    _hi_note_failure "gitignored shipped file: $f"
+    bad=1
+  done < <(cd "$_HI_ROOT" && find common settings scripts hi.sh load.sh -type f 2>/dev/null |
+    git check-ignore --stdin 2>/dev/null)
+  [ "$bad" -eq 0 ] && _hi_align " | every file under common/, settings/, scripts/ is tracked" "OK" "$GREEN"
+  return "$bad"
+}
+
 function lint_home_default() {
   _hi_h2 "Checking for a \$HOME default for the say-hi tree"
   _hi_lint_mirror
@@ -910,7 +932,7 @@ function run_drift() {
   # _hi_lint_mirror blanks the tree under $_HI_WORKDIR/lintmirror
   _hi_workdir drifttest
 
-  _hi_lint_halves lint_bash32 lint_home_default lint_glossary_tags \
+  _hi_lint_halves lint_bash32 lint_home_default lint_ignored_payload lint_glossary_tags \
     lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests
