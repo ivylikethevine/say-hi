@@ -179,8 +179,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
   and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.
-- **Target behaviour** — nothing written outside the session directory by
-  default, and the directory removed on any exit
+- **Target behaviour** — nothing hi writes outside the session directory,
+  and the directory removed on any exit
   ([SECURITY.md](SECURITY.md#what-hi-writes-on-a-target)).
 
 Versioning is semver: a fix is a patch, an addition a minor, a break to the
@@ -199,6 +199,7 @@ and anything under `tests/` or `scripts/` a package does not ship.
 | an environment variable or toggle     | `docs/SETTINGS.md` (enforced, see below)     |
 | what hi leaves on a target            | `docs/SECURITY.md`                           |
 | a target hi does or doesn't answer to | `docs/SUPPORT.md`                            |
+| a tool hi wires in, or its hook       | `docs/INTEGRATIONS.md`                       |
 | a new idiom worth a name              | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag |
 | a release channel or the release flow | `docs/PACKAGING.md`                          |
 | the harness or the lint gate          | `docs/TESTING.md`                            |

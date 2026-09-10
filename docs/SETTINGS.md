@@ -22,35 +22,10 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
-| `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT_TOOL=starship`; at home starship keeps reading its own                   |
+| `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT_TOOL=starship` ([Integrations](INTEGRATIONS.md#prompt-programs))       |
 | `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
-| `~/.config/say-hi/bat.conf`        | -                   | your [bat config](https://github.com/sharkdp/bat#configuration-file): `$BAT_CONFIG_PATH` on every target, and the `bat`/`cat` aliases drop their own `--theme` so the file's wins; at home bat keeps reading its own                                                    |
-| `~/.config/say-hi/theme.yml`       | -                   | your [eza theme](https://github.com/eza-community/eza-themes): the overlay becomes `$EZA_CONFIG_DIR` on every target, so the `eza` alias colors files there the way it does at home                     |
-
-**Shipping your bat theme.** Put a bat config file at `~/.config/say-hi/bat.conf`
-(`--theme="Catppuccin Mocha"`, one flag per line, exactly what
-`~/.config/bat/config` holds - link that file if you have one). On a target it
-becomes `$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
-the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
-is the one you see through `cat`. The same rule applies at home if you export
-`BAT_CONFIG_PATH` yourself; a `_HI_BAT_OPTS` of your own always wins outright.
-
-**Shipping your eza theme.** eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`
-and insists on that file name, so hi does not rename it: drop a `theme.yml`
-into the overlay and, on a target, `common/paths.sh` exports
-`EZA_CONFIG_DIR` pointing at the overlay's shipped copy - the directory
-itself, not the file. At home the variable is left alone and eza keeps reading
-`~/.config/eza/theme.yml`. To ship the theme you already use, link it rather
-than copy it - the overlay archive resolves symlinks into content, so one
-file serves both:
-
-```sh
-ln -s ~/.config/eza/theme.yml ~/.config/say-hi/theme.yml
-```
-
-The file rides only when present, like every overlay member, and only the
-`eza` alias (`_HI_DISABLE_TOOL_ALIASES`) is affected: a bare `command eza` on
-the target reads the same variable, so it matches too.
+| `~/.config/say-hi/bat.conf`        | -                   | your [bat config](https://github.com/sharkdp/bat#configuration-file), `$BAT_CONFIG_PATH` on every target ([Integrations](INTEGRATIONS.md#shipping-your-bat-theme)) |
+| `~/.config/say-hi/theme.yml`       | -                   | your [eza theme](https://github.com/eza-community/eza-themes), through `$EZA_CONFIG_DIR` on every target ([Integrations](INTEGRATIONS.md#shipping-your-eza-theme)) |
 
 `hi --install` seeds the overlay with the shipped
 `colors`/`packages` and editor rc defaults — only for the
@@ -202,23 +177,23 @@ cannot land without a row here.
 | `_HI_DISABLE_HEADER`        | `0`                                                  | `hi --configure`          | turns off the whole connect/disconnect header, every line of it                                                                                                                                                                                                                                                                                                  |
 | `_HI_DISABLE_PROMPT`        | `0`                                                  | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                                                                                                                                               |
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                          |
-| `_HI_DISABLE_ENV_STATUS`    | `0`                                                  | `hi --configure`          | turns off the environment segment in the prompt - the leading `(myproj)` naming whatever venv, conda, direnv, nix, guix, devbox or version-manager environment is active. See [Others](#others)                                                                                                                                                                  |
+| `_HI_DISABLE_ENV_STATUS`    | `0`                                                  | `hi --configure`          | turns off the environment segment in the prompt - the leading `(myproj)` naming whatever venv, conda, direnv, nix, guix, devbox or version-manager environment is active. See [Integrations](INTEGRATIONS.md#the-environment-segment)                                                                                                                                                                  |
 | `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the editor config overrides (vim, nano, emacs, helix, kakoune, micro) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e` and `sudo -e`                                                                                                                                                                                                                                                                                                                      |
-| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa` and `eza` themselves stay available by name either way                                                                                                                                                                           |
-| `_HI_DISABLE_TOOL_INIT`     | `0`                                                  | `hi --configure`          | turns off the zoxide and atuin shell integration: each tool's `init <shell>` is run in every session where the target has the tool and nothing has wired it in yet (at home your own rc usually has)                                                                                                                                                              |
+| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa` and `eza` themselves stay available by name either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                           |
+| `_HI_DISABLE_TOOL_INIT`     | `0`                                                  | `hi --configure`          | turns off the zoxide and atuin shell integration: each tool's `init <shell>` is run in every session where the target has the tool and nothing has wired it in yet (at home your own rc usually has). See [Integrations](INTEGRATIONS.md#zoxide-and-atuin)                                                                                                                                                              |
 | `_HI_DISABLE_SUDO_ALIAS`    | `0`                                                  | `hi --configure`          | turns off the `sudo` alias - the trailing-space alias in bash/zsh that lets `sudo vim` keep the vim alias's flags, and fish's wrapper function that does the same for its alias functions                                                                                                                                                                       |
 | `_HI_EDITOR`                | unset                                                | you                       | the editor a target session exports as `$EDITOR`, `$VISUAL` and `$SUDO_EDITOR`, by command name (`nvim`, `hx`, `micro`, ...); used when the target has it, else the first of `nvim vim hx helix micro nano emacs kak` it does have. The value carries hi's config flags, so `git commit` and `sudo -e` get the same editor the alias gives you; kak goes bare (sudoedit cannot split its quoted flag) |
 | `_HI_DISABLE_MARKS`         | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)                                                                                                                                                                                                                                                |
 | `_HI_DISABLE_LOCAL`         | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit ([Others](#others) says how it tells the two apart)                                                                                                                                                                                                                                                                        |
 | `_HI_DISABLE_BANNER`        | `0`                                                  | `hi --configure`          | [Header details](#header-details) - the `~~~ Connected ~~~` line                                                                                                                                                                                                                                                                                                 |
 | `_HI_HEADER_ORDER`          | see [Header details](#header-details)                | `hi --configure`          | [Header details](#header-details) - which header features show, and in what order An empty value is not a way to spell "none": it falls back to the default list, so use the disable toggle for that. |
-| `_HI_ENV_ORDER`             | `see [Others](#others)`                              | you                       | which environments the prompt's `(myproj)` segment names, and in what order: space-separated words from `mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv`. Every one, outermost first, is the default; drop a word to silence it. See [Others](#others) An empty value is not a way to spell "none": it falls back to the default list, so use the disable toggle for that. |
+| `_HI_ENV_ORDER`             | every word, in the order listed                      | you                       | which environments the prompt's `(myproj)` segment names, and in what order: space-separated words from `mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv`. Every one, outermost first, is the default; drop a word to silence it. See [Integrations](INTEGRATIONS.md#the-environment-segment). An empty value is not a way to spell "none": it falls back to the default list, so use the disable toggle for that. |
 | `_HI_PACKAGES_MIN_PRIORITY` | `2`                                                  | `hi --configure`          | the lowest `settings/packages` priority (0-3) the header's check prints, and the main dial on how long that check is. `2` (default) keeps useful tools and up, `1` adds the optional extras back, `0` prints everything, `3` leaves just favorites and core alerts, `4` (above every priority) turns the check off. `hi --preview packages` marks the ranks it silences `below floor`    |
 | `_HI_PACKAGES_PALETTE`      | unset                                                | you                       | the color the check paints each priority in: eight color names, four for installed then four for missing. Unset is the shipped ramp (`cyan green brcyan brgreen` installed, `blue magenta bryellow brred` missing); anything that is not eight names falls back to it. See [Colors](#colors), and judge one with `hi --preview packages`                                                               |
 | `_HI_COLOR_SCHEME`          | unset                                                | you                       | what the palette names render as on a terminal that reports 24-bit color: twenty-four or forty-eight six-digit hex words. Unset is the terminal's own sixteen colors. See [Colors](#colors) for the word count and order                                                                                                                                         |
 | `_HI_IP_HIDE`               | `172.*`                                              | `hi --configure`          | space-separated globs; the header's `ip` cell drops every address one matches. `none` hides nothing; an empty value counts as unset. See [Header details](#header-details)                                                                                                                                                                                       |
 | `_HI_MAX_WIDTH`             | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                       |
-| `_HI_PROMPT_TOOL`                | unset                                                | `hi --configure`          | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, `oh-my-posh` to [oh-my-posh](https://ohmyposh.dev) (by hand; the menu offers starship), keeping hi's header and aliases either way. A `starship.toml` / `oh-my-posh.json` in the overlay becomes the tool's config on every target. Never auto-detected; hi ships neither |
+| `_HI_PROMPT_TOOL`                | unset                                                | `hi --configure`          | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, `oh-my-posh` to [oh-my-posh](https://ohmyposh.dev) (by hand; the menu offers starship), keeping hi's header and aliases either way. Never auto-detected; hi ships neither. See [Integrations](INTEGRATIONS.md#prompt-programs) |
 | `_HI_PROMPT_END_BASH`       | `\$`                                                 | `hi --configure`          | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root"); also the plain `sh` prompt hi bakes on the client for a bash-less target                                                                                                                                                                                                         |
 | `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                      |
 | `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                          |
@@ -350,47 +325,14 @@ trailing line.
 connect to". A real session is told apart by `_HI_REMOTE_SESSION`, which
 `load.sh` exports on a target and a local rc never does.
 
-A prompt of your own on this machine (starship, powerlevel10k, oh-my-zsh) is
-`_HI_PROMPT_TOOL=starship` for a starship user - hi hands the prompt to it wherever
-it is installed - and `_HI_DISABLE_LOCAL=1` for the rest.
+A prompt or shell framework of your own on this machine is
+[Integrations' _On your own machine_](INTEGRATIONS.md#on-your-own-machine).
 
 Two things hi does write on your own machine outside `~/.config/say-hi/`: the
 rc lines `install.sh` adds (marker-tagged, with a one-time `.hi-orig` backup,
 removed by `hi --uninstall`), and, in fish, three universal variables that
 memoize your prompt colors so only the first shell after a `colors` change
 pays for the bash call.
-
-The prompt's leading `(myproj)` names every environment manager that is
-active, outermost first: `(mise|direnv:proj|myproj)` is mise activated, a
-direnv-loaded `proj`, and a venv inside it. It reads `$MISE_SHELL`,
-`$ASDF_DIR`, `$PYENV_VERSION`/`$RBENV_VERSION`/`$NODENV_VERSION`,
-`$IN_NIX_SHELL`, `$GUIX_ENVIRONMENT`, `$DEVBOX_SHELL_ENABLED`,
-`$DEVENV_ROOT`, `$DIRENV_DIR`, `$CONDA_DEFAULT_ENV` and
-`$VIRTUAL_ENV_PROMPT`/`$VIRTUAL_ENV` - variables the tools export, so a draw
-costs no probe and no fork. mise is named only where a config file between
-the directory and `~` overrides the global one, so an activated mise with
-nothing but `~/.tool-versions` stays off the prompt. A `.venv` is named for
-the directory holding it, not for itself. `_HI_ENV_ORDER` reorders the list
-or drops words from it, and `_HI_DISABLE_ENV_STATUS=1` turns the whole
-segment off.
-
-hi stands down for a tool already drawing its own prefix, so nothing appears
-twice: a `source .venv/bin/activate` keeps its own `(myproj)` in zsh and fish,
-where the shell holds on to the prompt the activate script edited. bash is the
-exception - hi rebuilds `$PS1` on every draw, so the activate script's prefix
-cannot survive there and hi draws the segment itself. The upshot is that a
-venv is named in all three shells, in the venv's styling under zsh and fish
-and in hi's under bash; direnv, nix and the rest have no prefix of their own
-and are always hi's.
-
-To get hi's styling and naming everywhere instead, silence the tool's own
-prefix the way the tool documents: `VIRTUAL_ENV_DISABLE_PROMPT=1` for a venv
-(`export` it before you activate) and `conda config --set changeps1 false`.
-With no prefix of its own on screen, hi draws the segment in every shell -
-which is also how a `.venv` stops reading as `(.venv)`, since a venv names
-itself after its own directory and hi names it after the project holding it.
-hi never sets those two for you: they are your setting, and every other shell
-and prompt you open reads them too.
 
 `_HI_DISABLE_MARKS` turns off the two escapes every hi prompt emits for
 terminals that read them — kitty, WezTerm, ghostty, foot, iTerm2, Konsole:
