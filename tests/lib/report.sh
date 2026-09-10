@@ -40,6 +40,13 @@ function _hi_case() {
   "$@" || _HI_FAILED=$((_HI_FAILED + 1))
 }
 
+# The fixed predicates every harness suite's own cases feed _hi_check/
+# _hi_assert/_hi_par_case to prove the assertion machinery itself - a
+# HI.34 case for the helper more than one suite needs living here instead
+# of being copied.
+function _hi_true() { return 0; }
+function _hi_false() { return 1; }
+
 # Runs "$@" (a predicate function or command) and reports it under $1 as a
 # human-readable label. The unit suites always want this wrapped in _hi_case,
 # which is what _hi_check below is; the e2e suites bring their own case
@@ -100,7 +107,7 @@ function _hi_skip() {
 # test_runner.sh, which sums every suite's into the pass/fail/skip columns of
 # its summary table. $_HI_COUNTS_FILE is only set when running under the
 # runner, so a suite executed on its own is a no-op here. A suite that exits
-# before reporting (_hi_require's skip path) contributes nothing, which is why
+# before reporting (_hi_require_bin's skip path) contributes nothing, which is why
 # the runner renders "-" rather than 0 for those. _hi_suite_end calls this for
 # every suite built on the standard counters; the four tests/lint/*_test.sh
 # suites, whose unit is files rather than cases, report through
@@ -230,7 +237,7 @@ function _hi_suite_end() {
 }
 
 # _hi_stand_down <reason> [message] - the whole suite stops here, honestly:
-# yellow note, SKIP reported to the runner, exit 0. _hi_require covers
+# yellow note, SKIP reported to the runner, exit 0. _hi_require_bin covers
 # requirements known at startup; this is also for *runtime* failures (an image
 # that didn't build, a cluster that never came up), which must report a skip
 # rather than exiting 0 unreported and painting the suite green.
@@ -240,13 +247,13 @@ function _hi_stand_down() {
   exit 0
 }
 
-function _hi_require() {
+function _hi_require_bin() {
   command -v "$1" >/dev/null 2>&1 && return 0
   _hi_stand_down "no $1" "$1 ${2:-not installed}, skipping"
 }
 
 function _hi_require_backend() {
-  _hi_require "$@"
+  _hi_require_bin "$@"
   "$1" info >/dev/null 2>&1 && return 0
   _hi_stand_down "$1 unreachable" "$1 not reachable, skipping"
 }

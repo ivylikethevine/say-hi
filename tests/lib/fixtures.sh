@@ -81,9 +81,11 @@ _HI_TEST_RAMP='yellow bryellow green brgreen magenta brmagenta red brred'
 # the floor here is 3.2.
 _HI_RECT_MB='─' # the box glyphs' own fill, so it is never a stranger here
 function _hi_table_is_rectangular() {
-  local line stripped plain width=0 len seen=0
-  while IFS= read -r line; do
-    stripped="$(_hi_strip_ansi "$line")"
+  local stripped plain width=0 len seen=0
+  # _hi_strip_ansi once over the whole text, not once per line: sed is
+  # already line-oriented (none of its patterns span a newline), so this
+  # reads identically for 2 forks total instead of 2 per line.
+  while IFS= read -r stripped; do
     case "$stripped" in
     [+\|┌├└│]*)
       if [ "${#_HI_RECT_MB}" = 1 ]; then
@@ -103,7 +105,7 @@ function _hi_table_is_rectangular() {
     # since two tables in one output need not share a width
     *) width=0 ;;
     esac
-  done <<<"$1"
+  done <<<"$(_hi_strip_ansi "$1")"
   [ "$seen" -eq 1 ]
 }
 
@@ -461,6 +463,18 @@ function _hi_scratch_tree() {
   mkdir -p "$root"
   for dir in "$@"; do cp -r "$_HI_ROOT/$dir" "$root/"; done
   printf '%s' "$_HI_WORKDIR/$name"
+}
+
+# _hi_subcmd_run <home> <args...> - runs a _hi_scratch_tree's hi.sh as a
+# process, $_HI_HOME pointed at <home>. tests/hi/parse_test.sh and
+# tests/scripts/update_test.sh both drive hi's local sub-commands
+# (--install, --update, ...) this way, since the case block that answers
+# them is on the far side of hi.sh's BASH_SOURCE hatch and cannot be reached
+# by sourcing.
+function _hi_subcmd_run() {
+  local home="$1"
+  shift
+  (_HI_HOME="$home" "$home/say-hi/hi.sh" "$@" 2>&1)
 }
 
 # _hi_settings_fixture <name> <fn...> - run <fn...> with $_HI_ROOT,

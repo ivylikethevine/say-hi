@@ -366,7 +366,7 @@ function test_a_new_commit_drops_the_describe_memo() {
 }
 
 function run_git_prompt_tests() {
-  _hi_require git
+  _hi_require_bin git
 
   _hi_workdir gitprompttest
 

@@ -18,9 +18,17 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # function in a child bash rooted at <home>. The child re-derives every rc
 # path from that $HOME; stdout is squelched (the functions narrate), stderr
 # kept for a real failure.
-function _hi_rc_in() {
-  local home="$1"
-  shift
+# _hi_rc_probe <silent|output> <home> <env...> -- <args...> - the rc.sh case
+# rig both _hi_rc_in and _hi_rc_out run: a fabricated $HOME and
+# $XDG_CONFIG_HOME (the latter follows the former - the harness points it at
+# a throwaway, and fish's rc lives under it), $_HI_RC_PRELUDE eval'd after
+# the sources for a case that has to stage a box (a shell that is not there,
+# a platform this is not), then <args...>. <silent> discards stdout, for
+# _hi_rc_in's callers, which read the filesystem instead; <output> captures
+# stdout+stderr combined, for _hi_rc_out's.
+function _hi_rc_probe() {
+  local capture="$1" home="$2"
+  shift 2
   local -a envs=()
   while [ "${1:-}" != -- ]; do
     envs+=("$1")
@@ -28,17 +36,20 @@ function _hi_rc_in() {
   done
   shift
   mkdir -p "$home"
-  # XDG_CONFIG_HOME follows the fabricated home (the harness points it at a
-  # throwaway, and fish's rc lives under it); $_HI_RC_PRELUDE is eval'd after
-  # the sources, for a case that has to stage a box - a shell that is not
-  # there, a platform this is not
-  env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c '
+  local script='
     source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/scripts/lib.sh"
     source "$_HI_HOME/say-hi/scripts/rc.sh"
     eval "${_HI_RC_PRELUDE:-}"
-    "$@"' rc_probe "$@" >/dev/null
+    "$@"'
+  if [ "$capture" = silent ]; then
+    env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c "$script" rc_probe "$@" >/dev/null
+  else
+    env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c "$script" rc_probe "$@" 2>&1
+  fi
 }
+
+function _hi_rc_in() { _hi_rc_probe silent "$@"; }
 
 # every roster shell "installed", whatever this box has: the roster cases
 # are about the lines, not about which shells are here
@@ -256,22 +267,7 @@ function test_check_shell_configs_names_the_broken_roster_file() {
 
 # _hi_rc_out - _hi_rc_in with the transcript kept, for the cases that assert
 # on what was said rather than on the files
-function _hi_rc_out() {
-  local home="$1"
-  shift
-  local -a envs=()
-  while [ "${1:-}" != -- ]; do
-    envs+=("$1")
-    shift
-  done
-  shift
-  mkdir -p "$home"
-  env HOME="$home" XDG_CONFIG_HOME="$home/.config" ${envs[@]+"${envs[@]}"} bash -c '
-    source "$_HI_HOME/say-hi/common/core.sh"
-    source "$_HI_HOME/say-hi/scripts/lib.sh"
-    source "$_HI_HOME/say-hi/scripts/rc.sh"
-    "$@"' rc_probe "$@" 2>&1
-}
+function _hi_rc_out() { _hi_rc_probe output "$@"; }
 
 # config_validate_shells at a terminal: the one question install.sh asks.
 # A y goes on; an n aborts, in words.

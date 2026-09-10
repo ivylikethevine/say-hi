@@ -210,36 +210,36 @@ EOF
     _HI_LIST_PATHS=1
     ;;
   --require-run) _HI_REQUIRE_RUN=1 ;;
-  --totals-file)
-    [ "$#" -ge 2 ] || {
+  --totals-file | --totals-file=*)
+    _hi_flag_word _HI_TOTALS_FILE "$@" || case $? in
+    2) shift ;;
+    *)
       _hi_cecho "test_runner.sh: --totals-file needs a value" "$RED" >&2
       exit 1
-    }
-    _HI_TOTALS_FILE="$2"
-    shift
+      ;;
+    esac
     ;;
-  --totals-file=*) _HI_TOTALS_FILE="${1#--totals-file=}" ;;
   # the flag half of _HI_VERBOSE; the default below is `:-0`, so setting it
   # here wins and the two spellings need no further reconciling
   --verbose) _HI_VERBOSE=1 ;;
-  --group)
-    [ "$#" -ge 2 ] || {
+  --group | --group=*)
+    _hi_flag_word _HI_GROUP "$@" || case $? in
+    2) shift ;;
+    *)
       _hi_cecho "test_runner.sh: --group needs a value" "$RED" >&2
       exit 1
-    }
-    _HI_GROUP="$2"
-    shift
+      ;;
+    esac
     ;;
-  --group=*) _HI_GROUP="${1#--group=}" ;;
-  --shard)
-    [ "$#" -ge 2 ] || {
+  --shard | --shard=*)
+    _hi_flag_word _HI_SHARD "$@" || case $? in
+    2) shift ;;
+    *)
       _hi_cecho "test_runner.sh: --shard needs a value" "$RED" >&2
       exit 1
-    }
-    _HI_SHARD="$2"
-    shift
+      ;;
+    esac
     ;;
-  --shard=*) _HI_SHARD="${1#--shard=}" ;;
   *) _HI_ARGS+=("$1") ;;
   esac
   shift
@@ -418,7 +418,7 @@ function _hi_collect_suite() {
   fi
 
   # empty unless the suite reached _hi_suite_end - a suite that reports its own
-  # way contributes no cases. A leading SKIP instead of a tally is _hi_require's
+  # way contributes no cases. A leading SKIP instead of a tally is _hi_require_bin's
   # doing: the suite stood down (no backend, no binary) without running a case,
   # and exits 0 doing it, so only this tells the two apart from a real pass.
   # The tally is "<total> <failed> [skipped]"; the SKIP reason is read whole
@@ -504,7 +504,9 @@ function _hi_collect_suite() {
 # once would interleave; bench measures timings; e2e and backends contend on
 # one container daemon. The width is the CPU count: the unit suites are plain
 # processes, and the daemon-bound groups below are pinned to one anyway.
-# $_HI_RUNNER_WIDTH overrides (1 is a plain serial run).
+# $_HI_RUNNER_WIDTH overrides (1 is a plain serial run) - both phases below,
+# since a bench/e2e/backends suite in the selection no longer collapses the
+# whole run to width 1, only its own phase.
 _HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-}"
 if [ -z "$_HI_RUNNER_WIDTH" ]; then
   _HI_RUNNER_WIDTH="$(_hi_host_cores)"
@@ -512,13 +514,23 @@ if [ -z "$_HI_RUNNER_WIDTH" ]; then
 fi
 [ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1
 [ "$_HI_VERBOSE" = 1 ] && _HI_RUNNER_WIDTH=1
+
+# Split the selection into what can run side by side and what cannot
+# (bench/e2e/backends contend on one container daemon, or measure timings
+# that parallel noise would corrupt), each keeping its own table order. A
+# `--group` run is homogeneous, so one of the two is always empty and this
+# is a no-op split; a bare `test_runner.sh` is the case it is for.
+declare -a _HI_SELECTED_PAR=() _HI_SELECTED_SER=()
 for _hi_t in "${_HI_SELECTED[@]}"; do
-  case "${_hi_t%%:*}" in bench | e2e | backends) _HI_RUNNER_WIDTH=1 ;; esac
+  case "${_hi_t%%:*}" in
+  bench | e2e | backends) _HI_SELECTED_SER+=("$_hi_t") ;;
+  *) _HI_SELECTED_PAR+=("$_hi_t") ;;
+  esac
 done
-[ "$_HI_RUNNER_WIDTH" -le 1 ] || [ "${#_HI_SELECTED[@]}" -le 1 ] ||
+
+[ "$_HI_RUNNER_WIDTH" -le 1 ] || [ "${#_HI_SELECTED_PAR[@]}" -le 1 ] ||
   _hi_cecho " | $_HI_RUNNER_WIDTH suites at a time, transcripts replayed in table order (_HI_RUNNER_WIDTH=1 for one by one)" "$BLUE"
 
-declare -a _HI_RUN_NAMES=()
 declare -a _hi_running=()
 
 # the one spelling of a suite invocation, for all three paths below - the
@@ -528,74 +540,87 @@ function _hi_run_suite() {
   _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
 }
 
-_hi_i=0
-for _hi_t in "${_HI_SELECTED[@]}"; do
-  # the accessors' own expansions, inlined: this runs once per selected suite
-  # and both fields come off the one row, so two forks a suite bought nothing
-  _hi_rest="${_hi_t#*:}"
-  _hi_name="${_hi_rest%%:*}"
-  _hi_path="$_HI_TESTS_DIR/${_hi_t##*:}"
-  _hi_i=$((_hi_i + 1))
-  _hi_counts="$_HI_RUN_DIR/$_hi_i.counts"
-  _hi_fails="$_HI_RUN_DIR/$_hi_i.fails"
-  _hi_log="$_HI_RUN_DIR/$_hi_i.log"
-  : >"$_hi_counts"
-  : >"$_hi_fails"
-  _HI_RUN_NAMES+=("$_hi_name")
-
-  if [ ! -f "$_hi_path" ]; then
-    printf 'MISSING 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
-    printf '%s' "$_hi_path" >"$_hi_log"
-    [ "$_HI_RUNNER_WIDTH" -gt 1 ] || _hi_collect_suite "$_hi_name" MISSING 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
-    continue
-  fi
-
-  if [ "$_HI_RUNNER_WIDTH" -gt 1 ]; then
-    # a slot: `wait <pid>` in turn and never `wait -n` (bash 3.2)
-    while [ "${#_hi_running[@]}" -ge "$_HI_RUNNER_WIDTH" ]; do
-      _hi_keep=()
-      for _hi_pid in "${_hi_running[@]}"; do
-        if kill -0 "$_hi_pid" 2>/dev/null; then _hi_keep+=("$_hi_pid"); else wait "$_hi_pid" 2>/dev/null || true; fi
-      done
-      _hi_running=(${_hi_keep[@]+"${_hi_keep[@]}"})
-      [ "${#_hi_running[@]}" -ge "$_HI_RUNNER_WIDTH" ] && sleep 0.05
-    done
-    (
-      _hi_t0="$(_hi_now)"
-      if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
-      printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
-    ) &
-    _hi_running+=("$!")
-    continue
-  fi
-
-  _hi_h2 "Running $_hi_name"
-  _hi_t0="$(_hi_now)"
-  if [ "$_HI_VERBOSE" = 1 ]; then
-    if _hi_run_suite; then _hi_code=0; else _hi_code=$?; fi
-  else
-    if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
-  fi
-  _hi_restore_tty
-  _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
-done
-
-# the parallel run's collection pass, in table order: wait out every suite
-# subshell at once (each wrote its verdict to its own .rc file, so per-pid
-# bookkeeping buys nothing), then tally and replay each exactly as the serial
-# loop above would have
-if [ "$_HI_RUNNER_WIDTH" -gt 1 ]; then
-  wait
-  _hi_i=0
-  for _hi_name in "${_HI_RUN_NAMES[@]}"; do
+# _hi_run_batch <width> <suite-entry...> - the scheduling loop plus its
+# parallel-run collection pass, over one homogeneous batch. $_hi_i is global
+# and never reset between calls, so the two batches' $_HI_RUN_DIR files never
+# collide; _hi_running is local, so each batch's semaphore starts empty.
+function _hi_run_batch() {
+  local width="$1" _hi_t _hi_rest _hi_name _hi_path _hi_counts _hi_fails _hi_log
+  local _hi_t0 _hi_code _hi_pid _hi_dur _hi_batch_i0=$_hi_i
+  local -a _hi_running=() _hi_keep=() _hi_batch_names=()
+  shift
+  for _hi_t in "$@"; do
+    # the accessors' own expansions, inlined: this runs once per selected
+    # suite and both fields come off the one row, so two forks bought nothing
+    _hi_rest="${_hi_t#*:}"
+    _hi_name="${_hi_rest%%:*}"
+    _hi_path="$_HI_TESTS_DIR/${_hi_t##*:}"
     _hi_i=$((_hi_i + 1))
-    _hi_code=1 _hi_dur=0
-    [ -f "$_HI_RUN_DIR/$_hi_i.rc" ] && read -r _hi_code _hi_dur <"$_HI_RUN_DIR/$_hi_i.rc"
+    _hi_counts="$_HI_RUN_DIR/$_hi_i.counts"
+    _hi_fails="$_HI_RUN_DIR/$_hi_i.fails"
+    _hi_log="$_HI_RUN_DIR/$_hi_i.log"
+    : >"$_hi_counts"
+    : >"$_hi_fails"
+    _hi_batch_names+=("$_hi_name")
+
+    if [ ! -f "$_hi_path" ]; then
+      printf 'MISSING 0\n' >"$_HI_RUN_DIR/$_hi_i.rc"
+      printf '%s' "$_hi_path" >"$_hi_log"
+      [ "$width" -gt 1 ] || _hi_collect_suite "$_hi_name" MISSING 0 "$_hi_counts" "$_hi_fails" "$_hi_log"
+      continue
+    fi
+
+    if [ "$width" -gt 1 ]; then
+      # a slot: `wait <pid>` in turn and never `wait -n` (bash 3.2)
+      while [ "${#_hi_running[@]}" -ge "$width" ]; do
+        _hi_keep=()
+        for _hi_pid in "${_hi_running[@]}"; do
+          if kill -0 "$_hi_pid" 2>/dev/null; then _hi_keep+=("$_hi_pid"); else wait "$_hi_pid" 2>/dev/null || true; fi
+        done
+        _hi_running=(${_hi_keep[@]+"${_hi_keep[@]}"})
+        [ "${#_hi_running[@]}" -ge "$width" ] && sleep 0.05
+      done
+      (
+        _hi_t0="$(_hi_now)"
+        if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+        printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
+      ) &
+      _hi_running+=("$!")
+      continue
+    fi
+
     _hi_h2 "Running $_hi_name"
+    _hi_t0="$(_hi_now)"
+    if [ "$_HI_VERBOSE" = 1 ]; then
+      if _hi_run_suite; then _hi_code=0; else _hi_code=$?; fi
+    else
+      if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
+    fi
     _hi_restore_tty
-    _hi_collect_suite "$_hi_name" "$_hi_code" "$_hi_dur" "$_HI_RUN_DIR/$_hi_i.counts" "$_HI_RUN_DIR/$_hi_i.fails" "$_HI_RUN_DIR/$_hi_i.log"
+    _hi_collect_suite "$_hi_name" "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" "$_hi_counts" "$_hi_fails" "$_hi_log"
   done
-fi
+
+  # the parallel run's collection pass, in table order: wait out every suite
+  # subshell at once (each wrote its verdict to its own .rc file, so per-pid
+  # bookkeeping buys nothing), then tally and replay each exactly as the
+  # serial loop above would have
+  if [ "$width" -gt 1 ]; then
+    wait
+    _hi_i=$_hi_batch_i0
+    for _hi_name in ${_hi_batch_names[@]+"${_hi_batch_names[@]}"}; do
+      _hi_i=$((_hi_i + 1))
+      _hi_code=1 _hi_dur=0
+      [ -f "$_HI_RUN_DIR/$_hi_i.rc" ] && read -r _hi_code _hi_dur <"$_HI_RUN_DIR/$_hi_i.rc"
+      _hi_h2 "Running $_hi_name"
+      _hi_restore_tty
+      _hi_collect_suite "$_hi_name" "$_hi_code" "$_hi_dur" "$_HI_RUN_DIR/$_hi_i.counts" "$_HI_RUN_DIR/$_hi_i.fails" "$_HI_RUN_DIR/$_hi_i.log"
+    done
+  fi
+}
+
+_hi_i=0
+_hi_run_batch "$_HI_RUNNER_WIDTH" ${_HI_SELECTED_PAR[@]+"${_HI_SELECTED_PAR[@]}"}
+_hi_run_batch 1 ${_HI_SELECTED_SER[@]+"${_HI_SELECTED_SER[@]}"}
 
 _hi_h1 "Summary"
 _hi_width=5 # "TOTAL" is the widest the name column can need on its own

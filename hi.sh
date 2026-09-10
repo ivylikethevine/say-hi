@@ -125,54 +125,10 @@ function _hi_overlay_files() {
   return 0
 }
 
-# _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
-# state (the ControlMaster socket, the payload/overlay caches), or empty when
-# there is none hi can vouch for: $XDG_RUNTIME_DIR, else a `mkdir -m 700`
-# directory of hi's own under ${TMPDIR:-/tmp}, never adopted if something else
-# is already there and ownership-checked before use. Every caller degrades
-# rather than trust a directory it cannot vouch for. common/targets.sh keeps
-# its own copy of this - it is standalone POSIX and sources nothing - so the
-# two only stay in step by comment.
-function _hi_runtime_dir() {
-  # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
-  # outvar and the assignment would never leave this function
-  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid _hi_rtd_owner
-  # Memoized one deep and keyed on what it reads: a connect asks up to five
-  # times, and without $XDG_RUNTIME_DIR each miss costs the id/ls branch below.
-  # Keyed rather than a bare memo because cache_test.sh asks against several
-  # $TMPDIRs in one process. Only a *found* directory is remembered - the one
-  # it wanted can appear between two calls, and caching "no" would hold a
-  # client to the degraded path for the rest of its life.
-  local _hi_rtd_key="${XDG_RUNTIME_DIR:-}|${TMPDIR:-}"
-  if [ "${_HI_RTD_KEY:-}" = "$_hi_rtd_key" ] && [ -n "${_HI_RTD_MEMO:-}" ]; then
-    printf -v "$1" '%s' "$_HI_RTD_MEMO"
-    return 0
-  fi
-  if [ -z "$_hi_rtd_dir" ] || [ ! -d "$_hi_rtd_dir" ]; then
-    # $EUID is bash's own, no fork; targets.sh keeps `id -u`, being POSIX
-    _hi_rtd_uid="${EUID:-$(exec id -u 2>/dev/null)}"
-    [ -n "$_hi_rtd_uid" ] || _hi_rtd_uid=unknown
-    _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
-    [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
-    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ]; then
-      printf -v "$1" ''
-      return 0
-    fi
-    # shellcheck disable=SC2012 # `find -user` takes a user *name*, which a
-    # host with no passwd entry cannot supply; SC2012's hazard is parsing file
-    # *names* out of ls, and this reads a fixed column off a path it built
-    # itself. `-n` gives the owner as a number, so one comparison answers for
-    # a host with a passwd entry and one without alike.
-    _hi_rtd_owner="$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
-    if [ -z "$_hi_rtd_owner" ] || [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; then
-      printf -v "$1" ''
-      return 0
-    fi
-  fi
-  _HI_RTD_KEY="$_hi_rtd_key"
-  _HI_RTD_MEMO="$_hi_rtd_dir"
-  printf -v "$1" '%s' "$_hi_rtd_dir"
-}
+# _hi_runtime_dir now lives in common/core.sh (sourced above), so hi.sh's own
+# copy no longer trades a "stay in step by comment" hazard with
+# common/targets.sh's - only that one standalone-POSIX file has a copy of
+# its own left to keep in step.
 
 # tar's own arguments, gzip in a second process rather than `z`: bsdtar pads
 # the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip
@@ -520,11 +476,11 @@ function _hi_is_k8s_pod() {
 # "<name>|<what a target resolves as>|<liveness probe>|<predicate>". One list
 # for _hi's dispatch and scripts/doctor.sh's report. The family rows are the
 # docker-compatible CLIs, every one of them, each with a generated one-word
-# predicate. The same four words are spelled in common/targets.sh and
-# common/header.sh, which cannot read this array; the drift suite pins the
-# three together. GLOSSARY: HI.51
+# predicate: $_HI_CONTAINER_CLIS (core.sh), which common/targets.sh cannot
+# read and spells again on its own - the drift suite pins the two together.
+# GLOSSARY: HI.51
 _HI_BACKENDS=()
-for _hi_cli in docker podman nerdctl finch; do
+for _hi_cli in $_HI_CONTAINER_CLIS; do
   eval "function _hi_is_${_hi_cli}_container() { _hi_is_family_container $_hi_cli \"\$1\"; }"
   _HI_BACKENDS+=("$_hi_cli|$_hi_cli container|$_hi_cli ps -q|_hi_is_${_hi_cli}_container")
 done
@@ -1416,6 +1372,15 @@ function _hi_only_word() {
   }
 }
 
+# _hi_help_or_version "$@" - -h/--help/-V/--version, wherever they are read
+# from: _hi_parse answers them ahead of the target, and the top-level dispatch
+# answers them again when they are hi's only argument. One arm for the pair.
+function _hi_help_or_version() {
+  _hi_only_word "$@"
+  case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
+  exit 0
+}
+
 # split ssh's arguments from the target and any trailing remote command
 function _hi_parse() {
   local backend_word use_word takes own=""
@@ -1443,9 +1408,7 @@ function _hi_parse() {
     # hi's own -h/-V, anywhere ahead of the target: `hi -o X=Y -h` is a
     # question for hi, not ssh's usage message
     -h | --help | -V | --version)
-      _hi_only_word "$@"
-      case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
-      exit 0
+      _hi_help_or_version "$@"
       ;;
     # ssh takes no `--word` option at all, so every one is hi's to answer -
     # the ones below, or an error in hi's own voice
@@ -1898,40 +1861,7 @@ case "${1:-}" in
 # "which version of hi is this" is what a bug report asks first and `ssh -V`
 # is a keystroke away. One arm, the way _hi_parse answers the pair.
 -h | --help | -V | --version)
-  _hi_only_word "$@"
-  case $1 in -h | --help) _hi_help ;; *) _hi_version_line ;; esac
-  exit 0
-  ;;
-# --preview <subject>: one scripts/preview.sh for all three, so it wants
-# scripts/ and says so in a session like the other local commands.
---preview | --preview=*)
-  _hi_flag_word _hi_subject "$@" || [ $? -ne 2 ] || shift
-  shift
-  # shellcheck disable=SC2154 # _hi_flag_word's printf -v assigned it
-  case "$_hi_subject" in
-  colors | packages | header)
-    _hi_run_script "--preview $_hi_subject" "$_HI_PREVIEW" "$_hi_subject" "$@"
-    ;;
-  -h | --help)
-    cat <<'EOF'
-Usage: hi --preview <subject>
-
-One of:
-
-  colors     every ssh host and your user, in their resolved colors, and
-             why (a pin, a tag, a pattern or the hash)
-  packages   the package-priority legend, as the header's check prints it
-  header     the connect header, as it prints here at your settings
-
-All three need scripts/, so inside a session --preview says so and stops.
-EOF
-    exit 0
-    ;;
-  *)
-    _hi_cecho "hi --preview: one of colors, packages or header${_hi_subject:+ (not $_hi_subject)}" "$RED" >&2
-    exit 1
-    ;;
-  esac
+  _hi_help_or_version "$@"
   ;;
 esac
 

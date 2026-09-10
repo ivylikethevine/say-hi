@@ -27,7 +27,7 @@ set -euo pipefail
 source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # containers and images this suite owns, so a concurrent ssh_test.sh run cannot
-# collide with one of ours (tests/lib/ssh.sh's _hi_run_case reads this)
+# collide with one of ours (tests/lib/ssh.sh's _hi_ssh_run_case reads this)
 _HI_SSH_CASE_PREFIX=hi-instmethods
 _HI_IMAGES=()
 
@@ -77,7 +77,7 @@ function _hi_build_packages() {
 # - that the installed tree is still there and untouched.
 function _hi_method_case() {
   local label="$1" image="$2" shell="$3" root="$4" post="${5:-}"
-  _hi_run_case "$label" "$image" "$shell" \
+  _hi_ssh_run_case "$label" "$image" "$shell" \
     "$(_hi_probe_cmd "$_HI_TEST_MARKER" rooted_elsewhere "$root")" \
     "$post"
 }
@@ -95,67 +95,118 @@ function run_install_methods_tests() {
   _hi_h2 "Building test images"
   local debian_ok=1 fedora_ok=0 alpine_ok=0 pkgs_ok=0
   local deb_ok=0 rpm_ok=0 apk_ok=0 brew_ok=0 prefix_ok=0 unann_ok=0 ctx
-  _hi_sshd_image "every install method" || debian_ok=0
 
-  _hi_build_packages && pkgs_ok=1
+  # All eight possible image names, registered upfront rather than as each
+  # build is attempted: a chain that never ran (its prerequisite failed, or
+  # a later step in it never got a base to build on) needs no image removed,
+  # and `docker image rm -f` on a name that was never built is already a
+  # no-op - the same rule the half-built-tag case always relied on.
+  _HI_IMAGES=(
+    "$_HI_SSH_CASE_PREFIX-deb-img-$$" "$_HI_SSH_CASE_PREFIX-fedora-$$" "$_HI_SSH_CASE_PREFIX-rpm-img-$$"
+    "$_HI_SSH_CASE_PREFIX-alpine-$$" "$_HI_SSH_CASE_PREFIX-apk-img-$$" "$_HI_SSH_CASE_PREFIX-brew-img-$$"
+    "$_HI_SSH_CASE_PREFIX-prefix-img-$$" "$_HI_SSH_CASE_PREFIX-unann-img-$$"
+  )
 
-  if [ "$pkgs_ok" -eq 1 ] && [ "$debian_ok" -eq 1 ] &&
-    ctx="$(_hi_pkg_context deb '*.deb' pkg.deb)"; then
-    _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-deb-img-$$")
-    _hi_build_image deb "$_HI_SSH_CASE_PREFIX-deb-img-$$" "the .deb case" \
-      --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      --build-arg "PKG=pkg.deb" -f "$(_hi_dockerfile installed-pkg)" "$ctx" && deb_ok=1
-  fi
+  # Two independent prerequisites every chain below needs at least one of,
+  # backgrounded together. $_HI_PKG_DIST and $_HI_SSHD_IMAGE are both fixed
+  # paths a chain's own subshell can already see (set here and by
+  # tests/lib/ssh.sh respectively, neither one a build's own output), so
+  # nothing downstream needs to cross back out of a subshell to reach them.
+  _HI_PKG_DIST="$_HI_ROOT/dist"
+  (
+    if _hi_sshd_image "every install method"; then printf '1' >"$_HI_WORKDIR/debian.built"; else printf '0' >"$_HI_WORKDIR/debian.built"; fi
+  ) >"$_HI_WORKDIR/debian.par.log" 2>&1 &
+  (
+    if _hi_build_packages; then printf '1' >"$_HI_WORKDIR/pkgs.built"; else printf '0' >"$_HI_WORKDIR/pkgs.built"; fi
+  ) >"$_HI_WORKDIR/pkgs.par.log" 2>&1 &
+  wait
+  cat "$_HI_WORKDIR/debian.par.log"
+  debian_ok="$(cat "$_HI_WORKDIR/debian.built" 2>/dev/null || printf 0)"
+  cat "$_HI_WORKDIR/pkgs.par.log"
+  pkgs_ok="$(cat "$_HI_WORKDIR/pkgs.built" 2>/dev/null || printf 0)"
 
-  if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context rpm '*.rpm' pkg.rpm)"; then
-    mkdir -p "$_HI_WORKDIR/fedora"
-    # shellcheck disable=SC2016 # entrypoint.sh content, resolved on the container
-    _hi_sshd_entrypoint "$_HI_WORKDIR/fedora" /bin/bash 'usermod -s "${LOGIN_SHELL:-/bin/bash}" hitest'
-    _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-fedora-$$")
-    _hi_build_image fedora "$_HI_SSH_CASE_PREFIX-fedora-$$" "the .rpm case's base" \
-      -f "$(_hi_dockerfile sshd-fedora)" "$_HI_WORKDIR/fedora" && fedora_ok=1
-    if [ "$fedora_ok" -eq 1 ]; then
-      _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-rpm-img-$$")
-      _hi_build_image rpm "$_HI_SSH_CASE_PREFIX-rpm-img-$$" "the .rpm case" \
-        --build-arg "BASE=$_HI_SSH_CASE_PREFIX-fedora-$$" \
-        --build-arg "PKG=pkg.rpm" -f "$(_hi_dockerfile installed-pkg)" "$ctx" && rpm_ok=1
+  # Five chains, independent of each other (none reads another's image or
+  # verdict), backgrounded together: within one, a step still waits on the
+  # step before it (rpm on fedora, unann on prefix) - that ordering is real
+  # and stays inside the chain's own subshell. Each writes its verdict(s) to
+  # $_HI_WORKDIR/<suffix>.built (one flag=value line per step of the chain)
+  # and its own heading/log-dump text to <suffix>.par.log, replayed in table
+  # order below once every chain is done.
+  (
+    if [ "$pkgs_ok" -eq 1 ] && [ "$debian_ok" -eq 1 ] &&
+      ctx="$(_hi_pkg_context deb '*.deb' pkg.deb)"; then
+      if _hi_build_image deb "$_HI_SSH_CASE_PREFIX-deb-img-$$" "the .deb case" \
+        --build-arg "BASE=$_HI_SSHD_IMAGE" \
+        --build-arg "PKG=pkg.deb" -f "$(_hi_dockerfile installed-pkg)" "$ctx"; then
+        printf 'deb_ok=1\n' >"$_HI_WORKDIR/deb.built"
+      fi
     fi
-  fi
+  ) >"$_HI_WORKDIR/deb.par.log" 2>&1 &
 
-  if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context apk '*.apk' pkg.apk)"; then
-    mkdir -p "$_HI_WORKDIR/alpine"
-    _hi_sshd_entrypoint "$_HI_WORKDIR/alpine" /bin/sh
-    _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-alpine-$$")
-    _hi_build_image alpine "$_HI_SSH_CASE_PREFIX-alpine-$$" "the .apk case's base" \
-      --build-arg "PKGS=" \
-      -f "$(_hi_dockerfile sshd-alpine)" "$_HI_WORKDIR/alpine" && alpine_ok=1
-    if [ "$alpine_ok" -eq 1 ]; then
-      _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-apk-img-$$")
-      _hi_build_image apk "$_HI_SSH_CASE_PREFIX-apk-img-$$" "the .apk case" \
-        --build-arg "BASE=$_HI_SSH_CASE_PREFIX-alpine-$$" \
-        --build-arg "PKG=pkg.apk" -f "$(_hi_dockerfile installed-pkg)" "$ctx" && apk_ok=1
+  (
+    if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context rpm '*.rpm' pkg.rpm)"; then
+      mkdir -p "$_HI_WORKDIR/fedora"
+      # shellcheck disable=SC2016 # entrypoint.sh content, resolved on the container
+      _hi_sshd_entrypoint "$_HI_WORKDIR/fedora" /bin/bash 'usermod -s "${LOGIN_SHELL:-/bin/bash}" hitest'
+      if _hi_build_image fedora "$_HI_SSH_CASE_PREFIX-fedora-$$" "the .rpm case's base" \
+        -f "$(_hi_dockerfile sshd-fedora)" "$_HI_WORKDIR/fedora"; then
+        printf 'fedora_ok=1\n' >"$_HI_WORKDIR/rpm.built"
+        if _hi_build_image rpm "$_HI_SSH_CASE_PREFIX-rpm-img-$$" "the .rpm case" \
+          --build-arg "BASE=$_HI_SSH_CASE_PREFIX-fedora-$$" \
+          --build-arg "PKG=pkg.rpm" -f "$(_hi_dockerfile installed-pkg)" "$ctx"; then
+          printf 'rpm_ok=1\n' >>"$_HI_WORKDIR/rpm.built"
+        fi
+      fi
     fi
-  fi
+  ) >"$_HI_WORKDIR/rpm.par.log" 2>&1 &
 
-  if [ "$debian_ok" -eq 1 ]; then
-    _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-brew-img-$$")
-    _hi_build_image brew "$_HI_SSH_CASE_PREFIX-brew-img-$$" "the Homebrew keg case" \
+  (
+    if [ "$pkgs_ok" -eq 1 ] && ctx="$(_hi_pkg_context apk '*.apk' pkg.apk)"; then
+      mkdir -p "$_HI_WORKDIR/alpine"
+      _hi_sshd_entrypoint "$_HI_WORKDIR/alpine" /bin/sh
+      if _hi_build_image alpine "$_HI_SSH_CASE_PREFIX-alpine-$$" "the .apk case's base" \
+        --build-arg "PKGS=" \
+        -f "$(_hi_dockerfile sshd-alpine)" "$_HI_WORKDIR/alpine"; then
+        printf 'alpine_ok=1\n' >"$_HI_WORKDIR/apk.built"
+        if _hi_build_image apk "$_HI_SSH_CASE_PREFIX-apk-img-$$" "the .apk case" \
+          --build-arg "BASE=$_HI_SSH_CASE_PREFIX-alpine-$$" \
+          --build-arg "PKG=pkg.apk" -f "$(_hi_dockerfile installed-pkg)" "$ctx"; then
+          printf 'apk_ok=1\n' >>"$_HI_WORKDIR/apk.built"
+        fi
+      fi
+    fi
+  ) >"$_HI_WORKDIR/apk.par.log" 2>&1 &
+
+  (
+    if [ "$debian_ok" -eq 1 ] && _hi_build_image brew "$_HI_SSH_CASE_PREFIX-brew-img-$$" "the Homebrew keg case" \
       --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-brew)" "$_HI_ROOT" && brew_ok=1
+      -f "$(_hi_dockerfile installed-brew)" "$_HI_ROOT"; then
+      printf 'brew_ok=1\n' >"$_HI_WORKDIR/brew.built"
+    fi
+  ) >"$_HI_WORKDIR/brew.par.log" 2>&1 &
 
-    _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-prefix-img-$$")
-    _hi_build_image prefix "$_HI_SSH_CASE_PREFIX-prefix-img-$$" "the --prefix case" \
+  (
+    if [ "$debian_ok" -eq 1 ] && _hi_build_image prefix "$_HI_SSH_CASE_PREFIX-prefix-img-$$" "the --prefix case" \
       --build-arg "BASE=$_HI_SSHD_IMAGE" \
-      -f "$(_hi_dockerfile installed-prefix)" "$_HI_ROOT" && prefix_ok=1
-  fi
+      -f "$(_hi_dockerfile installed-prefix)" "$_HI_ROOT"; then
+      printf 'prefix_ok=1\n' >"$_HI_WORKDIR/prefix.built"
+      mkdir -p "$_HI_WORKDIR/unann"
+      if _hi_build_image unann "$_HI_SSH_CASE_PREFIX-unann-img-$$" "the unannounced-tree case" \
+        --build-arg "BASE=$_HI_SSH_CASE_PREFIX-prefix-img-$$" \
+        -f "$(_hi_dockerfile installed-unannounced)" "$_HI_WORKDIR/unann"; then
+        printf 'unann_ok=1\n' >>"$_HI_WORKDIR/prefix.built"
+      fi
+    fi
+  ) >"$_HI_WORKDIR/prefix.par.log" 2>&1 &
 
-  if [ "$prefix_ok" -eq 1 ]; then
-    mkdir -p "$_HI_WORKDIR/unann"
-    _HI_IMAGES+=("$_HI_SSH_CASE_PREFIX-unann-img-$$")
-    _hi_build_image unann "$_HI_SSH_CASE_PREFIX-unann-img-$$" "the unannounced-tree case" \
-      --build-arg "BASE=$_HI_SSH_CASE_PREFIX-prefix-img-$$" \
-      -f "$(_hi_dockerfile installed-unannounced)" "$_HI_WORKDIR/unann" && unann_ok=1
-  fi
+  wait
+
+  local chain assign
+  for chain in deb rpm apk brew prefix; do
+    cat "$_HI_WORKDIR/$chain.par.log"
+    [ -f "$_HI_WORKDIR/$chain.built" ] || continue
+    while IFS= read -r assign; do eval "$assign"; done <"$_HI_WORKDIR/$chain.built"
+  done
 
   _hi_suite_begin
   _hi_pty_stdin auto

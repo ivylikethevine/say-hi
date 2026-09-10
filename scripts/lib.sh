@@ -9,6 +9,24 @@
 # common/core.sh, whose _hi_repeat, _hi_cecho and palette it uses; sourcing
 # it does nothing else.
 
+# _hi_flag_word <outvar> <flag> [next] - the word a flag takes, joined
+# (--x=y) or as the next argument (--x y): status 2 when it took <next> and
+# the caller must shift again, 1 for a bare flag with nothing after it.
+# hi.sh has its own copy of this, since it ships in the ssh payload and
+# cannot depend on a file outside common/ - two copies of six lines rather
+# than a payload file reaching into scripts/.
+function _hi_flag_word() {
+  printf -v "$1" ''
+  case "$2" in
+  *=*) printf -v "$1" '%s' "${2#*=}" ;;
+  *)
+    [ $# -ge 3 ] || return 1
+    printf -v "$1" '%s' "$3"
+    return 2
+    ;;
+  esac
+}
+
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured
 # and reapplied too, since truncate-in-place alone did not preserve it on

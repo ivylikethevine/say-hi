@@ -194,10 +194,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
   --check) _HI_CHECK_ONLY=1 ;;
   --tarball)
-    [ $# -ge 2 ] || {
-      echo "bump.sh: $1 requires a value" >&2
-      exit 1
-    }
+    _hi_need_value bump.sh "$1" "$#"
     _HI_TARBALL="$2"
     shift
     ;;

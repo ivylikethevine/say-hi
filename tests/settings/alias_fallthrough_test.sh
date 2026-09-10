@@ -425,12 +425,11 @@ function run_tool_aliases_flag_tests() {
   done
 }
 
-# settings/aliases.sh resolves vim through `command -v nvim || command -v vim`
-# and bat through `command -v bat || command -v batcat`, and scripts/
-# configure.sh's previews (_hi_editors_preview, _hi_tool_alias_preview) spell
-# the same ladders a second time to show the answer before the toggle is set.
-# Neither file can source the other (see the note above the alias), so nothing
-# but this pins them: a preview that disagrees with the alias it previews is a
+# settings/aliases.sh resolves bat through `command -v bat || command -v
+# batcat`, and scripts/configure.sh's _hi_tool_alias_preview spells the same
+# ladder a second time to show the answer before the toggle is set - neither
+# file can source the other (see the note above the alias), so nothing but
+# this pins them: a preview that disagrees with the alias it previews is a
 # lie told during install, and the only place it would surface is a user's
 # screen.
 function test_ladder_matches_the_install_preview() {
@@ -502,10 +501,9 @@ function run_alias_fallthrough_test() {
   [ -n "$missing" ] && _hi_cecho " | not installed, skipped:$missing" "$YELLOW"
 
   _hi_suite_begin
-  _hi_check "The vim ladder matches install.sh's preview" \
-    test_ladder_matches_the_install_preview 'command -v nvim || command -v vim'
-  _hi_check "The helix ladder matches install.sh's preview" \
-    test_ladder_matches_the_install_preview 'command -v hx || command -v helix'
+  # the vim/helix ladders moved to tests/scripts/configure_test.sh, which
+  # already sources configure.sh to call _hi_editors_preview - this suite
+  # only sources settings/aliases.sh
   _hi_check "The bat ladder matches install.sh's preview" \
     test_ladder_matches_the_install_preview 'command -v bat || command -v batcat'
   run_fallthrough_tests

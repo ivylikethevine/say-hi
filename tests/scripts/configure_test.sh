@@ -476,17 +476,24 @@ _HI_FLOOR_CHILD='
 # under a pty with <input> (printf %b, so \n and \004 work) on its stdin.
 # Transcript lands in $_HI_WORKDIR/<label>.floor.out. Non-zero when the child
 # had to be killed, which is the regression this is here to catch.
-function _hi_floor_pty() {
-  local label="$1" input="$2" line="${3:-}"
-  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.floor.out"
+# _hi_pty_run <child-script> <suffix> <label> <input> <line> [args...] - the
+# pty rig _hi_floor_pty and _hi_cfg_pty both run: a scratch settings.sh, the
+# input typed at a forced pty, the transcript captured to
+# $_HI_WORKDIR/<label>.<suffix>.out, timed out rather than hung forever.
+function _hi_pty_run() {
+  local child="$1" suffix="$2" label="$3" input="$4" line="${5:-}"
+  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.$suffix.out"
+  shift 5
   mkdir -p "$dir/common" "$dir/settings" "$dir/config"
   printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
   : >"$out"
   printf '%b' "$input" |
-    "${_HI_PTY_FORCED[@]}" bash -c "$_HI_FLOOR_CHILD" bash "$dir" >"$out" 2>&1 &
+    "${_HI_PTY_FORCED[@]}" bash -c "$child" bash "$dir" "$@" >"$out" 2>&1 &
   _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-30}"
   [ "$_HI_WAIT_EXIT" != 124 ]
 }
+
+function _hi_floor_pty() { _hi_pty_run "$_HI_FLOOR_CHILD" floor "$1" "$2" "${3:-}"; }
 
 # a pty writes CR-LF, so all three readers normalise before matching. The
 # marker is deliberately not anchored to the start of a line: `read -p` leaves
@@ -498,9 +505,16 @@ function _hi_floor_prompts() {
 function _hi_floor_finished() {
   tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | grep -q 'FLOORLINES:'
 }
-function _hi_floor_pty_lines() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.floor.out" | sed -n 's/.*FLOORLINES://p' | head -1
+# _hi_pty_field <label> <suffix> <tag> [capture] - the field after <tag> on
+# a pty transcript's tail line, CR-normalised first (a pty writes CR-LF) -
+# everything to the end of the line by default, or just what <capture>
+# matches (a sed bracket expression body) when the tag's value can have
+# trailing text of its own. The one shape behind _hi_floor_pty_lines,
+# _hi_cfg_rc and _hi_cfg_lines.
+function _hi_pty_field() {
+  tr '\r' '\n' <"$_HI_WORKDIR/$1.$2.out" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
 }
+function _hi_floor_pty_lines() { _hi_pty_field "$1" floor 'FLOORLINES:'; }
 
 # eight junk answers, three prompts: the bound, not the patience.
 function test_packages_floor_stops_asking_for_a_number() {
@@ -1071,52 +1085,11 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
   [ "$(readlink "$dir/bin/hi")" = "$dir/hi.sh" ]
 }
 
-# refused/absent sudo on an unwritable bindir must end in instructions, not a
-# `set -e` death at the last step of a completed install.
-#
-# The bindir's mode is what stages the failure, so this needs a run that a mode
-# can actually refuse - hence `_hi_check_capable lockout` at the registration
-# below. As root the chmod is inert: config_hi's `[ -w ]` answers yes, the link
-# is made, and the case fails on a step that worked.
-function test_config_hi_degrades_when_sudo_cannot_link() {
-  local dir="$_HI_WORKDIR/nosudo" out rc=0
-  mkdir -p "$dir/bin"
-  printf '#!/bin/bash\n' >"$dir/hi.sh"
-  chmod 755 "$dir/hi.sh"
-  chmod 555 "$dir/bin"
-  out="$(
-    function sudo() { return 1; }
-    _HI_LAUNCHER="$dir/hi.sh"
-    _HI_LINK="$dir/bin/hi"
-    config_hi
-  )" || rc=$?
-  chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"--link none"* ]] && [ ! -e "$dir/bin/hi" ]
-}
-
-# ...and the sudo-less box: the same staging as the refused-sudo case, but
-# with a PATH that has no sudo on it at all - the other way into
-# link_hi_by_hand. readlink and dirname ride along as real binaries, since
-# swapping PATH for the probe takes the whole toolbox with it.
-function test_config_hi_degrades_with_no_sudo_at_all() {
-  local dir="$_HI_WORKDIR/nosudoatall" farm out rc=0
-  farm="$(_hi_real_path nosudo_tools readlink dirname)"
-  mkdir -p "$dir/bin"
-  printf '#!/bin/bash\n' >"$dir/hi.sh"
-  chmod 755 "$dir/hi.sh"
-  chmod 555 "$dir/bin"
-  out="$(
-    hash -r
-    # shellcheck disable=SC2030 # subshell-local is exactly the intent
-    PATH="$farm"
-    _HI_LAUNCHER="$dir/hi.sh"
-    _HI_LINK="$dir/bin/hi"
-    config_hi
-  )" || rc=$?
-  chmod 755 "$dir/bin"
-  [ "$rc" -eq 0 ] && [[ "$out" == *"--link none"* ]] && [ ! -e "$dir/bin/hi" ]
-}
-
+# config_hi's own lockout degradation (both the refused-sudo and the
+# no-sudo-at-all shape of it) is tests/scripts/install_test.sh's to assert -
+# link_hi_by_hand is the one function behind both, and that suite's
+# "Instructs when sudo is refused"/"Instructs with no sudo at all" check the
+# same output this block used to, down to the fixture.
 #
 # The live previews, called straight rather than through show_preview: each is
 # the one line of truth its question illustrates, so what it names - the real
@@ -1143,12 +1116,50 @@ function test_prompt_sample_preview_says_off_when_disabled() {
   [ "$out" = " prompt off - your shell's own" ]
 }
 
+# vim and hx are presence-gated in settings/aliases.sh itself (a box with
+# neither leaves the alias undefined), which _hi_editors_preview now reads
+# rather than restates - so their lines only need to be there when the tool
+# actually is; nano/emacs/kak/micro carry no such gate and are unconditional.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
-  [[ "$out" == *"nano --rcfile $_HI_NANORC"* && "$out" == *"-u $_HI_VIMRC"* &&
-    "$out" == *"emacs -q -l $_HI_EMACSRC"* && "$out" == *"-c $_HI_HELIXRC"* &&
-    "$out" == *"source $_HI_KAKRC"* && "$out" == *"micro -> micro -backup false"* ]]
+  [[ "$out" == *"nano --rcfile $_HI_NANORC"* &&
+    "$out" == *"emacs -q -l $_HI_EMACSRC"* &&
+    "$out" == *"source $_HI_KAKRC"* && "$out" == *"micro -> micro -backup false"* ]] || return 1
+  if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
+    [[ "$out" == *"-u $_HI_VIMRC"* ]] || return 1
+  fi
+  if command -v hx >/dev/null 2>&1 || command -v helix >/dev/null 2>&1; then
+    [[ "$out" == *"-c $_HI_HELIXRC"* ]] || return 1
+  fi
+}
+
+# vim and hx have no second spelling left to drift out of step:
+# _hi_editors_preview sources settings/aliases.sh itself and reads the alias
+# back (same trick as load.sh's _hi_session_editor), so what pins them now is
+# behaviour, not text - the preview's line for <tool> must be exactly what
+# sourcing the alias produces. tests/settings/alias_fallthrough_test.sh keeps
+# the textual pin for bat, whose preview is not built this way.
+function test_editor_preview_matches_its_alias() {
+  local tool="$1" from_alias from_preview
+  from_alias="$(
+    _HI_DISABLE_EDITORS=0
+    # shellcheck disable=SC2031 # lives and dies in this $( )
+    # shellcheck source=/dev/null # settings/aliases.sh or the overlay's copy
+    source "$_HI_ALIASES" >/dev/null 2>&1
+    alias "$tool" 2>/dev/null
+  )"
+  [ -n "$from_alias" ] || {
+    _hi_cecho " | no $tool alias to compare" "$RED"
+    return 1
+  }
+  eval "from_alias=${from_alias#*=}"
+  from_preview="$(_hi_editors_preview | sed -n "s/^$tool *-> //p")"
+  [ "$from_alias" = "$from_preview" ] || {
+    _hi_cecho " | alias: [$from_alias]" "$RED"
+    _hi_cecho " | preview: [$from_preview]" "$RED"
+    return 1
+  }
 }
 
 function test_tool_init_preview_names_what_is_here() {
@@ -1255,27 +1266,16 @@ _HI_CFG_CHILD='
 # killed at the deadline.
 function _hi_cfg_pty() {
   local label="$1" input="$2" line="$3"
-  local dir="$_HI_WORKDIR/$label" out="$_HI_WORKDIR/$label.cfg.out"
   shift 3
-  mkdir -p "$dir/common" "$dir/settings" "$dir/config"
-  printf '#!/bin/sh\n%s\n' "$line" >"$dir/config/settings.sh"
-  : >"$out"
-  printf '%b' "$input" |
-    "${_HI_PTY_FORCED[@]}" bash -c "$_HI_CFG_CHILD" bash "$dir" "$@" >"$out" 2>&1 &
-  _hi_wait_pid "$!" "${_HI_CASE_TIMEOUT:-30}" _hi_timed_out "$label" "${_HI_CASE_TIMEOUT:-30}"
-  [ "$_HI_WAIT_EXIT" != 124 ]
+  _hi_pty_run "$_HI_CFG_CHILD" cfg "$label" "$input" "$line" "$@"
 }
 
 # the readers: the raw transcript for substrings (fixed strings only - a pty
 # writes CR-LF, so nothing here anchors a line), the tail line's fields
 # through the same CR normalisation the floor's readers use
 function _hi_cfg_has() { grep -qF "$2" "$_HI_WORKDIR/$1.cfg.out"; }
-function _hi_cfg_rc() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.cfg.out" | sed -n 's/.*CFGRC=\([0-9]*\).*/\1/p' | head -1
-}
-function _hi_cfg_lines() {
-  tr '\r' '\n' <"$_HI_WORKDIR/$1.cfg.out" | sed -n 's/.*CFGLINES=//p' | head -1
-}
+function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
+function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
 
 # answering n turns a default-on toggle off, and the prompt said what the
 # setting was in words before asking
@@ -1750,13 +1750,21 @@ function run_configure_tests() {
   _hi_check_capable symlink "Survives an unwritable launcher" test_config_hi_survives_an_unwritable_launcher
   _hi_check_capable symlink "Skips chmod when already executable" test_config_hi_skips_chmod_when_already_executable
   _hi_check_capable symlink "Links plainly into a writable bindir" test_config_hi_links_plainly_when_bindir_is_writable
-  _hi_check_capable lockout "Degrades when sudo can't link" test_config_hi_degrades_when_sudo_cannot_link
-  _hi_check_capable lockout "Degrades with no sudo at all" test_config_hi_degrades_with_no_sudo_at_all
 
   _hi_h2 "Testing: the question previews"
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
+  if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
+    _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim
+  else
+    _hi_skip "The vim preview matches its alias" "no nvim or vim"
+  fi
+  if command -v hx >/dev/null 2>&1 || command -v helix >/dev/null 2>&1; then
+    _hi_check "The helix preview matches its alias" test_editor_preview_matches_its_alias hx
+  else
+    _hi_skip "The helix preview matches its alias" "no hx or helix"
+  fi
   _hi_check "Tool init preview names what is here" test_tool_init_preview_names_what_is_here
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only

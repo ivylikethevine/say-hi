@@ -15,7 +15,6 @@
 # hi.sh's trailing `_hi "$@"` and marks what follows unreachable - it does not
 # model hi.sh's BASH_SOURCE guard (same story as scripts/doctor.sh).
 # shellcheck disable=SC2317,SC2329
-set -euo pipefail
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
 _hi_d="${BASH_SOURCE[0]}"
@@ -23,6 +22,11 @@ case "$_hi_d" in */*) _hi_d="${_hi_d%/*}/.." ;; *) _hi_d=".." ;; esac
 [ -z "${_HI_HOME:-}" ] || _hi_d="$_HI_HOME/say-hi"
 # shellcheck source=../common/core.sh
 source "$_hi_d/common/core.sh"
+
+# Strict mode for the rest of this script: core.sh (sourced above) ends with
+# `set +euo pipefail`, so a `set` line placed before it is silently undone.
+# packaging/lib.sh does the same. GLOSSARY: HI.15
+set -euo pipefail
 
 _HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on"
 
@@ -90,8 +94,10 @@ git -C "$root" fetch --tags --quiet || {
 }
 if [ -z "$tag" ]; then
   # newest release by version (v0.0.10 above v0.0.9); a pre-release
-  # (v1.0.0-rc.1) is never chosen unasked - name it to move there
-  tag="$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -v -- - | head -n 1)"
+  # (v1.0.0-rc.1) is never chosen unasked - name it to move there. No match is
+  # not a pipeline failure: grep -v exits 1 on an empty list, and the check
+  # right below is what answers that, not `set -e`.
+  tag="$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -v -- - | head -n 1)" || true
   [ -n "$tag" ] || {
     _hi_cecho "$me: no release tags in $root" "$RED" >&2
     exit 1

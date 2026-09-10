@@ -41,6 +41,22 @@ function need() {
   }
 }
 
+# _hi_need_value <me> <flag> <remaining-arg-count> - the "$flag requires a
+# value" refusal bump.sh/mkpkg.sh/mkrepo.sh each spelled for themselves; the
+# count is the caller's own $# (not yet shifted past <flag>), since a
+# function's own $# cannot see the loop it was called from. The "--x=y
+# becomes --x y" split ahead of it, and the unknown-argument arm after it,
+# stay local to each script: the former needs `set --` on the caller's own
+# positional parameters, which a function cannot reach into, and the latter
+# genuinely differs (bump.sh takes a bare <version>, the others take no
+# positional argument at all).
+function _hi_need_value() {
+  [ "$3" -ge 2 ] || {
+    echo "$1: $2 requires a value" >&2
+    exit 1
+  }
+}
+
 # gpg_fpr <gpg args...> - the first fingerprint in gpg's --with-colons output,
 # or empty. The `|| true` matters: gpg failing inside a caller's command
 # substitution would otherwise kill a `set -e` + pipefail script silently,

@@ -87,6 +87,12 @@ function _hi_shell_wired() {
 # are one tier, named separately to say which `sh` a target gets.
 export _HI_SHELL_TREE="fish zsh bash dash ash sh"
 
+# The docker-compatible family, once: hi.sh's backend roster and header.sh's
+# probe fan-out both read this. common/targets.sh spells the same four words
+# again - it is standalone POSIX and cannot source this file - and the drift
+# suite pins the two against each other. GLOSSARY: HI.51
+export _HI_CONTAINER_CLIS="docker podman nerdctl finch"
+
 # fish's set_color vocabulary; no greys, since fish has none
 _HI_COLOR_NAMES=(red green yellow blue magenta cyan brred brgreen bryellow brblue brmagenta brcyan
   orange pink teal lime violet salmon gold sky indigo mint peach lavender)
@@ -200,23 +206,32 @@ function _hi_color_split() {
   esac
 }
 
+# _hi_color_index <outvar> <name> - <name>'s slot in $_HI_COLOR_NAMES into
+# <outvar>, or rc 1 with <outvar> untouched when there is no such name. The
+# one walk behind _hi_color_base/_hi_color_escape_var/_hi_color_hex and
+# header.sh's _hi_ramp_escape, each of which handles "no such name"
+# differently, so only the walk lives here.
+function _hi_color_index() {
+  local _hi_ci_i=0 _hi_ci_n
+  for _hi_ci_n in "${_HI_COLOR_NAMES[@]}"; do
+    [ "$_hi_ci_n" = "$2" ] && { printf -v "$1" '%s' "$_hi_ci_i"; return 0; }
+    _hi_ci_i=$((_hi_ci_i + 1))
+  done
+  return 1
+}
+
 # _hi_color_base <outvar> <name> - the 16-color name behind <name>: itself
 # for the first twelve, the fallback pair's name for an extra (orange gives
 # bryellow). What zsh's %F{} and fish's set_color take when there is no hex
 # to hand them; an unknown name answers itself, and a pinned hex is dropped -
 # the name half is the whole of what those two understand.
 function _hi_color_base() {
-  local _hi_cb_i=0 _hi_cb_n _hi_cb_p _hi_cb_b _hi_cb_h
+  local _hi_cb_i _hi_cb_p _hi_cb_b _hi_cb_h
   _hi_color_split _hi_cb_b _hi_cb_h "$2"
   printf -v "$1" '%s' "$_hi_cb_b"
-  for _hi_cb_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_cb_n" = "$_hi_cb_b" ] && {
-      _hi_cb_p="${_HI_COLOR_FALLBACK:$((_hi_cb_i * 3)):2}"
-      printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
-      return 0
-    }
-    _hi_cb_i=$((_hi_cb_i + 1))
-  done
+  _hi_color_index _hi_cb_i "$_hi_cb_b" || return 0
+  _hi_cb_p="${_HI_COLOR_FALLBACK:$((_hi_cb_i * 3)):2}"
+  printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
 }
 
 # _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words,
@@ -244,18 +259,15 @@ function _hi_ramp_ok() {
 # of the escape (and all a 16-color terminal will see). Every hashed color
 # comes through here.
 function _hi_color_escape_var() {
-  local _hi_cv_i=0 _hi_cv_n _hi_cv_b _hi_cv_h
+  local _hi_cv_i _hi_cv_b _hi_cv_h
   printf -v "$1" '%s' ''
   [ -n "${NO_COLOR:-}" ] && return 0
   _hi_color_split _hi_cv_b _hi_cv_h "$2"
-  for _hi_cv_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_cv_n" = "$_hi_cv_b" ] && {
-      _hi_color_escape_at "$1" "$_hi_cv_i" "$_hi_cv_h"
-      return 0
-    }
-    _hi_cv_i=$((_hi_cv_i + 1))
-  done
-  printf -v "$1" '%s' "$NC"
+  if _hi_color_index _hi_cv_i "$_hi_cv_b"; then
+    _hi_color_escape_at "$1" "$_hi_cv_i" "$_hi_cv_h"
+  else
+    printf -v "$1" '%s' "$NC"
+  fi
 }
 
 # _hi_color_hex <outvar> <name> - rrggbb for <name> under the scheme, or the
@@ -265,21 +277,16 @@ function _hi_color_escape_var() {
 # point of writing one: the scheme says what a *name* renders as, a fourth
 # column says what this one host or user renders as.
 function _hi_color_hex() {
-  local _hi_ch_i=0 _hi_ch_n _hi_ch_b _hi_ch_h
+  local _hi_ch_i _hi_ch_b _hi_ch_h
   printf -v "$1" '%s' ''
   [ -n "${NO_COLOR:-}" ] && return 0
   _hi_color_split _hi_ch_b _hi_ch_h "$2"
-  for _hi_ch_n in "${_HI_COLOR_NAMES[@]}"; do
-    [ "$_hi_ch_n" = "$_hi_ch_b" ] && {
-      if [ -n "$_hi_ch_h" ]; then
-        _hi_has_truecolor && printf -v "$1" '%s' "$_hi_ch_h"
-      else
-        _hi_scheme_hex "$1" "$_hi_ch_i"
-      fi
-      return 0
-    }
-    _hi_ch_i=$((_hi_ch_i + 1))
-  done
+  _hi_color_index _hi_ch_i "$_hi_ch_b" || return 0
+  if [ -n "$_hi_ch_h" ]; then
+    _hi_has_truecolor && printf -v "$1" '%s' "$_hi_ch_h"
+  else
+    _hi_scheme_hex "$1" "$_hi_ch_i"
+  fi
 }
 
 # The twelve exported palette variables - the sixteen-color names, which are
@@ -382,6 +389,56 @@ function _hi_human_duration() {
     if (h > 0) printf "%d:%02d:%02d", h, m, sec
     else printf "%d:%02d", m, sec
   }'
+}
+
+# _hi_runtime_dir <var> - a private per-user directory for hi's own ephemeral
+# state (the ControlMaster socket, the payload/overlay caches), or empty when
+# there is none hi can vouch for: $XDG_RUNTIME_DIR, else a `mkdir -m 700`
+# directory of hi's own under ${TMPDIR:-/tmp}, never adopted if something else
+# is already there and ownership-checked before use. Every caller degrades
+# rather than trust a directory it cannot vouch for. common/targets.sh keeps
+# its own copy of this - it is standalone POSIX and sources nothing, so the
+# two only stay in step by comment; hi.sh used to keep a third and now just
+# reads this one, sourcing this file the way every other caller here does.
+function _hi_runtime_dir() {
+  # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
+  # outvar and the assignment would never leave this function
+  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid _hi_rtd_owner
+  # Memoized one deep and keyed on what it reads: a connect asks up to five
+  # times, and without $XDG_RUNTIME_DIR each miss costs the id/ls branch below.
+  # Keyed rather than a bare memo because cache_test.sh asks against several
+  # $TMPDIRs in one process. Only a *found* directory is remembered - the one
+  # it wanted can appear between two calls, and caching "no" would hold a
+  # client to the degraded path for the rest of its life.
+  local _hi_rtd_key="${XDG_RUNTIME_DIR:-}|${TMPDIR:-}"
+  if [ "${_HI_RTD_KEY:-}" = "$_hi_rtd_key" ] && [ -n "${_HI_RTD_MEMO:-}" ]; then
+    printf -v "$1" '%s' "$_HI_RTD_MEMO"
+    return 0
+  fi
+  if [ -z "$_hi_rtd_dir" ] || [ ! -d "$_hi_rtd_dir" ]; then
+    # $EUID is bash's own, no fork; targets.sh keeps `id -u`, being POSIX
+    _hi_rtd_uid="${EUID:-$(exec id -u 2>/dev/null)}"
+    [ -n "$_hi_rtd_uid" ] || _hi_rtd_uid=unknown
+    _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
+    [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
+    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ]; then
+      printf -v "$1" ''
+      return 0
+    fi
+    # shellcheck disable=SC2012 # `find -user` takes a user *name*, which a
+    # host with no passwd entry cannot supply; SC2012's hazard is parsing file
+    # *names* out of ls, and this reads a fixed column off a path it built
+    # itself. `-n` gives the owner as a number, so one comparison answers for
+    # a host with a passwd entry and one without alike.
+    _hi_rtd_owner="$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
+    if [ -z "$_hi_rtd_owner" ] || [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; then
+      printf -v "$1" ''
+      return 0
+    fi
+  fi
+  _HI_RTD_KEY="$_hi_rtd_key"
+  _HI_RTD_MEMO="$_hi_rtd_dir"
+  printf -v "$1" '%s' "$_hi_rtd_dir"
 }
 
 # total size of the given paths; --apparent-size is GNU-only, decided once per
@@ -550,11 +607,7 @@ function _hi_setting_get() {
     eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
     eval "printf '%s' \"\$${_hi_sg_name}\""
   )" || return 1
-  if [ -n "$_hi_sg_outvar" ]; then
-    printf -v "$_hi_sg_outvar" '%s' "$_hi_sg_val"
-  else
-    printf '%s' "$_hi_sg_val"
-  fi
+  _hi_out "$_hi_sg_outvar" "$_hi_sg_val"
 }
 
 # What each shell's prompt ends with unless overridden, <SHELL>:<char>. The
@@ -579,11 +632,7 @@ function _hi_prompt_end() {
   local _hi_pe
   eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
   _hi_pe="${_hi_pe:-$(_hi_prompt_end_default "$1")}"
-  if [ -n "${2:-}" ]; then
-    printf -v "$2" '%s' "$_hi_pe"
-  else
-    printf '%s' "$_hi_pe"
-  fi
+  _hi_out "${2:-}" "$_hi_pe"
 }
 
 # _HI_PROMPT_TOOL names a prompt program - starship or oh-my-posh - to hand the
@@ -699,7 +748,7 @@ function _hi_hash_color() {
     sum=$((sum + ord))
     i=$((i + 1))
   done
-  printf '%s\n' "${_HI_COLOR_NAMES[@]:$((sum % ${#_HI_COLOR_NAMES[@]})):1}"
+  _hi_out "${2:-}" "${_HI_COLOR_NAMES[@]:$((sum % ${#_HI_COLOR_NAMES[@]})):1}"
 }
 
 # the user/host say-hi is permanently installed on; hi.sh ships these ahead as
@@ -727,7 +776,7 @@ function _hi_local_hostname() {
 # _hi_color_split reads, and only when it is six hex digits (a leading `#` is
 # allowed and dropped) - anything else is ignored and the row colors by name
 # alone, since a colors file is hand-written and a typo must not cost the pin.
-# _hi_colors_scan <type> <name> <glob?>
+# _hi_colors_scan <type> <name> <glob?> [outvar]
 function _hi_colors_scan() {
   local cur_type cur_name color hex
   [[ -f "$_HI_COLORS" ]] || return 1
@@ -745,27 +794,29 @@ function _hi_colors_scan() {
     case "$hex" in
     [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) color="$color#$hex" ;;
     esac
-    printf '%s\n' "$color"
+    _hi_out "${4:-}" "$color"
     return 0
   done <"$_HI_COLORS"
   return 1
 }
 
-# _hi_colors_lookup <type> <name> - that pin's color, or 1 if there isn't one
-function _hi_colors_lookup() { _hi_colors_scan "$1" "$2" ''; }
+# _hi_colors_lookup <type> <name> [outvar] - that pin's color, or 1 if there isn't one
+function _hi_colors_lookup() { _hi_colors_scan "$1" "$2" '' "${3:-}"; }
 
-# _hi_colors_pattern <type> <name> - the first row of <type> whose name field
-# is a glob (* or ?) matching <name>; file order wins. Exact rows are
-# _hi_colors_lookup's and never match here, so an exact pin beats a pattern
-# whatever the file order - and _hi_resolve_color consults this after the
-# hosttag, so a tag beats a pattern too. GLOSSARY: HI.37
-function _hi_colors_pattern() { _hi_colors_scan "$1" "$2" glob; }
+# _hi_colors_pattern <type> <name> [outvar] - the first row of <type> whose
+# name field is a glob (* or ?) matching <name>; file order wins. Exact rows
+# are _hi_colors_lookup's and never match here, so an exact pin beats a
+# pattern whatever the file order - and _hi_resolve_color consults this after
+# the hosttag, so a tag beats a pattern too. GLOSSARY: HI.37
+function _hi_colors_pattern() { _hi_colors_scan "$1" "$2" glob "${3:-}"; }
 
 # an exact "<type>,<name>,<color>" override, then the LOCALUSER/LOCALHOSTNAME
-# specials; most names have neither and return 1
+# specials; most names have neither and return 1. [outvar] as the fourth
+# neighbours _hi_resolve_color's own, so the whole chain below it can answer
+# without a $( ) anywhere in the middle.
 function _hi_override_color() {
-  local special="" _hi_oc_me=""
-  _hi_colors_lookup "$1" "$2" && return 0
+  local special="" _hi_oc_me="" _hi_oc_outvar="${3:-}"
+  _hi_colors_lookup "$1" "$2" "$_hi_oc_outvar" && return 0
   case "$1" in
   username)
     _hi_local_username _hi_oc_me
@@ -776,7 +827,7 @@ function _hi_override_color() {
     [[ "$2" = "$_hi_oc_me" ]] && special="LOCALHOSTNAME"
     ;;
   esac
-  [ -n "$special" ] && _hi_colors_lookup "$1" "$special"
+  [ -n "$special" ] && _hi_colors_lookup "$1" "$special" "$_hi_oc_outvar"
 }
 
 # _hi_ssh_host_tag <name>, memoized one deep: the connect path asks about the
@@ -903,21 +954,26 @@ function _hi_ssh_host_tag_walk() {
 
 function _hi_ssh_tag_color() {
   # the memo holds the tag; $( ) around it was a fork for a value in hand
-  _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE"
+  _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" "${2:-}"
 }
 
+# _hi_resolve_color <type> <name> [tag] [outvar] - [outvar] as the last of
+# four so every existing three-arg call (a username's tag) keeps working.
+# Threaded through _hi_override_color/_hi_ssh_tag_color/_hi_colors_pattern/
+# _hi_hash_color so the two memos below can fill without a $( ) anywhere in
+# the chain - each still answers on stdout when [outvar] is empty.
 function _hi_resolve_color() {
-  local type="$1" name="$2" tag="${3:-}"
-  _hi_override_color "$type" "$name" && return
+  local type="$1" name="$2" tag="${3:-}" outvar="${4:-}"
+  _hi_override_color "$type" "$name" "$outvar" && return
   case "$type" in
   hostname)
-    _hi_ssh_tag_color "$name" && return
+    _hi_ssh_tag_color "$name" "$outvar" && return
     # subnet-style pins: hostname rows whose name field is a glob
-    _hi_colors_pattern hostname "$name" && return
+    _hi_colors_pattern hostname "$name" "$outvar" && return
     ;;
-  username) [[ -n "$tag" ]] && _hi_override_color usertag "$tag" && return ;;
+  username) [[ -n "$tag" ]] && _hi_override_color usertag "$tag" "$outvar" && return ;;
   esac
-  _hi_hash_color "$name"
+  _hi_hash_color "$name" "$outvar"
 }
 
 # This machine's two colors and their escapes, all memoized: none can change
@@ -926,14 +982,18 @@ function _hi_resolve_color() {
 function _hi_host_color() {
   [ "${_HI_HOST_COLOR+x}" = x ] || {
     _hi_hostname >/dev/null # primes the memo; read the variable, not a $( )
-    _HI_HOST_COLOR="${_HI_TARGET_COLOR:-$(_hi_resolve_color hostname "$_HI_HOSTNAME_CACHE")}"
+    if [ -n "${_HI_TARGET_COLOR:-}" ]; then
+      _HI_HOST_COLOR="$_HI_TARGET_COLOR"
+    else
+      _hi_resolve_color hostname "$_HI_HOSTNAME_CACHE" '' _HI_HOST_COLOR
+    fi
   }
   printf '%s\n' "$_HI_HOST_COLOR"
 }
 function _hi_user_color() {
   [ "${_HI_USER_COLOR+x}" = x ] || {
     _hi_whoami >/dev/null
-    _HI_USER_COLOR="$(_hi_resolve_color username "$_HI_WHOAMI_CACHE" "${_HI_TARGET_TAG:-}")"
+    _hi_resolve_color username "$_HI_WHOAMI_CACHE" "${_HI_TARGET_TAG:-}" _HI_USER_COLOR
   }
   printf '%s\n' "$_HI_USER_COLOR"
 }
@@ -945,7 +1005,7 @@ function _hi_host_escape() {
     _hi_color_escape_var _HI_HOST_ESC "$_HI_HOST_COLOR"
     printf -v _HI_HOST_ESC '%b' "$_HI_HOST_ESC" # the var form leaves `\e` literal
   }
-  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_HOST_ESC"; else printf '%s' "$_HI_HOST_ESC"; fi
+  _hi_out "${1:-}" "$_HI_HOST_ESC"
 }
 function _hi_user_escape() {
   [ "${_HI_USER_ESC+x}" = x ] || {
@@ -953,7 +1013,7 @@ function _hi_user_escape() {
     _hi_color_escape_var _HI_USER_ESC "$_HI_USER_COLOR"
     printf -v _HI_USER_ESC '%b' "$_HI_USER_ESC"
   }
-  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$_HI_USER_ESC"; else printf '%s' "$_HI_USER_ESC"; fi
+  _hi_out "${1:-}" "$_HI_USER_ESC"
 }
 
 set +euo pipefail # see the top of the file

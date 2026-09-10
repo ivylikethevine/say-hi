@@ -312,13 +312,20 @@ function test_header_probes_every_backend_in_the_roster() {
   # shellcheck disable=SC2031
   for row in "${_HI_BACKENDS[@]}"; do
     name="${row%%|*}"
-    # kube is probed by its CLI's name rather than the roster's; every family
-    # row is spelled in _hi_probe_launch itself, since header.sh cannot read
-    # this array - which is what pins the two lists together (GLOSSARY: HI.51)
+    # kube and nomad are probed by their own CLI's name. Every docker-compatible
+    # family row comes off core.sh's $_HI_CONTAINER_CLIS, which hi.sh's roster
+    # and header.sh's probe fan-out both read - so this checks that the row's
+    # name is a member of that one list, and that _hi_probe_launch reads it
+    # rather than spelling its own - GLOSSARY: HI.51.
     case "$name" in
     kube) [[ "$launch" == *kubectl* || "$launch" == *kube* ]] || return 1 ;;
     nomad) [[ "$launch" == *nomad* ]] || return 1 ;;
-    *) [[ "$launch" == *"$name"* ]] || return 1 ;;
+    *)
+      case " $_HI_CONTAINER_CLIS " in
+      *" $name "*) [[ "$launch" == *'_HI_CONTAINER_CLIS'* ]] || return 1 ;;
+      *) return 1 ;;
+      esac
+      ;;
     esac
   done
 }
@@ -1101,23 +1108,16 @@ function test_the_shell_tree_is_the_documented_order() {
 # function above they cannot be reached by sourcing, so these cases run hi.sh
 # as a process against two throwaway trees.
 #
-# _hi_subcmd_home builds the shape a *target* gets: common/, settings/,
-# load.sh and hi.sh copied in, and deliberately no scripts/, no tests/ and
-# no .git. That is the shape every one of these flags has to refuse by name,
-# and it is the reason $_HI_NO_CHECKOUT exists.
+# tests/lib/fixtures.sh's _hi_scratch_tree builds the shape a *target* gets:
+# common/, settings/, load.sh and hi.sh copied in, and deliberately no
+# scripts/, no tests/ and no .git. That is the shape every one of these
+# flags has to refuse by name, and it is the reason $_HI_NO_CHECKOUT exists.
+# _hi_subcmd_run (same file) runs hi.sh as a process against one.
 #
 # Copied and not symlinked, which is both cheaper to explain and truer: a real
 # target unpacks the payload tar, so what it has are regular files. It also
 # needs no symlink, which a filesystem may not offer (`_hi_capable` in
 # tests/lib/fixtures.sh) - and these five cases have nothing to do with links.
-function _hi_subcmd_home() {
-  local home="$_HI_WORKDIR/$1" f
-  mkdir -p "$home/say-hi"
-  for f in common settings load.sh hi.sh; do
-    cp -R "$_HI_ROOT/$f" "$home/say-hi/$f"
-  done
-  printf '%s' "$home"
-}
 
 # The same tree plus a stub for every script a flag reaches. Each stub prints
 # its own name and its argv verbatim, which is what lets the cases below pin
@@ -1125,7 +1125,7 @@ function _hi_subcmd_home() {
 # just "some install.sh".
 function _hi_subcmd_stubs() {
   local home stub dir
-  home="$(_hi_subcmd_home subcmd-stubs)"
+  home="$(_hi_scratch_tree subcmd-stubs common settings load.sh hi.sh)"
   mkdir -p "$home/say-hi/scripts" "$home/say-hi/tests"
   for stub in install:scripts/install.sh preview:scripts/preview.sh \
     doctor:scripts/doctor.sh; do
@@ -1137,23 +1137,22 @@ function _hi_subcmd_stubs() {
   printf '%s' "$home"
 }
 
-function _hi_subcmd_run() {
-  local home="$1"
-  shift
-  (_HI_HOME="$home" "$home/say-hi/hi.sh" "$@" 2>&1)
-}
-
 # every one of them names itself rather than dying on a missing path
 function test_local_subcommands_refuse_without_the_checkout() {
-  local home flag out
-  home="$(_hi_subcmd_home subcmd-bare)"
+  local home flag say out
+  home="$(_hi_scratch_tree subcmd-bare common settings load.sh hi.sh)"
   for flag in --install --uninstall --configure "--preview colors" "--preview packages" "--preview header" --doctor --update; do
+    # the refusal names the row's flag alone, never a subject or target
+    # riding after it - every subcommand agrees, --preview included, since
+    # common/flags' row dispatch is what handles it now rather than a case
+    # arm of hi.sh's own
+    say="${flag%% *}"
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
     out="$(_hi_subcmd_run "$home" $flag)" && {
       _hi_cecho " | $flag exited 0 without a checkout" "$RED"
       return 1
     }
-    [[ "$out" == *"hi $flag needs the full say-hi checkout"* ]] || {
+    [[ "$out" == *"hi $say needs the full say-hi checkout"* ]] || {
       _hi_cecho " | $flag said: $out" "$RED"
       return 1
     }
@@ -1203,14 +1202,18 @@ function test_local_subcommands_exec_the_right_script() {
 
 # a sub-command is still a command line: what follows the flag rides along
 
-# no subject at all - `hi --preview` must never connect to a host by that name
+# no subject at all - `hi --preview` must never connect to a host by that
+# name. --preview routes through common/flags' row into the real
+# scripts/preview.sh (not a case arm of hi.sh's own), and preview.sh's own
+# dispatch is what validates the subject - a stub tree proves nothing here,
+# so this needs the real script.
 function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
-  home="$(_hi_subcmd_stubs)"
+  home="$(_hi_scratch_tree preview-real common settings load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
   [[ "$out" == *"one of colors, packages or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
-  [[ "$out" == *"one of colors, packages or header (not bogus)"* ]] || return 1
+  [[ "$out" == *"one of colors, packages or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
   [[ "$out" == *"one of colors, packages or header"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?

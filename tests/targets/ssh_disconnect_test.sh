@@ -80,7 +80,7 @@ function test_sudden_disconnect_removes_cleanup_dir() {
 
 function run_ssh_disconnect_test() {
   _hi_require_backend docker
-  _hi_require pgrep
+  _hi_require_bin pgrep
 
   _hi_workdir sshdisconnecttest _hi_thaw_frozen
   _hi_h1 "Testing hi's ssh cleanup trap survives an abrupt disconnect"

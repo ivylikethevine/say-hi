@@ -242,24 +242,25 @@ function _hi_case_result() {
   return 1
 }
 
-# _HI_EXEC_ATTEMPTS (default 1) - how many times to run the command before
-# handing the transcript to _hi_case_result. A kube CI run once saw the [sh]
-# shape (alpine, ash, the no-bash fallback) fail with no ash startup banner
-# and no marker, just kubectl's own "command terminated with exit code 1" - a
-# transient no local run could reproduce, including under sustained CPU
-# saturation against a real kind cluster. The target is already up by the
-# time this runs, so a retry costs one more round trip against a target
-# already proven reachable, not a fresh boot. A timeout (124) breaks instead
-# of retrying: that is a slow, real failure (or the podman/fish shape
-# _hi_case_result's own comment describes - a session that echoed the marker
-# and then sat at a prompt), not the fast, markerless failure the retry
-# exists for. $out_file is truncated fresh each attempt, so only the final
-# attempt's transcript is dumped on a failure, and _hi_case_result is reached
-# once, so a retried failure never prints as two separate results.
+# <attempts> (last, default 1) - how many times to run the command before
+# handing the transcript to _hi_case_result; a caller's own argument, not a
+# global, since it is one caller's transient (tests/targets/kube_test.sh's
+# _hi_run_case). A kube CI run once saw the [sh] shape (alpine, ash, the
+# no-bash fallback) fail with no ash startup banner and no marker, just
+# kubectl's own "command terminated with exit code 1" - a transient no local
+# run could reproduce, including under sustained CPU saturation against a
+# real kind cluster, on a pod _hi_pod_running had already polled Running. A
+# timeout (124) breaks instead of retrying: that is a slow, real failure (or
+# the podman/fish shape _hi_case_result's own comment describes - a session
+# that echoed the marker and then sat at a prompt), not the fast, markerless
+# failure the retry exists for. $out_file is truncated fresh each attempt, so
+# only the final attempt's transcript is dumped on a failure, and
+# _hi_case_result is reached once, so a retried failure never prints as two
+# separate results.
 function _hi_exec_case() {
   local label="$1" what="$2" marker="$3" timeout_s="$4" target="$5" cmd="$6" hook="${7:-}"
   local out_file="$_HI_WORKDIR/$label.out" exit_code t0 t1
-  local attempt attempts="${_HI_EXEC_ATTEMPTS:-1}"
+  local attempt attempts="${8:-1}"
 
   t0="$(_hi_now)"
   for ((attempt = 1; attempt <= attempts; attempt++)); do

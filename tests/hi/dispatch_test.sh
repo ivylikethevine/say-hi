@@ -76,10 +76,10 @@ function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
 args=--configure --preset dev" ]
 }
 
-# a row with no script var is hi.sh's own case arm further down; dispatch has
-# to decline it rather than exec nothing
+# a row with no script var (--plain, --mux and the like) is hi.sh's own
+# case arm further down; dispatch has to decline it rather than exec nothing
 function test_dispatch_declines_a_row_with_no_script() {
-  _hi_ds_dispatch --preview colors
+  _hi_ds_dispatch --plain
   [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ]
 }
 

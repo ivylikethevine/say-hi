@@ -1855,6 +1855,35 @@ function _hi_in_mkrepo() {
   )
 }
 
+# _hi_in_mkrepo_gpg <dist> <out> <gpg-key> [gpg-public] - _hi_in_mkrepo's
+# shape for gpg_setup specifically: the two _HI_GPG_* variables it reads, and
+# the agent teardown its own trap (below the HI.06 source guard, so sourcing
+# it here never runs the trap) would otherwise have done - kill gpg-agent and
+# remove $_HI_GNUPGHOME once gpg_setup has run, whatever its verdict. Neither
+# gpg_setup's stdout nor its stderr is redirected here, so a caller composes
+# capture/discard on the call exactly as it would around a bare command
+# (`>/dev/null 2>"$err"`, `2>&1`, `2>/dev/null`, ...); the exit status is
+# gpg_setup's own.
+function _hi_in_mkrepo_gpg() {
+  local dist="$1" out="$2" key="$3" public="${4:-}" st
+  (
+    set -- # mkrepo.sh parses "$@" at source time; hand it none
+    # shellcheck source=../../packaging/mkrepo.sh
+    source "$_HI_PKG_DIR/mkrepo.sh"
+    _HI_DIST="$dist"
+    _HI_OUT="$out"
+    _HI_GPG_KEY="$key"
+    _HI_GPG_PUBLIC="$public"
+    gpg_setup
+    st=$?
+    [ -z "$_HI_GNUPGHOME" ] || {
+      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
+      rm -rf "$_HI_GNUPGHOME"
+    }
+    exit "$st"
+  )
+}
+
 # _hi_mkrepo_docker - a PATH whose `docker` answers `info` and, on `run`,
 # lays down in the mounted /work what the real container would (createrepo_c's
 # repodata/repomd.xml, apk index's per-arch APKINDEX.tar.gz) and keeps the
@@ -2203,56 +2232,20 @@ function test_mkrepo_gpg_setup_verdicts() {
     return 1
   }
   # ...a named-but-missing key is a refusal...
-  ! (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$d/absent.key"
-    gpg_setup
-  ) 2>/dev/null || {
+  ! _hi_in_mkrepo_gpg "$d" "$d/repo" "$d/absent.key" 2>/dev/null || {
     _hi_cecho " | a missing --gpg-key should have been refused" "$RED"
     return 1
   }
   _hi_mkrepo_keys || return 1
-  # ...the real key exports its public half beside the repo. gpg_setup's own
-  # $_HI_GNUPGHOME (mkrepo.sh) talks to gpg-agent too, and its trap cleanup
-  # sits below the HI.06 source guard, so sourcing it here never runs it -
-  # kill the agent and remove the homedir ourselves.
-  (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
-    _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/main.asc"
-    gpg_setup >/dev/null
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    [ "$st" -eq 0 ] && [ -s "$d/repo/say-hi.asc" ]
-  ) 2>"$err" || {
+  # ...the real key exports its public half beside the repo...
+  _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/main.asc" \
+    >/dev/null 2>"$err" && [ -s "$d/repo/say-hi.asc" ] || {
     _hi_dump_log "the real key should have exported say-hi.asc" "$err"
     return 1
   }
   # ...and a key that is not the one --public-key names is refused
-  ! (
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
-    _HI_GPG_PUBLIC="$_HI_WORKDIR/gpg/other.asc"
-    gpg_setup >/dev/null
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    exit "$st"
-  ) 2>/dev/null || {
+  ! _hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$_HI_WORKDIR/gpg/other.asc" \
+    >/dev/null 2>&1 || {
     _hi_cecho " | a mismatched --public-key should have been refused" "$RED"
     return 1
   }
@@ -2266,21 +2259,7 @@ function test_mkrepo_gpg_setup_refuses_a_public_key_that_is_not_one() {
   mkdir -p "$d/repo"
   _hi_mkrepo_keys || return 1
   printf 'this is not a key\n' >"$d/plain.asc"
-  out="$(
-    set -- # mkrepo.sh parses "$@" at source time; hand it none
-    # shellcheck source=../../packaging/mkrepo.sh
-    source "$_HI_PKG_DIR/mkrepo.sh"
-    _HI_OUT="$d/repo"
-    _HI_GPG_KEY="$_HI_WORKDIR/gpg/main.key"
-    _HI_GPG_PUBLIC="$d/plain.asc"
-    gpg_setup 2>&1
-    st=$?
-    [ -z "$_HI_GNUPGHOME" ] || {
-      gpgconf --homedir "$_HI_GNUPGHOME" --kill gpg-agent >/dev/null 2>&1
-      rm -rf "$_HI_GNUPGHOME"
-    }
-    exit "$st"
-  )" || rc=$?
+  out="$(_hi_in_mkrepo_gpg "$d" "$d/repo" "$_HI_WORKDIR/gpg/main.key" "$d/plain.asc" 2>&1)" || rc=$?
   [ "$rc" -ne 0 ] || return 1
   [ ! -f "$d/repo/say-hi.asc" ] || return 1
   case "$out" in *"$d/plain.asc is missing or not a key"*) return 0 ;; esac

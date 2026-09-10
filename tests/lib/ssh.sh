@@ -10,18 +10,8 @@
 
 _HI_SSHD_IMAGE=hi-test-sshd
 
-_HI_SSHD_ENTRYPOINT_BODY="$(
-  cat <<'EOF'
-echo "hitest:*" | chpasswd -e
-chown hitest:hitest /home/hitest
-install -d -m 700 -o hitest -g hitest /home/hitest/.ssh
-printf '%s\n' "$PUBKEY" >/home/hitest/.ssh/authorized_keys
-chown hitest:hitest /home/hitest/.ssh/authorized_keys
-chmod 600 /home/hitest/.ssh/authorized_keys
-ssh-keygen -A >/dev/null
-exec /usr/sbin/sshd -D -e -o PasswordAuthentication=no -o PermitRootLogin=no -o UsePAM=no $SSHD_OPTS
-EOF
-)"
+# shellcheck source=../dockerfiles/sshd-entrypoint.sh
+source "$_HI_ROOT/tests/dockerfiles/sshd-entrypoint.sh"
 
 # _hi_dockerfile <name> - the checked-in image definition by that name. The
 # Dockerfiles live in tests/dockerfiles/ rather than being written into each
@@ -169,7 +159,7 @@ function _hi_post_check() {
 # after, so the reachability poll is not itself made against the shaped link.
 # A shaping command that fails is a failed case: a starved target that was
 # not actually starved proves nothing, and says so here rather than passing.
-function _hi_run_case() {
+function _hi_ssh_run_case() {
   local label="$1" image="$2" login_shell="$3" cmd="$4" post="${5:-}" name exit_code=0 t0 t1 ok=0
   # the container's mapped port, owned by this case: _hi_sshd_container assigns
   # into this frame, so a case running beside it connects to its own sshd and
@@ -184,7 +174,7 @@ function _hi_run_case() {
   _hi_sshd_container "$name" "$image" -e "LOGIN_SHELL=$login_shell" ${_HI_SSH_RUN_ARGS:-} || return 1
   if [ -n "${_HI_SSH_SHAPE_CMD:-}" ]; then
     _hi_cecho " | Shaping: $_HI_SSH_SHAPE_CMD"
-    if ! docker exec "$name" sh -c "$_HI_SSH_SHAPE_CMD" >"$_HI_WORKDIR/$label.shape.log" 2>&1; then
+    if ! "${_HI_BACKEND:-docker}" exec "$name" sh -c "$_HI_SSH_SHAPE_CMD" >"$_HI_WORKDIR/$label.shape.log" 2>&1; then
       _hi_dump_log "Shaping the target failed (no netem on this kernel?):" "$_HI_WORKDIR/$label.shape.log"
       _hi_note_failure "[$label] could not shape the target"
       _hi_rm_container "$name"

@@ -87,6 +87,7 @@ function _hi_track_dir() { _hi_ledger dir "$1"; }
 # because docker refuses to remove one that still has a container on it.
 function _hi_test_cleanup() {
   local c
+  local -a containers
   _hi_par_kill
   if [ -n "$_HI_EXTRA_CLEANUP" ]; then
     "$_HI_EXTRA_CLEANUP" || true
@@ -95,9 +96,12 @@ function _hi_test_cleanup() {
     kill -CONT "$c" 2>/dev/null || true
     kill -9 "$c" 2>/dev/null || true
   done
-  for c in $(_hi_ledger_rows container); do
-    _hi_rm_container "$c"
-  done
+  # one `rm -f` for the whole ledger rather than one docker-client exec per
+  # container: `rm -f` already tolerates a name that never existed, which is
+  # what the sweep relies on regardless
+  _hi_read_lines containers < <(_hi_ledger_rows container)
+  [ "${#containers[@]}" -eq 0 ] ||
+    "${_HI_BACKEND:-docker}" rm -f "${containers[@]}" >/dev/null 2>&1 || true
   for c in $(_hi_ledger_rows network); do
     "${_HI_BACKEND:-docker}" network rm "$c" >/dev/null 2>&1 || true
   done

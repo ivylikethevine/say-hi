@@ -24,9 +24,9 @@
 kind="${1:-all}"
 # The docker-compatible family, once: the `words` arm below and the probe
 # roster further down both walk it, and the two exits are far enough apart
-# that they read as unrelated files. hi.sh and common/header.sh spell the same
-# four words - neither can source this file - and the drift suite pins the
-# three together. GLOSSARY: HI.51
+# that they read as unrelated files. hi.sh and common/header.sh read the same
+# four words from core.sh's $_HI_CONTAINER_CLIS, which this standalone POSIX
+# file cannot source - the drift suite pins the two together. GLOSSARY: HI.51
 clis="docker podman nerdctl finch"
 
 # hi's own flags, so `hi --<TAB>` completes them like a target: one

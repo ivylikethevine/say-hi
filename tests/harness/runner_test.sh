@@ -34,7 +34,7 @@ function _hi_counting_fixture() {
   _hi_fixture "$1" "$3" "$2 $3${4:+ $4}"
 }
 
-# a suite that stood down without running anything - what _hi_require does
+# a suite that stood down without running anything - what _hi_require_bin does
 # when its backend is missing. Exits 0 like a passing suite, so only the SKIP
 # line in $_HI_COUNTS_FILE tells the runner the two apart.
 function _hi_skipping_fixture() {

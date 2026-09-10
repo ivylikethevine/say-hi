@@ -42,21 +42,11 @@ function _hi_visible_len() {
   printf -v "$1" '%s' "${#stripped}"
 }
 
-# _hi_widen <var> <string...> - grow the width variable named <var> to the
-# longest of the strings.
-function _hi_widen() {
-  local var="$1" s cur
-  shift
-  eval "cur=\$$var"
-  for s in "$@"; do
-    ((${#s} > cur)) && cur=${#s}
-  done
-  eval "$var=\$cur"
-}
-
-# _hi_widen_to <var> <count...> - like _hi_widen, but the arguments are already
-# widths rather than things to measure. Passing a number through _hi_widen would
-# size the column to the length of its *digits*.
+# _hi_widen_to <var> <count...> - grow the width variable named <var> to the
+# largest of the counts; the primitive _hi_widen below measures into.
+# Arguments are already widths rather than things to measure - passing a
+# number through _hi_widen would size the column to the length of its
+# *digits*.
 function _hi_widen_to() {
   local var="$1" n cur
   shift
@@ -65,6 +55,17 @@ function _hi_widen_to() {
     ((n > cur)) && cur=$n
   done
   eval "$var=\$cur"
+}
+
+# _hi_widen <var> <string...> - grow the width variable named <var> to the
+# longest of the strings.
+function _hi_widen() {
+  local s
+  local -a lens=()
+  local var="$1"
+  shift
+  for s in "$@"; do lens+=("${#s}"); done
+  _hi_widen_to "$var" ${lens[@]+"${lens[@]}"}
 }
 
 # _hi_hbar <top|mid|bottom> <width...> - one horizontal rule; each column is

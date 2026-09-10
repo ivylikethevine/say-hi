@@ -29,9 +29,6 @@ function _hi_sandboxed() {
   return "$rc"
 }
 
-function _hi_true() { return 0; }
-function _hi_false() { return 1; }
-
 function test_case_counts_a_pass() {
   _hi_suite_begin
   _hi_case _hi_true
@@ -203,14 +200,14 @@ function test_report_skip_is_a_noop_without_a_counts_file() {
   )
 }
 
-# _hi_require's skip path has to reach the runner, or a suite that never ran
+# _hi_require_bin's skip path has to reach the runner, or a suite that never ran
 # a case still renders as a green PASS - the whole point of the status
 function test_require_reports_a_skip_for_a_missing_binary() {
   local file
   file="$_HI_WORKDIR/counts.require"
   (
     _HI_COUNTS_FILE="$file"
-    _hi_require definitely-not-a-real-binary >/dev/null 2>&1
+    _hi_require_bin definitely-not-a-real-binary >/dev/null 2>&1
   ) || true
   [[ "$(cat "$file")" == SKIP* ]]
 }

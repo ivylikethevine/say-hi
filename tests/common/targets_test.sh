@@ -921,19 +921,14 @@ function test_word_flags_match_the_flags_table() {
   }
 }
 
-# the --preview subjects are spelled three times - hi.sh's arms, targets.sh's
-# words roster and preview.sh's usage line - each with its own text, so the
-# three are pinned to each other rather than shared
+# the --preview subjects are spelled twice - targets.sh's words roster and
+# preview.sh's usage line - so the two are pinned to each other rather than
+# shared. hi.sh has no third copy: --preview is a common/flags row like
+# every other local command, routed to scripts/preview.sh generically, and
+# preview.sh's own dispatch is what validates a subject.
 function test_preview_subjects_agree_everywhere() {
   local want got
   want="$(sh "$_HI_TARGETS" words --preview | cut -f1 | sort | tr '\n' ' ')"
-  # one arm lists the subjects `a | b | c)`; split it back into words
-  got="$(sed -n '/^--preview | --preview=\*)$/,/^  esac$/p' "$_HI_LAUNCHER" |
-    sed -n 's/^  \([a-z |]*\))$/\1/p' | tr '|' '\n' | tr -d ' ' | grep . | sort | tr '\n' ' ')"
-  [ "$got" = "$want" ] || {
-    _hi_cecho " | targets.sh offers [$want], hi.sh dispatches on [$got]" "$RED"
-    return 1
-  }
   got="$(sed -n 's/^Usage: .*<\([a-z|]*\)>$/\1/p' "$_HI_ROOT/scripts/preview.sh" | tr '|' '\n' | sort | tr '\n' ' ')"
   [ "$got" = "$want" ] || {
     _hi_cecho " | targets.sh offers [$want], preview.sh's usage names [$got]" "$RED"

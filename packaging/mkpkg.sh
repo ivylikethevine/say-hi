@@ -150,10 +150,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
   --stage-only) _HI_STAGE_ONLY=1 ;;
   --version | --outdir | --source-tarball)
-    [ $# -ge 2 ] || {
-      echo "mkpkg.sh: $1 requires a value" >&2
-      exit 1
-    }
+    _hi_need_value mkpkg.sh "$1" "$#"
     case "$1" in
     --version) _HI_VERSION="$2" ;;
     --outdir) _HI_DIST="$2" ;;

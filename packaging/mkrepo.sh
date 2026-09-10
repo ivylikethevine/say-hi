@@ -77,10 +77,7 @@ while [ $# -gt 0 ]; do
   case "$1" in --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;; esac
   case "$1" in
   --dist | --outdir | --gpg-key | --public-key | --apk-key | --base-url | --tarball)
-    [ $# -ge 2 ] || {
-      echo "mkrepo.sh: $1 requires a value" >&2
-      exit 1
-    }
+    _hi_need_value mkrepo.sh "$1" "$#"
     case "$1" in
     --dist) _HI_DIST="$2" ;;
     --outdir) _HI_OUT="$2" ;;

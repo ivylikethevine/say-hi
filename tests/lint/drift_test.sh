@@ -352,53 +352,56 @@ function lint_glossary_tags() {
   return "$bad"
 }
 
-# The docker-compatible family (GLOSSARY: HI.51) is four words that three
-# files spell for themselves, because none of the three can read another's:
-# `hi.sh` builds a bash array, `common/targets.sh` is standalone POSIX a bash
-# file cannot source, and `common/header.sh` starts its probe lanes off the
-# same names. They agreed for free while all three read one setting's default;
-# with the setting gone, a member added to one and forgotten in the others
-# would list on TAB and refuse to connect, or connect and never probe. This is
-# what keeps them one list.
+# The docker-compatible family (GLOSSARY: HI.51) is four words that two files
+# spell for themselves, because neither can read the other's: core.sh's
+# $_HI_CONTAINER_CLIS is read by hi.sh and common/header.sh, and
+# common/targets.sh is standalone POSIX and cannot source it. A member added
+# to one and forgotten in the other would list on TAB and refuse to connect,
+# or connect and never probe. This is what keeps them one list.
 function lint_container_family() {
-  local file line where first="" bad=0
-  _hi_h2 "Checking the docker-compatible family across its three files"
-  # each pattern captures plain words only, so header.sh's second loop (`for
-  # cli in $clis`, the lanes that answered) is not a second list to compare
-  for where in 'hi.sh|^for _hi_cli in \([a-z][a-z ]*\); do$' \
-    'common/targets.sh|^clis="\([a-z][a-z ]*\)"$' \
-    'common/header.sh|^ *for cli in \([a-z][a-z ]*\); do$'; do
-    file="${where%%|*}"
-    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    line="$(sed -n "s/${where#*|}/\1/p" "$_HI_ROOT/$file")"
-    if [ -z "$line" ]; then
-      _hi_align " | $file: no family list where one is expected" "FAILED" "$RED"
-      _hi_note_failure "container family: $file has no list"
+  local line bad=0 core="" targets=""
+  _hi_h2 "Checking the docker-compatible family across its two files"
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  line="$(sed -n 's/^export _HI_CONTAINER_CLIS="\([a-z][a-z ]*\)"$/\1/p' "$_HI_ROOT/common/core.sh")"
+  if [ -z "$line" ]; then
+    _hi_align " | common/core.sh: no \$_HI_CONTAINER_CLIS where one is expected" "FAILED" "$RED"
+    _hi_note_failure "container family: common/core.sh has no list"
+    bad=$((bad + 1))
+  else
+    core="$line"
+    _hi_align " | common/core.sh: $core" "OK" "$GREEN"
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  line="$(sed -n 's/^clis="\([a-z][a-z ]*\)"$/\1/p' "$_HI_ROOT/common/targets.sh")"
+  if [ -z "$line" ]; then
+    _hi_align " | common/targets.sh: no family list where one is expected" "FAILED" "$RED"
+    _hi_note_failure "container family: common/targets.sh has no list"
+    bad=$((bad + 1))
+  else
+    targets="$line"
+    if [ -n "$core" ] && [ "$targets" != "$core" ]; then
+      _hi_align " | common/targets.sh: $targets" "FAILED" "$RED"
+      _hi_note_failure "container family: common/targets.sh drifted"
       bad=$((bad + 1))
-      continue
+    else
+      _hi_align " | common/targets.sh: $targets" "OK" "$GREEN"
     fi
-    [ -n "$first" ] || first="$line"
-    if [ "$line" != "$first" ]; then
-      _hi_align " | $file: $line" "FAILED" "$RED"
-      _hi_note_failure "container family: $file drifted"
-      bad=$((bad + 1))
-      continue
-    fi
-    _hi_align " | $file: $line" "OK" "$GREEN"
-  done
+  fi
   return "$bad"
 }
 
-# hi.sh's _hi_runtime_dir and common/targets.sh's cache_dir independently build
-# the SAME directory - $XDG_RUNTIME_DIR, else a private ${TMPDIR:-/tmp}/hi-<uid>
-# - and hand it to different callers (the payload/overlay cache and the
-# ControlMaster socket on one side, the TAB completion cache on the other).
-# They cannot share code: targets.sh is standalone POSIX and sources nothing
-# (its own header says so), and hi.sh:_hi_runtime_dir says the two "only stay
-# in step by comment". Every other forced copy in this tree is pinned by a
-# check here; this one was not, and a divergence would not fail anything - it
-# would just put two caches in two places, or drop one file's ownership guard
-# on a shared /tmp.
+# common/core.sh's _hi_runtime_dir and common/targets.sh's cache_dir
+# independently build the SAME directory - $XDG_RUNTIME_DIR, else a private
+# ${TMPDIR:-/tmp}/hi-<uid> - and hand it to different callers (the
+# payload/overlay cache and the ControlMaster socket on one side, the TAB
+# completion cache on the other). They cannot share code: targets.sh is
+# standalone POSIX and sources nothing (its own header says so), and
+# core.sh:_hi_runtime_dir says the two "only stay in step by comment"
+# (hi.sh used to keep a third copy of its own; it now just reads core.sh's,
+# which it already sources). Every other forced copy in this tree is pinned
+# by a check here; this one was not, and a divergence would not fail
+# anything - it would just put two caches in two places, or drop one file's
+# ownership guard on a shared /tmp.
 #
 # The name is normalised before comparing (the two spell the uid into
 # differently-named locals), and each guard is asserted in both files rather
@@ -406,8 +409,8 @@ function lint_container_family() {
 # POSIX `id -u`, `printf -v` against a plain assignment.
 function lint_runtime_dir() {
   local file name first="" guard bad=0 lost
-  _hi_h2 "Checking the runtime-directory copy (hi.sh, common/targets.sh)"
-  for file in hi.sh common/targets.sh; do
+  _hi_h2 "Checking the runtime-directory copy (common/core.sh, common/targets.sh)"
+  for file in common/core.sh common/targets.sh; do
     _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
     # the fallback path, with whatever local holds the uid folded to $UID
     # shellcheck disable=SC2016 # the $ are sed's, matching the literal

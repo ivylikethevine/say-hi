@@ -197,7 +197,7 @@ EOF
 }
 
 function run_nomad_test() {
-  _hi_require nomad
+  _hi_require_bin nomad
   _hi_require_backend docker "not installed (nomad's dev agent needs it for the docker task driver)"
   _hi_workdir nomadtest _hi_nomad_cleanup
 

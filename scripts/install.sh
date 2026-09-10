@@ -10,7 +10,6 @@
 # and lives here rather than in a script of its own: both halves own the same
 # marker-tagged lines and the same symlink, and split across two files the
 # contract between them is two copies of a string staying identical.
-set -euo pipefail
 
 _HI_FEATURES_ONLY=""
 # _MODE, not a bare _HI_UNINSTALL: a sourced file exporting that name as a
@@ -31,12 +30,16 @@ _HI_DRY_RUN=""
 _HI_PREFIX=""
 # --preset <name>: configure.sh's _HI_PRESETS, applied without asking
 _HI_PRESET=""
+# --link's raw word, ahead of _hi_flag_word's printf -v assigning it - so a
+# static checker can see it declared, the way it sees _HI_PREFIX/_HI_PRESET
+# above
+_hi_link_where=""
 _HI_WANT_HELP=""
 # what this run is called, in its own messages: `hi --uninstall` when reached
 # that way (hi.sh sets $_HI_ARGV0), install.sh by hand
 _HI_ME="${_HI_ARGV0:-install.sh}"
 
-# _hi_install_mode - which of the four this run is, off the flags: install
+# _hi_install_mode - which of the three this run is, off the flags: install
 # (the default), configure (--configure), uninstall
 function _hi_install_mode() {
   if [ -n "$_HI_UNINSTALL_MODE" ]; then
@@ -109,15 +112,6 @@ of the header and prompt, then Preset / Header / Features / Prompt / Advanced
                    settings keep what they hold.
   -n, --dry-run    Say what would be written to settings.sh and write
                    nothing; s in the menu reports instead of saving.
-EOF
-    ;;
-  check)
-    cat <<EOF
-Only run the pre-install validation of your existing ~/.bashrc, ~/.zshrc and
-~/.config/fish/config.fish, plus the shell files in your config overlay
-(aliases.sh under both sh and fish) - skip everything else. Exits 0 when all
-of them parse, 1 otherwise. \`hi --doctor\` folds the same check into its
-report.
 EOF
     ;;
   *)
@@ -225,15 +219,11 @@ while [ $# -gt 0 ]; do
   # one tri-state option, not two booleans that had to refuse each other;
   # the last one on the line wins
   --link | --link=*)
-    case "$1" in
-    --link=*) _hi_link_where="${1#--link=}" ;;
+    _hi_flag_word _hi_link_where "$@" || case $? in
+    2) shift ;;
     *)
-      [ $# -ge 2 ] || {
-        _hi_cecho "$_HI_ME: --link needs one of none, user or system" "$RED" >&2
-        exit 1
-      }
-      _hi_link_where="$2"
-      shift
+      _hi_cecho "$_HI_ME: --link needs one of none, user or system" "$RED" >&2
+      exit 1
       ;;
     esac
     case "$_hi_link_where" in
@@ -250,24 +240,26 @@ while [ $# -gt 0 ]; do
   -n | --dry-run) _HI_DRY_RUN=1 _HI_SEEN="$_HI_SEEN --dry-run" ;;
   --purge) _HI_PURGE=1 _HI_SEEN="$_HI_SEEN --purge" ;;
   -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
-  --prefix)
-    [ $# -ge 2 ] || {
+  --prefix | --prefix=*)
+    _hi_flag_word _HI_PREFIX "$@" || case $? in
+    2) shift ;;
+    *)
       _hi_cecho "$_HI_ME: --prefix needs a path" "$RED" >&2
       exit 1
-    }
-    _HI_PREFIX="$2" _HI_SEEN="$_HI_SEEN --prefix"
-    shift
+      ;;
+    esac
+    _HI_SEEN="$_HI_SEEN --prefix"
     ;;
-  --prefix=*) _HI_PREFIX="${1#--prefix=}" _HI_SEEN="$_HI_SEEN --prefix" ;;
-  --preset)
-    [ $# -ge 2 ] || {
+  --preset | --preset=*)
+    _hi_flag_word _HI_PRESET "$@" || case $? in
+    2) shift ;;
+    *)
       _hi_cecho "$_HI_ME: --preset needs a name" "$RED" >&2
       exit 1
-    }
-    _HI_PRESET="$2" _HI_SEEN="$_HI_SEEN --preset"
-    shift
+      ;;
+    esac
+    _HI_SEEN="$_HI_SEEN --preset"
     ;;
-  --preset=*) _HI_PRESET="${1#--preset=}" _HI_SEEN="$_HI_SEEN --preset" ;;
   # answered after the loop, once the mode flags have all been read
   -h | --help) _HI_WANT_HELP=1 ;;
   *)
@@ -595,6 +587,14 @@ function overlay_seed() {
 # without running the real install below - config_hi's and unlink_hi's sudo
 # calls in particular have no business firing from a test
 [[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
+# Strict mode for the real run only, from here down: core.sh (sourced above)
+# ends with `set +euo pipefail`, so a `set` line placed before it is silently
+# undone, and a script-wide `set -euo pipefail` above the return guard would
+# leak into every test that sources this file for its functions instead of
+# running it - unlink_hi's own callers rely on that staying relaxed.
+# GLOSSARY: HI.15
+set -euo pipefail
 
 # the same order the modes run in below
 if [ -n "$_HI_UNINSTALL_MODE" ]; then

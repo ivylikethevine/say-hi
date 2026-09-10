@@ -233,9 +233,9 @@ function test_apk_client_upgrades_in_place() {
 
 function run_repo_tests() {
   _hi_require_backend docker
-  _hi_require nfpm "not installed - it builds the packages the repository indexes"
-  _hi_require gpg
-  _hi_require openssl
+  _hi_require_bin nfpm "not installed - it builds the packages the repository indexes"
+  _hi_require_bin gpg
+  _hi_require_bin openssl
 
   _hi_workdir repotest
   _hi_h1 "Testing the package repository, from mkpkg.sh to three subscribed clients"

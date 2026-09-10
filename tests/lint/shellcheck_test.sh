@@ -278,7 +278,7 @@ function _hi_shellcheck_all() {
 }
 
 function run_shellcheck() {
-  # deliberately *not* _hi_require: every other suite skips cleanly when its
+  # deliberately *not* _hi_require_bin: every other suite skips cleanly when its
   # backend is missing, but this one is the lint gate - a missing shellcheck
   # means the check didn't run, which must not read as a pass.
   if ! command -v shellcheck >/dev/null 2>&1; then
