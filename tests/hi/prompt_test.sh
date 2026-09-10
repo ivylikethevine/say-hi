@@ -247,6 +247,18 @@ function test_fish_env_reads_the_same_variables() {
   }
 }
 
+# the config filenames the mise walk stats, one per line, sorted: the bash copy
+# spells them `-f "$_hi_dir/<name>"`, the fish copy `test -f "$dir/<name>"`
+function _hi_mise_configs() {
+  grep -o -- '-f "\$[_a-z]*dir/[^"]*"' "$1" | sed 's|.*dir/||; s|"$||' | sort
+}
+
+function test_fish_mise_walks_the_same_config_names() {
+  _hi_fish_agrees "mise config names" \
+    "$(_hi_mise_configs "$_HI_ROOT/common/config.fish")" \
+    "$(_hi_mise_configs "$_HI_ROOT/common/env_prompt.sh")"
+}
+
 # the segment is truncated at the same width, with core.sh's own ellipsis in
 # both glyph sets - config.fish's copy is two literals
 function test_fish_env_truncation_matches_core() {
@@ -307,6 +319,7 @@ function run_hi_prompt_tests() {
   _hi_check "config.fish's source list matches env_prompt.sh" test_fish_env_order_default_matches_env_prompt
   _hi_check "Every source word has a branch in both" test_fish_env_sources_all_have_an_arm
   _hi_check "Both copies read the same tool variables" test_fish_env_reads_the_same_variables
+  _hi_check "Both mise walks look for the same files" test_fish_mise_walks_the_same_config_names
   _hi_check "Both truncate at 32 with core.sh's ellipsis" test_fish_env_truncation_matches_core
   _hi_check "All three shells color the segment" test_fish_env_color_matches_the_other_shells
   _hi_suite_end "hi.sh (the bash-less prompt)"

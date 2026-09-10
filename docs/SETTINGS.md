@@ -367,9 +367,12 @@ direnv-loaded `proj`, and a venv inside it. It reads `$MISE_SHELL`,
 `$IN_NIX_SHELL`, `$GUIX_ENVIRONMENT`, `$DEVBOX_SHELL_ENABLED`,
 `$DEVENV_ROOT`, `$DIRENV_DIR`, `$CONDA_DEFAULT_ENV` and
 `$VIRTUAL_ENV_PROMPT`/`$VIRTUAL_ENV` - variables the tools export, so a draw
-costs no probe and no fork. A `.venv` is named for the directory holding it,
-not for itself. `_HI_ENV_ORDER` reorders the list or drops words from it, and
-`_HI_DISABLE_ENV_STATUS=1` turns the whole segment off.
+costs no probe and no fork. mise is named only where a config file between
+the directory and `~` overrides the global one, so an activated mise with
+nothing but `~/.tool-versions` stays off the prompt. A `.venv` is named for
+the directory holding it, not for itself. `_HI_ENV_ORDER` reorders the list
+or drops words from it, and `_HI_DISABLE_ENV_STATUS=1` turns the whole
+segment off.
 
 hi stands down for a tool already drawing its own prefix, so nothing appears
 twice: a `source .venv/bin/activate` keeps its own `(myproj)` in zsh and fish,

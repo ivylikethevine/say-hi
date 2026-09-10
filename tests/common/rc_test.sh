@@ -744,6 +744,12 @@ function run_rc_tests() {
   _hi_check_requires zsh "zsh completes the word after --preview" test_zsh_completes_the_word_after_preview
 
   _hi_h2 "Testing: the environment segment (venv, conda, direnv, nix, ...)"
+  # every child's $HOME is $_HI_WORKDIR, so this is the case the mise row was
+  # built for: a global ~/.tool-versions, a directory under ~ that only
+  # inherits it, and a project with a config of its own
+  : >"$_HI_WORKDIR/.tool-versions"
+  mkdir -p "$_HI_WORKDIR/mise/proj"
+  : >"$_HI_WORKDIR/mise/proj/.tool-versions"
   local _hi_esh
   for _hi_esh in bash zsh fish; do
     _hi_check_requires "$_hi_esh" "[$_hi_esh] nothing active -> no segment" \
@@ -755,6 +761,10 @@ function run_rc_tests() {
       DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
     _hi_check_requires "$_hi_esh" "[$_hi_esh] _HI_DISABLE_ENV_STATUS silences it" \
       _hi_env_names "$_hi_esh" "" "" VIRTUAL_ENV_PROMPT=myproj _HI_DISABLE_ENV_STATUS=1
+    _hi_check_requires "$_hi_esh" "[$_hi_esh] mise under a project config is named" \
+      _hi_env_names "$_hi_esh" "(mise) " "cd '$_HI_WORKDIR/mise/proj';" MISE_SHELL=x
+    _hi_check_requires "$_hi_esh" "[$_hi_esh] mise on ~'s config alone is not" \
+      _hi_env_names "$_hi_esh" "" "cd '$_HI_WORKDIR/mise';" MISE_SHELL=x
   done
   _hi_check "[bash] draws the venv its PROMPT_COMMAND would have eaten" \
     test_env_defers_to_an_activate_that_ran_here bash "(direnv:proj|myproj) "

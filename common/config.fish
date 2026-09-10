@@ -151,6 +151,33 @@ if test "$_HI_DISABLE_PROMPT" != 1
       end
     end
 
+    # true if a mise config file sits in $PWD or an ancestor below $HOME -
+    # mirrors common/env_prompt.sh's _hi_mise_local, memo included (the walk's
+    # answer only changes when $PWD does, so a `cd`-less run of prompts pays
+    # the stat loop once); see its comment for why MISE_SHELL alone is not
+    # enough. Builtins only, no fork. GLOSSARY: HI.16
+    set -g __hi_mise_local_pwd ""
+    set -g __hi_mise_local_verdict 1
+    function __hi_mise_local --description 'a project mise config overrides ~/.tool-versions here'
+      test "$PWD" = "$__hi_mise_local_pwd"; and return $__hi_mise_local_verdict
+      set -l dir $PWD
+      set -l verdict 1
+      while test "$dir" != "$HOME"
+        if test -f "$dir/.tool-versions"
+          or test -f "$dir/.mise.toml"
+          or test -f "$dir/mise.toml"
+          or test -f "$dir/.mise/config.toml"
+          set verdict 0
+          break
+        end
+        test "$dir" = "/"; and break
+        set dir (path dirname -- $dir)
+      end
+      set -g __hi_mise_local_pwd $PWD
+      set -g __hi_mise_local_verdict $verdict
+      return $verdict
+    end
+
     # The fish half of common/env_prompt.sh: the "(myproj) " prefix naming
     # every active environment manager. Fish cannot call the bash copy, and a
     # `bash -c` here would be a fork on every prompt draw, so the source list
@@ -165,7 +192,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       for src in $order
         switch $src
           case mise
-            test -n "$MISE_SHELL"; and set -a names mise
+            test -n "$MISE_SHELL"; and __hi_mise_local; and set -a names mise
           case asdf
             test -n "$ASDF_DIR"; and set -a names asdf
           case pyenv
