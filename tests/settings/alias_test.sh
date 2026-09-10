@@ -22,7 +22,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # physical lines), anything gated on more than two brackets, and a guard that
 # holds a `$(...)` - that is a presence probe (`[ -n "$(command -v nvim ||
 # command -v vim)" ]`), not a toggle, so the alias behind it is conditional
-# by design and _hi_test_vim_presence checks it against the host instead.
+# by design and _hi_test_presence checks each one against the host instead.
 _HI_SAMPLE_ALIASES=$(grep -oE '^(\[[^](]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*alias +//; s/=$//' | tr '\n' ' ')
 _HI_SAMPLE_VARS=$(grep -oE '^(\[[^](]*\] && ){0,2}export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*export +//; s/=$//' | tr '\n' ' ')
 
@@ -76,30 +76,39 @@ function _hi_test_shell() {
   return "$exit_code"
 }
 
-# _hi_test_vim_presence <shell> <dir> - the vim alias is gated on an editor
-# being on PATH (settings/aliases.sh: a box with neither is left with its own
-# `vim: command not found`). Assert it landed exactly when the host has one.
+# The presence-gated aliases the sampler above leaves out, read off the same
+# file: "<alias> <bin> <bin>" per line, from every `$(command -v a || command
+# -v b)` guard ahead of an `alias name=`. The sampler and this list partition
+# the alias lines between them, so nothing goes unchecked.
+_HI_PRESENCE_ALIASES=$(sed -nE 's/^.*\$\(command -v ([A-Za-z0-9_-]+) \|\| command -v ([A-Za-z0-9_-]+)\).* alias ([A-Za-z_][A-Za-z0-9_]*)=.*/\3 \1 \2/p' "$_HI_ALIASES")
+
+# _hi_test_presence <shell> <dir> <alias> <bin...> - an alias gated on one of
+# <bin...> being on PATH (a box with none is left with its own `vim: command
+# not found`). Assert it landed exactly when the host has one.
 # shellcheck disable=SC2016 # the scripts we write out, not code to run here
-function _hi_test_vim_presence() {
-  local shell="$1" script="$2/$1.vim.test" want=absent output rc=0
-  command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1 && want=present
+function _hi_test_presence() {
+  local shell="$1" name="$3" script="$2/$1.$3.test" want=absent output rc=0 bin
+  shift 3
+  for bin in "$@"; do
+    command -v "$bin" >/dev/null 2>&1 && want=present
+  done
   if [ "$shell" = fish ]; then
-    printf '%s\n' 'source "$_HI_ALIASES"; or exit 2' 'functions -q -- vim' >"$script"
+    printf '%s\n' 'source "$_HI_ALIASES"; or exit 2' "functions -q -- $name" >"$script"
   else
-    printf '%s\n' '. "$_HI_ALIASES" || exit 2' 'alias vim >/dev/null 2>&1' >"$script"
+    printf '%s\n' '. "$_HI_ALIASES" || exit 2' "alias $name >/dev/null 2>&1" >"$script"
   fi
   output=$("$shell" "$script" 2>&1) || rc=$?
   case "$want:$rc" in
   present:0 | absent:1) return 0 ;;
   esac
-  printf '  [%s] -- vim alias: wanted %s, got exit %s\n' "$shell" "$want" "$rc"
+  printf '  [%s] -- %s alias: wanted %s, got exit %s\n' "$shell" "$name" "$want" "$rc"
   [ -n "$output" ] && printf '%s\n' "$output" | sed 's/^/      /'
   return 1
 }
 
 function run_alias_test() {
   _hi_h1 "Testing aliases.sh across shells"
-  _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases and $(wc -w <<<"$_HI_SAMPLE_VARS") variables"
+  _hi_h2 "Sampled $(wc -w <<<"$_HI_SAMPLE_ALIASES") aliases, $(wc -w <<<"$_HI_SAMPLE_VARS") variables and $(wc -l <<<"$_HI_PRESENCE_ALIASES") presence-gated aliases"
 
   _hi_workdir aliases
 
@@ -114,7 +123,11 @@ function run_alias_test() {
     fi
     _hi_case _hi_test_shell "$_hi_shell" "$_HI_WORKDIR"
     _hi_case _hi_test_shell "$_hi_shell" "$_HI_WORKDIR" strict
-    _hi_case _hi_test_vim_presence "$_hi_shell" "$_HI_WORKDIR"
+    while read -r _hi_alias _hi_bins; do
+      [ -n "$_hi_alias" ] || continue
+      # shellcheck disable=SC2086 # the bins are a word list on purpose
+      _hi_case _hi_test_presence "$_hi_shell" "$_HI_WORKDIR" "$_hi_alias" $_hi_bins
+    done <<<"$_HI_PRESENCE_ALIASES"
   done
 
   _hi_suite_end "" \

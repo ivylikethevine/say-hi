@@ -407,16 +407,14 @@ function test_strip_covers_the_data_files() {
       bad=1
     }
   done
-  n="$(grep -cE '^[[:space:]]*"' "$dir/say-hi/settings/vim.rc" || true)"
-  [ "$n" -eq 0 ] || {
-    _hi_cecho " | settings/vim.rc kept $n vim comment line(s)" "$RED"
-    bad=1
-  }
-  n="$(grep -cE '^[[:space:]]*;' "$dir/say-hi/settings/emacs.el" || true)"
-  [ "$n" -eq 0 ] || {
-    _hi_cecho " | settings/emacs.el kept $n elisp comment line(s)" "$RED"
-    bad=1
-  }
+  # the files with a comment character of their own: <file>:<char>
+  for f in 'settings/vim.rc:"' 'settings/emacs.el:;'; do
+    n="$(grep -cE "^[[:space:]]*${f#*:}" "$dir/say-hi/${f%%:*}" || true)"
+    [ "$n" -eq 0 ] || {
+      _hi_cecho " | ${f%%:*} kept $n comment line(s)" "$RED"
+      bad=1
+    }
+  done
   [ "$bad" -eq 0 ]
 }
 
@@ -431,16 +429,13 @@ function test_strip_keeps_every_data_line() {
       bad=1
     }
   done
-  diff <(grep -vE '^[[:space:]]*"|^$' "$_HI_ROOT/settings/vim.rc") \
-    <(grep -vE '^[[:space:]]*"|^$' "$dir/say-hi/settings/vim.rc") >/dev/null || {
-    _hi_cecho " | settings/vim.rc lost or changed a line" "$RED"
-    bad=1
-  }
-  diff <(grep -vE '^[[:space:]]*;|^$' "$_HI_ROOT/settings/emacs.el") \
-    <(grep -vE '^[[:space:]]*;|^$' "$dir/say-hi/settings/emacs.el") >/dev/null || {
-    _hi_cecho " | settings/emacs.el lost or changed a line" "$RED"
-    bad=1
-  }
+  for f in 'settings/vim.rc:"' 'settings/emacs.el:;'; do
+    diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}") \
+      <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}") >/dev/null || {
+      _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
+      bad=1
+    }
+  done
   [ "$bad" -eq 0 ]
 }
 

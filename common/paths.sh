@@ -24,7 +24,7 @@ export _HI_TEST_LIB="$_HI_ROOT/tests/test_lib.sh"
 export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 
 # User config lives in $_HI_CONFIG_DIR, outside the tree; settings.sh has no
-# in-tree half. The four files with a tree default resolve to the overlay's
+# in-tree half. The files with a tree default resolve to the overlay's
 # copy when the user has made one and to the tree's otherwise, re-derived on
 # every source: a child shell told `_HI_CONFIG_DIR=elsewhere` reads that
 # overlay, and an exported path of your own does not survive - the overlay is

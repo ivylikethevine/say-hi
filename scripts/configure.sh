@@ -423,7 +423,7 @@ function _hi_editors_preview() {
   printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
   printf 'emacs -> emacs -q -l %s\n' "$_HI_EMACSRC"
   printf 'hx   -> %s -c %s\n' "$(command -v hx || command -v helix)" "$_HI_HELIXRC"
-  printf 'kak  -> kak -e '"'"'source %s'"'"'\n' "$_HI_KAKRC"
+  printf "kak  -> kak -e 'source %s'\n" "$_HI_KAKRC"
   printf 'micro -> micro %s\n' "${_HI_MICRO_OPTS:--backup false -savehistory false -mkparents true -diffgutter true}"
 }
 

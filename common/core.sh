@@ -461,10 +461,10 @@ function _hi_tool_init() {
   [ "${_HI_DISABLE_TOOL_INIT:-0}" != 1 ] || return 0
   local _hi_ti_sh=bash
   [ -n "${ZSH_VERSION:-}" ] && _hi_ti_sh=zsh
-  command -v zoxide >/dev/null 2>&1 && ! command -v __zoxide_z >/dev/null 2>&1 &&
+  ! command -v __zoxide_z >/dev/null 2>&1 && command -v zoxide >/dev/null 2>&1 &&
     eval "$(zoxide init "$_hi_ti_sh")"
-  command -v atuin >/dev/null 2>&1 && ! command -v _atuin_search >/dev/null 2>&1 &&
-    ! command -v __atuin_history >/dev/null 2>&1 && eval "$(atuin init "$_hi_ti_sh")"
+  ! command -v _atuin_search >/dev/null 2>&1 && ! command -v __atuin_history >/dev/null 2>&1 &&
+    command -v atuin >/dev/null 2>&1 && eval "$(atuin init "$_hi_ti_sh")"
   return 0
 }
 
