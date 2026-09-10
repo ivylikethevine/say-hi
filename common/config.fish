@@ -157,23 +157,41 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # is a third copy on purpose - tests/hi/prompt_test.sh pins the two
     # together. Fish always stands down for a tool drawing its own prefix,
     # which is _HI_ENV_DEFER=1 on the bash side. GLOSSARY: HI.54
+    # mirrors common/env_prompt.sh's _hi_mise_local memo: the walk's answer
+    # only changes when $PWD does, so a `cd`-less run of prompts pays the stat
+    # loop once instead of every draw. GLOSSARY: HI.26
+    set -g __hi_mise_local_pwd ""
+    set -g __hi_mise_local_verdict 1
+
     # true if a mise config file sits between $PWD and $HOME (exclusive) -
     # mirrors common/env_prompt.sh's _hi_mise_local; see its comment for why
     # MISE_SHELL alone is not enough. Builtins only, no fork.
     function __hi_mise_local --description 'a project mise config overrides ~/.tool-versions here'
+      if test "$PWD" = "$__hi_mise_local_pwd"
+        return $__hi_mise_local_verdict
+      end
       set -l dir $PWD
+      set -l verdict 1
       while true
-        test "$dir" = "$HOME"; and return 1
+        if test "$dir" = "$HOME"
+          break
+        end
         if test -f "$dir/.tool-versions"
           or test -f "$dir/.mise.toml"
           or test -f "$dir/mise.toml"
           or test -f "$dir/.mise/config.toml"
-          return 0
+          set verdict 0
+          break
         end
-        test "$dir" = "/"; and return 1
+        if test "$dir" = "/"
+          break
+        end
         set dir (string replace -r '/[^/]*$' '' -- $dir)
         test -z "$dir"; and set dir "/"
       end
+      set -g __hi_mise_local_pwd $PWD
+      set -g __hi_mise_local_verdict $verdict
+      return $verdict
     end
 
     function __hi_env_prompt --description 'name every active environment manager'

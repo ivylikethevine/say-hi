@@ -13,6 +13,14 @@ set -euo pipefail # off again at the end: an error must not close an interactive
 # reorders this list or drops words from it.
 _HI_ENV_ORDER_DEFAULT="mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv"
 
+# _hi_mise_local's memo: the walk's answer only changes when $PWD does (or a
+# config file appears/disappears mid-directory - the same raw edge this file's
+# git_prompt.sh sibling accepts for its OID memo), so a `cd`-less run of
+# prompts - the common case - pays the stat loop once instead of every draw.
+# GLOSSARY: HI.26
+_HI_MISE_LOCAL_PWD=""
+_HI_MISE_LOCAL_VERDICT=1
+
 # _hi_mise_local - true if a mise config file sits between $PWD and $HOME
 # (exclusive). mise exports no variable saying which file it resolved, and
 # $HOME/.tool-versions applies to every directory beneath it, so MISE_SHELL
@@ -20,15 +28,21 @@ _HI_ENV_ORDER_DEFAULT="mise asdf pyenv rbenv nodenv nix guix devbox devenv diren
 # only way to tell that apart from a real project override. Builtins only
 # (`[[ -f ]]`/parameter expansion), so it stays within HI.54's "no fork".
 _hi_mise_local() {
-  local _hi_dir="$PWD" _hi_home="${HOME:-}"
+  [[ "$PWD" == "$_HI_MISE_LOCAL_PWD" ]] && return "$_HI_MISE_LOCAL_VERDICT"
+  local _hi_dir="$PWD" _hi_home="${HOME:-}" _hi_verdict=1
   while :; do
-    [[ "$_hi_dir" == "$_hi_home" ]] && return 1
-    [[ -f "$_hi_dir/.tool-versions" || -f "$_hi_dir/.mise.toml" ||
-      -f "$_hi_dir/mise.toml" || -f "$_hi_dir/.mise/config.toml" ]] && return 0
-    [[ "$_hi_dir" == "/" ]] && return 1
+    [[ "$_hi_dir" == "$_hi_home" ]] && break
+    if [[ -f "$_hi_dir/.tool-versions" || -f "$_hi_dir/.mise.toml" ||
+      -f "$_hi_dir/mise.toml" || -f "$_hi_dir/.mise/config.toml" ]]; then
+      _hi_verdict=0
+      break
+    fi
+    [[ "$_hi_dir" == "/" ]] && break
     _hi_dir="${_hi_dir%/*}"
     [[ -z "$_hi_dir" ]] && _hi_dir="/"
   done
+  _HI_MISE_LOCAL_PWD="$PWD" _HI_MISE_LOCAL_VERDICT="$_hi_verdict"
+  return "$_hi_verdict"
 }
 
 # _hi_env_prompt [outvar] - with outvar the segment lands there instead of
