@@ -27,6 +27,32 @@ function _hi_flag_word() {
   esac
 }
 
+# _hi_flag_word_or_die <outvar> <errmsg> <flag> [next] - _hi_flag_word, but a
+# bare flag with nothing after it prints "$_HI_ME: <errmsg>" in red and exits
+# 1 itself rather than handing the caller a status to branch on. Status 2 (it
+# took <next>, the caller must shift again) still comes back, the one case
+# every call site still has to act on.
+function _hi_flag_word_or_die() {
+  local outvar="$1" msg="$2"
+  shift 2
+  _hi_flag_word "$outvar" "$@" && return 0
+  case $? in
+  2) return 2 ;;
+  *)
+    _hi_cecho "$_HI_ME: $msg" "$RED" >&2
+    exit 1
+    ;;
+  esac
+}
+
+# _hi_on_path <dir> - true when <dir> is a colon-delimited member of $PATH
+function _hi_on_path() {
+  case ":$PATH:" in
+  *":$1:"*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured
 # and reapplied too, since truncate-in-place alone did not preserve it on

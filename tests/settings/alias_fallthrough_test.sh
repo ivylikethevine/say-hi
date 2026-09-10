@@ -425,28 +425,6 @@ function run_tool_aliases_flag_tests() {
   done
 }
 
-# settings/aliases.sh resolves bat through `command -v bat || command -v
-# batcat`, and scripts/configure.sh's _hi_tool_alias_preview spells the same
-# ladder a second time to show the answer before the toggle is set - neither
-# file can source the other (see the note above the alias), so nothing but
-# this pins them: a preview that disagrees with the alias it previews is a
-# lie told during install, and the only place it would surface is a user's
-# screen.
-function test_ladder_matches_the_install_preview() {
-  local ladder="$1" from_aliases from_install
-  from_aliases="$(grep -o "$ladder" "$_HI_ALIASES" | head -1)"
-  from_install="$(grep -o "$ladder" "$_HI_ROOT/scripts/configure.sh" | head -1)"
-  [ -n "$from_aliases" ] || {
-    _hi_cecho " | ladder not found in settings/aliases.sh: [$ladder]" "$RED"
-    return 1
-  }
-  [ "$from_aliases" = "$from_install" ] || {
-    _hi_cecho " | aliases.sh: [$from_aliases]" "$RED"
-    _hi_cecho " | configure.sh: [$from_install]" "$RED"
-    return 1
-  }
-}
-
 # The bash/fish session wrappers (GLOSSARY: HI.46) are two-line statements,
 # which alias_test.sh's sampler skips on purpose, so this is their only
 # assertion: defined when _HI_REMOTE_SESSION=1 and load.sh's rc for that
@@ -501,11 +479,11 @@ function run_alias_fallthrough_test() {
   [ -n "$missing" ] && _hi_cecho " | not installed, skipped:$missing" "$YELLOW"
 
   _hi_suite_begin
-  # the vim/helix ladders moved to tests/scripts/configure_test.sh, which
-  # already sources configure.sh to call _hi_editors_preview - this suite
-  # only sources settings/aliases.sh
-  _hi_check "The bat ladder matches install.sh's preview" \
-    test_ladder_matches_the_install_preview 'command -v bat || command -v batcat'
+  # the vim/helix and bat/eza ladders moved to tests/scripts/configure_test.sh,
+  # which already sources configure.sh to call _hi_editors_preview and
+  # _hi_tool_alias_preview - both read their alias back from a real `source
+  # settings/aliases.sh` now, so nothing here can drift from it to pin - this
+  # suite only sources settings/aliases.sh
   run_fallthrough_tests
   run_flag_tests
   run_tool_aliases_flag_tests

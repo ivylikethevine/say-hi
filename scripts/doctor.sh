@@ -435,10 +435,7 @@ function doctor_install() {
   if [ "$(readlink "$_HI_LINK" 2>/dev/null)" = "$_HI_LAUNCHER" ]; then
     doctor_row link "$_HI_LINK -> $_HI_LAUNCHER" ok
     bindir="${_HI_LINK%/*}"
-    case ":$PATH:" in
-    *":$bindir:"*) ;;
-    *) doctor_row PATH "$bindir is not on PATH - the wired shells alias hi; scripts and other programs need it there" warn ;;
-    esac
+    _hi_on_path "$bindir" || doctor_row PATH "$bindir is not on PATH - the wired shells alias hi; scripts and other programs need it there" warn
   elif [ -e "$_HI_LINK" ] || [ -L "$_HI_LINK" ]; then
     owner="$(link_owner "$_HI_LINK" 2>/dev/null || true)"
     doctor_row link "$_HI_LINK is not this tree's: $(readlink "$_HI_LINK" 2>/dev/null || echo 'a regular file')${owner:+, the $owner package}" bad
