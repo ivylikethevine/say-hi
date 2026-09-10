@@ -51,6 +51,10 @@ export _HI_KAKRC="$_HI_ROOT/settings/kak.rc"
 # variable, so neither needs an _HI_PROMPT_TOOL gate. GLOSSARY: HI.32
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/starship.toml" ] && export STARSHIP_CONFIG="$_HI_CONFIG_DIR/starship.toml"
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
+# eza the same way: it reads $EZA_CONFIG_DIR/theme.yml and nothing else from
+# that directory, and the file has to carry that exact name, so the overlay
+# itself is the directory (docs/SETTINGS.md says how to put one there).
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
 
 export _HI_ALIASES="$_HI_ROOT/settings/aliases.sh"
 export _HI_BASHRC="$_HI_ROOT/common/bash.sh"

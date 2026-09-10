@@ -24,6 +24,24 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
 | `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT_TOOL=starship`; at home starship keeps reading its own                   |
 | `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
+| `~/.config/say-hi/theme.yml`       | -                   | your [eza theme](https://github.com/eza-community/eza-themes): the overlay becomes `$EZA_CONFIG_DIR` on every target, so the `eza` alias colors files there the way it does at home                     |
+
+**Shipping your eza theme.** eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`
+and insists on that file name, so hi does not rename it: drop a `theme.yml`
+into the overlay and, on a target, `common/paths.sh` exports
+`EZA_CONFIG_DIR` pointing at the overlay's shipped copy - the directory
+itself, not the file. At home the variable is left alone and eza keeps reading
+`~/.config/eza/theme.yml`. To ship the theme you already use, link it rather
+than copy it - the overlay archive resolves symlinks into content, so one
+file serves both:
+
+```sh
+ln -s ~/.config/eza/theme.yml ~/.config/say-hi/theme.yml
+```
+
+The file rides only when present, like every overlay member, and only the
+`eza` alias (`_HI_DISABLE_TOOL_ALIASES`) is affected: a bare `command eza` on
+the target reads the same variable, so it matches too.
 
 `hi --install` seeds the overlay with the shipped
 `colors`/`packages` and editor rc defaults — only for the

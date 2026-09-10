@@ -569,6 +569,12 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
+The prompt tools' `starship.toml` / `oh-my-posh.json` and eza's `theme.yml`
+ride it so a tool's config on every target is the one configured at home;
+`common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
+`$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
+fixes the file name) at the overlay on a target only (HI.32).
+
 The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,
 and `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one. Left out of the stream, that

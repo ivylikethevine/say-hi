@@ -310,6 +310,22 @@ function test_remote_session_points_the_tool_at_the_overlay_config() {
   [ "$out" = "$_HI_WORKDIR/cfg/starship.toml" ] && [ -z "$home" ]
 }
 
+# eza's theme the same way, except the variable names the directory: eza
+# reads $EZA_CONFIG_DIR/theme.yml and no other name, so the overlay is the dir
+function test_remote_session_points_eza_at_the_overlay() {
+  local shell="$1" script out home
+  mkdir -p "$_HI_WORKDIR/cfg"
+  printf 'filekinds:\n  directory: {foreground: Blue}\n' >"$_HI_WORKDIR/cfg/theme.yml"
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${EZA_CONFIG_DIR:-}"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $EZA_CONFIG_DIR' ;;
+  esac
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1)"
+  home="$(_hi_rc_shell xterm-256color "$shell" "$script")"
+  rm -f "$_HI_WORKDIR/cfg/theme.yml"
+  [ "$out" = "$_HI_WORKDIR/cfg" ] && [ -z "$home" ]
+}
+
 function test_bash_keeps_hi_prompt_without_the_setting() {
   local out
   out="$(_hi_rc_shell xterm-256color bash \
@@ -728,11 +744,13 @@ function run_rc_tests() {
   _hi_check "[bash] keeps hi's prompt without the setting" test_bash_keeps_hi_prompt_without_the_setting
   _hi_check "[bash] falls back silently when absent" test_bash_falls_back_when_starship_is_absent
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_points_the_tool_at_the_overlay_config bash
+  _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_points_eza_at_the_overlay bash
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
   _hi_check_requires fish "[fish] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked fish oh-my-posh
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_points_the_tool_at_the_overlay_config fish
+  _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_points_eza_at_the_overlay fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

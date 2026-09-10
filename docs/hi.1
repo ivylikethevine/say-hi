@@ -512,7 +512,9 @@ or
 .B oh-my-posh.json
 for the prompt program
 .B _HI_PROMPT_TOOL
-names), written by
+names, and a
+.B theme.yml
+for eza), written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
 variable toggle \- header, prompt, git status, editors \- each on
@@ -559,6 +561,11 @@ or
 when
 .B _HI_PROMPT_TOOL
 names that program; at home the program keeps reading its own.
+.TP
+.B ~/.config/say-hi/theme.yml
+an eza theme, carried to every target with the overlay as its
+.B EZA_CONFIG_DIR
+(eza reads that file name and no other); at home eza keeps reading its own.
 .SH ENVIRONMENT
 Every setting is an environment variable, and the full table with defaults is
 .IR docs/SETTINGS.md ;
