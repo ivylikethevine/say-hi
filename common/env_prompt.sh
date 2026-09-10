@@ -17,21 +17,21 @@ _HI_ENV_ORDER_DEFAULT="mise asdf pyenv rbenv nodenv nix guix devbox devenv diren
 # config file appears/disappears mid-directory - the same raw edge this file's
 # git_prompt.sh sibling accepts for its OID memo), so a `cd`-less run of
 # prompts - the common case - pays the stat loop once instead of every draw.
-# GLOSSARY: HI.26
+# GLOSSARY: HI.16
 _HI_MISE_LOCAL_PWD=""
 _HI_MISE_LOCAL_VERDICT=1
 
-# _hi_mise_local - true if a mise config file sits between $PWD and $HOME
-# (exclusive). mise exports no variable saying which file it resolved, and
+# _hi_mise_local - true if a mise config file sits in $PWD or an ancestor below
+# $HOME (a config at $HOME is the global one; outside $HOME the walk runs to
+# /). mise exports no variable saying which file it resolved, and
 # $HOME/.tool-versions applies to every directory beneath it, so MISE_SHELL
 # alone is on for effectively every prompt on a box with one - this is the
 # only way to tell that apart from a real project override. Builtins only
-# (`[[ -f ]]`/parameter expansion), so it stays within HI.54's "no fork".
+# (`[[ -f ]]`/parameter expansion), so it stays a no-fork read. GLOSSARY: HI.16
 _hi_mise_local() {
   [[ "$PWD" == "$_HI_MISE_LOCAL_PWD" ]] && return "$_HI_MISE_LOCAL_VERDICT"
-  local _hi_dir="$PWD" _hi_home="${HOME:-}" _hi_verdict=1
-  while :; do
-    [[ "$_hi_dir" == "$_hi_home" ]] && break
+  local _hi_dir="$PWD" _hi_verdict=1
+  while [[ "$_hi_dir" != "${HOME:-}" ]]; do
     if [[ -f "$_hi_dir/.tool-versions" || -f "$_hi_dir/.mise.toml" ||
       -f "$_hi_dir/mise.toml" || -f "$_hi_dir/.mise/config.toml" ]]; then
       _hi_verdict=0
@@ -39,7 +39,7 @@ _hi_mise_local() {
     fi
     [[ "$_hi_dir" == "/" ]] && break
     _hi_dir="${_hi_dir%/*}"
-    [[ -z "$_hi_dir" ]] && _hi_dir="/"
+    _hi_dir="${_hi_dir:-/}"
   done
   _HI_MISE_LOCAL_PWD="$PWD" _HI_MISE_LOCAL_VERDICT="$_hi_verdict"
   return "$_hi_verdict"

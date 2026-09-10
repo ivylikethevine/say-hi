@@ -959,3 +959,9 @@ fish carries a third copy of the source list, for the reason config.fish
 carries a second copy of the git glyphs: it cannot call the bash function, and
 a `bash -c` on every prompt draw is exactly the fork this prompt refuses
 everywhere else. `tests/hi/prompt_test.sh` pins the two lists together.
+
+mise is the one row that is more than parameter expansion. `$MISE_SHELL` is
+set wherever mise is activated, and a `~/.tool-versions` covers every
+directory under it, so `(mise)` is named only where a config file between the
+directory and `~` overrides the global one: a builtins-only walk up from
+`$PWD`, memoized on it (HI.16). `_HI_ENV_ORDER` still drops the word outright.

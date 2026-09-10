@@ -35,19 +35,6 @@ _HI_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSION
   VIRTUAL_ENV_PROMPT _OLD_VIRTUAL_PS1
   _HI_ENV_DEFER _HI_ENV_ORDER _HI_DISABLE_ENV_STATUS"
 
-# _hi_mise_local walks $PWD up to $HOME looking for a project config, so every
-# case that wants "(mise)" to show has to set both: $_hi_mise_home stands in
-# for ~ (no config of its own), $_hi_mise_project is a real project override
-# one level under it, $_hi_mise_project/sub a subdirectory the walk has to
-# climb out of, $_hi_mise_home/other a project-less sibling, and
-# $_hi_mise_home/toml-proj an override spelled mise.toml instead.
-_hi_mise_home="$(mktemp -d)"
-_hi_mise_project="$_hi_mise_home/proj"
-mkdir -p "$_hi_mise_project/sub" "$_hi_mise_home/other" "$_hi_mise_home/toml-proj"
-: >"$_hi_mise_project/.tool-versions"
-: >"$_hi_mise_home/toml-proj/mise.toml"
-trap 'rm -rf "$_hi_mise_home"' EXIT
-
 # _hi_env_case <VAR=value>... - the segment a shell with exactly those
 # variables set would draw. A subshell, so the suite's own environment (and
 # whatever the machine running it has activated) never leaks into a case.
@@ -61,6 +48,14 @@ function _hi_env_case() {
     done
     _hi_env_prompt
   )
+}
+
+# _hi_mise_case <VAR=value>... - _hi_env_case run against the mise fixture tree
+# built in run_env_prompt_tests: $HOME is its stand-in ~, $PWD its project. The
+# pairs are applied in order, so a later PWD= wins for a case that wants
+# another directory.
+function _hi_mise_case() {
+  _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" "$@"
 }
 
 function test_no_environment_produces_no_output() {
@@ -114,18 +109,55 @@ function test_out_var_is_precleared_with_nothing_active() {
 # so the two can never drift apart silently.
 function test_zsh_walks_the_order_list_the_same_way() {
   local want got
-  want="$(_hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
-    MISE_SHELL=bash DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj)"
+  want="$(_hi_mise_case MISE_SHELL=bash DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj)"
+  # a cd, not PWD=: every shell resets an inherited $PWD to its real cwd, so
+  # the walk would climb from wherever the suite runs
   got="$(
     env -u _HI_ENV_ORDER -u _HI_DISABLE_ENV_STATUS -u _HI_ENV_DEFER \
-      HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
+      HOME="$_hi_mise_home" \
       MISE_SHELL=zsh DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj \
-      zsh -c "source '$_HI_ENV_PROMPT'; _hi_env_prompt"
+      zsh -c "cd '$_hi_mise_project' && source '$_HI_ENV_PROMPT' && _hi_env_prompt"
   )"
   [ -n "$want" ] && [ "$want" = "$got" ]
 }
 
+# Every _hi_env_case is a fresh subshell, so none of them reads the memo back.
+# This one draws three times in one shell through the out-var form, the way
+# ps1() and precmd do (a $( ) would take the memo with it): the repeat at one
+# $PWD is served from the memo, and the cd has to re-key it.
+function test_mise_memo_follows_a_cd() {
+  (
+    local first second third
+    # shellcheck disable=SC2086 # the roster is a word list on purpose
+    unset $_HI_ENV_ROSTER
+    export HOME="$_hi_mise_home" MISE_SHELL=bash
+    cd "$_hi_mise_project"
+    _hi_env_prompt first
+    _hi_env_prompt second
+    cd "$_hi_mise_home/other"
+    _hi_env_prompt third
+    [ "$first" = "(mise) " ] && [ "$second" = "(mise) " ] && [ -z "$third" ]
+  )
+}
+
 function run_env_prompt_tests() {
+  # _hi_mise_local walks $PWD up to $HOME looking for a project config, so
+  # every case that wants "(mise)" runs against this tree: home/ stands in for
+  # ~ (no config of its own), home/proj is a project override one level under
+  # it and home/proj/sub a subdirectory the walk climbs out of, home/other a
+  # project-less sibling, and the three *-proj directories the other spellings
+  # mise reads.
+  _hi_workdir envprompttest
+  _hi_mise_home="$_HI_WORKDIR/home"
+  _hi_mise_project="$_hi_mise_home/proj"
+  mkdir -p "$_hi_mise_project/sub" "$_hi_mise_home/other" \
+    "$_hi_mise_home/toml-proj" "$_hi_mise_home/dot-toml-proj" \
+    "$_hi_mise_home/dir-proj/.mise"
+  : >"$_hi_mise_project/.tool-versions"
+  : >"$_hi_mise_home/toml-proj/mise.toml"
+  : >"$_hi_mise_home/dot-toml-proj/.mise.toml"
+  : >"$_hi_mise_home/dir-proj/.mise/config.toml"
+
   _hi_h1 "Testing common/env_prompt.sh"
 
   _hi_suite_begin
@@ -136,7 +168,7 @@ function run_env_prompt_tests() {
 
   _hi_h2 "Use-Case: one environment at a time"
   _hi_check_eq "mise, activated with a project override" "(mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" MISE_SHELL=bash
+    _hi_mise_case MISE_SHELL=bash
   _hi_check_eq "asdf, activated" "(asdf) " _hi_env_case ASDF_DIR=/opt/asdf
   _hi_check_eq "pyenv shell override" "(py:3.12.1) " _hi_env_case PYENV_VERSION=3.12.1
   _hi_check_eq "rbenv shell override" "(rb:3.3.0) " _hi_env_case RBENV_VERSION=3.3.0
@@ -150,15 +182,19 @@ function run_env_prompt_tests() {
 
   _hi_h2 "Use-Case: mise's default vs. a project override"
   _hi_check_eq "mise active, PWD is HOME itself (the ~/.tool-versions default)" "" \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_home" MISE_SHELL=bash
+    _hi_mise_case PWD="$_hi_mise_home" MISE_SHELL=bash
   _hi_check_eq "mise active, a project subdir with no config of its own" "" \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_home/other" MISE_SHELL=bash
-  _hi_check_eq "mise active, project override one level down" "(mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" MISE_SHELL=bash
+    _hi_mise_case PWD="$_hi_mise_home/other" MISE_SHELL=bash
   _hi_check_eq "mise active, override found by walking up from a subdir" "(mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project/sub" MISE_SHELL=bash
+    _hi_mise_case PWD="$_hi_mise_project/sub" MISE_SHELL=bash
   _hi_check_eq "mise active, mise.toml counts as an override too" "(mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_home/toml-proj" MISE_SHELL=bash
+    _hi_mise_case PWD="$_hi_mise_home/toml-proj" MISE_SHELL=bash
+  _hi_check_eq "...and so does .mise.toml" "(mise) " \
+    _hi_mise_case PWD="$_hi_mise_home/dot-toml-proj" MISE_SHELL=bash
+  _hi_check_eq "...and .mise/config.toml" "(mise) " \
+    _hi_mise_case PWD="$_hi_mise_home/dir-proj" MISE_SHELL=bash
+  _hi_check "A repeat draw is served from the memo, a cd re-walks" \
+    test_mise_memo_follows_a_cd
 
   _hi_h2 "Use-Case: the names that need work"
   _hi_check_eq "direnv drops its leading '-' and keeps the basename" "(direnv:proj) " \
@@ -177,17 +213,13 @@ function run_env_prompt_tests() {
   _hi_check_eq "direnv outside a venv, outermost first" "(direnv:proj|myproj) " \
     _hi_env_case DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
   _hi_check_eq "mise outside both" "(mise|direnv:proj|myproj) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
-    MISE_SHELL=bash DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
+    _hi_mise_case MISE_SHELL=bash DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
   _hi_check_eq "_HI_ENV_ORDER drops a word" "(myproj) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
-    MISE_SHELL=bash VIRTUAL_ENV_PROMPT=myproj _HI_ENV_ORDER=venv
+    _hi_mise_case MISE_SHELL=bash VIRTUAL_ENV_PROMPT=myproj _HI_ENV_ORDER=venv
   _hi_check_eq "_HI_ENV_ORDER reorders what is left" "(myproj|mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
-    MISE_SHELL=bash VIRTUAL_ENV_PROMPT=myproj _HI_ENV_ORDER="venv mise"
+    _hi_mise_case MISE_SHELL=bash VIRTUAL_ENV_PROMPT=myproj _HI_ENV_ORDER="venv mise"
   _hi_check_eq "stray spaces in _HI_ENV_ORDER are not words" "(mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
-    MISE_SHELL=bash _HI_ENV_ORDER="  mise   "
+    _hi_mise_case MISE_SHELL=bash _HI_ENV_ORDER="  mise   "
 
   _hi_h2 "Use-Case: standing down for a tool drawing its own prefix"
   _hi_check_eq "zsh/fish: activate ran here, so the venv is the venv's" "(direnv:proj) " \
@@ -199,8 +231,7 @@ function run_env_prompt_tests() {
   _hi_check_eq "a venv inherited rather than activated is still hi's" "(myproj) " \
     _hi_env_case _HI_ENV_DEFER=1 VIRTUAL_ENV_PROMPT=myproj
   _hi_check_eq "conda with changeps1 on is conda's" "(mise) " \
-    _hi_env_case HOME="$_hi_mise_home" PWD="$_hi_mise_project" \
-    _HI_ENV_DEFER=1 MISE_SHELL=bash CONDA_DEFAULT_ENV=sci \
+    _hi_mise_case _HI_ENV_DEFER=1 MISE_SHELL=bash CONDA_DEFAULT_ENV=sci \
     CONDA_PROMPT_MODIFIER='(sci) '
   _hi_check_eq "conda with changeps1 off is hi's" "(sci) " \
     _hi_env_case _HI_ENV_DEFER=1 CONDA_DEFAULT_ENV=sci
