@@ -154,8 +154,7 @@ function _hi_post_check() {
 }
 
 # <label> <image> <login_shell> <cmd> [post] [extra-marker...] - anything past
-# $5 is handed to _hi_case_result as a further must-appear transcript marker
-# (the same variadic contract _hi_run_ksh_git_case uses for the branch name).
+# $5 is handed to _hi_case_result as a further must-appear transcript marker.
 #
 # Shared by every suite that drives hi over real ssh - ssh_test.sh across login
 # shells, install_methods_test.sh across the ways say-hi gets onto a target - so

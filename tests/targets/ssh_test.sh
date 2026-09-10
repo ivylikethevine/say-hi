@@ -175,8 +175,8 @@ function run_ssh_tests() {
     # ever been seen on a fast box. The number that matters is the time in
     # the verdict line: the case's own timeout is the budget hi gets on such
     # a target, and a change that pushes it past that has to say so here
-    # before a user does (7-8 s here at the time of writing, against ~1.5 s
-    # for the same probe unshaped). netem goes on inside the container (NET_ADMIN,
+    # before a user does (7-8 s here, against ~1.5 s for the same probe
+    # unshaped). netem goes on inside the container (NET_ADMIN,
     # iproute2 in the image), where it shapes the container's own eth0 and
     # nothing on the host.
     _HI_SSH_RUN_ARGS="--cpus 0.1 --memory 64m --cap-add NET_ADMIN" \
@@ -188,9 +188,9 @@ function run_ssh_tests() {
     # it to a restricted one. `ForceCommand` (and a `command=` on the key,
     # the same mechanism) runs its own program whatever the client asked:
     # hi's bootstrap never runs, and what comes back is that program's status
-    # and output. Two shapes - one silent and exiting 0 (`true`, which hi
-    # used to take for a session that worked, exiting 0 with nothing said)
-    # and one that prints (`id`) - both have to be named in the transcript
+    # and output. Two shapes - one silent and exiting 0 (`true`, which must
+    # not pass for a session that worked) and one that prints (`id`) - both
+    # have to be named in the transcript
     # (the marker, overridden for these two), and the session handed over is
     # the host's own, so the command's own marker must not appear: the serial
     # check after the batch. rbash forbids `/` in a command name and little

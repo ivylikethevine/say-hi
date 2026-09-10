@@ -152,7 +152,7 @@ function test_fish_has_his_prompt() {
   [ "$(_hi_strip_ansi "$(_hi_loc_shell fish 'functions -q fish_prompt; and echo yes')")" = yes ]
 }
 
-# _hi_loc_header <shell> <script> - the banner, as that shell reaches it. The
+# _hi_loc_renders_the_header <shell> <script> - the banner, as that shell reaches it. The
 # assertion is the same in all three: hi_header renders out of the *nested*
 # tree, which only works if $_HI_HEADER resolved into it.
 function _hi_loc_renders_the_header() {

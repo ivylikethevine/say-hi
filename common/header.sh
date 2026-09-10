@@ -92,8 +92,8 @@ function _hi_draw_width() {
 # hi_header's row loop, the one caller with a "next row" to hand cells to;
 # every other caller (configure.sh's previews, `hi --doctor`, a suite calling
 # header_row directly) stays unarmed, and unarmed
-# header_row drains its own carry before returning - so standalone output is
-# unchanged from before this cascade existed.
+# header_row drains its own carry before returning - so standalone output
+# carries no cascade.
 _HI_ROW_CARRY_ARMED=0
 declare -a _HI_ROW_CARRY=()
 
@@ -610,9 +610,8 @@ function _hi_identity_probe() {
   # One rule for all three backends: a cell appears only when its binary was
   # found and its probe actually ran - the file's existence is that signal,
   # never its content - and once it has, the count prints as-is, zero
-  # included. A reachable-but-idle nomad or kube used to render exactly like
-  # an absent one; a probed-and-empty docker/podman already didn't, and this
-  # brings the other two in line with it rather than the other way round.
+  # included: a reachable-but-idle backend renders its zero, not like an
+  # absent one.
   if [ -n "$_HI_PROBE_DIR" ]; then
     local -a lanes=("$_HI_PROBE_DIR"/containers.*)
     if [ -f "${lanes[0]}" ]; then
@@ -923,8 +922,7 @@ function _hi_packages_palette() {
 # _hi_ramp_escape <outvar> <palette name> <scheme word count> - the escape a
 # ramp slot paints in. Normally the palette entry for <name>; with a 48-word
 # $_HI_COLOR_SCHEME, the same slot twenty-four further on, which is the second
-# bank that scheme carries for the check alone (HI.50). This used to read the slot
-# back out of an escape's own bytes, because the ramps stored escapes.
+# bank that scheme carries for the check alone (HI.50).
 function _hi_ramp_escape() {
   local _hi_re_i=0 _hi_re_n
   printf -v "$1" '%s' ''
@@ -971,9 +969,9 @@ function _hi_row_max() {
   printf -v "$1" '%s' "$_hi_rm_max"
 }
 
-# check_line <out-array-name> <line>. The array is the caller's to name: it
-# used to append into a bare `visible`, so both callers had to know that name
-# *and* the \x1f record shape, and one of them is in another file.
+# check_line <out-array-name> <line>. The array is the caller's to name: one
+# caller is in another file, and neither has to know a bare name here or the
+# \x1f record shape.
 function check_line() {
   local pair cmd priority color best best_priority max_priority best_idx=0 idx=0 found=0 symbol rendered
   local mode=both line=$2

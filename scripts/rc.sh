@@ -241,34 +241,22 @@ function check_shell_configs() {
 }
 
 # The overlay's shell-dialect files, each against the parser(s) that will read
-# it on a target: <file>|<label>|<syntax check cmd>. aliases.sh is the one
-# with two rows - it is sourced by bash, zsh *and* fish on every target, in
-# the POSIX+fish subset, and nothing else warns when it steps outside that:
-# an `if` in it works locally and breaks on the first fish target. Rows are
-# skipped silently when the file is not overridden or the parser is not
-# installed, the same way check_one_config treats a missing rc file.
+# it on a target: <file>|<syntax check cmd>, walked by doctor.sh's
+# doctor_configs. aliases.sh is the one with two rows - it is sourced by bash,
+# zsh *and* fish on every target, in the POSIX+fish subset, and nothing else
+# warns when it steps outside that: an `if` in it works locally and breaks on
+# the first fish target. Rows are skipped silently when the file is not
+# overridden or the parser is not installed, the same way check_one_config
+# treats a missing rc file.
 _HI_OVERLAY_CHECKS=(
-  "settings.sh|settings.sh overlay (sh)|sh -n"
-  "settings.sh|settings.sh overlay (fish)|fish --no-execute"
-  "aliases.sh|aliases.sh overlay (sh)|sh -n"
-  "aliases.sh|aliases.sh overlay (fish)|fish --no-execute"
-  "bash.sh|bash.sh overlay|bash -n"
-  "zsh.zsh|zsh.zsh overlay|zsh -n"
-  "config.fish|config.fish overlay|fish --no-execute"
+  "settings.sh|sh -n"
+  "settings.sh|fish --no-execute"
+  "aliases.sh|sh -n"
+  "aliases.sh|fish --no-execute"
+  "bash.sh|bash -n"
+  "zsh.zsh|zsh -n"
+  "config.fish|fish --no-execute"
 )
-
-# Validates whatever of the overlay's shell files exist, before a session
-# ships them to a target. Non-zero if any failed, like check_shell_configs.
-function check_overlay_configs() {
-  _hi_h2 "Checking the config overlay"
-  local bad=0 row file label check
-  for row in "${_HI_OVERLAY_CHECKS[@]}"; do
-    IFS='|' read -r file label check <<<"$row"
-    # shellcheck disable=SC2086 # the check column is a command plus its flag
-    check_one_config "$label" "$_HI_CONFIG_DIR/$file" $check || bad=1
-  done
-  return $bad
-}
 
 # Gate the install on check_shell_configs. Unlike ask_setting, a
 # non-interactive run does *not* wave this through: install.sh rewrites the

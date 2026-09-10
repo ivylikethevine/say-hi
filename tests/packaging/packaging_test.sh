@@ -2111,8 +2111,8 @@ function test_mkrepo_release_hashes_shape() {
       esac
     fi
   fi
-  # A failure here once had nothing to go on but "FAILED" - dump what
-  # release_hashes actually produced so a repeat names the real shape.
+  # dump what release_hashes actually produced, so a failure names the real
+  # shape rather than a bare "FAILED"
   printf '%s\n' "$out" >"$d/hashes.actual"
   _hi_dump_log "release_hashes' actual output (wanted a lowercase-hex sha256 line)" "$d/hashes.actual"
   return 1

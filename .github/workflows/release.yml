@@ -264,9 +264,9 @@ jobs:
             dist/manifests/*
             dist/ARTIFACTS
             dist/say-hi.spdx.json
-          # .SRCINFO: the action drops hidden files by default, which is how
-          # v0.1.0's manifest-PR step found no .SRCINFO to cp - the failure
-          # surfaced two jobs later, in publish
+          # .SRCINFO: the action drops hidden files by default, and without
+          # this the manifest step finds no .SRCINFO to cp - a failure that
+          # surfaces two jobs later, in publish
           include-hidden-files: true
           if-no-files-found: error
 
@@ -374,8 +374,8 @@ jobs:
           badge() { printf 'https://img.shields.io/badge/%s-%s-%s' "$1" "$2" "$3"; }
           # A figure that is all zeros is not a measurement: it is what kcov's
           # merge writes when it resolves no sources ("files": [], 0.00), the
-          # reading coverage.yml's gather job now refuses to publish - but a
-          # pct artifact from before that fix can still carry it, and a frozen
+          # reading coverage.yml's gather job refuses to publish - but an
+          # older pct artifact can still carry it, and a frozen
           # 0.00% in a release body reads as true where grey "unknown" reads
           # as what it is. The same refusal, at the consumer.
           pct_ok() { case "$1" in '' | *[!0-9.]* | 0 | 0.0 | 0.00 | 0.000) return 1 ;; esac; }
@@ -570,15 +570,13 @@ jobs:
   # submission gets. `brew audit` findings are `* <text>` lines; everything
   # else `>audit.out 2>&1` also captures - rubocop's own gem-bundling chatter
   # ahead of it ("Fetching foo", "Bundle complete!", "Run `bundle fund` for
-  # details") - is not a finding and must not be read as one. Selecting `* `
-  # lines rather than blacklisting the bundler noise is what v0.1.1's release
-  # run got wrong: `grep -v` over the whole captured output left every
-  # "Installing X"/"Fetching X" line in audit.real, so found=1 fired with no
-  # real finding anywhere in it. Two findings were expected while the
-  # repository was private (the homepage 404 and the HEAD URL not resolving)
-  # and are filtered from what remains; now that the repo is public neither
-  # should appear, but the filter stays as a harmless no-op if GitHub's own
-  # check is ever slow to see that.
+  # details") - is not a finding and must not be read as one. Select `* `
+  # lines rather than blacklisting the bundler noise: a `grep -v` over the
+  # whole captured output leaves every "Installing X"/"Fetching X" line in
+  # audit.real, and found=1 fires with no real finding anywhere in it. Two
+  # findings a private repository produces (the homepage 404 and the HEAD
+  # URL not resolving) are filtered from what remains - a harmless no-op on
+  # a public repo, kept for when GitHub's own check is slow to see that.
   #
   # `brew trust` after tap-new: Homebrew 6.0's tap trust gate ignores a
   # non-official tap's formulae until trusted, and this throwaway tap is

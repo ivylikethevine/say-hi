@@ -270,7 +270,7 @@ function test_update_refuses_a_dirty_tree() {
   tail -n 1 "$home/say-hi/hi.sh" | grep -q '^# hacked$'
 }
 
-# a branch name is no longer a thing to name: releases are tags
+# a branch name is not a thing to name: releases are tags
 function test_update_refuses_an_unknown_tag() {
   local home out
   home="$(_hi_update_fixture upd-nope)" || return 1

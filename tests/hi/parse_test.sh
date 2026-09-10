@@ -366,7 +366,7 @@ function test_use_backend_rejects_a_stranger() {
 }
 
 # --use=<backend> is the same flag with its word joined, the spelling
-# install.sh's --prefix and --preset already take; it used to fall through
+# install.sh's --prefix and --preset already take, and must not fall through
 # to ssh as an unknown option
 function test_parse_use_takes_the_equals_spelling() {
   [ "$(_hi_backend_parse_out --use=nerdctl myhost)" = "$(printf 'myhost\nnerdctl\n')" ] &&

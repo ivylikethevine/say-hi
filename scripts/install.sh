@@ -437,7 +437,7 @@ function strip_settings() {
 }
 
 # unlink_hi - take hi's own link back out: $_HI_LINK, and /usr/bin/hi as
-# well when an earlier --link system (or the old default) put it there. A
+# well when an earlier --link system put it there. A
 # link that is not this tree's - a package's, another install's - is named
 # and left alone.
 function unlink_hi() {
@@ -570,8 +570,6 @@ function install_tree() {
   _hi_cecho " $profile :)" "$GREEN"
 }
 
-# a preset name is checked before anything is asked or written, so a typo
-# costs nothing
 # The overlay half of `hi --install`: copy the shipped defaults in for the
 # files the user has none of, so a fresh overlay starts with real files to
 # edit rather than a scavenger hunt through the tree. A file already present

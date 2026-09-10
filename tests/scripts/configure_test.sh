@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: MIT
 # Unit tests for hi --configure's settings wizard - scripts/configure.sh - and
 # the rc.sh/table.sh helpers it and install.sh's own rc handling share
-# (config_shell, tmpdir_line, check_one_config, check_overlay_configs,
-# _hi_visible_len). Split out of tests/scripts/install_test.sh, which had grown
-# to cover two scripts at once: this half is everything a plain install's
-# second stage, or a later `hi --configure`, touches - every question, its
-# validation, and the one write to $_HI_SETTINGS. install_test.sh keeps the
-# other half: install_tree's packaging-mode DESTDIR layout and the
+# (config_shell, tmpdir_line, check_one_config, _hi_visible_len). This half is
+# everything a plain install's second stage, or a later `hi --configure`,
+# touches - every question, its validation, and the one write to
+# $_HI_SETTINGS. tests/scripts/install_test.sh is the other half:
+# install_tree's packaging-mode DESTDIR layout and the
 # --uninstall/strip_marker/strip_settings/unlink_hi teardown path.
 #
 # GLOSSARY: HI.30 + HI.34
@@ -445,10 +444,10 @@ function test_packages_floor_kept_when_the_check_is_off() {
 }
 
 # The loop itself, which none of the four cases above can reach: `[ -t 0 ]`
-# guards it, so exercising it at all needs a pty - which is how it went
-# untested long enough to grow an unbounded retry. An answer that was never a
-# number re-asked forever, with no way out but ^C and a full re-render of the
-# package check on every pass. What these pin is that it *stops*, by counting
+# guards it, so exercising it at all needs a pty. An unbounded retry is the
+# failure to fear: an answer that is never a number re-asking forever, with
+# no way out but ^C and a full re-render of the package check on every pass.
+# What these pin is that it *stops*, by counting
 # the prompts rather than trusting a wall clock: a bound that regressed would
 # show up as more prompts, not as a slower suite.
 #
@@ -898,10 +897,9 @@ function test_preset_shorthand_resolves_each_first_letter() {
     [ "$(preset_shorthand m)" = "minimal" ]
 }
 
-# the header presets go through the same two helpers as the main ones. They
-# used to have their own copy of the first-letter match with no ambiguity
-# guard and no break, so two presets sharing a letter resolved to whichever
-# came last, and an exact name match could be clobbered by a later prefix.
+# the header presets go through the same two helpers as the main ones, so
+# they get the ambiguity guard and the exact-name-first order: two presets
+# sharing a letter must refuse, and an exact name must beat a later prefix.
 function test_preset_shorthand_is_table_agnostic_and_refuses_ambiguity() {
   local -a _HI_TEST_PRESETS=("alpha|first|a b" "apex|second|c d" "zulu|third|e f")
   # unambiguous letter and exact name both resolve
@@ -1002,20 +1000,6 @@ function test_check_one_config_skips_missing_shell() {
   check_one_config nope "$target" definitely-not-a-real-shell-xyz
 }
 
-# check_overlay_configs: the roster over a scratch overlay. What the fish row
-# pins is the reason the function exists - an `if` block in aliases.sh is
-# valid sh and invalid fish, and the sh row alone would wave it through.
-function _hi_overlay_check_run() { check_overlay_configs; }
-# shellcheck disable=SC2016 # $_HI_CONFIG_DIR is the fixture child's to expand
-function test_check_overlay_configs_passes_a_clean_overlay() {
-  _hi_settings_fixture ov_clean bash -c 'printf "alias ll=\"ls -l\"\n" >"$_HI_CONFIG_DIR/aliases.sh"'
-  _hi_settings_fixture ov_clean _hi_overlay_check_run
-}
-# shellcheck disable=SC2016 # same: expands in the child
-function test_check_overlay_configs_catches_sh_only_aliases() {
-  _hi_settings_fixture ov_if bash -c 'printf "if true; then alias ll=ls; fi\n" >"$_HI_CONFIG_DIR/aliases.sh"'
-  ! _hi_settings_fixture ov_if _hi_overlay_check_run
-}
 function test_check_one_config_skips_empty_file() {
   local target="$_HI_WORKDIR/empty.bashrc"
   : >"$target"
@@ -1434,8 +1418,8 @@ function test_prompt_menu_junk_is_bounded_and_a_quote_is_refused() {
     [[ "$(_hi_cfg_lines pe_quote)" != *"_HI_PROMPT_END_"* ]]
 }
 
-# the truecolor question maps its words both ways: `off` is stored as 0. The
-# glyph question that used to sit beside it retired with $_HI_ASCII.
+# the truecolor question maps its words both ways: `off` is stored as 0, and
+# nothing writes an $_HI_ASCII
 function test_advanced_values_map_truecolor_words() {
   _hi_cfg_pty adv_tc 'off\n' '' config_advanced_values || return 1
   local lines
@@ -1760,11 +1744,6 @@ function run_configure_tests() {
   _hi_check_requires bash "Invalid bash syntax" test_check_one_config_invalid_bash
   _hi_check "Skips a missing shell" test_check_one_config_skips_missing_shell
   _hi_check_requires bash "Skips an empty file" test_check_one_config_skips_empty_file
-
-  _hi_h2 "Testing: check_overlay_configs"
-  _hi_check_requires fish "A clean overlay passes" test_check_overlay_configs_passes_a_clean_overlay
-  _hi_check_requires fish "An sh-only aliases.sh is caught by the fish row" test_check_overlay_configs_catches_sh_only_aliases
-  _hi_check "No overlay, nothing to say" _hi_settings_fixture ov_none _hi_overlay_check_run
 
   _hi_h2 "Testing: config_hi (skip path only)"
   _hi_check_capable symlink "Skips when already linked" test_config_hi_skips_when_already_linked

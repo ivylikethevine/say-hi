@@ -523,9 +523,9 @@ again on bsdtar, but a working payload.
 `_hi_payload_tar` (`hi.sh`) ships the tree, comment-stripped (HI.35). What
 ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
 toggle is read where it applies, and a session that switched something off
-carries the file and leaves it alone (a per-toggle trim of the tar was tried
-and retired - it saved about a kilobyte for a cache key, a second table and
-an exclusion list).
+carries the file and leaves it alone (a per-toggle trim of the tar would
+save about a kilobyte at the cost of a cache key, a second table and an
+exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
 is not hi's to touch, so a `tar | tar` pair copies it to a `mktemp -d` stage
@@ -675,8 +675,8 @@ nearly forty. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
 un-exports the lot as the last thing in its required block: `_hi_unexport` in
 core.sh (bash `export -n`, zsh `typeset -g +x` — a bare `typeset` inside a
 function declares a local), and a `set -gu NAME $NAME` loop in config.fish.
-The values stay as shell variables: `now` expands `$_HI_HUMAN_SHORT_DATE` when
-typed, the prompt reads the colour memos every render, and a `$( )` is a fork
+The values stay as shell variables: the header's clock reads
+`$_HI_HUMAN_CENTRIC_DATE` on every render, the prompt reads the colour memos, and a `$( )` is a fork
 rather than an exec; an alias that names a path expanded it at definition
 time. Last in the block so the overlay's per-shell rc, which runs after it,
 can `export` whatever it wants a child to see.
@@ -706,9 +706,9 @@ and the session rc's quoting round-trip in each dialect.
 `$_HI_HEADER_ORDER` (HI's header, `common/header.sh`) lets any subset of
 seventeen words print in any order, each carrying its own hardcoded color.
 Nothing about the order guarantees two adjacent cells differ in color —
-before this, `jobs` and `pods` sat next to each other in the shipped default
-order wearing the same hue (`BRCYAN`/`CYAN`, differing only in the bold bit),
-and any user-supplied order can create the same collision between any two of
+`jobs` and `pods` are adjacent in the shipped default order and wear the
+same hue (`BRCYAN`/`CYAN`, differing only in the bold bit), and any
+user-supplied order can create the same collision between any two of
 the sixteen `_hi_header_word_alt` carries an alternate for - `check` is the
 seventeenth word, and resets the hue tracking explicitly instead (below).
 
@@ -857,9 +857,8 @@ the family is reachable with no second spelling. Names stay plain identifiers
 `hi --mux <target>` re-executes the connect inside a local
 multiplexer session named `hi-<target>` and never returns; a second `hi --mux`
 to the same target joins the running session. It is the client-side answer to
-a dropped link - the target-side `--tmux` was removed on 2026-08-21 because a
-disposable tree cannot outlive its own session, and this leaves the target
-untouched. `_hi_mux_tool` picks the multiplexer: the first of tmux, zellij,
+a dropped link - there is no target-side multiplexer, because a disposable
+tree cannot outlive its own session, and this leaves the target untouched. `_hi_mux_tool` picks the multiplexer: the first of tmux, zellij,
 screen on `PATH`, each driven in its own idiom:
 
 - **tmux**: `new-session -A -s <name> <one string>`; the `-A` is the reattach.

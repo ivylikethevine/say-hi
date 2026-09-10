@@ -170,9 +170,8 @@ function test_ssh_sh_needs_no_ssh_options_at_all() {
 # ---------------------------------------------------------------------------
 
 # the caller's locals this reads, in one place; remote_test.sh covers the
-# preamble and suffix halves the same way. The color escapes used to be two
-# more of them - _hi_remote_middle derives its own now, so they are gone from
-# the contract rather than restated here.
+# preamble and suffix halves the same way. _hi_remote_middle derives its own
+# color escapes, so they are not part of the contract.
 function _hi_ds_middle() {
   local size="54 KB"
   local bootloader="Ym9vdA==" tree="dHJlZQ==" overlay_line="${1:-}"

@@ -11,11 +11,11 @@
 # in README.md with it.
 #
 # Upstream's own image (zshusers/zsh, built from the 5.8 source on buster)
-# rather than a distro with 5.8 in apt: the previous shape, bullseye-slim plus
-# `apt-get install zsh`, built everywhere except on GitHub's hosted runners,
-# where apt exited 100 on every run while the same file built cleanly on a
-# developer machine - a mirror or transport difference the build log never
-# named. A prebuilt image has no package step to fail, so the floor check
+# rather than a distro with 5.8 in apt: a bullseye-slim plus `apt-get install
+# zsh` shape builds everywhere except on GitHub's hosted runners, where apt
+# exits 100 on every run while the same file builds cleanly on a developer
+# machine - a mirror or transport difference the build log never names. A
+# prebuilt image has no package step to fail, so the floor check
 # only stops when the pin itself is gone. The version assertion below is what
 # keeps the tag honest: a retagged 5.8 that is not 5.8 fails to build rather
 # than passing the floor quietly.

@@ -373,8 +373,8 @@ function test_dump_log_survives_a_missing_log() {
   [[ "$out" == *"it broke:"* ]] && [[ "$out" == *"wrote nothing"* ]]
 }
 
-# the path is what this replaced: it is unlinked before it can be read, so
-# printing it would be pointing at nothing
+# the path is not printed: it is unlinked before it can be read, so printing
+# it would be pointing at nothing
 function test_dump_log_does_not_print_the_path() {
   local log="$_HI_WORKDIR/dump.log" out
   printf 'boom\n' >"$log"

@@ -168,9 +168,9 @@ function _hi_poll_value() {
 # machine, and stretches without bound when something is - which is exactly
 # when an e2e suite is most likely to need the timeout. _hi_poll_bool and
 # _hi_poll_value use the same deadline; this matches them, +1 included. The
-# poll is 50ms: a pty case that finishes in under a second used to pay up to a
-# quarter of it again just waiting to be noticed, and configure's thirty-odd
-# of them added up.
+# poll is 50ms: a coarser one makes a pty case that finishes in under a
+# second pay up to a quarter of it again just waiting to be noticed, and
+# configure's thirty-odd of them add up.
 function _hi_wait_pid() {
   local pid="$1" timeout_s="$2" deadline
   shift 2

@@ -1,11 +1,9 @@
 name: Publish external channels
 
-# The AUR push - the one channel release.yml does not reach on its own. It
-# used to run automatically off a tag's `publish` job, and the
-# Homebrew tap PR sat beside it here; the tap moved back into release.yml
-# (its `tap` job, after `brew`) once the tap repo existed and its formula had
-# passed a real Mac. The AUR stays a second, later, explicit decision, made by
-# dispatching this workflow by hand against a tag that has already published:
+# The AUR push - the one channel release.yml does not reach on its own (the
+# Homebrew tap is release.yml's `tap` job, after `brew`). The AUR is a
+# second, later, explicit decision, made by dispatching this workflow by hand
+# against a tag that has already published:
 # registration is closed to new accounts, its push has no PR to hide behind,
 # and until an account and AUR_SSH_KEY exist the job says so and does nothing.
 #

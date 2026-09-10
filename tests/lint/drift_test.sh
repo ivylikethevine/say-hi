@@ -500,10 +500,10 @@ function lint_settings_table() {
   # payload, so a name only the wizard or doctor reads is a row that promises
   # nothing on a target. Names hi assembles at run time never appear whole
   # in the tree - core.sh reads `_HI_PROMPT_END_$1` through an eval - and
-  # those, and only those, are excused by name in _hi_settings_dynamic. An
-  # earlier version retried a miss against the stem up to the last `_`,
-  # which let every `_HI_DISABLE_*` and `_HI_*_BIN` row ride on a sibling's
-  # read; each row now has to be found by its literal name.
+  # those, and only those, are excused by name in _hi_settings_dynamic. No
+  # retry of a miss against the stem up to the last `_`: that would let
+  # every `_HI_DISABLE_*` and `_HI_*_BIN` row ride on a sibling's read, so
+  # each row has to be found by its literal name.
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local tree stale=0 dynamic
   tree="$(grep -rhoE '(\$\{?|\$\$|set -q )_HI_[A-Z0-9_]+' "$_HI_ROOT/common" \
@@ -839,9 +839,9 @@ function _hi_doc_anchor() {
 
 # _config.yml runs just-the-docs with no front matter on any page, so the
 # theme generates no in-page navigation: a doc's "## Contents" block is the
-# only intra-page nav the published site has, and nothing regenerates it. It
-# had drifted in three files before this check existed - a heading added
-# without its entry reads as no heading at all on the site. Both directions,
+# only intra-page nav the published site has, and nothing regenerates it. A
+# heading added without its entry reads as no heading at all on the site.
+# Both directions,
 # plus the nesting, since a ### filed at a ##'s indent reads as a peer.
 # Headings inside a fenced block are the page's content, not its structure,
 # and an h3's entry only has to be indented under an h2's, not at one depth -

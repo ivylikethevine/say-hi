@@ -45,7 +45,7 @@ function need() {
 # or empty. The `|| true` matters: gpg failing inside a caller's command
 # substitution would otherwise kill a `set -e` + pipefail script silently,
 # before the caller's guard can name the problem (a missing public-key file
-# once took out release.yml's publish job exactly this way).
+# is exactly that case).
 function gpg_fpr() {
   gpg --batch --with-colons "$@" 2>/dev/null |
     awk -F: '$1 == "fpr" { print $10; exit }' || true

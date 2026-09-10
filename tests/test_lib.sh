@@ -20,6 +20,12 @@ set -euo pipefail
 # and _hi_test_cleanup takes it away again. Same rule as never touching the
 # real ~/say-hi.
 export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/hi.testcfg.$$"
+# The developer's ~/.gitconfig is the same hazard for every git fixture:
+# `commit.gpgsign` signs each fixture commit with a key CI does not have, and
+# `rebase.updateRefs` makes git refuse `rebase --apply` outright, so
+# git_prompt's REBASE case never reaches rebase state. Fixtures set their own
+# identity (_hi_git_fixture), so nothing here needs the global file.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ...and the four files that carry a path variable of their own, for the same
 # reason one line later. Each now takes an explicit value over the overlay's

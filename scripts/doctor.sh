@@ -293,18 +293,12 @@ function doctor_local() {
   doctor_row shells "local: ${have:-none?!}"
 }
 
-# old:new, one per setting the 1.0 audit renamed; a row leaves once a release
-# has carried the new name long enough that no settings.sh spells the old one
-_HI_RETIRED_SETTINGS=(_HI_NO_LEAD_SPACE:_HI_DISABLE_LEAD_SPACE
-  _HI_BATCAT_BIN:_HI_CAT_BIN _HI_BAT_REAL:_HI_BAT_BIN _HI_PROMPT:_HI_PROMPT_TOOL)
-
 function doctor_config() {
   local f t v any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
   # Only the absent case here. When the file *is* there, rc.sh's
-  # _HI_OVERLAY_CHECKS already carries a row per parser that reads it, and
-  # doctor_configs walks that table below - this arm was a third hand-written
-  # copy of the same ladder, so settings.sh got two verdicts in two sections.
+  # _HI_OVERLAY_CHECKS carries a row per parser that reads it, and
+  # doctor_configs walks that table below, so settings.sh gets one verdict.
   [ -f "$_HI_SETTINGS" ] ||
     doctor_row settings.sh "none - defaults apply (hi --configure writes one)"
   # a scheme nothing renders, and a packages ramp nothing paints (HI.50):
@@ -315,14 +309,6 @@ function doctor_config() {
   fi
   if [ -n "${_HI_PACKAGES_PALETTE:-}" ] && ! _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
     doctor_row pkg-palette "'$_HI_PACKAGES_PALETTE' is ignored - not eight color names" bad
-  fi
-  # the names the 1.0 rename retired (docs/SETTINGS.md): a settings.sh still
-  # spelling one is read by nothing, and nothing else says so
-  if [ -f "$_HI_SETTINGS" ]; then
-    for t in "${_HI_RETIRED_SETTINGS[@]}"; do
-      grep -qE "^[[:space:]]*(export[[:space:]]+)?${t%%:*}=" "$_HI_SETTINGS" &&
-        doctor_row retired "${t%%:*} is now ${t#*:} - rename it in settings.sh" bad
-    done
   fi
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
   # minus settings.sh, which got its richer parse-checked row above
@@ -388,7 +374,7 @@ function doctor_configs() {
   # the file as the label (the parser is in the row's text): rc.sh's longer
   # labels overflow the report's label column
   for row in "${_HI_OVERLAY_CHECKS[@]}"; do
-    IFS='|' read -r file _ check <<<"$row"
+    IFS='|' read -r file check <<<"$row"
     # shellcheck disable=SC2086
     doctor_config_row "$file" "$_HI_CONFIG_DIR/$file" $check
   done

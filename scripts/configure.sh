@@ -245,7 +245,7 @@ function _hi_is_ip_hide() {
 
 # _hi_is_header_word <word> - one of $_HI_HEADER_ORDER's vocabulary, read off
 # header.sh's own $_HI_HEADER_ORDER_DEFAULT rather than a second copy of the
-# word list here (the two used to drift)
+# word list here (a second copy would drift)
 function _hi_is_header_word() {
   _hi_load_preview_sources
   case " $_HI_HEADER_ORDER_DEFAULT " in
@@ -515,11 +515,10 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
 )
 
-# The one row that survives from the old row toggles: banner is not part of
-# $_HI_HEADER_ORDER's reorderable feature list (it always leads), so it still
-# needs its own hide switch. Every other former row toggle (TIMESTAMP/
-# SYSINFO/UPTIME/IDENTITY/CHECK) is retired - that content is addressed at
-# the finer feature grain, through the header editor (config_header).
+# The one header row with a hide switch of its own: banner is not part of
+# $_HI_HEADER_ORDER's reorderable feature list (it always leads). Every other
+# row is addressed at the finer feature grain, through the header editor
+# (config_header).
 _HI_HEADER_PROMPTS=(
   "_HI_DISABLE_BANNER|1||_hi_header_preview| Show the connect/disconnect banner line?||banner"
 )
@@ -596,11 +595,10 @@ function _hi_preset_vocab() {
 
 # preset_row <name> - its table row, or failure for a name that is not one
 # The three helpers take an optional table name so the header presets can use
-# them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, and
-# config_header_preset used to re-implement all three - the listing, the row
-# lookup, and the first-letter match. That third copy had no ambiguity guard
-# and no break, so it silently took the *last* preset whose name started with
-# the typed letter, and a prefix match could clobber an exact name match.
+# them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, so
+# config_header_preset shares the listing, the row lookup and the
+# first-letter match - with its ambiguity guard and exact-name-first order -
+# rather than carrying a third copy.
 function preset_row() {
   local row
   local -a _hi_pr_rows
@@ -1044,8 +1042,8 @@ function config_packages_floor() {
     _hi_load_preview_sources
     while :; do
       show_preview _hi_packages_floor_preview "$_hi_floor_candidate"
-      # menu_read carries the EOF contract (read, close the prompt line, rc 1)
-      # this used to restate; its lowercase-and-squeeze is a no-op on a number
+      # menu_read carries the EOF contract (read, close the prompt line, rc 1);
+      # its lowercase-and-squeeze is a no-op on a number
       menu_read " Lowest package priority to show (0-3, or 4 to turn the check off)? [$_hi_floor_candidate] " reply || break
       [ -z "$reply" ] && break
       if ! _hi_is_number "$reply" || [ "$reply" -gt 4 ]; then

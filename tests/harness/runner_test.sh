@@ -511,7 +511,7 @@ function test_failing_suite_output_replays() {
   [[ "$_HI_RUN_OUT" == *"ran:red"* ]]
 }
 
-# ...and _HI_VERBOSE=1 streams everything, the pre-collapse behavior
+# ...and _HI_VERBOSE=1 streams everything, passing output included
 function test_verbose_streams_passing_output() {
   _HI_RUN_WITH="_HI_VERBOSE=1" _hi_run_runner $'a:green.sh'
   [[ "$_HI_RUN_OUT" == *"ran:green"* ]]

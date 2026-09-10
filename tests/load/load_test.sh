@@ -48,9 +48,8 @@ function test_clean_all_removes_disposable_copy() {
 }
 
 # clean_all removes the whole $_HI_CLEANUP tree, not just $_HI_ROOT under
-# it - a sibling file that landed directly under $_HI_HOME (the ssh arm's
-# $_HI_SESSION_RC_DIR before it was nested under $_HI_CLEANUP, or anything
-# else that might one day) goes with it, not just say-hi/ itself.
+# it - a sibling file that landed directly under $_HI_HOME goes with it, not
+# just say-hi/ itself.
 function test_clean_all_removes_the_whole_cleanup_tree_not_just_root() {
   local cleanup="$_HI_WORKDIR/wholetree" root="$_HI_WORKDIR/wholetree/say-hi"
   mkdir -p "$root"
