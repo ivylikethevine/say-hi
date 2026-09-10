@@ -53,7 +53,7 @@ export _HI_KAKRC="$_HI_ROOT/settings/kak.rc"
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
 # eza the same way: it reads $EZA_CONFIG_DIR/theme.yml and nothing else from
 # that directory, and the file has to carry that exact name, so the overlay
-# itself is the directory (docs/SETTINGS.md says how to put one there).
+# itself is the directory (docs/INTEGRATIONS.md says how to put one there).
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/theme.yml" ] && export EZA_CONFIG_DIR="$_HI_CONFIG_DIR"
 # bat too: a bat.conf in the overlay is its config file on every target, and
 # settings/aliases.sh drops its own --theme flag when this is set so the

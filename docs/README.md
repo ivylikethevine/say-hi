@@ -8,6 +8,7 @@ walkthrough.
 | Doc                                   | Covers                                                                                                   |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | [Settings](SETTINGS.md)               | The config overlay: every toggle and environment variable hi reads.                                      |
+| [Integrations](INTEGRATIONS.md)       | The tools hi wires in where a target has them: starship, oh-my-posh, zoxide, atuin, mise, direnv, bat, eza, tmux and the rest. |
 | [Support](SUPPORT.md)                 | Every target, OS and shell hi answers to, and every runtime, shell and feature answered **no**, and why. |
 | [Alternatives](ALTERNATIVES.md)       | sshrc, xxh, kyrat, sshdot and homeshick, side by side.                                                   |
 | [Security policy](SECURITY.md)        | The threat model, what hi touches on a target, and how to report a vulnerability.                        |

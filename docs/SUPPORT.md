@@ -153,16 +153,10 @@ Everything the install writes stays on the data volume: `settings.sh` in
 | `nushell`, `elvish`, `xonsh`, `ion`, `oil`/`osh` | ❌ **decided against**, not pending                                   | see [Shells hi does not style](#shells-hi-does-not-style). You still get a session — hi lands you in the best of `$_HI_SHELL_TREE` the target has |
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                               |
 
-**A shell framework loads normally on a target**: hi lands you in your own
-login shell when hi styles it, else the best of `fish zsh bash` it has. `tests/targets/framework_test.sh` covers nine — oh-my-zsh,
-powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise — each
-asserting no shell errors and the framework's own hook left intact: zsh's
-array base unchanged, `PROMPT_COMMAND` chained rather than replaced, `bind -x`
-bindings in place.
-
-**On your own machine** `_HI_DISABLE_LOCAL=1` leaves the framework's prompt
-in place and hi's draws on every target; see
-[SETTINGS.md](SETTINGS.md#others).
+**A shell framework loads normally on a target** ✅ — oh-my-zsh,
+powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise, each
+in `tests/targets/framework_test.sh`. What hi does alongside each, and which
+tools it wires in itself, is [INTEGRATIONS.md](INTEGRATIONS.md).
 
 ## Targets weighed and not shipped
 

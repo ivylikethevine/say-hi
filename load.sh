@@ -301,10 +301,10 @@ function load() {
   case "$shell" in
   fish) greeting="fish shell! :^)" color="$GREEN" ;;
   zsh) greeting="zsh shell! :)" color="$PURPLE" ;;
-  *) greeting="only bash today :(" color="$RED" ;;
+  *) greeting="bash today :(" color="$RED" ;;
   esac
   _hi_cecho "$greeting" "$color" 1
-  _hi_cecho " | connect: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
+  _hi_cecho " | init: ${_HI_CONNECT_TIME:--1}s | copy: ${_HI_COPY_TIME:--1}s | load: $(_hi_elapsed "$start" "$(_hi_now)")s"
 
   local shell_ec=0
   local -a shell_cmd=()
