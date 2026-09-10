@@ -109,6 +109,35 @@ function test_config_shell_no_backup_of_an_empty_file() {
   [ ! -e "$home/.bashrc.hi-orig" ]
 }
 
+# the block goes at the end, after whatever the file already had
+function test_config_shell_appends_at_the_end() {
+  local home="$_HI_WORKDIR/appends"
+  mkdir -p "$home"
+  printf 'first line\n' >"$home/.bashrc"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
+  [[ "$(tail -1 "$home/.bashrc")" == *'export A=1'* ]]
+}
+
+function test_config_shell_preserves_the_mode() {
+  local home="$_HI_WORKDIR/mode" before
+  mkdir -p "$home"
+  printf 'content\n' >"$home/.bashrc"
+  chmod 640 "$home/.bashrc"
+  before="$(_hi_mode_string "$home/.bashrc")"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
+  [ "$(_hi_mode_string "$home/.bashrc")" = "$before" ]
+}
+
+# a dotfile manager's hardlinked ~/.bashrc must not be severed by a mv
+function test_config_shell_preserves_hardlinks() {
+  local home="$_HI_WORKDIR/hardlink"
+  mkdir -p "$home"
+  printf 'content\n' >"$home/.bashrc"
+  ln "$home/.bashrc" "$home/twin"
+  _hi_rc_in "$home" -- config_shell bashrc "$home/.bashrc" 'export A=1' || return 1
+  grep -qF 'export A=1' "$home/twin"
+}
+
 function test_strip_marker_removes_only_hi_lines() {
   local home="$_HI_WORKDIR/strip"
   mkdir -p "$home"
@@ -125,21 +154,14 @@ function test_strip_marker_missing_file_is_fine() {
   [ ! -e "$home/.bashrc" ]
 }
 
+# each dialect, and a tree at $HOME still states itself: nothing defaults to
+# $HOME any more (GLOSSARY: HI.33)
 function test_tmpdir_line_dialects() {
-  # stdout is the answer here, so ask without _hi_rc_in's squelch
-  local home="$_HI_WORKDIR/tmpdirline" fish sh
-  mkdir -p "$home"
-  fish="$(env HOME="$home" bash -c '
-    source "$_HI_HOME/say-hi/common/core.sh"
-    source "$_HI_HOME/say-hi/scripts/lib.sh"
-    source "$_HI_HOME/say-hi/scripts/rc.sh"
-    tmpdir_line fish /custom')"
-  sh="$(env HOME="$home" bash -c '
-    source "$_HI_HOME/say-hi/common/core.sh"
-    source "$_HI_HOME/say-hi/scripts/lib.sh"
-    source "$_HI_HOME/say-hi/scripts/rc.sh"
-    tmpdir_line sh /custom')"
-  [ "$fish" = 'set -gx _HI_HOME "/custom"' ] && [ "$sh" = 'export _HI_HOME="/custom"' ]
+  local home="$_HI_WORKDIR/tmpdirline"
+  [ "$(_hi_rc_out "$home" -- eval 'tmpdir_line fish /custom; echo; tmpdir_line sh /custom; echo
+    _HI_HOME="$HOME" tmpdir_line sh')" = "set -gx _HI_HOME \"/custom\"
+export _HI_HOME=\"/custom\"
+export _HI_HOME=\"$home\"" ]
 }
 
 # the roster loop: every local shell's rc gets its marker block, in its own
@@ -297,10 +319,12 @@ function test_check_one_config_verdicts() {
   mkdir -p "$home"
   printf 'echo fine\n' >"$home/good.sh"
   printf 'if true; then\n' >"$home/bad.sh"
+  : >"$home/empty.sh"
   _hi_rc_in "$home" -- check_one_config bash "$home/good.sh" bash -n || return 1
   ! _hi_rc_in "$home" -- check_one_config bash "$home/bad.sh" bash -n || return 1
-  # a missing file and a missing checker are both silent skips, not failures
+  # a missing or empty file and a missing checker are silent skips, not failures
   _hi_rc_in "$home" -- check_one_config bash "$home/absent.sh" bash -n || return 1
+  _hi_rc_in "$home" -- check_one_config bash "$home/empty.sh" bash -n || return 1
   _hi_rc_in "$home" -- check_one_config x "$home/good.sh" no-such-tool-9x -n
 }
 
@@ -382,6 +406,9 @@ function run_rc_lines_test() {
   _hi_check "Foreign lines survive" test_config_shell_preserves_foreign_lines
   _hi_check "One-time backup stays the pre-hi original" test_config_shell_one_time_backup
   _hi_check "No backup of an empty file" test_config_shell_no_backup_of_an_empty_file
+  _hi_check "Appends at the end" test_config_shell_appends_at_the_end
+  _hi_check "Keeps the file's mode" test_config_shell_preserves_the_mode
+  _hi_check "Keeps a hardlink joined" test_config_shell_preserves_hardlinks
 
   _hi_h2 "Testing: strip_marker"
   _hi_check "Removes only hi's lines" test_strip_marker_removes_only_hi_lines
@@ -402,7 +429,7 @@ function run_rc_lines_test() {
   _hi_check "A file that was theirs survives an emptying strip" test_strip_keeps_a_file_that_was_not_his
 
   _hi_h2 "Testing: the syntax gate"
-  _hi_check "check_one_config's four verdicts" test_check_one_config_verdicts
+  _hi_check "check_one_config's verdicts" test_check_one_config_verdicts
   _hi_check "check_shell_configs flags a broken rc" test_check_shell_configs_flags_a_broken_rc
   _hi_check_requires fish "check_shell_configs names the broken roster file" test_check_shell_configs_names_the_broken_roster_file
   _hi_check_capable pty "config_validate_shells asks at a terminal" test_config_validate_shells_asks_at_a_terminal

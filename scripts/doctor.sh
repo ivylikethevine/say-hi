@@ -97,7 +97,6 @@ source "$_HI_LAUNCHER"
 # arm, not the target (`--use=<backend>` is the same word joined, as hi.sh
 # takes it). Anything else that looks like a flag is an error, not a target -
 # a target never starts with a dash - and so is a second target.
-_hi_via=""
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
 function _hi_doctor_use() {
@@ -109,17 +108,20 @@ function _hi_doctor_use() {
   fi
   _HI_DOC_BACKEND="$arm"
 }
+# what this run is called in its messages, as _hi_flag_word_or_die spells it
+_HI_ME="${_HI_ARGV0:-doctor.sh}"
+_hi_arm=""
 # the guard: no arguments is an empty array (GLOSSARY: HI.01)
-for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
-  if [ -n "$_hi_via" ]; then
-    _hi_doctor_use "$_hi_arg"
-    _hi_via=""
-    continue
-  fi
+set -- ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}
+while [ $# -gt 0 ]; do
+  _hi_arg="$1"
   case "$_hi_arg" in
   --json) _HI_DOC_JSON=1 ;;
-  --use) _hi_via=1 ;;
-  --use=*) _hi_doctor_use "${_hi_arg#--use=}" ;;
+  --use | --use=*)
+    _hi_flag_word_or_die _hi_arm "--use needs a backend name (ssh counts as one)" "$@"
+    [ $? -eq 2 ] && shift
+    _hi_doctor_use "$_hi_arm"
+    ;;
   # doctor never connects, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
   --plain | --mux | --no-mux) ;;
@@ -129,23 +131,20 @@ for _hi_arg in ${_hi_doc_args[@]+"${_hi_doc_args[@]}"}; do
     exit 0
     ;;
   -*)
-    _hi_cecho "${_HI_ARGV0:-doctor.sh}: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
+    _hi_cecho "$_HI_ME: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
     exit 1
     ;;
   *)
     [ -z "$_HI_DOC_TARGET" ] || {
-      _hi_cecho "${_HI_ARGV0:-doctor.sh}: one target at a time ($_HI_DOC_TARGET and $_hi_arg)" "$RED" >&2
+      _hi_cecho "$_HI_ME: one target at a time ($_HI_DOC_TARGET and $_hi_arg)" "$RED" >&2
       exit 1
     }
     _HI_DOC_TARGET="$_hi_arg"
     ;;
   esac
+  shift
 done
-if [ -n "$_hi_via" ]; then
-  _hi_cecho "${_HI_ARGV0:-doctor.sh}: --use needs a backend name (ssh counts as one)" "$RED" >&2
-  exit 1
-fi
-unset _hi_arg _hi_doc_args _hi_via
+unset _hi_arg _hi_arm _hi_doc_args
 
 _HI_DOC_BAD=0
 # the section the rows below belong to, and the JSON rows collected so far -
@@ -192,7 +191,9 @@ function doctor_row() {
 }    {\"section\": $(_hi_json_str "$_HI_DOC_SECTION"), \"label\": $(_hi_json_str "$1"), \"text\": $(_hi_json_str "$2"), \"severity\": \"$sev\"}"
     return 0
   fi
-  _hi_cecho " | $(printf '%-12s' "$1") $2" "$color"
+  local label
+  printf -v label '%-12s' "$1"
+  _hi_cecho " | $label $2" "$color"
   return 0
 }
 
@@ -281,14 +282,13 @@ function doctor_local() {
   else
     doctor_row payload "unknown - needs $missing to measure (${_HI_PAYLOAD[*]})" bad
   fi
-  # the shell column of core.sh's _HI_SHELL_TABLE, so this report cannot fall
-  # behind the roster install.sh and load.sh wire up. Split in the shell and
-  # not by `cut`: one fork fewer, and a report that runs where coreutils does
-  # not - which is exactly the machine most likely to be running it.
-  local s have=""
-  while IFS='|' read -r s _; do
-    command -v "$s" >/dev/null 2>&1 && have="$have$s "
-  done < <(_hi_shell_rows)
+  # rc.sh's _HI_RC_TABLE (core.sh's roster) through rc_shell_present, the
+  # same pair doctor_install reads below, so the two sections cannot disagree
+  # about which shells this box has
+  local row have=""
+  for row in "${_HI_RC_TABLE[@]}"; do
+    rc_shell_present "${row%%|*}" && have="$have${row%%|*} "
+  done
   doctor_row shells "local: ${have:-none?!}"
 }
 
@@ -395,7 +395,7 @@ function doctor_install() {
     IFS='|' read -r shell label _ target _ dialect <<<"$row"
     if ! rc_shell_present "$shell"; then
       doctor_row "$shell" "not installed here, nothing to wire"
-    elif [ ! -f "$target" ] || ! grep -qF "$_HI_MARKER" "$target"; then
+    elif ! _hi_has_marker "$target"; then
       doctor_row "$shell" "$target has no hi lines (hi --install writes them)" warn
     elif grep -qF "$(tmpdir_line "$dialect")" "$target"; then
       doctor_row "$shell" "$target is wired to this tree" ok
@@ -406,8 +406,7 @@ function doctor_install() {
   done
   # zsh reads $ZDOTDIR/.zshrc and never ~/.zshrc when ZDOTDIR is set: lines
   # in the wrong one are the usual way a working install stops working
-  if [ -n "${ZDOTDIR:-}" ] && [ -f "$HOME/.zshrc" ] && grep -qF "$_HI_MARKER" "$HOME/.zshrc" &&
-    ! grep -qF "$_HI_MARKER" "$ZDOTDIR/.zshrc" 2>/dev/null; then
+  if [ -n "${ZDOTDIR:-}" ] && _hi_has_marker "$HOME/.zshrc" && ! _hi_has_marker "$ZDOTDIR/.zshrc"; then
     doctor_row zdotdir "$HOME/.zshrc has hi's lines, but ZDOTDIR points zsh at $ZDOTDIR/.zshrc (hi --install writes there now)" warn
   fi
   # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login
@@ -415,13 +414,7 @@ function doctor_install() {
   # the bashrc row above can be green and a Terminal.app shell still see
   # none of it
   if _hi_is_darwin && rc_shell_present bash; then
-    if [ -f "$HOME/.bash_profile" ]; then
-      profile="$HOME/.bash_profile"
-    elif [ -f "$HOME/.bash_login" ]; then
-      profile="$HOME/.bash_login"
-    else
-      profile="$HOME/.profile"
-    fi
+    _hi_login_bash_profile profile
     if [ -f "$profile" ] && grep -qF '.bashrc' "$profile"; then
       doctor_row login-bash "$profile reads ~/.bashrc" ok
     elif [ "$profile" = "$HOME/.bash_login" ]; then
@@ -432,13 +425,10 @@ function doctor_install() {
   fi
   found="$(command -v hi 2>/dev/null || true)"
   # shellcheck disable=SC2153 # $_HI_LINK is paths.sh's, exported
-  if [ "$(readlink "$_HI_LINK" 2>/dev/null)" = "$_HI_LAUNCHER" ]; then
+  if _hi_link_is_ours "$_HI_LINK"; then
     doctor_row link "$_HI_LINK -> $_HI_LAUNCHER" ok
     bindir="${_HI_LINK%/*}"
-    case ":$PATH:" in
-    *":$bindir:"*) ;;
-    *) doctor_row PATH "$bindir is not on PATH - the wired shells alias hi; scripts and other programs need it there" warn ;;
-    esac
+    _hi_on_path "$bindir" || doctor_row PATH "$bindir is not on PATH - the wired shells alias hi; scripts and other programs need it there" warn
   elif [ -e "$_HI_LINK" ] || [ -L "$_HI_LINK" ]; then
     owner="$(link_owner "$_HI_LINK" 2>/dev/null || true)"
     doctor_row link "$_HI_LINK is not this tree's: $(readlink "$_HI_LINK" 2>/dev/null || echo 'a regular file')${owner:+, the $owner package}" bad

@@ -90,7 +90,7 @@ function test_fish_colors_match_core() {
     }
     got="$(_hi_color_escape "$fish_name")"
     eval "want=\"\${$var}\""
-    want="$(printf '%b' "$want")"
+    want="$(_hi_rendered "$want")"
     [ "$got" = "$want" ] || mismatch="$mismatch $role($fish_name vs $var)"
   done
   [ -z "$mismatch" ] || {

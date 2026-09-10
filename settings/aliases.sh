@@ -42,9 +42,8 @@ command -v shift >/dev/null 2>&1 &&
 
 # off on _HI_DISABLE_EDITORS=1; `|| true` keeps set -e sourcers alive
 [ "$_HI_DISABLE_EDITORS" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
-# this ladder is spelled again in scripts/configure.sh's _hi_editors_preview,
-# which cannot share it (configure.sh does not source aliases.sh, and fish
-# parses this file). Fix one, fix both - alias_fallthrough_test.sh pins them.
+# scripts/configure.sh's _hi_editors_preview sources this file for real to
+# show what this resolves to before the toggle is set - see the note there.
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
 # `-u: command not found` where `vim: command not found` is the answer).
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ -n "$(command -v nvim || command -v vim)" ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
@@ -88,12 +87,11 @@ alias batn="batcat"
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias catn="batn" || true
 
 # eza/exa (its predecessor) improved ls; time format per
-# https://docs.rs/chrono/latest/chrono/format/strftime/index.html. The two
-# styled wrappers are behind the same _HI_DISABLE_TOOL_ALIASES as cat/catn;
-# $_HI_EXA_BIN/$_HI_EZA_BIN stay resolvable either way. The shared leading
-# flags are spelled twice on purpose: the two binaries diverge after them
-# (--group/--no-filesize is exa's, --smart-group is eza-only), so a shared
-# variable bought one edit point and a third name to document.
+# https://docs.rs/chrono/latest/chrono/format/strftime/index.html.
+# $_HI_EXA_BIN/$_HI_EZA_BIN stay resolvable even with the toggle off. The
+# shared leading flags are spelled twice on purpose: the two binaries diverge
+# after them (--group/--no-filesize is exa's, --smart-group is eza-only), so
+# a shared variable bought one edit point and a third name to document.
 [ -z "$_HI_EXA_OPTS" ] && export _HI_EXA_OPTS='-F -1 -l -m --group-directories-first --group --no-filesize' || true
 [ -z "$_HI_EZA_OPTS" ] && export _HI_EZA_OPTS='-F -1 -l -m --group-directories-first --smart-group --time-style="+%b %d %Y %H:%M"' || true
 [ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && alias exa="$_HI_EXA_BIN $_HI_EXA_OPTS" || true

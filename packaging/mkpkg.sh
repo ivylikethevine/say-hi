@@ -6,8 +6,7 @@
 #
 # Named mkpkg.sh because the obvious name is taken: .gitignore's `**build**`
 # rule would silently swallow a build.sh (see the note at the top of
-# .gitignore). Not to be confused with Arch's makepkg - Arch is deliberately
-# not built here (below).
+# .gitignore). Not to be confused with Arch's makepkg.
 #
 # Arch is deliberately not built here even though nfpm can: packaging/aur/ makes
 # a better Arch package (real optdepends, a -git variant, AUR updates), and two
@@ -54,29 +53,14 @@ function stage_tree() {
   # `hi --version` and `man hi`'s footer, stamped at build time by the one
   # script every channel calls - never in git, because bump.sh only runs after
   # the tag exists and a committed stamp would always be a release stale.
-  # touch_epoch follows it: the man page is recompressed above, so its mtime
-  # needs clamping after, not before.
   "$_HI_ROOT/packaging/stamp.sh" --root "$_HI_DIST/staging" --version "$_HI_VERSION"
-  touch_epoch
-}
-
-# Clamp every staged mtime to $SOURCE_DATE_EPOCH: install_tree's cp stamps
-# each file "now", which nfpm faithfully preserves into the package as the one
-# run-to-run difference. Files and directories only - the staged /usr/bin/hi
-# symlink points at its installed (not-yet-existing) target, and nfpm builds
-# its own symlink entry from nfpm.yaml anyway. GNU touch takes -d @epoch;
-# BSD/macOS needs -t with a stamp its own date -r builds (TZ pinned, -t reads
-# local time) - the same dual-implementation shape as bump.sh's checksums.
-function touch_epoch() {
-  local stamp
-  if touch -d "@$SOURCE_DATE_EPOCH" "$_HI_DIST/staging" 2>/dev/null; then
-    find "$_HI_DIST/staging" \( -type f -o -type d \) \
-      -exec touch -d "@$SOURCE_DATE_EPOCH" {} +
-  else
-    stamp="$(TZ=UTC date -u -r "$SOURCE_DATE_EPOCH" +%Y%m%d%H%M.%S)"
-    find "$_HI_DIST/staging" \( -type f -o -type d \) \
-      -exec env TZ=UTC touch -t "$stamp" {} +
-  fi
+  # lib.sh's touch_epoch, after the stamp since stamp.sh recompresses the man
+  # page: install_tree's cp stamps each file "now", which nfpm faithfully
+  # preserves into the package as the one run-to-run difference. Files and
+  # directories only - the staged /usr/bin/hi symlink points at its installed
+  # (not-yet-existing) target, and nfpm builds its own symlink entry from
+  # nfpm.yaml anyway.
+  touch_epoch "$_HI_DIST/staging"
 }
 
 function run_nfpm() {
@@ -120,10 +104,7 @@ function write_checksums() {
     done
   done
   if [ -n "$_HI_SRC_TARBALL" ]; then
-    [ -f "$_HI_SRC_TARBALL" ] || {
-      _hi_cecho " no such source tarball: $_HI_SRC_TARBALL" "$RED" >&2
-      return 1
-    }
+    need_file "$_HI_SRC_TARBALL" "source tarball" || return 1
     # -ef rather than comparing paths: a caller who already wrote the tarball
     # into $_HI_DIST (or reached it by another route to the same file) gets a
     # no-op instead of cp's "are the same file" error
@@ -168,7 +149,8 @@ from that staging root with nfpm.
 
   --version <x.y.z>  Version to stamp. Defaults to the pkgver in
                      packaging/aur/say-hi/PKGBUILD, which packaging/bump.sh
-                     owns - that file is the one version of record.
+                     owns, or the newest v* tag while that file is still the
+                     0.0.0 template.
   --stage-only       Stop after staging. Needs no nfpm, and is the quickest
                      way to see exactly what a package would contain.
   --outdir <dir>     Where to stage and write packages. Default: dist/

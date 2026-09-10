@@ -129,8 +129,6 @@ function _hi_sshd_container() {
 # terminal, not a dead link. Hence _hi_ssh_mux_pids, and hence both ssh
 # suites treating a missing master as a hard failure rather than carrying on.
 
-# Clients of the throwaway sshd on $_HI_SSH_PORT - the port is what keeps a
-# concurrent hi session on this machine out of the match.
 # _hi_post_check <label> <container> <cmd> - the extra assertion a case can
 # make inside its own container once the session verdict is in. Empty <cmd>
 # passes. Goes through $_HI_BACKEND like the rest of the harness, where the two
@@ -141,6 +139,25 @@ function _hi_post_check() {
   "${_HI_BACKEND:-docker}" exec "$name" sh -c "$post" >/dev/null 2>&1 && return 0
   _hi_h3 " | [$label] -- post-check FAILED: $post" "$RED"
   return 1
+}
+
+# _hi_bg <key> <cmd...> - <cmd> backgrounded, its output to
+# $_HI_WORKDIR/<key>.par.log and its verdict (1/0) to <key>.built, so builds
+# overlap on the daemon and still replay in order after a `wait`
+function _hi_bg() {
+  local key="$1" v=0
+  shift
+  (
+    "$@" && v=1
+    printf '%s' "$v" >"$_HI_WORKDIR/$key.built"
+  ) >"$_HI_WORKDIR/$key.par.log" 2>&1 &
+}
+
+# _hi_bg_ok <key> <outvar> - after the `wait`: <key>'s log replayed, its
+# verdict into <outvar> (0 when it never wrote one)
+function _hi_bg_ok() {
+  cat "$_HI_WORKDIR/$1.par.log"
+  printf -v "$2" '%s' "$(cat "$_HI_WORKDIR/$1.built" 2>/dev/null || printf 0)"
 }
 
 # <label> <image> <login_shell> <cmd> [post] [extra-marker...] - anything past
@@ -190,9 +207,9 @@ function _hi_ssh_run_case() {
   # command substitution for 36 minutes before anyone noticed, because there
   # was nothing here to stop it. 124 is _hi_wait_pid's timeout status.
   #
-  # `<&3` is load-bearing and belongs with the _hi_pty_stdin call in
-  # run_ssh_tests below - the two only work as a pair (see _hi_pty_stdin in
-  # test_lib.sh). Backgrounding is exactly what takes stdin away: with job
+  # `<&3` is load-bearing and belongs with each suite's _hi_pty_stdin call -
+  # the two only work as a pair (see _hi_pty_stdin in tests/lib/process.sh).
+  # Backgrounding is exactly what takes stdin away: with job
   # control off, bash points a background job's fd 0 at /dev/null no matter
   # what ours was, `ssh -t` then can't allocate a pty, and a remote
   # `bash --rcfile` with no tty is not interactive - so it ignores the rcfile
@@ -243,7 +260,8 @@ function _hi_ssh_mux_pids() {
 # window between the freeze and the kill is tens of seconds of polling: an
 # abort in there (^C, a runner timeout, `set -e` upstream) would otherwise
 # leave stopped ssh clients and a mux master holding a socket open
-# indefinitely. Suites that freeze pass _hi_thaw_frozen to _hi_workdir.
+# indefinitely. _hi_test_cleanup thaws the ledger's copy on any exit;
+# _hi_thaw_frozen is the eager, per-case path.
 _HI_FROZEN_PIDS=()
 
 function _hi_freeze() {

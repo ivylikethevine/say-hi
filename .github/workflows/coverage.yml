@@ -102,20 +102,18 @@ jobs:
         with:
           persist-credentials: false
 
+      # plus kcov's runtime libraries
       - uses: $/.github/actions/setup-shells
+        with:
+          extra-packages: libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
-      # kcov's runtime libraries, on top of the shells that action installs -
-      # its apt-get update is the one this step's install reads
-      - name: Install kcov's runtime libraries
-        run: sudo apt-get install -y libdw1 libelf1 libcurl4 zlib1g libstdc++6
-
-      # built from its GitHub source tarball like every other tool setup-tool
-      # knows: kcov publishes no binary asset and reaches Debian/Ubuntu only
+      # built from its GitHub source tarball (tools.txt's cmake kind): kcov
+      # publishes no binary asset and reaches Debian/Ubuntu only
       # through a PPA. Cached by version+os+arch, so all four shards' runners
       # hit the cache rather than each rebuilding kcov from source.
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: kcov
+          tools: kcov
 
       # HI_SHARDS is the divisor and the matrix above lists one entry per
       # shard, the same contract ci.yml's e2e job and windows-client.yml use.
@@ -170,7 +168,7 @@ jobs:
       # own row in _WORKFLOW_ROSTER points at this file instead. ruby is
       # preinstalled on the hosted images; the apt install below is a
       # fallback that should never run. Every shard installs its own copy -
-      # a rubygem install has no cache here the way setup-tool's kcov build
+      # a rubygem install has no cache here the way setup-tools' kcov build
       # does, so this is paid four times in parallel rather than once, which
       # is still faster wall-clock than the unsharded serial sweep was.
       - name: Install ruby and bashcov
@@ -254,9 +252,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-tool
+      - uses: $/.github/actions/setup-tools
         with:
-          tool: kcov
+          tools: kcov
 
       # merge-multiple flattens every matched artifact straight into one
       # directory rather than nesting one subdirectory per artifact name -

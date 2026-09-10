@@ -153,8 +153,8 @@ _HI_PAR_WIDTH=1 tests/test_runner.sh ssh   # serial, same code path - for bisect
 _HI_PAR_WIDTH=8 tests/test_runner.sh ssh   # a big machine, if the daemon can take it
 ```
 
-`nomad` pins itself to `_HI_PAR_WIDTH=1`: its jobs are tracked in a shell array
-its cleanup hook purges, the one fixture in the tree that is not case-scoped.
+`nomad` pins itself to `_HI_PAR_WIDTH=1`: two cases against a single-node dev
+agent are not worth running side by side.
 
 The pty-driven cases (`configure`, `install`) kill their child after 30s and
 count that as a failure; `_HI_CASE_TIMEOUT` raises the deadline on a host that
@@ -175,7 +175,7 @@ hi shipping its whole tree over the top produces one of those too.
 
 The three package cases build what they install with `packaging/mkpkg.sh`, so
 they need `nfpm`; without it they stand down yellow **per case**, which
-`--require-run` catches. `ci.yml`'s e2e job pins nfpm through `setup-tool` so
+`--require-run` catches. `ci.yml`'s e2e job pins nfpm through `setup-tools` so
 they actually run.
 
 ### Coverage and profiling

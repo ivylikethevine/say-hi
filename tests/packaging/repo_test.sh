@@ -56,16 +56,21 @@ _HI_CUR_VERSION="0.0.2"
 # host must not remove the image the first is still running from
 _HI_APT_IMAGE="hi-repotest-apt-$$"
 
-# _hi_repo_keys - a throwaway GPG signing key and a throwaway apk RSA key in
-# the workdir. RSA 4096 as the runbook prescribes for the real one.
+# _hi_repo_keys - a throwaway GPG signing key and a throwaway apk RSA key.
+# RSA 4096 as the runbook prescribes for the real one. The GPG homedir lives
+# under a short base on /tmp, not $_HI_WORKDIR, and the key comes from
+# lib/fixtures.sh's _hi_gpg_test_key - see tests/packaging/packaging_test.sh's
+# _hi_mkrepo_keys for why (the same sockaddr_un cap this suite's gpg calls
+# hit too).
 function _hi_repo_keys() {
-  local gnupg="$_HI_WORKDIR/gnupg"
-  mkdir -p "$gnupg"
+  local gnupg err="$_HI_WORKDIR/gpg.err"
+  gnupg="$(mktemp -d /tmp/hi.repokeys.XXXXXX)" || return 1
+  _hi_track_dir "$gnupg"
   chmod 700 "$gnupg"
-  GNUPGHOME="$gnupg" gpg --batch --quiet --passphrase '' \
-    --quick-generate-key 'say-hi test <test@example.invalid>' rsa4096 sign never 2>/dev/null
+  _hi_gpg_test_key "$gnupg" 'say-hi test <test@example.invalid>' "$err" rsa4096 sign never || return 1
   GNUPGHOME="$gnupg" gpg --batch --quiet --armor --export-secret-keys >"$_HI_WORKDIR/gpg.key"
   GNUPGHOME="$gnupg" gpg --batch --quiet --armor --export >"$_HI_WORKDIR/gpg.asc"
+  gpgconf --homedir "$gnupg" --kill all >/dev/null 2>&1 || true
   openssl genrsa -out "$_HI_WORKDIR/apk.rsa" 4096 2>/dev/null
 }
 

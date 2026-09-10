@@ -64,16 +64,9 @@ _HI_SHELL_TABLE=(
   "fish|config.fish|$_HI_FISH_CONFIG|$_HI_HOME_FISH_CONFIG|fish --no-execute|fish"
 )
 
-# _hi_shell_rows - the roster, one row per line for `while IFS='|' read`
-# callers.
-function _hi_shell_rows() {
-  printf '%s\n' "${_HI_SHELL_TABLE[@]}"
-}
-
 # _hi_shell_wired <name> - is <name> a shell hi wires up? The table above is
-# the answer, and the header there says so ("a new one gets an arm in
-# install.sh's tmpdir_line, not a special case per consumer") - but load.sh's
-# session-shell filter spelled the roster out instead.
+# the answer, so load.sh's session-shell filter reads it rather than a roster
+# of its own.
 function _hi_shell_wired() {
   local row
   for row in "${_HI_SHELL_TABLE[@]}"; do
@@ -113,23 +106,30 @@ function _hi_has_truecolor() {
   case "${COLORTERM:-}" in truecolor | 24bit) return 0 ;; esac
   return 1
 }
-function _hi_truecolor_flag() { _hi_has_truecolor && printf '1\n' || printf '0\n'; }
+# _hi_truecolor_flag [outvar] - the same decision as 1/0, for shipping
+function _hi_truecolor_flag() { if _hi_has_truecolor; then _hi_out "${1:-}" 1; else _hi_out "${1:-}" 0; fi; }
 
 # _hi_scheme_words <outvar> - 24 or 48 when $_HI_COLOR_SCHEME is that many
 # six-digit hex words one space apart (the scheme itself, written into
 # settings.sh), 0 for nothing or anything else. The shape is
 # the one _hi_scheme_hex slices, so the walk is by offset: no read, no fork,
 # no arrays, and no variable in a `case` pattern (zsh reads one literally).
+# Memoized on the scheme string: _hi_scheme_hex asks once per slot.
 # GLOSSARY: HI.50
 function _hi_scheme_words() {
-  local _hi_sw_s="${_HI_COLOR_SCHEME:-}" _hi_sw_n _hi_sw_i=0
-  printf -v "$1" '%s' 0
-  case "${#_hi_sw_s}" in 167) _hi_sw_n=24 ;; 335) _hi_sw_n=48 ;; *) return 0 ;; esac
+  local _hi_sw_s="${_HI_COLOR_SCHEME:-}" _hi_sw_n=0 _hi_sw_i=0
+  if [ "${_HI_SW_KEY+x}" = x ] && [ "$_HI_SW_KEY" = "$_hi_sw_s" ]; then
+    printf -v "$1" '%s' "$_HI_SW_MEMO"
+    return 0
+  fi
+  case "${#_hi_sw_s}" in 167) _hi_sw_n=24 ;; 335) _hi_sw_n=48 ;; esac
+  # a bad word zeroes the count, which also ends the walk
   while [ "$_hi_sw_i" -lt "$_hi_sw_n" ]; do
-    case "${_hi_sw_s:$((_hi_sw_i * 7)):6}" in *[!0-9a-fA-F]*) return 0 ;; esac
-    case "${_hi_sw_s:$((_hi_sw_i * 7 + 6)):1}" in '' | ' ') ;; *) return 0 ;; esac
+    case "${_hi_sw_s:$((_hi_sw_i * 7)):6}" in *[!0-9a-fA-F]*) _hi_sw_n=0 ;; esac
+    case "${_hi_sw_s:$((_hi_sw_i * 7 + 6)):1}" in '' | ' ') ;; *) _hi_sw_n=0 ;; esac
     _hi_sw_i=$((_hi_sw_i + 1))
   done
+  _HI_SW_KEY="$_hi_sw_s" _HI_SW_MEMO="$_hi_sw_n"
   printf -v "$1" '%s' "$_hi_sw_n"
 }
 
@@ -162,6 +162,18 @@ function _hi_scheme_hex() {
   printf -v "$1" '%s' "${_hi_sh_t:$((_hi_sh_i * 7)):6}"
 }
 
+# _hi_slot_hex <outvar> <index> [hex] - slot <index>'s rrggbb: a pin's <hex>
+# over the scheme's, empty under $NO_COLOR or without 24-bit color.
+function _hi_slot_hex() {
+  if [ -z "${NO_COLOR:-}" ] && [ -z "${3:-}" ]; then
+    _hi_scheme_hex "$1" "$2"
+  elif [ -z "${NO_COLOR:-}" ] && _hi_has_truecolor; then
+    printf -v "$1" '%s' "$3"
+  else
+    printf -v "$1" '%s' ''
+  fi
+}
+
 # _hi_color_escape_at <outvar> <index> [hex] - the literal '\e[..m' string for
 # slot <index> (the two characters backslash-e, which every palette variable
 # holds; a consumer's final printf '%b' makes it an ESC). One SGR: the
@@ -172,14 +184,15 @@ function _hi_scheme_hex() {
 # same 16-color half as its name. <hex> is a settings/colors row's own
 # rrggbb (its optional fourth column): it stands in for the scheme's hex for
 # this one escape, and a terminal with no 24-bit color still gets the slot's
-# pair, so a pinned hex never costs a pin its 16-color half. GLOSSARY: HI.50
+# pair, so a pinned hex never costs a pin its 16-color half. Empty under
+# $NO_COLOR. GLOSSARY: HI.50
 function _hi_color_escape_at() {
-  local _hi_ce_h="${3:-}" _hi_ce_rgb="" _hi_ce_p
-  if [ -n "$_hi_ce_h" ]; then
-    _hi_has_truecolor || _hi_ce_h=""
-  else
-    _hi_scheme_hex _hi_ce_h "$2"
+  local _hi_ce_h _hi_ce_rgb="" _hi_ce_p
+  if [ -n "${NO_COLOR:-}" ]; then
+    printf -v "$1" '%s' ''
+    return 0
   fi
+  _hi_slot_hex _hi_ce_h "$2" "${3:-}"
   [ -n "$_hi_ce_h" ] && _hi_ce_rgb=";38;2;$((16#${_hi_ce_h:0:2}));$((16#${_hi_ce_h:2:2}));$((16#${_hi_ce_h:4:2}))"
   _hi_ce_p="${_HI_COLOR_FALLBACK:$(($2 % 24 * 3)):2}"
   printf -v "$1" '\\e[%s;3%s%sm' "${_hi_ce_p:0:1}" "${_hi_ce_p:1:1}" "$_hi_ce_rgb"
@@ -282,14 +295,9 @@ function _hi_color_escape_var() {
 function _hi_color_hex() {
   local _hi_ch_i _hi_ch_b _hi_ch_h
   printf -v "$1" '%s' ''
-  [ -n "${NO_COLOR:-}" ] && return 0
   _hi_color_split _hi_ch_b _hi_ch_h "$2"
   _hi_color_index _hi_ch_i "$_hi_ch_b" || return 0
-  if [ -n "$_hi_ch_h" ]; then
-    _hi_has_truecolor && printf -v "$1" '%s' "$_hi_ch_h"
-  else
-    _hi_scheme_hex "$1" "$_hi_ch_i"
-  fi
+  _hi_slot_hex "$1" "$_hi_ch_i" "$_hi_ch_h"
 }
 
 # The twelve exported palette variables - the sixteen-color names, which are
@@ -300,7 +308,7 @@ function _hi_color_hex() {
 function _hi_assign_palette() {
   local _hi_ap_i=0 _hi_ap_v
   for _hi_ap_v in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
-    if [ -n "${NO_COLOR:-}" ]; then printf -v "$_hi_ap_v" '%s' ''; else _hi_color_escape_at "$_hi_ap_v" "$_hi_ap_i"; fi
+    _hi_color_escape_at "$_hi_ap_v" "$_hi_ap_i"
     export "${_hi_ap_v?}"
     _hi_ap_i=$((_hi_ap_i + 1))
   done
@@ -334,6 +342,16 @@ function _hi_read_lines() {
   while IFS= read -r _hi_rl_line || [ -n "$_hi_rl_line" ]; do
     eval "$_hi_rl_var+=(\"\$_hi_rl_line\")"
   done
+}
+
+# _hi_count_lines <outvar> - stdin's line count, an unterminated last line
+# included; _hi_read_lines without the array or its per-line evals.
+function _hi_count_lines() {
+  local _hi_cl_line _hi_cl_n=0
+  while IFS= read -r _hi_cl_line || [ -n "$_hi_cl_line" ]; do
+    _hi_cl_n=$((_hi_cl_n + 1))
+  done
+  printf -v "$1" '%s' "$_hi_cl_n"
 }
 
 # _hi_repeat <var> <count> <char> - $count copies of $char into $var, without
@@ -401,8 +419,7 @@ function _hi_human_duration() {
 # is already there and ownership-checked before use. Every caller degrades
 # rather than trust a directory it cannot vouch for. common/targets.sh keeps
 # its own copy of this - it is standalone POSIX and sources nothing, so the
-# two only stay in step by comment; hi.sh used to keep a third and now just
-# reads this one, sourcing this file the way every other caller here does.
+# two only stay in step by comment.
 function _hi_runtime_dir() {
   # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
   # outvar and the assignment would never leave this function
@@ -425,7 +442,7 @@ function _hi_runtime_dir() {
     _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
     [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
     if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ]; then
-      printf -v "$1" ''
+      printf -v "$1" '%s' ''
       return 0
     fi
     # shellcheck disable=SC2012 # `find -user` takes a user *name*, which a
@@ -435,7 +452,7 @@ function _hi_runtime_dir() {
     # a host with a passwd entry and one without alike.
     _hi_rtd_owner="$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
     if [ -z "$_hi_rtd_owner" ] || [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; then
-      printf -v "$1" ''
+      printf -v "$1" '%s' ''
       return 0
     fi
   fi
@@ -595,46 +612,30 @@ function _hi_on_exit() {
   fi
 }
 
-# _hi_setting_get <file> <name> [outvar] - what <name> holds after sourcing
-# <file>, or rc 1 when it never gets set. A subshell sources the file for real
-# (only <name> unset) rather than a hand-rolled grammar, so it agrees with
-# what a target would see; nothing outside it is touched.
-function _hi_setting_get() {
-  # prefixed locals: a plain `val` would shadow the caller's (GLOSSARY: HI.04)
-  local _hi_sg_file="$1" _hi_sg_name="$2" _hi_sg_outvar="${3:-}" _hi_sg_val
-  [ -f "$_hi_sg_file" ] || return 1
-  _hi_sg_val="$(
-    unset "$_hi_sg_name"
-    # shellcheck source=/dev/null # a config file, or one a test wrote - not one shellcheck can trace
-    . "$_hi_sg_file" >/dev/null 2>&1
-    eval "[ \"\${${_hi_sg_name}+x}\" = x ]" || exit 1
-    eval "printf '%s' \"\$${_hi_sg_name}\""
-  )" || return 1
-  _hi_out "$_hi_sg_outvar" "$_hi_sg_val"
-}
-
 # What each shell's prompt ends with unless overridden, <SHELL>:<char>. The
 # sh fallback hi.sh bakes on the client takes BASH's. config.fish keeps its
 # own copy; tests/hi/prompt_test.sh pins it here.
 _HI_PROMPT_END_DEFAULTS=('BASH:\$' 'ZSH:>' 'FISH:|')
 
-# _hi_prompt_end_default <SHELL> - the shipped default, empty if not listed
+# _hi_prompt_end_default <SHELL> [outvar] - the shipped default; empty on
+# stdout, and [outvar] untouched, if not listed
 function _hi_prompt_end_default() {
-  local row
-  for row in "${_HI_PROMPT_END_DEFAULTS[@]}"; do
-    [ "${row%%:*}" = "$1" ] && {
-      printf '%s' "${row#*:}"
+  local _hi_ped_row
+  for _hi_ped_row in "${_HI_PROMPT_END_DEFAULTS[@]}"; do
+    [ "${_hi_ped_row%%:*}" = "$1" ] && {
+      _hi_out "${2:-}" "${_hi_ped_row#*:}"
       return 0
     }
   done
 }
 
-# _hi_prompt_end <SHELL> [outvar] - the per-shell setting, else the default; empty counts as unset (`' '` means "none"). Unescaped, so
-# `%#` and `\$` keep their meaning. config.fish mirrors this. GLOSSARY: HI.05
+# _hi_prompt_end <SHELL> [outvar] - the per-shell setting, else the default;
+# empty counts as unset (`' '` means "none"). Unescaped, so `%#` and `\$` keep
+# their meaning. config.fish mirrors this. GLOSSARY: HI.05
 function _hi_prompt_end() {
   local _hi_pe
   eval "_hi_pe=\"\${_HI_PROMPT_END_$1:-}\""
-  _hi_pe="${_hi_pe:-$(_hi_prompt_end_default "$1")}"
+  [ -n "$_hi_pe" ] || _hi_prompt_end_default "$1" _hi_pe
   _hi_out "${2:-}" "$_hi_pe"
 }
 
@@ -671,9 +672,10 @@ function _hi_use_ascii() {
   esac
 }
 
-# the same decision as a 1/0 flag, for shipping: glyphs render in the
-# *client's* terminal, so the client's verdict is the one the target honors
-function _hi_ascii_flag() { _hi_use_ascii && printf '1\n' || printf '0\n'; }
+# _hi_ascii_flag [outvar] - the same decision as 1/0, for shipping: glyphs
+# render in the *client's* terminal, so the client's verdict is the one the
+# target honors
+function _hi_ascii_flag() { if _hi_use_ascii; then _hi_out "${1:-}" 1; else _hi_out "${1:-}" 0; fi; }
 
 # Does ${#} answer in columns or in bytes? A UTF-8 locale makes bash count
 # characters; anything else counts bytes - and the two part company exactly
@@ -717,15 +719,6 @@ function _hi_choose_glyphs() {
 }
 _hi_choose_glyphs
 
-# the ANSI escape for a palette name (_HI_COLOR_NAMES) as a real ESC on
-# stdout, for $( ) callers - the memos below and the previews;
-# _hi_color_escape_var (above) is the no-fork form
-function _hi_color_escape() {
-  local _hi_ce
-  _hi_color_escape_var _hi_ce "$1"
-  printf '%b' "$_hi_ce"
-}
-
 # two lines, "<hex> <16-color name>" (or the bare name) for the user then
 # the host: what fish's set_color takes as a list and picks the first its
 # terminal renders (config.fish memoizes the answer). The name is the base
@@ -762,13 +755,11 @@ function _hi_hash_color() {
 # GLOSSARY: HI.05
 function _hi_local_username() {
   _hi_whoami >/dev/null # primes the memo; read the variable, not a $( )
-  local v="${_HI_LOCAL_USER:-$_HI_WHOAMI_CACHE}"
-  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$v"; else printf '%s\n' "$v"; fi
+  _hi_out "${1:-}" "${_HI_LOCAL_USER:-$_HI_WHOAMI_CACHE}"
 }
 function _hi_local_hostname() {
   _hi_hostname >/dev/null
-  local v="${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
-  if [ -n "${1:-}" ]; then printf -v "$1" '%s' "$v"; else printf '%s\n' "$v"; fi
+  _hi_out "${1:-}" "${_HI_LOCAL_HOSTNAME:-$_HI_HOSTNAME_CACHE}"
 }
 
 # The two readers of settings/colors' "<type>,<name>,<color>[,<rrggbb>]"
@@ -855,8 +846,8 @@ function _hi_ssh_host_tag() {
 # word-split, so a bare `*` - the commonest Host line there is - became the
 # cwd's file list and matched nothing, and a host's color depended on the
 # directory hi was run from. bash only; zsh does not glob there, so the two
-# shells disagreed on the same box. header.sh's _hi_ip_filter peels for the
-# same reason and now calls this rather than keeping its own copy.
+# shells disagreed on the same box. header.sh's _hi_ip_filter matches through
+# this too.
 function _hi_ssh_pattern_hit() {
   local name="$1" rest="$2 " pat hit=1 zsh=""
   [ -n "${ZSH_VERSION:-}" ] && zsh=1

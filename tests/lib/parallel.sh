@@ -18,7 +18,7 @@
 #     writes its verdict to a file instead and _hi_par_wait tallies them in the
 #     parent, which is the shape common/header.sh's _hi_probe_start /
 #     _hi_probe_wait already uses for the header's backend probes.
-#   - **teardown registration.** See the ledger above.
+#   - **teardown registration.** See the ledger (tests/lib/workdir.sh).
 #   - **the transcript.** Concurrent _hi_cecho lines are unreadable, so each
 #     case's output is buffered to its own file and replayed *in submission
 #     order* once the batch is done. That is test_runner.sh's
@@ -41,8 +41,7 @@ declare -a _HI_PAR_RUNNING=()
 # containers, twenty ssh clients and twenty pty feeders thrash the docker daemon
 # and swap the box, which is both slower and flakier than four. So the default
 # is four, or the CPU count when that is smaller. $_HI_PAR_WIDTH overrides it,
-# and _HI_PAR_WIDTH=1 is a genuine serial run down this same code path - what a
-# suite whose fixtures are not case-scoped asks for (nomad's job list), and what
+# and _HI_PAR_WIDTH=1 is a genuine serial run down this same code path - what
 # bisecting a flake wants.
 #
 # That cap is about the daemon, not the box. A suite whose cases are plain

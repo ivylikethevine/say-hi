@@ -92,7 +92,7 @@ if [ -z "$_HI_DATE" ]; then
     echo "stamp.sh: no --date and no \$SOURCE_DATE_EPOCH - refusing to guess" >&2
     exit 1
   }
-  # GNU -d first, BSD -r second, the dual shape mkpkg.sh's touch_epoch uses
+  # GNU -d first, BSD -r second, the dual shape packaging/lib.sh's touch_epoch uses
   _HI_DATE="$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y-%m-%d 2>/dev/null ||
     date -u -r "$SOURCE_DATE_EPOCH" +%Y-%m-%d)"
 fi

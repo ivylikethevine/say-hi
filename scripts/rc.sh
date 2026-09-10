@@ -20,7 +20,9 @@ function config_shell() {
   _hi_h2 "Checking $name"
 
   for line in "$@"; do
-    [ -n "$line" ] && desired+="$(printf '%-45s %s' "$line" "$_HI_MARKER")"$'\n'
+    [ -n "$line" ] || continue
+    printf -v line '%-45s %s' "$line" "$_HI_MARKER"
+    desired+="$line"$'\n'
   done
 
   existing=""
@@ -74,11 +76,10 @@ function config_shell() {
 # lines because doctor.sh reads both and sources this file, not install.sh.
 #
 # "<package manager>|<query flags>|<transform>": link_owner's roster, one row
-# per manager instead of one near-identical `if` block. <transform> is empty
-# for "print the output as-is, once it's non-empty", "dpkg" for pkg:arch's
-# leading "<pkg>:" (%%:* strips it), or "apk" for the one manager that answers
-# in a sentence rather than a name (and needs no non-empty check of its own -
-# a sentence without "is owned by" just falls through the case).
+# per manager instead of one near-identical `if` block. <transform> is "dpkg"
+# for pkg:arch's leading "<pkg>:" (%%:* strips it), "apk" for the one manager
+# that answers in a sentence rather than a name, or empty for the output
+# as-is.
 _HI_PKG_QUERY=(
   "pacman|-Qqo|"
   "dpkg|-S|dpkg"
@@ -98,12 +99,8 @@ function link_owner() {
     # shellcheck disable=SC2086 # args is a flag list, split on purpose
     out="$("$tool" $args "$1" 2>/dev/null)" || continue
     case "$xform" in
-    dpkg)
-      [ -n "$out" ] || continue
-      printf '%s' "${out%%:*}"
-      return 0
-      ;;
     apk)
+      # a sentence without "is owned by" just falls through to the next tool
       case "$out" in
       *" is owned by "*)
         printf '%s' "${out##* is owned by }"
@@ -113,6 +110,7 @@ function link_owner() {
       ;;
     *)
       [ -n "$out" ] || continue
+      [ "$xform" = dpkg ] && out="${out%%:*}"
       printf '%s' "$out"
       return 0
       ;;
@@ -121,12 +119,22 @@ function link_owner() {
   return 1
 }
 
+# _hi_link_is_ours <path> - is <path> a symlink to this tree's hi.sh
+function _hi_link_is_ours() {
+  [ "$(readlink "$1" 2>/dev/null)" = "$_HI_LAUNCHER" ]
+}
+
 # _hi_link_runs_this_tree <path> - does that `hi` run this tree's hi.sh: a
 # symlink to it, or a wrapper that execs it (Homebrew's bin/hi)
 function _hi_link_runs_this_tree() {
   [ -e "$1" ] || return 1
-  [ "$(readlink "$1" 2>/dev/null)" = "$_HI_LAUNCHER" ] && return 0
+  _hi_link_is_ours "$1" && return 0
   [ -f "$1" ] && grep -qF -- "$_HI_LAUNCHER" "$1" 2>/dev/null
+}
+
+# _hi_has_marker <file> - does <file> carry any of hi's tagged lines
+function _hi_has_marker() {
+  [ -f "$1" ] && grep -qF -- "$_HI_MARKER" "$1"
 }
 
 # dry_run_say <what> - under --dry-run (install.sh's $_HI_DRY_RUN), say what
@@ -143,7 +151,7 @@ function dry_run_say() {
 # "there was nothing here anyway" case.
 function strip_marker() {
   local name="$1" target="$2"
-  if [ ! -f "$target" ] || ! grep -qF "$_HI_MARKER" "$target"; then
+  if ! _hi_has_marker "$target"; then
     _hi_h2 "Checking $name"
     _hi_cecho " local $name has no hi lines :)" "$GREEN"
     return 0
@@ -208,22 +216,34 @@ function rc_shell_present() {
 _HI_BASH_PROFILE_LINE='[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"'
 # shellcheck disable=SC2016
 _HI_PROFILE_LINE='[ -r "$HOME/.profile" ] && . "$HOME/.profile"'
+
+# _hi_login_bash_profile <outvar> - the file a login bash reads: the first of
+# these that exists, bash's own order, else ~/.profile
+function _hi_login_bash_profile() {
+  local _hi_lbp_f
+  for _hi_lbp_f in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+    [ -f "$_hi_lbp_f" ] && break
+  done
+  printf -v "$1" '%s' "$_hi_lbp_f"
+}
+
 function install_bash_profile_line() {
   _hi_is_darwin || return 0
-  local profile="$HOME/.bash_profile"
-  if [ -f "$profile" ]; then
+  local profile
+  _hi_login_bash_profile profile
+  if [ "$profile" = "$HOME/.bash_profile" ]; then
     if grep -v -F "$_HI_MARKER" "$profile" | grep -qF '.bashrc'; then
       _hi_h2 "Checking bash_profile"
       _hi_cecho " local bash_profile already reads .bashrc :)" "$GREEN"
       return 0
     fi
     config_shell bash_profile "$profile" "$_HI_BASH_PROFILE_LINE"
-  elif [ -f "$HOME/.bash_login" ]; then
+  elif [ "$profile" = "$HOME/.bash_login" ]; then
     _hi_h2 "Checking bash_profile"
     _hi_cecho " ~/.bash_login is what your login bash reads, so add this line to it yourself:" "$YELLOW"
     _hi_cecho "   $_HI_BASH_PROFILE_LINE" "$YELLOW"
   else
-    config_shell bash_profile "$profile" "$_HI_PROFILE_LINE" "$_HI_BASH_PROFILE_LINE"
+    config_shell bash_profile "$HOME/.bash_profile" "$_HI_PROFILE_LINE" "$_HI_BASH_PROFILE_LINE"
   fi
 }
 
@@ -355,7 +375,7 @@ function strip_rc_lines() {
     IFS='|' read -r shell label _ target _ _ <<<"$row"
     strip_marker "$label" "$target"
   done
-  if _hi_is_darwin || { [ -f "$profile" ] && grep -qF "$_HI_MARKER" "$profile"; }; then
+  if _hi_is_darwin || _hi_has_marker "$profile"; then
     strip_marker bash_profile "$profile"
   fi
 }

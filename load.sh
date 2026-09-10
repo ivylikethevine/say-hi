@@ -77,7 +77,8 @@ function clean_all() {
 function _hi_login_shell() {
   local shell="${SHELL:-}" user
   if [ -z "$shell" ]; then
-    user="$(_hi_whoami)" # memoized; this path forked `id` twice
+    _hi_whoami >/dev/null # primes the memo; read the variable, not a $( )
+    user="$_HI_WHOAMI_CACHE"
     shell="$(getent passwd "$user" 2>/dev/null | awk -F: '{ print $NF }')"
     [ -n "$shell" ] || shell="$(awk -F: -v u="$user" '$1 == u { print $NF }' /etc/passwd 2>/dev/null)"
   fi
@@ -278,17 +279,16 @@ function load() {
   _hi_cecho " | ${total}s" "$NC" 1
   hi_header Connected "" "${_HI_CONNECT_PREFIX:-} | ${total}s"
 
-  # vim only: VIMINIT breaks a target that has just vi. Gated on
-  # _HI_DISABLE_EDITORS too, since VIMINIT *is* the override that toggle turns
-  # off (settings/vim.rc ships either way - the payload roster is static).
-  [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]] &&
-    command -v vim &>/dev/null &&
-    export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
-  # $EDITOR, $VISUAL and $SUDO_EDITOR: an alias reaches an interactive prompt
-  # and nothing else, so `git commit`, `crontab -e` and `sudo -e` on the
-  # target would still open whatever vi it has. Exported for the session shell
-  # to inherit, carrying the same flags the alias does.
   if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
+    # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
+    # since VIMINIT *is* the override it turns off (settings/vim.rc ships
+    # either way - the payload roster is static).
+    command -v vim &>/dev/null &&
+      export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
+    # $EDITOR, $VISUAL and $SUDO_EDITOR: an alias reaches an interactive
+    # prompt and nothing else, so `git commit`, `crontab -e` and `sudo -e` on
+    # the target would still open whatever vi it has. Exported for the
+    # session shell to inherit, carrying the same flags the alias does.
     local editor
     editor="$(_hi_session_editor)"
     [[ -n "$editor" ]] && export EDITOR="$editor" VISUAL="$editor" SUDO_EDITOR="$editor"
@@ -325,14 +325,7 @@ function load() {
   # "load:" line above timed
   dur="$(_hi_human_duration "$(_hi_elapsed "$start" "$(_hi_now)")")"
   _hi_cecho " $size | session: $dur" "$NC" 1
-  if [[ "${_HI_DISABLE_HEADER:-0}" != 1 ]]; then
-    banner Disconnected "$BRRED" " $size | session: $dur"
-    # matches the connect header rather than a toggle of its own: shown iff
-    # one of its three words survives in $_HI_HEADER_ORDER
-    if _hi_order_has utc || _hi_order_has version || _hi_order_has localtime; then
-      timestamp
-    fi
-  fi
+  hi_footer Disconnected "$BRRED" " $size | session: $dur"
   _hi_cecho " | " "$NC" 1
   _hi_cecho "hi closing!" "$BRPURPLE"
   exit "$shell_ec"

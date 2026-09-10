@@ -113,17 +113,11 @@ function run_install_methods_tests() {
   # tests/lib/ssh.sh respectively, neither one a build's own output), so
   # nothing downstream needs to cross back out of a subshell to reach them.
   _HI_PKG_DIST="$_HI_ROOT/dist"
-  (
-    if _hi_sshd_image "every install method"; then printf '1' >"$_HI_WORKDIR/debian.built"; else printf '0' >"$_HI_WORKDIR/debian.built"; fi
-  ) >"$_HI_WORKDIR/debian.par.log" 2>&1 &
-  (
-    if _hi_build_packages; then printf '1' >"$_HI_WORKDIR/pkgs.built"; else printf '0' >"$_HI_WORKDIR/pkgs.built"; fi
-  ) >"$_HI_WORKDIR/pkgs.par.log" 2>&1 &
+  _hi_bg debian _hi_sshd_image "every install method"
+  _hi_bg pkgs _hi_build_packages
   wait
-  cat "$_HI_WORKDIR/debian.par.log"
-  debian_ok="$(cat "$_HI_WORKDIR/debian.built" 2>/dev/null || printf 0)"
-  cat "$_HI_WORKDIR/pkgs.par.log"
-  pkgs_ok="$(cat "$_HI_WORKDIR/pkgs.built" 2>/dev/null || printf 0)"
+  _hi_bg_ok debian debian_ok
+  _hi_bg_ok pkgs pkgs_ok
 
   # Five chains, independent of each other (none reads another's image or
   # verdict), backgrounded together: within one, a step still waits on the
@@ -247,12 +241,11 @@ function run_install_methods_tests() {
 
   _hi_par_wait
 
-  [ "${#_HI_IMAGES[@]}" -eq 0 ] ||
-    docker image rm -f "${_HI_IMAGES[@]}" >/dev/null 2>&1 || true
+  docker image rm -f "${_HI_IMAGES[@]}" >/dev/null 2>&1 || true
 
   _hi_suite_end "" \
-    "hi reused the permanent install for every method tested ($_HI_TOTAL cases)" \
-    "hi FAILED to reuse the install: $_HI_FAILED/$_HI_TOTAL cases"
+    "hi ran its own tree beside every install method tested ($_HI_TOTAL cases)" \
+    "hi FAILED beside an install method: $_HI_FAILED/$_HI_TOTAL cases"
 }
 
 run_install_methods_tests

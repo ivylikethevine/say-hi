@@ -63,7 +63,7 @@ act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/u
 ## What CI runs
 
 Every job `ci.yml` runs on your pull request, and whether a red one fails the
-run or only reports — seventeen workflow files is more than `ci.yml`'s per-job
+run or only reports — sixteen workflow files is more than `ci.yml`'s per-job
 comments are convenient to read through by eye.
 
 | Job                                               | Runs on your PR                                                     | Gate or advisory?                       |
@@ -74,14 +74,14 @@ comments are convenient to read through by eye.
 | `workflow lint` (actionlint + zizmor)             | Always                                                              | Gate                                    |
 | `advisory lint` (markdownlint, hadolint)          | Always                                                              | Advisory — reports, never fails the job |
 | `hot-path benchmarks`                             | Always                                                              | Gate                                    |
-| `hot-path profiles (timep)`                       | Always                                                              | Advisory — `continue-on-error`          |
+| `hot-path profiles (timep)`                       | Skipped on a workflow-only diff                                     | Advisory — `continue-on-error`          |
 | `package build (deb, rpm, apk)`                   | Skipped on a workflow-only diff                                     | Gate                                    |
 | `e2e (ssh, docker)`                               | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
 | `e2e (podman, nomad, kube)`                       | Beside the fast suites; skipped on a workflow-only diff             | Gate                                    |
 | `e2e (macOS)` / `e2e (Windows)` / `e2e (FreeBSD)` | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass | Gate, but see below                     |
 | `fast suites (Windows client)`                    | Same-repo PRs and pushes to `main`; four runners, a quarter each    | Gate, but see below                     |
 
-"Skipped on a workflow-only diff" is `changes.yml`: a PR that only touches
+"Skipped on a workflow-only diff" is `ci.yml`'s `changes` job: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
 `skipped` instead of re-running. Every other job carries no `changes` guard
 and runs on each push and pull request — a workflow-only change is exactly

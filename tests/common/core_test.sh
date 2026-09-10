@@ -154,6 +154,7 @@ function test_palette_vars_agree_with_color_escape_under_a_scheme() {
   local out
   out="$(env _HI_COLOR_SCHEME="$_HI_TEST_L24" _HI_TRUECOLOR=1 _HI_HOME="$_HI_HOME" bash -c '
     . "$_HI_HOME/say-hi/common/core.sh"
+    . "$_HI_HOME/say-hi/scripts/lib.sh"
     for n in RED GREEN YELLOW BLUE PURPLE CYAN BRRED BRGREEN BRYELLOW BRBLUE BRPURPLE BRCYAN; do
       eval "v=\$$n"; printf "%b" "$v"
     done | od -An -c | tr -d " \n"
@@ -287,13 +288,13 @@ function test_scheme_label_names_every_shape() {
 function test_cecho_prints_the_text_verbatim() {
   local in='C:\Users\new \e]0;x\a %s' out
   out="$(_hi_cecho "$in" "" 1)"
-  [ "$out" = "$in$(printf '%b' "$NC")" ]
+  [ "$out" = "$in$(_hi_rendered "$NC")" ]
 }
 
 function test_cecho_still_expands_the_palette() {
   local out
   out="$(_hi_cecho x "$RED" 1)"
-  [ "$out" = "$(printf '%b' "$RED")x$(printf '%b' "$NC")" ]
+  [ "$out" = "$(_hi_rendered "${RED}x$NC")" ]
 }
 
 #
@@ -307,17 +308,10 @@ function test_cecho_still_expands_the_palette() {
 # A child shell per case: the answers are memoized for the life of a shell, so
 # this one's PATH has to be in place before the first call. 2>&1 into the
 # assertion on purpose - a rung that leaked to stderr is the whole bug.
-#
-# $_HI_CONFIG_DIR is aimed at a directory that is never created, and
-# $XDG_CONFIG_HOME with it: `env -i` leaves neither set, and core.sh then
-# resolves the overlay to the *real* ~/.config/say-hi and sources whatever the
-# person running the suite has configured into the middle of the probe.
+# shellcheck disable=SC2016 # the probe expands in the child bash, not here
 function _hi_barebones() {
-  local nocfg="$_HI_WORKDIR/barebones-nocfg"
-  env -i PATH="$(_hi_real_path barebones bash)" HOME="$HOME" NO_COLOR=1 \
-    XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
-    _HI_HOME="$_HI_HOME" "$@" bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$(eval "$_HI_CASE_PROBE")"' 2>&1
+  _hi_bare_bash barebones bash \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "$(eval "$_HI_CASE_PROBE")"' "$@"
 }
 
 # $EPOCHREALTIME unset is bash 3.2 (macOS) as much as it is a stripped box:
@@ -562,60 +556,63 @@ EOF
   printf '%s' "$f"
 }
 
+# _hi_fixture_tag <host> - _hi_ssh_host_tag against the fixture above
+function _hi_fixture_tag() { _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag "$@"; }
+
 function test_ssh_host_tag_leftmost_of_multiple() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag myhost)" = "prod" ]
+  [ "$(_hi_fixture_tag myhost)" = "prod" ]
 }
 
 function test_ssh_host_tag_untagged_host_fails() {
-  ! _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag untaggedhost
+  ! _hi_fixture_tag untaggedhost
 }
 
 function test_ssh_host_tag_equals_syntax_and_multialias() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag devhost)" = "dev" ] || return 1
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag otheralias)" = "dev" ]
+  [ "$(_hi_fixture_tag devhost)" = "dev" ] || return 1
+  [ "$(_hi_fixture_tag otheralias)" = "dev" ]
 }
 
 function test_ssh_host_tag_unknown_host_fails() {
-  ! _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag no-such-host
+  ! _hi_fixture_tag no-such-host
 }
 
 # ssh reads its keywords case-insensitively, and targets.sh's awk agrees - a
 # lowercase `host` entry once completed and dispatched as ssh while its tag
 # was silently never found
 function test_ssh_host_tag_matches_lowercase_host_keyword() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag lowerhost)" = "lower" ]
+  [ "$(_hi_fixture_tag lowerhost)" = "lower" ]
 }
 
 # the walker's rc is a three-way contract: 0 tagged, 2 known-but-untagged,
 # 1 unknown - rc 2 is what hi.sh's _hi_is_ssh_host dispatches on
 function test_ssh_host_tag_return_codes() {
   local rc
-  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag untaggedhost >/dev/null
+  _hi_fixture_tag untaggedhost >/dev/null
   rc=$?
   [ "$rc" -eq 2 ] || return 1
-  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag no-such-host >/dev/null
+  _hi_fixture_tag no-such-host >/dev/null
   rc=$?
   [ "$rc" -eq 1 ]
 }
 
 function test_ssh_host_tag_wildcard_host_block() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag prod-web1)" = "prod" ]
+  [ "$(_hi_fixture_tag prod-web1)" = "prod" ]
 }
 
 # "prod" alone is not "prod-anything" - a bare miss must not fall through to
 # the wildcard block that happens to share its prefix
 function test_ssh_host_tag_wildcard_requires_the_dash() {
-  ! _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag prod
+  ! _hi_fixture_tag prod
 }
 
 function test_ssh_host_tag_match_host_comma_patterns() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag staging-db1)" = "staging" ] || return 1
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag staging2-x)" = "staging" ]
+  [ "$(_hi_fixture_tag staging-db1)" = "staging" ] || return 1
+  [ "$(_hi_fixture_tag staging2-x)" = "staging" ]
 }
 
 function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
   local rc
-  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag wilduntagged-abc >/dev/null
+  _hi_fixture_tag wilduntagged-abc >/dev/null
   rc=$?
   [ "$rc" -eq 2 ]
 }
@@ -624,16 +621,16 @@ function test_ssh_host_tag_wildcard_untagged_block_is_rc_2() {
 # ssh's own negation, so web-99 still inherits the block's tag despite being
 # explicitly excluded there. Pinned so a future change to this is deliberate.
 function test_ssh_host_tag_negation_token_is_inert_not_exclusionary() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag web-99)" = "excluded" ]
+  [ "$(_hi_fixture_tag web-99)" = "excluded" ]
 }
 
 # `Match host` takes further criteria after its patterns (user, exec,
 # canonical, ...); those words are not host patterns, so a host that happens
 # to be called "deploy" must not inherit the block's tag - only bastion-* does
 function test_ssh_host_tag_match_criteria_are_not_patterns() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag bastion-2)" = "bastion" ] || return 1
+  [ "$(_hi_fixture_tag bastion-2)" = "bastion" ] || return 1
   local rc=0
-  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag deploy >/dev/null || rc=$?
+  _hi_fixture_tag deploy >/dev/null || rc=$?
   [ "$rc" -eq 1 ]
 }
 
@@ -646,21 +643,21 @@ function test_ssh_host_tag_match_criteria_are_not_patterns() {
 # with the word "final", which the last truncation would otherwise also
 # strip as if it were the keyword.
 function test_ssh_host_tag_match_criteria_localuser_exec_canonical_final() {
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag canary-1)" = "canary" ] || return 1
+  [ "$(_hi_fixture_tag canary-1)" = "canary" ] || return 1
   local rc=0
-  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag build >/dev/null || rc=$?
+  _hi_fixture_tag build >/dev/null || rc=$?
   [ "$rc" -eq 1 ] || return 1
 
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag robot-1)" = "robot" ] || return 1
+  [ "$(_hi_fixture_tag robot-1)" = "robot" ] || return 1
 
-  [ "$(_HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag lastcall-1)" = "lastword" ]
+  [ "$(_hi_fixture_tag lastcall-1)" = "lastword" ]
 }
 
 # a Match on anything but host opens a block of its own, so the tag comment
 # above it belongs to that block and never carries onto the next Host line
 function test_ssh_host_tag_non_host_match_ends_its_tag() {
   local rc=0
-  _HI_SSH_CONFIG="$_HI_SSH_TAG_FIXTURE" _hi_ssh_host_tag afternobody >/dev/null || rc=$?
+  _hi_fixture_tag afternobody >/dev/null || rc=$?
   [ "$rc" -eq 2 ]
 }
 

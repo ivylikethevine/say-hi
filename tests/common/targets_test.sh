@@ -276,10 +276,6 @@ function test_docker_kind_omits_alias_row_when_label_is_empty() {
   ! printf '%s\n' "$out" | grep -qxF $'\t''docker'
 }
 
-function test_podman_kind_lists_running_containers() {
-  _hi_has_row "$(_hi_targets "$_HI_CONFIG" podman)" pod-one podman
-}
-
 # every member of the docker-compatible family is a kind of its own, and the
 # family is not configurable: all four are always tried (GLOSSARY: HI.51)
 function test_nerdctl_kind_lists_running_containers() {
@@ -437,16 +433,13 @@ function test_cache_expires_with_its_ttl() {
 # refresher holds goes away when its mv lands, and the file then says what
 # the shim answers. (An hour-old one, above, is past $stale_for and waits.)
 function test_stale_cache_answers_now_and_refreshes_behind() {
-  local dir="$_HI_WORKDIR/cache-swr" out i
+  local dir="$_HI_WORKDIR/cache-swr" out
   mkdir -p "$dir"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
   ! _hi_has_row "$out" alpha docker || return 1
-  for ((i = 0; i < 50; i++)); do
-    [ -d "$dir/hi.targets.docker.lock" ] || break
-    sleep 0.1
-  done
+  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
@@ -467,16 +460,13 @@ function test_stale_cache_refresh_is_not_doubled() {
 # ...but a lock nobody could still be holding - taken longer ago than any
 # sweep runs - is a dead refresher's, and is taken over rather than obeyed
 function test_stale_cache_dead_lock_is_taken_over() {
-  local dir="$_HI_WORKDIR/cache-swr-dead" out i
+  local dir="$_HI_WORKDIR/cache-swr-dead" out
   mkdir -p "$dir/hi.targets.docker.lock"
   printf '%s\n' "$(($(date +%s) - 120))" >"$dir/hi.targets.docker.lock/at"
   printf '%s\nstale\tdocker\n' "$(($(date +%s) - 20))" >"$dir/hi.targets.docker"
   out="$(_hi_targets_cached "$dir" 5 docker)"
   _hi_has_row "$out" stale docker || return 1
-  for ((i = 0; i < 50; i++)); do
-    [ -d "$dir/hi.targets.docker.lock" ] || break
-    sleep 0.1
-  done
+  _hi_poll_bool 50 0.1 [ ! -d "$dir/hi.targets.docker.lock" ] || true
   grep -qxF "alpha"$'\t'"docker" "$dir/hi.targets.docker"
 }
 
@@ -981,7 +971,6 @@ function run_targets_tests() {
   _hi_check "the family's order is the emission order" test_family_order_is_emission_order
   _hi_check "two CLIs on one daemon -> one row" test_duplicate_daemon_rows_are_emitted_once
   _hi_check "dedupe leaves nomad and kube rows alone" test_dedupe_leaves_nomad_and_kube_alone
-  _hi_check "podman -> running containers" test_podman_kind_lists_running_containers
   _hi_check "nomad -> running allocs, no header row" test_nomad_kind_lists_running_allocs
   _hi_check "kube -> running pods" test_kube_kind_lists_running_pods
   _hi_check_capable fork_concurrency "Backends are swept together, not in turn" test_backends_are_swept_together

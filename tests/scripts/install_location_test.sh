@@ -69,7 +69,7 @@ function _hi_loc_install() {
   _HI_LOC_PARENT="$_HI_LOC_HOME/opt/nested"
   _HI_LOC_ROOT="$(_hi_loc_tree home/opt/nested)"
   _hi_loc_quiet_home "$_HI_LOC_HOME"
-  _hi_loc_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --link none -y \
+  _hi_login_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --link none -y \
     >"$_HI_WORKDIR/install.log" 2>&1
 }
 
@@ -94,24 +94,12 @@ function _hi_loc_quiet_home() {
   : >"$1/.hushlogin"
 }
 
-# _hi_loc_env <home> <cmd...> - `env -i` plus only what a login shell has: no
-# _HI_HOME (passing it would answer the question the suite asks) and no
-# _HI_CONFIG_DIR (test_lib.sh's would put this install's settings in another
-# suite's overlay). $SHELL because install.sh reports `${SHELL##*/}` under
-# `set -u`. <home> is a parameter: the suite runs children against two.
-function _hi_loc_env() {
-  local home="$1"
-  shift
-  env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
-    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" "$@"
-}
-
 # _hi_loc_shell <shell> <script> - <script> in a fresh interactive <shell>,
 # which is what makes the shell read the rc file install.sh just wrote. stdout
 # only: an interactive shell with no tty is entitled to complain on stderr, and
 # the assertions are about what hi produced.
 function _hi_loc_shell() {
-  _hi_loc_env "$_HI_LOC_HOME" "$1" -i -c "$2" </dev/null 2>/dev/null
+  _hi_login_env "$_HI_LOC_HOME" "$1" -i -c "$2" </dev/null 2>/dev/null
 }
 
 # _hi_loc_rc_states_the_tree <rc-path> - that rc file names the nested parent
@@ -177,7 +165,7 @@ function test_fish_doctor_names_the_nested_tree() { _hi_loc_doctor_names_the_tre
 # and the launcher are both reachable from it once paths.sh has resolved, and
 # both have to land in the nested tree rather than beside $HOME.
 function _hi_loc_sh() {
-  _hi_loc_env "$_HI_LOC_HOME" env _HI_HOME="$_HI_LOC_PARENT" \
+  _hi_login_env "$_HI_LOC_HOME" env _HI_HOME="$_HI_LOC_PARENT" \
     sh -c ". \"\$_HI_HOME/say-hi/common/paths.sh\"; $1" 2>/dev/null
 }
 
@@ -199,7 +187,7 @@ function test_sh_doctor_names_the_nested_tree() {
 _HI_LOC_OUT_ROOT=""
 
 function _hi_loc_outside_env() {
-  _hi_loc_env "$_HI_WORKDIR/elsewhere" "$@"
+  _hi_login_env "$_HI_WORKDIR/elsewhere" "$@"
 }
 
 # the same shape as the nested cases above: what the shell resolved, printed,
@@ -236,7 +224,7 @@ function test_a_missing_tree_is_named_and_refused() {
 # --uninstall takes its own line back out of all three rc files, wherever the
 # tree is - the half that would rot if only the install were tested
 function test_uninstall_removes_the_tree_line() {
-  _hi_loc_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --uninstall >/dev/null 2>&1
+  _hi_login_env "$_HI_LOC_HOME" "$_HI_LOC_ROOT/scripts/install.sh" --uninstall >/dev/null 2>&1
   ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.bashrc" &&
     ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.zshrc" &&
     ! grep -qF "$_HI_LOC_PARENT" "$_HI_LOC_HOME/.config/fish/config.fish"

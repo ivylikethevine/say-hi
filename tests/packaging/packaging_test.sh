@@ -606,7 +606,7 @@ function test_publish_job_signs_the_sums() {
   publish="$(sed -n '/^  publish:/,$p' "$_HI_RELEASE_WF")"
   [[ "$publish" == *'MINISIGN_SECRET_KEY'* ]] &&
     [[ "$publish" == *'minisign -S'* ]] &&
-    [[ "$publish" == *'tool: minisign'* ]]
+    [[ "$publish" == *'tools: minisign'* ]]
 }
 
 # The package repository (docs/PACKAGING.md's _Package repository_), in four
@@ -717,11 +717,9 @@ function test_tool_manifest_rows_are_wellformed() {
   [ "$bad" = 0 ]
 }
 
-# ...and every setup-tool call names a row. Stricter than a literal roster
-# grep: it also catches a `uses: ./.github/actions/setup-<x>` path that does
-# not exist at all. It reads `tool:` lines out of the workflows, so an
-# unrelated future `tool:` input would be checked too - which
-# fails loudly rather than silently, and is the right way round.
+# ...and every setup-tools call names only rows. It reads every word of the
+# workflows' `tools:` lines, so an unrelated future `tools:` input would be
+# checked too - which fails loudly rather than silently, the right way round.
 function test_every_setup_tool_call_names_a_manifest_row() {
   [ -f "$_HI_TOOLS_TXT" ] || return 0
   local want bad=0
@@ -730,7 +728,7 @@ function test_every_setup_tool_call_names_a_manifest_row() {
       _hi_cecho " | a workflow asks for '$want', which tools.txt does not list" "$RED"
       bad=1
     }
-  done < <(sed -n 's/^ *tool: *\([a-z0-9._-]*\) *$/\1/p' "$_HI_ROOT"/.github/workflows/*.yml | sort -u)
+  done < <(sed -n 's/^ *tools: *//p' "$_HI_ROOT"/.github/workflows/*.yml | tr ' ' '\n' | grep . | sort -u)
   [ "$bad" = 0 ]
 }
 
@@ -1022,15 +1020,13 @@ function test_bump_b2_fallback_agrees_with_b2sum() {
   [ "$(b2_of "$f")" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ]
 }
 
-# mode read via ls's first field - stat's flags differ GNU/BSD
-# shellcheck disable=SC2012 # the path is a fixture this suite just wrote
 function test_bump_rewrite_preserves_file_mode() {
   local f="$_HI_WORKDIR/modefix" before
   printf 'pkgver=0\n' >"$f"
   chmod 604 "$f"
-  before="$(ls -l "$f" | awk '{ print $1 }')"
+  before="$(_hi_mode_string "$f")"
   _hi_rewrite "$f" 's/^pkgver=.*/pkgver=1.2.3/'
-  [ "$(ls -l "$f" | awk '{ print $1 }')" = "$before" ]
+  [ "$(_hi_mode_string "$f")" = "$before" ]
 }
 
 # Every channel stamps `^_HI_RELEASE=` into the hi.sh it installs, and the
@@ -1333,14 +1329,13 @@ function test_stamp_is_idempotent() {
 }
 
 # the launcher has to stay executable - `cat` back rather than `mv`, the same
-# reason core.sh's _hi_rewrite does (see test_bump_rewrite_preserves_file_mode)
-# shellcheck disable=SC2012 # ls -l for the mode column is the point
+# reason scripts/lib.sh's _hi_rewrite does (see test_bump_rewrite_preserves_file_mode)
 function test_stamp_keeps_the_launcher_exec_bit() {
   local d before after
   d="$(_hi_stamp_fixture)"
-  before="$(ls -l "$d/usr/share/say-hi/hi.sh" | awk '{ print $1 }')"
+  before="$(_hi_mode_string "$d/usr/share/say-hi/hi.sh")"
   _hi_stamp --root "$d" --version 4.4.4 --date 2026-01-02 || return 1
-  after="$(ls -l "$d/usr/share/say-hi/hi.sh" | awk '{ print $1 }')"
+  after="$(_hi_mode_string "$d/usr/share/say-hi/hi.sh")"
   [ "$before" = "$after" ]
 }
 
@@ -1831,7 +1826,7 @@ function test_mkpkg_touch_epoch_falls_back_without_gnu_touch() {
   fi
   chmod +x "$shim/date"
   SOURCE_DATE_EPOCH=946684800 PATH="$shim:$PATH" \
-    _hi_in_mkpkg "$dist" touch_epoch || return 1
+    _hi_in_mkpkg "$dist" touch_epoch "$dist/staging" || return 1
   got="$(stat -c '%Y' "$dist/staging/probe" 2>/dev/null || stat -f '%m' "$dist/staging/probe")"
   [ "$got" -eq 946684800 ]
 }
@@ -2188,7 +2183,8 @@ function test_mkrepo_build_apt_offline() {
 # socket that is a sockaddr_un, capped near 104-108 bytes (hi.sh's ssh
 # ControlPath hits the same cap), and $_HI_WORKDIR's own mktemp -d -t already
 # spends most of that under macOS's long per-user $TMPDIR, which has no
-# /run/user for gpg-agent to fall back to the way it does on Linux.
+# /run/user for gpg-agent to fall back to the way it does on Linux. Each key
+# itself comes from lib/fixtures.sh's _hi_gpg_test_key.
 function _hi_mkrepo_keys() {
   local kd="$_HI_WORKDIR/gpg"
   [ -f "$kd/main.key" ] && return 0
@@ -2199,15 +2195,7 @@ function _hi_mkrepo_keys() {
   for hd in main other; do
     mkdir -p "$hb/$hd"
     chmod 700 "$hb/$hd"
-    # --pinentry-mode loopback: --batch --passphrase '' alone still has
-    # gpg-agent try to confirm the (empty) passphrase through a pinentry
-    # program on some GnuPG builds, which a headless runner has none of.
-    # loopback keeps the confirmation inside gpg itself.
-    if ! gpg --batch --quiet --homedir "$hb/$hd" --pinentry-mode loopback --passphrase '' \
-      --quick-generate-key "say-hi suite $hd" ed25519 sign never 2>"$err"; then
-      _hi_dump_log "gpg --quick-generate-key ($hd) failed" "$err"
-      return 1
-    fi
+    _hi_gpg_test_key "$hb/$hd" "say-hi suite $hd" "$err" ed25519 sign never || return 1
     if ! gpg --batch --quiet --homedir "$hb/$hd" --armor \
       --export-secret-keys >"$kd/$hd.key" 2>"$err"; then
       _hi_dump_log "gpg --export-secret-keys ($hd) failed" "$err"

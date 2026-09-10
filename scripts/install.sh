@@ -219,13 +219,8 @@ while [ $# -gt 0 ]; do
   # one tri-state option, not two booleans that had to refuse each other;
   # the last one on the line wins
   --link | --link=*)
-    _hi_flag_word _hi_link_where "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "$_HI_ME: --link needs one of none, user or system" "$RED" >&2
-      exit 1
-      ;;
-    esac
+    _hi_flag_word_or_die _hi_link_where "--link needs one of none, user or system" "$@"
+    [ $? -eq 2 ] && shift
     case "$_hi_link_where" in
     none) _HI_NO_LINK=1 _HI_SYSTEM_LINK="" ;;
     system) _HI_SYSTEM_LINK=1 _HI_NO_LINK="" ;;
@@ -241,23 +236,13 @@ while [ $# -gt 0 ]; do
   --purge) _HI_PURGE=1 _HI_SEEN="$_HI_SEEN --purge" ;;
   -y | --yes) _HI_ASSUME_YES=1 _HI_SEEN="$_HI_SEEN --yes" ;;
   --prefix | --prefix=*)
-    _hi_flag_word _HI_PREFIX "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "$_HI_ME: --prefix needs a path" "$RED" >&2
-      exit 1
-      ;;
-    esac
+    _hi_flag_word_or_die _HI_PREFIX "--prefix needs a path" "$@"
+    [ $? -eq 2 ] && shift
     _HI_SEEN="$_HI_SEEN --prefix"
     ;;
   --preset | --preset=*)
-    _hi_flag_word _HI_PRESET "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "$_HI_ME: --preset needs a name" "$RED" >&2
-      exit 1
-      ;;
-    esac
+    _hi_flag_word_or_die _HI_PRESET "--preset needs a name" "$@"
+    [ $? -eq 2 ] && shift
     _HI_SEEN="$_HI_SEEN --preset"
     ;;
   # answered after the loop, once the mode flags have all been read
@@ -355,7 +340,7 @@ function config_hi() {
     _hi_cecho " --link none given, leaving $_HI_LINK alone :)" "$GREEN"
     return 0
   }
-  if [ "$(readlink "$_HI_LINK" 2>/dev/null)" = "$_HI_LAUNCHER" ]; then
+  if _hi_link_is_ours "$_HI_LINK"; then
     _hi_cecho " $_HI_LINK already points at $_HI_LAUNCHER :)" "$GREEN"
     return 0
   fi
@@ -390,13 +375,12 @@ function config_hi() {
   if [ -w "$bindir" ]; then
     ln -sfn "$_HI_LAUNCHER" "$_HI_LINK"
     _hi_cecho " linked $_HI_LINK -> $_HI_LAUNCHER :)" "$GREEN"
-    case ":$PATH:" in
-    *":$bindir:"*)
+    if _hi_on_path "$bindir"; then
       # an earlier hi on PATH (another install's) still wins for scripts
       [ -z "$found" ] || _hi_cecho " $found comes first on your PATH and runs something else - it shadows the link for scripts" "$YELLOW"
-      ;;
-    *) _hi_cecho " $bindir is not on your PATH - the wired shells alias hi anyway; add it for scripts and other programs (a Debian-style ~/.profile adds it on the next login)" "$YELLOW" ;;
-    esac
+    else
+      _hi_cecho " $bindir is not on your PATH - the wired shells alias hi anyway; add it for scripts and other programs (a Debian-style ~/.profile adds it on the next login)" "$YELLOW"
+    fi
   elif command -v sudo >/dev/null 2>&1; then
     _hi_cecho " Linking $_HI_LINK -> $_HI_LAUNCHER... [password required]" "$BLUE"
     sudo ln -sfn "$_HI_LAUNCHER" "$_HI_LINK" || link_hi_by_hand
@@ -446,7 +430,7 @@ function _hi_unlink_one() {
     _hi_cecho " no $link to remove :)" "$GREEN"
     return 0
   fi
-  if [ "$(readlink "$link" 2>/dev/null)" != "$_HI_LAUNCHER" ]; then
+  if ! _hi_link_is_ours "$link"; then
     owner="$(link_owner "$link" 2>/dev/null || true)"
     _hi_cecho " $link doesn't point at this say-hi${owner:+ (owned by the $owner package)}, leaving it alone" "$GREEN"
     return 0

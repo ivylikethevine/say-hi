@@ -12,7 +12,7 @@
 #                "every suite" test_runner.sh itself defaults to, e2e and
 #                backends groups included; pass e.g. --group fast to narrow
 #                it). The `shellcheck` suite is dropped from whatever this
-#                selects, wherever it appears - see the loop below.
+#                selects, wherever it appears - see tests/lib/coverage.sh.
 #
 # ---------------------------------------------------------------------------
 # WHY A SECOND COVERAGE SCRIPT
@@ -41,7 +41,7 @@
 #     is filed under the copy's path, which the filters drop, so the repo file
 #     reads 0% (scripts/update.sh; preview.sh's and install.sh's dispatch).
 #   - an `eval` anywhere inside a `$( )` zeroes every line of that subshell,
-#     the lines that ran included (core.sh's _hi_setting_get and the other
+#     the lines that ran included (scripts/lib.sh's _hi_setting_get and the other
 #     out-var helpers); a probe calling the function directly still reads 0.
 #   - a zsh-only arm (`[ -n "$ZSH_VERSION" ]`) is invisible to both tools.
 #   - a `#!/bin/sh` file a suite *executes* as `sh <file>` (common/targets.sh)

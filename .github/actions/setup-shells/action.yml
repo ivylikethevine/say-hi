@@ -1,21 +1,33 @@
 name: Setup shells
-# The zsh/fish install every ubuntu job needs to exercise say-hi's non-bash
-# dialects - dialects_test.sh's native roster and the fast group's per-shell
-# cases. One copy instead of six hand-kept ones (ci.yml's test, lint and
-# bench jobs, release.yml's build job, coverage.yml's two shards), so a
-# package-list change - or an apt mitigation - is one edit.
-description: Install zsh and fish for the fast/lint/bench suites' non-bash dialect checks
+# The zsh/fish every fast/lint/bench job needs for say-hi's non-bash dialects,
+# once, so a package-list change or an apt mitigation is one edit.
+description: Install zsh and fish for the suites' non-bash dialect checks, plus any extra apt packages
+
+inputs:
+  extra-packages:
+    description: additional apt packages to install alongside zsh and fish (Linux only)
+    required: false
+    default: ""
 
 runs:
   using: composite
   steps:
-    - shell: bash
-      # ../apt/lib.sh drops the images' Chrome/Microsoft repositories and
-      # retries the update - see its header for why an unrelated vendor repo
-      # was failing every job that installs a package
+    # ../apt/lib.sh drops the images' Chrome/Microsoft repositories and
+    # retries the update - see its header for why
+    - if: runner.os == 'Linux'
+      shell: bash
+      env:
+        HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
       run: |
         set -euo pipefail
         source "$GITHUB_ACTION_PATH/../apt/lib.sh"
         _hi_apt_drop_vendor_lists
         _hi_apt_update
-        sudo apt-get install -y zsh fish
+        # unquoted on purpose: a word list, one apt name each
+        # shellcheck disable=SC2086
+        sudo apt-get install -y zsh fish $HI_EXTRA_PACKAGES
+
+    # macOS ships zsh; fish comes from brew
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: brew install fish

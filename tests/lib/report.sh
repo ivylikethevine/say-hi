@@ -68,7 +68,7 @@ function _hi_check() {
   _hi_case _hi_assert "$@"
 }
 
-# the third rule weight, below core.sh's _hi_h1/_hi_h2 - suites only
+# the third rule weight, below scripts/lib.sh's _hi_h1/_hi_h2 - suites only
 function _hi_h3() {
   _hi_hrule "$1" '~' 3 "${2:-$BRPURPLE}"
 }
@@ -155,8 +155,8 @@ function _hi_note_failure_unless_named() {
 # guessed at.
 #
 # It reports its own verdict exactly as _hi_assert does, so it drops into
-# either case runner - _hi_check_eq and _hi_par_check_eq, up beside the pair
-# they mirror, are its _hi_check / _hi_par_check. The parallel path captures a
+# either case runner - _hi_check_eq and _hi_par_check_eq (parallel.sh) are
+# its _hi_check / _hi_par_check. The parallel path captures a
 # case's stdout and replays it in submission order, which this writes to like
 # any other case output.
 function _hi_expect_eq() {

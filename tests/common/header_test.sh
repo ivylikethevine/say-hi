@@ -481,11 +481,9 @@ function test_system_info_cpu_cell_has_no_parenthetical() {
 # every other sysinfo probe answers a missing binary.
 # shellcheck disable=SC2016 # the probe expands in the child bash, not here
 function _hi_stripped_header() {
-  local nocfg="$_HI_WORKDIR/stripped-nocfg"
-  env -i PATH="$(_hi_real_path stripped bash awk)" HOME="$HOME" NO_COLOR=1 \
-    XDG_CONFIG_HOME="$nocfg" _HI_CONFIG_DIR="$nocfg/say-hi" \
-    _HI_HOME="$_HI_HOME" _HI_CASE_PROBE="$1" bash -c \
-    'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HEADER"; eval "$_HI_CASE_PROBE"' 2>&1
+  _hi_bare_bash stripped 'bash awk' \
+    'source "$_HI_HOME/say-hi/common/core.sh"; source "$_HI_HEADER"; eval "$_HI_CASE_PROBE"' \
+    _HI_CASE_PROBE="$1"
 }
 
 function test_system_info_without_uname_says_unknown() {
@@ -1452,7 +1450,7 @@ function test_header_word_alt_is_defined_for_every_order_word() {
 
 # <var> gets $2's leading `\e[<bold>;3<n>m` escape, or "" when there is none.
 # The same anchored, validated match _hi_cell_hue and _hi_collect_header_word
-# use (common/header.sh:39-43, :798) - the palette stores a literal `\e`, not
+# use (common/header.sh) - the palette stores a literal `\e`, not
 # an ESC byte, and an unanchored cut would read a stray "m" out of plain text.
 function _hi_lead_escape() {
   local s="$2" re='^(\\e\[[01];3[1-6]m)'
@@ -1465,7 +1463,7 @@ function _hi_lead_escape() {
 # _hi_header_word_cell renders it on its own, unresolved. This is the case
 # that would have caught the shipped jobs/pods collision. Compared by leading
 # escape, not the whole cell: utc/localtime re-render from `date` with `%S`
-# (common/header.sh:229,240), so a byte-exact compare fails on a second tick
+# (common/header.sh's _hi_cell_clock), so a byte-exact compare fails on a second tick
 # between the two passes below rather than on an actual substitution.
 function test_header_default_order_needs_no_alternate() {
   local words w raw want got i=0

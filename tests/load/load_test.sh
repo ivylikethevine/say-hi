@@ -335,7 +335,6 @@ function _hi_shell_answer() {
   env -i "$@" PATH="$dir:$(_hi_real_path shell-tools id awk getent sh)" \
     HOME="$_HI_WORKDIR" _HI_HOME="$_HI_HOME" "$BASH" -c '
     _HI_LOAD_NO_INIT=1
-    source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/load.sh"
     _hi_session_shell' 2>/dev/null
 }
@@ -356,7 +355,6 @@ function _hi_login_shell_answer() {
   env -i PATH="$1" HOME="$_HI_WORKDIR" _HI_HOME="$_HI_HOME" "$BASH" -c '
     unset SHELL
     _HI_LOAD_NO_INIT=1
-    source "$_HI_HOME/say-hi/common/core.sh"
     source "$_HI_HOME/say-hi/load.sh"
     _hi_login_shell' 2>/dev/null
 }

@@ -5,7 +5,7 @@
 #
 #   name|pin|kind|url|verify|check
 #
-# name    the first column an `uses: ./.github/actions/setup-tool` names, and
+# name    the word a `uses: ./.github/actions/setup-tools` call names, and
 #         the executable's name - install.sh saves a `raw` download under it,
 #         and finds it inside an archive with `find -name <name>`.
 # pin     the version, WITHOUT a leading "v" even where upstream's tag has one:

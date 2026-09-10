@@ -275,9 +275,19 @@ function _hi_group_index() {
 # _hi_resolve_color walks settings/colors and ~/.ssh/config to answer one.
 # Reads/writes _hi_print_hosts_table's own parallel arrays through bash's
 # dynamic scoping, the same as _hi_group_index above; _hi_color_escape_var
-# is core.sh's no-fork escape form (core.sh:671), which a memo answering
-# through an outvar can use directly rather than through _hi_color_escape's
-# $( ) wrapper.
+# is core.sh's no-fork escape form, which a memo answering through an outvar
+# can use directly.
+# _hi_user_row <item> <color> <source> - one users-table row in <color>'s
+# escape, at the caller's w_* widths (dynamic scoping)
+function _hi_user_row() {
+  local _hi_ur_esc
+  _hi_color_escape "$2" _hi_ur_esc
+  _hi_cell "$w_item" "$_hi_ur_esc" "$1"
+  _hi_cell "$w_color" "$_hi_ur_esc" "$2"
+  _hi_cell "$w_source" "$_hi_ur_esc" "$3"
+  _hi_row_end
+}
+
 function _hi_user_color_memo() {
   local i=0 existing color escape
   for existing in ${_hi_upc_keys[@]+"${_hi_upc_keys[@]}"}; do
@@ -344,9 +354,7 @@ function _hi_print_users_table() {
   done
 
   _hi_hbar top "$w_item" "$w_color" "$w_source"
-  printf '%s %-*s %s %-*s %s %-*s %s\n' \
-    "$_HI_BOX_V" "$w_item" "USER" "$_HI_BOX_V" "$w_color" "COLOR" \
-    "$_HI_BOX_V" "$w_source" "SOURCE" "$_HI_BOX_V"
+  _hi_head_row "$w_item" USER "$w_color" COLOR "$w_source" SOURCE
   _hi_hbar mid "$w_item" "$w_color" "$w_source"
 
   uidx=0
@@ -355,31 +363,17 @@ function _hi_print_users_table() {
     color_name="${u_color[uidx]}"
     uidx=$((uidx + 1))
     [[ "$source" = default ]] && continue
-    name_escape=$(_hi_color_escape "$color_name")
-    _hi_cell "$w_item" "$name_escape" "$user"
-    _hi_cell "$w_color" "$name_escape" "$color_name"
-    _hi_cell "$w_source" "$name_escape" "$source"
-    _hi_row_end
+    _hi_user_row "$user" "$color_name" "$source"
   done
 
-  if [[ -n "$localuser_color" ]]; then
-    name_escape=$(_hi_color_escape "$localuser_color")
-    _hi_cell "$w_item" "$name_escape" "LOCALUSER"
-    _hi_cell "$w_color" "$name_escape" "$localuser_color"
-    _hi_cell "$w_source" "$name_escape" "local:username"
-    _hi_row_end
-  fi
+  [[ -z "$localuser_color" ]] || _hi_user_row LOCALUSER "$localuser_color" local:username
 
   tidx=0
   for tag in ${usertags[@]+"${usertags[@]}"}; do
     color_name="${t_color[tidx]}"
     tidx=$((tidx + 1))
     [[ -n "$color_name" ]] || continue
-    name_escape=$(_hi_color_escape "$color_name")
-    _hi_cell "$w_item" "$name_escape" "$tag"
-    _hi_cell "$w_color" "$name_escape" "$color_name"
-    _hi_cell "$w_source" "$name_escape" "usertag:$tag"
-    _hi_row_end
+    _hi_user_row "$tag" "$color_name" "usertag:$tag"
   done
 
   _hi_hbar bottom "$w_item" "$w_color" "$w_source"
@@ -415,7 +409,7 @@ function _hi_print_hosts_table() {
   # ones, so one measure/render path serves both - its key can't collide with
   # a real group's (no _hi_color_source result reads local:hostname).
   if localhostname_color=$(_hi_override_color hostname LOCALHOSTNAME 2>/dev/null); then
-    local_hostname=$(_hi_local_hostname)
+    _hi_local_hostname local_hostname
     group_order+=("local:hostname"$'\x1f'"$localhostname_color")
     group_source+=("local:hostname")
     group_color+=("$localhostname_color")
@@ -430,7 +424,7 @@ function _hi_print_hosts_table() {
   local pat
   while IFS= read -r pat; do
     [[ -n "$pat" ]] || continue
-    color_name=$(_hi_resolve_color hostname "$pat")
+    _hi_resolve_color hostname "$pat" '' color_name
     group_order+=("pattern:$pat"$'\x1f'"$color_name"$'\x1f')
     group_source+=("pattern:$pat")
     group_color+=("$color_name")
@@ -442,13 +436,15 @@ function _hi_print_hosts_table() {
   # only hosts that would render identically collapse into one row
   if [[ -f "$_HI_SSH_CONFIG" ]]; then
     while IFS=$'\t' read -r name _; do
+      # the tag first, in this shell, so its memo spares the next two a walk
+      _hi_ssh_host_tag "$name" >/dev/null 2>&1 || :
+      tag="$_HI_TAG_VALUE"
       source=$(_hi_color_source hostname "$name")
-      tag=$(_hi_ssh_host_tag "$name" 2>/dev/null) || tag=""
       has_usertag=false
       [[ -n "$tag" ]] && _hi_override_color usertag "$tag" >/dev/null 2>&1 && has_usertag=true
       # skip hosts that wouldn't render any differently from a bare `hi`
       [[ "$source" = default && "$has_usertag" = false ]] && continue
-      color_name=$(_hi_resolve_color hostname "$name")
+      _hi_resolve_color hostname "$name" '' color_name
       # tag is part of the key (not just source/color) since it changes which
       # users get colored via usertag, even when the hostname cell looks identical
       key="$source"$'\x1f'"$color_name"$'\x1f'"$tag"
@@ -485,15 +481,13 @@ function _hi_print_hosts_table() {
   done
 
   _hi_hbar top "$w_item" "$w_color" "$w_source" "$w_preview"
-  printf '%s %-*s %s %-*s %s %-*s %s %-*s %s\n' \
-    "$_HI_BOX_V" "$w_item" "HOST" "$_HI_BOX_V" "$w_color" "COLOR" \
-    "$_HI_BOX_V" "$w_source" "SOURCE" "$_HI_BOX_V" "$w_preview" "PREVIEW" "$_HI_BOX_V"
+  _hi_head_row "$w_item" HOST "$w_color" COLOR "$w_source" SOURCE "$w_preview" PREVIEW
   _hi_hbar mid "$w_item" "$w_color" "$w_source" "$w_preview"
 
   for gidx in "${!group_order[@]}"; do
     source="${group_source[gidx]}"
     color_name="${group_color[gidx]}"
-    name_escape=$(_hi_color_escape "$color_name")
+    _hi_color_escape "$color_name" name_escape
     read -ra group_names <<<"${group_hosts[gidx]}"
 
     # wrap the name list within the ITEM column instead of overflowing it
@@ -699,10 +693,8 @@ function _hi_print_priorities_table() {
   done
 
   _hi_hbar top "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
-  printf '%s %-*s %s %-*s %s %-*s %s %-*s %s %-*s %s\n' \
-    "$_HI_BOX_V" "$w_prio" "PRIORITY" "$_HI_BOX_V" "$w_meaning" "MEANING" \
-    "$_HI_BOX_V" "$w_yes" "INSTALLED" "$_HI_BOX_V" "$w_no" "MISSING" \
-    "$_HI_BOX_V" "$w_example" "EXAMPLE" "$_HI_BOX_V"
+  _hi_head_row "$w_prio" PRIORITY "$w_meaning" MEANING "$w_yes" INSTALLED \
+    "$w_no" MISSING "$w_example" EXAMPLE
   _hi_hbar mid "$w_prio" "$w_meaning" "$w_yes" "$w_no" "$w_example"
 
   i=0
@@ -755,8 +747,7 @@ function _hi_print_pair_table() {
   done
 
   _hi_hbar top "$w1" "$w2"
-  printf '%s %-*s %s %-*s %s\n' \
-    "$_HI_BOX_V" "$w1" "$h1" "$_HI_BOX_V" "$w2" "$h2" "$_HI_BOX_V"
+  _hi_head_row "$w1" "$h1" "$w2" "$h2"
   _hi_hbar mid "$w1" "$w2"
   for entry in "${rows[@]}"; do
     IFS='|' read -r c1 c2 <<<"$entry"
@@ -823,7 +814,7 @@ packages)
   _hi_print_modes_table
   printf '\n'
   _hi_h2 "as the header will print it"
-  if [ "${_HI_PACKAGES_MIN_PRIORITY:-2}" -gt 3 ]; then
+  if [ "$_HI_PKG_MIN" -gt 3 ]; then
     _hi_cecho " nothing - the check is off at this floor (_HI_PACKAGES_MIN_PRIORITY=$_HI_PACKAGES_MIN_PRIORITY)" "$YELLOW"
   else
     full_check

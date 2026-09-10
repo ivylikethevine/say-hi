@@ -39,11 +39,12 @@ function _hi_load_preview_sources() {
 # ships 3.2. A linear scan over a few dozen answers costs nothing.
 _HI_SETTING_PENDING=()
 
+# pending_answer <var> [outvar] - this run's answer for <var>, or rc 1
 function pending_answer() {
-  local entry
-  for entry in ${_HI_SETTING_PENDING[@]+"${_HI_SETTING_PENDING[@]}"}; do
-    [ "${entry%%=*}" = "$1" ] || continue
-    printf '%s' "${entry#*=}"
+  local _hi_pa_entry
+  for _hi_pa_entry in ${_HI_SETTING_PENDING[@]+"${_HI_SETTING_PENDING[@]}"}; do
+    [ "${_hi_pa_entry%%=*}" = "$1" ] || continue
+    _hi_out "${2:-}" "${_hi_pa_entry#*=}"
     return 0
   done
   return 1
@@ -68,15 +69,10 @@ function _hi_pending_set() {
 # write path would have to remember to clear). Empty when neither has it.
 function setting_value() {
   local _hi_sv_var="$1" _hi_sv_target="$2" _hi_sv_val=""
-  if ! _hi_sv_val="$(pending_answer "$_hi_sv_var")"; then
-    # core.sh's reader, which knows config_shell's marker-padded spelling
+  # scripts/lib.sh's reader, which knows config_shell's marker-padded spelling
+  pending_answer "$_hi_sv_var" _hi_sv_val ||
     _hi_setting_get "$_hi_sv_target" "$_hi_sv_var" _hi_sv_val || _hi_sv_val=""
-  fi
-  if [ -n "${3:-}" ]; then
-    printf -v "$3" '%s' "$_hi_sv_val"
-  else
-    printf '%s' "$_hi_sv_val"
-  fi
+  _hi_out "${3:-}" "$_hi_sv_val"
 }
 
 # true if $1 is turned off: its value is $3. hi's own _HI_DISABLE_* vars use 1
@@ -101,12 +97,6 @@ function setting_on() {
   fi
 }
 
-# _hi_setting_flip <var> <off> <on> <outvar> - turn a setting the other way
-# and record it: a default-on toggle turned off gets its off-value, turned on
-# gets "" (the default, nothing written); an opt-in turned on gets its
-# on-value, turned off gets "". <outvar> gets the new state, on or off - an
-# outvar rather than stdout, since a `$( )` around this would record the
-# answer in a subshell and lose it.
 # _hi_pending_state <var> <off> <on> <on|off> - which of two value shapes a
 # setting takes, in one place: an opt-in (a nonempty <on>) writes its
 # on-value when switched on and clears the pending line when switched off; a
@@ -116,12 +106,20 @@ function setting_on() {
 function _hi_pending_state() {
   local var="$1" off="$2" on="$3" want="$4"
   if [ "$want" = on ]; then
-    if [ -n "$on" ]; then _hi_pending_set "$var" "$on"; else _hi_pending_set "$var" ""; fi
+    _hi_pending_set "$var" "$on"
+  elif [ -n "$on" ]; then
+    _hi_pending_set "$var" ""
   else
-    if [ -n "$on" ]; then _hi_pending_set "$var" ""; else _hi_pending_set "$var" "$off"; fi
+    _hi_pending_set "$var" "$off"
   fi
 }
 
+# _hi_setting_flip <var> <off> <on> <outvar> - turn a setting the other way
+# and record it: a default-on toggle turned off gets its off-value, turned on
+# gets "" (the default, nothing written); an opt-in turned on gets its
+# on-value, turned off gets "". <outvar> gets the new state, on or off - an
+# outvar rather than stdout, since a `$( )` around this would record the
+# answer in a subshell and lose it.
 function _hi_setting_flip() {
   local var="$1" off="$2" on="$3"
   if setting_on "$var" "$_HI_SETTINGS" "$off" "$on"; then
@@ -172,9 +170,7 @@ function ask_setting_value() {
 
 # _hi_shell_var <outvar> <shell> - the uppercase half of a $_HI_PROMPT_END_<SHELL>
 # name. _HI_RC_TABLE carries the shell lowercase and the setting is spelled
-# uppercase, so three sites bridged the two with their own `tr` - two forks
-# apiece, and one of them runs per wired shell on every redraw of the Prompt
-# menu. bash 3.2 has no ${x^^}, so a helper is the fork-free-ish form.
+# uppercase; bash 3.2 has no ${x^^}, so one `tr` for all three callers.
 function _hi_shell_var() {
   printf -v "$1" '%s' "$(printf '%s' "$2" | tr '[:lower:]' '[:upper:]')"
 }
@@ -294,7 +290,7 @@ function section() {
 # functions, sized to its longest line rather than the terminal width, since
 # previews range from one short colored line to full_check's wrapped block.
 function show_preview() {
-  local out content_w=0 len line pad top bottom fill_top fill_bottom i
+  local out content_w=0 len line top fill_top i
   local label="$_HI_BOX_H preview "
   local -a lines lens=()
   out="$("$@" 2>/dev/null)" || true
@@ -307,16 +303,19 @@ function show_preview() {
     lens+=("$len")
     ((len > content_w)) && content_w=$len
   done
+  # the top rule carries a label _hi_hbar has no room for, so only it is
+  # spelled out here; the bottom rule and every row are table.sh's own
+  # primitives, the same ones every other box in this file draws with
   _hi_repeat fill_top $((content_w + 2 - ${#label})) "$_HI_BOX_H"
-  _hi_repeat fill_bottom $((content_w + 2)) "$_HI_BOX_H"
   top="$_HI_BOX_TL${label}${fill_top}$_HI_BOX_TR"
-  bottom="$_HI_BOX_BL${fill_bottom}$_HI_BOX_BR"
   _hi_cecho "   $top" "$NC"
   for i in "${!lines[@]}"; do
-    pad=$((content_w - lens[i]))
-    printf '   %s %s%*s %s\n' "$_HI_BOX_V" "${lines[i]}" "$pad" "" "$_HI_BOX_V"
+    printf '   '
+    _hi_cell_raw "$content_w" "${lens[i]}" "${lines[i]}"
+    _hi_row_end
   done
-  _hi_cecho "   $bottom" "$NC"
+  printf '   '
+  _hi_hbar bottom "$content_w"
 }
 
 # The header's cells are memoized per shell (_HI_SI_* by
@@ -452,6 +451,8 @@ function _hi_config_preview() {
 # eval re-parses bash's own quoting of it (kak's alias nests a quote).
 function _hi_editors_preview() {
   (
+    # shellcheck disable=SC2030 # lives and dies in this subshell, same as
+    # _hi_tool_alias_preview's own export below sourcing the same file
     _HI_DISABLE_EDITORS=0
     # shellcheck disable=SC2031 # lives and dies in this subshell
     # shellcheck source=../settings/aliases.sh
@@ -465,23 +466,31 @@ function _hi_editors_preview() {
   )
 }
 
-# what `cat` and `eza` resolve to with the rebinds on. settings/aliases.sh's
-# ladders are spelled again because this file cannot source it - see the note
-# there; alias_fallthrough_test.sh fails when the two drift.
+# what `cat` and `eza` resolve to with the rebinds on - read back from
+# settings/aliases.sh itself (the same trick _hi_editors_preview uses above)
+# rather than restated here, so a BAT_CONFIG_PATH that drops --theme, say,
+# shows up here too instead of drifting from what a real session gets. The
+# resolution caches into _HI_*_BIN/_HI_*_OPTS on export, so those are cleared
+# first to force a fresh probe of $PATH rather than reusing another preview's.
 function _hi_tool_alias_preview() {
-  local bat_bin eza_bin
-  bat_bin="$(command -v bat || command -v batcat)"
-  if [ -n "$bat_bin" ]; then
-    printf 'cat -> %s -P --tabs 2 --theme Monokai\\ Extended\\ Bright --style changes,grid\n' "$bat_bin"
-  else
-    printf 'bat is not installed here - only targets that have it are affected\n'
-  fi
-  eza_bin="$(command -v eza || command -v exa)"
-  if [ -n "$eza_bin" ]; then
-    printf 'eza -> %s -F -1 -l -m --group-directories-first --smart-group --time-style="+%%b %%d %%Y %%H:%%M"\n' "$eza_bin"
-  else
-    printf 'eza is not installed here - only targets that have it are affected\n'
-  fi
+  (
+    _HI_DISABLE_TOOL_ALIASES=0
+    _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_EXA_BIN="" _HI_EZA_BIN=""
+    _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS=""
+    # shellcheck disable=SC2031 # lives and dies in this subshell
+    # shellcheck source=../settings/aliases.sh
+    source "$_HI_ALIASES" >/dev/null 2>&1
+    if [ -n "$_HI_BAT_BIN" ]; then
+      printf 'cat -> %s %s\n' "$_HI_CAT_BIN" "$_HI_BAT_OPTS"
+    else
+      printf 'bat is not installed here - only targets that have it are affected\n'
+    fi
+    if [ -n "$(command -v eza || command -v exa)" ]; then
+      printf 'eza -> %s %s\n' "$_HI_EZA_BIN" "$_HI_EZA_OPTS"
+    else
+      printf 'eza is not installed here - only targets that have it are affected\n'
+    fi
+  )
 }
 
 # what the tool integration would wire in here: only the tools installed
@@ -725,7 +734,8 @@ function config_preset() {
 function configure_intro() {
   [ -t 0 ] || return 0
   local state="none yet - defaults apply"
-  [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null || echo 0) setting(s) stored"
+  # no `|| echo 0`: grep -c already prints 0 on no match, then exits 1
+  [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   _hi_cecho " The preview shows what a session will look like at your current settings." "$BLUE"
   _hi_cecho " Pick a preset, or open a section and change what you like; each menu says" "$BLUE"
   _hi_cecho " how. Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
@@ -1021,7 +1031,7 @@ function config_header() {
         fi
       else
         _hi_menu_reject rejects "$max_rejects" \
-          "type an item number, up N, down N, [p], [w], [i], [c], [k], 0, or Enter to go back" && continue
+          "type an item number, up N, down N, [p], [w], [i], [c], 0, or Enter to go back" && continue
         _hi_cecho " not an item three times - back to the menu" "$YELLOW"
         return 0
       fi

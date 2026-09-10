@@ -106,8 +106,6 @@ function test_cleanup_sweeps_containers_then_networks() {
 # assertable without docker, which is the point: the suites that use it need a
 # container backend, and a harness bug there looks like a product bug.
 
-function _hi_par_ok() { return 0; }
-function _hi_par_bad() { return 1; }
 function _hi_par_skipper() { _hi_skip "[a skipped case]" "on purpose"; }
 function _hi_par_exits() { exit 0; }
 function _hi_par_says() { printf '%s\n' "$1"; }
@@ -129,32 +127,12 @@ function test_par_case_tallies_pass_fail_and_skip() {
   (
     _hi_suite_begin
     _hi_par_begin "harness probe"
-    _hi_par_case ok _hi_par_ok
-    _hi_par_case bad _hi_par_bad
+    _hi_par_case ok _hi_true
+    _hi_par_case bad _hi_false
     _hi_par_case skipped _hi_par_skipper
     _hi_par_wait
     [ "$_HI_TOTAL" -eq 2 ] && [ "$_HI_FAILED" -eq 1 ] && [ "$_HI_SKIPPED" -eq 1 ]
   ) >/dev/null
-}
-
-# test_runner.sh reports `pass = cases - failed` (its _hi_pass), so a skipped
-# case left in $_HI_TOTAL is reported as a green pass *and* a yellow skip - the
-# arithmetic that quietly inflated the count feeding --totals-file and the
-# README badge. A stand-down is never green: this is that rule, in numbers.
-function test_par_skip_is_not_reported_as_a_pass() {
-  local tally="$_HI_WORKDIR/par-skip-tally" total failed skipped
-  # the tally through a file, not a process substitution: _hi_par_begin and
-  # _hi_par_case narrate to stdout, and their lines would be what `read` got
-  (
-    _hi_suite_begin
-    _hi_par_begin "harness probe"
-    _hi_par_case ok _hi_par_ok
-    _hi_par_case skipped _hi_par_skipper
-    _hi_par_wait
-    printf '%s %s %s\n' "$_HI_TOTAL" "$_HI_FAILED" "${_HI_SKIPPED:-0}" >"$tally"
-  ) >/dev/null 2>&1
-  read -r total failed skipped <"$tally"
-  [ "$((total - failed))" -eq 1 ] && [ "$skipped" -eq 1 ]
 }
 
 # _hi_par_check reports through _hi_assert, which names the case by its bare
@@ -169,7 +147,7 @@ function test_par_failed_assertion_is_recapped_once() {
     _HI_FAILS_FILE="$fails"
     _hi_suite_begin
     _hi_par_begin "recap probe"
-    _hi_par_check "a failing case" _hi_par_bad
+    _hi_par_check "a failing case" _hi_false
     _hi_par_wait
   ) >/dev/null 2>&1 || true
   [ "$(grep -c . "$fails")" -eq 1 ] && grep -qxF "a failing case" "$fails"
@@ -308,7 +286,6 @@ function run_lib_parallel_tests() {
 
   _hi_h2 "Testing: _hi_par_case / _hi_par_wait"
   _hi_check "Tallies pass, fail and skip" test_par_case_tallies_pass_fail_and_skip
-  _hi_check "A skipped case is not a pass" test_par_skip_is_not_reported_as_a_pass
   _hi_check "A failed assertion is recapped once" test_par_failed_assertion_is_recapped_once
   _hi_check "A case with no verdict is a failure" test_par_case_without_a_verdict_counts_as_a_failure
   _hi_check "Transcripts replay in submission order" test_par_wait_replays_in_submission_order

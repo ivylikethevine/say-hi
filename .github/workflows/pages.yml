@@ -127,8 +127,8 @@ jobs:
       # warn-on-missing stays off here and below - a workflow with no
       # successful run yet is a normal state.
       #
-      # Both figures come from the same workflow (a two-job matrix, kcov and
-      # bashcov) but are looked up separately by artifact name: each job
+      # Both figures come from the same workflow (separate kcov and bashcov
+      # jobs) but are looked up separately by artifact name: each job
       # carries continue-on-error, so one tool failing does not fail the
       # run's overall status and grey out the other's badge too - see
       # coverage.yml's header comment for the trade that buys.
@@ -183,9 +183,7 @@ jobs:
           set -euo pipefail
           # jekyll-build-pages is a *container* action - it runs as root inside
           # docker, so _site comes back root-owned while this step runs as the
-          # runner user, and a plain mkdir under it is denied. Same ownership
-          # seam the workspace-reclaim step above exists for, reached a
-          # different way, so it gets the same one-line answer.
+          # runner user, and a plain mkdir under it is denied.
           sudo chown -R "$(id -u):$(id -g)" _site
           # Every GIF is served from _site/docs/tapes/: the committed demo.gif
           # first (Jekyll excludes docs/tapes/, so nothing else puts it there),

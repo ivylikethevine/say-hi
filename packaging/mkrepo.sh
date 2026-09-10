@@ -131,35 +131,15 @@ function in_container() {
 
 _HI_GNUPGHOME=""
 function gpg_setup() {
-  local have want
+  local have
   [ -n "$_HI_GPG_KEY" ] || return 0
-  [ -f "$_HI_GPG_KEY" ] || {
-    _hi_cecho " no such GPG key file: $_HI_GPG_KEY" "$RED" >&2
-    return 1
-  }
+  need_file "$_HI_GPG_KEY" "GPG key file" || return 1
   need gpg
-  # /tmp, not `-t` ($TMPDIR): --import of a secret key and --export-secret-keys
-  # both talk to gpg-agent over a socket that is a sockaddr_un, capped near
-  # 104-108 bytes (hi.sh's ssh ControlPath hits the same cap) - and macOS's
-  # per-user $TMPDIR already spends ~50 of them, with no /run/user for
-  # gpg-agent to fall back to the way it does on Linux.
-  _HI_GNUPGHOME="$(mktemp -d /tmp/hi.gnupg.XXXXXX)"
-  chmod 700 "$_HI_GNUPGHOME"
-  gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --import "$_HI_GPG_KEY"
+  # kept alive for gpg_sign below, unlike verify_signing_key's own use of
+  # gpg_import - torn down by the _hi_on_exit trap near the bottom of this file
+  _HI_GNUPGHOME="$(gpg_import "$_HI_GPG_KEY")" || return 1
   have="$(gpg_fpr --homedir "$_HI_GNUPGHOME" --list-secret-keys)"
-  if [ -n "$_HI_GPG_PUBLIC" ]; then
-    # gpg_fpr comes back empty (never fatal) on a missing/unreadable file, so
-    # the guard below gets to name the problem
-    want="$(gpg_fpr --homedir "$_HI_GNUPGHOME" --quiet --show-keys "$_HI_GPG_PUBLIC")"
-    [ -n "$want" ] || {
-      _hi_cecho " $_HI_GPG_PUBLIC is missing or not a key" "$RED" >&2
-      return 1
-    }
-    [ "$have" = "$want" ] || {
-      _hi_cecho " --gpg-key is $have, not the key $_HI_GPG_PUBLIC names ($want)" "$RED" >&2
-      return 1
-    }
-  fi
+  [ -z "$_HI_GPG_PUBLIC" ] || gpg_check_fpr "--gpg-key" "$have" "$_HI_GPG_PUBLIC" "$_HI_GNUPGHOME" || return 1
   gpg --batch --quiet --homedir "$_HI_GNUPGHOME" --armor --export >"$_HI_OUT/say-hi.asc"
   _hi_cecho " | signing with $have" "$BLUE"
 }
@@ -167,10 +147,9 @@ function gpg_setup() {
 # gpg_sign <clearsign|detach> <in> <out>
 function gpg_sign() {
   local mode="$1" in="$2" out="$3"
-  case "$mode" in
-  clearsign) gpg --batch --yes --quiet --homedir "$_HI_GNUPGHOME" --digest-algo SHA256 --clearsign -o "$out" "$in" ;;
-  detach) gpg --batch --yes --quiet --homedir "$_HI_GNUPGHOME" --digest-algo SHA256 --armor --detach-sign -o "$out" "$in" ;;
-  esac
+  local -a how=(--clearsign)
+  [ "$mode" = detach ] && how=(--armor --detach-sign)
+  gpg --batch --yes --quiet --homedir "$_HI_GNUPGHOME" --digest-algo SHA256 "${how[@]}" -o "$out" "$in"
 }
 
 # --- apt ------------------------------------------------------------------
@@ -221,17 +200,21 @@ function build_apt() {
     deb_control "$deb" | sed '/^$/d'
     printf 'Filename: pool/main/s/say-hi/%s\n' "$name"
     printf 'Size: %s\n' "$(wc -c <"$deb" | tr -d ' ')"
-    printf 'MD5sum: %s\n' "$(openssl dgst -md5 -r "$deb" | cut -d' ' -f1)"
-    printf 'SHA1: %s\n' "$(openssl dgst -sha1 -r "$deb" | cut -d' ' -f1)"
+    printf 'MD5sum: %s\n' "$(dgst_of md5 "$deb")"
+    printf 'SHA1: %s\n' "$(dgst_of sha1 "$deb")"
     printf 'SHA256: %s\n' "$(sha256_of "$deb")"
     printf '\n'
   } >"$packages"
+  # gzipped once: -n makes it deterministic, and the same package is listed
+  # under every arch (the note up top), so every arch's copy would be
+  # byte-for-byte the same gzip anyway
+  gzip -9 -n -c "$packages" >"$packages.gz"
   for arch in $_HI_DEB_ARCHES; do
     mkdir -p "$dists/main/binary-$arch"
     cp "$packages" "$dists/main/binary-$arch/Packages"
-    gzip -9 -n -c "$packages" >"$dists/main/binary-$arch/Packages.gz"
+    cp "$packages.gz" "$dists/main/binary-$arch/Packages.gz"
   done
-  rm -f "$packages"
+  rm -f "$packages" "$packages.gz"
   # the Release file: metadata, then a size and hash per index it covers
   {
     printf 'Origin: say-hi\nLabel: say-hi\nSuite: stable\nCodename: stable\n'
@@ -249,21 +232,25 @@ function build_apt() {
   fi
 }
 
-# release_hashes <dists-dir> <heading> <openssl-digest> - one hash block of a
-# Release file: " <hash> <size> <path relative to dists/stable>" per index.
-# -r, not the default `dgst` header-and-hash format build_apt's other digests
-# already learned to avoid (line 227): the algorithm name it prints ("SHA256"
-# vs "SHA2-256" vs whatever a given OpenSSL build calls it) isn't stable
-# across versions. Even -r's own shape is only trusted for the leading hex
-# run, via grep instead of `cut -d' ' -f1`: a build that leaks a config or
+# dgst_of <openssl-digest> <file> - <file>'s hex digest alone. -r, not the
+# default `dgst` header-and-hash format: the algorithm name it prints
+# ("SHA256" vs "SHA2-256" vs whatever a given OpenSSL build calls it) isn't
+# stable across versions. Even -r's own shape is only trusted for the leading
+# hex run, via grep instead of `cut -d' ' -f1`: a build that leaks a config or
 # provider warning onto stdout ahead of the real "<hash> *<file>" line would
 # otherwise hand `cut` that warning's first word instead of the digest.
+function dgst_of() {
+  openssl dgst "-$1" -r "$2" | grep -oE '^[0-9a-fA-F]+' | head -1
+}
+
+# release_hashes <dists-dir> <heading> <openssl-digest> - one hash block of a
+# Release file: " <hash> <size> <path relative to dists/stable>" per index.
 function release_hashes() {
   local dists="$1" heading="$2" algo="$3" f rel
   printf '%s:\n' "$heading"
   for f in "$dists"/main/binary-*/Packages "$dists"/main/binary-*/Packages.gz; do
     rel="${f#"$dists"/}"
-    printf ' %s %16s %s\n' "$(openssl dgst "-$algo" -r "$f" | grep -oE '^[0-9a-fA-F]+' | head -1)" "$(wc -c <"$f" | tr -d ' ')" "$rel"
+    printf ' %s %16s %s\n' "$(dgst_of "$algo" "$f")" "$(wc -c <"$f" | tr -d ' ')" "$rel"
   done
 }
 
@@ -322,10 +309,7 @@ function build_apk() {
   # key in hand, so what a client verifies with is never a stale copy; with
   # no key, the committed one at least names what a release is signed with
   if [ -n "$_HI_APK_KEY" ]; then
-    [ -f "$_HI_APK_KEY" ] || {
-      _hi_cecho " no such apk key file: $_HI_APK_KEY" "$RED" >&2
-      return 1
-    }
+    need_file "$_HI_APK_KEY" "apk key file" || return 1
     openssl rsa -in "$_HI_APK_KEY" -pubout -out "$_HI_OUT/say-hi.rsa.pub" 2>/dev/null
   else
     cp -p "$_HI_ROOT/packaging/apk/say-hi.rsa.pub" "$_HI_OUT/say-hi.rsa.pub"

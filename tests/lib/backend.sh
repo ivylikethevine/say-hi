@@ -111,29 +111,20 @@ function _hi_container_backend_test() {
   # cannot follow (the name is a string there)
   local shell shell_ok=""
   local -a built_images=()
-  # Three independent builds off the same daemon, backgrounded together
-  # rather than run in turn: each writes its own verdict to
-  # $_HI_WORKDIR/<shell>.built and its own heading/log-dump text to
-  # <shell>.par.log, so the presentation still replays in table order below
-  # even though the work overlapped.
+  # three independent builds off the same daemon, overlapped (_hi_bg)
   for shell in zsh fish dash; do
     # an empty context: alpine-shell.Dockerfile has no COPY, and the build
     # still wants a directory to be handed
     mkdir -p "$_HI_WORKDIR/$shell"
     built_images+=("hi-${backend}test-$shell-$$")
-    (
-      if _hi_build_image "$shell" "hi-${backend}test-$shell-$$" "the $shell fallback" \
-        --build-arg "PKGS=$shell" -f "$(_hi_dockerfile alpine-shell)" "$_HI_WORKDIR/$shell"; then
-        printf '1' >"$_HI_WORKDIR/$shell.built"
-      else
-        printf '0' >"$_HI_WORKDIR/$shell.built"
-      fi
-    ) >"$_HI_WORKDIR/$shell.par.log" 2>&1 &
+    _hi_bg "$shell" _hi_build_image "$shell" "hi-${backend}test-$shell-$$" "the $shell fallback" \
+      --build-arg "PKGS=$shell" -f "$(_hi_dockerfile alpine-shell)" "$_HI_WORKDIR/$shell"
   done
   wait
+  local ok
   for shell in zsh fish dash; do
-    cat "$_HI_WORKDIR/$shell.par.log"
-    _hi_kv_set shell_ok "$shell" "$(cat "$_HI_WORKDIR/$shell.built" 2>/dev/null || printf 0)"
+    _hi_bg_ok "$shell" ok
+    _hi_kv_set shell_ok "$shell" "$ok"
   done
 
   _HI_TEST_MARKER="HI_$(printf '%s' "$backend" | tr '[:lower:]' '[:upper:]')_TEST_OK"
@@ -172,28 +163,21 @@ function _hi_container_backend_test() {
     "hi's $backend path FAILED: $_HI_FAILED/$_HI_TOTAL cases"
 }
 
-# _hi_backend_pair_cases <label> <thing tested> - the bash-present + bash-less
-# case pair every ephemeral-cluster suite (kube, nomad) ends with, once its
-# own cluster/agent is up, $_HI_TEST_MARKER is set, and a suite-local
-# _hi_run_case is in scope. _say_hi_container's fallback logic past the
-# initial `command -v bash` probe is identical for every backend and already
-# proven by _hi_container_backend_test above, so these suites only need to
-# prove their own backend's probe/attach argument shapes - once with bash
-# present, once without.
-# The pair runs as a batch, which is a real saving on kube (two pods scheduled
-# together on a cluster that took 40s to exist) and none at all on nomad - whose
-# suite tracks its jobs in a shell array and therefore asks for _HI_PAR_WIDTH=1,
-# so this path stays one code path either way.
 # The pair's two images, named once: kube side-loads them into its cluster
 # before the cases run, and a preload that drifts from what the cases ask for is
 # a silent 20-second wait, not an error.
 _HI_PAIR_IMAGE_BASH="debian:bookworm-slim"
 _HI_PAIR_IMAGE_SH="alpine:3.24"
 
-# _hi_backend_pair_cases <label> <thing> [extra-case-fn...] - the bash/sh pair
-# every backend runs, plus any case only one backend has. The extras go inside
-# the same parallel block on purpose: _hi_suite_end below reports and exits, so
-# a caller cannot add a check after this returns - it does not return.
+# _hi_backend_pair_cases <label> <thing> [extra-case-fn...] - the bash-present +
+# bash-less pair every ephemeral-cluster suite (kube, nomad) ends with, once
+# its cluster/agent is up, $_HI_TEST_MARKER is set and a suite-local
+# _hi_run_case is in scope, plus any case only one backend has. The fallback
+# logic past `command -v bash` is shared and proven by
+# _hi_container_backend_test above, so these prove only their own backend's
+# probe/attach argument shapes. One parallel batch - a real saving on kube, none
+# on serial nomad. The extras ride in it because _hi_suite_end below reports
+# and exits: this does not return.
 function _hi_backend_pair_cases() {
   local label="$1" thing="$2" extra
   shift 2

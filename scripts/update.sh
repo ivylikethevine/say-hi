@@ -9,7 +9,7 @@
 # what is running: a disposable tree is /tmp/<x>/say-hi with no .git, and a
 # target with a permanent install runs its own hi.sh. It went through
 # _hi_dispatch_subcommand like every other subcommand once it had a script to
-# name. $_HI_NO_GIT lives here too, for the same reason.
+# name.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` chain into
 # hi.sh's trailing `_hi "$@"` and marks what follows unreachable - it does not
@@ -28,19 +28,11 @@ source "$_hi_d/common/core.sh"
 # packaging/lib.sh does the same. GLOSSARY: HI.15
 set -euo pipefail
 
-_HI_NO_GIT="no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on"
-
 # the script's own usage line names what was typed, the way doctor.sh does
 me="${_HI_ARGV0:-hi --update}"
 root="$_HI_ROOT" tag="" dirty="" here="" dry_run=""
-# --help anywhere on the line, and ahead of the .git check so a package gets
-# the text too
-for _hi_arg in "$@"; do
-  case "$_hi_arg" in -h | --help) set -- --help ;; esac
-done
-unset _hi_arg
-case "${1:-}" in
--h | --help)
+
+function _hi_update_help() {
   cat <<EOF
 Usage: $me [<tag>] [--dry-run]
 
@@ -56,12 +48,15 @@ following a branch instead is \`git -C $root pull\`, by hand.
   -n, --dry-run    Fetch the tags and say which one would be checked out,
                    moving nothing.
 EOF
-  exit 0
-  ;;
-esac
-# --dry-run anywhere on the line; what is left is the tag, if any
+}
+# --help and --dry-run anywhere on the line, and ahead of the .git check so a
+# package gets the help text too; what is left is the tag, if any
 for _hi_arg in "$@"; do
   case "$_hi_arg" in
+  -h | --help)
+    _hi_update_help
+    exit 0
+    ;;
   -n | --dry-run) dry_run=1 ;;
   *) set -- "$@" "$_hi_arg" ;;
   esac
@@ -69,7 +64,7 @@ for _hi_arg in "$@"; do
 done
 unset _hi_arg
 [ -d "$root/.git" ] || {
-  _hi_cecho "$me: $_HI_NO_GIT" "$RED" >&2
+  _hi_cecho "$me: no .git in $_HI_ROOT - a packaged install updates through its package manager (apt/dnf/apk upgrade say-hi, or brew upgrade say-hi); a tarball install unpacks the next release from https://github.com/ivylikethevine/say-hi/releases over this one; a hi session updates on the machine say-hi lives on" "$RED" >&2
   exit 1
 }
 case "${1:-}" in

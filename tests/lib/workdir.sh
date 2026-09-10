@@ -111,7 +111,7 @@ function _hi_test_cleanup() {
   if [ -n "$_HI_WORKDIR" ]; then
     rm -rf "$_HI_WORKDIR" || true
   fi
-  # the isolated config overlay from the top of this file, if a test made one
+  # the isolated config overlay from the top of test_lib.sh, if a test made one
   rm -rf "$XDG_CONFIG_HOME" || true
   return 0
 }

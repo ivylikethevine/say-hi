@@ -629,11 +629,7 @@ function test_priorities_table_renders_all_columns() {
 # highest first - the order full_check sorts its own output into, so the two
 # halves of the preview read in the same direction
 function test_priorities_table_sorts_highest_first() {
-  local stripped top bottom
-  stripped="$(_hi_strip_ansi "$_HI_PRIO_OUT")"
-  top="$(printf '%s\n' "$stripped" | grep -n 'favorites and core' | head -1 | cut -d: -f1)"
-  bottom="$(printf '%s\n' "$stripped" | grep -n 'platform trivia' | head -1 | cut -d: -f1)"
-  [ -n "$top" ] && [ -n "$bottom" ] && [ "$top" -lt "$bottom" ]
+  _hi_before "$(_hi_strip_ansi "$_HI_PRIO_OUT")" 'favorites and core' 'platform trivia'
 }
 
 # the INSTALLED/MISSING cells name the active ramp's colors - cool is the
@@ -685,8 +681,7 @@ function test_marks_table_explains_every_mark() {
 function test_marks_table_paints_each_glyph() {
   local out
   out="$(_hi_print_marks_table)" || return 1
-  [[ "$out" == *"$(printf '%b' "$GREEN")$_HI_MARK_OK"* ]] &&
-    [[ "$out" == *"$(printf '%b' "$RED")$_HI_MARK_NO"* ]]
+  _hi_has_rendered "$out" "$GREEN$_HI_MARK_OK" && _hi_has_rendered "$out" "$RED$_HI_MARK_NO"
 }
 
 function test_marks_table_is_rectangular() {
@@ -985,9 +980,6 @@ EOF
 
   _hi_h2 "Testing: packages - naming the header's colors"
   _hi_check "Names every color the header uses" test_legend_names_every_header_color
-  # $NC is not a palette color, and neither is anything under $NO_COLOR
-  # ...and under $NO_COLOR every escape *is* the empty string - the short-
-  # circuit branch, not the table walk
 
   _hi_h2 "Testing: packages - examples, via the header's check_line"
   _hi_check "Counts every listed package" test_collect_counts_every_listed_package
@@ -1032,7 +1024,7 @@ EOF
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
   _hi_check "Says the check is off above the floor" test_preview_says_the_check_is_off_above_the_floor
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
-  _hi_check "An exported $_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
+  _hi_check "An exported \$_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file
 
   _hi_suite_end "preview.sh"

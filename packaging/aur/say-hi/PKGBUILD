@@ -15,10 +15,9 @@ pkgdesc="sshrc supercharged - your shell config, on every host you say hi to"
 arch=('any')
 url="https://github.com/ivylikethevine/say-hi"
 license=('MIT')
-# tar, coreutils, gawk and sed are used too, but they are in base - namcap
-# flags depending on those explicitly.
-# coreutils is in `base`, which packaging guidelines say to assume; openssh is
-# not, and hi runs ssh itself
+# tar, coreutils, gawk and sed are used too, but they are in `base`, which
+# packaging guidelines say to assume (namcap flags depending on them
+# explicitly); openssh is not, and hi runs ssh itself
 depends=('bash' 'openssh')
 optdepends=('zsh: zsh support on the client'
   'fish: fish support on the client'

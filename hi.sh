@@ -94,24 +94,37 @@ function _hi_shquote() {
 # The client-derived env both transports export into the session, one
 # NAME<TAB>value pair per line; _hi_env_each renders it per transport.
 function _hi_session_env() {
-  printf '_HI_TARGET_COLOR\t%s\n' "$(_hi_target_color)"
+  # the memos primed here and read, not $( ) - see _hi's own priming
+  _hi_target_color >/dev/null
+  _hi_whoami >/dev/null
+  _hi_hostname >/dev/null
+  printf '_HI_TARGET_COLOR\t%s\n' "$_HI_TARGET_COLOR_MEMO"
   printf '_HI_TARGET_TAG\t%s\n' "$(_hi_ssh_host_tag "$DOMAIN" 2>/dev/null || true)"
-  printf '_HI_LOCAL_USER\t%s\n' "$(_hi_whoami)"
-  printf '_HI_LOCAL_HOSTNAME\t%s\n' "$(_hi_hostname)"
+  printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
+  printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
-  # the client's glyph verdict, not the target's: see _hi_ascii_flag
-  printf '_HI_ASCII\t%s\n' "${_HI_ASCII:-$(_hi_ascii_flag)}"
-  # the client's 24-bit verdict: ssh never forwards COLORTERM (GLOSSARY: HI.50)
-  printf '_HI_TRUECOLOR\t%s\n' "${_HI_TRUECOLOR:-$(_hi_truecolor_flag)}"
-  # nothing when unset - the value no-color.org gives no meaning to
-  [ -n "${NO_COLOR:-}" ] && printf 'NO_COLOR\t1\n'
-  return 0
+  _hi_client_verdicts '%s\t%s\n'
+}
+
+# _hi_client_verdicts <format> - the *client's* glyph and 24-bit verdicts
+# (ssh never forwards COLORTERM, GLOSSARY: HI.50), and NO_COLOR only when set,
+# as <format> lines of name then value; both transports print these.
+function _hi_client_verdicts() {
+  local _hi_cv_a="${_HI_ASCII:-}" _hi_cv_t="${_HI_TRUECOLOR:-}"
+  [ -n "$_hi_cv_a" ] || _hi_ascii_flag _hi_cv_a
+  [ -n "$_hi_cv_t" ] || _hi_truecolor_flag _hi_cv_t
+  # shellcheck disable=SC2059 # the format is ours, not user data
+  {
+    printf "$1" _HI_ASCII "$_hi_cv_a"
+    printf "$1" _HI_TRUECOLOR "$_hi_cv_t"
+    [ -z "${NO_COLOR:-}" ] || printf "$1" NO_COLOR 1
+  }
 }
 
 # memoized: three callers, $DOMAIN is fixed for the run
 function _hi_target_color() {
   [ "${_HI_TARGET_COLOR_MEMO+x}" = x ] ||
-    _HI_TARGET_COLOR_MEMO="$(_hi_resolve_color hostname "${DOMAIN##*@}")"
+    _hi_resolve_color hostname "${DOMAIN##*@}" '' _HI_TARGET_COLOR_MEMO
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
@@ -124,11 +137,6 @@ function _hi_overlay_files() {
   done
   return 0
 }
-
-# _hi_runtime_dir now lives in common/core.sh (sourced above), so hi.sh's own
-# copy no longer trades a "stay in step by comment" hazard with
-# common/targets.sh's - only that one standalone-POSIX file has a copy of
-# its own left to keep in step.
 
 # tar's own arguments, gzip in a second process rather than `z`: bsdtar pads
 # the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip
@@ -211,12 +219,13 @@ function _hi_overlay_tar() {
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
 
-# cksum's checksum field alone; `${k%% *}` rather than a `cut`, which was a
-# second process per key and there are three keys a connect.
+# _hi_cksum <value> [outvar] - cksum's checksum field alone; `${k%% *}`
+# rather than a `cut`, which was a second process per key and there are three
+# keys a connect.
 function _hi_cksum() {
   local _hi_ck
   _hi_ck="$(printf '%s' "$1" | cksum)"
-  printf '%s' "${_hi_ck%% *}"
+  _hi_out "${2:-}" "${_hi_ck%% *}"
 }
 
 # What changes an overlay tar without touching any member's mtime: the member
@@ -556,10 +565,10 @@ function _hi_ctl_open() {
   if [ "$scope" = shared ] && [ "${_HI_CTL_PERSIST:-60}" != 0 ]; then
     _hi_runtime_dir dir
     if [ -n "$dir" ]; then
-      # printf -v, not a $( ): the joined words are a builtin away, and the
-      # capture around _hi_cksum is the only fork this key needs to cost
+      # printf -v and outvars, not $( ): the joined words are a builtin away,
+      # and cksum itself is the only fork this key needs to cost
       printf -v words '%s\x1f' "$DOMAIN" ${SSHARGS[@]+"${SSHARGS[@]}"}
-      key="$(_hi_cksum "$words")"
+      _hi_cksum "$words" key
       ctl_path="$dir/hi.ctl.$key"
       ctl_opts=(-o ControlMaster=auto -o ControlPath="$ctl_path" -o "ControlPersist=${_HI_CTL_PERSIST:-60}")
       ctl_shared=1
@@ -674,9 +683,7 @@ function _hi_fallback_rc() {
   done
   if [ -n "$aliases_dir" ]; then
     # the client verdicts the ssh preamble would have exported ride the rc here
-    printf 'export _HI_ASCII=%s\n' "${_HI_ASCII:-$(_hi_ascii_flag)}"
-    printf 'export _HI_TRUECOLOR=%s\n' "${_HI_TRUECOLOR:-$(_hi_truecolor_flag)}"
-    [ -n "${NO_COLOR:-}" ] && printf 'export NO_COLOR=1\n'
+    _hi_client_verdicts 'export %s=%s\n'
     printf '. %s/aliases.sh 2>/dev/null\n' "$aliases_dir"
   else
     printf 'export _HI_CONFIG_DIR=$_HI_ROOT/config\n'
@@ -728,7 +735,8 @@ function _hi_fallback_prompt() {
   local user_esc ce pe
   _hi_user_escape user_esc
   _hi_prompt_end BASH pe
-  _hi_color_escape_var ce "$(_hi_target_color)"
+  _hi_target_color >/dev/null
+  _hi_color_escape_var ce "$_HI_TARGET_COLOR_MEMO"
   printf -v ce '%b' "$ce" # the _var form leaves `\e` literal
   printf -v nc '%b' "$NC"
   printf '_hi_u=$(id -un 2>/dev/null || echo "${USER:-?}")\n'
@@ -905,7 +913,8 @@ REMOTE
 function _hi_remote_middle() {
   local tmpl _hi_esc _hi_nc
   _hi_esc_pair _hi_esc _hi_nc
-  _hi_shquote tmpl "$(_hi_whoami).hi.XXXXXX"
+  _hi_whoami >/dev/null
+  _hi_shquote tmpl "$_HI_WHOAMI_CACHE.hi.XXXXXX"
   cat <<REMOTE
       export _HI_HOME=\$(mktemp -d -t $tmpl) # busybox mktemp needs exactly six X
       export _HI_ROOT=\$_HI_HOME/say-hi
@@ -934,8 +943,6 @@ REMOTE
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
   local size script middle boot_tmp ctl_path ctl_dir ctl_shared ct ec=0
-  local _hi_esc _hi_nc
-  _hi_esc_pair _hi_esc _hi_nc
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
@@ -1127,16 +1134,25 @@ function _hi_container_fallback_shell() {
 # target, proven to have landed rather than assumed from a zero exit: an
 # `exec -i` whose stdin closes before the target's cat drains it succeeds at
 # the transport and delivers nothing. The race is transient, hence the retry,
-# and only ever seen on a piped writer's stdin - so $src is a regular file and
-# a caller stages its content first. Reads cp/probe/tmp from the caller.
+# and only ever seen on a piped writer's stdin - so the retry replays a
+# regular file: <local-file> `-` stages stdin to one first, and removes it
+# after. Reads cp/probe/tmp from the caller.
 function _hi_container_put() {
-  local src="$1" dest="$2" try
+  local src="$1" dest="$2" try rc=1
+  if [ "$src" = - ]; then
+    src="$tmp.put"
+    cat >"$src"
+  fi
   # shellcheck disable=SC2034 # try only bounds the retry count, never read
   for try in 1 2 3; do
-    "${cp[@]}" sh -c "cat > '$dest'" <"$src" 2>"$tmp" &&
-      "${probe[@]}" sh -c "[ -s '$dest' ]" 2>"$tmp" && return 0
+    if "${cp[@]}" sh -c "cat > '$dest'" <"$src" 2>"$tmp" &&
+      "${probe[@]}" sh -c "[ -s '$dest' ]" 2>"$tmp"; then
+      rc=0
+      break
+    fi
   done
-  return 1
+  [ "$1" != - ] || rm -f "$src"
+  return "$rc"
 }
 
 # _say_hi_container <label> <errlog> - the container arm, across the
@@ -1144,7 +1160,6 @@ function _hi_container_put() {
 function _say_hi_container() {
   local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
-  local rc_stage="$tmp.rc"
   local -a probe cp attach overlay=()
   _hi_require tar "to pack the payload" || return 1
   _hi_container_cmds "$label"
@@ -1185,11 +1200,9 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
     fi
 
     # the shared fallback rc in its aliases-only shape, plus the POSIX prompt
-    # for the shells that parse it - the ssh path's `*)` rule. Staged to a file
-    # because _hi_container_put's retry has to replay the same bytes, which a
-    # pipe cannot do twice.
+    # for the shells that parse it - the ssh path's `*)` rule
     local -a fish_cmd=()
-    {
+    if ! {
       _hi_fallback_rc --aliases-only "$root"
       case "$fallback" in
       zsh | fish) ;;
@@ -1198,13 +1211,10 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
       # last, for the shells that read the file to its end; fish takes it as
       # -c below instead (GLOSSARY: HI.23)
       [ "$fallback" = fish ] || [ -z "${CMDARG:-}" ] || printf '%s\n' "$CMDARG"
-    } >"$rc_stage"
-    if ! _hi_container_put "$rc_stage" "$root/.hi_fallback_rc"; then
-      rm -f "$rc_stage"
+    } | _hi_container_put - "$root/.hi_fallback_rc"; then
       _hi_container_abort " failed to write the fallback rc into [$DOMAIN]"
       return 1
     fi
-    rm -f "$rc_stage"
     [ "$fallback" != fish ] || [ -z "${CMDARG:-}" ] || fish_cmd=(-c "$CMDARG")
 
     case "$fallback" in
@@ -1255,17 +1265,13 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   fi
 
   # hi.sh rides the payload tar unpacked above, mode and all - no separate
-  # copy. Staged and put like the fallback rc, for the same replay reason. An
-  # empty hi.bashrc is the worst failure this arm has - `bash --rcfile` would
-  # start, source nothing and hand over a bare shell with no error at all - so
-  # it is fatal rather than unchecked.
-  _hi_bootloader >"$rc_stage"
-  if ! _hi_container_put "$rc_stage" "$root/say-hi/hi.bashrc"; then
-    rm -f "$rc_stage"
+  # copy. Put like the fallback rc. An empty hi.bashrc is the worst failure
+  # this arm has - `bash --rcfile` would start, source nothing and hand over a
+  # bare shell with no error at all - so it is fatal rather than unchecked.
+  if ! _hi_bootloader | _hi_container_put - "$root/say-hi/hi.bashrc"; then
     _hi_container_abort " failed to write hi's bootloader into [$DOMAIN]"
     return 1
   fi
-  rm -f "$rc_stage"
 
   # `-i` explicitly: `--rcfile` is read by an *interactive* bash and nothing
   # else, and with a conditional tty that interactivity is no longer inferred
@@ -1339,7 +1345,7 @@ function _hi_flag_takes() {
 # 2 when it took <next> and the caller must shift again, 1 for a bare flag
 # with nothing after it. printf -v, not a nameref: bash 3.2.
 function _hi_flag_word() {
-  printf -v "$1" ''
+  printf -v "$1" '%s' ''
   case "$2" in
   *=*) printf -v "$1" '%s' "${2#*=}" ;;
   *)
@@ -1359,8 +1365,10 @@ function _hi_parse_command() {
     _hi_cecho "hi: $1 goes before the target (hi [options] <target> [command ...])" "$RED" >&2
     exit 1
   fi
+  local sep=""
+  [[ "$*" = *[![:space:]]* ]] && sep='; '
   RAWCMD="$*"
-  CMDARG="$*$([[ "$*" = *[![:space:]]* ]] && echo '; ') exit"
+  CMDARG="$*$sep exit"
 }
 
 # --help and --version take nothing after them: `hi --help extra` is a mistake
@@ -1584,7 +1592,7 @@ function _hi_mux_tool() {
     fi
   done
   _hi_cecho "hi: --mux needs tmux, zellij or screen on this machine; connecting without it" "$YELLOW" >&2
-  printf -v "$1" ''
+  printf -v "$1" '%s' ''
   return 1
 }
 
@@ -1680,9 +1688,9 @@ function _hi() {
   _hi_on_exit 'rm -f "$tmp"'
 
   _hi_parse "$@"
-  # Primed in the shell that keeps them: every production caller reads these
-  # through $( ), so each memo was being filled in a subshell and dying there,
-  # and the script builders ask six times between them. GLOSSARY: HI.05
+  # Primed in the shell that keeps them: a caller that reads one through $( )
+  # would fill the memo in a subshell and lose it there, and the script
+  # builders ask six times between them. GLOSSARY: HI.05
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   [ -z "${DOMAIN:-}" ] || _hi_target_color >/dev/null
@@ -1790,8 +1798,7 @@ function _hi_flag_help() {
       --version) flag="-V, --version" ;;
       esac
       ;;
-    local:-) continue ;;
-    -:*) continue ;;
+    local:- | -:*) continue ;;
     esac
     label="$flag${arg:+ $arg}"
     if [ "${#label}" -le 22 ]; then

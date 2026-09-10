@@ -36,7 +36,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # No `uses: ./.github/actions/setup-tool`: it resolves linux/darwin asset
+      # No `uses: ./.github/actions/setup-tools`: it resolves linux/darwin asset
       # slugs and caches into /usr/local/bin, neither a Windows shape, so the
       # lint group is enforced on ci.yml's ubuntu job only. No --require-run or
       # --totals-file either: skips are expected (no zsh or fish here), and

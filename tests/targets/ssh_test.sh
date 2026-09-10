@@ -11,7 +11,7 @@
 # bash-less alpine with only zsh
 # and with only fish, for the fallback tiers the plain alpine
 # image never reaches. The debian base comes
-# from test_lib.sh's _hi_sshd_image, shared with ssh_disconnect_test.sh.
+# from tests/lib/ssh.sh's _hi_sshd_image, shared with ssh_disconnect_test.sh.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -69,17 +69,9 @@ function run_ssh_tests() {
   _hi_h2 "Building test images"
 
   # Five independent builds - the sshd image, the three alpine variants and
-  # bash32 - backgrounded together rather than run in turn, on one daemon
-  # that was going to serialize them at the docker-server end regardless of
-  # how many clients ask at once. Each writes its own verdict to
-  # $_HI_WORKDIR/<name>.built and its own heading/log-dump text to
-  # <name>.par.log, so the presentation still replays in table order below
-  # even though the work overlapped. debian-installed/debian-nested depend
-  # on this wave (both build atop $_HI_SSHD_IMAGE) and form their own wave
-  # further down.
-  (
-    if _hi_sshd_image "its shells"; then printf '1' >"$_HI_WORKDIR/sshd.built"; else printf '0' >"$_HI_WORKDIR/sshd.built"; fi
-  ) >"$_HI_WORKDIR/sshd.par.log" 2>&1 &
+  # bash32 - overlapped (_hi_bg). debian-installed/debian-nested build atop
+  # $_HI_SSHD_IMAGE, so they form a second wave further down.
+  _hi_bg sshd _hi_sshd_image "its shells"
 
   # "+" separates extra packages, not a space: the specs are split on
   # whitespace by the loop itself.
@@ -91,15 +83,9 @@ function run_ssh_tests() {
     _hi_sshd_entrypoint "$_hi_ctx" /bin/sh
 
     _HI_SSH_IMAGES+=("hi-sshtest-$_hi_label-$$")
-    (
-      if _hi_build_image "$_hi_label" "hi-sshtest-$_hi_label-$$" "its fallback case" \
-        --build-arg "PKGS=$(printf '%s' "${_hi_img#*:}" | tr '+' ' ')" \
-        -f "$(_hi_dockerfile sshd-alpine)" "$_hi_ctx"; then
-        printf '1' >"$_HI_WORKDIR/$_hi_label.built"
-      else
-        printf '0' >"$_HI_WORKDIR/$_hi_label.built"
-      fi
-    ) >"$_HI_WORKDIR/$_hi_label.par.log" 2>&1 &
+    _hi_bg "$_hi_label" _hi_build_image "$_hi_label" "hi-sshtest-$_hi_label-$$" "its fallback case" \
+      --build-arg "PKGS=$(printf '%s' "${_hi_img#*:}" | tr '+' ' ')" \
+      -f "$(_hi_dockerfile sshd-alpine)" "$_hi_ctx"
   done
 
   # A bash 3.2 target - see tests/dockerfiles/sshd-bash32.Dockerfile for what
@@ -107,64 +93,37 @@ function run_ssh_tests() {
   _hi_ctx="$_HI_WORKDIR/bash32"
   mkdir -p "$_hi_ctx"
   _hi_sshd_entrypoint "$_hi_ctx" /bin/sh
-  (
-    if _hi_build_image bash32 "hi-sshtest-bash32-$$" "the bash 3.2 case" \
-      -f "$(_hi_dockerfile sshd-bash32)" "$_hi_ctx"; then
-      printf '1' >"$_HI_WORKDIR/bash32.built"
-    else
-      printf '0' >"$_HI_WORKDIR/bash32.built"
-    fi
-  ) >"$_HI_WORKDIR/bash32.par.log" 2>&1 &
+  _hi_bg bash32 _hi_build_image bash32 "hi-sshtest-bash32-$$" "the bash 3.2 case" \
+    -f "$(_hi_dockerfile sshd-bash32)" "$_hi_ctx"
 
   wait
 
-  cat "$_HI_WORKDIR/sshd.par.log"
-  _HI_DEBIAN_OK="$(cat "$_HI_WORKDIR/sshd.built" 2>/dev/null || printf 0)"
+  _hi_bg_ok sshd _HI_DEBIAN_OK
+  _hi_ok=""
   for _hi_img in alpine: alpine-zsh:zsh alpine-fish:fish; do
     _hi_label="${_hi_img%%:*}"
-    cat "$_HI_WORKDIR/$_hi_label.par.log"
-    _hi_kv_set _HI_ALPINE_OK "$_hi_label" "$(cat "$_HI_WORKDIR/$_hi_label.built" 2>/dev/null || printf 0)"
+    _hi_bg_ok "$_hi_label" _hi_ok
+    _hi_kv_set _HI_ALPINE_OK "$_hi_label" "$_hi_ok"
   done
-  cat "$_HI_WORKDIR/bash32.par.log"
-  _HI_BASH32_OK="$(cat "$_HI_WORKDIR/bash32.built" 2>/dev/null || printf 0)"
+  _hi_bg_ok bash32 _HI_BASH32_OK
 
-  # the repo itself is these two's build context - it is the working tree
-  # that lands at ~/say-hi in the image - and both depend only on
-  # $_HI_SSHD_IMAGE from the wave above, not on each other, so they overlap
-  # the same way.
+  # the repo itself is these two's build context - the working tree that
+  # lands at ~/say-hi in the image - and they depend only on the wave above
   _HI_INSTALLED_OK=0
   _HI_NESTED_OK=0
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
-    (
-      # $_HI_SSHD_IMAGE is tests/lib/ssh.sh's, reached two sources deep
-      # through test_lib.sh - a depth SC2153's misspelling heuristic stops
-      # counting assignments at, so it offers this file's own
-      # _HI_SSH_IMAGES instead
-      # shellcheck disable=SC2153
-      if _hi_build_image debian-installed "hi-sshtest-debian-installed-$$" "the pre-installed case" \
-        --build-arg "BASE=$_HI_SSHD_IMAGE" \
-        -f "$(_hi_dockerfile installed)" "$_HI_ROOT"; then
-        printf '1' >"$_HI_WORKDIR/debian-installed.built"
-      else
-        printf '0' >"$_HI_WORKDIR/debian-installed.built"
-      fi
-    ) >"$_HI_WORKDIR/debian-installed.par.log" 2>&1 &
-    # The same tree, installed away from ~/say-hi - the shape a `--prefix`
-    # or a dotfiles-managed install leaves.
-    (
-      if _hi_build_image debian-nested "hi-sshtest-debian-nested-$$" "the non-default install path case" \
-        --build-arg "BASE=$_HI_SSHD_IMAGE" \
-        -f "$(_hi_dockerfile installed-nested)" "$_HI_ROOT"; then
-        printf '1' >"$_HI_WORKDIR/debian-nested.built"
-      else
-        printf '0' >"$_HI_WORKDIR/debian-nested.built"
-      fi
-    ) >"$_HI_WORKDIR/debian-nested.par.log" 2>&1 &
+    # $_HI_SSHD_IMAGE is tests/lib/ssh.sh's, two sources deep - past where
+    # SC2153's misspelling heuristic counts assignments
+    # shellcheck disable=SC2153
+    _hi_bg debian-installed _hi_build_image debian-installed "hi-sshtest-debian-installed-$$" \
+      "the pre-installed case" --build-arg "BASE=$_HI_SSHD_IMAGE" -f "$(_hi_dockerfile installed)" "$_HI_ROOT"
+    # the same tree away from ~/say-hi - what `--prefix` or a dotfiles install leaves
+    _hi_bg debian-nested _hi_build_image debian-nested "hi-sshtest-debian-nested-$$" \
+      "the non-default install path case" --build-arg "BASE=$_HI_SSHD_IMAGE" \
+      -f "$(_hi_dockerfile installed-nested)" "$_HI_ROOT"
     wait
-    cat "$_HI_WORKDIR/debian-installed.par.log"
-    _HI_INSTALLED_OK="$(cat "$_HI_WORKDIR/debian-installed.built" 2>/dev/null || printf 0)"
-    cat "$_HI_WORKDIR/debian-nested.par.log"
-    _HI_NESTED_OK="$(cat "$_HI_WORKDIR/debian-nested.built" 2>/dev/null || printf 0)"
+    _hi_bg_ok debian-installed _HI_INSTALLED_OK
+    _hi_bg_ok debian-nested _HI_NESTED_OK
   fi
 
   _HI_TEST_MARKER="HI_SSH_TEST_OK"

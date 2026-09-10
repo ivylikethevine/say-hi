@@ -169,12 +169,11 @@ function _hi_wire_rx_bytes() {
   docker exec "$1" cat /sys/class/net/eth0/statistics/rx_bytes 2>/dev/null || echo 0
 }
 
-# _hi_wire_case <label> <image> <shape> - one measured session. <shape> is
-# `payload` is the one shape: the tree goes over, and the count has to be the
-# claim plus a bounded overhead. It also asserts the session itself worked - a
-# count of a failed connection measures nothing.
+# _hi_wire_case <label> <image> - one measured session: the tree goes over, and
+# the count has to be the claim plus a bounded overhead. It also asserts the
+# session itself worked - a count of a failed connection measures nothing.
 function _hi_wire_case() {
-  local label="$1" image="$2" shape="$3" name counts out_file exit_code t0 t1 ok=1
+  local label="$1" image="$2" name counts out_file exit_code t0 t1 ok=1
   local up down rx0 rx1 claim human overhead limit probe floor printed printed_bytes
   local _HI_SSH_PORT=""
   # this suite's whole methodology is "the proxy writes its counts once the
@@ -188,12 +187,10 @@ function _hi_wire_case() {
 
   name="$_HI_SSH_CASE_PREFIX-$label-$$"
   counts="$_HI_WORKDIR/$label.wire"
-  _hi_h3 "Measuring: $label ($shape)"
+  _hi_h3 "Measuring: $label"
   _hi_sshd_container "$name" "$image" -e LOGIN_SHELL=/bin/bash || return 1
 
-  case "$shape" in
-  payload) probe="$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)" ;;
-  esac
+  probe="$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
 
   claim="$(_hi_wire_claim "$probe")"
   human="$(_hi_wire_claim_human "$probe")"
@@ -206,10 +203,8 @@ function _hi_wire_case() {
   _hi_cecho " | Running: $_HI_LAUNCHER -p $_HI_SSH_PORT (through the counting proxy) hitest@127.0.0.1 $probe"
   t0="$(_hi_now)"
   # `<&3` pairs with _hi_pty_stdin in run_wire_tests, as in every ssh suite
-  ${_HI_PTY_WRAP[@]+"${_HI_PTY_WRAP[@]}"} "$_HI_LAUNCHER" -p "$_HI_SSH_PORT" -i "$_HI_WORKDIR/id" \
-    "${_HI_SSH_OPTS[@]}" -o ConnectTimeout=5 \
-    -o "ProxyCommand=python3 $_HI_WORKDIR/wire_proxy.py %h %p $counts" \
-    hitest@127.0.0.1 "$probe" <&3 >"$out_file" 2>&1 &
+  _hi_ssh_launch "$_HI_SSH_PORT" -o "ProxyCommand=python3 $_HI_WORKDIR/wire_proxy.py %h %p $counts"
+  "${_HI_SSH_LAUNCH[@]}" "$probe" <&3 >"$out_file" 2>&1 &
   _hi_wait_pid "$!" "${_HI_SSH_CASE_TIMEOUT:-90}"
   exit_code="$_HI_WAIT_EXIT"
   t1="$(_hi_now)"
@@ -233,28 +228,24 @@ function _hi_wire_case() {
   _hi_cecho " | client -> target $up B, target -> client $down B, target eth0 rx $((rx1 - rx0)) B" "$BLUE"
   _hi_cecho " | hi's figure for this target: $claim B ($human)" "$BLUE"
 
-  case "$shape" in
-  payload)
-    # the claim has to be *in* the count, and what is in the count beyond the
-    # claim - key exchange, auth, the install probe, per-packet MACs - has to
-    # stay small: a fifth of the figure, or 12KB on a small payload, whichever
-    # is more. Printed as a percentage, since that is how a reader will
-    # compare two runs.
-    overhead=$((up - claim))
-    limit=$((claim / 5))
-    [ "$limit" -lt 12288 ] && limit=12288
-    _hi_cecho " | overhead beyond the figure: $overhead B ($((overhead * 100 / claim))% of it; limit $limit B)" "$BLUE"
-    # the floor carries the margin, not an exact claim: see $_HI_WIRE_MARGIN
-    floor=$((claim - claim * _HI_WIRE_MARGIN / 100))
-    printed="$(_hi_wire_transcript_figure "$out_file")"
-    printed_bytes="$(_hi_wire_figure_bytes "${printed:-0}")"
-    _hi_cecho " | the connect line printed: ${printed:-(no figure)} ($printed_bytes B; within $_HI_WIRE_MARGIN% of $claim B?)" "$BLUE"
-    _hi_assert "[$label] the wire carried at least the claimed script" [ "$up" -ge "$floor" ] || ok=0
-    _hi_assert "[$label] the overhead beyond the claim is bounded" [ "$overhead" -le "$limit" ] || ok=0
-    _hi_assert "[$label] the connect line's figure is within $_HI_WIRE_MARGIN% of the claim ($human)" \
-      _hi_within_percent "$printed_bytes" "$claim" "$_HI_WIRE_MARGIN" || ok=0
-    ;;
-  esac
+  # the claim has to be *in* the count, and what is in the count beyond the
+  # claim - key exchange, auth, the install probe, per-packet MACs - has to
+  # stay small: a fifth of the figure, or 12KB on a small payload, whichever
+  # is more. Printed as a percentage, since that is how a reader will compare
+  # two runs.
+  overhead=$((up - claim))
+  limit=$((claim / 5))
+  [ "$limit" -lt 12288 ] && limit=12288
+  _hi_cecho " | overhead beyond the figure: $overhead B ($((overhead * 100 / claim))% of it; limit $limit B)" "$BLUE"
+  # the floor carries the margin, not an exact claim: see $_HI_WIRE_MARGIN
+  floor=$((claim - claim * _HI_WIRE_MARGIN / 100))
+  printed="$(_hi_wire_transcript_figure "$out_file")"
+  printed_bytes="$(_hi_wire_figure_bytes "${printed:-0}")"
+  _hi_cecho " | the connect line printed: ${printed:-(no figure)} ($printed_bytes B; within $_HI_WIRE_MARGIN% of $claim B?)" "$BLUE"
+  _hi_assert "[$label] the wire carried at least the claimed script" [ "$up" -ge "$floor" ] || ok=0
+  _hi_assert "[$label] the overhead beyond the claim is bounded" [ "$overhead" -le "$limit" ] || ok=0
+  _hi_assert "[$label] the connect line's figure is within $_HI_WIRE_MARGIN% of the claim ($human)" \
+    _hi_within_percent "$printed_bytes" "$claim" "$_HI_WIRE_MARGIN" || ok=0
   [ "$ok" -eq 1 ]
 }
 
@@ -276,7 +267,7 @@ function run_wire_tests() {
   _hi_pty_stdin auto
 
   _hi_suite_begin
-  _hi_case _hi_wire_case payload "$_HI_SSHD_IMAGE" payload
+  _hi_case _hi_wire_case payload "$_HI_SSHD_IMAGE"
   _hi_suite_end "wire measurement"
 }
 

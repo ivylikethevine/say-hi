@@ -31,8 +31,8 @@ b2sums=('SKIP')
 
 pkgver() {
   cd "$srcdir/say-hi"
-  # no tags exist yet, so the rN.shorthash form rather than a git describe;
-  # switch to describe once v1.0.0 is out and this package can sort against it
+  # the rN.shorthash form rather than a git describe; switch to describe once
+  # v1.0.0 is out and this package can sort against it
   printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 

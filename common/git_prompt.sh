@@ -103,14 +103,10 @@ _hi_git_prompt() {
   ((ahead > 0)) && upstream+="$_HI_GLYPH_AHEAD${ahead}"
   ((behind > 0)) && upstream+="$_HI_GLYPH_BEHIND${behind}"
 
-  # one reflog line per stash; the read builtin, not _hi_read_lines, whose
-  # two evals a line add up on a long reflog every draw
+  # one reflog line per stash; counted, not _hi_read_lines, whose two evals a
+  # line add up on a long reflog every draw
   local stash=0
-  if [[ -f "$git_dir/logs/refs/stash" ]]; then
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      stash=$((stash + 1))
-    done <"$git_dir/logs/refs/stash"
-  fi
+  [[ -f "$git_dir/logs/refs/stash" ]] && _hi_count_lines stash <"$git_dir/logs/refs/stash"
 
   # glyphs (and their ASCII fallbacks) come from core.sh's _hi_choose_glyphs
   local flags=""
