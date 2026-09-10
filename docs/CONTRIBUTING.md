@@ -173,7 +173,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `config.fish`'s mirror and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
-  `vim.rc`, `nano.rc`, `emacs.el`, `aliases.sh`, the per-shell rc files, `starship.toml`
+  `vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`, `aliases.sh`, the per-shell rc files, `starship.toml`
   and `oh-my-posh.json`), their
   formats, the XDG path and the `_HI_CONFIG_DIR` override.
 - **The installed layout** — `$_HI_HOME/say-hi` and

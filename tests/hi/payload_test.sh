@@ -394,13 +394,13 @@ function test_strip_spares_heredoc_bodies() {
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
-# so they ship stripped too: flags/colors/packages/nano.rc through the same
-# `#` rule as the shell, vim.rc and emacs.el through their own rules for
+# so they ship stripped too: flags/colors/packages/nano.rc/helix.toml/kak.rc
+# through the same `#` rule as the shell, vim.rc and emacs.el through their own rules for
 # vim's `"` and elisp's `;`.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages settings/nano.rc; do
+  for f in common/flags settings/colors settings/packages settings/nano.rc settings/helix.toml settings/kak.rc; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -424,7 +424,7 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages settings/nano.rc; do
+  for f in common/flags settings/colors settings/packages settings/nano.rc settings/helix.toml settings/kak.rc; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f") \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f") >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"

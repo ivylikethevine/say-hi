@@ -76,6 +76,8 @@ fi
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   check_alias nano "$_HI_EXPECT_NANO"
   check_alias emacs "$_HI_EXPECT_NANO"
+  check_alias kak "$_HI_EXPECT_NANO"
+  check_alias micro "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
@@ -145,6 +147,8 @@ end
 if set -q _HI_CHECK_FLAGS
   check_alias nano "$_HI_EXPECT_NANO"
   check_alias emacs "$_HI_EXPECT_NANO"
+  check_alias kak "$_HI_EXPECT_NANO"
+  check_alias micro "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if set -q _HI_EXPECT_LS_ALIAS
@@ -309,6 +313,7 @@ function _hi_run_scenario() {
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/emacs.el" \
+    _HI_HELIXRC="$_HI_WORKDIR/helix.toml" _HI_KAKRC="$_HI_WORKDIR/kak.rc" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
@@ -476,6 +481,8 @@ function run_alias_fallthrough_test() {
   _hi_suite_begin
   _hi_check "The vim ladder matches install.sh's preview" \
     test_ladder_matches_the_install_preview 'command -v nvim || command -v vim'
+  _hi_check "The helix ladder matches install.sh's preview" \
+    test_ladder_matches_the_install_preview 'command -v hx || command -v helix'
   _hi_check "The bat ladder matches install.sh's preview" \
     test_ladder_matches_the_install_preview 'command -v bat || command -v batcat'
   run_fallthrough_tests

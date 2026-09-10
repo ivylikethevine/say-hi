@@ -16,6 +16,8 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale                                                     |
 | `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
 | `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`)                                                                                 |
+| `~/.config/say-hi/helix.toml`      | `settings/helix.toml` | the same for helix, used by the `hx` alias (`hx -c`)                                                                                        |
+| `~/.config/say-hi/kak.rc`          | `settings/kak.rc`   | kakoune additions, sourced by the `kak` alias **after** the target's own kakrc (`kak -e`); micro takes no file - see `_HI_MICRO_OPTS` below   |
 | `~/.config/say-hi/aliases.sh`      | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
@@ -24,8 +26,8 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
 
 `hi --install` seeds the overlay with the shipped
-`colors`/`packages`/`vim.rc`/`nano.rc`/`emacs.el` defaults — only for the
-files you have none of, so after a normal install all five are yours. A seeded copy stops
+`colors`/`packages` and editor rc defaults — only for the
+files you have none of, so after a normal install all seven are yours. A seeded copy stops
 tracking what `hi --update` delivers for that file; delete it from the overlay
 to track the tree's again. Versioning the directory is yours to do — a
 `git init` there, or
@@ -196,6 +198,7 @@ cannot land without a row here.
 | `_HI_BAT_OPTS`              | `-P --tabs 2`, the Monokai Extended Bright theme, `changes,grid` style | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                      |
 | `_HI_EXA_OPTS`              | `-F -1 -l -m --group-directories-first --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                           |
 | `_HI_EZA_OPTS`              | the same leading flags + smart-group + a time format | you                       | the `eza` alias's flags                                                                                                                                                                                                                                                                                                                                          |
+| `_HI_MICRO_OPTS`            | `-backup false -savehistory false -mkparents true -diffgutter true` | you            | the `micro` alias's flags - micro takes settings on the command line rather than a config file, so this is its whole override; behind `_HI_DISABLE_EDITORS`                                                                                                                                                                                                  |
 | `_HI_CAT_BIN`            | first of `bat`, `batcat`, `ccat`, `cat` on PATH      | you                       | which binary the `bat` and `cat` aliases run (Debian ships bat as `batcat`; the tail keeps `cat` working where none is installed). From `settings.sh` or the environment only: `settings/aliases.sh` resolves it above the overlay `aliases.sh` source, unlike the `_OPTS` above                                                                                 |
 | `_HI_BAT_BIN`              | first of `bat`, `batcat` on PATH                     | you                       | the bat-only tier behind it, what parses `_HI_BAT_OPTS` - two rungs shorter on purpose; set with it, or leave both alone                                                                                                                                                                                                                                         |
 | `_HI_EXA_BIN`               | first of `exa`, `eza`, `ls` on PATH                  | you                       | which binary the `exa` alias runs; the same `settings.sh`-or-environment rule                                                                                                                                                                                                                                                                                    |
@@ -212,8 +215,8 @@ More names look like settings and are not:
   point derives `$_HI_HOME` from its own path.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:`
   comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_VIMRC`,
-  `$_HI_NANORC` and `$_HI_EMACSRC` are derived from those two by
-  `common/paths.sh` on every source - the last five resolving to the overlay's copy when you have one,
+  `$_HI_NANORC`, `$_HI_EMACSRC`, `$_HI_HELIXRC` and `$_HI_KAKRC` are derived
+  from those two by `common/paths.sh` on every source - all but the first two resolving to the overlay's copy when you have one,
   else the tree's - so an exported value does not survive. Point `$_HI_HOME`
   or `$HOME` elsewhere, or put your file in the overlay.
 - `$_HI_ASCII` is the *client's* verdict on whether its terminal renders

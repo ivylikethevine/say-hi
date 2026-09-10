@@ -415,13 +415,16 @@ function _hi_config_preview() {
   _hi_prompt_sample_preview
 }
 
-# what `nano`/`vim`/`emacs` actually resolve to with the override on. The vim ladder
-# is settings/aliases.sh's, spelled again because this file cannot source it -
+# what each editor alias actually resolves to with the override on. The vim
+# and helix ladders are settings/aliases.sh's, spelled again because this file cannot source it -
 # see the note there; alias_fallthrough_test.sh fails when the two drift.
 function _hi_editors_preview() {
   printf 'nano -> nano --rcfile %s\n' "$_HI_NANORC"
   printf 'vim  -> %s -u %s\n' "$(command -v nvim || command -v vim)" "$_HI_VIMRC"
   printf 'emacs -> emacs -q -l %s\n' "$_HI_EMACSRC"
+  printf 'hx   -> %s -c %s\n' "$(command -v hx || command -v helix)" "$_HI_HELIXRC"
+  printf 'kak  -> kak -e '"'"'source %s'"'"'\n' "$_HI_KAKRC"
+  printf 'micro -> micro %s\n' "${_HI_MICRO_OPTS:--backup false -savehistory false -mkparents true -diffgutter true}"
 }
 
 # what `cat` and `eza` resolve to with the rebinds on. settings/aliases.sh's
@@ -491,7 +494,7 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview| Enable the environment segment in the prompt (the leading (myproj) naming an active venv, conda, direnv, nix or version manager)?||environment segment in the prompt"
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the vim/nano/emacs config overrides?||vim/nano/emacs config overrides"
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the editor config overrides (vim, nano, emacs, helix, kakoune, micro)?||editor config overrides - vim, nano, emacs, helix, kakoune, micro"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"

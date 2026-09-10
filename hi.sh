@@ -61,7 +61,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
-_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el aliases.sh
+_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el helix.toml kak.rc aliases.sh
   bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json)
 
 # What a bash-less target falls back to, best first - derived from
@@ -192,7 +192,7 @@ function _hi_tar_gz() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc emacs.el)
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc emacs.el helix.toml kak.rc)
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
