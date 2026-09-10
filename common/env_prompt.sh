@@ -13,6 +13,24 @@ set -euo pipefail # off again at the end: an error must not close an interactive
 # reorders this list or drops words from it.
 _HI_ENV_ORDER_DEFAULT="mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv"
 
+# _hi_mise_local - true if a mise config file sits between $PWD and $HOME
+# (exclusive). mise exports no variable saying which file it resolved, and
+# $HOME/.tool-versions applies to every directory beneath it, so MISE_SHELL
+# alone is on for effectively every prompt on a box with one - this is the
+# only way to tell that apart from a real project override. Builtins only
+# (`[[ -f ]]`/parameter expansion), so it stays within HI.54's "no fork".
+_hi_mise_local() {
+  local _hi_dir="$PWD" _hi_home="${HOME:-}"
+  while :; do
+    [[ "$_hi_dir" == "$_hi_home" ]] && return 1
+    [[ -f "$_hi_dir/.tool-versions" || -f "$_hi_dir/.mise.toml" ||
+      -f "$_hi_dir/mise.toml" || -f "$_hi_dir/.mise/config.toml" ]] && return 0
+    [[ "$_hi_dir" == "/" ]] && return 1
+    _hi_dir="${_hi_dir%/*}"
+    [[ -z "$_hi_dir" ]] && _hi_dir="/"
+  done
+}
+
 # _hi_env_prompt [outvar] - with outvar the segment lands there instead of
 # stdout, saving bash.sh's per-prompt fork. GLOSSARY: HI.05 + HI.54
 # shellcheck disable=SC2120 # the argument is optional by design
@@ -23,8 +41,9 @@ _hi_env_prompt() {
   [[ -n "${1:-}" ]] && printf -v "$1" '%s' ''
   [[ "${_HI_DISABLE_ENV_STATUS:-0}" == 1 ]] && return
 
-  # Every branch below is parameter expansion over a variable the tool exported:
-  # no probe, no `command -v`, nothing that forks on a prompt draw.
+  # Every branch below is parameter expansion over a variable the tool
+  # exported: no probe, no `command -v`, nothing that forks on a prompt draw.
+  # mise is the one exception - see _hi_mise_local above.
   local _hi_out="" _hi_src _hi_name _hi_outvar="${1:-}"
   local _hi_defer="${_HI_ENV_DEFER:-0}"
   # The order is a word list, walked a word at a time by expansion rather than
@@ -39,7 +58,7 @@ _hi_env_prompt() {
     _hi_rest="${_hi_rest#"$_hi_src"}"
     _hi_name=""
     case "$_hi_src" in
-    mise) [[ -n "${MISE_SHELL:-}" ]] && _hi_name="mise" ;;
+    mise) [[ -n "${MISE_SHELL:-}" ]] && _hi_mise_local && _hi_name="mise" ;;
     asdf) [[ -n "${ASDF_DIR:-}" ]] && _hi_name="asdf" ;;
     pyenv) [[ -n "${PYENV_VERSION:-}" ]] && _hi_name="py:$PYENV_VERSION" ;;
     rbenv) [[ -n "${RBENV_VERSION:-}" ]] && _hi_name="rb:$RBENV_VERSION" ;;

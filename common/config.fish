@@ -157,6 +157,25 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # is a third copy on purpose - tests/hi/prompt_test.sh pins the two
     # together. Fish always stands down for a tool drawing its own prefix,
     # which is _HI_ENV_DEFER=1 on the bash side. GLOSSARY: HI.54
+    # true if a mise config file sits between $PWD and $HOME (exclusive) -
+    # mirrors common/env_prompt.sh's _hi_mise_local; see its comment for why
+    # MISE_SHELL alone is not enough. Builtins only, no fork.
+    function __hi_mise_local --description 'a project mise config overrides ~/.tool-versions here'
+      set -l dir $PWD
+      while true
+        test "$dir" = "$HOME"; and return 1
+        if test -f "$dir/.tool-versions"
+          or test -f "$dir/.mise.toml"
+          or test -f "$dir/mise.toml"
+          or test -f "$dir/.mise/config.toml"
+          return 0
+        end
+        test "$dir" = "/"; and return 1
+        set dir (string replace -r '/[^/]*$' '' -- $dir)
+        test -z "$dir"; and set dir "/"
+      end
+    end
+
     function __hi_env_prompt --description 'name every active environment manager'
       test "$_HI_DISABLE_ENV_STATUS" = 1; and return
       set -l order mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv
@@ -165,7 +184,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       for src in $order
         switch $src
           case mise
-            test -n "$MISE_SHELL"; and set -a names mise
+            test -n "$MISE_SHELL"; and __hi_mise_local; and set -a names mise
           case asdf
             test -n "$ASDF_DIR"; and set -a names asdf
           case pyenv
