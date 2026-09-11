@@ -131,7 +131,7 @@ function lint_bash32() {
 }
 
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
-# local notices: the suites read the working tree. settings/helix.toml sat
+# local notices: the suites read the working tree. A settings/*.toml sat
 # under a blanket `*.toml` for a whole feature. Asked of git itself, over
 # every file the payload and the package ship.
 function lint_ignored_payload() {
@@ -590,7 +590,7 @@ function _hi_settings_documented() {
 # Any table by that name counts, so a section added to the wizard cannot ask
 # about a setting this check never sees. Plus the knobs the wizard never asks
 # about: every `_HI_<TOOL>_OPTS` and `_HI_<TOOL>_BIN` that settings/aliases.sh
-# reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_EZA_BIN"`) is a user-facing dial with
+# reads (`${_HI_BAT_OPTS:-...}`, `"$_HI_LS_BIN"`) is a user-facing dial with
 # no question behind it, and the suffix is what tells those from the file's
 # own state (`_HI_SESSION_RC`, `_HI_CLEANUP`, `_HI_CONFIG_DIR`). Minus
 # whatever the doc itself files under `### Not settings` - the test levers

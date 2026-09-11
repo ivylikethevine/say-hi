@@ -61,7 +61,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
-_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el helix.toml kak.rc aliases.sh
+_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el aliases.sh
   bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json theme.yml bat.conf)
 
 # What a bash-less target falls back to, best first - derived from
@@ -180,7 +180,7 @@ function _hi_tar_gz() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc emacs.el helix.toml kak.rc)
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc emacs.el)
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -1599,7 +1599,7 @@ function _hi_reset_terminal() {
   # in the alternate screen the save goes to *that* screen's own slot, 1049l
   # still restores the pre-alt cursor, and the DECRC repeats it. GLOSSARY: HI.53
   printf '\033[?1l\033>\033[?2004l\033[<u\0337\033[?1049l\0338\033[?25h'
-  [ "${_HI_DISABLE_MARKS:-0}" = 1 ] || printf '\033]133;D;%s\a' "$1"
+  printf '\033]133;D;%s\a' "$1"
   stty sane 2>/dev/null || true
 }
 

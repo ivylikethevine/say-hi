@@ -48,7 +48,7 @@
 !.typos.toml
 !.moxide.toml
 # everything under the payload directories ships, whatever it is named: the
-# blanket rules above once swallowed settings/helix.toml (drift_test.sh's
+# blanket rules above once swallowed a settings/*.toml (drift_test.sh's
 # lint_ignored_payload keeps it that way)
 !settings/**
 !common/**

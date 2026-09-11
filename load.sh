@@ -240,19 +240,16 @@ function _hi_session_shell_cmd() {
 # are read off the alias settings/aliases.sh builds (sourced here, in the
 # caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
 # editor's invocation, so _HI_MICRO_OPTS or an overlay's own `alias vim=...`
-# reaches $EDITOR the way it reaches the alias. kak goes bare - sudoedit
-# splits the value on whitespace with no quoting, and kak's config flag needs
-# one quoted word.
+# reaches $EDITOR the way it reaches the alias. An editor with no alias (micro
+# under _HI_DISABLE_MICRO, say) goes bare, hence the ${body:-$e} tail.
 function _hi_session_editor() {
   local e name body
   # shellcheck source=./settings/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
-  for e in ${_HI_EDITOR:-} nvim vim hx helix micro nano emacs kak; do
+  for e in ${_HI_EDITOR:-} nvim vim micro nano emacs; do
     type -P "$e" &>/dev/null || continue
     case "$e" in
     nvim) name=vim ;;
-    helix) name=hx ;;
-    kak) name="" ;;
     *) name="$e" ;;
     esac
     body="$([ -n "$name" ] && alias "$name" 2>/dev/null)"
@@ -316,9 +313,8 @@ function load() {
   # The shell's last prompt mark was C - `exit` is a command like any other -
   # and the D closing the pair never came, since the shell is gone. A terminal
   # tracking OSC 133 is left "inside a command" until the next D, and Konsole
-  # turns the up arrow into a left arrow while it waits. Same toggle as the
-  # marks themselves.
-  [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]] && printf '\e]133;D;%s\a' "$shell_ec"
+  # turns the up arrow into a left arrow while it waits.
+  printf '\e]133;D;%s\a' "$shell_ec"
 
   local size dur
   size="$(_hi_du_size "$_HI_ROOT")"

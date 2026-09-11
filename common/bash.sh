@@ -197,18 +197,15 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     # that read them (kitty, WezTerm, ghostty, foot, iTerm2). D (last status)
     # and A from PROMPT_COMMAND, B at the end of PS1, C from PS0 (bash 4.4+;
     # 3.2 simply lacks it). Raw, never multiplexer-wrapped: an unknown OSC is
-    # dropped, and tmux passes 133 through. _HI_DISABLE_MARKS=1 turns it off.
-    _hi_marks_a="" _hi_marks_b=""
-    if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
-      _hi_marks_a=$'\[\e]133;A\a\]'
-      _hi_marks_b=$'\[\e]133;B\a\]'
-      if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
-        PS0=$'\e]133;C\a'"${PS0:-}"
-      fi
+    # dropped, and tmux passes 133 through.
+    _hi_marks_a=$'\[\e]133;A\a\]'
+    _hi_marks_b=$'\[\e]133;B\a\]'
+    if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
+      PS0=$'\e]133;C\a'"${PS0:-}"
     fi
     function ps1() {
       local _hi_ec=$?
-      [ -n "$_hi_marks_a" ] && printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$_hi_ec" "${HOSTNAME:-}" "$PWD"
+      printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$_hi_ec" "${HOSTNAME:-}" "$PWD"
       # git info through a reference, never expanded into PS1: expanding user
       # strings is the pw3nage class of bug (github.com/njhartwell/pw3nage)
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt

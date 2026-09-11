@@ -188,7 +188,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
-  `vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`, `aliases.sh`, the per-shell rc files,
+  `vim.rc`, `nano.rc`, `emacs.el`, `aliases.sh`, the per-shell rc files,
   `oh-my-posh.json`, and the names starship's, eza's, and bat's own configs travel under), their
   formats, the XDG path, and the `_HI_CONFIG_DIR` override.
 - **The installed layout** — `$_HI_HOME/say-hi` and
@@ -202,8 +202,9 @@ Versioning is semver: a fix is a patch, an addition a minor, a break to the
 list above a major. Not covered: the exact header and prompt text, colors,
 completion ordering, the wording of any message or report row, `hi_info`,
 the test levers [SETTINGS.md](SETTINGS.md#not-settings) lists, the `exa`
-alias with its `_HI_EXA_BIN`/`_HI_EXA_OPTS` rows (exa has been archived since
-2023; the `eza` rows are the contract and the exa ones may leave in a minor),
+alias name and its `_HI_EXA_OPTS` row (exa has been archived since 2023; the
+`ls`/`eza` names and the `_HI_LS_*` rows are the contract, and the exa half
+may leave in a minor),
 and anything under `tests/` or `scripts/` a package does not ship.
 
 ## Which docs change with what

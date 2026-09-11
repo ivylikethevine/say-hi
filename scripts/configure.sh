@@ -438,7 +438,7 @@ function _hi_config_preview() {
 # nothing for that line instead of a resolved command that was never real. A
 # subshell: nothing this defines should survive past the preview.
 # load.sh's _hi_session_editor reads an alias body back the same way; the
-# eval re-parses bash's own quoting of it (kak's alias nests a quote).
+# eval re-parses bash's own quoting of it (micro's flag string nests spaces).
 function _hi_editors_preview() {
   (
     # shellcheck disable=SC2030 # lives and dies in this subshell, same as
@@ -448,7 +448,7 @@ function _hi_editors_preview() {
     # shellcheck source=../settings/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
     local e body
-    for e in nano vim emacs hx kak micro; do
+    for e in nano vim emacs micro; do
       body="$(alias "$e" 2>/dev/null)" || continue
       eval "body=${body#*=}"
       printf '%-5s -> %s\n' "$e" "$body"
@@ -465,8 +465,8 @@ function _hi_editors_preview() {
 function _hi_tool_alias_preview() {
   (
     _HI_DISABLE_TOOL_ALIASES=0
-    _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_EXA_BIN="" _HI_EZA_BIN=""
-    _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS=""
+    _HI_CAT_BIN="" _HI_BAT_BIN="" _HI_LS_BIN=""
+    _HI_BAT_OPTS="" _HI_EXA_OPTS="" _HI_EZA_OPTS="" _HI_LS_OPTS=""
     # shellcheck disable=SC2031 # lives and dies in this subshell
     # shellcheck source=../settings/aliases.sh
     source "$_HI_ALIASES" >/dev/null 2>&1
@@ -476,7 +476,7 @@ function _hi_tool_alias_preview() {
       printf 'bat is not installed here - only targets that have it are affected\n'
     fi
     if [ -n "$(command -v eza || command -v exa)" ]; then
-      printf 'eza -> %s %s\n' "$_HI_EZA_BIN" "$_HI_EZA_OPTS"
+      printf 'ls -> %s %s\n' "$_HI_LS_BIN" "$_HI_LS_OPTS"
     else
       printf 'eza is not installed here - only targets that have it are affected\n'
     fi
@@ -531,16 +531,13 @@ _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_PROMPT|1||_hi_prompt_preview||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status in the prompt"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment in the prompt - (myproj) for a venv, ..."
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nano, emacs, helix, kakoune, micro"
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nano, emacs, micro"
   "_HI_DISABLE_VIM|1||||vim - hi's vimrc, for vim and nvim"
   "_HI_DISABLE_NANO|1|||nano|nano - hi's nanorc"
   "_HI_DISABLE_EMACS|1|||emacs|emacs - hi's init file"
-  "_HI_DISABLE_HELIX|1|||hx|helix - hi's config"
-  "_HI_DISABLE_KAKOUNE|1|||kak|kakoune - hi's kakrc"
   "_HI_DISABLE_MICRO|1|||micro|micro - hi's settings flags"
   "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
   "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
-  "_HI_DISABLE_MARKS|1||||prompt marks and cwd reporting (OSC 133/7)"
   "_HI_DISABLE_LOCAL|1||||all of the above on this machine too, not just where you hi"
 )
 
@@ -583,7 +580,7 @@ function _hi_prompt_rows() {
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, git status, or editors; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -1148,7 +1145,6 @@ function collect_setting_lines() {
   _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
-  _hi_collect_value _HI_ENV_ORDER "$_HI_ENV_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_MIN_PRIORITY 2
   _hi_collect_value _HI_PACKAGES_PALETTE ""
   _hi_collect_value _HI_COLOR_SCHEME ""

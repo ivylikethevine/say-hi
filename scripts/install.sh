@@ -555,7 +555,7 @@ function install_tree() {
 # a `git init` of their own); hi neither inits nor commits there.
 function overlay_seed() {
   local _hi_seed seeded=""
-  for _hi_seed in colors packages vim.rc nano.rc emacs.el helix.toml kak.rc; do
+  for _hi_seed in colors packages vim.rc nano.rc emacs.el; do
     [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
     [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
     dry_run_say "seed $_HI_CONFIG_DIR/$_hi_seed from the tree's copy" && continue

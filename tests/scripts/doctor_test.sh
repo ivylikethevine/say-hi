@@ -33,7 +33,7 @@ source "$_HI_DOCTOR"
 # base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
   _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
-    timeout du date base64 tar gzip find readlink uname mv chmod mkdir
+    timeout du date base64 openssl sort tar gzip find readlink uname mv chmod mkdir
 }
 
 # A $HOME with one non-empty rc file, isolating doctor_configs()'s local-rc
@@ -358,10 +358,10 @@ function test_config_lists_a_non_default_toggle() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_MARKS=1
+    _HI_DISABLE_BANNER=1
     doctor_config
   )"
-  [[ "$out" == *"toggle"*"_HI_DISABLE_MARKS=1"* && "$out" != *"all defaults"* ]]
+  [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]]
 }
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
@@ -372,7 +372,7 @@ function test_config_flags_values_set_in_aliases_sh() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/latevals.XXXXXX")"
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
-    'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"' \
+    'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
     'export _HI_DISABLE_TOOL_ALIASES=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -380,7 +380,7 @@ function test_config_flags_values_set_in_aliases_sh() {
     doctor_config
   )"
   [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_TOOL_ALIASES - "* ]] || return 1
-  printf '%s\n' 'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"' >"$dir/aliases.sh"
+  printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"

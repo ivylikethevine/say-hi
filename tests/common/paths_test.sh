@@ -21,9 +21,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS _HI_DISABLE_EDITORS
-  _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_HELIX
-  _HI_DISABLE_KAKOUNE _HI_DISABLE_MICRO
-  _HI_DISABLE_MARKS
+  _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_MICRO
   _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
   _HI_DISABLE_BANNER)
 
@@ -250,15 +248,15 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
-# The seven files with a tree default, and the path variable each resolves
+# The five files with a tree default, and the path variable each resolves
 # into. Derived only: an exported value of your own does not survive the
 # source, so the overlay is the one way to move a file.
-_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_KAKRC)
+_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC)
 
-# the overlay basename each of the seven resolves to, in the same order
-_HI_OVERLAY_PATH_FILES=(colors packages vim.rc nano.rc emacs.el helix.toml kak.rc)
+# the overlay basename each of the five resolves to, in the same order
+_HI_OVERLAY_PATH_FILES=(colors packages vim.rc nano.rc emacs.el)
 
-# an overlay directory holding a copy of all seven, so every case below is
+# an overlay directory holding a copy of all five, so every case below is
 # choosing between two real files rather than between a file and a miss
 function _hi_full_overlay_dir() {
   local dir f

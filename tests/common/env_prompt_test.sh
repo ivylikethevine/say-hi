@@ -33,7 +33,7 @@ _HI_ENV_ROSTER="MISE_SHELL ASDF_DIR PYENV_VERSION RBENV_VERSION NODENV_VERSION
   IN_NIX_SHELL name GUIX_ENVIRONMENT DEVBOX_SHELL_ENABLED DEVENV_ROOT
   DIRENV_DIR CONDA_DEFAULT_ENV CONDA_PROMPT_MODIFIER VIRTUAL_ENV
   VIRTUAL_ENV_PROMPT _OLD_VIRTUAL_PS1
-  _HI_ENV_DEFER _HI_ENV_ORDER _HI_DISABLE_ENV_STATUS"
+  _HI_ENV_DEFER _HI_DISABLE_ENV_STATUS"
 
 # _hi_env_case <VAR=value>... - the segment a shell with exactly those
 # variables set would draw. A subshell, so the suite's own environment (and
@@ -113,7 +113,7 @@ function test_zsh_walks_the_order_list_the_same_way() {
   # a cd, not PWD=: every shell resets an inherited $PWD to its real cwd, so
   # the walk would climb from wherever the suite runs
   got="$(
-    env -u _HI_ENV_ORDER -u _HI_DISABLE_ENV_STATUS -u _HI_ENV_DEFER \
+    env -u _HI_DISABLE_ENV_STATUS -u _HI_ENV_DEFER \
       HOME="$_hi_mise_home" \
       MISE_SHELL=zsh DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj \
       zsh -c "cd '$_hi_mise_project' && source '$_HI_ENV_PROMPT' && _hi_env_prompt"
@@ -214,12 +214,6 @@ function run_env_prompt_tests() {
     _hi_env_case DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
   _hi_check_eq "mise outside both" "(mise|direnv:proj|myproj) " \
     _hi_mise_case MISE_SHELL=bash DIRENV_DIR=-/home/x/proj VIRTUAL_ENV_PROMPT=myproj
-  _hi_check_eq "_HI_ENV_ORDER drops a word" "(myproj) " \
-    _hi_mise_case MISE_SHELL=bash VIRTUAL_ENV_PROMPT=myproj _HI_ENV_ORDER=venv
-  _hi_check_eq "_HI_ENV_ORDER reorders what is left" "(myproj|mise) " \
-    _hi_mise_case MISE_SHELL=bash VIRTUAL_ENV_PROMPT=myproj _HI_ENV_ORDER="venv mise"
-  _hi_check_eq "stray spaces in _HI_ENV_ORDER are not words" "(mise) " \
-    _hi_mise_case MISE_SHELL=bash _HI_ENV_ORDER="  mise   "
 
   _hi_h2 "Use-Case: standing down for a tool drawing its own prefix"
   _hi_check_eq "zsh/fish: activate ran here, so the venv is the venv's" "(direnv:proj) " \

@@ -41,19 +41,16 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     __hi_env_precmd() { _hi_env_prompt __hi_env_info; }
     precmd_functions+=(__hi_env_precmd)
     # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
-    # emits them; _HI_DISABLE_MARKS=1 turns them off
-    _hi_marks_a="" _hi_marks_b=""
-    if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
-      _hi_marks_a=$'%{\e]133;A\a%}'
-      _hi_marks_b=$'%{\e]133;B\a%}'
-      __hi_marks_precmd() {
-        local ec=$?
-        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
-      }
-      __hi_marks_preexec() { printf '\e]133;C\a'; }
-      precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
-      preexec_functions+=(__hi_marks_preexec)
-    fi
+    # emits them
+    _hi_marks_a=$'%{\e]133;A\a%}'
+    _hi_marks_b=$'%{\e]133;B\a%}'
+    __hi_marks_precmd() {
+      local ec=$?
+      printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
+    }
+    __hi_marks_preexec() { printf '\e]133;C\a'; }
+    precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
+    preexec_functions+=(__hi_marks_preexec)
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment. $_hi_lead is
     # a plain double-quoted segment instead - $_HI_DISABLE_LEAD_SPACE is a static

@@ -469,7 +469,7 @@ HI.30. Both stay verbatim above their statement.
 ## HI.35 payload comment strip
 
 Every `*.sh`, `*.zsh`, and `*.fish` file — and the `flags`/`colors`/`packages`/
-`vim.rc`/`nano.rc`/`emacs.el`/`helix.toml`/`kak.rc` data files, whose prose headers document the _installed_
+`vim.rc`/`nano.rc`/`emacs.el` data files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
 vim.rc's comment character is `"` and emacs.el's is `;`, each its own rule in
@@ -593,7 +593,7 @@ member's name (starship's only with `_HI_PROMPT_TOOL=starship`), so there is
 one copy to edit and none to drift. oh-my-posh has no default file to find, so
 its config is an overlay file like the rest.
 
-The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`) ride
+The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,
 and `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one. Left out of the stream, that
 guard could only fire on the client — an editor override working locally and
@@ -926,8 +926,8 @@ switched on and never got to switch off when the link went: application
 cursor keys (`CSI ?1 l`), the application keypad (`ESC >`), bracketed paste
 (`CSI ?2004 l`), a pushed kitty keyboard mode (`CSI < u`), the alternate
 screen (`CSI ?1049 l`, wrapped - below) and a hidden cursor (`CSI ?25 h`). It
-also closes the OSC 133 prompt-mark pair with a `D` carrying the status (unless
-`_HI_DISABLE_MARKS=1`): hi's remote prompt emits `C` before every command,
+also closes the OSC 133 prompt-mark pair with a `D` carrying the status:
+hi's remote prompt emits `C` before every command,
 `exit` included, and `load.sh` sends the closing `D` on a clean exit - a drop
 never reaches that line, and Konsole, left "inside a command", sends ↑ as ←
 until a `D` arrives. `stty sane` last, for the container arms whose exec does
@@ -982,7 +982,7 @@ mise is the one row that is more than parameter expansion. `$MISE_SHELL` is
 set wherever mise is activated, and a `~/.tool-versions` covers every
 directory under it, so `(mise)` is named only where a config file between the
 directory and `~` overrides the global one: a builtins-only walk up from
-`$PWD`, memoized on it (HI.16). `_HI_ENV_ORDER` still drops the word outright.
+`$PWD`, memoized on it (HI.16).
 
 ## HI.55 re-entrant rc guard
 

@@ -41,6 +41,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
+  - [Features](#features)
   - [Post 1.0](#post-10)
 
 ---
@@ -203,7 +204,7 @@ everything weighed and answered **no**, and why.
   setting in its one list - Features, Header, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
-  `packages`, and the editor rcs (vim, nano, emacs, helix, kakoune), for the ones you have none of - yours
+  `packages`, and the editor rcs (vim, nano, emacs), for the ones you have none of - yours
   to edit, and to version however you keep your dotfiles
   ([docs/SETTINGS.md](docs/SETTINGS.md)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
@@ -320,6 +321,48 @@ or descoped, and finished entries are deleted rather than ticked.
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises.
+
+### Features
+
+In this checkout, and not what the tag waits on either.
+
+1. [ ] **neovim reads a config of its own** — `settings/vim.rc` is pointed at
+       both `vim` and `nvim` through `-u`, so a target's neovim runs a vimrc
+       written for vim and nothing lua-side is reachable. **Do:** ship an
+       `init.lua` beside it, an overlay member and a `$_HI_NVIMRC` like the
+       other editor rcs, used by the `nvim` half of the alias ladder (`-u` for
+       vim, `-u`/`NVIM_APPNAME` for nvim); `_HI_DISABLE_VIM` keeps covering
+       both, since they are one editor to the toggle. **Ticks when:** a
+       session on a target with nvim opens it on that file and a vim-only
+       target is unchanged, pinned by a suite.
+
+2. [ ] **A config that sources a file hi does not carry is caught before it
+       travels** — every overlay and `settings/` file is shipped verbatim, so
+       a `vim.rc` with `source ~/.vim/extra.vim`, an `aliases.sh` sourcing a
+       path off this machine, or an rc naming a plugin manager breaks on the
+       first target that has no such file, in the editor rather than in hi.
+       **Do:** parse each file hi packs for its dialect's include directives
+       (vim `source`/`runtime`, sh `.`/`source`, emacs `load`), resolve them
+       against what actually rides the overlay, and report the danglers in
+       `hi --doctor`; a lint flag decides whether the line travels commented
+       out or as written. **Ticks when:** `hi --doctor` names an unresolvable
+       include for every dialect, the session still opens the editor cleanly,
+       and a suite pins both.
+
+3. [ ] **Someone else's feature can ride along without patching the tree** —
+       the overlay carries files hi already knows the names of, so anything
+       new (a prompt segment, another tool's init, a per-target hook) means
+       editing `common/` and losing it on the next `hi --update`. **Do:**
+       define an extension point — a `~/.config/say-hi/plugins/` of drop-in
+       files, each an `#!/bin/sh` in the POSIX+fish subset, sourced in a
+       stated order at a stated moment (after aliases, before the prompt is
+       built), with a documented set of hook names and the same overlay
+       stream carrying them to every target; `hi --doctor` lists what loaded,
+       and a plugin that fails to parse is skipped loudly rather than
+       breaking the session. **Ticks when:** a plugin of a few lines adds a
+       prompt segment on a target with no change to the tree, the payload
+       budget still holds, and a suite pins the load order, the skip, and the
+       doctor rows.
 
 ### Post 1.0
 

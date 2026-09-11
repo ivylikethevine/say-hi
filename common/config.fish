@@ -17,8 +17,7 @@ end
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
     _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
-    _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE _HI_DISABLE_MICRO \
-    _HI_DISABLE_MARKS \
+    _HI_DISABLE_MICRO \
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS \
     _HI_DISABLE_BANNER
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
@@ -206,7 +205,6 @@ if test "$_HI_DISABLE_PROMPT" != 1
     function __hi_env_prompt --description 'name every active environment manager'
       test "$_HI_DISABLE_ENV_STATUS" = 1; and return
       set -l order mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv
-      test -n "$_HI_ENV_ORDER"; and set order (string split -n ' ' -- $_HI_ENV_ORDER)
       set -l names
       for src in $order
         switch $src
@@ -307,7 +305,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # hi's copy - two sets of marks would confuse the terminal.
     set -g _hi_marks_a ''
     set -g _hi_marks_b ''
-    if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
+    if not string match -qr '^[4-9]\.' -- $version
       set -g _hi_marks_a \e']133;A'\a
       set -g _hi_marks_b \e']133;B'\a
       function __hi_marks_preexec --on-event fish_preexec

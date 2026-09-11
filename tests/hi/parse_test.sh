@@ -496,7 +496,7 @@ function test_select_arm_falls_back_to_resolution_when_backend_unset() {
 # GLOSSARY: HI.53
 function test_reset_terminal_wraps_the_alt_screen_exit_in_decsc_decrc() {
   local out
-  out="$(_HI_DISABLE_MARKS=1 _hi_reset_terminal 255 2>/dev/null)"
+  out="$(_hi_reset_terminal 255 2>/dev/null)"
   [[ "$out" == *$'\e7\e[?1049l\e8'* ]]
 }
 
@@ -506,12 +506,6 @@ function test_reset_terminal_closes_the_prompt_mark_with_the_status() {
   local out
   out="$(_hi_reset_terminal 130 2>/dev/null)"
   [[ "$out" == *$'\e]133;D;130\a'* ]]
-}
-
-function test_reset_terminal_omits_the_prompt_mark_when_marks_are_off() {
-  local out
-  out="$(_HI_DISABLE_MARKS=1 _hi_reset_terminal 130 2>/dev/null)"
-  [[ "$out" != *'133;D'* ]]
 }
 
 function test_report_failure_is_silent_once_hi_already_said_it() {
@@ -1425,7 +1419,6 @@ function run_hi_parse_tests() {
   _hi_check "select_arm: a Host * block does not shadow a container" test_select_arm_wildcard_host_does_not_shadow_a_container
   _hi_check "reset_terminal: the alt-screen exit rides in DECSC/DECRC" test_reset_terminal_wraps_the_alt_screen_exit_in_decsc_decrc
   _hi_check "reset_terminal: closes the prompt mark with the status" test_reset_terminal_closes_the_prompt_mark_with_the_status
-  _hi_check "reset_terminal: no prompt mark when marks are off" test_reset_terminal_omits_the_prompt_mark_when_marks_are_off
   _hi_check "report_failure: silent once hi already said it" test_report_failure_is_silent_once_hi_already_said_it
   _hi_check "report_failure: silent for a non-255 ssh exit" test_report_failure_is_silent_for_a_non_255_ssh_exit
   _hi_check "report_failure: speaks on 255" test_report_failure_speaks_on_255

@@ -57,7 +57,7 @@ function test_armor_falls_back_to_openssl() {
   want="$(seq 1 400 | tr '\n' ' ')"
   line="$(printf '%s\n' "$want" | _hi_armored_line '>' "'$f'")"
   PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1
-  line="$(printf 'echo "%s" | %s > %s' "$(printf '%s\n' "$want" | base64 | tr -d '\n')" "$_HI_UNARMOR" "'$f'")"
+  line="$(printf 'echo "%s" | %s > %s' "$(printf '%s\n' "$want" | $_HI_ARMOR | tr -d '\n')" "$_HI_UNARMOR" "'$f'")"
   PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1
   line="$(printf '%s\n' "$want" | _HI_ARMOR="openssl base64" _hi_armored_line '>' "'$f'")"
   sh -c "$line" && [ "$(cat "$f")" = "$want" ]

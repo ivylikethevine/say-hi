@@ -509,8 +509,8 @@ function _hi_load_editor_is() {
 
 # _hi_load_editor_on <want> <PATH> [NAME=VALUE...] - the same, on a $PATH the
 # case names whole. The editorless toolbox is load()'s own tools and no editor
-# (this box may carry a real vim, hx, or kak): helix answering as the hx alias's
-# flags, and no editor at all leaving the three unset, not exported empty.
+# (this box may carry a real vim or micro), so a case names the editor it
+# means, and no editor at all leaves the three unset, not exported empty.
 function _hi_load_editor_on() {
   local want="$1" path="$2" out
   shift 2
@@ -577,24 +577,12 @@ function test_load_prints_the_disconnect_banner_and_footer() {
 # stays "inside a command" and sends ↑ as ← until the next D
 function test_load_closes_the_prompt_mark_pair_on_exit() {
   local out
-  out="$(_hi_load_run 'exit 42' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=0)" || true
+  out="$(_hi_load_run 'exit 42' SHELL=/bin/bash _HI_DISABLE_HEADER=1)" || true
   case "$out" in
   *$'\e]133;D;42\a'*) return 0 ;;
   esac
   _hi_cecho " | no D mark in: $out" "$RED"
   return 1
-}
-
-function test_load_marks_toggle_drops_the_closing_d() {
-  local out
-  out="$(_hi_load_run 'exit 0' SHELL=/bin/bash _HI_DISABLE_HEADER=1 _HI_DISABLE_MARKS=1)" || return 1
-  case "$out" in
-  *$'\e]133;'*)
-    _hi_cecho " | a mark leaked with _HI_DISABLE_MARKS=1: $out" "$RED"
-    return 1
-    ;;
-  esac
-  return 0
 }
 
 # the timestamp cells follow the connect header's order, not a toggle of their
@@ -706,16 +694,13 @@ EOF
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "nvim -u $_HI_VIMRC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_VIMRC|S=$_HI_WORKDIR/withnvim/nvim -u $_HI_VIMRC"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
-  _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_VIMRC|" _HI_EDITOR=hx
+  _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_VIMRC|" _HI_EDITOR=no-such-editor
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
-  _hi_check "...helix answers with the hx alias's flags" _hi_load_editor_on "E=$_HI_WORKDIR/withhelix/helix -c $_HI_HELIXRC|" "$(_hi_fake_path withhelix helix):$(_hi_editorless_path)" _HI_EDITOR=helix
-  _hi_check "...and kak goes bare, without its alias's -e" _hi_load_editor_on "E=kak|" "$(_hi_fake_path withkak kak):$PATH" _HI_EDITOR=kak
   _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
   _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit
-  _hi_check "_HI_DISABLE_MARKS=1 sends no closing D" test_load_marks_toggle_drops_the_closing_d
   _hi_check "Disconnect clock row follows \$_HI_HEADER_ORDER" test_load_disconnect_timestamp_follows_the_header_order
   _hi_check "_HI_DISABLE_HEADER=1 keeps the footer, drops the banner" test_load_disable_header_skips_the_banner
 

@@ -441,8 +441,15 @@ function test_install_aborts_on_broken_configs_without_yes() {
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
   out="$(_hi_run_install_here gate-abort --link none 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
-    ! grep -qF "$_HI_MARKER" "$home/.bashrc"
+  if [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
+    ! grep -qF "$_HI_MARKER" "$home/.bashrc"; then
+    return 0
+  fi
+  # the transcript, since a gate that asked instead of deciding (a stdin this
+  # platform calls a terminal) reads identically from the status alone
+  _hi_cecho " | rc=$rc, and the non-interactive gate line is missing:" "$RED"
+  printf '%s\n' "$out" | sed 's/^/   | /' >&2
+  return 1
 }
 
 function test_install_with_yes_continues_over_broken_configs() {

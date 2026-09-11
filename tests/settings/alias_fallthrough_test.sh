@@ -60,8 +60,7 @@ if [ -n "${_HI_CHECK_VAR:-}" ]; then
   case "$_HI_CHECK_VAR" in
   CAT_BIN) actual=$_HI_CAT_BIN ;;
   BAT_BIN) actual=$_HI_BAT_BIN ;;
-  EXA_BIN) actual=$_HI_EXA_BIN ;;
-  EZA_BIN) actual=$_HI_EZA_BIN ;;
+  LS_BIN) actual=$_HI_LS_BIN ;;
   esac
   [ "$actual" = "$_HI_EXPECT" ] || { echo "$_HI_CHECK_VAR: got [$actual] want [$_HI_EXPECT]" >&2; fail=1; }
 fi
@@ -82,12 +81,13 @@ fi
 if [ -n "${_HI_CHECK_FLAGS:-}" ]; then
   check_alias nano "$_HI_EXPECT_NANO"
   check_alias emacs "$_HI_EXPECT_NANO"
-  check_alias kak "$_HI_EXPECT_NANO"
   check_alias micro "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
   if [ -n "${_HI_EXPECT_LS_ALIAS:-}" ]; then
+    check_alias ls "$_HI_EXPECT_LS_ALIAS"
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
+    check_alias exa "$_HI_EXPECT_LS_ALIAS"
   fi
 fi
 
@@ -132,10 +132,8 @@ if set -q _HI_CHECK_VAR
     set actual $_HI_CAT_BIN
   case BAT_BIN
     set actual $_HI_BAT_BIN
-  case EXA_BIN
-    set actual $_HI_EXA_BIN
-  case EZA_BIN
-    set actual $_HI_EZA_BIN
+  case LS_BIN
+    set actual $_HI_LS_BIN
   end
   if [ "$actual" != "$_HI_EXPECT" ]
     echo "$_HI_CHECK_VAR: got [$actual] want [$_HI_EXPECT]" >&2
@@ -160,12 +158,15 @@ end
 if set -q _HI_CHECK_FLAGS
   check_alias nano "$_HI_EXPECT_NANO"
   check_alias emacs "$_HI_EXPECT_NANO"
-  check_alias kak "$_HI_EXPECT_NANO"
   check_alias micro "$_HI_EXPECT_NANO"
   check_alias sudo "$_HI_EXPECT_SUDO"
   check_alias cat "$_HI_EXPECT_CAT_ALIAS"
+  # `ls` is left out here on purpose: fish ships an `ls` function of its own,
+  # so "no hi alias" cannot be told from "no function" the way it can in the
+  # POSIX shells - the eza/exa names are hi's alone either way
   if set -q _HI_EXPECT_LS_ALIAS
     check_alias eza "$_HI_EXPECT_LS_ALIAS"
+    check_alias exa "$_HI_EXPECT_LS_ALIAS"
   end
 end
 
@@ -215,11 +216,11 @@ function _hi_run_overlay_case() {
   wins)
     cfgdir="$_HI_WORKDIR/overlaycfg_wins"
     mkdir -p "$cfgdir"
-    printf 'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --overlay-marker"\n' >"$cfgdir/aliases.sh"
+    printf 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --overlay-marker"\n' >"$cfgdir/aliases.sh"
     if [ "$shell" = fish ]; then
-      script="source $_HI_ALIASES; functions eza | string match -q -- '*--group-directories-first*--overlay-marker*'; and echo WINS-OK"
+      script="source $_HI_ALIASES; functions ls | string match -q -- '*$_HI_LS_BIN*--overlay-marker*'; and echo WINS-OK"
     else
-      script=". $_HI_ALIASES && alias eza 2>/dev/null | grep -q -- '--group-directories-first.*--overlay-marker' && echo WINS-OK"
+      script=". $_HI_ALIASES && alias ls 2>/dev/null | grep -q -- '--overlay-marker' && echo WINS-OK"
     fi
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
       _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
@@ -320,7 +321,6 @@ function _hi_run_scenario() {
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
     _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/emacs.el" \
-    _HI_HELIXRC="$_HI_WORKDIR/helix.toml" _HI_KAKRC="$_HI_WORKDIR/kak.rc" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
@@ -342,7 +342,7 @@ function run_fallthrough_tests() {
   # nothing in it is installed, which is what aliases.sh gates the
   # bat-syntax $_HI_BAT_OPTS on. _hi_expect_winner already returns empty for
   # that case, so the no-floor chain needs no special handling - only listing.
-  for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" EXA_BIN:"exa eza ls" EZA_BIN:"eza exa ls"; do
+  for var in CAT_BIN:"bat batcat ccat cat" BAT_BIN:"bat batcat" LS_BIN:"eza exa ls"; do
     local name="${var%%:*}" cands="${var#*:}"
     # shellcheck disable=SC2086 # word-splitting into positional candidates is intended
     set -- $cands
@@ -473,7 +473,7 @@ function run_alias_fallthrough_test() {
   [ -n "$missing" ] && _hi_cecho " | not installed, skipped:$missing" "$YELLOW"
 
   _hi_suite_begin
-  # the vim/helix and bat/eza ladders moved to tests/scripts/configure_test.sh,
+  # the vim and bat/eza ladders moved to tests/scripts/configure_test.sh,
   # which already sources configure.sh to call _hi_editors_preview and
   # _hi_tool_alias_preview - both read their alias back from a real `source
   # settings/aliases.sh`, so nothing here can drift from it to pin - this

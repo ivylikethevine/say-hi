@@ -26,11 +26,11 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 | tool                                                                                    | what hi does with it                                                          | on by default        | switch                                                   |
 | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------- |
 | [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev)                     | draws the prompt in hi's place, with your config from home                    | no - opt-in          | `_HI_PROMPT_TOOL`                                        |
-| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv        | names the active ones in the prompt's leading `(myproj)` segment              | yes                  | `_HI_DISABLE_ENV_STATUS`, `_HI_ENV_ORDER`                |
-| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, `eza`, and `exa` aliases with hi's flags, your theme from home   | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
+| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv        | names the active ones in the prompt's leading `(myproj)` segment              | yes                  | `_HI_DISABLE_ENV_STATUS`                                 |
+| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
 | tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client                         | no - per connect     | `--mux`, `--no-mux`                                      |
 | lesspipe                                                                                | `less` opens archives and packages, as the distro's own rc sets it up         | yes, where installed | none                                                     |
-| vim/neovim, nano, emacs, helix, kakoune, micro                                          | opened with hi's config, or yours, through an alias                           | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
+| vim/neovim, nano, emacs, micro                                                          | opened with hi's config, or yours, through an alias                           | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
 | oh-my-zsh, powerlevel10k, bash-it, fzf                                                  | nothing: hi loads after them and leaves their hooks working                   | -                    | [Shell frameworks](#shell-frameworks)                    |
 
 `_HI_DISABLE_LOCAL=1` turns every `_HI_DISABLE_*` switch above on, prompt
@@ -92,9 +92,8 @@ direnv-loaded `proj`, and a venv inside it. It reads `$MISE_SHELL`,
 costs no probe and no fork. mise is named only where a config file between
 the directory and `~` overrides the global one, so an activated mise with
 nothing but `~/.tool-versions` stays off the prompt. A `.venv` is named for
-the directory holding it, not for itself. `_HI_ENV_ORDER` reorders the list
-or drops words from it, and `_HI_DISABLE_ENV_STATUS=1` turns the whole
-segment off. The segment is part of hi's prompt, so a
+the directory holding it, not for itself. `_HI_DISABLE_ENV_STATUS=1` turns
+the whole segment off. The segment is part of hi's prompt, so a
 [prompt program](#prompt-programs) replaces it along with the rest.
 
 ### Tools that draw their own prefix
@@ -127,15 +126,18 @@ has, first installed wins:
   `_HI_BAT_OPTS` - no pager, two-space tabs, the Monokai Extended Bright theme,
   and the `changes,grid` style - and `catn` adds line numbers. Without bat
   they fall through to `ccat`, then plain `cat`.
-- `exa` and `eza` run whichever of the two the target has, with
-  `_HI_EXA_OPTS` or `_HI_EZA_OPTS`.
+- `ls`, `eza`, and `exa` are one alias under three names, running the first of
+  eza, exa, and `ls` the target has (`_HI_LS_BIN`). The flags follow the rung
+  that answered, since the three share almost no syntax: `_HI_EZA_OPTS`,
+  `_HI_EXA_OPTS`, or a plain `-F -l` for coreutils `ls`. `_HI_LS_OPTS` is
+  whichever of those the ladder picked, and setting it yourself wins outright.
 
-`_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind and the `exa`/`eza`
-wrappers; `bat`, `batcat`, and `batn` stay available by name either way. The
-flags and the binary each alias runs are rows in
+`_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind and the list alias;
+`bat`, `batcat`, `batn`, and a bare `ls` stay available by name either way.
+The flags and the binary each alias runs are rows in
 [Every setting](SETTINGS.md#every-setting), set in your `settings.sh`; to add
 one flag to hi's instead, redefine the alias in your `aliases.sh`, which loads
-after hi's: `alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"`.
+after hi's: `alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"`.
 
 ### Shipping your bat theme
 

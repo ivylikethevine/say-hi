@@ -214,13 +214,13 @@ function test_ask_value_non_interactive_keeps_current() {
   [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
 }
 
-# The seed: a fresh overlay gets the seven shipped defaults, byte for byte,
+# The seed: a fresh overlay gets the five shipped defaults, byte for byte,
 # for the files the user has none of - and nothing else: no repo, no commit,
 # versioning is the user's own (each case gets a fresh scratch directory)
 function test_overlay_seed_copies_the_shipped_defaults() {
   local dir="$_HI_WORKDIR/ovl-seed" f
   (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  for f in colors packages vim.rc nano.rc emacs.el helix.toml kak.rc; do
+  for f in colors packages vim.rc nano.rc emacs.el; do
     cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
       _hi_cecho " | $f was not seeded from the tree" "$RED"
       return 1
@@ -942,25 +942,22 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
-# vim and hx are presence-gated in settings/aliases.sh itself (a box with
-# neither leaves the alias undefined), which _hi_editors_preview reads
-# rather than restates - so their lines only need to be there when the tool
-# actually is; nano/emacs/kak/micro carry no such gate and are unconditional.
+# vim is presence-gated in settings/aliases.sh itself (a box with neither vim
+# nor nvim leaves the alias undefined), which _hi_editors_preview reads rather
+# than restates - so its line only needs to be there when the tool actually
+# is; nano/emacs/micro carry no such gate and are unconditional.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
   [[ "$out" == *"nano --rcfile $_HI_NANORC"* &&
     "$out" == *"emacs -q -l $_HI_EMACSRC"* &&
-    "$out" == *"source $_HI_KAKRC"* && "$out" == *"micro -> micro -backup false"* ]] || return 1
+    "$out" == *"micro -> micro -backup false"* ]] || return 1
   if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
     [[ "$out" == *"-u $_HI_VIMRC"* ]] || return 1
   fi
-  if command -v hx >/dev/null 2>&1 || command -v helix >/dev/null 2>&1; then
-    [[ "$out" == *"-c $_HI_HELIXRC"* ]] || return 1
-  fi
 }
 
-# vim and hx have no second spelling left to drift out of step:
+# vim has no second spelling left to drift out of step:
 # _hi_editors_preview sources settings/aliases.sh itself and reads the alias
 # back (same trick as load.sh's _hi_session_editor), so what pins them is
 # behaviour, not text - the preview's line for <tool> must be exactly what
@@ -1035,7 +1032,7 @@ function test_floor_preview_says_off_at_the_top_floor() {
 # block it found rather than dropping it
 function _hi_no_preset_run() {
   mkdir -p "$_HI_CONFIG_DIR"
-  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_MARKS=1"
+  config_shell settings "$_HI_SETTINGS" "export _HI_DISABLE_GIT_STATUS=1"
   _HI_SETTING_LINES=()
   _HI_SETTING_PENDING=()
   run_configure "" </dev/null
@@ -1045,7 +1042,7 @@ function test_run_configure_without_a_preset_keeps_the_block() {
   local block
   _hi_settings_fixture nopreset _hi_no_preset_run
   block="$(grep -F "$_HI_MARKER" "$(_hi_fixture_settings nopreset)")"
-  [[ "$block" == *"export _HI_DISABLE_MARKS=1"* ]]
+  [[ "$block" == *"export _HI_DISABLE_GIT_STATUS=1"* ]]
 }
 
 # The interactive arms proper: ask_value's typed answers, the menu,
@@ -1382,9 +1379,9 @@ function test_full_run_quit_writes_nothing() {
 # what you have and finish" here - so a driver that stops typing still ends
 # in the write
 function test_menu_eof_saves() {
-  _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_MARKS=1' run_configure "" || return 1
+  _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_GIT_STATUS=1' run_configure "" || return 1
   _hi_cfg_has hub_eof "CFGQUIT=none" &&
-    grep -qF "export _HI_DISABLE_MARKS=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
+    grep -qF "export _HI_DISABLE_GIT_STATUS=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
 }
 
 # ...and the third junk answer in a row ends the run too, but as a quit:
@@ -1519,11 +1516,6 @@ function run_configure_tests() {
     _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim
   else
     _hi_skip "The vim preview matches its alias" "no nvim or vim"
-  fi
-  if command -v hx >/dev/null 2>&1 || command -v helix >/dev/null 2>&1; then
-    _hi_check "The helix preview matches its alias" test_editor_preview_matches_its_alias hx
-  else
-    _hi_skip "The helix preview matches its alias" "no hx or helix"
   fi
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only

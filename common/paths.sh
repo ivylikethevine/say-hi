@@ -41,10 +41,6 @@ export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
 [ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
 export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
 [ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
-export _HI_HELIXRC="$_HI_ROOT/settings/helix.toml"
-[ -f "$_HI_CONFIG_DIR/helix.toml" ] && export _HI_HELIXRC="$_HI_CONFIG_DIR/helix.toml"
-export _HI_KAKRC="$_HI_ROOT/settings/kak.rc"
-[ -f "$_HI_CONFIG_DIR/kak.rc" ] && export _HI_KAKRC="$_HI_CONFIG_DIR/kak.rc"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home
 # the tool's own config is already in force. Only the tool named reads its
@@ -119,10 +115,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_VIM=1
   export _HI_DISABLE_NANO=1
   export _HI_DISABLE_EMACS=1
-  export _HI_DISABLE_HELIX=1
-  export _HI_DISABLE_KAKOUNE=1
   export _HI_DISABLE_MICRO=1
-  export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1
   export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1

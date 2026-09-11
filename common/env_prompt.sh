@@ -9,8 +9,7 @@
 set -euo pipefail # off again at the end: an error must not close an interactive shell
 
 # The sources, in the order they render: outermost environment first, so a venv
-# inside a direnv inside mise reads "(mise|direnv:proj|myproj)". $_HI_ENV_ORDER
-# reorders this list or drops words from it.
+# inside a direnv inside mise reads "(mise|direnv:proj|myproj)".
 _HI_ENV_ORDER_DEFAULT="mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv"
 
 # _hi_mise_local's memo: the walk's answer only changes when $PWD does (or a
@@ -62,9 +61,8 @@ _hi_env_prompt() {
   local _hi_defer="${_HI_ENV_DEFER:-0}"
   # The order is a word list, walked a word at a time by expansion rather than
   # by `for x in $list`: zsh does not word-split an unquoted expansion, and
-  # zsh.zsh sources this file too. It also spares the `set -f` an unquoted
-  # split would need against a `*` in a hand-set $_HI_ENV_ORDER.
-  local _hi_rest="${_HI_ENV_ORDER:-$_HI_ENV_ORDER_DEFAULT}"
+  # zsh.zsh sources this file too.
+  local _hi_rest="$_HI_ENV_ORDER_DEFAULT"
   while :; do
     while [[ "$_hi_rest" == " "* ]]; do _hi_rest="${_hi_rest# }"; done
     [[ -n "$_hi_rest" ]] || break

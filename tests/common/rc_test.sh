@@ -145,19 +145,6 @@ function test_bash_ps1_reports_status_and_cwd_marks() {
     [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
 }
 
-# _HI_DISABLE_MARKS=1 silences the whole channel - no D at prompt time, no
-# A/B in $PS1 - and TERM=dumb takes the color branch's else with it: the
-# plain \u@\h:\w form, with no escapes anywhere.
-function test_bash_disable_marks_emits_no_osc() {
-  local out
-  out="$(_hi_bash_child '
-    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    ps1
-    printf %s "$PS1"' _HI_DISABLE_MARKS=1 TERM=dumb)"
-  [[ "$out" != *$'\e]133'* ]] || return 1
-  [[ "$out" == *'\u@\h:\w'* ]]
-}
-
 # The pw3nage guard (the comment in ps1 says why): with promptvars on, the
 # git segment reaches $PS1 as a literal ${__powerline_git_info} reference for
 # bash to expand at display time - never its value spliced in.
@@ -878,7 +865,6 @@ function run_rc_tests() {
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
   _hi_check "ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
-  _hi_check "_HI_DISABLE_MARKS silences every OSC" test_bash_disable_marks_emits_no_osc
   _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
   _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars
   _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
