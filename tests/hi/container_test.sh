@@ -106,7 +106,7 @@ case "$script" in
 cp\ *) [ "${_HI_CT_CP_FAIL:-0}" = 1 ] && exit 1 ;;
 esac
 case "$script" in
-*'tar mxzf - -C'*) [ "${_HI_CT_TAR_FAIL:-0}" = 1 ] && exit 1 ;;
+*'tar -x -m -z -f - -C'*) [ "${_HI_CT_TAR_FAIL:-0}" = 1 ] && exit 1 ;;
 esac
 case "${_HI_CT_PUT_FAIL:-}" in
 "") ;;

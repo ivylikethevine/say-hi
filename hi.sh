@@ -138,15 +138,17 @@ function _hi_overlay_files() {
   return 0
 }
 
+# Dash-style options everywhere tar runs: OpenBSD's tar reads every word
+# after an old-style `cf <file>` as a member name, -C and -h included.
 # tar's own arguments, gzip in a second process rather than `z`: bsdtar pads
 # the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip
 function _hi_tar_gz() {
   local -a st
   if ! command -v gzip >/dev/null 2>&1; then
-    tar czf - "$@"
+    tar -c -z -f - "$@"
     return $?
   fi
-  tar cf - "$@" | gzip -n
+  tar -c -f - "$@" | gzip -n
   st=("${PIPESTATUS[@]}")
   [ "${st[0]}" = 0 ] || return "${st[0]}"
   [ "${st[1]}" = 0 ] || return "${st[1]}"
@@ -183,8 +185,8 @@ function _hi_stage_tar() {
     # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
     # marker while a GNU writer still has record padding to send, which is an
     # EPIPE and a "tar: Write error" on stderr
-    tar cf "$stage/in.tar" -h ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
-    tar xf "$stage/in.tar" -C "$stage" || exit 1
+    tar -c -h -f "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
+    tar -x -f "$stage/in.tar" -C "$stage" || exit 1
     rm -f "$stage/in.tar"
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.09); strip.awk sits at $stage and
@@ -252,7 +254,7 @@ function _hi_cached() {
   [ -n "$_hi_c_dir" ] || return 1
   _hi_c_cache="$_hi_c_dir/hi.$_hi_c_tag.$_hi_c_key"
   if [ -f "$_hi_c_cache" ] &&
-    [ -z "$(find "${_hi_c_watch[@]}" -newer "$_hi_c_cache" -print -quit 2>/dev/null)" ]; then
+    [ -z "$(find "${_hi_c_watch[@]}" -newer "$_hi_c_cache" -print 2>/dev/null)" ]; then
     printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
     return 0
   fi
@@ -296,7 +298,7 @@ function _hi_overlay_bytes() {
 
 # _hi_overlay_bytes armored into the line that unpacks it on the target.
 function _hi_overlay_stream() {
-  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar mxzf - -C "$_HI_ROOT/config"'
+  _hi_overlay_bytes "$@" | _hi_armored_line '|' 'tar -x -m -z -f - -C "$_HI_ROOT/config"'
 }
 
 # The comment stripper every payload file goes through: their prose headers
@@ -933,7 +935,7 @@ function _hi_remote_middle() {
       # --rcfile (load.sh's _hi_restore_profile guards the same thing on the
       # chain it sources itself). The fallback rc below needs no such line - no
       # profile chain runs on that tier.
-      echo "$tree" | $_HI_UNARMOR | tar mxzf - -C "\$_HI_HOME"
+      echo "$tree" | $_HI_UNARMOR | tar -x -m -z -f - -C "\$_HI_HOME"
       $overlay_line
       export _HI_CONNECT_PREFIX=" $size"
 REMOTE
@@ -1250,7 +1252,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   prefix=" $size" # the shape the ssh path's prefix reads
   printf '%s' "$prefix" >&2
 
-  if ! "${cp[@]}" sh -c "tar mxzf - -C '$root'" <"$tarball"; then
+  if ! "${cp[@]}" sh -c "tar -x -m -z -f - -C '$root'" <"$tarball"; then
     [ -n "$cached" ] || rm -f "$tarball"
     _hi_container_abort " failed to copy say-hi into [$DOMAIN]"
     return 1
@@ -1260,7 +1262,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   _hi_read_lines overlay < <(_hi_overlay_files)
   if ((${#overlay[@]})) &&
     ! _hi_overlay_bytes "${overlay[@]}" |
-    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar mxzf - -C '$root/say-hi/config'" 2>"$tmp"; then
+    "${cp[@]}" sh -c "mkdir -p '$root/say-hi/config' && tar -x -m -z -f - -C '$root/say-hi/config'" 2>"$tmp"; then
     _hi_cecho " failed to copy your say-hi config overlay into [$DOMAIN], using defaults" "$YELLOW" >&2
   fi
 

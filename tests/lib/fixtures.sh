@@ -399,7 +399,9 @@ function _hi_real_path() {
   shift
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir"
-    for tool in "$@"; do
+    # printf always: OpenBSD's sh has no printf builtin, so a shim on this PATH
+    # would find none; everywhere else the builtin wins and the link is inert
+    for tool in "$@" printf; do
       # `type -P` and not `command -v`: a toolbox holds real binaries, and
       # `command -v printf` answers "printf" - the builtin, a bare word rather
       # than a path. Linked as one that made $dir/printf -> printf, a symlink

@@ -502,7 +502,7 @@ than wrong; the cost, a wrongly-colored excluded host, is cosmetic.
 
 ## HI.38 split tar and gzip
 
-`_hi_tar_gz` (`hi.sh`) runs `tar cf - | gzip -n` rather than `tar czf -`. The
+`_hi_tar_gz` (`hi.sh`) runs `tar -c -f - | gzip -n` rather than `tar -c -z -f -`. The
 two userlands pad differently, and only one pads something that survives
 compression: GNU tar rounds the _uncompressed_ archive up to the 10240-byte
 blocking factor and then gzips it, so its trailing NULs cost about thirty
@@ -515,8 +515,12 @@ to within a few bytes under both userlands and are byte-stable run to run.
 `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail` back off for
 interactive sourcing, so a failing tar would otherwise hide behind a
 successful gzip and ship a truncated payload — both halves are checked. A
-client with no `gzip` degrades to `tar czf -` rather than failing: padded
+client with no `gzip` degrades to `tar -c -z -f -` rather than failing: padded
 again on bsdtar, but a working payload.
+
+Every tar in `hi.sh`, client and target side, takes dash-style options:
+OpenBSD's tar reads each word after an old-style `cf <file>` as a member name,
+so `tar cf - -C dir` archives a file called `-C` there.
 
 ## HI.39 payload staging
 

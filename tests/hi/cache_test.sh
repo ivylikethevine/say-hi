@@ -177,7 +177,7 @@ function test_overlay_cached_leaves_no_temp_file() {
   local out="" dir
   dir="$(_hi_cache_rt oc.tmp)"
   XDG_RUNTIME_DIR="$dir" _hi_overlay_cached out "${_HI_CACHE_MEMBERS[@]}" || return 1
-  [ -z "$(find "$dir" -name 'hi.overlay.*.[0-9]*' -print -quit)" ]
+  [ -z "$(find "$dir" -name 'hi.overlay.*.[0-9]*' -print)" ]
 }
 
 # a builder that fails leaves nothing behind - not the temp file it was
@@ -187,7 +187,7 @@ function test_cached_cleans_up_after_a_failed_build() {
   local out="" dir
   dir="$(_hi_cache_rt c.fail)"
   ! XDG_RUNTIME_DIR="$dir" _hi_cached out fail k "$_HI_CONFIG_DIR/" false settings.sh || return 1
-  [ -z "$out" ] && [ -z "$(find "$dir" -name 'hi.fail.k*' -print -quit)" ]
+  [ -z "$out" ] && [ -z "$(find "$dir" -name 'hi.fail.k*' -print)" ]
 }
 
 function test_overlay_cached_reuses_a_warm_cache() {
@@ -233,8 +233,8 @@ function test_overlay_stream_emits_an_armored_line_either_way() {
   dir="$(_hi_cache_rt os.line)"
   warm="$(XDG_RUNTIME_DIR="$dir" _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
   cold="$(XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_overlay_stream "${_HI_CACHE_MEMBERS[@]}")"
-  case "$warm" in *'tar mxzf - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
-  case "$cold" in *'tar mxzf - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
+  case "$warm" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
+  case "$cold" in *'tar -x -m -z -f - -C "$_HI_ROOT/config"'*) ;; *) return 1 ;; esac
 }
 
 # a warm cache is the same bytes twice: gzip stamps an mtime, so two *fresh*

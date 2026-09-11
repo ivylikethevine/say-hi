@@ -386,7 +386,7 @@ function test_link_owner_per_package_manager() {
     want="${answer#*|}"
     answer="${answer%%|*}"
     mkdir -p "$home/$name.bin"
-    printf '%s\n' '#!/bin/sh' 'case "$*" in' "*/usr/bin/hi*) printf '%s\\n' '$answer' ;;" '*) exit 1 ;;' 'esac' \
+    printf '%s\n' '#!/bin/sh' 'case "$*" in' "*/usr/bin/hi*) echo '$answer' ;;" '*) exit 1 ;;' 'esac' \
       >"$home/$name.bin/$name"
     chmod +x "$home/$name.bin/$name"
     got="$(_hi_link_owner_with "$home/$name.bin" /usr/bin/hi)" || {
