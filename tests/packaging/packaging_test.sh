@@ -78,10 +78,17 @@ function stage_fixture() {
 
 # One shared `mkpkg.sh --stage-only --version 9.9.9` output for the read-only
 # stamp cases, same run-once contract. Prints the outdir; empty on failure.
+# The run's combined output lands in a log beside it instead of /dev/null, so
+# a real mkpkg.sh/stamp.sh failure (an OpenBSD gzip refusal, a require_one_match
+# miss, ...) is dumped rather than swallowed - every caller of this helper
+# already propagates its own failure, so this is the one place to catch it.
 function _hi_staged_999() {
-  local out="$_HI_WORKDIR/stage999"
+  local out="$_HI_WORKDIR/stage999" log="$_HI_WORKDIR/stage999.log"
   if [ ! -d "$out" ]; then
-    "$_HI_PKG_DIR/mkpkg.sh" --stage-only --version 9.9.9 --outdir "$out" >/dev/null 2>&1 || return 1
+    "$_HI_PKG_DIR/mkpkg.sh" --stage-only --version 9.9.9 --outdir "$out" >"$log" 2>&1 || {
+      _hi_dump_log "mkpkg.sh --stage-only --version 9.9.9" "$log"
+      return 1
+    }
   fi
   printf '%s' "$out"
 }
@@ -1087,12 +1094,17 @@ function test_package_sh_stamps_the_staged_launcher() {
 }
 
 # through the same --stage-only run as the launcher's check: the staged gz
-# must open to a .TH carrying the asked-for version and a real date
+# must open to a .TH carrying the asked-for version and a real date. The .TH
+# line (or gzip's own complaint) is captured rather than piped straight into
+# grep -q, so a mismatch prints what actually landed instead of a bare FAILED
+# - this is the case that only reproduces on real OpenBSD.
 function test_package_sh_stamps_the_staged_man_page() {
-  local out
-  out="$(_hi_staged_999)" &&
-    gzip -dc "$out/staging/usr/share/man/man1/hi.1.gz" |
-    grep -qE '^\.TH HI 1 "[0-9]{4}-[0-9]{2}-[0-9]{2}" "say-hi 9\.9\.9"'
+  local out th
+  out="$(_hi_staged_999)" || return 1
+  th="$(gzip -dc "$out/staging/usr/share/man/man1/hi.1.gz" 2>&1 | grep '^\.TH ')"
+  [[ "$th" =~ ^\.TH\ HI\ 1\ \"[0-9]{4}-[0-9]{2}-[0-9]{2}\"\ \"say-hi\ 9\.9\.9\" ]] && return 0
+  _hi_cecho " | staged .TH line: ${th:-<none - gzip -dc found no .TH line>}" "$RED"
+  return 1
 }
 
 # write_checksums also writes dist/ARTIFACTS, which is what release.yml reads
