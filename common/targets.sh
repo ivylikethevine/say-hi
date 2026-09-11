@@ -108,6 +108,7 @@ if [ "$kind" = words ]; then
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'
     printf 'packages\tthe package-priority legend, as the header prints it\n'
     printf 'header\tthe connect header, as it prints here\n'
+    printf 'targets\tevery ssh host, container, allocation and pod hi <TAB> offers\n'
     ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'

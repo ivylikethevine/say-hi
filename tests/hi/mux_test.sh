@@ -104,7 +104,7 @@ function test_mux_flag_after_the_target_is_the_commands() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--mux goes before the target"* ]]
 }
 
-# --no-mux is the per-connect way out of an `alias hi='hi --mux'`, and the last of the two
+# --no-mux is the per-connect way out of _HI_MUX=1, and the last of the two
 # flags wins; after the target it is refused like --mux
 function test_no_mux_flag_clears_mux_ahead_of_the_target() {
   local out
@@ -131,11 +131,27 @@ function test_mux_wrap_is_a_no_op_without_the_flag() {
   [ "$out" = RETURNED ]
 }
 
-# there is no setting behind the flag any more, so a stray _HI_MUX in the
-# environment is a name hi does not read - the guard on the retirement
-function test_mux_wrap_ignores_a_stray_setting() {
-  local log="$_HI_WORKDIR/stray.log" out
+# _HI_MUX=1 is read only when neither --mux nor --no-mux was typed - MUX=""
+# is _hi_parse's "neither" (hi.sh:1399), the harness's own MUX=1 default set
+# aside for it
+function test_mux_wrap_reads_the_setting_when_neither_flag_was_typed() {
+  local log="$_HI_WORKDIR/setting.log" out
   out="$(_hi_mux_run "$log" 0 'MUX=""; export _HI_MUX=1')"
+  [ "$(printf '%s\n' "$out" | grep -c '^TMUX')" = 1 ] || return 1
+  case "$out" in *RETURNED*) return 1 ;; esac
+}
+
+# the setting off (or unset) is the shipped default: no flag, no wrap
+function test_mux_wrap_is_a_no_op_with_the_setting_off() {
+  local log="$_HI_WORKDIR/setting-off.log" out
+  out="$(_hi_mux_run "$log" 0 'MUX=""; export _HI_MUX=0')"
+  [ "$out" = RETURNED ]
+}
+
+# --no-mux is the per-connect way out of _HI_MUX=1, and still wins over it
+function test_no_mux_flag_beats_the_setting() {
+  local log="$_HI_WORKDIR/setting-no.log" out
+  out="$(_hi_mux_run "$log" 0 'MUX=0; export _HI_MUX=1')"
   [ "$out" = RETURNED ]
 }
 
@@ -275,7 +291,9 @@ function run_hi_mux_tests() {
   _hi_check "--no-mux clears it, last one wins" test_no_mux_flag_clears_mux_ahead_of_the_target
   _hi_h2 "Testing: _hi_mux_wrap"
   _hi_check "Without the flag, nothing happens" test_mux_wrap_is_a_no_op_without_the_flag
-  _hi_check "A stray _HI_MUX=1 is not read" test_mux_wrap_ignores_a_stray_setting
+  _hi_check "_HI_MUX=1 wraps when neither flag was typed" test_mux_wrap_reads_the_setting_when_neither_flag_was_typed
+  _hi_check "_HI_MUX=0 is the shipped default: no wrap" test_mux_wrap_is_a_no_op_with_the_setting_off
+  _hi_check "--no-mux still beats _HI_MUX=1" test_no_mux_flag_beats_the_setting
   _hi_check "The inner hi does not wrap again" test_mux_wrap_stands_down_inside_the_wrapped_session
   _hi_check "No tmux here: connect un-wrapped, with a warning" test_mux_wrap_connects_plain_without_tmux
   _hi_check "Outside tmux: exec new-session -A -s hi-<target>" test_mux_wrap_execs_new_session_A_named_for_the_target

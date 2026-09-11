@@ -570,6 +570,7 @@ _HI_PROMPT_PROMPTS=(
 # settings most installs never touch, listed last
 _HI_ADVANCED_PROMPTS=(
   "_HI_DISABLE_LEAD_SPACE|0|1|||drop the leading space - before the prompt and header lines"
+  "_HI_MUX|0|1|||default every connect to --mux - tmux, zellij or screen, whichever is on PATH; --no-mux overrides it for one connect"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name

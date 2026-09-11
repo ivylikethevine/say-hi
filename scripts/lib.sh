@@ -45,6 +45,20 @@ function _hi_flag_word_or_die() {
   esac
 }
 
+# _hi_is_ssh_value_opt <word> - true for an ssh option that takes a separate
+# value, so a caller walking argv knows to consume the next word with it
+# rather than read it as a target. hi.sh's own copy of this list is the
+# case arm in _hi_parse (hi.sh:1410); doctor.sh cannot depend on it without
+# sourcing hi.sh's trailing dispatch, which would undo doctor's strict mode
+# (hi.sh:1859's `set +euo pipefail`) - so this is the second spelling,
+# pinned to the first by tests/hi/parse_test.sh.
+function _hi_is_ssh_value_opt() {
+  case "$1" in
+  -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # _hi_on_path <dir> - true when <dir> is a colon-delimited member of $PATH
 function _hi_on_path() {
   case ":$PATH:" in

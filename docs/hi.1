@@ -17,6 +17,7 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-doctor
 .RB [ \-\-json ]
 .RB [ \-\-use " " \fIbackend\fR]
+.RI [ ssh\-options ]
 .RI [ target ]
 .br
 .B hi \-\-install
@@ -216,16 +217,24 @@ inside a tmux, the session is created detached and this client switches to
 it; inside a screen or zellij, a new window or tab opens in the current
 session. Without a terminal, or without a multiplexer on this machine, hi
 connects as usual.
-.B alias hi='hi \-\-mux'
-makes it the default.
+.B _HI_MUX=1
+in
+.B settings.sh
+(the
+.I Advanced
+item in
+.BR "hi \-\-configure" )
+makes it the default for every connect.
 .TP
 .B \-\-no\-mux
-connect without the multiplexer \- the way out of that alias for one connect. Of
+connect without the multiplexer \- the way out of
+.B _HI_MUX=1
+for one connect. Of
 .B \-\-mux
 and
 .BR \-\-no\-mux ,
-the last one on the line wins, so the flag on the command line beats the one
-the alias put there.
+the last one on the line wins, so the flag on the command line beats the
+setting.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -237,8 +246,8 @@ wants
 .B .git
 on top of that, and a package carries none.
 .TP
-.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
-print one of three things and exit, instead of connecting.
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR|\fBtargets\fR}
+print one of four things and exit, instead of connecting.
 .B colors
 is every ssh host and your user in their resolved colors, each row naming the
 rule it matched \- a pin, a tag, a pattern or the hash.
@@ -247,8 +256,20 @@ is the package\-priority legend, as the header's check prints it, with the
 ranks the floor silences marked.
 .B header
 is the connect header itself, as it prints here at your settings.
+.B targets
+is every target
+.B hi <TAB>
+offers \- every
+.B Host
+entry in
+.BR ~/.ssh/config ,
+plus every running container, allocation and pod, each with the backend it
+resolves to. Unlike the other three subjects this one probes the backends
+and bypasses the completion cache, so it costs what a cold
+.B hi <TAB>
+does.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
 the config overlay, the shell rc files and the overlay's own shell files
 parsed by whatever will read them (the rc half is what
@@ -263,7 +284,13 @@ on
 runs, and the file a login bash or a
 .B ZDOTDIR
 zsh really reads \- every backend probed and timed, and \- with a target \-
-which backend the name resolves to plus an ssh reachability check.
+which backend the name resolves to plus an ssh reachability check. Every
+ssh option a connect takes
+.RB ( \-p ", " \-i ", " \-J ", " \-o
+and the rest) is accepted here too, and reaches the same BatchMode probe a
+real connect would authenticate with \- given for a target that resolves to
+a container, allocation or pod, they are reported as ignored rather than
+silently dropped.
 .B \-\-use
 reports the same forced backend a real connect with it would take, skipping
 the probe chain, and two of them are refused as a connect refuses them.
@@ -599,6 +626,13 @@ or
 whether the client's terminal renders 24\-bit color; read off
 .B COLORTERM
 and shipped to the session, which ssh never forwards itself.
+.TP
+.B _HI_MUX
+.B 1
+defaults every connect to
+.BR \-\-mux ;
+.B \-\-no\-mux
+overrides it for one connect. Client\-side only.
 .SH EXAMPLES
 .TP
 .B hi prod-db

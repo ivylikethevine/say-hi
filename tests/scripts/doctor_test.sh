@@ -595,8 +595,8 @@ function test_help_exits_zero() {
 # reached as `hi --doctor`, the usage line says so; run by hand it names the
 # file
 function test_help_names_what_was_typed() {
-  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--use <backend>] [target]" ] &&
-    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--use <backend>] [target]" ]
+  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--use <backend>] [ssh-options] [target]" ] &&
+    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]" ]
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
@@ -645,7 +645,7 @@ function test_use_twice_naming_two_backends_is_refused() {
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {
-  local out want="Usage: doctor.sh [--json] [--use <backend>] [target]"
+  local out want="Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]"
   out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || return 1
   out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ]
 }

@@ -33,7 +33,7 @@ unset _hi_d
 
 function _hi_doctor_help() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [target]
+Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [ssh-options] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -52,12 +52,15 @@ Prints, in order:
                      connection, the permanent-install probe, and what the
                      remote end has installed
 
-ssh options are not accepted here - the probe uses your ssh config as-is,
-which is exactly what completion and the header do. --use <backend> names the
-target's arm outright, the same one a real \`hi --use <backend> <target>\` would
-take, and skips the probe chain in the target report. --plain, --mux and
---no-mux are accepted and ignored - doctor never connects, so it has nothing
-to report.
+Every ssh option a connect takes is accepted here too (-p, -i, -J, -o and the
+rest), and reaches the same BatchMode probe a real \`hi\` would authenticate
+with - so \`hi --doctor -J bastion host\` diagnoses the connect that needed
+the jump host. Given for a target that resolves to a container, allocation
+or pod, they are reported as ignored rather than silently dropped: they are
+ssh's alone. --use <backend> names the target's arm outright, the same one a
+real \`hi --use <backend> <target>\` would take, and skips the probe chain in
+the target report. --plain, --mux and --no-mux are accepted and ignored -
+doctor never connects, so it has nothing to report.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -86,17 +89,22 @@ esac
 _HI_DOC_TARGET=""
 _HI_DOC_JSON=0
 _HI_DOC_BACKEND=""
+_HI_DOC_SSHARGS=()
 _hi_doc_args=("$@")
 set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
 
-# --json, the target and --use may come in any order: `hi --doctor --json
-# host`, `hi --doctor host --json`, `hi --doctor --use docker host` all read
-# naturally. `--use <backend>` is the one two-word flag: the word after it is the
-# arm, not the target (`--use=<backend>` is the same word joined, as hi.sh
-# takes it). Anything else that looks like a flag is an error, not a target -
-# a target never starts with a dash - and so is a second target.
+# --json, the target, --use and any ssh options may come in any order:
+# `hi --doctor --json host`, `hi --doctor host --json`,
+# `hi --doctor --use docker host`, `hi --doctor -J bastion host` all read
+# naturally. `--use <backend>` is the one two-word flag of doctor's own; a
+# `-x` from hi.sh's own value-taking-option list (_hi_is_ssh_value_opt,
+# scripts/lib.sh) is ssh's and takes the next word the same way, landing in
+# $_HI_DOC_SSHARGS rather than $_HI_DOC_TARGET. Any other `-x` is ssh's own
+# bare flag and rides along unconsumed; a `--word` doctor and hi.sh both know
+# nothing about is an error, not a target - a target never starts with a
+# dash - and so is a second target.
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
 function _hi_doctor_use() {
@@ -130,9 +138,27 @@ while [ $# -gt 0 ]; do
     _hi_doctor_help
     exit 0
     ;;
-  -*)
-    _hi_cecho "$_HI_ME: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
+  # ssh's own terminator, forwarded as-is like hi.sh does
+  --)
+    _HI_DOC_SSHARGS+=("$_hi_arg")
+    ;;
+  --*)
+    _hi_cecho "$_HI_ME: unknown option $_hi_arg (--json, --use <backend>, ssh options, a target)" "$RED" >&2
     exit 1
+    ;;
+  -*)
+    if _hi_is_ssh_value_opt "$_hi_arg"; then
+      [ $# -ge 2 ] || {
+        _hi_cecho "$_HI_ME: $_hi_arg needs a value" "$RED" >&2
+        exit 1
+      }
+      _HI_DOC_SSHARGS+=("$_hi_arg" "$2")
+      shift
+    else
+      # a bare ssh flag (-4, -A, -C, -v, ...) - doctor does not validate
+      # ssh's own vocabulary, only sorts a target from an option
+      _HI_DOC_SSHARGS+=("$_hi_arg")
+    fi
     ;;
   *)
     [ -z "$_HI_DOC_TARGET" ] || {
@@ -547,6 +573,9 @@ function doctor_target() {
   if [ "$kind" = "ssh host" ]; then
     doctor_ssh_target "$target"
   else
+    if [ "${#_HI_DOC_SSHARGS[@]}" -gt 0 ]; then
+      doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
+    fi
     doctor_container_target "$label" "$target"
   fi
   return 0
@@ -628,7 +657,10 @@ function _hi_ladder_first() {
 # costs a single authentication.
 function doctor_ssh_target() {
   DOMAIN="$1"
-  SSHARGS=()
+  # $_HI_DOC_SSHARGS: every ssh option this run was given, so the probe below
+  # authenticates the same way the connect that sent you here would - a
+  # docs/hi.1 -J or -p included, not just the ssh config on its own.
+  SSHARGS=(${_HI_DOC_SSHARGS[@]+"${_HI_DOC_SSHARGS[@]}"})
   local ctl_path t0 t1 tools err
   err="$(mktemp -t hi.doc.err.XXXXXX)"
   # hi.sh's own socket helper, so this probe multiplexes exactly like a real
@@ -636,7 +668,9 @@ function doctor_ssh_target() {
   local -a ctl_opts
   _hi_ctl_open 15 run -o BatchMode=yes
   t0="$(_hi_now)"
-  if ! ssh "${ctl_opts[@]}" -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
+  # SSHARGS ahead of the hardcoded bound: an explicit -o ConnectTimeout=N of
+  # your own wins over it, ssh's own first-occurrence rule
+  if ! ssh "${ctl_opts[@]}" ${SSHARGS[@]+"${SSHARGS[@]}"} -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
     t1="$(_hi_now)"
     doctor_row connect "FAILED after $(_hi_elapsed "$t0" "$t1")s (BatchMode - a password/2FA prompt fails here but may work interactively)" bad
     # ssh's own words, as a row of their own: the JSON document has nowhere

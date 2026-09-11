@@ -60,7 +60,7 @@ function test_a_missing_subject_is_refused() {
   local out rc=0
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages or header"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, header or targets"* ]]
 }
 
 function test_an_unknown_subject_is_refused() {
@@ -75,7 +75,7 @@ function test_bare_help_lists_the_subjects() {
   local out
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" --help 2>&1)" || return 1
-  [[ "$out" == 'Usage: preview.sh <colors|packages|header>'* && "$out" == *header* ]]
+  [[ "$out" == 'Usage: preview.sh <colors|packages|header|targets>'* && "$out" == *header* ]]
 }
 
 # the header subject is hi_header itself, under the settings.sh in force

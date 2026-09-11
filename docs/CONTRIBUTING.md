@@ -170,9 +170,9 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `-n`/`--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>`
   and `--configure --dry-run`, `--update --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning (`-n` is the short
-  form of `--dry-run` wherever it appears; no other switch has one); and the
-  `--json` document's top-level keys (`version`, `target`, `findings`,
-  `rows`) with each row's four fields.
+  form of `--dry-run` wherever it appears, `-y` of `--install --yes`; no
+  other switch has one); and the `--json` document's top-level keys
+  (`version`, `target`, `findings`, `rows`) with each row's four fields.
 - **Exit status** — 0 for "did what it says", 1 for "hi refused before
   connecting" or "a finding", 64 and 65 for a target with no `base64` or no
   scratch directory, and a connect's own status passed through.

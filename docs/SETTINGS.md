@@ -73,7 +73,8 @@ list of every setting it asks, grouped under four headings, with no submenus:
   menu, `hi --preview header` prints the header as it would draw at the saved
   settings, and `hi --preview packages` the check's legend.
 - **Prompt** — starship, and the character each shell's prompt ends with.
-- **Advanced** — the _advanced_ rows: the leading space, and 24-bit color.
+- **Advanced** — the _advanced_ rows: the leading space, the `--mux` default,
+  and 24-bit color.
 
 A number flips a yes/no item or asks for a value, and the preview and list
 redraw with the change. `[p]` applies a preset (`[e]verything`, `[b]alanced`
@@ -141,7 +142,7 @@ what the preview shows until `[s]` saves them. The rows are
    cleans up the same way, with nothing left to reconnect to. Run `hi` inside
    `tmux` or `screen` on the _client_ to survive drops - `hi --mux <target>`
    does that step for you and reattaches on the next connect, and
-   `alias hi='hi --mux'` makes that the default (`--no-mux` skips it once);
+   `_HI_MUX=1` makes that the default (`--no-mux` skips it once);
    persistent sessions on the target were
    [decided against](SUPPORT.md#what-would-change-an-answer).
 6. `hi <target> 'some command'` runs the command inside that same session -
@@ -197,6 +198,7 @@ cannot land without a row here.
 | `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                      |
 | `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                          |
 | `_HI_DISABLE_LEAD_SPACE`         | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                  |
+| `_HI_MUX`                   | `0`                                                  | `hi --configure` advanced | `1` defaults every connect to `--mux` - a local tmux/zellij/screen session, whichever is on PATH - the way `hi --mux` does for one connect; `--no-mux` overrides it. Client-side only, read on this machine, never a target's                                                                                                                                                             |
 | `_HI_TRUECOLOR`             | by terminal                                          | `hi --configure` advanced | `1`/`0`: does the terminal render 24-bit color. Unset, the client decides and ships the verdict to the session; see [Colors](#colors). The Advanced walk asks it as auto/on/off, and is the only free-text question in it                                                                                                                                                              |
 | `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to [`_HI_ASCII`](#not-settings)                                                                                                                                                                                                    |
 | `_HI_BAT_OPTS`              | `-P --tabs 2`, the Monokai Extended Bright theme, `changes,grid` style | you                       | the flags the `bat`/`batn` aliases attach; this row and those below go in `settings.sh`, which loads ahead of the aliases                                                                                                                                                                                                                                         |

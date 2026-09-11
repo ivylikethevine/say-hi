@@ -10,8 +10,11 @@
 #              colors it paints an installed and a missing package, a real
 #              example of each from your own packages file, then the check
 #   header     the connect header itself
+#   targets    every ssh host, container, allocation and pod hi <TAB> offers,
+#              with the backend each resolves to - the one probe reachable
+#              without pressing TAB
 #
-# One script for the three subjects: they share the boxed table (table.sh),
+# One script for the four subjects: they share the boxed table (table.sh),
 # the palette they paint with, and the scheme line above every table.
 
 # GLOSSARY: HI.33 - the standalone-entry form, and why $_HI_HOME wins in it
@@ -36,18 +39,19 @@ _hi_argv0="${_HI_ARGV0:-preview.sh${_hi_subject:+ $_hi_subject}}"
 
 function _hi_preview_usage() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header>
+Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header|targets>
 
   colors     every ssh host and every known user, in the color it resolves to
   packages   the header's packages check: legend, marks, modes, then the check
   header     the connect header as it will print here
+  targets    every ssh host, container, allocation and pod hi <TAB> offers
 
 Each subject takes --help and no other argument.
 EOF
 }
 
 case "$_hi_subject" in
-colors | packages | header) shift ;;
+colors | packages | header | targets) shift ;;
 -h | --help)
   _hi_preview_usage
   exit 0
@@ -56,12 +60,12 @@ colors | packages | header) shift ;;
   # sourced with no subject (the test suite's hatch below): every function,
   # no render, nothing to refuse
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages or header is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
+    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages, header or targets is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
     exit 1
   fi
   ;;
 *)
-  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages or header (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
+  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages, header or targets (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
   exit 1
   ;;
 esac
@@ -123,6 +127,19 @@ before saving it.
 Takes no arguments.
 EOF
     ;;
+  targets)
+    cat <<EOF
+Usage: $_hi_argv0
+
+Prints every target \`hi <TAB>\` offers - the \`Host\` entries in
+~/.ssh/config, plus every running container, allocation and pod, each with
+the backend it resolves to. Unlike the other subjects, this one probes the
+backends: it takes as long as a cold \`hi <TAB>\` does, and the completion
+cache is bypassed so it never shows a stale list.
+
+Takes no arguments.
+EOF
+    ;;
   esac
   exit 0
   ;;
@@ -151,6 +168,39 @@ function _hi_print_scheme_line() {
   else
     _hi_cecho " | scheme: $label (no truecolor here - the 16-color escapes render)"
   fi
+}
+
+#
+# targets
+#
+
+# _hi_print_targets_table - every "<name>\t<kind>" line common/targets.sh's
+# own listing emits, boxed the way the other subjects render. TTL=0 so a
+# stale completion cache never stands in for a fresh probe - this is the one
+# subject that costs what a cold `hi <TAB>` costs.
+function _hi_print_targets_table() {
+  local name kind i w_name=0 w_kind=0
+  local -a names=() kinds=()
+  while IFS=$'\t' read -r name kind || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    names+=("$name")
+    kinds+=("$kind")
+  done < <(_HI_TARGETS_TTL=0 sh "$_HI_TARGETS")
+  if [ "${#names[@]}" -eq 0 ]; then
+    _hi_cecho " | nothing resolves - no Host entries in ~/.ssh/config, and no running container, allocation or pod" "$YELLOW"
+    return 0
+  fi
+  _hi_widen w_name "${names[@]}" TARGET
+  _hi_widen w_kind "${kinds[@]}" BACKEND
+  _hi_hbar top "$w_name" "$w_kind"
+  _hi_head_row "$w_name" TARGET "$w_kind" BACKEND
+  _hi_hbar mid "$w_name" "$w_kind"
+  for ((i = 0; i < ${#names[@]}; i++)); do
+    _hi_cell "$w_name" "" "${names[i]}"
+    _hi_cell "$w_kind" "" "${kinds[i]}"
+    _hi_row_end
+  done
+  _hi_hbar bottom "$w_name" "$w_kind"
 }
 
 #
@@ -828,5 +878,8 @@ header)
   else
     hi_header Preview
   fi
+  ;;
+targets)
+  _hi_print_targets_table
   ;;
 esac

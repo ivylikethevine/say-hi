@@ -581,7 +581,7 @@ function test_fish_completes_the_word_after_preview() {
   ')"
   printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || return 1
   printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ]
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 4 ]
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {

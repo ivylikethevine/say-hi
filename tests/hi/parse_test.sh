@@ -1211,11 +1211,11 @@ function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
   home="$(_hi_scratch_tree preview-real common settings load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
-  [[ "$out" == *"one of colors, packages or header"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, header or targets"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
-  [[ "$out" == *"one of colors, packages or header"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, header or targets"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
-  [[ "$out" == *"one of colors, packages or header"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, header or targets"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]]
 }
@@ -1230,6 +1230,24 @@ function test_use_words_match_the_backend_roster() {
   roster="$(sh "$_HI_ROOT/common/targets.sh" words --use | cut -f1)"
   [ "$roster" = "$want" ] || {
     _hi_cecho "   words --use: ${roster//$'\n'/ } - hi.sh: ${want//$'\n'/ }" "$RED"
+    return 1
+  }
+}
+
+# doctor.sh cannot depend on hi.sh's own copy of this list without sourcing
+# its trailing dispatch (hi.sh:1859's `set +euo pipefail` would undo
+# doctor's strict mode), so scripts/lib.sh's _hi_is_ssh_value_opt is a
+# second spelling - pinned here to _hi_parse's case arm rather than left to
+# drift quietly apart.
+function test_ssh_value_opts_match_lib_sh() {
+  local hi_list lib_list
+  hi_list="$(grep -A1 -F 'every ssh option taking a separate value' "$_HI_ROOT/hi.sh" |
+    tail -1 | grep -oE -- '-[A-Za-z]' | sort -u | tr '\n' ' ')"
+  lib_list="$(grep -A2 -F 'function _hi_is_ssh_value_opt' "$_HI_ROOT/scripts/lib.sh" |
+    tail -1 | grep -oE -- '-[A-Za-z]' | sort -u | tr '\n' ' ')"
+  [ -n "$hi_list" ] && [ "$hi_list" = "$lib_list" ] || {
+    _hi_cecho "   hi.sh: $hi_list" "$RED"
+    _hi_cecho "   scripts/lib.sh: $lib_list" "$RED"
     return 1
   }
 }
@@ -1462,8 +1480,9 @@ function run_hi_parse_tests() {
 
   _hi_h2 "Testing: hi's local sub-commands"
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
-  _hi_check "--preview wants one of three subjects" test_preview_refuses_an_unknown_subject
+  _hi_check "--preview wants one of four subjects" test_preview_refuses_an_unknown_subject
   _hi_check "--use's completion roster is hi's backend roster" test_use_words_match_the_backend_roster
+  _hi_check "scripts/lib.sh's ssh value-opts match hi.sh's" test_ssh_value_opts_match_lib_sh
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
   _hi_check "A joined word needs a positional to stand for" test_joined_value_is_refused_where_nothing_is_positional
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments

@@ -884,10 +884,10 @@ Five rules in `_hi_mux_wrap`:
   options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
   settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
-  the wrap returns at once when that is set. The inner hi re-reads the flag it
-  was handed, so without the guard an `alias hi='hi --mux'` - which is how you
-  make the wrap your default, there being no setting for it - would nest
-  forever. It also stands down, un-wrapped, without a terminal on stdin
+  the wrap returns at once when that is set. The inner argv carries no
+  `--mux`/`--no-mux` of its own, so the inner hi re-reads whatever `_hi_parse`
+  or `$_HI_MUX` handed the outer one - without the guard, `_HI_MUX=1` would
+  nest forever. It also stands down, un-wrapped, without a terminal on stdin
   (nothing to attach) or without a multiplexer to use.
 - **One string.** tmux hands the command to its `default-shell`, which may be
   fish, and screen to `sh -c`, so the argv is joined into one string with

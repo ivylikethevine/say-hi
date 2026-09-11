@@ -177,8 +177,9 @@ zellij and screen on **your** `PATH`, named `hi-<target>`, and a second
 `hi --mux <target>` joins the one already running - so a dropped link leaves
 a session to reattach to, on your side. Already inside tmux, hi switches the
 client to that session rather than nesting; inside screen it opens a new
-window. `alias hi='hi --mux'` makes it the default and `--no-mux` skips it
-once. The target sees an ordinary session: persistent sessions on the target
+window. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the default
+and `--no-mux` skips it once. The target sees an ordinary session: persistent
+sessions on the target
 were [decided against](SUPPORT.md#what-would-change-an-answer), and
 [HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
 
