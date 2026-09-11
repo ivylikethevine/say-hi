@@ -141,13 +141,33 @@ if [ -n "$_HI_MAN_FILE" ]; then
 
   if [ -n "$_hi_gz" ] || [ -f "$_hi_page" ]; then
     # -9n, and no timestamp in the member header, so a re-run reproduces the
-    # same bytes; mkpkg's touch_epoch clamps the mtime afterwards
-    [ -n "$_hi_gz" ] && gzip -d "$_hi_gz"
+    # same bytes; mkpkg's touch_epoch clamps the mtime afterwards. -f
+    # tolerates a decompressed file left over from an interrupted prior run -
+    # gzip -d otherwise refuses to overwrite one.
+    [ -n "$_hi_gz" ] && gzip -df "$_hi_gz"
     require_one_match "$_hi_page" '^\.TH '
     rewrite "$_hi_page" \
       "s/^\.TH .*/.TH HI 1 \"$_HI_DATE\" \"say-hi $_HI_VERSION\" \"User Commands\"/"
-    # -f: OpenBSD's gzip leaves a file that would grow alone and exits 2
-    [ -n "$_hi_gz" ] && gzip -9nf "$_hi_page"
+    # Caught here, with the actual line, rather than downstream (a package
+    # build, or tests/packaging's own read of the staged .gz) discovering a
+    # .TH that silently came out wrong - a platform's sed or its quoting of
+    # $_HI_DATE/$_HI_VERSION is the kind of thing that can misbehave quietly.
+    _hi_th="$(grep '^\.TH ' "$_hi_page")"
+    case "$_hi_th" in
+    ".TH HI 1 \"$_HI_DATE\" \"say-hi $_HI_VERSION\" "*) ;;
+    *)
+      echo "stamp.sh: the man page's .TH line came out wrong: $_hi_th" >&2
+      exit 1
+      ;;
+    esac
+    # Streamed through -c, like install_tree's own gzip call, rather than
+    # named on the command line: given a filename, OpenBSD's gzip refuses a
+    # recompression that would grow the file - even with -f - and exits 2,
+    # leaving no .gz behind. A stdout stream has no file for it to protect.
+    if [ -n "$_hi_gz" ]; then
+      gzip -9n <"$_hi_page" >"$_hi_gz"
+      rm -f "$_hi_page"
+    fi
   fi
 fi
 
