@@ -1,6 +1,6 @@
 name: Setup backends
 # The podman/nomad/kind install that ci.yml's e2e-backends job and demos.yml's
-# publish job both need. The HashiCorp keyring fetch is the one
+# render job both need. The HashiCorp keyring fetch is the one
 # security-relevant download in either job, so it lives here once: a key or
 # URL change, or a fix to the gpg pipeline, is one edit. Neither caller may
 # assume the other ran on the machine, and apt is idempotent when it has.

@@ -33,17 +33,11 @@ inputs:
     required: false
     default: "main"
 
-outputs:
-  run_id:
-    description: the run id a run was found under, empty otherwise
-    value: ${{ steps.find.outputs.run_id }}
-
 runs:
   using: composite
   steps:
-    # By query rather than off a workflow_run payload: the newest green run on
-    # main *is* the triggering run when that is the event, so one code path
-    # serves push and dispatch too. With head-sha the query is pinned to one
+    # By query rather than off a workflow_run payload, so one code path serves
+    # every trigger. With head-sha the query is pinned to one
     # commit instead - a workflow_run-triggered run (coverage) carries the
     # triggering push's sha, so the same shape finds every producer. With
     # branch empty instead, the query carries no ref filter at all - what a

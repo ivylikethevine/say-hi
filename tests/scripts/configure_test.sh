@@ -1099,10 +1099,11 @@ function _hi_cfg_pty() {
   _hi_pty_run "$_HI_CFG_CHILD" cfg "$label" "$input" "$line" "$@"
 }
 
-# the readers: the raw transcript for substrings (fixed strings only - a pty
-# writes CR-LF, so nothing here anchors a line), the tail line's fields
+# the readers: the transcript's visible text for substrings (fixed strings
+# only - a pty writes CR-LF, so nothing here anchors a line; the menu paints
+# inside a row, so its escapes come out first), the tail line's fields
 # through the same CR normalisation the floor's readers use
-function _hi_cfg_has() { grep -qF "$2" "$_HI_WORKDIR/$1.cfg.out"; }
+function _hi_cfg_has() { _hi_strip_ansi "$(<"$_HI_WORKDIR/$1.cfg.out")" | grep -qF "$2"; }
 function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
 function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
 

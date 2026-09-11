@@ -7,16 +7,17 @@ name: Windows client
 # and every same-repository pull request as a real gate (a failing suite
 # fails the run, no continue-on-error); dispatch runs it on its own.
 #
-# Four runners, a quarter of the table each: the fast group takes about
-# seven minutes under Git Bash - backgrounded suites barely overlap there
-# (tests/lib/fixtures.sh's fork_concurrency), so the runner's width-4 run is
-# close to serial and only more machines shorten it - four shards cut it
-# further than the two-shard split this replaced. Each shard runs twice: on
-# windows-latest (x64) and windows-11-arm (arm64, free on a public repo),
-# where Git for Windows is its native arm64 build. The `fast-suites` job
-# below folds all eight back into the one check name README's badge and
-# CONTRIBUTING's table know, "fast suites (Windows client) / fast suites
-# (Git Bash)".
+# Five runners: the fast group takes about seven minutes under Git Bash -
+# backgrounded suites barely overlap there (tests/lib/fixtures.sh's
+# fork_concurrency), so the runner's width-4 run is close to serial and only
+# more machines shorten it. Quarters of the table, except that the second
+# quarter (doctor_test.sh, ~10k forks, and test_lib's) ran far past the rest
+# and is halved as shards 2a and 2b (slices 2/8 and 6/8 - which --shard's
+# round robin makes exactly 2/4). Each slice runs twice: on windows-latest (x64) and windows-11-arm
+# (arm64, free on a public repo), where Git for Windows is its native arm64
+# build. The `fast-suites` job below folds all ten back into the one check
+# name README's badge and CONTRIBUTING's table know, "fast suites (Windows
+# client) / fast suites (Git Bash)".
 on:
   workflow_call:
   workflow_dispatch:
@@ -26,19 +27,25 @@ permissions:
 
 jobs:
   shard:
-    name: fast suites (Git Bash ${{ matrix.arch }}, shard ${{ matrix.shard }} of 4)
+    name: fast suites (Git Bash ${{ matrix.arch }}, shard ${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1/4, 2/8, 6/8, 3/4, 4/4]
         arch: [x64, arm64]
         include:
           - arch: x64
             runner: windows-latest
           - arch: arm64
             runner: windows-11-arm
+          # the check names: quarters 1-4, the second one as halves 2a/2b
+          - { shard: 1/4, label: "1" }
+          - { shard: 2/8, label: 2a }
+          - { shard: 6/8, label: 2b }
+          - { shard: 3/4, label: "3" }
+          - { shard: 4/4, label: "4" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,24 +59,17 @@ jobs:
       # ci.yml's tests upload.
       - name: Run this shard of the fast suites under Git Bash
         shell: bash
-        # HI_SHARDS is the divisor and the matrix above lists one entry per
-        # shard; runner_test.sh checks the two agree and that the slices are
-        # exactly the fast group
+        # each matrix entry is a whole i/n slice; runner_test.sh checks they
+        # partition the fast group
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
         run: |
           set -euo pipefail
-          # hi.sh derives its own tree (GLOSSARY: HI.33), so this export is
-          # belt and braces rather than the thing that makes the run work - it
-          # stays because under Git Bash a wrong tree resolves to
-          # /c/Users/runneradmin rather than the checkout on D:, and that is
-          # invisible until the run is already wrong. The workspace *is* the
-          # say-hi directory, so _HI_HOME is its parent; derived with `cd ..`
-          # because $GITHUB_WORKSPACE is a backslashed path bash cannot walk.
+          # belt and braces (hi.sh derives its tree, HI.33): a wrong one under
+          # Git Bash is silent. `cd ..`: $GITHUB_WORKSPACE is backslashed
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          ./tests/test_runner.sh --verbose --host-report --group fast --shard "$HI_SHARD/$HI_SHARDS"
+          ./tests/test_runner.sh --verbose --host-report --group fast --shard "$HI_SHARD"
 
   # The one check the shards roll up into. `!cancelled()` so it reports on a
   # red shard rather than being skipped past; the explicit result is the

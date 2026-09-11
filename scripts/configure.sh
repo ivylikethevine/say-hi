@@ -160,10 +160,11 @@ function _hi_shell_var() {
 # captured answer.
 function ask_value() {
   local question="$1" current="$2" default="$3" validate="$4" invalid_msg="$5"
-  local value reply=""
+  local value reply="" shown
   value="${current:-$default}"
   if [ -t 0 ]; then
-    read -r -p " $question [$value] " reply || reply=""
+    _hi_paint shown "$BRPURPLE" "[$value]"
+    read -r -p " $question $shown " reply || reply=""
     if [ -n "$reply" ]; then
       if "$validate" "$reply"; then
         value="$reply"
@@ -179,15 +180,37 @@ function ask_value() {
 # _hi_hotkey <name> <letter> <outvar> - <name> with its shortcut letter in
 # brackets, [e]verything or p[r]ompt: how every menu here spells an option
 # whose letter is typed rather than its number, so the key and the word
-# are read together and nothing has to say "or type e".
+# are read together and nothing has to say "or type e". The key is painted
+# $BRYELLOW, the color of everything the wizard has you type.
 function _hi_hotkey() {
   local name="$1" key="$2" head
   head="${name%%"$key"*}"
   if [ "$head" = "$name" ]; then
     printf -v "$3" '%s' "$name"
   else
-    printf -v "$3" '%s[%s]%s' "$head" "$key" "${name#*"$key"}"
+    printf -v "$3" '%s%b[%s]%b%s' "$head" "$BRYELLOW" "$key" "$NC" "${name#*"$key"}"
   fi
+}
+
+# _hi_paint <outvar> <color> <text> - <text> in <color>, the palette's
+# escapes expanded so the result can be joined into a row or a `read -p`
+# prompt. Under $NO_COLOR both halves are empty (core.sh) and it is plain.
+function _hi_paint() {
+  printf -v "$1" '%b%s%b' "$2" "$3" "$NC"
+}
+
+# _hi_preset_list <table> <width> - a presets table as its pick lists it:
+# the name with its hotkey, padded to <width> by its visible length (a
+# printf width would count the key's escapes), then the description
+function _hi_preset_list() {
+  local row name desc shown
+  local -a rows
+  _hi_prompt_rows "$1" rows
+  for row in "${rows[@]}"; do
+    IFS='|' read -r name desc _ <<<"$row"
+    _hi_hotkey "$name" "${name:0:1}" shown
+    printf '   %s%*s %b%s%b\n' "$shown" $(($2 - ${#name} - 2)) '' "$BLUE" "$desc" "$NC"
+  done
 }
 
 # menu_read <prompt> <outvar> - one menu answer: trimmed, lower-cased (tr,
@@ -658,14 +681,10 @@ function apply_preset() {
 # menu comes round again.
 function config_preset() {
   [ -t 0 ] || return 0
-  local row name desc reply="" short shown
+  local reply="" short
   _hi_h2 "Starting point"
   _hi_cecho " A preset answers the feature and header settings at once; change any of them after." "$BLUE"
-  for row in "${_HI_PRESETS[@]}"; do
-    IFS='|' read -r name desc _ <<<"$row"
-    _hi_hotkey "$name" "${name:0:1}" shown
-    printf '   %-13s %s\n' "$shown" "$desc"
-  done
+  _hi_preset_list _HI_PRESETS 13
   menu_read " Start from a preset? (the bracketed letter or the full name; Enter keeps your current settings) [keep] " reply || return 0
   [ -n "$reply" ] || return 0
   short="$(preset_shorthand "$reply")" && reply="$short"
@@ -708,17 +727,27 @@ function _hi_menu_note() {
   _HI_MENU_NOTE_PREVIEW="${3:-}"
 }
 
-# _hi_menu_add <kind> <text> - number the next item and draw it
+# The list's colors, so a row scans without reading it: the number you type
+# $BRYELLOW, a green [x] on and a red [ ] off, a current value $BRPURPLE, the
+# help after a label's " - " $BLUE like the intro's, a missing command's note
+# $YELLOW.
+# _hi_menu_add <kind> <text> [no_newline] - number the next item and draw it
 function _hi_menu_add() {
   _HI_MENU_ITEMS+=("$1")
-  printf '  %2d) %s\n' "${#_HI_MENU_ITEMS[@]}" "$2"
+  printf '  %b%2d)%b %s' "$BRYELLOW" "${#_HI_MENU_ITEMS[@]}" "$NC" "$2"
+  [ $# -ge 3 ] || printf '\n'
+}
+
+# _hi_menu_check <outvar> <1|0> - a row's checkbox
+function _hi_menu_check() {
+  if [ "$2" = 1 ]; then _hi_paint "$1" "$BRGREEN" "[x]"; else _hi_paint "$1" "$RED" "[ ]"; fi
 }
 
 # _hi_menu_value <kind> <label> <value> - an item that asks for a value,
 # indented past the [x] the yes/no rows carry
 function _hi_menu_value() {
   local _hi_mv_text
-  printf -v _hi_mv_text '    %-22s %s' "$2" "$3"
+  printf -v _hi_mv_text '    %-22s %b%s%b' "$2" "$BRPURPLE" "$3" "$NC"
   _hi_menu_add "$1" "$_hi_mv_text"
 }
 
@@ -726,17 +755,19 @@ function _hi_menu_value() {
 # <needs> command is absent here says so but still toggles - the setting
 # applies wherever the command exists.
 function _hi_menu_rows() {
-  local i var off on needs label state note
+  local i var off on needs label state help="" note=""
   local -a rows=()
   _hi_prompt_rows "$1" rows
   for i in ${rows[@]+"${!rows[@]}"}; do
     IFS='|' read -r var off on _ needs label <<<"${rows[$i]}"
-    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=x || state=" "
-    note=""
+    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=1 || state=0
+    _hi_menu_check state "$state"
+    help="" note=""
+    case "$label" in *' - '*) _hi_paint help "$BLUE" " - ${label#* - }" ;; esac
     if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
-      note=" ($needs is not installed here)"
+      _hi_paint note "$YELLOW" " ($needs is not installed here)"
     fi
-    _hi_menu_add "row|$1|$i" "[$state] $label$note"
+    _hi_menu_add "row|$1|$i" "$state ${label%% - *}$help$note"
   done
 }
 
@@ -745,17 +776,18 @@ function _hi_menu_rows() {
 # a screen - then its width, the package check's depth and the hidden
 # addresses, since the rendered header is what each of those changes.
 function _hi_menu_list() {
-  local i state width floor iphide tc row name shell end cols=3
+  local i state word width floor iphide tc row name shell end cols=3
   _HI_MENU_ITEMS=()
   _hi_cecho " Features" "$BRCYAN"
   _hi_menu_rows _HI_FEATURE_PROMPTS
-  _hi_cecho " Header - in the order it prints; up N / down N moves an item" "$BRCYAN"
+  _hi_cecho " Header" "$BRCYAN" 1
+  _hi_cecho " - in the order it prints; up N / down N moves an item" "$BLUE"
   _hi_menu_rows _HI_HEADER_PROMPTS
   _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
   for i in "${!_HI_HDR_WORDS[@]}"; do
-    [ "${_HI_HDR_ON[$i]}" = 1 ] && state=x || state=" "
-    _HI_MENU_ITEMS+=("word|$i")
-    printf '  %2d) [%s] %-11s' "${#_HI_MENU_ITEMS[@]}" "$state" "${_HI_HDR_WORDS[$i]}"
+    _hi_menu_check state "${_HI_HDR_ON[$i]}"
+    printf -v word '%-11s' "${_HI_HDR_WORDS[$i]}"
+    _hi_menu_add "word|$i" "$state $word" 1
     [ $(((i + 1) % cols)) != 0 ] || printf '\n'
   done
   [ $((${#_HI_HDR_WORDS[@]} % cols)) = 0 ] || printf '\n'
@@ -822,7 +854,7 @@ function _hi_menu_pick() {
 # alone redraws.
 _HI_CONFIGURE_QUIT=""
 function config_hub() {
-  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1
+  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1 p h s q
   _hi_probe_once
   _hi_header_edit_load
   while :; do
@@ -830,7 +862,11 @@ function config_hub() {
       _hi_h2 "hi --configure"
       show_preview _hi_config_preview
       _hi_menu_list
-      _hi_cecho "   [p]reset  [h]eader preset  [s]ave and exit  [q]uit without writing" "$BLUE"
+      _hi_hotkey preset p p
+      _hi_hotkey "header preset" h h
+      _hi_hotkey "save and exit" s s
+      _hi_hotkey "quit without writing" q q
+      printf '   %s  %s  %s  %s\n' "$p" "$h" "$s" "$q"
       if [ -n "$_HI_MENU_NOTE" ]; then
         printf '%s\n' "$_HI_MENU_NOTE"
         [ -z "$_HI_MENU_NOTE_PREVIEW" ] || show_preview "$_HI_MENU_NOTE_PREVIEW"
@@ -967,12 +1003,8 @@ function _hi_header_edit_move() {
 
 # the menu's [h]eader preset pick: one shot, like config_preset
 function config_header_preset() {
-  local row name desc reply="" short="" shown
-  for row in "${_HI_HEADER_PRESETS[@]}"; do
-    IFS='|' read -r name desc _ <<<"$row"
-    _hi_hotkey "$name" "${name:0:1}" shown
-    printf '   %-10s %s\n' "$shown" "$desc"
-  done
+  local reply="" short=""
+  _hi_preset_list _HI_HEADER_PRESETS 10
   menu_read " Header preset? (the bracketed letter or the name; Enter keeps the list as it is) [] " reply || return 0
   [ -n "$reply" ] || return 0
   # an exact name first, then an unambiguous first letter - config_preset's
@@ -998,7 +1030,7 @@ function config_header_preset() {
 # re-asked at most $max_rejects times and then keeps the current value - the
 # loop is a dial, not a validator, and an unbounded retry here is a hang.
 function config_packages_floor() {
-  local current reply rejects=0 max_rejects=3 _hi_floor_candidate
+  local current reply rejects=0 max_rejects=3 _hi_floor_candidate shown
   current=""
   setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" current
   _hi_floor_candidate="${current:-2}"
@@ -1008,7 +1040,8 @@ function config_packages_floor() {
       show_preview _hi_packages_floor_preview "$_hi_floor_candidate"
       # menu_read carries the EOF contract (read, close the prompt line, rc 1);
       # its lowercase-and-squeeze is a no-op on a number
-      menu_read " Lowest package priority to show (0-3, or 4 to turn the check off)? [$_hi_floor_candidate] " reply || break
+      _hi_paint shown "$BRPURPLE" "[$_hi_floor_candidate]"
+      menu_read " Lowest package priority to show (0-3, or 4 to turn the check off)? $shown " reply || break
       [ -z "$reply" ] && break
       if ! _hi_is_number "$reply" || [ "$reply" -gt 4 ]; then
         _hi_menu_reject rejects "$max_rejects" \

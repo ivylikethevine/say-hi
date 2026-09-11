@@ -678,10 +678,9 @@ jobs:
   # serial (test_runner.sh's own width pins to 1 for the whole selection
   # whenever an e2e/backends/bench suite is in it), and --shard i/n (the same
   # tool windows-client.yml uses) is a runner-count knob with nothing else to
-  # change if it ever needs bumping - two suites a shard now, a further cut
-  # from the two-shard split this replaced.
+  # change if it ever needs bumping - two suites a shard now.
   e2e:
-    name: e2e (ssh, docker, shard ${{ matrix.shard }} of 4)
+    name: e2e (ssh, docker, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -691,7 +690,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1/4, 2/4, 3/4, 4/4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -705,15 +704,13 @@ jobs:
           tools: nfpm
 
       # --require-run: here a skip is a broken runner, not an optional
-      # backend. HI_SHARDS is the divisor and the matrix above lists one
-      # entry per shard; runner_test.sh checks the two agree and that the
-      # slices are exactly the e2e group.
+      # backend. runner_test.sh checks the matrix's slices partition the
+      # e2e group.
       - name: Run this shard of the end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
         run: |
-          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group e2e --shard "$HI_SHARD/$HI_SHARDS"
+          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group e2e --shard "$HI_SHARD"
 
   # The one check CONTRIBUTING.md's table and README's badge know as
   # `e2e (ssh, docker)`; `!cancelled()` so it reports on a red or skipped
@@ -749,7 +746,7 @@ jobs:
   # one runner (one shared container/VM daemon is what test_runner.sh's width
   # pin protects against); a runner apiece is a separate daemon each.
   e2e-backends:
-    name: e2e (podman, nomad, kube, shard ${{ matrix.shard }} of 3)
+    name: e2e (podman, nomad, kube, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -759,26 +756,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       # podman, nomad (HashiCorp apt repo) and kind, from the composite
-      # demos.yml's publish job shares
+      # demos.yml's render job shares
       - uses: $/.github/actions/setup-backends
 
-      # HI_SHARDS is the divisor and the matrix above lists one entry per
-      # shard, same contract as e2e's above; runner_test.sh checks both that
-      # this agrees and that the slices are exactly the backends group (three
-      # suites, three shards - one backend each).
+      # same contract as e2e's above: three suites, three shards - one
+      # backend each
       - name: Run this shard of the backend end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 3
         run: |
-          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD/$HI_SHARDS"
+          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"
 
   # e2e-check's twin for the backend group - see its comment above.
   e2e-backends-check:

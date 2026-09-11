@@ -239,9 +239,9 @@ suite name. `_hi_cov_select_suites` passes `--shard` straight through to
 (`badges/coverage.json`, `badges/coverage-v2.json`) via `pages.yml`, each
 labelled by its measurer and computed over the shipped product only — the
 badge math excludes `tests/` and `docs/`, the same subject both reports
-declare. Each refreshes as soon as its sweep finishes — `pages.yml` redeploys
-on a completed Coverage run as well as on a green CI — so a badge is only ever
-as old as the sweep, never a push behind. Both stay because they cannot err in
+declare. Each refreshes as soon as its sweep finishes — a completed Coverage
+run is `pages.yml`'s only automatic trigger — so a badge is only ever as old
+as the sweep, never a push behind. Both stay because they cannot err in
 the same direction: a file that reads low in bashcov is genuinely uncovered, a
 line that reads covered in kcov genuinely ran.
 

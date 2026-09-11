@@ -133,7 +133,7 @@ function test_unknown_suite_name_lists_the_known_ones() {
   [[ "$_HI_RUN_OUT" == *"alpha"* && "$_HI_RUN_OUT" == *"beta"* ]]
 }
 
-# --shard i/n is how windows-client.yml splits the fast group across two
+# --shard i/n is how windows-client.yml splits the fast group across its
 # runners, so the slices have to be disjoint, add up to the selection and keep
 # table order - or a suite silently runs twice on CI, or never.
 function test_shards_partition_the_selection_in_table_order() {
@@ -733,14 +733,16 @@ function test_coverage_pr_runs_are_same_repo_only() {
 # --group is what ci.yml invokes, so every group the table uses has to select
 # at least one suite - and only suites of that group
 #
-# One check for every sharded workflow job: its HI_SHARDS divisor, its shard
-# matrix and the runner's --shard slices all have to agree, or a slice never
-# runs. <job> scopes the sed extraction to that job's own block (through to
-# the next top-level key) when several sharded jobs share a file (ci.yml);
-# "-" reads the whole file (windows-client.yml holds just the one).
+# One check for every sharded workflow job: the runner's --shard slices its
+# matrix names have to partition the group, or a suite never runs (or runs
+# twice). Each entry is a whole i/n slice, and n may differ between them
+# (windows-client.yml mixes /4 and /8). <job> scopes the sed extraction to
+# that job's own block (through to the next top-level key) when several
+# sharded jobs share a file (ci.yml); "-" reads the whole file
+# (windows-client.yml holds just the one).
 function _hi_shards_cover_group() {
   local workflow="$_HI_ROOT/.github/workflows/$1" job="$2" group="$3"
-  local where="$1" block shards i halves
+  local where="$1" block entry slices=""
   [ "$job" = - ] || where="$1's $job"
   [ -f "$workflow" ] || return 0 # a shipped tree has no .github
   if [ "$job" = - ]; then
@@ -748,22 +750,13 @@ function _hi_shards_cover_group() {
   else
     block="$(sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p" "$workflow")"
   fi
-  shards="$(printf '%s\n' "$block" | sed -n 's/^ *HI_SHARDS: *//p' | head -1)"
-  [ -n "$shards" ] && [ "$shards" -ge 2 ] || {
-    _hi_cecho " | $where sets no HI_SHARDS" "$RED"
-    return 1
-  }
-  [ "$(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',' '\n' | grep -c '[0-9]')" -eq "$shards" ] || {
-    _hi_cecho " | $where shard matrix does not list $shards entries" "$RED"
-    return 1
-  }
-  i=1
-  halves=""
-  while [ "$i" -le "$shards" ]; do
-    halves="$halves$("$_HI_TEST_RUN" --group "$group" --shard "$i/$shards" --list 2>/dev/null)"$'\n'
-    i=$((i + 1))
+  for entry in $(printf '%s\n' "$block" | sed -n 's/^ *shard: *\[\(.*\)\]/\1/p' | tr ',"' '  '); do
+    slices="$slices$("$_HI_TEST_RUN" --group "$group" --shard "$entry" --list 2>/dev/null)"$'\n'
   done
-  [ "$(printf '%s' "$halves" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ]
+  [ "$(printf '%s' "$slices" | sort)" = "$("$_HI_TEST_RUN" --group "$group" --list 2>/dev/null | sort)" ] || {
+    _hi_cecho " | $where's shard matrix does not partition the $group group" "$RED"
+    return 1
+  }
 }
 
 function test_every_group_selects_only_its_own_suites() {
@@ -928,10 +921,8 @@ function run_runner_tests() {
   _hi_check "Lists a group and name per suite" test_shipped_table_lists_a_group_and_name_per_suite
   _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
-  # The count is a contract with the two sharded Windows jobs - each matrix
-  # lists one entry per shard and each run passes HI_SHARDS as the divisor; the
-  # halves CI runs under Git Bash, and again inside WSL, are exactly the fast
-  # group.
+  # A contract with every sharded job: the slices CI runs under Git Bash,
+  # inside WSL and on ci.yml's e2e runners are exactly their group.
   _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
   _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e
@@ -939,7 +930,7 @@ function run_runner_tests() {
   # shards, so every shard really is exactly one backend - not asserted here
   # (that's install-step reasoning, not a suite-list one), but a shard count
   # that ever drifted from the group's suite count would fail this the same
-  # way a missing HI_SHARDS or an incomplete matrix would.
+  # way an incomplete matrix would.
   _hi_check "ci.yml's e2e-backends shards cover the backends group" _hi_shards_cover_group ci.yml e2e-backends backends
   _hi_check "Every shipped path exists and is executable" test_every_shipped_suite_script_exists_and_is_executable
   _hi_check "Every suite on disk is in the table" test_every_suite_script_on_disk_is_in_the_table

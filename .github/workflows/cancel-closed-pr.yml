@@ -41,17 +41,15 @@ jobs:
         run: |
           set -euo pipefail
           n=0
-          for status in queued in_progress waiting pending requested; do
-            while read -r id name; do
-              [ -n "$id" ] || continue
-              echo "cancelling $name run $id ($status) for PR #$PR"
-              gh run cancel --repo "$GITHUB_REPOSITORY" "$id" ||
-                echo "::warning title=cancel::could not cancel run $id ($name) - a read-only token?"
-              n=$((n + 1))
-            done <<EOF_RUNS
-          $(gh run list --repo "$GITHUB_REPOSITORY" --commit "$HEAD_SHA" --status "$status" \
-              --json databaseId,workflowName \
-              --jq ".[] | select(.databaseId != $GITHUB_RUN_ID) | \"\(.databaseId) \(.workflowName)\"")
+          while read -r id status name; do
+            [ -n "$id" ] || continue
+            echo "cancelling $name run $id ($status) for PR #$PR"
+            gh run cancel --repo "$GITHUB_REPOSITORY" "$id" ||
+              echo "::warning title=cancel::could not cancel run $id ($name) - a read-only token?"
+            n=$((n + 1))
+          done <<EOF_RUNS
+          $(gh run list --repo "$GITHUB_REPOSITORY" --commit "$HEAD_SHA" --limit 100 \
+            --json databaseId,status,workflowName \
+            --jq ".[] | select(.databaseId != $GITHUB_RUN_ID and .status != \"completed\") | \"\(.databaseId) \(.status) \(.workflowName)\"")
           EOF_RUNS
-          done
           echo "PR #$PR closed: $n run(s) cancelled"

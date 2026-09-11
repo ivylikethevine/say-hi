@@ -648,23 +648,21 @@ function test_pages_workflow_serves_the_package_repository() {
 function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
   [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_RELEASE_WF" ] || return 0
   ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
-    grep -qE '^ *workflows: \[CI, Coverage\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
     [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" == *'gh workflow run pages.yml'* ]]
 }
 
-# The coverage badges are read from "the newest successful coverage run" at
-# deploy time, and coverage.yml is itself chained off the CI run that triggers
-# the deploy - so unless a finished sweep redeploys too, a badge shows the
-# previous push's figure. Its event is workflow_run, never push, so the build
-# job has to admit it by name.
-function test_a_finished_coverage_sweep_refreshes_pages() {
+# coverage.yml is chained off CI and is the last producer to finish, so it is
+# pages.yml's one automatic trigger: CI as well deployed every push twice, the
+# first time with the previous push's coverage figures. Coverage's own event is
+# workflow_run, never push, so the build admits any successful run but a PR's.
+function test_pages_deploys_once_after_coverage() {
   [ -f "$_HI_PAGES_WF" ] || return 0
   local build
   build="$(_hi_wf_job "$_HI_PAGES_WF" build)"
-  grep -qE '^ *workflows: \[CI, Coverage\]' "$_HI_PAGES_WF" &&
-    [[ "$build" == *"workflow_run.name == 'Coverage'"* ]] &&
-    [[ "$build" == *"workflow_run.conclusion == 'success'"* ]]
+  grep -qE '^ *workflows: \[Coverage\]$' "$_HI_PAGES_WF" &&
+    [[ "$build" == *"workflow_run.conclusion == 'success'"* ]] &&
+    [[ "$build" == *"workflow_run.event != 'pull_request'"* ]]
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
@@ -2448,7 +2446,7 @@ function run_packaging_tests() {
   _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
   _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
   _hi_check "...a release refreshes Pages itself" test_release_refreshes_pages_instead_of_relying_on_workflow_run
-  _hi_check "...and a finished coverage sweep refreshes Pages too" test_a_finished_coverage_sweep_refreshes_pages
+  _hi_check "...and Pages deploys once, after the coverage sweep" test_pages_deploys_once_after_coverage
   _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
   _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
   _hi_check "mkrepo.sh parses its flags before asking for docker" test_mkrepo_parses_flags_before_asking_for_docker

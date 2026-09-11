@@ -42,6 +42,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
   - [Compatibility Gaps](#compatibility-gaps)
+  - [Features](#features)
   - [Post 1.0](#post-10)
 
 ---
@@ -334,6 +335,19 @@ In this checkout, and not what the tag waits on either.
        `base64` first and rewriting [HI.17](docs/GLOSSARY.md#hi17-base64-armor)
        to match. **Ticks when:** `openbsd-e2e.yml` is green with `base64`
        dropped from its `pkg_add`.
+
+### Features
+
+In this checkout, and not what the tag waits on either.
+
+1. [ ] **Coloured autosuggestions in every shell** — `hi <Tab>` lists
+       targets, flags and subjects in plain text, so a long target list is
+       hard to scan. **Do:** colour each candidate the way the header does —
+       a target in its host/group colour, flags and subjects each their own —
+       through each shell's mechanism: zsh's `list-colors` zstyle on the
+       `hi-targets` group, fish's pager colours, bash's readline as far as it
+       allows. **Ticks when:** bash, zsh and fish each show coloured `hi`
+       candidates, pinned by a suite.
 
 ### Post 1.0
 
