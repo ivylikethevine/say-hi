@@ -1,0 +1,62 @@
+name: OpenBSD e2e
+
+# freebsd-e2e.yml's job on the other BSD: an OpenBSD VM on the hosted ubuntu
+# runner runs the fast suites and then ssh's to itself, client and target
+# both OpenBSD userland. Its base carries neither bash nor base64(1) - only
+# b64encode/b64decode - so the VM takes both from packages, which is what
+# SUPPORT.md's *BSD row asks of an OpenBSD target. No fish: two fish
+# versions share the package stem, and a non-interactive pkg_add refuses the
+# ambiguity; the fish dialect is proven on every other platform. ci.yml calls
+# it beside freebsd-e2e.yml, behind the same gate; dispatch runs it on its
+# own.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loopback:
+    name: hi localhost (OpenBSD both ends)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # freebsd-e2e.yml's run script: its comments say why safe.directory,
+      # `timeout -k` (in OpenBSD's base too) and every </dev/null are there
+      - name: Fast suites, then say hi to ourselves
+        uses: vmactions/openbsd-vm@86cdc08415d9d0865267e686561e276c52d62530 # v1.4.7
+        with:
+          release: "7.9"
+          usesh: true
+          sync: rsync
+          copyback: false
+          prepare: |
+            pkg_add -I bash zsh git python%3 base64
+          run: |
+            set -eu
+            cd "$GITHUB_WORKSPACE"
+            _HI_HOME="$(cd .. && pwd)"
+            export _HI_HOME
+            git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+            timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
+
+            ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
+            cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
+            chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
+            out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
+              bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+              "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1 </dev/null)" || true
+            printf '%s\n' "$out"
+            printf '%s\n' "$out" | grep -q HI_BSD_LOOP_OK
+
+            if ls -d "${TMPDIR:-/tmp}"/*.hi.* 2>/dev/null; then
+              echo "session directory survived the exit" >&2
+              exit 1
+            fi

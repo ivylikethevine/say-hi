@@ -184,7 +184,8 @@ Two coverage tools and a profiler. The coverage pair runs by hand (unsharded,
 the whole sweep in one process) and in CI (`coverage.yml`, after every green
 CI battery on a push to `main`, and on every same-repo, non-draft PR, whose
 `comment` job posts both figures beside main's in one comment edited in place
-on each push) over the full suite sweep — every suite the
+on each push; the push that merges it reuses those figures rather than
+sweeping the same tree again) over the full suite sweep — every suite the
 box's backends can host. The two aggregates have tracked each other within a
 few points for many commits and both are reliable: **read the average of the
 two badges** as the coverage figure, and the per-file reports for finding

@@ -41,6 +41,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
+  - [Compatibility Gaps](#compatibility-gaps)
   - [Post 1.0](#post-10)
 
 ---
@@ -130,8 +131,10 @@ A researcher, in zsh, sweeping the cluster's backends.
 ![Minimal](https://img.shields.io/badge/minimal-ssh%20%2B%20base64-0A6E8A)
 ![Full](https://img.shields.io/badge/full-bash%203.2-0A8E8A)
 ![Linux](https://img.shields.io/github/actions/workflow/status/ivylikethevine/say-hi/ci.yml?branch=main&label=Linux)
-![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28macOS%29%20%2F%20hi%20localhost%20%28BSD%20both%20ends%29&label=macOS)
+![macOS](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28macos-latest%29&label=macOS)
 ![FreeBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28FreeBSD%29%20%2F%20hi%20localhost%20%28FreeBSD%20both%20ends%29&label=FreeBSD)
+![OpenBSD](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28OpenBSD%29%20%2F%20hi%20localhost%20%28OpenBSD%20both%20ends%29&label=OpenBSD)
+![Alpine client](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Alpine%20client%29&label=Alpine%20client)
 ![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)
 ![Windows client](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)
 
@@ -317,6 +320,20 @@ or descoped, and finished entries are deleted rather than ticked.
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises.
+
+### Compatibility Gaps
+
+In this checkout, and not what the tag waits on either.
+
+1. [ ] **Stock OpenBSD, without the `base64` package** — OpenBSD's base
+       ships `b64encode`/`b64decode` and LibreSSL's `openssl base64`, but no
+       `base64(1)`, so the bootstrap's probe exits 64 ("no base64") and
+       `openbsd-e2e.yml` installs the package to get a session at all.
+       **Do:** fall back to `openssl base64` where `base64` is missing — the
+       bootstrap probe, `_HI_UNARMOR` and the client's armor — keeping
+       `base64` first and rewriting [HI.17](docs/GLOSSARY.md#hi17-base64-armor)
+       to match. **Ticks when:** `openbsd-e2e.yml` is green with `base64`
+       dropped from its `pkg_add`.
 
 ### Post 1.0
 
