@@ -648,16 +648,32 @@ function test_a_switch_outside_its_mode_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--link does not apply here"* ]]
 }
 
+# _hi_mode_help_is_its_own <mode> <usage-prefix> <body-phrase> - the mode's own
+# --help: its usage line first, its own paragraph, and nothing of the install's.
+# The exit code and the text are both reported on failure: a bare `return 1`
+# here said only "FAILED" on a windows-11-arm runner, which cannot tell a help
+# text that came out wrong from a `bash` that never ran (the emulated Git Bash
+# there also loses `ln -s` and `mkdir -m`, so a dead child is a real candidate).
+function _hi_mode_help_is_its_own() {
+  local mode="$1" usage="$2" phrase="$3" out rc=0
+  out="$(_HI_ARGV0="hi --$mode" bash "$_HI_ROOT/scripts/install.sh" "--$mode" --help)" || rc=$?
+  [ "$rc" -eq 0 ] || {
+    _hi_cecho " | hi --$mode --help exited $rc" "$RED"
+    return 1
+  }
+  [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || {
+    _hi_cecho " | hi --$mode --help was:" "$RED"
+    printf '%s\n' "$out" | sed 's/^/      /'
+    return 1
+  }
+}
+
 function test_uninstall_help_is_its_own() {
-  local out
-  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --help)" || return 1
-  [[ "$out" == "Usage: hi --uninstall [--purge] [--dry-run]"* && "$out" == *"inverse of the install"* && "$out" != *"Wires up"* ]]
+  _hi_mode_help_is_its_own uninstall "Usage: hi --uninstall [--purge] [--dry-run]" "inverse of the install"
 }
 
 function test_configure_help_is_its_own() {
-  local out
-  out="$(_HI_ARGV0="hi --configure" bash "$_HI_ROOT/scripts/install.sh" --configure --help)" || return 1
-  [[ "$out" == "Usage: hi --configure [--preset <name>]"* && "$out" == *"Revisit the settings"* && "$out" != *"Wires up"* ]]
+  _hi_mode_help_is_its_own configure "Usage: hi --configure [--preset <name>]" "Revisit the settings"
 }
 
 # no terminal and no --preset: --configure has nothing to do and says so,
