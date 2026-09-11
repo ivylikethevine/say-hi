@@ -155,7 +155,7 @@ function test_strip_marker_missing_file_is_fine() {
 }
 
 # each dialect, and a tree at $HOME still states itself: nothing defaults to
-# $HOME any more (GLOSSARY: HI.33)
+# $HOME (GLOSSARY: HI.33)
 function test_tmpdir_line_dialects() {
   local home="$_HI_WORKDIR/tmpdirline"
   [ "$(_hi_rc_out "$home" -- eval 'tmpdir_line fish /custom; echo; tmpdir_line sh /custom; echo

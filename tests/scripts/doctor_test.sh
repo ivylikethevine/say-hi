@@ -24,12 +24,12 @@ source "$_HI_DOCTOR"
 # case installs. Nothing else, so a backend "not installed" case is real
 # even on a machine with every backend.
 #
-# base64, tar, gzip, find, mv and chmod are hi's own floor for building a
+# base64, tar, gzip, find, mv, and chmod are hi's own floor for building a
 # payload (the staging copy renames each stripped file back and restores the
-# launcher's exec bit), and they belong here for the same reason `bash` does: leaving them off did not
-# model a client without them, it just made the report print raw
-# "base64: command not found" lines out of _hi_wire_bytes into every case's
-# transcript, and measure a wire size nothing had packed. A *target* without
+# launcher's exec bit), and they belong here for the same reason `bash` does:
+# leaving them off would not model a client without them, only print raw
+# "base64: command not found" lines into every case's transcript and measure a
+# wire size nothing packed. A *target* without
 # base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
   _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
@@ -848,7 +848,7 @@ assert not any(r["label"] == "checked" for r in t), t
 }
 
 # --plain has nothing for doctor to report (it never connects), but it is a
-# real hi.sh flag now - the arg loop has to consume it rather than fall
+# real hi.sh flag - the arg loop has to consume it rather than fall
 # through to _HI_DOC_TARGET the way an unrecognized word otherwise would
 function test_plain_flag_is_not_mistaken_for_the_target() {
   local out
@@ -957,7 +957,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
-  _hi_check "Unwired shells, absent shells and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
+  _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
   _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
   _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
   _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path

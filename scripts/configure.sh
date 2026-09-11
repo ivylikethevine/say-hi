@@ -102,7 +102,7 @@ function setting_on() {
 # on-value when switched on and clears the pending line when switched off; a
 # default-on toggle (empty <on>) does the reverse - clears when on, writes
 # its off-value when off. Getting this backwards writes a silently inverted
-# setting, which is why it had a copy at every site that flips one.
+# setting, which is why every site that flips one calls this.
 function _hi_pending_state() {
   local var="$1" off="$2" on="$3" want="$4"
   if [ "$want" = on ]; then
@@ -235,8 +235,7 @@ function menu_read() {
 # follows it with `continue`. False, nothing printed, at the limit, for the
 # caller's own exceeded-message and exit (`return 0` or `break` differ by
 # site, so that much stays local). This is the one guarantee that no menu can
-# hang on a driver out of sensible input - five call sites used to keep it
-# independently.
+# hang on a driver out of sensible input, kept once for every call site.
 function _hi_menu_reject() {
   printf -v "$1" '%s' "$((${!1} + 1))"
   [ "${!1}" -lt "$2" ] || return 1
@@ -257,7 +256,7 @@ function _hi_is_truecolor_choice() {
 }
 
 # $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
-# dotted-quad addresses - digits, dots, `*` and `?` and nothing else, so a
+# dotted-quad addresses - digits, dots, `*`, and `?` - nothing else, so a
 # stray quote or a shell metacharacter can't be written into settings.sh
 function _hi_is_ip_hide() {
   case "$1" in
@@ -512,8 +511,8 @@ function _hi_starship_preview() {
 # a real answer at a high enough floor, and says so rather than showing
 # show_preview a blank string, which it would drop on the floor.
 # <candidate> - the floor to render at. Taken as an argument rather than read
-# out of config_packages_floor's scope: show_preview already runs "$@", so the
-# two were coupled through a bare global name for nothing.
+# out of config_packages_floor's scope: show_preview already runs "$@", so a
+# bare global would couple the two for nothing.
 function _hi_packages_floor_preview() {
   local out candidate="${1:-2}"
   out="$(_HI_PACKAGES_MIN_PRIORITY="$candidate" full_check)"
@@ -570,7 +569,7 @@ _HI_PROMPT_PROMPTS=(
 # settings most installs never touch, listed last
 _HI_ADVANCED_PROMPTS=(
   "_HI_DISABLE_LEAD_SPACE|0|1|||drop the leading space - before the prompt and header lines"
-  "_HI_MUX|0|1|||default every connect to --mux - tmux, zellij or screen, whichever is on PATH; --no-mux overrides it for one connect"
+  "_HI_MUX|0|1|||default every connect to --mux - a local tmux, zellij, or screen session"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
@@ -583,8 +582,8 @@ function _hi_prompt_rows() {
 }
 
 # <name>|<one-line description>|<var=value ...>: a starting point for the
-# feature, header, package-check and prompt settings - the presets say
-# nothing about the header order, the advanced section, the width or the
+# feature, header, package-check, and prompt settings - the presets say
+# nothing about the header order, the advanced section, the width, or the
 # separators. A var the preset does not name goes back to its shipped
 # default, so a preset is an absolute answer rather than a delta on what the
 # file holds. Applied, its answers are what the menu shows and saves;
@@ -592,7 +591,7 @@ function _hi_prompt_rows() {
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
   "balanced|everything but the noise: a shorter package check|_HI_PACKAGES_MIN_PRIORITY=3"
-  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, tool integration or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_TOOL_INIT=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
+  "minimal|on targets only the colored prompt and the aliases - no header, git status, editors, tool integration, or prompt marks; nothing at all on this machine|_HI_DISABLE_HEADER=1 _HI_DISABLE_GIT_STATUS=1 _HI_DISABLE_EDITORS=1 _HI_DISABLE_TOOL_INIT=1 _HI_DISABLE_MARKS=1 _HI_DISABLE_LOCAL=1"
 )
 
 # every variable a preset answers for: the feature and header yes/no tables,
@@ -612,7 +611,7 @@ function _hi_preset_vocab() {
 # preset_row <name> - its table row, or failure for a name that is not one
 # The three helpers take an optional table name so the header presets can use
 # them too: _HI_HEADER_PRESETS is the same `name|desc|payload` shape, so
-# config_header_preset shares the listing, the row lookup and the
+# config_header_preset shares the listing, the row lookup, and the
 # first-letter match - with its ambiguity guard and exact-name-first order -
 # rather than carrying a third copy.
 function preset_row() {
@@ -774,7 +773,7 @@ function _hi_menu_rows() {
 
 # The list, under a heading per group. Header holds the banner, the header's
 # items in the order they print - three to a line, so seventeen of them fit
-# a screen - then its width, the package check's depth and the hidden
+# a screen - then its width, the package check's depth, and the hidden
 # addresses, since the rendered header is what each of those changes.
 function _hi_menu_list() {
   local i state word width floor iphide tc row name shell end cols=3
@@ -846,7 +845,7 @@ function _hi_menu_pick() {
   esac
 }
 
-# The menu: the preview, the list, save or quit. A command redraws both with
+# The menu: the preview, the list, save, or quit. A command redraws both with
 # whatever it changed; a reply that is not one only says so, under the list
 # it was typed against. EOF saves - the same "no answer keeps what you have
 # and the run completes" that every question here has always meant. The
@@ -919,7 +918,7 @@ function config_hub() {
 # of header.sh's word list.
 _HI_HEADER_PRESETS=(
   "full|every item, in the shipped order|"
-  "compact|the clocks, the version, your git identity, the backend counts and the package check|utc version localtime gitid containers jobs pods check"
+  "compact|the clocks, the version, your git identity, the backend counts, and the package check|utc version localtime gitid containers jobs pods check"
   "quiet|just the clocks and your git identity|utc localtime gitid"
 )
 
@@ -1099,7 +1098,7 @@ function config_prompt_end() {
 # $_HI_TRUECOLOR is an unset/1/0 flag asked in words: "1" is a fact about the
 # implementation rather than an answer, so the words map in on the way to the
 # question and back out on the way to the file. `on` is the answer under tmux,
-# which hides COLORTERM. Glyphs are not asked at all any more - the locale
+# which hides COLORTERM. Glyphs are not asked at all - the locale
 # decides, and the client ships its verdict to the session (docs/SETTINGS.md's
 # _Not settings_).
 function config_truecolor() {
@@ -1107,7 +1106,7 @@ function config_truecolor() {
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
   case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
   value="$(ask_value "24-bit color for a scheme's hex: auto (by COLORTERM), on (under tmux, say), or off?" \
-    "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
+    "$choice" auto _hi_is_truecolor_choice "answer auto, on, or off")"
   case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_TRUECOLOR "$value"
 }
@@ -1197,7 +1196,7 @@ function settings_adopt_hand_lines() {
 # $_HI_SETTINGS is hi's own file, not one of the user's rc files, and it
 # holds nothing but `export NAME=value` lines - so it gets a real `#!/bin/sh`
 # line 1, which every shell that sources it (sh, bash, zsh, fish) reads as a
-# comment and which lets editors, `file` and shellcheck see a POSIX sh script
+# comment and which lets editors, `file`, and shellcheck see a POSIX sh script
 # rather than an anonymous fragment. Any other shebang is replaced rather than
 # left alongside: dash and fish both source this, so sh is the only correct one.
 # config_shell rewrites only its own marker-tagged block, so this line stays.
@@ -1294,7 +1293,7 @@ function run_configure() {
     return 0
   fi
   collect_setting_lines
-  # No terminal, no preset, no file and nothing to say: a settings.sh with
+  # No terminal, no preset, no file, and nothing to say: a settings.sh with
   # only a shebang in it would be a decision record with no decision in it.
   if [ ! -t 0 ] && [ -z "$preset" ] && [ ! -f "$_HI_SETTINGS" ] && ((${#_HI_SETTING_LINES[@]} == 0)); then
     _hi_cecho " nothing to write - the defaults apply until hi --configure is run at a terminal" "$GREEN"

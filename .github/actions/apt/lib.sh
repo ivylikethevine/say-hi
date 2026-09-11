@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # `apt-get update` on a GitHub-hosted runner, made survivable. Sourced by
-# ../setup-shells, ../setup-backends, ../setup-tool/install.sh and
+# ../setup-shells, ../setup-backends, ../setup-tool/install.sh, and
 # coverage.yml's gather-kcov job directly, so the two mitigations below are
 # written once rather than per caller.
 #
@@ -12,7 +12,7 @@
 # wants: Google Chrome and packages.microsoft.com. `apt-get update` exits 100
 # when *any* index fails, so one of those republishing a Packages.gz mid-fetch
 # ("Hash Sum mismatch") fails every job that installs anything - which has no
-# bearing on whether zsh, fish, podman or kcov's headers can be fetched.
+# bearing on whether zsh, fish, podman, or kcov's headers can be fetched.
 #
 # Ubuntu's own repositories are not touched: noble keeps them in the deb822
 # /etc/apt/sources.list.d/ubuntu.sources, and jammy in /etc/apt/sources.list,

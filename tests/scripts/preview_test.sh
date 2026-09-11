@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Unit tests for scripts/preview.sh - `hi --preview colors`, `packages` and
-# `header`, one script with a subject switch.
+# Unit tests for scripts/preview.sh - `hi --preview colors`, `packages`,
+# `header`, and `targets`, one script with a subject switch.
 #
 # colors: its job is to render the same answers the live prompt would give, so
 # what matters is that its own precedence logic (_hi_color_source) agrees with
@@ -60,7 +60,7 @@ function test_a_missing_subject_is_refused() {
   local out rc=0
   out="$(HOME="$_HI_WORKDIR/tree" _HI_HOME="$_HI_WORKDIR/tree" \
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, header or targets"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"one of colors, packages, header, or targets"* ]]
 }
 
 function test_an_unknown_subject_is_refused() {
@@ -370,7 +370,7 @@ function _hi_render_colors() {
     "$_HI_WORKDIR/tree/say-hi/scripts/preview.sh" colors "$@" 2>&1
 }
 
-# The tables are wide, colored and layout-heavy; asserting their exact shape
+# The tables are wide, colored, and layout-heavy; asserting their exact shape
 # would test the formatting rather than the resolution, so these prove they
 # render every group they should without erroring under set -e. One render
 # (the slowest thing this suite does - a full script run plus targets.sh)
@@ -436,7 +436,7 @@ function test_tables_render_from_the_checkout() {
   printf '%s\n' "$out" | grep -q 'usertag:'
 }
 
-# --help answers before reading any config, prints the usage text and exits 0
+# --help answers before reading any config, prints the usage text, and exits 0
 function test_help_prints_usage_and_exits_zero() {
   local out
   out="$(_hi_render_colors --help)" || return 1
@@ -613,7 +613,7 @@ function test_example_cell_marks_a_priority_with_nothing_to_show() {
   [ "$text" = "-" ] && [ "$width" -eq 1 ]
 }
 
-# The other reason a cell shows no example, and the one every stock config now
+# The other reason a cell shows no example, and the one every stock config
 # hits: the floor defaults to 2, so priorities 0-1 have examples collected but
 # never printed, and the cell says why instead of showing one the header will
 # not.

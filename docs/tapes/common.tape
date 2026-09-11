@@ -3,7 +3,7 @@
 # are rendered from (docs/tapes/generate.sh, or `vhs docs/tapes/<name>.tape`).
 #
 # Sourced after a tape's own `Set Shell`, and before anything a tape overrides.
-# Nothing else belongs here - `Output`, `Require` and the Hide/Show script stay
+# Nothing else belongs here - `Output`, `Require`, and the Hide/Show script stay
 # per tape.
 #
 # Every demo renders at this one geometry, and no tape overrides it. The height
@@ -22,7 +22,7 @@
 #   fish (overlay.tape, complete.tape)            nord
 #
 # bash is the warm one on purpose: it is the shell three of the demos use -
-# demo, packages and colors - so the odd one out in tone is the one you
+# demo, packages, and colors - so the odd one out in tone is the one you
 # see most, and the two cool themes then read as "not bash" at a glance.
 #
 # The bash one lives here because it is the default; the other two override it

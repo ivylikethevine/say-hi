@@ -26,7 +26,7 @@ that reopens a row.
 ## What a "yes" costs
 
 A backend is not one function. A docker-compatible CLI is the exception:
-podman, nerdctl and finch share docker's `ps`/`exec`/`inspect` grammar, so
+podman, nerdctl, and finch share docker's `ps`/`exec`/`inspect` grammar, so
 they are one arm and a word in the family the tree hardcodes
 (GLOSSARY: HI.51) — a new drop-in costs that word, not a row here. Anything
 else touches seven places:
@@ -38,7 +38,7 @@ as>|<liveness probe>|<predicate>`, walked by the dispatch and by
   one `[ "$(<query>)" = <literal> ]`, stderr swallowed.
 - **an arm in `_hi_container_cmds`** filling `probe`/`cp`/`attach`; past
   that, everything is backend-agnostic.
-- **a lister, a `run_lister` case and the usage line** in `common/targets.sh`,
+- **a lister, a `run_lister` case, and the usage line** in `common/targets.sh`,
   in its standalone-POSIX dialect — the only file all three completions read
   and the only one fish can run.
 - **a fifth copy of the roster in `common/header.sh`**: `_hi_probe_launch`
@@ -106,7 +106,7 @@ Can hi land a session there at all?
 | Windows, with Git Bash/Cygwin/MSYS2 on `PATH`                    | ✅ as a target, ✅ as a client — the same code path as any ssh host                                                                                                                                                                                                                        | `.github/workflows/windows-e2e.yml` (target side) and `windows-client.yml` (client side), both called by ci.yml on every push                                                                                                                                                           |
 | Windows, stock OpenSSH (`cmd.exe`/PowerShell)                    | ⚠️ plain PowerShell session, no hi styling — a deliberate fallback, not a failure                                                                                                                                                                                                          | `windows-e2e.yml`, the target-side half above                                                                                                                                                                                                                                           |
 | \*BSD, Solaris/illumos                                           | ✅ FreeBSD and OpenBSD, full session — BSD userland, client half included; OpenBSD with the `bash` and `base64` packages (its base has `b64encode` only); 🟡 the rest, which share that userland                                                                                           | `.github/workflows/freebsd-e2e.yml` and `openbsd-e2e.yml` (fast suites plus a loopback session in a VM), called by ci.yml on every push                                                                                                                                                 |
-| NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected - DSM and QTS ship `bash` beside a busybox `sh` with the `base64` and `mktemp` the bootstrap needs (DSM wants the user-home service on, or there is no `$HOME`); SCALE is Debian, Unraid is Slackware with bash as its shell, CORE is FreeBSD with a bash in base | the Alpine, glibc and FreeBSD rows above prove each shape; nobody has run it on an appliance - [the local-install recipe](#a-local-install-on-a-nas) is drafted, unverified                                                                                                     |
+| NAS: Synology DSM, QNAP QTS, TrueNAS SCALE/CORE, Unraid          | 🟡 full session expected - DSM and QTS ship `bash` beside a busybox `sh` with the `base64` and `mktemp` the bootstrap needs (DSM wants the user-home service on, or there is no `$HOME`); SCALE is Debian, Unraid is Slackware with bash as its shell, CORE is FreeBSD with a bash in base | the Alpine, glibc, and FreeBSD rows above prove each shape; nobody has run it on an appliance - [the local-install recipe](#a-local-install-on-a-nas) is drafted, unverified                                                                                                     |
 | OpenWrt (and other busybox routers)                              | ⚠️ aliases-only — busybox `ash`, no bash, `base64` and `mktemp` present; `opkg install bash` makes it a full session. `/tmp` is RAM, and one payload a connect is fine there                                                                                                               | 🟡 the same shape as Alpine's bash-less case in `ssh_test.sh`; not run on a router                                                                                                                                                                                                      |
 | Termux (Android)                                                 | 🟡 as a **client**, bash and coreutils `base64` are there; install as usual (the link lands in `~/.local/bin`, which Termux puts on `$PATH`). 🟡 as a target, over Termux's own `sshd` (port 8022): full session, bash is Termux's shell                                                   | — the [adb row](#targets-weighed-and-not-shipped) is the other direction and stays a no                                                                                                                                                                                                 |
 | any of the above behind sshd `ForceCommand`, or a `command=` key | ⚠️ the host's own session — the forced program — after a line saying hi's bootstrap never ran; a forced program that exits non-zero and prints nothing gets the PowerShell notice instead                                                                                                  | `ssh_test.sh`'s two forced-command cases                                                                                                                                                                                                                                                |
@@ -118,7 +118,7 @@ Can hi land a session there at all?
 stays 🟡. If you run it, what it gets wrong is a bug report.
 
 A tree on the NAS is for the NAS's own shells - `ssh nas` and the appliance's
-own terminal get the header, the prompt and the aliases without a `hi` in
+own terminal get the header, the prompt, and the aliases without a `hi` in
 front. It does not change what a `hi` from your laptop sends: every ssh target
 gets the payload, whether or not it has a say-hi of its own. Two rules set the
 shape:
@@ -131,7 +131,7 @@ shape:
 - **The home directory on the data volume survives upgrades.** DSM keeps it
   at `/volume1/homes/<user>` once the _user home service_ is on (without it
   there is no `$HOME`, and no `hi` session at all), QTS at
-  `/share/homes/<user>`; SCALE, Unraid and CORE have ordinary homes.
+  `/share/homes/<user>`; SCALE, Unraid, and CORE have ordinary homes.
 
 So the recipe is the README's
 [plain in-place install](../README.md#in-sixty-seconds), done on the NAS as
@@ -154,7 +154,7 @@ Everything the install writes stays on the data volume: `settings.sh` in
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                               |
 
 **A shell framework loads normally on a target** ✅ — oh-my-zsh,
-powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin and mise, each
+powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin, and mise, each
 in `tests/targets/framework_test.sh`. What hi does alongside each, and which
 tools it wires in itself, is [INTEGRATIONS.md](INTEGRATIONS.md).
 
@@ -206,7 +206,7 @@ A "no" above is closed, not permanent, and the one thing that reopens it is
 the same in every section: **evidence of people sitting in it** — who is in
 these, how often, and what they do today instead — enough to be worth what
 [a yes costs](#what-a-yes-costs) everyone who has never heard of it. A new
-exec CLI, a cleaner API or an easier integration moves nothing, because
+exec CLI, a cleaner API, or an easier integration moves nothing, because
 nothing here is a "no" for being hard.
 
 Two proposals about hi itself were weighed and declined without shipping:

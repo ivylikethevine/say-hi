@@ -7,7 +7,7 @@
 # Pinned to v2026.8.14 through the installer that release ships (it bakes in
 # that version and its tarball checksums), not mise.run, which is regenerated
 # on every mise release and so changes hash under a pinned MISE_VERSION. Bump
-# the URL, the hash and MISE_VERSION together.
+# the URL, the hash, and MISE_VERSION together.
 #
 # Run as hitest inside framework.Dockerfile; apt packages come from the roster
 # in tests/targets/framework_test.sh.

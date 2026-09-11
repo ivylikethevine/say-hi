@@ -236,8 +236,7 @@ function test_session_rc_setup_nests_under_cleanup_when_set() {
 }
 
 # ...and without one (the permanent-install shape), a standalone mktemp -
-# unaffected, and the case this suite already had before the whole-tree
-# cleanup above was added.
+# unaffected.
 function test_session_rc_setup_stands_alone_without_cleanup() {
   local dir
   (
@@ -422,7 +421,7 @@ function test_login_shell_steps_past_a_silent_getent() {
 }
 
 # The printf floor itself, below even the table's "Floors at bash" row (which
-# had a bash *installed*): with no styled shell on $PATH at all, the answer is
+# has a bash *installed*): with no styled shell on $PATH at all, the answer is
 # still bash - this file only runs where bash exists, PATH notwithstanding.
 function test_session_shell_floors_at_bash_even_off_path() {
   local fakes
@@ -434,7 +433,7 @@ function test_session_shell_floors_at_bash_even_off_path() {
 }
 
 # load() itself, run for real in a subshell: it traps clean_all, exports the
-# session pointers and ends in `exit`, none of which may reach the suite
+# session pointers, and ends in `exit`, none of which may reach the suite
 # shell. Same SAFETY rule as _hi_clean_all's: $_HI_ROOT and $_HI_CLEANUP are
 # shadowed *before* load() can trap clean_all, so the trap only ever removes
 # the rc directory this run made. The session shell reads $1 as its stdin
@@ -498,7 +497,7 @@ function test_load_exports_viminit_for_vim_sessions() {
   return 1
 }
 
-# $EDITOR/$VISUAL/$SUDO_EDITOR carry the alias's flags into git, crontab and
+# $EDITOR/$VISUAL/$SUDO_EDITOR carry the alias's flags into git, crontab, and
 # sudo -e, read off the aliases themselves. A fake nvim and nano on PATH make
 # the ladder's answer deterministic. <want> is matched as a substring of the
 # "E=..|V=..|S=.." line; the rest are NAME=VALUE for the child.
@@ -510,7 +509,7 @@ function _hi_load_editor_is() {
 
 # _hi_load_editor_on <want> <PATH> [NAME=VALUE...] - the same, on a $PATH the
 # case names whole. The editorless toolbox is load()'s own tools and no editor
-# (this box may carry a real vim, hx or kak): helix answering as the hx alias's
+# (this box may carry a real vim, hx, or kak): helix answering as the hx alias's
 # flags, and no editor at all leaving the three unset, not exported empty.
 function _hi_load_editor_on() {
   local want="$1" path="$2" out

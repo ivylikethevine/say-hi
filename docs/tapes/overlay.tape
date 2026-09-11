@@ -3,7 +3,7 @@
 # (clocks, backend counts, the check on the mono ramp). One aliases.sh
 # overlay, sourced on every target: it works in a bash session on a debian
 # container and a fish session on an
-# alpine box - via docker and podman, so no two of client, target shell and
+# alpine box - via docker and podman, so no two of client, target shell, and
 # backend match. The alpine has bash beside its fish, and fish leads hi's
 # shell tree: that is a *full* session in fish. (A fish-only box was tried
 # here first and taken out - the bash-less aliases-only tier ships hi's own

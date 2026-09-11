@@ -315,7 +315,7 @@ function run_relay_tests() {
   # Two cases, two three-container fixtures, ~44s of a full run spent almost
   # entirely waiting on them - so they run together, each with its own network
   # and its own pair. The kill case finds the client it freezes by *port*
-  # (_hi_ssh_client_pids), which is why the port had to become the case's.
+  # (_hi_ssh_client_pids), which is why the port is the case's.
   _hi_suite_begin
   _hi_par_begin "relay cases"
   _hi_h2 "A relay that ends the way it should, and one that is killed mid-session"

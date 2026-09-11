@@ -4,7 +4,7 @@
 # else.
 #
 # 5.8 rather than 5.9 because the version is the whole point: bookworm,
-# noble, alpine and macOS all ship 5.9, so every machine anyone develops on
+# noble, alpine, and macOS all ship 5.9, so every machine anyone develops on
 # agrees with CI and none of them is the floor. 5.8 is a step back from all of
 # them, which is the only thing that makes the check worth running. Bumping
 # this image is bumping the floor - do it deliberately, and change the badge

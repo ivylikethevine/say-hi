@@ -222,8 +222,8 @@ function _hi_overlay_tar() {
 }
 
 # _hi_cksum <value> [outvar] - cksum's checksum field alone; `${k%% *}`
-# rather than a `cut`, which was a second process per key and there are three
-# keys a connect.
+# rather than a `cut`, which would be a second process per key, three keys a
+# connect.
 function _hi_cksum() {
   local _hi_ck
   _hi_ck="$(printf '%s' "$1" | cksum)"
@@ -372,7 +372,7 @@ function _hi_payload_stream() {
 
 # The walker's rc 2 means "known host, no tag"; only 1 means not in the config.
 # Literal entries only, or a `Host *` block would claim every container,
-# allocation and pod name for ssh. Unmemoized: the memo holds the
+# allocation, and pod name for ssh. Unmemoized: the memo holds the
 # wildcard-aware answer the tag colors want.
 function _hi_is_ssh_host() {
   local rc=0
@@ -442,7 +442,7 @@ function _hi_compose_container() {
 # _hi_outer / _hi_inner <target> [outvar] - the where and the what of
 # `pod/container` and `alloc/task`; docker and podman names are taken whole.
 # GLOSSARY: HI.43. [outvar] because the bodies are pure parameter expansion,
-# so a $( ) was a fork for a value the shell already had (GLOSSARY: HI.05).
+# so a $( ) would fork for a value the shell already has (GLOSSARY: HI.05).
 function _hi_outer() { _hi_out "${2:-}" "${1%%/*}"; }
 function _hi_inner() {
   case "$1" in
@@ -857,10 +857,9 @@ $(_hi_env_each '      export %s=%s\n')
 REMOTE
 }
 
-# hi's yellow and the reset as real escape bytes. Derived from the palette
-# with no caller input: these were two more names the script builders read out
-# of _say_hi's scope, and _hi_wire_bytes never filled them, so the README's
-# wire figure was assembled with the colors missing.
+# hi's yellow and the reset as real escape bytes, derived from the palette
+# with no caller input rather than read out of _say_hi's scope, which
+# _hi_wire_bytes never fills - the README's wire figure would miss them.
 function _hi_esc_pair() {
   printf -v "$1" '%b' "$YELLOW"
   printf -v "$2" '%b' "$NC"
@@ -1158,7 +1157,7 @@ function _hi_container_put() {
 }
 
 # _say_hi_container <label> <errlog> - the container arm, across the
-# docker-compatible family, nomad and kube.
+# docker-compatible family, nomad, and kube.
 function _say_hi_container() {
   local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
@@ -1268,7 +1267,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
 
   # hi.sh rides the payload tar unpacked above, mode and all - no separate
   # copy. Put like the fallback rc. An empty hi.bashrc is the worst failure
-  # this arm has - `bash --rcfile` would start, source nothing and hand over a
+  # this arm has - `bash --rcfile` would start, source nothing, and hand over a
   # bare shell with no error at all - so it is fatal rather than unchecked.
   if ! _hi_bootloader | _hi_container_put - "$root/say-hi/hi.bashrc"; then
     _hi_container_abort " failed to write hi's bootloader into [$DOMAIN]"
@@ -1276,9 +1275,9 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   fi
 
   # `-i` explicitly: `--rcfile` is read by an *interactive* bash and nothing
-  # else, and with a conditional tty that interactivity is no longer inferred
+  # else, and with a conditional tty that interactivity is not inferred
   # from `exec -it`. Without it a piped `hi <container> <cmd>` reads the empty
-  # pipe as a script, ignores the rcfile, never sources load.sh and never runs
+  # pipe as a script, ignores the rcfile, never sources load.sh, and never runs
   # the command - a clean exit and no output.
   #
   # _HI_CLEANUP marks the tree disposable for load.sh's clean_all, which owns
@@ -1286,7 +1285,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   # covers both.
   env_kv="$(_hi_env_each ' %s=%s')"
   # one clock read for both legs: they are microseconds apart, and each
-  # _hi_now was a subshell and a `date` fork on the line before the attach
+  # _hi_now is a subshell and a `date` fork on the line before the attach
   local now
   now="$(_hi_now)"
   "${attach[@]}" sh -c "export$env_kv _HI_HOME='$root' _HI_ROOT='$root/say-hi' _HI_CONFIG_DIR='$root/say-hi/config' _HI_CLEANUP='$root' _HI_COPY_TIME='$(_hi_elapsed "$shell_end" "$now")' _HI_CONNECT_TIME='$(_hi_elapsed "$_HI_CONNECT_T0" "$now")' _HI_CONNECT_PREFIX='$prefix'; exec bash --rcfile '$root/say-hi/hi.bashrc' -i"
@@ -1391,6 +1390,15 @@ function _hi_help_or_version() {
   exit 0
 }
 
+# _hi_is_ssh_value_opt <word> - an ssh option that takes a separate value;
+# doctor.sh sorts its argv with it too
+function _hi_is_ssh_value_opt() {
+  case "$1" in
+  -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # split ssh's arguments from the target and any trailing remote command
 function _hi_parse() {
   local backend_word use_word takes own=""
@@ -1406,22 +1414,13 @@ function _hi_parse() {
       return
     fi
     case $1 in
-    # every ssh option taking a separate value, so it is never read as the target
-    -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w)
-      [ "$#" -ge 2 ] || {
-        _hi_cecho "hi: $1 needs a value" "$RED" >&2
-        exit 1
-      }
-      SSHARGS+=("$1" "$2")
-      shift
-      ;;
     # hi's own -h/-V, anywhere ahead of the target: `hi -o X=Y -h` is a
     # question for hi, not ssh's usage message
     -h | --help | -V | --version)
       _hi_help_or_version "$@"
       ;;
-    # ssh takes no `--word` option at all, so every one is hi's to answer -
-    # the ones below, or an error in hi's own voice
+    # ssh takes no `--word` option, so each is hi's or an error in hi's
+    # voice; a single-dash one is ssh's
     -*)
       if [ "${1%%=*}" = --use ]; then
         # the arm by name, as the next word or after an =
@@ -1449,6 +1448,14 @@ function _hi_parse() {
       elif [ "$1" = -- ]; then
         # ssh's own option terminator, passed along as-is
         SSHARGS+=("$1")
+      elif _hi_is_ssh_value_opt "$1"; then
+        # its value is never read as the target
+        [ "$#" -ge 2 ] || {
+          _hi_cecho "hi: $1 needs a value" "$RED" >&2
+          exit 1
+        }
+        SSHARGS+=("$1" "$2")
+        shift
       elif takes="$(_hi_flag_takes "${1%%=*}")"; then
         # `--plain=1` is one mistake, a local command behind an ssh option is
         # another - those dispatch on the first word alone. Bare flags matched
@@ -1583,7 +1590,7 @@ function _hi_mux_name() {
 }
 
 # _hi_mux_tool <outvar> - which multiplexer wraps the session: the first of
-# tmux, zellij and screen on PATH. Empty, with the reason on stderr, when
+# tmux, zellij, and screen on PATH. Empty, with the reason on stderr, when
 # there is none to use.
 function _hi_mux_tool() {
   local _hi_mt_tool
@@ -1593,7 +1600,7 @@ function _hi_mux_tool() {
       return 0
     fi
   done
-  _hi_cecho "hi: --mux needs tmux, zellij or screen on this machine; connecting without it" "$YELLOW" >&2
+  _hi_cecho "hi: --mux needs tmux, zellij, or screen on this machine; connecting without it" "$YELLOW" >&2
   printf -v "$1" '%s' ''
   return 1
 }
@@ -1614,8 +1621,6 @@ function _hi_kdl_quote() {
 function _hi_mux_wrap() {
   local name tool cmd="" word q layout
   local -a inner=()
-  # MUX is _hi_parse's own 1/0/unset for --mux/--no-mux/neither (hi.sh:1399);
-  # _HI_MUX is the persistent setting, read only when neither flag was typed
   [ "${MUX:-${_HI_MUX:-0}}" = 1 ] || return 0
   [ "${_HI_MUX_INNER:-0}" != 1 ] || return 0 # already inside: connect as usual
   _hi_mux_tool tool || return 0
@@ -1743,7 +1748,7 @@ function _hi_run_script() {
 }
 
 # hi's flags, out of common/flags (its header has the row format): one table
-# for the dispatch here, --help's option lines and completion's roster.
+# for the dispatch here, --help's option lines, and completion's roster.
 _HI_FLAGS=()
 while IFS= read -r _hi_row || [ -n "$_hi_row" ]; do
   case "$_hi_row" in '#'* | '') continue ;; esac
@@ -1829,7 +1834,7 @@ stdout. For a plain, pty-free remote command, use ssh itself.
 
 <target> is resolved in this order, first match wins:
   1. a literal Host entry in ~/.ssh/config (a wildcard one does not count)
-  2. a running container, by name or ID, through docker, podman, nerdctl or
+  2. a running container, by name or ID, through docker, podman, nerdctl, or
      finch - whichever of them answers, in that order
   3. a running nomad allocation, by ID or prefix
   4. a kubernetes pod, in whatever context/namespace kubectl points at -
@@ -1848,7 +1853,7 @@ $(_hi_flag_help local)
 
 Every option that takes a word takes it joined too (--use=docker,
 --update=v1.0.0); one that takes none refuses it.
-Every other option is passed to ssh unchanged - -p, -i, -J, -o and the rest;
+Every other option is passed to ssh unchanged - -p, -i, -J, -o, and the rest;
 ssh takes none that start with two dashes, so an unknown one is hi's error to
 report. Only the first non-option word is the target; everything after it is
 the remote command.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# The parallel batch runner - the counters, teardown and transcript a case needs
+# The parallel batch runner - the counters, teardown, and transcript a case needs
 # when it runs in a background subshell instead of this shell.
 #
 # Part of the tests/test_lib.sh harness; sourced by it, never on its own.
@@ -38,7 +38,7 @@ declare -a _HI_PAR_LABELS=()
 declare -a _HI_PAR_RUNNING=()
 
 # How wide to fan out. Unbounded is the wrong answer on a laptop: twenty sshd
-# containers, twenty ssh clients and twenty pty feeders thrash the docker daemon
+# containers, twenty ssh clients, and twenty pty feeders thrash the docker daemon
 # and swap the box, which is both slower and flakier than four. So the default
 # is four, or the CPU count when that is smaller. $_HI_PAR_WIDTH overrides it,
 # and _HI_PAR_WIDTH=1 is a genuine serial run down this same code path - what

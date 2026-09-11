@@ -6,7 +6,7 @@
 #
 # Every case is a subshell with the whole roster of tool variables unset and
 # only the ones under test put back, so a suite run from inside a venv, a
-# direnv or a mise shell asserts the same thing as one run from a bare login.
+# direnv, or a mise shell asserts the same thing as one run from a bare login.
 #
 # GLOSSARY: HI.30 + HI.34 + HI.54
 # shellcheck disable=SC2329

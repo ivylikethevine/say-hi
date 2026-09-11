@@ -18,7 +18,7 @@ the security half. The account-side steps still open are in
 
 ## The score has a ceiling here
 
-Scorecard weights each check (Binary-Artifacts, License and the rest that sit
+Scorecard weights each check (Binary-Artifacts, License, and the rest that sit
 at 10 count fully) and averages. Which of the low scores are fixable here:
 
 - **Code-Review sits at 0** — 0 of the last several changesets carry an
@@ -27,7 +27,7 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   happened; that's not going to be added. The largest fixable-looking gap in
   the report, and not fixable without a second person.
 - **Fuzzing sits at 0** — say-hi is bash; Scorecard's probe detects OSS-Fuzz,
-  ClusterFuzzLite, Go native fuzzing, cargo-fuzz and OneFuzz, none of which
+  ClusterFuzzLite, Go native fuzzing, cargo-fuzz, and OneFuzz, none of which
   targets shell. `.scorecard.yml` marks it `not-applicable`.
 - **Contributors sits at 3** — the check wants ≥2 contributing organizations
   among recent contributors; there's one. `not-applicable` in
@@ -104,7 +104,7 @@ Already 100%. One correction worth making, and one answer worth keeping:
 | `documentation_security`     | M      | [SECURITY.md](../docs/SECURITY.md).                                                                                                                                                                                             |
 | `documentation_quick_start`  | M      | [README.md#in-sixty-seconds](../README.md#in-sixty-seconds); [tldr.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/tldr.md); [hi.1](https://github.com/ivylikethevine/say-hi/blob/main/docs/hi.1).                                                                                                                          |
 | `documentation_current`      | M      | The lint gate mechanically fails on doc drift - GLOSSARY tags both ways, `SETTINGS.md`'s roster against `_HI_TOGGLES`, `runner_test.sh` against `ci.yml`'s `--group` roster, `packaging_test.sh` against `release.yml`. |
-| `documentation_achievements` | M      | README's badge block links Best Practices, Scorecard and Baseline.                                                                                                                                                      |
+| `documentation_achievements` | M      | README's badge block links Best Practices, Scorecard, and Baseline.                                                                                                                                                      |
 
 #### Basics / Accessibility, i18n, other
 
@@ -154,7 +154,7 @@ Already 100%. One correction worth making, and one answer worth keeping:
 | `test_statement_coverage80`     | M      | README's kcov and bashcov badges, both past the bar, measured over the shipped product.                                                          |
 | `test_policy_mandated`          | M      | [CONTRIBUTING.md](../docs/CONTRIBUTING.md) - a new suite has a home and a `test_runner.sh` registration.                                                 |
 | `tests_documented_added`        | M      | `.github/pull_request_template.md` checklist.                                                                                                    |
-| `warnings_strict`               | M      | `.shellcheckrc` disables nothing globally; shellcheck runs `-x` as a required gate alongside actionlint, zizmor and `mandoc -T lint -W warning`. |
+| `warnings_strict`               | M      | `.shellcheckrc` disables nothing globally; shellcheck runs `-x` as a required gate alongside actionlint, zizmor, and `mandoc -T lint -W warning`. |
 
 #### Security
 

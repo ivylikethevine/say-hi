@@ -1,9 +1,9 @@
 name: CI
 
 on:
-  # ready_for_review is not in the default type set (opened, synchronize,
-  # reopened); without it a draft marked ready fires nothing and the PR sits
-  # with no run at all - every job below is gated on `draft != true`.
+  # Nothing runs on a draft: `changes` skips and every job below skips with
+  # it. ready_for_review is not in the default type set, so it is named here,
+  # or a draft marked ready would never get its run.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
@@ -29,21 +29,21 @@ concurrency:
 
 jobs:
 
-  # `changes` always runs (no job-level `if`, and no `needs:` to skip past),
-  # so `needs.changes.outputs.code` is one flag every code-dependent job below
-  # reads instead of repeating "draft, or nothing relevant changed" itself.
-  # It defaults to 'true' - a draft, a dedup match, or the filter cleanly
-  # reporting no code changes are the only ways to 'false'; a schedule or
-  # dispatch (the filter step's own `if` skips it) and a failed lookup both
-  # leave it 'true', so change-detection breaking has never been read as
-  # "assume nothing changed". `outputs.trusted` is the other flag: a push, or
-  # a pull_request from this repository - read by test-macos's loopback,
-  # e2e-gate and e2e-windows-client instead of each re-deriving the same
-  # two-event check. The three e2e-* reusable-workflow jobs gate on
-  # `needs.e2e-gate.outputs.ok` instead, which is empty when that job skips.
+  # `changes` runs on every event but a draft, so `needs.changes.outputs.code`
+  # is one flag every code-dependent job below reads instead of repeating
+  # "nothing relevant changed" itself. It defaults to 'true' - a dedup match
+  # or the filter cleanly reporting no code changes are the only ways to
+  # 'false'; a schedule or dispatch (the filter step's own `if` skips it) and
+  # a failed lookup both leave it 'true', so change detection breaking is
+  # never read as "assume nothing changed". `outputs.trusted` is the other
+  # flag: a push, or a pull_request from this repository - read by
+  # test-macos's loopback, e2e-gate, and e2e-windows-client. The three e2e-*
+  # reusable-workflow jobs gate on `needs.e2e-gate.outputs.ok` instead, which
+  # is empty when that job skips. The `!cancelled()` jobs below name the
+  # draft clause themselves, since `!cancelled()` runs past a skipped need.
   #
   # Whether anything besides workflow YAML or markdown changed: test,
-  # test-macos, test-alpine, profile, packaging-smoke, e2e and e2e-backends
+  # test-macos, test-alpine, profile, packaging-smoke, e2e, and e2e-backends
   # skip on a workflow-only or docs-only diff. workflow-lint and advisory-lint
   # are exempt - such a change is what they audit - and so are lint and
   # bench: drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md,
@@ -53,11 +53,12 @@ jobs:
   # A push to main whose tree a same-repo PR run already took green (a squash
   # merge of an up-to-date PR, the usual case) is the same code twice: the
   # push finds that run's ci-tree-<tree> marker, `code` reads false, and every
-  # job below skips - lint, workflow-lint, advisory-lint and bench included,
+  # job below skips - lint, workflow-lint, advisory-lint, and bench included,
   # through `reuse-run`. carry-forward hands the PR run's results to what
   # reads main's newest run.
   changes:
     name: detect changes
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -76,10 +77,8 @@ jobs:
           persist-credentials: false
 
       # trusted: a push, or a pull_request from this repository - read by
-      # mark-tree below and by every job that used to spell out the same
-      # two-event, one-repo check itself (test-macos's HI_LOOPBACK,
-      # e2e-gate's own gate, e2e-windows-client's `if:`). A fork PR's head
-      # repository is the fork; a same-repo PR names this one.
+      # mark-tree below, test-macos's HI_LOOPBACK, e2e-gate, and
+      # e2e-windows-client's `if:`. A fork PR's head repository is the fork.
       - id: trust
         env:
           EVENT: ${{ github.event_name }}
@@ -109,11 +108,9 @@ jobs:
               - '!.github/workflows/**'
               - '!**/*.md'
 
-      # same-repo, non-draft only: find_tree_run.sh's header says why same-repo;
-      # a draft's tree has never been marked as gone through this
+      # same-repo only: find_tree_run.sh's header says why
       - if: >-
           github.event_name == 'pull_request'
-          && github.event.pull_request.draft != true
           && steps.trust.outputs.trusted == 'true'
         uses: $/.github/actions/mark-tree
         with:
@@ -135,7 +132,6 @@ jobs:
       - id: gate
         if: always()
         env:
-          DRAFT: ${{ github.event.pull_request.draft }}
           FILTER_OUTCOME: ${{ steps.filter.outcome }}
           FILTER_CODE: ${{ steps.filter.outputs.code }}
           REUSE_RUN: ${{ steps.reuse.outputs.run }}
@@ -144,7 +140,6 @@ jobs:
           code=true
           [ "$FILTER_OUTCOME" != success ] || [ "$FILTER_CODE" = true ] || code=false
           [ -z "$REUSE_RUN" ] || code=false
-          [ "$DRAFT" != true ] || code=false
           echo "code=$code" >>"$GITHUB_OUTPUT"
 
   # ubuntu-24.04-arm (free on a public repo) runs the same suites on arm64,
@@ -189,7 +184,7 @@ jobs:
 
   # The lint group's four suites (shellcheck, dialects, tools, drift), against
   # the pinned tools below - text linting does not depend on the userland, so
-  # the macOS, Alpine, Windows and BSD jobs run `--group fast` alone and this is
+  # the macOS, Alpine, Windows, and BSD jobs run `--group fast` alone and this is
   # the one gate. Its own job, not a step of `test`: the two groups run side
   # by side, and `test` installs none of the five tools only the linters call.
   # Not in e2e-gate's `needs:` - a red lint has no bearing on whether an ssh
@@ -235,7 +230,7 @@ jobs:
   # runner rather than a second macOS one. It ssh's to itself, so client and
   # target are both macOS userland and Apple's /bin/bash 3.2 - run as
   # `/bin/bash ./hi.sh` on purpose, PATH's bash being Homebrew's 5.x: a
-  # one-shot command, a full interactive session and a --doctor. The job keeps
+  # one-shot command, a full interactive session, and a --doctor. The job keeps
   # its name: branch protection requires it and README's macOS badge reads it.
   test-macos:
     name: fast suites (macos-latest)
@@ -384,7 +379,7 @@ jobs:
         run: bash .github/scripts/no_hi_session_left.sh
 
   # The client on musl and busybox: the fast suites in an Alpine container, as
-  # an unprivileged user, with the shells, git, python3 and openssl (bump.sh's
+  # an unprivileged user, with the shells, git, python3, and openssl (bump.sh's
   # BLAKE2 fallback) every other CI box has. Alpine as a target is
   # ssh_test.sh's; this is hi.sh itself on busybox sed/awk/mktemp/ip. Built
   # from alpine-shell.Dockerfile, so the base stays digest-pinned under
@@ -694,16 +689,15 @@ jobs:
             --tarball "$RUNNER_TEMP/package-repo.tar.gz"
           echo "package-repo.tar.gz: $(tar -tzf "$RUNNER_TEMP/package-repo.tar.gz" | grep -c '[^/]$') files"
 
-  # Beside the fast suites, not after them: this and e2e-backends each took
-  # about three minutes to start, so waiting on `test` to spare a runner on a
-  # red unit test cost every green PR three minutes of wall clock - half its
-  # run. A red unit test and a red e2e now show up together.
+  # Beside the fast suites, not after them: this and e2e-backends each take
+  # about three minutes to start, so waiting on `test` would cost every green
+  # PR three minutes of wall clock, and a red unit test and a red e2e show up
+  # together.
   #
-  # Four shards rather than one long run: the eight e2e suites took 25 minutes
-  # serial (test_runner.sh's own width pins to 1 for the whole selection
-  # whenever an e2e/backends/bench suite is in it), and --shard i/n (the same
-  # tool windows-client.yml uses) is a runner-count knob with nothing else to
-  # change if it ever needs bumping - two suites a shard now.
+  # Four shards rather than one long run: the eight e2e suites take 25
+  # minutes serial (test_runner.sh pins its width to 1 whenever an
+  # e2e/backends/bench suite is selected), and --shard i/n (the same tool
+  # windows-client.yml uses) is a runner-count knob - two suites a shard.
   e2e:
     name: e2e (ssh, docker, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
@@ -739,8 +733,8 @@ jobs:
   # installs all three tools (a few redundant seconds, paid in parallel, not
   # serial) so the mapping from shard number to backend lives in one place -
   # test_runner.sh's own table order - instead of being pinned twice, once
-  # here and once in the suite table. Three shards was 40 minutes serial on
-  # one runner (one shared container/VM daemon is what test_runner.sh's width
+  # here and once in the suite table. The three serial on one runner take 40
+  # minutes (one shared container/VM daemon is what test_runner.sh's width
   # pin protects against); a runner apiece is a separate daemon each.
   e2e-backends:
     name: e2e (podman, nomad, kube, shard ${{ matrix.shard }})
@@ -781,16 +775,14 @@ jobs:
   # "was this rightly skipped" logic is written once. `!cancelled()` so a red
   # or skipped shard is reported rather than skipped past itself; `code` is
   # what says a shard was rightly skipped (a workflow-only or docs-only diff)
-  # rather than a failed gate - `changes` always runs now, so its own outright
-  # failure reads as `code` staying 'true' (run everything), never as a
-  # skip a shard's absence could otherwise pass through as green. The trade
-  # for one job: the ssh/docker check now reports only once the slower
-  # podman/nomad/kube shards finish too; both sit on the same required-checks
-  # list regardless, so nothing merges any sooner either way.
+  # rather than a failed gate - `changes` failing outright leaves `code`
+  # 'true' (run everything), never a skip that could pass as green. The
+  # trade for one job: the ssh/docker check reports only once the slower
+  # podman/nomad/kube shards finish too; both are required regardless.
   e2e-checks:
     name: ${{ matrix.name }}
     needs: [changes, e2e, e2e-backends]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:

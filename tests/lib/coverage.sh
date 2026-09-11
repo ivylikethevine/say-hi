@@ -49,12 +49,12 @@ function _hi_cov_shim_sh_to_bash() {
 # _hi_cov_select_suites [runner args...] - fill $_HI_NAMES/$_HI_PATHS with the
 # suites the given runner arguments select. The runner owns the suite table,
 # so ask it rather than keeping a second copy here - the same reason
-# .github/workflows/ci.yml stopped spelling the suites out. `--list-paths`
+# .github/workflows/ci.yml does not spell the suites out. `--list-paths`
 # exists for this caller: the instrumenting tool has to launch the suite
 # script itself, so the name alone is not enough.
 #
 # `shellcheck` is dropped from whatever the selection resolves to. It is a
-# linter sweep, not a code path: it shells out to shellcheck, shfmt and
+# linter sweep, not a code path: it shells out to shellcheck, shfmt, and
 # checkbashisms over every file in the tree and runs almost none of hi's own
 # bash, so it traces nothing this report is asking about - while being the
 # slowest suite in its group by an order of magnitude, and slower again under

@@ -85,18 +85,16 @@ export _HI_HOME_FISH_CONFIG="$HOME/.config/fish/config.fish"
 export _HI_HUMAN_CENTRIC_DATE="+%a %b %e %Y %H:%M:%S %Z"
 
 # What hi.sh's local sub-commands say when they cannot run: the payload ships
-# no scripts/, tests/ or .git. Exported from here so the wording has one home.
+# no scripts/, tests/, or .git. Exported from here so the wording has one home.
 export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - a hi session carries only the payload; git clone https://github.com/ivylikethevine/say-hi has one"
 
 # The flags that take a completable word of their own. Here because all four
-# shells need it and this is the only file all four read: bash.sh, zsh.zsh and
-# config.fish each spelled the pair out to decide whether to ask, so a fifth
-# word-taking flag landed in targets.sh and silently never completed anywhere.
-# targets.sh keeps the words themselves - it owns the content, and stays
+# shells need it and this is the only file all four read - spelled per shell,
+# a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
 export _HI_WORD_FLAGS="--preview --use --update --link --preset"
 alias hi="$_HI_LAUNCHER"
-# The only hi_* alias left (the rest became `hi --flag`): a single echo that
+# The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.
 alias hi_info="echo ' | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | script: $_HI_LAUNCHER'"
 

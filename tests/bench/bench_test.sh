@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Benchmarks for the product's hot paths - the code every shell start, prompt,
-# TAB completion and connect runs - plus the ssh payload's size budget. The
+# TAB completion, and connect runs - plus the ssh payload's size budget. The
 # test suite itself is deliberately NOT benchmarked. Ceilings are generous on
 # purpose: the job is to catch a path getting an order of magnitude slower (a
 # fork slipping into a loop, a probe losing its timeout), not to flake on a

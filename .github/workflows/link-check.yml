@@ -3,7 +3,7 @@ name: Link check
 # Advisory, exactly as ci.yml's markdownlint job is: a rotted external URL is
 # worth seeing and has never shipped a bug, so this reports and never blocks -
 # never add it to required checks. Runs after every green CI battery on a
-# push to main (the batch scorecard, coverage and tool-versions share) and
+# push to main (the batch scorecard, coverage, and tool-versions share) and
 # weekly as a backstop, since link rot happens on the internet's clock with
 # no push here; never per-PR. Before the repo is public the in-repo
 # github.com/... links all 404; a dispatch the day it flips confirms they

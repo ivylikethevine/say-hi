@@ -13,7 +13,7 @@ set -euo pipefail
 # $_HI_HOME exists. It is the default for _HI_HOME below (so a fresh clone and
 # CI run with no setup, and no run falls back to ~/say-hi by accident), and it is
 # also the only honest reference for the tree check further down: $_HI_ROOT,
-# $_HI_TESTS_DIR and this suite table all move together when _HI_HOME is wrong,
+# $_HI_TESTS_DIR, and this suite table all move together when _HI_HOME is wrong,
 # so none of them can notice that it is.
 _HI_RUNNER_TREE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ -z "${_HI_HOME:-}" ]; then
@@ -177,7 +177,7 @@ single case inside it - and --require-run turns both into failures.
   --verbose        stream every suite's transcript live instead of collapsing
                    the passing ones. _HI_VERBOSE=1 does the same
   --host-report    print what this machine is before running anything: bash,
-                   OS, CPU and memory, GNU/BSD/busybox userland, which tree
+                   OS, CPU, and memory, GNU/BSD/busybox userland, which tree
                    \$_HI_HOME resolves to, which backends answer, and the lint
                    tools' versions.
                    _HI_HOST_REPORT=1 does the same. CI passes it always
@@ -490,8 +490,8 @@ function _hi_collect_suite() {
 # one container daemon. The width is the CPU count: the unit suites are plain
 # processes, and the daemon-bound groups below are pinned to one anyway.
 # $_HI_RUNNER_WIDTH overrides (1 is a plain serial run) - both phases below,
-# since a bench/e2e/backends suite in the selection no longer collapses the
-# whole run to width 1, only its own phase.
+# since a bench/e2e/backends suite in the selection pins only its own phase
+# to width 1, not the whole run.
 # parallel.sh's width rule, uncapped as a local-process suite gets it
 _HI_RUNNER_WIDTH="${_HI_RUNNER_WIDTH:-$(_HI_PAR_WIDTH='' _HI_PAR_LOCAL=1 _hi_par_width)}"
 [ "$_HI_RUNNER_WIDTH" -ge 1 ] || _HI_RUNNER_WIDTH=1

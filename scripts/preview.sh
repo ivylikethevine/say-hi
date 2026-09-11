@@ -10,9 +10,7 @@
 #              colors it paints an installed and a missing package, a real
 #              example of each from your own packages file, then the check
 #   header     the connect header itself
-#   targets    every ssh host, container, allocation and pod hi <TAB> offers,
-#              with the backend each resolves to - the one probe reachable
-#              without pressing TAB
+#   targets    every target hi <TAB> offers, with its backend
 #
 # One script for the four subjects: they share the boxed table (table.sh),
 # the palette they paint with, and the scheme line above every table.
@@ -44,7 +42,7 @@ Usage: ${_HI_ARGV0:-preview.sh} <colors|packages|header|targets>
   colors     every ssh host and every known user, in the color it resolves to
   packages   the header's packages check: legend, marks, modes, then the check
   header     the connect header as it will print here
-  targets    every ssh host, container, allocation and pod hi <TAB> offers
+  targets    every ssh host, container, allocation, and pod hi <TAB> offers
 
 Each subject takes --help and no other argument.
 EOF
@@ -60,12 +58,12 @@ colors | packages | header | targets) shift ;;
   # sourced with no subject (the test suite's hatch below): every function,
   # no render, nothing to refuse
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages, header or targets is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
+    _hi_cecho "${_HI_ARGV0:-preview.sh}: one of colors, packages, header, or targets is required (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
     exit 1
   fi
   ;;
 *)
-  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages, header or targets (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
+  _hi_cecho "${_HI_ARGV0:-preview.sh}: unknown subject '$_hi_subject' - one of colors, packages, header, or targets (${_HI_ARGV0:-preview.sh} --help)" "$RED" >&2
   exit 1
   ;;
 esac
@@ -121,7 +119,7 @@ EOF
 Usage: $_hi_argv0
 
 Prints the connect header exactly as this machine would draw it, under the
-settings.sh in force - the way to judge a header order, width or palette
+settings.sh in force - the way to judge a header order, width, or palette
 before saving it.
 
 Takes no arguments.
@@ -131,11 +129,10 @@ EOF
     cat <<EOF
 Usage: $_hi_argv0
 
-Prints every target \`hi <TAB>\` offers - the \`Host\` entries in
-~/.ssh/config, plus every running container, allocation and pod, each with
-the backend it resolves to. Unlike the other subjects, this one probes the
-backends: it takes as long as a cold \`hi <TAB>\` does, and the completion
-cache is bypassed so it never shows a stale list.
+Prints every target \`hi <TAB>\` offers - ~/.ssh/config's Host entries and
+every running container, allocation, and pod - with its backend. It probes
+the backends past the completion cache, so it takes as long as a cold
+\`hi <TAB>\`.
 
 Takes no arguments.
 EOF
@@ -174,10 +171,8 @@ function _hi_print_scheme_line() {
 # targets
 #
 
-# _hi_print_targets_table - every "<name>\t<kind>" line common/targets.sh's
-# own listing emits, boxed the way the other subjects render. TTL=0 so a
-# stale completion cache never stands in for a fresh probe - this is the one
-# subject that costs what a cold `hi <TAB>` costs.
+# _hi_print_targets_table - common/targets.sh's "<name>\t<kind>" lines, boxed;
+# TTL=0 so the completion cache never answers for a fresh probe
 function _hi_print_targets_table() {
   local name kind i w_name=0 w_kind=0
   local -a names=() kinds=()
@@ -187,7 +182,7 @@ function _hi_print_targets_table() {
     kinds+=("$kind")
   done < <(_HI_TARGETS_TTL=0 sh "$_HI_TARGETS")
   if [ "${#names[@]}" -eq 0 ]; then
-    _hi_cecho " | nothing resolves - no Host entries in ~/.ssh/config, and no running container, allocation or pod" "$YELLOW"
+    _hi_cecho " | nothing resolves - no Host entries in ~/.ssh/config, and no running container, allocation, or pod" "$YELLOW"
     return 0
   fi
   _hi_widen w_name "${names[@]}" TARGET
@@ -209,7 +204,7 @@ function _hi_print_targets_table() {
 
 # _hi_colors_rows <type> - every pinned name of that type, one per line, file
 # order, not deduped - the one walk of $_HI_COLORS behind _hi_pattern_for,
-# _hi_pattern_pins and _hi_colors_names below. Not in core.sh: the colors
+# _hi_pattern_pins, and _hi_colors_names below. Not in core.sh: the colors
 # preview is its only caller, and core.sh ships in the ssh payload under a
 # size budget nothing a target runs should spend.
 function _hi_colors_rows() {

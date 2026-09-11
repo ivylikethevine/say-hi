@@ -77,7 +77,7 @@ class SayHi < Formula
   def caveats
     <<~EOS
       `hi` is on your PATH now, but your shells are not wired up yet. To get the
-      header, prompt, aliases and editor configs in your own shells, run:
+      header, prompt, aliases, and editor configs in your own shells, run:
 
         hi --install
 

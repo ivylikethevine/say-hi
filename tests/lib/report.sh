@@ -470,7 +470,7 @@ function _hi_host_report() {
   _hi_host_row cpu "${cores:-?} cores${cpu:+ - $cpu}"
   _hi_host_row memory "${mem:-?}"
 
-  # GNU or not decides `sed -i`, `mktemp -t`, `base64 -D` and half the reasons
+  # GNU or not decides `sed -i`, `mktemp -t`, `base64 -D`, and half the reasons
   # a suite passes here and fails on the macOS job
   sed_ver="$(sed --version 2>&1 </dev/null || true)"
   case "$sed_ver" in

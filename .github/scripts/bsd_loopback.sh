@@ -8,12 +8,11 @@
 # refuses the ambiguity - and OpenBSD's own base64 package on OpenBSD).
 #
 # vmactions runs `ssh <host> sh` and pipes the workflow's `run:` field to that
-# sh's stdin - now just the one line invoking this script, `</dev/null` - so
-# nothing here inherits a stdin with more of that field still unread. That
-# used to matter line by line: a child reading to EOF once ate the rest of a
-# longer inline script, and sh - which had buffered more than it had executed
-# - resumed mid-word ("sh: ssh-k: not found"). The `</dev/null` on ssh and
-# python3 below stays anyway, now belt and braces rather than the fix itself.
+# sh's stdin - the one line invoking this script, `</dev/null` - so nothing
+# here inherits a stdin with more of that field unread: a child reading to EOF
+# would eat the rest of a longer inline script, and sh would resume mid-word
+# ("sh: ssh-k: not found"). The `</dev/null` on ssh and python3 below is belt
+# and braces on top of that.
 set -eu
 cd "$GITHUB_WORKSPACE"
 _HI_HOME="$(cd .. && pwd)"

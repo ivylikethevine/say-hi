@@ -37,7 +37,7 @@ EOF
 }
 
 # _hi_ds_dispatch <flag> [args...] - one dispatch in a subshell, both script
-# vars pointed at the stub, transcript on stdout and the status in
+# vars pointed at the stub, transcript on stdout, and the status in
 # $_HI_DS_RC. A row with no script var returns 1 having run nothing, which is
 # the difference this reads.
 function _hi_ds_dispatch() {
@@ -76,7 +76,7 @@ function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
 args=--configure --preset dev" ]
 }
 
-# a row with no script var (--plain, --mux and the like) is hi.sh's own
+# a row with no script var (--plain, --mux, and the like) is hi.sh's own
 # case arm further down; dispatch has to decline it rather than exec nothing
 function test_dispatch_declines_a_row_with_no_script() {
   _hi_ds_dispatch --plain
@@ -244,7 +244,7 @@ function test_require_is_quiet_for_a_tool_that_is_there() {
   [ -z "$err" ] && [ "$_HI_SAID" = 0 ]
 }
 
-# the message names the tool, the host and what it was wanted for - a bare
+# the message names the tool, the host, and what it was wanted for - a bare
 # "not installed" is what this exists to avoid
 function test_require_names_the_tool_and_the_reason() {
   local _HI_SAID=0 err rc=0

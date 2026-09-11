@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh, the client entry point: argument parsing, backend
-# dispatch, `--help` and the local sub-commands - everything that decides what
+# dispatch, `--help`, and the local sub-commands - everything that decides what
 # hi is about to do before it does any of it.
 #
 # Sourcing hi.sh goes through the same `[[ BASH_SOURCE == $0 ]]` hatch install.sh
@@ -272,7 +272,7 @@ function test_predicates_are_false_without_their_cli() {
     ! PATH="$empty" _hi_is_k8s_pod yes
 }
 
-# The predicates run together now, so the guarantee worth pinning is that the
+# The predicates run together, so the guarantee worth pinning is that the
 # *answer* is still the roster's first match rather than whichever CLI
 # happened to reply first. The shims answer for target "yes", so a target
 # every backend claims must still resolve to docker - the row at the top of
@@ -848,7 +848,7 @@ function _hi_roff_switches() {
 
 # The `--switches` common/flags' <argument> column names for one flag - the
 # sub-switches a local command takes (`--doctor` takes --json and --use,
-# `--install` takes --yes, --link, --preset and --dry-run). Empty for a flag
+# `--install` takes --yes, --link, --preset, and --dry-run). Empty for a flag
 # whose argument is a bare positional (`--use <backend>`, `--update [<tag>]`
 # has --dry-run beside it).
 function _hi_flag_switches() {
@@ -908,9 +908,8 @@ function test_man_page_options_are_all_hi_s() {
 
 # The synopsis check above stops at the first `.br`, which leaves every local
 # command's own form - `hi --install [--yes] [--link ...] ...` - unread. Each
-# of those is common/flags' <argument> column written a second time, and the
-# page kept --link on --configure for a release after the wizard stopped
-# taking it. Every local command has to have a form, and each form has to
+# of those is common/flags' <argument> column written a second time, free to
+# drift from it. Every local command has to have a form, and each form has to
 # name exactly the switches its column does - as a set, since the page may
 # order them for reading; `--link " " {none|user|system}` counts as --link.
 function test_local_synopsis_forms_match_common_flags() {
@@ -973,7 +972,7 @@ function test_local_option_headings_match_common_flags() {
 # The synopsis is one sentence written twice - $_HI_USAGE and the page's
 # first .SH SYNOPSIS line - and this is the check the comment above
 # _HI_USAGE promises. The roff is flattened: the request names, font
-# escapes and quotes dropped, \- unescaped, and every space removed on both
+# escapes, and quotes dropped, \- unescaped, and every space removed on both
 # sides (roff joins .RI/.RB arguments without them), as are --help's angle
 # brackets (the page sets those names in italics instead).
 function test_usage_line_matches_the_man_page_synopsis() {
@@ -1009,17 +1008,12 @@ function test_help_fits_eighty_columns() {
   }
 }
 
-# ...and that check asks only whether a flag appears in the page at all, which
-# is why the page's *grouping* drifted twice without failing anything. hi.1
+# ...and that check asks only whether a flag appears in the page at all, so
+# the page's *grouping* could drift without failing anything. hi.1
 # splits OPTIONS at "The local commands act on this machine": above it is what works
 # anywhere, below it is what needs a part of the tree the payload does not
 # carry, and that paragraph names the exceptions to itself. common/targets.sh
-# makes the same split at runtime, so the two are one fact written twice - and
-# they disagreed in both directions at once. --doctor was documented in the top
-# group while the roster correctly withheld it in a session (scripts/doctor.sh
-# is not in $_HI_PAYLOAD), and the packages preview was documented in the bottom
-# group while the roster still offered it there (a since-retired fallback to
-# the shipped common/header.sh).
+# makes the same split at runtime, so the two are one fact written twice.
 function test_man_page_option_groups_match_the_roster() {
   local man="$_HI_HOME/say-hi/docs/hi.1" zones all session flag bad=0
   [ -f "$man" ] || return 1
@@ -1109,8 +1103,8 @@ function test_the_shell_tree_is_the_documented_order() {
 # as a process against two throwaway trees.
 #
 # tests/lib/fixtures.sh's _hi_scratch_tree builds the shape a *target* gets:
-# common/, settings/, load.sh and hi.sh copied in, and deliberately no
-# scripts/, no tests/ and no .git. That is the shape every one of these
+# common/, settings/, load.sh, and hi.sh copied in, and deliberately no
+# scripts/, no tests/, and no .git. That is the shape every one of these
 # flags has to refuse by name, and it is the reason $_HI_NO_CHECKOUT exists.
 # _hi_subcmd_run (same file) runs hi.sh as a process against one.
 #
@@ -1144,8 +1138,7 @@ function test_local_subcommands_refuse_without_the_checkout() {
   for flag in --install --uninstall --configure "--preview colors" "--preview packages" "--preview header" --doctor --update; do
     # the refusal names the row's flag alone, never a subject or target
     # riding after it - every subcommand agrees, --preview included, since
-    # common/flags' row dispatch is what handles it now rather than a case
-    # arm of hi.sh's own
+    # common/flags' row dispatch handles them all
     say="${flag%% *}"
     # shellcheck disable=SC2086 # "--preview colors" is two words on purpose
     out="$(_hi_subcmd_run "$home" $flag)" && {
@@ -1211,11 +1204,11 @@ function test_preview_refuses_an_unknown_subject() {
   local home out rc=0
   home="$(_hi_scratch_tree preview-real common settings load.sh hi.sh scripts)"
   out="$(_hi_subcmd_run "$home" --preview bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, header or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview=bogus)" && return 1
-  [[ "$out" == *"one of colors, packages, header or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview)" && return 1
-  [[ "$out" == *"one of colors, packages, header or targets"* ]] || return 1
+  [[ "$out" == *"one of colors, packages, header, or targets"* ]] || return 1
   out="$(_hi_subcmd_run "$home" --preview --help)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == "Usage: hi --preview"* ]]
 }
@@ -1230,24 +1223,6 @@ function test_use_words_match_the_backend_roster() {
   roster="$(sh "$_HI_ROOT/common/targets.sh" words --use | cut -f1)"
   [ "$roster" = "$want" ] || {
     _hi_cecho "   words --use: ${roster//$'\n'/ } - hi.sh: ${want//$'\n'/ }" "$RED"
-    return 1
-  }
-}
-
-# doctor.sh cannot depend on hi.sh's own copy of this list without sourcing
-# its trailing dispatch (hi.sh:1859's `set +euo pipefail` would undo
-# doctor's strict mode), so scripts/lib.sh's _hi_is_ssh_value_opt is a
-# second spelling - pinned here to _hi_parse's case arm rather than left to
-# drift quietly apart.
-function test_ssh_value_opts_match_lib_sh() {
-  local hi_list lib_list
-  hi_list="$(grep -A1 -F 'every ssh option taking a separate value' "$_HI_ROOT/hi.sh" |
-    tail -1 | grep -oE -- '-[A-Za-z]' | sort -u | tr '\n' ' ')"
-  lib_list="$(grep -A2 -F 'function _hi_is_ssh_value_opt' "$_HI_ROOT/scripts/lib.sh" |
-    tail -1 | grep -oE -- '-[A-Za-z]' | sort -u | tr '\n' ' ')"
-  [ -n "$hi_list" ] && [ "$hi_list" = "$lib_list" ] || {
-    _hi_cecho "   hi.sh: $hi_list" "$RED"
-    _hi_cecho "   scripts/lib.sh: $lib_list" "$RED"
     return 1
   }
 }
@@ -1279,7 +1254,7 @@ function test_paths_defines_no_command_aliases() {
 # PLAIN/arm 2x2 that picks which _say_hi* runs, and the record/report calls
 # that follow depending on the exit status. It calls `exit` outright, so
 # every case here redefines the four _say_hi* arms plus _hi_parse,
-# _hi_select_arm and _hi_report_failure to markers instead
+# _hi_select_arm, and _hi_report_failure to markers instead
 # of the real thing, in a subshell so none of it leaks to the next case.
 #
 # _hi_dispatch_probe <plain> <backend> <status> - runs _hi with $PLAIN=<plain> and
@@ -1482,7 +1457,6 @@ function run_hi_parse_tests() {
   _hi_check "Each refuses by name without the checkout" test_local_subcommands_refuse_without_the_checkout
   _hi_check "--preview wants one of four subjects" test_preview_refuses_an_unknown_subject
   _hi_check "--use's completion roster is hi's backend roster" test_use_words_match_the_backend_roster
-  _hi_check "scripts/lib.sh's ssh value-opts match hi.sh's" test_ssh_value_opts_match_lib_sh
   _hi_check "Each execs the right script and args" test_local_subcommands_exec_the_right_script
   _hi_check "A joined word needs a positional to stand for" test_joined_value_is_refused_where_nothing_is_positional
   _hi_check "Extra arguments ride along" test_local_subcommands_forward_extra_arguments

@@ -2,14 +2,14 @@
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
-**fish** (which parses `common/paths.sh`, `settings/aliases.sh` and
+**fish** (which parses `common/paths.sh`, `settings/aliases.sh`, and
 `settings.sh` natively). Targets also split between **GNU and BSD userlands**.
 Each entry is a construct that looks odd until you know which master it serves.
 
 Every entry carries a stable `HI.NN` code; a file references it with a
 `# GLOSSARY: HI.NN` tag — one code, or two joined with `+`, optional prose
 after — instead of re-explaining. The tag is _mandatory_ in `common/`,
-`settings/`, `load.sh` and `hi.sh`. Tags point at codes, so an entry can be
+`settings/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
 retitled without touching a tagged file; codes are never reused once retired.
 `tests/lint/drift_test.sh` fails the build if a tag names a code this file
 doesn't define, or if an entry here is referenced by nothing. This file never
@@ -117,7 +117,7 @@ the form that actually clears it on every bash this project targets.
 tail: sourcing the file defines its functions and stops there, which is how
 the test suites reach the functions without running an install/bump/render.
 `scripts/install.sh`, `packaging/bump.sh`, `packaging/mkpkg.sh`,
-`packaging/mkrepo.sh` and `scripts/preview.sh` all carry it.
+`packaging/mkrepo.sh`, and `scripts/preview.sh` all carry it.
 
 ## HI.07 toggle defaulting
 
@@ -459,7 +459,7 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment strip
 
-Every `*.sh`, `*.zsh` and `*.fish` file — and the `flags`/`colors`/`packages`/
+Every `*.sh`, `*.zsh`, and `*.fish` file — and the `flags`/`colors`/`packages`/
 `vim.rc`/`nano.rc`/`emacs.el`/`helix.toml`/`kak.rc` data files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
@@ -468,7 +468,7 @@ the stripper.
 `bench_payload_readme_badge` checks README's badge against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
-told from `${x#y}`, `$#` or a `#` in a string without a real parser. **Never
+told from `${x#y}`, `$#`, or a `#` in a string without a real parser. **Never
 inside a heredoc**: those bodies are data the target reads, one of them
 `hi --help`. The comment test runs _before_ the heredoc-open test: a comment
 mentioning `<<WORD` would otherwise open a heredoc that never closes and
@@ -507,8 +507,8 @@ two userlands pad differently, and only one pads something that survives
 compression: GNU tar rounds the _uncompressed_ archive up to the 10240-byte
 blocking factor and then gzips it, so its trailing NULs cost about thirty
 bytes; bsdtar — macOS's `/usr/bin/tar` — pads the _compressed output stream_,
-appending raw NULs after the gzip member, so every payload a BSD client built
-was a multiple of 10240: about 27% waste on a stock payload and a flat 54× on
+appending raw NULs after the gzip member, so a one-step payload built on a BSD
+client is a multiple of 10240: about 27% waste on a stock payload and a flat 54× on
 a two-file overlay (189 B against 10240). Split, the steps agree with GNU tar
 to within a few bytes under both userlands and are byte-stable run to run.
 
@@ -528,7 +528,7 @@ so `tar cf - -C dir` archives a file called `-C` there.
 ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
 toggle is read where it applies, and a session that switched something off
 carries the file and leaves it alone (a per-toggle trim of the tar would
-save about a kilobyte at the cost of a cache key, a second table and an
+save about a kilobyte at the cost of a cache key, a second table, and an
 exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
@@ -557,7 +557,7 @@ bash.
 Everything `hi.sh` bakes into a script for the target is text the target's
 shell will parse, and some of it is data: `$DOMAIN` off argv,
 `$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE` off
-`git describe --dirty`. An unescaped `$`, quote or backtick in any of them
+`git describe --dirty`. An unescaped `$`, quote, or backtick in any of them
 breaks the bootloader's parse and lets the target run a command substitution
 it should not. `_hi_ssh_sh` quotes its `sh -c` word through the same function,
 so the transports cannot drift into two dialects, and `_hi_env_each` takes
@@ -573,7 +573,7 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml` and
+The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml`, and
 bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
@@ -596,7 +596,7 @@ split: a container name on any of the docker-compatible family (HI.51) is
 taken whole, having no inner unit and `/` being legal in it.
 
 kube adds `[[context:]namespace:]pod[/container]` (`_hi_kube_split`). `:` is
-the separator because no ssh host, container name or allocation id may carry
+the separator because no ssh host, container name, or allocation id may carry
 one, so a prefixed name can only mean a pod; no prefix means whatever kubectl
 points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
 pods outside the current namespace. A multi-container pod resolves on the pod
@@ -673,7 +673,7 @@ is six names:
   straight off its environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
-`common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
+`common/paths.sh` alongside sh, zsh, and bash, and the one assignment all four
 accept is `export NAME=value`, so every name it sets arrives exported —
 nearly forty. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
 un-exports the lot as the last thing in its required block: `_hi_unexport` in
@@ -742,7 +742,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twenty-four palette
 names render as; it never adds a name. `_hi_hash_color`, the
-`settings/colors` pins, `_hi_color_escape` and `hi --preview colors` all keep
+`settings/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
 the same vocabulary, so a scheme is invisible to everything that reasons
 about a color by name - only the bytes a name turns into change. The names
 are the terminal's twelve plus twelve extras (orange, pink, teal, ...) that
@@ -787,7 +787,7 @@ answer.
 
 **The scheme is that same string, in the setting.**
 `_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
-24, 48 or 0: exactly that many six-digit hex words one space apart is a
+24, 48, or 0: exactly that many six-digit hex words one space apart is a
 scheme, anything else — a leftover name, a typo, nothing — renders as the
 default. Forty-eight words are two banks of the
 twenty-four names. `_hi_scheme_hex` takes slot indexes 0-47 and folds 24-47
@@ -825,7 +825,7 @@ back to the plain name on their own.
 
 ## HI.51 docker-compatible CLI family
 
-docker, podman, nerdctl and finch take the same `ps --format`, `exec -i[t]`
+docker, podman, nerdctl, and finch take the same `ps --format`, `exec -i[t]`,
 and `container inspect -f` grammar, so hi has one container arm and tries all
 four, in that order. Each member is its own kind: `common/targets.sh` builds
 its roster from the family and emits `<name>\t<cli>` per lane, `hi.sh`

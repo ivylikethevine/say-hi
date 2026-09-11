@@ -8,13 +8,13 @@
 # probes against the real machine's PATH, this one against a from-scratch
 # fake one, and the two world-setups read better apart than interleaved.
 # Both run for real in zsh,
-# sh, bash and fish against a from-scratch PATH of no-op fake binaries, so the
+# sh, bash, and fish against a from-scratch PATH of no-op fake binaries, so the
 # results are about resolution behaviour rather than what this machine happens
 # to have installed.
 #
-# It is also the regression test for the bug that motivated it: in zsh, dash and
-# sh (not bash, not fish) `command -v name` returns an *alias's* definition once
-# one exists, so any chain reachable from an aliased name silently broke - see
+# It also guards the reason it exists: in zsh, dash, and sh (not bash, not
+# fish) `command -v name` returns an *alias's* definition once one exists, so
+# any chain reachable from an aliased name would silently break - see
 # the resolve-before-aliasing block at the top of settings/aliases.sh.
 #
 # GLOSSARY: HI.30 + HI.34
@@ -476,7 +476,7 @@ function run_alias_fallthrough_test() {
   # the vim/helix and bat/eza ladders moved to tests/scripts/configure_test.sh,
   # which already sources configure.sh to call _hi_editors_preview and
   # _hi_tool_alias_preview - both read their alias back from a real `source
-  # settings/aliases.sh` now, so nothing here can drift from it to pin - this
+  # settings/aliases.sh`, so nothing here can drift from it to pin - this
   # suite only sources settings/aliases.sh
   run_fallthrough_tests
   run_flag_tests

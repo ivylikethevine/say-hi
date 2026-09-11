@@ -28,7 +28,7 @@ export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/hi.testcfg.$$"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ...and the four files that carry a path variable of their own, for the same
-# reason one line later. Each now takes an explicit value over the overlay's
+# reason one line later. Each takes an explicit value over the overlay's
 # ("only when unset", common/paths.sh), so a value inherited from the shell
 # that launched the suite - an agent session, a developer's own hi session -
 # would be read as a deliberate choice and outrank the $_HI_CONFIG_DIR above.

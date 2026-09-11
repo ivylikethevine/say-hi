@@ -20,7 +20,7 @@
 # in the string (an extglob `*(...)` is re-tried from every position), and a
 # 2KB colored render took seconds, an 8KB one never finished. The ESC and BEL
 # bytes are spliced in as bytes - BSD sed has no \x1b - and a literal ESC
-# inside a bracket expression is fine on GNU, BSD and busybox sed alike. sed
+# inside a bracket expression is fine on GNU, BSD, and busybox sed alike. sed
 # ends its last line with a newline where bash's printf did not; every caller
 # reads the result through $(...) or a pipe, which does not see it.
 function _hi_strip_ansi() {
@@ -388,11 +388,11 @@ function _hi_fake_path() {
 # unusable entry (a plain copy standing in for the link, or a link `PATH`-exec
 # can't actually run - either way `_hi_can_symlink`'s dedicated probe, which
 # every other symlink-gated case in this suite already trusts, correctly said
-# no). Gated on that probe now rather than re-deriving the answer per tool:
+# no). Gated on that probe rather than re-deriving the answer per tool:
 # `ln -sf` is only attempted where the probe says it works, and its result is
 # checked with `[ -L ]`, not `[ -e ]`, so a copy standing in for the link can't
 # pass as one. A caller that splices a broken toolbox into $PATH has no `sh`,
-# `awk` or `sed` at all, so its cases would fail in ways that look nothing
+# `awk`, or `sed` at all, so its cases would fail in ways that look nothing
 # like the symlink that caused them.
 function _hi_real_path() {
   local dir="$_HI_WORKDIR/$1" tool real
@@ -512,7 +512,7 @@ function _hi_subcmd_run() {
 }
 
 # _hi_settings_fixture <name> <fn...> - run <fn...> with $_HI_ROOT,
-# $_HI_CONFIG_DIR and $_HI_SETTINGS pointed at throwaway paths under
+# $_HI_CONFIG_DIR, and $_HI_SETTINGS pointed at throwaway paths under
 # $_HI_WORKDIR/<name>. scripts/install.sh's writers (config_shell,
 # ensure_settings_shebang) and its uninstall half (strip_settings) all reach for
 # those three, which in a real run are this very checkout and the developer's

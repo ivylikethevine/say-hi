@@ -1,6 +1,6 @@
 # `hi <TAB>`: every target hi can reach, from one list, tagged by where it came
 # from. Render with `vhs docs/tapes/complete.tape` from the repo root, with
-# docker, podman, nomad, kind and kubectl all working and hi on PATH; the kind
+# docker, podman, nomad, kind, and kubectl all working and hi on PATH; the kind
 # cluster takes a minute the first time. Manual artifact, reviewed by eye.
 #
 # The only tape whose subject is the client alone: nothing is connected to, so
@@ -22,7 +22,7 @@
 # real hostnames must not land in a committed GIF - but $HOME is not available
 # here: podman reads its storage out of $HOME and kubectl reads ~/.kube/config,
 # so faking it silently empties two of the four backends this demo exists to
-# show. Both were empty in the pane before this line was what it is.
+# show.
 #
 # It goes *after* the rc, not before. common/paths.sh assigns _HI_SSH_CONFIG
 # from $HOME unconditionally every time it is sourced (paths.sh:52), so a value

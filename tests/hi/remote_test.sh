@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: everything the client writes for the target to run.
-# The bootloader, the fallback rc, the ssh preamble
+# The bootloader, the fallback rc, the ssh preamble,
 # and `--version` - strings assembled on this side and executed on the other.
 #
 # Sourcing hi.sh goes through the same `[[ BASH_SOURCE == $0 ]]` hatch install.sh
@@ -31,7 +31,7 @@ function test_bootloader_calls_load_for_a_session() {
 }
 
 # ...and a one-off command replaces that call outright, so load() - and with
-# it the header, the session rc and clean_all - never runs
+# it the header, the session rc, and clean_all - never runs
 function test_bootloader_replaces_load_with_the_command() {
   local out
   out="$(CMDARG='echo hi; exit' _hi_bootloader)"
@@ -60,7 +60,7 @@ function test_fallback_rc_sources_paths_and_aliases() {
   [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/settings/aliases.sh'* ]]
 }
 
-# The command is NOT in the shared rc any more - fish reads that file through
+# The command is NOT in the shared rc - fish reads that file through
 # -C, where an `exit` does not stop its interactive reader (GLOSSARY: HI.23),
 # and the podman suite's fish case hung the full timeout for as long as it was
 function test_fallback_rc_leaves_the_command_out() {
@@ -199,7 +199,7 @@ printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ]
 }
 
 # ...and the target as typed reaches the no-bash fallback line as one quoted
-# word, now that the session carries no variable for it
+# word, since the session carries no variable for it
 function test_suffix_quotes_a_hostile_target_name() {
   local out
   out="$(hi_esc="" nc_esc="" DOMAIN="$_HI_MEAN" _hi_remote_suffix)"

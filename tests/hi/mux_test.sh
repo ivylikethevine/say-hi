@@ -125,27 +125,18 @@ function test_no_mux_flag_clears_mux_ahead_of_the_target() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--no-mux goes before the target"* ]]
 }
 
+# MUX="" is _hi_parse's "neither flag typed"
 function test_mux_wrap_is_a_no_op_without_the_flag() {
   local log="$_HI_WORKDIR/off.log" out
-  out="$(_hi_mux_run "$log" 0 'MUX=0')"
+  out="$(_hi_mux_run "$log" 0 'MUX=""; unset _HI_MUX')"
   [ "$out" = RETURNED ]
 }
 
-# _HI_MUX=1 is read only when neither --mux nor --no-mux was typed - MUX=""
-# is _hi_parse's "neither" (hi.sh:1399), the harness's own MUX=1 default set
-# aside for it
 function test_mux_wrap_reads_the_setting_when_neither_flag_was_typed() {
   local log="$_HI_WORKDIR/setting.log" out
   out="$(_hi_mux_run "$log" 0 'MUX=""; export _HI_MUX=1')"
   [ "$(printf '%s\n' "$out" | grep -c '^TMUX')" = 1 ] || return 1
   case "$out" in *RETURNED*) return 1 ;; esac
-}
-
-# the setting off (or unset) is the shipped default: no flag, no wrap
-function test_mux_wrap_is_a_no_op_with_the_setting_off() {
-  local log="$_HI_WORKDIR/setting-off.log" out
-  out="$(_hi_mux_run "$log" 0 'MUX=""; export _HI_MUX=0')"
-  [ "$out" = RETURNED ]
 }
 
 # --no-mux is the per-connect way out of _HI_MUX=1, and still wins over it
@@ -190,7 +181,7 @@ function test_mux_wrap_inside_tmux_creates_then_switches() {
 }
 
 # the inner argv is the parsed state - a picked target, --use, --plain, the
-# ssh options and the command all ride along, each as one quoted word
+# ssh options, and the command all ride along, each as one quoted word
 function test_mux_wrap_rebuilds_the_inner_argv_from_parsed_state() {
   local log="$_HI_WORKDIR/argv.log" out
   out="$(_hi_mux_run "$log" 0 "BACKEND=docker PLAIN=1 SSHARGS=(-p 2222) DOMAIN='pod name' RAWCMD=\"echo it's\"")"
@@ -292,7 +283,6 @@ function run_hi_mux_tests() {
   _hi_h2 "Testing: _hi_mux_wrap"
   _hi_check "Without the flag, nothing happens" test_mux_wrap_is_a_no_op_without_the_flag
   _hi_check "_HI_MUX=1 wraps when neither flag was typed" test_mux_wrap_reads_the_setting_when_neither_flag_was_typed
-  _hi_check "_HI_MUX=0 is the shipped default: no wrap" test_mux_wrap_is_a_no_op_with_the_setting_off
   _hi_check "--no-mux still beats _HI_MUX=1" test_no_mux_flag_beats_the_setting
   _hi_check "The inner hi does not wrap again" test_mux_wrap_stands_down_inside_the_wrapped_session
   _hi_check "No tmux here: connect un-wrapped, with a warning" test_mux_wrap_connects_plain_without_tmux

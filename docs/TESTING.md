@@ -47,7 +47,7 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   under the runner.
 - A suite whose backend is missing reports **SKIPPED**, never green; so does a
   single case (an image that would not build, a tool not installed).
-  `--require-run` — what CI's lint, e2e and backends jobs pass — turns both
+  `--require-run` — what CI's lint, e2e, and backends jobs pass — turns both
   into failures: the suite goes red, its transcript replays, and each
   stood-down case is named in the recap.
 - `--host-report` (`_HI_HOST_REPORT=1`) prints one block before the first
@@ -75,7 +75,7 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
 Five groups (`--group <name>`; `--list` prints the membership):
 
 - **`fast`** — dependency-free unit suites, the first thing CI runs on every
-  platform job; `test_lib`, `test_lib_report`, `test_lib_par` and
+  platform job; `test_lib`, `test_lib_report`, `test_lib_par`, and
   `test_runner` are the harness testing itself. Suites run **side by side**
   (one per CPU), each in its own workdir with its own tally
   files, transcripts replayed in table order, so the run reads like a serial
@@ -87,7 +87,7 @@ Five groups (`--group <name>`; `--list` prints the membership):
   suites barely overlap under MSYS and only more machines shorten that run.
 - **`lint`** — [The lint gate](#the-lint-gate), run once as its own CI job on
   ubuntu against pinned tool versions, side by side with `fast`'s job. The
-  macOS, Windows and FreeBSD jobs run `fast` alone: linting text does not
+  macOS, Windows, and FreeBSD jobs run `fast` alone: linting text does not
   depend on the userland.
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
   budgets. Serial, since it measures.
@@ -98,7 +98,7 @@ Five groups (`--group <name>`; `--list` prints the membership):
   to one with say-hi installed, each through a byte-counting `ProxyCommand`,
   checked against the figure hi prints on its connect line. `repo` is the
   one suite about packaging rather than sessions: it builds the package
-  repository with throwaway keys and installs from it as an apt, a dnf and an
+  repository with throwaway keys and installs from it as an apt, a dnf, and an
   apk client, signatures verified.
 - **`backends`** — `podman`, `nomad`, `kube`: split from `e2e` because they
   need extra runner setup; a separate, slower CI job. `e2e` and `backends`
@@ -124,7 +124,7 @@ probes ask the system rather than sniffing `uname`:
 ### Where a suite lives
 
 `tests/<the directory it tests>/`. `tests/common/`, `tests/settings/`,
-`tests/scripts/` and `tests/packaging/` mirror the tree; `tests/hi/` and
+`tests/scripts/`, and `tests/packaging/` mirror the tree; `tests/hi/` and
 `tests/load/` cover the two root scripts; `tests/lint/` is the lint gate,
 `tests/bench/` the timings, `tests/targets/` the container/ssh e2e suites, and
 `tests/harness/` the suites that test the harness. The harness itself is
@@ -133,7 +133,7 @@ nothing else (`docs/GLOSSARY.md`'s HI.34).
 
 ### The container suites run their cases in parallel
 
-`ssh`, `ssh_relay`, `install_methods`, `docker`, `podman`, `framework` and
+`ssh`, `ssh_relay`, `install_methods`, `docker`, `podman`, `framework`, and
 `kube` spend nearly all their wall clock waiting on one container at a time, so
 their cases run in a batch: `_hi_par_case` (`tests/lib/parallel.sh`) submits a
 case to a background subshell, `_hi_par_wait` collects the batch. Each case
@@ -212,7 +212,7 @@ suite name. `_hi_cov_select_suites` passes `--shard` straight through to
   job with no working tree merges to `"files": []` and a run-wide `0.00`,
   which is a well-formed report, not an error, and publishes a badge reading
   `0.00%`. `coverage.yml`'s `gather-kcov` therefore checks the tree out
-  before calling `tests/coverage.sh --merge` (the same merge, ranking and
+  before calling `tests/coverage.sh --merge` (the same merge, ranking, and
   all-zero refusal a local sweep's own tail runs); `tests/harness/runner_test.sh`
   asserts that every job in that workflow calling it does. `gather-bashcov`
   needs no checkout: its ruby reads only the resultset's per-line arrays.
@@ -275,7 +275,7 @@ advisory (`continue-on-error`), the bench ceilings stay the gate.
 ### The images are files; the build contexts are not
 
 Every container image an e2e suite builds is a real Dockerfile under
-[`tests/dockerfiles/`](../tests/dockerfiles): `sshd-debian`, `sshd-alpine` and
+[`tests/dockerfiles/`](../tests/dockerfiles): `sshd-debian`, `sshd-alpine`, and
 `sshd-fedora` for the ssh targets, `alpine-shell` for the bare shell ones,
 `installed-*` for the install-method targets (`installed-pkg` takes the
 `.deb`/`.rpm`/`.apk` as a build arg), `framework` for the nine shell
@@ -308,7 +308,7 @@ it's clean.
 
 **The same tags named in shell and YAML are guarded, not watched.** `alpine:`
 and `debian:` also appear as plain tags in `tests/lib/backend.sh`,
-`docs/tapes/fixtures.sh` and `ci.yml`'s packaging smoke — places Dependabot
+`docs/tapes/fixtures.sh`, and `ci.yml`'s packaging smoke — places Dependabot
 cannot see. `lint_image_tags` fails the build when a tag named anywhere in the
 tree disagrees with the digest-pinned ones in `tests/dockerfiles/`;
 `lint_image_digests` when two Dockerfiles pin one tag to different digests.
@@ -330,7 +330,7 @@ installs whatever version the flag names, so its hash pins _that day's copy
 of the installer_, not the app version - a hash mismatch there means the
 installer changed, not the pinned app, and needs a fresh hash rather than a
 version bump. Each script runs under `pipefail`, so a 404, a checksum
-mismatch or the framework's installer changing shape fails the build rather
+mismatch, or the framework's installer changing shape fails the build rather
 than shipping an image with the framework silently missing.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions
@@ -365,9 +365,9 @@ build" means the distro moved off the version the check claims.
 - **3. The fish 3.7 floor**: the same files inside a digest-pinned fish 3.7.0
   (`tests/dockerfiles/fish37.Dockerfile`, Ubuntu 24.04's, and CI's) - check 2
   alone misses this, since fish 4 accepts constructs 3.7 rejects. The
-  construct that earned it: a _comment inside a `{ ... }` block_ in
+  construct it catches: a _comment inside a `{ ... }` block_ in
   `common/paths.sh` - `{` opens a brace expansion to fish and `#` isn't a
-  comment inside one, so the file died with "Mismatched braces", taking
+  comment inside one, so the file dies with "Mismatched braces", taking
   `$_HI_TARGETS` and every alias with it, on 3.7 only. The rule at the block:
   nothing but `export NAME=value` lines inside.
 - **4. The fish 4 ceiling**: the same files inside a digest-pinned fish 4
@@ -376,9 +376,9 @@ build" means the distro moved off the version the check claims.
 - **5. The zsh 5.8 floor** does more than parse: it sources `common/zsh.zsh`
   in a real interactive zsh inside a pinned zsh 5.8
   (`tests/dockerfiles/zsh58.Dockerfile`) and asks for a prompt, the aliases,
-  a resolved host color and the prompt separator - `zsh -n` alone would wave
+  a resolved host color, and the prompt separator - `zsh -n` alone would wave
   through the risky constructs here that only misbehave on an old zsh. 5.8,
-  not 5.9, because 5.9 is what bookworm, noble, alpine and macOS all ship -
+  not 5.9, because 5.9 is what bookworm, noble, alpine, and macOS all ship -
   no machine anyone develops on is the floor, so the image is upstream's own
   `zshusers/zsh:5.8` rather than a distro apt install
   (which failed on hosted runners only).
@@ -398,11 +398,11 @@ skipping yellow when its tool isn't installed locally (CI has all four):
 a grep or small parser checking that something written down elsewhere still
 agrees with the tree:
 
-- **10. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs or
+- **10. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs, or
   `${x,,}` - each explained once in [GLOSSARY.md](GLOSSARY.md) by its
   `GLOSSARY: HI.NN` tag.
 - **11. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
-  derives the say-hi tree - over `*.zsh`, `*.fish` and `*.md` too, since the
+  derives the say-hi tree - over `*.zsh`, `*.fish`, and `*.md` too, since the
   docs teach the rule as much as the code obeys it.
 - **12. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
   GLOSSARY.md defines, and every entry is referenced; matched by code, not
@@ -433,7 +433,7 @@ agrees with the tree:
 ## Test levers
 
 Five environment variables are read by the tree but are not settings: they
-exist so a suite, the bench or a demo can pin what a real run derives.
+exist so a suite, the bench, or a demo can pin what a real run derives.
 `_HI_TARGETS_TTL` (seconds `targets.sh` reuses its list; `0` sweeps every
 call), `_HI_PROBE_TIMEOUT` (seconds one backend CLI gets), `_HI_PAYLOAD_CACHE`
 (`0` builds the payload and overlay archives fresh), `_HI_CTL_PERSIST` (`0`
@@ -458,7 +458,7 @@ relay is the container transport's bash-less fallback, which ships
 ## Local-only
 
 `tests/` is stripped from the payload, so `hi --doctor` on a target says so
-rather than running. Every flag that needs `scripts/`, `tests/` or a `.git`
+rather than running. Every flag that needs `scripts/`, `tests/`, or a `.git`
 answers the same way there, and `--update` answers that way in a
 package-manager install too, which ships `scripts/` but neither of the others.
 **Which flag needs what is `docs/hi.1`'s OPTIONS section**, drift-checked
@@ -469,7 +469,7 @@ the shipped `common/header.sh`, so on a target they run that half instead.
 
 ## Why the harness is hand-rolled
 
-[bats-core], [shellspec] and a python/pytest driver were weighed as
+[bats-core], [shellspec], and a python/pytest driver were weighed as
 replacements for `tests/test_lib.sh` and `tests/lib/*.sh` (a paper study, no
 suite was ported, no timings). `test_runner.sh` stays either way: a
 candidate has to hand it something it can still collect through

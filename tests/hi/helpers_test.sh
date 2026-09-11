@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's pure helpers: the quoting/armor pair every baked
-# script rides through, the target-grammar splitters, the size reporters and
+# script rides through, the target-grammar splitters, the size reporters, and
 # the flags-table renderers. Sourcing hi.sh goes through the
 # same `[[ BASH_SOURCE == $0 ]]` hatch payload_test.sh uses; nothing here
 # connects to anything.

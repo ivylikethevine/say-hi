@@ -178,7 +178,7 @@ function test_scheme_words_counts_a_list() {
   [ "$n" -eq 48 ] || return 1
   _HI_COLOR_SCHEME="F38BA8 ${_HI_TEST_L24#* }" _hi_scheme_words n
   [ "$n" -eq 24 ] || return 1
-  # twelve words, the shape before the extras: not a scheme any more
+  # twelve words: not a scheme
   _HI_COLOR_SCHEME="${_HI_TEST_L24% * * * * * * * * * * * *}" _hi_scheme_words n
   [ "$n" -eq 0 ] || return 1
   _HI_COLOR_SCHEME=solarized _hi_scheme_words n
@@ -226,7 +226,7 @@ function test_scheme_bad_list_falls_back_to_16_color() {
 # they wrap (test_lib.sh sources lib.sh)
 function test_scheme_ok_takes_names_and_lists() {
   _hi_scheme_ok "$_HI_TEST_L24" && _hi_scheme_ok "$_HI_TEST_L48" || return 1
-  # hi ships no named schemes any more, so a name is just a word
+  # hi ships no named schemes, so a name is just a word
   ! _hi_scheme_ok catppuccin || return 1
   ! _hi_scheme_ok solarized || return 1
   ! _hi_scheme_ok custom || return 1
@@ -299,7 +299,7 @@ function test_cecho_still_expands_the_palette() {
 
 #
 # hi is meant to reach a scratch or distroless container: bash and no
-# coreutils at all, so `hostname`, `uname`, `whoami` and `id` are none of them
+# coreutils at all, so `hostname`, `uname`, `whoami`, and `id` are none of them
 # there. The identity helpers are read for the banner and the prompt on every
 # connect, so what they do without their binaries is user-visible: unhandled,
 # that is "uname: command not found" at the top of the session, and a colour
@@ -422,7 +422,7 @@ function test_override_color_localhostname_special_case() {
 
 # A row's optional fourth column - that pin's own 24-bit color. It comes back
 # joined to the name, "<color>#<rrggbb>", from every reader of the file: the
-# exact pin, the pattern row and the hosttag alike.
+# exact pin, the pattern row, and the hosttag alike.
 function test_pin_hex_joins_the_name() {
   local colors="$_HI_WORKDIR/colors.hex"
   printf 'username,alice,red,3ba55d\nhostname,10.0.1.*,blue,102030\nhosttag,prod,brred,ff5f5f\n' >"$colors"
@@ -732,7 +732,7 @@ function test_pattern_hit_skips_a_token_that_is_not_a_hostname() {
 
 # The patterns are a string to peel, never a list to expand: `for pat in $2`
 # pathname-expands as well as word-splits, so a bare `*` - the commonest Host
-# line there is - became whatever files the cwd held and matched nothing.
+# line there is - would become whatever files the cwd holds and match nothing.
 # Run from a directory with files in it, which is the only place it shows.
 function test_pattern_hit_does_not_glob_against_the_cwd() {
   local dir="$_HI_WORKDIR/pattern.cwd"
@@ -824,9 +824,9 @@ function test_config_dir_explicit_value_wins() {
 }
 
 # common/zsh.zsh sources core.sh directly, so its functions run in zsh too - and
-# three zsh differences had each silently broken something: `${name:i:1}` is a
+# three zsh differences each break something silently: `${name:i:1}` is a
 # history modifier there, $BASH_REMATCH is never populated, and an unquoted
-# `$var` is not word-split. All three were invisible to a bash-only suite, so
+# `$var` is not word-split. All three are invisible to a bash-only suite, so
 # these cases run the real functions in a real zsh and compare with bash's
 # answer; the point is that the two agree.
 
@@ -1225,7 +1225,7 @@ function run_core_tests() {
   _hi_h2 "Testing: the shipped verdicts"
   _hi_check "Local identity prefers the shipped verdict" test_local_identity_prefers_the_shipped_verdict
   _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
-  _hi_check "_hi_wants_prompt_tool needs setting, binary and a known tool" test_wants_prompt_tool_needs_both_halves
+  _hi_check "_hi_wants_prompt_tool needs setting, binary, and a known tool" test_wants_prompt_tool_needs_both_halves
 
   _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts
@@ -1253,7 +1253,7 @@ function run_core_tests() {
   _hi_check "Untagged wildcard block is rc 2" test_ssh_host_tag_wildcard_untagged_block_is_rc_2
   _hi_check "A '!' token is inert, not exclusionary" test_ssh_host_tag_negation_token_is_inert_not_exclusionary
   _hi_check "Match criteria after the patterns are not patterns" test_ssh_host_tag_match_criteria_are_not_patterns
-  _hi_check "...localuser, exec, canonical and final too" test_ssh_host_tag_match_criteria_localuser_exec_canonical_final
+  _hi_check "...localuser, exec, canonical, and final too" test_ssh_host_tag_match_criteria_localuser_exec_canonical_final
   _hi_check "A non-host Match ends its tag" test_ssh_host_tag_non_host_match_ends_its_tag
 
   _hi_h2 "Testing: _hi_resolve_color precedence"

@@ -28,8 +28,8 @@ function _hi_fixture() {
 }
 
 # A suite reporting a case tally: "<total> <failed> [skipped]", exiting with
-# the fail count. The third field is what _hi_report_counts writes now; leaving
-# it off (as an older suite would) must still parse, so one fixture below does.
+# the fail count. The third field is what _hi_report_counts writes; leaving it
+# off must still parse, so one fixture below does.
 function _hi_counting_fixture() {
   _hi_fixture "$1" "$3" "$2 $3${4:+ $4}"
 }
@@ -44,11 +44,11 @@ function _hi_skipping_fixture() {
 # Nested runs are the expensive part of this suite: each one sources the whole
 # test_runner.sh in a subshell and forks its fixture suites, and 22 of the 51
 # calls ask for a run that has already happened - several cases assert
-# different things about the same output. Those 22 now cost two `cat`s.
+# different things about the same output. Those 22 cost two `cat`s.
 #
 # Memoized to files rather than through _hi_kv_set: that store is
 # newline-separated and $_HI_RUN_OUT is a whole run's transcript. The key is
-# everything that decides what a run produces - the table, the arguments and
+# everything that decides what a run produces - the table, the arguments, and
 # $_HI_RUN_WITH, which is why a case wanting _HI_MAX_WIDTH or _HI_HOST_REPORT
 # set passes it that way rather than exporting around the call - keyed by
 # cksum because it contains newlines; a collision would show up as a case
@@ -134,7 +134,7 @@ function test_unknown_suite_name_lists_the_known_ones() {
 }
 
 # --shard i/n is how windows-client.yml splits the fast group across its
-# runners, so the slices have to be disjoint, add up to the selection and keep
+# runners, so the slices have to be disjoint, add up to the selection, and keep
 # table order - or a suite silently runs twice on CI, or never.
 function test_shards_partition_the_selection_in_table_order() {
   local table=$'a:green.sh\nb:green.sh\nc:green.sh\nd:green.sh\ne:green.sh' one two
@@ -565,7 +565,7 @@ function test_a_green_run_has_no_recap() {
 # message: a copy of the roster in the drift test is a copy that can drift, and
 # a UI string is not an API.
 #
-# --list, --list-paths and --help print constants, and each direct launch
+# --list, --list-paths, and --help print constants, and each direct launch
 # sources the whole nine-part harness, so run_runner_tests captures each once
 # ($_HI_LIST_OUT and friends) and every case reads the capture - the same
 # reasoning as the nested-run memo above. The sharded and per-group listings
@@ -642,9 +642,9 @@ function test_ci_runs_every_group_in_the_table() {
 # run-wide 0.00 - a well-formed report, and a badge reading 0.00% rather than
 # an error. coverage.yml's kcov gather job shipped without a checkout and
 # published exactly that; nothing else in the tree would have caught it, since
-# the merge, the upload and the badge step all exit 0. Measured on kcov 43:
+# the merge, the upload, and the badge step all exit 0. Measured on kcov 43:
 # the same parts directory merges to 41.06% with the sources present and to
-# 0.00% with one moved away. The merge itself now lives in
+# 0.00% with one moved away. The merge itself lives in
 # `tests/coverage.sh --merge` (a local sweep's own tail, reused), but the
 # checkout requirement travels with the *job*, not the script.
 function test_coverage_merge_jobs_check_out_the_tree() {
@@ -672,7 +672,7 @@ function test_coverage_merge_jobs_check_out_the_tree() {
 # `#!/bin/sh` files the suites execute as `sh <file>` (common/targets.sh)
 # read 0% unless a bash-as-sh sits first on PATH - three points of the
 # badge, and nothing else would notice the shim going. Each driver shims its
-# own PATH now (tests/lib/coverage.sh's _hi_cov_shim_sh_to_bash, called
+# own PATH (tests/lib/coverage.sh's _hi_cov_shim_sh_to_bash, called
 # before either starts sweeping), rather than every CI job building one on
 # PATH by hand (not GITHUB_PATH - zizmor's github-env audit rejects that on
 # a workflow_run workflow) - so this checks the drivers, not the workflow.
@@ -681,7 +681,7 @@ function test_coverage_drivers_shim_sh_to_bash() {
   local -a drivers=("$_HI_ROOT/tests/coverage.sh" "$_HI_ROOT/tests/coverage_v2.sh")
   [ -f "$lib" ] || return 0 # a shipped tree has no tests/
   grep -qE 'ln -sf .*bash.*/sh"?$' "$lib" || {
-    _hi_cecho " | tests/lib/coverage.sh's shim no longer symlinks bash as sh - has it moved?" "$RED"
+    _hi_cecho " | tests/lib/coverage.sh's shim does not symlink bash as sh - has it moved?" "$RED"
     return 1
   }
   for driver in "${drivers[@]}"; do
@@ -927,7 +927,7 @@ function run_runner_tests() {
   _hi_check "--list-paths adds a readable path" test_list_paths_adds_a_readable_path_per_suite
   _hi_check "--list-paths agrees with --list" test_list_paths_matches_list
   # A contract with every sharded job: the slices CI runs under Git Bash,
-  # inside WSL and on ci.yml's e2e runners are exactly their group.
+  # inside WSL, and on ci.yml's e2e runners are exactly their group.
   _hi_check "The Windows client's shards cover the fast group" _hi_shards_cover_group windows-client.yml - fast
   _hi_check "The WSL job's shards cover the fast group" _hi_shards_cover_group windows-e2e.yml wsl-suites fast
   _hi_check "ci.yml's e2e shards cover the e2e group" _hi_shards_cover_group ci.yml e2e e2e

@@ -28,7 +28,7 @@ to report what slipped through it.
   release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) —
-  docs, tests, CI and editor config never leave the client; `hi.sh` is there so
+  docs, tests, CI, and editor config never leave the client; `hi.sh` is there so
   a session can say `hi` onward. Your overlay is a second, smaller allow list,
   `$_HI_OVERLAY_FILES` (the roster is in
   [CONTRIBUTING.md's contract](CONTRIBUTING.md#what-1x-will-not-break), read
@@ -113,7 +113,7 @@ session back to the first table alone.
 Your commands land in the target's own history file exactly as they would
 over plain `ssh`, and the programs you run yourself - editors included -
 write what they would there too; nothing hi ships touches the history file,
-and hi's emacs config turns off emacs's backups, autosaves and lock files.
+and hi's emacs config turns off emacs's backups, autosaves, and lock files.
 `hi --doctor` prints any setting that is not at its default, so "what is this
 install allowed to do to a target" is one command.
 
@@ -156,7 +156,7 @@ install allowed to do to a target" is one command.
   stderr as text, never expanding it, so a backslash sequence a target wrote
   stays one.
 - **What hi writes on the client.** The rc lines and `settings.sh` the
-  install asked about, a payload cache and the ssh `ControlMaster` socket
+  install asked about, a payload cache, and the ssh `ControlMaster` socket
   under a private runtime directory.
 - A tool a session starts on a target runs under that target's own config for
   it, not yours: an atuin logged in to a sync server there syncs the

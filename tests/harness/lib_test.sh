@@ -357,9 +357,9 @@ function test_wait_pid_skips_the_hook_on_a_clean_exit() {
 }
 
 # The verdict's one look at the exit code. A case that was SIGKILLed at its
-# deadline (124) fails even with every marker in the transcript - the podman
-# suite's fish case echoed its marker and then hung, and read OK for as long as
-# only the markers were consulted. Any other status leaves the markers in
+# deadline (124) fails even with every marker in the transcript - a case that
+# echoes its marker and then hangs would otherwise read OK. Any other status
+# leaves the markers in
 # charge. $_HI_FAILS_FILE is emptied so the FAILED verdict under test does not
 # land in this suite's own recap.
 function test_case_result_fails_a_timed_out_case_despite_its_marker() {
@@ -520,7 +520,7 @@ function test_ssh_reachable_fails_against_a_dead_port() {
 #
 # The toolbox half matters more than it looks: a caller replaces $PATH outright
 # with what _hi_real_path returns, so a build that quietly produced nothing
-# leaves the case with no `sh`, `awk` or `sed` at all - and it fails in a way
+# leaves the case with no `sh`, `awk`, or `sed` at all - and it fails in a way
 # that names none of that.
 
 function test_real_path_builds_a_usable_toolbox() {
@@ -596,7 +596,7 @@ function run_lib_process_tests() {
 
   _hi_suite_begin
 
-  _hi_h1 "Testing tests/lib/: probes, polling and fixtures"
+  _hi_h1 "Testing tests/lib/: probes, polling, and fixtures"
 
   # The cases whose whole cost is waiting out a timeout or poll budget, fanned
   # out together so the suite pays the longest wait once instead of the sum -
@@ -664,7 +664,7 @@ function run_lib_process_tests() {
   _hi_h2 "Testing: _hi_exec_case retries"
   _hi_check "A markerless first attempt succeeds on the retry" test_exec_case_retries_a_markerless_first_attempt
   _hi_check "Two markerless attempts stop retrying and report failure" test_exec_case_exhausts_retries_and_fails
-  _hi_check "_hi_strip_ansi strips SGR, OSC-BEL and OSC-ST, linearly" test_strip_ansi_strips_every_form_and_stays_linear
+  _hi_check "_hi_strip_ansi strips SGR, OSC-BEL, and OSC-ST, linearly" test_strip_ansi_strips_every_form_and_stays_linear
 
   _hi_h2 "Testing: _hi_pty_wrap"
   _hi_check "Force wraps regardless of the fd" test_pty_wrap_force_wraps_even_on_a_tty
@@ -685,7 +685,7 @@ function run_lib_process_tests() {
   _hi_check "Sshd entrypoint honours runtime \$SSHD_OPTS" test_sshd_entrypoint_body_passes_runtime_opts_to_sshd
   _hi_check "Sshd entrypoint unlocks the test account" test_sshd_entrypoint_body_unlocks_the_test_account
   _hi_check_requires ssh-keygen "Keypair lands in the workdir" test_ssh_keypair_writes_a_usable_key
-  _hi_suite_end "tests/lib/ (probes, polling and fixtures)"
+  _hi_suite_end "tests/lib/ (probes, polling, and fixtures)"
 }
 
 run_lib_process_tests

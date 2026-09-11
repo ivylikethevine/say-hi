@@ -49,14 +49,13 @@
 # they recorded it under, to count that file's lines again. Merge somewhere
 # the tree is not and the result is not an error but a well-formed empty
 # report - `"files": []`, `"total_lines": 0`, `"percent_covered": "0.00"`.
-# coverage.yml's gather job had no `actions/checkout` and published exactly
-# that as the README's kcov badge. Measured here on kcov 43, three suites'
-# parts merged twice:
+# A gather job with no `actions/checkout` would publish exactly that as the
+# README's kcov badge. Measured on kcov 43, three suites' parts merged twice:
 #
 #   sources present ...... 41.06%, five files listed
 #   one source moved away . 0.00%, "files": []
 #
-# The gather job checks the tree out now, and tests/harness/runner_test.sh
+# The gather job checks the tree out, and tests/harness/runner_test.sh
 # asserts that every coverage.yml job running `kcov --merge` does.
 #
 # The topology below is what makes the trace work at all: one kcov per suite
@@ -67,7 +66,7 @@
 # FILES THAT READ LOW HERE ON PURPOSE - NOT A GAP, DON'T ADD TESTS
 #
 # The DEBUG trap above is lost specifically at test_lib.sh's *source* time; it
-# is equally lost inside any `$( )`, `( )`, `&` or child process launched
+# is equally lost inside any `$( )`, `( )`, `&`, or child process launched
 # anywhere after, for the rest of that suite's run. bashcov's xtrace has no
 # such hole (SHELLOPTS carries `xtrace` into every child bash), so the two
 # tools' figures are read together per docs/TESTING.md, and where they
@@ -103,7 +102,7 @@
 # harness has no business on a target.
 set -euo pipefail
 
-# tree resolution, suite selection, the tally files and the trace loop are
+# tree resolution, suite selection, the tally files, and the trace loop are
 # shared with tests/coverage_v2.sh
 # shellcheck source=lib/coverage.sh
 source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"
@@ -136,7 +135,7 @@ if [ "${1:-}" = --merge ]; then
   # Every file kcov traced, worst first - the same ranking a local sweep
   # prints below, reproduced here since this merge happens in CI's gather
   # job instead. Straight from kcov's merged JSON, where one object is one
-  # line and every value is a quoted string - see the ranking below for why
+  # line, and every value is a quoted string - see the ranking below for why
   # the percent is found by walking to the `percent_covered` key.
   _hi_cov_merge_json="$(find "$_hi_cov_merge_dest/merged" -name coverage.json | head -1)"
   if [ -n "$_hi_cov_merge_json" ]; then

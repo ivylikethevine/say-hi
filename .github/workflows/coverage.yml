@@ -61,10 +61,11 @@ jobs:
   # The dedupe lookup (workflow_run/push only, for a tree whose PR run
   # published both figures) and the sweep's one eligibility gate, both here:
   # every sharded and gathering job below reads `sweep` instead of
-  # re-deriving "a dispatch, a green push, or a same-repo non-draft PR" for
-  # itself - four repeats of the same clause before this.
+  # re-deriving "a dispatch, a green push, or a same-repo PR" for itself.
+  # Skipped on a draft, and everything below skips with it.
   reuse:
     name: gate the sweep, and reuse the PR run's figures where possible
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
@@ -112,9 +113,9 @@ jobs:
           path: carried/coverage-v2-pct
           if-no-files-found: error
 
-      # sweep: a dispatch, a green push, or a same-repo non-draft PR, and
-      # nothing already reused above. `event_name == 'pull_request'` paired
-      # with same-repo/non-draft is the guard: a fork PR opened from its own
+      # sweep: a dispatch, a green push, or a same-repo PR, and nothing
+      # already reused above. `event_name == 'pull_request'` paired with
+      # same-repo is the guard: a fork PR opened from its own
       # `main` would otherwise pass pages.yml's "newest green run on branch
       # main" lookup and publish as the README's figure. `always()` so a
       # failed or skipped `find` above still reaches this.
@@ -125,14 +126,13 @@ jobs:
           WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           WR_EVENT: ${{ github.event.workflow_run.event }}
           PR_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-          PR_DRAFT: ${{ github.event.pull_request.draft }}
           FOUND_RUN: ${{ steps.find.outputs.run }}
         run: |
           set -eu
           sweep=false
           if [ "$EVENT" = workflow_dispatch ] \
             || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
-            || { [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ] && [ "$PR_DRAFT" != true ]; }; then
+            || { [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ]; }; then
             sweep=true
           fi
           [ -z "$FOUND_RUN" ] || sweep=false
@@ -177,18 +177,18 @@ jobs:
           tools: kcov
 
       # No --group: the default selection is every suite, same as an
-      # unsharded run. The sh -> bash shim (see the header for why it is
-      # needed) is the driver's own now, not this step's - it shims its own
-      # PATH rather than writing to GITHUB_PATH (zizmor's github-env audit
-      # flags that on a workflow_run workflow), so nothing here has to.
+      # unsharded run. The sh -> bash shim (the header says why) is the
+      # driver's, not this step's: it shims its own PATH rather than writing to
+      # GITHUB_PATH, which zizmor's github-env audit flags on a workflow_run
+      # workflow.
       - name: Run this shard of the suite sweep under kcov
         env:
           HI_SHARD: ${{ matrix.shard }}
         run: tests/coverage.sh coverage-report --shard "$HI_SHARD"
 
       # job-index, not matrix.shard: an artifact name may not contain "/",
-      # and --shard is now a whole i/n slice (e.g. 4/4) - the index only has
-      # to be unique per shard, which strategy.job-index already is
+      # and --shard is a whole i/n slice (e.g. 4/4) - the index only has to
+      # be unique per shard, which strategy.job-index already is
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-parts-kcov-${{ strategy.job-index }}
@@ -326,7 +326,7 @@ jobs:
           path: coverage-report/parts
           merge-multiple: true
 
-      # tests/coverage.sh --merge: the same kcov --merge, ranking and
+      # tests/coverage.sh --merge: the same kcov --merge, ranking, and
       # "an all-zero figure is not a measurement" refusal a local sweep's
       # tail already carries, so this job stops keeping its own second copy
       - name: Merge the shards and write the badge figure
@@ -387,7 +387,7 @@ jobs:
       # SimpleCov filters shape only the HTML report, while the resultset
       # stays raw, so without them the badge counts the harness and the
       # never-executed demo scripts against the product.
-      - name: Merge the shards, rank the files and write the badge figure
+      - name: Merge the shards, rank the files, and write the badge figure
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -527,8 +527,7 @@ jobs:
           # a figure is a bare decimal or nothing: an artifact is data, and
           # nothing else read out of one reaches the comment. pct_ok is the
           # same refusal pages.yml and release.yml give an all-zero figure
-          # (kcov's checkout-less merge, not a measurement) - this comment
-          # used to show a bare 0.00% neither of those would publish.
+          # (kcov's checkout-less merge, not a measurement).
           fig() {
             local v=""
             [ -f "$1" ] && IFS= read -r v <"$1" || true

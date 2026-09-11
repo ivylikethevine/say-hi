@@ -112,7 +112,7 @@ make)
 tar.gz | tar.xz)
   curl -sSfL -o "$_hi_tmp/archive" "$_hi_url"
   # extract whole and then look, rather than naming a member: the layouts here
-  # are flat, versioned-dir and arch-subdir, and a stale member path fails hard
+  # are flat, versioned-dir, and arch-subdir, and a stale member path fails hard
   # on a version bump where a search does not
   case "$_hi_kind" in
   tar.gz) tar -xzf "$_hi_tmp/archive" -C "$_hi_tmp" ;;

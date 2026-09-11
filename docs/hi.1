@@ -39,7 +39,7 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
-.RB { colors | packages | header }
+.RB { colors | packages | header | targets }
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -60,7 +60,7 @@ for which shell). With a trailing
 it runs that command on the target and exits \- inside hi's session, not the
 way
 .BR ssh (1)
-runs one: the command has hi's aliases, PATH and environment, and runs on a
+runs one: the command has hi's aliases, PATH, and environment, and runs on a
 pty when your own stdin is one. Only the command's own output goes to stdout;
 hi's progress and errors go to stderr. For a plain, unstyled, pty\-free
 remote command \- a tarball you are piping into a file, say \- use
@@ -74,7 +74,7 @@ directory, and removed by cleanup traps on exit \- including on an abrupt
 disconnect. A say-hi installed on the target itself is neither read nor
 touched by a session: it is there for that machine's own shells.
 .SH SESSION SHELL
-The session runs in your login shell when hi styles it (bash, zsh or fish),
+The session runs in your login shell when hi styles it (bash, zsh, or fish),
 otherwise in the best of fish > zsh > bash. Both halves come off one
 ordering \- fish > zsh > bash > dash > ash > sh \- so a target with no bash
 at all falls back to the best of the rest of it: fish > zsh > dash > ash > sh,
@@ -90,7 +90,7 @@ entry in
 .B ~/.ssh/config
 (wildcard entries are not matched).
 .TP
-.B 2. container, through docker, podman, nerdctl or finch
+.B 2. container, through docker, podman, nerdctl, or finch
 a running container, by name or ID, on whichever of the four
 answers, in that order.
 .TP
@@ -169,7 +169,7 @@ above:
 .BR podman ,
 .BR nerdctl ,
 .BR finch ,
-.B nomad
+.BR nomad ,
 or
 .BR kube .
 The name has to be one of those; a stranger is an error, not a guess.
@@ -203,7 +203,7 @@ either.
 .B \-\-mux
 run the session inside a local multiplexer session \-
 .BR tmux (1),
-.BR zellij (1)
+.BR zellij (1),
 or
 .BR screen (1),
 whichever is first on your PATH \- named for the target
@@ -250,7 +250,7 @@ on top of that, and a package carries none.
 print one of four things and exit, instead of connecting.
 .B colors
 is every ssh host and your user in their resolved colors, each row naming the
-rule it matched \- a pin, a tag, a pattern or the hash.
+rule it matched \- a pin, a tag, a pattern, or the hash.
 .B packages
 is the package\-priority legend, as the header's check prints it, with the
 ranks the floor silences marked.
@@ -259,19 +259,14 @@ is the connect header itself, as it prints here at your settings.
 .B targets
 is every target
 .B hi <TAB>
-offers \- every
-.B Host
-entry in
-.BR ~/.ssh/config ,
-plus every running container, allocation and pod, each with the backend it
-resolves to. Unlike the other three subjects this one probes the backends
-and bypasses the completion cache, so it costs what a cold
+offers, with its backend \- probed past the completion cache, so it takes as
+long as a cold
 .B hi <TAB>
 does.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
-the config overlay, the shell rc files and the overlay's own shell files
+the config overlay, the shell rc files, and the overlay's own shell files
 parsed by whatever will read them (the rc half is what
 .B \-\-install
 checks before it writes a line), the install itself \- each shell's rc lines
@@ -286,16 +281,16 @@ runs, and the file a login bash or a
 zsh really reads \- every backend probed and timed, and \- with a target \-
 which backend the name resolves to plus an ssh reachability check. Every
 ssh option a connect takes
-.RB ( \-p ", " \-i ", " \-J ", " \-o
+.RB ( \-p ", " \-i ", " \-J ", " \-o ,
 and the rest) is accepted here too, and reaches the same BatchMode probe a
 real connect would authenticate with \- given for a target that resolves to
-a container, allocation or pod, they are reported as ignored rather than
+a container, allocation, or pod, they are reported as ignored rather than
 silently dropped.
 .B \-\-use
 reports the same forced backend a real connect with it would take, skipping
 the probe chain, and two of them are refused as a connect refuses them.
 .BR \-\-plain ,
-.B \-\-mux
+.BR \-\-mux ,
 and
 .B \-\-no\-mux
 are accepted and ignored, so a connect line can be pasted behind
@@ -309,7 +304,7 @@ Exits 1 on any finding (see
 .BR "EXIT STATUS" ).
 .TP
 .B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
-install or repair say-hi's lines in your shell rc files (bash, zsh and fish,
+install or repair say-hi's lines in your shell rc files (bash, zsh, and fish,
 each only when it is installed; on macOS a line in
 .B ~/.bash_profile
 so a login bash reads
@@ -475,12 +470,12 @@ flags of
 .BR hi :
 .TP
 .B hi_info
-print where the running say\-hi lives \- its home, root and launcher. A
+print where the running say\-hi lives \- its home, root, and launcher. A
 diagnostic (the test harness's "the session is up" probe), and not part of
 the 1.x contract.
 .SH COMPLETION
 .B hi
-completes in bash, zsh and fish. All three read one list \-
+completes in bash, zsh, and fish. All three read one list \-
 .B common/targets.sh
 \- so the three can not drift apart, and it is the only one fish can run.
 .TP
@@ -489,7 +484,7 @@ every target: the
 .B Host
 entries in
 .B ~/.ssh/config
-plus every running container, allocation and pod, each tagged with the
+plus every running container, allocation, and pod, each tagged with the
 backend it came from. The list is reused for five seconds and each backend
 gets two seconds to answer, because this runs on every keypress.
 .TP
@@ -527,14 +522,14 @@ Configuration lives outside the tree, in
 .BR vim.rc ,
 .BR nano.rc ,
 .BR emacs.el ,
-.BR helix.toml
+.BR helix.toml ,
 and
 .BR kak.rc ,
 additive
 .BR aliases.sh ,
 per-shell
 .BR bash.sh ,
-.B zsh.zsh
+.BR zsh.zsh ,
 and
 .BR config.fish ,
 and a
@@ -638,7 +633,7 @@ overrides it for one connect. Client\-side only.
 .B hi prod-db
 interactive session on the ssh host
 .BR prod\-db ,
-with your prompt, colors and aliases.
+with your prompt, colors, and aliases.
 .TP
 .B hi -J bastion internal 'df -h'
 run a command on

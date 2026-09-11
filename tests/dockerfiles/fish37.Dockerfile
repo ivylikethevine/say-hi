@@ -10,8 +10,8 @@
 # expect the half to start accepting constructs the version behind it rejects.
 #
 # Why a floor check exists at all: fish 4 accepts things 3.7 does not, so a
-# developer whose fish is current cannot tell by running it. The construct that
-# motivated this one was a *comment inside a `{ ... }` block* in
+# developer whose fish is current cannot tell by running it. The construct it
+# catches is a *comment inside a `{ ... }` block* in
 # common/paths.sh - to fish `{` opens a brace expansion, `#` carries no comment
 # meaning inside one, and the file dies with "Mismatched braces", taking every
 # path and alias with it. fish 4 parsed it; 3.7 did not; every fish case in CI

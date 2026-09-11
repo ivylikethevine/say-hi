@@ -21,7 +21,7 @@ named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
 ## Before you start
 
 **Check it isn't already decided.** [docs/SUPPORT.md](SUPPORT.md) holds a
-verdict and a reason for every runtime, shell and feature answered no,
+verdict and a reason for every runtime, shell, and feature answered no,
 [docs/PACKAGING.md](PACKAGING.md#channels-weighed-and-not-shipped) for every
 packaging channel, and [docs/ALTERNATIVES.md](ALTERNATIVES.md) for the tools
 say-hi is not trying to be. A "no" there is settled, not an oversight — though
@@ -53,7 +53,7 @@ passes, and `--container-options "--user 1000"` doesn't rescue it. Run the
 suites directly instead — and `actionlint -color` for the workflows, since
 zizmor fails on act's empty `github.token`. `advisory-lint` is the one job
 green under act, and every tool in it runs directly anyway; the macOS/Windows
-jobs have no container to run in, and `bench`, `packaging-smoke` and the two
+jobs have no container to run in, and `bench`, `packaging-smoke`, and the two
 `e2e` jobs want the Docker socket.
 
 ```sh
@@ -83,10 +83,15 @@ comments are convenient to read through by eye.
 | `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)` | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass | Gate, but see below                     |
 | `fast suites (Windows client)`                      | Same-repo PRs and pushes to `main`; four x64 and four arm64 runners | Gate, but see below                     |
 
+Nothing runs on a draft: every job skips until the PR is marked ready, which
+fires a full run. Until then GitHub lists both `fast suites` checks and both
+`e2e` aggregates as Expected, since it never names the entries of a skipped
+matrix job; a draft cannot merge either way.
+
 "Skipped on a workflow-only diff" is `ci.yml`'s `changes` job: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
 `skipped` instead of re-running. Every other job carries no `changes` guard
-and runs on each push and pull request — a workflow-only change is exactly
+and runs on each push and ready pull request — a workflow-only change is exactly
 what `workflow lint` audits, and a docs-only change is exactly when
 `advisory lint` and the README-badge half of `hot-path benchmarks` should run.
 
@@ -97,7 +102,7 @@ the run's badge artifacts and platform checks on the merged commit.
 `coverage.yml` reuses the PR's figures the same way.
 
 "Gate" means the job itself fails loudly rather than reporting and continuing
-— not, on its own, that GitHub's merge button is blocked by it. `main` now
+— not, on its own, that GitHub's merge button is blocked by it. `main`
 requires seven of the jobs above before a merge: both `fast suites` jobs,
 `lint suites (ubuntu-latest)`, `workflow lint`, `package build (deb, rpm,
 apk)`, `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` — every gate that
@@ -114,7 +119,7 @@ are off it too, until they have a track record. On a same-repo PR they are real 
 `continue-on-error`, so a red suite fails the run.
 
 Every other file in `.github/workflows/` runs on a schedule, a push to
-`main`, a tag or a manual dispatch, never on your pull request, and most
+`main`, a tag, or a manual dispatch, never on your pull request, and most
 report through a self-closing tracking issue rather than a red run; each
 file's header says which and why. The exception is `cancel-closed-pr.yml`,
 which runs once your PR is merged or closed and cancels whatever is still in
@@ -133,7 +138,7 @@ These are constraints the tree enforces, not requests:
   runs](#what-ci-runs); a style exception is a `# shellcheck disable=` comment
   at the line it covers, not a blanket suppression.
 - **bash 3.2 is the floor.** No `mapfile`/`readarray`, associative arrays,
-  namerefs or `${x,,}`; the lint suite greps for all four. Every deliberately
+  namerefs, or `${x,,}`; the lint suite greps for all four. Every deliberately
   odd construct that forces is explained once in [GLOSSARY.md](GLOSSARY.md),
   and code points at it with a `GLOSSARY: HI.NN` tag — drift-checked, so an
   entry can't be deleted out from under them.
@@ -143,10 +148,10 @@ These are constraints the tree enforces, not requests:
   The stated subset wins over anything cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
   its own path (`GLOSSARY: HI.33`). The lint sweep covers the docs too.
-- **The payload is budgeted twice.** `common/`, `settings/`, `load.sh` and
+- **The payload is budgeted twice.** `common/`, `settings/`, `load.sh`, and
   `hi.sh` ship to every target; the gzipped tar and the assembled wire script
   are CI-enforced against separate numbers. Touch a shipped file, run
-  `--group bench` and check both. Tooling-only helpers do not belong in
+  `--group bench`, and check both. Tooling-only helpers do not belong in
   `common/core.sh`.
 - **A new suite has a home and a registration** —
   [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).
@@ -158,7 +163,7 @@ These are constraints the tree enforces, not requests:
 The opposite of _experimental_, in force from the `v1.0.0` tag: these are the
 interfaces a 1.x release keeps, and a change to any of them is a 2.0.
 
-- **The twelve flags in `common/flags`** — name, argument shape and what
+- **The twelve flags in `common/flags`** — name, argument shape, and what
   each needs (`-`, `scripts`, `git`). New flags may arrive; none is renamed
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
@@ -166,7 +171,7 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   argument is a word (`--use`, `--preview`, `--update`), refused on the rest; every `--word` is hi's (an unknown one is
   hi's error); and everything after the target is the remote command.
 - **The sub-command switches** — `--doctor --json`, `--install`'s
-  `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>` and
+  `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`, and
   `-n`/`--dry-run`, `--uninstall --dry-run`, `--configure --preset <name>`
   and `--configure --dry-run`, `--update --dry-run`,
   `scripts/install.sh --prefix <dir>` — name and meaning (`-n` is the short
@@ -180,12 +185,12 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   and default (the type is what the row's prose says: `0`/`1`, a number, a
   word list, a name from a fixed set). A toggle that has to go is a 2.0. A
   new `_HI_DISABLE_*` toggle is a minor, and lands in `_HI_TOGGLES`,
-  `config.fish`'s mirror and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
+  `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`, `aliases.sh`, the per-shell rc files, `starship.toml`,
-  `oh-my-posh.json`, eza's `theme.yml` and bat's `bat.conf`), their
-  formats, the XDG path and the `_HI_CONFIG_DIR` override.
+  `oh-my-posh.json`, eza's `theme.yml`, and bat's `bat.conf`), their
+  formats, the XDG path, and the `_HI_CONFIG_DIR` override.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
   and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.
@@ -242,7 +247,7 @@ would want on the release page, or `none` when nothing a user sees changes.
   request body is where the detail lives.
 - **Say if AI wrote part of it.** [README's AI Usage](../README.md#ai-usage) is
   the standard, and it applies to contributions: the tool is fine, and the code
-  is still yours to have understood, reviewed and stood behind.
+  is still yours to have understood, reviewed, and stood behind.
 
 ## When a push is refused
 
@@ -256,8 +261,8 @@ bypass and clean up later: a secret that reaches the remote for even one push
 is a secret to rotate. For a false positive, GitHub's error links the bypass
 flow, which records why; take that route rather than reshaping the string.
 
-Four credentials are handled by hand — the two signing keys, `AUR_SSH_KEY` and
-`HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page and
+Four credentials are handled by hand — the two signing keys, `AUR_SSH_KEY`, and
+`HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page, and
 deleted; [PACKAGING.md](PACKAGING.md) walks each. GitHub's scanner is used
 rather than gitleaks or trufflehog because it runs on the push path, where a
 third-party action cannot.

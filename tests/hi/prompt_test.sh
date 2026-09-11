@@ -301,7 +301,7 @@ function run_hi_prompt_tests() {
   _hi_h1 "Testing hi.sh: the bash-less prompt"
 
   _hi_h2 "Testing: the bash-less prompt"
-  _hi_check "Carries user, host, color and separator" test_fallback_prompt_carries_user_host_and_color
+  _hi_check "Carries user, host, color, and separator" test_fallback_prompt_carries_user_host_and_color
   _hi_check "_HI_PROMPT_END_BASH applies here too" test_fallback_prompt_honors_the_separator_setting
   _hi_check "_HI_PROMPT_END_BASH is the sh prompt's too" test_fallback_prompt_takes_the_bash_separator
   _hi_check "_HI_DISABLE_PROMPT skips it" test_fallback_prompt_respects_the_toggle

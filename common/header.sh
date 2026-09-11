@@ -269,9 +269,9 @@ function _hi_humanize_uptime() {
   _hi_out "${2:-}" "$_hi_hu"
 }
 
-# _hi_platform <outvar> - linux, windows, bsd or unknown: the one question
-# the three probes below all asked, in three spellings that had already
-# drifted apart (only the first had an "unknown" arm). Every platform test in
+# _hi_platform <outvar> - linux, windows, bsd, or unknown: the one question
+# the three probes below all ask, spelled once so they cannot drift apart.
+# Every platform test in
 # the shipped tree is in this file, so it lives here and not in core.sh.
 #
 # The `uname` fork is memoized; the verdict is not. $_HI_LINUX_RELEASE stays
@@ -358,7 +358,7 @@ function _hi_system_info_probe() {
     cpus=$(exec sysctl -n hw.ncpu 2>/dev/null) || true
     # total from sysctl, used from vm_stat: active + wired + compressed pages,
     # at vm_stat's own page size (its "(page size of N bytes)" header, not the
-    # hardcoded 4096 that stopped being universal on Apple Silicon) - matched
+    # hardcoded 4096, which Apple Silicon's 16K pages break) - matched
     # by line prefix rather than a fixed field index, since a line's label
     # width varies by macOS version.
     ram=$(
@@ -700,7 +700,7 @@ function banner() {
 }
 
 # hi_header's default row order, and $_HI_HEADER_ORDER's vocabulary - one word
-# per feature, in the shipped default order - no more grouping: any word may
+# per feature, in the shipped default order: any word may
 # be reordered or left out on its own, independent of the others. Named here
 # rather than only in the case below, so a doc or test can read the default
 # without parsing the dispatch.
@@ -712,8 +712,8 @@ _HI_HEADER_ORDER_DEFAULT="utc version localtime os arch cores cpu ram ip gitid c
 # accumulate/flush machinery below.
 function _hi_header_word_cell() {
   printf -v "$2" '%s' ""
-  # Fifteen of the sixteen getters were already named _hi_cell_<word> and the
-  # case restated the mapping; now the convention *is* the mapping. The roster
+  # Each word's getter is named _hi_cell_<word>, so the convention *is* the
+  # mapping. The roster
   # gate is what keeps it safe: $_HI_HEADER_ORDER is the user's own string, so
   # only a word the shipped default names may reach a function here. `check`
   # is in that roster and has no getter - it is full_check's own row - hence
@@ -933,8 +933,8 @@ function _hi_ramp_escape() {
   _hi_color_escape_at "$1" $((_hi_re_i + 24))
 }
 
-# Assigned at source time, as the two escape arrays were before. `|| true`
-# because this is now a call rather than a literal: header.sh is sourced into
+# Assigned at source time. `|| true` because this is a call rather than a
+# literal: header.sh is sourced into
 # a stripped `env -i` in the suites and into callers running under their own
 # strict mode, and neither could be aborted by a plain array assignment.
 _hi_packages_palette || true
@@ -1039,7 +1039,7 @@ function full_check() {
 
   # a carry from an earlier row (hi_header's cascade) opens this row's first
   # line, in the same "| <cell> " shape header_row's own cells use - both
-  # sources measure "|", a space, the text and a trailing space, so the wrap
+  # sources measure "|", a space, the text, and a trailing space, so the wrap
   # loop below treats them alike. Absorbed here rather than left for the
   # caller: full_check is the variable-length block, the one row that can
   # always make room for one more cell.

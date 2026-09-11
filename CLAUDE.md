@@ -13,7 +13,7 @@ product; this is only what a session needs to work here safely.
 ## The one hard rule: `_HI_HOME`
 
 Set `_HI_HOME=/home/ivy/claude` (this checkout's parent) explicitly on every
-hi.sh, script or test invocation. Symptom of forgetting: suites report
+hi.sh, script, or test invocation. Symptom of forgetting: suites report
 fewer/MISSING cases, or a script runs "clean" against the wrong tree.
 
 Two say-hi trees exist on this machine:
@@ -24,7 +24,7 @@ Two say-hi trees exist on this machine:
 
 Two hazards send a session at the wrong tree:
 
-**The rc wiring is on disk.** `~/.bashrc`, `~/.zshrc` and
+**The rc wiring is on disk.** `~/.bashrc`, `~/.zshrc`, and
 `~/.config/fish/config.fish` each carry hi's install block
 (`_HI_HOME=/home/ivy/projects` plus a `source`). `bash -c` and `zsh -c` read
 neither, but **`fish -c` always reads `config.fish`**, so a bare `fish -c`
@@ -86,7 +86,7 @@ export _HI_TEST_LIB=$_HI_HOME/say-hi/tests/test_lib.sh
 - Skip the suite when the diff is prose only. "Only `.yml`/`.md`" is _not_
   prose only: `.github/workflows/*.yml`, `docs/GLOSSARY.md`,
   `docs/SETTINGS.md`'s _Every setting_ table, `docs/hi.1`, `docs/tldr.md`,
-  every doc's `## Contents` block and `packaging/nfpm/nfpm.yaml` are all
+  every doc's `## Contents` block, and `packaging/nfpm/nfpm.yaml` are all
   machine-read by a suite. `README.md`'s payload badge is read by
   `--group bench`.
 - `_HI_PAR_WIDTH=1` runs a parallel container suite one case at a time;
@@ -114,11 +114,11 @@ The full list, with the why, is
 
 - bash 3.2 floor: no mapfile/readarray, associative arrays, namerefs, or case
   conversion; the lint suite greps for them.
-- `common/`, `settings/`, `load.sh` and `hi.sh` ship in the ssh payload,
+- `common/`, `settings/`, `load.sh`, and `hi.sh` ship in the ssh payload,
   budgeted twice (the gzipped tar, and the README's wire-bytes badge to
   within 5%); tooling-only helpers stay out of `common/core.sh`, and
   `--group bench` checks both numbers after touching a shipped file.
-- paths.sh, aliases.sh and targets.sh are dialect-constrained and say so at
+- paths.sh, aliases.sh, and targets.sh are dialect-constrained and say so at
   the top; the stated subset wins over "cleaner" bash.
 
 ## Workflow

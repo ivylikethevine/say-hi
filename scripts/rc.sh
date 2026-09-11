@@ -176,7 +176,7 @@ function tmpdir_line() {
 
 # One row per shell hi wires up locally: <shell>|<rc label>|<hi's rc>|<the
 # user's rc>|<syntax check cmd>|<dialect> - _HI_SHELL_TABLE's own column
-# order (core.sh), the fourth column substituted. Validation, install and
+# order (core.sh), the fourth column substituted. Validation, install, and
 # uninstall all loop this roster, so adding a shell is one row plus its
 # lines rather than three disjoint edits.
 #
@@ -209,7 +209,7 @@ function rc_shell_present() {
 # uninstall takes it back: source .bashrc from .bash_profile. A fresh
 # .bash_profile keeps .profile in the chain too, since its existence is what
 # stops bash reading that one. bash reads the first of .bash_profile,
-# .bash_login and .profile that exists, so with no .bash_profile a
+# .bash_login, and .profile that exists, so with no .bash_profile a
 # ~/.bash_login is the file that counts, and it is nobody's to edit: that
 # case is a warning.
 # shellcheck disable=SC2016 # the lines are the login shell's to expand
@@ -267,7 +267,7 @@ function _hi_config_check() {
 # Runs $@'s syntax-check flag against an existing rc file (without executing it)
 # and reports what it finds. Skipped silently when the shell isn't installed or
 # $target is missing/empty. The shell is read off the front of $@ rather than
-# passed twice, which every call site had to keep in agreement.
+# passed twice, which every call site would have to keep in agreement.
 function check_one_config() {
   local label="$1" target="$2" rc=0
   shift 2

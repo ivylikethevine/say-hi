@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# The tooling-side helpers scripts/, packaging/, docs/tapes/ and tests/ share:
+# The tooling-side helpers scripts/, packaging/, docs/tapes/, and tests/ share:
 # flag parsing, the heading rules, the sed-rewrite primitive, the settings and
 # scheme readers, and the box glyphs. None of it belongs in common/core.sh -
 # common/ ships in the ssh payload and wears a CI-enforced size budget, and
 # nothing a target runs draws a heading or rewrites a file in place. Source it
-# *after* common/core.sh, whose _hi_repeat, _hi_cecho and palette it uses;
+# *after* common/core.sh, whose _hi_repeat, _hi_cecho, and palette it uses;
 # sourcing it does nothing else.
 
 # _hi_flag_word <outvar> <flag> [next] - the word a flag takes, joined
@@ -42,20 +42,6 @@ function _hi_flag_word_or_die() {
     _hi_cecho "$_HI_ME: $msg" "$RED" >&2
     exit 1
     ;;
-  esac
-}
-
-# _hi_is_ssh_value_opt <word> - true for an ssh option that takes a separate
-# value, so a caller walking argv knows to consume the next word with it
-# rather than read it as a target. hi.sh's own copy of this list is the
-# case arm in _hi_parse (hi.sh:1410); doctor.sh cannot depend on it without
-# sourcing hi.sh's trailing dispatch, which would undo doctor's strict mode
-# (hi.sh:1859's `set +euo pipefail`) - so this is the second spelling,
-# pinned to the first by tests/hi/parse_test.sh.
-function _hi_is_ssh_value_opt() {
-  case "$1" in
-  -B | -b | -c | -D | -E | -e | -F | -I | -i | -J | -L | -l | -m | -O | -o | -P | -p | -Q | -R | -S | -W | -w) return 0 ;;
-  *) return 1 ;;
   esac
 }
 
@@ -204,8 +190,7 @@ function _hi_ramp_label() {
 # non-UTF-8 locale a ${s:0:1} would cut a byte out of a three-byte glyph
 # (GLOSSARY: HI.12). The junctions (T/B/L/R/X) are what let a rule know
 # whether it is a table's top, its header separator, or its bottom; ASCII
-# spells all nine corners `+`, which is what the tables looked like before
-# there was a set at all.
+# spells all nine corners `+`.
 if _hi_use_ascii; then
   _HI_BOX_TL="+" _HI_BOX_T="+" _HI_BOX_TR="+"
   _HI_BOX_L="+" _HI_BOX_X="+" _HI_BOX_R="+"

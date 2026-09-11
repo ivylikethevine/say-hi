@@ -73,9 +73,8 @@ function test_hbar_pads_each_column_by_two() {
   [ "$(_hi_hbar mid 2 3)" = "$(_hi_rule "$l" "$x" "$r" 2 3)" ]
 }
 
-# ASCII spells all nine corners `+`, so the three positions are one rule there
-# and the tables look exactly as they did before there was a set at all. Forced
-# through a child shell, since scripts/lib.sh decides the set at source time.
+# ASCII spells all nine corners `+`, so the three positions are one rule there.
+# Forced through a child shell, since scripts/lib.sh decides the set at source time.
 function test_hbar_positions_are_one_rule_in_ascii() {
   local out
   out="$(_HI_ASCII=1 bash -c '

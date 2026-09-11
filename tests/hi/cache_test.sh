@@ -536,7 +536,7 @@ function test_ctl_close_is_a_noop_with_nothing_open() {
 }
 
 function run_cache_tests() {
-  _hi_h1 "Testing hi.sh's runtime dir, caches and ControlMaster socket"
+  _hi_h1 "Testing hi.sh's runtime dir, caches, and ControlMaster socket"
   _hi_workdir hicache
   _hi_suite_begin
   _hi_cache_config

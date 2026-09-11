@@ -52,15 +52,13 @@ Prints, in order:
                      connection, the permanent-install probe, and what the
                      remote end has installed
 
-Every ssh option a connect takes is accepted here too (-p, -i, -J, -o and the
-rest), and reaches the same BatchMode probe a real \`hi\` would authenticate
-with - so \`hi --doctor -J bastion host\` diagnoses the connect that needed
-the jump host. Given for a target that resolves to a container, allocation
-or pod, they are reported as ignored rather than silently dropped: they are
-ssh's alone. --use <backend> names the target's arm outright, the same one a
-real \`hi --use <backend> <target>\` would take, and skips the probe chain in
-the target report. --plain, --mux and --no-mux are accepted and ignored -
-doctor never connects, so it has nothing to report.
+ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
+real connect authenticates with, so \`hi --doctor -J bastion host\`
+diagnoses the connect that needed the jump host; for a container,
+allocation, or pod target they are reported as ignored. --use <backend>
+names the target's arm outright, as a real \`hi --use <backend> <target>\`
+would, and skips the probe chain. --plain, --mux, and --no-mux are
+accepted and ignored - doctor never connects.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -82,7 +80,7 @@ case "${1:-}" in
 esac
 
 # hi.sh's source hatch hands over everything this needs without connecting
-# anywhere: the backend predicates, $_HI_PAYLOAD and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
+# anywhere: the backend predicates, $_HI_PAYLOAD, and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
 # reads it at source time, and must see none) and classified after, so an arm
 # name is recognized through the one place that spells the roster rather than
 # a second list here.
@@ -95,15 +93,11 @@ set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
 
-# --json, the target, --use and any ssh options may come in any order:
-# `hi --doctor --json host`, `hi --doctor host --json`,
-# `hi --doctor --use docker host`, `hi --doctor -J bastion host` all read
-# naturally. `--use <backend>` is the one two-word flag of doctor's own; a
-# `-x` from hi.sh's own value-taking-option list (_hi_is_ssh_value_opt,
-# scripts/lib.sh) is ssh's and takes the next word the same way, landing in
-# $_HI_DOC_SSHARGS rather than $_HI_DOC_TARGET. Any other `-x` is ssh's own
-# bare flag and rides along unconsumed; a `--word` doctor and hi.sh both know
-# nothing about is an error, not a target - a target never starts with a
+# --json, the target, --use, and ssh options come in any order: `hi --doctor
+# host --json` and `hi --doctor -J bastion host` read naturally. An ssh
+# option that takes a value (hi.sh's _hi_is_ssh_value_opt) takes the next
+# word with it into $_HI_DOC_SSHARGS; any other `-x` rides along alone. An
+# unknown `--word` is an error, not a target - a target never starts with a
 # dash - and so is a second target.
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
@@ -442,7 +436,7 @@ function doctor_install() {
   if [ -n "${ZDOTDIR:-}" ] && _hi_has_marker "$HOME/.zshrc" && ! _hi_has_marker "$ZDOTDIR/.zshrc"; then
     doctor_row zdotdir "$HOME/.zshrc has hi's lines, but ZDOTDIR points zsh at $ZDOTDIR/.zshrc (hi --install writes there now)" warn
   fi
-  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login
+  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login,
   # and ~/.profile that exists - bash's own order - and never ~/.bashrc, so
   # the bashrc row above can be green and a Terminal.app shell still see
   # none of it
@@ -657,9 +651,7 @@ function _hi_ladder_first() {
 # costs a single authentication.
 function doctor_ssh_target() {
   DOMAIN="$1"
-  # $_HI_DOC_SSHARGS: every ssh option this run was given, so the probe below
-  # authenticates the same way the connect that sent you here would - a
-  # docs/hi.1 -J or -p included, not just the ssh config on its own.
+  # the run's ssh options, so the probe authenticates the way the connect would
   SSHARGS=(${_HI_DOC_SSHARGS[@]+"${_HI_DOC_SSHARGS[@]}"})
   local ctl_path t0 t1 tools err
   err="$(mktemp -t hi.doc.err.XXXXXX)"
@@ -668,8 +660,8 @@ function doctor_ssh_target() {
   local -a ctl_opts
   _hi_ctl_open 15 run -o BatchMode=yes
   t0="$(_hi_now)"
-  # SSHARGS ahead of the hardcoded bound: an explicit -o ConnectTimeout=N of
-  # your own wins over it, ssh's own first-occurrence rule
+  # SSHARGS first: ssh keeps an option's first value, so your own
+  # -o ConnectTimeout wins over the bound
   if ! ssh "${ctl_opts[@]}" ${SSHARGS[@]+"${SSHARGS[@]}"} -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
     t1="$(_hi_now)"
     doctor_row connect "FAILED after $(_hi_elapsed "$t0" "$t1")s (BatchMode - a password/2FA prompt fails here but may work interactively)" bad
@@ -684,8 +676,8 @@ function doctor_ssh_target() {
   doctor_row connect "ok ($(_hi_elapsed "$t0" "$t1")s to authenticate - later probes reuse the socket)" ok
   doctor_row install "hi ships $(_hi_wire_estimate) each session - a say-hi installed on the target is not used from here"
   # through _hi_ssh_sh, like every other command hi sends: unwrapped, a fish
-  # login shell cannot parse the loop and the report claimed the target had
-  # nothing - no base64, no bash, all of it false
+  # login shell cannot parse the loop and the report would claim the target
+  # has nothing
   tools="$(_hi_ssh_sh "$(_hi_doctor_probe_snippet)" \
     "${ctl_opts[@]}" 2>/dev/null || true)"
   doctor_row remote "has: ${tools:-nothing this probes for}"

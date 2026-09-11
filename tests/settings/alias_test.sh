@@ -14,7 +14,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 # derived straight from aliases.sh so this test can't drift out of sync with
 # it. Most of the file is `[ toggle-test ] && alias/export name=... || true`
-# now (the toggles default to "shipped on"), so the patterns below allow up to
+# (the toggles default to "shipped on"), so the patterns below allow up to
 # two leading `[ ... ] &&` guards ahead of the `alias`/`export` token, still
 # anchored to the start of the line so a mention of `alias x=` in a comment
 # can't match. What that excludes on purpose: a two-line statement (the
@@ -26,7 +26,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_SAMPLE_ALIASES=$(grep -oE '^(\[[^](]*\] && ){0,2}alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*alias +//; s/=$//' | tr '\n' ' ')
 _HI_SAMPLE_VARS=$(grep -oE '^(\[[^](]*\] && ){0,2}export +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ALIASES" | sed -E 's/^.*export +//; s/=$//' | tr '\n' ' ')
 
-# posix `alias name` / `test -n "${v+x}"` work unmodified in dash, bash and zsh;
+# posix `alias name` / `test -n "${v+x}"` work unmodified in dash, bash, and zsh;
 # fish has neither - aliases are functions there, and `set -q` is its "is set"
 # shellcheck disable=SC2016 # these are the scripts we write out, not code to run here
 function _hi_test_script() {
@@ -47,8 +47,7 @@ function _hi_test_script() {
 # real <shell>. With `strict`, the toggles are scrubbed from the environment
 # and the shell runs under `set -u`: aliases.sh reads _HI_DISABLE_EDITORS bare
 # (fish can't parse ${X:-0}), so it must default it
-# itself - that is the shape `hi <target> <command>` runs in, and how the ssh
-# suite once broke. fish has no `set -u` (unset is always empty there), so its
+# itself - that is the shape `hi <target> <command>` runs in. fish has no `set -u` (unset is always empty there), so its
 # strict run only proves the defaulting line parses.
 function _hi_test_shell() {
   local shell="$1" strict="${3:-}" output exit_code=0 t0 t1

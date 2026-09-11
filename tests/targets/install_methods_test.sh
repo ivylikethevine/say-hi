@@ -7,7 +7,7 @@
 #
 # One question in all six: the method leaves a *working* say-hi on that box,
 # and a hi session to it is unaffected by one being there. hi ships its payload
-# to every ssh target now - it does not read a say-hi the target already has -
+# to every ssh target - it does not read a say-hi the target already has -
 # so each case asserts the session runs out of its own tree ($_HI_ROOT is not
 # the installed path) and that the installed tree is still sitting there,
 # whole, when the session is gone.

@@ -326,10 +326,9 @@ function test_suite_end_reports_its_counts() {
   [ "$(cat "$file")" = "5 2 1" ]
 }
 
-# _hi_dump_log replaced six messages that printed a log's *path*, every one of
-# them under $_HI_WORKDIR and so already deleted by _hi_test_cleanup's rm -rf
-# by the time anyone could follow it. What matters now is that the text itself
-# reaches the transcript, since that is the only surviving copy.
+# _hi_dump_log prints a log's text, never its *path*: every log is under
+# $_HI_WORKDIR, deleted by _hi_test_cleanup's rm -rf before anyone could
+# follow a path, so the transcript holds the only surviving copy.
 function _hi_dump_log_out() {
   _hi_strip_ansi "$(_hi_dump_log "$@")"
 }

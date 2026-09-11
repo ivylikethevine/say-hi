@@ -1,6 +1,6 @@
 # Prettier is what Zed formats Markdown with on save; this pins its defaults so
 # a hand run (`npx prettier --write '**/*.md'`) produces the same bytes and
-# agrees with .markdownlint.yaml, .editorconfig and .moxide.toml:
+# agrees with .markdownlint.yaml, .editorconfig, and .moxide.toml:
 #   - proseWrap preserve: the docs are hand-wrapped at ~80 columns and MD013 is
 #     off, so line breaks are the author's, not the formatter's
 #   - tabWidth 2 / lf: .editorconfig's values, restated so prettier needs no

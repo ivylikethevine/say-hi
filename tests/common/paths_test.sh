@@ -78,8 +78,7 @@ function test_toggles_stay_on_remotely_without_local_only() {
 # The gate's list has to be core.sh's _HI_TOGGLES minus the gates' own two
 # inputs - paths.sh can't loop the roster (its four-shell dialect has no
 # loops), so it spells the list out, and a toggle added to core.sh that never
-# reaches it is exactly how a toggle once went
-# missing from "all of the above". The behavioral cases above walk
+# reaches it would go missing from "all of the above". The behavioral cases above walk
 # _HI_GATED_VARS, so pinning that list to the roster pins the gate.
 function test_gate_list_matches_the_toggle_roster() {
   local t
@@ -124,7 +123,7 @@ function test_paths_sources_cleanly_under_strict_mode() {
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
 # invisible until something runs under `set -u`, where an unset toggle is fatal
-# rather than empty - which is exactly how `hi <target> <command>` broke.
+# rather than empty - as it is for `hi <target> <command>`.
 
 function _hi_defaults_via() {
   bash -c "$1"' ; for v in '"${_HI_GATED_VARS[*]}"' _HI_DISABLE_LOCAL _HI_REMOTE_SESSION; do

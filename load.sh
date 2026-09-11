@@ -134,7 +134,7 @@ function _hi_fishquote() {
 # files. `bash --rcfile` in hi.sh starts the *bootloader*; the shell the user
 # types at is started below, and a bare `bash -i` would read ~/.bashrc, so it
 # is pointed here instead. Every mechanism is one hi already relies on for a
-# bash-less target: --rcfile, ZDOTDIR, $ENV and fish's -C.
+# bash-less target: --rcfile, ZDOTDIR, $ENV, and fish's -C.
 #
 # Each file sources the target's own rc *first*, then hi's on top.
 #
@@ -201,7 +201,7 @@ function _hi_session_rc_setup() {
     printf 'source %s\n' "$q"
   } >"$dir/fish.config"
 
-  # $ENV is what sh, dash and ash read for an *interactive* shell. Aliases and
+  # $ENV is what sh, dash, and ash read for an *interactive* shell. Aliases and
   # paths only, the same subset the bash-less fallback gets.
   printf -v q '%q' "$_HI_ROOT"
   {
@@ -286,8 +286,8 @@ function load() {
     # either way - the payload roster is static).
     command -v vim &>/dev/null &&
       export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
-    # $EDITOR, $VISUAL and $SUDO_EDITOR: an alias reaches an interactive
-    # prompt and nothing else, so `git commit`, `crontab -e` and `sudo -e` on
+    # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
+    # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on
     # the target would still open whatever vi it has. Exported for the
     # session shell to inherit, carrying the same flags the alias does.
     local editor

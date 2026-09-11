@@ -55,7 +55,7 @@ end
 
 # Opposite conditions, so exactly one runs per TAB: without the negation
 # `hi --<TAB>` would fire the target sweep too, and a flag list must never
-# wait on a docker daemon (the promise targets.sh, bash.sh and zsh.zsh keep).
+# wait on a docker daemon (the promise targets.sh, bash.sh, and zsh.zsh keep).
 # -k keeps targets.sh's order instead of sorting.
 # the word after a flag that takes one - `hi --preview <TAB>`, `hi --use
 # <TAB>` - is neither a flag nor a target: targets.sh's words roster
@@ -75,7 +75,7 @@ complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags (commandline -opc)[2])'
 complete exa --wraps eza
 
-# fish can't run hi's bash side, so the greeting, the package check and the
+# fish can't run hi's bash side, so the greeting, the package check, and the
 # color resolution each come from one bash call
 function fish_greeting
   # on a hi session load.sh printed this already and sets $fish_greeting to
@@ -244,9 +244,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
       # $lead is its own argument, never "$lead"(__hi_env_prompt): fish drops
       # the *whole* concatenated word when a command substitution inside it
       # produces nothing, so glued to an empty environment segment - which is
-      # every prompt outside a venv/conda/direnv - the leading space
-      # disappeared with it. `echo -ns` joins its arguments with no separator,
-      # so two words render exactly as the one did when the segment was there.
+      # every prompt outside a venv, conda, or direnv - the leading space would
+      # go with it. `echo -ns` joins its arguments with no separator.
       echo -ns (set_color yellow) "$__fish_machine" \
         (set_color brcyan) "$lead" (__hi_env_prompt) \
         (set_color $fish_color_user) "$USER" \
@@ -320,8 +319,7 @@ set -e __hi_n
 # === end required configuration ===
 
 # hi's git segment: the fish half of common/git_prompt.sh; prompt_test.sh pins
-# its glyphs and colors against core.sh. Product, not taste, so unconditional
-# (docs/SETTINGS.md on what hi stopped shipping).
+# its glyphs and colors against core.sh. Product, not taste, so unconditional.
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes

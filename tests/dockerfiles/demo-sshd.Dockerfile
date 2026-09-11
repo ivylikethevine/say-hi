@@ -4,7 +4,7 @@
 # permanent-install story the README GIF cannot otherwise show. One debian
 # digest pin fewer to bump: the base carries it.
 #
-# hitest's login shell is fish on purpose: hi follows the login shell now
+# hitest's login shell is fish on purpose: hi follows the login shell
 # (load.sh's _hi_session_shell), so this is what makes the demo land in a shell
 # other than the client's - which is the whole point of the GIF.
 #

@@ -252,7 +252,7 @@ function test_update_refuses_an_unknown_tag() {
   [[ "$out" == *"no release tag named main"* ]]
 }
 
-# no git-pull options any more, and no second word: both are errors before
+# no git-pull options, and no second word: both are errors before
 # anything moves
 function test_update_takes_one_tag_at_most() {
   local home out

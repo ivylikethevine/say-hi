@@ -105,10 +105,10 @@ of the header and prompt, then Preset / Header / Features / Prompt / Advanced
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced or minimal - without the
+                   preset - everything, balanced, or minimal - without the
                    menu, and write that. The same presets are the menu's
                    first item. The header order, the width, the prompt
-                   separators, the starship choice and the advanced
+                   separators, the starship choice, and the advanced
                    settings keep what they hold.
   -n, --dry-run    Say what would be written to settings.sh and write
                    nothing; s in the menu reports instead of saving.
@@ -140,7 +140,7 @@ you don't own.
                    wired shells alias hi to this tree either way; the link is
                    for scripts and other programs).
   --preset <name>  Answer the feature and header settings from a
-                   preset - everything, balanced or minimal - without the
+                   preset - everything, balanced, or minimal - without the
                    menu. The same presets are the menu's first item.
   -n, --dry-run    Say what would be written - rc lines, the overlay seed,
                    settings.sh, the link - and write nothing. The menu
@@ -202,31 +202,31 @@ source "$_HI_HOME/say-hi/scripts/rc.sh"
 source "$_HI_HOME/say-hi/scripts/configure.sh"
 
 # The four modes are one choice, and every one of them is a word: hi's
-# --install, --configure and --uninstall each inject theirs (common/flags),
+# --install, --configure, and --uninstall each inject theirs (common/flags),
 # so `hi --install --uninstall` is two modes and refused, not an uninstall.
 # Parsed here, after core.sh is in, so a refusal is the same red one-liner
 # every other command prints.
 _HI_MODES=""
 # the switches seen, so a mode can refuse the ones that are not its own
 _HI_SEEN=""
-# one `shift` after the case, not one per arm: an arm added without its own was
-# an infinite loop
+# one `shift` after the case, not one per arm: an arm added without its own
+# would loop forever
 while [ $# -gt 0 ]; do
   case "$1" in
   --install) _HI_MODES="$_HI_MODES $1" ;;
   --configure) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
   --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
-  # one tri-state option, not two booleans that had to refuse each other;
+  # one tri-state option, not two booleans that must refuse each other;
   # the last one on the line wins
   --link | --link=*)
-    _hi_flag_word_or_die _hi_link_where "--link needs one of none, user or system" "$@"
+    _hi_flag_word_or_die _hi_link_where "--link needs one of none, user, or system" "$@"
     [ $? -eq 2 ] && shift
     case "$_hi_link_where" in
     none) _HI_NO_LINK=1 _HI_SYSTEM_LINK="" ;;
     system) _HI_SYSTEM_LINK=1 _HI_NO_LINK="" ;;
     user) _HI_NO_LINK="" _HI_SYSTEM_LINK="" ;;
     *)
-      _hi_cecho "$_HI_ME: --link wants one of none, user or system (got $_hi_link_where)" "$RED" >&2
+      _hi_cecho "$_HI_ME: --link wants one of none, user, or system (got $_hi_link_where)" "$RED" >&2
       exit 1
       ;;
     esac

@@ -28,7 +28,7 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 | [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev)                     | draws the prompt in hi's place, with your config from home                    | no - opt-in          | `_HI_PROMPT_TOOL`                                        |
 | [zoxide](https://github.com/ajeetdsouza/zoxide), [atuin](https://atuin.sh)              | runs the tool's `init <shell>`                                                | yes, where installed | `_HI_DISABLE_TOOL_INIT`                                  |
 | mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv        | names the active ones in the prompt's leading `(myproj)` segment              | yes                  | `_HI_DISABLE_ENV_STATUS`, `_HI_ENV_ORDER`                |
-| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, `eza` and `exa` aliases with hi's flags, your theme from home   | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
+| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, `eza`, and `exa` aliases with hi's flags, your theme from home   | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
 | tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client                         | no - per connect     | `--mux`, `--no-mux`                                      |
 | lesspipe                                                                                | `less` opens archives and packages, as the distro's own rc sets it up         | yes, where installed | none                                                     |
 | vim/neovim, nano, emacs, helix, kakoune, micro                                          | opened with hi's config, or yours, through an alias                           | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
@@ -42,7 +42,7 @@ included, on your own machine only, and leaves every target as it was
 
 `_HI_PROMPT_TOOL=starship` hands the prompt to starship on every target that
 has it, and `_HI_PROMPT_TOOL=oh-my-posh` to oh-my-posh, through the tool's own
-`init <shell>` in bash, zsh and fish. Only the prompt line changes hands: hi
+`init <shell>` in bash, zsh, and fish. Only the prompt line changes hands: hi
 still prints the header and sets up the aliases and editors. A target without
 the tool keeps hi's prompt and says nothing. The setting is never
 auto-detected, so a box that happens to carry starship does not change your
@@ -71,7 +71,7 @@ nothing else is [HI.32](GLOSSARY.md#hi32-starship-deference).
 
 Where a target has zoxide or atuin, every session runs the tool's
 `init <shell>`: zoxide's ranked `z` and `zi` jumps, atuin's Ctrl-R history
-search, in bash, zsh and fish alike. A tool something has already wired in is
+search, in bash, zsh, and fish alike. A tool something has already wired in is
 left alone - each leaves a function behind (`__zoxide_z`; atuin's
 `_atuin_search` in zsh and fish, `__atuin_history` in bash), and hi checks for
 it first - so the `init` your own rc runs at home is never run twice.
@@ -92,7 +92,7 @@ active, outermost first: `(mise|direnv:proj|myproj)` is mise activated, a
 direnv-loaded `proj`, and a venv inside it. It reads `$MISE_SHELL`,
 `$ASDF_DIR`, `$PYENV_VERSION`/`$RBENV_VERSION`/`$NODENV_VERSION`,
 `$IN_NIX_SHELL`, `$GUIX_ENVIRONMENT`, `$DEVBOX_SHELL_ENABLED`,
-`$DEVENV_ROOT`, `$DIRENV_DIR`, `$CONDA_DEFAULT_ENV` and
+`$DEVENV_ROOT`, `$DIRENV_DIR`, `$CONDA_DEFAULT_ENV`, and
 `$VIRTUAL_ENV_PROMPT`/`$VIRTUAL_ENV` - variables the tools export, so a draw
 costs no probe and no fork. mise is named only where a config file between
 the directory and `~` overrides the global one, so an activated mise with
@@ -110,7 +110,7 @@ where the shell holds on to the prompt the activate script edited. bash is the
 exception - hi rebuilds `$PS1` on every draw, so the activate script's prefix
 cannot survive there and hi draws the segment itself. The upshot is that a
 venv is named in all three shells, in the venv's styling under zsh and fish
-and in hi's under bash; direnv, nix and the rest have no prefix of their own
+and in hi's under bash; direnv, nix, and the rest have no prefix of their own
 and are always hi's.
 
 To get hi's styling and naming everywhere instead, silence the tool's own
@@ -129,14 +129,14 @@ and prompt you open reads them too
 has, first installed wins:
 
 - `cat` and `catn` run bat (Debian's `batcat`, where that is its name) with
-  `_HI_BAT_OPTS` - no pager, two-space tabs, the Monokai Extended Bright theme
+  `_HI_BAT_OPTS` - no pager, two-space tabs, the Monokai Extended Bright theme,
   and the `changes,grid` style - and `catn` adds line numbers. Without bat
   they fall through to `ccat`, then plain `cat`.
 - `exa` and `eza` run whichever of the two the target has, with
   `_HI_EXA_OPTS` or `_HI_EZA_OPTS`.
 
 `_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind and the `exa`/`eza`
-wrappers; `bat`, `batcat` and `batn` stay available by name either way. The
+wrappers; `bat`, `batcat`, and `batn` stay available by name either way. The
 flags and the binary each alias runs are rows in
 [Every setting](SETTINGS.md#every-setting), set in your `settings.sh`; to add
 one flag to hi's instead, redefine the alias in your `aliases.sh`, which loads
@@ -173,11 +173,11 @@ the target reads the same variable, so it matches too.
 ## Terminal multiplexers
 
 `hi --mux <target>` starts the connect inside a session of the first of tmux,
-zellij and screen on **your** `PATH`, named `hi-<target>`, and a second
+zellij, and screen on **your** `PATH`, named `hi-<target>`, and a second
 `hi --mux <target>` joins the one already running - so a dropped link leaves
 a session to reattach to, on your side. Already inside tmux, hi switches the
-client to that session rather than nesting; inside screen it opens a new
-window. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the default
+client to that session rather than nesting; inside screen or zellij it
+opens a new window or tab. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the default
 and `--no-mux` skips it once. The target sees an ordinary session: persistent
 sessions on the target
 were [decided against](SUPPORT.md#what-would-change-an-answer), and
@@ -187,7 +187,7 @@ were [decided against](SUPPORT.md#what-would-change-an-answer), and
 
 Where a target has `/usr/bin/lesspipe` (Debian and Ubuntu ship it) and
 `$LESSOPEN` is not already set, bash and zsh sessions `eval` it, so `less`
-opens archives, packages and compressed files the way the distro's own
+opens archives, packages, and compressed files the way the distro's own
 `~/.bashrc` sets it up. A nested shell inherits the exported `$LESSOPEN` and
 skips it. In the same spirit, a chroot's `/etc/debian_chroot` leads the bash
 and zsh prompts as `(name)`.
@@ -199,10 +199,10 @@ when hi styles it, else the best of `fish zsh bash` the target has, and hi's
 setup runs after that shell's own rc - so hi is the one positioned to break a
 framework, and the one tested for it. `tests/targets/framework_test.sh`
 installs nine per their own READMEs - oh-my-zsh, powerlevel10k, starship,
-bash-it, fzf, zoxide, direnv, atuin and mise - connects for real, and asserts
+bash-it, fzf, zoxide, direnv, atuin, and mise - connects for real, and asserts
 no shell errors and the framework's own hook left intact: zsh's array base
 unchanged under oh-my-zsh and powerlevel10k, `PROMPT_COMMAND` chained rather
-than replaced for zoxide, direnv and mise, and fzf's and atuin's `bind -x`
+than replaced for zoxide, direnv, and mise, and fzf's and atuin's `bind -x`
 Ctrl-R bindings in place. The starship case is starship started from the
 target's own rc; `_HI_PROMPT_TOOL` is the rc suite's.
 

@@ -1,11 +1,11 @@
 # Jekyll config for the GitHub Pages site (.github/workflows/pages.yml). Nothing
 # else reads it, and no Ruby is a dependency here: actions/jekyll-build-pages
-# supplies the github-pages gem, the theme and every plugin below.
+# supplies the github-pages gem, the theme, and every plugin below.
 
 title: say-hi
 description: >-
-  A greeting, a prompt and your aliases on every machine you ssh, docker,
-  podman, nomad or kubectl into - without installing anything there.
+  A greeting, a prompt, and your aliases on every machine you ssh, docker,
+  podman, nomad, or kubectl into - without installing anything there.
 remote_theme: just-the-docs/just-the-docs@v0.12.0
 
 # readme-index: README.md is the site index; there is no index.md and there
@@ -36,7 +36,7 @@ relative_links:
 readme_index:
   with_frontmatter: true
 
-# The site is the prose: code, tooling and packaging stay off it. docs/tapes/
+# The site is the prose: code, tooling, and packaging stay off it. docs/tapes/
 # is laid over the built site by pages.yml (the committed demo.gif plus the
 # demos.yml renders), and README.md links the GIFs at their published URLs.
 # docs/tldr.md is a draft for an upstream tldr-pages PR and has to keep tldr's

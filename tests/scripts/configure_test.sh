@@ -23,11 +23,11 @@ set -- # install.sh reads "$@" for its own args; make sure it sees none
 # shellcheck source=../../scripts/install.sh
 source "$_HI_INSTALL"
 
-# Nothing is spliced into common/paths.sh any more - the settings live in
+# Nothing is spliced into common/paths.sh - the settings live in
 # $_HI_SETTINGS, which every entry point sources *ahead* of paths.sh so that
 # paths.sh's local-only gate can read them. That ordering is the load-bearing
-# property now, and it's spread across three files (no single include line is
-# valid in sh, bash, zsh and fish alike), so assert it in each.
+# property, and it's spread across three files (no single include line is
+# valid in sh, bash, zsh, and fish alike), so assert it in each.
 # Comment lines are filtered out first: both files explain themselves in prose
 # that names the very files being looked for, and a comment mentioning paths.sh
 # above the code that sources settings.sh would read as the wrong order.
@@ -56,7 +56,7 @@ function test_prompt_ends_keeps_an_existing_override() {
 }
 
 # quoted on the way out: a separator is as likely to be $ or > as a letter, and
-# the file is sourced by sh, bash, zsh and fish alike
+# the file is sourced by sh, bash, zsh, and fish alike
 function test_prompt_ends_quotes_what_it_writes() {
   local out
   out="$(_hi_collected_lines prompt_quote "export _HI_PROMPT_END_BASH='>'")"
@@ -64,16 +64,14 @@ function test_prompt_ends_quotes_what_it_writes() {
 }
 
 # the prompt is off, so what it ends with is moot right now - and kept, so
-# turning the prompt back on finds the separator where it was left. The old
-# wizard dropped a moot value with the section it skipped; the collector
-# has no sections to skip.
+# turning the prompt back on finds the separator where it was left.
 function test_prompt_ends_kept_when_the_prompt_is_off() {
   local out
   out="$(_hi_collected_lines prompt_off "export _HI_DISABLE_PROMPT=1" "export _HI_PROMPT_END_ZSH='::'")"
   [[ "$out" == *"export _HI_DISABLE_PROMPT=1"* && "$out" == *"export _HI_PROMPT_END_ZSH='::'"* ]]
 }
 
-# The wizard asks about neither the scheme nor the packages ramp any more -
+# The wizard asks about neither the scheme nor the packages ramp -
 # both are hand-written into settings.sh (GLOSSARY: HI.50). So the contract
 # here is that a full run leaves whatever they hold exactly as it found it,
 # quoted where it holds spaces.
@@ -249,7 +247,7 @@ function test_overlay_seed_is_quiet_when_nothing_is_missing() {
   [ -z "$out" ]
 }
 
-# settings.sh is sourced by sh, bash, zsh and fish, so line 1 has to be the
+# settings.sh is sourced by sh, bash, zsh, and fish, so line 1 has to be the
 # `#!/bin/sh` all four read as a comment - and has to stay line 1 once
 # config_shell has written the settings block under it.
 function _hi_shebang_fresh() { ensure_settings_shebang; }
@@ -418,7 +416,7 @@ function _hi_floor_finished() {
 # everything to the end of the line by default, or just what <capture>
 # matches (a sed bracket expression body) when the tag's value can have
 # trailing text of its own. The one shape behind _hi_floor_pty_lines,
-# _hi_cfg_rc and _hi_cfg_lines.
+# _hi_cfg_rc, and _hi_cfg_lines.
 function _hi_pty_field() {
   tr '\r' '\n' <"$_HI_WORKDIR/$1.$2.out" | sed -n "s/.*$3\\(${4:-.*}\\).*/\\1/p" | head -1
 }
@@ -536,7 +534,7 @@ function test_setting_off_reads_marker_padded_line() {
     [ "$(_hi_setting_get "$target" _HI_DISABLE_FOO)" = 1 ]
 }
 
-# _hi_setting_get sources the file for real now rather than hand-scanning
+# _hi_setting_get sources the file for real rather than hand-scanning
 # `export NAME=value` text: a computed value real bash would honour reads the
 # same way here, exactly as a settings.sh sourced on a target would resolve it.
 function test_setting_get_reads_a_computed_value() {
@@ -679,7 +677,7 @@ function test_configure_leaves_a_hand_line_it_does_not_write() {
     [[ "$(printf '%s\n' "$out" | grep _HI_MY_OWN_LINE)" != *"$_HI_MARKER"* ]]
 }
 
-# no tty, no preset, no file and nothing to say: no file - a shebang alone
+# no tty, no preset, no file, and nothing to say: no file - a shebang alone
 # would be a decision record with no decision in it, and its existence is
 # what stops the one-shot prompt-framework detection asking again
 function test_no_tty_run_with_defaults_writes_no_file() {
@@ -905,8 +903,8 @@ function test_config_hi_links_plainly_when_bindir_is_writable() {
 # config_hi's own lockout degradation (both the refused-sudo and the
 # no-sudo-at-all shape of it) is tests/scripts/install_test.sh's to assert -
 # link_hi_by_hand is the one function behind both, and that suite's
-# "Instructs when sudo is refused"/"Instructs with no sudo at all" check the
-# same output this block used to, down to the fixture.
+# "Instructs when sudo is refused"/"Instructs with no sudo at all" check that
+# output, down to the fixture.
 #
 # The live previews, called straight rather than through show_preview: each is
 # the one line of truth its question illustrates, so what it names - the real
@@ -945,7 +943,7 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
 }
 
 # vim and hx are presence-gated in settings/aliases.sh itself (a box with
-# neither leaves the alias undefined), which _hi_editors_preview now reads
+# neither leaves the alias undefined), which _hi_editors_preview reads
 # rather than restates - so their lines only need to be there when the tool
 # actually is; nano/emacs/kak/micro carry no such gate and are unconditional.
 function test_editors_preview_names_every_override() {
@@ -964,7 +962,7 @@ function test_editors_preview_names_every_override() {
 
 # vim and hx have no second spelling left to drift out of step:
 # _hi_editors_preview sources settings/aliases.sh itself and reads the alias
-# back (same trick as load.sh's _hi_session_editor), so what pins them now is
+# back (same trick as load.sh's _hi_session_editor), so what pins them is
 # behaviour, not text - the preview's line for <tool> must be exactly what
 # sourcing the alias produces. tests/settings/alias_fallthrough_test.sh keeps
 # the textual pin for bat, whose preview is not built this way.
@@ -1037,7 +1035,7 @@ function test_starship_preview_reports_an_absent_one() {
 function test_floor_preview_says_off_at_the_top_floor() {
   _hi_load_preview_sources
   local out
-  # the candidate is an argument now, not a global the caller had to set
+  # the candidate is an argument, not a global the caller sets
   out="$(_hi_strip_ansi "$(_hi_packages_floor_preview 4)")"
   [[ "$out" == *"nothing - the check is off at this floor"* ]]
 }
@@ -1061,11 +1059,11 @@ function test_run_configure_without_a_preset_keeps_the_block() {
 }
 
 # The interactive arms proper: ask_value's typed answers, the menu,
-# config_preset and the intro are all `[ -t 0 ]`-gated the same way
+# config_preset, and the intro are all `[ -t 0 ]`-gated the same way
 # the floor loop is, and the same pty harness reaches them. The child is
 # _HI_FLOOR_CHILD's shape generalised - point the settings at a scratch dir,
 # run the one configure function named on its argv with the pty as stdin, and
-# report the exit code, the preset-final flag and the collected lines on one
+# report the exit code, the preset-final flag, and the collected lines on one
 # greppable tail line. Feeding a question an extra newline is harmless (it
 # sits unread); feeding one too few hangs the child, which _hi_wait_pid turns
 # into the kill this helper reports.
@@ -1487,7 +1485,7 @@ function run_configure_tests() {
   _hi_check "Reads a two-statement assignment" test_setting_get_reads_a_two_statement_assignment
   _hi_check "Leaves other variables ambient" test_setting_get_leaves_other_variables_ambient
 
-  _hi_h2 "Testing: opt-ins, the advanced section and the closing report"
+  _hi_h2 "Testing: opt-ins, the advanced section, and the closing report"
   _hi_check "An absent opt-in is off" test_setting_on_opt_in_absent_is_off
   _hi_check "A written opt-in is on" test_setting_on_opt_in_present_is_on
   _hi_check "An absent toggle is on" test_setting_on_toggle_absent_is_on
@@ -1547,7 +1545,7 @@ function run_configure_tests() {
   # Every pty case fans out together: each drives its own child under its own
   # $_HI_WORKDIR/<label> and the children re-source configure.sh themselves,
   # so nothing in this shell is shared - and thirty-odd of them at a second
-  # apiece were this suite's whole wall clock when they ran one at a time.
+  # apiece would be this suite's whole wall clock run one at a time.
   # The three packages-floor prompts belong to the section above; they sit
   # here because they are pty cases too.
   _hi_h2 "Testing: the interactive arms and the menu (pty)"

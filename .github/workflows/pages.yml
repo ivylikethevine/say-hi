@@ -224,7 +224,7 @@ jobs:
       # reaches a subscriber. Only the latest release is served; older packages
       # stay on their release pages. No release yet, or one shipped without the
       # asset (no GPG_SIGNING_KEY), is the normal state before v1: the site
-      # goes out without the apt/, rpm/ and apk/ directories.
+      # goes out without the apt/, rpm/, and apk/ directories.
       - name: Unpack the package repository
         env:
           GH_TOKEN: ${{ github.token }}

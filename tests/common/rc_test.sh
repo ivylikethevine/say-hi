@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Behavioral tests for common/bash.sh, zsh.zsh and config.fish. Syntax-linting
+# Behavioral tests for common/bash.sh, zsh.zsh, and config.fish. Syntax-linting
 # alone lets a prompt or completion silently stop being defined and still pass
 # CI, so these run them. Each case runs a fresh shell under `env -i` with HOME
 # and _HI_CONFIG_DIR pointed into the workdir, so local settings can't leak in.
@@ -94,13 +94,13 @@ function test_bash_registers_hi_completion() {
 
 # What this case is really for: common/bash.sh's `source "$_HI_ALIASES"` line
 # actually reaching the alias chain in a real bash. Sampled from the file
-# rather than spelled here, on alias_test.sh's precedent: those names are still
-# being retired entry by entry, and one written into this suite goes stale the
+# rather than spelled here, on alias_test.sh's precedent: those names change
+# entry by entry, and one written into this suite goes stale the
 # next time one is dropped. The unguarded `alias` lines are exactly that tail -
 # everything above it is defined behind a `[ ... ] &&` test, not at column 0.
-# An empty sample is not a failure - it is what finishing that removal looks
-# like - so it reports and passes, and this case can be deleted with the last
-# alias in the file.
+# An empty sample is not a failure - the file has no unguarded alias left - so
+# it reports and passes, and this case can be deleted with the last alias in
+# the file.
 function test_bash_sources_the_convenience_aliases() {
   local sample
   sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/settings/aliases.sh" |
@@ -294,7 +294,7 @@ esac'
 }
 
 # One case for all three shells and both tools: the per-shell rc, prompt-print
-# incantation and expected shape live in the case's own table. Extra
+# incantation, and expected shape live in the case's own table. Extra
 # NAME=VALUE arguments ride _hi_rc_shell (env applies the last assignment, so
 # the prepended-PATH override wins over the baseline), so there is one `env -i`
 # block here rather than one per case.
@@ -593,7 +593,7 @@ function test_fish_flag_completion_does_not_also_sweep_targets() {
     printf '%s\n' "$out" | grep -qF '$_HI_TARGETS flags'
 }
 
-# The character each prompt ends with is a setting now (core.sh's
+# The character each prompt ends with is a setting (core.sh's
 # _hi_prompt_end, mirrored in config.fish), with three different shipped
 # defaults. Each case renders the real prompt in the real shell rather than
 # grepping the rc, since the whole risk here is a value that reaches $PS1 in a
@@ -676,15 +676,15 @@ function test_fish_config_dir_explicit_value_wins() {
 
 #
 # hi ships nobody's taste per shell - no history sizing, keybindings,
-# completion or color styling of its own. What it ships is the hook for yours:
+# completion, or color styling of its own. What it ships is the hook for yours:
 # the user's own file in $_HI_CONFIG_DIR, named for the *shell file* it
 # extends (bash.sh, zsh.zsh, config.fish).
 #
 # Two things have to stay true per shell, and the second is why the first is
 # worth asserting: hi ships no default of its own for these settings,
-# and the user's file is sourced and applies. The no-file case is the regression
-# guard on the removal - a preference creeping back into a shipped rc shows up
-# here as a probe that stopped agreeing with a bare shell's.
+# and the user's file is sourced and applies. The no-file case guards the
+# shipped rcs: a preference in one shows up here as a probe that disagrees
+# with a bare shell's.
 #
 # <shell>|<user file, and the rc it extends>|<probe read>|<user line>|<user value>
 #
@@ -693,9 +693,6 @@ function test_fish_config_dir_explicit_value_wins() {
 # the third is the read on its own. Keeping the two apart is what lets the probe
 # run the read *without* hi's rc, for the baseline the no-file case measures
 # against.
-#
-# zsh's row here was HISTFILE once, proving hi shipped no history preference
-# at all; hi touches no shell's history now, so the row is gone.
 _HI_SHELL_OVERRIDE_ROWS=(
   'bash|bash.sh|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
   'fish|config.fish|printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
@@ -716,9 +713,9 @@ function _hi_shell_override_probe() {
 # The shipped rc sets none of these - measured against the same shell *without*
 # it rather than against the empty string, because a bare shell does not always
 # answer empty: fish 4.0 through 4.6 set every fish_color_* in a `fish -c` too,
-# which 4.7 stopped and fish 3 never did. Reading "hi changed nothing" off an
-# absolute value made this case a report on the local fish build; as a
-# difference it still fails the day a preference lands back in a shipped rc.
+# where 4.7 and fish 3 do not. Reading "hi changed nothing" off an absolute
+# value would make this case a report on the local fish build; as a
+# difference it still fails the day a preference lands in a shipped rc.
 function test_shell_ships_no_preference_default() {
   [ "$(_hi_shell_override_probe "$1" none)" = "$(_hi_shell_override_probe "$1" bare)" ]
 }
@@ -735,10 +732,10 @@ function run_rc_tests() {
 
   _hi_suite_begin
 
-  _hi_h1 "Testing common/bash.sh, zsh.zsh and config.fish behavior"
+  _hi_h1 "Testing common/bash.sh, zsh.zsh, and config.fish behavior"
 
   _hi_h2 "Testing: bash"
-  _hi_check "HI_PS1 carries user, host and cwd" test_bash_hi_ps1_contains_user_host_cwd
+  _hi_check "HI_PS1 carries user, host, and cwd" test_bash_hi_ps1_contains_user_host_cwd
   _hi_check "Plain HI_PS1 without color" test_bash_hi_ps1_plain_without_color
   _hi_check "_hi_ps_mark wraps color escapes for readline" test_bash_ps_mark_wraps_color_escapes
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
@@ -746,7 +743,7 @@ function run_rc_tests() {
   _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
-  _hi_check "ps1 marks the prompt, status and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
+  _hi_check "ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
   _hi_check "_HI_DISABLE_MARKS silences every OSC" test_bash_disable_marks_emits_no_osc
   _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
   _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars

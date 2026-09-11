@@ -48,7 +48,7 @@ function test_header_row_wraps_at_max_width() {
 }
 
 # wrapping happens between cells, never inside one - every original cell's
-# text still appears intact somewhere in the (now multi-line) output
+# text still appears intact somewhere in the (multi-line) output
 function test_header_row_wrap_keeps_cells_intact() {
   local out
   out="$(_HI_MAX_WIDTH=5 header_row alpha beta gamma)"
@@ -205,7 +205,7 @@ function test_banner_includes_label_and_host() {
 # shrink - never grow - the tilde padding banner prints for itself
 #
 # The hostname is pinned rather than taken from the machine. banner budgets a
-# fixed width between the change count, the label, the host and the prefix, and
+# fixed width between the change count, the label, the host, and the prefix, and
 # floors the tildes at 4 once that budget is gone - so on a host whose name runs
 # past ~54 characters *both* calls floor, the two lines come out the same length
 # and this reads as a failure of the padding logic when it is really a failure
@@ -380,8 +380,7 @@ function test_system_info_cpu_cell_is_ghz() {
   [[ "$out" == *"GHz"* ]]
 }
 
-# the CPU cell sits right after Cores: now, with RAM: pushed behind it -
-# rather than separated from it by RAM
+# the CPU cell sits right after Cores:, with RAM: behind it
 function test_system_info_cpu_cell_sits_next_to_cores() {
   local out cores_pos cpu_pos ram_pos
   out="$(_hi_sysinfo_row)"
@@ -468,7 +467,7 @@ function test_system_info_load_rides_the_cores_cell() {
   [[ -z "$load" || "$load" =~ ^[0-9]+%$ ]]
 }
 
-# ...and the GHz cell carries nothing of its own in parens any more - the one
+# ...and the GHz cell carries nothing of its own in parens - the one
 # thing this rides on is the clock figure itself
 function test_system_info_cpu_cell_has_no_parenthetical() {
   local out
@@ -904,8 +903,8 @@ function test_hi_header_default_order() {
 }
 
 # a reordered $_HI_HEADER_ORDER moves the features to match, and a feature
-# left out of it is not printed at all - that omission is the whole toggle
-# now, there is no separate $_HI_HEADER_* switch behind it any more. uptime
+# left out of it is not printed at all - that omission is the whole toggle,
+# with no separate $_HI_HEADER_* switch behind it. uptime
 # is in this order, so its cell still shows.
 function test_hi_header_order_setting_reorders_and_can_omit() {
   local _HI_HEADER_VERSION=orderprobe pkgfile="$_HI_WORKDIR/order-custom" out
@@ -927,7 +926,7 @@ function test_hi_header_order_ignores_an_unknown_word() {
   [[ "$out" == *"Cores:"* ]]
 }
 
-# uptime is its own word now, independent of every other former identity cell
+# uptime is its own word, independent of every other identity cell
 function test_hi_header_order_uptime_is_its_own_word() {
   local out
   out="$(_HI_HEADER_ORDER="uptime cores" hi_header Connected)"
@@ -940,8 +939,8 @@ function test_hi_header_order_ip_is_its_own_word() {
   [[ "$out" == *"IP:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
 }
 
-# leaving uptime out of the order hides just that cell - the identity
-# group's other words stay, there is no separate toggle behind it any more
+# leaving uptime out of the order hides just that cell - the other identity
+# words stay, with no separate toggle behind it
 function test_hi_header_order_omitting_uptime_hides_just_that_cell() {
   local out
   out="$(_HI_HEADER_ORDER="gitid auth" hi_header Connected)"
@@ -980,14 +979,13 @@ function test_hi_header_flushes_leftover_when_check_is_absent() {
   [[ "$out" == *"Auth:"* && "$out" == *"Up:"* ]]
 }
 
-# an order word that reorders across former group boundaries packs onto one
-# line exactly like a same-group order does - "row" is gone as a fixed
-# concept, only width-driven packing decides where a line breaks now
+# a reordered $_HI_HEADER_ORDER packs onto one line like any other order -
+# only width-driven packing decides where a line breaks
 function test_hi_header_order_packs_across_former_group_boundaries() {
   local out lines
   out="$(_HI_HEADER_ORDER="cpu gitid utc" hi_header Connected)"
   lines="$(printf '%s\n' "$out" | grep -c .)"
-  # banner + one packed line (cpu, gitid and utc all short enough to share it)
+  # banner + one packed line (cpu, gitid, and utc all short enough to share it)
   [ "$lines" -eq 2 ] &&
     [[ "$out" == *"CPU:"* && "$out" == *"No Git ID"* || "$out" == *"@"* ]]
 }
@@ -998,7 +996,7 @@ function test_hi_header_order_packs_across_former_group_boundaries() {
 # dir of fake tools answering exactly the invocations header.sh makes, and
 # _HI_LINUX_RELEASE pointed at nothing so the kernel string decides the arm.
 # What each case asserts is the parse: the figures below are chosen so a
-# wrong field, a wrong page size or a byte order read the wrong way round
+# wrong field, a wrong page size, or a byte order read the wrong way round
 # gives a different number.
 
 # _hi_platform_header <shims> <probe> [env...] - <probe> in a child bash
@@ -1512,7 +1510,7 @@ function test_header_hues_never_repeat_in_the_default_order() {
   done
 }
 
-# A worst case no real order would ship: every word the same hue (utc, cpu
+# A worst case no real order would ship: every word the same hue (utc, cpu,
 # and uptime are all $BRBLUE), forcing the resolver to actually work rather
 # than coasting on Part C's already-clean default.
 function test_header_hues_never_repeat_in_a_pathological_order() {
@@ -2101,7 +2099,7 @@ function run_header_tests() {
   _hi_check "Default feature order: timestamp, sysinfo, identity, check" test_hi_header_default_order
   _hi_check "_HI_HEADER_ORDER reorders, and omitting a feature hides it" test_hi_header_order_setting_reorders_and_can_omit
   _hi_check "An unknown order word is ignored" test_hi_header_order_ignores_an_unknown_word
-  _hi_check "'uptime' is its own order word now" test_hi_header_order_uptime_is_its_own_word
+  _hi_check "'uptime' is its own order word" test_hi_header_order_uptime_is_its_own_word
   _hi_check "'ip' is its own order word" test_hi_header_order_ip_is_its_own_word
   _hi_check "Omitting 'uptime' hides just that cell" test_hi_header_order_omitting_uptime_hides_just_that_cell
   _hi_check "A line's overflow cascades into the packages block" test_hi_header_cascades_identity_overflow_into_check

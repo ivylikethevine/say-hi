@@ -27,7 +27,7 @@ function _hi_dockerfile() {
 # on success and loud on failure. Plain progress into the log rather than
 # `build -q`: BuildKit's quiet mode keeps only its own one-line verdict
 # ("exit code: 100") and drops the failing step's output, which is the part
-# that says why - a whole CI-only apt failure went undiagnosed behind it. The
+# that says why. The
 # env var, not `--progress=plain`, so podman (which has no such flag and
 # ignores the variable) takes the same call.
 function _hi_build_image() {

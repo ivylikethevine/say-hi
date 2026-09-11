@@ -19,7 +19,7 @@
 #   the derivation  a tree outside $HOME with $_HI_HOME *unset* has to resolve
 #                   from the file being sourced, in all four dialects
 #
-# Four dialects, as the four masters GLOSSARY names them. bash, zsh and fish
+# Four dialects, as the four masters GLOSSARY names them. bash, zsh, and fish
 # each get the full pass - the tree, hi's prompt, the header, and `hi --doctor`
 # through the `hi` alias - since each has an rc file install.sh wires up. sh has
 # none (it is reached as a *target* fallback, not as a local login shell), so
@@ -81,7 +81,7 @@ function _hi_loc_install() {
 # met here by construction: the fixture builds a fresh $HOME each run, so
 # neither marker can exist, and a runner account is routinely in the `sudo`
 # group. It is bash-only and interactive-only, which is why exactly one case
-# saw it (zsh, fish and the `sh` arm never read that file, and the substring
+# saw it (zsh, fish, and the `sh` arm never read that file, and the substring
 # assertions elsewhere in this suite tolerated the extra lines).
 #
 # .hushlogin rather than .sudo_as_admin_successful: it is the general "this
@@ -150,7 +150,7 @@ function _hi_loc_renders_the_header() {
 }
 
 # `hi --doctor` through the `hi` alias common/paths.sh defines - the launcher,
-# the alias and doctor.sh all have to have resolved into the nested tree, and
+# the alias, and doctor.sh all have to have resolved into the nested tree, and
 # doctor's first row is the tree itself
 function _hi_loc_doctor_names_the_tree() {
   [[ "$(_hi_strip_ansi "$(_hi_loc_shell "$1" 'hi --doctor')")" == *"$_HI_LOC_ROOT"* ]]
@@ -251,7 +251,7 @@ function run_install_location_tests() {
   _hi_check "The tree itself was not written to" test_the_install_wrote_nothing_into_the_tree
 
   # Read-only from here to the uninstall, so it runs in parallel: five
-  # `hi --doctor` runs at ~350ms each were most of this suite's wall clock.
+  # `hi --doctor` runs at ~350ms each would be most of this suite's wall clock.
   _hi_h2 "Testing: a fresh shell finds the nested tree"
   _hi_par_begin cases
   # Value producers rather than predicates: _hi_par_check_eq compares and, on a
@@ -268,7 +268,7 @@ function run_install_location_tests() {
   _hi_par_check_eq "sh, through common/paths.sh" "$_HI_LOC_ROOT" _hi_loc_sh 'printf %s "$_HI_ROOT"'
   _hi_par_wait
 
-  _hi_h2 "Testing: prompt, header and hi --doctor out of it"
+  _hi_h2 "Testing: prompt, header, and hi --doctor out of it"
   _hi_par_begin cases
   _hi_par_check "bash has hi's prompt" test_bash_has_his_prompt
   _hi_par_check_requires zsh "zsh has hi's prompt" test_zsh_has_his_prompt

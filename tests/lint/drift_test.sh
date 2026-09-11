@@ -160,8 +160,7 @@ function lint_ignored_payload() {
 #
 # Wider than the shellcheck list, which is *.sh only: zsh.zsh and config.fish
 # are the files that most want this, and .md carries the rule as documentation
-# - docs/PACKAGING.md taught the retired default, which is what a packager
-# reads. Not .rb: _hi_lint_table drops comments, and the formula's only
+# - a doc teaching the retired default is what a packager reads. Not .rb: _hi_lint_table drops comments, and the formula's only
 # occurrence is one, so it would buy a file list and no coverage.
 function lint_home_default() {
   _hi_h2 "Checking for a \$HOME default for the say-hi tree"
@@ -186,7 +185,7 @@ function lint_home_default() {
 # the pin".
 #
 # A tag counts as an image reference only where it reads like one: preceded by a
-# space, `=` or a quote, in a `*.sh`/`*.yml` line that is not a comment. Each
+# space, `=`, or a quote, in a `*.sh`/`*.yml` line that is not a comment. Each
 # of those filters earns its place - `nobash:alpine:ssh_fallback` is a case
 # spec, `/bin/bash:bash` a framework row and `bash:5` a packages fixture, all
 # the same characters meaning something else; prose in `.md` and `#` comments
@@ -333,9 +332,8 @@ function lint_glossary_tags() {
 
   # ...and the other direction, which is the one that rots quietly. A tag
   # naming a dead entry fails above and gets fixed; an entry nothing points at
-  # any more just sits there, and the code it described can move or go without
-  # anything noticing. HI.08 and HI.09 had both happened - orphaned, and naming
-  # a file _hi_write_back had since left.
+  # just sits there, and the code it described can move or go without
+  # anything noticing.
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   local used orphan=0
   used="$(printf '%s\n' "${tags[@]}")"
@@ -394,10 +392,8 @@ function lint_container_family() {
 # payload/overlay cache and the ControlMaster socket on one side, the TAB
 # completion cache on the other). They cannot share code: targets.sh is
 # standalone POSIX and sources nothing (its own header says so), and
-# core.sh:_hi_runtime_dir says the two "only stay in step by comment"
-# (hi.sh used to keep a third copy of its own; it now just reads core.sh's,
-# which it already sources). Every other forced copy in this tree is pinned
-# by a check here; this one was not, and a divergence would not fail
+# core.sh:_hi_runtime_dir says the two "only stay in step by comment" (hi.sh
+# reads core.sh's). A divergence would not fail
 # anything - it would just put two caches in two places, or drop one file's
 # ownership guard on a shared /tmp.
 #
@@ -451,9 +447,8 @@ function lint_runtime_dir() {
 # that: `common/core.sh`'s `_HI_TOGGLES` is the on/off roster, and
 # `scripts/configure.sh`'s `_HI_*_PROMPTS` tables and its `_hi_collect_value`
 # calls are the questions `hi --configure` asks and the lines it writes. A
-# name goes into any of the three without a thought for the docs, which is how "what can I set?"
-# stopped being answerable from one place; this is what makes SETTINGS.md's
-# roster derived rather than hand-kept.
+# name goes into any of the three without a thought for the docs; this is
+# what makes SETTINGS.md's roster derived rather than hand-kept.
 #
 # Only the `## Every setting` section counts, not every backticked `_HI_` name
 # in the file. The point of the entry is one table, and matching the whole
@@ -493,10 +488,9 @@ function lint_settings_table() {
   bad=$((bad + lever))
 
   # ...and the direction that rots quietly, on the GLOSSARY check's precedent:
-  # a row for a variable nothing reads any more. A *read* - `$NAME`, `${NAME`,
-  # fish's `$$NAME` or `set -q NAME` - not any mention: an assignment or a
-  # comment kept a retired name green for months after its last reader
-  # went. Only the shipped tree counts (common/, settings/, load.sh, hi.sh):
+  # a row for a variable nothing reads. A *read* - `$NAME`, `${NAME`,
+  # fish's `$$NAME`, or `set -q NAME` - not any mention: an assignment or a
+  # comment would keep a dead name green. Only the shipped tree counts (common/, settings/, load.sh, hi.sh):
   # a setting is what a *session* honours, and scripts/ never rides in the
   # payload, so a name only the wizard or doctor reads is a row that promises
   # nothing on a target. Names hi assembles at run time never appear whole
@@ -798,7 +792,7 @@ function lint_dockerfiles() {
 # docs/tldr.md is the tldr-pages draft, paired with docs/hi.1 in
 # CONTRIBUTING's table but, unlike the page, checked by nothing - a flag
 # rename failed parse_test.sh on the page and passed here. Two facts: every
-# --flag it shows is a common/flags row (--json, --use's word and the like
+# --flag it shows is a common/flags row (--json, --use's word, and the like
 # are arguments, so only the first word of a command counts), and it stays
 # inside upstream's cap of eight examples.
 function lint_tldr_page() {
@@ -828,7 +822,7 @@ function lint_tldr_page() {
 }
 
 # GitHub derives a heading's anchor by lowercasing it, dropping everything
-# that is not a letter, digit, space, `-` or `_`, then turning spaces into
+# that is not a letter, digit, space, `-`, or `_`, then turning spaces into
 # `-` - so ` - ` between words collapses to a double hyphen, which is why
 # several entries carry one. bash 3.2 has no ${x,,}, hence tr.
 function _hi_doc_anchor() {

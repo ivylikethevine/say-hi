@@ -843,9 +843,9 @@ function _hi_ssh_host_tag() {
 #
 # The tokens are peeled off the string by parameter expansion, never with
 # `for pat in $2`: an unquoted expansion is pathname-expanded as well as
-# word-split, so a bare `*` - the commonest Host line there is - became the
-# cwd's file list and matched nothing, and a host's color depended on the
-# directory hi was run from. bash only; zsh does not glob there, so the two
+# word-split, so a bare `*` - the commonest Host line there is - would become
+# the cwd's file list and match nothing, and a host's color would depend on
+# the directory hi runs from. bash only; zsh does not glob there, so the two
 # shells disagreed on the same box. header.sh's _hi_ip_filter matches through
 # this too.
 function _hi_ssh_pattern_hit() {
@@ -855,7 +855,7 @@ function _hi_ssh_pattern_hit() {
     rest="${rest#"${rest%%[! ]*}"}"
     pat="${rest%% *}"
     rest="${rest#* }"
-    # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?` and a
+    # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?`, and a
     # leading `!` - nothing else names a host. Anything outside that set is
     # skipped rather than matched: the zsh arm's eval would otherwise re-parse
     # a `)` or `;;` from ~/.ssh/config as case syntax.
@@ -947,7 +947,7 @@ function _hi_ssh_host_tag_walk() {
 }
 
 function _hi_ssh_tag_color() {
-  # the memo holds the tag; $( ) around it was a fork for a value in hand
+  # the memo holds the tag; a $( ) around it would fork for a value in hand
   _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" "${2:-}"
 }
 

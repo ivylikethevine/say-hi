@@ -193,10 +193,10 @@ function test_link_flag_is_parsed_and_documented() {
   grep -qF -- '--link <where>' <("$_HI_INSTALL" --help) || return 1
   rc=0
   out="$(bash "$_HI_INSTALL" --link 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user or system"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user, or system"* ]] || return 1
   rc=0
   out="$(bash "$_HI_INSTALL" --link=sideways 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user or system (got sideways)"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user, or system (got sideways)"* ]]
 }
 
 function test_unlink_hi_skips_when_link_missing() {
@@ -228,7 +228,7 @@ function test_unlink_hi_skips_when_link_points_elsewhere() {
   ) | grep -q "leaving it alone"
 }
 
-# The real-run half: the flag errors, the mode banners and the locator walk
+# The real-run half: the flag errors, the mode banners, and the locator walk
 # can only be seen by executing install.sh as a program, the way a user does.
 # Every run gets the scratch tree run_install_tests stands up (never this
 # checkout: the rc writers and unlink_hi must have nothing of the
@@ -261,7 +261,7 @@ function _hi_run_install() {
 # $XDG_CONFIG_HOME. The real file rather than the scratch copy, and a plain
 # `env` rather than `env -i`, because the coverage sweep sees neither a copy
 # nor an `env -i` child - these are the argument parser, the rc check,
-# --configure arms, the overlay seed and the validation gate, which read
+# --configure arms, the overlay seed, and the validation gate, which read
 # as never run when they only ever ran out of $_HI_RUN_TREE. The locator still
 # derives the tree from the script's own path (GLOSSARY: HI.33), so what runs
 # is exactly what the copy ran, in place.

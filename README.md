@@ -53,7 +53,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
 ~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu (s saves, q skips)
 exec $SHELL                    # reload
-hi <anything>                   # ssh, with your prompt, aliases and editors along
+hi <anything>                   # ssh, with your prompt, aliases, and editors along
 ```
 
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
@@ -68,7 +68,7 @@ are in [docs/SETTINGS.md](docs/SETTINGS.md).
 ### Connect Via More Than SSH
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
-running container, allocation and pod, each tagged with its backend; the
+running container, allocation, and pod, each tagged with its backend; the
 `hi --<TAB>` answers hi's own flags
 without probing any backend. An operator at a bastion, in fish for its
 pager's description column.
@@ -81,7 +81,7 @@ A `packages` overlay of the tools you care about, each with a priority; the
 header reads it on every target — one quiet line on a box that has them, a
 loud one on a box that does not. A homelab: bash from a laptop into the nas
 and the pihole, with the distro prompt this person already had — hi's is off
-(`_HI_DISABLE_PROMPT=1`), and the header, the check and the aliases ride
+(`_HI_DISABLE_PROMPT=1`), and the header, the check, and the aliases ride
 along anyway.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
@@ -91,7 +91,7 @@ along anyway.
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
 bash session on a debian container and a fish session on an alpine box,
 reached through docker and podman. The operator again, in fish, with the
-header trimmed to the clocks, the backend counts and the check on the `mono`
+header trimmed to the clocks, the backend counts, and the check on the `mono`
 ramp. A box with no bash gets the aliases-only tier — hi's own aliases, not
 the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 
@@ -102,7 +102,7 @@ the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 `nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
 neither: nothing is installed or running on the target. A developer, zsh on a
 laptop into the team's shared dev box, where the prompt is starship's, not
-hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors and aliases).
+hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
 
 ![nano and vim with hi's rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -120,12 +120,12 @@ resolved.
 
 `hi <name> <command>` runs one command inside the session and only its output
 comes back: the same loop over an ssh host, a docker container, a nomad
-allocation and a kubernetes pod (`-F` is ssh's, passed through unchanged; the
+allocation, and a kubernetes pod (`-F` is ssh's, passed through unchanged; the
 recording's ssh config is a throwaway). The pod is busybox `ash` with no bash
 — the aliases-only tier — and hi says so, once, and runs the command anyway.
 A researcher, in zsh, sweeping the cluster's backends.
 
-![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
+![a for loop running hi target cat over an ssh host, a docker container, a nomad allocation, and a kubernetes pod](https://ivylikethevine.github.io/say-hi/docs/tapes/run.gif)
 
 ## Target Requirements
 
@@ -145,7 +145,7 @@ proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md), along with
 everything weighed and answered **no**, and why.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
-  shell; coreutils, busybox, macOS/BSD and Git Bash all ship one), `ssh` for
+  shell; coreutils, busybox, macOS/BSD, and Git Bash all ship one), `ssh` for
   ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, all four
   tried) and `nomad`/`kubectl` for those backends. hi has
   no protocol of its own: `ssh` is the transport, `base64` is armor, not
@@ -176,7 +176,7 @@ everything weighed and answered **no**, and why.
     sudo tee /etc/apt/sources.list.d/say-hi.list
   sudo apt update && sudo apt install say-hi
 
-  # Fedora, RHEL and derivatives
+  # Fedora, RHEL, and derivatives
   sudo curl -fsSLo /etc/yum.repos.d/say-hi.repo https://ivylikethevine.github.io/say-hi/say-hi.repo
   sudo dnf install say-hi
 
@@ -192,7 +192,7 @@ everything weighed and answered **no**, and why.
   ([the tap](docs/PACKAGING.md#homebrew-tap)), then `hi --install`.
 
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
-  It validates `~/.bashrc`, `~/.zshrc` and `~/.config/fish/config.fish` with
+  It validates `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish` with
   each shell's own syntax checker first and asks before continuing if any has
   issues (the one question before the settings menu; `--yes` answers it). Shells that are not installed
   get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
@@ -204,7 +204,7 @@ everything weighed and answered **no**, and why.
   setting in its one list - Features, Header, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - the install also seeds `~/.config/say-hi` with the shipped `colors`,
-  `packages` and the editor rcs (vim, nano, emacs, helix, kakoune), for the ones you have none of - yours
+  `packages`, and the editor rcs (vim, nano, emacs, helix, kakoune), for the ones you have none of - yours
   to edit, and to version however you keep your dotfiles
   ([docs/SETTINGS.md](docs/SETTINGS.md)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
@@ -222,14 +222,14 @@ everything weighed and answered **no**, and why.
 - **A dropped connection ends the session** and nothing on the target
   outlives it ([why](docs/SUPPORT.md#what-would-change-an-answer)). For a
   flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
-  `zellij` or `screen` (whichever you have), which
+  `zellij`, or `screen` (whichever you have), which
   survives the drop.
 - done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
   unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a
   package's stays). Left behind, on purpose: the checkout (or the
   package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
-  (your colors, packages and aliases), and the one-time `<rc>.hi-orig`
+  (your colors, packages, and aliases), and the one-time `<rc>.hi-orig`
   backups. To take it all off a cloned install:
 
   ```sh
@@ -242,10 +242,10 @@ Your config lives in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
 say `hi` to: `settings.sh` is what `hi --configure` writes, and the other
 files overlay or extend the tree's copies. The overlay file table, the
-wizard, every toggle and every environment variable are in
+wizard, every toggle, and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
-target has them — starship, oh-my-posh, zoxide, atuin, mise, direnv, bat, eza
+target has them — starship, oh-my-posh, zoxide, atuin, mise, direnv, bat, eza,
 and more — are [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 **_IMPORTANT: everything in that directory is copied to every host you say
@@ -258,7 +258,7 @@ removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target)
 Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`hostname,prod-db,yellow`) pins one, and
 `hi --preview colors` shows what every host resolves to. Tags, patterns,
-truecolor schemes of your own and using the hash in your own prompt:
+truecolor schemes of your own, and using the hash in your own prompt:
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
@@ -302,7 +302,7 @@ Heavily inspired by
 This started as code written entirely by
 [me](https://github.com/ivylikethevine), but I have used generative AI to write
 large parts of it. All of the code here is my _responsibility_ regardless: AI
-is a tool, not an owner of a project. I have personally understood, reviewed
+is a tool, not an owner of a project. I have personally understood, reviewed,
 and approved all of the AI-generated code in this repository, and **mainline
 releases** carry the same accountability to me as anything I write and publish
 myself.
@@ -317,7 +317,7 @@ or descoped, and finished entries are deleted rather than ticked.
 - [ ] **A stability contract is written down** — shipped as
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
       the twelve `common/flags`, every `docs/SETTINGS.md` row,
-      `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule
+      `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule,
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises.
@@ -331,7 +331,7 @@ In this checkout, and not what the tag waits on either.
        `base64(1)`, so the bootstrap's probe exits 64 ("no base64") and
        `openbsd-e2e.yml` installs the package to get a session at all.
        **Do:** fall back to `openssl base64` where `base64` is missing — the
-       bootstrap probe, `_HI_UNARMOR` and the client's armor — keeping
+       bootstrap probe, `_HI_UNARMOR`, and the client's armor — keeping
        `base64` first and rewriting [HI.17](docs/GLOSSARY.md#hi17-base64-armor)
        to match. **Ticks when:** `openbsd-e2e.yml` is green with `base64`
        dropped from its `pkg_add`.
@@ -341,12 +341,12 @@ In this checkout, and not what the tag waits on either.
 In this checkout, and not what the tag waits on either.
 
 1. [ ] **Coloured autosuggestions in every shell** — `hi <Tab>` lists
-       targets, flags and subjects in plain text, so a long target list is
+       targets, flags, and subjects in plain text, so a long target list is
        hard to scan. **Do:** colour each candidate the way the header does —
        a target in its host/group colour, flags and subjects each their own —
        through each shell's mechanism: zsh's `list-colors` zstyle on the
        `hi-targets` group, fish's pager colours, bash's readline as far as it
-       allows. **Ticks when:** bash, zsh and fish each show coloured `hi`
+       allows. **Ticks when:** bash, zsh, and fish each show coloured `hi`
        candidates, pinned by a suite.
 
 ### Post 1.0
