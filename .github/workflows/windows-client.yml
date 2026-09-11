@@ -7,17 +7,18 @@ name: Windows client
 # and every same-repository pull request as a real gate (a failing suite
 # fails the run, no continue-on-error); dispatch runs it on its own.
 #
-# Five runners: the fast group takes about seven minutes under Git Bash -
-# backgrounded suites barely overlap there (tests/lib/fixtures.sh's
-# fork_concurrency), so the runner's width-4 run is close to serial and only
-# more machines shorten it. Quarters of the table, except that the second
-# quarter (doctor_test.sh, ~10k forks, and test_lib's) ran far past the rest
-# and is halved as shards 2a and 2b (slices 2/8 and 6/8 - which --shard's
-# round robin makes exactly 2/4). Each slice runs twice: on windows-latest (x64) and windows-11-arm
-# (arm64, free on a public repo), where Git for Windows is its native arm64
-# build. The `fast-suites` job below folds all ten back into the one check
-# name README's badge and CONTRIBUTING's table know, "fast suites (Windows
-# client) / fast suites (Git Bash)".
+# Five runners: quarters of the table, except that the second quarter
+# (doctor_test.sh, ~10k forks, and test_lib's) ran far past the rest and is
+# halved as shards 2a and 2b (slices 2/8 and 6/8 - which --shard's round
+# robin makes exactly 2/4). Each slice runs twice: on windows-latest (x64)
+# and windows-11-arm (arm64, free on a public repo), where Git for Windows is
+# its native arm64 build. No --verbose (ci.yml's `test` job's own comment on
+# the same flag): the runner then fans a shard's suites out to the core count
+# instead of forcing width 1 for live streaming, and a failing transcript
+# still replays in full either way - only the live stream is lost. The
+# `fast-suites` job below folds all ten back into the one check name README's
+# badge and CONTRIBUTING's table know, "fast suites (Windows client) / fast
+# suites (Git Bash)".
 on:
   workflow_call:
   workflow_dispatch:
@@ -69,7 +70,7 @@ jobs:
           # Git Bash is silent. `cd ..`: $GITHUB_WORKSPACE is backslashed
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
-          ./tests/test_runner.sh --verbose --host-report --group fast --shard "$HI_SHARD"
+          ./tests/test_runner.sh --host-report --group fast --shard "$HI_SHARD"
 
   # The one check the shards roll up into. `!cancelled()` so it reports on a
   # red shard rather than being skipped past; the explicit result is the

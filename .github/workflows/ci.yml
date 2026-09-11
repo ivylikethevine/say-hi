@@ -36,7 +36,10 @@ jobs:
   # reporting no code changes are the only ways to 'false'; a schedule or
   # dispatch (the filter step's own `if` skips it) and a failed lookup both
   # leave it 'true', so change-detection breaking has never been read as
-  # "assume nothing changed". The three e2e-* reusable-workflow jobs gate on
+  # "assume nothing changed". `outputs.trusted` is the other flag: a push, or
+  # a pull_request from this repository - read by test-macos's loopback,
+  # e2e-gate and e2e-windows-client instead of each re-deriving the same
+  # two-event check. The three e2e-* reusable-workflow jobs gate on
   # `needs.e2e-gate.outputs.ok` instead, which is empty when that job skips.
   #
   # Whether anything besides workflow YAML or markdown changed: test,
@@ -64,12 +67,30 @@ jobs:
     outputs:
       code: ${{ steps.gate.outputs.code }}
       reuse-run: ${{ steps.reuse.outputs.run }}
+      trusted: ${{ steps.trust.outputs.trusted }}
     steps:
       # a PR's files come from the API and only a push diffs the tree, but
       # both need the tree-marker helpers below
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # trusted: a push, or a pull_request from this repository - read by
+      # mark-tree below and by every job that used to spell out the same
+      # two-event, one-repo check itself (test-macos's HI_LOOPBACK,
+      # e2e-gate's own gate, e2e-windows-client's `if:`). A fork PR's head
+      # repository is the fork; a same-repo PR names this one.
+      - id: trust
+        env:
+          EVENT: ${{ github.event_name }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          set -eu
+          trusted=false
+          if [ "$EVENT" = push ] || { [ "$EVENT" = pull_request ] && [ "$SAME_REPO" = true ]; }; then
+            trusted=true
+          fi
+          echo "trusted=$trusted" >>"$GITHUB_OUTPUT"
 
       # push/pull_request only: a schedule or dispatch run has no diff to
       # take, and `gate` below reads that as "assume yes" the same way it
@@ -93,7 +114,7 @@ jobs:
       - if: >-
           github.event_name == 'pull_request'
           && github.event.pull_request.draft != true
-          && github.event.pull_request.head.repo.full_name == github.repository
+          && steps.trust.outputs.trusted == 'true'
         uses: $/.github/actions/mark-tree
         with:
           prefix: ci-tree
@@ -223,7 +244,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     env:
-      HI_LOOPBACK: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+      HI_LOOPBACK: ${{ needs.changes.outputs.trusted == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -360,12 +381,7 @@ jobs:
 
       - name: The cleanup trap left nothing behind
         if: env.HI_LOOPBACK == 'true'
-        run: |
-          set -euo pipefail
-          if ls -d "${TMPDIR:-/tmp}"/*.hi.* 2>/dev/null; then
-            echo "session directory survived the exit" >&2
-            exit 1
-          fi
+        run: bash .github/scripts/no_hi_session_left.sh
 
   # The client on musl and busybox: the fast suites in an Alpine container, as
   # an unprivileged user, with the shells, git, python3 and openssl (bump.sh's
@@ -813,7 +829,7 @@ jobs:
   # macOS's loopback rides in test-macos itself, for the same audience.
   e2e-gate:
     name: e2e gate
-    needs: test
+    needs: [changes, test]
     if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -822,15 +838,11 @@ jobs:
     steps:
       - id: gate
         env:
-          EVENT: ${{ github.event_name }}
-          # a fork PR's head repository is the fork; same-repo PRs name this one
-          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          TRUSTED: ${{ needs.changes.outputs.trusted }}
           TEST: ${{ needs.test.result }}
         run: |
           ok=false
-          if [ "$EVENT" = push ] || { [ "$EVENT" = pull_request ] && [ "$SAME_REPO" = true ]; }; then
-            [ "$TEST" = success ] && ok=true
-          fi
+          [ "$TRUSTED" = true ] && [ "$TEST" = success ] && ok=true
           echo "ok=$ok" >>"$GITHUB_OUTPUT"
 
   e2e-windows:
@@ -865,11 +877,7 @@ jobs:
   e2e-windows-client:
     name: fast suites (Windows client)
     needs: changes
-    if: >-
-      needs.changes.outputs.code == 'true'
-      && (github.event_name == 'push'
-          || (github.event_name == 'pull_request'
-              && github.event.pull_request.head.repo.full_name == github.repository))
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.trusted == 'true'
     uses: $/.github/workflows/windows-client.yml
 
   # A push whose tree already went green on its PR (`changes` found the

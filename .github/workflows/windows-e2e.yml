@@ -6,15 +6,17 @@ name: Windows e2e
 # out, and not be mistaken for a Linux host missing base64 (cmd honours `||`,
 # which is why hi's probe keeps it off the lines whose exit codes it reads).
 # The client is the runner's own Git Bash;
-# windows-client.yml is the client-side half. The rest is WSL, in two halves:
-# `wsl-suites` runs the fast suites inside an Ubuntu distribution (sharded,
-# from a copy on the distribution's own filesystem - see the job), and `wsl`
-# gives a fresh distribution the package layout (`install.sh --prefix`, what
-# the .deb's package() runs) and is then said hi to from Git Bash - the
+# windows-client.yml is the client-side half. The rest is WSL: `wsl-suites`
+# runs the fast suites inside an Ubuntu distribution (sharded, from a copy on
+# the distribution's own filesystem - see the job), and its first shard's
+# distribution then also takes the package layout (`install.sh --prefix`,
+# what the .deb's package() runs) and is said hi to from Git Bash - the
 # Windows-desk homelab shape, and what turns SUPPORT.md's WSL row from
-# expected to proven. ci.yml calls this on every push to main and every
-# same-repository pull request once both fast-suite jobs are green; dispatch
-# runs it on its own.
+# expected to proven. A second distribution used to do only that, on its own
+# Windows runner; folded in here since one already exists once a shard's fast
+# suites finish, for one fewer runner and one fewer `setup-wsl` per run. ci.yml
+# calls this on every push to main and every same-repository pull request
+# once both fast-suite jobs are green; dispatch runs it on its own.
 on:
   workflow_call:
   workflow_dispatch:
@@ -96,11 +98,12 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1/2, 2/2]
-    # WSLENV is the allowlist of names Windows shares into a wsl-bash step
-    # (the `wsl` job below says why); HI_SHARD has to be on it too, or the
-    # step's own env: never reaches the distribution
+    # WSLENV is the allowlist of names Windows shares into a wsl-bash step;
+    # HI_SHARD has to be on it or the step's own env: never reaches the
+    # distribution, and USERPROFILE is shard 1's alone (the session steps
+    # below say why) but costs nothing to list for both
     env:
-      WSLENV: GITHUB_WORKSPACE:HI_SHARD
+      WSLENV: GITHUB_WORKSPACE:HI_SHARD:USERPROFILE
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -156,64 +159,20 @@ jobs:
           setsid -w timeout -k 30 900 bash ./tests/test_runner.sh --verbose --host-report \
             --group fast --shard "$HI_SHARD" </dev/null
 
-  # The one check the shards roll up into, as windows-client.yml's
-  # fast-suites job does for Git Bash. `!cancelled()` so it reports on a red
-  # shard rather than being skipped past; the explicit result is the verdict
-  # (a skipped or failed shard is a failed check).
-  wsl-fast-suites:
-    name: fast suites (WSL)
-    needs: wsl-suites
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require every shard green
-        env:
-          RESULT: ${{ needs.wsl-suites.result }}
-        run: |
-          set -euo pipefail
-          echo "shards: $RESULT"
-          [ "$RESULT" = success ]
-
-  # The target side: a fresh distribution takes the package layout and is
-  # said hi to from Git Bash. The fast suites are wsl-suites above, so this
-  # job is only the session.
-  wsl:
-    name: hi into WSL (Ubuntu, Git Bash client)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    # wsl-bash {0} runs the step inside the distribution, which does not
-    # inherit the runner's environment on its own - WSLENV is the allowlist
-    # of names Windows shares across that boundary, unflagged (no /p) so the
-    # raw backslashed value crosses unchanged for the wslpath -u calls below
-    # to translate themselves, the way they already assumed it would arrive.
-    # Without this, $GITHUB_WORKSPACE and $USERPROFILE are simply unset
-    # inside every wsl-bash step - "unbound variable" under this job's own
-    # set -eu, not a hang, whatever the log looks like mid-run.
-    env:
-      WSLENV: GITHUB_WORKSPACE:USERPROFILE
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # WSL 2's default NAT forwards Git Bash's 127.0.0.1 into the
-      # distribution - the one direction this job's traffic takes
-      # (WSL -> Windows by 127.0.0.1 would need mirrored networking).
-      - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
-        with:
-          distribution: Ubuntu-24.04
-          wsl-version: 2
-          additional-packages: bash zsh fish git python3 openssh-server
-
-      # The package layout, by the same call the .deb's package() step makes:
+      # The rest of this job is shard 1 only: the package layout on this same
+      # distribution, then said hi to from Git Bash - the target side of the
+      # Windows-desk homelab shape, and what turns SUPPORT.md's WSL row from
+      # expected to proven. By the same call the .deb's package() step makes:
       # the tree under /usr/share/say-hi, /usr/bin/hi, /etc/profile.d/say-hi.sh.
       # hi ships its payload to every ssh target now and does not read a
       # say-hi the target already has, so what a session from outside proves
       # is install_methods_test.sh's deb case: the session runs out of its own
       # shipped tree, and the installed one is still sitting there untouched
-      # when it is gone.
+      # when it is gone. $GITHUB_WORKSPACE, not the $HOME/hi-tree copy above -
+      # a separate wsl-bash step starts its own subshell, and the original
+      # checkout is what the .deb's package() would see too.
       - name: Install the package layout inside WSL
+        if: matrix.shard == '1/2'
         shell: wsl-bash {0}
         run: |
           set -eu
@@ -233,6 +192,7 @@ jobs:
       # listener from inside before Git Bash tries it from outside, so a
       # refusal in the next step can only be the Windows -> WSL relay.
       - name: Start sshd inside WSL
+        if: matrix.shard == '1/2'
         shell: wsl-bash {0}
         run: |
           set -eu
@@ -261,8 +221,10 @@ jobs:
 
       # From Git Bash into the distribution: a full bash session on a target
       # that has a permanent say-hi, the command's output back, and nothing
-      # left in the target's /tmp.
+      # left in the target's /tmp. shell: bash, not wsl-bash - this one runs
+      # on the Windows side, which is where the client (Git Bash) is.
       - name: Say hi into WSL from Git Bash
+        if: matrix.shard == '1/2'
         shell: bash
         run: |
           set -euo pipefail
@@ -302,11 +264,26 @@ jobs:
       # transcript cannot show: the shipped tree took itself with it
       # (load.sh's clean_all), and the packaged tree is still whole.
       - name: Nothing left behind in the target
+        if: matrix.shard == '1/2'
         shell: wsl-bash {0}
+        run: bash "$(wslpath -u "$GITHUB_WORKSPACE")/.github/scripts/no_hi_session_left.sh" /usr/share/say-hi/hi.sh
+
+  # The one check the shards roll up into, as windows-client.yml's
+  # fast-suites job does for Git Bash. `!cancelled()` so it reports on a red
+  # shard rather than being skipped past; the explicit result is the verdict
+  # (a skipped or failed shard is a failed check).
+  wsl-fast-suites:
+    name: fast suites (WSL)
+    needs: wsl-suites
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every shard green
+        env:
+          RESULT: ${{ needs.wsl-suites.result }}
         run: |
-          set -eu
-          if ls -d /tmp/*.hi.* 2>/dev/null; then
-            echo "session directory survived the exit" >&2
-            exit 1
-          fi
-          test -x /usr/share/say-hi/hi.sh
+          set -euo pipefail
+          echo "shards: $RESULT"
+          [ "$RESULT" = success ]
+

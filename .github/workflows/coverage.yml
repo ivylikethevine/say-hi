@@ -202,6 +202,10 @@ jobs:
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # job-level so the cache step below and check_tool_versions.sh's own
+    # grep for the literal `BASHCOV_VERSION: "..."` both still find it
+    env:
+      BASHCOV_VERSION: "4.0.0"
     concurrency:
       group: coverage-bashcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
@@ -217,18 +221,22 @@ jobs:
 
       - uses: $/.github/actions/setup-shells
 
+      # keyed on the version alone (every shard wants the same gem): a hit
+      # skips the download and native build, `gem install` below still runs
+      # and finds it already there rather than this replacing the step
+      - name: Cache bashcov's installed gem
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/gem
+          key: setup-bashcov-${{ runner.os }}-${{ runner.arch }}-${{ env.BASHCOV_VERSION }}
+
       # bashcov is a rubygem, and none of tools.txt's kinds fetch one, so the
       # pin lives here by hand - which makes it the one tool
       # check_tool_versions.sh cannot report drift on through tools.txt; its
       # own row in _WORKFLOW_ROSTER points at this file instead. ruby is
       # preinstalled on the hosted images; the apt install below is a
-      # fallback that should never run. Every shard installs its own copy -
-      # a rubygem install has no cache here the way setup-tools' kcov build
-      # does, so this is paid four times in parallel rather than once, which
-      # is still faster wall-clock than the unsharded serial sweep was.
+      # fallback that should never run.
       - name: Install ruby and bashcov
-        env:
-          BASHCOV_VERSION: "4.0.0"
         run: | # zizmor: ignore[adhoc-packages]
           set -euo pipefail
           command -v ruby >/dev/null 2>&1 || sudo apt-get install -y ruby-full
@@ -286,6 +294,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # kcov is dynamically linked against these - shard-kcov's own
+      # setup-shells call installs them for tracing, and the merge needs
+      # them just as much: without this, `kcov --merge` only ever worked
+      # because the runner image happened to carry them already. Sourced
+      # directly (setup-backends/install.sh's own pattern) rather than
+      # through setup-shells, which would install zsh and fish for nothing.
+      - name: kcov's runtime libraries
+        run: |
+          set -euo pipefail
+          # shellcheck source=.github/actions/apt/lib.sh
+          source .github/actions/apt/lib.sh
+          _hi_apt_drop_vendor_lists
+          _hi_apt_update
+          sudo apt-get install -y libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
       - uses: $/.github/actions/setup-tools
         with:

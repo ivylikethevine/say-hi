@@ -2,8 +2,9 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # `apt-get update` on a GitHub-hosted runner, made survivable. Sourced by
-# ../setup-shells, ../setup-backends and ../setup-tool/install.sh, so the two
-# mitigations below are written once rather than per caller.
+# ../setup-shells, ../setup-backends, ../setup-tool/install.sh and
+# coverage.yml's gather-kcov job directly, so the two mitigations below are
+# written once rather than per caller.
 #
 # Nothing here runs on a target: this directory is CI-only and never ships.
 

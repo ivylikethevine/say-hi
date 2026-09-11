@@ -94,12 +94,20 @@ jobs:
           echo "prerelease=$prerelease" >>"$GITHUB_OUTPUT"
           echo "debug=$debug" >>"$GITHUB_OUTPUT"
 
+      # neovim and emacs-nox: tools_test.sh lints the shipped rcs with both,
+      # same as ci.yml's lint job - --require-run below turns a missing one
+      # into a failure rather than a quiet skip
       - uses: $/.github/actions/setup-shells
+        with:
+          extra-packages: neovim emacs-nox
 
-      # same pinned upstream binary ci.yml uses - the distro package lags badly
+      # the same tools ci.yml's lint job pins, and for the same reason: a
+      # tag build's "Run the lint group" below used to run shellcheck alone,
+      # while shfmt/checkbashisms/mandoc/typos silently skipped for want of
+      # a binary rather than actually linting anything
       - uses: $/.github/actions/setup-tools
         with:
-          tools: shellcheck
+          tools: shellcheck shfmt checkbashisms mandoc typos
 
       # Built here rather than fetched: GitHub's auto-generated /archive/
       # tarball is the one released artifact with no signature or attestation,
@@ -140,7 +148,7 @@ jobs:
         run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
 
       - name: Run the lint group
-        run: "${{ github.workspace }}/tests/test_runner.sh --group lint"
+        run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
       - uses: $/.github/actions/setup-tools
         with:

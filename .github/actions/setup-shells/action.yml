@@ -12,20 +12,43 @@ inputs:
 runs:
   using: composite
   steps:
+    # cached the way setup-backends' downloaded .debs are, and for the same
+    # reason: roughly a dozen jobs a push (test, lint, bench, every coverage
+    # shard) each pay their own apt-get update + install otherwise
+    - name: This week, for the cache key
+      if: runner.os == 'Linux'
+      id: week
+      shell: bash
+      run: printf 'week=%s\n' "$(date -u +%G-%V)" >>"$GITHUB_OUTPUT"
+
+    - name: Cache zsh/fish's downloaded .debs
+      if: runner.os == 'Linux'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/apt-archives
+        key: setup-shells-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ inputs.extra-packages }}
+
     # ../apt/lib.sh drops the images' Chrome/Microsoft repositories and
-    # retries the update - see its header for why
+    # retries the update - see its header for why. $HI_APT_CACHE replaces
+    # apt's own /var/cache/apt/archives (root-owned; actions/cache restores
+    # as the unprivileged runner user) the same way setup-backends/install.sh
+    # does, cache ownership handed back for the same reason its comment gives.
     - if: runner.os == 'Linux'
       shell: bash
       env:
         HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+        HI_APT_CACHE: ${{ runner.temp }}/apt-archives
       run: |
         set -euo pipefail
         source "$GITHUB_ACTION_PATH/../apt/lib.sh"
         _hi_apt_drop_vendor_lists
         _hi_apt_update
+        mkdir -p "$HI_APT_CACHE/partial"
         # unquoted on purpose: a word list, one apt name each
         # shellcheck disable=SC2086
-        sudo apt-get install -y zsh fish $HI_EXTRA_PACKAGES
+        sudo apt-get -o "Dir::Cache::Archives=$HI_APT_CACHE" install -y zsh fish $HI_EXTRA_PACKAGES
+        sudo rm -rf "$HI_APT_CACHE/partial" "$HI_APT_CACHE/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$HI_APT_CACHE"
 
     # macOS ships zsh; fish comes from brew, without brew updating itself first
     - if: runner.os == 'macOS'
