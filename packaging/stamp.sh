@@ -146,8 +146,14 @@ if [ -n "$_HI_MAN_FILE" ]; then
     require_one_match "$_hi_page" '^\.TH '
     rewrite "$_hi_page" \
       "s/^\.TH .*/.TH HI 1 \"$_HI_DATE\" \"say-hi $_HI_VERSION\" \"User Commands\"/"
-    # -f: OpenBSD's gzip leaves a file that would grow alone and exits 2
-    [ -n "$_hi_gz" ] && gzip -9nf "$_hi_page"
+    # Streamed through -c, like install_tree's own gzip call, rather than
+    # named on the command line: given a filename, OpenBSD's gzip refuses a
+    # recompression that would grow the file - even with -f - and exits 2,
+    # leaving no .gz behind. A stdout stream has no file for it to protect.
+    if [ -n "$_hi_gz" ]; then
+      gzip -9n <"$_hi_page" >"$_hi_gz"
+      rm -f "$_hi_page"
+    fi
   fi
 fi
 
