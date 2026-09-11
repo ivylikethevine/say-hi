@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh's pure helpers: the quoting/armor pair every baked
-# script rides through, the target-grammar splitters, the size reporters and
+# script rides through, the target-grammar splitters, the size reporters, and
 # the flags-table renderers. Sourcing hi.sh goes through the
 # same `[[ BASH_SOURCE == $0 ]]` hatch payload_test.sh uses; nothing here
 # connects to anything.
@@ -43,6 +43,30 @@ function test_armored_line_roundtrips_through_sh() {
   line="$(printf 'hello armored world\n' | _hi_armored_line '>' "'$f'")"
   sh -c "$line" || return 1
   [ "$(cat "$f")" = "hello armored world" ]
+}
+
+# openssl stands in for a missing base64 on either end (stock OpenBSD):
+# decoding the client's wrapped lines and one long line (macOS's base64
+# writes one) with openssl alone, and openssl's own armor decoding as usual.
+# macOS's openssl is LibreSSL, OpenBSD's. GLOSSARY: HI.17
+#
+# _hi_real_path, not a hand `ln -s`: on Git Bash that can leave a copy of
+# tr.exe, and $PATH here holds nothing but the toolbox - so the copy has
+# neither its own directory nor /usr/bin to find msys-2.0.dll through, and
+# says so ("error while loading shared libraries"). Its own toolbox name, not
+# remote_test.sh's `onlyssl`: the builder is build-once-per-name and the two
+# name different tools.
+function test_armor_falls_back_to_openssl() {
+  local f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
+  sh_bin="$(command -v sh)"
+  dir="$(_hi_real_path onlyssl-armor openssl tr)"
+  want="$(seq 1 400 | tr '\n' ' ')"
+  line="$(printf '%s\n' "$want" | _hi_armored_line '>' "'$f'")"
+  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1
+  line="$(printf 'echo "%s" | %s > %s' "$(printf '%s\n' "$want" | $_HI_ARMOR | tr -d '\n')" "$_HI_UNARMOR" "'$f'")"
+  PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1
+  line="$(printf '%s\n' "$want" | _HI_ARMOR="openssl base64" _hi_armored_line '>' "'$f'")"
+  sh -c "$line" && [ "$(cat "$f")" = "$want" ]
 }
 
 function test_outer_inner_split() {
@@ -245,6 +269,7 @@ function run_hi_helpers_test() {
   _hi_h2 "Testing: quoting and armor"
   _hi_check "_hi_shquote round-trips the hard cases" test_shquote_roundtrips_the_hard_cases
   _hi_check "_hi_armored_line round-trips through sh" test_armored_line_roundtrips_through_sh
+  _hi_check_requires openssl "...and through openssl where base64 is missing" test_armor_falls_back_to_openssl
 
   _hi_h2 "Testing: the target grammar"
   _hi_check "_hi_outer/_hi_inner split on the slash" test_outer_inner_split

@@ -17,6 +17,7 @@ hi \- your shell config, on every host you say hi to
 .B hi \-\-doctor
 .RB [ \-\-json ]
 .RB [ \-\-use " " \fIbackend\fR]
+.RI [ ssh\-options ]
 .RI [ target ]
 .br
 .B hi \-\-install
@@ -38,7 +39,7 @@ hi \- your shell config, on every host you say hi to
 .RB [ \-\-dry\-run ]
 .br
 .B hi \-\-preview
-.RB { colors | packages | header }
+.RB { colors | packages | header | targets }
 .br
 .BR "hi \-h" " | " \-V
 .SH DESCRIPTION
@@ -59,7 +60,7 @@ for which shell). With a trailing
 it runs that command on the target and exits \- inside hi's session, not the
 way
 .BR ssh (1)
-runs one: the command has hi's aliases, PATH and environment, and runs on a
+runs one: the command has hi's aliases, PATH, and environment, and runs on a
 pty when your own stdin is one. Only the command's own output goes to stdout;
 hi's progress and errors go to stderr. For a plain, unstyled, pty\-free
 remote command \- a tarball you are piping into a file, say \- use
@@ -73,7 +74,7 @@ directory, and removed by cleanup traps on exit \- including on an abrupt
 disconnect. A say-hi installed on the target itself is neither read nor
 touched by a session: it is there for that machine's own shells.
 .SH SESSION SHELL
-The session runs in your login shell when hi styles it (bash, zsh or fish),
+The session runs in your login shell when hi styles it (bash, zsh, or fish),
 otherwise in the best of fish > zsh > bash. Both halves come off one
 ordering \- fish > zsh > bash > dash > ash > sh \- so a target with no bash
 at all falls back to the best of the rest of it: fish > zsh > dash > ash > sh,
@@ -89,7 +90,7 @@ entry in
 .B ~/.ssh/config
 (wildcard entries are not matched).
 .TP
-.B 2. container, through docker, podman, nerdctl or finch
+.B 2. container, through docker, podman, nerdctl, or finch
 a running container, by name or ID, on whichever of the four
 answers, in that order.
 .TP
@@ -168,7 +169,7 @@ above:
 .BR podman ,
 .BR nerdctl ,
 .BR finch ,
-.B nomad
+.BR nomad ,
 or
 .BR kube .
 The name has to be one of those; a stranger is an error, not a guess.
@@ -202,7 +203,7 @@ either.
 .B \-\-mux
 run the session inside a local multiplexer session \-
 .BR tmux (1),
-.BR zellij (1)
+.BR zellij (1),
 or
 .BR screen (1),
 whichever is first on your PATH \- named for the target
@@ -216,16 +217,24 @@ inside a tmux, the session is created detached and this client switches to
 it; inside a screen or zellij, a new window or tab opens in the current
 session. Without a terminal, or without a multiplexer on this machine, hi
 connects as usual.
-.B alias hi='hi \-\-mux'
-makes it the default.
+.B _HI_MUX=1
+in
+.B settings.sh
+(the
+.I Advanced
+item in
+.BR "hi \-\-configure" )
+makes it the default for every connect.
 .TP
 .B \-\-no\-mux
-connect without the multiplexer \- the way out of that alias for one connect. Of
+connect without the multiplexer \- the way out of
+.B _HI_MUX=1
+for one connect. Of
 .B \-\-mux
 and
 .BR \-\-no\-mux ,
-the last one on the line wins, so the flag on the command line beats the one
-the alias put there.
+the last one on the line wins, so the flag on the command line beats the
+setting.
 .PP
 The local commands act on this machine instead of connecting, and each needs
 a part of the tree that is not always present. All of them want
@@ -237,20 +246,27 @@ wants
 .B .git
 on top of that, and a package carries none.
 .TP
-.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR}
-print one of three things and exit, instead of connecting.
+.B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR|\fBtargets\fR}
+print one of four things and exit, instead of connecting.
 .B colors
 is every ssh host and your user in their resolved colors, each row naming the
-rule it matched \- a pin, a tag, a pattern or the hash.
+rule it matched \- a pin, a tag, a pattern, or the hash.
 .B packages
 is the package\-priority legend, as the header's check prints it, with the
 ranks the floor silences marked.
 .B header
 is the connect header itself, as it prints here at your settings.
+.B targets
+is every target
+.B hi <TAB>
+offers, with its backend \- probed past the completion cache, so it takes as
+long as a cold
+.B hi <TAB>
+does.
 .TP
-.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fItarget\fR]
+.B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
 print a read\-only pre\-flight report instead of connecting: the local tree,
-the config overlay, the shell rc files and the overlay's own shell files
+the config overlay, the shell rc files, and the overlay's own shell files
 parsed by whatever will read them (the rc half is what
 .B \-\-install
 checks before it writes a line), the install itself \- each shell's rc lines
@@ -263,12 +279,18 @@ on
 runs, and the file a login bash or a
 .B ZDOTDIR
 zsh really reads \- every backend probed and timed, and \- with a target \-
-which backend the name resolves to plus an ssh reachability check.
+which backend the name resolves to plus an ssh reachability check. Every
+ssh option a connect takes
+.RB ( \-p ", " \-i ", " \-J ", " \-o ,
+and the rest) is accepted here too, and reaches the same BatchMode probe a
+real connect would authenticate with \- given for a target that resolves to
+a container, allocation, or pod, they are reported as ignored rather than
+silently dropped.
 .B \-\-use
 reports the same forced backend a real connect with it would take, skipping
 the probe chain, and two of them are refused as a connect refuses them.
 .BR \-\-plain ,
-.B \-\-mux
+.BR \-\-mux ,
 and
 .B \-\-no\-mux
 are accepted and ignored, so a connect line can be pasted behind
@@ -282,7 +304,7 @@ Exits 1 on any finding (see
 .BR "EXIT STATUS" ).
 .TP
 .B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
-install or repair say-hi's lines in your shell rc files (bash, zsh and fish,
+install or repair say-hi's lines in your shell rc files (bash, zsh, and fish,
 each only when it is installed; on macOS a line in
 .B ~/.bash_profile
 so a login bash reads
@@ -423,8 +445,10 @@ with no target hands back what
 exited with.
 .TP
 .B the target's bootstrap
-64 when the target has no
+64 when the target has neither
 .BR base64 (1)
+nor
+.BR openssl (1)
 to unpack the payload with, 65 when it could not make a scratch directory \-
 the two ways a target refuses a session before a shell opens, each reported
 by hi with the fix.
@@ -448,12 +472,12 @@ flags of
 .BR hi :
 .TP
 .B hi_info
-print where the running say\-hi lives \- its home, root and launcher. A
+print where the running say\-hi lives \- its home, root, and launcher. A
 diagnostic (the test harness's "the session is up" probe), and not part of
 the 1.x contract.
 .SH COMPLETION
 .B hi
-completes in bash, zsh and fish. All three read one list \-
+completes in bash, zsh, and fish. All three read one list \-
 .B common/targets.sh
 \- so the three can not drift apart, and it is the only one fish can run.
 .TP
@@ -462,9 +486,21 @@ every target: the
 .B Host
 entries in
 .B ~/.ssh/config
-plus every running container, allocation and pod, each tagged with the
+plus every running container, allocation, and pod, each tagged with the
 backend it came from. The list is reused for five seconds and each backend
-gets two seconds to answer, because this runs on every keypress.
+gets two seconds to answer, because this runs on every keypress. In zsh the
+list is colored by backend \- ssh hosts yellow, containers blue, nomad
+allocations green, kubernetes pods light purple \- through the
+.B hi\-targets
+tag's
+.B list\-colors
+style, which one of your own replaces; bash's readline and fish's pager
+take no per\-candidate color. Every listed target also carries its
+backend's symbol \- in fish's description column, in zsh's display, and
+beside the name when bash 4 or later lists the matches (never on the
+command line) \- set by the
+.B _HI_SYMBOL_*
+settings.
 .TP
 .B hi \-\-<TAB>
 hi's own options, each with its one\-line purpose where the shell has a
@@ -498,29 +534,20 @@ Configuration lives outside the tree, in
 .BR colors ,
 .BR packages ,
 .BR vim.rc ,
+.BR init.lua ,
 .BR nano.rc ,
-.BR emacs.el ,
-.BR helix.toml
 and
-.BR kak.rc ,
+.BR emacs.el ,
 additive
 .BR aliases.sh ,
 per-shell
 .BR bash.sh ,
-.B zsh.zsh
+.BR zsh.zsh ,
 and
 .BR config.fish ,
-and a
-.B starship.toml
-or
+and an
 .B oh-my-posh.json
-for the prompt program
-.B _HI_PROMPT_TOOL
-names, and a
-.B theme.yml
-for eza and a
-.B bat.conf
-for bat), written by
+for oh\-my\-posh), written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
 variable toggle \- header, prompt, git status, editors \- each on
@@ -542,9 +569,9 @@ feature toggles, written by
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
 .TP
-.B ~/.config/say-hi/vim.rc, nano.rc, emacs.el, helix.toml, kak.rc
+.B ~/.config/say-hi/vim.rc, init.lua, nano.rc, emacs.el
 per\-user replacements of the tree's editor configs, used whole rather than
-merged.
+merged \- init.lua is neovim's, vim.rc is vim's.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced first so any
@@ -559,24 +586,25 @@ overwrites it.
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.
 .TP
-.B ~/.config/say-hi/starship.toml, ~/.config/say-hi/oh-my-posh.json
-the prompt program's own config, carried to every target as its
-.B STARSHIP_CONFIG
-or
+.B ~/.config/say-hi/oh-my-posh.json
+oh\-my\-posh's config, carried to every target as its
 .B POSH_THEME
 when
-.B _HI_PROMPT_TOOL
-names that program; at home the program keeps reading its own.
+.BR _HI_PROMPT_TOOL=oh-my-posh ;
+at home oh\-my\-posh keeps reading its own.
 .TP
-.B ~/.config/say-hi/bat.conf
-a bat config file, carried to every target as its
-.B BAT_CONFIG_PATH
-\- the aliases then leave their own theme flag out so the file's wins.
-.TP
-.B ~/.config/say-hi/theme.yml
-an eza theme, carried to every target with the overlay as its
+.B ~/.config/starship.toml, ~/.config/bat/config, ~/.config/eza/theme.yml
+the starship, bat, and eza configs in force here \- or wherever
+.BR STARSHIP_CONFIG ,
+.BR BAT_CONFIG_PATH ,
+or
 .B EZA_CONFIG_DIR
-(eza reads that file name and no other); at home eza keeps reading its own.
+points \- carried to every target as-is (starship's only when
+.BR _HI_PROMPT_TOOL=starship ).
+The aliases then leave bat's theme flag out so the file's wins. A copy of
+any of the three in
+.B ~/.config/say-hi
+is ignored.
 .SH ENVIRONMENT
 Every setting is an environment variable, and the full table with defaults is
 .IR docs/SETTINGS.md ;
@@ -599,12 +627,19 @@ or
 whether the client's terminal renders 24\-bit color; read off
 .B COLORTERM
 and shipped to the session, which ssh never forwards itself.
+.TP
+.B _HI_MUX
+.B 1
+defaults every connect to
+.BR \-\-mux ;
+.B \-\-no\-mux
+overrides it for one connect. Client\-side only.
 .SH EXAMPLES
 .TP
 .B hi prod-db
 interactive session on the ssh host
 .BR prod\-db ,
-with your prompt, colors and aliases.
+with your prompt, colors, and aliases.
 .TP
 .B hi -J bastion internal 'df -h'
 run a command on

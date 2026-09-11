@@ -8,7 +8,7 @@
 # this suite's own reading can't. dialects_test.sh runs the same files a
 # non-bash shell parses for itself through that shell's own syntax checker
 # (native, plus a pinned floor and ceiling build). tools_test.sh wraps shfmt,
-# checkbashisms, mandoc and typos. drift_test.sh is the repo-consistency
+# checkbashisms, mandoc, and typos. drift_test.sh is the repo-consistency
 # sweeps. See each file's own header; all four are registered under
 # `lint` in test_runner.sh's _HI_TESTS table.
 set -euo pipefail
@@ -100,7 +100,7 @@ function lint_config_dir_sources() {
 #
 # Raising it past the CPU count is not the lever it looks like: shellcheck is
 # single-threaded, and on a 4-core/8-thread box the tests/ subdirectories
-# checked 4 at a time took 12.7s where 8 at a time took 16s (hyperthreads
+# checked 4 at a time take 12.7s where 8 at a time take 16s (hyperthreads
 # contending), and 12/16/24/32 sat in the same noise. What flattens the curve
 # is a chunk no width can split - see _hi_sc_chunks below, which is where
 # the time actually goes.

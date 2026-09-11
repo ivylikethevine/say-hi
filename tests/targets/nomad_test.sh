@@ -206,7 +206,7 @@ function run_nomad_test() {
   # An agent on the well-known 4646 collides with any real nomad on this
   # machine, and its cleanup would then purge that agent's jobs rather than
   # its own. Take three consecutive free ports instead - dev mode needs http,
-  # rpc and serf - the same way the ssh fixtures let docker pick an ephemeral
+  # rpc, and serf - the same way the ssh fixtures let docker pick an ephemeral
   # one. NOMAD_ADDR is exported so every nomad call in this suite, hi.sh's
   # backend probe included, reaches this agent and not another.
   local port_base
@@ -237,7 +237,7 @@ EOF
   _hi_pty_stdin force "no python3 to give the launcher its own pty - nomad alloc exec's attach may not get a real pty, results may be unreliable"
 
   # Serial on purpose, and said out loud by _hi_par_begin: two cases against a
-  # single-node dev agent are worth ~3s of a 348s run, and the ssh, framework
+  # single-node dev agent are worth ~3s of a 348s run, and the ssh, framework,
   # and container suites are where the wall clock actually is. Job teardown is
   # not a constraint here: it goes through the ledger, which is subshell-safe.
   export _HI_PAR_WIDTH=1

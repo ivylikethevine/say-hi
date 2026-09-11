@@ -212,6 +212,24 @@ function test_overlay_cached_rebuilds_when_a_member_is_newer() {
   ! _hi_cache_marked "$out"
 }
 
+# a config riding from outside the overlay (_hi_overlay_src) is keyed by its
+# path and watched where it lives - through a symlink, the dotfile-manager
+# shape, whose own mtime predates the cache while its target's does not
+function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
+  local out="" dir home="$_HI_WORKDIR/oc.home"
+  dir="$(_hi_cache_rt oc.home.rt)"
+  mkdir -p "$home"
+  printf -- '--theme=a\n' >"$home/real"
+  ln -sf "$home/real" "$home/config"
+  XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat.conf || return 1
+  [ "$out" = "$dir/hi.overlay.$(_hi_overlay_cache_key bat.conf "$home/config")" ] || return 1
+  _hi_cache_mark "$out"
+  touch -t 203001010000 "$out"
+  touch -t 203101010000 "$home/real"
+  XDG_RUNTIME_DIR="$dir" BAT_CONFIG_PATH="$home/config" _hi_overlay_cached out bat.conf || return 1
+  ! _hi_cache_marked "$out"
+}
+
 # a trimmed member list is a different key, so it cannot be served the fuller
 # archive off the warm one
 function test_overlay_cached_keys_the_file_by_member_list() {
@@ -536,7 +554,7 @@ function test_ctl_close_is_a_noop_with_nothing_open() {
 }
 
 function run_cache_tests() {
-  _hi_h1 "Testing hi.sh's runtime dir, caches and ControlMaster socket"
+  _hi_h1 "Testing hi.sh's runtime dir, caches, and ControlMaster socket"
   _hi_workdir hicache
   _hi_suite_begin
   _hi_cache_config
@@ -562,6 +580,7 @@ function run_cache_tests() {
   _hi_check "A failed build leaves nothing and answers 1" test_cached_cleans_up_after_a_failed_build
   _hi_check "Reuses a warm cache" test_overlay_cached_reuses_a_warm_cache
   _hi_check "Rebuilds when a member is newer" test_overlay_cached_rebuilds_when_a_member_is_newer
+  _hi_check_capable symlink "Rebuilds when a home config's target is newer" test_overlay_cached_rebuilds_when_a_home_config_is_newer
   _hi_check "Keys the file by member list" test_overlay_cached_keys_the_file_by_member_list
 
   _hi_h2 "Testing: the streams and the payload cache"

@@ -386,7 +386,7 @@ function test_prerelease_tags_reach_no_channel() {
   job="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
   # shellcheck disable=SC2016 # matching release.yml's literal source text
   [[ "$job" == *'case "$GITHUB_REF_NAME" in *-*) prerelease=true'* ]] || {
-    _hi_cecho " | release.yml's build job no longer classifies a prerelease tag" "$RED"
+    _hi_cecho " | release.yml's build job does not classify a prerelease tag" "$RED"
     bad=1
   }
   job="$(_hi_wf_job "$_HI_RELEASE_WF" brew)"
@@ -495,7 +495,7 @@ function test_prerelease_tags_reach_no_external_channel() {
 # aur does not run off a tag push at all - a v0.0.x/prerelease skip on
 # `github.ref_name` alone, with no workflow_dispatch guard beside it, would
 # read as "still automatic" and silently reintroduce the coupling this split
-# exists to remove. The tap is release.yml's now (below), not this file's.
+# exists to remove. The tap is release.yml's (below), not this file's.
 function test_aur_is_dispatch_only() {
   [ -f "$_HI_PUBLISH_EXTERNAL_WF" ] || return 0
   grep -qE '^ *workflow_dispatch:' "$_HI_PUBLISH_EXTERNAL_WF" &&
@@ -1041,7 +1041,7 @@ function test_bump_rewrite_preserves_file_mode() {
 
 # Every channel stamps `^_HI_RELEASE=` into the hi.sh it installs, and the
 # version into the man page's .TH line, at build time - the stamp cannot live
-# in git because bump.sh only runs after the tag exists. All four now do it
+# in git because bump.sh only runs after the tag exists. All four do it
 # through packaging/stamp.sh, so these cases split in two: greps that every
 # channel calls the one implementation and none kept a private sed, and
 # behavioral cases running stamp.sh against a fixture tree.
@@ -2190,7 +2190,7 @@ function test_mkrepo_release_hashes_shape() {
   return 1
 }
 
-# The whole apt half, offline: build_apt needs ar, openssl and gzip and no
+# The whole apt half, offline: build_apt needs ar, openssl, and gzip and no
 # docker, so the index format apt actually parses is testable in the fast
 # group. The unsigned arm is the one a keyless dev box exercises.
 function test_mkrepo_build_apt_offline() {
@@ -2411,8 +2411,7 @@ function run_packaging_tests() {
   _hi_check "...and --check then agrees, exit 0" test_bump_cli_check_agrees_after_a_write
   _hi_check "asset_url follows the PKGBUILD's url=" test_bump_asset_url_follows_the_pkgbuild_url
   _hi_check "sha256 matches a known vector" test_bump_sha256_matches_a_known_vector
-  # needs both halves present to compare them; openssl stopped being implied
-  # when the wire armor moved to base64
+  # needs both halves present to compare them; nothing else implies openssl
   if command -v openssl >/dev/null 2>&1; then
     _hi_check_requires b2sum "b2 fallback agrees with b2sum" test_bump_b2_fallback_agrees_with_b2sum
   else
@@ -2468,7 +2467,7 @@ function run_packaging_tests() {
   _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
   _hi_check "mkrepo.sh parses its flags before asking for docker" test_mkrepo_parses_flags_before_asking_for_docker
   _hi_check "mkrepo.sh refuses without a reachable docker" test_mkrepo_main_refuses_without_a_reachable_docker
-  _hi_check "in_container hands over uid, gid and the arch list" test_mkrepo_in_container_hands_over_uid_gid_and_arches
+  _hi_check "in_container hands over uid, gid, and the arch list" test_mkrepo_in_container_hands_over_uid_gid_and_arches
   _hi_check "build_rpm lays out the repo and warns unsigned" test_mkrepo_build_rpm_lays_out_the_repo_and_warns_unsigned
   _hi_check_requires gpg "build_rpm signs repomd.xml with a key" test_mkrepo_build_rpm_signs_repomd_with_a_key
   _hi_check_requires gpg "build_apt signs the Release with a key" test_mkrepo_build_apt_signs_the_release_with_a_key

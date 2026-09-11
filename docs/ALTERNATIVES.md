@@ -48,15 +48,15 @@ to `xterm-256color`) rather than depending on your terminal.
 |                                     | **say-hi**                                                                                          | **[sshrc]**                                                                                     | **[xxh]**                                                | **[kyrat]**                     | **[sshdot]**             |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------- | ------------------------ |
 | Written in                          | POSIX/bash shell                                                                                    | shell                                                                                           | Python                                                   | bash                            | shell                    |
-| Client needs                        | `bash` 3.2+, `base64`                                                                               | bash, ssh                                                                                       | a Python install (pip/pipx/conda) or the portable binary | `bash` **≥ 4.0**, GNU coreutils | shell, ssh               |
-| Target needs                        | `base64`; `bash` for the full session                                                               | `openssl` (its base64), `tar`, `bash`                                                           | Linux **x86_64 only**                                    | shell                           | shell                    |
+| Client needs                        | `bash` 3.2+, `base64` (or `openssl`)                                                                | bash, ssh                                                                                       | a Python install (pip/pipx/conda) or the portable binary | `bash` **≥ 4.0**, GNU coreutils | shell, ssh               |
+| Target needs                        | `base64` (or `openssl`); `bash` for the full session                                                | `openssl` (its base64), `tar`, `bash`                                                           | Linux **x86_64 only**                                    | shell                           | shell                    |
 | Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash                                           | broad                                                                                           | Linux x86_64                                             | Linux, macOS                    | broad                    |
 | Installs on target                  | nothing                                                                                             | nothing                                                                                         | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
 | Cleans up on exit                   | yes, automatically                                                                                  | yes, on exit (a hard kill leaves it, as with hi)                                                | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
 | Size ceiling                        | the wire script README's payload badge sizes, CI-held within 5% of it; gzipped tar budgeted at 64KB | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                                                                      | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                                                                  | no                                                                                              | **yes**                                                  | no                              | no                       |
-| Maturity                            | pre-1.0, deb/rpm/apk, the package repository and the Homebrew tap live; no AUR yet                  | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
+| Maturity                            | pre-1.0, deb/rpm/apk, the package repository, and the Homebrew tap live; no AUR yet                  | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
 
 ## Tool by tool
 
@@ -72,7 +72,7 @@ unchanged.
 that runs on every host you touch. If you just want your `.bashrc` and
 `.vimrc` over there, sshrc does it in a fraction of the code.
 
-**Where say-hi went further**, beyond the table's transport, cleanup and
+**Where say-hi went further**, beyond the table's transport, cleanup, and
 target-needs deltas:
 
 - **Cleanup, proven for the dropped link.** What say-hi adds beyond sshrc's
@@ -94,7 +94,7 @@ the best of what is installed and says so. Its plugin model is also more
 principled than copying dotfiles blind.
 
 **Where say-hi wins**, beyond the table's reach and weight rows: say-hi's
-suite runs real Debian, Alpine/musl and bash-3.2 targets every time, against
+suite runs real Debian, Alpine/musl, and bash-3.2 targets every time, against
 xxh's single x86_64-Linux target.
 
 ### kyrat — closest in spirit
@@ -164,7 +164,7 @@ does it.
 [compatibility tables](SUPPORT.md) answer two questions — can hi land a
 session here at all, and what shell do you end up in — and mark every cell
 proven-by-a-suite, expected, reduced, or unsupported. A target with no bash
-gets aliases, a colored prompt and a warning; a Windows OpenSSH host with no
+gets aliases, a colored prompt, and a warning; a Windows OpenSSH host with no
 POSIX shell gets a plain PowerShell session rather than an error.
 
 ## Sources

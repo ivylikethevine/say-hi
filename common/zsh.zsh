@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 # === start required configuration ===
+# see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
+[[ -z "${_hi_rc_loading-}" ]] || return 0
+_hi_rc_loading=1
 # The tree from this file's own path: %x is this file, :A absolute, :h up one.
 # GLOSSARY: HI.33
 : "${_HI_HOME:=${${(%):-%x}:A:h:h:h}}"
@@ -38,19 +41,16 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     __hi_env_precmd() { _hi_env_prompt __hi_env_info; }
     precmd_functions+=(__hi_env_precmd)
     # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
-    # emits them; _HI_DISABLE_MARKS=1 turns them off
-    _hi_marks_a="" _hi_marks_b=""
-    if [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]]; then
-      _hi_marks_a=$'%{\e]133;A\a%}'
-      _hi_marks_b=$'%{\e]133;B\a%}'
-      __hi_marks_precmd() {
-        local ec=$?
-        printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
-      }
-      __hi_marks_preexec() { printf '\e]133;C\a'; }
-      precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
-      preexec_functions+=(__hi_marks_preexec)
-    fi
+    # emits them
+    _hi_marks_a=$'%{\e]133;A\a%}'
+    _hi_marks_b=$'%{\e]133;B\a%}'
+    __hi_marks_precmd() {
+      local ec=$?
+      printf '\e]133;D;%s\a\e]7;file://%s%s\a' "$ec" "${HOST:-}" "$PWD"
+    }
+    __hi_marks_preexec() { printf '\e]133;C\a'; }
+    precmd_functions=(__hi_marks_precmd "${precmd_functions[@]}")
+    preexec_functions+=(__hi_marks_preexec)
     # concatenated onto the $'...' strings, not interpolated, so zsh's prompt
     # expansion happens at render time rather than at assignment. $_hi_lead is
     # a plain double-quoted segment instead - $_HI_DISABLE_LEAD_SPACE is a static
@@ -113,7 +113,7 @@ _HI_TARGET_DESCS=()
 _HI_TARGET_ROWS_AT=-1
 
 _hi() {
-  local name kind
+  local name kind sym
   # the word a flag takes (`hi --preview <TAB>`, `hi --use <TAB>`), then
   # hi's own options when the word is one, targets otherwise - the split
   # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
@@ -144,14 +144,36 @@ _hi() {
     _HI_TARGET_DESCS=()
     while IFS=$'\t' read -r name kind; do
       _HI_TARGET_ROWS+=("$name")
-      _HI_TARGET_DESCS+=("$kind - $name")
+      _hi_target_symbol sym "$kind"
+      _HI_TARGET_DESCS+=("$sym $kind - $name")
     done < <(sh "$_HI_TARGETS")
     _HI_TARGET_ROWS_AT=$SECONDS
   fi
-  # -V: an unsorted group, so targets.sh's order is the menu's
-  compadd -V hi-targets -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
+  # -V: an unsorted group, so targets.sh's order is the menu's; through
+  # _description, so the hi-targets tag's list-colors (below) applies
+  local -a expl
+  _description -V hi-targets expl target
+  compadd "${expl[@]}" -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
 }
-compdef _hi hi
+# hi.sh too: zsh expands paths.sh's `hi` alias before completing, so the
+# command it looks up is the launcher's name, not `hi`
+compdef _hi hi "${_HI_LAUNCHER:t}"
+# The target list colored by backend, matched on the kind after each line's
+# symbol ("▣ docker - web"): ssh yellow, the container family blue, nomad
+# green, kube light purple, in hi's palette so a color scheme repaints them. None under
+# $NO_COLOR, and never over a list-colors of your own for the same context.
+() {
+  local kind color esc
+  local -a spec
+  zstyle -g esc ':completion:*:hi-targets' list-colors && return
+  for kind color in ssh yellow "(${(j:|:)${=_HI_CONTAINER_CLIS}})" blue nomad green kube brmagenta; do
+    _hi_color_escape_var esc "$color"
+    [[ -n $esc ]] || return 0
+    esc=${esc#\\e\[}
+    spec+=("=* $kind - *=${esc%m}")
+  done
+  zstyle ':completion:*:hi-targets' list-colors "${spec[@]}"
+}
 # only when something completes `eza`: compdef's service form errors out
 # otherwise. _comps is compinit's own command -> completion map, so no fork.
 (( ${+_comps[eza]} )) && compdef exa=eza
@@ -164,3 +186,14 @@ _hi_unexport
 # see common/bash.sh for why the paths are compared before sourcing
 [[ "$_HI_CONFIG_DIR/zsh.zsh" != "$_HI_ROOT/common/zsh.zsh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/zsh.zsh" ]] && source "$_HI_CONFIG_DIR/zsh.zsh"
+# see common/bash.sh: a local interactive shell greets with hi's header,
+# drawn by bash since header.sh is bash's, handed the session values
+# _hi_unexport kept back (as config.fish's __hi_bash does)
+[[ -o interactive && -z "${ZSH_EXECUTION_STRING-}" && "$_HI_REMOTE_SESSION" != 1 &&
+  "${_HI_DISABLE_HEADER:-0}" != 1 ]] && () {
+  local n
+  local -a kv
+  for n in $_HI_SESSION_VARS; do (( ${+parameters[$n]} )) && kv+=("$n=${(P)n}"); done
+  env "${kv[@]}" COLUMNS=$COLUMNS bash -c 'source "$1" && hi_header Online' hi "$_HI_HEADER"
+}
+unset _hi_rc_loading

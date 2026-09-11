@@ -24,16 +24,16 @@ source "$_HI_DOCTOR"
 # case installs. Nothing else, so a backend "not installed" case is real
 # even on a machine with every backend.
 #
-# base64, tar, gzip, find, mv and chmod are hi's own floor for building a
+# base64, tar, gzip, find, mv, and chmod are hi's own floor for building a
 # payload (the staging copy renames each stripped file back and restores the
-# launcher's exec bit), and they belong here for the same reason `bash` does: leaving them off did not
-# model a client without them, it just made the report print raw
-# "base64: command not found" lines out of _hi_wire_bytes into every case's
-# transcript, and measure a wire size nothing had packed. A *target* without
+# launcher's exec bit), and they belong here for the same reason `bash` does:
+# leaving them off would not model a client without them, only print raw
+# "base64: command not found" lines into every case's transcript and measure a
+# wire size nothing packed. A *target* without
 # base64 is a different fiction, and $HI_FAKE_TOOLS is the one that tells it.
 function _hi_doctor_path() {
   _hi_real_path toolbox sh bash awk grep sed printf mktemp rm cat wc tr sleep \
-    timeout du date base64 tar gzip find readlink uname mv chmod mkdir
+    timeout du date base64 openssl sort tar gzip find readlink uname mv chmod mkdir
 }
 
 # A $HOME with one non-empty rc file, isolating doctor_configs()'s local-rc
@@ -162,11 +162,47 @@ function test_local_reports_missing_floor_tools() {
   [[ "$out" == *"unknown - needs base64 tar to measure"* ]]
 }
 
+# The two verdicts a gzip-less client gets, and which one it gets is a question
+# about its tar, not about $PATH - so both cases shim tar rather than trusting
+# whichever this machine has (hi.sh's _hi_can_gzip is what they exercise).
+# openssl rides the toolbox because stock OpenBSD has no base64(1) and the
+# armor floor resolves to openssl there: without it the row under test is
+# "MISSING locally: base64" and the case is asserting the wrong thing. mv and
+# chmod are _hi_stage_tar's (hi.sh), so the size step below the row can run
+# instead of printing "mv: command not found" into the transcript.
+function _hi_nogzip_path() {
+  _hi_real_path nogzip sh bash awk grep sed printf mktemp rm mv chmod cat wc tr \
+    sleep timeout du date base64 openssl tar find git zsh fish
+}
+
+# _hi_nogzip_tar <exit> - a tar shim that answers <exit> for -z and hands
+# everything else to the real tar, printed as a directory to put first on PATH.
+function _hi_nogzip_tar() {
+  local ec="$1" dir="$_HI_WORKDIR/nogzip-tar-$1" real
+  real="$(type -P tar)"
+  mkdir -p "$dir"
+  {
+    printf '%s\n' '#!/bin/sh'
+    printf 'case " $* " in *" -z "*) exit %s ;; esac\n' "$ec"
+    printf 'exec "%s" "$@"\n' "$real"
+  } >"$dir/tar"
+  chmod +x "$dir/tar"
+  printf '%s' "$dir"
+}
+
 function test_local_warns_without_gzip() {
   local out
-  out="$(PATH="$(_hi_real_path nogzip sh bash awk grep sed printf mktemp rm cat wc tr \
-    sleep timeout du date base64 tar find git zsh fish)" doctor_local)"
-  [[ "$out" == *"base64 tar present, no gzip (a bigger payload, not a broken one)"* ]]
+  out="$(PATH="$(_hi_nogzip_tar 0):$(_hi_nogzip_path)" doctor_local)"
+  [[ "$out" == *" tar present, no gzip (your tar compresses on its own - a padded payload, not a broken one)"* ]]
+}
+
+# ...and a tar that shells out to gzip for -z has nothing to fall back on, so
+# the same missing gzip is a finding rather than a warning
+function test_local_flags_a_gzip_that_nothing_can_replace() {
+  local out
+  out="$(PATH="$(_hi_nogzip_tar 1):$(_hi_nogzip_path)" doctor_local)"
+  [[ "$out" == *"MISSING locally: gzip"* ]] || return 1
+  [[ "$out" == *"unknown - needs gzip to measure"* ]]
 }
 
 function test_backend_missing_reports_not_installed() {
@@ -218,6 +254,32 @@ function test_config_counts_an_overlay_file() {
     doctor_config
   )"
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
+}
+
+# a tool config the overlay lacks names the file that travels in its place
+function test_config_names_a_home_tool_config() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/homecfg.XXXXXX")"
+  printf -- '--theme=x\n' >"$dir/bat-flags"
+  out="$(
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
+  )"
+  [[ "$out" == *"bat.conf"*"targets get $dir/bat-flags"* ]]
+}
+
+# a tool config copy left in the overlay is flagged: it no longer ships
+function test_config_flags_an_ignored_tool_config_copy() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/staletool.XXXXXX")"
+  printf -- '--theme=x\n' >"$dir/bat.conf"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    BAT_CONFIG_PATH="$dir/nope" doctor_config
+  )"
+  [[ "$out" == *"bat.conf"*"ignored - hi ships the tool's own config; delete this copy"* ]]
 }
 
 # what hi --install seeds is the tree's own file, byte for byte: not an
@@ -332,10 +394,10 @@ function test_config_lists_a_non_default_toggle() {
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_DISABLE_MARKS=1
+    _HI_DISABLE_BANNER=1
     doctor_config
   )"
-  [[ "$out" == *"toggle"*"_HI_DISABLE_MARKS=1"* && "$out" != *"all defaults"* ]]
+  [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]]
 }
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
@@ -346,7 +408,7 @@ function test_config_flags_values_set_in_aliases_sh() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/latevals.XXXXXX")"
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
-    'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"' \
+    'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
     'export _HI_DISABLE_TOOL_ALIASES=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
@@ -354,7 +416,7 @@ function test_config_flags_values_set_in_aliases_sh() {
     doctor_config
   )"
   [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_TOOL_ALIASES - "* ]] || return 1
-  printf '%s\n' 'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"' >"$dir/aliases.sh"
+  printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
@@ -595,8 +657,8 @@ function test_help_exits_zero() {
 # reached as `hi --doctor`, the usage line says so; run by hand it names the
 # file
 function test_help_names_what_was_typed() {
-  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--use <backend>] [target]" ] &&
-    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--use <backend>] [target]" ]
+  [ "$(_HI_ARGV0="hi --doctor" "$_HI_DOCTOR" --help | head -1)" = "Usage: hi --doctor [--json] [--use <backend>] [ssh-options] [target]" ] &&
+    [ "$("$_HI_DOCTOR" --help | head -1)" = "Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]" ]
 }
 
 # a target never starts with a dash, so a dash word the parser does not know
@@ -645,7 +707,7 @@ function test_use_twice_naming_two_backends_is_refused() {
 
 # --help anywhere on the line, not only first: after a flag, after a target
 function test_help_is_read_anywhere_on_the_line() {
-  local out want="Usage: doctor.sh [--json] [--use <backend>] [target]"
+  local out want="Usage: doctor.sh [--json] [--use <backend>] [ssh-options] [target]"
   out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || return 1
   out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ]
 }
@@ -848,7 +910,7 @@ assert not any(r["label"] == "checked" for r in t), t
 }
 
 # --plain has nothing for doctor to report (it never connects), but it is a
-# real hi.sh flag now - the arg loop has to consume it rather than fall
+# real hi.sh flag - the arg loop has to consume it rather than fall
 # through to _HI_DOC_TARGET the way an unrecognized word otherwise would
 function test_plain_flag_is_not_mistaken_for_the_target() {
   local out
@@ -899,7 +961,8 @@ function run_doctor_tests() {
   _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
   _hi_check "A non-empty overlay is diffed against stock" test_local_diffs_a_non_empty_overlay
   _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
-  _hi_check "Warns without gzip" test_local_warns_without_gzip
+  _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
+  _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
 
   _hi_h2 "Testing: doctor_backend"
   _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
@@ -910,6 +973,8 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
+  _hi_check "An overlay copy of one is flagged as ignored" test_config_flags_an_ignored_tool_config_copy
   _hi_check "A seeded overlay file reads as unchanged" test_config_calls_a_seeded_overlay_file_unchanged
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
@@ -957,7 +1022,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: the install section"
   _hi_check "A wired rc file is green" test_install_section_reports_a_wired_shell
   _hi_check "An rc file naming another tree is a finding" test_install_section_flags_a_foreign_tree
-  _hi_check "Unwired shells, absent shells and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
+  _hi_check "Unwired shells, absent shells, and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
   _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
   _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
   _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path

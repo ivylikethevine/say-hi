@@ -10,7 +10,7 @@
       initial-scratch-message nil)
 
 ;; leave no droppings in a remote tree: no file~ backups, no #file# autosaves,
-;; no .#file lock symlinks that confuse rsync, git status and make
+;; no .#file lock symlinks that confuse rsync, git status, and make
 (setq make-backup-files nil
       auto-save-default nil
       create-lockfiles nil)

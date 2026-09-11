@@ -101,10 +101,9 @@ jobs:
         with:
           extra-packages: neovim emacs-nox
 
-      # the same tools ci.yml's lint job pins, and for the same reason: a
-      # tag build's "Run the lint group" below used to run shellcheck alone,
-      # while shfmt/checkbashisms/mandoc/typos silently skipped for want of
-      # a binary rather than actually linting anything
+      # the same tools ci.yml's lint job pins, and for the same reason: without
+      # them the tag build's "Run the lint group" below runs shellcheck alone,
+      # with shfmt, checkbashisms, mandoc, and typos skipping for want of a binary
       - uses: $/.github/actions/setup-tools
         with:
           tools: shellcheck shfmt checkbashisms mandoc typos
@@ -491,7 +490,7 @@ jobs:
             "" \
             "## Package repositories" \
             "" \
-            "Subscribe once and \`apt\`, \`dnf\` or \`apk\` upgrades say-hi from here on; the repositories always serve the newest stable release. Setup: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#package-repository)." \
+            "Subscribe once and \`apt\`, \`dnf\`, or \`apk\` upgrades say-hi from here on; the repositories always serve the newest stable release. Setup: [docs/PACKAGING.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/PACKAGING.md#package-repository)." \
             "" \
             "- apt: \`$pages/apt\` (suite \`stable\`, component \`main\`, key [say-hi.asc]($pages/say-hi.asc))" \
             "- dnf: [say-hi.repo]($pages/say-hi.repo)" \
@@ -532,7 +531,7 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
 
       # The subscribable repository (docs/PACKAGING.md's _Package repository_):
-      # apt, rpm and apk indexes over the packages just uploaded, signed with
+      # apt, rpm, and apk indexes over the packages just uploaded, signed with
       # the GPG key the rpm was and the apk index with the apk's key, shipped
       # as one asset that pages.yml unpacks from the newest non-prerelease
       # release. After the upload, so a failure here still leaves a complete
@@ -585,7 +584,7 @@ jobs:
   # hand before a tap PR is merged, run on a hosted mac against the tarball
   # just published - the formula's url points at the release asset, which is
   # why this waits on publish and never runs for a rehearsal. The `tap` job
-  # below waits on it: a formula that fails install, test or audit never
+  # below waits on it: a formula that fails install, test, or audit never
   # reaches the tap PR.
   #
   # `brew audit` refuses a path and wants a *named* formula in a tap, hence
@@ -606,7 +605,7 @@ jobs:
   # exactly that shape - untrusted, install/test/audit below would each fail
   # to find the formula the moment macos-latest ships Homebrew 6.x.
   brew:
-    name: brew install, test and audit the formula (macOS)
+    name: brew install, test, and audit the formula (macOS)
     needs: publish
     # not on a v0.0.x or a prerelease tag - build's own classification,
     # relayed through publish's outputs and read the same way by the tap job
@@ -690,7 +689,7 @@ jobs:
 
   # The Homebrew tap, as part of the release: a PR against
   # <owner>/homebrew-tap carrying the formula the `brew` job just installed,
-  # tested and audited, opened only when that job passed. A PR rather than a
+  # tested, and audited, opened only when that job passed. A PR rather than a
   # push, so the tap's own merge stays the human step - there is no
   # `environment:` gate here, since `publish` already ran in this
   # run and `brew` is the technical gate. No-ops loudly without the

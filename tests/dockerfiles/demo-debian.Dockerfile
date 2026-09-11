@@ -1,4 +1,4 @@
-# The demo tapes' "a box with your tools on it": debian with git, nano, vim and
+# The demo tapes' "a box with your tools on it": debian with git, nano, vim, and
 # bat, and a small git checkout under /root/app, so the feature tapes have
 # something to show - the prompt's git segment wants a repo, `cat` wants a bat
 # to fall through to, and the editors tape wants nano and vim to open. The

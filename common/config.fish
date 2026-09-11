@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 # === start required configuration ===
+# see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
+set -q _hi_rc_loading; and return
+set -g _hi_rc_loading 1
 # The tree from this file's own path, only when unset. Through `sh`, not
 # fish's `cd`/`pwd`: a builtin-only command substitution runs in the current
 # process, and fish's `pwd` is logical. GLOSSARY: HI.33
@@ -13,9 +16,9 @@ end
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
-    _HI_DISABLE_EDITORS \
-    _HI_DISABLE_MARKS \
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS \
+    _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
+    _HI_DISABLE_MICRO \
+    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS \
     _HI_DISABLE_BANNER
   set -q $_hi_toggle; or set -gx $_hi_toggle 0
 end
@@ -55,7 +58,7 @@ end
 
 # Opposite conditions, so exactly one runs per TAB: without the negation
 # `hi --<TAB>` would fire the target sweep too, and a flag list must never
-# wait on a docker daemon (the promise targets.sh, bash.sh and zsh.zsh keep).
+# wait on a docker daemon (the promise targets.sh, bash.sh, and zsh.zsh keep).
 # -k keeps targets.sh's order instead of sorting.
 # the word after a flag that takes one - `hi --preview <TAB>`, `hi --use
 # <TAB>` - is neither a flag nor a target: targets.sh's words roster
@@ -65,8 +68,30 @@ function __hi_prev_takes_word --description 'is the previous token one of $_HI_W
   # would read them as its own options
   test (count $toks) -gt 0; and contains -- $toks[-1] (string split -- ' ' $_HI_WORD_FLAGS)
 end
+# targets.sh's "<target>\t<kind>" rows, each kind behind its backend symbol:
+# $_HI_SYMBOL_* from settings.sh over hi's own (core.sh's _hi_target_symbol)
+function __hi_targets --description 'hi targets, each kind behind its backend symbol'
+  set -l sym $__hi_symbols
+  test -n "$_HI_SYMBOL_SSH"; and set sym[1] $_HI_SYMBOL_SSH
+  test -n "$_HI_SYMBOL_CONTAINER"; and set sym[2] $_HI_SYMBOL_CONTAINER
+  test -n "$_HI_SYMBOL_NOMAD"; and set sym[3] $_HI_SYMBOL_NOMAD
+  test -n "$_HI_SYMBOL_KUBE"; and set sym[4] $_HI_SYMBOL_KUBE
+  for row in (sh $_HI_TARGETS)
+    set -l f (string split -m1 \t -- $row)
+    set -l i 2
+    switch $f[2]
+      case ssh
+        set i 1
+      case nomad
+        set i 3
+      case kube
+        set i 4
+    end
+    printf '%s\t%s %s\n' $f[1] $sym[$i] $f[2]
+  end
+end
 complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct); and not __hi_prev_takes_word' \
-  -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
+  -a '(__hi_targets)'
 complete -c hi -f -k -n __hi_prev_takes_word \
   -a '(sh $_HI_TARGETS words (commandline -opc)[-1])'
 # hi's own options from the same file, so the two lists cannot drift; behind
@@ -75,7 +100,7 @@ complete -c hi -f -n 'string match -q -- "-*" (commandline -ct)' \
   -a '(sh $_HI_TARGETS flags (commandline -opc)[2])'
 complete exa --wraps eza
 
-# fish can't run hi's bash side, so the greeting, the package check and the
+# fish can't run hi's bash side, so the greeting, the package check, and the
 # color resolution each come from one bash call
 function fish_greeting
   # on a hi session load.sh printed this already and sets $fish_greeting to
@@ -118,13 +143,6 @@ if test "$_HI_DISABLE_SUDO_ALIAS" != 1
       command sudo $argv
     end
   end
-end
-
-# zoxide and atuin, mirroring core.sh's _hi_tool_init: only when the box has
-# them and nothing has wired them in yet
-if test "$_HI_DISABLE_TOOL_INIT" != 1
-  command -q zoxide; and not functions -q __zoxide_z; and zoxide init fish | source
-  command -q atuin; and not functions -q _atuin_search; and atuin init fish | source
 end
 
 # the prompt's end character, mirroring core.sh's _hi_prompt_end: fish
@@ -187,7 +205,6 @@ if test "$_HI_DISABLE_PROMPT" != 1
     function __hi_env_prompt --description 'name every active environment manager'
       test "$_HI_DISABLE_ENV_STATUS" = 1; and return
       set -l order mise asdf pyenv rbenv nodenv nix guix devbox devenv direnv conda venv
-      test -n "$_HI_ENV_ORDER"; and set order (string split -n ' ' -- $_HI_ENV_ORDER)
       set -l names
       for src in $order
         switch $src
@@ -244,9 +261,8 @@ if test "$_HI_DISABLE_PROMPT" != 1
       # $lead is its own argument, never "$lead"(__hi_env_prompt): fish drops
       # the *whole* concatenated word when a command substitution inside it
       # produces nothing, so glued to an empty environment segment - which is
-      # every prompt outside a venv/conda/direnv - the leading space
-      # disappeared with it. `echo -ns` joins its arguments with no separator,
-      # so two words render exactly as the one did when the segment was there.
+      # every prompt outside a venv, conda, or direnv - the leading space would
+      # go with it. `echo -ns` joins its arguments with no separator.
       echo -ns (set_color yellow) "$__fish_machine" \
         (set_color brcyan) "$lead" (__hi_env_prompt) \
         (set_color $fish_color_user) "$USER" \
@@ -289,7 +305,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
     # hi's copy - two sets of marks would confuse the terminal.
     set -g _hi_marks_a ''
     set -g _hi_marks_b ''
-    if test "$_HI_DISABLE_MARKS" != 1; and not string match -qr '^[4-9]\.' -- $version
+    if not string match -qr '^[4-9]\.' -- $version
       set -g _hi_marks_a \e']133;A'\a
       set -g _hi_marks_b \e']133;B'\a
       function __hi_marks_preexec --on-event fish_preexec
@@ -320,8 +336,7 @@ set -e __hi_n
 # === end required configuration ===
 
 # hi's git segment: the fish half of common/git_prompt.sh; prompt_test.sh pins
-# its glyphs and colors against core.sh. Product, not taste, so unconditional
-# (docs/SETTINGS.md on what hi stopped shipping).
+# its glyphs and colors against core.sh. Product, not taste, so unconditional.
 set -g __fish_git_prompt_show_informative_status 1
 set -g __fish_git_prompt_showupstream informative
 set -g __fish_git_prompt_showdirtystate yes
@@ -336,6 +351,8 @@ set -g __fish_git_prompt_color_invalidstate red
 set -g __fish_git_prompt_color_cleanstate brgreen
 
 set -g _hi_env_ellipsis …
+# ssh, container, nomad, kube: _hi_choose_glyphs's _HI_GLYPH_* for __hi_targets
+set -g __hi_symbols » ▣ ◆ ⎈
 
 # the ASCII fallback _hi_choose_glyphs gives bash/zsh, with _HI_ASCII
 # overriding the locale probe both ways
@@ -353,6 +370,7 @@ if test "$_HI_ASCII" = 1
     set -g __fish_git_prompt_char_stashstate '$'
     set -g __fish_git_prompt_char_cleanstate 'ok'
     set -g _hi_env_ellipsis '..'
+    set -g __hi_symbols '>' '#' '*' '@'
 end
 
 # see common/bash.sh for why the paths are compared before sourcing
@@ -360,3 +378,4 @@ if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
     and test -f $_HI_CONFIG_DIR/config.fish
   source $_HI_CONFIG_DIR/config.fish
 end
+set -e _hi_rc_loading

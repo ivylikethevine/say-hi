@@ -27,15 +27,19 @@ export XDG_CONFIG_HOME="${TMPDIR:-/tmp}/hi.testcfg.$$"
 # identity (_hi_git_fixture), so nothing here needs the global file.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
-# ...and the four files that carry a path variable of their own, for the same
-# reason one line later. Each now takes an explicit value over the overlay's
+# ...and the five files that carry a path variable of their own, for the same
+# reason one line later. Each takes an explicit value over the overlay's
 # ("only when unset", common/paths.sh), so a value inherited from the shell
 # that launched the suite - an agent session, a developer's own hi session -
 # would be read as a deliberate choice and outrank the $_HI_CONFIG_DIR above.
 # paths.sh drops a value still equal to the one it recorded resolving, so an
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
-unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_KAKRC
+unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
+# The tools' own config variables hi.sh's _hi_overlay_src reads, and the
+# setting that gates starship's: inherited, they would pack the developer's
+# real configs into every overlay stream a suite builds.
+unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR _HI_PROMPT_TOOL
 
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"

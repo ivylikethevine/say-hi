@@ -8,7 +8,7 @@ people you meet here.
 - Assume good faith. A report that turns out to be user error and a
   suggestion that already has an answer ([SUPPORT.md](SUPPORT.md) holds most
   of them) both get a civil reply, and deserve a civil ask.
-- Argue the code, the design and the evidence, not the person.
+- Argue the code, the design, and the evidence, not the person.
 - Keep other people's private information private — a hostname in a
   transcript, an ssh config, an address — and redact what a bug report does
   not need.
@@ -23,10 +23,10 @@ anywhere else this project is represented.
 ## Reporting
 
 Write to <ivylikethevine@gmail.com>. Reports are read by the maintainer,
-handled privately and answered; what happened and who reported it stay
-confidential. The maintainer may remove, edit or refuse content that breaks
+handled privately, and answered; what happened and who reported it stay
+confidential. The maintainer may remove, edit, or refuse content that breaks
 this document, and may block anyone who keeps breaking it — the response
 scales with the behaviour, from a word in private to a permanent ban.
 
 This applies to every space the project runs: the repository, its issues,
-pull requests and discussions, and any account speaking for it.
+pull requests, and discussions, and any account speaking for it.

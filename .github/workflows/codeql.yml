@@ -5,7 +5,7 @@ name: CodeQL
 # `--group fast` (docs/TESTING.md). The overlap with zizmor is the point:
 # zizmor is the fast gate in ci.yml, CodeQL the slower dataflow pass whose
 # findings land in the Security tab with a trace, and Scorecard's SAST check
-# counts only this one. Runs on push to main, every PR, weekly and on dispatch.
+# counts only this one. Runs on push to main, every PR, weekly, and on dispatch.
 on:
   push:
     branches: [main]

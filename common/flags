@@ -6,8 +6,9 @@
 # arms) and to print --help; common/targets.sh reads it so `hi --<TAB>` offers
 # the same list. <argument> is what the flag takes on the command line, as
 # --help shows it (empty for a bare flag); the shape is part of the 1.x
-# contract, so it lives here rather than in prose, and every flag takes its
-# first word joined as well (--use=docker, --update=v1.0.0). <help> is one
+# contract, so it lives here rather than in prose. A shape that opens on a
+# word takes it joined too (--use=docker, --update=v1.0.0) - so --doctor's
+# opens on --json, or --doctor=json would read as a target. <help> is one
 # clause -
 # docs/hi.1 is the long form, drift-checked against this by
 # tests/hi/parse_test.sh. <needs> is what a flag wants that the payload does
@@ -20,9 +21,9 @@
 --use|<backend>|-|||skip probing and force that backend (ssh counts as one)
 --plain||-|||a bare shell, nothing copied: no tar or /tmp needed
 --mux||-|||a local tmux/zellij/screen session; a repeat reattaches
---no-mux||-|||skip the multiplexer this once, past an earlier --mux
---preview|<subject>|scripts|_HI_PREVIEW||colors, packages or header, as they print here
---doctor|[--json] [--use <backend>] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
+--no-mux||-|||skip the multiplexer this once, past --mux or _HI_MUX=1
+--preview|<subject>|scripts|_HI_PREVIEW||colors, packages, header, or targets, as printed here
+--doctor|[--json] [--use <backend>] [ssh-options] [target]|scripts|_HI_DOCTOR||a read-only pre-flight report; --json for a bug report
 --install|[--yes] [--link {none,user,system}] [--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--install|install or repair say-hi's lines in your shell rc files
 --uninstall|[--purge] [--dry-run]|scripts|_HI_INSTALL|--uninstall|take those lines out; --purge removes the overlay too
 --configure|[--preset <name>] [--dry-run]|scripts|_HI_INSTALL|--configure|revisit the settings, leaving the rc wiring be

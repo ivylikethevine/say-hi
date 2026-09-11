@@ -33,7 +33,7 @@ unset _hi_d
 
 function _hi_doctor_help() {
   cat <<EOF
-Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [target]
+Usage: ${_HI_ARGV0:-doctor.sh} [--json] [--use <backend>] [ssh-options] [target]
 
 Prints, in order:
   the local tree     where say-hi is, git state, payload size, local shells
@@ -52,12 +52,13 @@ Prints, in order:
                      connection, the permanent-install probe, and what the
                      remote end has installed
 
-ssh options are not accepted here - the probe uses your ssh config as-is,
-which is exactly what completion and the header do. --use <backend> names the
-target's arm outright, the same one a real \`hi --use <backend> <target>\` would
-take, and skips the probe chain in the target report. --plain, --mux and
---no-mux are accepted and ignored - doctor never connects, so it has nothing
-to report.
+ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
+real connect authenticates with, so \`hi --doctor -J bastion host\`
+diagnoses the connect that needed the jump host; for a container,
+allocation, or pod target they are reported as ignored. --use <backend>
+names the target's arm outright, as a real \`hi --use <backend> <target>\`
+would, and skips the probe chain. --plain, --mux, and --no-mux are
+accepted and ignored - doctor never connects.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -79,24 +80,25 @@ case "${1:-}" in
 esac
 
 # hi.sh's source hatch hands over everything this needs without connecting
-# anywhere: the backend predicates, $_HI_PAYLOAD and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
+# anywhere: the backend predicates, $_HI_PAYLOAD, and _hi_use_backend. The args are saved before the source line clears "$@" (hi.sh
 # reads it at source time, and must see none) and classified after, so an arm
 # name is recognized through the one place that spells the roster rather than
 # a second list here.
 _HI_DOC_TARGET=""
 _HI_DOC_JSON=0
 _HI_DOC_BACKEND=""
+_HI_DOC_SSHARGS=()
 _hi_doc_args=("$@")
 set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
 
-# --json, the target and --use may come in any order: `hi --doctor --json
-# host`, `hi --doctor host --json`, `hi --doctor --use docker host` all read
-# naturally. `--use <backend>` is the one two-word flag: the word after it is the
-# arm, not the target (`--use=<backend>` is the same word joined, as hi.sh
-# takes it). Anything else that looks like a flag is an error, not a target -
-# a target never starts with a dash - and so is a second target.
+# --json, the target, --use, and ssh options come in any order: `hi --doctor
+# host --json` and `hi --doctor -J bastion host` read naturally. An ssh
+# option that takes a value (hi.sh's _hi_is_ssh_value_opt) takes the next
+# word with it into $_HI_DOC_SSHARGS; any other `-x` rides along alone. An
+# unknown `--word` is an error, not a target - a target never starts with a
+# dash - and so is a second target.
 # --use twice is refused the way a connect refuses it (hi.sh's _hi_parse),
 # not resolved last-wins: doctor reports the arm a connect would take
 function _hi_doctor_use() {
@@ -130,9 +132,27 @@ while [ $# -gt 0 ]; do
     _hi_doctor_help
     exit 0
     ;;
-  -*)
-    _hi_cecho "$_HI_ME: unknown option $_hi_arg (--json, --use <backend>, a target)" "$RED" >&2
+  # ssh's own terminator, forwarded as-is like hi.sh does
+  --)
+    _HI_DOC_SSHARGS+=("$_hi_arg")
+    ;;
+  --*)
+    _hi_cecho "$_HI_ME: unknown option $_hi_arg (--json, --use <backend>, ssh options, a target)" "$RED" >&2
     exit 1
+    ;;
+  -*)
+    if _hi_is_ssh_value_opt "$_hi_arg"; then
+      [ $# -ge 2 ] || {
+        _hi_cecho "$_HI_ME: $_hi_arg needs a value" "$RED" >&2
+        exit 1
+      }
+      _HI_DOC_SSHARGS+=("$_hi_arg" "$2")
+      shift
+    else
+      # a bare ssh flag (-4, -A, -C, -v, ...) - doctor does not validate
+      # ssh's own vocabulary, only sorts a target from an option
+      _HI_DOC_SSHARGS+=("$_hi_arg")
+    fi
     ;;
   *)
     [ -z "$_HI_DOC_TARGET" ] || {
@@ -225,12 +245,14 @@ function doctor_payload_diff() {
 }
 
 # The tools hi needs *here* to ship a payload at all, and the one place the
-# report asks. base64 armors the ssh transport (_say_hi refuses without it),
-# tar packs the tree for every transport, and gzip only shrinks it - so a
-# missing gzip is a bigger payload rather than no session, which is why it is
-# named separately below rather than counted as a floor.
+# report asks. base64 armors the ssh transport (_say_hi refuses without it,
+# and takes openssl's where it is missing) and tar packs the tree for every
+# transport. gzip is the third, and the one that cannot be answered by name
+# alone: libarchive's tar compresses in-process, so a client with that one is
+# only sending a padded payload, while GNU's and OpenBSD's run gzip off $PATH
+# and have nothing to fall back on. hi.sh's _hi_can_gzip is the question both
+# this and the connect path ask.
 _HI_LOCAL_FLOOR=(base64 tar)
-_HI_LOCAL_NICE=(gzip)
 
 # _hi_missing_tools <name...> - those of <name...> this machine does not have,
 # space-separated, in the order given.
@@ -259,12 +281,19 @@ function doctor_local() {
   # `hi --doctor` with a pair of raw "base64: command not found" lines from
   # inside _hi_wire_bytes, on the one run whose whole job is to say what is
   # wrong with this machine. Named here, once, and the size step skipped.
-  missing="$(_hi_missing_tools "${_HI_LOCAL_FLOOR[@]}")"
-  nice_missing="$(_hi_missing_tools "${_HI_LOCAL_NICE[@]}")"
+  local -a floor=("${_HI_LOCAL_FLOOR[@]}")
+  command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
+    floor=("${floor[@]/#base64/openssl}")
+  missing="$(_hi_missing_tools "${floor[@]}")"
+  nice_missing="$(_hi_missing_tools gzip)"
   if [ -n "$missing" ]; then
     doctor_row tools "MISSING locally: $missing - hi cannot ship a payload without them" bad
+  elif ! _hi_can_gzip; then
+    # set, so the size step below is skipped for the same reason it is above
+    missing=gzip
+    doctor_row tools "MISSING locally: gzip - this tar runs it for -z, so hi cannot pack a payload without it" bad
   else
-    doctor_row tools "${_HI_LOCAL_FLOOR[*]} present${nice_missing:+, no $nice_missing (a bigger payload, not a broken one)}" \
+    doctor_row tools "${floor[*]} present${nice_missing:+, no gzip (your tar compresses on its own - a padded payload, not a broken one)}" \
       "${nice_missing:+warn}"
   fi
   # two numbers because they answer two questions: what leaves this machine
@@ -313,7 +342,14 @@ function doctor_config() {
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do
     [ "$f" = settings.sh ] && continue
-    if [ ! -f "$_HI_CONFIG_DIR/$f" ]; then
+    t=""
+    _hi_overlay_src "$f" t || true
+    if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
+      # a tool config: what ships is the file the tool reads, never this copy
+      doctor_row "$f" "ignored - hi ships the tool's own config${t:+ ($t)}; delete this copy" warn
+    elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
+      doctor_row "$f" "targets get $t, the one in force here"
+    elif [ -z "$t" ]; then
       doctor_row "$f" "tree default"
     elif [ -f "$_HI_ROOT/settings/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/settings/$f"; then
       # what hi --install seeds: the tree's own file, byte for byte, so not
@@ -416,7 +452,7 @@ function doctor_install() {
   if [ -n "${ZDOTDIR:-}" ] && _hi_has_marker "$HOME/.zshrc" && ! _hi_has_marker "$ZDOTDIR/.zshrc"; then
     doctor_row zdotdir "$HOME/.zshrc has hi's lines, but ZDOTDIR points zsh at $ZDOTDIR/.zshrc (hi --install writes there now)" warn
   fi
-  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login
+  # macOS: a login bash reads the first of ~/.bash_profile, ~/.bash_login,
   # and ~/.profile that exists - bash's own order - and never ~/.bashrc, so
   # the bashrc row above can be green and a Terminal.app shell still see
   # none of it
@@ -547,6 +583,9 @@ function doctor_target() {
   if [ "$kind" = "ssh host" ]; then
     doctor_ssh_target "$target"
   else
+    if [ "${#_HI_DOC_SSHARGS[@]}" -gt 0 ]; then
+      doctor_row ssh-options "ignored - ${_HI_DOC_SSHARGS[*]} apply only to an ssh target, and this one resolved to $kind" warn
+    fi
     doctor_container_target "$label" "$target"
   fi
   return 0
@@ -558,7 +597,7 @@ function doctor_target() {
 function _hi_doctor_probe_snippet() {
   # shellcheck disable=SC2016 # "$c" is the target shell's variable, not ours -
   # expanding it here is exactly what must not happen
-  printf 'for c in base64 bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done' "$_HI_SHELL_LADDER"
+  printf 'for c in base64 openssl bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done' "$_HI_SHELL_LADDER"
 }
 
 # The container half, and deliberately the same shape as doctor_ssh_target: what
@@ -628,7 +667,8 @@ function _hi_ladder_first() {
 # costs a single authentication.
 function doctor_ssh_target() {
   DOMAIN="$1"
-  SSHARGS=()
+  # the run's ssh options, so the probe authenticates the way the connect would
+  SSHARGS=(${_HI_DOC_SSHARGS[@]+"${_HI_DOC_SSHARGS[@]}"})
   local ctl_path t0 t1 tools err
   err="$(mktemp -t hi.doc.err.XXXXXX)"
   # hi.sh's own socket helper, so this probe multiplexes exactly like a real
@@ -636,7 +676,9 @@ function doctor_ssh_target() {
   local -a ctl_opts
   _hi_ctl_open 15 run -o BatchMode=yes
   t0="$(_hi_now)"
-  if ! ssh "${ctl_opts[@]}" -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
+  # SSHARGS first: ssh keeps an option's first value, so your own
+  # -o ConnectTimeout wins over the bound
+  if ! ssh "${ctl_opts[@]}" ${SSHARGS[@]+"${SSHARGS[@]}"} -o ConnectTimeout=5 "$DOMAIN" true 2>"$err"; then
     t1="$(_hi_now)"
     doctor_row connect "FAILED after $(_hi_elapsed "$t0" "$t1")s (BatchMode - a password/2FA prompt fails here but may work interactively)" bad
     # ssh's own words, as a row of their own: the JSON document has nowhere
@@ -650,14 +692,14 @@ function doctor_ssh_target() {
   doctor_row connect "ok ($(_hi_elapsed "$t0" "$t1")s to authenticate - later probes reuse the socket)" ok
   doctor_row install "hi ships $(_hi_wire_estimate) each session - a say-hi installed on the target is not used from here"
   # through _hi_ssh_sh, like every other command hi sends: unwrapped, a fish
-  # login shell cannot parse the loop and the report claimed the target had
-  # nothing - no base64, no bash, all of it false
+  # login shell cannot parse the loop and the report would claim the target
+  # has nothing
   tools="$(_hi_ssh_sh "$(_hi_doctor_probe_snippet)" \
     "${ctl_opts[@]}" 2>/dev/null || true)"
   doctor_row remote "has: ${tools:-nothing this probes for}"
   case " $tools" in
-  *" base64 "*) ;;
-  *) doctor_row remote "no base64 - the ssh bootstrap cannot decode there" bad ;;
+  *" base64 "* | *" openssl "*) ;;
+  *) doctor_row remote "no base64 or openssl - the ssh bootstrap cannot decode there" bad ;;
   esac
   case " $tools" in
   *" bash "*) ;;

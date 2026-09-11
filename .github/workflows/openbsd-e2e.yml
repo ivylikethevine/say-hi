@@ -2,9 +2,10 @@ name: OpenBSD e2e
 
 # freebsd-e2e.yml's job on the other BSD: an OpenBSD VM on the hosted ubuntu
 # runner runs the fast suites and then ssh's to itself, client and target
-# both OpenBSD userland. Its base carries neither bash nor base64(1) - only
-# b64encode/b64decode - so the VM takes both from packages, which is what
-# SUPPORT.md's *BSD row asks of an OpenBSD target. No fish: two fish
+# both OpenBSD userland. Its base carries no bash, and no base64(1) -
+# LibreSSL's `openssl base64` stands in for that (GLOSSARY.md's HI.17) - so
+# the VM takes bash alone from packages, which is what SUPPORT.md's *BSD row
+# asks of an OpenBSD target. No fish: two fish
 # versions share the package stem, and a non-interactive pkg_add refuses the
 # ambiguity; the fish dialect is proven on every other platform. ci.yml calls
 # it beside freebsd-e2e.yml, behind the same gate; dispatch runs it on its
@@ -36,5 +37,5 @@ jobs:
           sync: rsync
           copyback: false
           prepare: |
-            pkg_add -I bash zsh git python%3 base64
+            pkg_add -I bash zsh git python%3
           run: bash "$GITHUB_WORKSPACE/.github/scripts/bsd_loopback.sh" </dev/null

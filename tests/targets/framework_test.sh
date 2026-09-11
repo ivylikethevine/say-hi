@@ -15,7 +15,7 @@
 # what no other suite would notice.
 #
 # Each image keeps every shell the base has: load() follows the *login* shell
-# now (see _hi_session_shell), so the framework's own shell is the one hi lands
+# (see _hi_session_shell), so the framework's own shell is the one hi lands
 # in - which is also what makes these cases a test of that. Builds need the
 # network; a failed one skips its case rather than failing the suite.
 #

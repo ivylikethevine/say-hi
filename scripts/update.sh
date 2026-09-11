@@ -7,9 +7,8 @@
 # scripts/lib.sh - hi.sh ships in the ssh payload under a size budget, and
 # this is the one subcommand that cannot succeed anywhere the payload copy is
 # what is running: a disposable tree is /tmp/<x>/say-hi with no .git, and a
-# target with a permanent install runs its own hi.sh. It went through
-# _hi_dispatch_subcommand like every other subcommand once it had a script to
-# name.
+# target with a permanent install runs its own hi.sh. It goes through
+# _hi_dispatch_subcommand like every other subcommand.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` chain into
 # hi.sh's trailing `_hi "$@"` and marks what follows unreachable - it does not
@@ -107,7 +106,7 @@ if [ "$here" = "$tag" ]; then
   exit 0
 fi
 # The tag's signature, read off gpg's status lines rather than verify-tag's
-# exit code, which is 1 for "bad", "unsigned" and "signed by a key you have not
+# exit code, which is 1 for "bad", "unsigned", and "signed by a key you have not
 # imported" alike. Only a bad signature refuses: an unsigned tag is what a
 # fork or a mirror has, and a missing key is most first installs - both are
 # said out loud and allowed, so the check never strands an update that plain

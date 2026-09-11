@@ -134,7 +134,7 @@ function _hi_fishquote() {
 # files. `bash --rcfile` in hi.sh starts the *bootloader*; the shell the user
 # types at is started below, and a bare `bash -i` would read ~/.bashrc, so it
 # is pointed here instead. Every mechanism is one hi already relies on for a
-# bash-less target: --rcfile, ZDOTDIR, $ENV and fish's -C.
+# bash-less target: --rcfile, ZDOTDIR, $ENV, and fish's -C.
 #
 # Each file sources the target's own rc *first*, then hi's on top.
 #
@@ -201,7 +201,7 @@ function _hi_session_rc_setup() {
     printf 'source %s\n' "$q"
   } >"$dir/fish.config"
 
-  # $ENV is what sh, dash and ash read for an *interactive* shell. Aliases and
+  # $ENV is what sh, dash, and ash read for an *interactive* shell. Aliases and
   # paths only, the same subset the bash-less fallback gets.
   printf -v q '%q' "$_HI_ROOT"
   {
@@ -240,23 +240,16 @@ function _hi_session_shell_cmd() {
 # are read off the alias settings/aliases.sh builds (sourced here, in the
 # caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
 # editor's invocation, so _HI_MICRO_OPTS or an overlay's own `alias vim=...`
-# reaches $EDITOR the way it reaches the alias. kak goes bare - sudoedit
-# splits the value on whitespace with no quoting, and kak's config flag needs
-# one quoted word.
+# reaches $EDITOR the way it reaches the alias. An editor with no alias (micro
+# under _HI_DISABLE_MICRO, say) goes bare, hence the ${body:-$e} tail.
 function _hi_session_editor() {
-  local e name body
+  local e body
   # shellcheck source=./settings/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
-  for e in ${_HI_EDITOR:-} nvim vim hx helix micro nano emacs kak; do
+  for e in ${_HI_EDITOR:-} nvim vim micro nano emacs; do
     type -P "$e" &>/dev/null || continue
-    case "$e" in
-    nvim) name=vim ;;
-    helix) name=hx ;;
-    kak) name="" ;;
-    *) name="$e" ;;
-    esac
-    body="$([ -n "$name" ] && alias "$name" 2>/dev/null)"
-    body="${body#alias "$name"=\'}"
+    body="$(alias "$e" 2>/dev/null)"
+    body="${body#alias "$e"=\'}"
     body="${body%\'}"
     printf '%s' "${body:-$e}"
     return 0
@@ -282,12 +275,18 @@ function load() {
 
   if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
     # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
-    # since VIMINIT *is* the override it turns off (settings/vim.rc ships
-    # either way - the payload roster is static).
-    command -v vim &>/dev/null &&
-      export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
-    # $EDITOR, $VISUAL and $SUDO_EDITOR: an alias reaches an interactive
-    # prompt and nothing else, so `git commit`, `crontab -e` and `sudo -e` on
+    # since VIMINIT *is* the override it turns off (both rcs ship either way -
+    # the payload roster is static). nvim reads $VIMINIT too and `:source`
+    # runs a .lua file as lua, so a box with nvim and no vim gets init.lua
+    # here; a command-line `-u` beats $VIMINIT, so the aliases decide on a box
+    # that has both, and this is only for the vim nothing else invokes.
+    local vimrc=""
+    command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
+    [[ -z "$vimrc" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
+    [[ "${_HI_DISABLE_VIM:-0}" != 1 && -n "$vimrc" ]] &&
+      export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
+    # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
+    # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on
     # the target would still open whatever vi it has. Exported for the
     # session shell to inherit, carrying the same flags the alias does.
     local editor
@@ -316,9 +315,8 @@ function load() {
   # The shell's last prompt mark was C - `exit` is a command like any other -
   # and the D closing the pair never came, since the shell is gone. A terminal
   # tracking OSC 133 is left "inside a command" until the next D, and Konsole
-  # turns the up arrow into a left arrow while it waits. Same toggle as the
-  # marks themselves.
-  [[ "${_HI_DISABLE_MARKS:-0}" != 1 ]] && printf '\e]133;D;%s\a' "$shell_ec"
+  # turns the up arrow into a left arrow while it waits.
+  printf '\e]133;D;%s\a' "$shell_ec"
 
   local size dur
   size="$(_hi_du_size "$_HI_ROOT")"

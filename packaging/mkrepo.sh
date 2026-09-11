@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Turns the packages mkpkg.sh built into a subscribable repository for apt, dnf
+# Turns the packages mkpkg.sh built into a subscribable repository for apt, dnf,
 # and apk - the tree release.yml ships as `package-repo.tar.gz` and pages.yml
 # serves from https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}.
 #
-# No second packaging description: the inputs are the one .deb, .rpm and .apk
+# No second packaging description: the inputs are the one .deb, .rpm, and .apk
 # in dist/, and the only things generated here are indexes over them plus the
 # keys a client needs. The three index builders that are not plain shell run
 # in throwaway containers (apk-tools from Alpine, createrepo_c from Debian),
@@ -20,7 +20,7 @@
 # apk itself was signed with and signs each APKINDEX, named after
 # packaging/apk/say-hi.rsa.pub as apk-tools expects. Either flag left off
 # builds that half unsigned, loudly: a client then needs `trusted=yes`,
-# `gpgcheck=0` or `--allow-untrusted`, which is fine for a local look and
+# `gpgcheck=0`, or `--allow-untrusted`, which is fine for a local look and
 # nothing to publish.
 #
 # Layout written under --outdir (default dist/repo):
@@ -31,7 +31,7 @@
 #   apk/{x86_64,aarch64}/{<apk>,APKINDEX.tar.gz}
 #   say-hi.asc  say-hi.rsa.pub  say-hi.repo
 
-# the locator, core.sh, strict mode and the shared primitives (need/gpg_fpr/
+# the locator, core.sh, strict mode, and the shared primitives (need/gpg_fpr/
 # sha256_of) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -54,7 +54,7 @@ _HI_USAGE="Usage: mkrepo.sh [--dist <dir>] [--outdir <dir>] [--gpg-key <file> [-
 function usage() {
   cat <<EOF
 $_HI_USAGE
-Builds an apt, an rpm and an apk repository out of the packages in --dist.
+Builds an apt, an rpm, and an apk repository out of the packages in --dist.
   --dist <dir>       Where mkpkg.sh left the .deb/.rpm/.apk. Default: dist/
   --outdir <dir>     Where to write the repository. Default: <dist>/repo
   --gpg-key <file>   Armored, passphrase-free GPG secret key: signs the apt

@@ -193,10 +193,10 @@ function test_link_flag_is_parsed_and_documented() {
   grep -qF -- '--link <where>' <("$_HI_INSTALL" --help) || return 1
   rc=0
   out="$(bash "$_HI_INSTALL" --link 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user or system"* ]] || return 1
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link needs one of none, user, or system"* ]] || return 1
   rc=0
   out="$(bash "$_HI_INSTALL" --link=sideways 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user or system (got sideways)"* ]]
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--link wants one of none, user, or system (got sideways)"* ]]
 }
 
 function test_unlink_hi_skips_when_link_missing() {
@@ -228,7 +228,7 @@ function test_unlink_hi_skips_when_link_points_elsewhere() {
   ) | grep -q "leaving it alone"
 }
 
-# The real-run half: the flag errors, the mode banners and the locator walk
+# The real-run half: the flag errors, the mode banners, and the locator walk
 # can only be seen by executing install.sh as a program, the way a user does.
 # Every run gets the scratch tree run_install_tests stands up (never this
 # checkout: the rc writers and unlink_hi must have nothing of the
@@ -261,7 +261,7 @@ function _hi_run_install() {
 # $XDG_CONFIG_HOME. The real file rather than the scratch copy, and a plain
 # `env` rather than `env -i`, because the coverage sweep sees neither a copy
 # nor an `env -i` child - these are the argument parser, the rc check,
-# --configure arms, the overlay seed and the validation gate, which read
+# --configure arms, the overlay seed, and the validation gate, which read
 # as never run when they only ever ran out of $_HI_RUN_TREE. The locator still
 # derives the tree from the script's own path (GLOSSARY: HI.33), so what runs
 # is exactly what the copy ran, in place.
@@ -334,7 +334,8 @@ function test_install_seeds_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"seeded the shipped defaults"* && "$out" == *"Installed!"* ]] &&
-    [ -f "$ovl/colors" ] && [ -f "$ovl/nano.rc" ] && [ ! -d "$ovl/.git" ] || return 1
+    [ -f "$ovl/colors" ] && [ -f "$ovl/nano.rc" ] && [ -f "$ovl/init.lua" ] &&
+    [ ! -d "$ovl/.git" ] || return 1
   rc=0
   out="$(_hi_run_install_here ovl-feat --configure --preset=minimal 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [ ! -e "$_HI_WORKDIR/ovl-feat/.config/say-hi/colors" ] &&
@@ -441,8 +442,15 @@ function test_install_aborts_on_broken_configs_without_yes() {
   mkdir -p "$home"
   printf 'if [ 1 = 1 ]; then\n' >"$home/.bashrc"
   out="$(_hi_run_install_here gate-abort --link none 2>&1)" || rc=$?
-  [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
-    ! grep -qF "$_HI_MARKER" "$home/.bashrc"
+  if [ "$rc" -eq 1 ] && [[ "$out" == *"re-run with --yes"* ]] &&
+    ! grep -qF "$_HI_MARKER" "$home/.bashrc"; then
+    return 0
+  fi
+  # the transcript, since a gate that asked instead of deciding (a stdin this
+  # platform calls a terminal) reads identically from the status alone
+  _hi_cecho " | rc=$rc, and the non-interactive gate line is missing:" "$RED"
+  printf '%s\n' "$out" | sed 's/^/   | /' >&2
+  return 1
 }
 
 function test_install_with_yes_continues_over_broken_configs() {
@@ -640,16 +648,32 @@ function test_a_switch_outside_its_mode_is_refused() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--link does not apply here"* ]]
 }
 
+# _hi_mode_help_is_its_own <mode> <usage-prefix> <body-phrase> - the mode's own
+# --help: its usage line first, its own paragraph, and nothing of the install's.
+# The exit code and the text are both reported on failure: a bare `return 1`
+# here said only "FAILED" on a windows-11-arm runner, which cannot tell a help
+# text that came out wrong from a `bash` that never ran (the emulated Git Bash
+# there also loses `ln -s` and `mkdir -m`, so a dead child is a real candidate).
+function _hi_mode_help_is_its_own() {
+  local mode="$1" usage="$2" phrase="$3" out rc=0
+  out="$(_HI_ARGV0="hi --$mode" bash "$_HI_ROOT/scripts/install.sh" "--$mode" --help)" || rc=$?
+  [ "$rc" -eq 0 ] || {
+    _hi_cecho " | hi --$mode --help exited $rc" "$RED"
+    return 1
+  }
+  [[ "$out" == "$usage"* && "$out" == *"$phrase"* && "$out" != *"Wires up"* ]] || {
+    _hi_cecho " | hi --$mode --help was:" "$RED"
+    printf '%s\n' "$out" | sed 's/^/      /'
+    return 1
+  }
+}
+
 function test_uninstall_help_is_its_own() {
-  local out
-  out="$(_HI_ARGV0="hi --uninstall" bash "$_HI_ROOT/scripts/install.sh" --uninstall --help)" || return 1
-  [[ "$out" == "Usage: hi --uninstall [--purge] [--dry-run]"* && "$out" == *"inverse of the install"* && "$out" != *"Wires up"* ]]
+  _hi_mode_help_is_its_own uninstall "Usage: hi --uninstall [--purge] [--dry-run]" "inverse of the install"
 }
 
 function test_configure_help_is_its_own() {
-  local out
-  out="$(_HI_ARGV0="hi --configure" bash "$_HI_ROOT/scripts/install.sh" --configure --help)" || return 1
-  [[ "$out" == "Usage: hi --configure [--preset <name>]"* && "$out" == *"Revisit the settings"* && "$out" != *"Wires up"* ]]
+  _hi_mode_help_is_its_own configure "Usage: hi --configure [--preset <name>]" "Revisit the settings"
 }
 
 # no terminal and no --preset: --configure has nothing to do and says so,

@@ -22,7 +22,7 @@
 # rewrite actually landed a real version and real checksums (not the template
 # sentinels) before the build goes any further.
 
-# the locator, core.sh, strict mode and the shared primitives (sha256_of/
+# the locator, core.sh, strict mode, and the shared primitives (sha256_of/
 # b2_of/pkgbuild_version) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -118,7 +118,7 @@ function check_manifests() {
 # the release passes, since it builds the asset itself and must sum the exact
 # bytes it is about to upload. Without one, build the same shape from the local
 # tag, and fall back to downloading the published asset only if there is no such
-# tag here. Downloading can never be the first choice any more: on a fresh tag
+# tag here. Downloading is never the first choice: on a fresh tag
 # the asset does not exist until publish, so a fetch-first order would deadlock
 # at exactly the moment a release runs.
 function write_manifests() {

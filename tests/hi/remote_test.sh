@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Unit tests for hi.sh: everything the client writes for the target to run.
-# The bootloader, the fallback rc, the ssh preamble
+# The bootloader, the fallback rc, the ssh preamble,
 # and `--version` - strings assembled on this side and executed on the other.
 #
 # Sourcing hi.sh goes through the same `[[ BASH_SOURCE == $0 ]]` hatch install.sh
@@ -31,7 +31,7 @@ function test_bootloader_calls_load_for_a_session() {
 }
 
 # ...and a one-off command replaces that call outright, so load() - and with
-# it the header, the session rc and clean_all - never runs
+# it the header, the session rc, and clean_all - never runs
 function test_bootloader_replaces_load_with_the_command() {
   local out
   out="$(CMDARG='echo hi; exit' _hi_bootloader)"
@@ -60,7 +60,7 @@ function test_fallback_rc_sources_paths_and_aliases() {
   [[ "$out" == *'$_HI_ROOT/common/paths.sh'* && "$out" == *'$_HI_ROOT/settings/aliases.sh'* ]]
 }
 
-# The command is NOT in the shared rc any more - fish reads that file through
+# The command is NOT in the shared rc - fish reads that file through
 # -C, where an `exit` does not stop its interactive reader (GLOSSARY: HI.23),
 # and the podman suite's fish case hung the full timeout for as long as it was
 function test_fallback_rc_leaves_the_command_out() {
@@ -199,7 +199,7 @@ printf %s "$_HI_LOCAL_HOSTNAME"' 2>/dev/null)" = "$_HI_MEAN" ]
 }
 
 # ...and the target as typed reaches the no-bash fallback line as one quoted
-# word, now that the session carries no variable for it
+# word, since the session carries no variable for it
 function test_suffix_quotes_a_hostile_target_name() {
   local out
   out="$(hi_esc="" nc_esc="" DOMAIN="$_HI_MEAN" _hi_remote_suffix)"
@@ -304,7 +304,7 @@ function test_boot_probe_bakes_no_client_path() {
 # is the caller's)
 function test_boot_why_names_each_failure() {
   local DOMAIN=h
-  [ "$(_hi_boot_why 64 '')" = "no base64 on [h]" ] || return 1
+  [ "$(_hi_boot_why 64 '')" = "no base64 or openssl on [h]" ] || return 1
   [ "$(_hi_boot_why 65 x)" = "no writable temp directory on [h]" ] || return 1
   [ "$(_hi_boot_why 1 'HIBOOT:/nope')" = "[h] named a scratch directory hi will not use" ] || return 1
   [[ "$(_hi_boot_why 0 '')" == "a forced command answered for [h]"* ]] || return 1
@@ -317,6 +317,18 @@ function test_boot_probe_says_no_base64() {
   sh_bin="$(command -v sh)"
   PATH=/nonexistent "$sh_bin" -c "$(_hi_boot_probe)" </dev/null >/dev/null 2>&1 || ec=$?
   [ "$ec" -eq 64 ]
+}
+
+# stock OpenBSD: no base64, but LibreSSL's openssl, which the probe takes.
+# _hi_real_path, not a hand `ln -s`: on Git Bash that can leave a copy of
+# openssl.exe cut off from its DLLs
+function test_boot_probe_takes_openssl() {
+  local ec=0 sh_bin out dir
+  sh_bin="$(command -v sh)"
+  dir="$(_hi_real_path onlyssl openssl mktemp cat)"
+  out="$(PATH="$dir" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || ec=$?
+  [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
+  [ "$ec" -eq 0 ]
 }
 
 function test_boot_probe_says_no_scratch_dir() {
@@ -348,6 +360,7 @@ function run_hi_remote_tests() {
   _hi_check "...and bakes in no client path" test_boot_probe_bakes_no_client_path
   _hi_check "...and _hi_boot_why names each failure" test_boot_why_names_each_failure
   _hi_check "...and says 64 with no base64" test_boot_probe_says_no_base64
+  _hi_check_requires openssl "...but not with openssl in its place" test_boot_probe_takes_openssl
   _hi_check "...and 65 with nowhere to mktemp" test_boot_probe_says_no_scratch_dir
   _hi_check "...and reports its directory when both are there" test_boot_probe_reports_its_dir_on_success
   _hi_check "A session calls load" test_bootloader_calls_load_for_a_session

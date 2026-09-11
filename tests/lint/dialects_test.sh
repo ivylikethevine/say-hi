@@ -81,10 +81,10 @@ function lint_native() {
 # _HI_NATIVE_LINT above already runs both sets through the *host's* zsh and
 # fish, and that is the half these exist because of: a developer's shell is
 # newer than the floor, so it accepts constructs the floor rejects and the run
-# goes green while CI does not. The case that earned the pair was a comment
-# inside a `{ ... }` block in common/paths.sh - a brace expansion to fish, where
-# `#` is not a comment - which fish 4.8 parsed happily and fish 3.7 refused with
-# "Mismatched braces", taking $_HI_TARGETS, every path and every alias with it.
+# goes green while CI does not. The case the pair catches: a comment inside a
+# `{ ... }` block in common/paths.sh - a brace expansion to fish, where `#` is
+# not a comment - which fish 4.8 parses and fish 3.7 refuses with
+# "Mismatched braces", taking $_HI_TARGETS, every path, and every alias with it.
 # The ceiling exists because CI's own runners are Ubuntu 24.04 (fish 3.7), so
 # without it nothing in CI ever parses these files under fish 4 either - the
 # same blind spot one version over.
@@ -176,7 +176,7 @@ function lint_fish4() { _hi_lint_fish_parse fish4 hi-fish4 "fish 4 ceiling"; }
 # the KSH_ARRAYS divergence all parse on every zsh and only misbehave on an old
 # one. So this parses the files and then sources common/zsh.zsh for real, in an
 # interactive shell, and asks the four things a session actually depends on -
-# a prompt, the aliases, a resolved host color and the prompt separator. A
+# a prompt, the aliases, a resolved host color, and the prompt separator. A
 # `zsh -n` sweep alone would have passed every one of those constructs.
 function lint_zsh58() {
   local out rc=0 backend="${_HI_BACKEND:-docker}"
@@ -205,7 +205,7 @@ function lint_zsh58() {
     zsh --version
     exit $rc' sh "${files[@]}" 2>&1)" || rc=$?
   if [ "$rc" -eq 0 ]; then
-    _hi_align " | $(printf '%s' "$out" | tail -n1): parses, sources and prompts" "OK" "$GREEN"
+    _hi_align " | $(printf '%s' "$out" | tail -n1): parses, sources, and prompts" "OK" "$GREEN"
     return 0
   fi
   _hi_align " | the zsh files do not hold up under the 5.8 floor" "FAILED" "$RED"

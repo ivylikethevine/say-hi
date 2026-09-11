@@ -95,7 +95,7 @@ function _hi_pty_wrap() {
 # and both `ssh -t` and `<backend> exec -it` want a tty there. Left empty when
 # there is no usable pty, which is what makes those cases skip rather than
 # fail, and what `_hi_check_capable pty` reads. Filled here rather than by a
-# function four suites had to remember to call first: it takes no arguments
+# function every suite would have to remember to call first: it takes no arguments
 # and reads nothing that varies between cases.
 _HI_PTY_FORCED=()
 [ "$_HI_PTY_OK" -eq 1 ] && _HI_PTY_FORCED=(python3 -c "$_HI_PTY_SPAWN")
@@ -207,11 +207,11 @@ function _hi_timed_out() {
 #
 # The exit code is read for exactly one value. 124 is _hi_wait_pid's timeout
 # (the process was SIGKILLed at the deadline), and that is a failure whatever
-# the transcript holds: the podman suite's fish case echoed its marker and
-# then sat at a prompt for the full 30s, and read OK for as long as this only
-# looked at the markers - a green run that hid a session which never exited.
+# the transcript holds: a case that echoes its marker and then sits at a
+# prompt would otherwise read OK - a green run hiding a session that never
+# exited.
 # Any other non-zero status stays OK once the markers are there, because
-# `docker exec -it`, `nomad alloc exec` and `kubectl exec` hand back statuses
+# `docker exec -it`, `nomad alloc exec`, and `kubectl exec` hand back statuses
 # of their own that nothing here asserts on - but it is printed on the OK
 # line rather than swallowed, so a case that starts exiting oddly is seen.
 function _hi_case_result() {
@@ -299,7 +299,7 @@ function _hi_session_ready() {
 # one-off command - the only shape that reaches load.sh's load(). hi.sh's
 # $CMDARG replaces `load` outright in the bootloader (see _hi_bootloader), so a
 # command-shaped case never exercises the header, the session rc, the shell
-# handoff or clean_all; this one does. The session is driven by piping a
+# handoff, or clean_all; this one does. The session is driven by piping a
 # printf and an `exit` into it after a settle, and it asserts both the marker
 # (an interactive shell really came up and ran our line) and load()'s closing
 # line (its exit path ran, rather than the session dying early).
@@ -357,9 +357,9 @@ function _hi_interactive_case() {
   : >"$out_file"
   # The left side of the pipe runs alongside the session, so it can watch the
   # transcript the session is writing rather than guessing how long it needs.
-  # A fixed sleep here was the suite's worst flake: on a loaded runner the
-  # input landed before the shell was ready and the marker never appeared.
-  # $_HI_INTERACTIVE_SETTLE is the ceiling now, not the wait itself.
+  # A fixed sleep here would flake: on a loaded runner the input lands before
+  # the shell is ready and the marker never appears.
+  # $_HI_INTERACTIVE_SETTLE is the ceiling, not the wait itself.
   #
   # Reading $out_file on the left while the right writes it is the whole
   # mechanism, not the accident SC2094 warns about: the two sides are separate

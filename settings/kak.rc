@@ -1,9 +1,0 @@
-# hi's kakoune additions, sourced *after* the target's own kakrc (`kak -e`):
-# `-n` would also drop kakoune's runtime defaults - filetype detection, the
-# colorschemes - so unlike vim.rc this file layers on rather than replacing.
-# Nothing to taste lives here - your own $_HI_CONFIG_DIR/kak.rc takes this
-# file's place. `try`, since a kakrc that already added a highlighter of the
-# same name would otherwise refuse the duplicate.
-try %{ add-highlighter global/number-lines number-lines -hlcursor }
-try %{ add-highlighter global/show-matching show-matching }
-set-option global scrolloff 3,3

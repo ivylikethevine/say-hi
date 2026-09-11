@@ -2,7 +2,7 @@
 # `install.sh --prefix /usr/local/share`, which is packaging mode pointed at a
 # live root instead of a $DESTDIR staging tree. It is what a sysadmin does with
 # a git clone, and it is the path the .deb/.rpm/.apk fixtures exercise only
-# through nfpm - here install.sh writes the tree, the /usr/bin/hi symlink and
+# through nfpm - here install.sh writes the tree, the /usr/bin/hi symlink, and
 # the /etc/profile.d snippet itself.
 #
 # Build context is the repo root, so `COPY .` is the working tree.

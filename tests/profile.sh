@@ -20,7 +20,7 @@
 #
 # **It runs in a container, and that is the point.** timep is not a program you
 # install: its `timep.bash` carries base64-encoded loadable-builtin `.so` files,
-# unpacks them at source time and `enable -f`'s them into the running shell.
+# unpacks them at source time, and `enable -f`'s them into the running shell.
 # That belongs in something disposable. tests/dockerfiles/timep.Dockerfile is
 # the box - it also settles the three requirements timep has and does not
 # check (glibc >= 2.38, `enable -f`, an **exec-capable** /dev/shm), each of
@@ -64,8 +64,8 @@
 # same reason, and would profile the harness rather than hi.
 #
 # **bash arms only.** timep profiles bash, so `common/config.fish`,
-# `common/zsh.zsh` and `common/targets.sh`-under-`sh` stay bench-only. What is
-# in scope is `common/bash.sh`, `common/header.sh`, `common/git_prompt.sh` and
+# `common/zsh.zsh`, and `common/targets.sh`-under-`sh` stay bench-only. What is
+# in scope is `common/bash.sh`, `common/header.sh`, `common/git_prompt.sh`, and
 # `hi.sh`'s payload assembly.
 # ---------------------------------------------------------------------------
 #
@@ -112,7 +112,7 @@ _HI_PROF_BODY=(
 # and invoking `timep bash -c ...` would profile the fork and nothing in it.
 #
 # Deliberately no `set -e` in here, which is not an oversight: timep installs
-# DEBUG, RETURN and EXIT traps in the shell that sources it, and under `set -e`
+# DEBUG, RETURN, and EXIT traps in the shell that sources it, and under `set -e`
 # the first non-zero status inside that machinery kills the shell outright -
 # silently, with an empty profile and no message to say why. Same rule the
 # product follows around strict mode (GLOSSARY: HI.15). Each step is checked by

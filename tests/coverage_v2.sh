@@ -65,7 +65,7 @@
 # harness has no business on a target.
 set -euo pipefail
 
-# tree resolution, suite selection, the tally files and the trace loop are
+# tree resolution, suite selection, the tally files, and the trace loop are
 # shared with tests/coverage.sh
 # shellcheck source=lib/coverage.sh
 source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"

@@ -6,12 +6,12 @@ name: Demos
 # tape landing on main between releases waits for the next tag or the weekly
 # cron rather than re-rendering per push. Nothing is committed back - a bot
 # commit on top of the author's is what branch protection refuses. Needs
-# docker, podman, nomad and kind.
+# docker, podman, nomad, and kind.
 #
 # Of the eight .tape files, common.tape is the shared include, leaving seven
-# renderable tapes. demo.gif is hand-rendered, reviewed by eye and committed in
+# renderable tapes. demo.gif is hand-rendered, reviewed by eye, and committed in
 # its own commit: it is the one GIF claiming stock defaults, it goes quietly
-# wrong when the header, the prompt or the tape moves, and only a person can
+# wrong when the header, the prompt, or the tape moves, and only a person can
 # tell. The other six each
 # advertise one feature, which a machine can render honestly, so `publish`
 # renders them.
@@ -56,7 +56,7 @@ jobs:
   # here: it is the committed, hand-rendered one.
   render:
     name: render ${{ matrix.tape }}
-    # Every one of these six tapes needs docker, podman, nomad or kind; the
+    # Every one of these six tapes needs docker, podman, nomad, or kind; the
     # hosted runner carries docker and the steps below install the other three
     # (as ci.yml's e2e-backends does). --require-run makes a tape that stands
     # down for a missing backend a failure, never a green run that rendered
@@ -100,7 +100,7 @@ jobs:
       # the six tapes came back "vhs exited 0 but <gif> was not rewritten" -
       # the renderer is a build input like any other, so it gets a version.
       # Bump it deliberately, after a dispatch run renders all six green.
-      - name: Install vhs, ttyd and ffmpeg
+      - name: Install vhs, ttyd, and ffmpeg
         uses: charmbracelet/vhs-action@f6d7db07a432fcd3b06772628d36a57f96d95dcf # v2.1.1
         with:
           version: v0.11.0

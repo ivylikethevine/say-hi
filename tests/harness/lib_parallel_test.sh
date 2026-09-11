@@ -285,7 +285,7 @@ function run_lib_parallel_tests() {
   _hi_check "Cleanup sweeps containers, then networks" test_cleanup_sweeps_containers_then_networks
 
   _hi_h2 "Testing: _hi_par_case / _hi_par_wait"
-  _hi_check "Tallies pass, fail and skip" test_par_case_tallies_pass_fail_and_skip
+  _hi_check "Tallies pass, fail, and skip" test_par_case_tallies_pass_fail_and_skip
   _hi_check "A failed assertion is recapped once" test_par_failed_assertion_is_recapped_once
   _hi_check "A case with no verdict is a failure" test_par_case_without_a_verdict_counts_as_a_failure
   _hi_check "Transcripts replay in submission order" test_par_wait_replays_in_submission_order

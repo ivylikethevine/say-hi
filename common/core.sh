@@ -32,9 +32,9 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
-    _HI_DISABLE_EDITORS
-    _HI_DISABLE_MARKS
-    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS
+    _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
+    _HI_DISABLE_MICRO
+    _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
     _HI_DISABLE_BANNER)
   for _hi_t in "${_HI_TOGGLES[@]}"; do
     eval ": \"\${$_hi_t:=0}\"; export $_hi_t"
@@ -526,22 +526,6 @@ function _hi_interactive_extras() {
   [ -z "${LESSOPEN:-}" ] && [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
   # shellcheck disable=SC2034 # read by common/bash.sh and common/zsh.zsh's PS1
   [ -r /etc/debian_chroot ] && debian_chroot="($(</etc/debian_chroot)) "
-  _hi_tool_init
-}
-
-# zoxide and atuin, wired in when the box has them and nothing has done it
-# yet: a user's own rc at home has usually run `init` already, and each tool
-# leaves a function behind (__zoxide_z; _atuin_search in zsh, __atuin_history
-# in bash) that says so. Both take `init <shell>`, and the shell is the one
-# this file is running under. config.fish mirrors the rule.
-function _hi_tool_init() {
-  [ "${_HI_DISABLE_TOOL_INIT:-0}" != 1 ] || return 0
-  local _hi_ti_sh=bash
-  [ -n "${ZSH_VERSION:-}" ] && _hi_ti_sh=zsh
-  ! command -v __zoxide_z >/dev/null 2>&1 && command -v zoxide >/dev/null 2>&1 &&
-    eval "$(zoxide init "$_hi_ti_sh")"
-  ! command -v _atuin_search >/dev/null 2>&1 && ! command -v __atuin_history >/dev/null 2>&1 &&
-    command -v atuin >/dev/null 2>&1 && eval "$(atuin init "$_hi_ti_sh")"
   return 0
 }
 
@@ -705,6 +689,7 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_STASH="\$" _HI_GLYPH_CLEAN="ok" _HI_GLYPH_ELLIPSIS=".."
     _HI_GLYPH_MASK="*"
     _HI_MARK_OK="+" _HI_MARK_NO="x"
+    _HI_GLYPH_SSH=">" _HI_GLYPH_CONTAINER="#" _HI_GLYPH_NOMAD="*" _HI_GLYPH_KUBE="@"
   else
     _HI_GLYPH_AHEAD="↑" _HI_GLYPH_BEHIND="↓" _HI_GLYPH_STAGED="●"
     _HI_GLYPH_DIRTY="✚" _HI_GLYPH_INVALID="✖" _HI_GLYPH_UNTRACKED="…"
@@ -712,12 +697,25 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_MASK="●"
     _HI_MARK_OK="✓" # installed, and it is the preferred name
     _HI_MARK_NO="✗" # not installed
+    _HI_GLYPH_SSH="»" _HI_GLYPH_CONTAINER="▣" _HI_GLYPH_NOMAD="◆" _HI_GLYPH_KUBE="⎈"
   fi
   # Glyph-independent, so out of both arms rather than spelled twice: only
   # _HI_MARK_OK and _HI_MARK_NO actually change sets.
   _HI_MARK_ALT="~" # installed, but via a fallback alternative
 }
 _hi_choose_glyphs
+
+# _hi_target_symbol <outvar> <kind> - a backend's symbol in the completion
+# list: $_HI_SYMBOL_<SSH|CONTAINER|NOMAD|KUBE> from settings.sh, else hi's
+# glyph; config.fish mirrors it
+function _hi_target_symbol() {
+  case "$2" in
+  ssh) printf -v "$1" '%s' "${_HI_SYMBOL_SSH:-$_HI_GLYPH_SSH}" ;;
+  nomad) printf -v "$1" '%s' "${_HI_SYMBOL_NOMAD:-$_HI_GLYPH_NOMAD}" ;;
+  kube) printf -v "$1" '%s' "${_HI_SYMBOL_KUBE:-$_HI_GLYPH_KUBE}" ;;
+  *) printf -v "$1" '%s' "${_HI_SYMBOL_CONTAINER:-$_HI_GLYPH_CONTAINER}" ;;
+  esac
+}
 
 # two lines, "<hex> <16-color name>" (or the bare name) for the user then
 # the host: what fish's set_color takes as a list and picks the first its
@@ -843,9 +841,9 @@ function _hi_ssh_host_tag() {
 #
 # The tokens are peeled off the string by parameter expansion, never with
 # `for pat in $2`: an unquoted expansion is pathname-expanded as well as
-# word-split, so a bare `*` - the commonest Host line there is - became the
-# cwd's file list and matched nothing, and a host's color depended on the
-# directory hi was run from. bash only; zsh does not glob there, so the two
+# word-split, so a bare `*` - the commonest Host line there is - would become
+# the cwd's file list and match nothing, and a host's color would depend on
+# the directory hi runs from. bash only; zsh does not glob there, so the two
 # shells disagreed on the same box. header.sh's _hi_ip_filter matches through
 # this too.
 function _hi_ssh_pattern_hit() {
@@ -855,7 +853,7 @@ function _hi_ssh_pattern_hit() {
     rest="${rest#"${rest%%[! ]*}"}"
     pat="${rest%% *}"
     rest="${rest#* }"
-    # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?` and a
+    # A Host token is letters, digits, `.` `-` `_` `:`, the globs `*` `?`, and a
     # leading `!` - nothing else names a host. Anything outside that set is
     # skipped rather than matched: the zsh arm's eval would otherwise re-parse
     # a `)` or `;;` from ~/.ssh/config as case syntax.
@@ -947,7 +945,7 @@ function _hi_ssh_host_tag_walk() {
 }
 
 function _hi_ssh_tag_color() {
-  # the memo holds the tag; $( ) around it was a fork for a value in hand
+  # the memo holds the tag; a $( ) around it would fork for a value in hand
   _hi_ssh_host_tag "$1" >/dev/null && _hi_override_color hosttag "$_HI_TAG_VALUE" "${2:-}"
 }
 

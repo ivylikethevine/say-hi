@@ -104,7 +104,7 @@ EOF
 #
 # Gated on fork_concurrency, not just slowed down: a 2026-08-28 windows-latest
 # dispatch measured this fan-out taking exactly as long as the deliberately
-# in-turn fallback below, at both 0.3s and a since-reverted 2s wait - MSYS
+# in-turn fallback below, at both a 0.3s and a 2s wait - MSYS
 # backgrounding doesn't overlap here at all, so no wait would ever pass this,
 # and a longer one only slows every other platform for nothing.
 #
@@ -165,7 +165,7 @@ function _hi_targets_slow() {
 }
 
 # A PATH with the commands targets.sh runs and nothing else - no docker,
-# podman, nomad or kubectl to find.
+# podman, nomad, or kubectl to find.
 function _hi_write_toolbox() {
   _HI_TOOLBOX_PATH="$(_hi_real_path toolbox sh awk sed)"
 }
@@ -615,7 +615,7 @@ function test_absent_backends_leave_only_ssh_rows() {
 # common/bash.sh's completion function, the other half of this file's subject:
 # the cases above prove targets.sh produces the right rows, these prove
 # _hi_complete turns them into the right COMPREPLY. It reads $_HI_TARGETS,
-# $COMP_WORDS and $COMP_CWORD, so all three are set here and the shimmed PATH
+# $COMP_WORDS, and $COMP_CWORD, so all three are set here and the shimmed PATH
 # gives it the same fixed backend list every other case sees.
 # A child bash rather than a source into this one: common/bash.sh is an
 # interactive rc, and sourcing it here would drop its aliases (rm -iv, cp -rv)
@@ -994,17 +994,23 @@ function test_word_flags_match_the_flags_table() {
   }
 }
 
-# the --preview subjects are spelled twice - targets.sh's words roster and
-# preview.sh's usage line - so the two are pinned to each other rather than
-# shared. hi.sh has no third copy: --preview is a common/flags row like
-# every other local command, routed to scripts/preview.sh generically, and
-# preview.sh's own dispatch is what validates a subject.
+# the --preview subjects are spelled four times - preview.sh's usage line,
+# targets.sh's words roster, common/flags' help clause, and hi.1's synopsis -
+# so the other three are pinned to preview.sh's, the list its dispatch checks
 function test_preview_subjects_agree_everywhere() {
-  local want got
-  want="$(sh "$_HI_TARGETS" words --preview | cut -f1 | sort | tr '\n' ' ')"
-  got="$(sed -n 's/^Usage: .*<\([a-z|]*\)>$/\1/p' "$_HI_ROOT/scripts/preview.sh" | tr '|' '\n' | sort | tr '\n' ' ')"
-  [ "$got" = "$want" ] || {
-    _hi_cecho " | targets.sh offers [$want], preview.sh's usage names [$got]" "$RED"
+  local want got subj bad=""
+  want="$(sed -n 's/^Usage: .*<\([a-z|]*\)>$/\1/p' "$_HI_ROOT/scripts/preview.sh" | tr '|' '\n' | sort | tr '\n' ' ')"
+  got="$(sh "$_HI_TARGETS" words --preview | cut -f1 | sort | tr '\n' ' ')"
+  [ -n "$want" ] && [ "$got" = "$want" ] || {
+    _hi_cecho " | targets.sh offers [$got], preview.sh's usage names [$want]" "$RED"
+    return 1
+  }
+  for subj in $want; do
+    grep -q -- "^--preview|.*$subj" "$_HI_ROOT/common/flags" || bad="$bad common/flags:$subj"
+    grep -A1 -F '.B hi \-\-preview' "$_HI_ROOT/docs/hi.1" | grep -q "$subj" || bad="$bad hi.1:$subj"
+  done
+  [ -z "$bad" ] || {
+    _hi_cecho " | --preview subjects missing:$bad" "$RED"
     return 1
   }
 }
@@ -1102,7 +1108,7 @@ function run_targets_tests() {
   _hi_check "flags: behind a local command, its own switches" test_flags_behind_a_local_command_are_its_switches
   _hi_check "...through the bash completion" test_complete_offers_a_local_commands_switches
   _hi_check "words: --preview and --use complete their own word" test_complete_the_word_after_preview_and_use
-  _hi_check "words: --link, --preset and --update too" test_complete_the_word_after_link_preset_and_update
+  _hi_check "words: --link, --preset, and --update too" test_complete_the_word_after_link_preset_and_update
   _hi_check "words: --preset's names are configure.sh's" test_preset_words_match_the_presets_table
   _hi_check "words: the roster and \$_HI_WORD_FLAGS agree" test_word_flags_match_the_words_roster
   _hi_check "words: \$_HI_WORD_FLAGS is common/flags' <word> column" test_word_flags_match_the_flags_table

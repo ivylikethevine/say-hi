@@ -12,7 +12,7 @@
 # a better Arch package (real optdepends, a -git variant, AUR updates), and two
 # Arch packages for one project would only conflict.
 
-# the locator, core.sh, strict mode and the shared primitives (sha256_lines/
+# the locator, core.sh, strict mode, and the shared primitives (sha256_lines/
 # default_version) all come from lib.sh, found beside this script
 # shellcheck source=./lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

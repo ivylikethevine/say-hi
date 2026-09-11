@@ -7,7 +7,7 @@ do](#after-installing-from-a-package) - then the maintainer's runbook: how
 GIFs](#regenerating-the-demo-gifs). Nothing publishes without an intentional
 act: a `v*` tag only you can push, a PR you merge, or a dispatch by hand.
 
-**What is live today: releases, the package repository and the Homebrew
+**What is live today: releases, the package repository, and the Homebrew
 tap, not the AUR.** Tagged releases exist (`v0.1.0`, `v0.1.1`, …), the
 apt/rpm/apk repository is live and signed at
 `https://ivylikethevine.github.io/say-hi/{apt,rpm,apk}`, and
@@ -77,7 +77,7 @@ to move a packaged tree and points at the package manager.
 A session ships its own tree to every ssh target and runs out of that, so the
 package on the far end is neither needed nor read — it is there for that
 machine's own shells, and a session leaves it alone.
-`tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm` and
+`tests/targets/install_methods_test.sh` installs a real `.deb`, `.rpm`, and
 `.apk` on real targets and asserts exactly that: the session works, out of its
 own tree, and the installed one is untouched afterwards.
 
@@ -170,12 +170,12 @@ lists in `SHA256SUMS`/`ARTIFACTS`, and what the release attaches.
    deb/rpm/apk with one `SHA256SUMS` over the lot. Nothing has published.
 3. Approve the `publish` job in the Actions UI — your review point, over the
    exact artifacts `build` produced. Packages, the source tarball,
-   `SHA256SUMS` and manifests land on the release, and the package repository
+   `SHA256SUMS`, and manifests land on the release, and the package repository
    redeploys to the Pages site (`gh workflow run pages.yml`, since its own
    `workflow_run` trigger cannot fire off a tag push). This workflow never
    writes to `main`, so the manifests committed in `packaging/aur/` and
    `packaging/homebrew/` stay permanent `v0.0.0` templates.
-4. `brew` installs, tests and audits the formula on a hosted mac against the
+4. `brew` installs, tests, and audits the formula on a hosted mac against the
    published tarball, and when it passes, `tap` opens a PR against
    [homebrew-tap](https://github.com/ivylikethevine/homebrew-tap) with it
    (`HOMEBREW_TAP_TOKEN`). Merging that PR is yours — the tap has no review
@@ -191,13 +191,13 @@ tag - anything with a `-` in it, `v1.0.0-rc.1` - takes steps 1-2 unchanged and
 is created `--prerelease --latest=false`, so "the latest release" (README's
 badge, the [package repository](#package-repository)) never resolves to a
 candidate.
-The packages, the source tarball, `SHA256SUMS` and the manifests are attached
+The packages, the source tarball, `SHA256SUMS`, and the manifests are attached
 as on any release, but no channel job runs and the Pages redeploy is skipped
 too - the newest non-prerelease release is unchanged, so there is nothing new
 for the site to serve: `0.1.0-rc.1` is valid semver (nfpm's `version_schema`
 accepts it; the deb sorts as `0.1.0~rc.1`) and not a legal `pkgver` (`-` is
 makepkg's `pkgver-pkgrel` separator), and the AUR is where the manifests go.
-The final tag is the first to walk the tap, the AUR and `brew audit`.
+The final tag is the first to walk the tap, the AUR, and `brew audit`.
 
 `bump.sh 1.0.0` works by hand if CI is unavailable: with the tag in your
 checkout it builds the identical tarball itself, `--tarball <file>` takes one
@@ -216,7 +216,7 @@ wrote a note for falls back to the titles alone. Skim
 `gh pr list --state merged` before tagging and fix a PR's section in place if
 it reads badly; the release run reads the bodies as they are then.
 
-**The body opens with the tag's own badges.** README's tests, kcov and
+**The body opens with the tag's own badges.** README's tests, kcov, and
 bashcov badges track the newest green `main`; the release body freezes the
 same three figures at the tag, looked up by this commit's sha
 (`.github/actions/fetch-latest-artifact` with `head-sha`). A figure that is
@@ -270,7 +270,7 @@ The tap is a PR you merge; the AUR is a dispatch you run against an
 already-published tag (`gh workflow run publish-external.yml -f tag=v1.0.0`,
 or the Actions UI). Each section's checks are yours to run first.
 
-`brew`, `tap` and `aur` all skip on the tag name, so neither a `v0.0.x` debug
+`brew`, `tap`, and `aur` all skip on the tag name, so neither a `v0.0.x` debug
 tag nor a candidate (`-` in the name) reaches a channel; the GitHub Release is
 still created with the packages attached.
 
@@ -336,7 +336,7 @@ a plain repo with a `Formula/` directory, so `brew install
 ivylikethevine/tap/say-hi` works with no review and no approval on Homebrew's
 side, which is why `brew audit --strict` is a hard gate here.
 
-**The copy, the checks and the PR are automated; merging it is not.**
+**The copy, the checks, and the PR are automated; merging it is not.**
 `release.yml`'s `brew` job runs the three commands below on a hosted mac
 against the published tarball right after `publish`, filtering out the two
 expected findings further down and recording the verdict in its run summary;
@@ -419,14 +419,14 @@ its executable bit intact, is what that hint actually needs to find.
 
 ### Package repository
 
-The same deb, rpm and apk, served as an apt, a dnf and an apk repository from
+The same deb, rpm, and apk, served as an apt, a dnf, and an apk repository from
 the Pages site, so a package manager upgrades say-hi like anything else - the
 subscribe commands for each are in
 [README.md's Installation](../README.md#installation) section.
 
 **How it is built.** `packaging/mkrepo.sh` turns the packages `mkpkg.sh`
 built into `dist/repo/` - `apt/` (`dists/stable`, `pool/`), `rpm/`
-(`repodata/`), `apk/{x86_64,aarch64}/`, plus `say-hi.asc`, `say-hi.rsa.pub`
+(`repodata/`), `apk/{x86_64,aarch64}/`, plus `say-hi.asc`, `say-hi.rsa.pub`,
 and `say-hi.repo`. The apt indexes it writes itself (`apt-ftparchive` is
 Debian-only and the format is small); `createrepo_c` and `apk index` run in
 throwaway containers, so a dev box needs docker and gpg and nothing else.
@@ -439,7 +439,7 @@ builds a repository on every PR, and `tests/packaging/repo_test.sh` (the
 `e2e` group, on every PR too) installs from one as all three clients,
 signatures verified - then installs a `0.0.1` build of the same tree first
 and takes the repository's `0.0.2` release as an **upgrade** through
-`apt-get`, `dnf upgrade` and `apk add -u`, with a `~/.config/say-hi/colors`
+`apt-get`, `dnf upgrade`, and `apk add -u`, with a `~/.config/say-hi/colors`
 written in between and checked after. Both
 versions are named in `repo_test.sh` rather than derived, so the ordering the
 upgrade depends on holds in a shallow, tagless checkout too.
@@ -447,9 +447,9 @@ upgrade depends on holds in a shallow, tagless checkout too.
 **No maintainer scripts, no `conffiles`, on purpose.** Everything a user
 writes lives outside the package's paths - the overlay under
 `$XDG_CONFIG_HOME` - and the package owns only
-`/usr/share/say-hi`, `/usr/bin/hi`, `/etc/profile.d/say-hi.sh` and the man
+`/usr/share/say-hi`, `/usr/bin/hi`, `/etc/profile.d/say-hi.sh`, and the man
 page, none of which a user edits. So an upgrade is a plain file replacement
-with nothing to preserve, merge or prompt about, and `nfpm.yaml` stays a
+with nothing to preserve, merge, or prompt about, and `nfpm.yaml` stays a
 contents list; the upgrade cases above are what keep that claim true.
 
 **What signs what.** One GPG key, the `GPG_SIGNING_KEY` repository secret:
@@ -541,7 +541,7 @@ release's GIFs can be rendered before its tag exists.
 
 **Six of the seven render themselves.**
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
-but `demo` in CI (installing podman, nomad and kind on a hosted runner as
+but `demo` in CI (installing podman, nomad, and kind on a hosted runner as
 `ci.yml`'s `e2e-backends` job does) on a tape change, weekly, or on dispatch,
 and hands the GIFs to the Pages build, which serves them from `docs/tapes/`
 beside each tape and the committed `demo.gif`. One runner per tape, in
@@ -553,7 +553,7 @@ branch protection refuses a bot commit, the same reason the tests badge is
 published rather than written into README.
 
 The top-of-README `demo.gif` claims to be the stock defaults, so it is stale
-the moment the header, the prompt or the tape changes; re-render it by hand
+the moment the header, the prompt, or the tape changes; re-render it by hand
 when one of those moves.
 
 Each tape's header names the persona it is shot for, and which header

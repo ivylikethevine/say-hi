@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# The package repository, end to end: packaging/mkpkg.sh builds the deb, rpm
+# The package repository, end to end: packaging/mkpkg.sh builds the deb, rpm,
 # and apk signed with throwaway keys, packaging/mkrepo.sh turns them into the
-# apt, rpm and apk repositories release.yml publishes, and three throwaway
+# apt, rpm, and apk repositories release.yml publishes, and three throwaway
 # clients - Ubuntu's apt, Fedora's dnf, Alpine's apk - subscribe to the result
 # over file:// and install say-hi from it with every signature verified: no
 # `trusted=yes`, no `gpgcheck=0`, no `--allow-untrusted`. Each client then runs
@@ -125,7 +125,7 @@ function test_tarball_is_the_repository() {
 }
 
 # _hi_repo_client <label> <image> <shell> <script> - one throwaway client
-# with the repository at /repo, read-only. The script subscribes, installs
+# with the repository at /repo, read-only. The script subscribes, installs,
 # and prints `hi --version` from a login shell as its last line; the case
 # passes when that line starts with the version the packages were stamped
 # with, and the transcript replays on failure.

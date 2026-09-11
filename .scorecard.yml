@@ -22,7 +22,7 @@ annotations:
     reasons:
       - reason: not-applicable
         # bash. Scorecard detects OSS-Fuzz, ClusterFuzzLite, Go native fuzzing,
-        # cargo-fuzz and OneFuzz; none has a shell target.
+        # cargo-fuzz, and OneFuzz; none has a shell target.
 
   - checks:
       - contributors

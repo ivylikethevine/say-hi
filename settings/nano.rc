@@ -6,7 +6,7 @@
 # nano says so on the status bar ("Mistakes in '<rcfile>'") and rings the bell,
 # which is a poor way to open a file on a fresh target. /usr/share/nano ships
 # with the nano package itself; /usr/share/nano/extra is a Debian split that
-# Fedora, Alpine and macOS do not have, so including it is a bell on three
+# Fedora, Alpine, and macOS do not have, so including it is a bell on three
 # platforms to gain a handful of syntaxes on one. Specific completion syntax
 # belongs in ~/.nanorc, which is yours and is not sent anywhere.
 include "/usr/share/nano/*.nanorc"

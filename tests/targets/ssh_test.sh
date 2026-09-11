@@ -68,7 +68,7 @@ function run_ssh_tests() {
 
   _hi_h2 "Building test images"
 
-  # Five independent builds - the sshd image, the three alpine variants and
+  # Five independent builds - the sshd image, the three alpine variants, and
   # bash32 - overlapped (_hi_bg). debian-installed/debian-nested build atop
   # $_HI_SSHD_IMAGE, so they form a second wave further down.
   _hi_bg sshd _hi_sshd_image "its shells"
@@ -159,8 +159,8 @@ function run_ssh_tests() {
     done
 
     # The preamble's TERM fallback, all three arms: an unknown name (kitty's
-    # xterm-kitty is the common offender; ghostty's xterm-ghostty was the
-    # motivating one) swapped for xterm-256color, a ubiquitous name skipped,
+    # xterm-kitty is the common offender; ghostty's xterm-ghostty another)
+    # swapped for xterm-256color, a ubiquitous name skipped,
     # and a name the skip list ignores but the target's terminfo has
     # (xterm-mono ships in debian's ncurses-base) left alone on the probe's
     # say-so. The env prefix is the client TERM ssh's pty request carries
@@ -177,7 +177,7 @@ function run_ssh_tests() {
     # each way at 128 kbit/s - a satellite hop, or a Pi on the far side of a
     # bad hotel wifi. Every other case here measures hi against a container
     # with the host's cpu and a loopback link, so the payload's cost, the
-    # handshake's round trips and every timeout in the connect path had only
+    # handshake's round trips, and every timeout in the connect path had only
     # ever been seen on a fast box. The number that matters is the time in
     # the verdict line: the case's own timeout is the budget hi gets on such
     # a target, and a change that pushes it past that has to say so here
@@ -229,7 +229,7 @@ function run_ssh_tests() {
     _hi_par_case bash32 _hi_ssh_run_case bash32 "hi-sshtest-bash32-$$" /usr/local/bin/bash "$(_hi_probe_cmd "$_HI_TEST_MARKER" bash)"
     # The shape that matters for bash 3.2: $CMDARG replaces load() outright in
     # the bootloader, so a command-shaped case never reaches the header, the
-    # session rc, the shell handoff or clean_all - which is where every bash-4-only
+    # session rc, the shell handoff, or clean_all - which is where every bash-4-only
     # builtin hi could reach for actually gets used.
     _hi_par_case bash32-interactive _hi_run_interactive_case bash32-interactive "hi-sshtest-bash32-$$" /usr/local/bin/bash \
       '! ls -d /tmp/*.hi.* >/dev/null 2>&1'

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
-# Behavioral tests for common/bash.sh, zsh.zsh and config.fish. Syntax-linting
+# Behavioral tests for common/bash.sh, zsh.zsh, and config.fish. Syntax-linting
 # alone lets a prompt or completion silently stop being defined and still pass
 # CI, so these run them. Each case runs a fresh shell under `env -i` with HOME
 # and _HI_CONFIG_DIR pointed into the workdir, so local settings can't leak in.
@@ -94,13 +94,13 @@ function test_bash_registers_hi_completion() {
 
 # What this case is really for: common/bash.sh's `source "$_HI_ALIASES"` line
 # actually reaching the alias chain in a real bash. Sampled from the file
-# rather than spelled here, on alias_test.sh's precedent: those names are still
-# being retired entry by entry, and one written into this suite goes stale the
+# rather than spelled here, on alias_test.sh's precedent: those names change
+# entry by entry, and one written into this suite goes stale the
 # next time one is dropped. The unguarded `alias` lines are exactly that tail -
 # everything above it is defined behind a `[ ... ] &&` test, not at column 0.
-# An empty sample is not a failure - it is what finishing that removal looks
-# like - so it reports and passes, and this case can be deleted with the last
-# alias in the file.
+# An empty sample is not a failure - the file has no unguarded alias left - so
+# it reports and passes, and this case can be deleted with the last alias in
+# the file.
 function test_bash_sources_the_convenience_aliases() {
   local sample
   sample="$(grep -oE '^alias +[A-Za-z_][A-Za-z0-9_]*=' "$_HI_ROOT/settings/aliases.sh" |
@@ -143,19 +143,6 @@ function test_bash_ps1_reports_status_and_cwd_marks() {
   [[ "$out" == *$'\e]133;D;7\a'* ]] &&
     [[ "$out" == *$'\e]7;file://'*"$_HI_WORKDIR"$'\a'* ]] &&
     [[ "$out" == *$'\e]133;A'* && "$out" == *$'\e]133;B'* ]]
-}
-
-# _HI_DISABLE_MARKS=1 silences the whole channel - no D at prompt time, no
-# A/B in $PS1 - and TERM=dumb takes the color branch's else with it: the
-# plain \u@\h:\w form, with no escapes anywhere.
-function test_bash_disable_marks_emits_no_osc() {
-  local out
-  out="$(_hi_bash_child '
-    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
-    ps1
-    printf %s "$PS1"' _HI_DISABLE_MARKS=1 TERM=dumb)"
-  [[ "$out" != *$'\e]133'* ]] || return 1
-  [[ "$out" == *'\u@\h:\w'* ]]
 }
 
 # The pw3nage guard (the comment in ps1 says why): with promptvars on, the
@@ -294,7 +281,7 @@ esac'
 }
 
 # One case for all three shells and both tools: the per-shell rc, prompt-print
-# incantation and expected shape live in the case's own table. Extra
+# incantation, and expected shape live in the case's own table. Extra
 # NAME=VALUE arguments ride _hi_rc_shell (env applies the last assignment, so
 # the prepended-PATH override wins over the baseline), so there is one `env -i`
 # block here rather than one per case.
@@ -338,41 +325,6 @@ function test_remote_session_exports_overlay_config() {
   home="$(_hi_rc_shell xterm-256color "$shell" "$script" "$@")"
   rm -f "$_HI_WORKDIR/cfg/$file"
   [ "$out" = "$want" ] && [ -z "$home" ]
-}
-
-# a stub zoxide/atuin whose `init <shell>` prints one line the session can be
-# asked about: the tool is "installed", and what it prints is what got eval'd
-function _hi_tool_stub_dir() {
-  _hi_stub_bin "$1" 'case "$2" in
-fish) echo "set -g HI_'"$1"'_INIT $2" ;;
-*) echo "HI_'"$1"'_INIT=$2" ;;
-esac'
-}
-
-# the session runs `<tool> init <shell>` when the tool is there...
-function test_tool_init_wires_the_tool_in() {
-  local shell="$1" tool="$2" script out
-  case "$shell" in
-  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
-  zsh) script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
-  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $HI_'"$tool"'_INIT' ;;
-  esac
-  out="$(_hi_rc_shell xterm-256color "$shell" "$script" PATH="$(_hi_tool_stub_dir "$tool"):$PATH")"
-  [ "$out" = "$shell" ]
-}
-
-# ...not when the toggle is off, and not when something already did (the
-# function the real init leaves behind is the mark)
-function test_tool_init_stands_down() {
-  local shell="$1" tool="$2" fn="$3" pre body wired toggled
-  case "$shell" in
-  bash) pre="$fn() { :; }; " body='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
-  zsh) pre="$fn() { :; }; " body='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>/dev/null; printf %s "${HI_'"$tool"'_INIT:-}"' ;;
-  fish) pre="function $fn; end; " body='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; echo -n $HI_'"$tool"'_INIT' ;;
-  esac
-  wired="$(_hi_rc_shell xterm-256color "$shell" "$pre$body" PATH="$(_hi_tool_stub_dir "$tool"):$PATH")"
-  toggled="$(_hi_rc_shell xterm-256color "$shell" "$body" PATH="$(_hi_tool_stub_dir "$tool"):$PATH" _HI_DISABLE_TOOL_INIT=1)"
-  [ -z "$wired" ] && [ -z "$toggled" ]
 }
 
 # fish's sudo wrapper is a function behind _HI_DISABLE_SUDO_ALIAS, the same
@@ -538,6 +490,148 @@ function test_zsh_flag_completion_offers_hi_options() {
     printf '%s\n' "$out" | grep -qx -- --preview
 }
 
+# zsh colors the target list by backend through the hi-targets tag's
+# list-colors, matched on each display line's leading kind; none under
+# $NO_COLOR, and a zstyle of the user's own is left alone
+function test_zsh_target_list_colors_per_backend() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    zstyle -g lc ":completion:*:hi-targets" list-colors; print -l -- $lc')"
+  [[ "$out" == *"=* ssh - *=0;33"* && "$out" == *"docker|"*") - *=0;34"* &&
+    "$out" == *"=* nomad - *=0;32"* && "$out" == *"=* kube - *=1;35"* ]] || {
+    _hi_cecho " | list-colors: ${out//$'\n'/ }" "$RED"
+    return 1
+  }
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- ${#lc}' NO_COLOR=1)"
+  [ "$out" = 0 ] || return 1
+  out="$(_hi_rc_shell xterm-256color zsh '
+    zstyle ":completion:*:hi-targets" list-colors "=*=31"
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- "$lc"')"
+  [ "$out" = "=*=31" ]
+}
+
+# zsh expands hi's own `hi` alias before completing, so the launcher's name
+# is registered too, or `hi <TAB>` falls through to file completion
+function test_zsh_completion_covers_the_alias_target() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    autoload -Uz compinit && compinit -u -D
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    print -r -- "${_comps[hi]}:${_comps[hi.sh]}"')"
+  [ "$out" = "_hi:_hi" ] || {
+    _hi_cecho " | _comps[hi]:_comps[hi.sh] = $out" "$RED"
+    return 1
+  }
+}
+
+# ...and the target branch goes through _description with that tag, which is
+# what applies the style: a seeded cache, the completion builtins stubbed
+function test_zsh_target_completion_uses_the_colored_tag() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    _description() { print -r -- "desc $*"; expl=(-V -default-); }
+    compadd() { print -r -- "compadd $*"; }
+    _HI_TARGET_ROWS=(web) _HI_TARGET_DESCS=("docker - web") _HI_TARGET_ROWS_AT=$SECONDS
+    words=(hi ""); CURRENT=2
+    _hi')"
+  [[ "$out" == *"desc -V hi-targets expl target"* &&
+    "$out" == *"compadd -V -default- -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS"* ]] || {
+    _hi_cecho " | got: ${out//$'\n'/ | }" "$RED"
+    return 1
+  }
+}
+
+# _hi_bash_listing <COMP_TYPE> <word> [NAME=VALUE...] - _hi_complete's
+# COMPREPLY for <word>, "|"-joined, over a seeded target cache
+function _hi_bash_listing() {
+  local type="$1" word="$2"
+  shift 2
+  _hi_rc_shell dumb bash "
+    source \"\$_HI_HOME/say-hi/common/bash.sh\" 2>/dev/null
+    _HI_TARGET_NAMES='web web2 jobx podx sshy dup dup' _HI_TARGET_NAMES_AT=\$SECONDS
+    _HI_TARGET_KINDS='docker podman nomad kube ssh ssh docker'
+    COMP_WORDS=(hi '$word') COMP_CWORD=1 COMP_TYPE=$type
+    _hi_complete
+    IFS='|'
+    printf '%s' \"\${COMPREPLY[*]}\"" "$@"
+}
+
+# bash lists each target's backend symbol only while readline lists (63),
+# never when it inserts (9); a name two backends share is listed once with
+# both symbols; ASCII stand-ins off a UTF-8 locale; $_HI_SYMBOL_* wins.
+# GLOSSARY: HI.56
+function test_bash_target_symbols_only_when_listing() {
+  local out
+  out="$(_hi_bash_listing 63 '' LANG=C.UTF-8)"
+  [ "$out" = "web ▣|web2 ▣|jobx ◆|podx ⎈|sshy »|dup »▣" ] || {
+    _hi_cecho " | listing: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 9 w LANG=C.UTF-8)"
+  [ "$out" = "web|web2" ] || {
+    _hi_cecho " | inserting: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 63 d LANG=C.UTF-8)"
+  [ "$out" = dup ] || {
+    _hi_cecho " | one shared name: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 63 '')"
+  [ "$out" = "web #|web2 #|jobx *|podx @|sshy >|dup >#" ] || {
+    _hi_cecho " | ascii: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 63 '' LANG=C.UTF-8 _HI_SYMBOL_KUBE=k8s)"
+  [[ "$out" == *"|podx k8s|"* ]]
+}
+
+# fish's target rows carry the backend's symbol ahead of the kind, the
+# description fish shows beside each name; $_HI_SYMBOL_* wins
+function test_fish_target_symbols() {
+  local fixture="$_HI_WORKDIR/targets-fixture.sh" out
+  printf '%s\n' "printf 'web\\tdocker\\njobx\\tnomad\\npodx\\tkube\\nsshy\\tssh\\n'" >"$fixture"
+  out="$(_hi_rc_shell dumb fish "source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null
+    set _HI_TARGETS $fixture
+    __hi_targets" LANG=C.UTF-8 _HI_SYMBOL_SSH=S)"
+  [ "$out" = $'web\t▣ docker\njobx\t◆ nomad\npodx\t⎈ kube\nsshy\tS ssh' ] || {
+    _hi_cecho " | __hi_targets: ${out//$'\n'/ | }" "$RED"
+    return 1
+  }
+}
+
+# _hi_greet <shell> <i|c|s> [NAME=VALUE...] - how many times <shell> prints
+# the Online header sourcing hi's rc: typed in (i, from stdin), `-i -c` (c),
+# or as a script (s); settings.sh trims the header to one cell, no probes
+function _hi_greet() {
+  local shell="$1" rc=bash.sh cfg="$_HI_WORKDIR/greet"
+  local -a args=(--norc)
+  [ "$shell" = zsh ] && rc=zsh.zsh args=(-f)
+  local src="source \"\$_HI_HOME/say-hi/common/$rc\""
+  case "$2" in i) args+=(-i) ;; c) args+=(-i -c "$src") ;; esac
+  shift 2
+  mkdir -p "$cfg" && printf 'export _HI_HEADER_ORDER=utc\n' >"$cfg/settings.sh"
+  printf '%s\n' "$src" | env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
+    _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$cfg" "$@" "$shell" "${args[@]}" 2>/dev/null |
+    grep -c Online || true
+}
+
+# a local interactive bash and zsh greet with hi's header, as fish does -
+# once; never `-i -c` or a script (fish greets neither), a target session,
+# or under the toggle
+function test_local_shell_prints_the_header() {
+  local shell=$1
+  [ "$(_hi_greet "$shell" i)" = 1 ] && [ "$(_hi_greet "$shell" c)" = 0 ] &&
+    [ "$(_hi_greet "$shell" s)" = 0 ] &&
+    [ "$(_hi_greet "$shell" i _HI_REMOTE_SESSION=1)" = 0 ] &&
+    [ "$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)" = 0 ]
+}
+
 # ...and the word after --preview comes from the words roster, described,
 # through the same stub: the flag is in words[CURRENT-1]
 function test_zsh_completes_the_word_after_preview() {
@@ -581,7 +675,34 @@ function test_fish_completes_the_word_after_preview() {
   ')"
   printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || return 1
   printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || return 1
-  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 3 ]
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 4 ]
+}
+
+# _hi_rc_reentry <shell> <rc> <probe> - <shell> sources hi's <rc> with an
+# overlay copy of the same name that sources <rc> again, as an overlay sourcing
+# ~/.bashrc would; prints <probe>'s output, nothing if still recursing at the
+# deadline. exec'd, so a timeout kills the shell itself. GLOSSARY: HI.55
+function _hi_rc_reentry() {
+  local shell="$1" rc="$2" probe="$3" cfg="$_HI_WORKDIR/reentry-$1"
+  mkdir -p "$cfg"
+  printf 'source "%s"\n' "$_HI_HOME/say-hi/common/$rc" >"$cfg/$rc"
+  (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" \
+    _HI_CONFIG_DIR="$cfg" "$shell" -c "source \"\$_HI_HOME/say-hi/common/$rc\"; $probe" \
+    </dev/null >"$cfg.out" 2>&1) &
+  _hi_wait_pid $! 20
+  [ "$_HI_WAIT_EXIT" != 124 ] && cat "$cfg.out"
+}
+
+function test_bash_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry bash bash.sh 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
+}
+
+function test_zsh_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry zsh zsh.zsh 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
+}
+
+function test_fish_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')" = done:root ]
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {
@@ -593,7 +714,7 @@ function test_fish_flag_completion_does_not_also_sweep_targets() {
     printf '%s\n' "$out" | grep -qF '$_HI_TARGETS flags'
 }
 
-# The character each prompt ends with is a setting now (core.sh's
+# The character each prompt ends with is a setting (core.sh's
 # _hi_prompt_end, mirrored in config.fish), with three different shipped
 # defaults. Each case renders the real prompt in the real shell rather than
 # grepping the rc, since the whole risk here is a value that reaches $PS1 in a
@@ -676,15 +797,15 @@ function test_fish_config_dir_explicit_value_wins() {
 
 #
 # hi ships nobody's taste per shell - no history sizing, keybindings,
-# completion or color styling of its own. What it ships is the hook for yours:
+# completion, or color styling of its own. What it ships is the hook for yours:
 # the user's own file in $_HI_CONFIG_DIR, named for the *shell file* it
 # extends (bash.sh, zsh.zsh, config.fish).
 #
 # Two things have to stay true per shell, and the second is why the first is
 # worth asserting: hi ships no default of its own for these settings,
-# and the user's file is sourced and applies. The no-file case is the regression
-# guard on the removal - a preference creeping back into a shipped rc shows up
-# here as a probe that stopped agreeing with a bare shell's.
+# and the user's file is sourced and applies. The no-file case guards the
+# shipped rcs: a preference in one shows up here as a probe that disagrees
+# with a bare shell's.
 #
 # <shell>|<user file, and the rc it extends>|<probe read>|<user line>|<user value>
 #
@@ -693,9 +814,6 @@ function test_fish_config_dir_explicit_value_wins() {
 # the third is the read on its own. Keeping the two apart is what lets the probe
 # run the read *without* hi's rc, for the baseline the no-file case measures
 # against.
-#
-# zsh's row here was HISTFILE once, proving hi shipped no history preference
-# at all; hi touches no shell's history now, so the row is gone.
 _HI_SHELL_OVERRIDE_ROWS=(
   'bash|bash.sh|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
   'fish|config.fish|printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
@@ -716,9 +834,9 @@ function _hi_shell_override_probe() {
 # The shipped rc sets none of these - measured against the same shell *without*
 # it rather than against the empty string, because a bare shell does not always
 # answer empty: fish 4.0 through 4.6 set every fish_color_* in a `fish -c` too,
-# which 4.7 stopped and fish 3 never did. Reading "hi changed nothing" off an
-# absolute value made this case a report on the local fish build; as a
-# difference it still fails the day a preference lands back in a shipped rc.
+# where 4.7 and fish 3 do not. Reading "hi changed nothing" off an absolute
+# value would make this case a report on the local fish build; as a
+# difference it still fails the day a preference lands in a shipped rc.
 function test_shell_ships_no_preference_default() {
   [ "$(_hi_shell_override_probe "$1" none)" = "$(_hi_shell_override_probe "$1" bare)" ]
 }
@@ -735,10 +853,10 @@ function run_rc_tests() {
 
   _hi_suite_begin
 
-  _hi_h1 "Testing common/bash.sh, zsh.zsh and config.fish behavior"
+  _hi_h1 "Testing common/bash.sh, zsh.zsh, and config.fish behavior"
 
   _hi_h2 "Testing: bash"
-  _hi_check "HI_PS1 carries user, host and cwd" test_bash_hi_ps1_contains_user_host_cwd
+  _hi_check "HI_PS1 carries user, host, and cwd" test_bash_hi_ps1_contains_user_host_cwd
   _hi_check "Plain HI_PS1 without color" test_bash_hi_ps1_plain_without_color
   _hi_check "_hi_ps_mark wraps color escapes for readline" test_bash_ps_mark_wraps_color_escapes
   _hi_check "_HI_DISABLE_PROMPT leaves it unset" test_bash_prompt_disabled_leaves_ps1_alone
@@ -746,8 +864,7 @@ function run_rc_tests() {
   _hi_check_requires zsh "...and in zsh too" test_zsh_prompt_disabled_still_primes_color_variables
   _hi_check "hi completion is registered" test_bash_registers_hi_completion
   _hi_check "The convenience aliases land too" test_bash_sources_the_convenience_aliases
-  _hi_check "ps1 marks the prompt, status and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
-  _hi_check "_HI_DISABLE_MARKS silences every OSC" test_bash_disable_marks_emits_no_osc
+  _hi_check "ps1 marks the prompt, status, and cwd (OSC 133/7)" test_bash_ps1_reports_status_and_cwd_marks
   _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
   _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars
   _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
@@ -814,12 +931,6 @@ function run_rc_tests() {
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config bash theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config bash bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
-  _hi_check "[bash] zoxide init runs when zoxide is there" test_tool_init_wires_the_tool_in bash zoxide
-  _hi_check "[bash] atuin init runs when atuin is there" test_tool_init_wires_the_tool_in bash atuin
-  _hi_check "[bash] zoxide init stands down: toggle, or already wired" test_tool_init_stands_down bash zoxide __zoxide_z
-  _hi_check "[bash] atuin init stands down: toggle, or already wired" test_tool_init_stands_down bash atuin __atuin_history
-  _hi_check_requires zsh "[zsh] zoxide init runs when zoxide is there" test_tool_init_wires_the_tool_in zsh zoxide
-  _hi_check_requires zsh "[zsh] atuin init stands down: toggle, or already wired" test_tool_init_stands_down zsh atuin _atuin_search
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
@@ -827,8 +938,6 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
-  _hi_check_requires fish "[fish] zoxide init runs when zoxide is there" test_tool_init_wires_the_tool_in fish zoxide
-  _hi_check_requires fish "[fish] atuin init stands down: toggle, or already wired" test_tool_init_stands_down fish atuin _atuin_search
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
@@ -836,6 +945,16 @@ function run_rc_tests() {
   _hi_check_requires fish "fish completes the word after --preview" test_fish_completes_the_word_after_preview
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
+  _hi_check "[bash] an overlay re-entering hi's rc returns" test_bash_rc_reentry_returns
+  _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_zsh_rc_reentry_returns
+  _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
+  _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag
+  _hi_check_requires zsh "[zsh] completion covers the alias's launcher" test_zsh_completion_covers_the_alias_target
+  _hi_check "[bash] target symbols only while listing" test_bash_target_symbols_only_when_listing
+  _hi_check_requires fish "[fish] target rows carry their symbol" test_fish_target_symbols
+  _hi_check "[bash] a local interactive shell prints the header" test_local_shell_prints_the_header bash
+  _hi_check_requires zsh "[zsh] a local interactive shell prints the header" test_local_shell_prints_the_header zsh
+  _hi_check_requires fish "[fish] an overlay re-entering hi's rc returns" test_fish_rc_reentry_returns
 
   _hi_h2 "Testing: the prompt separator"
   # The shells install.sh wires up locally, and their shipped defaults, both

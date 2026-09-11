@@ -41,6 +41,11 @@ function test_payload_ships_everything_by_default() {
     return 1
     ;;
   esac
+  case "$listing" in *say-hi/settings/init.lua*) ;; *)
+    _hi_cecho " | a default client did not ship settings/init.lua" "$RED"
+    return 1
+    ;;
+  esac
   return 0
 }
 
@@ -71,7 +76,7 @@ function test_overlay_tar_carries_shell_files() {
 
 #
 # The overlay is a plain directory of plain files, which is the whole
-# integration story for chezmoi, yadm, GNU Stow and bare-repo setups
+# integration story for chezmoi, yadm, GNU Stow, and bare-repo setups
 # (docs/SETTINGS.md says so). Two properties make that claim true rather
 # than merely hopeful, and neither is obvious from reading _hi_overlay_tar.
 
@@ -124,6 +129,68 @@ function test_overlay_sends_nothing_outside_the_roster() {
     return 1
   done <<<"$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
   return 0
+}
+
+# starship's, eza's, and bat's configs ride from where each tool reads them
+# here (_hi_overlay_src), under the overlay's name for them, so a target draws
+# the config in force at home; a copy in the overlay is never what ships.
+
+# _hi_tool_home_unpacked <overlay> [NAME=value...] - _hi_overlay_tar's stream
+# unpacked into a fresh directory, which is printed. HOME and XDG_CONFIG_HOME
+# point at a fixture home and the tools' own variables start unset, so the
+# developer's real configs never answer.
+function _hi_tool_home_unpacked() {
+  local dir="$1" d
+  shift
+  d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
+  (
+    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR
+    export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
+      _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
+    _hi_overlay_tar | tar -x -z -f - -C "$d"
+  ) || return 1
+  printf '%s' "$d"
+}
+
+function _hi_tool_home_fixture() {
+  local c="$_HI_WORKDIR/tool-home/.config"
+  mkdir -p "$c/eza" "$c/bat"
+  printf 'format = "home"\n' >"$c/starship.toml"
+  printf 'filekinds: home\n' >"$c/eza/theme.yml"
+  printf -- '--theme=home\n' >"$c/bat/config"
+}
+
+function test_overlay_carries_the_home_tool_configs() {
+  local dir d
+  _hi_tool_home_fixture
+  dir="$(_hi_overlay_fixture tool-none colors)"
+  d="$(_hi_tool_home_unpacked "$dir")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "bat.conf colors starship.toml theme.yml " ] &&
+    [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "home"\nfilekinds: home\n--theme=home')" ]
+}
+
+# each tool's own variable names the file, whatever it is called - here with
+# no overlay member of its own, so nothing comes from the overlay directory
+function test_overlay_home_configs_follow_the_tools_variables() {
+  local o="$_HI_WORKDIR/tool-vars" dir d
+  mkdir -p "$o/ezadir"
+  printf 'format = "var"\n' >"$o/prompt.toml"
+  printf 'filekinds: var\n' >"$o/ezadir/theme.yml"
+  printf -- '--theme=var\n' >"$o/bat-flags"
+  dir="$(_hi_overlay_fixture tool-empty)"
+  d="$(_hi_tool_home_unpacked "$dir" STARSHIP_CONFIG="$o/prompt.toml" \
+    EZA_CONFIG_DIR="$o/ezadir" BAT_CONFIG_PATH="$o/bat-flags")" || return 1
+  [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
+}
+
+# an overlay copy is ignored - the home file ships, or nothing does (starship's
+# without _HI_PROMPT_TOOL=starship, which is the only thing that starts it)
+function test_overlay_copy_of_a_tool_config_is_ignored() {
+  local dir d
+  _hi_tool_home_fixture
+  dir="$(_hi_overlay_fixture tool-copy bat.conf theme.yml starship.toml)"
+  d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=)" || return 1
+  [ "$(cat "$d/bat.conf" "$d/theme.yml")" = "$(printf -- '--theme=home\nfilekinds: home')" ] && [ ! -e "$d/starship.toml" ]
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the
@@ -191,13 +258,15 @@ function test_overlay_tar_carries_only_what_exists() {
 
 # The overlay stream ships comment-stripped the way the payload does (the
 # same strip.awk): a seeded default is mostly header, and every byte rides
-# each connect. settings.sh keeps its shebang; vim.rc loses its `"` lines.
+# each connect. settings.sh keeps its shebang; vim.rc loses its `"` lines and
+# init.lua its `--` ones.
 function test_overlay_strip_removes_comments() {
   local dir="$_HI_WORKDIR/ovl-strip" out
   mkdir -p "$dir"
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   cp "$_HI_ROOT/settings/colors" "$dir/colors"
   cp "$_HI_ROOT/settings/vim.rc" "$dir/vim.rc"
+  cp "$_HI_ROOT/settings/init.lua" "$dir/init.lua"
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
   [ "$out" = '#!/bin/sh
 export _HI_MAX_WIDTH=72' ] || {
@@ -214,6 +283,12 @@ export _HI_MAX_WIDTH=72' ] || {
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
   case "$out" in '"'* | *$'\n"'*)
     _hi_cecho " | vim.rc kept a vim comment line through the strip" "$RED"
+    return 1
+    ;;
+  esac
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  case "$out" in '--'* | *$'\n--'*)
+    _hi_cecho " | init.lua kept a lua comment line through the strip" "$RED"
     return 1
     ;;
   esac
@@ -402,13 +477,13 @@ function test_strip_spares_heredoc_bodies() {
 }
 
 # The data files' prose headers document the *installed* copies a user reads,
-# so they ship stripped too: flags/colors/packages/nano.rc/helix.toml/kak.rc
-# through the same `#` rule as the shell, vim.rc and emacs.el through their own rules for
-# vim's `"` and elisp's `;`.
+# so they ship stripped too: flags/colors/packages/nano.rc through the same
+# `#` rule as the shell, vim.rc, emacs.el, and init.lua through their own
+# rules for vim's `"`, elisp's `;`, and lua's `--`.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages settings/nano.rc settings/helix.toml settings/kak.rc; do
+  for f in common/flags settings/colors settings/packages settings/nano.rc; do
     n="$(sed -n '2,$p' "$dir/say-hi/$f" | grep -cE '^[[:space:]]*#' || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | $f kept $n comment line(s) through the strip" "$RED"
@@ -416,7 +491,7 @@ function test_strip_covers_the_data_files() {
     }
   done
   # the files with a comment character of their own: <file>:<char>
-  for f in 'settings/vim.rc:"' 'settings/emacs.el:;'; do
+  for f in 'settings/vim.rc:"' 'settings/emacs.el:;' 'settings/init.lua:--'; do
     n="$(grep -cE "^[[:space:]]*${f#*:}" "$dir/say-hi/${f%%:*}" || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | ${f%%:*} kept $n comment line(s)" "$RED"
@@ -430,14 +505,14 @@ function test_strip_covers_the_data_files() {
 function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
-  for f in common/flags settings/colors settings/packages settings/nano.rc settings/helix.toml settings/kak.rc; do
+  for f in common/flags settings/colors settings/packages settings/nano.rc; do
     diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f") \
       <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f") >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
       bad=1
     }
   done
-  for f in 'settings/vim.rc:"' 'settings/emacs.el:;'; do
+  for f in 'settings/vim.rc:"' 'settings/emacs.el:;' 'settings/init.lua:--'; do
     diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}") \
       <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}") >/dev/null || {
       _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
@@ -461,6 +536,26 @@ SHIM
   chmod +x "$bin/tar"
   PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || return 1
   case "$(cat "$log")" in '-c -z -f'*) ;; *) return 1 ;; esac
+}
+
+# ...and whether that fallback is worth taking is _hi_can_gzip's question:
+# only libarchive's tar compresses in-process, GNU's and OpenBSD's run gzip
+# off $PATH, so a shim answering each way is the whole predicate. gzip itself
+# is checked first and never forks, which the third arm pins.
+function test_can_gzip_reads_the_tar_it_has() {
+  local bin="$_HI_WORKDIR/cangzip.bin" real
+  real="$(type -P tar)"
+  mkdir -p "$bin"
+  printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/tar"
+  chmod +x "$bin/tar"
+  PATH="$bin" _hi_can_gzip || return 1
+  printf '%s\n' '#!/bin/sh' 'exit 1' >"$bin/tar"
+  PATH="$bin" _hi_can_gzip && return 1
+  # gzip present: the answer is yes whatever that tar says
+  printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/gzip"
+  chmod +x "$bin/gzip"
+  PATH="$bin" _hi_can_gzip || return 1
+  [ -n "$real" ]
 }
 
 function run_hi_payload_tests() {
@@ -494,6 +589,9 @@ function run_hi_payload_tests() {
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
+  _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
+  _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
+  _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded
@@ -501,6 +599,7 @@ function run_hi_payload_tests() {
   _hi_check_requires bsdtar "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
   _hi_check_requires bsdtar "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
   _hi_check "_hi_tar_gz falls back to tar's own -z without gzip" test_tar_gz_falls_back_to_tars_own_z_without_gzip
+  _hi_check "_hi_can_gzip reads the tar it has" test_can_gzip_reads_the_tar_it_has
 
   _hi_h2 "Testing: the size hi reports"
   _hi_check "_hi_human_bytes matches du's shapes" test_human_bytes_matches_du_shapes

@@ -119,7 +119,7 @@ function gpg_check_fpr() {
 # in `ps`) or a HERE-doc (visible in the step's own log echo). umask rather
 # than a later chmod: a window between the write and the chmod is a window a
 # concurrent read could land in. release.yml and publish-external.yml each
-# wrote this by hand for the apk, GPG, minisign and AUR ssh keys - one of
+# wrote this by hand for the apk, GPG, minisign, and AUR ssh keys - one of
 # those four skipped the chmod, which is the bug this closes.
 function write_key() {
   (
@@ -260,9 +260,8 @@ function default_version() {
     printf '%s' "$v"
     return 0
   fi
-  # --match 'v*': clones can still carry snapshot-<sha> tags (from the
-  # retired per-push snapshot builds), which are not release versions and
-  # must never win here.
+  # --match 'v*': a clone can carry snapshot-<sha> tags, which are not
+  # release versions and must never win here.
   v="$(git -C "$_HI_ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
   if [ -n "$v" ]; then
     printf '%s' "${v#v}"

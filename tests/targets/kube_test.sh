@@ -78,10 +78,10 @@ function _hi_kube_preload_images() {
 # 90s rather than the 30s docker and podman take, and the difference is the
 # transport rather than slack: those two exec locally, while every step here is
 # an API-server round trip. One session is eight of them - the bash probe, the
-# shell ladder, three file streams, the attach and the cleanup - and the three
+# shell ladder, three file streams, the attach, and the cleanup - and the three
 # cases run as a batch, so a single-node kind cluster serves all of it at once.
-# On a laptop that is a second; on a shared CI runner 30s was the budget that
-# broke first, and it was measuring the cluster, not hi.
+# On a laptop that is a second; on a shared CI runner 30s is too tight, and
+# would be measuring the cluster, not hi.
 function _hi_run_case() {
   local label="$1" image="$2" cmd="$3" timeout_s="${4:-90}"
   local name ok=0

@@ -2,7 +2,7 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # Everything `hi <target>` can connect to, one "<name>\t<kind>" line each; the
-# bash, zsh and fish completions all read it. Standalone POSIX - fish shells
+# bash, zsh, and fish completions all read it. Standalone POSIX - fish shells
 # out to it, and it runs on whatever /bin/sh a target has.
 # Usage: sh targets.sh [ssh|<cli>|nomad|kube|flags [<command>]|words <flag>]
 #        (<cli> = one of the docker-compatible CLIs: docker, podman, nerdctl
@@ -108,6 +108,7 @@ if [ "$kind" = words ]; then
     printf 'colors\tevery ssh host and your user, in their resolved colors\n'
     printf 'packages\tthe package-priority legend, as the header prints it\n'
     printf 'header\tthe connect header, as it prints here\n'
+    printf 'targets\tevery ssh host, container, allocation, and pod hi <TAB> offers\n'
     ;;
   --use)
     printf 'ssh\tssh, no probing (a container of the same name loses)\n'

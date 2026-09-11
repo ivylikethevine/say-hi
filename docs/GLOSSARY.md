@@ -2,14 +2,14 @@
 
 say-hi's shell code has three masters: **bash 3.2** (macOS's `/bin/bash`, the
 floor CI enforces), **POSIX sh** (dash/ash/busybox source parts of it), and
-**fish** (which parses `common/paths.sh`, `settings/aliases.sh` and
+**fish** (which parses `common/paths.sh`, `settings/aliases.sh`, and
 `settings.sh` natively). Targets also split between **GNU and BSD userlands**.
 Each entry is a construct that looks odd until you know which master it serves.
 
 Every entry carries a stable `HI.NN` code; a file references it with a
 `# GLOSSARY: HI.NN` tag — one code, or two joined with `+`, optional prose
 after — instead of re-explaining. The tag is _mandatory_ in `common/`,
-`settings/`, `load.sh` and `hi.sh`. Tags point at codes, so an entry can be
+`settings/`, `load.sh`, and `hi.sh`. Tags point at codes, so an entry can be
 retitled without touching a tagged file; codes are never reused once retired.
 `tests/lint/drift_test.sh` fails the build if a tag names a code this file
 doesn't define, or if an entry here is referenced by nothing. This file never
@@ -64,6 +64,8 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
+- [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
+- [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
 
 ## HI.01 empty-array guard
 
@@ -117,7 +119,7 @@ the form that actually clears it on every bash this project targets.
 tail: sourcing the file defines its functions and stops there, which is how
 the test suites reach the functions without running an install/bump/render.
 `scripts/install.sh`, `packaging/bump.sh`, `packaging/mkpkg.sh`,
-`packaging/mkrepo.sh` and `scripts/preview.sh` all carry it.
+`packaging/mkrepo.sh`, and `scripts/preview.sh` all carry it.
 
 ## HI.07 toggle defaulting
 
@@ -219,14 +221,21 @@ latency budget.
 
 ## HI.17 base64 armor
 
-The payload is armored with `base64`, not `openssl`: pure ASCII transport
-encoding (no crypto), shipped on strictly more targets — coreutils, busybox,
-macOS/BSD, Git Bash. Decode tries GNU/busybox `-d` first, then old BSD/macOS
-`-D`; the failed flag parse consumes no stdin, so the fallback still sees the
-whole stream. `tr` runs first because GNU `base64 -d` tolerates newlines but
-not spaces, and a transport that folds newlines into spaces would otherwise
-break it. `$_HI_UNARMOR` only ever runs inside the sh bootloader — the login
-shell never parses its braces (fish couldn't).
+The payload is armored with `base64` first: pure ASCII transport encoding
+(no crypto), shipped on strictly more hosts than `openssl` — coreutils,
+busybox, macOS/BSD, and Git Bash. `openssl base64` stands in where `base64`
+is missing, on either end: stock OpenBSD ships LibreSSL and no `base64(1)`.
+Decode tries GNU/busybox `-d` first, then old BSD/macOS `-D`; the failed flag
+parse consumes no stdin, so the fallback still sees the whole stream. `tr`
+runs first because GNU `base64 -d` tolerates newlines but not spaces, and a
+transport that folds newlines into spaces would otherwise break it. openssl
+gets every space and newline stripped and `-A` instead: LibreSSL's line mode
+silently garbles one long line, which is what macOS's `base64` writes.
+The decoder is picked by `command -v`, not chained after `-D`: a `-d` that
+failed on a corrupt stream has read it, leaving openssl nothing to decode.
+openssl exits 0 on bad input, so a corrupt stream surfaces at `tar`.
+`$_HI_UNARMOR` only ever runs inside the sh bootloader — the login shell
+never parses its braces (fish couldn't).
 
 ## HI.18 sh -c wrapping
 
@@ -248,8 +257,8 @@ belongs to the interactive session. The script goes as plain text and is `cat`
 into place; only the three binary streams _inside_ it are armored — armoring
 the whole script spent a third of every session's bytes re-encoding ASCII.
 The write doubles as the probe, and its status says what happened: the
-directory came back and the session runs; `sh` ran but found no `base64`
-(exit 64) or nowhere to `mktemp` (65), and hi names the missing piece and hands
+directory came back and the session runs; `sh` ran but found neither
+`base64` nor `openssl` (exit 64) or nowhere to `mktemp` (65), and hi names the missing piece and hands
 over the host's own session; something that was not `sh` answered — a
 `ForceCommand` or a `command=` key, told by an exit of 0 or any stdout,
 neither of which a missing `sh` produces — and hi says so and hands over the
@@ -459,16 +468,19 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment strip
 
-Every `*.sh`, `*.zsh` and `*.fish` file — and the `flags`/`colors`/`packages`/
-`vim.rc`/`nano.rc`/`emacs.el`/`helix.toml`/`kak.rc` data files, whose prose headers document the _installed_
+Every `*.sh`, `*.zsh`, `*.fish`, and `*.lua` file — and the
+`flags`/`colors`/`packages`/`vim.rc`/`init.lua`/`nano.rc`/`emacs.el` data
+files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
-vim.rc's comment character is `"` and emacs.el's is `;`, each its own rule in
-the stripper.
+vim.rc's comment character is `"`, emacs.el's is `;`, and init.lua's is `--`,
+each its own rule in the stripper. Lua's `--[[` block form is deliberately not
+one: the strip is line-wise, so a block opener would go and its body stay —
+which is why the shipped `init.lua` uses line comments only.
 `bench_payload_readme_badge` checks README's badge against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
-told from `${x#y}`, `$#` or a `#` in a string without a real parser. **Never
+told from `${x#y}`, `$#`, or a `#` in a string without a real parser. **Never
 inside a heredoc**: those bodies are data the target reads, one of them
 `hi --help`. The comment test runs _before_ the heredoc-open test: a comment
 mentioning `<<WORD` would otherwise open a heredoc that never closes and
@@ -507,16 +519,25 @@ two userlands pad differently, and only one pads something that survives
 compression: GNU tar rounds the _uncompressed_ archive up to the 10240-byte
 blocking factor and then gzips it, so its trailing NULs cost about thirty
 bytes; bsdtar — macOS's `/usr/bin/tar` — pads the _compressed output stream_,
-appending raw NULs after the gzip member, so every payload a BSD client built
-was a multiple of 10240: about 27% waste on a stock payload and a flat 54× on
+appending raw NULs after the gzip member, so a one-step payload built on a BSD
+client is a multiple of 10240: about 27% waste on a stock payload and a flat 54× on
 a two-file overlay (189 B against 10240). Split, the steps agree with GNU tar
 to within a few bytes under both userlands and are byte-stable run to run.
 
 `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail` back off for
 interactive sourcing, so a failing tar would otherwise hide behind a
-successful gzip and ship a truncated payload — both halves are checked. A
-client with no `gzip` degrades to `tar -c -z -f -` rather than failing: padded
-again on bsdtar, but a working payload.
+successful gzip and ship a truncated payload — both halves are checked.
+
+A client with no `gzip` falls back to `tar -c -z -f -`, which is a working
+payload on exactly one userland: libarchive's tar (macOS's `/usr/bin/tar`)
+compresses in-process, padded as above, while GNU's and OpenBSD's implement
+`-z` by exec'ing `gzip(1)` off `$PATH` and have nothing left to try. So the
+fallback is not "no gzip is survivable" — it is "a tar that compresses on its
+own is". `_hi_can_gzip` asks which one this is (free where `gzip` is present,
+one `tar -c -z -f /dev/null /dev/null` where it is not), `_say_hi` and
+`_say_hi_container` refuse by name beside their `tar` requirement rather than
+letting the target receive an empty archive, and `hi --doctor` reports the
+same three verdicts.
 
 Every tar in `hi.sh`, client and target side, takes dash-style options:
 OpenBSD's tar reads each word after an old-style `cf <file>` as a member name,
@@ -528,7 +549,7 @@ so `tar cf - -C dir` archives a file called `-C` there.
 ships never depends on a toggle: `$_HI_PAYLOAD` is whole directories, every
 toggle is read where it applies, and a session that switched something off
 carries the file and leaves it alone (a per-toggle trim of the tar would
-save about a kilobyte at the cost of a cache key, a second table and an
+save about a kilobyte at the cost of a cache key, a second table, and an
 exclusion list).
 
 **Staged, in a subshell, under a trap.** The strip rewrites files and the tree
@@ -557,7 +578,7 @@ bash.
 Everything `hi.sh` bakes into a script for the target is text the target's
 shell will parse, and some of it is data: `$DOMAIN` off argv,
 `$_HI_TARGET_TAG` out of a free-text `# Tags:` comment, `$_HI_RELEASE` off
-`git describe --dirty`. An unescaped `$`, quote or backtick in any of them
+`git describe --dirty`. An unescaped `$`, quote, or backtick in any of them
 breaks the bootloader's parse and lets the target run a command substitution
 it should not. `_hi_ssh_sh` quotes its `sh -c` word through the same function,
 so the transports cannot drift into two dialects, and `_hi_env_each` takes
@@ -573,13 +594,18 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml` and
+The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml`, and
 bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
-fixes the file name) at the overlay on a target only (HI.32).
+fixes the file name) at the overlay on a target only (HI.32). starship's,
+eza's, and bat's never come from the client's overlay: `hi.sh`'s
+`_hi_overlay_src` packs the file each tool reads on the client under the
+member's name (starship's only with `_HI_PROMPT_TOOL=starship`), so there is
+one copy to edit and none to drift. oh-my-posh has no default file to find, so
+its config is an overlay file like the rest.
 
-The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`) ride
+The editor rcs (`vim.rc`, `init.lua`, `nano.rc`, `emacs.el`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,
 and `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one. Left out of the stream, that
 guard could only fire on the client — an editor override working locally and
@@ -596,7 +622,7 @@ split: a container name on any of the docker-compatible family (HI.51) is
 taken whole, having no inner unit and `/` being legal in it.
 
 kube adds `[[context:]namespace:]pod[/container]` (`_hi_kube_split`). `:` is
-the separator because no ssh host, container name or allocation id may carry
+the separator because no ssh host, container name, or allocation id may carry
 one, so a prefixed name can only mean a pod; no prefix means whatever kubectl
 points at, and `common/targets.sh`'s `list_kube` emits the same spelling for
 pods outside the current namespace. A multi-container pod resolves on the pod
@@ -673,7 +699,7 @@ is six names:
   straight off its environment from a completion.
 
 It works by taking the attribute off, not by never setting it. fish parses
-`common/paths.sh` alongside sh, zsh and bash, and the one assignment all four
+`common/paths.sh` alongside sh, zsh, and bash, and the one assignment all four
 accept is `export NAME=value`, so every name it sets arrives exported —
 nearly forty. Each interactive rc (`bash.sh`, `zsh.zsh`, `config.fish`)
 un-exports the lot as the last thing in its required block: `_hi_unexport` in
@@ -742,7 +768,7 @@ hues.
 
 `_HI_COLOR_SCHEME` (`common/core.sh`) remaps what the twenty-four palette
 names render as; it never adds a name. `_hi_hash_color`, the
-`settings/colors` pins, `_hi_color_escape` and `hi --preview colors` all keep
+`settings/colors` pins, `_hi_color_escape`, and `hi --preview colors` all keep
 the same vocabulary, so a scheme is invisible to everything that reasons
 about a color by name - only the bytes a name turns into change. The names
 are the terminal's twelve plus twelve extras (orange, pink, teal, ...) that
@@ -787,7 +813,7 @@ answer.
 
 **The scheme is that same string, in the setting.**
 `_hi_scheme_words` reads `$_HI_COLOR_SCHEME` by the same offsets and answers
-24, 48 or 0: exactly that many six-digit hex words one space apart is a
+24, 48, or 0: exactly that many six-digit hex words one space apart is a
 scheme, anything else — a leftover name, a typo, nothing — renders as the
 default. Forty-eight words are two banks of the
 twenty-four names. `_hi_scheme_hex` takes slot indexes 0-47 and folds 24-47
@@ -825,7 +851,7 @@ back to the plain name on their own.
 
 ## HI.51 docker-compatible CLI family
 
-docker, podman, nerdctl and finch take the same `ps --format`, `exec -i[t]`
+docker, podman, nerdctl, and finch take the same `ps --format`, `exec -i[t]`,
 and `container inspect -f` grammar, so hi has one container arm and tries all
 four, in that order. Each member is its own kind: `common/targets.sh` builds
 its roster from the family and emits `<name>\t<cli>` per lane, `hi.sh`
@@ -884,10 +910,10 @@ Five rules in `_hi_mux_wrap`:
   options, `$DOMAIN`, the command), not replayed from `"$@"`, so the target it
   settled on rides along.
 - **The guard.** The inner command is `env _HI_MUX_INNER=1 <launcher> ...`;
-  the wrap returns at once when that is set. The inner hi re-reads the flag it
-  was handed, so without the guard an `alias hi='hi --mux'` - which is how you
-  make the wrap your default, there being no setting for it - would nest
-  forever. It also stands down, un-wrapped, without a terminal on stdin
+  the wrap returns at once when that is set. The inner argv carries no
+  `--mux`/`--no-mux` of its own, so the inner hi re-reads whatever `_hi_parse`
+  or `$_HI_MUX` handed the outer one - without the guard, `_HI_MUX=1` would
+  nest forever. It also stands down, un-wrapped, without a terminal on stdin
   (nothing to attach) or without a multiplexer to use.
 - **One string.** tmux hands the command to its `default-shell`, which may be
   fish, and screen to `sh -c`, so the argv is joined into one string with
@@ -912,8 +938,8 @@ switched on and never got to switch off when the link went: application
 cursor keys (`CSI ?1 l`), the application keypad (`ESC >`), bracketed paste
 (`CSI ?2004 l`), a pushed kitty keyboard mode (`CSI < u`), the alternate
 screen (`CSI ?1049 l`, wrapped - below) and a hidden cursor (`CSI ?25 h`). It
-also closes the OSC 133 prompt-mark pair with a `D` carrying the status (unless
-`_HI_DISABLE_MARKS=1`): hi's remote prompt emits `C` before every command,
+also closes the OSC 133 prompt-mark pair with a `D` carrying the status:
+hi's remote prompt emits `C` before every command,
 `exit` included, and `load.sh` sends the closing `D` on a clean exit - a drop
 never reaches that line, and Konsole, left "inside a command", sends ↑ as ←
 until a `D` arrives. `stty sane` last, for the container arms whose exec does
@@ -968,4 +994,35 @@ mise is the one row that is more than parameter expansion. `$MISE_SHELL` is
 set wherever mise is activated, and a `~/.tool-versions` covers every
 directory under it, so `(mise)` is named only where a config file between the
 directory and `~` overrides the global one: a builtins-only walk up from
-`$PWD`, memoized on it (HI.16). `_HI_ENV_ORDER` still drops the word outright.
+`$PWD`, memoized on it (HI.16).
+
+## HI.55 re-entrant rc guard
+
+An rc that leads back into itself recurses until the shell dies. Two shapes
+reach hi. On macOS, `hi --install` adds lines to `~/.bash_profile` that source
+`~/.profile` and `~/.bashrc`, and a `~/.bashrc` that sources
+`~/.bash_profile` back - a common fix under tmux, whose panes are login
+shells - makes the pair ping-pong. And an overlay `bash.sh`, `zsh.zsh`, or
+`config.fish` that sources the user's own rc re-enters hi's, which sources
+the overlay again.
+
+Both are cut by a plain, never-exported shell variable held only while
+loading: `common/bash.sh`, `common/zsh.zsh`, and `common/config.fish` return
+at once while `_hi_rc_loading` is set, and the `.bash_profile` lines skip
+while `_hi_login` is. Unexported, so a child shell - a new tmux pane - loads
+normally; cleared at the end, so a later `source ~/.bashrc` reloads. A load
+interrupted by ^C leaves it set in that one shell.
+
+## HI.56 listing-only completion symbols
+
+bash's completion has no description column - every `COMPREPLY` entry is a
+word readline may put on the command line - so a backend symbol beside a
+target name (`web ▣`) is safe only while readline _lists_ matches, never when
+it inserts one. `_hi_complete` reads `$COMP_TYPE`: `?`, `!`, and `@` (63, 33,
+64) list, so their entries carry the symbol; a plain `TAB` (9) inserts the
+common prefix and menu-complete (37) cycles whole entries, so both get bare
+names. A name two backends share is listed once with both symbols
+(`dup »▣`), or the entries' common prefix would run past the name into the
+space. bash 3.2 has no `$COMP_TYPE`, so its list stays bare. fish and zsh
+carry the symbol in a column of their own (`__hi_targets`' description,
+`_hi`'s `-d` display) and need none of this.

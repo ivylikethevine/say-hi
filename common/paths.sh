@@ -37,14 +37,12 @@ export _HI_PACKAGES="$_HI_ROOT/settings/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
 export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
 [ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
+export _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
+[ -f "$_HI_CONFIG_DIR/init.lua" ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
 export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
 [ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
 export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
 [ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
-export _HI_HELIXRC="$_HI_ROOT/settings/helix.toml"
-[ -f "$_HI_CONFIG_DIR/helix.toml" ] && export _HI_HELIXRC="$_HI_CONFIG_DIR/helix.toml"
-export _HI_KAKRC="$_HI_ROOT/settings/kak.rc"
-[ -f "$_HI_CONFIG_DIR/kak.rc" ] && export _HI_KAKRC="$_HI_CONFIG_DIR/kak.rc"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home
 # the tool's own config is already in force. Only the tool named reads its
@@ -85,18 +83,16 @@ export _HI_HOME_FISH_CONFIG="$HOME/.config/fish/config.fish"
 export _HI_HUMAN_CENTRIC_DATE="+%a %b %e %Y %H:%M:%S %Z"
 
 # What hi.sh's local sub-commands say when they cannot run: the payload ships
-# no scripts/, tests/ or .git. Exported from here so the wording has one home.
+# no scripts/, tests/, or .git. Exported from here so the wording has one home.
 export _HI_NO_CHECKOUT="needs the full say-hi checkout (a package has it too) - a hi session carries only the payload; git clone https://github.com/ivylikethevine/say-hi has one"
 
 # The flags that take a completable word of their own. Here because all four
-# shells need it and this is the only file all four read: bash.sh, zsh.zsh and
-# config.fish each spelled the pair out to decide whether to ask, so a fifth
-# word-taking flag landed in targets.sh and silently never completed anywhere.
-# targets.sh keeps the words themselves - it owns the content, and stays
+# shells need it and this is the only file all four read - spelled per shell,
+# a word-taking flag added to targets.sh would never complete. targets.sh keeps the words themselves - it owns the content, and stays
 # standalone POSIX - so this is the membership test and that is the roster.
 export _HI_WORD_FLAGS="--preview --use --update --link --preset"
 alias hi="$_HI_LAUNCHER"
-# The only hi_* alias left (the rest became `hi --flag`): a single echo that
+# The one hi_* alias (every other command is a `hi --flag`): a single echo that
 # answers in all four shells, and the test harness's "the session is up" probe.
 alias hi_info="echo ' | hi_home: $_HI_HOME | hi_root: $_HI_ROOT | script: $_HI_LAUNCHER'"
 
@@ -118,9 +114,11 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_GIT_STATUS=1
   export _HI_DISABLE_ENV_STATUS=1
   export _HI_DISABLE_EDITORS=1
-  export _HI_DISABLE_MARKS=1
+  export _HI_DISABLE_VIM=1
+  export _HI_DISABLE_NANO=1
+  export _HI_DISABLE_EMACS=1
+  export _HI_DISABLE_MICRO=1
   export _HI_DISABLE_TOOL_ALIASES=1
-  export _HI_DISABLE_TOOL_INIT=1
   export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1
 } || true

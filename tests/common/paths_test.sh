@@ -21,8 +21,8 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 
 _HI_GATED_VARS=(_HI_DISABLE_HEADER _HI_DISABLE_PROMPT
   _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS _HI_DISABLE_EDITORS
-  _HI_DISABLE_MARKS
-  _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS
+  _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS _HI_DISABLE_MICRO
+  _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_SUDO_ALIAS
   _HI_DISABLE_BANNER)
 
 # Source paths.sh in a child shell with $1/$2 as the two gate inputs, then
@@ -78,8 +78,7 @@ function test_toggles_stay_on_remotely_without_local_only() {
 # The gate's list has to be core.sh's _HI_TOGGLES minus the gates' own two
 # inputs - paths.sh can't loop the roster (its four-shell dialect has no
 # loops), so it spells the list out, and a toggle added to core.sh that never
-# reaches it is exactly how a toggle once went
-# missing from "all of the above". The behavioral cases above walk
+# reaches it would go missing from "all of the above". The behavioral cases above walk
 # _HI_GATED_VARS, so pinning that list to the roster pins the gate.
 function test_gate_list_matches_the_toggle_roster() {
   local t
@@ -124,7 +123,7 @@ function test_paths_sources_cleanly_under_strict_mode() {
 # can use ${X:-0} because fish sources both and has no such expansion. So the
 # entry points guarantee the variables exist instead. Getting this wrong is
 # invisible until something runs under `set -u`, where an unset toggle is fatal
-# rather than empty - which is exactly how `hi <target> <command>` broke.
+# rather than empty - as it is for `hi <target> <command>`.
 
 function _hi_defaults_via() {
   bash -c "$1"' ; for v in '"${_HI_GATED_VARS[*]}"' _HI_DISABLE_LOCAL _HI_REMOTE_SESSION; do
@@ -249,15 +248,15 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
-# The seven files with a tree default, and the path variable each resolves
+# The six files with a tree default, and the path variable each resolves
 # into. Derived only: an exported value of your own does not survive the
 # source, so the overlay is the one way to move a file.
-_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_KAKRC)
+_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC)
 
-# the overlay basename each of the seven resolves to, in the same order
-_HI_OVERLAY_PATH_FILES=(colors packages vim.rc nano.rc emacs.el helix.toml kak.rc)
+# the overlay basename each of the six resolves to, in the same order
+_HI_OVERLAY_PATH_FILES=(colors packages vim.rc init.lua nano.rc emacs.el)
 
-# an overlay directory holding a copy of all seven, so every case below is
+# an overlay directory holding a copy of all six, so every case below is
 # choosing between two real files rather than between a file and a miss
 function _hi_full_overlay_dir() {
   local dir f

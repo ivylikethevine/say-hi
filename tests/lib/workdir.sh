@@ -79,7 +79,7 @@ function _hi_track_dir() { _hi_ledger dir "$1"; }
 # every step after it - leaving containers or the scratch dir behind.
 #
 # The order is not arbitrary. Background cases are killed first - before the
-# suite's own hook, even: a case still running would put a container, a job or a
+# suite's own hook, even: a case still running would put a container, a job, or a
 # pod back behind whatever the hook and the sweep have just taken away. Frozen pids come next, and
 # before their containers: a SIGSTOPped process cannot act on SIGKILL until it
 # is scheduled again (see _hi_thaw_frozen), and taking its sshd away first

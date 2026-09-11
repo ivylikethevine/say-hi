@@ -7,7 +7,7 @@ name: Image scan
 # second is verifiably better; --ignore-unfixed is the whole design (the scan
 # step says why) and the state machine is scan_pinned_images.sh's header.
 # Runs after every green CI battery on a push to main (the batch scorecard,
-# coverage and tool-versions share) and weekly as a backstop - upstream's
+# coverage, and tool-versions share) and weekly as a backstop - upstream's
 # clock keeps ticking with no push here; never per-PR, since the findings
 # track that clock and not the diff's.
 on: # zizmor: ignore[dangerous-triggers]

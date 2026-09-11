@@ -8,7 +8,7 @@
 # parses these files under fish 4. This image closes that gap: it is the
 # opposite guard, catching a construct 3.7 accepts that fish 4 rejects or has
 # removed, the same way fish37.Dockerfile catches the other direction (see its
-# header for the brace-comment case that motivated the pair). Bumping this
+# header for the brace-comment case). Bumping this
 # image bumps the ceiling - do it deliberately, and expect the half to start
 # rejecting constructs the version behind it accepts.
 #

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 # The sshd container entrypoint's common tail, past a caller's own shebang
 # and login-shell setup: seed hitest's authorized_keys from $PUBKEY, generate
-# host keys, exec sshd locked down (password auth, root login and PAM all
+# host keys, exec sshd locked down (password auth, root login, and PAM all
 # off - $SSHD_OPTS layers more on top). Sourced by tests/lib/ssh.sh's
 # _hi_sshd_entrypoint (which prepends the shebang and, for the full-login
 # image, a usermod line) and by docs/tapes/fixtures.sh, which has no test
