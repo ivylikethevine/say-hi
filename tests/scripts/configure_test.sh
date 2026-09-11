@@ -343,8 +343,8 @@ function test_packages_floor_writes_a_zero() {
   [ "$(_hi_floor_lines floor_zero)" = "export _HI_PACKAGES_MIN_PRIORITY=0" ]
 }
 
-# the check is off, so its depth is moot - the header editor does not offer
-# the dial then, and the stored floor is kept for when 'check' comes back
+# the check is off, so its depth is moot - the stored floor is kept for when
+# 'check' comes back
 function test_packages_floor_kept_when_the_check_is_off() {
   local out
   out="$(_hi_collected_lines floor_off "export _HI_HEADER_ORDER='gitid'" "export _HI_PACKAGES_MIN_PRIORITY=3")"
@@ -563,22 +563,10 @@ function test_setting_get_leaves_other_variables_ambient() {
   [ "$(_HI_CONFIG_DIR=/probe-dir _hi_setting_get "$target" _HI_DISABLE_FOO)" = /probe-dir/marker ]
 }
 
-function test_ask_setting_default_keeps_enabled() {
-  local target="$_HI_WORKDIR/ask_enabled"
-  : >"$target"
-  ask_setting _HI_DISABLE_FOO "" "$target" 1 "" </dev/null
-}
-
-function test_ask_setting_default_keeps_disabled() {
-  local target="$_HI_WORKDIR/ask_disabled"
-  printf 'export _HI_DISABLE_FOO=1\n' >"$target"
-  ! ask_setting _HI_DISABLE_FOO "" "$target" 1 "" </dev/null
-}
-
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
 # (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=starship) is on only when its
-# on-value is. setting_on is the one reader of both, and ask_prompt_group
+# on-value is. setting_on is the one reader of both, and _hi_pending_state
 # writes both.
 
 function test_setting_on_opt_in_absent_is_off() {
@@ -640,11 +628,11 @@ function test_starship_kept_when_chosen() {
   [[ "$out" == *"export _HI_PROMPT_TOOL=starship"* ]]
 }
 
-# the section opened with nobody to answer keeps every advanced value,
-# quoting included - every question keeps what the file holds
+# the truecolor question with nobody to answer keeps what the file holds,
+# and the collector carries the leading space beside it
 function test_advanced_declined_keeps_every_value() {
   local out
-  out="$(_hi_section_lines adv_keep config_advanced \
+  out="$(_hi_section_lines adv_keep config_truecolor \
     "export _HI_DISABLE_LEAD_SPACE=1" "export _HI_TRUECOLOR=0")"
   [[ "$out" == *"export _HI_DISABLE_LEAD_SPACE=1"* &&
     "$out" == *"export _HI_TRUECOLOR=0"* ]]
@@ -652,7 +640,7 @@ function test_advanced_declined_keeps_every_value() {
 
 # and with nothing set, writes nothing - the defaults live in the code
 function test_advanced_defaults_write_nothing() {
-  [ -z "$(_hi_section_lines adv_default config_advanced | tr -d ' ')" ]
+  [ -z "$(_hi_section_lines adv_default config_truecolor | tr -d ' ')" ]
 }
 
 # _hi_run_in <name> [settings-line ...] - run_configure with no tty against a
@@ -708,22 +696,6 @@ function test_preset_run_still_creates_the_file() {
   mkdir -p "$dir"
   run_configure balanced </dev/null >/dev/null || return 1
   grep -qF '_HI_PACKAGES_MIN_PRIORITY=3' "$_HI_SETTINGS"
-}
-
-# a row whose <needs> command is absent is not asked, and the collector
-# carries what the file holds for it rather than dropping it
-function test_prompt_group_carries_a_row_it_cannot_ask() {
-  local out dir="$_HI_WORKDIR/needs"
-  local _HI_SETTINGS="$dir/settings.sh"
-  local -a _HI_SETTING_LINES=() _HI_NEEDS_PROMPTS=("_HI_DISABLE_LEAD_SPACE|0|1|| moot?|no-such-command-$$|")
-  _HI_SETTING_PENDING=()
-  mkdir -p "$dir"
-  printf 'export _HI_DISABLE_LEAD_SPACE=1\n' >"$_HI_SETTINGS"
-  ask_prompt_group _HI_NEEDS_PROMPTS </dev/null
-  [ "${#_HI_SETTING_PENDING[@]}" = 0 ] || return 1
-  _hi_collect_group _HI_NEEDS_PROMPTS
-  out="${_HI_SETTING_LINES[*]:-}"
-  [[ "$out" == *"export _HI_DISABLE_LEAD_SPACE=1"* ]]
 }
 
 function test_validators_for_the_advanced_values() {
@@ -961,6 +933,17 @@ function test_prompt_sample_preview_says_off_when_disabled() {
   [ "$out" = " prompt off - your shell's own" ]
 }
 
+# ...and with it on (an empty settings.sh), it draws the line: this
+# user@host, ending in bash's shipped end character
+function test_prompt_sample_preview_draws_the_prompt_when_on() {
+  _hi_load_preview_sources
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-on.settings.sh"
+  : >"$_HI_SETTINGS"
+  local out
+  out="$(_hi_strip_ansi "$(_hi_prompt_sample_preview)")"
+  [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
+}
+
 # vim and hx are presence-gated in settings/aliases.sh itself (a box with
 # neither leaves the alias undefined), which _hi_editors_preview now reads
 # rather than restates - so their lines only need to be there when the tool
@@ -1077,8 +1060,8 @@ function test_run_configure_without_a_preset_keeps_the_block() {
   [[ "$block" == *"export _HI_DISABLE_MARKS=1"* ]]
 }
 
-# The interactive arms proper: ask_setting's tty prompt, ask_value's typed
-# answers, config_preset and the intro are all `[ -t 0 ]`-gated the same way
+# The interactive arms proper: ask_value's typed answers, the menu,
+# config_preset and the intro are all `[ -t 0 ]`-gated the same way
 # the floor loop is, and the same pty harness reaches them. The child is
 # _HI_FLOOR_CHILD's shape generalised - point the settings at a scratch dir,
 # run the one configure function named on its argv with the pty as stdin, and
@@ -1123,31 +1106,6 @@ function _hi_cfg_has() { grep -qF "$2" "$_HI_WORKDIR/$1.cfg.out"; }
 function _hi_cfg_rc() { _hi_pty_field "$1" cfg 'CFGRC=' '[0-9]*'; }
 function _hi_cfg_lines() { _hi_pty_field "$1" cfg 'CFGLINES='; }
 
-# answering n turns a default-on toggle off, and the prompt said what the
-# setting was in words before asking
-function test_ask_setting_takes_a_no() {
-  _hi_cfg_pty ask_no 'n\n' '' \
-    ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_no/config/settings.sh" 1 || return 1
-  [ "$(_hi_cfg_rc ask_no)" = 1 ] && _hi_cfg_has ask_no "(currently on) [Y/n]"
-}
-
-# ...and y turns a written-off one back on, with the hint's capital flipped -
-# plus the preview box, boxed between the question and the read
-function test_ask_setting_takes_a_yes_over_an_off_state() {
-  _hi_cfg_pty ask_yes 'y\n' 'export _HI_DISABLE_FOO=1' \
-    ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_yes/config/settings.sh" 1 \
-    _hi_editors_preview || return 1
-  [ "$(_hi_cfg_rc ask_yes)" = 0 ] &&
-    _hi_cfg_has ask_yes "(currently off) [y/N]" &&
-    _hi_cfg_has ask_yes "nano --rcfile"
-}
-
-function test_ask_setting_enter_keeps_the_off_state() {
-  _hi_cfg_pty ask_enter '\n' 'export _HI_DISABLE_FOO=1' \
-    ask_setting _HI_DISABLE_FOO " Enable foo?" "$_HI_WORKDIR/ask_enter/config/settings.sh" 1 || return 1
-  [ "$(_hi_cfg_rc ask_enter)" = 1 ]
-}
-
 function test_ask_value_takes_a_typed_number() {
   _hi_cfg_pty width_typed '120\n' '' config_max_width || return 1
   [ "$(_hi_cfg_lines width_typed)" = "export _HI_MAX_WIDTH=120" ]
@@ -1167,13 +1125,30 @@ function test_ask_value_typed_default_clears_the_override() {
   [ -z "$(_hi_cfg_lines width_default | tr -d '[:space:]')" ]
 }
 
-# The header editor: the real header boxed above the list, and every
-# command re-renders. Toggling one word off (2 is utc, the first item after
-# the banner) writes the default order minus that word, quoted - read off
-# header.sh's own $_HI_HEADER_ORDER_DEFAULT rather than a second copy of it,
-# so a reorder there cannot leave this expectation stale.
-function test_header_editor_toggle_writes_the_order() {
-  _hi_cfg_pty hdr_toggle '2\n\n' '' config_header || return 1
+# _hi_item <kind> - the number the menu gives an item ("word|0" the first
+# header item, "end|bash", "width", ...), read off the list itself rather
+# than counted by hand, so a row added above it cannot leave a case typing
+# the wrong number
+function _hi_item() {
+  local i _HI_SETTINGS=/dev/null
+  _HI_SETTING_PENDING=()
+  _hi_header_edit_load
+  _hi_menu_list >/dev/null
+  for i in "${!_HI_MENU_ITEMS[@]}"; do
+    [ "${_HI_MENU_ITEMS[$i]}" = "$1" ] || continue
+    printf '%d' "$((i + 1))"
+    return 0
+  done
+  return 1
+}
+
+# The menu: the real header boxed above the list, and every command
+# re-renders. Toggling the first header item off (utc) writes the default
+# order minus that word, quoted - read off header.sh's own
+# $_HI_HEADER_ORDER_DEFAULT rather than a second copy of it, so a reorder
+# there cannot leave this expectation stale.
+function test_menu_header_item_toggle_writes_the_order() {
+  _hi_cfg_pty hdr_toggle "$(_hi_item 'word|0')\ns\n" '' config_hub || return 1
   local lines want
   want="$(bash -c 'source "$_HI_HEADER"; printf %s "$_HI_HEADER_ORDER_DEFAULT"')"
   want="${want/utc /}"
@@ -1184,20 +1159,24 @@ function test_header_editor_toggle_writes_the_order() {
 
 # toggled off and back on, the order is the shipped one again and writes
 # nothing - the same rule the typed default follows everywhere else
-function test_header_editor_default_order_writes_nothing() {
-  _hi_cfg_pty hdr_default '2\n2\n\n' '' config_header || return 1
+function test_menu_default_order_writes_nothing() {
+  local w
+  w="$(_hi_item 'word|0')"
+  _hi_cfg_pty hdr_default "$w\n$w\ns\n" '' config_hub || return 1
   [ -z "$(_hi_cfg_lines hdr_default | tr -d '[:space:]')" ]
 }
 
-# `down 2` swaps utc with its neighbor
-function test_header_editor_moves_a_word() {
-  _hi_cfg_pty hdr_move 'down 2\n\n' '' config_header || return 1
+# `down N` swaps utc with its neighbor
+function test_menu_moves_a_header_item() {
+  _hi_cfg_pty hdr_move "down $(_hi_item 'word|0')\ns\n" '' config_hub || return 1
   [[ "$(_hi_cfg_lines hdr_move)" == *"export _HI_HEADER_ORDER='version utc localtime"* ]]
 }
 
-# the banner always leads: item 1 toggles but never moves
-function test_header_editor_banner_never_moves() {
-  _hi_cfg_pty hdr_banner 'up 1\n1\n\n' '' config_header || return 1
+# the banner always leads: it toggles but never moves
+function test_menu_banner_never_moves() {
+  local b
+  b="$(_hi_item 'row|_HI_HEADER_PROMPTS|0')"
+  _hi_cfg_pty hdr_banner "up $b\n$b\ns\n" '' config_hub || return 1
   local lines
   lines="$(_hi_cfg_lines hdr_banner)"
   _hi_cfg_has hdr_banner "the banner always leads" &&
@@ -1215,109 +1194,97 @@ function test_header_edit_preset_refuses_a_stranger() {
   [ -z "$out" ]
 }
 
-# up/down out of range, on the banner, and at the end the word is already at
-# - three refusals, each in words, and the run goes on
-function test_header_editor_refuses_a_move_that_cannot_happen() {
-  _hi_cfg_pty hdr_updown 'up 99\nup 1\nup 2\n\n' '' config_header || return 1
-  _hi_cfg_has hdr_updown "up/down take an item number from 2 to" &&
-    _hi_cfg_has hdr_updown "the banner always leads" &&
+# up/down off the header items, and at the end the item is already at - two
+# refusals, each in words, and the run goes on
+function test_menu_refuses_a_move_that_cannot_happen() {
+  _hi_cfg_pty hdr_updown "up 99\nup $(_hi_item 'word|0')\ns\n" '' config_hub || return 1
+  _hi_cfg_has hdr_updown "up/down take a header item" &&
     _hi_cfg_has hdr_updown "is already at that end"
 }
 
-# three answers the editor cannot read in a row end it, like the hub
-function test_header_editor_junk_is_bounded() {
-  _hi_cfg_pty hdr_junk 'x\ny\nz\n' '' config_header || return 1
-  [ "$(_hi_cfg_rc hdr_junk)" = 0 ] &&
-    _hi_cfg_has hdr_junk "type an item number, up N, down N, [p], [w], [i], [c], 0, or Enter" &&
-    [ -z "$(_hi_cfg_lines hdr_junk | tr -d '[:space:]')" ]
-}
-
-# p, then a name off the roster: said, nothing written, the editor goes on
-function test_header_editor_preset_refuses_a_stranger() {
-  _hi_cfg_pty hdr_pstranger 'p\nnope\n\n' '' config_header || return 1
+# h, then a name off the roster: said, nothing written, the menu goes on
+function test_menu_header_preset_refuses_a_stranger() {
+  _hi_cfg_pty hdr_pstranger 'h\nnope\ns\n' '' config_hub || return 1
   _hi_cfg_has hdr_pstranger "no such header preset: nope" &&
     [ -z "$(_hi_cfg_lines hdr_pstranger | tr -d '[:space:]')" ]
 }
 
-# w asks for the width and writes a typed one
-function test_header_editor_w_takes_a_width() {
-  _hi_cfg_pty hdr_width 'w\n120\n\n' '' config_header || return 1
+function test_menu_takes_a_width() {
+  _hi_cfg_pty hdr_width "$(_hi_item width)\n120\ns\n" '' config_hub || return 1
   _hi_cfg_has hdr_width "Terminal width for the header/banner (40 or more)?" &&
     [[ "$(_hi_cfg_lines hdr_width)" == *"export _HI_MAX_WIDTH=120"* ]]
 }
 
-function test_header_editor_i_takes_hidden_addresses() {
-  _hi_cfg_pty hdr_iphide 'i\nnone\n\n' "export _HI_HEADER_ORDER='ip utc'" config_header || return 1
+function test_menu_takes_hidden_addresses() {
+  _hi_cfg_pty hdr_iphide "$(_hi_item iphide)\nnone\ns\n" "export _HI_HEADER_ORDER='ip utc'" config_hub || return 1
   _hi_cfg_has hdr_iphide "Hide which addresses from the ip cell" &&
     [[ "$(_hi_cfg_lines hdr_iphide)" == *"export _HI_IP_HIDE='none'"* ]]
 }
 
-# the Prompt menu is bounded the same way, and a separator with a quote in it
-# is refused rather than written into settings.sh
-function test_prompt_menu_junk_is_bounded_and_a_quote_is_refused() {
-  _hi_cfg_pty pe_junk 'x\ny\nz\n' '' config_prompt || return 1
-  _hi_cfg_has pe_junk "type a number from 1 to" || return 1
-  _hi_cfg_pty pe_quote '2\n'"'"'\n\n' '' config_prompt || return 1
+# a separator with a quote in it is refused rather than written into
+# settings.sh
+function test_menu_refuses_a_quoted_separator() {
+  _hi_cfg_pty pe_quote "$(_hi_item 'end|bash')\n'\ns\n" '' config_hub || return 1
   _hi_cfg_has pe_quote "a single quote can't be written to settings.sh" &&
     [[ "$(_hi_cfg_lines pe_quote)" != *"_HI_PROMPT_END_"* ]]
 }
 
 # the truecolor question maps its words both ways: `off` is stored as 0, and
 # nothing writes an $_HI_ASCII
-function test_advanced_values_map_truecolor_words() {
-  _hi_cfg_pty adv_tc 'off\n' '' config_advanced_values || return 1
+function test_truecolor_maps_its_words() {
+  _hi_cfg_pty adv_tc 'off\n' '' config_truecolor || return 1
   local lines
   lines="$(_hi_cfg_lines adv_tc)"
   [[ "$lines" == *"export _HI_TRUECOLOR=0"* && "$lines" != *"_HI_ASCII"* ]]
 }
 
-function test_header_editor_takes_a_preset() {
-  _hi_cfg_pty hdr_preset 'p\nq\n\n' '' config_header || return 1
+function test_menu_takes_a_header_preset() {
+  _hi_cfg_pty hdr_preset 'h\nq\ns\n' '' config_hub || return 1
   [[ "$(_hi_cfg_lines hdr_preset)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
 }
 
-# 0 turns the whole header off, and the preview says so in words rather
-# than showing an empty box
-function test_header_editor_header_off_previews_as_words() {
-  _hi_cfg_pty hdr_off '0\n\n' '' config_header || return 1
+# ...by its full name too, which the one-letter shorthand would refuse
+function test_menu_takes_a_header_preset_by_name() {
+  _hi_cfg_pty hdr_preset_name 'h\nquiet\ns\n' '' config_hub || return 1
+  [[ "$(_hi_cfg_lines hdr_preset_name)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
+}
+
+# item 1 turns the whole header off, and the preview says so in words
+# rather than showing an empty box
+function test_menu_header_off_previews_as_words() {
+  _hi_cfg_pty hdr_off '1\ns\n' '' config_hub || return 1
   _hi_cfg_has hdr_off "header off - nothing prints" &&
     [[ "$(_hi_cfg_lines hdr_off)" == *"export _HI_DISABLE_HEADER=1"* ]]
 }
 
-# an empty $_HI_HEADER_ORDER means the default at runtime, so the last word
-# cannot be turned off - the editor says how to get an empty header instead
-function test_header_editor_keeps_the_last_word() {
-  _hi_cfg_pty hdr_last '2\n\n' "export _HI_HEADER_ORDER='gitid'" config_header || return 1
-  _hi_cfg_has hdr_last "keep at least one item" &&
+# an empty $_HI_HEADER_ORDER means the default at runtime, so the last item
+# cannot be turned off - the menu says how to get an empty header instead
+function test_menu_keeps_the_last_header_item() {
+  _hi_cfg_pty hdr_last "$(_hi_item 'word|0')\ns\n" "export _HI_HEADER_ORDER='gitid'" config_hub || return 1
+  _hi_cfg_has hdr_last "keep at least one header item" &&
     [[ "$(_hi_cfg_lines hdr_last)" == *"export _HI_HEADER_ORDER='gitid'"* ]]
 }
 
 # a stored order lists its words first, in its order, then every word it
 # leaves out, unchecked
-function test_header_editor_lists_missing_words_off() {
-  _hi_cfg_pty hdr_list '\n' "export _HI_HEADER_ORDER='check gitid'" config_header || return 1
-  _hi_cfg_has hdr_list "2) [x] check" &&
-    _hi_cfg_has hdr_list "3) [x] gitid" &&
-    _hi_cfg_has hdr_list "4) [ ] utc"
+function test_menu_lists_missing_header_items_off() {
+  local w
+  w="$(_hi_item 'word|0')"
+  _hi_cfg_pty hdr_list 's\n' "export _HI_HEADER_ORDER='check gitid'" config_hub || return 1
+  _hi_cfg_has hdr_list "$w) [x] check" &&
+    _hi_cfg_has hdr_list "$((w + 1))) [x] gitid" &&
+    _hi_cfg_has hdr_list "$((w + 2))) [ ] utc"
 }
 
-# the check's depth is only offered while 'check' is on
-function test_header_editor_refuses_check_dials_when_check_is_off() {
-  _hi_cfg_pty hdr_nocheck 'c\nk\n\n' "export _HI_HEADER_ORDER='gitid'" config_header || return 1
-  _hi_cfg_has hdr_nocheck "turn 'check' on first" &&
-    ! _hi_cfg_has hdr_nocheck "Lowest package priority" &&
-    ! _hi_cfg_has hdr_nocheck "check depth"
-}
-
-# ...and reachable from the editor when it is: c opens the floor's loop
-function test_header_editor_opens_the_check_depth() {
-  _hi_cfg_pty hdr_depth 'c\n3\n3\n\n' '' config_header || return 1
+# the check's depth opens the floor's loop
+function test_menu_opens_the_check_depth() {
+  _hi_cfg_pty hdr_depth "$(_hi_item floor)\n3\n3\ns\n" '' config_hub || return 1
   [[ "$(_hi_cfg_lines hdr_depth)" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* ]]
 }
 
-# The Features menu: a number flips the row and shows its preview
-function test_features_menu_toggles_and_previews() {
-  _hi_cfg_pty feat_toggle '5\n\n' '' config_features || return 1
+# a feature row flips and says so under the list, with its preview
+function test_menu_feature_toggles_and_previews() {
+  _hi_cfg_pty feat_toggle '5\ns\n' '' config_hub || return 1
   _hi_cfg_has feat_toggle "editor config overrides: now off" &&
     _hi_cfg_has feat_toggle "nano --rcfile" &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
@@ -1327,60 +1294,53 @@ function test_features_menu_toggles_and_previews() {
 # falls back to the shape when nothing is active here, which is what a run on
 # a bare CI box sees - so the case asserts the toggle and the paren shape, not
 # a name only this machine would have.
-function test_features_menu_env_segment_toggles_and_previews() {
-  _hi_cfg_pty feat_env '4\n\n' '' config_features || return 1
+function test_menu_env_segment_toggles_and_previews() {
+  _hi_cfg_pty feat_env '4\ns\n' '' config_hub || return 1
   _hi_cfg_has feat_env "environment segment in the prompt: now off" &&
     _hi_cfg_has feat_env "myproj" &&
     [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]
 }
 
-# ...and the header row previews the whole header, not just its banner
-function test_features_menu_header_row_previews_the_header() {
-  _hi_cfg_pty feat_header '1\n1\n\n' '' config_features || return 1
+# ...and the header row, off and back on, previews the whole header both ways
+function test_menu_header_row_previews_the_header() {
+  _hi_cfg_pty feat_header '1\n1\ns\n' '' config_hub || return 1
   _hi_cfg_has feat_header "header off - nothing prints" &&
     _hi_cfg_has feat_header "Connected" &&
     [ -z "$(_hi_cfg_lines feat_header | tr -d '[:space:]')" ]
 }
 
-# three junk answers in a row and a submenu goes back on its own
-function test_features_menu_junk_is_bounded() {
-  _hi_cfg_pty feat_junk 'x\ny\nz\n' '' config_features || return 1
-  [ "$(_hi_cfg_rc feat_junk)" = 0 ]
-}
-
-# The Prompt menu: item 2 is bash's separator, typed and single-quoted;
-# zsh's is never asked and never written
+# a separator typed for bash is single-quoted; zsh's is never asked and never
+# written
 function test_prompt_end_typed_interactively_is_quoted() {
-  _hi_cfg_pty pe_typed '2\n>>\n\n' '' config_prompt || return 1
+  _hi_cfg_pty pe_typed "$(_hi_item 'end|bash')\n>>\ns\n" '' config_hub || return 1
   local lines
   lines="$(_hi_cfg_lines pe_typed)"
   [[ "$lines" == *"export _HI_PROMPT_END_BASH='>>'"* && "$lines" != *"_HI_PROMPT_END_ZSH"* ]]
 }
 
-# item 1 is the starship opt-in
-function test_prompt_menu_toggles_starship() {
-  _hi_cfg_pty pe_star '1\n\n' '' config_prompt || return 1
+function test_menu_toggles_starship() {
+  _hi_cfg_pty pe_star "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" '' config_hub || return 1
   _hi_cfg_has pe_star "starship: now on" &&
     [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=starship"* ]]
 }
 
-# the advanced section is a question walk with no gate of its own (the hub's
-# item is the gate), four questions, and Enter through all of it writes
-# nothing, since the defaults live in the code
-function test_advanced_walks_the_questions() {
-  _hi_cfg_pty adv_walk '\n\n' '' config_advanced || return 1
-  _hi_cfg_has adv_walk "leading space" &&
-    _hi_cfg_has adv_walk "24-bit color" &&
-    [ -z "$(_hi_cfg_lines adv_walk | tr -d '[:space:]')" ]
+# ...and back off: an opt-in switched off clears its line rather than
+# writing an off-value
+function test_menu_toggles_starship_off() {
+  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" 'export _HI_PROMPT_TOOL=starship' config_hub || return 1
+  _hi_cfg_has pe_star_off "starship: now off" && _hi_cfg_has pe_star_off "CFGLINES=" &&
+    [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]]
 }
 
-# every advanced value typed for real, including the words-to-flag mapping
-# _HI_TRUECOLOR's question hides behind ("on" is stored as 1)
-function test_advanced_values_typed_interactively() {
-  _hi_cfg_pty adv_typed '\non\n' '' config_advanced || return 1
+# the Advanced rows: an opt-in toggle and a value typed for real, including
+# the words-to-flag mapping _HI_TRUECOLOR's question hides behind ("on" is
+# stored as 1)
+function test_menu_advanced_rows() {
+  _hi_cfg_pty adv_typed "$(_hi_item 'row|_HI_ADVANCED_PROMPTS|0')\n$(_hi_item truecolor)\non\ns\n" '' config_hub || return 1
   local lines
   lines="$(_hi_cfg_lines adv_typed)"
-  [[ "$lines" == *"export _HI_TRUECOLOR=1"* ]]
+  _hi_cfg_has adv_typed "drop the leading space: now on" &&
+    [[ "$lines" == *"export _HI_DISABLE_LEAD_SPACE=1"* && "$lines" == *"export _HI_TRUECOLOR=1"* ]]
 }
 
 # Enter at the preset question keeps the current settings: nothing seeded,
@@ -1406,11 +1366,11 @@ function test_preset_shorthand_seeds_the_run() {
     [[ "$(_hi_cfg_lines pre_walk)" == *"export _HI_PACKAGES_MIN_PRIORITY=3"* ]]
 }
 
-# The hub proper. The shortest whole run: the intro orients, 1 opens the
-# presets, m picks minimal, s saves - and the one write at the end is exactly
-# the preset's block.
+# The whole run. The shortest: the intro orients, p opens the presets, m
+# picks minimal, s saves - and the one write at the end is exactly the
+# preset's block.
 function test_full_run_preset_then_save() {
-  _hi_cfg_pty full_walk '1\nm\ns\n' '' run_configure "" || return 1
+  _hi_cfg_pty full_walk 'p\nm\ns\n' '' run_configure "" || return 1
   local block
   block="$(grep -F "$_HI_MARKER" "$_HI_WORKDIR/full_walk/config/settings.sh")"
   _hi_cfg_has full_walk "Nothing is written until you save" &&
@@ -1422,17 +1382,17 @@ function test_full_run_preset_then_save() {
 # q after the same preset writes nothing at all - no block, not even the
 # shebang - and leaves the flag install.sh's closing line reads
 function test_full_run_quit_writes_nothing() {
-  _hi_cfg_pty full_quit '1\nm\nq\n' '' run_configure "" || return 1
+  _hi_cfg_pty full_quit 'p\nm\nq\n' '' run_configure "" || return 1
   _hi_cfg_has full_quit "starting from the 'minimal' preset" &&
     _hi_cfg_has full_quit "nothing written" &&
     _hi_cfg_has full_quit "CFGQUIT=1" &&
     ! grep -qF "$_HI_MARKER" "$_HI_WORKDIR/full_quit/config/settings.sh"
 }
 
-# EOF at the hub saves what there is - no answer has always meant "keep what
-# you have and finish" here - so a driver that stops typing still ends in
-# the write
-function test_hub_eof_saves() {
+# EOF at the menu saves what there is - no answer has always meant "keep
+# what you have and finish" here - so a driver that stops typing still ends
+# in the write
+function test_menu_eof_saves() {
   _hi_cfg_pty hub_eof '\004' 'export _HI_DISABLE_MARKS=1' run_configure "" || return 1
   _hi_cfg_has hub_eof "CFGQUIT=none" &&
     grep -qF "export _HI_DISABLE_MARKS=1" "$_HI_WORKDIR/hub_eof/config/settings.sh"
@@ -1440,23 +1400,22 @@ function test_hub_eof_saves() {
 
 # ...and the third junk answer in a row ends the run too, but as a quit:
 # three words that are not menu items are not an instruction to write
-function test_hub_junk_is_bounded_and_saves() {
+function test_menu_junk_is_bounded_and_quits() {
   _hi_cfg_pty hub_junk 'x\ny\nz\nq\n' '' run_configure "" || return 1
-  _hi_cfg_has hub_junk "leaving" &&
+  _hi_cfg_has hub_junk "type an item number" &&
+    _hi_cfg_has hub_junk "leaving" &&
     _hi_cfg_has hub_junk "CFGQUIT=1"
 }
 
-# every digit opens its section and comes back to the hub; the preview box
-# is drawn before the menu. The advanced walk is four Enters; a spare Enter
-# at the hub only redraws it.
-function test_hub_opens_every_section() {
-  # shellcheck disable=SC2031 # the pty child inherits it; nothing here reads it back
-  _hi_cfg_pty hub_all '2\n\n3\n\n4\n\n5\n\n\n\n\n\ns\n' '' run_configure "" || return 1
+# one screen holds every group - no submenu to open - under the preview box
+function test_menu_lists_every_group() {
+  _hi_cfg_pty hub_all 's\n' '' run_configure "" || return 1
   _hi_cfg_has hub_all "preview" &&
-    _hi_cfg_has hub_all "Header" &&
     _hi_cfg_has hub_all "Features" &&
-    _hi_cfg_has hub_all "Prompt" &&
-    _hi_cfg_has hub_all "Advanced settings" &&
+    _hi_cfg_has hub_all "Header - in the order it prints" &&
+    _hi_cfg_has hub_all "package check depth" &&
+    _hi_cfg_has hub_all "bash prompt ends with" &&
+    _hi_cfg_has hub_all "Advanced" &&
     _hi_cfg_has hub_all "24-bit color" &&
     _hi_cfg_has hub_all "CFGQUIT=none"
 }
@@ -1527,10 +1486,6 @@ function run_configure_tests() {
   _hi_check "Reads a two-statement assignment" test_setting_get_reads_a_two_statement_assignment
   _hi_check "Leaves other variables ambient" test_setting_get_leaves_other_variables_ambient
 
-  _hi_h2 "Testing: ask_setting (non-interactive)"
-  _hi_check "Keeps enabled default" test_ask_setting_default_keeps_enabled
-  _hi_check "Keeps disabled default" test_ask_setting_default_keeps_disabled
-
   _hi_h2 "Testing: opt-ins, the advanced section and the closing report"
   _hi_check "An absent opt-in is off" test_setting_on_opt_in_absent_is_off
   _hi_check "A written opt-in is on" test_setting_on_opt_in_present_is_on
@@ -1543,7 +1498,6 @@ function run_configure_tests() {
   _hi_check "A hand line this run does not write is left alone" test_configure_leaves_a_hand_line_it_does_not_write
   _hi_check "No tty and nothing to say: no file" test_no_tty_run_with_defaults_writes_no_file
   _hi_check "A preset run creates the file" test_preset_run_still_creates_the_file
-  _hi_check "A row that cannot be asked is carried" test_prompt_group_carries_a_row_it_cannot_ask
   _hi_check "Validators for the advanced values" test_validators_for_the_advanced_values
   _hi_check "Diff reports added and removed lines" test_settings_diff_reports_added_and_removed
   _hi_check "Diff says no changes" test_settings_diff_says_no_changes
@@ -1570,6 +1524,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: the question previews"
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
+  _hi_check "...and draws the prompt when it is on" test_prompt_sample_preview_draws_the_prompt_when_on
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
   if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
     _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim
@@ -1594,51 +1549,46 @@ function run_configure_tests() {
   # apiece were this suite's whole wall clock when they ran one at a time.
   # The three packages-floor prompts belong to the section above; they sit
   # here because they are pty cases too.
-  _hi_h2 "Testing: the interactive arms, the header editor, the Features menu and the hub (pty)"
+  _hi_h2 "Testing: the interactive arms and the menu (pty)"
   _hi_par_begin "pty cases"
   _hi_par_check_capable pty "Packages floor: junk stops the loop" test_packages_floor_stops_asking_for_a_number
   _hi_par_check_capable pty "Packages floor: 5 is refused like junk" test_packages_floor_refuses_a_number_past_four
   _hi_par_check_capable pty "Packages floor: EOF ends the prompt" test_packages_floor_ends_on_eof
   _hi_par_check_capable pty "Packages floor: a number lands after a rejection" test_packages_floor_takes_a_number_after_a_rejection
-  _hi_par_check_capable pty "ask_setting takes a no" test_ask_setting_takes_a_no
-  _hi_par_check_capable pty "ask_setting takes a yes over an off state" test_ask_setting_takes_a_yes_over_an_off_state
-  _hi_par_check_capable pty "ask_setting: Enter keeps the off state" test_ask_setting_enter_keeps_the_off_state
   _hi_par_check_capable pty "ask_value takes a typed number" test_ask_value_takes_a_typed_number
   _hi_par_check_capable pty "ask_value rejects junk and keeps current" test_ask_value_rejects_junk_and_keeps_current
   _hi_par_check_capable pty "ask_value: the typed default clears the override" test_ask_value_typed_default_clears_the_override
-  _hi_par_check_capable pty "Prompt menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
-  _hi_par_check_capable pty "Prompt menu: 1 toggles starship" test_prompt_menu_toggles_starship
-  _hi_par_check_capable pty "Advanced: Enter through every question" test_advanced_walks_the_questions
-  _hi_par_check_capable pty "Advanced values: typed for real" test_advanced_values_typed_interactively
+  _hi_par_check_capable pty "Truecolor words map both ways" test_truecolor_maps_its_words
   _hi_par_check_capable pty "Preset question: Enter keeps current" test_preset_question_enter_keeps_current
   _hi_par_check_capable pty "Preset question: a stranger is refused, run continues" test_preset_question_refuses_a_stranger_and_carries_on
   _hi_par_check_capable pty "Preset shorthand seeds the run" test_preset_shorthand_seeds_the_run
-  _hi_par_check_capable pty "A toggle writes the order, previewed" test_header_editor_toggle_writes_the_order
-  _hi_par_check_capable pty "Back to the default order writes nothing" test_header_editor_default_order_writes_nothing
-  _hi_par_check_capable pty "down N moves a word" test_header_editor_moves_a_word
-  _hi_par_check_capable pty "The banner toggles but never moves" test_header_editor_banner_never_moves
-  _hi_par_check_capable pty "p takes a header preset" test_header_editor_takes_a_preset
-  _hi_par_check_capable pty "0 turns the header off, previewed in words" test_header_editor_header_off_previews_as_words
-  _hi_par_check_capable pty "The last word cannot be turned off" test_header_editor_keeps_the_last_word
-  _hi_par_check_capable pty "Words a stored order leaves out list unchecked" test_header_editor_lists_missing_words_off
-  _hi_par_check_capable pty "c/k refused while 'check' is off" test_header_editor_refuses_check_dials_when_check_is_off
-  _hi_par_check_capable pty "c opens the check depth" test_header_editor_opens_the_check_depth
-  _hi_par_check_capable pty "A move that cannot happen is refused in words" test_header_editor_refuses_a_move_that_cannot_happen
-  _hi_par_check_capable pty "Editor junk is bounded" test_header_editor_junk_is_bounded
-  _hi_par_check_capable pty "p refuses a stranger" test_header_editor_preset_refuses_a_stranger
-  _hi_par_check_capable pty "w takes a width" test_header_editor_w_takes_a_width
-  _hi_par_check_capable pty "i takes the hidden addresses" test_header_editor_i_takes_hidden_addresses
-  _hi_par_check_capable pty "Prompt menu: junk bounded, a quote refused" test_prompt_menu_junk_is_bounded_and_a_quote_is_refused
-  _hi_par_check_capable pty "Advanced values: truecolor words map both ways" test_advanced_values_map_truecolor_words
-  _hi_par_check_capable pty "A number toggles and previews" test_features_menu_toggles_and_previews
-  _hi_par_check_capable pty "The environment row toggles and previews" test_features_menu_env_segment_toggles_and_previews
-  _hi_par_check_capable pty "The header row previews the whole header" test_features_menu_header_row_previews_the_header
-  _hi_par_check_capable pty "Junk is bounded" test_features_menu_junk_is_bounded
+  _hi_par_check_capable pty "Menu: every group on one screen" test_menu_lists_every_group
+  _hi_par_check_capable pty "Menu: a feature toggles and previews" test_menu_feature_toggles_and_previews
+  _hi_par_check_capable pty "Menu: the environment row toggles and previews" test_menu_env_segment_toggles_and_previews
+  _hi_par_check_capable pty "Menu: the header row previews the whole header" test_menu_header_row_previews_the_header
+  _hi_par_check_capable pty "Menu: item 1 turns the header off, in words" test_menu_header_off_previews_as_words
+  _hi_par_check_capable pty "Menu: a header item toggle writes the order" test_menu_header_item_toggle_writes_the_order
+  _hi_par_check_capable pty "Menu: back to the default order writes nothing" test_menu_default_order_writes_nothing
+  _hi_par_check_capable pty "Menu: down N moves a header item" test_menu_moves_a_header_item
+  _hi_par_check_capable pty "Menu: the banner toggles but never moves" test_menu_banner_never_moves
+  _hi_par_check_capable pty "Menu: a move that cannot happen is refused in words" test_menu_refuses_a_move_that_cannot_happen
+  _hi_par_check_capable pty "Menu: the last header item cannot be turned off" test_menu_keeps_the_last_header_item
+  _hi_par_check_capable pty "Menu: items a stored order leaves out list unchecked" test_menu_lists_missing_header_items_off
+  _hi_par_check_capable pty "Menu: h takes a header preset" test_menu_takes_a_header_preset
+  _hi_par_check_capable pty "Menu: h takes a header preset by name" test_menu_takes_a_header_preset_by_name
+  _hi_par_check_capable pty "Menu: h refuses a stranger" test_menu_header_preset_refuses_a_stranger
+  _hi_par_check_capable pty "Menu: the width item takes a width" test_menu_takes_a_width
+  _hi_par_check_capable pty "Menu: the check depth opens its loop" test_menu_opens_the_check_depth
+  _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
+  _hi_par_check_capable pty "Menu: starship toggles" test_menu_toggles_starship
+  _hi_par_check_capable pty "Menu: starship toggles back off" test_menu_toggles_starship_off
+  _hi_par_check_capable pty "Menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
+  _hi_par_check_capable pty "Menu: a quoted separator is refused" test_menu_refuses_a_quoted_separator
+  _hi_par_check_capable pty "Menu: the advanced rows" test_menu_advanced_rows
   _hi_par_check_capable pty "Full run: preset, then save" test_full_run_preset_then_save
   _hi_par_check_capable pty "Full run: preset, then quit writes nothing" test_full_run_quit_writes_nothing
-  _hi_par_check_capable pty "Hub: EOF saves" test_hub_eof_saves
-  _hi_par_check_capable pty "Hub: junk is bounded and quits" test_hub_junk_is_bounded_and_saves
-  _hi_par_check_capable pty "Hub: every section opens and returns" test_hub_opens_every_section
+  _hi_par_check_capable pty "Menu: EOF saves" test_menu_eof_saves
+  _hi_par_check_capable pty "Menu: junk is bounded and quits" test_menu_junk_is_bounded_and_quits
   _hi_par_wait
 
   _hi_suite_end "configure.sh logic"

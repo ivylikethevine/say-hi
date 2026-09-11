@@ -2,21 +2,21 @@
 # Copyright the say-hi contributors.
 # SPDX-License-Identifier: MIT
 # The settings wizard behind `hi --configure` (and the second half of a plain
-# install): a hub menu over a live preview, one section per menu item, and
-# the one write to $_HI_SETTINGS. Sourced by scripts/install.sh after
+# install): one flat menu of every setting under a live preview, and the one
+# write to $_HI_SETTINGS. Sourced by scripts/install.sh after
 # common/core.sh and scripts/table.sh; not an entry point of its own.
 # run_configure at the bottom is the sequence.
 #
 # The shape: every answer taken this run lands in _HI_SETTING_PENDING (as
 # "<var>=<value>", an empty value meaning "the shipped default"), ahead of
 # what the file still says from last time; setting_value is the one reader
-# of both. Nothing accumulates lines as it asks - a section can be opened
+# of both. Nothing accumulates lines as it asks - a setting can be changed
 # twice, so the `export NAME=value` lines are derived once, at save time, by
 # collect_setting_lines walking a fixed roster in a stable order, and
 # config_shell writes them in one call (it rewrites the *whole* marker block
-# in its target, so one call per section would each wipe the others').
-# Interactively that save is the hub's [s]; [q] writes nothing at all. With
-# no tty, or under --preset, there is no hub: the roster is collected from
+# in its target, so one call per setting would each wipe the others').
+# Interactively that save is the menu's [s]; [q] writes nothing at all. With
+# no tty, or under --preset, there is no menu: the roster is collected from
 # the file (plus the preset) and written as it stands.
 
 # The live previews borrow header.sh's hi_header/banner/full_check and
@@ -131,31 +131,6 @@ function _hi_setting_flip() {
   fi
 }
 
-# Ask a yes/no question about one setting, defaulting to its current state.
-# $5, if given, is a zero-arg function whose output is boxed as a live preview
-# after the question text, so the question reads first and the preview
-# illustrates the answer. $6 is the on-value for an opt-in (see setting_on).
-# The prompt says what the setting is now in words, not only through which
-# letter of the hint is capitalised. Non-interactive runs (no tty) keep
-# whatever is already configured rather than hanging on a prompt nobody can
-# answer, and skip the preview since the question is auto-answered.
-function ask_setting() {
-  local var="$1" question="$2" target="$3" off="${4:-1}" preview="${5:-}" on="${6:-}"
-  local default hint state reply=""
-  setting_on "$var" "$target" "$off" "$on" && default=y || default=n
-  if [ ! -t 0 ]; then
-    [ "$default" = y ]
-    return
-  fi
-  hint="Y/n" state=on
-  [ "$default" = n ] && hint="y/N" state=off
-  printf '%s\n' "$question"
-  [ -n "$preview" ] && show_preview "$preview"
-  read -r -p " (currently $state) [$hint] " reply || reply=""
-  [ -z "$reply" ] && reply="$default"
-  [[ "$reply" =~ ^[Yy] ]]
-}
-
 # ask_setting_value <var> <default> <validator-fn> <invalid-msg> <question> -
 # ask_value against a setting, recorded. The whole shape of every free-text
 # question here: this run's answer (or the file's) is the current value, and
@@ -180,8 +155,9 @@ function _hi_shell_var() {
 # <current> (or the default when there is no override yet), a rejected answer
 # says why and keeps it too, and an answer equal to <default> comes back
 # empty - the caller records nothing rather than restating a shipped default.
-# Non-interactive runs keep what is configured, like ask_setting. The
-# messages go to stderr: stdout is the captured answer.
+# Non-interactive runs keep what is configured rather than hanging on a
+# prompt nobody can answer. The messages go to stderr: stdout is the
+# captured answer.
 function ask_value() {
   local question="$1" current="$2" default="$3" validate="$4" invalid_msg="$5"
   local value reply=""
@@ -276,14 +252,6 @@ function _hi_is_header_word() {
   *" $1 "*) return 0 ;;
   *) return 1 ;;
   esac
-}
-
-# A section heading plus one line saying what the menu under it decides,
-# so a section reads as a unit before its first prompt does.
-function section() {
-  _hi_h2 "$1"
-  [ -t 0 ] && [ -n "${2:-}" ] && _hi_cecho " $2" "$BLUE"
-  return 0
 }
 
 # Run $@ and box what it writes to stdout - a live render using hi's own
@@ -540,48 +508,45 @@ function _hi_packages_floor_preview() {
 declare -a _HI_SETTING_LINES=()
 
 # The yes/no settings as tables, one row per setting, in the order they are
-# listed and written: <var>|<off-value>|<on-value>|<preview-fn>|<question>|
-# <needs>|<label>. <on-value> is empty for a default-on toggle (off writes
-# the off-value, on writes nothing) and set for an opt-in (on writes it, off
-# writes nothing) - setting_on has the rule. <needs> names a command the
-# setting is moot without: the menu says so beside it, and a question walk
-# (ask_prompt_group) skips the row. <label> is the menu's short name for it;
-# <question> is the long form ask_prompt_group asks. Adding a setting is one
-# row, and every `_HI_*_PROMPTS` table is what tests/lint's settings-table
-# check reads.
+# listed and written: <var>|<off-value>|<on-value>|<preview-fn>|<needs>|
+# <label>. <on-value> is empty for a default-on toggle (off writes the
+# off-value, on writes nothing) and set for an opt-in (on writes it, off
+# writes nothing) - setting_on has the rule. <preview-fn> is boxed under the
+# menu after the row flips, for what the menu's own preview does not show.
+# <needs> names a command the setting is moot without: the menu says so
+# beside it. <label> is the menu's name for it, and its part before " - " is
+# what the flip reports. Adding a setting is one row, and every
+# `_HI_*_PROMPTS` table is what tests/lint's settings-table check reads.
 _HI_FEATURE_PROMPTS=(
-  "_HI_DISABLE_HEADER|1||_hi_header_preview| Enable the connect/disconnect header (system info, git identity, package check)?||connect/disconnect header - its contents are the Header menu"
-  "_HI_DISABLE_PROMPT|1||_hi_prompt_preview| Enable the colored user@host prompt?||colored user@host prompt"
-  "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview| Enable git status in the prompt?||git status in the prompt"
-  "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview| Enable the environment segment in the prompt (the leading (myproj) naming an active venv, conda, direnv, nix or version manager)?||environment segment in the prompt"
-  "_HI_DISABLE_EDITORS|1||_hi_editors_preview| Enable the editor config overrides (vim, nano, emacs, helix, kakoune, micro)?||editor config overrides - vim, nano, emacs, helix, kakoune, micro"
-  "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview| Enable the styled tool aliases (cat -> bat with --tabs 2, changes/grid; exa/eza with hi's columns) where the tools are installed?||styled tool aliases - cat -> bat, exa/eza"
-  "_HI_DISABLE_TOOL_INIT|1||_hi_tool_init_preview| Enable shell integration for zoxide and atuin (their init hooks: ranked cd, ctrl-r history) where the target has them?||zoxide/atuin shell integration"
-  "_HI_DISABLE_SUDO_ALIAS|1||| Enable the sudo alias ('sudo vim' and friends keep hi's flags - a trailing-space alias in bash/zsh, a wrapper function in fish)?||sudo alias - aliases survive under sudo"
-  "_HI_DISABLE_MARKS|1||| Enable prompt marks and cwd reporting (OSC 133/7: jump between prompts, select a command's output, open a new tab in the remote directory)?||prompt marks and cwd reporting (OSC 133/7)"
-  "_HI_DISABLE_LOCAL|1||| Enable all of the above on this machine (the one say-hi is installed on), not just when you hi elsewhere?||all of the above on this machine too, not just where you hi"
+  "_HI_DISABLE_HEADER|1||||connect/disconnect header - its items are under Header"
+  "_HI_DISABLE_PROMPT|1||_hi_prompt_preview||colored user@host prompt"
+  "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status in the prompt"
+  "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment in the prompt - (myproj) for a venv, ..."
+  "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nano, emacs, helix, kakoune, micro"
+  "_HI_DISABLE_TOOL_ALIASES|1||_hi_tool_alias_preview||styled tool aliases - cat -> bat, exa/eza"
+  "_HI_DISABLE_TOOL_INIT|1||_hi_tool_init_preview||zoxide/atuin shell integration"
+  "_HI_DISABLE_SUDO_ALIAS|1||||sudo alias - aliases survive under sudo"
+  "_HI_DISABLE_MARKS|1||||prompt marks and cwd reporting (OSC 133/7)"
+  "_HI_DISABLE_LOCAL|1||||all of the above on this machine too, not just where you hi"
 )
 
 # The one header row with a hide switch of its own: banner is not part of
 # $_HI_HEADER_ORDER's reorderable feature list (it always leads). Every other
-# row is addressed at the finer feature grain, through the header editor
-# (config_header).
+# row is addressed at the finer feature grain, as the menu's header items.
 _HI_HEADER_PROMPTS=(
-  "_HI_DISABLE_BANNER|1||_hi_header_preview| Show the connect/disconnect banner line?||banner"
+  "_HI_DISABLE_BANNER|1||||banner - the ~~~ Connected [host] ~~~ line, always first"
 )
 
 # whether to hand the prompt to starship where a target has one. An opt-in,
 # never auto-detected - core.sh's _hi_wants_prompt_tool, which also takes
 # _HI_PROMPT_TOOL=oh-my-posh written by hand (no menu item: one toggle, one tool)
 _HI_PROMPT_PROMPTS=(
-  "_HI_PROMPT_TOOL||starship|_hi_starship_preview| Hand the prompt to starship on targets that have it (hi keeps the header and aliases)?||starship draws the prompt on targets that have it"
+  "_HI_PROMPT_TOOL||starship|_hi_starship_preview||starship - draws the prompt on targets that have it"
 )
 
-# The advanced section, behind the hub's Advanced item: settings most
-# installs never touch, kept out of the default path so it stays short. Not
-# opening it keeps whatever each of these already holds.
+# settings most installs never touch, listed last
 _HI_ADVANCED_PROMPTS=(
-  "_HI_DISABLE_LEAD_SPACE|0|1|| Drop the leading space hi puts before the prompt's user@host, the git segment, and each header line?||"
+  "_HI_DISABLE_LEAD_SPACE|0|1|||drop the leading space - before the prompt and header lines"
 )
 
 # _hi_prompt_rows <table-name> <outvar-array> - the table copied out by name
@@ -593,32 +558,12 @@ function _hi_prompt_rows() {
   eval "$2=(\${$1[@]+\"\${$1[@]}\"})"
 }
 
-# Ask every row of the table named by $1 in turn, recording each answer. A
-# row whose <needs> command is absent here is not asked - its stored value
-# is carried by the collector untouched.
-function ask_prompt_group() {
-  local row var off on preview question needs label target="$_HI_SETTINGS"
-  local -a rows=()
-  _hi_prompt_rows "$1" rows
-  for row in ${rows[@]+"${rows[@]}"}; do
-    IFS='|' read -r var off on preview question needs label <<<"$row"
-    if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
-      continue
-    fi
-    if ask_setting "$var" "$question" "$target" "$off" "$preview" "$on"; then
-      _hi_pending_state "$var" "$off" "$on" on
-    else
-      _hi_pending_state "$var" "$off" "$on" off
-    fi
-  done
-}
-
 # <name>|<one-line description>|<var=value ...>: a starting point for the
 # feature, header, package-check and prompt settings - the presets say
 # nothing about the header order, the advanced section, the width or the
 # separators. A var the preset does not name goes back to its shipped
 # default, so a preset is an absolute answer rather than a delta on what the
-# file holds. Applied, its answers are what the hub shows and saves;
+# file holds. Applied, its answers are what the menu shows and saves;
 # `--preset <name>` writes them without a hub at all.
 _HI_PRESETS=(
   "everything|every feature and every header item on - the shipped defaults|"
@@ -688,7 +633,7 @@ function preset_shorthand() {
 }
 
 # apply_preset <name> - seed this run's answers with the preset's, one per
-# vocabulary variable (empty for "the default"), so the hub starts there and
+# vocabulary variable (empty for "the default"), so the menu starts there and
 # a --preset run writes exactly the preset.
 function apply_preset() {
   local row values var value pair
@@ -708,13 +653,14 @@ function apply_preset() {
   _hi_cecho " starting from the '$1' preset" "$GREEN"
 }
 
-# The hub's preset item: pick one to start from, or Enter to leave things as
+# The menu's [p]: pick a preset to start from, or Enter to leave things as
 # they are. One shot, not a loop - a typo gets the name list back and the
-# hub comes round again.
+# menu comes round again.
 function config_preset() {
   [ -t 0 ] || return 0
   local row name desc reply="" short shown
-  section "Starting point" "A preset answers the feature and header settings at once; change any of them after."
+  _hi_h2 "Starting point"
+  _hi_cecho " A preset answers the feature and header settings at once; change any of them after." "$BLUE"
   for row in "${_HI_PRESETS[@]}"; do
     IFS='|' read -r name desc _ <<<"$row"
     _hi_hotkey "$name" "${name:0:1}" shown
@@ -727,7 +673,7 @@ function config_preset() {
   return 0
 }
 
-# What a run is about to do, said once up front: how the hub works, where
+# What a run is about to do, said once up front: how the menu works, where
 # the answers go, and that nothing is written until `s` - so ^C or `q` at
 # any point leaves settings.sh exactly as it was. Interactive only; a run
 # with no tty has nobody to orient.
@@ -737,95 +683,201 @@ function configure_intro() {
   # no `|| echo 0`: grep -c already prints 0 on no match, then exits 1
   [ -f "$_HI_SETTINGS" ] && state="$(grep -cF "$_HI_MARKER" "$_HI_SETTINGS" 2>/dev/null) setting(s) stored"
   _hi_cecho " The preview shows what a session will look like at your current settings." "$BLUE"
-  _hi_cecho " Pick a preset, or open a section and change what you like; each menu says" "$BLUE"
-  _hi_cecho " how. Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
+  _hi_cecho " Type a number to flip a setting or change its value, or [p] for a preset." "$BLUE"
+  _hi_cecho " Nothing is written until you save with [s]; [q] leaves the file untouched." "$BLUE"
   _hi_cecho " settings: $_HI_SETTINGS ($state)" "$BLUE"
 }
 
-# The hub: the preview, five sections, save or quit. Every section returns
-# here, and the preview re-renders with whatever it changed. EOF saves - the
-# same "no answer keeps what you have and the run completes" that every
-# question here has always meant. The third junk answer in a row ends the
-# run too, but as a quit: three words that are not menu items are not an
-# instruction to write the file. Enter alone redraws.
+# The menu is one numbered list of every setting the wizard asks, no
+# submenus. _HI_MENU_ITEMS says what each number is, rebuilt as the list
+# draws: row|<table>|<index> a yes/no row, word|<index> a header item,
+# end|<shell> a prompt separator, or width, floor, iphide, truecolor.
+# _HI_MENU_WORD0 is the first header item's number, for up/down.
+_HI_MENU_ITEMS=()
+_HI_MENU_WORD0=0
+
+# What the last command said, printed under the next list rather than as it
+# happened, so the redraw does not scroll it away: the colored line, and a
+# preview function to box beneath it.
+_HI_MENU_NOTE=""
+_HI_MENU_NOTE_PREVIEW=""
+
+# _hi_menu_note <message> <color> [preview-fn]
+function _hi_menu_note() {
+  _HI_MENU_NOTE="$(_hi_cecho "$1" "$2")"
+  _HI_MENU_NOTE_PREVIEW="${3:-}"
+}
+
+# _hi_menu_add <kind> <text> - number the next item and draw it
+function _hi_menu_add() {
+  _HI_MENU_ITEMS+=("$1")
+  printf '  %2d) %s\n' "${#_HI_MENU_ITEMS[@]}" "$2"
+}
+
+# _hi_menu_value <kind> <label> <value> - an item that asks for a value,
+# indented past the [x] the yes/no rows carry
+function _hi_menu_value() {
+  local _hi_mv_text
+  printf -v _hi_mv_text '    %-22s %s' "$2" "$3"
+  _hi_menu_add "$1" "$_hi_mv_text"
+}
+
+# _hi_menu_rows <table> - a yes/no table's rows, checked when on. A row whose
+# <needs> command is absent here says so but still toggles - the setting
+# applies wherever the command exists.
+function _hi_menu_rows() {
+  local i var off on needs label state note
+  local -a rows=()
+  _hi_prompt_rows "$1" rows
+  for i in ${rows[@]+"${!rows[@]}"}; do
+    IFS='|' read -r var off on _ needs label <<<"${rows[$i]}"
+    setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state=x || state=" "
+    note=""
+    if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
+      note=" ($needs is not installed here)"
+    fi
+    _hi_menu_add "row|$1|$i" "[$state] $label$note"
+  done
+}
+
+# The list, under a heading per group. Header holds the banner, the header's
+# items in the order they print - three to a line, so seventeen of them fit
+# a screen - then its width, the package check's depth and the hidden
+# addresses, since the rendered header is what each of those changes.
+function _hi_menu_list() {
+  local i state width floor iphide tc row name shell end cols=3
+  _HI_MENU_ITEMS=()
+  _hi_cecho " Features" "$BRCYAN"
+  _hi_menu_rows _HI_FEATURE_PROMPTS
+  _hi_cecho " Header - in the order it prints; up N / down N moves an item" "$BRCYAN"
+  _hi_menu_rows _HI_HEADER_PROMPTS
+  _HI_MENU_WORD0=$((${#_HI_MENU_ITEMS[@]} + 1))
+  for i in "${!_HI_HDR_WORDS[@]}"; do
+    [ "${_HI_HDR_ON[$i]}" = 1 ] && state=x || state=" "
+    _HI_MENU_ITEMS+=("word|$i")
+    printf '  %2d) [%s] %-11s' "${#_HI_MENU_ITEMS[@]}" "$state" "${_HI_HDR_WORDS[$i]}"
+    [ $(((i + 1) % cols)) != 0 ] || printf '\n'
+  done
+  [ $((${#_HI_HDR_WORDS[@]} % cols)) = 0 ] || printf '\n'
+  setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
+  setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
+  setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
+  _hi_menu_value width "width" "${width:-80}"
+  _hi_menu_value floor "package check depth" "${floor:-2}"
+  _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}"
+  _hi_cecho " Prompt" "$BRCYAN"
+  _hi_menu_rows _HI_PROMPT_PROMPTS
+  # one separator per shell wired up locally (_HI_RC_TABLE's roster): the
+  # shipped defaults are a different character per shell
+  for row in "${_HI_RC_TABLE[@]}"; do
+    name="${row%%|*}"
+    _hi_shell_var shell "$name"
+    _hi_prompt_end_shown "$shell" end
+    _hi_menu_value "end|$name" "$name prompt ends with" "$end"
+  done
+  _hi_cecho " Advanced" "$BRCYAN"
+  _hi_menu_rows _HI_ADVANCED_PROMPTS
+  setting_value _HI_TRUECOLOR "$_HI_SETTINGS" tc
+  case "$tc" in 1) tc=on ;; 0) tc=off ;; *) tc=auto ;; esac
+  _hi_menu_value truecolor "24-bit color" "$tc"
+}
+
+# _hi_menu_pick <n> - act on item <n>: flip a yes/no row or a header item,
+# or ask for a value
+function _hi_menu_pick() {
+  local kind a b var off on preview label state
+  local -a rows=()
+  IFS='|' read -r kind a b <<<"${_HI_MENU_ITEMS[$(($1 - 1))]}"
+  case "$kind" in
+  row)
+    _hi_prompt_rows "$a" rows
+    IFS='|' read -r var off on preview _ label <<<"${rows[$b]}"
+    _hi_setting_flip "$var" "$off" "$on" state
+    _hi_menu_note " ${label%% - *}: now $state" "$GREEN" "$preview"
+    ;;
+  word)
+    # an empty $_HI_HEADER_ORDER means the default order at runtime, not
+    # none, so the last item stays on
+    if [ "${_HI_HDR_ON[$a]}" = 1 ] && [ "$(_hi_header_edit_count_on)" -le 1 ]; then
+      _hi_menu_note " keep at least one header item - item 1 turns the whole header off" "$YELLOW"
+    else
+      [ "${_HI_HDR_ON[$a]}" = 1 ] && _HI_HDR_ON[a]=0 || _HI_HDR_ON[a]=1
+      _hi_header_edit_commit
+    fi
+    ;;
+  width) config_max_width ;;
+  floor) config_packages_floor ;;
+  iphide) config_ip_hide ;;
+  end) config_prompt_end "$a" ;;
+  truecolor) config_truecolor ;;
+  esac
+}
+
+# The menu: the preview, the list, save or quit. A command redraws both with
+# whatever it changed; a reply that is not one only says so, under the list
+# it was typed against. EOF saves - the same "no answer keeps what you have
+# and the run completes" that every question here has always meant. The
+# third junk answer in a row ends the run too, but as a quit: three words
+# that are not menu items are not an instruction to write the file. Enter
+# alone redraws.
 _HI_CONFIGURE_QUIT=""
 function config_hub() {
-  local reply rejects=0 max_rejects=3
+  local reply cmd arg idx last rejects=0 max_rejects=3 draw=1
   _hi_probe_once
+  _hi_header_edit_load
   while :; do
-    _hi_h2 "hi --configure"
-    show_preview _hi_config_preview
-    printf '   1) %-12s %s\n' "[p]reset" "[e]verything / [b]alanced / [m]inimal - a starting point"
-    printf '   2) %-12s %s\n' "[h]eader" "what the header shows and in what order; its width, the package check's depth, the addresses hidden"
-    printf '   3) %-12s %s\n' "[f]eatures" "prompt, git status, editors, prompt marks, ..."
-    printf '   4) %-12s %s\n' "p[r]ompt" "starship, and the character each shell's prompt ends with"
-    printf '   5) %-12s %s\n' "[a]dvanced" "the leading space, and 24-bit color"
-    printf '      %-12s %s\n' "[s]ave" "write the settings and exit"
-    printf '      %-12s %s\n' "[q]uit" "exit without writing anything"
+    if [ -n "$draw" ]; then
+      _hi_h2 "hi --configure"
+      show_preview _hi_config_preview
+      _hi_menu_list
+      _hi_cecho "   [p]reset  [h]eader preset  [s]ave and exit  [q]uit without writing" "$BLUE"
+      if [ -n "$_HI_MENU_NOTE" ]; then
+        printf '%s\n' "$_HI_MENU_NOTE"
+        [ -z "$_HI_MENU_NOTE_PREVIEW" ] || show_preview "$_HI_MENU_NOTE_PREVIEW"
+      fi
+      _HI_MENU_NOTE="" _HI_MENU_NOTE_PREVIEW=""
+    fi
+    draw=1
     menu_read " > " reply || return 0
-    case "$reply" in
-    '')
-      rejects=0
-      continue
+    cmd="${reply%% *}" arg=""
+    [ "$cmd" != "$reply" ] && arg="${reply#* }"
+    last=$((_HI_MENU_WORD0 + ${#_HI_HDR_WORDS[@]} - 1))
+    case "$cmd" in
+    '') ;;
+    p | preset) config_preset ;;
+    h | header) config_header_preset ;;
+    up | u | down | d)
+      if _hi_is_number "$arg" && [ "$arg" -ge "$_HI_MENU_WORD0" ] && [ "$arg" -le "$last" ]; then
+        idx=$((arg - _HI_MENU_WORD0))
+        case "$cmd" in u*) _hi_header_edit_move "$idx" -1 ;; *) _hi_header_edit_move "$idx" 1 ;; esac
+      else
+        _hi_menu_note " up/down take a header item, $_HI_MENU_WORD0 to $last - the banner always leads" "$YELLOW"
+      fi
       ;;
-    1 | p | preset) config_preset ;;
-    2 | h | header) config_header ;;
-    3 | f | features) config_features ;;
-    4 | r | prompt) config_prompt ;;
-    5 | a | advanced) config_advanced ;;
     s | save) return 0 ;;
     q | quit)
       _HI_CONFIGURE_QUIT=1
       return 0
       ;;
     *)
-      _hi_menu_reject rejects "$max_rejects" \
-        "type 1-5 or the bracketed letter ([p] [h] [f] [r] [a]); [s] saves, [q] quits" && continue
-      _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
-      _HI_CONFIGURE_QUIT=1
-      return 0
+      if _hi_is_number "$cmd" && [ "$cmd" -ge 1 ] && [ "$cmd" -le "${#_HI_MENU_ITEMS[@]}" ]; then
+        _hi_menu_pick "$cmd"
+      else
+        draw=""
+        _hi_menu_reject rejects "$max_rejects" \
+          "type an item number (1-${#_HI_MENU_ITEMS[@]}), up N / down N, or [p] [h] [s] [q]" && continue
+        _hi_cecho " not a menu item three times - leaving $_HI_SETTINGS as it was" "$YELLOW"
+        _HI_CONFIGURE_QUIT=1
+        return 0
+      fi
       ;;
     esac
     rejects=0
   done
 }
 
-# The Features menu: one line per _HI_FEATURE_PROMPTS row with its state, a
-# number toggles it and shows the row's preview, Enter goes back. A row whose
-# <needs> command is absent here says so but still toggles - the setting
-# applies wherever the command exists.
-function config_features() {
-  local reply rejects=0 max_rejects=3 i n state var off on preview question needs label note
-  local -a rows=()
-  _hi_prompt_rows _HI_FEATURE_PROMPTS rows
-  n=${#rows[@]}
-  section "Features" "What hi does on every host you say hi to. Type a number to turn one on or off; Enter goes back."
-  while :; do
-    for i in "${!rows[@]}"; do
-      IFS='|' read -r var off on preview question needs label <<<"${rows[$i]}"
-      setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && state="x" || state=" "
-      note=""
-      if [ -n "$needs" ] && ! command -v "$needs" >/dev/null 2>&1; then
-        note=" ($needs is not installed here)"
-      fi
-      printf '  %2d) [%s] %s%s\n' "$((i + 1))" "$state" "$label" "$note"
-    done
-    menu_read " Feature to toggle (Enter when done) > " reply || return 0
-    [ -n "$reply" ] || return 0
-    if _hi_is_number "$reply" && [ "$reply" -ge 1 ] && [ "$reply" -le "$n" ]; then
-      rejects=0
-      IFS='|' read -r var off on preview question needs label <<<"${rows[$((reply - 1))]}"
-      _hi_setting_flip "$var" "$off" "$on" state
-      _hi_cecho " ${label%% - *}: now $state" "$GREEN"
-      [ -n "$preview" ] && show_preview "$preview"
-      continue
-    fi
-    _hi_menu_reject rejects "$max_rejects" "type a number from 1 to $n, or Enter to go back" || return 0
-  done
-}
-
 # <name>|<one-line description>|<words>: a starting point for the header
-# editor. Empty words mean the shipped order - the same spelling
+# items. Empty words mean the shipped order - the same spelling
 # $_HI_HEADER_ORDER itself uses for "the default" - rather than a second copy
 # of header.sh's word list.
 _HI_HEADER_PRESETS=(
@@ -834,32 +886,7 @@ _HI_HEADER_PRESETS=(
   "quiet|just the clocks and your git identity|utc localtime gitid"
 )
 
-# _hi_header_word_desc <word> <outvar> - what a header word shows, for the
-# editor's list. docs/SETTINGS.md's header table says the same in prose.
-function _hi_header_word_desc() {
-  case "$1" in
-  utc) printf -v "$2" '%s' "the UTC clock" ;;
-  version) printf -v "$2" '%s' "hi's own version" ;;
-  localtime) printf -v "$2" '%s' "your local clock" ;;
-  arch) printf -v "$2" '%s' "the CPU architecture" ;;
-  os) printf -v "$2" '%s' "the OS name/version" ;;
-  cores) printf -v "$2" '%s' "core count and load" ;;
-  cpu) printf -v "$2" '%s' "clock speed" ;;
-  ram) printf -v "$2" '%s' "used/total memory" ;;
-  ip) printf -v "$2" '%s' "this box's routable IPv4 address(es)" ;;
-  gitid) printf -v "$2" '%s' "your git identity, domain masked" ;;
-  containers) printf -v "$2" '%s' "docker/podman container count, when either runs" ;;
-  jobs) printf -v "$2" '%s' "nomad job count, when nomad answers" ;;
-  pods) printf -v "$2" '%s' "reachable kube pod count, when kubectl answers" ;;
-  auth) printf -v "$2" '%s' "lines in ~/.ssh/authorized_keys" ;;
-  pub) printf -v "$2" '%s' "public keys (~/.ssh/*.pub)" ;;
-  uptime) printf -v "$2" '%s' "this box's uptime" ;;
-  check) printf -v "$2" '%s' "the installed-packages check (settings/packages)" ;;
-  *) printf -v "$2" '%s' "" ;;
-  esac
-}
-
-# The editor's working copy of $_HI_HEADER_ORDER: every word of the
+# The menu's working copy of $_HI_HEADER_ORDER: every word of the
 # vocabulary exactly once, in display order, with a parallel on/off flag.
 # _hi_header_edit_load seeds it from this run's value - the words it names
 # first, in its order, then every word it leaves out, off, in the shipped
@@ -901,7 +928,7 @@ function _hi_header_edit_commit() {
   _hi_pending_set _HI_HEADER_ORDER "$on"
 }
 
-# how many words are on - the editor refuses to turn the last one off, since
+# how many words are on - the menu refuses to turn the last one off, since
 # an empty $_HI_HEADER_ORDER means the default order at runtime, not none
 function _hi_header_edit_count_on() {
   local i n=0
@@ -909,15 +936,7 @@ function _hi_header_edit_count_on() {
   printf '%d' "$n"
 }
 
-function _hi_header_edit_has() {
-  local i
-  for i in "${!_HI_HDR_WORDS[@]}"; do
-    [ "${_HI_HDR_WORDS[$i]}" = "$1" ] && [ "${_HI_HDR_ON[$i]}" = 1 ] && return 0
-  done
-  return 1
-}
-
-# _hi_header_edit_preset <name> - the editor's words from a header preset:
+# _hi_header_edit_preset <name> - the header items from a header preset:
 # its words first and on, in its order, everything else off after
 function _hi_header_edit_preset() {
   local row words
@@ -927,7 +946,7 @@ function _hi_header_edit_preset() {
     _hi_pending_set _HI_HEADER_ORDER "$words"
     _hi_header_edit_load
     _hi_header_edit_commit
-    _hi_cecho " header: the '$1' preset" "$GREEN"
+    _hi_menu_note " header: the '$1' preset" "$GREEN"
     return 0
   done
   return 1
@@ -937,7 +956,7 @@ function _hi_header_edit_preset() {
 function _hi_header_edit_move() {
   local i="$1" j=$(($1 + $2)) w o
   if ((j < 0 || j >= ${#_HI_HDR_WORDS[@]})); then
-    _hi_cecho " ${_HI_HDR_WORDS[$i]} is already at that end" "$YELLOW"
+    _hi_menu_note " ${_HI_HDR_WORDS[$i]} is already at that end" "$YELLOW"
     return 0
   fi
   w="${_HI_HDR_WORDS[$i]}" o="${_HI_HDR_ON[$i]}"
@@ -946,102 +965,7 @@ function _hi_header_edit_move() {
   _hi_header_edit_commit
 }
 
-function _hi_header_edit_list() {
-  local i state desc banner width floor iphide on_state="on"
-  setting_off _HI_DISABLE_HEADER "$_HI_SETTINGS" 1 && on_state="off"
-  setting_off _HI_DISABLE_BANNER "$_HI_SETTINGS" 1 && state=" " || state="x"
-  printf '   0) header: %s\n' "$on_state"
-  printf '   1) [%s] %-11s %s\n' "$state" banner "the ~~~ Connected [host] ~~~ line - always first"
-  for i in "${!_HI_HDR_WORDS[@]}"; do
-    [ "${_HI_HDR_ON[$i]}" = 1 ] && state="x" || state=" "
-    _hi_header_word_desc "${_HI_HDR_WORDS[$i]}" desc
-    printf '  %2d) [%s] %-11s %s\n' "$((i + 2))" "$state" "${_HI_HDR_WORDS[$i]}" "$desc"
-  done
-  setting_value _HI_MAX_WIDTH "$_HI_SETTINGS" width
-  setting_value _HI_PACKAGES_MIN_PRIORITY "$_HI_SETTINGS" floor
-  setting_value _HI_IP_HIDE "$_HI_SETTINGS" iphide
-  _hi_cecho "   N toggles an item, 0 the whole header; up N / down N moves it; [p] header preset; [w] width (${width:-80})" "$BLUE"
-  if _hi_header_edit_has ip; then
-    _hi_cecho "   [i] hidden addresses (${iphide:-172.*})" "$BLUE"
-  fi
-  if _hi_header_edit_has check; then
-    _hi_cecho "   [c] check depth (${floor:-2}); Enter goes back" "$BLUE"
-  else
-    _hi_cecho "   Enter goes back" "$BLUE"
-  fi
-}
-
-# The header editor: the real header rendered above a numbered list of
-# everything it can show; every command re-renders. Item 1 is the banner
-# (_HI_DISABLE_BANNER - it always leads, so it toggles but never moves), the
-# rest are $_HI_HEADER_ORDER's words in the order they will print, 0 is the
-# header itself. The width and the package check's depth live here too,
-# since the render is what each of them changes.
-function config_header() {
-  local reply rejects=0 max_rejects=3 cmd arg idx n state
-  section "Header" "What the connect/disconnect header shows, in the order it shows it. The preview is the real thing."
-  _hi_probe_once
-  _hi_header_edit_load
-  while :; do
-    show_preview _hi_header_preview
-    _hi_header_edit_list
-    n=$((${#_HI_HDR_WORDS[@]} + 1))
-    menu_read " > " reply || return 0
-    [ -n "$reply" ] || return 0
-    cmd="${reply%% *}" arg=""
-    [ "$cmd" != "$reply" ] && arg="${reply#* }"
-    case "$cmd" in
-    0)
-      _hi_setting_flip _HI_DISABLE_HEADER 1 "" state
-      _hi_cecho " header: now $state" "$GREEN"
-      ;;
-    1)
-      _hi_setting_flip _HI_DISABLE_BANNER 1 "" state
-      _hi_cecho " banner: now $state" "$GREEN"
-      ;;
-    up | u | down | d)
-      if ! _hi_is_number "$arg" || [ "$arg" -lt 1 ] || [ "$arg" -gt "$n" ]; then
-        _hi_cecho " up/down take an item number from 2 to $n" "$YELLOW"
-      elif [ "$arg" = 1 ]; then
-        _hi_cecho " the banner always leads" "$YELLOW"
-      else
-        case "$cmd" in u*) _hi_header_edit_move "$((arg - 2))" -1 ;; *) _hi_header_edit_move "$((arg - 2))" 1 ;; esac
-      fi
-      ;;
-    p | preset)
-      config_header_preset
-      ;;
-    w | width)
-      config_max_width
-      ;;
-    c | check | depth)
-      if _hi_header_edit_has check; then config_packages_floor; else _hi_cecho " the package check is off - turn 'check' on first" "$YELLOW"; fi
-      ;;
-    i | ip | hide)
-      if _hi_header_edit_has ip; then config_ip_hide; else _hi_cecho " the ip cell is off - turn 'ip' on first" "$YELLOW"; fi
-      ;;
-    *)
-      if _hi_is_number "$cmd" && [ "$cmd" -ge 2 ] && [ "$cmd" -le "$n" ]; then
-        idx=$((cmd - 2))
-        if [ "${_HI_HDR_ON[$idx]}" = 1 ] && [ "$(_hi_header_edit_count_on)" -le 1 ]; then
-          _hi_cecho " keep at least one item - 0 turns the whole header off" "$YELLOW"
-        else
-          [ "${_HI_HDR_ON[$idx]}" = 1 ] && _HI_HDR_ON[idx]=0 || _HI_HDR_ON[idx]=1
-          _hi_header_edit_commit
-        fi
-      else
-        _hi_menu_reject rejects "$max_rejects" \
-          "type an item number, up N, down N, [p], [w], [i], [c], 0, or Enter to go back" && continue
-        _hi_cecho " not an item three times - back to the menu" "$YELLOW"
-        return 0
-      fi
-      ;;
-    esac
-    rejects=0
-  done
-}
-
-# the header editor's preset pick: one shot, like config_preset
+# the menu's [h]eader preset pick: one shot, like config_preset
 function config_header_preset() {
   local row name desc reply="" short="" shown
   for row in "${_HI_HEADER_PRESETS[@]}"; do
@@ -1059,7 +983,7 @@ function config_header_preset() {
     short="$(preset_shorthand "$reply" _HI_HEADER_PRESETS)" || short=""
   fi
   [ -n "$short" ] && _hi_header_edit_preset "$short" && return 0
-  _hi_cecho " no such header preset: $reply" "$YELLOW"
+  _hi_menu_note " no such header preset: $reply" "$YELLOW"
   return 0
 }
 
@@ -1092,6 +1016,7 @@ function config_packages_floor() {
         _hi_cecho " not 0-4, leaving it at $_hi_floor_candidate" "$YELLOW"
         break
       fi
+      # shellcheck disable=SC2034 # read by _hi_menu_reject's ${!1}, not by name
       rejects=0
       [ "$reply" = "$_hi_floor_candidate" ] && break
       _hi_floor_candidate="$reply"
@@ -1121,69 +1046,21 @@ function config_max_width() {
     "Terminal width for the header/banner (40 or more)?"
 }
 
-# The Prompt menu: the sample line rendered, starship as item 1, then what
-# each shell's prompt ends with - one item per shell wired up locally
-# (_HI_RC_TABLE's roster), since that is the point: the shipped defaults are
-# different characters per shell. Those defaults come from core.sh's
-# _hi_prompt_end_default rather than being spelled here a second time;
-# entering the default clears the override rather than writing it, as
+# config_prompt_end <shell> - the character <shell>'s prompt ends with. The
+# shipped default comes from core.sh's _hi_prompt_end_default rather than
+# being spelled here a second time; entering it clears the override, as
 # config_max_width does with 80. Values are single-quoted on the way out (a
 # separator is as likely to be `$` as a letter), so `'` itself is refused.
-function config_prompt() {
-  local reply rejects=0 max_rejects=3 row name shell default var current value state i n
-  local -a shells=()
-  for row in "${_HI_RC_TABLE[@]}"; do shells+=("${row%%|*}"); done
-  n=$((${#shells[@]} + 1))
-  section "Prompt" "Who draws the prompt, and the character each shell's prompt ends with. Enter goes back."
-  while :; do
-    show_preview _hi_prompt_sample_preview
-    setting_off _HI_DISABLE_PROMPT "$_HI_SETTINGS" 1 &&
-      _hi_cecho "   (the colored prompt is off - Features turns it on; these apply once it is)" "$YELLOW"
-    IFS='|' read -r var _ _ _ _ _ _ <<<"${_HI_PROMPT_PROMPTS[0]}"
-    setting_on "$var" "$_HI_SETTINGS" "" starship && state=x || state=" "
-    printf '   1) [%s] %s\n' "$state" "starship draws the prompt on targets that have it"
-    for i in "${!shells[@]}"; do
-      name="${shells[$i]}"
-      _hi_shell_var shell "$name"
-      _hi_prompt_end_shown "$shell" current
-      printf '   %d) %-5s prompt ends with  %s\n' "$((i + 2))" "$name" "$current"
-    done
-    menu_read " > " reply || return 0
-    [ -n "$reply" ] || return 0
-    if [ "$reply" = 1 ]; then
-      rejects=0
-      _hi_setting_flip "$var" "" starship state
-      _hi_cecho " starship: now $state" "$GREEN"
-      show_preview _hi_starship_preview
-      continue
-    fi
-    if _hi_is_number "$reply" && [ "$reply" -ge 2 ] && [ "$reply" -le "$n" ]; then
-      # shellcheck disable=SC2034 # read by _hi_menu_reject's ${!1} below, not
-      # by name here - a false positive shellcheck reaches only for the
-      # second of this function's two reset sites, not the first
-      rejects=0
-      name="${shells[$((reply - 2))]}"
-      _hi_shell_var shell "$name"
-      default="$(_hi_prompt_end_default "$shell")"
-      var="_HI_PROMPT_END_$shell"
-      current=""
-      setting_value "$var" "$_HI_SETTINGS" current
-      value="$(ask_value "Character to end the $name prompt with?" "$current" "$default" \
-        _hi_has_no_single_quote "a single quote can't be written to settings.sh")"
-      _hi_pending_set "$var" "$value"
-      continue
-    fi
-    _hi_menu_reject rejects "$max_rejects" "type a number from 1 to $n, or Enter to go back" || {
-      _hi_cecho " not an item three times - back to the menu" "$YELLOW"
-      return 0
-    }
-  done
+function config_prompt_end() {
+  local shell
+  _hi_shell_var shell "$1"
+  ask_setting_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" \
+    _hi_has_no_single_quote "a single quote can't be written to settings.sh" \
+    "Character to end the $1 prompt with?"
 }
 
-# The advanced section's free-text half: the 24-bit color verdict, and nothing
-# else since the glyph question retired. It keeps its current value on Enter
-# and clears the override when the answer is the shipped default, like
-# config_max_width.
+# The 24-bit color verdict. It keeps its current value on Enter and clears
+# the override when the answer is the shipped default, like config_max_width.
 #
 # $_HI_TRUECOLOR is an unset/1/0 flag asked in words: "1" is a fact about the
 # implementation rather than an answer, so the words map in on the way to the
@@ -1191,7 +1068,7 @@ function config_prompt() {
 # which hides COLORTERM. Glyphs are not asked at all any more - the locale
 # decides, and the client ships its verdict to the session (docs/SETTINGS.md's
 # _Not settings_).
-function config_advanced_values() {
+function config_truecolor() {
   local current value choice
   setting_value _HI_TRUECOLOR "$_HI_SETTINGS" current
   case "$current" in 1) choice=on ;; 0) choice=off ;; *) choice="" ;; esac
@@ -1199,15 +1076,6 @@ function config_advanced_values() {
     "$choice" auto _hi_is_truecolor_choice "answer auto, on or off")"
   case "$value" in on) value=1 ;; off) value=0 ;; *) value="" ;; esac
   _hi_pending_set _HI_TRUECOLOR "$value"
-}
-
-# The advanced section: a short question walk rather than a menu - these are
-# asked once in a blue moon, and Enter through them keeps every value. The
-# hub's menu item is the gate; a run that never opens it never changes them.
-function config_advanced() {
-  section "Advanced settings" "The leading space and 24-bit color. Enter keeps each value."
-  ask_prompt_group _HI_ADVANCED_PROMPTS
-  config_advanced_values
 }
 
 # The roster, walked once at save time: every setting the wizard writes, in

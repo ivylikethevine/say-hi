@@ -1347,6 +1347,19 @@ function test_identity_without_a_git_email_says_so() {
   [[ "$out" == *"No Git ID Found"* ]]
 }
 
+# ...and one that exists shows its local part, the domain a run of mask
+# glyphs exactly as long (`*` under _HI_ASCII=1), never the domain itself
+function test_identity_masks_the_git_email_domain() {
+  local cfg="$_HI_WORKDIR/gitconfig-email" out
+  printf '[user]\n\temail = alice@example.com\n' >"$cfg"
+  out="$(cd "$_HI_WORKDIR" && NO_COLOR=1 _HI_ASCII=1 GIT_CONFIG_GLOBAL="$cfg" \
+    PATH="$(_hi_identity_path)" _HI_TARGETS_TTL=0 bash -c "source \"\$_HI_HEADER\"; $_HI_ROW_FNS; _hi_identity_row")"
+  [[ "$out" == *'alice@***********'[!*]* && "$out" != *example.com* ]] || {
+    _hi_cecho "   identity row: $out" "$RED"
+    return 1
+  }
+}
+
 # the alternate-hue table's two ends: a word with an entry, and one without,
 # which reads empty so the caller keeps the primary rather than a stray code
 function test_header_word_alt_is_empty_for_an_unknown_word() {
@@ -2068,6 +2081,7 @@ function run_header_tests() {
   _hi_check "...on the packages check too" test_no_lead_space_applies_to_the_packages_check
   _hi_check "A row with no cells prints a bare line" test_header_row_with_no_cells_prints_a_bare_line
   _hi_check "Identity without a git email says so" test_identity_without_a_git_email_says_so
+  _hi_check "Identity masks a git email's domain" test_identity_masks_the_git_email_domain
   _hi_check "Alternate hue is empty for an unknown word" test_header_word_alt_is_empty_for_an_unknown_word
   _hi_check "Timestamp says ? without date" test_timestamp_without_date_says_unknown
   _hi_check "The uptime cell survives a stripped environment" test_uptime_cell_survives_a_stripped_environment

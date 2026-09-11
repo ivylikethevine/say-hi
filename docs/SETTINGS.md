@@ -63,27 +63,26 @@ which, and why). A setting a child must see is an `export` in
 ## The wizard
 
 `hi --configure` opens on a preview — the header as it would print and the
-prompt line as it would draw, at your current settings — over a short menu:
+prompt line as it would draw, at your current settings — over one numbered
+list of every setting it asks, grouped under four headings, with no submenus:
 
-1. **Preset** — `[e]verything`, `[b]alanced` or `[m]inimal`, below.
-2. **Header** — the editor for everything in [Header details](#header-details):
-   the real header rendered above a numbered list of the banner and every
-   item; a number toggles one, `up N`/`down N` moves it, `[p]` loads a header
-   preset (`[f]ull`, `[c]ompact`, `[q]uiet`), and the width and the package
-   check's depth live there too. Outside the menu,
-   `hi --preview header` prints the header as it would draw at the saved
-   settings, and `hi --preview packages` the check's legend.
-3. **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting),
-   each previewed as it flips.
-4. **Prompt** — starship, and the character each shell's prompt ends with.
-5. **Advanced** — the _advanced_ rows, as a short walk of two questions: the
-   leading space, then 24-bit color.
-The wizard does not ask about colors: `_HI_COLOR_SCHEME` and
+- **Features** — the `_HI_DISABLE_*` toggles in [Every setting](#every-setting).
+- **Header** — everything in [Header details](#header-details): the banner,
+  the header's items in the order they print (`up N`/`down N` moves one), the
+  width, the package check's depth and the hidden addresses. Outside the
+  menu, `hi --preview header` prints the header as it would draw at the saved
+  settings, and `hi --preview packages` the check's legend.
+- **Prompt** — starship, and the character each shell's prompt ends with.
+- **Advanced** — the _advanced_ rows: the leading space, and 24-bit color.
+
+A number flips a yes/no item or asks for a value, and the preview and list
+redraw with the change. `[p]` applies a preset (`[e]verything`, `[b]alanced`
+or `[m]inimal`, below) and `[h]` a header preset (`[f]ull`, `[c]ompact`,
+`[q]uiet`). The wizard does not ask about colors: `_HI_COLOR_SCHEME` and
 `_HI_PACKAGES_PALETTE` are both written into `settings.sh` by hand — see
 [Colors](#colors) — and it keeps whatever they hold.
 
-Every option is typed by its number or by the letter shown in brackets, and
-every section returns to the menu with the preview re-rendered. `[s]` writes
+`[s]` writes
 the settings once, `[q]` leaves `settings.sh` untouched, and nothing is
 written before either. End of input at the menu counts as `[s]`; three answers
 in a row that are not menu items count as `[q]`; with no terminal
@@ -263,7 +262,7 @@ and is not one of the reorderable features below - it needs its own switch
 for exactly that reason. Ignored, like everything in this section, when
 `_HI_DISABLE_HEADER=1` - ignored, not dropped: `hi --configure` writes a
 stored order back even while the header is off, so it is there again when
-the header comes back on. The wizard's _Header_ menu is the editor for all
+the header comes back on. The wizard's _Header_ items are the editor for all
 of it, with the real header rendered above the list ([The
 wizard](#the-wizard)).
 
@@ -310,8 +309,8 @@ over the dotted quad, `172.*` by default so a docker or podman bridge
 address is not the first thing a container's header says. `none` shows every
 address; `10.* 192.168.1.?` is two globs. When every address a box has is
 hidden the cell is dropped from the line rather than drawn as `?`, which
-still means no routable address was found at all. The Header menu of
-`hi --configure` asks for it under `i`.
+still means no routable address was found at all. `hi --configure` asks for
+it as the _hidden addresses_ item under Header.
 
 A physical line that overflows `_HI_MAX_WIDTH` no longer wraps within itself:
 whatever does not fit opens the next line instead, cascading forward through

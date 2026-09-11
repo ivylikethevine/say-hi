@@ -259,6 +259,19 @@ function test_darwin_bash_profile_that_reads_bashrc_is_left_alone() {
   [ "$(cat "$home/.bash_profile")" = 'source ~/.bashrc' ]
 }
 
+# one that does not gets the .bashrc line under its own content - and only
+# that line: the file already exists, so ~/.profile is not hi's to chain in
+function test_darwin_bash_profile_without_bashrc_gets_the_line() {
+  local home="$_HI_WORKDIR/darwin-lacks"
+  mkdir -p "$home"
+  printf 'export FOO=1\n' >"$home/.bash_profile"
+  _hi_rc_in "$home" _HI_UNAME=Darwin _HI_RC_PRELUDE='rc_shell_present() { [ "$1" = bash ]; }' -- install_rc_lines || return 1
+  [ "$(head -1 "$home/.bash_profile")" = 'export FOO=1' ] &&
+    grep -qF '. "$HOME/.bashrc"' "$home/.bash_profile" &&
+    ! grep -qF '. "$HOME/.profile"' "$home/.bash_profile" &&
+    [ "$(grep -c "$_HI_MARKER" "$home/.bash_profile")" -eq 1 ]
+}
+
 function test_darwin_bash_login_is_only_pointed_at() {
   local home="$_HI_WORKDIR/darwin-login"
   mkdir -p "$home"
@@ -424,6 +437,7 @@ function run_rc_lines_test() {
   _hi_check "--dry-run writes nothing" test_config_shell_dry_run_writes_nothing
   _hi_check "macOS: .bash_profile learns to read .bashrc, and forgets on strip" test_darwin_bash_profile_sources_bashrc
   _hi_check "macOS: a .bash_profile that already does is left alone" test_darwin_bash_profile_that_reads_bashrc_is_left_alone
+  _hi_check "macOS: one that does not gets the line appended" test_darwin_bash_profile_without_bashrc_gets_the_line
   _hi_check "macOS: .bash_login is pointed at, not edited" test_darwin_bash_login_is_only_pointed_at
   _hi_check "Linux gets no .bash_profile" test_linux_gets_no_bash_profile
   _hi_check "A file that was theirs survives an emptying strip" test_strip_keeps_a_file_that_was_not_his

@@ -124,6 +124,31 @@ function test_install_tree_replaces_a_symlinked_dest_without_following() {
     [ -f "$dir/dest/usr/share/say-hi/load.sh" ]
 }
 
+# a live root (no DESTDIR) whose hi.sh a package owns is refused before the
+# rm -rf. Past the refusal, no DESTDIR means the real /usr/bin and /etc, so
+# every command the staging runs is a tripwire that ends the subshell first.
+function test_install_tree_leaves_a_package_owned_live_root_alone() {
+  local dir="$_HI_WORKDIR/liveowned" out rc=0
+  local _HI_ROOT="$dir/src/say-hi" _HI_PREFIX="$dir/prefix" DESTDIR="" _HI_DRY_RUN=""
+  _hi_package_src liveowned
+  mkdir -p "$dir/prefix/say-hi"
+  printf 'x\n' >"$dir/prefix/say-hi/hi.sh"
+  # shellcheck disable=SC2032 # tripwires, never meant to reach sudo
+  out="$(
+    # shellcheck disable=SC2030,SC2031 # subshell-local is the intent
+    PATH="$(_hi_pkg_shim):$PATH"
+    function rm() { exit 3; }
+    function mkdir() { exit 3; }
+    function cp() { exit 3; }
+    function ln() { exit 3; }
+    function chmod() { exit 3; }
+    function gzip() { exit 3; }
+    install_tree 2>&1
+  )" || rc=$?
+  [ "$rc" -eq 1 ] && [ -f "$dir/prefix/say-hi/hi.sh" ] &&
+    [[ "$out" == *"$dir/prefix/say-hi belongs to the say-hi package - leave it to the package manager"* ]]
+}
+
 function _hi_strip_written_settings() {
   ensure_settings_shebang
   strip_settings
@@ -645,6 +670,14 @@ function test_last_link_flag_wins() {
   [[ "$out" == *"--link none given"* && "$out" != *"/usr/bin/hi"* ]]
 }
 
+# ...and `user` is a word of its own, not only the default: after a none it
+# puts the link back in $HOME
+function test_link_user_undoes_an_earlier_none() {
+  local home="$_HI_WORKDIR/lastuser" out
+  out="$(_hi_run_install_here lastuser --dry-run --link none --link user --preset balanced 2>&1)" || return 1
+  [[ "$out" == *"would link $home/.local/bin/hi"* && "$out" != *"--link none given"* ]]
+}
+
 # config_hi's user-local default: the bindir is made when it is missing, and
 # a bindir off $PATH is said so, once
 function test_config_hi_creates_the_user_bindir() {
@@ -883,6 +916,7 @@ function run_install_tests() {
   _hi_check "Touches no rc file" test_install_tree_touches_no_rc_file
   _hi_check "Clears a stale destination" test_install_tree_clears_a_stale_destination
   _hi_check_capable symlink "Replaces a symlinked dest without following" test_install_tree_replaces_a_symlinked_dest_without_following
+  _hi_check "Leaves a package-owned live root to the package manager" test_install_tree_leaves_a_package_owned_live_root_alone
 
   _hi_h2 "Testing: strip_settings"
   _hi_check "Removes what install wrote" test_strip_settings_removes_what_install_wrote
@@ -932,6 +966,7 @@ function run_install_tests() {
   _hi_check "--uninstall --help describes uninstalling" test_uninstall_help_is_its_own
   _hi_check "--configure --help describes the settings" test_configure_help_is_its_own
   _hi_check "The last --link on the line wins" test_last_link_flag_wins
+  _hi_check "--link user undoes an earlier none" test_link_user_undoes_an_earlier_none
   _hi_check "--configure with no terminal says so" test_configure_without_a_terminal_says_so
   _hi_check "A clone not named say-hi is refused by name" test_a_misnamed_clone_is_refused_by_name
   _hi_check "--dry-run installs nothing, and says what it would" test_dry_run_install_writes_nothing

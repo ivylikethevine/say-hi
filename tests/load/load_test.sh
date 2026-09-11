@@ -503,14 +503,27 @@ function test_load_exports_viminit_for_vim_sessions() {
 # the ladder's answer deterministic. <want> is matched as a substring of the
 # "E=..|V=..|S=.." line; the rest are NAME=VALUE for the child.
 function _hi_load_editor_is() {
-  local want="$1" out
+  local want="$1"
   shift
+  _hi_load_editor_on "$want" "$(_hi_fake_path withnvim nvim nano micro):$PATH" "$@"
+}
+
+# _hi_load_editor_on <want> <PATH> [NAME=VALUE...] - the same, on a $PATH the
+# case names whole. The editorless toolbox is load()'s own tools and no editor
+# (this box may carry a real vim, hx or kak): helix answering as the hx alias's
+# flags, and no editor at all leaving the three unset, not exported empty.
+function _hi_load_editor_on() {
+  local want="$1" path="$2" out
+  shift 2
   out="$(_hi_load_run 'printf "E=%s|V=%s|S=%s\n" "${EDITOR-unset}" "${VISUAL-unset}" "${SUDO_EDITOR-unset}"; exit 0' \
-    SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" \
-    "PATH=$(_hi_fake_path withnvim nvim nano micro):$PATH")" || return 1
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 "$@" "PATH=$path")" || return 1
   case "$out" in *"$want"*) return 0 ;; esac
   _hi_cecho " | wanted '$want' in: $out" "$RED"
   return 1
+}
+
+function _hi_editorless_path() {
+  _hi_real_path editorless bash sh date awk du mktemp rm mkdir cat sed grep tr cut id hostname uname cksum
 }
 
 # ...and _HI_DISABLE_EDITORS=1 is the gate, not vim's absence: same fake vim,
@@ -696,7 +709,10 @@ EOF
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
   _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_VIMRC|" _HI_EDITOR=hx
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
+  _hi_check "...helix answers with the hx alias's flags" _hi_load_editor_on "E=$_HI_WORKDIR/withhelix/helix -c $_HI_HELIXRC|" "$(_hi_fake_path withhelix helix):$(_hi_editorless_path)" _HI_EDITOR=helix
+  _hi_check "...and kak goes bare, without its alias's -e" _hi_load_editor_on "E=kak|" "$(_hi_fake_path withkak kak):$PATH" _HI_EDITOR=kak
   _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
+  _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"
   _hi_check "clean_all removes the session rc dir at exit" test_load_cleans_up_its_session_rc_dir
   _hi_check "Prints the disconnect banner and footer" test_load_prints_the_disconnect_banner_and_footer
   _hi_check "Closes the OSC 133 mark pair with the shell's status" test_load_closes_the_prompt_mark_pair_on_exit

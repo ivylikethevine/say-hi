@@ -345,6 +345,50 @@ function test_kube_kind_lists_running_pods() {
     _hi_has_row "$out" other:pod-c kube
 }
 
+# an alloc running more than one task also offers each as "alloc/task", the
+# syntax hi takes for picking one; a lone task is the alloc itself, no row
+function test_nomad_multi_task_alloc_lists_each_task() {
+  local dir="$_HI_WORKDIR/shims/nomad-tasks" out
+  mkdir -p "$dir"
+  cat >"$dir/nomad" <<'EOF'
+#!/bin/sh
+case "$1 $2" in
+"job status") printf 'ID    Type     Status\nweb   service  running\n' ;;
+"job allocs") printf 'abc12345 web sidecar\ndef67890 solo\n' ;;
+*) exit 1 ;;
+esac
+EOF
+  chmod +x "$dir/nomad"
+  out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" nomad)"
+  _hi_has_row "$out" abc12345 nomad || return 1
+  _hi_has_row "$out" abc12345/web nomad || return 1
+  _hi_has_row "$out" abc12345/sidecar nomad || return 1
+  _hi_has_row "$out" def67890 nomad || return 1
+  ! printf '%s\n' "$out" | grep -q '^def67890/'
+}
+
+# the same for a pod: more than one container is a real choice and gets
+# "pod/container" rows, a one-container pod gets none
+function test_kube_multi_container_pod_lists_each_container() {
+  local dir="$_HI_WORKDIR/shims/kube-containers" out
+  mkdir -p "$dir"
+  cat >"$dir/kubectl" <<'EOF'
+#!/bin/sh
+case "$1" in
+config) printf 'default' ;;
+get) printf 'default pod-a app sidecar\ndefault pod-b app\n' ;;
+*) exit 1 ;;
+esac
+EOF
+  chmod +x "$dir/kubectl"
+  out="$(PATH="$dir:$PATH" _HI_SSH_CONFIG="$_HI_NO_CONFIG" _HI_TARGETS_TTL=0 sh "$_HI_TARGETS" kube)"
+  _hi_has_row "$out" pod-a kube || return 1
+  _hi_has_row "$out" pod-a/app kube || return 1
+  _hi_has_row "$out" pod-a/sidecar kube || return 1
+  _hi_has_row "$out" pod-b kube || return 1
+  ! printf '%s\n' "$out" | grep -q '^pod-b/'
+}
+
 # The fan-out itself. Three backends that take 0.3s each: started together the
 # log opens with three starts, started in turn it never gets two in a row.
 function test_backends_are_swept_together() {
@@ -370,6 +414,14 @@ function test_no_scratch_dir_falls_back_in_turn() {
   _hi_has_row "$out" slow-pod kube || return 1
   # one backend finished before the next started, i.e. really the in-turn arm
   [ "$(sed -n '2p' "$_HI_PROBE_LOG")" = "docker end" ]
+}
+
+# ...and nomad's per-job calls fall back the same way: nomad alone would fan
+# them out, so with no scratch dir they run in turn and the alloc still lists
+function test_nomad_without_scratch_dir_lists_allocs_in_turn() {
+  local out
+  out="$(TMPDIR=/dev/null/nope _hi_targets "$_HI_NO_CONFIG" nomad)" || return 1
+  _hi_has_row "$out" abc12345 nomad
 }
 
 function test_no_argument_lists_every_kind() {
@@ -529,6 +581,28 @@ SHIM
     XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker)"
   _hi_has_row "$out" alpha docker || return 1
   [ ! -e "$tmp/hi-$uid/hi.targets.docker" ]
+}
+
+# A cache dir that is ours but refuses the write is not an error either: the
+# sweep's rows print, nothing is left behind, and the shell's own "Permission
+# denied" stays off stderr - write_cache's 2>/dev/null sits before the `>` it
+# has to silence, or every TAB would print it over the prompt.
+function test_unwritable_cache_dir_still_answers() {
+  local tmp="$_HI_WORKDIR/cache-readonly" err="$_HI_WORKDIR/cache-readonly.err" uid out rc=0
+  uid="$(id -u)"
+  mkdir -m 700 "$tmp"
+  mkdir -m 700 "$tmp/hi-$uid"
+  chmod 500 "$tmp/hi-$uid"
+  out="$(PATH="$_HI_SHIM_PATH" _HI_SSH_CONFIG="$_HI_CONFIG" \
+    XDG_RUNTIME_DIR='' TMPDIR="$tmp" _HI_TARGETS_TTL=60 sh "$_HI_TARGETS" docker 2>"$err")" || rc=1
+  chmod 700 "$tmp/hi-$uid"
+  [ "$rc" = 0 ] || return 1
+  _hi_has_row "$out" alpha docker || return 1
+  [ -z "$(ls -A "$tmp/hi-$uid")" ] || return 1
+  [ ! -s "$err" ] || {
+    _hi_cecho "   stderr: $(cat "$err")" "$RED"
+    return 1
+  }
 }
 
 function test_absent_backends_leave_only_ssh_rows() {
@@ -700,6 +774,15 @@ function test_flags_carry_their_help_as_a_second_column() {
       return 1
     }
   done <<<"$out"
+  case "$out" in *'--plain'$'\t'*) ;; *) return 1 ;; esac
+  case "$out" in *'--doctor'$'\t'*) ;; *) return 1 ;; esac
+}
+
+# $0 with no slash - `sh targets.sh` run from inside common/ - still finds
+# the tree at `..`: the table is read, and --doctor's scripts/ is found there
+function test_flags_answer_when_run_from_common() {
+  local out
+  out="$(cd "$_HI_ROOT/common" && sh targets.sh flags)"
   case "$out" in *'--plain'$'\t'*) ;; *) return 1 ;; esac
   case "$out" in *'--doctor'$'\t'*) ;; *) return 1 ;; esac
 }
@@ -973,8 +1056,11 @@ function run_targets_tests() {
   _hi_check "dedupe leaves nomad and kube rows alone" test_dedupe_leaves_nomad_and_kube_alone
   _hi_check "nomad -> running allocs, no header row" test_nomad_kind_lists_running_allocs
   _hi_check "kube -> running pods" test_kube_kind_lists_running_pods
+  _hi_check "nomad -> alloc/task rows for a multi-task alloc" test_nomad_multi_task_alloc_lists_each_task
+  _hi_check "kube -> pod/container rows for a multi-container pod" test_kube_multi_container_pod_lists_each_container
   _hi_check_capable fork_concurrency "Backends are swept together, not in turn" test_backends_are_swept_together
   _hi_check "No scratch dir -> in turn, same rows" test_no_scratch_dir_falls_back_in_turn
+  _hi_check "...nomad's per-job calls too" test_nomad_without_scratch_dir_lists_allocs_in_turn
 
   _hi_h2 "Testing: argument handling"
   _hi_check "No argument -> every kind" test_no_argument_lists_every_kind
@@ -992,6 +1078,7 @@ function run_targets_tests() {
   _hi_check "The timestamp never reaches completion" test_cache_does_not_leak_its_timestamp
   _hi_check "A symlinked cache dir is swept, not trusted" test_cache_dir_symlink_is_not_trusted
   _hi_check "A wrong-owner cache dir is swept, not trusted" test_cache_dir_wrong_owner_is_not_trusted
+  _hi_check_capable lockout "An unwritable cache dir still answers, silently" test_unwritable_cache_dir_still_answers
 
   _hi_h2 "Testing: common/bash.sh's _hi_complete"
   _hi_check "Offers every target" test_complete_offers_every_target
@@ -1007,6 +1094,7 @@ function run_targets_tests() {
   _hi_check "flags: every one is in hi --help" test_flags_all_appear_in_help
   _hi_check "flags: every --help flag is in the roster" test_help_flags_all_appear_in_roster
   _hi_check "flags: each carries common/flags' help clause" test_flags_carry_their_help_as_a_second_column
+  _hi_check "flags: run from inside common/, the tree is .." test_flags_answer_when_run_from_common
   _hi_check "flags: a session is offered only what works there" test_flags_drop_local_subcommands_in_a_session
   _hi_check "flags: a package is offered only what works there" test_flags_drop_what_a_package_lacks
   _hi_check "flags: answered without probing a backend" test_flags_do_not_probe

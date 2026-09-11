@@ -1791,6 +1791,35 @@ function test_mkpkg_without_git_history_stamps_now_and_warns() {
     [ -f "$_HI_WORKDIR/nogit-dist/staging/usr/share/say-hi/hi.sh" ]
 }
 
+# the whole build as the command runs it, past staging, with a stand-in nfpm:
+# one call per packager at the stamped version, and --source-tarball=<file>
+# carrying the tarball into ARTIFACTS beside what nfpm left
+function test_mkpkg_builds_every_packager_and_ships_the_tarball() {
+  local bin="$_HI_WORKDIR/fakenfpm" dist="$_HI_WORKDIR/fakenfpm-dist" out
+  mkdir -p "$bin"
+  printf 'tarball\n' >"$_HI_WORKDIR/say-hi-9.9.9.tar.gz"
+  cat >"$bin/nfpm" <<'EOF'
+#!/bin/sh
+while [ $# -gt 0 ]; do
+  case "$1" in -p) p="$2" && shift ;; -t) t="$2" && shift ;; esac
+  shift
+done
+printf '%s %s\n' "$p" "$HI_VERSION" >>"$t.calls"
+: >"$t/say-hi-$HI_VERSION.$p"
+EOF
+  chmod +x "$bin/nfpm"
+  out="$(PATH="$bin:$PATH" "$_HI_PKG_DIR/mkpkg.sh" --version 9.9.9 --outdir "$dist" \
+    --source-tarball="$_HI_WORKDIR/say-hi-9.9.9.tar.gz" 2>&1)" || {
+    printf '%s\n' "$out" >"$dist.log"
+    _hi_dump_log "mkpkg.sh with a stand-in nfpm" "$dist.log"
+    return 1
+  }
+  [[ "$out" == *"Packaged!"* ]] &&
+    [ "$(cat "$dist.calls")" = "$(printf '%s 9.9.9\n' deb rpm apk)" ] &&
+    diff <(sort "$dist/ARTIFACTS") \
+      <(printf '%s\n' say-hi-9.9.9.apk say-hi-9.9.9.deb say-hi-9.9.9.rpm say-hi-9.9.9.tar.gz SHA256SUMS | sort)
+}
+
 # GNU touch takes -d "@epoch"; BSD/macOS does not, and touch_epoch falls back
 # to its own stamp through -t instead, built with `date -u -r <epoch>` - BSD's
 # date reads a bare -r argument as a Unix timestamp, GNU's as a reference
@@ -2430,6 +2459,7 @@ function run_packaging_tests() {
   _hi_check "mkpkg.sh refuses a bare flag and a stranger" test_mkpkg_refuses_a_bare_flag_and_a_stranger
   _hi_check "run_nfpm without nfpm says how to get it" test_mkpkg_run_nfpm_without_nfpm_says_how_to_get_it
   _hi_check_capable symlink "mkpkg.sh without git history stamps now and warns" test_mkpkg_without_git_history_stamps_now_and_warns
+  _hi_check_capable symlink "mkpkg.sh builds every packager and ships the tarball" test_mkpkg_builds_every_packager_and_ships_the_tarball
   _hi_check "touch_epoch falls back without GNU touch" test_mkpkg_touch_epoch_falls_back_without_gnu_touch
 
   _hi_h2 "Testing: packaging/lib.sh's primitives"

@@ -204,6 +204,24 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
   [ "$out" = "--plain|-1" ]
 }
 
+# ...and the target TAB's names are held in the shell for $_HI_TARGETS_TTL
+# seconds: a second TAB inside the window forks nothing, and only TTL=0 turns
+# the hold off. A stub $_HI_TARGETS tallies its runs - one x per sweep.
+function test_bash_target_names_are_held_for_the_ttl() {
+  local out stub count="$_HI_WORKDIR/targets.count"
+  rm -f "$count"
+  stub="$(_hi_stub_bin targets 'printf x >>"$HI_TEST_COUNT"; printf "stub\tdocker\n"')/targets"
+  out="$(_hi_bash_child '
+    source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
+    _HI_TARGETS="$HI_TEST_STUB" _HI_TARGETS_TTL=60
+    _hi_target_names
+    _hi_target_names
+    printf "%s|%s|" "$_HI_TARGET_NAMES" "$(cat "$HI_TEST_COUNT")"
+    _HI_TARGETS_TTL=0 _hi_target_names
+    cat "$HI_TEST_COUNT"' _HI_DISABLE_PROMPT=1 HI_TEST_STUB="$stub" HI_TEST_COUNT="$count")"
+  [ "$out" = "stub|x|xx" ]
+}
+
 # The deferred exa completion: the first TAB clones eza's registered spec
 # onto exa and answers 124, bash-completion's "retry with the new spec". The
 # loader function is dropped first so a host bash-completion cannot fetch a
@@ -733,6 +751,7 @@ function run_rc_tests() {
   _hi_check "PS1 references the git segment (promptvars)" test_bash_ps1_references_git_info_under_promptvars
   _hi_check "...and inlines it marked as text without" test_bash_ps1_inlines_git_info_without_promptvars
   _hi_check "bash flag TAB completes hi's options, no sweep" test_bash_flag_completion_offers_hi_options_without_a_sweep
+  _hi_check "bash target TAB reuses its names within the TTL" test_bash_target_names_are_held_for_the_ttl
   _hi_check "the first exa TAB clones eza's spec (124)" test_bash_exa_completion_clones_ezas_spec
   _hi_check "...and fails armed without an eza spec" test_bash_exa_completion_fails_without_an_eza_spec
   _hi_check "starship handoff installs no ps1 hook" test_bash_starship_handoff_installs_no_ps1_hook
