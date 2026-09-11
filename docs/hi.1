@@ -445,8 +445,10 @@ with no target hands back what
 exited with.
 .TP
 .B the target's bootstrap
-64 when the target has no
+64 when the target has neither
 .BR base64 (1)
+nor
+.BR openssl (1)
 to unpack the payload with, 65 when it could not make a scratch directory \-
 the two ways a target refuses a session before a shell opens, each reported
 by hi with the fix.
@@ -493,7 +495,12 @@ allocations green, kubernetes pods light purple \- through the
 tag's
 .B list\-colors
 style, which one of your own replaces; bash's readline and fish's pager
-take no per\-candidate color.
+take no per\-candidate color. Every listed target also carries its
+backend's symbol \- in fish's description column, in zsh's display, and
+beside the name when bash 4 or later lists the matches (never on the
+command line) \- set by the
+.B _HI_SYMBOL_*
+settings.
 .TP
 .B hi \-\-<TAB>
 hi's own options, each with its one\-line purpose where the shell has a

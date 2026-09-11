@@ -71,9 +71,11 @@ export _HI_SHELL_LADDER="${_HI_SHELL_TREE//bash /}"
 # stands in for the size until the script is measured. GLOSSARY: HI.44
 _HI_SIZE_TOKEN="@@SIZE@@"
 
-# GLOSSARY: HI.17 - base64 over openssl, the -d/-D ladder, and the `tr` fold
+# GLOSSARY: HI.17 - base64 over openssl (and openssl where base64 is
+# missing), the -d/-D ladder, and the `tr` fold
 _HI_ARMOR="base64"
-_HI_UNARMOR="tr -s ' ' '\n' | { base64 -d 2>/dev/null || base64 -D; }"
+command -v base64 >/dev/null 2>&1 || _HI_ARMOR="openssl base64"
+_HI_UNARMOR="if command -v base64 >/dev/null 2>&1; then tr -s ' ' '\n' | { base64 -d 2>/dev/null || base64 -D; }; else tr -d ' \n' | openssl base64 -d -A 2>/dev/null; fi"
 
 function _hi_armored_line() {
   printf 'echo "%s" | %s %s %s' "$($_HI_ARMOR)" "$_HI_UNARMOR" "$1" "$2"
@@ -593,7 +595,7 @@ function _hi_ctl_close() {
   return 0
 }
 
-# The sh script the first ssh call runs: check for base64, make a scratch
+# The sh script the first ssh call runs: check for base64 (or openssl), make a scratch
 # directory, take the bootloader off stdin, say where it went. Its own
 # function so a suite can assert on it with no ssh hop.
 #
@@ -602,7 +604,7 @@ function _hi_ctl_close() {
 # and ask the target to mkdir it - fine while both are /tmp, and a silent fall
 # through to the PowerShell branch the moment the client has $TMPDIR set.
 #
-# The two failures say which in the exit status (64 no base64, 65 no scratch
+# The two failures say which in the exit status (64 no armor, 65 no scratch
 # directory) so _say_hi can name the reason. They are `if`s rather than
 # `|| exit N` because Windows OpenSSH hands the command to cmd.exe, which
 # cannot run `sh` but does honour `||` - so `|| exit 64` would have cmd itself
@@ -610,7 +612,7 @@ function _hi_ctl_close() {
 # GLOSSARY: HI.19
 function _hi_boot_probe() {
   cat <<'PROBE'
-if ! command -v base64 >/dev/null 2>&1; then exit 64; fi
+if ! command -v base64 >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then exit 64; fi
 if ! d=$(mktemp -d -t hi.boot.XXXXXX); then exit 65; fi
 cat > "$d/bootloader" || exit 1
 printf "\nHIBOOT:%s\n" "$d"
@@ -633,7 +635,7 @@ function _hi_boot_why() {
     ;;
   esac
   case "$1:${2:+out}" in
-  64:*) printf '%s\n' "no base64 on [$DOMAIN]" ;;
+  64:*) printf '%s\n' "no base64 or openssl on [$DOMAIN]" ;;
   65:*) printf '%s\n' "no writable temp directory on [$DOMAIN]" ;;
   0:* | *:out) printf '%s\n' "a forced command answered for [$DOMAIN], so hi's bootstrap never ran" ;;
   esac
@@ -950,7 +952,7 @@ function _say_hi() {
   # Asked here rather than at the pipeline that needs them: a
   # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
   # refusal further in is swallowed and the target gets an empty archive.
-  _hi_require base64 "to reach an ssh target" || return 1
+  _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach an ssh target" || return 1
   _hi_require tar "to pack the payload" || return 1
 
   # local-only, so resolved once here and reused by the warm below and the

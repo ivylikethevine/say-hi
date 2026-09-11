@@ -179,8 +179,8 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   other switch has one); and the `--json` document's top-level keys
   (`version`, `target`, `findings`, `rows`) with each row's four fields.
 - **Exit status** — 0 for "did what it says", 1 for "hi refused before
-  connecting" or "a finding", 64 and 65 for a target with no `base64` or no
-  scratch directory, and a connect's own status passed through.
+  connecting" or "a finding", 64 and 65 for a target with neither `base64`
+  nor `openssl`, or no scratch directory, and a connect's own status passed through.
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name
   and default (the type is what the row's prose says: `0`/`1`, a number, a
   word list, a name from a fixed set). A toggle that has to go is a 2.0. A

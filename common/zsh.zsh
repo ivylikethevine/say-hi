@@ -116,7 +116,7 @@ _HI_TARGET_DESCS=()
 _HI_TARGET_ROWS_AT=-1
 
 _hi() {
-  local name kind
+  local name kind sym
   # the word a flag takes (`hi --preview <TAB>`, `hi --use <TAB>`), then
   # hi's own options when the word is one, targets otherwise - the split
   # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
@@ -147,7 +147,8 @@ _hi() {
     _HI_TARGET_DESCS=()
     while IFS=$'\t' read -r name kind; do
       _HI_TARGET_ROWS+=("$name")
-      _HI_TARGET_DESCS+=("$kind - $name")
+      _hi_target_symbol sym "$kind"
+      _HI_TARGET_DESCS+=("$sym $kind - $name")
     done < <(sh "$_HI_TARGETS")
     _HI_TARGET_ROWS_AT=$SECONDS
   fi
@@ -160,9 +161,9 @@ _hi() {
 # hi.sh too: zsh expands paths.sh's `hi` alias before completing, so the
 # command it looks up is the launcher's name, not `hi`
 compdef _hi hi "${_HI_LAUNCHER:t}"
-# The target list colored by backend, matched on each line's leading kind
-# ("docker - web"): ssh yellow, the container family blue, nomad green, kube
-# light purple, in hi's palette so a color scheme repaints them. None under
+# The target list colored by backend, matched on the kind after each line's
+# symbol ("▣ docker - web"): ssh yellow, the container family blue, nomad
+# green, kube light purple, in hi's palette so a color scheme repaints them. None under
 # $NO_COLOR, and never over a list-colors of your own for the same context.
 () {
   local kind color esc
@@ -172,7 +173,7 @@ compdef _hi hi "${_HI_LAUNCHER:t}"
     _hi_color_escape_var esc "$color"
     [[ -n $esc ]] || return 0
     esc=${esc#\\e\[}
-    spec+=("=$kind - *=${esc%m}")
+    spec+=("=* $kind - *=${esc%m}")
   done
   zstyle ':completion:*:hi-targets' list-colors "${spec[@]}"
 }
@@ -188,4 +189,14 @@ _hi_unexport
 # see common/bash.sh for why the paths are compared before sourcing
 [[ "$_HI_CONFIG_DIR/zsh.zsh" != "$_HI_ROOT/common/zsh.zsh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/zsh.zsh" ]] && source "$_HI_CONFIG_DIR/zsh.zsh"
+# see common/bash.sh: a local interactive shell greets with hi's header,
+# drawn by bash since header.sh is bash's, handed the session values
+# _hi_unexport kept back (as config.fish's __hi_bash does)
+[[ -o interactive && -z "${ZSH_EXECUTION_STRING-}" && "$_HI_REMOTE_SESSION" != 1 &&
+  "${_HI_DISABLE_HEADER:-0}" != 1 ]] && () {
+  local n
+  local -a kv
+  for n in $_HI_SESSION_VARS; do (( ${+parameters[$n]} )) && kv+=("$n=${(P)n}"); done
+  env "${kv[@]}" COLUMNS=$COLUMNS bash -c 'source "$1" && hi_header Online' hi "$_HI_HEADER"
+}
 unset _hi_rc_loading

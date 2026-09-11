@@ -546,8 +546,8 @@ function test_zsh_target_list_colors_per_backend() {
   out="$(_hi_rc_shell xterm-256color zsh '
     source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
     zstyle -g lc ":completion:*:hi-targets" list-colors; print -l -- $lc')"
-  [[ "$out" == *"=ssh - *=0;33"* && "$out" == *"docker|"*") - *=0;34"* &&
-    "$out" == *"=nomad - *=0;32"* && "$out" == *"=kube - *=1;35"* ]] || {
+  [[ "$out" == *"=* ssh - *=0;33"* && "$out" == *"docker|"*") - *=0;34"* &&
+    "$out" == *"=* nomad - *=0;32"* && "$out" == *"=* kube - *=1;35"* ]] || {
     _hi_cecho " | list-colors: ${out//$'\n'/ }" "$RED"
     return 1
   }
@@ -592,6 +592,92 @@ function test_zsh_target_completion_uses_the_colored_tag() {
     _hi_cecho " | got: ${out//$'\n'/ | }" "$RED"
     return 1
   }
+}
+
+# _hi_bash_listing <COMP_TYPE> <word> [NAME=VALUE...] - _hi_complete's
+# COMPREPLY for <word>, "|"-joined, over a seeded target cache
+function _hi_bash_listing() {
+  local type="$1" word="$2"
+  shift 2
+  _hi_rc_shell dumb bash "
+    source \"\$_HI_HOME/say-hi/common/bash.sh\" 2>/dev/null
+    _HI_TARGET_NAMES='web web2 jobx podx sshy dup dup' _HI_TARGET_NAMES_AT=\$SECONDS
+    _HI_TARGET_KINDS='docker podman nomad kube ssh ssh docker'
+    COMP_WORDS=(hi '$word') COMP_CWORD=1 COMP_TYPE=$type
+    _hi_complete
+    IFS='|'
+    printf '%s' \"\${COMPREPLY[*]}\"" "$@"
+}
+
+# bash lists each target's backend symbol only while readline lists (63),
+# never when it inserts (9); a name two backends share is listed once with
+# both symbols; ASCII stand-ins off a UTF-8 locale; $_HI_SYMBOL_* wins.
+# GLOSSARY: HI.56
+function test_bash_target_symbols_only_when_listing() {
+  local out
+  out="$(_hi_bash_listing 63 '' LANG=C.UTF-8)"
+  [ "$out" = "web ▣|web2 ▣|jobx ◆|podx ⎈|sshy »|dup »▣" ] || {
+    _hi_cecho " | listing: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 9 w LANG=C.UTF-8)"
+  [ "$out" = "web|web2" ] || {
+    _hi_cecho " | inserting: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 63 d LANG=C.UTF-8)"
+  [ "$out" = dup ] || {
+    _hi_cecho " | one shared name: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 63 '')"
+  [ "$out" = "web #|web2 #|jobx *|podx @|sshy >|dup >#" ] || {
+    _hi_cecho " | ascii: $out" "$RED"
+    return 1
+  }
+  out="$(_hi_bash_listing 63 '' LANG=C.UTF-8 _HI_SYMBOL_KUBE=k8s)"
+  [[ "$out" == *"|podx k8s|"* ]]
+}
+
+# fish's target rows carry the backend's symbol ahead of the kind, the
+# description fish shows beside each name; $_HI_SYMBOL_* wins
+function test_fish_target_symbols() {
+  local fixture="$_HI_WORKDIR/targets-fixture.sh" out
+  printf '%s\n' "printf 'web\\tdocker\\njobx\\tnomad\\npodx\\tkube\\nsshy\\tssh\\n'" >"$fixture"
+  out="$(_hi_rc_shell dumb fish "source \$_HI_HOME/say-hi/common/config.fish 2>/dev/null
+    set _HI_TARGETS $fixture
+    __hi_targets" LANG=C.UTF-8 _HI_SYMBOL_SSH=S)"
+  [ "$out" = $'web\t▣ docker\njobx\t◆ nomad\npodx\t⎈ kube\nsshy\tS ssh' ] || {
+    _hi_cecho " | __hi_targets: ${out//$'\n'/ | }" "$RED"
+    return 1
+  }
+}
+
+# _hi_greet <shell> <i|c|s> [NAME=VALUE...] - how many times <shell> prints
+# the Online header sourcing hi's rc: typed in (i, from stdin), `-i -c` (c),
+# or as a script (s); settings.sh trims the header to one cell, no probes
+function _hi_greet() {
+  local shell="$1" rc=bash.sh cfg="$_HI_WORKDIR/greet"
+  local -a args=(--norc)
+  [ "$shell" = zsh ] && rc=zsh.zsh args=(-f)
+  local src="source \"\$_HI_HOME/say-hi/common/$rc\""
+  case "$2" in i) args+=(-i) ;; c) args+=(-i -c "$src") ;; esac
+  shift 2
+  mkdir -p "$cfg" && printf 'export _HI_HEADER_ORDER=utc\n' >"$cfg/settings.sh"
+  printf '%s\n' "$src" | env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" \
+    _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$cfg" "$@" "$shell" "${args[@]}" 2>/dev/null |
+    grep -c Online || true
+}
+
+# a local interactive bash and zsh greet with hi's header, as fish does -
+# once; never `-i -c` or a script (fish greets neither), a target session,
+# or under the toggle
+function test_local_shell_prints_the_header() {
+  local shell=$1
+  [ "$(_hi_greet "$shell" i)" = 1 ] && [ "$(_hi_greet "$shell" c)" = 0 ] &&
+    [ "$(_hi_greet "$shell" s)" = 0 ] &&
+    [ "$(_hi_greet "$shell" i _HI_REMOTE_SESSION=1)" = 0 ] &&
+    [ "$(_hi_greet "$shell" i _HI_DISABLE_HEADER=1)" = 0 ]
 }
 
 # ...and the word after --preview comes from the words roster, described,
@@ -921,6 +1007,10 @@ function run_rc_tests() {
   _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
   _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag
   _hi_check_requires zsh "[zsh] completion covers the alias's launcher" test_zsh_completion_covers_the_alias_target
+  _hi_check "[bash] target symbols only while listing" test_bash_target_symbols_only_when_listing
+  _hi_check_requires fish "[fish] target rows carry their symbol" test_fish_target_symbols
+  _hi_check "[bash] a local interactive shell prints the header" test_local_shell_prints_the_header bash
+  _hi_check_requires zsh "[zsh] a local interactive shell prints the header" test_local_shell_prints_the_header zsh
   _hi_check_requires fish "[fish] an overlay re-entering hi's rc returns" test_fish_rc_reentry_returns
 
   _hi_h2 "Testing: the prompt separator"

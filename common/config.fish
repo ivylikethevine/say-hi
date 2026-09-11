@@ -16,7 +16,8 @@ end
 # Mirrors core.sh's _HI_TOGGLES.
 for _hi_toggle in _HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER \
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS \
-    _HI_DISABLE_EDITORS \
+    _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS \
+    _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE _HI_DISABLE_MICRO \
     _HI_DISABLE_MARKS \
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS \
     _HI_DISABLE_BANNER
@@ -68,8 +69,30 @@ function __hi_prev_takes_word --description 'is the previous token one of $_HI_W
   # would read them as its own options
   test (count $toks) -gt 0; and contains -- $toks[-1] (string split -- ' ' $_HI_WORD_FLAGS)
 end
+# targets.sh's "<target>\t<kind>" rows, each kind behind its backend symbol:
+# $_HI_SYMBOL_* from settings.sh over hi's own (core.sh's _hi_target_symbol)
+function __hi_targets --description 'hi targets, each kind behind its backend symbol'
+  set -l sym $__hi_symbols
+  test -n "$_HI_SYMBOL_SSH"; and set sym[1] $_HI_SYMBOL_SSH
+  test -n "$_HI_SYMBOL_CONTAINER"; and set sym[2] $_HI_SYMBOL_CONTAINER
+  test -n "$_HI_SYMBOL_NOMAD"; and set sym[3] $_HI_SYMBOL_NOMAD
+  test -n "$_HI_SYMBOL_KUBE"; and set sym[4] $_HI_SYMBOL_KUBE
+  for row in (sh $_HI_TARGETS)
+    set -l f (string split -m1 \t -- $row)
+    set -l i 2
+    switch $f[2]
+      case ssh
+        set i 1
+      case nomad
+        set i 3
+      case kube
+        set i 4
+    end
+    printf '%s\t%s %s\n' $f[1] $sym[$i] $f[2]
+  end
+end
 complete -c hi -f -k -n 'not string match -q -- "-*" (commandline -ct); and not __hi_prev_takes_word' \
-  -a '(sh $_HI_TARGETS)' # "<target>\ttype" lines
+  -a '(__hi_targets)'
 complete -c hi -f -k -n __hi_prev_takes_word \
   -a '(sh $_HI_TARGETS words (commandline -opc)[-1])'
 # hi's own options from the same file, so the two lists cannot drift; behind
@@ -337,6 +360,8 @@ set -g __fish_git_prompt_color_invalidstate red
 set -g __fish_git_prompt_color_cleanstate brgreen
 
 set -g _hi_env_ellipsis …
+# ssh, container, nomad, kube: _hi_choose_glyphs's _HI_GLYPH_* for __hi_targets
+set -g __hi_symbols » ▣ ◆ ⎈
 
 # the ASCII fallback _hi_choose_glyphs gives bash/zsh, with _HI_ASCII
 # overriding the locale probe both ways
@@ -354,6 +379,7 @@ if test "$_HI_ASCII" = 1
     set -g __fish_git_prompt_char_stashstate '$'
     set -g __fish_git_prompt_char_cleanstate 'ok'
     set -g _hi_env_ellipsis '..'
+    set -g __hi_symbols '>' '#' '*' '@'
 end
 
 # see common/bash.sh for why the paths are compared before sourcing

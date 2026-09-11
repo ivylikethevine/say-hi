@@ -65,6 +65,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 - [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
+- [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
 
 ## HI.01 empty-array guard
 
@@ -220,14 +221,21 @@ latency budget.
 
 ## HI.17 base64 armor
 
-The payload is armored with `base64`, not `openssl`: pure ASCII transport
-encoding (no crypto), shipped on strictly more targets — coreutils, busybox,
-macOS/BSD, Git Bash. Decode tries GNU/busybox `-d` first, then old BSD/macOS
-`-D`; the failed flag parse consumes no stdin, so the fallback still sees the
-whole stream. `tr` runs first because GNU `base64 -d` tolerates newlines but
-not spaces, and a transport that folds newlines into spaces would otherwise
-break it. `$_HI_UNARMOR` only ever runs inside the sh bootloader — the login
-shell never parses its braces (fish couldn't).
+The payload is armored with `base64` first: pure ASCII transport encoding
+(no crypto), shipped on strictly more hosts than `openssl` — coreutils,
+busybox, macOS/BSD, and Git Bash. `openssl base64` stands in where `base64`
+is missing, on either end: stock OpenBSD ships LibreSSL and no `base64(1)`.
+Decode tries GNU/busybox `-d` first, then old BSD/macOS `-D`; the failed flag
+parse consumes no stdin, so the fallback still sees the whole stream. `tr`
+runs first because GNU `base64 -d` tolerates newlines but not spaces, and a
+transport that folds newlines into spaces would otherwise break it. openssl
+gets every space and newline stripped and `-A` instead: LibreSSL's line mode
+silently mis-decodes one long line, which is what macOS's `base64` writes.
+The decoder is picked by `command -v`, not chained after `-D`: a `-d` that
+failed on a corrupt stream has read it, leaving openssl nothing to decode.
+openssl exits 0 on bad input, so a corrupt stream surfaces at `tar`.
+`$_HI_UNARMOR` only ever runs inside the sh bootloader — the login shell
+never parses its braces (fish couldn't).
 
 ## HI.18 sh -c wrapping
 
@@ -249,8 +257,8 @@ belongs to the interactive session. The script goes as plain text and is `cat`
 into place; only the three binary streams _inside_ it are armored — armoring
 the whole script spent a third of every session's bytes re-encoding ASCII.
 The write doubles as the probe, and its status says what happened: the
-directory came back and the session runs; `sh` ran but found no `base64`
-(exit 64) or nowhere to `mktemp` (65), and hi names the missing piece and hands
+directory came back and the session runs; `sh` ran but found neither
+`base64` nor `openssl` (exit 64) or nowhere to `mktemp` (65), and hi names the missing piece and hands
 over the host's own session; something that was not `sh` answered — a
 `ForceCommand` or a `command=` key, told by an exit of 0 or any stdout,
 neither of which a missing `sh` produces — and hi says so and hands over the
@@ -987,3 +995,17 @@ at once while `_hi_rc_loading` is set, and the `.bash_profile` lines skip
 while `_hi_login` is. Unexported, so a child shell - a new tmux pane - loads
 normally; cleared at the end, so a later `source ~/.bashrc` reloads. A load
 interrupted by ^C leaves it set in that one shell.
+
+## HI.56 listing-only completion symbols
+
+bash's completion has no description column - every `COMPREPLY` entry is a
+word readline may put on the command line - so a backend symbol beside a
+target name (`web ▣`) is safe only while readline _lists_ matches, never when
+it inserts one. `_hi_complete` reads `$COMP_TYPE`: `?`, `!`, and `@` (63, 33,
+64) list, so their entries carry the symbol; a plain `TAB` (9) inserts the
+common prefix and menu-complete (37) cycles whole entries, so both get bare
+names. A name two backends share is listed once with both symbols
+(`dup »▣`), or the entries' common prefix would run past the name into the
+space. bash 3.2 has no `$COMP_TYPE`, so its list stays bare. fish and zsh
+carry the symbol in a column of their own (`__hi_targets`' description,
+`_hi`'s `-d` display) and need none of this.

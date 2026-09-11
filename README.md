@@ -145,12 +145,13 @@ proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md), along with
 everything weighed and answered **no**, and why.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
-  shell; coreutils, busybox, macOS/BSD, and Git Bash all ship one), `ssh` for
+  shell; coreutils, busybox, macOS/BSD, and Git Bash all ship one, and
+  `openssl base64` stands in where none does), `ssh` for
   ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, all four
   tried) and `nomad`/`kubectl` for those backends. hi has
   no protocol of its own: `ssh` is the transport, `base64` is armor, not
   crypto ([docs/SECURITY.md](docs/SECURITY.md)).
-- **Target**: `base64` for ssh targets; nothing extra for container/alloc/pod
+- **Target**: `base64` (or `openssl`) for ssh targets; nothing extra for container/alloc/pod
   targets. `bash` gets the full experience; without it you land in the best
   shell the target has, with a smaller session
   ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
@@ -326,45 +327,32 @@ or descoped, and finished entries are deleted rather than ticked.
 
 In this checkout, and not what the tag waits on either.
 
-1. [ ] **Stock OpenBSD, without the `base64` package** — OpenBSD's base
-       ships `b64encode`/`b64decode` and LibreSSL's `openssl base64`, but no
-       `base64(1)`, so the bootstrap's probe exits 64 ("no base64") and
-       `openbsd-e2e.yml` installs the package to get a session at all.
-       **Do:** fall back to `openssl base64` where `base64` is missing — the
-       bootstrap probe, `_HI_UNARMOR`, and the client's armor — keeping
-       `base64` first and rewriting [HI.17](docs/GLOSSARY.md#hi17-base64-armor)
-       to match. **Ticks when:** `openbsd-e2e.yml` is green with `base64`
-       dropped from its `pkg_add`.
+1. [ ] **Stock OpenBSD, without the `base64` package** — shipped:
+       `openssl base64` stands in where `base64` is missing, in the
+       bootstrap probe, `_HI_UNARMOR`, and the client's armor
+       ([HI.17](docs/GLOSSARY.md#hi17-base64-armor)), proven against
+       LibreSSL by `helpers_test` on the macOS runner, and
+       `openbsd-e2e.yml` no longer installs the package. **Ticks when:**
+       that job is green on stock OpenBSD.
 
 ### Features
 
 In this checkout, and not what the tag waits on either.
 
-1. [ ] **Choose which editors hi configures** — `_HI_DISABLE_EDITORS` is
-       all or nothing: one toggle drops hi's vim, nano, emacs, helix,
-       kakoune, and micro together, both the aliases in
-       `settings/aliases.sh` and `load.sh`'s `$EDITOR` pick, so keeping
-       hi's vim beside your own nano setup is not possible. **Do:** a word
-       list in `_HI_ENV_ORDER`'s shape, every editor by default, read by
-       each editor alias and the `$EDITOR` pick - or one toggle per editor,
-       if a list's membership test will not fit `aliases.sh`'s
-       three-dialect subset - with a `hi --configure` item and its
-       `docs/SETTINGS.md` row. **Ticks when:** leaving one editor out drops
-       that editor's alias alone, in bash, zsh, and fish and on a target,
-       pinned by a suite.
-
-2. [ ] **The header on a local bash and zsh** — a local fish prints hi's
-       header as its greeting (`common/config.fish`'s `fish_greeting`,
-       `hi_header Online`); a local bash or zsh prints nothing, so one
-       machine greets you in one shell and not the others. **Do:** the same
-       `Online` header once per interactive local bash and zsh start, from
-       `common/bash.sh` and `common/zsh.zsh` - never in a non-interactive
-       shell, never on a target (where `load.sh` prints the `Connected`
-       header), under `_HI_DISABLE_HEADER` and `_HI_DISABLE_LOCAL` like
-       fish's, and inside the shell-start budget `--group bench` measures.
-       **Ticks when:** a local interactive bash and zsh each print the
-       header exactly once and a target session still prints only its
-       own, pinned by a suite.
+1. [ ] **Starship on a target reads your own `~/.config/starship.toml`** —
+       `common/paths.sh` points a target's `$STARSHIP_CONFIG` at the
+       overlay's `starship.toml` only, so the config you already keep for
+       starship stays behind unless you copy it into `~/.config/say-hi/`,
+       where it stops tracking your edits. A symlink there works today
+       (`_hi_overlay_files` tests with `-f` and the stage tar runs `-h`),
+       but nothing makes one. **Do:** when `_HI_PROMPT_TOOL=starship` and
+       the overlay holds no `starship.toml`, `hi.sh` packs the local
+       `${STARSHIP_CONFIG:-$HOME/.config/starship.toml}` under that name;
+       an overlay copy still wins. Say so in `docs/SETTINGS.md`'s overlay
+       table, INTEGRATIONS' _Prompt programs_, and `hi --doctor`'s overlay
+       rows. **Ticks when:** a session with no overlay copy draws the local
+       config's prompt and one with a copy draws the copy's, pinned by a
+       suite.
 
 ### Post 1.0
 

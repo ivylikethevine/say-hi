@@ -284,7 +284,7 @@ function load() {
     # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
     # since VIMINIT *is* the override it turns off (settings/vim.rc ships
     # either way - the payload roster is static).
-    command -v vim &>/dev/null &&
+    [[ "${_HI_DISABLE_VIM:-0}" != 1 ]] && command -v vim &>/dev/null &&
       export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
     # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
     # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on

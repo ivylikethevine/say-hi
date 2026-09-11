@@ -4,8 +4,8 @@
 # freebsd-e2e.yml's and openbsd-e2e.yml's run script, byte for byte the same
 # on both: hi localhost, client and target both BSD userland. Only each
 # workflow's `prepare:` package list differs (fish and gtar on FreeBSD; no
-# fish - two versions share the package stem and a non-interactive pkg_add
-# refuses the ambiguity - and OpenBSD's own base64 package on OpenBSD).
+# fish on OpenBSD - two versions share the package stem and a non-interactive
+# pkg_add refuses the ambiguity).
 #
 # vmactions runs `ssh <host> sh` and pipes the workflow's `run:` field to that
 # sh's stdin - the one line invoking this script, `</dev/null` - so nothing

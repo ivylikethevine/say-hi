@@ -32,7 +32,8 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # as 0 and paths.sh's _HI_DISABLE_LOCAL gate sets the disables to 1.
   _HI_TOGGLES=(_HI_DISABLE_LOCAL _HI_REMOTE_SESSION _HI_DISABLE_HEADER
     _HI_DISABLE_PROMPT _HI_DISABLE_GIT_STATUS _HI_DISABLE_ENV_STATUS
-    _HI_DISABLE_EDITORS
+    _HI_DISABLE_EDITORS _HI_DISABLE_VIM _HI_DISABLE_NANO _HI_DISABLE_EMACS
+    _HI_DISABLE_HELIX _HI_DISABLE_KAKOUNE _HI_DISABLE_MICRO
     _HI_DISABLE_MARKS
     _HI_DISABLE_TOOL_ALIASES _HI_DISABLE_TOOL_INIT _HI_DISABLE_SUDO_ALIAS
     _HI_DISABLE_BANNER)
@@ -705,6 +706,7 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_STASH="\$" _HI_GLYPH_CLEAN="ok" _HI_GLYPH_ELLIPSIS=".."
     _HI_GLYPH_MASK="*"
     _HI_MARK_OK="+" _HI_MARK_NO="x"
+    _HI_GLYPH_SSH=">" _HI_GLYPH_CONTAINER="#" _HI_GLYPH_NOMAD="*" _HI_GLYPH_KUBE="@"
   else
     _HI_GLYPH_AHEAD="↑" _HI_GLYPH_BEHIND="↓" _HI_GLYPH_STAGED="●"
     _HI_GLYPH_DIRTY="✚" _HI_GLYPH_INVALID="✖" _HI_GLYPH_UNTRACKED="…"
@@ -712,12 +714,25 @@ function _hi_choose_glyphs() {
     _HI_GLYPH_MASK="●"
     _HI_MARK_OK="✓" # installed, and it is the preferred name
     _HI_MARK_NO="✗" # not installed
+    _HI_GLYPH_SSH="»" _HI_GLYPH_CONTAINER="▣" _HI_GLYPH_NOMAD="◆" _HI_GLYPH_KUBE="⎈"
   fi
   # Glyph-independent, so out of both arms rather than spelled twice: only
   # _HI_MARK_OK and _HI_MARK_NO actually change sets.
   _HI_MARK_ALT="~" # installed, but via a fallback alternative
 }
 _hi_choose_glyphs
+
+# _hi_target_symbol <outvar> <kind> - a backend's symbol in the completion
+# list: $_HI_SYMBOL_<SSH|CONTAINER|NOMAD|KUBE> from settings.sh, else hi's
+# glyph; config.fish mirrors it
+function _hi_target_symbol() {
+  case "$2" in
+  ssh) printf -v "$1" '%s' "${_HI_SYMBOL_SSH:-$_HI_GLYPH_SSH}" ;;
+  nomad) printf -v "$1" '%s' "${_HI_SYMBOL_NOMAD:-$_HI_GLYPH_NOMAD}" ;;
+  kube) printf -v "$1" '%s' "${_HI_SYMBOL_KUBE:-$_HI_GLYPH_KUBE}" ;;
+  *) printf -v "$1" '%s' "${_HI_SYMBOL_CONTAINER:-$_HI_GLYPH_CONTAINER}" ;;
+  esac
+}
 
 # two lines, "<hex> <16-color name>" (or the bare name) for the user then
 # the host: what fish's set_color takes as a list and picks the first its

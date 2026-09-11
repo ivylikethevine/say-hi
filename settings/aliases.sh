@@ -14,7 +14,7 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}"; : "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_DISABLE_KAKOUNE="${_HI_DISABLE_KAKOUNE-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}"; : "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -27,29 +27,30 @@ command -v shift >/dev/null 2>&1 &&
 [ -z "$_HI_EXA_BIN" ] && export _HI_EXA_BIN="$(command -v exa || command -v eza || command -v ls)" || true
 [ -z "$_HI_EZA_BIN" ] && export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)" || true
 
-# off on _HI_DISABLE_EDITORS=1; `|| true` keeps set -e sourcers alive
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
+# off on _HI_DISABLE_EDITORS=1, or on the editor's own _HI_DISABLE_<EDITOR>=1;
+# `|| true` keeps set -e sourcers alive
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_NANO" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
 # scripts/configure.sh's _hi_editors_preview sources this file for real to
 # show what this resolves to before the toggle is set - see the note there.
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
 # `-u: command not found` where `vim: command not found` is the answer).
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ -n "$(command -v nvim || command -v vim)" ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -n "$(command -v nvim || command -v vim)" ] && alias vim="$(command -v nvim || command -v vim) -u $_HI_VIMRC" || true
 # -q skips the target's own init, -l loads hi's in its place. The command word
 # is a literal, so no presence gate: a box without emacs says so itself.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias emacs="emacs -q -l $_HI_EMACSRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && alias emacs="emacs -q -l $_HI_EMACSRC" || true
 # helix is `hx` nearly everywhere and `helix` on the rest, so the same ladder
 # shape as vim, with the same presence gate for the same reason.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ -n "$(command -v hx || command -v helix)" ] && alias hx="$(command -v hx || command -v helix) -c $_HI_HELIXRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && [ -n "$(command -v hx || command -v helix)" ] && alias hx="$(command -v hx || command -v helix) -c $_HI_HELIXRC" || true
 # kakoune: `-e` sources hi's file after the target's own kakrc. `-n` would skip
 # the runtime defaults too (settings/kak.rc says why that is a downgrade).
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias kak="kak -e 'source $_HI_KAKRC'" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_KAKOUNE" != 1 ] && alias kak="kak -e 'source $_HI_KAKRC'" || true
 # micro takes a config *directory*, never a file, but any of its settings can
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are
 # only visiting, parents made on save, the diff gutter on. Override the whole
 # string with _HI_MICRO_OPTS in your settings.sh.
 [ -z "$_HI_MICRO_OPTS" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && alias micro="micro $_HI_MICRO_OPTS" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && alias micro="micro $_HI_MICRO_OPTS" || true
 
 # the trailing space makes bash/zsh alias-expand the word after sudo, so
 # `sudo vim` gets the vim alias's flags; fish has a wrapper in config.fish

@@ -245,7 +245,8 @@ function doctor_payload_diff() {
 }
 
 # The tools hi needs *here* to ship a payload at all, and the one place the
-# report asks. base64 armors the ssh transport (_say_hi refuses without it),
+# report asks. base64 armors the ssh transport (_say_hi refuses without it,
+# and takes openssl's where it is missing),
 # tar packs the tree for every transport, and gzip only shrinks it - so a
 # missing gzip is a bigger payload rather than no session, which is why it is
 # named separately below rather than counted as a floor.
@@ -279,12 +280,15 @@ function doctor_local() {
   # `hi --doctor` with a pair of raw "base64: command not found" lines from
   # inside _hi_wire_bytes, on the one run whose whole job is to say what is
   # wrong with this machine. Named here, once, and the size step skipped.
-  missing="$(_hi_missing_tools "${_HI_LOCAL_FLOOR[@]}")"
+  local -a floor=("${_HI_LOCAL_FLOOR[@]}")
+  command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
+    floor=("${floor[@]/#base64/openssl}")
+  missing="$(_hi_missing_tools "${floor[@]}")"
   nice_missing="$(_hi_missing_tools "${_HI_LOCAL_NICE[@]}")"
   if [ -n "$missing" ]; then
     doctor_row tools "MISSING locally: $missing - hi cannot ship a payload without them" bad
   else
-    doctor_row tools "${_HI_LOCAL_FLOOR[*]} present${nice_missing:+, no $nice_missing (a bigger payload, not a broken one)}" \
+    doctor_row tools "${floor[*]} present${nice_missing:+, no $nice_missing (a bigger payload, not a broken one)}" \
       "${nice_missing:+warn}"
   fi
   # two numbers because they answer two questions: what leaves this machine
@@ -581,7 +585,7 @@ function doctor_target() {
 function _hi_doctor_probe_snippet() {
   # shellcheck disable=SC2016 # "$c" is the target shell's variable, not ours -
   # expanding it here is exactly what must not happen
-  printf 'for c in base64 bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done' "$_HI_SHELL_LADDER"
+  printf 'for c in base64 openssl bash %s vim git; do command -v "$c" >/dev/null 2>&1 && printf "%%s " "$c"; done' "$_HI_SHELL_LADDER"
 }
 
 # The container half, and deliberately the same shape as doctor_ssh_target: what
@@ -682,8 +686,8 @@ function doctor_ssh_target() {
     "${ctl_opts[@]}" 2>/dev/null || true)"
   doctor_row remote "has: ${tools:-nothing this probes for}"
   case " $tools" in
-  *" base64 "*) ;;
-  *) doctor_row remote "no base64 - the ssh bootstrap cannot decode there" bad ;;
+  *" base64 "* | *" openssl "*) ;;
+  *) doctor_row remote "no base64 or openssl - the ssh bootstrap cannot decode there" bad ;;
   esac
   case " $tools" in
   *" bash "*) ;;

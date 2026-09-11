@@ -90,8 +90,10 @@ function _hi_target_names() {
     return 0
   fi
   _hi_read_lines rows < <(sh "$_HI_TARGETS")
-  # names are field 1; the tab strip is a builtin, sparing a `cut` per TAB
+  # names are field 1, kinds field 2; the tab strips are builtins, sparing a
+  # `cut` per TAB
   _HI_TARGET_NAMES="${rows[*]%%$'\t'*}"
+  _HI_TARGET_KINDS="${rows[*]#*$'\t'}"
   _HI_TARGET_NAMES_AT="$SECONDS"
 }
 
@@ -125,11 +127,36 @@ function _hi_complete() {
     return 0
   fi
   _hi_target_names
+  local -a names kinds hit_kinds=() shown=() syms=()
+  local i j sym seen=" "
   set -f
-  for n in $_HI_TARGET_NAMES; do
-    case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
-  done
+  # shellcheck disable=SC2206 # split on purpose, globbing off
+  names=($_HI_TARGET_NAMES) kinds=($_HI_TARGET_KINDS)
   set +f
+  for i in "${!names[@]}"; do
+    case "${names[i]}" in "$cur"*) COMPREPLY+=("${names[i]}") hit_kinds+=("${kinds[i]}") ;; esac
+  done
+  # each name's backend symbol, only while readline lists - never when an
+  # entry lands on the command line. GLOSSARY: HI.56
+  case "${COMP_TYPE:-}" in 63 | 33 | 64) ;; *) return 0 ;; esac
+  ((${#COMPREPLY[@]} > 1)) || return 0
+  for i in "${!COMPREPLY[@]}"; do
+    n="${COMPREPLY[i]}"
+    _hi_target_symbol sym "${hit_kinds[i]}"
+    if [[ "$seen" == *" $n "* ]]; then
+      for j in "${!shown[@]}"; do
+        [ "${shown[j]}" = "$n" ] && syms[j]+="$sym" && break
+      done
+    else
+      shown+=("$n") syms+=("$sym") seen+="$n "
+    fi
+  done
+  COMPREPLY=()
+  if ((${#shown[@]} > 1)); then
+    for i in "${!shown[@]}"; do COMPREPLY+=("${shown[i]} ${syms[i]}"); done
+  else
+    COMPREPLY=("${shown[@]}")
+  fi
 }
 complete -F _hi_complete hi
 
@@ -216,4 +243,11 @@ _hi_unexport
 # shellcheck source=/dev/null # user config, may not exist
 [[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/common/bash.sh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"
+# a local interactive shell greets with hi's header, as config.fish's
+# fish_greeting does - never a script's or `bash -i -c`'s (fish greets
+# neither), nor on a target, where load.sh prints the Connected one. A
+# subshell keeps header.sh's functions out of this one.
+# shellcheck source=./header.sh
+[[ $- == *i* && -z "${BASH_EXECUTION_STRING-}" && "$_HI_REMOTE_SESSION" != 1 &&
+  "${_HI_DISABLE_HEADER:-0}" != 1 ]] && (source "$_HI_HEADER" && hi_header Online)
 unset _hi_rc_loading
