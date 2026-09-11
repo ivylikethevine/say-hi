@@ -244,7 +244,7 @@ files overlay or extend the tree's copies. The overlay file table, the
 wizard, every toggle, and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
-target has them — starship, oh-my-posh, zoxide, atuin, mise, direnv, bat, eza,
+target has them — starship, oh-my-posh, mise, direnv, bat, eza,
 and more — are [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 **_IMPORTANT: everything in that directory is copied to every host you say

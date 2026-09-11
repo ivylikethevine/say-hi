@@ -40,10 +40,8 @@ to report what slipped through it.
 - **hi writes nothing on the target outside the session directory.** No login
   file, no history file, nothing under `$HOME`, under any setting -
   [What hi writes on a target](#what-hi-writes-on-a-target) is the whole list.
-  The tools a session starts are their own writers: where a target has zoxide
-  or atuin, their `init` runs by default, and each keeps its state under
-  `$HOME` from then on ([the same section](#what-hi-writes-on-a-target) lists
-  them, and the setting that keeps them unstarted).
+  A prompt program you opt into, and anything your own per-shell files start,
+  is its own writer ([the same section](#what-hi-writes-on-a-target)).
 - **The transport keeps its own voice.** hi does not redirect `ssh`'s stderr,
   so the server's `Banner`, the `Permanently added ... to the list of known
 hosts` line and the host-key fingerprint on a first connection reach your
@@ -95,20 +93,18 @@ Default answer: one directory, and only for the life of the session.
 | the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always                                                                                               |
 | the ssh bootstrap | `mkdir -m 700` under the target's temp directory | ssh targets only, removed by the session it starts                                                   |
 
-That is everything hi's own code writes. A session also starts a few
-programs of its own accord where the target has them
-([INTEGRATIONS.md](INTEGRATIONS.md)), and those write what they always do,
-under the target's `$HOME`, and keep it after the session ends:
+That is everything hi's own code writes. A prompt program you opt into
+([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) writes what it always
+does, under the target's `$HOME`, and keeps it after the session ends:
 
 | tool                  | what it keeps, by default                                             | when                                                                              |
 | --------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| zoxide                | its directory database, under `~/.local/share/zoxide/`                | every session on a target that has it, unless `_HI_DISABLE_TOOL_INIT=1`           |
-| atuin                 | its history database, under `~/.local/share/atuin/`                   | the same                                                                          |
 | starship, oh-my-posh  | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/` | only with `_HI_PROMPT_TOOL` set - off unless you set it |
 
 Each tool's own settings on that target can move those paths.
-`_HI_DISABLE_TOOL_INIT=1` and an unset `_HI_PROMPT_TOOL` together bring a
-session back to the first table alone.
+An unset `_HI_PROMPT_TOOL` brings a session back to the first table alone;
+what your own per-shell files start (a zoxide or atuin `init`, say) writes on
+its own account.
 
 Your commands land in the target's own history file exactly as they would
 over plain `ssh`, and the programs you run yourself - editors included -
@@ -158,7 +154,7 @@ install allowed to do to a target" is one command.
 - **What hi writes on the client.** The rc lines and `settings.sh` the
   install asked about, a payload cache, and the ssh `ControlMaster` socket
   under a private runtime directory.
-- A tool a session starts on a target runs under that target's own config for
+- A tool your per-shell files start on a target runs under that target's own config for
   it, not yours: an atuin logged in to a sync server there syncs the
   session's history like any other shell's on that box.
 - Backend dispatch trusts your local `~/.ssh/config` and your

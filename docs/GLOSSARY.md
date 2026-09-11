@@ -230,7 +230,7 @@ parse consumes no stdin, so the fallback still sees the whole stream. `tr`
 runs first because GNU `base64 -d` tolerates newlines but not spaces, and a
 transport that folds newlines into spaces would otherwise break it. openssl
 gets every space and newline stripped and `-A` instead: LibreSSL's line mode
-silently mis-decodes one long line, which is what macOS's `base64` writes.
+silently garbles one long line, which is what macOS's `base64` writes.
 The decoder is picked by `command -v`, not chained after `-D`: a `-d` that
 failed on a corrupt stream has read it, leaving openssl nothing to decode.
 openssl exits 0 on bad input, so a corrupt stream surfaces at `tar`.
@@ -586,11 +586,12 @@ The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml`, and
 bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
-fixes the file name) at the overlay on a target only (HI.32). When the overlay
-has no copy, `hi.sh`'s `_hi_overlay_home` packs the file the tool reads on the
-client under the member's name - starship's only with `_HI_PROMPT_TOOL=starship`,
-and oh-my-posh has no default to find - so the config already in force travels
-without a second copy to drift; an overlay copy wins.
+fixes the file name) at the overlay on a target only (HI.32). starship's,
+eza's, and bat's never come from the client's overlay: `hi.sh`'s
+`_hi_overlay_src` packs the file each tool reads on the client under the
+member's name (starship's only with `_HI_PROMPT_TOOL=starship`), so there is
+one copy to edit and none to drift. oh-my-posh has no default file to find, so
+its config is an overlay file like the rest.
 
 The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,

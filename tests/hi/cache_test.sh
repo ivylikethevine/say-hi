@@ -212,7 +212,7 @@ function test_overlay_cached_rebuilds_when_a_member_is_newer() {
   ! _hi_cache_marked "$out"
 }
 
-# a config riding from outside the overlay (_hi_overlay_home) is keyed by its
+# a config riding from outside the overlay (_hi_overlay_src) is keyed by its
 # path and watched where it lives - through a symlink, the dotfile-manager
 # shape, whose own mtime predates the cache while its target's does not
 function test_overlay_cached_rebuilds_when_a_home_config_is_newer() {
@@ -580,7 +580,7 @@ function run_cache_tests() {
   _hi_check "A failed build leaves nothing and answers 1" test_cached_cleans_up_after_a_failed_build
   _hi_check "Reuses a warm cache" test_overlay_cached_reuses_a_warm_cache
   _hi_check "Rebuilds when a member is newer" test_overlay_cached_rebuilds_when_a_member_is_newer
-  _hi_check "Rebuilds when a home config's target is newer" test_overlay_cached_rebuilds_when_a_home_config_is_newer
+  _hi_check_capable symlink "Rebuilds when a home config's target is newer" test_overlay_cached_rebuilds_when_a_home_config_is_newer
   _hi_check "Keys the file by member list" test_overlay_cached_keys_the_file_by_member_list
 
   _hi_h2 "Testing: the streams and the payload cache"

@@ -130,31 +130,32 @@ function _hi_target_color() {
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
-# _hi_overlay_home <member> [outvar] - for a tool config the overlay has no
-# copy of, the file that tool reads on this machine, which then rides the
-# overlay under the member's name (an overlay copy wins). starship's only
-# with _HI_PROMPT_TOOL=starship, since nothing else starts it. Fails, printing
-# nothing, when there is no such file.
-function _hi_overlay_home() {
-  local _hi_oh_f=""
-  [ ! -f "$_HI_CONFIG_DIR/$1" ] || return 1
+# _hi_overlay_src <member> [outvar] - where an overlay member is packed from:
+# $_HI_CONFIG_DIR/<member>, except a tool's own config, which is always the
+# file that tool reads on this machine (starship's only with
+# _HI_PROMPT_TOOL=starship, since nothing else starts it) - a target gets the
+# config in force here, and there is no second copy to drift. Fails, printing
+# nothing, when that file is not there.
+function _hi_overlay_src() {
+  local _hi_os_f="$_HI_CONFIG_DIR/$1"
   case "$1" in
-  starship.toml) [ "${_HI_PROMPT_TOOL:-}" != starship ] || _hi_oh_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}" ;;
-  theme.yml) _hi_oh_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
-  bat.conf) _hi_oh_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
+  starship.toml)
+    _hi_os_f=""
+    [ "${_HI_PROMPT_TOOL:-}" != starship ] || _hi_os_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
+    ;;
+  theme.yml) _hi_os_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
+  bat.conf) _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
   esac
-  [ -n "$_hi_oh_f" ] && [ -f "$_hi_oh_f" ] || return 1
-  _hi_out "${2:-}" "$_hi_oh_f"
+  [ -f "$_hi_os_f" ] || return 1
+  _hi_out "${2:-}" "$_hi_os_f"
 }
 
-# The overlay members that exist, here or through _hi_overlay_home, one per
-# line; callers read it once and hand the list to _hi_overlay_tar.
+# The overlay members that have a source, one per line; callers read it once
+# and hand the list to _hi_overlay_tar.
 function _hi_overlay_files() {
-  local f home
+  local f src
   for f in "${_HI_OVERLAY_FILES[@]}"; do
-    if [ -f "$_HI_CONFIG_DIR/$f" ] || _hi_overlay_home "$f" home; then
-      printf '%s\n' "$f"
-    fi
+    _hi_overlay_src "$f" src && printf '%s\n' "$f"
   done
   return 0
 }
@@ -241,16 +242,16 @@ function _hi_stage_tar() {
 # the overlay is the user's prose-heavy files and every byte rides each
 # connect. The first tar's -h resolves a dotfile manager's symlinks into
 # content; the final tar names the members, so strip.awk never ships. A
-# member _hi_overlay_home finds elsewhere is copied in under its own name.
+# member _hi_overlay_src packs from elsewhere is copied in under its own name.
 function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
   local -a stage_in=() stage_out=("${present[@]}") stage_excl=() stage_add=()
-  local f home
+  local f src
   for f in "${present[@]}"; do
-    if _hi_overlay_home "$f" home; then
-      stage_add+=("$f" "$home")
+    if _hi_overlay_src "$f" src && [ "$src" != "$_HI_CONFIG_DIR/$f" ]; then
+      stage_add+=("$f" "$src")
     else
       stage_in+=("$f")
     fi
@@ -306,15 +307,16 @@ function _hi_cached() {
 
 # _hi_cached over exactly these overlay members, keyed on the list. Fails when
 # there is no member at all, on top of _hi_cached's own refusals. A member
-# _hi_overlay_home finds elsewhere is watched there and keyed by its path, so
-# trading it for an overlay copy never serves the other's cache.
+# _hi_overlay_src packs from elsewhere is watched there and keyed by its path,
+# so pointing the tool at another file never serves the old one's cache.
 function _hi_overlay_cached() {
-  local _hi_oc_outvar="$1" _hi_oc_f _hi_oc_home
+  local _hi_oc_outvar="$1" _hi_oc_f _hi_oc_src
   shift
   (($#)) || return 1
   local -a cache_also=()
   for _hi_oc_f; do
-    _hi_overlay_home "$_hi_oc_f" _hi_oc_home && cache_also+=("$_hi_oc_home")
+    _hi_overlay_src "$_hi_oc_f" _hi_oc_src && [ "$_hi_oc_src" != "$_HI_CONFIG_DIR/$_hi_oc_f" ] &&
+      cache_also+=("$_hi_oc_src")
   done
   _hi_cached "$_hi_oc_outvar" overlay "$(_hi_overlay_cache_key "$@" ${cache_also[@]+"${cache_also[@]}"})" \
     "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"

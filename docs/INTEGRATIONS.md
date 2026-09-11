@@ -10,7 +10,7 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 
 - [At a glance](#at-a-glance)
 - [Prompt programs](#prompt-programs)
-- [zoxide and atuin](#zoxide-and-atuin)
+- [Shell hooks of your own](#shell-hooks-of-your-own)
 - [The environment segment](#the-environment-segment)
   - [Tools that draw their own prefix](#tools-that-draw-their-own-prefix)
 - [bat and eza](#bat-and-eza)
@@ -26,7 +26,6 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 | tool                                                                                    | what hi does with it                                                          | on by default        | switch                                                   |
 | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------- |
 | [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev)                     | draws the prompt in hi's place, with your config from home                    | no - opt-in          | `_HI_PROMPT_TOOL`                                        |
-| [zoxide](https://github.com/ajeetdsouza/zoxide), [atuin](https://atuin.sh)              | runs the tool's `init <shell>`                                                | yes, where installed | `_HI_DISABLE_TOOL_INIT`                                  |
 | mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv        | names the active ones in the prompt's leading `(myproj)` segment              | yes                  | `_HI_DISABLE_ENV_STATUS`, `_HI_ENV_ORDER`                |
 | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, `eza`, and `exa` aliases with hi's flags, your theme from home   | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
 | tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client                         | no - per connect     | `--mux`, `--no-mux`                                      |
@@ -51,38 +50,35 @@ oh-my-posh is a line you write into `settings.sh` by hand.
 `_HI_DISABLE_PROMPT=1` beats both: hi starts no prompt at all, its own or the
 tool's.
 
-A `starship.toml` or `oh-my-posh.json` in `~/.config/say-hi/` rides the overlay
-and on a target becomes `$STARSHIP_CONFIG` or `$POSH_THEME`, so the prompt on
-every host is the one you configured at home. At home hi leaves both variables
-alone and the tool reads its own config. With no `starship.toml` in the
-overlay, the one starship reads here - `$STARSHIP_CONFIG`, else
-`~/.config/starship.toml` - travels under that name, so the config you already
-keep follows you with no second copy to fall behind; an overlay copy wins, for
-a target prompt that differs from home's. oh-my-posh has no default file, so
-its config rides only from the overlay.
+Every target gets the starship config in force here - `$STARSHIP_CONFIG`, else
+`~/.config/starship.toml` - shipped as-is, so there is one copy to edit; a
+`starship.toml` in `~/.config/say-hi/` is ignored, and `hi --doctor` says so.
+oh-my-posh has no default file, so its config rides the overlay as
+`~/.config/say-hi/oh-my-posh.json`. On a target either becomes
+`$STARSHIP_CONFIG` or `$POSH_THEME`; at home hi leaves both variables alone.
 
 A prompt of your own at home that is neither (powerlevel10k, an oh-my-zsh
 theme, a hand-written `PS1`) is what `_HI_DISABLE_LOCAL=1` is for; see
 [On your own machine](#on-your-own-machine). Why hi hands over the prompt and
 nothing else is [HI.32](GLOSSARY.md#hi32-starship-deference).
 
-## zoxide and atuin
+## Shell hooks of your own
 
-Where a target has zoxide or atuin, every session runs the tool's
-`init <shell>`: zoxide's ranked `z` and `zi` jumps, atuin's Ctrl-R history
-search, in bash, zsh, and fish alike. A tool something has already wired in is
-left alone - each leaves a function behind (`__zoxide_z`; atuin's
-`_atuin_search` in zsh and fish, `__atuin_history` in bash), and hi checks for
-it first - so the `init` your own rc runs at home is never run twice.
-`_HI_DISABLE_TOOL_INIT=1` turns both off; `hi --configure` lists it under
-Features, and the `minimal` preset answers it off.
+hi runs no tool's shell hook for you - zoxide's and atuin's `init`, a
+`direnv hook`, a `mise activate` are yours to add, in the per-shell files the
+overlay carries (`~/.config/say-hi/bash.sh`, `zsh.zsh`, and `config.fish`),
+which every session sources after hi's own:
 
-hi writes nothing for either, but once started the tools keep state of their
-own: zoxide's directory database and atuin's history, wherever each keeps them
-under the target's `$HOME`. A target where that matters wants
-`_HI_DISABLE_TOOL_INIT=1`;
-[SECURITY.md](SECURITY.md#what-hi-writes-on-a-target) lists what each tool
-leaves behind.
+```sh
+# ~/.config/say-hi/bash.sh
+command -v zoxide >/dev/null && eval "$(zoxide init bash)"
+command -v atuin >/dev/null && eval "$(atuin init bash)"
+```
+
+In `config.fish` the same line is `command -q zoxide; and zoxide init fish | source`.
+Once started, a tool keeps state of its own under the target's `$HOME` -
+zoxide's directory database, atuin's history - which hi neither writes nor
+cleans up.
 
 ## The environment segment
 
@@ -143,13 +139,11 @@ after hi's: `alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"`.
 
 ### Shipping your bat theme
 
-The bat config you already keep travels as-is: with no `bat.conf` in the
-overlay, the file bat reads here - `$BAT_CONFIG_PATH`, else
-`$BAT_CONFIG_DIR/config`, else `~/.config/bat/config` (under
-`$XDG_CONFIG_HOME` when set) - rides it under that name. A
-`~/.config/say-hi/bat.conf` of its own (`--theme="Catppuccin Mocha"`, one flag
-per line) wins, for targets that should differ from home. On a target the file
-becomes `$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
+Every target gets the bat config you already keep: hi ships the file bat
+reads here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
+`~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - as-is, and a
+`bat.conf` in `~/.config/say-hi/` is ignored. On a target the file becomes
+`$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
 the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
 is the one you see through `cat`. The same rule applies at home if you export
 `BAT_CONFIG_PATH` yourself; a `_HI_BAT_OPTS` of your own always wins outright.
@@ -157,10 +151,9 @@ is the one you see through `cat`. The same rule applies at home if you export
 ### Shipping your eza theme
 
 eza reads its colors from `$EZA_CONFIG_DIR/theme.yml` and insists on that
-file name, so hi does not rename it. With no `theme.yml` in the overlay, the
-one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
-`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - travels in its
-place; a `theme.yml` dropped into the overlay wins. On a target,
+file name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
+`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - as-is, and a
+`theme.yml` in `~/.config/say-hi/` is ignored. On a target,
 `common/paths.sh` exports `EZA_CONFIG_DIR` pointing at the shipped copy - the
 directory itself, not the file. At home the variable is left alone.
 

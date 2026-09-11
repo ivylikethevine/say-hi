@@ -319,12 +319,13 @@ function test_boot_probe_says_no_base64() {
   [ "$ec" -eq 64 ]
 }
 
-# stock OpenBSD: no base64, but LibreSSL's openssl, which the probe takes
+# stock OpenBSD: no base64, but LibreSSL's openssl, which the probe takes.
+# _hi_real_path, not a hand `ln -s`: on Git Bash that can leave a copy of
+# openssl.exe cut off from its DLLs
 function test_boot_probe_takes_openssl() {
-  local ec=0 sh_bin out t dir="$_HI_WORKDIR/onlyssl"
+  local ec=0 sh_bin out dir
   sh_bin="$(command -v sh)"
-  mkdir -p "$dir"
-  for t in openssl mktemp cat; do ln -sf "$(command -v "$t")" "$dir/$t"; done
+  dir="$(_hi_real_path onlyssl openssl mktemp cat)"
   out="$(PATH="$dir" "$sh_bin" -c "$(_hi_boot_probe)" </dev/null 2>/dev/null)" || ec=$?
   [[ "$out" == *HIBOOT:/* ]] && rm -rf "${out##*HIBOOT:}"
   [ "$ec" -eq 0 ]

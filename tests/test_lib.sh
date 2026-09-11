@@ -36,7 +36,7 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
 unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC _HI_HELIXRC _HI_KAKRC
-# The tools' own config variables hi.sh's _hi_overlay_home reads, and the
+# The tools' own config variables hi.sh's _hi_overlay_src reads, and the
 # setting that gates starship's: inherited, they would pack the developer's
 # real configs into every overlay stream a suite builds.
 unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR _HI_PROMPT_TOOL

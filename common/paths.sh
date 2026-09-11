@@ -124,7 +124,6 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_MICRO=1
   export _HI_DISABLE_MARKS=1
   export _HI_DISABLE_TOOL_ALIASES=1
-  export _HI_DISABLE_TOOL_INIT=1
   export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1
 } || true

@@ -989,16 +989,6 @@ function test_editor_preview_matches_its_alias() {
   }
 }
 
-function test_tool_init_preview_names_what_is_here() {
-  local dir out
-  dir="$(_hi_fake_path preview_zoxide zoxide)"
-  # shellcheck disable=SC2031 # the swaps here live and die in their own $( )
-  out="$(PATH="$dir:$PATH" _hi_tool_init_preview)"
-  [[ "$out" == *"installed here: zoxide"* ]] || return 1
-  out="$(PATH="$(_hi_real_path preview_notools bash sh)" _hi_tool_init_preview)"
-  [[ "$out" == *"neither zoxide nor atuin"* ]]
-}
-
 function test_bat_preview_names_the_bat_it_found() {
   local dir out
   dir="$(_hi_fake_path preview_bat bat)"
@@ -1535,7 +1525,6 @@ function run_configure_tests() {
   else
     _hi_skip "The helix preview matches its alias" "no hx or helix"
   fi
-  _hi_check "Tool init preview names what is here" test_tool_init_preview_names_what_is_here
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
   _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one

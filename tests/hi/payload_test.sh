@@ -126,9 +126,9 @@ function test_overlay_sends_nothing_outside_the_roster() {
   return 0
 }
 
-# A tool config the overlay has no copy of rides it from where the tool reads
-# it here (_hi_overlay_home), under the overlay's name for it, so a target
-# draws the config in force at home; an overlay copy still wins.
+# starship's, eza's, and bat's configs ride from where each tool reads them
+# here (_hi_overlay_src), under the overlay's name for them, so a target draws
+# the config in force at home; a copy in the overlay is never what ships.
 
 # _hi_tool_home_unpacked <overlay> [NAME=value...] - _hi_overlay_tar's stream
 # unpacked into a fresh directory, which is printed. HOME and XDG_CONFIG_HOME
@@ -178,14 +178,14 @@ function test_overlay_home_configs_follow_the_tools_variables() {
   [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
 }
 
-# an overlay copy wins, and starship's rides only when it draws the prompt
-function test_overlay_copy_beats_the_home_tool_config() {
+# an overlay copy is ignored - the home file ships, or nothing does (starship's
+# without _HI_PROMPT_TOOL=starship, which is the only thing that starts it)
+function test_overlay_copy_of_a_tool_config_is_ignored() {
   local dir d
   _hi_tool_home_fixture
-  dir="$(_hi_overlay_fixture tool-copy)"
-  printf -- '--theme=copy\n' >"$dir/bat.conf"
+  dir="$(_hi_overlay_fixture tool-copy bat.conf theme.yml starship.toml)"
   d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=)" || return 1
-  [ "$(cat "$d/bat.conf")" = "--theme=copy" ] && [ -f "$d/theme.yml" ] && [ ! -e "$d/starship.toml" ]
+  [ "$(cat "$d/bat.conf" "$d/theme.yml")" = "$(printf -- '--theme=home\nfilekinds: home')" ] && [ ! -e "$d/starship.toml" ]
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the
@@ -558,7 +558,7 @@ function run_hi_payload_tests() {
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
-  _hi_check "...and an overlay copy beats them" test_overlay_copy_beats_the_home_tool_config
+  _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

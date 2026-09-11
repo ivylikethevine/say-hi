@@ -228,10 +228,22 @@ function test_config_names_a_home_tool_config() {
   out="$(
     _HI_CONFIG_DIR="$dir/overlay"
     _HI_SETTINGS="$dir/overlay/settings.sh"
-    export BAT_CONFIG_PATH="$dir/bat-flags"
-    doctor_config
+    BAT_CONFIG_PATH="$dir/bat-flags" doctor_config
   )"
-  [[ "$out" == *"bat.conf"*"none - targets get $dir/bat-flags"* ]]
+  [[ "$out" == *"bat.conf"*"targets get $dir/bat-flags"* ]]
+}
+
+# a tool config copy left in the overlay is flagged: it no longer ships
+function test_config_flags_an_ignored_tool_config_copy() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/staletool.XXXXXX")"
+  printf -- '--theme=x\n' >"$dir/bat.conf"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    BAT_CONFIG_PATH="$dir/nope" doctor_config
+  )"
+  [[ "$out" == *"bat.conf"*"ignored - hi ships the tool's own config; delete this copy"* ]]
 }
 
 # what hi --install seeds is the tree's own file, byte for byte: not an
@@ -925,6 +937,7 @@ function run_doctor_tests() {
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
+  _hi_check "An overlay copy of one is flagged as ignored" test_config_flags_an_ignored_tool_config_copy
   _hi_check "A seeded overlay file reads as unchanged" test_config_calls_a_seeded_overlay_file_unchanged
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish

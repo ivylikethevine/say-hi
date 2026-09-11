@@ -61,7 +61,7 @@ command -v shift >/dev/null 2>&1 &&
 # here is bat syntax (-P included), hence the $_HI_BAT_BIN gate. The cat/catn
 # rebind (not bat/batcat/batn) is behind _HI_DISABLE_TOOL_ALIASES, together
 # with the exa/eza wrappers below: one toggle for the styled tool aliases.
-# a bat config file (a bat.conf in the overlay: $BAT_CONFIG_PATH on a target,
+# a bat config file (the one bat reads at home: $BAT_CONFIG_PATH on a target,
 # your own export at home) carries the theme, so the default leaves --theme
 # out then - a flag on the command line would beat the file
 [ -z "$_HI_BAT_OPTS" ] && [ -n "$BAT_CONFIG_PATH" ] && export _HI_BAT_OPTS='-P --tabs 2 --style changes,grid' || true

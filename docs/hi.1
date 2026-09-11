@@ -546,17 +546,9 @@ per-shell
 .BR zsh.zsh ,
 and
 .BR config.fish ,
-and a
-.B starship.toml
-or
+and an
 .B oh-my-posh.json
-for the prompt program
-.B _HI_PROMPT_TOOL
-names, and a
-.B theme.yml
-for eza and a
-.B bat.conf
-for bat), written by
+for oh\-my\-posh), written by
 .B hi \-\-configure
 and carried along to every target. Every feature is an environment
 variable toggle \- header, prompt, git status, editors \- each on
@@ -595,39 +587,25 @@ overwrites it.
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.
 .TP
-.B ~/.config/say-hi/starship.toml, ~/.config/say-hi/oh-my-posh.json
-the prompt program's own config, carried to every target as its
-.B STARSHIP_CONFIG
-or
+.B ~/.config/say-hi/oh-my-posh.json
+oh\-my\-posh's config, carried to every target as its
 .B POSH_THEME
 when
-.B _HI_PROMPT_TOOL
-names that program; at home the program keeps reading its own.
-Without an overlay copy, the starship config in force here
-.RB ( STARSHIP_CONFIG ,
-else
-.BR ~/.config/starship.toml )
-travels in its place; oh\-my\-posh has no such default.
+.BR _HI_PROMPT_TOOL=oh-my-posh ;
+at home oh\-my\-posh keeps reading its own.
 .TP
-.B ~/.config/say-hi/bat.conf
-a bat config file, carried to every target as its
-.B BAT_CONFIG_PATH
-\- the aliases then leave their own theme flag out so the file's wins.
-Without one, bat's own config here
-.RB ( BAT_CONFIG_PATH ,
-else
-.BR ~/.config/bat/config )
-travels in its place.
-.TP
-.B ~/.config/say-hi/theme.yml
-an eza theme, carried to every target with the overlay as its
+.B ~/.config/starship.toml, ~/.config/bat/config, ~/.config/eza/theme.yml
+the starship, bat, and eza configs in force here \- or wherever
+.BR STARSHIP_CONFIG ,
+.BR BAT_CONFIG_PATH ,
+or
 .B EZA_CONFIG_DIR
-(eza reads that file name and no other); at home eza keeps reading its own.
-Without one, eza's own theme here
-.RB ( EZA_CONFIG_DIR ,
-else
-.BR ~/.config/eza )
-travels in its place.
+points \- carried to every target as-is (starship's only when
+.BR _HI_PROMPT_TOOL=starship ).
+The aliases then leave bat's theme flag out so the file's wins. A copy of
+any of the three in
+.B ~/.config/say-hi
+is ignored.
 .SH ENVIRONMENT
 Every setting is an environment variable, and the full table with defaults is
 .IR docs/SETTINGS.md ;

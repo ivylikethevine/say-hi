@@ -22,10 +22,13 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
-| `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT_TOOL=starship`; without one, the config starship reads here travels instead ([Integrations](INTEGRATIONS.md#prompt-programs)) |
-| `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
-| `~/.config/say-hi/bat.conf`        | -                   | your [bat config](https://github.com/sharkdp/bat#configuration-file), `$BAT_CONFIG_PATH` on every target; without one, the config bat reads here travels instead ([Integrations](INTEGRATIONS.md#shipping-your-bat-theme)) |
-| `~/.config/say-hi/theme.yml`       | -                   | your [eza theme](https://github.com/eza-community/eza-themes), through `$EZA_CONFIG_DIR` on every target; without one, the theme eza reads here travels instead ([Integrations](INTEGRATIONS.md#shipping-your-eza-theme)) |
+| `~/.config/say-hi/oh-my-posh.json` | -                   | your oh-my-posh config, `$POSH_THEME` on every target when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
+
+starship's, bat's, and eza's own configs are not overlay files: every target
+gets the one each tool reads on your machine, as-is
+([Integrations](INTEGRATIONS.md#bat-and-eza)), so there is one copy to edit. A
+`starship.toml`, `bat.conf`, or `theme.yml` left in `~/.config/say-hi/` is
+ignored, and `hi --doctor` flags it.
 
 `hi --install` seeds the overlay with the shipped
 `colors`/`packages` and editor rc defaults — only for the
@@ -102,7 +105,7 @@ without the menu:
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `everything` | every feature and every header item on — the shipped defaults                                                                                             |
 | `balanced`   | everything but the noise: a shorter package check (`_HI_PACKAGES_MIN_PRIORITY=3`)                                                                         |
-| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors, tool integration, or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`). |
+| `minimal`    | on targets only the colored prompt and the aliases: no header, git status, editors, or prompt marks — and nothing on this machine (`_HI_DISABLE_LOCAL=1`). |
 
 A preset is an absolute answer over the feature and header settings: what it
 names is set, everything else in that vocabulary returns to its default, and
@@ -186,7 +189,6 @@ cannot land without a row here.
 | `_HI_DISABLE_KAKOUNE`      | `0`                                                  | `hi --configure`          | turns off hi's kakoune config alone - the `kak` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_MICRO`        | `0`                                                  | `hi --configure`          | turns off hi's micro config alone - the `micro` alias and its `_HI_MICRO_OPTS` flags - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa`, and `eza` themselves stay available by name either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                           |
-| `_HI_DISABLE_TOOL_INIT`     | `0`                                                  | `hi --configure`          | turns off the zoxide and atuin shell integration: each tool's `init <shell>` is run in every session where the target has the tool and nothing has wired it in yet (at home your own rc usually has). See [Integrations](INTEGRATIONS.md#zoxide-and-atuin)                                                                                                                                                              |
 | `_HI_DISABLE_SUDO_ALIAS`    | `0`                                                  | `hi --configure`          | turns off the `sudo` alias - the trailing-space alias in bash/zsh that lets `sudo vim` keep the vim alias's flags, and fish's wrapper function that does the same for its alias functions                                                                                                                                                                       |
 | `_HI_EDITOR`                | unset                                                | you                       | the editor a target session exports as `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR`, by command name (`nvim`, `hx`, `micro`, ...); used when the target has it, else the first of `nvim vim hx helix micro nano emacs kak` it does have. The value carries hi's config flags, so `git commit` and `sudo -e` get the same editor the alias gives you; kak goes bare (sudoedit cannot split its quoted flag) |
 | `_HI_DISABLE_MARKS`         | `0`                                                  | `hi --configure`          | turns off the semantic prompt marks (OSC 133) and cwd reporting (OSC 7) every prompt emits. See [Others](#others)                                                                                                                                                                                                                                                |
