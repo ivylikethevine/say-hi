@@ -280,6 +280,26 @@ function test_darwin_bash_login_is_only_pointed_at() {
   [ ! -e "$home/.bash_profile" ] && [ ! -s "$home/.bash_login" ]
 }
 
+# hi's ~/.bash_profile lines hold $_hi_login while they source, so a
+# ~/.bashrc or ~/.profile sourcing ~/.bash_profile back - common under tmux,
+# whose panes are login shells - ends instead of recursing. exec'd, so a
+# timeout kills the shell itself. GLOSSARY: HI.55
+# shellcheck disable=SC2016 # the fixtures are the login shell's to expand
+function test_bash_profile_lines_end_a_sourcing_loop() {
+  local home="$_HI_WORKDIR/pingpong"
+  _hi_rc_in "$home" _HI_UNAME=Darwin -- install_bash_profile_line || return 1
+  printf '. "$HOME/.bash_profile"\necho profile\n' >"$home/.profile"
+  printf '. "$HOME/.bash_profile"\necho rc\n' >"$home/.bashrc"
+  (exec env -i HOME="$home" PATH="$PATH" bash -l -c 'echo "done:${_hi_login-unset}"' \
+    </dev/null >"$home.out" 2>&1) &
+  _hi_wait_pid $! 20
+  [ "$_HI_WAIT_EXIT" != 124 ] && [ "$(tr '\n' ' ' <"$home.out")" = "profile rc done:unset " ] || {
+    _hi_cecho " | exit $_HI_WAIT_EXIT, said: $(tr '\n' ' ' <"$home.out")" "$RED"
+    _hi_cecho " | .bash_profile: $(cat "$home/.bash_profile")" "$RED"
+    return 1
+  }
+}
+
 # ...and nowhere else: Linux gets no .bash_profile
 function test_linux_gets_no_bash_profile() {
   local home="$_HI_WORKDIR/linux"
@@ -440,6 +460,7 @@ function run_rc_lines_test() {
   _hi_check "macOS: one that does not gets the line appended" test_darwin_bash_profile_without_bashrc_gets_the_line
   _hi_check "macOS: .bash_login is pointed at, not edited" test_darwin_bash_login_is_only_pointed_at
   _hi_check "Linux gets no .bash_profile" test_linux_gets_no_bash_profile
+  _hi_check "The .bash_profile lines end a sourcing loop" test_bash_profile_lines_end_a_sourcing_loop
   _hi_check "A file that was theirs survives an emptying strip" test_strip_keeps_a_file_that_was_not_his
 
   _hi_h2 "Testing: the syntax gate"

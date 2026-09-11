@@ -486,7 +486,14 @@ entries in
 .B ~/.ssh/config
 plus every running container, allocation, and pod, each tagged with the
 backend it came from. The list is reused for five seconds and each backend
-gets two seconds to answer, because this runs on every keypress.
+gets two seconds to answer, because this runs on every keypress. In zsh the
+list is colored by backend \- ssh hosts yellow, containers blue, nomad
+allocations green, kubernetes pods light purple \- through the
+.B hi\-targets
+tag's
+.B list\-colors
+style, which one of your own replaces; bash's readline and fish's pager
+take no per\-candidate color.
 .TP
 .B hi \-\-<TAB>
 hi's own options, each with its one\-line purpose where the shell has a

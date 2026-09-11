@@ -4,6 +4,10 @@
 # set -euo pipefail # cannot be enabled: an interactive shell would exit on the first error
 
 # === start required configuration ===
+# re-entered while loading (an overlay bash.sh sourcing ~/.bashrc, say):
+# return at once rather than recurse. GLOSSARY: HI.55
+[[ -z "${_hi_rc_loading-}" ]] || return 0
+_hi_rc_loading=1
 # $_HI_HOME first, this file's own path as the fallback for a hand-written
 # `source` (hi.sh and install.sh's rc line set it). GLOSSARY: HI.33
 # `${BASH_SOURCE%/*}` and not `$(dirname ...)`: header.sh:14 and core.sh:21
@@ -212,3 +216,4 @@ _hi_unexport
 # shellcheck source=/dev/null # user config, may not exist
 [[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/common/bash.sh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"
+unset _hi_rc_loading

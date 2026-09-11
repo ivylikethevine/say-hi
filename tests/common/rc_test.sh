@@ -538,6 +538,62 @@ function test_zsh_flag_completion_offers_hi_options() {
     printf '%s\n' "$out" | grep -qx -- --preview
 }
 
+# zsh colors the target list by backend through the hi-targets tag's
+# list-colors, matched on each display line's leading kind; none under
+# $NO_COLOR, and a zstyle of the user's own is left alone
+function test_zsh_target_list_colors_per_backend() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    zstyle -g lc ":completion:*:hi-targets" list-colors; print -l -- $lc')"
+  [[ "$out" == *"=ssh - *=0;33"* && "$out" == *"docker|"*") - *=0;34"* &&
+    "$out" == *"=nomad - *=0;32"* && "$out" == *"=kube - *=1;35"* ]] || {
+    _hi_cecho " | list-colors: ${out//$'\n'/ }" "$RED"
+    return 1
+  }
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- ${#lc}' NO_COLOR=1)"
+  [ "$out" = 0 ] || return 1
+  out="$(_hi_rc_shell xterm-256color zsh '
+    zstyle ":completion:*:hi-targets" list-colors "=*=31"
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    zstyle -g lc ":completion:*:hi-targets" list-colors; print -r -- "$lc"')"
+  [ "$out" = "=*=31" ]
+}
+
+# zsh expands hi's own `hi` alias before completing, so the launcher's name
+# is registered too, or `hi <TAB>` falls through to file completion
+function test_zsh_completion_covers_the_alias_target() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    autoload -Uz compinit && compinit -u -D
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    print -r -- "${_comps[hi]}:${_comps[hi.sh]}"')"
+  [ "$out" = "_hi:_hi" ] || {
+    _hi_cecho " | _comps[hi]:_comps[hi.sh] = $out" "$RED"
+    return 1
+  }
+}
+
+# ...and the target branch goes through _description with that tag, which is
+# what applies the style: a seeded cache, the completion builtins stubbed
+function test_zsh_target_completion_uses_the_colored_tag() {
+  local out
+  out="$(_hi_rc_shell xterm-256color zsh '
+    source $_HI_HOME/say-hi/common/zsh.zsh 2>/dev/null
+    _description() { print -r -- "desc $*"; expl=(-V -default-); }
+    compadd() { print -r -- "compadd $*"; }
+    _HI_TARGET_ROWS=(web) _HI_TARGET_DESCS=("docker - web") _HI_TARGET_ROWS_AT=$SECONDS
+    words=(hi ""); CURRENT=2
+    _hi')"
+  [[ "$out" == *"desc -V hi-targets expl target"* &&
+    "$out" == *"compadd -V -default- -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS"* ]] || {
+    _hi_cecho " | got: ${out//$'\n'/ | }" "$RED"
+    return 1
+  }
+}
+
 # ...and the word after --preview comes from the words roster, described,
 # through the same stub: the flag is in words[CURRENT-1]
 function test_zsh_completes_the_word_after_preview() {
@@ -582,6 +638,33 @@ function test_fish_completes_the_word_after_preview() {
   printf '%s\n' "$out" | grep -q "^header$(printf '\t')the connect header" || return 1
   printf '%s\n' "$out" | grep -q "^colors$(printf '\t')" || return 1
   [ "$(printf '%s\n' "$out" | grep -c .)" -eq 4 ]
+}
+
+# _hi_rc_reentry <shell> <rc> <probe> - <shell> sources hi's <rc> with an
+# overlay copy of the same name that sources <rc> again, as an overlay sourcing
+# ~/.bashrc would; prints <probe>'s output, nothing if still recursing at the
+# deadline. exec'd, so a timeout kills the shell itself. GLOSSARY: HI.55
+function _hi_rc_reentry() {
+  local shell="$1" rc="$2" probe="$3" cfg="$_HI_WORKDIR/reentry-$1"
+  mkdir -p "$cfg"
+  printf 'source "%s"\n' "$_HI_HOME/say-hi/common/$rc" >"$cfg/$rc"
+  (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" \
+    _HI_CONFIG_DIR="$cfg" "$shell" -c "source \"\$_HI_HOME/say-hi/common/$rc\"; $probe" \
+    </dev/null >"$cfg.out" 2>&1) &
+  _hi_wait_pid $! 20
+  [ "$_HI_WAIT_EXIT" != 124 ] && cat "$cfg.out"
+}
+
+function test_bash_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry bash bash.sh 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
+}
+
+function test_zsh_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry zsh zsh.zsh 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
+}
+
+function test_fish_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry fish config.fish 'set -q _hi_rc_loading; or printf done; test -n "$_HI_ROOT"; and printf :root')" = done:root ]
 }
 
 function test_fish_flag_completion_does_not_also_sweep_targets() {
@@ -833,6 +916,12 @@ function run_rc_tests() {
   _hi_check_requires fish "fish completes the word after --preview" test_fish_completes_the_word_after_preview
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
+  _hi_check "[bash] an overlay re-entering hi's rc returns" test_bash_rc_reentry_returns
+  _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_zsh_rc_reentry_returns
+  _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
+  _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag
+  _hi_check_requires zsh "[zsh] completion covers the alias's launcher" test_zsh_completion_covers_the_alias_target
+  _hi_check_requires fish "[fish] an overlay re-entering hi's rc returns" test_fish_rc_reentry_returns
 
   _hi_h2 "Testing: the prompt separator"
   # The shells install.sh wires up locally, and their shipped defaults, both

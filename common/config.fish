@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 # === start required configuration ===
+# see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
+set -q _hi_rc_loading; and return
+set -g _hi_rc_loading 1
 # The tree from this file's own path, only when unset. Through `sh`, not
 # fish's `cd`/`pwd`: a builtin-only command substitution runs in the current
 # process, and fish's `pwd` is logical. GLOSSARY: HI.33
@@ -358,3 +361,4 @@ if test "$_HI_CONFIG_DIR/config.fish" != "$_HI_ROOT/common/config.fish"
     and test -f $_HI_CONFIG_DIR/config.fish
   source $_HI_CONFIG_DIR/config.fish
 end
+set -e _hi_rc_loading

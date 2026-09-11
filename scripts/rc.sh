@@ -211,11 +211,13 @@ function rc_shell_present() {
 # stops bash reading that one. bash reads the first of .bash_profile,
 # .bash_login, and .profile that exists, so with no .bash_profile a
 # ~/.bash_login is the file that counts, and it is nobody's to edit: that
-# case is a warning.
+# case is a warning. Each line holds $_hi_login while it sources, so a
+# ~/.bashrc or ~/.profile that sources ~/.bash_profile back cannot recurse.
+# GLOSSARY: HI.55
 # shellcheck disable=SC2016 # the lines are the login shell's to expand
-_HI_BASH_PROFILE_LINE='[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"'
+_HI_BASH_PROFILE_LINE='[ -z "${_hi_login-}" ] && [ -r "$HOME/.bashrc" ] && { _hi_login=1; . "$HOME/.bashrc"; unset _hi_login; }'
 # shellcheck disable=SC2016
-_HI_PROFILE_LINE='[ -r "$HOME/.profile" ] && . "$HOME/.profile"'
+_HI_PROFILE_LINE='[ -z "${_hi_login-}" ] && [ -r "$HOME/.profile" ] && { _hi_login=1; . "$HOME/.profile"; unset _hi_login; }'
 
 # _hi_login_bash_profile <outvar> - the file a login bash reads: the first of
 # these that exists, bash's own order, else ~/.profile

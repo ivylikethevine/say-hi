@@ -381,7 +381,9 @@ hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
 rules, or fish palette. Each rc carries the prompt, the completions, and the git
 segment, which are the product. Your own `bash.sh`, `zsh.zsh`, or `config.fish`
 in the config directory is sourced at the end of hi's, in the same dialect,
-and wins - `HISTFILE` included; hi sets none. Your `aliases.sh` likewise loads
+and wins - `HISTFILE` included; hi sets none. It may source your own
+`~/.bashrc` or `~/.zshrc`: re-entered while it loads, hi's rc returns at once
+([HI.55](GLOSSARY.md#hi55-re-entrant-rc-guard)). Your `aliases.sh` likewise loads
 **after** `settings/aliases.sh`, so an `alias` there replaces hi's of the same
 name (`sudo`, the editors, the `cat`/`bat` and `exa`/`eza` families), and one
 can build on hi's flags rather than restate them:

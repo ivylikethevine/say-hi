@@ -340,14 +340,31 @@ In this checkout, and not what the tag waits on either.
 
 In this checkout, and not what the tag waits on either.
 
-1. [ ] **Coloured autosuggestions in every shell** — `hi <Tab>` lists
-       targets, flags, and subjects in plain text, so a long target list is
-       hard to scan. **Do:** colour each candidate the way the header does —
-       a target in its host/group colour, flags and subjects each their own —
-       through each shell's mechanism: zsh's `list-colors` zstyle on the
-       `hi-targets` group, fish's pager colours, bash's readline as far as it
-       allows. **Ticks when:** bash, zsh, and fish each show coloured `hi`
-       candidates, pinned by a suite.
+1. [ ] **Choose which editors hi configures** — `_HI_DISABLE_EDITORS` is
+       all or nothing: one toggle drops hi's vim, nano, emacs, helix,
+       kakoune, and micro together, both the aliases in
+       `settings/aliases.sh` and `load.sh`'s `$EDITOR` pick, so keeping
+       hi's vim beside your own nano setup is not possible. **Do:** a word
+       list in `_HI_ENV_ORDER`'s shape, every editor by default, read by
+       each editor alias and the `$EDITOR` pick - or one toggle per editor,
+       if a list's membership test will not fit `aliases.sh`'s
+       three-dialect subset - with a `hi --configure` item and its
+       `docs/SETTINGS.md` row. **Ticks when:** leaving one editor out drops
+       that editor's alias alone, in bash, zsh, and fish and on a target,
+       pinned by a suite.
+
+2. [ ] **The header on a local bash and zsh** — a local fish prints hi's
+       header as its greeting (`common/config.fish`'s `fish_greeting`,
+       `hi_header Online`); a local bash or zsh prints nothing, so one
+       machine greets you in one shell and not the others. **Do:** the same
+       `Online` header once per interactive local bash and zsh start, from
+       `common/bash.sh` and `common/zsh.zsh` - never in a non-interactive
+       shell, never on a target (where `load.sh` prints the `Connected`
+       header), under `_HI_DISABLE_HEADER` and `_HI_DISABLE_LOCAL` like
+       fish's, and inside the shell-start budget `--group bench` measures.
+       **Ticks when:** a local interactive bash and zsh each print the
+       header exactly once and a target session still prints only its
+       own, pinned by a suite.
 
 ### Post 1.0
 

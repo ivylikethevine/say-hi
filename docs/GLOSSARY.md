@@ -64,6 +64,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.52 client multiplexer wrap](#hi52-client-multiplexer-wrap)
 - [HI.53 terminal reset after a failed session](#hi53-terminal-reset-after-a-failed-session)
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
+- [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
 
 ## HI.01 empty-array guard
 
@@ -969,3 +970,20 @@ set wherever mise is activated, and a `~/.tool-versions` covers every
 directory under it, so `(mise)` is named only where a config file between the
 directory and `~` overrides the global one: a builtins-only walk up from
 `$PWD`, memoized on it (HI.16). `_HI_ENV_ORDER` still drops the word outright.
+
+## HI.55 re-entrant rc guard
+
+An rc that leads back into itself recurses until the shell dies. Two shapes
+reach hi. On macOS, `hi --install` adds lines to `~/.bash_profile` that source
+`~/.profile` and `~/.bashrc`, and a `~/.bashrc` that sources
+`~/.bash_profile` back - a common fix under tmux, whose panes are login
+shells - makes the pair ping-pong. And an overlay `bash.sh`, `zsh.zsh`, or
+`config.fish` that sources the user's own rc re-enters hi's, which sources
+the overlay again.
+
+Both are cut by a plain, never-exported shell variable held only while
+loading: `common/bash.sh`, `common/zsh.zsh`, and `common/config.fish` return
+at once while `_hi_rc_loading` is set, and the `.bash_profile` lines skip
+while `_hi_login` is. Unexported, so a child shell - a new tmux pane - loads
+normally; cleared at the end, so a later `source ~/.bashrc` reloads. A load
+interrupted by ^C leaves it set in that one shell.

@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: MIT
 
 # === start required configuration ===
+# see common/bash.sh: re-entered while loading, return. GLOSSARY: HI.55
+[[ -z "${_hi_rc_loading-}" ]] || return 0
+_hi_rc_loading=1
 # The tree from this file's own path: %x is this file, :A absolute, :h up one.
 # GLOSSARY: HI.33
 : "${_HI_HOME:=${${(%):-%x}:A:h:h:h}}"
@@ -148,10 +151,31 @@ _hi() {
     done < <(sh "$_HI_TARGETS")
     _HI_TARGET_ROWS_AT=$SECONDS
   fi
-  # -V: an unsorted group, so targets.sh's order is the menu's
-  compadd -V hi-targets -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
+  # -V: an unsorted group, so targets.sh's order is the menu's; through
+  # _description, so the hi-targets tag's list-colors (below) applies
+  local -a expl
+  _description -V hi-targets expl target
+  compadd "${expl[@]}" -d _HI_TARGET_DESCS -a _HI_TARGET_ROWS
 }
-compdef _hi hi
+# hi.sh too: zsh expands paths.sh's `hi` alias before completing, so the
+# command it looks up is the launcher's name, not `hi`
+compdef _hi hi "${_HI_LAUNCHER:t}"
+# The target list colored by backend, matched on each line's leading kind
+# ("docker - web"): ssh yellow, the container family blue, nomad green, kube
+# light purple, in hi's palette so a color scheme repaints them. None under
+# $NO_COLOR, and never over a list-colors of your own for the same context.
+() {
+  local kind color esc
+  local -a spec
+  zstyle -g esc ':completion:*:hi-targets' list-colors && return
+  for kind color in ssh yellow "(${(j:|:)${=_HI_CONTAINER_CLIS}})" blue nomad green kube brmagenta; do
+    _hi_color_escape_var esc "$color"
+    [[ -n $esc ]] || return 0
+    esc=${esc#\\e\[}
+    spec+=("=$kind - *=${esc%m}")
+  done
+  zstyle ':completion:*:hi-targets' list-colors "${spec[@]}"
+}
 # only when something completes `eza`: compdef's service form errors out
 # otherwise. _comps is compinit's own command -> completion map, so no fork.
 (( ${+_comps[eza]} )) && compdef exa=eza
@@ -164,3 +188,4 @@ _hi_unexport
 # see common/bash.sh for why the paths are compared before sourcing
 [[ "$_HI_CONFIG_DIR/zsh.zsh" != "$_HI_ROOT/common/zsh.zsh" ]] &&
   [[ -f "$_HI_CONFIG_DIR/zsh.zsh" ]] && source "$_HI_CONFIG_DIR/zsh.zsh"
+unset _hi_rc_loading

@@ -207,9 +207,9 @@ function _hi_timed_out() {
 #
 # The exit code is read for exactly one value. 124 is _hi_wait_pid's timeout
 # (the process was SIGKILLed at the deadline), and that is a failure whatever
-# the transcript holds: the podman suite's fish case echoed its marker and
-# then sat at a prompt for the full 30s, and read OK for as long as this only
-# looked at the markers - a green run that hid a session which never exited.
+# the transcript holds: a case that echoes its marker and then sits at a
+# prompt would otherwise read OK - a green run hiding a session that never
+# exited.
 # Any other non-zero status stays OK once the markers are there, because
 # `docker exec -it`, `nomad alloc exec`, and `kubectl exec` hand back statuses
 # of their own that nothing here asserts on - but it is printed on the OK
