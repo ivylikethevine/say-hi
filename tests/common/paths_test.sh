@@ -248,15 +248,15 @@ function test_settings_point_at_the_overlay_before_it_exists() {
   [ "$(_hi_resolved _HI_SETTINGS "$dir")" = "$dir/settings.sh" ]
 }
 
-# The five files with a tree default, and the path variable each resolves
+# The six files with a tree default, and the path variable each resolves
 # into. Derived only: an exported value of your own does not survive the
 # source, so the overlay is the one way to move a file.
-_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC)
+_HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC)
 
-# the overlay basename each of the five resolves to, in the same order
-_HI_OVERLAY_PATH_FILES=(colors packages vim.rc nano.rc emacs.el)
+# the overlay basename each of the six resolves to, in the same order
+_HI_OVERLAY_PATH_FILES=(colors packages vim.rc init.lua nano.rc emacs.el)
 
-# an overlay directory holding a copy of all five, so every case below is
+# an overlay directory holding a copy of all six, so every case below is
 # choosing between two real files rather than between a file and a miss
 function _hi_full_overlay_dir() {
   local dir f

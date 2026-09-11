@@ -30,7 +30,7 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
 | tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client                         | no - per connect     | `--mux`, `--no-mux`                                      |
 | lesspipe                                                                                | `less` opens archives and packages, as the distro's own rc sets it up         | yes, where installed | none                                                     |
-| vim/neovim, nano, emacs, micro                                                          | opened with hi's config, or yours, through an alias                           | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
+| vim/neovim, nano, emacs, micro                                                          | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vim.rc` | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
 | oh-my-zsh, powerlevel10k, bash-it, fzf                                                  | nothing: hi loads after them and leaves their hooks working                   | -                    | [Shell frameworks](#shell-frameworks)                    |
 
 `_HI_DISABLE_LOCAL=1` turns every `_HI_DISABLE_*` switch above on, prompt

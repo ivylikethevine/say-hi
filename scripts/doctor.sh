@@ -246,12 +246,13 @@ function doctor_payload_diff() {
 
 # The tools hi needs *here* to ship a payload at all, and the one place the
 # report asks. base64 armors the ssh transport (_say_hi refuses without it,
-# and takes openssl's where it is missing),
-# tar packs the tree for every transport, and gzip only shrinks it - so a
-# missing gzip is a bigger payload rather than no session, which is why it is
-# named separately below rather than counted as a floor.
+# and takes openssl's where it is missing) and tar packs the tree for every
+# transport. gzip is the third, and the one that cannot be answered by name
+# alone: libarchive's tar compresses in-process, so a client with that one is
+# only sending a padded payload, while GNU's and OpenBSD's run gzip off $PATH
+# and have nothing to fall back on. hi.sh's _hi_can_gzip is the question both
+# this and the connect path ask.
 _HI_LOCAL_FLOOR=(base64 tar)
-_HI_LOCAL_NICE=(gzip)
 
 # _hi_missing_tools <name...> - those of <name...> this machine does not have,
 # space-separated, in the order given.
@@ -284,11 +285,15 @@ function doctor_local() {
   command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
     floor=("${floor[@]/#base64/openssl}")
   missing="$(_hi_missing_tools "${floor[@]}")"
-  nice_missing="$(_hi_missing_tools "${_HI_LOCAL_NICE[@]}")"
+  nice_missing="$(_hi_missing_tools gzip)"
   if [ -n "$missing" ]; then
     doctor_row tools "MISSING locally: $missing - hi cannot ship a payload without them" bad
+  elif ! _hi_can_gzip; then
+    # set, so the size step below is skipped for the same reason it is above
+    missing=gzip
+    doctor_row tools "MISSING locally: gzip - this tar runs it for -z, so hi cannot pack a payload without it" bad
   else
-    doctor_row tools "${floor[*]} present${nice_missing:+, no $nice_missing (a bigger payload, not a broken one)}" \
+    doctor_row tools "${floor[*]} present${nice_missing:+, no gzip (your tar compresses on its own - a padded payload, not a broken one)}" \
       "${nice_missing:+warn}"
   fi
   # two numbers because they answer two questions: what leaves this machine

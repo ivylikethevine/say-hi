@@ -76,10 +76,35 @@ function _hi_test_shell() {
 }
 
 # The presence-gated aliases the sampler above leaves out, read off the same
-# file: "<alias> <bin> <bin>" per line, from every `$(command -v a || command
-# -v b)` guard ahead of an `alias name=`. The sampler and this list partition
-# the alias lines between them, so nothing goes unchecked.
-_HI_PRESENCE_ALIASES=$(sed -nE 's/^.*\$\(command -v ([A-Za-z0-9_-]+) \|\| command -v ([A-Za-z0-9_-]+)\).* alias ([A-Za-z_][A-Za-z0-9_]*)=.*/\3 \1 \2/p' "$_HI_ALIASES")
+# file: "<alias> <bin>..." per line, from every line that both probes with
+# `$(command -v x)` and defines an `alias name=`. The sampler and this list
+# partition the alias lines between them, so nothing goes unchecked.
+#
+# Per line rather than per guard, and merged across lines by alias name: one
+# line can define more than one alias (nvim answers to both `vim` and `nvim`)
+# and one alias name can be defined by more than one line (`vim` is nvim's
+# where there is one, vim's where there is not). What the check asks is
+# whether the *name* is there, so its bins are the union of every probe that
+# can define it - "vim nvim vim", not one row per line.
+_HI_PRESENCE_ALIASES=$(awk '
+  /alias [A-Za-z_][A-Za-z0-9_]*=/ && /\$\(command -v / {
+    s = $0; nb = 0
+    while (match(s, /command -v [A-Za-z0-9_-]+/)) {
+      bins[++nb] = substr(s, RSTART + 11, RLENGTH - 11)
+      s = substr(s, RSTART + RLENGTH)
+    }
+    t = $0
+    while (match(t, / alias [A-Za-z_][A-Za-z0-9_]*=/)) {
+      a = substr(t, RSTART + 7, RLENGTH - 8)
+      t = substr(t, RSTART + RLENGTH)
+      if (!(a in seen)) { seen[a] = ""; name[++k] = a }
+      for (i = 1; i <= nb; i++)
+        if (index(" " seen[a] " ", " " bins[i] " ") == 0)
+          seen[a] = seen[a] (seen[a] == "" ? "" : " ") bins[i]
+    }
+  }
+  END { for (i = 1; i <= k; i++) print name[i], seen[name[i]] }
+' "$_HI_ALIASES")
 
 # _hi_test_presence <shell> <dir> <alias> <bin...> - an alias gated on one of
 # <bin...> being on PATH (a box with none is left with its own `vim: command

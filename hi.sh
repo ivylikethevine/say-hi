@@ -61,8 +61,9 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
-_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc nano.rc emacs.el aliases.sh
-  bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json theme.yml bat.conf)
+_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc init.lua nano.rc emacs.el
+  aliases.sh bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json theme.yml
+  bat.conf)
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -160,10 +161,26 @@ function _hi_overlay_files() {
   return 0
 }
 
+# Whether this client can gzip at all: gzip itself, or a tar that compresses
+# in-process. Only libarchive's does - GNU's and OpenBSD's implement -z by
+# exec'ing gzip off $PATH, so without it _hi_tar_gz's fallback fails too, and
+# "no gzip" is a refusal rather than a bigger payload. Free where gzip is
+# there (a builtin test); the probe is one fork on the boxes that need asking.
+# It is _hi_tar_gz's own fallback invocation against a member certain to be
+# there, so it cannot be right about a command line other than the real one -
+# dash-style options and a real file, never /dev/null, which Git Bash's tar
+# does not reliably stat. GLOSSARY: HI.38
+function _hi_can_gzip() {
+  command -v gzip >/dev/null 2>&1 && return 0
+  tar -c -z -f - -C "$_HI_ROOT" hi.sh >/dev/null 2>&1
+}
+
 # Dash-style options everywhere tar runs: OpenBSD's tar reads every word
 # after an old-style `cf <file>` as a member name, -C and -h included.
 # tar's own arguments, gzip in a second process rather than `z`: bsdtar pads
-# the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip
+# the compressed stream to 10240. GLOSSARY: HI.38 - that, PIPESTATUS, no-gzip.
+# The -z arm is for a tar that compresses on its own; _hi_can_gzip is what
+# keeps a client whose tar cannot from reaching it.
 function _hi_tar_gz() {
   local -a st
   if ! command -v gzip >/dev/null 2>&1; then
@@ -180,7 +197,7 @@ function _hi_tar_gz() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc emacs.el)
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el)
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -349,14 +366,15 @@ function _hi_overlay_stream() {
 
 # The comment stripper every payload file goes through: their prose headers
 # are for the installed copy a user reads, not the wire. vim.rc's comment
-# character is `"` and emacs.el's is `;`; `#` covers the rest.
-# GLOSSARY: HI.35 - the three rules, and why their order is the argument
+# character is `"`, emacs.el's is `;`, and init.lua's is `--`; `#` covers the
+# rest. GLOSSARY: HI.35 - the four rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/) }
+FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/); lua = (FILENAME ~ /\.lua$/) }
 FNR == 1 && /^#!/ { print > out; next }
 vim && /^[ \t]*"/ { next }
 el && /^[ \t]*;/ { next }
+lua && /^[ \t]*--/ { next }
 tag != "" {
   line = $0
   if (dash) sub(/^\t+/, "", line)
@@ -998,6 +1016,10 @@ function _say_hi() {
   # refusal further in is swallowed and the target gets an empty archive.
   _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach an ssh target" || return 1
   _hi_require tar "to pack the payload" || return 1
+  # _hi_can_gzip first, so a tar that compresses on its own is not asked for a
+  # gzip it never runs; where it answers no, gzip really is absent and
+  # _hi_require says so in the one shape every missing tool is reported in
+  _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z" || return 1
 
   # local-only, so resolved once here and reused by the warm below and the
   # real stream
@@ -1209,6 +1231,7 @@ function _say_hi_container() {
   local shell_end root fallback exit_code size prefix tarball env_kv
   local -a probe cp attach overlay=()
   _hi_require tar "to pack the payload" || return 1
+  _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z" || return 1
   _hi_container_cmds "$label"
 
   # The parent is the *target's* `${TMPDIR:-/tmp}`, expanded there, so a pod

@@ -220,7 +220,7 @@ function test_ask_value_non_interactive_keeps_current() {
 function test_overlay_seed_copies_the_shipped_defaults() {
   local dir="$_HI_WORKDIR/ovl-seed" f
   (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  for f in colors packages vim.rc nano.rc emacs.el; do
+  for f in colors packages vim.rc init.lua nano.rc emacs.el; do
     cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
       _hi_cecho " | $f was not seeded from the tree" "$RED"
       return 1
@@ -952,7 +952,11 @@ function test_editors_preview_names_every_override() {
   [[ "$out" == *"nano --rcfile $_HI_NANORC"* &&
     "$out" == *"emacs -q -l $_HI_EMACSRC"* &&
     "$out" == *"micro -> micro -backup false"* ]] || return 1
-  if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
+  # each name carries the rc of the binary behind it: nvim answers to both
+  # `vim` and `nvim` and reads init.lua, vim reads vim.rc
+  if command -v nvim >/dev/null 2>&1; then
+    [[ "$out" == *"nvim  -> "* && "$out" == *"-u $_HI_NVIMRC"* ]] || return 1
+  elif command -v vim >/dev/null 2>&1; then
     [[ "$out" == *"-u $_HI_VIMRC"* ]] || return 1
   fi
 }
@@ -1516,6 +1520,11 @@ function run_configure_tests() {
     _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim
   else
     _hi_skip "The vim preview matches its alias" "no nvim or vim"
+  fi
+  if command -v nvim >/dev/null 2>&1; then
+    _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim
+  else
+    _hi_skip "...and the nvim preview matches its own" "no nvim"
   fi
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only

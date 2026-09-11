@@ -334,7 +334,8 @@ function test_install_seeds_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"seeded the shipped defaults"* && "$out" == *"Installed!"* ]] &&
-    [ -f "$ovl/colors" ] && [ -f "$ovl/nano.rc" ] && [ ! -d "$ovl/.git" ] || return 1
+    [ -f "$ovl/colors" ] && [ -f "$ovl/nano.rc" ] && [ -f "$ovl/init.lua" ] &&
+    [ ! -d "$ovl/.git" ] || return 1
   rc=0
   out="$(_hi_run_install_here ovl-feat --configure --preset=minimal 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [ ! -e "$_HI_WORKDIR/ovl-feat/.config/say-hi/colors" ] &&

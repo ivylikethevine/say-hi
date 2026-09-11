@@ -13,7 +13,8 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/settings.sh`     | -                   | what `hi --configure` writes                                                                                                                  |
 | `~/.config/say-hi/colors`          | `settings/colors`   | your color pins                                                                                                                               |
 | `~/.config/say-hi/packages`        | `settings/packages` | what the package check looks for                                                                                                              |
-| `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias and `$VIMINIT` - replaces hi's default wholesale                                                     |
+| `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias where vim is what answers, and by `$VIMINIT` - replaces hi's default wholesale                        |
+| `~/.config/say-hi/init.lua`        | `settings/init.lua` | the same for neovim, used by the `nvim` alias (and by `vim`, which prefers nvim where a target has it)                                         |
 | `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
 | `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`); micro takes no file - see `_HI_MICRO_OPTS` below                               |
 | `~/.config/say-hi/aliases.sh`      | -                   | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session) |
@@ -30,7 +31,7 @@ ignored, and `hi --doctor` flags it.
 
 `hi --install` seeds the overlay with the shipped
 `colors`/`packages` and editor rc defaults — only for the
-files you have none of, so after a normal install all five are yours. A seeded copy stops
+files you have none of, so after a normal install all six are yours. A seeded copy stops
 tracking what `hi --update` delivers for that file; delete it from the overlay
 to track the tree's again. Versioning the directory is yours to do — a
 `git init` there, or
@@ -179,8 +180,8 @@ cannot land without a row here.
 | `_HI_DISABLE_PROMPT`        | `0`                                                  | `hi --configure`          | turns off the colored `user@host` prompt, leaving your shell's own                                                                                                                                                                                                                                                                                               |
 | `_HI_DISABLE_GIT_STATUS`    | `0`                                                  | `hi --configure`          | turns off the git segment in the prompt                                                                                                                                                                                                                                                                                                                          |
 | `_HI_DISABLE_ENV_STATUS`    | `0`                                                  | `hi --configure`          | turns off the environment segment in the prompt - the leading `(myproj)` naming whatever venv, conda, direnv, nix, guix, devbox, or version-manager environment is active. See [Integrations](INTEGRATIONS.md#the-environment-segment)                                                                                                                                                                  |
-| `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the editor config overrides (vim, nano, emacs, micro) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e`, and `sudo -e`                                                                                                                                                                                                                                                                                                                      |
-| `_HI_DISABLE_VIM`          | `0`                                                  | `hi --configure`          | turns off hi's vim config alone - the `vim` alias (nvim too) and `$VIMINIT` - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
+| `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the editor config overrides (vim, neovim, nano, emacs, micro) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e`, and `sudo -e`                                                                                                                                                                                                                                                                                                                      |
+| `_HI_DISABLE_VIM`          | `0`                                                  | `hi --configure`          | turns off hi's vim config alone - the `vim` and `nvim` aliases (`vim.rc` for vim, `init.lua` for neovim) and `$VIMINIT` - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_NANO`         | `0`                                                  | `hi --configure`          | turns off hi's nano config alone - the `nano` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_EMACS`        | `0`                                                  | `hi --configure`          | turns off hi's emacs config alone - the `emacs` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_MICRO`        | `0`                                                  | `hi --configure`          | turns off hi's micro config alone - the `micro` alias and its `_HI_MICRO_OPTS` flags - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
@@ -227,7 +228,7 @@ More names look like settings and are not:
   point derives `$_HI_HOME` from its own path.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:`
   comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_VIMRC`,
-  `$_HI_NANORC`, and `$_HI_EMACSRC` are derived
+  `$_HI_NVIMRC`, `$_HI_NANORC`, and `$_HI_EMACSRC` are derived
   from those two by `common/paths.sh` on every source - all but the first two resolving to the overlay's copy when you have one,
   else the tree's - so an exported value does not survive. Point `$_HI_HOME`
   or `$HOME` elsewhere, or put your file in the overlay.

@@ -534,6 +534,7 @@ Configuration lives outside the tree, in
 .BR colors ,
 .BR packages ,
 .BR vim.rc ,
+.BR init.lua ,
 .BR nano.rc ,
 and
 .BR emacs.el ,
@@ -568,9 +569,9 @@ feature toggles, written by
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
 per\-user overrides of the tree's defaults.
 .TP
-.B ~/.config/say-hi/vim.rc, nano.rc, emacs.el
+.B ~/.config/say-hi/vim.rc, init.lua, nano.rc, emacs.el
 per\-user replacements of the tree's editor configs, used whole rather than
-merged.
+merged \- init.lua is neovim's, vim.rc is vim's.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced first so any

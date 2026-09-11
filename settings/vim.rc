@@ -1,19 +1,20 @@
 " hi's vim override, kept to the minimum that earns the `-u`: vim's own shipped
 " defaults, so the alias is not a downgrade. Nothing to taste lives here - your own
-" $_HI_CONFIG_DIR/vim.rc replaces this file wholesale.
+" $_HI_CONFIG_DIR/vim.rc replaces this file wholesale. Neovim reads
+" settings/init.lua instead and none of this, so every line below is vim's.
 
 " must be first: `vim -u <file>` implies 'compatible', which disables <> key
 " notation and a good deal else. defaults.vim clears it too, but that file is
-" not on every vim and never on neovim.
+" not on every vim.
 set nocompatible
 
 " the out-of-the-box editor rather than the 1976 one, spelled the way vim
 " itself spells it. `unlet!` because a system vimrc may have set the skip flag;
-" `silent!` because neovim ships no such file and needs none.
+" `silent!` because a vim old enough not to ship the file would error on it.
 unlet! skip_defaults_vim
 silent! source $VIMRUNTIME/defaults.vim
 
-" belt and braces for a vim old enough to have no defaults.vim; neovim has both
-" on already, and setting them twice costs nothing.
+" belt and braces for a vim old enough to have no defaults.vim; where that file
+" did load it set both already, and setting them twice costs nothing.
 syntax enable
 filetype plugin indent on

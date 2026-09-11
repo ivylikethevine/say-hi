@@ -35,7 +35,7 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # paths.sh drops a value still equal to the one it recorded resolving, so an
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
-unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NANORC _HI_EMACSRC
+unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
 # The tools' own config variables hi.sh's _hi_overlay_src reads, and the
 # setting that gates starship's: inherited, they would pack the developer's
 # real configs into every overlay stream a suite builds.

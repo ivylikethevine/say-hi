@@ -99,7 +99,8 @@ the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
 ### Your Editors
 
 `nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
-neither: nothing is installed or running on the target. A developer, zsh on a
+neither - neovim with hi's `init.lua`, since it is not vim: nothing is
+installed or running on the target. A developer, zsh on a
 laptop into the team's shared dev box, where the prompt is starship's, not
 hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
 
@@ -263,11 +264,12 @@ truecolor schemes of your own, and using the hash in your own prompt:
 
 ## Built from/with/in mind
 
-- [sshrc](https://github.com/cdown/sshrc) — _from_ — (became `hi.sh`)
+- [sshrc](https://github.com/cdown/sshrc) — _from_ — (**became** `hi.sh`)
 - [sshm](https://github.com/Gu1llaum-3/sshm) — _with_ — (optional, but _highly_
   recommended to configure `~/.ssh/config` hosttags)
 - [bat](https://github.com/sharkdp/bat) — _in mind_ — (essentially my reason to
-  get the aliases.sh fallthrough logic to work as portably as possible)
+  get the aliases.sh fallthrough logic to work as portably as possible. `bat` is sometimes `batcat`)
+- [eza](https://github.com/eza-community/eza) — _in mind_ — (`eza`/`exa` [exa](https://github.com/ogham/exa) are useful colorized `ls` upgrades. support for both with relevant flag separation for more compatibility on older hosts)
 - [fish](https://github.com/fish-shell/fish-shell) — _with_ — (my preferred
   shell: its defaults/built-ins are easy to understand, but it is not POSIX)
 
@@ -326,17 +328,7 @@ or descoped, and finished entries are deleted rather than ticked.
 
 In this checkout, and not what the tag waits on either.
 
-1. [ ] **neovim reads a config of its own** — `settings/vim.rc` is pointed at
-       both `vim` and `nvim` through `-u`, so a target's neovim runs a vimrc
-       written for vim and nothing lua-side is reachable. **Do:** ship an
-       `init.lua` beside it, an overlay member and a `$_HI_NVIMRC` like the
-       other editor rcs, used by the `nvim` half of the alias ladder (`-u` for
-       vim, `-u`/`NVIM_APPNAME` for nvim); `_HI_DISABLE_VIM` keeps covering
-       both, since they are one editor to the toggle. **Ticks when:** a
-       session on a target with nvim opens it on that file and a vim-only
-       target is unchanged, pinned by a suite.
-
-2. [ ] **A config that sources a file hi does not carry is caught before it
+1. [ ] **A config that sources a file hi does not carry is caught before it
        travels** — every overlay and `settings/` file is shipped verbatim, so
        a `vim.rc` with `source ~/.vim/extra.vim`, an `aliases.sh` sourcing a
        path off this machine, or an rc naming a plugin manager breaks on the
@@ -349,7 +341,7 @@ In this checkout, and not what the tag waits on either.
        include for every dialect, the session still opens the editor cleanly,
        and a suite pins both.
 
-3. [ ] **Someone else's feature can ride along without patching the tree** —
+2. [ ] **Someone else's feature can ride along without patching the tree** —
        the overlay carries files hi already knows the names of, so anything
        new (a prompt segment, another tool's init, a per-target hook) means
        editing `common/` and losing it on the next `hi --update`. **Do:**
@@ -363,6 +355,46 @@ In this checkout, and not what the tag waits on either.
        prompt segment on a target with no change to the tree, the payload
        budget still holds, and a suite pins the load order, the skip, and the
        doctor rows.
+
+3. [ ] **The check groups by what you care about, not only by how loud it is**
+       — one `packages` file carries every tool and the header paints it from a
+       single eight-color ramp keyed on priority (`_HI_PACKAGES_PALETTE`), so
+       "my language toolchain" and "the box's own package manager" can only be
+       told apart by rank. **Do:** let the overlay carry more than one packages
+       file — a `packages.d/` of named members, or named groups inside one —
+       each group named, ordered, and given a color of its own (a palette entry
+       or a scheme word), with `_HI_PACKAGES_MIN_PRIORITY` still the depth dial;
+       `hi --preview packages` renders the groups and their colors, and
+       `hi --doctor` names a group nothing paints. A directory member would be
+       `$_HI_OVERLAY_FILES`' first, which is the same thing the plugins entry
+       above needs, so solve it once. **Ticks when:** two overlay groups render
+       in their own colors on one target, a single-file overlay is byte for
+       byte what it is today, and a suite pins the grouping, the colors, and
+       what the extra members cost the payload.
+
+4. [ ] **A denser armor than base64** — the ssh transport base64-armors the
+       payload (GLOSSARY: HI.17) because it has to survive a login shell's
+       quoting and a terminal in between, and that is a flat third of the wire
+       on every connect: about 62 KB sent for a 46 KB archive. **Do:**
+       investigate a higher-radix encoding — Z85/base85 is a quarter rather
+       than a third, base122 and friends go further — against what the
+       transport actually has to survive (the shell's quoting, `\r` and NUL,
+       what the target can decode with nothing but its base tools), and keep
+       `base64`/`openssl base64` as the floor where nothing denser is
+       available on both ends. **Ticks when:** the README's payload badge
+       falls by a measured amount, every e2e target still connects, and a
+       suite pins the encoder against its decoder on a stock OpenBSD, macOS,
+       and busybox target.
+
+5. [ ] **A release says where the package went, and shows what changed** — the
+       release body carries the notes and the checksums, but the Homebrew tap
+       PR that `publish-external.yml` opens is only visible to whoever watches
+       that repo, and nothing on the page shows the thing running. **Do:**
+       have the publish job write the tap PR (or the tap repo, where the PR is
+       already merged) into the release body as a link, and attach a demo gif
+       built the way `docs/tapes/` builds the README's. **Ticks when:** a tag
+       produces a release whose body links the tap PR and renders the gif, and
+       the packaging suite pins both.
 
 ### Post 1.0
 

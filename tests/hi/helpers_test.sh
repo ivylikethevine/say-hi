@@ -49,11 +49,17 @@ function test_armored_line_roundtrips_through_sh() {
 # decoding the client's wrapped lines and one long line (macOS's base64
 # writes one) with openssl alone, and openssl's own armor decoding as usual.
 # macOS's openssl is LibreSSL, OpenBSD's. GLOSSARY: HI.17
+#
+# _hi_real_path, not a hand `ln -s`: on Git Bash that can leave a copy of
+# tr.exe, and $PATH here holds nothing but the toolbox - so the copy has
+# neither its own directory nor /usr/bin to find msys-2.0.dll through, and
+# says so ("error while loading shared libraries"). Its own toolbox name, not
+# remote_test.sh's `onlyssl`: the builder is build-once-per-name and the two
+# name different tools.
 function test_armor_falls_back_to_openssl() {
-  local f="$_HI_WORKDIR/armored-ssl.out" dir="$_HI_WORKDIR/onlyssl-bin" t sh_bin want line
+  local f="$_HI_WORKDIR/armored-ssl.out" dir sh_bin want line
   sh_bin="$(command -v sh)"
-  mkdir -p "$dir"
-  for t in openssl tr; do ln -sf "$(command -v "$t")" "$dir/$t"; done
+  dir="$(_hi_real_path onlyssl-armor openssl tr)"
   want="$(seq 1 400 | tr '\n' ' ')"
   line="$(printf '%s\n' "$want" | _hi_armored_line '>' "'$f'")"
   PATH="$dir" "$sh_bin" -c "$line" && [ "$(cat "$f")" = "$want" ] || return 1

@@ -41,6 +41,11 @@ function test_payload_ships_everything_by_default() {
     return 1
     ;;
   esac
+  case "$listing" in *say-hi/settings/init.lua*) ;; *)
+    _hi_cecho " | a default client did not ship settings/init.lua" "$RED"
+    return 1
+    ;;
+  esac
   return 0
 }
 
@@ -253,13 +258,15 @@ function test_overlay_tar_carries_only_what_exists() {
 
 # The overlay stream ships comment-stripped the way the payload does (the
 # same strip.awk): a seeded default is mostly header, and every byte rides
-# each connect. settings.sh keeps its shebang; vim.rc loses its `"` lines.
+# each connect. settings.sh keeps its shebang; vim.rc loses its `"` lines and
+# init.lua its `--` ones.
 function test_overlay_strip_removes_comments() {
   local dir="$_HI_WORKDIR/ovl-strip" out
   mkdir -p "$dir"
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   cp "$_HI_ROOT/settings/colors" "$dir/colors"
   cp "$_HI_ROOT/settings/vim.rc" "$dir/vim.rc"
+  cp "$_HI_ROOT/settings/init.lua" "$dir/init.lua"
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
   [ "$out" = '#!/bin/sh
 export _HI_MAX_WIDTH=72' ] || {
@@ -276,6 +283,12 @@ export _HI_MAX_WIDTH=72' ] || {
   out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
   case "$out" in '"'* | *$'\n"'*)
     _hi_cecho " | vim.rc kept a vim comment line through the strip" "$RED"
+    return 1
+    ;;
+  esac
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  case "$out" in '--'* | *$'\n--'*)
+    _hi_cecho " | init.lua kept a lua comment line through the strip" "$RED"
     return 1
     ;;
   esac
@@ -465,8 +478,8 @@ function test_strip_spares_heredoc_bodies() {
 
 # The data files' prose headers document the *installed* copies a user reads,
 # so they ship stripped too: flags/colors/packages/nano.rc through the same
-# `#` rule as the shell, vim.rc and emacs.el through their own rules for
-# vim's `"` and elisp's `;`.
+# `#` rule as the shell, vim.rc, emacs.el, and init.lua through their own
+# rules for vim's `"`, elisp's `;`, and lua's `--`.
 function test_strip_covers_the_data_files() {
   local dir f n bad=0
   dir="$(_hi_strip_unpack stripped)"
@@ -478,7 +491,7 @@ function test_strip_covers_the_data_files() {
     }
   done
   # the files with a comment character of their own: <file>:<char>
-  for f in 'settings/vim.rc:"' 'settings/emacs.el:;'; do
+  for f in 'settings/vim.rc:"' 'settings/emacs.el:;' 'settings/init.lua:--'; do
     n="$(grep -cE "^[[:space:]]*${f#*:}" "$dir/say-hi/${f%%:*}" || true)"
     [ "$n" -eq 0 ] || {
       _hi_cecho " | ${f%%:*} kept $n comment line(s)" "$RED"
@@ -499,7 +512,7 @@ function test_strip_keeps_every_data_line() {
       bad=1
     }
   done
-  for f in 'settings/vim.rc:"' 'settings/emacs.el:;'; do
+  for f in 'settings/vim.rc:"' 'settings/emacs.el:;' 'settings/init.lua:--'; do
     diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}") \
       <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}") >/dev/null || {
       _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
@@ -523,6 +536,26 @@ SHIM
   chmod +x "$bin/tar"
   PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || return 1
   case "$(cat "$log")" in '-c -z -f'*) ;; *) return 1 ;; esac
+}
+
+# ...and whether that fallback is worth taking is _hi_can_gzip's question:
+# only libarchive's tar compresses in-process, GNU's and OpenBSD's run gzip
+# off $PATH, so a shim answering each way is the whole predicate. gzip itself
+# is checked first and never forks, which the third arm pins.
+function test_can_gzip_reads_the_tar_it_has() {
+  local bin="$_HI_WORKDIR/cangzip.bin" real
+  real="$(type -P tar)"
+  mkdir -p "$bin"
+  printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/tar"
+  chmod +x "$bin/tar"
+  PATH="$bin" _hi_can_gzip || return 1
+  printf '%s\n' '#!/bin/sh' 'exit 1' >"$bin/tar"
+  PATH="$bin" _hi_can_gzip && return 1
+  # gzip present: the answer is yes whatever that tar says
+  printf '%s\n' '#!/bin/sh' 'exit 0' >"$bin/gzip"
+  chmod +x "$bin/gzip"
+  PATH="$bin" _hi_can_gzip || return 1
+  [ -n "$real" ]
 }
 
 function run_hi_payload_tests() {
@@ -566,6 +599,7 @@ function run_hi_payload_tests() {
   _hi_check_requires bsdtar "Payload unpadded under bsdtar" test_payload_is_not_block_padded_under_bsdtar
   _hi_check_requires bsdtar "Overlay unpadded under bsdtar" test_overlay_is_not_block_padded_under_bsdtar
   _hi_check "_hi_tar_gz falls back to tar's own -z without gzip" test_tar_gz_falls_back_to_tars_own_z_without_gzip
+  _hi_check "_hi_can_gzip reads the tar it has" test_can_gzip_reads_the_tar_it_has
 
   _hi_h2 "Testing: the size hi reports"
   _hi_check "_hi_human_bytes matches du's shapes" test_human_bytes_matches_du_shapes

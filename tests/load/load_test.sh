@@ -497,6 +497,32 @@ function test_load_exports_viminit_for_vim_sessions() {
   return 1
 }
 
+# ...and a box with nvim and no vim gets the lua rc through the same variable:
+# nvim reads $VIMINIT too, and `:source` runs a .lua file as lua. The PATH is
+# named whole rather than prepended, since a `:$PATH` tail would put this
+# box's own vim back and take the branch above.
+function test_load_exports_viminit_for_nvim_only_sessions() {
+  local out
+  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
+    "PATH=$(_hi_fake_path withnvimonly nvim):$(_hi_editorless_path)")" || return 1
+  case "$out" in *"VIM=let \$MYVIMRC='$_HI_NVIMRC'"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
+# ...and the other half of the same pin: a vim-only box is what it always was,
+# vim.rc through $VIMINIT and vim.rc in $EDITOR's flags.
+function test_load_viminit_on_a_vim_only_box_is_vim_rc() {
+  local out
+  out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
+    SHELL=/bin/bash _HI_DISABLE_HEADER=1 \
+    "PATH=$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)")" || return 1
+  case "$out" in *"VIM=let \$MYVIMRC='$_HI_VIMRC'"*) return 0 ;; esac
+  _hi_cecho " | $out" "$RED"
+  return 1
+}
+
 # $EDITOR/$VISUAL/$SUDO_EDITOR carry the alias's flags into git, crontab, and
 # sudo -e, read off the aliases themselves. A fake nvim and nano on PATH make
 # the ladder's answer deterministic. <want> is matched as a substring of the
@@ -691,10 +717,13 @@ EOF
   _hi_check_requires zsh "...a zsh one" test_load_greets_the_chosen_shell zsh "zsh shell! :)"
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
+  _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
+  _hi_check "...and vim.rc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
-  _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "nvim -u $_HI_VIMRC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_VIMRC|S=$_HI_WORKDIR/withnvim/nvim -u $_HI_VIMRC"
+  _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "nvim -u $_HI_NVIMRC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|S=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC"
+  _hi_check "...and a vim-only box keeps vim.rc's" _hi_load_editor_on "E=$_HI_WORKDIR/withvimonly/vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
-  _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_VIMRC|" _HI_EDITOR=no-such-editor
+  _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_NVIMRC|" _HI_EDITOR=no-such-editor
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker
   _hi_check "_HI_DISABLE_EDITORS=1 leaves EDITOR unset" _hi_load_editor_is "E=unset|V=unset|S=unset" _HI_DISABLE_EDITORS=1
   _hi_check "...and so does a box with no editor at all" _hi_load_editor_on "E=unset|V=unset|S=unset" "$(_hi_editorless_path)"

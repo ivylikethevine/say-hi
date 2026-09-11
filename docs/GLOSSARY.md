@@ -468,12 +468,15 @@ HI.30. Both stay verbatim above their statement.
 
 ## HI.35 payload comment strip
 
-Every `*.sh`, `*.zsh`, and `*.fish` file — and the `flags`/`colors`/`packages`/
-`vim.rc`/`nano.rc`/`emacs.el` data files, whose prose headers document the _installed_
+Every `*.sh`, `*.zsh`, `*.fish`, and `*.lua` file — and the
+`flags`/`colors`/`packages`/`vim.rc`/`init.lua`/`nano.rc`/`emacs.el` data
+files, whose prose headers document the _installed_
 copies — is comment-stripped on its way into the payload (`_hi_strip_awk` and
 `_hi_payload_tar` in `hi.sh`); about 40% of the shipped shell is comment.
-vim.rc's comment character is `"` and emacs.el's is `;`, each its own rule in
-the stripper.
+vim.rc's comment character is `"`, emacs.el's is `;`, and init.lua's is `--`,
+each its own rule in the stripper. Lua's `--[[` block form is deliberately not
+one: the strip is line-wise, so a block opener would go and its body stay —
+which is why the shipped `init.lua` uses line comments only.
 `bench_payload_readme_badge` checks README's badge against the result.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
@@ -523,9 +526,18 @@ to within a few bytes under both userlands and are byte-stable run to run.
 
 `${PIPESTATUS[@]}`, not `$?`: `hi.sh` turns `pipefail` back off for
 interactive sourcing, so a failing tar would otherwise hide behind a
-successful gzip and ship a truncated payload — both halves are checked. A
-client with no `gzip` degrades to `tar -c -z -f -` rather than failing: padded
-again on bsdtar, but a working payload.
+successful gzip and ship a truncated payload — both halves are checked.
+
+A client with no `gzip` falls back to `tar -c -z -f -`, which is a working
+payload on exactly one userland: libarchive's tar (macOS's `/usr/bin/tar`)
+compresses in-process, padded as above, while GNU's and OpenBSD's implement
+`-z` by exec'ing `gzip(1)` off `$PATH` and have nothing left to try. So the
+fallback is not "no gzip is survivable" — it is "a tar that compresses on its
+own is". `_hi_can_gzip` asks which one this is (free where `gzip` is present,
+one `tar -c -z -f /dev/null /dev/null` where it is not), `_say_hi` and
+`_say_hi_container` refuse by name beside their `tar` requirement rather than
+letting the target receive an empty archive, and `hi --doctor` reports the
+same three verdicts.
 
 Every tar in `hi.sh`, client and target side, takes dash-style options:
 OpenBSD's tar reads each word after an old-style `cf <file>` as a member name,
@@ -593,7 +605,7 @@ member's name (starship's only with `_HI_PROMPT_TOOL=starship`), so there is
 one copy to edit and none to drift. oh-my-posh has no default file to find, so
 its config is an overlay file like the rest.
 
-The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`) ride
+The editor rcs (`vim.rc`, `init.lua`, `nano.rc`, `emacs.el`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,
 and `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one. Left out of the stream, that
 guard could only fire on the client — an editor override working locally and

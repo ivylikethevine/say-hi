@@ -162,11 +162,47 @@ function test_local_reports_missing_floor_tools() {
   [[ "$out" == *"unknown - needs base64 tar to measure"* ]]
 }
 
+# The two verdicts a gzip-less client gets, and which one it gets is a question
+# about its tar, not about $PATH - so both cases shim tar rather than trusting
+# whichever this machine has (hi.sh's _hi_can_gzip is what they exercise).
+# openssl rides the toolbox because stock OpenBSD has no base64(1) and the
+# armor floor resolves to openssl there: without it the row under test is
+# "MISSING locally: base64" and the case is asserting the wrong thing. mv and
+# chmod are _hi_stage_tar's (hi.sh), so the size step below the row can run
+# instead of printing "mv: command not found" into the transcript.
+function _hi_nogzip_path() {
+  _hi_real_path nogzip sh bash awk grep sed printf mktemp rm mv chmod cat wc tr \
+    sleep timeout du date base64 openssl tar find git zsh fish
+}
+
+# _hi_nogzip_tar <exit> - a tar shim that answers <exit> for -z and hands
+# everything else to the real tar, printed as a directory to put first on PATH.
+function _hi_nogzip_tar() {
+  local ec="$1" dir="$_HI_WORKDIR/nogzip-tar-$1" real
+  real="$(type -P tar)"
+  mkdir -p "$dir"
+  {
+    printf '%s\n' '#!/bin/sh'
+    printf 'case " $* " in *" -z "*) exit %s ;; esac\n' "$ec"
+    printf 'exec "%s" "$@"\n' "$real"
+  } >"$dir/tar"
+  chmod +x "$dir/tar"
+  printf '%s' "$dir"
+}
+
 function test_local_warns_without_gzip() {
   local out
-  out="$(PATH="$(_hi_real_path nogzip sh bash awk grep sed printf mktemp rm cat wc tr \
-    sleep timeout du date base64 tar find git zsh fish)" doctor_local)"
-  [[ "$out" == *"base64 tar present, no gzip (a bigger payload, not a broken one)"* ]]
+  out="$(PATH="$(_hi_nogzip_tar 0):$(_hi_nogzip_path)" doctor_local)"
+  [[ "$out" == *" tar present, no gzip (your tar compresses on its own - a padded payload, not a broken one)"* ]]
+}
+
+# ...and a tar that shells out to gzip for -z has nothing to fall back on, so
+# the same missing gzip is a finding rather than a warning
+function test_local_flags_a_gzip_that_nothing_can_replace() {
+  local out
+  out="$(PATH="$(_hi_nogzip_tar 1):$(_hi_nogzip_path)" doctor_local)"
+  [[ "$out" == *"MISSING locally: gzip"* ]] || return 1
+  [[ "$out" == *"unknown - needs gzip to measure"* ]]
 }
 
 function test_backend_missing_reports_not_installed() {
@@ -925,7 +961,8 @@ function run_doctor_tests() {
   _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
   _hi_check "A non-empty overlay is diffed against stock" test_local_diffs_a_non_empty_overlay
   _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
-  _hi_check "Warns without gzip" test_local_warns_without_gzip
+  _hi_check "Warns without gzip when tar can compress" test_local_warns_without_gzip
+  _hi_check "...and flags it when tar cannot" test_local_flags_a_gzip_that_nothing_can_replace
 
   _hi_h2 "Testing: doctor_backend"
   _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed

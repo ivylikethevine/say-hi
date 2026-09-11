@@ -243,17 +243,13 @@ function _hi_session_shell_cmd() {
 # reaches $EDITOR the way it reaches the alias. An editor with no alias (micro
 # under _HI_DISABLE_MICRO, say) goes bare, hence the ${body:-$e} tail.
 function _hi_session_editor() {
-  local e name body
+  local e body
   # shellcheck source=./settings/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
   for e in ${_HI_EDITOR:-} nvim vim micro nano emacs; do
     type -P "$e" &>/dev/null || continue
-    case "$e" in
-    nvim) name=vim ;;
-    *) name="$e" ;;
-    esac
-    body="$([ -n "$name" ] && alias "$name" 2>/dev/null)"
-    body="${body#alias "$name"=\'}"
+    body="$(alias "$e" 2>/dev/null)"
+    body="${body#alias "$e"=\'}"
     body="${body%\'}"
     printf '%s' "${body:-$e}"
     return 0
@@ -279,10 +275,16 @@ function load() {
 
   if [[ "${_HI_DISABLE_EDITORS:-0}" != 1 ]]; then
     # vim only: VIMINIT breaks a target that has just vi. Under the toggle,
-    # since VIMINIT *is* the override it turns off (settings/vim.rc ships
-    # either way - the payload roster is static).
-    [[ "${_HI_DISABLE_VIM:-0}" != 1 ]] && command -v vim &>/dev/null &&
-      export VIMINIT="let \$MYVIMRC='$_HI_VIMRC' | source \$MYVIMRC"
+    # since VIMINIT *is* the override it turns off (both rcs ship either way -
+    # the payload roster is static). nvim reads $VIMINIT too and `:source`
+    # runs a .lua file as lua, so a box with nvim and no vim gets init.lua
+    # here; a command-line `-u` beats $VIMINIT, so the aliases decide on a box
+    # that has both, and this is only for the vim nothing else invokes.
+    local vimrc=""
+    command -v vim &>/dev/null && vimrc="$_HI_VIMRC"
+    [[ -z "$vimrc" ]] && command -v nvim &>/dev/null && vimrc="$_HI_NVIMRC"
+    [[ "${_HI_DISABLE_VIM:-0}" != 1 && -n "$vimrc" ]] &&
+      export VIMINIT="let \$MYVIMRC='$vimrc' | source \$MYVIMRC"
     # $EDITOR, $VISUAL, and $SUDO_EDITOR: an alias reaches an interactive
     # prompt and nothing else, so `git commit`, `crontab -e`, and `sudo -e` on
     # the target would still open whatever vi it has. Exported for the

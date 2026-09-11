@@ -95,19 +95,18 @@ function lint_manpage() {
 # and survives the comment strip, load_test.sh checks $VIMINIT points at it - so
 # a syntax error in the file itself failed nothing and rode the wire to every
 # target (an orphaned `endif` left by a half-finished deletion did exactly
-# that). settings/aliases.sh prefers nvim over vim, so both are checked when
-# both are here, and each skips yellow on its own when it is not.
+# that). vim only: settings/aliases.sh points neovim at settings/init.lua now,
+# which lint_nvim_rc below parses with the editor that reads it.
 #
 # `-u <rc> -es` is the production invocation (the alias's own), and the verdict
 # is $v:errmsg written to a file, not stderr and not the exit status: vim
 # prints the error to stderr in a full environment but goes silent under the
-# `env -i` a suite runs in, while nvim reports in both. v:errmsg is the one
-# signal that survives either.
+# `env -i` a suite runs in. v:errmsg is the one signal that survives either.
 #
 # E484 on defaults.vim is the exception, and a deliberate one: the rc sources
-# it with `silent!` precisely because neovim ships no such file and needs none
-# (settings/vim.rc says so). `silent!` suppresses the message but still sets
-# v:errmsg, so the tolerated case has to be spelled out here too.
+# it with `silent!` precisely because a vim old enough not to ship that file
+# would error on it (settings/vim.rc says so). `silent!` suppresses the
+# message but still sets v:errmsg, so the tolerated case is spelled out here.
 #
 # No nano half: nano reports a bad rcfile only on its status bar and refuses to
 # start without a terminal, so there is nothing to assert on offline.
@@ -116,28 +115,48 @@ function lint_manpage() {
 # way the alias does and exits non-zero on an elisp error, so there the exit
 # status is the verdict.
 function lint_vim_rc() {
-  local bin err out bad=0 rc="$_HI_ROOT/settings/vim.rc"
+  local err out rc="$_HI_ROOT/settings/vim.rc"
   _hi_h2 "Checking the shipped editor rc (vim -u settings/vim.rc)"
-  for bin in vim nvim; do
-    if ! command -v "$bin" >/dev/null 2>&1; then
-      _hi_skip "$bin" "not installed"
-      continue
-    fi
-    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-    err="$_HI_WORKDIR/$bin.err"
-    "$bin" -u "$rc" -es -c "call writefile([v:errmsg], '$err')" -c 'qa!' \
-      </dev/null >/dev/null 2>&1 || true
-    out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
-    if [ -n "$out" ]; then
-      _hi_align " | settings/vim.rc ($bin)" "FAILED" "$RED"
-      sed 's/^/      /' "$err"
-      _hi_note_failure "settings/vim.rc ($bin)"
-      bad=$((bad + 1))
-    else
-      _hi_align " | settings/vim.rc ($bin)" "OK" "$GREEN"
-    fi
-  done
-  return "$bad"
+  if ! command -v vim >/dev/null 2>&1; then
+    _hi_skip vim "not installed"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  err="$_HI_WORKDIR/vim.err"
+  vim -u "$rc" -es -c "call writefile([v:errmsg], '$err')" -c 'qa!' \
+    </dev/null >/dev/null 2>&1 || true
+  out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
+  if [ -z "$out" ]; then
+    _hi_align " | settings/vim.rc (vim)" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_align " | settings/vim.rc (vim)" "FAILED" "$RED"
+  sed 's/^/      /' "$err"
+  _hi_note_failure "settings/vim.rc (vim)"
+  return 1
+}
+
+# The neovim rc, parsed by the editor that reads it. `--headless -u <rc>` is
+# the alias's own invocation and runs the file as lua; unlike the vim half both
+# signals are usable here - a lua error goes to stderr and nvim exits non-zero -
+# so the verdict is a clean exit with nothing written.
+function lint_nvim_rc() {
+  local err rc="$_HI_ROOT/settings/init.lua"
+  _hi_h2 "Checking the shipped editor rc (nvim -u settings/init.lua)"
+  if ! command -v nvim >/dev/null 2>&1; then
+    _hi_skip nvim "not installed"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  err="$_HI_WORKDIR/initlua.err"
+  if nvim --headless -u "$rc" -c 'qa!' </dev/null >/dev/null 2>"$err" && [ ! -s "$err" ]; then
+    _hi_align " | settings/init.lua (nvim)" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_align " | settings/init.lua (nvim)" "FAILED" "$RED"
+  sed 's/^/      /' "$err"
+  _hi_note_failure "settings/init.lua (nvim)"
+  return 1
 }
 
 function lint_emacs_rc() {
@@ -182,7 +201,7 @@ function lint_typos() {
 }
 
 function run_tools() {
-  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, emacs, typos)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, nvim, emacs, typos)"
   _hi_workdir toolstest
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
@@ -190,7 +209,7 @@ function run_tools() {
   local -a _HI_SH_FILES=()
   _hi_read_lines _HI_SH_FILES < <(_hi_lint_find -name '*.sh')
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_emacs_rc lint_typos
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_nvim_rc lint_emacs_rc lint_typos
   _hi_lint_suite_end
 }
 
