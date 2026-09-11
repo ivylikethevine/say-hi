@@ -56,6 +56,14 @@ name: Coverage
 # this workflow completes, so a badge shows this run's figure as soon as
 # the sweep is done rather than on the next push.
 #
+# pull_request too, for the comment job at the bottom: a same-repo, non-draft
+# PR runs the same sweep and gets both figures posted beside main's, one
+# comment edited in place per push. Same-repo only, and not merely because a
+# fork's token cannot comment: pages.yml reads the badge figures off the
+# newest green run of this workflow on branch `main`, which a fork PR opened
+# from its own `main` would be (tests/harness/runner_test.sh pins the gate).
+# Concurrency groups carry the PR number so a PR's sweep never cancels main's.
+#
 # continue-on-error on every job, not workflow-level: pages.yml looks up "the
 # newest run of this workflow with status=success" once per badge, and that
 # status is the *whole run's* conclusion - which a hard-failing job would
@@ -69,6 +77,9 @@ on: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]
+  # ci.yml's type set, for the same draft-marked-ready reason
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -84,13 +95,15 @@ jobs:
   shard-kcov:
     name: kcov over the suite sweep (shard ${{ matrix.shard }} of 4)
     if: >-
-      github.event_name != 'workflow_run' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
+       github.event.workflow_run.event == 'push') ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
-      group: coverage-kcov-${{ matrix.shard }}
+      group: coverage-kcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
     continue-on-error: true
     strategy:
@@ -142,13 +155,15 @@ jobs:
   shard-bashcov:
     name: bashcov over the suite sweep (shard ${{ matrix.shard }} of 4)
     if: >-
-      github.event_name != 'workflow_run' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
+       github.event.workflow_run.event == 'push') ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
-      group: coverage-bashcov-${{ matrix.shard }}
+      group: coverage-bashcov-${{ github.event.pull_request.number || 'main' }}-${{ matrix.shard }}
       cancel-in-progress: true
     continue-on-error: true
     strategy:
@@ -232,13 +247,15 @@ jobs:
     needs: shard-kcov
     if: >-
       always() &&
-      (github.event_name != 'workflow_run' ||
+      (github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push'))
+        github.event.workflow_run.event == 'push') ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        !github.event.pull_request.draft))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: coverage-kcov-gather
+      group: coverage-kcov-gather-${{ github.event.pull_request.number || 'main' }}
       cancel-in-progress: true
     continue-on-error: true
     steps:
@@ -355,13 +372,15 @@ jobs:
     needs: shard-bashcov
     if: >-
       always() &&
-      (github.event_name != 'workflow_run' ||
+      (github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push'))
+        github.event.workflow_run.event == 'push') ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        !github.event.pull_request.draft))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: coverage-bashcov-gather
+      group: coverage-bashcov-gather-${{ github.event.pull_request.number || 'main' }}
       cancel-in-progress: true
     continue-on-error: true
     steps:
@@ -477,3 +496,115 @@ jobs:
           name: coverage-v2-pct
           path: coverage-v2-pct
           if-no-files-found: error
+
+  # A same-repo PR's two figures beside main's newest pair (pages.yml's own
+  # lookup), as one comment edited in place on every push - see the header for
+  # why never a fork's. The checkout is for that composite action alone;
+  # nothing here runs the PR's code. A figure missing on either side reads
+  # "not measured", never 0.
+  comment:
+    name: post the figures to the PR
+    needs: [gather-kcov, gather-bashcov]
+    if: >-
+      always() &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: coverage-comment-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    continue-on-error: true
+    # job-scoped, for Scorecard's Token-Permissions check: actions: read for
+    # main's artifacts, pull-requests: write for the comment
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # by pattern, so each lands in its own <artifact-name>/pct; a tool whose
+      # gather published nothing is simply absent
+      - name: Download this run's figures
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage*-pct
+          path: ${{ runner.temp }}/pr
+
+      - name: Fetch main's kcov figure
+        uses: $/.github/actions/fetch-latest-artifact
+        with:
+          workflow: coverage.yml
+          artifact-name: coverage-pct
+          dest-subdir: main/coverage-pct
+          found-message: main's kcov figure from coverage run
+          missing-message: no successful coverage run on main - no kcov figure to compare
+
+      - name: Fetch main's bashcov figure
+        uses: $/.github/actions/fetch-latest-artifact
+        with:
+          workflow: coverage.yml
+          artifact-name: coverage-v2-pct
+          dest-subdir: main/coverage-v2-pct
+          found-message: main's bashcov figure from coverage run
+          missing-message: no successful coverage run on main - no bashcov figure to compare
+
+      # via env, never inline ${{ }} in the run block (zizmor: template-injection)
+      - name: Post or update the coverage comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          marker='<!-- say-hi coverage -->'
+          # a figure is a bare decimal or nothing: an artifact is data, and
+          # nothing else read out of one reaches the comment
+          fig() {
+            local v=""
+            [ -f "$1" ] && IFS= read -r v <"$1" || true
+            case "$v" in '' | . | *[!0-9.]* | *.*.*) v="" ;; esac
+            printf '%s' "$v"
+          }
+          # row <label> <this PR> <main>
+          row() {
+            local now="not measured" was="not measured" change="-"
+            [ -z "$2" ] || now="$2%"
+            [ -z "$3" ] || was="$3%"
+            [ -z "$2" ] || [ -z "$3" ] || change="$(awk -v a="$2" -v b="$3" 'BEGIN { printf "%+.2f", a - b }')"
+            printf '| %s | %s | %s | %s |\n' "$1" "$now" "$was" "$change"
+          }
+          avg() { [ -n "$1" ] && [ -n "$2" ] && awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", (a + b) / 2 }' || true; }
+          k="$(fig "$RUNNER_TEMP/pr/coverage-pct/pct")"
+          b="$(fig "$RUNNER_TEMP/pr/coverage-v2-pct/pct")"
+          k0="$(fig "$RUNNER_TEMP/main/coverage-pct/pct")"
+          b0="$(fig "$RUNNER_TEMP/main/coverage-v2-pct/pct")"
+          body="$(
+            printf '%s\n### Coverage\n\n| | This PR | main | Change |\n| --- | ---: | ---: | ---: |\n' "$marker"
+            row kcov "$k" "$k0"
+            row bashcov "$b" "$b0"
+            row '**average**' "$(avg "$k" "$b")" "$(avg "$k0" "$b0")"
+            printf '\nThe average is the figure to quote, and neither gates anything ([why two](%s)). ' \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/TESTING.md#coverage-and-profiling"
+            printf 'Measured at %s by [this run](%s).\n' "$HEAD_SHA" \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          )"
+          printf '%s\n' "$body" >>"$GITHUB_STEP_SUMMARY"
+          id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id")"
+          id="${id%%$'\n'*}"
+          if [ -n "$id" ]; then
+            set -- -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id"
+          else
+            set -- "repos/$GITHUB_REPOSITORY/issues/$PR/comments"
+          fi
+          # dependabot's token is read-only by default: say so, the summary has the table
+          gh api "$@" -f body="$body" >/dev/null || {
+            echo "::warning title=coverage comment::could not comment on PR #$PR - a read-only token? The table is in this job's summary."
+            exit 0
+          }
+          echo "coverage comment updated on PR #$PR"

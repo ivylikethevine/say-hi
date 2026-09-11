@@ -137,6 +137,20 @@ function test_local_omits_payload_diff_at_stock_defaults() {
   [[ "$out" != *"payload_diff"* ]]
 }
 
+# ...and one with a file in it is diffed, handed the wire figure doctor_local
+# already built (stubbed: the stock build it would add is the whole cost)
+function test_local_diffs_a_non_empty_overlay() {
+  local dir out
+  dir="$_HI_WORKDIR/payloaddiff_overlay"
+  mkdir -p "$dir"
+  printf 'a\n' >"$dir/colors"
+  out="$(
+    function doctor_payload_diff() { printf 'diffed against %s\n' "$1"; }
+    _HI_CONFIG_DIR="$dir" doctor_local
+  )"
+  [[ "$out" == *"diffed against "[0-9]* ]]
+}
+
 # The tool-floor branches: only the happy path (everything present) is ever
 # exercised elsewhere, so a machine that cannot ship a payload at all - or
 # only a bigger one - would go unreported by a broken _hi_missing_tools call.
@@ -173,6 +187,15 @@ function test_backend_dead_reports_not_answering() {
   [[ "$out" == *"not answering"* ]]
 }
 
+# the ssh row counts literal Host names through targets.sh: two here, and a
+# wildcard pattern is not a host
+function test_backends_count_literal_ssh_hosts() {
+  local cfg="$_HI_WORKDIR/ssh_config" out
+  printf 'Host alpha beta\n  HostName 192.0.2.1\nHost *.wild\n' >"$cfg"
+  out="$(PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" _HI_SSH_CONFIG="$cfg" doctor_backends)"
+  [[ "$out" == *"2 literal host(s) in $cfg"* ]]
+}
+
 function test_config_flags_a_settings_file_that_does_not_parse() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/badcfg.XXXXXX")"
@@ -195,6 +218,20 @@ function test_config_counts_an_overlay_file() {
     doctor_config
   )"
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
+}
+
+# what hi --install seeds is the tree's own file, byte for byte: not an
+# override until somebody edits it
+function test_config_calls_a_seeded_overlay_file_unchanged() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/seeded.XXXXXX")"
+  cp "$_HI_ROOT/settings/colors" "$dir/colors"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"colors"*"seeded by hi --install, unchanged from the tree's"* && "$out" != *overridden* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -574,6 +611,20 @@ function test_use_needs_a_backend_name() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"--use needs a backend name"* ]]
 }
 
+# two --use naming different arms are refused, not resolved last-wins
+function test_use_twice_naming_two_backends_is_refused() {
+  local out rc=0
+  out="$("$_HI_DOCTOR" --use docker --use podman host 2>&1)" || rc=$?
+  [ "$rc" -eq 1 ] && [[ "$out" == *"--use podman and --use docker both name a backend; pick one"* ]]
+}
+
+# --help anywhere on the line, not only first: after a flag, after a target
+function test_help_is_read_anywhere_on_the_line() {
+  local out want="Usage: doctor.sh [--json] [--use <backend>] [target]"
+  out="$("$_HI_DOCTOR" --json --help)" && [ "${out%%$'\n'*}" = "$want" ] || return 1
+  out="$("$_HI_DOCTOR" somehost --help)" && [ "${out%%$'\n'*}" = "$want" ]
+}
+
 # The whole plain report, end to end, on the restricted PATH. Two cases
 # assert against it with identical inputs, so it runs once and the transcript
 # and exit code are memoized here.
@@ -595,13 +646,14 @@ function _hi_doctor_plain_report() {
 # The install section, against a $HOME staged per case: doctor.sh runs as a
 # program (rc.sh's roster is a source-time snapshot of $HOME's rc paths, so
 # an in-process call would read this suite's own home). Text report, on the
-# toolbox PATH - no zsh, no fish, no hi - plus whatever env a case adds.
+# toolbox PATH - no zsh, no fish, no hi - plus whatever env a case adds (a
+# PATH among it replaces the toolbox one).
 # _hi_doctor_install_out <home> [NAME=VALUE...] - the report, exit status kept
 function _hi_doctor_install_out() {
   local home="$1"
   shift
   mkdir -p "$home"
-  env "$@" PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" HOME="$home" \
+  env PATH="$(_hi_doctor_shims):$(_hi_doctor_path)" "$@" HOME="$home" \
     _HI_SSH_CONFIG=/nonexistent _HI_CONFIG_DIR="$_HI_WORKDIR/nocfg" "$_HI_DOCTOR" 2>&1
 }
 
@@ -652,11 +704,34 @@ function test_install_section_flags_a_foreign_link() {
   [ "$rc" -eq 1 ] && [[ "$out" == *"$home/.local/bin/hi is not this tree's: /bin/true"* ]]
 }
 
+# `hi` found on PATH and no ~/.local/bin/hi: a link to this tree's hi.sh
+# needs no link of hi's own, and one to anything else is said
+function test_install_section_reads_the_hi_on_path() {
+  local home="$_HI_WORKDIR/inst-onpath" bin out path
+  bin="$home/bin"
+  path="$bin:$(_hi_doctor_shims):$(_hi_doctor_path)"
+  mkdir -p "$bin"
+  ln -sfn "$_HI_LAUNCHER" "$bin/hi"
+  out="$(_hi_doctor_install_out "$home" PATH="$path")" || return 1
+  [[ "$out" == *"no $home/.local/bin/hi, none needed: $bin/hi runs this tree"* &&
+    "$out" == *"hi on PATH is $bin/hi, and runs this tree"* ]] || return 1
+  printf '#!/bin/sh\nexit 0\n' >"$bin/other"
+  chmod +x "$bin/other"
+  ln -sfn "$bin/other" "$bin/hi"
+  out="$(_hi_doctor_install_out "$home" PATH="$path")" || return 1
+  [[ "$out" == *"hi on PATH is $bin/hi, which runs $bin/other - not this tree"* ]]
+}
+
 function test_install_section_warns_about_a_darwin_login_bash() {
   local home="$_HI_WORKDIR/inst-darwin" out
   mkdir -p "$home"
   out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
   [[ "$out" == *"never reaches ~/.bashrc"* ]] || return 1
+  # a ~/.bash_login with no .bash_profile ahead of it is the file bash reads,
+  # and nobody's to edit: the row hands over the line instead
+  printf 'umask 022\n' >"$home/.bash_login"
+  out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
+  [[ "$out" == *"$home/.bash_login, which never reaches ~/.bashrc - add to it: $_HI_BASH_PROFILE_LINE"* ]] || return 1
   printf '. ~/.bashrc\n' >"$home/.bash_profile"
   out="$(_hi_doctor_install_out "$home" _HI_UNAME=Darwin)" || return 1
   [[ "$out" == *"$home/.bash_profile reads ~/.bashrc"* ]]
@@ -734,6 +809,19 @@ assert d["target"] == "run\"ning\\box", d["target"]
 '
 }
 
+# --use typed on the command line reaches the target report: the forced
+# arm's row and no probe chain (the in-process cases set _HI_DOC_BACKEND)
+function test_json_use_flag_forces_the_arm() {
+  local out
+  out="$(HI_FAKE_TOOLS="base64 bash sh " _hi_doctor_json --use docker ghostbox)" || return 1
+  printf '%s' "$out" | python3 -c '
+import json, sys
+t = [r for r in json.load(sys.stdin)["rows"] if r["section"] == "target"]
+assert any(r["label"] == "resolves" and r["text"] == "docker container (forced by --use docker)" for r in t), t
+assert not any(r["label"] == "checked" for r in t), t
+'
+}
+
 # --plain has nothing for doctor to report (it never connects), but it is a
 # real hi.sh flag now - the arg loop has to consume it rather than fall
 # through to _HI_DOC_TARGET the way an unrecognized word otherwise would
@@ -784,6 +872,7 @@ function run_doctor_tests() {
   _hi_check "Reports the version" test_local_reports_the_version
   _hi_check "No .git reads as a package install" test_local_without_a_git_dir_reads_as_a_package_install
   _hi_check "Payload diff omitted at stock defaults" test_local_omits_payload_diff_at_stock_defaults
+  _hi_check "A non-empty overlay is diffed against stock" test_local_diffs_a_non_empty_overlay
   _hi_check "MISSING locally without base64/tar" test_local_reports_missing_floor_tools
   _hi_check "Warns without gzip" test_local_warns_without_gzip
 
@@ -791,10 +880,12 @@ function run_doctor_tests() {
   _hi_check "Missing CLI -> not installed" test_backend_missing_reports_not_installed
   _hi_check "Answering CLI -> timed, green" test_backend_answering_reports_timing
   _hi_check "Dead CLI -> not answering" test_backend_dead_reports_not_answering
+  _hi_check "ssh config: literal hosts counted" test_backends_count_literal_ssh_hosts
 
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check "A seeded overlay file reads as unchanged" test_config_calls_a_seeded_overlay_file_unchanged
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
@@ -829,10 +920,12 @@ function run_doctor_tests() {
   _hi_h2 "Testing: the report"
   _hi_check "--help exits zero" test_help_exits_zero
   _hi_check "--help names what was typed" test_help_names_what_was_typed
+  _hi_check "--help is read anywhere on the line" test_help_is_read_anywhere_on_the_line
   _hi_check "An unknown flag is refused, not the target" test_unknown_flag_is_refused_not_taken_as_the_target
   _hi_check "A second target is refused" test_a_second_target_is_refused
   _hi_check "--use=<backend> is checked like --use" test_use_equals_spelling_names_the_arm
   _hi_check "A trailing --use is refused" test_use_needs_a_backend_name
+  _hi_check "Two --use naming two backends are refused" test_use_twice_naming_two_backends_is_refused
   _hi_check "Full report runs clean on shims" test_full_report_runs_clean
 
   _hi_h2 "Testing: the install section"
@@ -841,6 +934,7 @@ function run_doctor_tests() {
   _hi_check "Unwired shells, absent shells and a missing link are said" test_install_section_warns_about_an_unwired_shell_and_a_missing_link
   _hi_check_capable symlink "The link is reported, and its bindir's absence from PATH" test_install_section_reports_the_link
   _hi_check_capable symlink "A foreign link is a finding" test_install_section_flags_a_foreign_link
+  _hi_check_capable symlink "hi on PATH: this tree's needs no link, another's is said" test_install_section_reads_the_hi_on_path
   _hi_check "macOS: a login bash that never reaches .bashrc is said" test_install_section_warns_about_a_darwin_login_bash
   _hi_check "ZDOTDIR: lines in the file zsh never reads are said" test_install_section_warns_on_a_zdotdir_mismatch
   _hi_check "A finding turns the closing line red and is the exit code" test_a_finding_turns_the_closing_line_red_and_is_the_exit_code
@@ -849,6 +943,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: --json"
   _hi_check_requires python3 "A parseable document with the report in it" test_json_is_a_document_with_the_report_in_it
   _hi_check_requires python3 "Target either side of the flag, escaped" test_json_takes_a_target_either_side_of_the_flag
+  _hi_check_requires python3 "--use from the command line forces the arm" test_json_use_flag_forces_the_arm
   _hi_check_requires python3 "--plain is not mistaken for the target" test_plain_flag_is_not_mistaken_for_the_target
   _hi_check_requires python3 "Findings counted and exited with" test_json_counts_findings_and_exits_with_them
   _hi_check "Off by default" test_json_is_off_by_default

@@ -337,6 +337,18 @@ function test_hosts_table_leads_with_a_localhostname_pin() {
   [[ "${out%%localbox*}" != *override:hostname* ]]
 }
 
+# a group whose host list wraps onto more lines than there are preview users
+# pads the extra line's PREVIEW cell blank: one user (no username or usertag
+# pin) against the two work hosts, which wrap
+function test_hosts_table_pads_a_wrapped_group_past_its_users() {
+  local colors="$_HI_WORKDIR/colors.solo" out row
+  printf 'hosttag,work,bryellow\n' >"$colors"
+  out="$(_HI_COLORS="$colors" _HI_WHOAMI_CACHE=solo _hi_render_hosts_table)" || return 1
+  # the wrapped host's own row, with no user@ beside it
+  row="$(_hi_strip_ansi "$out" | grep -F '| a-considerably-longer-hostname ')" || return 1
+  [[ "$row" != *@* ]] && _hi_table_is_rectangular "$out"
+}
+
 # with no ssh config there is nothing to walk; the table says so instead of
 # quietly rendering an empty box
 function test_hosts_table_reports_a_missing_ssh_config() {
@@ -947,6 +959,7 @@ EOF
   _hi_check "Groups hosts that render identically" test_hosts_table_groups_identical_renders
   _hi_check "Merges pattern hosts into the example row" test_hosts_table_merges_pattern_hosts_into_the_example_row
   _hi_check "Leads with a LOCALHOSTNAME pin" test_hosts_table_leads_with_a_localhostname_pin
+  _hi_check "Pads a wrapped group's rows past its users" test_hosts_table_pads_a_wrapped_group_past_its_users
   _hi_check "Reports a missing ssh config" test_hosts_table_reports_a_missing_ssh_config
 
   _hi_h2 "Testing: colors - the rendered tables"

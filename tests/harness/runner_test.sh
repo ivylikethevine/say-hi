@@ -700,6 +700,34 @@ function test_coverage_shard_jobs_shim_sh_to_bash() {
   }
 }
 
+# coverage.yml's pull_request path is for same-repo PRs only: pages.yml reads
+# the badge figures off the newest green run of it on branch `main`, which a
+# fork PR opened from its own `main` is - its sweep would publish as the
+# README's figure. So every job has an `if:`, and every `if:` either pins a
+# PR to this repository or refuses pull_request outright.
+function test_coverage_pr_runs_are_same_repo_only() {
+  local workflow="$_HI_ROOT/.github/workflows/coverage.yml" job block bad=""
+  local seen=0 jobs
+  [ -f "$workflow" ] || return 0 # a shipped tree has no .github
+  jobs="$(sed -n '/^jobs:$/,$p' "$workflow")"
+  while read -r job; do
+    block="$(printf '%s\n' "$jobs" | sed -n "/^  $job:\$/,/^  [a-zA-Z][a-zA-Z0-9_-]*:\$/p")"
+    seen=$((seen + 1))
+    printf '%s\n' "$block" | grep -q '^    if:' &&
+      ! printf '%s\n' "$block" | grep -qF "event_name != 'workflow_run'" &&
+      printf '%s\n' "$block" | grep -qE "head\.repo\.full_name == github\.repository|event_name != 'pull_request'" ||
+      bad="$bad $job"
+  done < <(printf '%s\n' "$jobs" | sed -n 's/^  \([a-zA-Z][a-zA-Z0-9_-]*\):$/\1/p')
+  [ "$seen" -gt 0 ] || {
+    _hi_cecho " | no jobs read out of coverage.yml - has the file moved?" "$RED"
+    return 1
+  }
+  [ -z "$bad" ] || {
+    _hi_cecho " | coverage.yml jobs a fork's PR could run:$bad" "$RED"
+    return 1
+  }
+}
+
 # Each suite selectable on its own, and every group non-empty: together these
 # are what makes `--group` a safe thing for CI to depend on.
 # --group is what ci.yml invokes, so every group the table uses has to select
@@ -918,6 +946,7 @@ function run_runner_tests() {
   _hi_check "CI runs every group in the table" test_ci_runs_every_group_in_the_table
   _hi_check "coverage.yml merges with the tree checked out" test_coverage_merge_jobs_check_out_the_tree
   _hi_check "coverage.yml shards shim sh to bash before sweeping" test_coverage_shard_jobs_shim_sh_to_bash
+  _hi_check "coverage.yml runs a PR's sweep for same-repo PRs only" test_coverage_pr_runs_are_same_repo_only
   _hi_check "Each group selects only its own" test_every_group_selects_only_its_own_suites
 
   _hi_suite_end "test_runner.sh"

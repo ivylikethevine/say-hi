@@ -180,6 +180,16 @@ function test_overlay_cached_leaves_no_temp_file() {
   [ -z "$(find "$dir" -name 'hi.overlay.*.[0-9]*' -print -quit)" ]
 }
 
+# a builder that fails leaves nothing behind - not the temp file it was
+# writing, not a cache under the real name - and answers rc 1, "build it
+# yourself", with the outvar untouched
+function test_cached_cleans_up_after_a_failed_build() {
+  local out="" dir
+  dir="$(_hi_cache_rt c.fail)"
+  ! XDG_RUNTIME_DIR="$dir" _hi_cached out fail k "$_HI_CONFIG_DIR/" false settings.sh || return 1
+  [ -z "$out" ] && [ -z "$(find "$dir" -name 'hi.fail.k*' -print -quit)" ]
+}
+
 function test_overlay_cached_reuses_a_warm_cache() {
   local out="" dir
   dir="$(_hi_cache_rt oc.warm)"
@@ -276,6 +286,17 @@ function test_payload_stream_is_byte_identical_off_a_warm_cache() {
   a="$(XDG_RUNTIME_DIR="$dir" _hi_payload_stream)"
   b="$(XDG_RUNTIME_DIR="$dir" _hi_payload_stream)"
   [ -n "$a" ] && [ "$a" = "$b" ]
+}
+
+# ...and with the cache off it armors a fresh build instead: through the
+# target's own unarmor, the same members either way (sorted - two staging
+# dirs need not list alike)
+function test_payload_stream_is_the_same_tree_with_the_cache_off() {
+  local dir warm cold
+  dir="$(_hi_cache_rt ps.off)"
+  warm="$(XDG_RUNTIME_DIR="$dir" _hi_payload_stream | eval "$_HI_UNARMOR" | tar tzf - | sort)"
+  cold="$(XDG_RUNTIME_DIR="$dir" _HI_PAYLOAD_CACHE=0 _hi_payload_stream | eval "$_HI_UNARMOR" | tar tzf - | sort)"
+  [ -n "$cold" ] && [ "$cold" = "$warm" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -538,6 +559,7 @@ function run_cache_tests() {
   _hi_check "Refuses without a runtime dir" test_overlay_cached_refuses_without_a_runtime_dir
   _hi_check "Builds cold and names the file" test_overlay_cached_builds_cold_and_names_the_file
   _hi_check "Leaves no temp file behind" test_overlay_cached_leaves_no_temp_file
+  _hi_check "A failed build leaves nothing and answers 1" test_cached_cleans_up_after_a_failed_build
   _hi_check "Reuses a warm cache" test_overlay_cached_reuses_a_warm_cache
   _hi_check "Rebuilds when a member is newer" test_overlay_cached_rebuilds_when_a_member_is_newer
   _hi_check "Keys the file by member list" test_overlay_cached_keys_the_file_by_member_list
@@ -549,6 +571,7 @@ function run_cache_tests() {
   _hi_check "Payload cache rebuilds on a newer source file" test_payload_cached_rebuilds_when_a_source_file_is_newer
   _hi_check "Payload cache off when _HI_PAYLOAD_CACHE=0" test_payload_cached_is_off_when_the_toggle_is_zero
   _hi_check "Payload stream is byte-identical off a warm cache" test_payload_stream_is_byte_identical_off_a_warm_cache
+  _hi_check "Payload stream is the same tree with the cache off" test_payload_stream_is_the_same_tree_with_the_cache_off
 
   _hi_h2 "Testing: _hi_ctl_open / _hi_ctl_close"
   _hi_check "Shared uses the runtime dir" test_ctl_open_shared_uses_the_runtime_dir

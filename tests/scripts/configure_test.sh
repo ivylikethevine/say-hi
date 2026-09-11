@@ -933,6 +933,17 @@ function test_prompt_sample_preview_says_off_when_disabled() {
   [ "$out" = " prompt off - your shell's own" ]
 }
 
+# ...and with it on (an empty settings.sh), it draws the line: this
+# user@host, ending in bash's shipped end character
+function test_prompt_sample_preview_draws_the_prompt_when_on() {
+  _hi_load_preview_sources
+  local _HI_SETTINGS="$_HI_WORKDIR/prompt-sample-on.settings.sh"
+  : >"$_HI_SETTINGS"
+  local out
+  out="$(_hi_strip_ansi "$(_hi_prompt_sample_preview)")"
+  [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
+}
+
 # vim and hx are presence-gated in settings/aliases.sh itself (a box with
 # neither leaves the alias undefined), which _hi_editors_preview now reads
 # rather than restates - so their lines only need to be there when the tool
@@ -1232,6 +1243,12 @@ function test_menu_takes_a_header_preset() {
   [[ "$(_hi_cfg_lines hdr_preset)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
 }
 
+# ...by its full name too, which the one-letter shorthand would refuse
+function test_menu_takes_a_header_preset_by_name() {
+  _hi_cfg_pty hdr_preset_name 'h\nquiet\ns\n' '' config_hub || return 1
+  [[ "$(_hi_cfg_lines hdr_preset_name)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
+}
+
 # item 1 turns the whole header off, and the preview says so in words
 # rather than showing an empty box
 function test_menu_header_off_previews_as_words() {
@@ -1305,6 +1322,14 @@ function test_menu_toggles_starship() {
   _hi_cfg_pty pe_star "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" '' config_hub || return 1
   _hi_cfg_has pe_star "starship: now on" &&
     [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=starship"* ]]
+}
+
+# ...and back off: an opt-in switched off clears its line rather than
+# writing an off-value
+function test_menu_toggles_starship_off() {
+  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" 'export _HI_PROMPT_TOOL=starship' config_hub || return 1
+  _hi_cfg_has pe_star_off "starship: now off" && _hi_cfg_has pe_star_off "CFGLINES=" &&
+    [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]]
 }
 
 # the Advanced rows: an opt-in toggle and a value typed for real, including
@@ -1499,6 +1524,7 @@ function run_configure_tests() {
   _hi_h2 "Testing: the question previews"
   _hi_check "Prompt preview shows this user@host" test_prompt_preview_shows_this_user_and_host
   _hi_check "Prompt sample says off when the prompt is disabled" test_prompt_sample_preview_says_off_when_disabled
+  _hi_check "...and draws the prompt when it is on" test_prompt_sample_preview_draws_the_prompt_when_on
   _hi_check "Editors preview names every override" test_editors_preview_names_every_override
   if command -v nvim >/dev/null 2>&1 || command -v vim >/dev/null 2>&1; then
     _hi_check "The vim preview matches its alias" test_editor_preview_matches_its_alias vim
@@ -1549,11 +1575,13 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: the last header item cannot be turned off" test_menu_keeps_the_last_header_item
   _hi_par_check_capable pty "Menu: items a stored order leaves out list unchecked" test_menu_lists_missing_header_items_off
   _hi_par_check_capable pty "Menu: h takes a header preset" test_menu_takes_a_header_preset
+  _hi_par_check_capable pty "Menu: h takes a header preset by name" test_menu_takes_a_header_preset_by_name
   _hi_par_check_capable pty "Menu: h refuses a stranger" test_menu_header_preset_refuses_a_stranger
   _hi_par_check_capable pty "Menu: the width item takes a width" test_menu_takes_a_width
   _hi_par_check_capable pty "Menu: the check depth opens its loop" test_menu_opens_the_check_depth
   _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
   _hi_par_check_capable pty "Menu: starship toggles" test_menu_toggles_starship
+  _hi_par_check_capable pty "Menu: starship toggles back off" test_menu_toggles_starship_off
   _hi_par_check_capable pty "Menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Menu: a quoted separator is refused" test_menu_refuses_a_quoted_separator
   _hi_par_check_capable pty "Menu: the advanced rows" test_menu_advanced_rows
