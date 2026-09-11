@@ -138,7 +138,9 @@ has, first installed wins:
 `_HI_DISABLE_TOOL_ALIASES=1` drops the `cat`/`catn` rebind and the `exa`/`eza`
 wrappers; `bat`, `batcat` and `batn` stay available by name either way. The
 flags and the binary each alias runs are rows in
-[Every setting](SETTINGS.md#every-setting), set in your `aliases.sh`.
+[Every setting](SETTINGS.md#every-setting), set in your `settings.sh`; to add
+one flag to hi's instead, redefine the alias in your `aliases.sh`, which loads
+after hi's: `alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"`.
 
 ### Shipping your bat theme
 

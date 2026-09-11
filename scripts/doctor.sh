@@ -293,7 +293,7 @@ function doctor_local() {
 }
 
 function doctor_config() {
-  local f t v any=0
+  local f t v late any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
   # Only the absent case here. When the file *is* there, rc.sh's
   # _HI_OVERLAY_CHECKS carries a row per parser that reads it, and
@@ -323,6 +323,13 @@ function doctor_config() {
       doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
+  # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
+  # aliases read, assigned there, lands after they were built and does nothing
+  late="$(grep -v '^[[:space:]]*#' "$_HI_CONFIG_DIR/aliases.sh" 2>/dev/null |
+    grep -oE '(_HI_[A-Z0-9]+_(OPTS|BIN)|_HI_DISABLE_(EDITORS|TOOL_ALIASES|SUDO_ALIAS))=' |
+    tr -d = | sort -u | tr '\n' ' ')" || true
+  [ -z "$late" ] ||
+    doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad
   # only the non-default settings: a default setup stays one quiet line
   for t in "${_HI_TOGGLES[@]}"; do
     eval "v=\${$t:-0}"

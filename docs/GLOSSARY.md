@@ -182,11 +182,11 @@ tier that parses them: `$_HI_BAT_BIN` is `bat || batcat` where
 attach behind `[ -n "$_HI_BAT_BIN" ] && alias ... || true` and ccat and
 coreutils `cat` get the bare binary.
 
-Every such chain sits **above** the user's overlay `aliases.sh` source in
-`settings/aliases.sh`, though the overlay is otherwise sourced first: in zsh
-and dash (not bash, not fish) `command -v name` returns an _alias's_
-definition once one exists, so an overlay `alias cat=...` sourced first would
-leave `_HI_CAT_BIN` holding the alias body instead of a binary path.
+Every such chain runs before any alias exists, the user's overlay
+`aliases.sh` included (it is sourced last): in zsh and dash (not bash, not
+fish) `command -v name` returns an _alias's_ definition once one exists, so
+an overlay `alias cat=...` sourced ahead of the chains would leave
+`_HI_CAT_BIN` holding the alias body instead of a binary path.
 `alias_fallthrough_test.sh` is the regression test.
 
 ## HI.14 _hi_on_exit

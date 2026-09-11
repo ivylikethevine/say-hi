@@ -597,11 +597,12 @@ up:packages)
 export _HI_DISABLE_PROMPT='1'
 export _HI_IP_HIDE='none'
 export _HI_PACKAGES_MIN_PRIORITY='2'
+export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
   demo_overlay packages <<'EOF'
 # the homelab toolbox, and how loudly to miss each piece
 git:3
-vim|nano:3
+vim:3,nano:3
 rsync:3
 curl:3
 htop:2
@@ -618,7 +619,7 @@ up:editors)
   # editors and the aliases; the prompt is hers.
   client_rc zsh maya mbp
   demo_settings <<'EOF'
-export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods check'
+export _HI_HEADER_ORDER='utc version localtime gitid containers jobs pods'
 export _HI_PROMPT_TOOL='starship'
 EOF
   up_container docker dev-box tools
@@ -634,14 +635,14 @@ up:overlay)
 export _HI_HEADER_ORDER='utc localtime containers jobs pods check'
 export _HI_PACKAGES_PALETTE='blue cyan brblue brcyan yellow bryellow red brred'
 EOF
-  # The demo's subject: one alias, in the POSIX+fish subset settings/aliases.sh
-  # says the file has to stay in, and one of the *_OPTS the shipped `cat` alias
-  # reads. Both are in effect in a bash session and a fish one, which is what
-  # the tape shows.
+  # The demo's subject: a new alias and a redefinition of the shipped `cat`
+  # over the binary hi resolved, in the POSIX+fish subset settings/aliases.sh
+  # says the file has to stay in. Both are in effect in a bash session and a
+  # fish one, which is what the tape shows.
   demo_overlay aliases.sh <<'EOF'
 # ~/.config/say-hi/aliases.sh - sourced on every target, in every shell
 alias dfh='df -h /'
-export _HI_BAT_OPTS='-P --theme Nord --style grid'
+alias cat="$_HI_CAT_BIN -P --theme Nord --style grid"
 EOF
   up_container docker db-prod tools
   up_container podman edge-1 fish-bash
@@ -675,6 +676,7 @@ up:colors)
   client_rc bash kai ops-laptop
   demo_settings <<'EOF'
 export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
+export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
 EOF
   up_colors
   ;;
