@@ -212,9 +212,10 @@ suite name. `_hi_cov_select_suites` passes `--shard` straight through to
   job with no working tree merges to `"files": []` and a run-wide `0.00`,
   which is a well-formed report, not an error, and publishes a badge reading
   `0.00%`. `coverage.yml`'s `gather-kcov` therefore checks the tree out
-  before merging; `tests/harness/runner_test.sh` asserts that every job in
-  that workflow running `kcov --merge` does. `gather-bashcov` needs no
-  checkout: its ruby reads only the resultset's per-line arrays.
+  before calling `tests/coverage.sh --merge` (the same merge, ranking and
+  all-zero refusal a local sweep's own tail runs); `tests/harness/runner_test.sh`
+  asserts that every job in that workflow calling it does. `gather-bashcov`
+  needs no checkout: its ruby reads only the resultset's per-line arrays.
 - `tests/coverage_v2.sh` is the same sweep under
   [bashcov](https://github.com/infertux/bashcov), which reads bash's
   `xtrace`. Its residual skews run the other way from kcov's: every line of

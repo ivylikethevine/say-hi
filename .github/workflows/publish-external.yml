@@ -71,7 +71,10 @@ jobs:
             exit 0
           fi
           # the key never touches the workspace: $RUNNER_TEMP is outside it, and
-          # the host key is pinned by keyscan rather than accepted on first use
+          # the host key is pinned by keyscan rather than accepted on first use.
+          # No checkout in this job (its header says why), so packaging/lib.sh's
+          # write_key is not reachable here - release.yml's four keys share it
+          # instead, where a checkout already sits above every one of them.
           install -m 700 -d "$RUNNER_TEMP/ssh"
           printf '%s\n' "$AUR_SSH_KEY" >"$RUNNER_TEMP/ssh/aur"
           chmod 600 "$RUNNER_TEMP/ssh/aur"

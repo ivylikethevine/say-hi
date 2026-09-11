@@ -18,14 +18,33 @@ source "$_HI_HOME/say-hi/common/core.sh"
 
 _HI_RUNNER="$_HI_HOME/say-hi/tests/test_runner.sh"
 
-# Everything a driver wants removed on the way out lands in this array; the
-# one trap covers files appended at any later point (the trap body expands at
-# fire time, not here).
+# Everything a driver wants removed on the way out lands in this array (a
+# file or a directory - _hi_cov_shim_sh_to_bash's is one); the one trap
+# covers entries appended at any later point (the trap body expands at fire
+# time, not here).
 declare -a _HI_COV_TRASH=()
 function _hi_cov_cleanup() {
-  rm -f ${_HI_COV_TRASH[@]+"${_HI_COV_TRASH[@]}"}
+  rm -rf ${_HI_COV_TRASH[@]+"${_HI_COV_TRASH[@]}"}
 }
 trap '_hi_cov_cleanup' EXIT
+
+# _hi_cov_shim_sh_to_bash - a bash-as-sh symlink first on this process's own
+# PATH, inherited by every suite it launches from here on. Neither tracer
+# follows a non-bash child, and where /bin/sh is dash (ubuntu's, this
+# process's own before this runs) the `#!/bin/sh` files a suite *executes*
+# as a child rather than sources - common/targets.sh - read 0% instead of a
+# real figure. Local to this process only: no GITHUB_PATH write (zizmor's
+# audit flags that on coverage.yml's workflow_run trigger) and nothing for a
+# caller to undo, which is what let this live in each driver instead of the
+# workflow that runs it.
+function _hi_cov_shim_sh_to_bash() {
+  local dir
+  dir="$(mktemp -d)"
+  _HI_COV_TRASH+=("$dir")
+  ln -sf "$(command -v bash)" "$dir/sh"
+  PATH="$dir:$PATH"
+  export PATH
+}
 
 # _hi_cov_select_suites [runner args...] - fill $_HI_NAMES/$_HI_PATHS with the
 # suites the given runner arguments select. The runner owns the suite table,

@@ -375,7 +375,13 @@ function test_release_workflow_marks_prerelease_tags() {
 }
 
 function test_prerelease_tags_reach_no_channel() {
-  local job bad=0 guard="!contains(github.ref_name, '-')"
+  local job bad=0 guard="outputs.prerelease != 'true'"
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
+  # shellcheck disable=SC2016 # matching release.yml's literal source text
+  [[ "$job" == *'case "$GITHUB_REF_NAME" in *-*) prerelease=true'* ]] || {
+    _hi_cecho " | release.yml's build job no longer classifies a prerelease tag" "$RED"
+    bad=1
+  }
   job="$(_hi_wf_job "$_HI_RELEASE_WF" brew)"
   if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
     _hi_cecho " | release.yml's brew job runs on a prerelease tag" "$RED"
@@ -384,7 +390,7 @@ function test_prerelease_tags_reach_no_channel() {
   # the Pages refresh too: a prerelease publishes --latest=false, so pages.yml
   # would have nothing new to serve and the dispatch must be skipped
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  if ! [[ "$job" == *"if: \${{ $guard }}"* ]]; then
+  if ! [[ "$job" == *"if: \${{ needs.build.$guard }}"* ]]; then
     _hi_cecho " | release.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
@@ -410,8 +416,7 @@ function test_release_body_carries_frozen_badges() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [[ "$job" == *"head-sha: \${{ github.sha }}"* ]] || return 1
-  [[ "$job" == *"artifact-name: tests"* && "$job" == *"artifact-name: coverage-pct"* &&
-    "$job" == *"artifact-name: coverage-v2-pct"* ]] || return 1
+  [[ "$job" == *"artifact-name: tests"* && "$job" == *'artifact-name: "{coverage-pct,coverage-v2-pct}"'* ]] || return 1
   [[ "$job" == *"img.shields.io/badge/"* && "$job" == *"unknown"* && "$job" == *"lightgrey"* ]] || return 1
   # shellcheck disable=SC2016 # the workflow's own literals, expanded there
   [[ "$job" == *'![tests]($HI_BADGE_TESTS)'* && "$job" == *'($HI_BADGE_KCOV)'* &&
@@ -505,8 +510,8 @@ function test_release_workflow_opens_the_tap_pr_after_brew() {
   }
   [[ "$job" == *"needs: brew"* ]] &&
     [[ "$job" == *"needs.brew.result == 'success'"* ]] &&
-    [[ "$job" == *"!startsWith(github.ref_name, 'v0.0.')"* ]] &&
-    [[ "$job" == *"!contains(github.ref_name, '-')"* ]] &&
+    [[ "$job" == *"needs.brew.outputs.debug != 'true'"* ]] &&
+    [[ "$job" == *"needs.brew.outputs.prerelease != 'true'"* ]] &&
     [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
     [[ "$job" == *"gh pr create"* ]] &&
     [[ "$job" != *"environment:"* ]]

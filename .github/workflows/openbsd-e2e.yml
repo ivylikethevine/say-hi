@@ -26,8 +26,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # freebsd-e2e.yml's run script: its comments say why safe.directory,
-      # `timeout -k` (in OpenBSD's base too) and every </dev/null are there
+      # .github/scripts/bsd_loopback.sh - byte for byte freebsd-e2e.yml's own
+      # call, its header says why
       - name: Fast suites, then say hi to ourselves
         uses: vmactions/openbsd-vm@86cdc08415d9d0865267e686561e276c52d62530 # v1.4.7
         with:
@@ -37,26 +37,4 @@ jobs:
           copyback: false
           prepare: |
             pkg_add -I bash zsh git python%3 base64
-          run: |
-            set -eu
-            cd "$GITHUB_WORKSPACE"
-            _HI_HOME="$(cd .. && pwd)"
-            export _HI_HOME
-            git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-            timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
-
-            ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
-            cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
-            chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
-            out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
-              bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-              "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1 </dev/null)" || true
-            printf '%s\n' "$out"
-            printf '%s\n' "$out" | grep -q HI_BSD_LOOP_OK
-
-            if ls -d "${TMPDIR:-/tmp}"/*.hi.* 2>/dev/null; then
-              echo "session directory survived the exit" >&2
-              exit 1
-            fi
+          run: bash "$GITHUB_WORKSPACE/.github/scripts/bsd_loopback.sh" </dev/null

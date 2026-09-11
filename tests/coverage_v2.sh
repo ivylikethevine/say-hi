@@ -50,7 +50,8 @@
 #     under a dash /bin/sh (ubuntu; CLAUDE.md's dash sweep - measured 0/220
 #     there, 96% under bash). settings/aliases.sh is
 #     `#!/bin/sh` too but sourced by its suite, so it is unaffected.
-#     coverage.yml puts a bash-as-sh first on PATH for that reason.
+#     This driver puts a bash-as-sh first on PATH for that reason
+#     (_hi_cov_shim_sh_to_bash, tests/lib/coverage.sh).
 #
 # The topology is the one coverage.sh established and is unchanged: one run per
 # suite, with the suite script as the *top-level* process, merged at the end.
@@ -82,6 +83,8 @@ if ! command -v bashcov >/dev/null 2>&1; then
   _hi_cecho " | coverage: bashcov not installed - skipping (a dev-only tool: \`gem install --user-install bashcov\`, which needs ruby)" "$YELLOW"
   exit 0
 fi
+
+_hi_cov_shim_sh_to_bash
 
 _HI_COV_DIR="${1:-${TMPDIR:-/tmp}/say-hi-coverage-v2}"
 shift 2>/dev/null || true
