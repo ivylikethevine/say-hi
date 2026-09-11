@@ -16,7 +16,7 @@
 command -v shift >/dev/null 2>&1 &&
   eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_EXA_BIN="${_HI_EXA_BIN-}" _HI_EZA_BIN="${_HI_EZA_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}"; : "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
 
-# Binaries resolved before any alias exists (and above the overlay source):
+# Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
 # chain. $_HI_BAT_BIN is the bat-only tier that parses $_HI_BAT_OPTS - cat
 # and ccat reject that syntax, so the options only ever attach behind it.
@@ -26,19 +26,6 @@ command -v shift >/dev/null 2>&1 &&
 # exa and eza differ in preference order on purpose, so each needs its own var
 [ -z "$_HI_EXA_BIN" ] && export _HI_EXA_BIN="$(command -v exa || command -v eza || command -v ls)" || true
 [ -z "$_HI_EZA_BIN" ] && export _HI_EZA_BIN="$(command -v eza || command -v exa || command -v ls)" || true
-
-# Your own aliases.sh (~/.config/say-hi/aliases.sh, or the overlay's copy on a
-# target), sourced FIRST so any _HI_*_OPTS, or _HI_DISABLE_*
-# you set takes effect below. So an `alias` defined there does NOT win over
-# the same name shipped here: turn the shipped family off with its toggle,
-# then define your own. Same POSIX+fish subset as this file.
-#
-# The path test stops $_HI_CONFIG_DIR pointed at settings/ from sourcing this
-# file forever; the shellcheck directive is the static half of the same hazard
-# (see common/bash.sh).
-# shellcheck source=/dev/null # user config, may not exist
-[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/settings/aliases.sh" ] &&
-  [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true
 
 # off on _HI_DISABLE_EDITORS=1; `|| true` keeps set -e sourcers alive
 [ "$_HI_DISABLE_EDITORS" != 1 ] && alias nano="nano --rcfile $_HI_NANORC" || true
@@ -60,7 +47,7 @@ command -v shift >/dev/null 2>&1 &&
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are
 # only visiting, parents made on save, the diff gutter on. Override the whole
-# string with _HI_MICRO_OPTS in your aliases.sh.
+# string with _HI_MICRO_OPTS in your settings.sh.
 [ -z "$_HI_MICRO_OPTS" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && alias micro="micro $_HI_MICRO_OPTS" || true
 
@@ -108,3 +95,18 @@ alias batn="batcat"
   alias bash="command bash --rcfile $_HI_SESSION_RC/bashrc" || true
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_SESSION_RC/fish.config" ] &&
   alias fish="command fish -C 'source $_HI_SESSION_RC/fish.config'" || true
+
+# Your own aliases.sh (~/.config/say-hi/aliases.sh, or the overlay's copy on a
+# target), sourced LAST: an `alias` there replaces the same name above, can
+# build on what this file resolved (`alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS
+# --icons"`), and `alias cat=cat` takes one back. The values the aliases above
+# read (_HI_*_OPTS, _HI_*_BIN, the _HI_DISABLE_* toggles) belong in
+# settings.sh, which every shell sources first; set here they arrive too late,
+# and `hi --doctor` says so. Same POSIX+fish subset as this file.
+#
+# The path test stops $_HI_CONFIG_DIR pointed at settings/ from sourcing this
+# file forever; the shellcheck directive is the static half of the same hazard
+# (see common/bash.sh).
+# shellcheck source=/dev/null # user config, may not exist
+[ "$_HI_CONFIG_DIR/aliases.sh" != "$_HI_ROOT/settings/aliases.sh" ] &&
+  [ -f "$_HI_CONFIG_DIR/aliases.sh" ] && . "$_HI_CONFIG_DIR/aliases.sh" || true

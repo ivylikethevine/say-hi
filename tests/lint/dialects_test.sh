@@ -158,7 +158,7 @@ function _hi_lint_fish_parse() {
   fi
   _hi_align " | the fish files do not parse under the $what" "FAILED" "$RED"
   printf '%s\n' "$out" | sed 's/^/      /'
-  _hi_note_failure "$what: $(printf '%s' "$out" | grep -c 'Mismatched\|error\|Error' || true) complaint(s)"
+  _hi_note_failure "$what: $(printf '%s' "$out" | grep -Ec 'Mismatched|error|Error' || true) complaint(s)"
   return 1
 }
 

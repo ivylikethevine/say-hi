@@ -69,7 +69,7 @@ fi
 if [ -n "${_HI_CHECK_BAT_OPTS:-}" ]; then
   case "$(alias bat 2>/dev/null)" in
   *"$_HI_EXPECT_BAT_OPTS"*) : ;;
-  *) echo "bat alias missing overlay opts [$_HI_EXPECT_BAT_OPTS]: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
+  *) echo "bat alias missing opts [$_HI_EXPECT_BAT_OPTS]: $(alias bat 2>/dev/null)" >&2; fail=1 ;;
   esac
 fi
 
@@ -145,7 +145,7 @@ end
 
 if set -q _HI_CHECK_BAT_OPTS
   if not string match -q -- "*$_HI_EXPECT_BAT_OPTS*" (functions bat | string join \n)
-    echo "bat alias missing overlay opts [$_HI_EXPECT_BAT_OPTS]" >&2
+    echo "bat alias missing opts [$_HI_EXPECT_BAT_OPTS]" >&2
     set fail 1
   end
 end
@@ -188,20 +188,13 @@ exit $fail
 EOF
 }
 
-# aliases.sh's first act is sourcing $_HI_CONFIG_DIR/aliases.sh when it
-# exists, so any _HI_*_OPTS or _HI_DISABLE_* toggle it sets lands ahead of
-# the shipped aliases being built. One case per shell proves a new overlay
-# alias (one the shipped file never touches) still arrives; one proves the
-# other direction - an overlay `alias` of a name the shipped
-# file *also* defines does NOT win, since the shipped definition runs after
-# it and overwrites it (docs/SETTINGS.md describes this trade-off; the
-# way to keep an overlay alias of a shipped name is the matching
-# `_HI_DISABLE_*` toggle); one per shell proves a config-dir-less run (the
-# container fallback's shape) stays silent.
-#
-# The shadowed case probes `batcat`, not a toggled name: it is defined
-# unconditionally (no _HI_DISABLE_* can make it disappear), so the case can
-# never again go red just because a name was de-opinionated out from under it.
+# aliases.sh's last act is sourcing $_HI_CONFIG_DIR/aliases.sh when it
+# exists, so the overlay's aliases win. Per shell: a new overlay alias
+# arrives; a redefinition of a shipped name wins while building on the
+# shipped values (the add-a-flag idiom docs/SETTINGS.md gives); `alias cat=cat`
+# takes one shipped alias back; and a config-dir-less run (the container
+# fallback's shape) stays silent.
+# shellcheck disable=SC2016 # the overlay lines expand in the shell under test
 function _hi_run_overlay_case() {
   local shell="$1" mode="$2" shell_bin cfgdir="" script out
   shell_bin="$(_hi_kv_get _HI_SHELL_BIN "$shell")"
@@ -219,25 +212,33 @@ function _hi_run_overlay_case() {
       _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
     [ "$out" = OVERLAY-OK ]
     ;;
-  shadowed)
-    cfgdir="$_HI_WORKDIR/overlaycfg_shadowed"
+  wins)
+    cfgdir="$_HI_WORKDIR/overlaycfg_wins"
     mkdir -p "$cfgdir"
-    printf 'alias batcat="echo overlay-wins"\n' >"$cfgdir/aliases.sh"
+    printf 'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --overlay-marker"\n' >"$cfgdir/aliases.sh"
     if [ "$shell" = fish ]; then
-      # `functions batcat`'s header line is metadata (fish keeps a stale
-      # --wraps from the overlay's first definition even after the shipped
-      # one overwrites the body), so it's excluded by name/shape rather than
-      # by a fixed line offset - `functions`' exact line count isn't stable
-      # across fish versions (this shipped alias is unconditional, so a
-      # missing function here is this case's own bug, not a de-opinionated
-      # name - hence SHADOWED-MISSING is distinct from SHADOWED-BAD)
-      script="source $_HI_ALIASES; functions -q -- batcat; or begin; echo SHADOWED-MISSING; exit; end; functions batcat | string match -v -r '^(#|function |end\$)' | string match -q '*overlay-wins*'; and echo SHADOWED-BAD; or echo SHADOWED-OK"
+      script="source $_HI_ALIASES; functions eza | string match -q -- '*--group-directories-first*--overlay-marker*'; and echo WINS-OK"
     else
-      script=". $_HI_ALIASES && { alias batcat >/dev/null 2>&1 || { echo SHADOWED-MISSING; exit 0; }; alias batcat 2>/dev/null | grep -q overlay-wins && echo SHADOWED-BAD || echo SHADOWED-OK; }"
+      script=". $_HI_ALIASES && alias eza 2>/dev/null | grep -q -- '--group-directories-first.*--overlay-marker' && echo WINS-OK"
     fi
     out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
       _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
-    [ "$out" = SHADOWED-OK ]
+    [ "$out" = WINS-OK ]
+    ;;
+  drops)
+    cfgdir="$_HI_WORKDIR/overlaycfg_drops"
+    mkdir -p "$cfgdir"
+    printf 'alias cat=cat\n' >"$cfgdir/aliases.sh"
+    if [ "$shell" = fish ]; then
+      # the header line is metadata (fish keeps the shipped definition's
+      # --wraps bat after the overlay's replaces the body), so only the body
+      script="source $_HI_ALIASES; functions cat | string match -v -r '^(#|function |end\$)' | string match -q '*bat*'; and echo DROP-BAD; or echo DROP-OK"
+    else
+      script=". $_HI_ALIASES && { alias cat 2>/dev/null | grep -q bat && echo DROP-BAD || echo DROP-OK; }"
+    fi
+    out="$(env -i HOME="$_HI_FAKEHOME" PATH="$PATH" _HI_ALIASES="$_HI_ALIASES" \
+      _HI_ROOT="$_HI_ROOT" _HI_CONFIG_DIR="$cfgdir" "$shell_bin" -c "$script" 2>&1)"
+    [ "$out" = DROP-OK ]
     ;;
   *)
     # no _HI_CONFIG_DIR in the environment at all - the backstop default must
@@ -254,13 +255,10 @@ function _hi_run_overlay_case() {
   esac
 }
 
-# The ordering hazard the reorder introduces: in zsh and dash (not bash, not
-# fish) `command -v name` returns an *alias's* definition once one exists, so
-# if the overlay ran before the command -v fallthrough chains, an overlay
-# `alias cat=...` would poison $_HI_CAT_BIN before it ever resolves to a
-# real binary. settings/aliases.sh keeps the chains above the overlay source
-# specifically to avoid this (GLOSSARY: HI.13) - this is the regression test
-# for that ordering, over a fake PATH holding nothing but a fake `cat`.
+# In zsh and dash (not bash, not fish) `command -v name` returns an *alias's*
+# definition once one exists, so an overlay `alias cat=...` sourced ahead of
+# the fallthrough chains would poison $_HI_CAT_BIN (GLOSSARY: HI.13). This
+# pins the overlay below them, over a fake PATH holding only a fake `cat`.
 function run_overlay_poisoning_test() {
   _hi_h1 "An overlay alias cannot poison the command -v fallthrough chains"
   local shell fakepath cfgdir
@@ -276,30 +274,26 @@ function run_overlay_poisoning_test() {
   done
 }
 
-# The other half of sourcing the overlay first: a value it sets - here
-# _HI_BAT_OPTS - has to reach the alias the shipped file builds from it, which
-# is the whole point of the reorder.
-function run_overlay_bat_opts_test() {
-  _hi_h1 "Overlay _HI_BAT_OPTS reaches the bat alias"
-  local shell fakepath cfgdir
+# A value settings.sh exports - here _HI_BAT_OPTS - reaches the alias built
+# from it (core.sh and config.fish source settings.sh ahead of this file).
+function run_bat_opts_test() {
+  _hi_h1 "An exported _HI_BAT_OPTS reaches the bat alias"
+  local shell fakepath
   fakepath="$(_hi_fake_path fp_batopts bat)"
-  cfgdir="$_HI_WORKDIR/batoptscfg"
-  mkdir -p "$cfgdir"
-  printf "export _HI_BAT_OPTS='--style plain --overlay-marker'\n" >"$cfgdir/aliases.sh"
-
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_case _hi_run_scenario "$shell" "$fakepath" \
-      "[$shell] overlay _HI_BAT_OPTS lands in the bat alias" \
-      _HI_CONFIG_DIR="$cfgdir" _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--overlay-marker'
+      "[$shell] _HI_BAT_OPTS lands in the bat alias" \
+      _HI_BAT_OPTS='--style plain --opts-marker' _HI_CHECK_BAT_OPTS=1 _HI_EXPECT_BAT_OPTS='--opts-marker'
   done
 }
 
 function run_overlay_tests() {
-  _hi_h1 "The overlay aliases.sh (sourced first: values/toggles win, alias redefinitions don't)"
+  _hi_h1 "The overlay aliases.sh (sourced last: its aliases win)"
   local shell
   for shell in $_HI_INSTALLED_SHELLS; do
     _hi_check "[$shell] overlay's own alias arrives" _hi_run_overlay_case "$shell" present
-    _hi_check "[$shell] overlay's redefinition of a shipped alias does not win" _hi_run_overlay_case "$shell" shadowed
+    _hi_check "[$shell] overlay's redefinition of a shipped alias wins, on its flags" _hi_run_overlay_case "$shell" wins
+    _hi_check "[$shell] overlay's alias cat=cat takes the shipped one back" _hi_run_overlay_case "$shell" drops
     _hi_check "[$shell] silent without a config dir" _hi_run_overlay_case "$shell" absent
   done
 }
@@ -489,7 +483,7 @@ function run_alias_fallthrough_test() {
   run_tool_aliases_flag_tests
   run_overlay_tests
   run_overlay_poisoning_test
-  run_overlay_bat_opts_test
+  run_bat_opts_test
   run_session_wrapper_tests
 
   _hi_suite_end "" \

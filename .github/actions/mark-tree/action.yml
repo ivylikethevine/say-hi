@@ -1,0 +1,34 @@
+name: Mark tree
+# The pull_request half of the push-to-main dedupe ci.yml and coverage.yml
+# share: an artifact named after the tree this run tested (the merge ref's),
+# which the push landing that same tree on main looks up with
+# .github/scripts/find_tree_run.sh. The tree, not the commit: a squash merge
+# is a new commit over the same tree, and main moving under the PR is a
+# different tree - and a full run.
+description: Upload an artifact named <prefix>-<tree sha of GITHUB_SHA>
+
+inputs:
+  prefix:
+    description: the artifact name's prefix, e.g. ci-tree
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - id: tree
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$GITHUB_SHA" --jq .tree.sha)"
+        mkdir -p "$RUNNER_TEMP/tree"
+        printf '%s\n' "$tree" >"$RUNNER_TEMP/tree/sha"
+        echo "sha=$tree" >>"$GITHUB_OUTPUT"
+
+    # 30 days: a PR older than that re-runs in full on merge, which is safe
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ inputs.prefix }}-${{ steps.tree.outputs.sha }}
+        path: ${{ runner.temp }}/tree
+        retention-days: 30

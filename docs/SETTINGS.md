@@ -18,7 +18,7 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`)                                                                                 |
 | `~/.config/say-hi/helix.toml`      | `settings/helix.toml` | the same for helix, used by the `hx` alias (`hx -c`)                                                                                        |
 | `~/.config/say-hi/kak.rc`          | `settings/kak.rc`   | kakoune additions, sourced by the `kak` alias **after** the target's own kakrc (`kak -e`); micro takes no file - see `_HI_MICRO_OPTS` below   |
-| `~/.config/say-hi/aliases.sh`      | -                   | your own flags and aliases, sourced **first** so your `_HI_*_OPTS`/toggles land before the shipped aliases are built - same POSIX+fish subset |
+| `~/.config/say-hi/aliases.sh`      | -                   | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session) |
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
@@ -199,14 +199,14 @@ cannot land without a row here.
 | `_HI_DISABLE_LEAD_SPACE`         | `0`                                                  | `hi --configure` advanced | `1` drops the hardcoded leading space before the prompt's `user@host`, the git segment, the banner line, and the first cell of every header row                                                                                                                                                                                                                  |
 | `_HI_TRUECOLOR`             | by terminal                                          | `hi --configure` advanced | `1`/`0`: does the terminal render 24-bit color. Unset, the client decides and ships the verdict to the session; see [Colors](#colors). The Advanced walk asks it as auto/on/off, and is the only free-text question in it                                                                                                                                                              |
 | `NO_COLOR`                  | unset                                                | you                       | not hi's variable but [the convention](https://no-color.org): any non-empty value renders everything without color, shipped to the target next to [`_HI_ASCII`](#not-settings)                                                                                                                                                                                                    |
-| `_HI_BAT_OPTS`              | `-P --tabs 2`, the Monokai Extended Bright theme, `changes,grid` style | you                       | the flags the `bat`/`batn` aliases attach, set in your `aliases.sh` ahead of the tree's own                                                                                                                                                                                                                                                                      |
+| `_HI_BAT_OPTS`              | `-P --tabs 2`, the Monokai Extended Bright theme, `changes,grid` style | you                       | the flags the `bat`/`batn` aliases attach; this row and those below go in `settings.sh`, which loads ahead of the aliases                                                                                                                                                                                                                                         |
 | `_HI_EXA_OPTS`              | `-F -1 -l -m --group-directories-first --group --no-filesize`         | you                       | the `exa` alias's flags (its predecessor's column set)                                                                                                                                                                                                                                                                                                           |
 | `_HI_EZA_OPTS`              | the same leading flags + smart-group + a time format | you                       | the `eza` alias's flags                                                                                                                                                                                                                                                                                                                                          |
 | `_HI_MICRO_OPTS`            | `-backup false -savehistory false -mkparents true -diffgutter true` | you            | the `micro` alias's flags - micro takes settings on the command line rather than a config file, so this is its whole override; behind `_HI_DISABLE_EDITORS`                                                                                                                                                                                                  |
-| `_HI_CAT_BIN`            | first of `bat`, `batcat`, `ccat`, `cat` on PATH      | you                       | which binary the `bat` and `cat` aliases run (Debian ships bat as `batcat`; the tail keeps `cat` working where none is installed). From `settings.sh` or the environment only: `settings/aliases.sh` resolves it above the overlay `aliases.sh` source, unlike the `_OPTS` above                                                                                 |
+| `_HI_CAT_BIN`            | first of `bat`, `batcat`, `ccat`, `cat` on PATH      | you                       | which binary the `bat` and `cat` aliases run (Debian ships bat as `batcat`; the tail keeps `cat` working where none is installed)                                                                                                                                                                                                                                                                                                               |
 | `_HI_BAT_BIN`              | first of `bat`, `batcat` on PATH                     | you                       | the bat-only tier behind it, what parses `_HI_BAT_OPTS` - two rungs shorter on purpose; set with it, or leave both alone                                                                                                                                                                                                                                         |
-| `_HI_EXA_BIN`               | first of `exa`, `eza`, `ls` on PATH                  | you                       | which binary the `exa` alias runs; the same `settings.sh`-or-environment rule                                                                                                                                                                                                                                                                                    |
-| `_HI_EZA_BIN`               | first of `eza`, `exa`, `ls` on PATH                  | you                       | which binary the `eza` alias runs; likewise                                                                                                                                                                                                                                                                                                                      |
+| `_HI_EXA_BIN`               | first of `exa`, `eza`, `ls` on PATH                  | you                       | which binary the `exa` alias runs                                                                                                                                                                                                                                                                                                                                |
+| `_HI_EZA_BIN`               | first of `eza`, `exa`, `ls` on PATH                  | you                       | which binary the `eza` alias runs                                                                                                                                                                                                                                                                                                                                |
 
 ### Not settings
 
@@ -379,12 +379,19 @@ hi ships nobody's shell preferences — no history sizing, keybindings, `zstyle`
 rules or fish palette. Each rc carries the prompt, the completions and the git
 segment, which are the product. Your own `bash.sh`, `zsh.zsh` or `config.fish`
 in the config directory is sourced at the end of hi's, in the same dialect,
-and wins - `HISTFILE` included; hi sets none. Your `aliases.sh` instead loads
-**before** `settings/aliases.sh` (`sudo`, the `cat`/`bat` and `ls`/`eza`
-families), so a `_HI_*_OPTS` value or `_HI_DISABLE_*` toggle set there wins
-but an `alias` of the same name does not - the shipped one is defined after
-and overwrites it. Turn the shipped families off with `_HI_DISABLE_TOOL_ALIASES`
-and define your own instead.
+and wins - `HISTFILE` included; hi sets none. Your `aliases.sh` likewise loads
+**after** `settings/aliases.sh`, so an `alias` there replaces hi's of the same
+name (`sudo`, the editors, the `cat`/`bat` and `exa`/`eza` families), and one
+can build on hi's flags rather than restate them:
+
+```sh
+alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"   # hi's flags, plus one
+alias cat=cat                                    # this one alias back to plain
+```
+
+The `_HI_*_OPTS`, `_HI_*_BIN` and `_HI_DISABLE_*` values hi's aliases are
+built from go in `settings.sh`, which loads first; set in `aliases.sh` they
+arrive after the aliases are built, and `hi --doctor` flags them.
 
 ## Keeping the overlay in a dotfile manager
 

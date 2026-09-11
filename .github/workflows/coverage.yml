@@ -64,6 +64,13 @@ name: Coverage
 # from its own `main` would be (tests/harness/runner_test.sh pins the gate).
 # Concurrency groups carry the PR number so a PR's sweep never cancels main's.
 #
+# A push whose tree its same-repo PR run already swept is not swept again:
+# that run's `comment` job leaves a coverage-tree-<tree> marker
+# (./.github/actions/mark-tree), and `reuse` republishes that run's two
+# figures under this one, where pages.yml and release.yml look - ci.yml's
+# push-to-main dedupe, same lookup. No marker, or a figure missing from it,
+# is the full sweep.
+#
 # continue-on-error on every job, not workflow-level: pages.yml looks up "the
 # newest run of this workflow with status=success" once per badge, and that
 # status is the *whole run's* conclusion - which a hard-failing job would
@@ -86,6 +93,57 @@ permissions:
   contents: read
 
 jobs:
+  # The dedupe in the header: the workflow_run path only, and only for a tree
+  # whose PR run published both figures. `event_name != 'pull_request'` is
+  # the same-repo guard's other form (runner_test.sh reads every job's `if:`).
+  reuse:
+    name: reuse the PR run's figures
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.find.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TREE: ${{ github.event.workflow_run.head_commit.tree_id }}
+        run: .github/scripts/find_tree_run.sh coverage.yml "coverage-tree-$TREE" coverage-pct coverage-v2-pct | tee -a "$GITHUB_OUTPUT"
+
+      # the per-file reports stay on the PR run, which the step above logs
+      - if: steps.find.outputs.run != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "{coverage-pct,coverage-v2-pct}"
+          path: carried
+          run-id: ${{ steps.find.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - if: steps.find.outputs.run != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-pct
+          path: carried/coverage-pct
+          if-no-files-found: error
+
+      - if: steps.find.outputs.run != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-v2-pct
+          path: carried/coverage-v2-pct
+          if-no-files-found: error
+
   # every-suite selection sliced 4 ways, per the header above; each shard
   # writes only its own $_HI_COV_DIR/parts/<suite> subdirectories, which are
   # disjoint across shards by construction (--shard partitions the suite
@@ -94,12 +152,14 @@ jobs:
   # whole sweep in one process.
   shard-kcov:
     name: kcov over the suite sweep (shard ${{ matrix.shard }} of 4)
+    needs: reuse
     if: >-
+      !cancelled() && needs.reuse.outputs.run == '' && (
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push') ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
-       !github.event.pull_request.draft)
+       !github.event.pull_request.draft))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
@@ -154,12 +214,14 @@ jobs:
 
   shard-bashcov:
     name: bashcov over the suite sweep (shard ${{ matrix.shard }} of 4)
+    needs: reuse
     if: >-
+      !cancelled() && needs.reuse.outputs.run == '' && (
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push') ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
-       !github.event.pull_request.draft)
+       !github.event.pull_request.draft))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
@@ -244,9 +306,9 @@ jobs:
   # merge assumes they came from one process, one machine, or in order.
   gather-kcov:
     name: kcov - merge shards and publish
-    needs: shard-kcov
+    needs: [reuse, shard-kcov]
     if: >-
-      always() &&
+      always() && needs.reuse.outputs.run == '' &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push') ||
@@ -369,9 +431,9 @@ jobs:
   # not worth a second gem install in a job that otherwise needs only ruby.
   gather-bashcov:
     name: bashcov - merge shards and publish
-    needs: shard-bashcov
+    needs: [reuse, shard-bashcov]
     if: >-
-      always() &&
+      always() && needs.reuse.outputs.run == '' &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push') ||
@@ -525,6 +587,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # the marker the push landing this tree on main looks for (`reuse`)
+      - uses: $/.github/actions/mark-tree
+        with:
+          prefix: coverage-tree
 
       # by pattern, so each lands in its own <artifact-name>/pct; a tool whose
       # gather published nothing is simply absent

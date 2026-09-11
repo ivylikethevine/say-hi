@@ -239,9 +239,10 @@ function _hi_session_shell_cmd() {
 # it names something installed here, else the first of the ladder. The flags
 # are read off the alias settings/aliases.sh builds (sourced here, in the
 # caller's $( ) subshell, so nothing leaks into load()) - one spelling of each
-# editor's invocation, and the overlay's own _HI_MICRO_OPTS reaches $EDITOR
-# the way it reaches the alias. kak goes bare - sudoedit splits the value on
-# whitespace with no quoting, and kak's config flag needs one quoted word.
+# editor's invocation, so _HI_MICRO_OPTS or an overlay's own `alias vim=...`
+# reaches $EDITOR the way it reaches the alias. kak goes bare - sudoedit
+# splits the value on whitespace with no quoting, and kak's config flag needs
+# one quoted word.
 function _hi_session_editor() {
   local e name body
   # shellcheck source=./settings/aliases.sh

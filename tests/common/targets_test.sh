@@ -226,7 +226,7 @@ function test_trailing_comment_is_not_a_host() {
   local out
   out="$(_hi_targets "$_HI_CONFIG" ssh)"
   _hi_has_row "$out" commented ssh || return 1
-  ! printf '%s\n' "$out" | grep -q 'trailing\|comment,'
+  ! printf '%s\n' "$out" | grep -Eq 'trailing|comment,'
 }
 
 function test_missing_config_is_empty_and_succeeds() {

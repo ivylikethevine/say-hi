@@ -436,7 +436,9 @@ function test_uptime_cell_is_humanized() {
 # network config
 function test_ip_cell_has_a_shape() {
   local out
-  _hi_cell_ip out
+  # none: in a container the only address is often docker's 172.*, hidden by
+  # default, and an empty cell has no shape to check
+  _HI_IP_HIDE=none _hi_cell_ip out
   [[ "$out" =~ IP:\ ([0-9]{1,3}(\.[0-9]{1,3}){3}(,[0-9]{1,3}(\.[0-9]{1,3}){3})*|\?) ]]
 }
 
@@ -934,7 +936,7 @@ function test_hi_header_order_uptime_is_its_own_word() {
 
 function test_hi_header_order_ip_is_its_own_word() {
   local out
-  out="$(_HI_HEADER_ORDER="ip cores" hi_header Connected)"
+  out="$(_HI_IP_HIDE=none _HI_HEADER_ORDER="ip cores" hi_header Connected)"
   [[ "$out" == *"IP:"* && "$out" == *"Cores:"* && "$out" != *"Auth:"* ]]
 }
 

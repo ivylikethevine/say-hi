@@ -195,7 +195,7 @@ function test_formula_ships_a_wrapper_that_exports_hi_home() {
   # string reads its own documentation as a violation.
   grep -qF '(bin/"hi").write' "$_HI_FORMULA" &&
     grep -qF 'export _HI_HOME="#{libexec}"' "$_HI_FORMULA" &&
-    ! grep -vE '^\s*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null
+    ! grep -vE '^[[:space:]]*#' "$_HI_FORMULA" | grep -F 'bin.install_symlink' >/dev/null
 }
 
 # The rpm's signature block, on the apk's pattern: the key file from the env,
@@ -322,7 +322,7 @@ function _hi_pkgbuild_depends() {
 }
 
 function _hi_srcinfo_depends() {
-  sed -n 's/^\tdepends = //p' "$1" | sort
+  sed -n 's/^[[:space:]]*depends = //p' "$1" | sort
 }
 
 function test_srcinfo_depends_match_their_pkgbuild() {
@@ -713,7 +713,7 @@ function test_tool_manifest_rows_are_wellformed() {
       bad=1
       ;;
     esac
-  done < <(grep -v '^[[:space:]]*\(#\|$\)' "$_HI_TOOLS_TXT")
+  done < <(grep -Ev '^[[:space:]]*(#|$)' "$_HI_TOOLS_TXT")
   [ "$bad" = 0 ]
 }
 
@@ -954,7 +954,7 @@ function test_bump_write_falls_back_without_makepkg() {
   bump_fixture
   (
     _hi_bump_env
-    box="$(_hi_real_path nomakepkg sh sed awk head grep cat rm chmod stat mktemp sha256sum shasum b2sum openssl)"
+    box="$(_hi_real_path nomakepkg sh sed awk head grep cat rm chmod stat mktemp sha256sum shasum sha256 b2sum openssl python3)"
     out="$(PATH="$box" write_manifests "$_HI_TB" 2>&1)" || exit 1
     [[ "$out" == *"pkgver/source/b2sums only"* ]] &&
       grep -qF "b2sums = $(b2_of "$_HI_TB")" "$_HI_SRCINFO"
@@ -1223,7 +1223,8 @@ function test_write_checksums_refuses_a_missing_source_tarball() {
 function test_src_tarball_uses_the_prepare_prefix() {
   local out="$_HI_WORKDIR/srctar-prefix.tar.gz"
   src_tarball 9.9.9 HEAD "$out" || return 1
-  [ "$(tar tzf "$out" | head -1)" = "say-hi-9.9.9/" ]
+  # OpenBSD's tar lists a directory without its trailing slash
+  case "$(tar tzf "$out" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) return 1 ;; esac
 }
 
 function test_src_tarball_is_byte_stable() {
@@ -1275,7 +1276,8 @@ function _hi_stamp_fixture() {
   chmod 755 "$dir/usr/share/say-hi/hi.sh"
   printf '.TH HI 1 "1970-01-01" "say-hi 0.0.0" "User Commands"\n.SH NAME\n' \
     >"$dir/usr/share/man/man1/hi.1"
-  [ "${1:-}" = plain ] || gzip -9n "$dir/usr/share/man/man1/hi.1" || return 1
+  # -f: OpenBSD's gzip leaves a file that would grow alone and exits 2
+  [ "${1:-}" = plain ] || gzip -9nf "$dir/usr/share/man/man1/hi.1" || return 1
   printf '%s' "$dir"
 }
 
@@ -1548,6 +1550,7 @@ function test_lib_b2_matches_makepkg_expectation() {
   out="$(_hi_in_pkglib b2_of "$f")"
   # BLAKE2b-512: 128 hex chars, and both impls agree where both exist
   [ "${#out}" -eq 128 ] || return 1
+  openssl dgst -blake2b512 </dev/null >/dev/null 2>&1 || return 0
   [ "$out" = "$(openssl dgst -blake2b512 "$f" | awk '{ print $NF }')" ]
 }
 
@@ -1724,7 +1727,7 @@ function test_srctar_builds_the_tarball_it_names() {
   local out f="$_HI_WORKDIR/srctar-cli.tar.gz"
   out="$("$_HI_PKG_DIR/srctar.sh" 9.9.9 HEAD "$f" 2>&1)" || return 1
   [[ "$out" == *"$f :)"* ]] || return 1
-  [ "$(tar tzf "$f" | head -1)" = "say-hi-9.9.9/" ]
+  case "$(tar tzf "$f" | head -1)" in say-hi-9.9.9 | say-hi-9.9.9/) ;; *) false ;; esac
 }
 
 # --- mkpkg.sh's arms past --stage-only -------------------------------------
@@ -2085,7 +2088,8 @@ function _hi_fake_deb() {
   (
     cd "$dir" || exit 1
     printf '2.0\n' >debian-binary
-    tar -czf data.tar.gz -T /dev/null
+    # an empty archive (two zero blocks) without GNU tar's -T
+    dd if=/dev/zero bs=512 count=2 2>/dev/null | gzip -n >data.tar.gz
     # S: no symbol table. Without it, macOS's ar (cctools, not GNU) treats
     # a fresh archive as a static library and runs an implicit ranlib pass -
     # "ranlib: warning: archive member 'debian-binary' not a mach-o file" on
@@ -2112,7 +2116,7 @@ function test_mkrepo_one_package_rule() {
 function test_mkrepo_build_apk_refuses_a_pkginfo_less_apk() {
   local d="$_HI_WORKDIR/apk-refuse"
   mkdir -p "$d"
-  tar -czf "$d/say-hi.apk" -T /dev/null
+  dd if=/dev/zero bs=512 count=2 2>/dev/null | gzip -n >"$d/say-hi.apk"
   ! _hi_in_mkrepo "$d" "$d/repo" build_apk 2>/dev/null
 }
 

@@ -147,8 +147,11 @@ function verify_signing_key() {
 function sha256_lines() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum -- "$@"
-  else
+  elif command -v shasum >/dev/null 2>&1; then
     shasum -a 256 -- "$@"
+  else
+    # OpenBSD's sha256 -r: one space where coreutils prints two
+    sha256 -r -- "$@" | sed 's/ /  /'
   fi
 }
 
@@ -159,6 +162,9 @@ function sha256_of() {
 function b2_of() {
   if command -v b2sum >/dev/null 2>&1; then
     b2sum "$1" | awk '{ print $1 }'
+  elif ! openssl dgst -blake2b512 </dev/null >/dev/null 2>&1; then
+    # LibreSSL (OpenBSD) has no BLAKE2; hashlib's blake2b is BLAKE2b-512
+    python3 -c 'import hashlib, sys; print(hashlib.blake2b(open(sys.argv[1], "rb").read()).hexdigest())' "$1"
   else
     # BLAKE2b-512 is exactly what makepkg's b2sums holds
     openssl dgst -blake2b512 "$1" | awk '{ print $NF }'

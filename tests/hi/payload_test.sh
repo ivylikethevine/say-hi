@@ -22,6 +22,14 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 # shellcheck source=../../hi.sh
 source "$_HI_LAUNCHER"
 
+# _hi_tar_cat <member> - one member of the gzipped archive on stdin, printed:
+# unpacked and read back, since OpenBSD's tar has no -O to extract to stdout
+function _hi_tar_cat() {
+  local d
+  d="$(mktemp -d "$_HI_WORKDIR/tarcat.XXXXXX")" || return 1
+  tar -x -z -f - -C "$d" && cat "$d/$1"
+}
+
 # An unconfigured client ships everything - which is also what both size budgets
 # are measuring, so this is the case that keeps those numbers meaning something.
 function test_payload_ships_everything_by_default() {
@@ -81,7 +89,7 @@ function test_overlay_dereferences_symlinks() {
   ln -sf "$real/settings.sh" "$perfile/settings.sh"
   ln -sfn "$real" "$whole"
   for shape in "$perfile" "$whole"; do
-    out="$(_HI_CONFIG_DIR="$shape" _hi_overlay_tar | tar xzOf - settings.sh 2>/dev/null)"
+    out="$(_HI_CONFIG_DIR="$shape" _hi_overlay_tar | _hi_tar_cat settings.sh 2>/dev/null)"
     [ "$out" = "export _HI_MAX_WIDTH=72" ] || {
       _hi_cecho " | ${shape##*/}: symlinked overlay did not arrive as content: [$out]" "$RED"
       return 1
@@ -190,20 +198,20 @@ function test_overlay_strip_removes_comments() {
   printf '#!/bin/sh\n# a comment\nexport _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
   cp "$_HI_ROOT/settings/colors" "$dir/colors"
   cp "$_HI_ROOT/settings/vim.rc" "$dir/vim.rc"
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar xzOf - settings.sh)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat settings.sh)"
   [ "$out" = '#!/bin/sh
 export _HI_MAX_WIDTH=72' ] || {
     _hi_cecho " | settings.sh arrived as: [$out]" "$RED"
     return 1
   }
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar xzOf - colors)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat colors)"
   [ -n "$out" ] || return 1
   case "$out" in *'#'*)
     _hi_cecho " | colors kept a comment line through the strip" "$RED"
     return 1
     ;;
   esac
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar xzOf - vim.rc)"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
   case "$out" in '"'* | *$'\n"'*)
     _hi_cecho " | vim.rc kept a vim comment line through the strip" "$RED"
     return 1
@@ -327,7 +335,7 @@ function _hi_strip_unpack() {
   local dir="$_HI_WORKDIR/$1"
   [ -d "$dir" ] || {
     mkdir -p "$dir"
-    _hi_payload_tar | tar xzf - -C "$dir"
+    _hi_payload_tar | tar -x -z -f - -C "$dir"
   }
   printf '%s' "$dir"
 }
@@ -447,12 +455,12 @@ function test_tar_gz_falls_back_to_tars_own_z_without_gzip() {
   mkdir -p "$bin"
   cat >"$bin/tar" <<SHIM
 #!/bin/sh
-printf '%s\n' "\$*" >"$log"
+echo "\$*" >"$log"
 exit 0
 SHIM
   chmod +x "$bin/tar"
   PATH="$bin" _hi_tar_gz somefile >/dev/null 2>&1 || return 1
-  case "$(cat "$log")" in czf*) ;; *) return 1 ;; esac
+  case "$(cat "$log")" in '-c -z -f'*) ;; *) return 1 ;; esac
 }
 
 function run_hi_payload_tests() {

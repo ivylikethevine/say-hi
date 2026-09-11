@@ -11,8 +11,10 @@ name: Windows client
 # seven minutes under Git Bash - backgrounded suites barely overlap there
 # (tests/lib/fixtures.sh's fork_concurrency), so the runner's width-4 run is
 # close to serial and only more machines shorten it - four shards cut it
-# further than the two-shard split this replaced. The `fast-suites` job below
-# folds the shards back into the one check name README's badge and
+# further than the two-shard split this replaced. Each shard runs twice: on
+# windows-latest (x64) and windows-11-arm (arm64, free on a public repo),
+# where Git for Windows is its native arm64 build. The `fast-suites` job
+# below folds all eight back into the one check name README's badge and
 # CONTRIBUTING's table know, "fast suites (Windows client) / fast suites
 # (Git Bash)".
 on:
@@ -24,13 +26,19 @@ permissions:
 
 jobs:
   shard:
-    name: fast suites (Git Bash, shard ${{ matrix.shard }} of 4)
-    runs-on: windows-latest
+    name: fast suites (Git Bash ${{ matrix.arch }}, shard ${{ matrix.shard }} of 4)
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

@@ -338,6 +338,31 @@ function test_config_lists_a_non_default_toggle() {
   [[ "$out" == *"toggle"*"_HI_DISABLE_MARKS=1"* && "$out" != *"all defaults"* ]]
 }
 
+# the overlay's aliases.sh loads after the shipped aliases are built, so a
+# value they read does nothing there: each named once, and neither a comment
+# nor an alias that reads one (the add-a-flag idiom) counts
+# shellcheck disable=SC2016 # the aliases.sh lines are written, not run
+function test_config_flags_values_set_in_aliases_sh() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/latevals.XXXXXX")"
+  printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
+    'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"' \
+    'export _HI_DISABLE_TOOL_ALIASES=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_TOOL_ALIASES - "* ]] || return 1
+  printf '%s\n' 'alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"' >"$dir/aliases.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" != *"alias-vars"* ]]
+}
+
 # _hi_json_str is what makes --json parseable whatever a target wrote into a
 # row: quotes and backslashes escaped, control characters flattened to spaces
 function test_json_str_escapes_and_flattens() {
@@ -892,6 +917,7 @@ function run_doctor_tests() {
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
+  _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
 
   _hi_h2 "Testing: the report primitives"
   _hi_check "_hi_json_str escapes and flattens" test_json_str_escapes_and_flattens

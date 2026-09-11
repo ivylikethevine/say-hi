@@ -27,8 +27,9 @@ jobs:
     name: hi at stock Windows OpenSSH (PowerShell fallback)
     runs-on: windows-latest
     timeout-minutes: 20
-    # No `environment:` - see macos-e2e.yml; ci.yml calls this on `push` and
-    # on same-repository PRs only, so a fork PR never reaches it.
+    # No `environment:` - a required reviewer would stall every push to main;
+    # ci.yml calls this on `push` and on same-repository PRs only, so a fork
+    # PR never reaches it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -313,7 +314,7 @@ jobs:
           # the session runs out of the tree hi shipped - $_HI_HOME is a
           # `mktemp -d -t <client user>.hi.XXXXXX` on the target, named for the
           # *client's* user (hi.sh's _hi_whoami), which is why this matches the
-          # shape rather than a name. macos-e2e.yml asserts the same shape.
+          # shape rather than a name. ci.yml's macOS job asserts the same shape.
           printf '%s\n' "$out" | grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi'
           # and not out of the packaged tree: hi dropped target-side install
           # detection, so a session reading /usr/share/say-hi would be a

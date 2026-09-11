@@ -170,10 +170,11 @@ function deb_control() {
     rm -rf "$scratch"
     return 1
   fi
+  # unpacked beside the member and read back: OpenBSD's tar has no -O
   case "$member" in
-  control.tar.gz) gzip -dc "$scratch/$member" | tar -xOf - ./control ;;
-  control.tar.xz) xz -dc "$scratch/$member" | tar -xOf - ./control ;;
-  control.tar) tar -xOf "$scratch/$member" ./control ;;
+  control.tar.gz) gzip -dc "$scratch/$member" | tar -x -f - -C "$scratch" ./control && cat "$scratch/control" ;;
+  control.tar.xz) xz -dc "$scratch/$member" | tar -x -f - -C "$scratch" ./control && cat "$scratch/control" ;;
+  control.tar) tar -x -f "$scratch/$member" -C "$scratch" ./control && cat "$scratch/control" ;;
   *)
     _hi_cecho " unexpected control member in $deb: '$member'" "$RED" >&2
     rm -rf "$scratch"
@@ -296,7 +297,12 @@ function build_apk() {
   # come out of the package's own .PKGINFO - extracted once, read twice.
   # `|| true`: a package with no .PKGINFO reads as empty here, so the guard
   # below gets to name the problem instead of a silent `set -e` abort.
-  pkginfo="$(gzip -dc "$apk" | tar -xOf - .PKGINFO 2>/dev/null || true)"
+  pkginfo="$(
+    d="$(mktemp -d -t hi.pkginfo.XXXXXX)" || exit 0
+    gzip -dc "$apk" | tar -x -f - -C "$d" .PKGINFO 2>/dev/null
+    cat "$d/.PKGINFO" 2>/dev/null
+    rm -rf "$d"
+  )"
   pkgname="$(printf '%s\n' "$pkginfo" | sed -n 's/^pkgname = //p' | head -1)"
   pkgver="$(printf '%s\n' "$pkginfo" | sed -n 's/^pkgver = //p' | head -1)"
   [ -n "$pkgname" ] && [ -n "$pkgver" ] || {

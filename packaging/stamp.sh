@@ -146,7 +146,8 @@ if [ -n "$_HI_MAN_FILE" ]; then
     require_one_match "$_hi_page" '^\.TH '
     rewrite "$_hi_page" \
       "s/^\.TH .*/.TH HI 1 \"$_HI_DATE\" \"say-hi $_HI_VERSION\" \"User Commands\"/"
-    [ -n "$_hi_gz" ] && gzip -9n "$_hi_page"
+    # -f: OpenBSD's gzip leaves a file that would grow alone and exits 2
+    [ -n "$_hi_gz" ] && gzip -9nf "$_hi_page"
   fi
 fi
 
