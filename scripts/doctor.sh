@@ -337,7 +337,9 @@ function doctor_config() {
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do
     [ "$f" = settings.sh ] && continue
-    if [ ! -f "$_HI_CONFIG_DIR/$f" ]; then
+    if _hi_overlay_home "$f" t; then
+      doctor_row "$f" "none - targets get $t, the one in force here"
+    elif [ ! -f "$_HI_CONFIG_DIR/$f" ]; then
       doctor_row "$f" "tree default"
     elif [ -f "$_HI_ROOT/settings/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/settings/$f"; then
       # what hi --install seeds: the tree's own file, byte for byte, so not

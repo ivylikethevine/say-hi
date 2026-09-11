@@ -22,10 +22,10 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
-| `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT_TOOL=starship` ([Integrations](INTEGRATIONS.md#prompt-programs))       |
+| `~/.config/say-hi/starship.toml`   | -                   | your starship config, `$STARSHIP_CONFIG` on every target when `_HI_PROMPT_TOOL=starship`; without one, the config starship reads here travels instead ([Integrations](INTEGRATIONS.md#prompt-programs)) |
 | `~/.config/say-hi/oh-my-posh.json` | -                   | the same for oh-my-posh (`$POSH_THEME`) when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
-| `~/.config/say-hi/bat.conf`        | -                   | your [bat config](https://github.com/sharkdp/bat#configuration-file), `$BAT_CONFIG_PATH` on every target ([Integrations](INTEGRATIONS.md#shipping-your-bat-theme)) |
-| `~/.config/say-hi/theme.yml`       | -                   | your [eza theme](https://github.com/eza-community/eza-themes), through `$EZA_CONFIG_DIR` on every target ([Integrations](INTEGRATIONS.md#shipping-your-eza-theme)) |
+| `~/.config/say-hi/bat.conf`        | -                   | your [bat config](https://github.com/sharkdp/bat#configuration-file), `$BAT_CONFIG_PATH` on every target; without one, the config bat reads here travels instead ([Integrations](INTEGRATIONS.md#shipping-your-bat-theme)) |
+| `~/.config/say-hi/theme.yml`       | -                   | your [eza theme](https://github.com/eza-community/eza-themes), through `$EZA_CONFIG_DIR` on every target; without one, the theme eza reads here travels instead ([Integrations](INTEGRATIONS.md#shipping-your-eza-theme)) |
 
 `hi --install` seeds the overlay with the shipped
 `colors`/`packages` and editor rc defaults — only for the

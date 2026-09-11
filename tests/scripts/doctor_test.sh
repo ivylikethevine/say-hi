@@ -220,6 +220,20 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
 }
 
+# a tool config the overlay lacks names the file that travels in its place
+function test_config_names_a_home_tool_config() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/homecfg.XXXXXX")"
+  printf -- '--theme=x\n' >"$dir/bat-flags"
+  out="$(
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    export BAT_CONFIG_PATH="$dir/bat-flags"
+    doctor_config
+  )"
+  [[ "$out" == *"bat.conf"*"none - targets get $dir/bat-flags"* ]]
+}
+
 # what hi --install seeds is the tree's own file, byte for byte: not an
 # override until somebody edits it
 function test_config_calls_a_seeded_overlay_file_unchanged() {
@@ -910,6 +924,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
   _hi_check "A seeded overlay file reads as unchanged" test_config_calls_a_seeded_overlay_file_unchanged
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish

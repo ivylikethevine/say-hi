@@ -41,8 +41,6 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [AI Usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
-  - [Compatibility Gaps](#compatibility-gaps)
-  - [Features](#features)
   - [Post 1.0](#post-10)
 
 ---
@@ -322,37 +320,6 @@ or descoped, and finished entries are deleted rather than ticked.
       and how a toggle retires. **Ticks when** the tag commit turns
       `docs/SECURITY.md`'s _Supported versions_ prose into the version table
       it promises.
-
-### Compatibility Gaps
-
-In this checkout, and not what the tag waits on either.
-
-1. [ ] **Stock OpenBSD, without the `base64` package** — shipped:
-       `openssl base64` stands in where `base64` is missing, in the
-       bootstrap probe, `_HI_UNARMOR`, and the client's armor
-       ([HI.17](docs/GLOSSARY.md#hi17-base64-armor)), proven against
-       LibreSSL by `helpers_test` on the macOS runner, and
-       `openbsd-e2e.yml` no longer installs the package. **Ticks when:**
-       that job is green on stock OpenBSD.
-
-### Features
-
-In this checkout, and not what the tag waits on either.
-
-1. [ ] **Starship on a target reads your own `~/.config/starship.toml`** —
-       `common/paths.sh` points a target's `$STARSHIP_CONFIG` at the
-       overlay's `starship.toml` only, so the config you already keep for
-       starship stays behind unless you copy it into `~/.config/say-hi/`,
-       where it stops tracking your edits. A symlink there works today
-       (`_hi_overlay_files` tests with `-f` and the stage tar runs `-h`),
-       but nothing makes one. **Do:** when `_HI_PROMPT_TOOL=starship` and
-       the overlay holds no `starship.toml`, `hi.sh` packs the local
-       `${STARSHIP_CONFIG:-$HOME/.config/starship.toml}` under that name;
-       an overlay copy still wins. Say so in `docs/SETTINGS.md`'s overlay
-       table, INTEGRATIONS' _Prompt programs_, and `hi --doctor`'s overlay
-       rows. **Ticks when:** a session with no overlay copy draws the local
-       config's prompt and one with a copy draws the copy's, pinned by a
-       suite.
 
 ### Post 1.0
 

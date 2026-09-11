@@ -603,16 +603,31 @@ or
 when
 .B _HI_PROMPT_TOOL
 names that program; at home the program keeps reading its own.
+Without an overlay copy, the starship config in force here
+.RB ( STARSHIP_CONFIG ,
+else
+.BR ~/.config/starship.toml )
+travels in its place; oh\-my\-posh has no such default.
 .TP
 .B ~/.config/say-hi/bat.conf
 a bat config file, carried to every target as its
 .B BAT_CONFIG_PATH
 \- the aliases then leave their own theme flag out so the file's wins.
+Without one, bat's own config here
+.RB ( BAT_CONFIG_PATH ,
+else
+.BR ~/.config/bat/config )
+travels in its place.
 .TP
 .B ~/.config/say-hi/theme.yml
 an eza theme, carried to every target with the overlay as its
 .B EZA_CONFIG_DIR
 (eza reads that file name and no other); at home eza keeps reading its own.
+Without one, eza's own theme here
+.RB ( EZA_CONFIG_DIR ,
+else
+.BR ~/.config/eza )
+travels in its place.
 .SH ENVIRONMENT
 Every setting is an environment variable, and the full table with defaults is
 .IR docs/SETTINGS.md ;

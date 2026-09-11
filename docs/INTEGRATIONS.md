@@ -54,13 +54,12 @@ tool's.
 A `starship.toml` or `oh-my-posh.json` in `~/.config/say-hi/` rides the overlay
 and on a target becomes `$STARSHIP_CONFIG` or `$POSH_THEME`, so the prompt on
 every host is the one you configured at home. At home hi leaves both variables
-alone and the tool reads its own config. To ship the file you already use,
-link it rather than copy it - the overlay archive resolves symlinks into
-content:
-
-```sh
-ln -s ~/.config/starship.toml ~/.config/say-hi/starship.toml
-```
+alone and the tool reads its own config. With no `starship.toml` in the
+overlay, the one starship reads here - `$STARSHIP_CONFIG`, else
+`~/.config/starship.toml` - travels under that name, so the config you already
+keep follows you with no second copy to fall behind; an overlay copy wins, for
+a target prompt that differs from home's. oh-my-posh has no default file, so
+its config rides only from the overlay.
 
 A prompt of your own at home that is neither (powerlevel10k, an oh-my-zsh
 theme, a hand-written `PS1`) is what `_HI_DISABLE_LOCAL=1` is for; see
@@ -144,9 +143,12 @@ after hi's: `alias eza="$_HI_EZA_BIN $_HI_EZA_OPTS --icons"`.
 
 ### Shipping your bat theme
 
-Put a bat config file at `~/.config/say-hi/bat.conf`
-(`--theme="Catppuccin Mocha"`, one flag per line, exactly what
-`~/.config/bat/config` holds - link that file if you have one). On a target it
+The bat config you already keep travels as-is: with no `bat.conf` in the
+overlay, the file bat reads here - `$BAT_CONFIG_PATH`, else
+`$BAT_CONFIG_DIR/config`, else `~/.config/bat/config` (under
+`$XDG_CONFIG_HOME` when set) - rides it under that name. A
+`~/.config/say-hi/bat.conf` of its own (`--theme="Catppuccin Mocha"`, one flag
+per line) wins, for targets that should differ from home. On a target the file
 becomes `$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
 the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
 is the one you see through `cat`. The same rule applies at home if you export
@@ -155,18 +157,14 @@ is the one you see through `cat`. The same rule applies at home if you export
 ### Shipping your eza theme
 
 eza reads its colors from `$EZA_CONFIG_DIR/theme.yml` and insists on that
-file name, so hi does not rename it: drop a `theme.yml` into the overlay and,
-on a target, `common/paths.sh` exports `EZA_CONFIG_DIR` pointing at the
-overlay's shipped copy - the directory itself, not the file. At home the
-variable is left alone and eza keeps reading `~/.config/eza/theme.yml`. To
-ship the theme you already use, link it rather than copy it, so one file
-serves both:
+file name, so hi does not rename it. With no `theme.yml` in the overlay, the
+one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
+`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - travels in its
+place; a `theme.yml` dropped into the overlay wins. On a target,
+`common/paths.sh` exports `EZA_CONFIG_DIR` pointing at the shipped copy - the
+directory itself, not the file. At home the variable is left alone.
 
-```sh
-ln -s ~/.config/eza/theme.yml ~/.config/say-hi/theme.yml
-```
-
-The file rides only when present, like every overlay member, and only the
+The file rides only when there is one, like every overlay member, and only the
 `eza` alias (`_HI_DISABLE_TOOL_ALIASES`) is affected: a bare `command eza` on
 the target reads the same variable, so it matches too.
 

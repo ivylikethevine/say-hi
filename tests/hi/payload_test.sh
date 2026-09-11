@@ -126,6 +126,68 @@ function test_overlay_sends_nothing_outside_the_roster() {
   return 0
 }
 
+# A tool config the overlay has no copy of rides it from where the tool reads
+# it here (_hi_overlay_home), under the overlay's name for it, so a target
+# draws the config in force at home; an overlay copy still wins.
+
+# _hi_tool_home_unpacked <overlay> [NAME=value...] - _hi_overlay_tar's stream
+# unpacked into a fresh directory, which is printed. HOME and XDG_CONFIG_HOME
+# point at a fixture home and the tools' own variables start unset, so the
+# developer's real configs never answer.
+function _hi_tool_home_unpacked() {
+  local dir="$1" d
+  shift
+  d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
+  (
+    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR
+    export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
+      _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
+    _hi_overlay_tar | tar -x -z -f - -C "$d"
+  ) || return 1
+  printf '%s' "$d"
+}
+
+function _hi_tool_home_fixture() {
+  local c="$_HI_WORKDIR/tool-home/.config"
+  mkdir -p "$c/eza" "$c/bat"
+  printf 'format = "home"\n' >"$c/starship.toml"
+  printf 'filekinds: home\n' >"$c/eza/theme.yml"
+  printf -- '--theme=home\n' >"$c/bat/config"
+}
+
+function test_overlay_carries_the_home_tool_configs() {
+  local dir d
+  _hi_tool_home_fixture
+  dir="$(_hi_overlay_fixture tool-none colors)"
+  d="$(_hi_tool_home_unpacked "$dir")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "bat.conf colors starship.toml theme.yml " ] &&
+    [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "home"\nfilekinds: home\n--theme=home')" ]
+}
+
+# each tool's own variable names the file, whatever it is called - here with
+# no overlay member of its own, so nothing comes from the overlay directory
+function test_overlay_home_configs_follow_the_tools_variables() {
+  local o="$_HI_WORKDIR/tool-vars" dir d
+  mkdir -p "$o/ezadir"
+  printf 'format = "var"\n' >"$o/prompt.toml"
+  printf 'filekinds: var\n' >"$o/ezadir/theme.yml"
+  printf -- '--theme=var\n' >"$o/bat-flags"
+  dir="$(_hi_overlay_fixture tool-empty)"
+  d="$(_hi_tool_home_unpacked "$dir" STARSHIP_CONFIG="$o/prompt.toml" \
+    EZA_CONFIG_DIR="$o/ezadir" BAT_CONFIG_PATH="$o/bat-flags")" || return 1
+  [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
+}
+
+# an overlay copy wins, and starship's rides only when it draws the prompt
+function test_overlay_copy_beats_the_home_tool_config() {
+  local dir d
+  _hi_tool_home_fixture
+  dir="$(_hi_overlay_fixture tool-copy)"
+  printf -- '--theme=copy\n' >"$dir/bat.conf"
+  d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=)" || return 1
+  [ "$(cat "$d/bat.conf")" = "--theme=copy" ] && [ -f "$d/theme.yml" ] && [ ! -e "$d/starship.toml" ]
+}
+
 # The payload is an allow list; this is its drift guard. Exact match on the
 # list (so nothing sneaks on the wire unnoticed) plus an existence check on
 # every member (so a rename can't quietly ship an empty payload).
@@ -494,6 +556,9 @@ function run_hi_payload_tests() {
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
+  _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
+  _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
+  _hi_check "...and an overlay copy beats them" test_overlay_copy_beats_the_home_tool_config
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

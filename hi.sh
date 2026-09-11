@@ -130,12 +130,31 @@ function _hi_target_color() {
   printf '%s\n' "$_HI_TARGET_COLOR_MEMO"
 }
 
-# The overlay members that exist, one per line; callers read it once and hand
-# the list to _hi_overlay_tar.
+# _hi_overlay_home <member> [outvar] - for a tool config the overlay has no
+# copy of, the file that tool reads on this machine, which then rides the
+# overlay under the member's name (an overlay copy wins). starship's only
+# with _HI_PROMPT_TOOL=starship, since nothing else starts it. Fails, printing
+# nothing, when there is no such file.
+function _hi_overlay_home() {
+  local _hi_oh_f=""
+  [ ! -f "$_HI_CONFIG_DIR/$1" ] || return 1
+  case "$1" in
+  starship.toml) [ "${_HI_PROMPT_TOOL:-}" != starship ] || _hi_oh_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}" ;;
+  theme.yml) _hi_oh_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
+  bat.conf) _hi_oh_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
+  esac
+  [ -n "$_hi_oh_f" ] && [ -f "$_hi_oh_f" ] || return 1
+  _hi_out "${2:-}" "$_hi_oh_f"
+}
+
+# The overlay members that exist, here or through _hi_overlay_home, one per
+# line; callers read it once and hand the list to _hi_overlay_tar.
 function _hi_overlay_files() {
-  local f
+  local f home
   for f in "${_HI_OVERLAY_FILES[@]}"; do
-    [ -f "$_HI_CONFIG_DIR/$f" ] && printf '%s\n' "$f"
+    if [ -f "$_HI_CONFIG_DIR/$f" ] || _hi_overlay_home "$f" home; then
+      printf '%s\n' "$f"
+    fi
   done
   return 0
 }
@@ -165,15 +184,16 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' flags colors packages vim.rc nano.rc em
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
 # comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
-# (members to emit) and $stage_excl (tar --exclude words) from its caller, the
+# (members to emit), $stage_excl (tar --exclude words) and $stage_add
+# (<member> <path> pairs copied in from outside <src-dir>) from its caller, the
 # convention _hi_container_cleanup and _hi_remote_middle also use.
 #
 # A subshell, so cleanup is a trap and a ^C mid-build leaves nothing behind
 # (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
 # _say_hi_container's name for the target's tree, and this runs inside it.
 function _hi_stage_tar() {
-  local stage f _hi_st_root
-  local -a _hi_st_names=()
+  local stage f _hi_st_root _hi_st_i
+  local -a _hi_st_names=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
   for f in "${_HI_STRIP_NAMES[@]}"; do
     ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
     _hi_st_names+=(-name "$f")
@@ -186,10 +206,16 @@ function _hi_stage_tar() {
     _hi_st_root="$stage${2:+/$2}"
     # a file, not `tar cf - | tar xf -`: the reader stops at the end-of-archive
     # marker while a GNU writer still has record padding to send, which is an
-    # EPIPE and a "tar: Write error" on stderr
-    tar -c -h -f "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
-    tar -x -f "$stage/in.tar" -C "$stage" || exit 1
-    rm -f "$stage/in.tar"
+    # EPIPE and a "tar: Write error" on stderr. Skipped when every member is
+    # a $stage_add one: GNU tar refuses to write an empty archive.
+    if ((${#stage_in[@]})); then
+      tar -c -h -f "$stage/in.tar" ${stage_excl[@]+"${stage_excl[@]}"} -C "$1" "${stage_in[@]}" || exit 1
+      tar -x -f "$stage/in.tar" -C "$stage" || exit 1
+      rm -f "$stage/in.tar"
+    fi
+    for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
+      cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
+    done
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.09); strip.awk sits at $stage and
     # matches no name above, so the stripper never eats its own script
@@ -214,12 +240,21 @@ function _hi_stage_tar() {
 # Comment-stripped through a staging copy like the payload (GLOSSARY: HI.35):
 # the overlay is the user's prose-heavy files and every byte rides each
 # connect. The first tar's -h resolves a dotfile manager's symlinks into
-# content; the final tar names the members, so strip.awk never ships.
+# content; the final tar names the members, so strip.awk never ships. A
+# member _hi_overlay_home finds elsewhere is copied in under its own name.
 function _hi_overlay_tar() {
   local -a present=("$@")
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
-  local -a stage_in=("${present[@]}") stage_out=("${present[@]}") stage_excl=()
+  local -a stage_in=() stage_out=("${present[@]}") stage_excl=() stage_add=()
+  local f home
+  for f in "${present[@]}"; do
+    if _hi_overlay_home "$f" home; then
+      stage_add+=("$f" "$home")
+    else
+      stage_in+=("$f")
+    fi
+  done
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
 
@@ -239,8 +274,9 @@ function _hi_overlay_cache_key() {
 }
 
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
-# callers. Rebuilt when missing, when any <watch> is newer than it, or when
-# _HI_PAYLOAD_CACHE=0; written under a temp name and mv'd into place, so a
+# callers. Rebuilt when missing, when any <watch> or $cache_also path (from its
+# caller) is newer than it - a symlink's target counts, so a dotfile manager's
+# edit does - or when _HI_PAYLOAD_CACHE=0; written under a temp name and mv'd into place, so a
 # concurrent reader sees the old file or the new one and never a half-written
 # archive. rc 1 means "no cache, build it yourself".
 #
@@ -250,13 +286,13 @@ function _hi_cached() {
   local _hi_c_outvar="$1" _hi_c_tag="$2" _hi_c_key="$3" _hi_c_pre="$4" _hi_c_build="$5"
   shift 5
   local _hi_c_dir _hi_c_cache
-  local -a _hi_c_watch=("${@/#/$_hi_c_pre}")
+  local -a _hi_c_watch=("${@/#/$_hi_c_pre}" ${cache_also[@]+"${cache_also[@]}"})
   [ "${_HI_PAYLOAD_CACHE:-1}" != 0 ] || return 1
   _hi_runtime_dir _hi_c_dir
   [ -n "$_hi_c_dir" ] || return 1
   _hi_c_cache="$_hi_c_dir/hi.$_hi_c_tag.$_hi_c_key"
   if [ -f "$_hi_c_cache" ] &&
-    [ -z "$(find "${_hi_c_watch[@]}" -newer "$_hi_c_cache" -print 2>/dev/null)" ]; then
+    [ -z "$(find -H "${_hi_c_watch[@]}" -newer "$_hi_c_cache" -print 2>/dev/null)" ]; then
     printf -v "$_hi_c_outvar" '%s' "$_hi_c_cache"
     return 0
   fi
@@ -269,12 +305,18 @@ function _hi_cached() {
 }
 
 # _hi_cached over exactly these overlay members, keyed on the list. Fails when
-# there is no member at all, on top of _hi_cached's own refusals.
+# there is no member at all, on top of _hi_cached's own refusals. A member
+# _hi_overlay_home finds elsewhere is watched there and keyed by its path, so
+# trading it for an overlay copy never serves the other's cache.
 function _hi_overlay_cached() {
-  local _hi_oc_outvar="$1"
+  local _hi_oc_outvar="$1" _hi_oc_f _hi_oc_home
   shift
   (($#)) || return 1
-  _hi_cached "$_hi_oc_outvar" overlay "$(_hi_overlay_cache_key "$@")" \
+  local -a cache_also=()
+  for _hi_oc_f; do
+    _hi_overlay_home "$_hi_oc_f" _hi_oc_home && cache_also+=("$_hi_oc_home")
+  done
+  _hi_cached "$_hi_oc_outvar" overlay "$(_hi_overlay_cache_key "$@" ${cache_also[@]+"${cache_also[@]}"})" \
     "$_HI_CONFIG_DIR/" _hi_overlay_tar "$@"
 }
 

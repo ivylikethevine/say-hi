@@ -586,7 +586,11 @@ The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml`, and
 bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
 `common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
 `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
-fixes the file name) at the overlay on a target only (HI.32).
+fixes the file name) at the overlay on a target only (HI.32). When the overlay
+has no copy, `hi.sh`'s `_hi_overlay_home` packs the file the tool reads on the
+client under the member's name - starship's only with `_HI_PROMPT_TOOL=starship`,
+and oh-my-posh has no default to find - so the config already in force travels
+without a second copy to drift; an overlay copy wins.
 
 The editor rcs (`vim.rc`, `nano.rc`, `emacs.el`, `helix.toml`, `kak.rc`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,
