@@ -212,9 +212,10 @@ suite name. `_hi_cov_select_suites` passes `--shard` straight through to
   job with no working tree merges to `"files": []` and a run-wide `0.00`,
   which is a well-formed report, not an error, and publishes a badge reading
   `0.00%`. `coverage.yml`'s `gather-kcov` therefore checks the tree out
-  before merging; `tests/harness/runner_test.sh` asserts that every job in
-  that workflow running `kcov --merge` does. `gather-bashcov` needs no
-  checkout: its ruby reads only the resultset's per-line arrays.
+  before calling `tests/coverage.sh --merge` (the same merge, ranking and
+  all-zero refusal a local sweep's own tail runs); `tests/harness/runner_test.sh`
+  asserts that every job in that workflow calling it does. `gather-bashcov`
+  needs no checkout: its ruby reads only the resultset's per-line arrays.
 - `tests/coverage_v2.sh` is the same sweep under
   [bashcov](https://github.com/infertux/bashcov), which reads bash's
   `xtrace`. Its residual skews run the other way from kcov's: every line of
@@ -239,9 +240,9 @@ suite name. `_hi_cov_select_suites` passes `--shard` straight through to
 (`badges/coverage.json`, `badges/coverage-v2.json`) via `pages.yml`, each
 labelled by its measurer and computed over the shipped product only — the
 badge math excludes `tests/` and `docs/`, the same subject both reports
-declare. Each refreshes as soon as its sweep finishes — `pages.yml` redeploys
-on a completed Coverage run as well as on a green CI — so a badge is only ever
-as old as the sweep, never a push behind. Both stay because they cannot err in
+declare. Each refreshes as soon as its sweep finishes — a completed Coverage
+run is `pages.yml`'s only automatic trigger — so a badge is only ever as old
+as the sweep, never a push behind. Both stay because they cannot err in
 the same direction: a file that reads low in bashcov is genuinely uncovered, a
 line that reads covered in kcov genuinely ran.
 

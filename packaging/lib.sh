@@ -114,6 +114,20 @@ function gpg_check_fpr() {
   }
 }
 
+# write_key <path> <secret> - a workflow secret to a file only the runner
+# user can read, written before the key ever touches a tool's argv (visible
+# in `ps`) or a HERE-doc (visible in the step's own log echo). umask rather
+# than a later chmod: a window between the write and the chmod is a window a
+# concurrent read could land in. release.yml and publish-external.yml each
+# wrote this by hand for the apk, GPG, minisign and AUR ssh keys - one of
+# those four skipped the chmod, which is the bug this closes.
+function write_key() {
+  (
+    umask 077
+    printf '%s\n' "$2" >"$1"
+  )
+}
+
 # verify_signing_key <gpg|rsa> <secret-key-file> <public-half-file> - refuse a
 # secret signing key that is not the one the committed public half names: a
 # secret that is another key signs artifacts no client can verify. gpg mode

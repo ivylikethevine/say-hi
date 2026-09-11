@@ -29,37 +29,32 @@ concurrency:
 
 jobs:
 
-  # Every job below carries `github.event.pull_request.draft != true`: a draft
-  # PR is a work in progress and burns no runners here. GitHub has no
-  # workflow-level `if`, and a `needs:` on one gate job would not do it either
-  # - a job with its own `if` runs even when a dependency skipped (which is
-  # exactly how the `changes` skip is read as "assume yes" below) - so the
-  # clause is repeated per job. The three e2e-* reusable-workflow jobs are the
-  # exception: they gate on `needs.e2e-gate.outputs.ok`, which is empty when
-  # that job skips. On push, schedule and dispatch `github.event.pull_request`
-  # is null, so the clause is true and nothing changes.
+  # `changes` always runs (no job-level `if`, and no `needs:` to skip past),
+  # so `needs.changes.outputs.code` is one flag every code-dependent job below
+  # reads instead of repeating "draft, or nothing relevant changed" itself.
+  # It defaults to 'true' - a draft, a dedup match, or the filter cleanly
+  # reporting no code changes are the only ways to 'false'; a schedule or
+  # dispatch (the filter step's own `if` skips it) and a failed lookup both
+  # leave it 'true', so change-detection breaking has never been read as
+  # "assume nothing changed". The three e2e-* reusable-workflow jobs gate on
+  # `needs.e2e-gate.outputs.ok` instead, which is empty when that job skips.
   #
   # Whether anything besides workflow YAML or markdown changed: test,
-  # test-macos, test-alpine, profile, packaging-smoke, e2e and e2e-backends skip on a
-  # workflow-only or docs-only diff. workflow-lint and advisory-lint are
-  # exempt - such a change is what they audit - and so are lint and bench:
-  # drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md, bench_test.sh
-  # README.md's payload badge, and both are cheap (~40s). Only push and
-  # pull_request are filtered; on schedule or dispatch this job does not run
-  # and the jobs below read the skip as "assume yes" - a diff against the
-  # wrong commit must never be why a real check goes quiet.
+  # test-macos, test-alpine, profile, packaging-smoke, e2e and e2e-backends
+  # skip on a workflow-only or docs-only diff. workflow-lint and advisory-lint
+  # are exempt - such a change is what they audit - and so are lint and
+  # bench: drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md,
+  # bench_test.sh README.md's payload badge, and both are cheap (~40s); they
+  # read `reuse-run` only, never `code`.
   #
   # A push to main whose tree a same-repo PR run already took green (a squash
   # merge of an up-to-date PR, the usual case) is the same code twice: the
-  # push finds that run's ci-tree-<tree> marker, reports no code, and every
+  # push finds that run's ci-tree-<tree> marker, `code` reads false, and every
   # job below skips - lint, workflow-lint, advisory-lint and bench included,
   # through `reuse-run`. carry-forward hands the PR run's results to what
-  # reads main's newest run. No marker, or a failed lookup, is a full run.
+  # reads main's newest run.
   changes:
     name: detect changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (github.event_name == 'push' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -67,7 +62,7 @@ jobs:
       pull-requests: read # dorny/paths-filter lists a PR's files via the API
       actions: read # find_tree_run.sh reads other runs' artifacts
     outputs:
-      code: ${{ steps.reuse.outputs.run == '' && steps.filter.outputs.code || 'false' }}
+      code: ${{ steps.gate.outputs.code }}
       reuse-run: ${{ steps.reuse.outputs.run }}
     steps:
       # a PR's files come from the API and only a push diffs the tree, but
@@ -76,9 +71,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # some-with-excludes, not `some`: a bare negated pattern matches nothing
-      # on its own, and `some` would count workflow files since `**` matches them
+      # push/pull_request only: a schedule or dispatch run has no diff to
+      # take, and `gate` below reads that as "assume yes" the same way it
+      # reads this step failing outright. some-with-excludes, not `some`: a
+      # bare negated pattern matches nothing on its own, and `some` would
+      # count workflow files since `**` matches them
       - id: filter
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        continue-on-error: true
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           predicate-quantifier: some-with-excludes
@@ -88,9 +88,11 @@ jobs:
               - '!.github/workflows/**'
               - '!**/*.md'
 
-      # same-repo only: find_tree_run.sh's header says why
+      # same-repo, non-draft only: find_tree_run.sh's header says why same-repo;
+      # a draft's tree has never been marked as gone through this
       - if: >-
           github.event_name == 'pull_request'
+          && github.event.pull_request.draft != true
           && github.event.pull_request.head.repo.full_name == github.repository
         uses: $/.github/actions/mark-tree
         with:
@@ -107,6 +109,23 @@ jobs:
           TREE: ${{ github.event.head_commit.tree_id }}
         run: .github/scripts/find_tree_run.sh ci.yml "ci-tree-$TREE" tests package-install-sizes | tee -a "$GITHUB_OUTPUT"
 
+      # `code`'s one computation, `always()` so a failed filter or reuse step
+      # still reaches it - false only where something affirmatively says so
+      - id: gate
+        if: always()
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+          FILTER_OUTCOME: ${{ steps.filter.outcome }}
+          FILTER_CODE: ${{ steps.filter.outputs.code }}
+          REUSE_RUN: ${{ steps.reuse.outputs.run }}
+        run: |
+          set -eu
+          code=true
+          [ "$FILTER_OUTCOME" != success ] || [ "$FILTER_CODE" = true ] || code=false
+          [ -z "$REUSE_RUN" ] || code=false
+          [ "$DRAFT" != true ] || code=false
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+
   # ubuntu-24.04-arm (free on a public repo) runs the same suites on arm64,
   # so an x86-only assumption - the header's uname -m and CPU cells, a probe
   # that only knows one arch - fails here rather than on someone's Pi. A red
@@ -114,9 +133,7 @@ jobs:
   test:
     name: fast suites (${{ matrix.os }})
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
@@ -202,9 +219,7 @@ jobs:
   test-macos:
     name: fast suites (macos-latest)
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     env:
@@ -362,9 +377,7 @@ jobs:
   test-alpine:
     name: fast suites (Alpine client)
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -548,9 +561,7 @@ jobs:
   profile:
     name: hot-path profiles (timep)
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
@@ -575,9 +586,7 @@ jobs:
   packaging-smoke:
     name: package build (deb, rpm, apk)
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -678,20 +687,17 @@ jobs:
   # serial (test_runner.sh's own width pins to 1 for the whole selection
   # whenever an e2e/backends/bench suite is in it), and --shard i/n (the same
   # tool windows-client.yml uses) is a runner-count knob with nothing else to
-  # change if it ever needs bumping - two suites a shard now, a further cut
-  # from the two-shard split this replaced.
+  # change if it ever needs bumping - two suites a shard now.
   e2e:
-    name: e2e (ssh, docker, shard ${{ matrix.shard }} of 4)
+    name: e2e (ssh, docker, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1/4, 2/4, 3/4, 4/4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -705,41 +711,13 @@ jobs:
           tools: nfpm
 
       # --require-run: here a skip is a broken runner, not an optional
-      # backend. HI_SHARDS is the divisor and the matrix above lists one
-      # entry per shard; runner_test.sh checks the two agree and that the
-      # slices are exactly the e2e group.
+      # backend. runner_test.sh checks the matrix's slices partition the
+      # e2e group.
       - name: Run this shard of the end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
         run: |
-          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group e2e --shard "$HI_SHARD/$HI_SHARDS"
-
-  # The one check CONTRIBUTING.md's table and README's badge know as
-  # `e2e (ssh, docker)`; `!cancelled()` so it reports on a red or skipped
-  # shard rather than being skipped past itself. The changes.result/outputs
-  # branch mirrors e2e's own `if:` - a shard that was rightly skipped (a
-  # workflow-only diff) must not read as a failed gate.
-  e2e-check:
-    name: e2e (ssh, docker)
-    needs: [changes, e2e]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Require every shard green, unless the run was rightly skipped
-        env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          CHANGES_CODE: ${{ needs.changes.outputs.code }}
-          RESULT: ${{ needs.e2e.result }}
-        run: |
-          set -euo pipefail
-          if [ "$CHANGES_RESULT" = skipped ] || [ "$CHANGES_CODE" = true ]; then
-            echo "shards: $RESULT"
-            [ "$RESULT" = success ]
-          else
-            echo "no code changes, or a green PR run of this tree - shards were rightly skipped"
-          fi
+          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group e2e --shard "$HI_SHARD"
 
   # One shard per backend rather than a named matrix entry each: every shard
   # installs all three tools (a few redundant seconds, paid in parallel, not
@@ -749,53 +727,71 @@ jobs:
   # one runner (one shared container/VM daemon is what test_runner.sh's width
   # pin protects against); a runner apiece is a separate daemon each.
   e2e-backends:
-    name: e2e (podman, nomad, kube, shard ${{ matrix.shard }} of 3)
+    name: e2e (podman, nomad, kube, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: changes
-    if: >-
-      github.event.pull_request.draft != true
-      && (needs.changes.result == 'skipped' || needs.changes.outputs.code == 'true')
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1/3, 2/3, 3/3]
+        # one backend per shard, in the suite table's order (backends:podman,
+        # backends:nomad, backends:kube) - setup-backends then installs only
+        # what this shard's suite drives instead of all three every time
+        include:
+          - { shard: 1/3, backends: podman }
+          - { shard: 2/3, backends: nomad }
+          - { shard: 3/3, backends: kind }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # podman, nomad (HashiCorp apt repo) and kind, from the composite
-      # demos.yml's publish job shares
       - uses: $/.github/actions/setup-backends
+        with:
+          backends: ${{ matrix.backends }}
 
-      # HI_SHARDS is the divisor and the matrix above lists one entry per
-      # shard, same contract as e2e's above; runner_test.sh checks both that
-      # this agrees and that the slices are exactly the backends group (three
-      # suites, three shards - one backend each).
+      # same contract as e2e's above: three suites, three shards - one
+      # backend each
       - name: Run this shard of the backend end-to-end suites
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 3
         run: |
-          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD/$HI_SHARDS"
+          "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"
 
-  # e2e-check's twin for the backend group - see its comment above.
-  e2e-backends-check:
-    name: e2e (podman, nomad, kube)
-    needs: [changes, e2e-backends]
-    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
+  # The two checks CONTRIBUTING.md's table and README's badge know as
+  # `e2e (ssh, docker)` and `e2e (podman, nomad, kube)`, one matrix job so the
+  # "was this rightly skipped" logic is written once. `!cancelled()` so a red
+  # or skipped shard is reported rather than skipped past itself; `code` is
+  # what says a shard was rightly skipped (a workflow-only or docs-only diff)
+  # rather than a failed gate - `changes` always runs now, so its own outright
+  # failure reads as `code` staying 'true' (run everything), never as a
+  # skip a shard's absence could otherwise pass through as green. The trade
+  # for one job: the ssh/docker check now reports only once the slower
+  # podman/nomad/kube shards finish too; both sit on the same required-checks
+  # list regardless, so nothing merges any sooner either way.
+  e2e-checks:
+    name: ${{ matrix.name }}
+    needs: [changes, e2e, e2e-backends]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      matrix:
+        include:
+          - job: e2e
+            name: e2e (ssh, docker)
+          - job: e2e-backends
+            name: e2e (podman, nomad, kube)
     steps:
       - name: Require every shard green, unless the run was rightly skipped
         env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          CHANGES_CODE: ${{ needs.changes.outputs.code }}
-          RESULT: ${{ needs.e2e-backends.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          RESULT: ${{ needs[matrix.job].result }}
         run: |
           set -euo pipefail
-          if [ "$CHANGES_RESULT" = skipped ] || [ "$CHANGES_CODE" = true ]; then
+          if [ "$CODE" = true ]; then
             echo "shards: $RESULT"
             [ "$RESULT" = success ]
           else
@@ -807,13 +803,17 @@ jobs:
   # not something to hand a stranger's pull request, but a PR whose head
   # branch lives in this repository was pushed by someone who can push to
   # main already, and it is that PR where a red Windows or BSD run is worth
-  # knowing - not after the merge, off a release. Gated on both fast-suite
-  # jobs so a red unit test does not cost a Windows runner or a BSD VM. One
-  # gate job rather than the same needs/if on every caller below; macOS's
-  # loopback rides in test-macos itself, for the same audience.
+  # knowing - not after the merge, off a release. Gated on `test` alone, not
+  # `test-macos` too: nearly every bad push fails a red ubuntu or arm64 unit
+  # test first, and waiting on macOS's own 30-minute job as well only delays
+  # the Windows and BSD runners starting, for what a red macOS entry catches
+  # on its own (a red gate here still holds them, so nothing ships around a
+  # macOS-only break, just later - macOS's own check still fails the run).
+  # One gate job rather than the same needs/if on every caller below;
+  # macOS's loopback rides in test-macos itself, for the same audience.
   e2e-gate:
     name: e2e gate
-    needs: [test, test-macos]
+    needs: test
     if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -826,13 +826,10 @@ jobs:
           # a fork PR's head repository is the fork; same-repo PRs name this one
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           TEST: ${{ needs.test.result }}
-          TEST_MACOS: ${{ needs.test-macos.result }}
         run: |
           ok=false
           if [ "$EVENT" = push ] || { [ "$EVENT" = pull_request ] && [ "$SAME_REPO" = true ]; }; then
-            if [ "$TEST" = success ] && [ "$TEST_MACOS" = success ]; then
-              ok=true
-            fi
+            [ "$TEST" = success ] && ok=true
           fi
           echo "ok=$ok" >>"$GITHUB_OUTPUT"
 
@@ -869,11 +866,10 @@ jobs:
     name: fast suites (Windows client)
     needs: changes
     if: >-
-      github.event.pull_request.draft != true
+      needs.changes.outputs.code == 'true'
       && (github.event_name == 'push'
           || (github.event_name == 'pull_request'
               && github.event.pull_request.head.repo.full_name == github.repository))
-      && needs.changes.outputs.code == 'true'
     uses: $/.github/workflows/windows-client.yml
 
   # A push whose tree already went green on its PR (`changes` found the

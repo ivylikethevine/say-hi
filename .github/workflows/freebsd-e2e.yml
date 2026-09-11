@@ -25,8 +25,10 @@ jobs:
           persist-credentials: false
 
       # The VM shares the checkout over rsync, so ./hi.sh inside it is this
-      # tree. `--group fast`, not lint: lint is enforced once, on the ubuntu
-      # job, against pinned tool versions.
+      # tree, and .github/scripts/bsd_loopback.sh (its header says why the
+      # single `</dev/null`ed line) is reachable at the same path. `--group
+      # fast`, not lint: lint is enforced once, on the ubuntu job, against
+      # pinned tool versions.
       - name: Fast suites, then say hi to ourselves
         uses: vmactions/freebsd-vm@f0552d3b69211736abd97f02ff3d4674c56b73b1 # v1.5.5
         with:
@@ -36,56 +38,4 @@ jobs:
           copyback: false
           prepare: |
             pkg install -y bash zsh fish git python3 gtar
-          run: |
-            set -eu
-            cd "$GITHUB_WORKSPACE"
-            _HI_HOME="$(cd .. && pwd)"
-            export _HI_HOME
-
-            # rsync carries the runner's uid into a VM whose only user is
-            # root, so git sees a checkout it is not the owner of and refuses
-            # to touch it ("detected dubious ownership"). Everything that asks
-            # git about this tree then fails - `hi --version`'s git describe
-            # fallback, packaging's `git archive` - for a reason that has
-            # nothing to do with what those cases test.
-            git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-            # `timeout` bounds the suites rather than the job: a run that
-            # wedges dies in minutes with its transcript in the log, instead
-            # of sitting on the 30-minute job timeout and being cancelled with
-            # no verdict at all (a forced-interactive bash stopping its own
-            # process group does exactly that). FreeBSD ships
-            # timeout(1) in base.
-            #
-            # -k 30: without it, a wedge that ignores or outlives the first
-            # signal leaves `timeout` waiting on it forever too - the exact
-            # "sits on the job timeout with no verdict" case above, one level
-            # removed. -k asks again with SIGKILL 30s later if the first
-            # signal didn't land; both FreeBSD's own timeout(1) and GNU's
-            # take the same `-k SECONDS` short form.
-            #
-            # </dev/null here and below is structural, not caution: vmactions
-            # runs `ssh <host> sh` and pipes *this script* to that sh's stdin,
-            # so anything started from it inherits the untransmitted remainder
-            # as its own stdin. A child that reads to EOF eats the rest of the
-            # script, and sh - which had buffered exactly 1024 bytes - resumes
-            # at EOF mid-word. That is what `sh: ssh-k: not found` was.
-            timeout -k 30 900 bash ./tests/test_runner.sh --host-report --group fast </dev/null
-
-            # a throwaway key, and sshd is already up in the vmactions image
-            ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
-            cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
-            chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
-            # the same pty trick the e2e suites use: `ssh -t` needs a tty on
-            # our side, and a CI step has none
-            out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
-              bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-              "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1 </dev/null)" || true
-            printf '%s\n' "$out"
-            printf '%s\n' "$out" | grep -q HI_BSD_LOOP_OK
-
-            if ls -d "${TMPDIR:-/tmp}"/*.hi.* 2>/dev/null; then
-              echo "session directory survived the exit" >&2
-              exit 1
-            fi
+          run: bash "$GITHUB_WORKSPACE/.github/scripts/bsd_loopback.sh" </dev/null

@@ -1,15 +1,20 @@
 name: Fetch latest artifact
-# pages.yml's lookup of the newest successful run of a workflow and one named
-# artifact from it - CI's totals and package sizes, coverage's and
-# coverage-v2's pct, demos' GIFs.
-description: Find the newest successful run of a workflow and download one artifact from it
+# pages.yml's lookup of the newest successful run of a workflow and one or
+# more named artifacts from it - CI's totals and package sizes, coverage's
+# and coverage-v2's pct, demos' GIFs. A caller with two artifacts from the
+# same run (pages.yml's two pairs, release.yml's badge figures,
+# coverage.yml's PR comment) names both in one call rather than paying for
+# the same run lookup twice; each then lands under its own name inside
+# dest-subdir instead of flat, exactly as actions/download-artifact's own
+# `pattern` does for more than one match.
+description: Find the newest successful run of a workflow and download one or more artifacts from it
 
 inputs:
   workflow:
     description: workflow filename to query, e.g. ci.yml
     required: true
   artifact-name:
-    description: name of the artifact to download
+    description: name of the artifact to download, or a brace pattern naming several from the same run (e.g. "{a,b}")
     required: true
   dest-subdir:
     description: destination directory under runner.temp
@@ -33,17 +38,11 @@ inputs:
     required: false
     default: "main"
 
-outputs:
-  run_id:
-    description: the run id a run was found under, empty otherwise
-    value: ${{ steps.find.outputs.run_id }}
-
 runs:
   using: composite
   steps:
-    # By query rather than off a workflow_run payload: the newest green run on
-    # main *is* the triggering run when that is the event, so one code path
-    # serves push and dispatch too. With head-sha the query is pinned to one
+    # By query rather than off a workflow_run payload, so one code path serves
+    # every trigger. With head-sha the query is pinned to one
     # commit instead - a workflow_run-triggered run (coverage) carries the
     # triggering push's sha, so the same shape finds every producer. With
     # branch empty instead, the query carries no ref filter at all - what a
@@ -82,12 +81,15 @@ runs:
         fi
 
     # continue-on-error, not a gate: an expired or missing artifact is a grey
-    # badge or an absent render, not a failed site deploy
+    # badge or an absent render, not a failed site deploy. `pattern`, not
+    # `name`: a single bare name is still an exact match and lands flat in
+    # dest-subdir exactly as `name` would, but it is also what lets a caller
+    # pass "{a,b}" and get both from the one lookup above.
     - if: steps.find.outputs.run_id != ''
       continue-on-error: true
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
-        name: ${{ inputs.artifact-name }}
+        pattern: ${{ inputs.artifact-name }}
         path: ${{ runner.temp }}/${{ inputs.dest-subdir }}
         run-id: ${{ steps.find.outputs.run_id }}
         github-token: ${{ github.token }}

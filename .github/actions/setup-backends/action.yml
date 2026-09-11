@@ -1,6 +1,6 @@
 name: Setup backends
 # The podman/nomad/kind install that ci.yml's e2e-backends job and demos.yml's
-# publish job both need. The HashiCorp keyring fetch is the one
+# render job both need. The HashiCorp keyring fetch is the one
 # security-relevant download in either job, so it lives here once: a key or
 # URL change, or a fix to the gpg pipeline, is one edit. Neither caller may
 # assume the other ran on the machine, and apt is idempotent when it has.
@@ -18,6 +18,10 @@ name: Setup backends
 description: Install the backends the e2e suites and demo renders drive (podman, nomad, kind), plus any extra apt packages
 
 inputs:
+  backends:
+    description: space-separated subset to install (podman, nomad, kind) - a sharded caller names only the one it drives
+    required: false
+    default: podman nomad kind
   extra-packages:
     description: additional apt packages to install alongside podman and nomad
     required: false
@@ -35,19 +39,22 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/apt-archives
-        key: setup-backends-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ inputs.extra-packages }}
+        key: setup-backends-${{ runner.os }}-${{ runner.arch }}-${{ steps.week.outputs.week }}-${{ inputs.backends }}-${{ inputs.extra-packages }}
 
-    # the shell lives in ./install.sh, where the lint gate's shellcheck and
-    # shfmt sweep it; the input arrives unquoted on purpose - a word list,
-    # one apt name each
-    - name: Install podman and nomad
+    # skipped outright when neither is requested (the kind-only shard): the
+    # HashiCorp repo add and apt update are the slow part. The shell lives in
+    # ./install.sh, where the lint gate's shellcheck and shfmt sweep it.
+    - name: Install podman and/or nomad
+      if: contains(inputs.backends, 'podman') || contains(inputs.backends, 'nomad')
       shell: bash
       env:
+        HI_BACKENDS: ${{ inputs.backends }}
         HI_EXTRA_PACKAGES: ${{ inputs.extra-packages }}
         HI_APT_CACHE: ${{ runner.temp }}/apt-archives
-      run: '"$GITHUB_ACTION_PATH/install.sh" $HI_EXTRA_PACKAGES'
+      run: '"$GITHUB_ACTION_PATH/install.sh"'
 
     - name: Install kind
+      if: contains(inputs.backends, 'kind')
       uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
       with:
         install_only: true

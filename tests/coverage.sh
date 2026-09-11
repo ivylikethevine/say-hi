@@ -84,7 +84,8 @@
 #     core.sh sources it into the traced process instead. The same
 #     file reads 0% under coverage_v2.sh too wherever /bin/sh is dash
 #     rather than bash (0/220, measured): neither tracer can
-#     follow a non-bash child, so coverage.yml shims `sh` to bash on PATH.
+#     follow a non-bash child, so this driver shims `sh` to bash on PATH
+#     (_hi_cov_shim_sh_to_bash, tests/lib/coverage.sh) before it starts.
 #   hi.sh                  64.77% here under --group fast, 84.56% under the
 #     full sweep, 97.80% under coverage_v2.sh's full sweep - the e2e/backends
 #     suites reach _say_hi/_say_hi_container/_hi themselves only inside a
@@ -107,10 +108,72 @@ set -euo pipefail
 # shellcheck source=lib/coverage.sh
 source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"
 
+# --merge <dest> <parts-dir> - coverage.yml's gather-kcov mode: merge every
+# shard's uploaded parts (one subdirectory per suite, flattened into
+# <parts-dir> by download-artifact's merge-multiple - disjoint by
+# construction, since --shard partitions the suite table), print the same
+# worst-first ranking a local sweep does, and write <dest>/coverage-pct/pct.
+# Exits 0 either way, warning instead of failing: a badge is visibility,
+# never a gate, and gather-kcov's own continue-on-error is one job-wide
+# reason already, this is the other. `kcov --merge` re-reads every source
+# file at the absolute path its shard recorded, so a caller with no working
+# tree merges to `"files": []` and a well-formed 0.00 rather than an error -
+# runner_test.sh checks the calling job still checks the tree out.
+if [ "${1:-}" = --merge ]; then
+  shift
+  _hi_cov_merge_dest="$1" _hi_cov_merge_parts="$2"
+  if ! command -v kcov >/dev/null 2>&1; then
+    echo "::warning::kcov not installed - nothing to merge"
+    exit 0
+  fi
+  shopt -s nullglob
+  _hi_cov_merge_dirs=("$_hi_cov_merge_parts"/*)
+  if [ "${#_hi_cov_merge_dirs[@]}" -eq 0 ]; then
+    echo "::warning::no kcov shard parts were downloaded - nothing to merge"
+    exit 0
+  fi
+  kcov --merge "$_hi_cov_merge_dest/merged" "${_hi_cov_merge_dirs[@]}"
+  # Every file kcov traced, worst first - the same ranking a local sweep
+  # prints below, reproduced here since this merge happens in CI's gather
+  # job instead. Straight from kcov's merged JSON, where one object is one
+  # line and every value is a quoted string - see the ranking below for why
+  # the percent is found by walking to the `percent_covered` key.
+  _hi_cov_merge_json="$(find "$_hi_cov_merge_dest/merged" -name coverage.json | head -1)"
+  if [ -n "$_hi_cov_merge_json" ]; then
+    awk -F'"' '
+      /"file"/ {
+        for (i = 1; i < NF; i++)
+          if ($i == "percent_covered") {
+            printf " |   %6s%%  %5s/%-5s  %s\n", $(i + 2), $(i + 6), $(i + 10), $4
+            break
+          }
+      }' "$_hi_cov_merge_json" | sort -n
+  fi
+  # A merge that resolved no sources still writes a well-formed report -
+  # "files": [], run-wide 0.00 - and publishing that is worse than nothing:
+  # a grey "not measured" badge reads as broken while 0.00% reads as true.
+  if [ -z "$_hi_cov_merge_json" ] || ! grep -q '"file"' "$_hi_cov_merge_json"; then
+    echo "::warning::the merge resolved no sources - no figure to publish"
+    exit 0
+  fi
+  _hi_cov_merge_pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$_hi_cov_merge_json" | tail -1)"
+  case "$_hi_cov_merge_pct" in '' | *[!0-9.]*)
+    echo "::warning::could not read percent_covered out of $_hi_cov_merge_json"
+    exit 0
+    ;;
+  esac
+  mkdir -p "$_hi_cov_merge_dest/coverage-pct"
+  printf '%s\n' "$_hi_cov_merge_pct" >"$_hi_cov_merge_dest/coverage-pct/pct"
+  echo "kcov reports ${_hi_cov_merge_pct}% of lines executed"
+  exit 0
+fi
+
 if ! command -v kcov >/dev/null 2>&1; then
   _hi_cecho " | coverage: kcov not installed - skipping (a dev-only tool, and outside a PPA Debian/Ubuntu do not carry it: build it from github.com/SimonKagstrom/kcov, as CI does)" "$YELLOW"
   exit 0
 fi
+
+_hi_cov_shim_sh_to_bash
 
 _HI_COV_DIR="${1:-${TMPDIR:-/tmp}/say-hi-coverage}"
 shift 2>/dev/null || true

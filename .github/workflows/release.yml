@@ -71,11 +71,28 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+    outputs:
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      debug: ${{ steps.tag.outputs.debug }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # classified once, read by publish's Pages refresh and by brew/tap
+      # below instead of each re-deriving its own contains/startsWith guard.
+      # $GITHUB_REF_NAME on a workflow_dispatch rehearsal is whatever branch
+      # dispatched it, never a tag - harmless, since every consumer already
+      # requires `github.event_name == 'push'` before it looks at either flag.
+      - id: tag
+        run: |
+          set -eu
+          prerelease=false debug=false
+          case "$GITHUB_REF_NAME" in *-*) prerelease=true ;; esac
+          case "$GITHUB_REF_NAME" in v0.0.*) debug=true ;; esac
+          echo "prerelease=$prerelease" >>"$GITHUB_OUTPUT"
+          echo "debug=$debug" >>"$GITHUB_OUTPUT"
 
       - uses: $/.github/actions/setup-shells
 
@@ -142,13 +159,12 @@ jobs:
             echo "no APK_SIGNING_KEY secret - the apk will be unsigned"
             exit 0
           fi
-          printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi-apk.rsa"
-          chmod 600 "$RUNNER_TEMP/say-hi-apk.rsa"
           # the committed public half is what the runbook tells Alpine users
           # to trust and what mkrepo.sh serves; packaging/lib.sh's
           # verify_signing_key is the one implementation of "the secret is
           # the key the committed public half names"
           source packaging/lib.sh
+          write_key "$RUNNER_TEMP/say-hi-apk.rsa" "$APK_SIGNING_KEY"
           verify_signing_key rsa "$RUNNER_TEMP/say-hi-apk.rsa" packaging/apk/say-hi.rsa.pub || {
             echo "::error title=APK_SIGNING_KEY::the secret is not the key packaging/apk/say-hi.rsa.pub is the public half of"
             exit 1
@@ -172,12 +188,11 @@ jobs:
             echo "no GPG_SIGNING_KEY secret - the rpm builds unsigned and no package repository is published"
             exit 0
           fi
-          printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
-          chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
           # packaging/lib.sh's verify_signing_key is the one implementation
           # of this check, shared with mkrepo.sh's gpg_setup; its own stderr
           # names which half is missing or mismatched
           source packaging/lib.sh
+          write_key "$RUNNER_TEMP/say-hi.gpg.key" "$GPG_SIGNING_KEY"
           fpr="$(verify_signing_key gpg "$RUNNER_TEMP/say-hi.gpg.key" packaging/gpg/say-hi.asc)" || {
             echo "::error title=GPG_SIGNING_KEY::the secret is not the key packaging/gpg/say-hi.asc names - the log line above has the detail"
             exit 1
@@ -296,6 +311,13 @@ jobs:
       pull-requests: read
       # gh attestation download, below - reads what build's attest steps wrote
       attestations: read
+    # relayed rather than read straight off `build` by brew/tap below - each
+    # job under the gate keeps a single `needs:` entry, which is what lets
+    # test_release_jobs_under_the_gate_check_their_needs read every job's
+    # `if:` the same simple way
+    outputs:
+      prerelease: ${{ needs.build.outputs.prerelease }}
+      debug: ${{ needs.build.outputs.debug }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -322,7 +344,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "$MINISIGN_SECRET_KEY" ]; then
-            printf '%s\n' "$MINISIGN_SECRET_KEY" >"$RUNNER_TEMP/minisign.key"
+            source packaging/lib.sh
+            write_key "$RUNNER_TEMP/minisign.key" "$MINISIGN_SECRET_KEY"
             minisign -S -s "$RUNNER_TEMP/minisign.key" -m dist/SHA256SUMS \
               -t "say-hi $GITHUB_REF_NAME"
           else
@@ -346,24 +369,15 @@ jobs:
           missing-message: "no green CI run for this commit - the tests badge reads unknown"
           warn-on-missing: "true"
 
+      # one lookup, both figures
       - uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
-          artifact-name: coverage-pct
-          dest-subdir: badge-kcov
+          artifact-name: "{coverage-pct,coverage-v2-pct}"
+          dest-subdir: badge-coverage
           head-sha: ${{ github.sha }}
-          found-message: "kcov figure from Coverage run"
-          missing-message: "no green Coverage run for this commit - the kcov badge reads unknown"
-          warn-on-missing: "true"
-
-      - uses: $/.github/actions/fetch-latest-artifact
-        with:
-          workflow: coverage.yml
-          artifact-name: coverage-v2-pct
-          dest-subdir: badge-bashcov
-          head-sha: ${{ github.sha }}
-          found-message: "bashcov figure from Coverage run"
-          missing-message: "no green Coverage run for this commit - the bashcov badge reads unknown"
+          found-message: "coverage figures from Coverage run"
+          missing-message: "no green Coverage run for this commit - the coverage badges read unknown"
           warn-on-missing: "true"
 
       # totals is one line, "passed failed skipped selected"
@@ -372,24 +386,26 @@ jobs:
         run: |
           set -euo pipefail
           badge() { printf 'https://img.shields.io/badge/%s-%s-%s' "$1" "$2" "$3"; }
-          # A figure that is all zeros is not a measurement: it is what kcov's
-          # merge writes when it resolves no sources ("files": [], 0.00), the
-          # reading coverage.yml's gather job refuses to publish - but an
-          # older pct artifact can still carry it, and a frozen
-          # 0.00% in a release body reads as true where grey "unknown" reads
-          # as what it is. The same refusal, at the consumer.
-          pct_ok() { case "$1" in '' | *[!0-9.]* | 0 | 0.0 | 0.00 | 0.000) return 1 ;; esac; }
+          # pct_ok (.github/scripts/pct_ok.sh, shared with pages.yml and
+          # coverage.yml's PR comment): a figure that is all zeros is not a
+          # measurement, it is what kcov's merge writes when it resolves no
+          # sources ("files": [], 0.00) - coverage.yml's gather job refuses to
+          # publish one, but an older pct artifact can still carry it, and a
+          # frozen 0.00% in a release body reads as true where grey "unknown"
+          # reads as what it is. The same refusal, at the consumer.
+          # shellcheck source=.github/scripts/pct_ok.sh
+          source .github/scripts/pct_ok.sh
           tests=unknown tcolor=lightgrey kcov=unknown kcolor=lightgrey bashcov=unknown bcolor=lightgrey
           if [ -f "$RUNNER_TEMP/badge-tests/totals" ]; then
             read -r passed _ _ _ <"$RUNNER_TEMP/badge-tests/totals" || true
             case "$passed" in '' | *[!0-9]*) ;; *) tests="$passed%20passed" tcolor=4c1 ;; esac
           fi
-          if [ -f "$RUNNER_TEMP/badge-kcov/pct" ]; then
-            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-kcov/pct")"
+          if [ -f "$RUNNER_TEMP/badge-coverage/coverage-pct/pct" ]; then
+            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-coverage/coverage-pct/pct")"
             if pct_ok "$pct"; then kcov="$pct%25" kcolor=informational; else echo "::warning::kcov figure '$pct' is not a measurement - the badge reads unknown"; fi
           fi
-          if [ -f "$RUNNER_TEMP/badge-bashcov/pct" ]; then
-            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-bashcov/pct")"
+          if [ -f "$RUNNER_TEMP/badge-coverage/coverage-v2-pct/pct" ]; then
+            pct="$(tr -d ' \n' <"$RUNNER_TEMP/badge-coverage/coverage-v2-pct/pct")"
             if pct_ok "$pct"; then bashcov="$pct%25" bcolor=informational; else echo "::warning::bashcov figure '$pct' is not a measurement - the badge reads unknown"; fi
           fi
           {
@@ -526,8 +542,8 @@ jobs:
             echo "no GPG_SIGNING_KEY secret - no package repository for this release"
             exit 0
           fi
-          printf '%s\n' "$GPG_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.gpg.key"
-          chmod 600 "$RUNNER_TEMP/say-hi.gpg.key"
+          source packaging/lib.sh
+          write_key "$RUNNER_TEMP/say-hi.gpg.key" "$GPG_SIGNING_KEY"
           set -- --gpg-key "$RUNNER_TEMP/say-hi.gpg.key" --public-key packaging/gpg/say-hi.asc
           # the served URL, the one the release-notes step derived and put in
           # $GITHUB_ENV: left off, say-hi.repo and the rpm baseurl would bake
@@ -535,8 +551,7 @@ jobs:
           # an owner/repo rename while the notes above it stay correct
           set -- "$@" --base-url "$HI_PAGES_URL"
           if [ -n "$APK_SIGNING_KEY" ]; then
-            printf '%s\n' "$APK_SIGNING_KEY" >"$RUNNER_TEMP/say-hi.rsa"
-            chmod 600 "$RUNNER_TEMP/say-hi.rsa"
+            write_key "$RUNNER_TEMP/say-hi.rsa" "$APK_SIGNING_KEY"
             set -- "$@" --apk-key "$RUNNER_TEMP/say-hi.rsa"
           else
             echo "no APK_SIGNING_KEY secret - the APKINDEX files ship unsigned"
@@ -553,7 +568,7 @@ jobs:
       # "the newest non-prerelease release" pages.yml reads is unchanged and
       # a redeploy would serve nothing new.
       - name: Refresh the Pages package repository
-        if: ${{ !contains(github.ref_name, '-') }}
+        if: ${{ needs.build.outputs.prerelease != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run pages.yml --ref main
@@ -585,12 +600,16 @@ jobs:
   brew:
     name: brew install, test and audit the formula (macOS)
     needs: publish
-    # not on a v0.0.x or a prerelease tag - the same skip the tap job below
-    # and publish-external.yml's aur job use, since neither is a release
-    # anyone should reach
-    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    # not on a v0.0.x or a prerelease tag - build's own classification,
+    # relayed through publish's outputs and read the same way by the tap job
+    # below; publish-external.yml's aur job cannot reach it at all (a
+    # separate workflow run) and keeps its own copy of the same two checks
+    if: github.event_name == 'push' && !cancelled() && needs.publish.result == 'success' && needs.publish.outputs.debug != 'true' && needs.publish.outputs.prerelease != 'true'
     runs-on: macos-latest
     timeout-minutes: 20
+    outputs:
+      prerelease: ${{ needs.publish.outputs.prerelease }}
+      debug: ${{ needs.publish.outputs.debug }}
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -673,7 +692,7 @@ jobs:
   tap:
     name: open the Homebrew tap PR
     needs: brew
-    if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && !startsWith(github.ref_name, 'v0.0.') && !contains(github.ref_name, '-')
+    if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && needs.brew.outputs.debug != 'true' && needs.brew.outputs.prerelease != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

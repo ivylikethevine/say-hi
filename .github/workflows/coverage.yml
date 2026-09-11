@@ -4,81 +4,46 @@ name: Coverage
 # suite default: fast plus whichever e2e backends the runner has - docker and
 # ssh here; kube/nomad/podman stand down as SKIPPED, nothing installs them),
 # published as artifacts - visibility, never a gate: no PR waits on either
-# and no threshold fails one.
+# and no threshold fails one. The average of the two badges is the coverage
+# figure; docs/TESTING.md's Coverage and profiling section says why there
+# are two and how each skews.
 #
-# Each tool is sharded 4 ways (shard-kcov/shard-bashcov, matrix shard:
-# [1,2,3,4]) and then merged by a gather job (gather-kcov/gather-bashcov) -
-# the same --shard i/n test_runner.sh already gives windows-client.yml and
-# ci.yml's e2e job, which _hi_cov_select_suites passes straight through to
-# test_runner.sh before it ever calls --list-paths. No change to
-# tests/coverage.sh, tests/coverage_v2.sh or tests/lib/coverage.sh was needed
-# for this - the sharding was already there, only the workflow wasn't using
-# it. Four shards rather than a bigger split: it halves the eight e2e suites'
-# 2-per-shard, which is the slice that actually drives wall clock; --shard's
-# own interleaving (table order) spreads them rather than stacking every one
-# in a single shard.
+# Each tool is sharded 4 ways (shard-<tool>, --shard i/4, spreading the e2e
+# suites that drive wall clock) and merged by its own gather-<tool>, rather
+# than one matrix over tool, so neither tool's queue waits on the other's.
 #
-# Two tools, each its own pair of jobs (shard-<tool>/gather-<tool>) rather
-# than one shared matrix over tool - so gather-kcov's `needs:` never waits on
-# bashcov's shards finishing (or vice versa), preserving the same
-# independence a two-entry matrix bought before sharding existed: kcov's
-# queue must not wait behind bashcov's.
+# Both tracers follow a child only when it is bash (bashcov rides on
+# SHELLOPTS=xtrace, kcov on a DEBUG trap), and ubuntu's /bin/sh is dash, so
+# the `#!/bin/sh` files the suites run as `sh <file>` children
+# (common/targets.sh, three points of the badge) would read 0% here and on
+# no other box. Each driver (tests/coverage.sh, tests/coverage_v2.sh) puts a
+# `sh -> bash` symlink first on its own PATH before it sweeps, on every run -
+# local ones included, not only a shard's. Correctness under dash is ci.yml's
+# job, not this one's.
 #
-# The two figures have tracked each other within a few points for many
-# commits and both are reliable: the average of the two badges is the
-# coverage figure, the per-file reports are for finding untested arms, and
-# neither is a gate. Each still skews a little, in opposite directions: kcov
-# once lost its DEBUG trap wholesale (tests/coverage.sh's header keeps the
-# measured record; only if the two badges massively diverge again - tens of
-# points, not the usual few - re-run its probe before believing either),
-# and bashcov marks every heredoc-body line covered whether or not the run
-# executed it and cannot see into `env -i` children or containers - so a
-# single file reads a few points off in either direction while the pair
-# brackets the truth.
-#
-# Both tracers follow a child only when it is bash: bashcov rides on
-# SHELLOPTS=xtrace and BASH_XTRACEFD, kcov on a bash-only DEBUG trap, and
-# dash reads neither. ubuntu's /bin/sh is dash, so the `#!/bin/sh` files
-# the suites *execute* as `sh <file>` children (common/targets.sh -
-# ~220 lines, three points of the badge; measured 0/220 under a dash sh,
-# 96% under bash) read 0% here
-# and on no other box. settings/aliases.sh is `#!/bin/sh` too and
-# unaffected: its suite sources it into the traced bash. Each shard
-# therefore puts a `sh -> bash` symlink first on PATH for its sweep, the
-# mirror of the dash sweep CLAUDE.md prescribes locally: bash invoked as sh
-# runs in POSIX mode and the lines get counted. Correctness under dash is
-# ci.yml's job, not this workflow's - these figures gate nothing.
-#
-# workflow_run so every green push to main refreshes both figures without a
-# manual dispatch; each job gates on the run's conclusion and event the way
-# pages.yml does, and checkout uses the default ref, never the triggering
-# run's payload. pages.yml deploys off the same CI event and again when
-# this workflow completes, so a badge shows this run's figure as soon as
-# the sweep is done rather than on the next push.
+# workflow_run so every green push to main refreshes both figures; each job
+# gates on the run's conclusion and event, and checkout uses the default ref,
+# never the triggering run's payload. pages.yml deploys only when this
+# workflow completes, so a badge shows this run's figure as soon as the
+# sweep is done.
 #
 # pull_request too, for the comment job at the bottom: a same-repo, non-draft
 # PR runs the same sweep and gets both figures posted beside main's, one
-# comment edited in place per push. Same-repo only, and not merely because a
-# fork's token cannot comment: pages.yml reads the badge figures off the
-# newest green run of this workflow on branch `main`, which a fork PR opened
-# from its own `main` would be (tests/harness/runner_test.sh pins the gate).
+# comment edited in place per push. Never a fork's: pages.yml reads the
+# figures off the newest green run of this workflow on branch `main`, which a
+# fork PR opened from its own `main` would be (runner_test.sh pins the gate).
 # Concurrency groups carry the PR number so a PR's sweep never cancels main's.
 #
 # A push whose tree its same-repo PR run already swept is not swept again:
 # that run's `comment` job leaves a coverage-tree-<tree> marker
-# (./.github/actions/mark-tree), and `reuse` republishes that run's two
-# figures under this one, where pages.yml and release.yml look - ci.yml's
-# push-to-main dedupe, same lookup. No marker, or a figure missing from it,
-# is the full sweep.
+# (./.github/actions/mark-tree), and `reuse` republishes its two figures
+# under this run, where pages.yml and release.yml look - ci.yml's
+# push-to-main dedupe, same lookup.
 #
-# continue-on-error on every job, not workflow-level: pages.yml looks up "the
-# newest run of this workflow with status=success" once per badge, and that
-# status is the *whole run's* conclusion - which a hard-failing job would
-# otherwise couple, one shard's failure graying out both tools' badges. A
-# gather job merges whatever shards actually uploaded rather than requiring
-# all four - the cost is the same one continue-on-error always bought here:
-# a failed shard's own badge goes stale (it needs a run where every shard and
-# the gather both land a result) rather than gating the run itself.
+# continue-on-error on every job, not workflow-level: pages.yml's lookup
+# reads the *whole run's* conclusion, so one hard-failing shard would grey
+# out both tools' badges. A gather merges whatever shards uploaded; a failed
+# shard's badge goes stale rather than gating the run.
 on: # zizmor: ignore[dangerous-triggers]
   workflow_run:
     workflows: [CI]
@@ -93,15 +58,13 @@ permissions:
   contents: read
 
 jobs:
-  # The dedupe in the header: the workflow_run path only, and only for a tree
-  # whose PR run published both figures. `event_name != 'pull_request'` is
-  # the same-repo guard's other form (runner_test.sh reads every job's `if:`).
+  # The dedupe lookup (workflow_run/push only, for a tree whose PR run
+  # published both figures) and the sweep's one eligibility gate, both here:
+  # every sharded and gathering job below reads `sweep` instead of
+  # re-deriving "a dispatch, a green push, or a same-repo non-draft PR" for
+  # itself - four repeats of the same clause before this.
   reuse:
-    name: reuse the PR run's figures
-    if: >-
-      github.event_name != 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'
+    name: gate the sweep, and reuse the PR run's figures where possible
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
@@ -110,12 +73,17 @@ jobs:
       actions: read
     outputs:
       run: ${{ steps.find.outputs.run }}
+      sweep: ${{ steps.gate.outputs.sweep }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - id: find
+        if: >-
+          github.event_name != 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           TREE: ${{ github.event.workflow_run.head_commit.tree_id }}
@@ -144,6 +112,32 @@ jobs:
           path: carried/coverage-v2-pct
           if-no-files-found: error
 
+      # sweep: a dispatch, a green push, or a same-repo non-draft PR, and
+      # nothing already reused above. `event_name == 'pull_request'` paired
+      # with same-repo/non-draft is the guard: a fork PR opened from its own
+      # `main` would otherwise pass pages.yml's "newest green run on branch
+      # main" lookup and publish as the README's figure. `always()` so a
+      # failed or skipped `find` above still reaches this.
+      - id: gate
+        if: always()
+        env:
+          EVENT: ${{ github.event_name }}
+          WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WR_EVENT: ${{ github.event.workflow_run.event }}
+          PR_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          FOUND_RUN: ${{ steps.find.outputs.run }}
+        run: |
+          set -eu
+          sweep=false
+          if [ "$EVENT" = workflow_dispatch ] \
+            || { [ "$WR_CONCLUSION" = success ] && [ "$WR_EVENT" = push ]; } \
+            || { [ "$EVENT" = pull_request ] && [ "$PR_SAME_REPO" = true ] && [ "$PR_DRAFT" != true ]; }; then
+            sweep=true
+          fi
+          [ -z "$FOUND_RUN" ] || sweep=false
+          echo "sweep=$sweep" >>"$GITHUB_OUTPUT"
+
   # every-suite selection sliced 4 ways, per the header above; each shard
   # writes only its own $_HI_COV_DIR/parts/<suite> subdirectories, which are
   # disjoint across shards by construction (--shard partitions the suite
@@ -151,15 +145,9 @@ jobs:
   # union is exactly the merge tests/coverage.sh would have done for the
   # whole sweep in one process.
   shard-kcov:
-    name: kcov over the suite sweep (shard ${{ matrix.shard }} of 4)
+    name: kcov over the suite sweep (shard ${{ matrix.shard }})
     needs: reuse
-    if: >-
-      !cancelled() && needs.reuse.outputs.run == '' && (
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push') ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       !github.event.pull_request.draft))
+    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
@@ -169,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1/4, 2/4, 3/4, 4/4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -188,40 +176,30 @@ jobs:
         with:
           tools: kcov
 
-      # HI_SHARDS is the divisor and the matrix above lists one entry per
-      # shard, the same contract ci.yml's e2e job and windows-client.yml use.
       # No --group: the default selection is every suite, same as an
-      # unsharded run.
-      # the sh -> bash shim is scoped to this one command rather than written
-      # to GITHUB_PATH (zizmor's github-env audit flags that on a workflow_run
-      # workflow): see the header for why the sweep needs it
-      - name: Run this shard of the suite sweep under kcov, with a bash-as-sh first on PATH
+      # unsharded run. The sh -> bash shim (see the header for why it is
+      # needed) is the driver's own now, not this step's - it shims its own
+      # PATH rather than writing to GITHUB_PATH (zizmor's github-env audit
+      # flags that on a workflow_run workflow), so nothing here has to.
+      - name: Run this shard of the suite sweep under kcov
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/bashsh"
-          ln -sf "$(command -v bash)" "$RUNNER_TEMP/bashsh/sh"
-          PATH="$RUNNER_TEMP/bashsh:$PATH" tests/coverage.sh coverage-report --shard "$HI_SHARD/$HI_SHARDS"
+        run: tests/coverage.sh coverage-report --shard "$HI_SHARD"
 
+      # job-index, not matrix.shard: an artifact name may not contain "/",
+      # and --shard is now a whole i/n slice (e.g. 4/4) - the index only has
+      # to be unique per shard, which strategy.job-index already is
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-parts-kcov-${{ matrix.shard }}
+          name: coverage-parts-kcov-${{ strategy.job-index }}
           path: coverage-report/parts
           if-no-files-found: error
           retention-days: 1
 
   shard-bashcov:
-    name: bashcov over the suite sweep (shard ${{ matrix.shard }} of 4)
+    name: bashcov over the suite sweep (shard ${{ matrix.shard }})
     needs: reuse
-    if: >-
-      !cancelled() && needs.reuse.outputs.run == '' && (
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push') ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       !github.event.pull_request.draft))
+    if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
@@ -231,7 +209,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1/4, 2/4, 3/4, 4/4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -261,30 +239,14 @@ jobs:
           # single gem in a job that installs nothing else. ci.yml audits
           # with no --min-severity, so even a low finding exits 12 - the
           # suppression has to be written down rather than assumed.
-          gem install --user-install bashcov -v "$BASHCOV_VERSION"
-          # --user-install puts the binary somewhere off the default PATH;
-          # coverage_v2.sh looks there itself, but exporting it here keeps
-          # the step below readable and lets `bashcov --version` be the
-          # smoke test
-          for d in "$HOME"/.local/share/gem/ruby/*/bin; do
-            [ -x "$d/bashcov" ] && echo "$d" >>"$GITHUB_PATH"
-          done
+          # --user-install lands off the default PATH; coverage_v2.sh looks there
+          gem install --user-install --no-document bashcov -v "$BASHCOV_VERSION"
 
-      - name: Show the bashcov version
-        run: bashcov --version
-
-      # the sh -> bash shim is scoped to this one command rather than written
-      # to GITHUB_PATH (zizmor's github-env audit flags that on a workflow_run
-      # workflow): see the header for why the sweep needs it
-      - name: Run this shard of the suite sweep under bashcov, with a bash-as-sh first on PATH
+      # the same driver-owned sh -> bash shim as shard-kcov's
+      - name: Run this shard of the suite sweep under bashcov
         env:
           HI_SHARD: ${{ matrix.shard }}
-          HI_SHARDS: 4
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/bashsh"
-          ln -sf "$(command -v bash)" "$RUNNER_TEMP/bashsh/sh"
-          PATH="$RUNNER_TEMP/bashsh:$PATH" tests/coverage_v2.sh coverage-v2-report --shard "$HI_SHARD/$HI_SHARDS"
+        run: tests/coverage_v2.sh coverage-v2-report --shard "$HI_SHARD"
 
       # Only the resultset, not the whole coverage-v2-report tree: SimpleCov
       # writes an HTML report per shard too, and gather-bashcov has no use
@@ -293,9 +255,10 @@ jobs:
       # include-hidden-files: upload-artifact drops dotfiles by default, and
       # .resultset.json is one - without this the step silently uploads
       # nothing and shard-bashcov's continue-on-error hides the failure.
+      # job-index, not matrix.shard: see shard-kcov's upload above
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-parts-bashcov-${{ matrix.shard }}
+          name: coverage-parts-bashcov-${{ strategy.job-index }}
           path: coverage-v2-report/.resultset.json
           include-hidden-files: true
           if-no-files-found: error
@@ -307,13 +270,7 @@ jobs:
   gather-kcov:
     name: kcov - merge shards and publish
     needs: [reuse, shard-kcov]
-    if: >-
-      always() && needs.reuse.outputs.run == '' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push') ||
-       (github.event.pull_request.head.repo.full_name == github.repository &&
-        !github.event.pull_request.draft))
+    if: always() && needs.reuse.outputs.sweep == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -324,9 +281,8 @@ jobs:
       # Load-bearing, and not obvious: `kcov --merge` re-reads every source
       # file at the absolute path its shard recorded, so a gather job with no
       # working tree merges to `"files": []` and `"percent_covered": "0.00"`
-      # - a badge reading 0.00% rather than an error. That is what this job
-      # published until this checkout was added; gather-bashcov needs none
-      # because its ruby reads only the resultset's per-line arrays.
+      # - a badge reading 0.00% rather than an error. gather-bashcov needs
+      # none: its ruby reads only the resultset's per-line arrays.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -347,28 +303,11 @@ jobs:
           path: coverage-report/parts
           merge-multiple: true
 
-      - name: Merge the shards
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          parts=(coverage-report/parts/*)
-          if [ "${#parts[@]}" -eq 0 ]; then
-            echo "::warning::no kcov shard parts were downloaded - nothing to merge"
-            exit 0
-          fi
-          kcov --merge coverage-report/merged "${parts[@]}"
-          # Every file kcov traced, worst first - the same ranking
-          # tests/coverage.sh prints locally, reproduced here since this
-          # merge happens in the gather job instead.
-          json="$(find coverage-report/merged -name coverage.json | head -1)"
-          [ -n "$json" ] && awk -F'"' '
-            /"file"/ {
-              for (i = 1; i < NF; i++)
-                if ($i == "percent_covered") {
-                  printf " |   %6s%%  %5s/%-5s  %s\n", $(i + 2), $(i + 6), $(i + 10), $4
-                  break
-                }
-            }' "$json" | sort -n
+      # tests/coverage.sh --merge: the same kcov --merge, ranking and
+      # "an all-zero figure is not a measurement" refusal a local sweep's
+      # tail already carries, so this job stops keeping its own second copy
+      - name: Merge the shards and write the badge figure
+        run: tests/coverage.sh --merge coverage-report coverage-report/parts
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -377,44 +316,12 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # One line pages.yml turns into README's badge (badges/coverage.json),
-      # unchanged from the unsharded workflow: gather-kcov reproduces the
-      # exact merged/kcov-merged/coverage.json path a single-process run
-      # would have written. kcov's `^[[:space:]]*` anchor is load-bearing: it
-      # writes percent_covered once per traced file inline inside a `{...}`
-      # and once for the whole run on a line of its own; without it the
-      # first per-file figure wins.
-      - name: Write the badge figure
-        run: |
-          set -euo pipefail
-          src="coverage-report/merged/kcov-merged/coverage.json"
-          if [ ! -f "$src" ]; then
-            echo "::warning::$src is missing - no badge figure to publish"
-            exit 0
-          fi
-          # A merge that resolved no sources still writes a well-formed
-          # report - `"files": []` with a run-wide 0.00 - and publishing that
-          # is worse than publishing nothing, because a grey "not measured"
-          # badge reads as broken while 0.00% reads as true. Refuse it.
-          if ! grep -q '"file"' "$src"; then
-            echo "::warning::$src lists no files - the merge resolved no sources, so there is no figure to publish"
-            exit 0
-          fi
-          pct="$(sed -n 's/^[[:space:]]*"percent_covered"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9.]*\).*/\1/p' "$src" | tail -1)"
-          case "$pct" in '' | *[!0-9.]*)
-            echo "::warning::could not read percent_covered out of $src"
-            exit 0
-            ;;
-          esac
-          mkdir -p coverage-pct
-          printf '%s\n' "$pct" >coverage-pct/pct
-          echo "kcov reports ${pct}% of lines executed"
-
+      # One line pages.yml turns into README's badge (badges/coverage.json)
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: hashFiles('coverage-pct/pct') != ''
+        if: hashFiles('coverage-report/coverage-pct/pct') != ''
         with:
           name: coverage-pct
-          path: coverage-pct
+          path: coverage-report/coverage-pct
           if-no-files-found: error
 
   # bashcov's SimpleCov .resultset.json is a plain hash keyed by
@@ -432,13 +339,7 @@ jobs:
   gather-bashcov:
     name: bashcov - merge shards and publish
     needs: [reuse, shard-bashcov]
-    if: >-
-      always() && needs.reuse.outputs.run == '' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push') ||
-       (github.event.pull_request.head.repo.full_name == github.repository &&
-        !github.event.pull_request.draft))
+    if: always() && needs.reuse.outputs.sweep == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
@@ -457,7 +358,13 @@ jobs:
           pattern: coverage-parts-bashcov-*
           path: coverage-v2-report/shards
 
-      - name: Merge the shards and rank the files
+      # bashcov's SimpleCov .resultset.json has no aggregate percentage at
+      # all, only per-line hit arrays, so ruby computes the badge figure too -
+      # applying the tests/ + docs/ subject filters itself: coverage_v2.sh's
+      # SimpleCov filters shape only the HTML report, while the resultset
+      # stays raw, so without them the badge counts the harness and the
+      # never-executed demo scripts against the product.
+      - name: Merge the shards, rank the files and write the badge figure
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -499,6 +406,18 @@ jobs:
             rows.sort_by { |pct, _, _, path| [pct, path] }.each do |pct, hit, total, path|
               printf(" |   %6.2f%%  %5d/%-5d  %s\n", pct, hit, total, path)
             end
+
+            relevant = lines_by_file.reject { |f, _|
+              f.sub(root, "").start_with?("tests/", "docs/")
+            }.values.flatten.compact
+            if relevant.empty?
+              puts "::warning::the merged resultset holds no product lines - no badge figure to publish"
+            else
+              pct = format("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
+              Dir.mkdir("coverage-v2-pct")
+              File.write("coverage-v2-pct/pct", pct + "\n")
+              puts "bashcov reports #{pct}% of lines executed"
+            end
           ' "${shards[@]}"
 
       # same dotfile exclusion as the shard upload above
@@ -509,48 +428,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 90
-
-      # bashcov's SimpleCov .resultset.json has no aggregate percentage at
-      # all, only per-line hit arrays, so ruby computes it - and applies the
-      # tests/ + docs/ subject filters itself: coverage_v2.sh's SimpleCov
-      # filters shape only the HTML report, while the resultset stays raw,
-      # so without them here the badge counts the harness and the
-      # never-executed demo scripts against the product.
-      - name: Write the badge figure
-        run: |
-          set -euo pipefail
-          src="coverage-v2-report/.resultset.json"
-          if [ ! -f "$src" ]; then
-            echo "::warning::$src is missing - no badge figure to publish"
-            exit 0
-          fi
-          pct="$(ruby -rjson -e '
-            merged = {}
-            JSON.parse(File.read(ARGV[0])).each_value do |payload|
-              (payload["coverage"] || {}).each do |file, data|
-                lines = data.is_a?(Hash) ? data["lines"] : data
-                if merged[file]
-                  merged[file] = merged[file].each_with_index.map do |v, i|
-                    [v, lines[i]].compact.sum if v || lines[i]
-                  end
-                else
-                  merged[file] = lines.dup
-                end
-              end
-            end
-            root = Dir.pwd + "/"
-            relevant = merged.reject { |f, _|
-              f.sub(root, "").start_with?("tests/", "docs/")
-            }.values.flatten.compact
-            exit 1 if relevant.empty?
-            printf("%.2f", 100.0 * relevant.count { |c| c > 0 } / relevant.size)
-          ' "$src")" || {
-            echo "::warning::could not compute a percentage out of $src"
-            exit 0
-          }
-          mkdir -p coverage-v2-pct
-          printf '%s\n' "$pct" >coverage-v2-pct/pct
-          echo "bashcov reports ${pct}% of lines executed"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: hashFiles('coverage-v2-pct/pct') != ''
@@ -602,23 +479,16 @@ jobs:
           pattern: coverage*-pct
           path: ${{ runner.temp }}/pr
 
-      - name: Fetch main's kcov figure
+      # one lookup, both figures - dest-subdir carries no artifact name of its
+      # own, so each still lands at main/<artifact-name>/pct, unchanged below
+      - name: Fetch main's figures
         uses: $/.github/actions/fetch-latest-artifact
         with:
           workflow: coverage.yml
-          artifact-name: coverage-pct
-          dest-subdir: main/coverage-pct
-          found-message: main's kcov figure from coverage run
-          missing-message: no successful coverage run on main - no kcov figure to compare
-
-      - name: Fetch main's bashcov figure
-        uses: $/.github/actions/fetch-latest-artifact
-        with:
-          workflow: coverage.yml
-          artifact-name: coverage-v2-pct
-          dest-subdir: main/coverage-v2-pct
-          found-message: main's bashcov figure from coverage run
-          missing-message: no successful coverage run on main - no bashcov figure to compare
+          artifact-name: "{coverage-pct,coverage-v2-pct}"
+          dest-subdir: main
+          found-message: main's figures from coverage run
+          missing-message: no successful coverage run on main - no figures to compare
 
       # via env, never inline ${{ }} in the run block (zizmor: template-injection)
       - name: Post or update the coverage comment
@@ -629,12 +499,18 @@ jobs:
         run: |
           set -euo pipefail
           marker='<!-- say-hi coverage -->'
+          # shellcheck source=.github/scripts/pct_ok.sh
+          source .github/scripts/pct_ok.sh
           # a figure is a bare decimal or nothing: an artifact is data, and
-          # nothing else read out of one reaches the comment
+          # nothing else read out of one reaches the comment. pct_ok is the
+          # same refusal pages.yml and release.yml give an all-zero figure
+          # (kcov's checkout-less merge, not a measurement) - this comment
+          # used to show a bare 0.00% neither of those would publish.
           fig() {
             local v=""
             [ -f "$1" ] && IFS= read -r v <"$1" || true
             case "$v" in '' | . | *[!0-9.]* | *.*.*) v="" ;; esac
+            pct_ok "$v" || v=""
             printf '%s' "$v"
           }
           # row <label> <this PR> <main>

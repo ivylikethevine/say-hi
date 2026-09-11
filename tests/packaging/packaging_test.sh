@@ -375,7 +375,13 @@ function test_release_workflow_marks_prerelease_tags() {
 }
 
 function test_prerelease_tags_reach_no_channel() {
-  local job bad=0 guard="!contains(github.ref_name, '-')"
+  local job bad=0 guard="outputs.prerelease != 'true'"
+  job="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
+  # shellcheck disable=SC2016 # matching release.yml's literal source text
+  [[ "$job" == *'case "$GITHUB_REF_NAME" in *-*) prerelease=true'* ]] || {
+    _hi_cecho " | release.yml's build job no longer classifies a prerelease tag" "$RED"
+    bad=1
+  }
   job="$(_hi_wf_job "$_HI_RELEASE_WF" brew)"
   if [[ "$job" != *"if: github.event_name == 'push'"*"$guard"* ]]; then
     _hi_cecho " | release.yml's brew job runs on a prerelease tag" "$RED"
@@ -384,7 +390,7 @@ function test_prerelease_tags_reach_no_channel() {
   # the Pages refresh too: a prerelease publishes --latest=false, so pages.yml
   # would have nothing new to serve and the dispatch must be skipped
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
-  if ! [[ "$job" == *"if: \${{ $guard }}"* ]]; then
+  if ! [[ "$job" == *"if: \${{ needs.build.$guard }}"* ]]; then
     _hi_cecho " | release.yml refreshes Pages on a prerelease tag" "$RED"
     bad=1
   fi
@@ -410,8 +416,7 @@ function test_release_body_carries_frozen_badges() {
   local job
   job="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
   [[ "$job" == *"head-sha: \${{ github.sha }}"* ]] || return 1
-  [[ "$job" == *"artifact-name: tests"* && "$job" == *"artifact-name: coverage-pct"* &&
-    "$job" == *"artifact-name: coverage-v2-pct"* ]] || return 1
+  [[ "$job" == *"artifact-name: tests"* && "$job" == *'artifact-name: "{coverage-pct,coverage-v2-pct}"'* ]] || return 1
   [[ "$job" == *"img.shields.io/badge/"* && "$job" == *"unknown"* && "$job" == *"lightgrey"* ]] || return 1
   # shellcheck disable=SC2016 # the workflow's own literals, expanded there
   [[ "$job" == *'![tests]($HI_BADGE_TESTS)'* && "$job" == *'($HI_BADGE_KCOV)'* &&
@@ -505,8 +510,8 @@ function test_release_workflow_opens_the_tap_pr_after_brew() {
   }
   [[ "$job" == *"needs: brew"* ]] &&
     [[ "$job" == *"needs.brew.result == 'success'"* ]] &&
-    [[ "$job" == *"!startsWith(github.ref_name, 'v0.0.')"* ]] &&
-    [[ "$job" == *"!contains(github.ref_name, '-')"* ]] &&
+    [[ "$job" == *"needs.brew.outputs.debug != 'true'"* ]] &&
+    [[ "$job" == *"needs.brew.outputs.prerelease != 'true'"* ]] &&
     [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
     [[ "$job" == *"gh pr create"* ]] &&
     [[ "$job" != *"environment:"* ]]
@@ -648,23 +653,21 @@ function test_pages_workflow_serves_the_package_repository() {
 function test_release_refreshes_pages_instead_of_relying_on_workflow_run() {
   [ -f "$_HI_PAGES_WF" ] && [ -f "$_HI_RELEASE_WF" ] || return 0
   ! grep -qE '^ *workflows: \[.*Release.*\]' "$_HI_PAGES_WF" &&
-    grep -qE '^ *workflows: \[CI, Coverage\]' "$_HI_PAGES_WF" &&
     grep -qE '^ *workflow_dispatch:' "$_HI_PAGES_WF" &&
     [[ "$(_hi_wf_job "$_HI_RELEASE_WF" publish)" == *'gh workflow run pages.yml'* ]]
 }
 
-# The coverage badges are read from "the newest successful coverage run" at
-# deploy time, and coverage.yml is itself chained off the CI run that triggers
-# the deploy - so unless a finished sweep redeploys too, a badge shows the
-# previous push's figure. Its event is workflow_run, never push, so the build
-# job has to admit it by name.
-function test_a_finished_coverage_sweep_refreshes_pages() {
+# coverage.yml is chained off CI and is the last producer to finish, so it is
+# pages.yml's one automatic trigger: CI as well deployed every push twice, the
+# first time with the previous push's coverage figures. Coverage's own event is
+# workflow_run, never push, so the build admits any successful run but a PR's.
+function test_pages_deploys_once_after_coverage() {
   [ -f "$_HI_PAGES_WF" ] || return 0
   local build
   build="$(_hi_wf_job "$_HI_PAGES_WF" build)"
-  grep -qE '^ *workflows: \[CI, Coverage\]' "$_HI_PAGES_WF" &&
-    [[ "$build" == *"workflow_run.name == 'Coverage'"* ]] &&
-    [[ "$build" == *"workflow_run.conclusion == 'success'"* ]]
+  grep -qE '^ *workflows: \[Coverage\]$' "$_HI_PAGES_WF" &&
+    [[ "$build" == *"workflow_run.conclusion == 'success'"* ]] &&
+    [[ "$build" == *"workflow_run.event != 'pull_request'"* ]]
 }
 
 function test_packaging_smoke_builds_the_package_repository() {
@@ -2448,7 +2451,7 @@ function run_packaging_tests() {
   _hi_check "publish ships package-repo.tar.gz" test_publish_job_ships_the_package_repository
   _hi_check "pages.yml serves the package repository" test_pages_workflow_serves_the_package_repository
   _hi_check "...a release refreshes Pages itself" test_release_refreshes_pages_instead_of_relying_on_workflow_run
-  _hi_check "...and a finished coverage sweep refreshes Pages too" test_a_finished_coverage_sweep_refreshes_pages
+  _hi_check "...and Pages deploys once, after the coverage sweep" test_pages_deploys_once_after_coverage
   _hi_check "packaging-smoke builds the repository" test_packaging_smoke_builds_the_package_repository
   _hi_check "mkrepo.sh --help names the workflow flags" test_mkrepo_documents_the_flags_the_workflows_pass
   _hi_check "mkrepo.sh parses its flags before asking for docker" test_mkrepo_parses_flags_before_asking_for_docker
