@@ -452,20 +452,25 @@ function test_config_lists_a_non_default_toggle() {
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
 # value they read does nothing there: each named once, and neither a comment
-# nor an alias that reads one (the add-a-flag idiom) counts
+# nor an alias that reads one (the add-a-flag idiom) counts. _HI_DISABLE_MICRO
+# is in the fixture as the newest toggle rather than an old one - the row's
+# pattern used to be spelled out in doctor.sh and the four per-editor toggles
+# were invisible to it, so a case built only from _HI_DISABLE_TOOL_ALIASES
+# stayed green through exactly the drift the row exists to catch.
 # shellcheck disable=SC2016 # the aliases.sh lines are written, not run
 function test_config_flags_values_set_in_aliases_sh() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/latevals.XXXXXX")"
   printf '%s\n' "export _HI_BAT_OPTS='-p'" '# export _HI_EZA_OPTS=x' \
     'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' \
+    'export _HI_DISABLE_MICRO=1' \
     'export _HI_DISABLE_TOOL_ALIASES=1 _HI_BAT_OPTS=-p' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_TOOL_ALIASES - "* ]] || return 1
+  [[ "$out" == *"alias-vars"*"sets _HI_BAT_OPTS _HI_DISABLE_MICRO _HI_DISABLE_TOOL_ALIASES - "* ]] || return 1
   printf '%s\n' 'alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"' >"$dir/aliases.sh"
   out="$(
     _HI_CONFIG_DIR="$dir"

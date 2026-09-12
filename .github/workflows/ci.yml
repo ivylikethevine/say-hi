@@ -291,12 +291,20 @@ jobs:
           set -euo pipefail
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
+          rc=0
           out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
             /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-            "$USER@127.0.0.1" 'echo HI_MAC_LOOP_OK' 2>&1)" || true
+            "$USER@127.0.0.1" 'echo HI_MAC_LOOP_OK' 2>&1)" || rc=$?
           printf '%s\n' "$out"
+          # the marker says the remote command ran; it cannot say the client
+          # came home clean, so the status is checked after the output is
+          # printed rather than thrown away with a `|| true`
           printf '%s\n' "$out" | grep -q HI_MAC_LOOP_OK
+          [ "$rc" -eq 0 ] || {
+            echo "hi exited $rc after a successful remote command" >&2
+            exit "$rc"
+          }
 
       # A full session: the header has to say macOS, hi_info has to name the
       # session's tree, and the disconnect banner has to close it. Driven the
@@ -315,9 +323,10 @@ jobs:
           set -euo pipefail
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
+          rc=0
           python3 - /bin/bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-            "$USER@127.0.0.1" <<'PY' 2>&1 | tee "$RUNNER_TEMP/session.log" || true
+            "$USER@127.0.0.1" <<'PY' 2>&1 | tee "$RUNNER_TEMP/session.log" || rc=$?
           import os, pty, select, sys, time
           argv = sys.argv[1:]
           pid, fd = pty.fork()
@@ -360,6 +369,16 @@ jobs:
           grep -q 'macOS' "$RUNNER_TEMP/session.log"
           grep -Eq "hi_root: .*/$USER\.hi\.[A-Za-z0-9.]+/say-hi" "$RUNNER_TEMP/session.log"
           grep -q 'Disconnected' "$RUNNER_TEMP/session.log"
+          # The driver's own verdict last, and never discarded: the greps above
+          # name a missing marker more precisely, so they get to fail first, but
+          # a session that prints all four and *then* exits non-zero - or one the
+          # driver gave up on at 90s, which exits with its message and a full
+          # transcript already grepped - is only visible here. pipefail is on, so
+          # this is python's status and not tee's.
+          [ "$rc" -eq 0 ] || {
+            echo "the session driver exited $rc - see the transcript above" >&2
+            exit "$rc"
+          }
 
       # read-only over the Host entry above, in JSON; the exit code is the
       # count of `bad` rows, so a finding fails the step with the row logged

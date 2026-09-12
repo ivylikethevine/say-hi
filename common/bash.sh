@@ -80,21 +80,21 @@ fi
 # file's at its write), so the worst case is close to twice the TTL; only
 # _HI_TARGETS_TTL=0 turns both off. $SECONDS because it is a builtin; -1 is
 # "never filled". GLOSSARY: HI.26
-_HI_TARGET_NAMES=""
-_HI_TARGET_NAMES_AT=-1
+_HI_TARGET_ROWS=()
+_HI_TARGET_ROWS_AT=-1
 
-function _hi_target_names() {
-  local -a rows=()
-  if [ "$_HI_TARGET_NAMES_AT" -ge 0 ] &&
-    [ "$((SECONDS - _HI_TARGET_NAMES_AT))" -lt "${_HI_TARGETS_TTL:-5}" ]; then
+function _hi_target_rows() {
+  if [ "$_HI_TARGET_ROWS_AT" -ge 0 ] &&
+    [ "$((SECONDS - _HI_TARGET_ROWS_AT))" -lt "${_HI_TARGETS_TTL:-5}" ]; then
     return 0
   fi
-  _hi_read_lines rows < <(sh "$_HI_TARGETS")
-  # names are field 1, kinds field 2; the tab strips are builtins, sparing a
-  # `cut` per TAB
-  _HI_TARGET_NAMES="${rows[*]%%$'\t'*}"
-  _HI_TARGET_KINDS="${rows[*]#*$'\t'}"
-  _HI_TARGET_NAMES_AT="$SECONDS"
+  # the rows whole, as common/zsh.zsh caches them: name is field 1 and kind
+  # field 2, and the tab strips that split them are builtins, sparing a `cut`
+  # per TAB. Flattening the two fields into a pair of space-joined strings
+  # would need a `set -f` re-split on the way out and would silently desync
+  # the halves the first time a target name carried a space.
+  _hi_read_lines _HI_TARGET_ROWS < <(sh "$_HI_TARGETS")
+  _HI_TARGET_ROWS_AT="$SECONDS"
 }
 
 # Matched in-shell: `compgen` through a process substitution cost a fork plus
@@ -126,15 +126,12 @@ function _hi_complete() {
     done < <(sh "$_HI_TARGETS" flags "${COMP_WORDS[1]}")
     return 0
   fi
-  _hi_target_names
-  local -a names kinds hit_kinds=() shown=() syms=()
-  local i j sym seen=" "
-  set -f
-  # shellcheck disable=SC2206 # split on purpose, globbing off
-  names=($_HI_TARGET_NAMES) kinds=($_HI_TARGET_KINDS)
-  set +f
-  for i in "${!names[@]}"; do
-    case "${names[i]}" in "$cur"*) COMPREPLY+=("${names[i]}") hit_kinds+=("${kinds[i]}") ;; esac
+  _hi_target_rows
+  local -a hit_kinds=() shown=() syms=()
+  local i j sym row seen=" "
+  for row in "${_HI_TARGET_ROWS[@]}"; do
+    n="${row%%$'\t'*}"
+    case "$n" in "$cur"*) COMPREPLY+=("$n") hit_kinds+=("${row#*$'\t'}") ;; esac
   done
   # each name's backend symbol, only while readline lists - never when an
   # entry lands on the command line. GLOSSARY: HI.56

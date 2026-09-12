@@ -245,14 +245,17 @@ function doctor_payload_diff() {
 }
 
 # The tools hi needs *here* to ship a payload at all, and the one place the
-# report asks. base64 armors the ssh transport (_say_hi refuses without it,
-# and takes openssl's where it is missing) and tar packs the tree for every
-# transport. gzip is the third, and the one that cannot be answered by name
-# alone: libarchive's tar compresses in-process, so a client with that one is
-# only sending a padded payload, while GNU's and OpenBSD's run gzip off $PATH
-# and have nothing to fall back on. hi.sh's _hi_can_gzip is the question both
-# this and the connect path ask.
-_HI_LOCAL_FLOOR=(base64 tar)
+# report asks - the ones that can be asked for by name. tar packs the tree for
+# every transport. The armor is the second and is not a fixed name: _say_hi
+# refuses without base64 and takes openssl's where base64 is missing, so
+# doctor_local reads hi.sh's own verdict ($_HI_ARMOR) rather than re-running
+# the probe and risking a report that names a tool the connect would not use.
+# gzip is the third and cannot be answered by name at all: libarchive's tar
+# compresses in-process, so a client with that one is only sending a padded
+# payload, while GNU's and OpenBSD's run gzip off $PATH and have nothing to
+# fall back on. hi.sh's _hi_can_gzip is the question both this and the connect
+# path ask.
+_HI_LOCAL_FLOOR=(tar)
 
 # _hi_missing_tools <name...> - those of <name...> this machine does not have,
 # space-separated, in the order given.
@@ -281,9 +284,10 @@ function doctor_local() {
   # `hi --doctor` with a pair of raw "base64: command not found" lines from
   # inside _hi_wire_bytes, on the one run whose whole job is to say what is
   # wrong with this machine. Named here, once, and the size step skipped.
-  local -a floor=("${_HI_LOCAL_FLOOR[@]}")
-  command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
-    floor=("${floor[@]/#base64/openssl}")
+  # The armor tool is hi.sh's $_HI_ARMOR, already decided by the same
+  # base64-else-openssl probe this used to re-run - one verdict, and a report
+  # that cannot name a tool the connect would not have used.
+  local -a floor=("${_HI_ARMOR%% *}" "${_HI_LOCAL_FLOOR[@]}")
   missing="$(_hi_missing_tools "${floor[@]}")"
   nice_missing="$(_hi_missing_tools gzip)"
   if [ -n "$missing" ]; then
@@ -372,9 +376,14 @@ function doctor_config() {
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
   done < <(_hi_editor_lint)
   # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
-  # aliases read, assigned there, lands after they were built and does nothing
+  # aliases read, assigned there, lands after they were built and does nothing.
+  # The toggle half of the pattern is read off that file rather than spelled
+  # here: spelled, it missed _HI_DISABLE_VIM/NANO/EMACS/MICRO the day they
+  # landed, so the four newest toggles were the four this row could not see.
+  local toggles
+  toggles="$(grep -oE '_HI_DISABLE_[A-Z_]+' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
   late="$(grep -v '^[[:space:]]*#' "$_HI_CONFIG_DIR/aliases.sh" 2>/dev/null |
-    grep -oE '(_HI_[A-Z0-9]+_(OPTS|BIN)|_HI_DISABLE_(EDITORS|TOOL_ALIASES|SUDO_ALIAS))=' |
+    grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
     tr -d = | sort -u | tr '\n' ' ')" || true
   [ -z "$late" ] ||
     doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad

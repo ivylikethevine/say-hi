@@ -40,14 +40,22 @@ cat "$HOME/.ssh/loop.pub" >>"$HOME/.ssh/authorized_keys"
 chmod 700 "$HOME/.ssh" && chmod 600 "$HOME/.ssh/authorized_keys"
 # the same pty trick the e2e suites use: `ssh -t` needs a tty on our side,
 # and a CI step has none
+rc=0
 out="$(python3 -c 'import pty, sys; sys.exit(pty.spawn(sys.argv[1:]))' \
   bash ./hi.sh -i "$HOME/.ssh/loop" -o StrictHostKeyChecking=no \
   -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-  "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1 </dev/null)" || true
+  "$USER@127.0.0.1" 'echo HI_BSD_LOOP_OK' 2>&1 </dev/null)" || rc=$?
 printf '%s\n' "$out"
+# The marker says the remote command ran; it cannot say the client came home
+# clean. Both are checked, and the status after the output is printed rather
+# than thrown away with a `|| true` - a session that echoes and then exits
+# non-zero is exactly what a loopback exists to catch.
 printf '%s\n' "$out" | grep -q HI_BSD_LOOP_OK
+[ "$rc" -eq 0 ] || {
+  echo "hi exited $rc after a successful remote command" >&2
+  exit "$rc"
+}
 
-if ls -d "${TMPDIR:-/tmp}"/*.hi.* 2>/dev/null; then
-  echo "session directory survived the exit" >&2
-  exit 1
-fi
+# the same check ci.yml's macOS loopback and windows-e2e.yml's wsl-suites run,
+# through the one script that knows how a session directory is named
+bash ./.github/scripts/no_hi_session_left.sh
