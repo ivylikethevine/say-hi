@@ -282,18 +282,68 @@ function test_config_flags_an_ignored_tool_config_copy() {
   [[ "$out" == *"bat.conf"*"ignored - hi ships the tool's own config; delete this copy"* ]]
 }
 
-# what hi --install seeds is the tree's own file, byte for byte: not an
-# override until somebody edits it
-function test_config_calls_a_seeded_overlay_file_unchanged() {
+# an overlay copy of the tree's own file, byte for byte: not an override
+# until somebody edits it
+function test_config_calls_an_unedited_overlay_copy_unchanged() {
   local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/seeded.XXXXXX")"
+  dir="$(mktemp -d "$_HI_WORKDIR/copied.XXXXXX")"
   cp "$_HI_ROOT/settings/colors" "$dir/colors"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"colors"*"seeded by hi --install, unchanged from the tree's"* && "$out" != *overridden* ]]
+  [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]]
+}
+
+# The include scan's rows. hi.sh's _hi_editor_lint is the same pass that does
+# the dropping on the way out, so what the report names is exactly what went
+# missing - and the row says which of the two happened, since
+# _HI_EDITOR_INCLUDES=keep sends the line instead. GLOSSARY: HI.57
+function test_config_names_an_unresolvable_include() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
+  printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vim.rc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_VIMRC="$dir/vim.rc"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"vim.rc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
+    [[ "$out" == *"vim.rc:3"*"names a plugin manager"* ]]
+}
+
+# ...and with the escape hatch on, the row says the line travels and the target
+# has no such file - the same finding, the opposite fate
+function test_config_says_when_an_include_travels_anyway() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/inclkeep.XXXXXX")"
+  printf 'source ~/.vim/extra.vim\n' >"$dir/vim.rc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_VIMRC="$dir/vim.rc"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_EDITOR_INCLUDES=keep
+    doctor_config
+  )"
+  [[ "$out" == *"vim.rc:1"*"sent as written"* ]]
+}
+
+# an editor rc hi picked up from where that editor reads it says where it came
+# from, so "which file is my target actually getting" has one answer on screen
+function test_config_names_the_editor_config_in_force_here() {
+  local dir mine out
+  dir="$(mktemp -d "$_HI_WORKDIR/inforce.XXXXXX")"
+  mine="$dir/dotvimrc"
+  printf 'set number\n' >"$mine"
+  out="$(
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_VIMRC="$mine"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"vim.rc"*"targets get $mine, the one in force here"* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -975,7 +1025,10 @@ function run_doctor_tests() {
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
   _hi_check "An overlay copy of one is flagged as ignored" test_config_flags_an_ignored_tool_config_copy
-  _hi_check "A seeded overlay file reads as unchanged" test_config_calls_a_seeded_overlay_file_unchanged
+  _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
+  _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
+  _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway
+  _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases

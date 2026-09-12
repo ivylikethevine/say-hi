@@ -352,13 +352,25 @@ function doctor_config() {
     elif [ -z "$t" ]; then
       doctor_row "$f" "tree default"
     elif [ -f "$_HI_ROOT/settings/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/settings/$f"; then
-      # what hi --install seeds: the tree's own file, byte for byte, so not
-      # an override yet
-      doctor_row "$f" "seeded by hi --install, unchanged from the tree's"
+      # a copy of the tree's own file, byte for byte, so not an override yet
+      doctor_row "$f" "a copy of the tree's, unchanged - edit it to override"
     else
       doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
+  # Every editor rc hi packs ships verbatim into a config/ of its own, so a
+  # line naming a path names something no target has. hi.sh's _hi_editor_lint
+  # is the one grammar for all four dialects - the same rows the packer acts
+  # on, so what is named here is exactly what got dropped on the way out
+  # (GLOSSARY: HI.57). warn, not bad: the session still opens the editor.
+  local member lineno kind text fate said
+  fate="dropped on the way out"
+  [ "${_HI_EDITOR_INCLUDES:-comment}" != keep ] || fate="sent as written (_HI_EDITOR_INCLUDES=keep), and the target has no such file"
+  while IFS='|' read -r member lineno kind text; do
+    [ -n "$member" ] || continue
+    [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
+    doctor_row "$member:$lineno" "$said - $text - $fate" warn
+  done < <(_hi_editor_lint)
   # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing
   late="$(grep -v '^[[:space:]]*#' "$_HI_CONFIG_DIR/aliases.sh" 2>/dev/null |

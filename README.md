@@ -8,7 +8,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". -->
 
-![Payload](https://img.shields.io/badge/ssh_payload-59KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-60KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -204,10 +204,13 @@ everything weighed and answered **no**, and why.
 - `hi --configure` reopens that menu later: pick a preset, or flip any
   setting in its one list - Features, Header, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- the install also seeds `~/.config/say-hi` with the shipped `colors`,
-  `packages`, and the editor rcs (vim, nano, emacs), for the ones you have none of - yours
-  to edit, and to version however you keep your dotfiles
-  ([docs/SETTINGS.md](docs/SETTINGS.md)).
+- the install copies nothing else into `~/.config/say-hi`: the shipped
+  `colors` and `packages` apply until you `cp` one there yourself - then it is
+  yours to edit, and to version however you keep your dotfiles. The editor
+  rcs need no copy at all: hi carries your own `~/.vimrc`,
+  `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`, and drops the lines
+  in them that read a file no target has
+  ([docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
   a bug report); it also reports which rc files are wired and where `hi` on
   your `PATH` leads.
@@ -242,7 +245,8 @@ everything weighed and answered **no**, and why.
 Your config lives in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
 say `hi` to: `settings.sh` is what `hi --configure` writes, and the other
-files overlay or extend the tree's copies. The overlay file table, the
+files are yours to create - copy one out of the tree's `settings/` to override
+it, or add an `aliases.sh` of your own. The overlay file table, the
 wizard, every toggle, and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
@@ -329,17 +333,19 @@ or descoped, and finished entries are deleted rather than ticked.
 In this checkout, and not what the tag waits on either.
 
 1. [ ] **A config that sources a file hi does not carry is caught before it
-       travels** — every overlay and `settings/` file is shipped verbatim, so
-       a `vim.rc` with `source ~/.vim/extra.vim`, an `aliases.sh` sourcing a
-       path off this machine, or an rc naming a plugin manager breaks on the
-       first target that has no such file, in the editor rather than in hi.
-       **Do:** parse each file hi packs for its dialect's include directives
-       (vim `source`/`runtime`, sh `.`/`source`, emacs `load`), resolve them
-       against what actually rides the overlay, and report the danglers in
-       `hi --doctor`; a lint flag decides whether the line travels commented
-       out or as written. **Ticks when:** `hi --doctor` names an unresolvable
-       include for every dialect, the session still opens the editor cleanly,
-       and a suite pins both.
+       travels** — the four editor rcs ship this way now: hi carries the
+       config each editor already reads on this machine, `hi.sh`'s
+       `_hi_lint_awk` reads all four dialects for the lines naming a path no
+       target has, the packer comments them out on the way and `hi --doctor`
+       names each one, `_HI_EDITOR_INCLUDES=keep` sends them as written
+       ([HI.57](docs/GLOSSARY.md#hi57-editor-config-resolution)). The sh half
+       is still open: an overlay `aliases.sh`, `bash.sh`, `zsh.zsh`, or
+       `config.fish` that sources a path off this machine breaks on the first
+       target the same way, and nothing reads it. **Do:** give the same pass a
+       `.`/`source` dialect, resolve those against what actually rides the
+       overlay, and report them beside the editors'. **Ticks when:**
+       `hi --doctor` names an unresolvable source in a shell overlay file, the
+       session still starts cleanly, and a suite pins both.
 
 2. [ ] **Someone else's feature can ride along without patching the tree** —
        the overlay carries files hi already knows the names of, so anything

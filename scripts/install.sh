@@ -91,7 +91,7 @@ re-run. say-hi itself is left in place - rm -rf it yourself once you're done
 with it - and so is the one-time <rc-file>.hi-orig backup the install took
 before its first write to each rc file.
 
-  --purge          Remove ~/.config/say-hi as well - the seeded defaults,
+  --purge          Remove ~/.config/say-hi as well - your settings.sh,
                    your aliases.sh, every overlay file. Without it the
                    overlay stays, since what is there is yours.
   -n, --dry-run    Say what would be removed and remove nothing.
@@ -117,14 +117,16 @@ EOF
   *)
     cat <<EOF
 Wires up the local shells to source this say-hi checkout and links hi.sh
-into ~/.local/bin. It also seeds the config overlay: copies the shipped
-colors/packages and the editor rc defaults into
-\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi for the files you have none of, a
-file already there never touched. Then the settings menu, at a terminal
-(--preset answers it without one). Safe to re-run any time - it repairs its
-own lines and leaves everything else alone. The install location is always
-wherever this script lives (say-hi's parent directory, which has to be named
-say-hi), not a path you pass in - say-hi installs in place. Your own answers
+into ~/.local/bin, then opens the settings menu at a terminal (--preset
+answers it without one). Nothing else is copied into
+\${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi: the tree's colors and packages stay
+in force until you copy one there yourself and edit it
+(cp <say-hi>/settings/colors \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/), and
+the editor rcs need no copy at all - hi carries your own ~/.vimrc and friends.
+Safe to re-run any time - it repairs its own lines and leaves everything else
+alone. The install location is always wherever this script lives (say-hi's
+parent directory, which has to be named say-hi), not a path you pass in -
+say-hi installs in place. Your own answers
 never land in the tree: they go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/, so this works against a checkout
 you don't own.
@@ -142,9 +144,9 @@ you don't own.
   --preset <name>  Answer the feature and header settings from a
                    preset - everything, balanced, or minimal - without the
                    menu. The same presets are the menu's first item.
-  -n, --dry-run    Say what would be written - rc lines, the overlay seed,
-                   settings.sh, the link - and write nothing. The menu
-                   still opens; s then reports instead of saving.
+  -n, --dry-run    Say what would be written - rc lines, settings.sh, the
+                   link - and write nothing. The menu still opens; s then
+                   reports instead of saving.
 EOF
     [ -n "${_HI_ARGV0:-}" ] || cat <<EOF
 
@@ -460,10 +462,10 @@ function run_uninstall() {
   return 0
 }
 
-# --purge: the overlay directory too - the seeded colors/packages/editor rcs,
-# the user's aliases.sh, every tool config that rode along. The plain
-# uninstall leaves it, since the seed is theirs to version; this is the "and
-# forget I was here" form.
+# --purge: the overlay directory too - the user's settings.sh and aliases.sh,
+# every default they copied in to override, every tool config that rode along.
+# The plain uninstall leaves it, since every file there is theirs; this is the
+# "and forget I was here" form.
 function purge_overlay() {
   _hi_h2 "Purging the overlay"
   if [ ! -d "$_HI_CONFIG_DIR" ]; then
@@ -546,26 +548,6 @@ function install_tree() {
   _hi_cecho " $profile :)" "$GREEN"
 }
 
-# The overlay half of `hi --install`: copy the shipped defaults in for the
-# files the user has none of, so a fresh overlay starts with real files to
-# edit rather than a scavenger hunt through the tree. A file already present
-# is never touched, so a re-run seeds nothing new. A seeded copy stops
-# tracking what `hi --update` delivers for that file - SETTINGS.md says so.
-# Versioning the directory is the user's own business (a dotfile manager, or
-# a `git init` of their own); hi neither inits nor commits there.
-function overlay_seed() {
-  local _hi_seed seeded=""
-  for _hi_seed in colors packages vim.rc init.lua nano.rc emacs.el; do
-    [ -e "$_HI_CONFIG_DIR/$_hi_seed" ] && continue
-    [ -f "$_HI_ROOT/settings/$_hi_seed" ] || continue
-    dry_run_say "seed $_HI_CONFIG_DIR/$_hi_seed from the tree's copy" && continue
-    mkdir -p "$_HI_CONFIG_DIR"
-    cp "$_HI_ROOT/settings/$_hi_seed" "$_HI_CONFIG_DIR/$_hi_seed" && seeded="$seeded $_hi_seed"
-  done
-  [ -z "$seeded" ] || _hi_cecho " seeded the shipped defaults into $_HI_CONFIG_DIR:$seeded" "$BLUE"
-  return 0
-}
-
 # lets tests/scripts/install_test.sh and tests/scripts/configure_test.sh
 # `source` this file to reach the functions above and in rc.sh/configure.sh
 # without running the real install below - config_hi's and unlink_hi's sudo
@@ -621,13 +603,8 @@ if [ -n "$_HI_PACKAGING" ]; then
   exit 0
 fi
 
-if [ -z "$_HI_FEATURES_ONLY" ]; then
-  config_validate_shells
-  # seed the overlay ahead of everything that reads or writes it, and after
-  # the modes that must not touch a user's home (packaging, uninstall) have
-  # already exited; --configure leaves it be
-  overlay_seed
-fi
+# --configure touches no rc file, so it has none to syntax-check
+[ -n "$_HI_FEATURES_ONLY" ] || config_validate_shells
 
 run_configure "$_HI_PRESET" || exit 1
 

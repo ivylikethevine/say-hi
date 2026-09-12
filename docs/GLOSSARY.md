@@ -66,6 +66,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 - [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
 - [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
+- [HI.57 editor config resolution](#hi57-editor-config-resolution)
 
 ## HI.01 empty-array guard
 
@@ -1034,3 +1035,52 @@ names. A name two backends share is listed once with both symbols
 space. bash 3.2 has no `$COMP_TYPE`, so its list stays bare. fish and zsh
 carry the symbol in a column of their own (`__hi_targets`' description,
 `_hi`'s `-d` display) and need none of this.
+
+## HI.57 editor config resolution
+
+hi carries a `vim.rc`, `init.lua`, `nano.rc`, and `emacs.el` to every target
+and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
+which file. `common/paths.sh` answers it in three tiers, lowest first since
+the last assignment wins: the tree's copy, then the config that editor
+already reads on this machine (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`,
+`~/.nanorc`, `~/.emacs`, each with the editor's own second location behind
+it), then `$_HI_CONFIG_DIR`'s copy. The middle tier is
+[HI.32](#hi32-starship-deference)'s argument applied to editors - one
+copy to edit, no duplicate in the overlay to keep in step - and `hi.sh`'s
+`_hi_overlay_src` reads the resolved `$_HI_VIMRC`/`$_HI_NVIMRC`/`$_HI_NANORC`/
+`$_HI_EMACSRC` rather than a second roster of its own. A value still equal to
+the tree's means the user has no config to carry, and the tree's copy already
+rides the payload, so nothing goes in the overlay stream.
+
+The middle tier is client-only (`[ "$_HI_REMOTE_SESSION" != 1 ]`): on a
+target `$HOME` is the *target's*, whose rcs are exactly what the `-u` exists
+to keep out of a visiting session, and the file the client picked is already
+unpacked at `$_HI_CONFIG_DIR`.
+
+Carrying a real config makes a second problem real with it. Every one of
+those files ships verbatim into a `config/` of its own, so a line naming a
+*path* - a second rc beside it, a plugin directory, a manager's bootstrap -
+names something no target has, and the editor fails on it rather than hi.
+`hi.sh`'s `_hi_lint_awk` reads all four dialects for exactly those lines:
+vim's `source`/`so` and the managers' verbs (`runtime` and `$VIMRUNTIME` are
+left alone - they resolve against the target vim's own runtime), lua's
+`dofile`/`loadfile`/`require` of a non-`vim.` module and the lazy/packer/paq
+bootstraps, nano's `include` outside `/usr/share/nano`, elisp's
+`load`/`load-file`/`load-path` and `package-initialize`/`use-package`. One
+pass serves both readers: `_hi_stage_tar` runs it in `fix` mode ahead of
+[HI.35](#hi35-in-transit-comment-strip)'s stripper, so a finding goes out
+commented in its own dialect and the strip then drops it for free, and
+`hi --doctor` runs it in `report` mode, so the rows name exactly what went
+missing. `_HI_EDITOR_INCLUDES=keep` sends the lines as written.
+
+vim and nano are line-oriented, so a finding is one line. lua and elisp are
+not, so the comment runs to the end of the bracket-balanced expression the
+finding opened - commenting only the matched line of a
+`require("lazy").setup({` would leave its `})` behind, and a config that does
+not parse is worse than the include it was fixing. `bal()` counts that depth
+blind to anything inside a string, and takes `'` as a string delimiter for
+lua only: in elisp it is the quote operator, and reading `'load-path` as an
+opening quote swallows the rest of the file. What the pass cannot see is a
+value the dropped line was meant to bind - a `local m = require("x")` used
+twenty lines down - so a plugin-heavy config can still error on the target;
+the doctor rows are what makes that legible rather than mysterious.

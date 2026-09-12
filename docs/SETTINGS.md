@@ -13,10 +13,10 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/settings.sh`     | -                   | what `hi --configure` writes                                                                                                                  |
 | `~/.config/say-hi/colors`          | `settings/colors`   | your color pins                                                                                                                               |
 | `~/.config/say-hi/packages`        | `settings/packages` | what the package check looks for                                                                                                              |
-| `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias where vim is what answers, and by `$VIMINIT` - replaces hi's default wholesale                        |
-| `~/.config/say-hi/init.lua`        | `settings/init.lua` | the same for neovim, used by the `nvim` alias (and by `vim`, which prefers nvim where a target has it)                                         |
-| `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias                                                                                                   |
-| `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`); micro takes no file - see `_HI_MICRO_OPTS` below                               |
+| `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias where vim is what answers, and by `$VIMINIT` - replaces hi's default wholesale. Only needed when it should differ from your `~/.vimrc`, which hi carries on its own ([below](#the-editor-rcs-come-from-where-you-keep-them)) |
+| `~/.config/say-hi/init.lua`        | `settings/init.lua` | the same for neovim, used by the `nvim` alias (and by `vim`, which prefers nvim where a target has it); the same goes for your `~/.config/nvim/init.lua` |
+| `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias; likewise over your `~/.nanorc` |
+| `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`), and over your `~/.emacs`; micro takes no file - see `_HI_MICRO_OPTS` below |
 | `~/.config/say-hi/aliases.sh`      | -                   | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session) |
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
@@ -29,13 +29,22 @@ gets the one each tool reads on your machine, as-is
 `starship.toml`, `bat.conf`, or `theme.yml` left in `~/.config/say-hi/` is
 ignored, and `hi --doctor` flags it.
 
-`hi --install` seeds the overlay with the shipped
-`colors`/`packages` and editor rc defaults — only for the
-files you have none of, so after a normal install all six are yours. A seeded copy stops
-tracking what `hi --update` delivers for that file; delete it from the overlay
-to track the tree's again. Versioning the directory is yours to do — a
-`git init` there, or
-[a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager).
+The overlay starts empty. `hi --install` writes `settings.sh` there and
+nothing else — the tree's `colors` and `packages` stay in force until you copy
+one over. To start an override, copy the shipped file in and edit the copy:
+
+```sh
+mkdir -p ~/.config/say-hi
+cp "$_HI_ROOT/settings/colors" ~/.config/say-hi/colors
+```
+
+A copy stops tracking what `hi --update` delivers for that file; delete it from
+the overlay to track the tree's again, and `hi --doctor` names which of the two
+is in force. Versioning the directory is yours to do — a `git init` there, or
+[a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager). The four
+editor rcs are the exception and usually need no copy at all — hi carries the
+config each editor already reads on this machine
+([below](#the-editor-rcs-come-from-where-you-keep-them)).
 
 Every setting below is an environment variable, checked where it is used.
 `hi --configure` writes your answers to `settings.sh` — a plain `#!/bin/sh`
@@ -57,6 +66,7 @@ which, and why). A setting a child must see is an `export` in
 - [Header details](#header-details)
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
+- [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Colors](#colors)
   - [The package check's ramp](#the-package-checks-ramp)
@@ -183,6 +193,7 @@ cannot land without a row here.
 | `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the editor config overrides (vim, neovim, nano, emacs, micro) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e`, and `sudo -e`                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_VIM`          | `0`                                                  | `hi --configure`          | turns off hi's vim config alone - the `vim` and `nvim` aliases (`vim.rc` for vim, `init.lua` for neovim) and `$VIMINIT` - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_NANO`         | `0`                                                  | `hi --configure`          | turns off hi's nano config alone - the `nano` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
+| `_HI_EDITOR_INCLUDES`       | `comment`                                            | you                       | what happens to a line in an editor rc that reads a file hi does not carry, or names a plugin manager: `comment` drops it on the way out, `keep` sends it as written. `hi --doctor` names every one either way. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them) |
 | `_HI_DISABLE_EMACS`        | `0`                                                  | `hi --configure`          | turns off hi's emacs config alone - the `emacs` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_MICRO`        | `0`                                                  | `hi --configure`          | turns off hi's micro config alone - the `micro` alias and its `_HI_MICRO_OPTS` flags - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa`, and `eza` themselves stay available by name either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                           |
@@ -221,6 +232,9 @@ cannot land without a row here.
 
 More names look like settings and are not:
 
+- `$_HI_XDG_CONFIG` is the `$XDG_CONFIG_HOME`-or-`~/.config` base
+  `common/core.sh` resolved once, for the files `common/paths.sh` has to find
+  under it; it is derived, not a dial — set `$XDG_CONFIG_HOME` instead.
 - `$_HI_CONFIG_DIR` and `$_HI_HOME` (the **parent** of your `say-hi`
   directory - everything resolves `$_HI_HOME/say-hi`) are read **before**
   `settings.sh` is sourced, so a line there is too late. Export them in your
@@ -403,6 +417,33 @@ alias cat=cat                                    # this one alias back to plain
 The `_HI_*_OPTS`, `_HI_*_BIN`, and `_HI_DISABLE_*` values hi's aliases are
 built from go in `settings.sh`, which loads first; set in `aliases.sh` they
 arrive after the aliases are built, and `hi --doctor` flags them.
+
+## The editor rcs come from where you keep them
+
+The four editor files are the exception, and usually you want none of them.
+hi carries the config each editor **already reads on this machine**, so there
+is one copy to edit:
+
+| member     | hi looks at                                                                  |
+| ---------- | ---------------------------------------------------------------------------- |
+| `vim.rc`   | `~/.vimrc`, else `~/.vim/vimrc`                                              |
+| `init.lua` | `$XDG_CONFIG_HOME/nvim/init.lua`                                             |
+| `nano.rc`  | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                             |
+| `emacs.el` | `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el` |
+
+An overlay copy still wins where you have one — that is how you give hi's
+sessions an editor config that differs from your local one — and hi's shipped
+default applies when neither is there. On a target the lookup is off: `$HOME`
+there is the target's, and the file your client picked has already arrived.
+
+Your own config is written for a machine with your plugins on it and a target
+has none, so hi reads each file for the lines naming something it cannot
+carry — vim's `source`, lua's `require`/`dofile`, nano's `include`, elisp's
+`load`, every plugin manager's bootstrap — and comments them out on the way.
+`hi --doctor` names each one, file and line, so you can see what your target
+is not getting; `_HI_EDITOR_INCLUDES=keep` sends them as written.
+[HI.57](GLOSSARY.md#hi57-editor-config-resolution) is the whole mechanism,
+including what it cannot see.
 
 ## Keeping the overlay in a dotfile manager
 

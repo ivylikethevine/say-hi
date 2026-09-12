@@ -44,6 +44,11 @@ if [ -z "${_hi_core_loaded:-}" ]; then
   # its shipped copy).
   : "${_HI_CONFIG_DIR:=${XDG_CONFIG_HOME:-$HOME/.config}/say-hi}"
   export _HI_CONFIG_DIR
+  # ...and the base it came from, which paths.sh needs whole: that file's
+  # four-shell dialect has no ${var:-} to spell the default with and no way
+  # to trim /say-hi back off. config.fish mirrors both lines.
+  : "${_HI_XDG_CONFIG:=${XDG_CONFIG_HOME:-$HOME/.config}}"
+  export _HI_XDG_CONFIG
   # settings ahead of paths.sh, whose gate reads them - hence the spelled path
   # shellcheck source=/dev/null # user config, may not exist
   if [ -f "$_HI_CONFIG_DIR/settings.sh" ]; then

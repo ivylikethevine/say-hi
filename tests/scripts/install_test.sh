@@ -5,7 +5,7 @@
 # of what a packaging recipe's package() step calls, and --uninstall's
 # marker-based rc rewriting (strip_marker/strip_settings/unlink_hi), plus an
 # install+uninstall round trip. The settings-wizard half of what this file used
-# to cover - config_shell, ensure_settings_shebang, overlay_seed,
+# to cover - config_shell, ensure_settings_shebang,
 # presets, and everything else `hi --configure` touches - moved to
 # tests/scripts/configure_test.sh once the file covering both scripts at once
 # outgrew being one suite; see that file's header for the split.
@@ -328,18 +328,20 @@ function test_configure_is_features_only() {
   [[ "$out" == "Usage: install.sh --configure ["* ]]
 }
 
-# a full install seeds the overlay - the four shipped defaults, and no repo:
-# versioning is the user's own; --configure (features-only) leaves it alone
-function test_install_seeds_the_overlay() {
-  local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0
+# a full install copies no default into the overlay: the tree's colors,
+# packages, and editor rcs apply until the user puts a file there themselves,
+# so settings.sh is the only thing the install leaves behind
+function test_install_copies_no_default_into_the_overlay() {
+  local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0 f
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [[ "$out" == *"seeded the shipped defaults"* && "$out" == *"Installed!"* ]] &&
-    [ -f "$ovl/colors" ] && [ -f "$ovl/nano.rc" ] && [ -f "$ovl/init.lua" ] &&
-    [ ! -d "$ovl/.git" ] || return 1
-  rc=0
-  out="$(_hi_run_install_here ovl-feat --configure --preset=minimal 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] && [ ! -e "$_HI_WORKDIR/ovl-feat/.config/say-hi/colors" ] &&
-    [ ! -d "$_HI_WORKDIR/ovl-feat/.config/say-hi/.git" ]
+  [ "$rc" -eq 0 ] && [[ "$out" == *"Installed!"* ]] || return 1
+  for f in colors packages vim.rc init.lua nano.rc emacs.el; do
+    [ ! -e "$ovl/$f" ] || {
+      _hi_cecho " | $f was copied into the overlay" "$RED"
+      return 1
+    }
+  done
+  [ ! -d "$ovl/.git" ]
 }
 
 # --uninstall against a home that never installed: every half reports clean
@@ -884,7 +886,7 @@ function test_dry_run_install_writes_nothing() {
   out="$(_hi_run_install_here dry --dry-run --preset balanced 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] || return 1
   [[ "$out" == *"dry run: would rewrite hi's lines in $home/.bashrc"* ]] &&
-    [[ "$out" == *"would seed $home/.config/say-hi/colors"* ]] &&
+    [[ "$out" == *"would rewrite hi's lines in $home/.config/say-hi/settings.sh"* ]] &&
     [[ "$out" == *"would link $home/.local/bin/hi"* ]] &&
     [ ! -e "$home/.bashrc" ] && [ ! -e "$home/.config/say-hi/colors" ] &&
     [ ! -e "$home/.config/say-hi/settings.sh" ] && [ ! -e "$home/.local/bin/hi" ]
@@ -997,7 +999,7 @@ function run_install_tests() {
   _hi_check "--uninstall --dry-run removes nothing" test_dry_run_uninstall_removes_nothing
   _hi_check "--link system reaches for /usr/bin/hi" test_system_link_flag_targets_usr_bin
   _hi_check "The banner names the version" test_install_reports_the_version
-  _hi_check "A full install seeds the overlay" test_install_seeds_the_overlay
+  _hi_check "A full install copies no default in" test_install_copies_no_default_into_the_overlay
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--uninstall --purge removes the overlay, dry-run keeps it" test_uninstall_purge_removes_the_overlay
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall

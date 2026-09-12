@@ -197,10 +197,24 @@ function test_environment_beats_the_defaults() {
 # the un-overridden direction is the default here and a real ~/.config/say-hi
 # can't decide the result.
 
+# A $HOME with nothing in it. paths.sh's middle tier for the editor rcs reads
+# $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs and friends, which test_lib.sh's
+# XDG_CONFIG_HOME throwaway does not move - so without this the developer's own
+# editor config would answer every "resolves to the tree's" case below. The
+# cases that exercise the tier fill this directory themselves.
+function _hi_bare_home() {
+  local dir="$_HI_WORKDIR/bare-home"
+  mkdir -p "$dir"
+  printf '%s' "$dir"
+}
+
 # Print $1's value from a child shell that went through core.sh, with
-# $_HI_CONFIG_DIR pointed at $2.
+# $_HI_CONFIG_DIR pointed at $2 and $HOME at a directory holding no config of
+# anyone's.
 function _hi_resolved() {
-  _HI_CONFIG_DIR="$2" bash -c \
+  local home
+  home="$(_hi_bare_home)"
+  HOME="$home" _HI_XDG_CONFIG="$home/.config" _HI_CONFIG_DIR="$2" bash -c \
     'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$1"
 }
 
@@ -276,18 +290,103 @@ function test_an_exported_path_does_not_survive() {
   for i in "${!_HI_OVERLAY_PATH_VARS[@]}"; do
     var="${_HI_OVERLAY_PATH_VARS[i]}"
     # shellcheck disable=SC2016 # ${!1} is the child bash's to expand, not ours
-    [ "$(_HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
+    [ "$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$dir" env "$var=/anywhere/hi-$i" bash -c \
       'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$dir/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
       _hi_cecho " | $var kept an exported path over the overlay's copy" "$RED"
       return 1
     }
     # shellcheck disable=SC2016 # same again, against no overlay at all
-    [ "$(_HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
+    [ "$(HOME="$(_hi_bare_home)" _HI_XDG_CONFIG="$(_hi_bare_home)/.config" _HI_CONFIG_DIR="$_HI_WORKDIR/no-such-overlay" env "$var=/anywhere/hi-$i" bash -c \
       'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$var")" = "$_HI_ROOT/settings/${_HI_OVERLAY_PATH_FILES[i]}" ] || {
       _hi_cecho " | $var kept an exported path over the tree's copy" "$RED"
       return 1
     }
   done
+}
+
+# The editor rcs take a middle tier the other two have no use for: the config
+# the editor already reads on this machine, so hi carries the file the user
+# maintains rather than a duplicate in the overlay. Three tiers, and the cases
+# below pin each boundary. GLOSSARY: HI.57
+
+# _hi_editor_home <name> <relpath...> - a fresh $HOME holding those files,
+# each one line naming itself so a resolved path can be told apart by content
+# as well as by name; prints the directory.
+function _hi_editor_home() {
+  local dir="$_HI_WORKDIR/edhome-$1" f
+  shift
+  mkdir -p "$dir/.config/nvim" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.vim" "$dir/.emacs.d"
+  for f in "$@"; do printf '%s\n' "$f" >"$dir/$f"; done
+  printf '%s' "$dir"
+}
+
+# _hi_tier_is <var> <home> <want> [remote] - <var> out of a child shell whose
+# $HOME is <home> (no overlay unless <home>/.config/say-hi exists), against
+# <want>; a fourth argument of 1 makes it a target's shell. Names itself on a
+# failure, so four in a row stay legible.
+function _hi_tier_is() {
+  local got
+  got="$(HOME="$2" _HI_XDG_CONFIG="$2/.config" _HI_CONFIG_DIR="$2/.config/say-hi" \
+    _HI_REMOTE_SESSION="${4:-0}" bash -c \
+    'source "$_HI_HOME/say-hi/common/core.sh"; printf "%s" "${!1}"' _ "$1")"
+  [ "$got" = "$3" ] && return 0
+  _hi_cecho " | $1 resolved to $got, wanted $3" "$RED"
+  return 1
+}
+
+# the tier itself: each editor's own config beats hi's shipped default, at the
+# location that editor actually reads
+function test_the_editors_own_config_beats_the_tree() {
+  local home
+  home="$(_hi_editor_home own .vimrc .config/nvim/init.lua .nanorc .emacs)"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
+    _hi_tier_is _HI_NVIMRC "$home" "$home/.config/nvim/init.lua" &&
+    _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs"
+}
+
+# ...and within the tier, the editor's own precedence: vim reads ~/.vimrc
+# before ~/.vim/vimrc, nano ~/.nanorc before the XDG copy, emacs ~/.emacs
+# before ~/.emacs.d/init.el
+function test_the_tier_keeps_each_editors_precedence() {
+  local home
+  home="$(_hi_editor_home order .vimrc .vim/vimrc .nanorc .config/nano/nanorc .emacs .emacs.d/init.el)"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
+    _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs"
+}
+
+# the second-choice locations answer on their own, or the roster above would
+# be three lines nothing reaches
+function test_the_tier_reads_the_second_locations() {
+  local home
+  home="$(_hi_editor_home second .vim/vimrc .config/nano/nanorc .emacs.d/init.el)"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.vim/vimrc" &&
+    _hi_tier_is _HI_NANORC "$home" "$home/.config/nano/nanorc" &&
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.d/init.el"
+}
+
+# an overlay copy is the hi-specific override and still outranks it: the tier
+# is a convenience, not a demotion of the file the user put in $_HI_CONFIG_DIR
+function test_the_overlay_beats_the_editors_own_config() {
+  local home
+  home="$(_hi_editor_home beaten .vimrc)"
+  mkdir -p "$home/.config/say-hi"
+  printf 'set number\n' >"$home/.config/say-hi/vim.rc"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.config/say-hi/vim.rc"
+}
+
+# and on a target the tier is off: $HOME there is the *target's*, whose rcs are
+# what hi's -u/--rcfile/-q -l exist to keep out of the session. The file the
+# client picked already arrived at $_HI_CONFIG_DIR and wins through the tier
+# above this one.
+function test_a_target_ignores_the_boxs_own_editor_config() {
+  local home
+  home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .nanorc .emacs)"
+  _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/settings/vim.rc" 1 &&
+    _hi_tier_is _HI_NVIMRC "$home" "$_HI_ROOT/settings/init.lua" 1 &&
+    _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/settings/nano.rc" 1 &&
+    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/settings/emacs.el" 1
 }
 
 # ...and the same through settings.sh: a line there is read before paths.sh
@@ -402,6 +501,13 @@ function run_paths_tests() {
   _hi_check "Settings point at the overlay before it exists" test_settings_point_at_the_overlay_before_it_exists
   _hi_check "Overlay settings reach the gate" test_overlay_settings_are_visible_to_the_gate
   _hi_check "Every overlay file has its paths.sh lookup" test_overlay_guards_match_the_roster
+
+  _hi_h2 "Testing: the editor rcs' middle tier"
+  _hi_check "The editor's own config beats the tree's" test_the_editors_own_config_beats_the_tree
+  _hi_check "...keeping each editor's own precedence" test_the_tier_keeps_each_editors_precedence
+  _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
+  _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
+  _hi_check "A target ignores the box's own" test_a_target_ignores_the_boxs_own_editor_config
 
   _hi_h2 "Testing: per-file overlay location overrides"
   _hi_check "The overlay's copy wins over the tree's" test_unset_still_prefers_the_overlay
