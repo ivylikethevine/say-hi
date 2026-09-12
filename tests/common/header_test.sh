@@ -799,10 +799,16 @@ function test_hi_header_disabled_produces_no_output() {
   [ -z "$out" ]
 }
 
+# On a failure, what it rendered instead - the bare glob cannot tell an empty
+# capture (the subshell died: a Git Bash runner under load has done this) from
+# a full header whose banner() returned early, and those want opposite fixes.
 function test_hi_header_enabled_prints_banner() {
   local out
   out="$(_HI_DISABLE_HEADER=0 hi_header Connected)"
-  [[ "$out" == *"Connected"* ]]
+  [[ "$out" == *"Connected"* ]] && return 0
+  _hi_cecho " | no 'Connected' in ${#out} bytes of header:" "$RED"
+  _hi_strip_ansi "$out" | sed 's/^/      /'
+  return 1
 }
 
 # The eager probe launch fires when a backend word is in the order and
