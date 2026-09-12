@@ -334,7 +334,7 @@ function test_config_says_when_an_include_travels_anyway() {
 # from, so "which file is my target actually getting" has one answer on screen
 function test_config_names_the_editor_config_in_force_here() {
   local dir mine out
-  dir="$(mktemp -d "$_HI_WORKDIR/inforce.XXXXXX")"
+  dir="$(mktemp -d "$_HI_WORKDIR/in-force.XXXXXX")"
   mine="$dir/dotvimrc"
   printf 'set number\n' >"$mine"
   out="$(

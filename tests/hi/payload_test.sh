@@ -493,7 +493,7 @@ vim.opt.tabstop = 2' ] || {
 # copy to edit and no duplicate in the overlay to keep in step
 function test_the_editor_config_in_force_here_rides_the_stream() {
   local dir mine
-  dir="$_HI_WORKDIR/lint-inforce"
+  dir="$_HI_WORKDIR/lint-in-force"
   mkdir -p "$dir"
   mine="$_HI_WORKDIR/my.vimrc"
   printf 'set number\n' >"$mine"

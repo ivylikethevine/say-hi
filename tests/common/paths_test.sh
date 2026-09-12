@@ -380,7 +380,7 @@ function test_the_overlay_beats_the_editors_own_config() {
 # what hi's -u/--rcfile/-q -l exist to keep out of the session. The file the
 # client picked already arrived at $_HI_CONFIG_DIR and wins through the tier
 # above this one.
-function test_a_target_ignores_the_boxs_own_editor_config() {
+function test_a_target_ignores_its_own_editor_config() {
   local home
   home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .nanorc .emacs)"
   _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/settings/vim.rc" 1 &&
@@ -507,7 +507,7 @@ function run_paths_tests() {
   _hi_check "...keeping each editor's own precedence" test_the_tier_keeps_each_editors_precedence
   _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
   _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
-  _hi_check "A target ignores the box's own" test_a_target_ignores_the_boxs_own_editor_config
+  _hi_check "A target ignores the box's own" test_a_target_ignores_its_own_editor_config
 
   _hi_h2 "Testing: per-file overlay location overrides"
   _hi_check "The overlay's copy wins over the tree's" test_unset_still_prefers_the_overlay
