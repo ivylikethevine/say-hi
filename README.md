@@ -374,19 +374,49 @@ In this checkout, and not what the tag waits on either.
 
 4. [ ] **A denser armor than base64** — the ssh transport base64-armors the
        payload (GLOSSARY: HI.17) because it has to survive a login shell's
-       quoting and a terminal in between, and that is a flat third of the wire
-       on every connect: about 62 KB sent for a 46 KB archive. **Do:**
-       investigate a higher-radix encoding — Z85/base85 is a quarter rather
-       than a third, base122 and friends go further — against what the
-       transport actually has to survive (the shell's quoting, `\r` and NUL,
-       what the target can decode with nothing but its base tools), and keep
-       `base64`/`openssl base64` as the floor where nothing denser is
-       available on both ends. **Ticks when:** the README's payload badge
-       falls by a measured amount, every e2e target still connects, and a
-       suite pins the encoder against its decoder on a stock OpenBSD, macOS,
-       and busybox target.
+       quoting, and that is a flat third of the wire on every connect.
+       Measured, the ceiling here is low: **Z85 is the only denser encoding
+       that ships as a base tool anywhere** (`basenc`, GNU coreutils 8.31+)
+       and the only one whose alphabet survives the shell — Ascii85 carries
+       `"`, `'`, `\` and a backtick, and nothing ships base91 or base122.
+       Z85 is worth about 7% of the wire, needs `echo '...'` rather than
+       `echo "..."` (its alphabet does carry `$`), needs the payload padded
+       to a multiple of 4, and only pays where **both** ends have coreutils
+       8.31+ — not Alpine, macOS, either BSD, or Ubuntu 20.04. **Do:** decide
+       whether 7% is worth a second encoder and a negotiation, given the entry
+       below moves four times as much. **Ticks when:** it ships behind the
+       same capability word, or the entry is deleted as not worth it.
 
-5. [ ] **A release says where the package went, and shows what changed** — the
+5. [ ] **A session sends the bytes, not a picture of them** — two levers on
+       the same wire, both blocked on the same missing thing: the client has
+       to know what the target can do before it sends. The boot probe already
+       makes that round trip (`_hi_boot_probe`, GLOSSARY: HI.19) and reports
+       only its scratch directory, so a capability word costs nothing.
+       **(a) The payload need not be armored at all.** The container, nomad,
+       and kube arms already stream the raw gzipped tar through `exec -i`
+       stdin; only ssh encodes, because the tar rides *inside* the script.
+       Raw, the wire drops from about 62 KB to 47 KB — and a target stops
+       needing `base64`/`openssl` for it, which is a support-matrix change,
+       not a size one. Three ways in, each with a measured catch: frame the
+       script and the bytes on one stdin (busybox's `head -c` over-reads a
+       pipe and eats the tail; `dd bs=1` is byte-exact everywhere but costs
+       ~220 ms on busybox), put the payload on the first call's stdin and the
+       script on the second call's argv (no framing, but 4.7 KB of argv where
+       HI.19 deliberately has none), or open a third call on the ControlMaster
+       (no framing, one extra round trip on an authenticated connection).
+       **(b) gzip is not the densest thing a target can read.** `xz -6` is 12%
+       under gzip on this payload and busybox decodes it in 7 ms; the
+       dictionary is the constraint rather than the CPU, so -6 (8 MiB) is the
+       ceiling and -9 (64 MiB) is out for a small router. Availability is the
+       other way round from the guess: **busybox and Fedora decode xz, while
+       `debian:bookworm-slim` and `ubuntu:24.04` can decode neither xz nor
+       bzip2**, so gzip stays the floor. zstd is absent nearly everywhere and
+       brotli has no CLI at all. **Ticks when:** the probe reports what the
+       target can do, a target that reports nothing still connects on
+       gzip-and-base64, the README badge falls by the measured amount, and the
+       e2e suites pass on every backend including a busybox target.
+
+6. [ ] **A release says where the package went, and shows what changed** — the
        release body carries the notes and the checksums, but the Homebrew tap
        PR that `publish-external.yml` opens is only visible to whoever watches
        that repo, and nothing on the page shows the thing running. **Do:**

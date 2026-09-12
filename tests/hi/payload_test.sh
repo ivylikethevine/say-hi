@@ -435,19 +435,48 @@ function test_strip_leaves_no_full_line_comments() {
   [ "$bad" -eq 0 ]
 }
 
+# ...and stripping is all it does: every code line survives, its own leading
+# whitespace aside (the strip takes indentation too - none of the four
+# dialects reads it, and it is 3% of the payload), so both sides are compared
+# with their indentation normalized away. That the *indented* lines a heredoc
+# body owns are spared is the case below, not this one.
 function test_strip_keeps_every_code_line() {
   local dir f rel bad=0
   dir="$(_hi_strip_unpack stripped)"
   while IFS= read -r f; do
     rel="${f#"$dir/say-hi/"}"
     [ -f "$_HI_ROOT/$rel" ] || continue
-    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$rel") \
-      <(grep -vE '^[[:space:]]*#|^$' "$f") >/dev/null || {
+    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$rel" | sed 's/^[[:space:]]*//') \
+      <(grep -vE '^[[:space:]]*#|^$' "$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $rel lost or changed a code line" "$RED"
       bad=1
     }
   done < <(find "$dir/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \))
   [ "$bad" -eq 0 ]
+}
+
+# The two halves of the whitespace trim, on the file that has both: nothing
+# blank and nothing indented survives *outside* a heredoc, and everything
+# inside one is untouched - a target's `sh` reads those bodies as data, and
+# `<<-` strips its own tabs there. hi.sh's own awk program is the fixture:
+# its `  line = $0` sits inside `<<'"'"'AWK'"'"'` and is indented on purpose.
+function test_strip_trims_whitespace_outside_heredocs() {
+  local dir n
+  dir="$(_hi_strip_unpack stripped)"
+  n="$(grep -c '^[[:space:]]*$' "$dir/say-hi/common/core.sh" || true)"
+  [ "$n" -eq 0 ] || {
+    _hi_cecho " | core.sh kept $n blank line(s) through the strip" "$RED"
+    return 1
+  }
+  n="$(grep -c '^[[:space:]]' "$dir/say-hi/common/core.sh" || true)"
+  [ "$n" -eq 0 ] || {
+    _hi_cecho " | core.sh kept $n indented line(s) through the strip" "$RED"
+    return 1
+  }
+  grep -q '^  line = \$0$' "$dir/say-hi/hi.sh" || {
+    _hi_cecho " | a heredoc body lost its indentation through the strip" "$RED"
+    return 1
+  }
 }
 
 function test_strip_leaves_valid_shell() {
@@ -506,15 +535,15 @@ function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
   for f in common/flags settings/colors settings/packages settings/nano.rc; do
-    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f") \
-      <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f") >/dev/null || {
+    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
+      <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
       bad=1
     }
   done
   for f in 'settings/vim.rc:"' 'settings/emacs.el:;' 'settings/init.lua:--'; do
-    diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}") \
-      <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}") >/dev/null || {
+    diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}" | sed 's/^[[:space:]]*//') \
+      <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
       bad=1
     }
@@ -573,6 +602,7 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
   _hi_check "Every code line survives" test_strip_keeps_every_code_line
+  _hi_check "Blank lines and indentation go, heredoc bodies stay" test_strip_trims_whitespace_outside_heredocs
   _hi_check "The result is still valid shell" test_strip_leaves_valid_shell
   _hi_check "hi.sh stays executable" test_strip_keeps_hi_sh_executable
   _hi_check "Heredoc bodies are spared" test_strip_spares_heredoc_bodies

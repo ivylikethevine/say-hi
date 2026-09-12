@@ -48,7 +48,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.32 starship deference](#hi32-starship-deference)
 - [HI.33 derived tree location](#hi33-derived-tree-location)
 - [HI.34 test suite preamble](#hi34-test-suite-preamble)
-- [HI.35 payload comment strip](#hi35-payload-comment-strip)
+- [HI.35 payload comment and whitespace strip](#hi35-payload-comment-and-whitespace-strip)
 - [HI.37 zsh pattern-in-variable](#hi37-zsh-pattern-in-variable)
 - [HI.38 split tar and gzip](#hi38-split-tar-and-gzip)
 - [HI.39 payload staging](#hi39-payload-staging)
@@ -466,7 +466,7 @@ has moved `$XDG_CONFIG_HOME` into the scratch dir. The `# shellcheck source=`
 line is a directive the linter follows, and `# shellcheck disable=SC2329` is
 HI.30. Both stay verbatim above their statement.
 
-## HI.35 payload comment strip
+## HI.35 payload comment and whitespace strip
 
 Every `*.sh`, `*.zsh`, `*.fish`, and `*.lua` file — and the
 `flags`/`colors`/`packages`/`vim.rc`/`init.lua`/`nano.rc`/`emacs.el` data
@@ -479,6 +479,13 @@ one: the strip is line-wise, so a block opener would go and its body stay —
 which is why the shipped `init.lua` uses line comments only.
 `bench_payload_readme_badge` checks README's badge against the result.
 
+**Blank lines and leading indentation go the same way**, and for the same
+reason: no dialect the payload carries reads either, and the indentation alone
+is 1.5KB gzipped — 3% of the payload, where the blank lines are 0.2KB. They
+are trimmed under the heredoc rule below, so a body a target reads as data
+keeps its own shape (`<<-` still strips its tabs there, on the target). Trailing
+whitespace is worth nothing: the lint forbids it in the tree already.
+
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be
 told from `${x#y}`, `$#`, or a `#` in a string without a real parser. **Never
 inside a heredoc**: those bodies are data the target reads, one of them
@@ -487,8 +494,9 @@ mentioning `<<WORD` would otherwise open a heredoc that never closes and
 silently stop stripping the rest of the file.
 
 `tests/hi/payload_test.sh` pins the rest: no full-line comment survives outside
-`hi.sh`'s heredocs, every code line survives byte for byte, the result still
-parses, and `hi.sh` keeps its exec bit — the write-back is HI.09's `cat`, for
+`hi.sh`'s heredocs, every code line survives but for its own indentation,
+nothing blank or indented survives outside a heredoc while an indented heredoc
+body does, the result still parses, and `hi.sh` keeps its exec bit — the write-back is HI.09's `cat`, for
 the same reason.
 
 ## HI.37 zsh pattern-in-variable

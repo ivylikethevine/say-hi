@@ -367,7 +367,9 @@ function _hi_overlay_stream() {
 # The comment stripper every payload file goes through: their prose headers
 # are for the installed copy a user reads, not the wire. vim.rc's comment
 # character is `"`, emacs.el's is `;`, and init.lua's is `--`; `#` covers the
-# rest. GLOSSARY: HI.35 - the four rules, and why their order is the argument
+# rest, and blank lines and indentation go with them - none of the four
+# dialects reads either, and the indentation alone is 3% of the payload.
+# GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
 FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/); lua = (FILENAME ~ /\.lua$/) }
@@ -383,7 +385,9 @@ tag != "" {
   next
 }
 /^[ \t]*#/ { next }
+/^[ \t]*$/ { next }
 {
+  sub(/^[ \t]+/, "")
   s = $0
   while (match(s, /<<-?[ \t]*("[A-Za-z_][A-Za-z0-9_]*"|'[A-Za-z_][A-Za-z0-9_]*'|[A-Za-z_][A-Za-z0-9_]*)/)) {
     m = substr(s, RSTART, RLENGTH)
