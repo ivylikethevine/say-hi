@@ -25,23 +25,42 @@ export _HI_TEST_RUN="$_HI_ROOT/tests/test_runner.sh"
 
 # User config lives in $_HI_CONFIG_DIR, outside the tree; settings.sh has no
 # in-tree half. The files with a tree default resolve to the overlay's
-# copy when the user has made one and to the tree's otherwise, re-derived on
+# copy when the user has made one, to the editor's own config on this machine
+# where there is one to find, and to the tree's otherwise, re-derived on
 # every source: a child shell told `_HI_CONFIG_DIR=elsewhere` reads that
 # overlay, and an exported path of your own does not survive - the overlay is
-# where a file of yours goes. Two lines each, since this dialect has no
-# if/elif and no ${var:-...}.
+# where a file of yours goes. A line per candidate, lowest priority first,
+# since this dialect has no if/elif and no ${var:-...} and the last assignment
+# wins.
 export _HI_SETTINGS="$_HI_CONFIG_DIR/settings.sh"
 export _HI_COLORS="$_HI_ROOT/settings/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
 export _HI_PACKAGES="$_HI_ROOT/settings/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
+# The editor rcs take a middle tier the other two have no use for: the config
+# that editor already reads on this machine, so hi carries the file you
+# maintain rather than a duplicate you have to remember to update (HI.32 is
+# the same argument for starship, bat, and eza). Three tiers, lowest first
+# since the last assignment wins - tree default, your own config, the
+# overlay - and within a tier the editor's own precedence, reversed. The home
+# tier is client-only: on a target $HOME is the *target's*, whose rcs are
+# exactly what hi's `-u`/`--rcfile`/`-q -l` exist to keep out of the session,
+# and the file the client picked is already unpacked at $_HI_CONFIG_DIR.
 export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vim/vimrc" ] && export _HI_VIMRC="$HOME/.vim/vimrc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vimrc" ] && export _HI_VIMRC="$HOME/.vimrc"
 [ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
 export _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nvim/init.lua" ] && export _HI_NVIMRC="$_HI_XDG_CONFIG/nvim/init.lua"
 [ -f "$_HI_CONFIG_DIR/init.lua" ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
 export _HI_NANORC="$_HI_ROOT/settings/nano.rc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nano/nanorc" ] && export _HI_NANORC="$_HI_XDG_CONFIG/nano/nanorc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.nanorc" ] && export _HI_NANORC="$HOME/.nanorc"
 [ -f "$_HI_CONFIG_DIR/nano.rc" ] && export _HI_NANORC="$_HI_CONFIG_DIR/nano.rc"
 export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/emacs/init.el" ] && export _HI_EMACSRC="$_HI_XDG_CONFIG/emacs/init.el"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.d/init.el" ] && export _HI_EMACSRC="$HOME/.emacs.d/init.el"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs" ] && export _HI_EMACSRC="$HOME/.emacs"
 [ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home

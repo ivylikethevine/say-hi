@@ -75,11 +75,19 @@ jobs:
           # Git Bash is silent. `cd ..`: $GITHUB_WORKSPACE is backslashed
           _HI_HOME="$(cd .. && pwd)"
           export _HI_HOME
+          rc=0
           out="$(printf 'exit\n' | timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 2>&1)" || true
+            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 2>&1)" || rc=$?
           printf '%s\n' "$out"
+          # the banner first, since it names what is missing; then the status,
+          # never discarded - a `timeout` kill is rc 124 with the banner already
+          # printed, so a wedged session was green while this said `|| true`
           printf '%s\n' "$out" | grep -q "hi from PowerShell"
+          [ "$rc" -eq 0 ] || {
+            echo "the session exited $rc (124 = the 120s timeout killed it)" >&2
+            exit "$rc"
+          }
 
   # The fast suites inside WSL, sharded the way windows-client.yml shards
   # them under Git Bash, and run from a copy of the checkout on the

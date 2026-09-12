@@ -309,9 +309,7 @@ each only when it is installed; on macOS a line in
 .B ~/.bash_profile
 so a login bash reads
 .BR ~/.bashrc ),
-seed the config overlay at
-.B ~/.config/say-hi/
-with the shipped defaults (files already there are never touched), link
+link
 .B ~/.local/bin/hi
 at this tree, and open the settings menu of
 .B \-\-configure
@@ -348,7 +346,7 @@ Homebrew's wrapper) no link is made at all.
 answers the settings without the menu, as under
 .BR \-\-configure .
 .B \-\-dry\-run
-prints every write \- rc lines, the seed, settings.sh, the link \- and makes
+prints every write \- rc lines, settings.sh, the link \- and makes
 none of them. The script behind it,
 .BR scripts/install.sh ,
 also takes
@@ -547,9 +545,14 @@ and
 .BR config.fish ,
 and an
 .B oh-my-posh.json
-for oh\-my\-posh), written by
+for oh\-my\-posh).
 .B hi \-\-configure
-and carried along to every target. Every feature is an environment
+writes
+.BR settings.sh ;
+the rest you create yourself, the tree's
+.B settings/
+copy of a file being the default until you copy it here. All of it is
+carried along to every target. Every feature is an environment
 variable toggle \- header, prompt, git status, editors \- each on
 by default and tabulated in
 .IR docs/SETTINGS.md .
@@ -567,11 +570,25 @@ feature toggles, written by
 .BR "hi \-\-configure" .
 .TP
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
-per\-user overrides of the tree's defaults.
+per\-user overrides of the tree's defaults, made by copying
+.B settings/colors
+or
+.B settings/packages
+here and editing the copy.
 .TP
 .B ~/.config/say-hi/vim.rc, init.lua, nano.rc, emacs.el
 per\-user replacements of the tree's editor configs, used whole rather than
-merged \- init.lua is neovim's, vim.rc is vim's.
+merged \- init.lua is neovim's, vim.rc is vim's. Rarely needed: with no copy
+here hi carries the config each editor already reads on this machine
+.RB ( ~/.vimrc ,
+.BR ~/.config/nvim/init.lua ,
+.BR ~/.nanorc ,
+.BR ~/.emacs ),
+minus the lines in it that read a file no target has \- which
+.B \-\-doctor
+names, and
+.B _HI_EDITOR_INCLUDES=keep
+sends anyway.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced first so any

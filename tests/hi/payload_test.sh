@@ -257,7 +257,7 @@ function test_overlay_tar_carries_only_what_exists() {
 }
 
 # The overlay stream ships comment-stripped the way the payload does (the
-# same strip.awk): a seeded default is mostly header, and every byte rides
+# same strip.awk): a copied-in default is mostly header, and every byte rides
 # each connect. settings.sh keeps its shebang; vim.rc loses its `"` lines and
 # init.lua its `--` ones.
 function test_overlay_strip_removes_comments() {
@@ -286,7 +286,7 @@ export _HI_MAX_WIDTH=72' ] || {
     return 1
     ;;
   esac
-  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  out="$(_HI_NVIMRC="$dir/init.lua" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
   case "$out" in '--'* | *$'\n--'*)
     _hi_cecho " | init.lua kept a lua comment line through the strip" "$RED"
     return 1
@@ -406,6 +406,138 @@ function test_payload_stays_clear_of_the_arg_limit() {
 # never inside a heredoc", so that is what these assert: the shipped shell is
 # still shell, the code survives byte for byte, and the one heredoc a user can
 # see - `hi --help` - is intact.
+# The include scan. Every editor rc ships verbatim into a config/ of its own,
+# so a line naming a path names something no target has and the *editor*
+# fails, not hi. hi.sh's _hi_lint_awk reads all four dialects; these pin what
+# it drops, what it deliberately leaves alone, and that a lua or elisp finding
+# takes its whole expression with it rather than leaving a stray brace.
+# GLOSSARY: HI.57
+
+# _hi_lint_vars <dir> <cmd...> - <cmd> with every editor path variable
+# pointed into <dir>. test_lib.sh pins the four at the tree's copies so a
+# developer's own vimrc cannot answer, and _hi_overlay_src reads them rather
+# than $_HI_CONFIG_DIR - so a fixture directory alone is not enough here.
+function _hi_lint_vars() {
+  local dir="$1"
+  shift
+  _HI_CONFIG_DIR="$dir" _HI_VIMRC="$dir/vim.rc" _HI_NVIMRC="$dir/init.lua" \
+    _HI_NANORC="$dir/nano.rc" _HI_EMACSRC="$dir/emacs.el" "$@"
+}
+
+# _hi_lint_fixture <name> <member> <body> - an overlay holding one editor rc.
+function _hi_lint_fixture() {
+  local dir="$_HI_WORKDIR/lint-$1"
+  mkdir -p "$dir"
+  printf '%s' "$3" >"$dir/$2"
+  printf '%s' "$dir"
+}
+
+_HI_LINT_VIMRC='set nocompatible
+source ~/.vim/extra.vim
+source $VIMRUNTIME/defaults.vim
+runtime! plugin/sensible.vim
+call plug#begin()
+Plug "tpope/vim-surround"
+call plug#end()
+set number
+'
+
+# the two vim lines that must survive are the point of the case: `runtime`
+# searches the target vim'"'"'s own &runtimepath and $VIMRUNTIME names it, so
+# neither is a dangler and dropping them would be a regression, not a fix
+function test_editor_includes_are_dropped_on_the_way_out() {
+  local dir out
+  dir="$(_hi_lint_fixture drop vim.rc "$_HI_LINT_VIMRC")"
+  out="$(_HI_VIMRC="$dir/vim.rc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
+  [ "$out" = 'set nocompatible
+source $VIMRUNTIME/defaults.vim
+runtime! plugin/sensible.vim
+set number' ] || {
+    _hi_cecho " | vim.rc arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# _HI_EDITOR_INCLUDES=keep is the escape hatch for a fleet that really does
+# carry the file: nothing is touched and the line rides as written
+function test_editor_includes_keep_sends_the_lines_as_written() {
+  local dir out
+  dir="$(_hi_lint_fixture keep vim.rc "$_HI_LINT_VIMRC")"
+  out="$(_HI_EDITOR_INCLUDES=keep _HI_VIMRC="$dir/vim.rc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
+  case "$out" in *'source ~/.vim/extra.vim'*'Plug "tpope/vim-surround"'*) return 0 ;; esac
+  _hi_cecho " | vim.rc arrived as: [$out]" "$RED"
+  return 1
+}
+
+# lua and elisp are not line-oriented: commenting only the line that matched
+# would leave `})` behind and the file would not parse at all, which is worse
+# than the include it was fixing
+function test_a_dropped_expression_goes_out_whole() {
+  local dir out
+  dir="$(_hi_lint_fixture whole init.lua 'vim.opt.number = true
+require("lazy").setup({
+  { "tpope/vim-surround" },
+})
+vim.opt.tabstop = 2
+')"
+  out="$(_HI_NVIMRC="$dir/init.lua" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat init.lua)"
+  [ "$out" = 'vim.opt.number = true
+vim.opt.tabstop = 2' ] || {
+    _hi_cecho " | init.lua arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# the editor rc in force on this machine rides the stream the way the tool
+# configs above do, through the path variable paths.sh resolved: there is one
+# copy to edit and no duplicate in the overlay to keep in step
+function test_the_editor_config_in_force_here_rides_the_stream() {
+  local dir mine
+  dir="$_HI_WORKDIR/lint-in-force"
+  mkdir -p "$dir"
+  mine="$_HI_WORKDIR/my.vimrc"
+  printf 'set number\n' >"$mine"
+  [ "$(_HI_VIMRC="$mine" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" = vim.rc ] &&
+    [ "$(_HI_VIMRC="$mine" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)" = "set number" ]
+}
+
+# ...and hi's own tree copy is not one: it rides in the payload already, so
+# packing it again would be the same bytes twice on every connect
+function test_the_trees_own_editor_rc_is_not_streamed() {
+  local dir
+  dir="$_HI_WORKDIR/lint-treecopy"
+  mkdir -p "$dir"
+  [ -z "$(_HI_VIMRC="$_HI_ROOT/settings/vim.rc" _HI_CONFIG_DIR="$dir" _hi_overlay_files)" ]
+}
+
+# the rows hi --doctor prints come from the same pass that does the dropping,
+# so what the report names is exactly what went missing
+function test_the_scan_reports_every_dialect() {
+  local dir out
+  dir="$_HI_WORKDIR/lint-report"
+  mkdir -p "$dir"
+  printf 'source ~/.vim/extra.vim\n' >"$dir/vim.rc"
+  printf 'dofile("/tmp/x.lua")\n' >"$dir/init.lua"
+  printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nano.rc"
+  printf '(load "~/.emacs.d/mine.el")\n' >"$dir/emacs.el"
+  out="$(_hi_lint_vars "$dir" _hi_editor_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+}
+
+# a config with nothing to resolve is silent - the scan is a report of danglers,
+# not an inventory of every include
+function test_the_scan_is_silent_on_a_clean_config() {
+  local dir
+  dir="$_HI_WORKDIR/lint-clean"
+  mkdir -p "$dir"
+  printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vim.rc"
+  printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/emacs.el"
+  [ -z "$(_hi_lint_vars "$dir" _hi_editor_lint)" ]
+}
+
 function _hi_strip_unpack() {
   local dir="$_HI_WORKDIR/$1"
   [ -d "$dir" ] || {
@@ -435,19 +567,48 @@ function test_strip_leaves_no_full_line_comments() {
   [ "$bad" -eq 0 ]
 }
 
+# ...and stripping is all it does: every code line survives, its own leading
+# whitespace aside (the strip takes indentation too - none of the four
+# dialects reads it, and it is 3% of the payload), so both sides are compared
+# with their indentation normalized away. That the *indented* lines a heredoc
+# body owns are spared is the case below, not this one.
 function test_strip_keeps_every_code_line() {
   local dir f rel bad=0
   dir="$(_hi_strip_unpack stripped)"
   while IFS= read -r f; do
     rel="${f#"$dir/say-hi/"}"
     [ -f "$_HI_ROOT/$rel" ] || continue
-    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$rel") \
-      <(grep -vE '^[[:space:]]*#|^$' "$f") >/dev/null || {
+    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$rel" | sed 's/^[[:space:]]*//') \
+      <(grep -vE '^[[:space:]]*#|^$' "$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $rel lost or changed a code line" "$RED"
       bad=1
     }
   done < <(find "$dir/say-hi" -type f \( -name '*.sh' -o -name '*.zsh' -o -name '*.fish' \))
   [ "$bad" -eq 0 ]
+}
+
+# The two halves of the whitespace trim, on the file that has both: nothing
+# blank and nothing indented survives *outside* a heredoc, and everything
+# inside one is untouched - a target's `sh` reads those bodies as data, and
+# `<<-` strips its own tabs there. hi.sh's own awk program is the fixture:
+# its `  line = $0` sits inside `<<'"'"'AWK'"'"'` and is indented on purpose.
+function test_strip_trims_whitespace_outside_heredocs() {
+  local dir n
+  dir="$(_hi_strip_unpack stripped)"
+  n="$(grep -c '^[[:space:]]*$' "$dir/say-hi/common/core.sh" || true)"
+  [ "$n" -eq 0 ] || {
+    _hi_cecho " | core.sh kept $n blank line(s) through the strip" "$RED"
+    return 1
+  }
+  n="$(grep -c '^[[:space:]]' "$dir/say-hi/common/core.sh" || true)"
+  [ "$n" -eq 0 ] || {
+    _hi_cecho " | core.sh kept $n indented line(s) through the strip" "$RED"
+    return 1
+  }
+  grep -q '^  line = \$0$' "$dir/say-hi/hi.sh" || {
+    _hi_cecho " | a heredoc body lost its indentation through the strip" "$RED"
+    return 1
+  }
 }
 
 function test_strip_leaves_valid_shell() {
@@ -506,15 +667,15 @@ function test_strip_keeps_every_data_line() {
   local dir f bad=0
   dir="$(_hi_strip_unpack stripped)"
   for f in common/flags settings/colors settings/packages settings/nano.rc; do
-    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f") \
-      <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f") >/dev/null || {
+    diff <(grep -vE '^[[:space:]]*#|^$' "$_HI_ROOT/$f" | sed 's/^[[:space:]]*//') \
+      <(grep -vE '^[[:space:]]*#|^$' "$dir/say-hi/$f" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | $f lost or changed a data line" "$RED"
       bad=1
     }
   done
   for f in 'settings/vim.rc:"' 'settings/emacs.el:;' 'settings/init.lua:--'; do
-    diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}") \
-      <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}") >/dev/null || {
+    diff <(grep -vE "^[[:space:]]*${f#*:}|^$" "$_HI_ROOT/${f%%:*}" | sed 's/^[[:space:]]*//') \
+      <(grep -vE "^[[:space:]]*${f#*:}|^$" "$dir/say-hi/${f%%:*}" | sed 's/^[[:space:]]*//') >/dev/null || {
       _hi_cecho " | ${f%%:*} lost or changed a line" "$RED"
       bad=1
     }
@@ -573,6 +734,7 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: the in-transit comment strip"
   _hi_check "No full-line comments survive" test_strip_leaves_no_full_line_comments
   _hi_check "Every code line survives" test_strip_keeps_every_code_line
+  _hi_check "Blank lines and indentation go, heredoc bodies stay" test_strip_trims_whitespace_outside_heredocs
   _hi_check "The result is still valid shell" test_strip_leaves_valid_shell
   _hi_check "hi.sh stays executable" test_strip_keeps_hi_sh_executable
   _hi_check "Heredoc bodies are spared" test_strip_spares_heredoc_bodies
@@ -592,6 +754,15 @@ function run_hi_payload_tests() {
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
   _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
+
+  _hi_h2 "Testing: the editor include scan"
+  _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
+  _hi_check "...and =keep sends it as written" test_editor_includes_keep_sends_the_lines_as_written
+  _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
+  _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
+  _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
+  _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
+  _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

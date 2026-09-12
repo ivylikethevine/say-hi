@@ -177,7 +177,7 @@ function test_bash_ps1_inlines_git_info_without_promptvars() {
 
 # bash's dash-word branch, the same promise the zsh and fish cases below pin:
 # `hi --<TAB>` answers from targets.sh's flags roster and never touches the
-# target cache ($_HI_TARGET_NAMES_AT still -1, "never filled"), because a
+# target cache ($_HI_TARGET_ROWS_AT still -1, "never filled"), because a
 # flag list must not wait on a docker daemon.
 function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
   local out
@@ -187,7 +187,7 @@ function test_bash_flag_completion_offers_hi_options_without_a_sweep() {
     COMP_CWORD=1
     COMPREPLY=()
     _hi_complete
-    printf "%s|%s" "${COMPREPLY[*]}" "$_HI_TARGET_NAMES_AT"' _HI_DISABLE_PROMPT=1)"
+    printf "%s|%s" "${COMPREPLY[*]}" "$_HI_TARGET_ROWS_AT"' _HI_DISABLE_PROMPT=1)"
   [ "$out" = "--plain|-1" ]
 }
 
@@ -201,10 +201,10 @@ function test_bash_target_names_are_held_for_the_ttl() {
   out="$(_hi_bash_child '
     source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null
     _HI_TARGETS="$HI_TEST_STUB" _HI_TARGETS_TTL=60
-    _hi_target_names
-    _hi_target_names
-    printf "%s|%s|" "$_HI_TARGET_NAMES" "$(cat "$HI_TEST_COUNT")"
-    _HI_TARGETS_TTL=0 _hi_target_names
+    _hi_target_rows
+    _hi_target_rows
+    printf "%s|%s|" "${_HI_TARGET_ROWS[0]%%[[:space:]]*}" "$(cat "$HI_TEST_COUNT")"
+    _HI_TARGETS_TTL=0 _hi_target_rows
     cat "$HI_TEST_COUNT"' _HI_DISABLE_PROMPT=1 HI_TEST_STUB="$stub" HI_TEST_COUNT="$count")"
   [ "$out" = "stub|x|xx" ]
 }
@@ -553,8 +553,8 @@ function _hi_bash_listing() {
   shift 2
   _hi_rc_shell dumb bash "
     source \"\$_HI_HOME/say-hi/common/bash.sh\" 2>/dev/null
-    _HI_TARGET_NAMES='web web2 jobx podx sshy dup dup' _HI_TARGET_NAMES_AT=\$SECONDS
-    _HI_TARGET_KINDS='docker podman nomad kube ssh ssh docker'
+    _HI_TARGET_ROWS=(web\$'\\t'docker web2\$'\\t'podman jobx\$'\\t'nomad podx\$'\\t'kube sshy\$'\\t'ssh dup\$'\\t'ssh dup\$'\\t'docker)
+    _HI_TARGET_ROWS_AT=\$SECONDS
     COMP_WORDS=(hi '$word') COMP_CWORD=1 COMP_TYPE=$type
     _hi_complete
     IFS='|'

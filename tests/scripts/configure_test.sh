@@ -214,39 +214,6 @@ function test_ask_value_non_interactive_keeps_current() {
   [ -z "$(ask_value "width?" 80 80 _hi_is_number "not a number" </dev/null)" ]
 }
 
-# The seed: a fresh overlay gets the five shipped defaults, byte for byte,
-# for the files the user has none of - and nothing else: no repo, no commit,
-# versioning is the user's own (each case gets a fresh scratch directory)
-function test_overlay_seed_copies_the_shipped_defaults() {
-  local dir="$_HI_WORKDIR/ovl-seed" f
-  (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  for f in colors packages vim.rc init.lua nano.rc emacs.el; do
-    cmp -s "$_HI_ROOT/settings/$f" "$dir/$f" || {
-      _hi_cecho " | $f was not seeded from the tree" "$RED"
-      return 1
-    }
-  done
-  [ ! -d "$dir/.git" ]
-}
-
-function test_overlay_seed_never_overwrites_a_present_file() {
-  local dir="$_HI_WORKDIR/ovl-noclobber"
-  mkdir -p "$dir"
-  printf 'hostname,mine,red\n' >"$dir/colors"
-  (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  [ "$(cat "$dir/colors")" = "hostname,mine,red" ] || return 1
-  # the gaps still fill in around it
-  cmp -s "$_HI_ROOT/settings/packages" "$dir/packages"
-}
-
-# a re-run seeds nothing and says nothing: the files are there already
-function test_overlay_seed_is_quiet_when_nothing_is_missing() {
-  local dir="$_HI_WORKDIR/ovl-idem" out
-  (_HI_CONFIG_DIR="$dir" overlay_seed >/dev/null) || return 1
-  out="$(_HI_CONFIG_DIR="$dir" overlay_seed 2>&1)" || return 1
-  [ -z "$out" ]
-}
-
 # settings.sh is sourced by sh, bash, zsh, and fish, so line 1 has to be the
 # `#!/bin/sh` all four read as a comment - and has to stay line 1 once
 # config_shell has written the settings block under it.
@@ -1442,11 +1409,6 @@ function run_configure_tests() {
   _hi_check "pending_answer reads this run's answers" test_pending_answer_reads_this_runs_answers
   _hi_check "_hi_pending_set replaces in place" test_pending_set_replaces_in_place
   _hi_check "ask_value: non-interactive keeps current, blanks defaults" test_ask_value_non_interactive_keeps_current
-
-  _hi_h2 "Testing: overlay_seed"
-  _hi_check "Seeds the shipped defaults, and no repo" test_overlay_seed_copies_the_shipped_defaults
-  _hi_check "...and never overwrites a present file" test_overlay_seed_never_overwrites_a_present_file
-  _hi_check "A re-run is quiet" test_overlay_seed_is_quiet_when_nothing_is_missing
 
   _hi_h2 "Testing: ensure_settings_shebang"
   _hi_check "Written to a new settings.sh" test_shebang_is_written_to_a_new_settings_file

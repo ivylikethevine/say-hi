@@ -137,6 +137,13 @@ function _hi_target_color() {
 # _HI_PROMPT_TOOL=starship, since nothing else starts it) - a target gets the
 # config in force here, and there is no second copy to drift. Fails, printing
 # nothing, when that file is not there.
+#
+# The four editor rcs come the same way, off the path variable common/paths.sh
+# already resolved (overlay, else the editor's own config on this machine) so
+# the roster of where a vimrc lives is written once, in the file every shell
+# sources, rather than a second time here. Its tree default means the user has
+# no config of their own, and the tree's copy ships in the payload already -
+# so there is nothing for the overlay stream to carry.
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
   case "$1" in
@@ -146,9 +153,120 @@ function _hi_overlay_src() {
     ;;
   theme.yml) _hi_os_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
   bat.conf) _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
+  vim.rc) _hi_os_f="${_HI_VIMRC:-}" ;;
+  init.lua) _hi_os_f="${_HI_NVIMRC:-}" ;;
+  nano.rc) _hi_os_f="${_HI_NANORC:-}" ;;
+  emacs.el) _hi_os_f="${_HI_EMACSRC:-}" ;;
   esac
+  [ "$_hi_os_f" != "$_HI_ROOT/settings/$1" ] || return 1
   [ -f "$_hi_os_f" ] || return 1
   _hi_out "${2:-}" "$_hi_os_f"
+}
+
+# The editor members of the overlay, the four whose content is a dialect
+# _hi_lint_awk knows how to read. A separate roster from $_HI_OVERLAY_FILES
+# because that one answers "what rides the stream" and this one "what has
+# includes to resolve"; scripts/doctor.sh walks this one.
+_HI_EDITOR_FILES=(vim.rc init.lua nano.rc emacs.el)
+
+# The include scanner, in the dialect of each editor rc hi packs. Every file
+# ships verbatim into a `config/` of its own, so a line naming a *path* - a
+# second rc beside it, a plugin directory, a manager's bootstrap - names
+# something no target has, and the editor fails on it rather than hi. The four
+# grammars, and what is deliberately left alone:
+#
+#   vim     `source`/`so` (a path), the managers' verbs (`Plug`, `packadd`,
+#           `plug#`/`vundle#`/`dein#`). `runtime` is *not* flagged: it
+#           searches the target vim's own &runtimepath, which is there.
+#           `source $VIMRUNTIME/...` is the same argument.
+#   lua     `dofile`/`loadfile`, a `vim.cmd` carrying `source`, `require` of
+#           anything but a `vim.` module, and the managers (lazy, packer,
+#           paq, an `rtp:prepend` bootstrap).
+#   nano    `include` of a path outside /usr/share/nano, which nano ships.
+#   emacs   `load`/`load-file`, `add-to-list 'load-path`, and the managers
+#           (`package-initialize`, `use-package`, straight, elpaca). A bare
+#           `require` is left alone: nearly every one names a built-in.
+#
+# mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
+# leaves the file alone; mode=fix also writes <file>.lint with each finding
+# commented out in its own dialect - which strip.awk then drops, so a dropped
+# line costs no wire bytes. vim and nano are line-oriented, so one line is the
+# whole statement; lua and elisp are not, so the comment runs to the end of
+# the bracket-balanced expression the finding opened, or a `require("x").setup
+# {` would leave its closing brace behind as a syntax error.
+#
+# bal() counts that depth blind to anything inside a quoted string, and takes
+# ' as a string delimiter for lua only: in elisp it is the quote operator, and
+# reading `'load-path` as an opening quote swallows the rest of the file.
+# Nothing in the AWK body carries a `#` comment - strip.awk spares a heredoc
+# body, so every one of them would ride the wire on every connect.
+function _hi_lint_awk() {
+  cat <<'AWK'
+function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+function cc() { return vim ? "\"" : (el ? ";" : (lua ? "--" : "#")) }
+function bal(s,   i, c, q, d) {
+  d = 0; q = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == "\\") i++; else if (c == q) q = ""; continue }
+    if (c == "\"" || (lua && c == "'")) { q = c; continue }
+    if (c == "(" || c == "{" || c == "[") d++
+    else if (c == ")" || c == "}" || c == "]") d--
+  }
+  return d
+}
+function kindof(s) {
+  if (vim) {
+    if (s ~ /^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]/ || s ~ /(plug|vundle|dein|minpac)#/) return "plugin"
+    if (s ~ /^[ \t]*(source|so)!?[ \t]/ && s !~ /\$VIMRUNTIME/) return "include"
+  } else if (lua) {
+    if (s ~ /(lazypath|rtp:prepend|require[ \t]*\(?[ \t]*["'](lazy|packer|paq))/) return "plugin"
+    if (s ~ /(dofile|loadfile)[ \t]*\(/) return "include"
+    if (s ~ /vim\.cmd/ && s ~ /source[ \t]/) return "include"
+    if (s ~ /require[ \t]*\(?[ \t]*["']/ && s !~ /require[ \t]*\(?[ \t]*["']vim[.]/) return "include"
+  } else if (nano) {
+    if (s ~ /^[ \t]*include[ \t]/ && s !~ /\/usr\/share\/nano/) return "include"
+  } else if (el) {
+    if (s ~ /\((package-initialize|package-install|use-package|straight-|elpaca)/) return "plugin"
+    if (s ~ /\(load(-file)?[ \t]+["]/) return "include"
+    if (s ~ /add-to-list[ \t]+'load-path/) return "include"
+  }
+  return ""
+}
+FNR == 1 {
+  close(out); out = FILENAME ".lint"; depth = 0
+  vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/)
+  lua = (FILENAME ~ /\.lua$/); nano = (FILENAME ~ /nano\.rc$/)
+  member = FILENAME; sub(/^.*\//, "", member)
+}
+depth > 0 {
+  depth += bal($0)
+  if (depth < 0) depth = 0
+  if (mode == "fix") print cc() " hi dropped: " $0 > out
+  next
+}
+{
+  kind = kindof($0)
+  if (kind == "") { if (mode == "fix") print > out; next }
+  printf "%s|%d|%s|%s\n", member, FNR, kind, trim($0)
+  if (mode == "fix") print cc() " hi dropped: " $0 > out
+  if (lua || el) { depth = bal($0); if (depth < 0) depth = 0 }
+}
+AWK
+}
+
+# _hi_editor_lint - every finding in the editor rcs that would actually ship,
+# one row each (see _hi_lint_awk). Nothing when an editor's rc is hi's own
+# tree copy, which _hi_overlay_src declines to pack and which has no includes
+# to begin with.
+function _hi_editor_lint() {
+  local f src prog
+  prog="$(_hi_lint_awk)"
+  for f in "${_HI_EDITOR_FILES[@]}"; do
+    _hi_overlay_src "$f" src || continue
+    awk -v mode=report "$prog" "$src"
+  done
+  return 0
 }
 
 # The overlay members that have a source, one per line; callers read it once
@@ -210,8 +328,9 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc na
 # (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
 # _say_hi_container's name for the target's tree, and this runs inside it.
 function _hi_stage_tar() {
-  local stage f _hi_st_root _hi_st_i
+  local stage f _hi_st_root _hi_st_i _hi_st_prog
   local -a _hi_st_names=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
+  local -a _hi_st_lint=(${stage_lint[@]+"${stage_lint[@]}"})
   for f in "${_HI_STRIP_NAMES[@]}"; do
     ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
     _hi_st_names+=(-name "$f")
@@ -234,6 +353,20 @@ function _hi_stage_tar() {
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
       cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
     done
+    # ahead of the stripper, over the staged copies rather than the user's
+    # own files: an include hi cannot carry goes out commented in its own
+    # dialect, and the strip below then drops the comment. _HI_EDITOR_INCLUDES=keep
+    # sends the line as written - for a target that really does have the file.
+    if [ "${_HI_EDITOR_INCLUDES:-comment}" != keep ] && ((${#_hi_st_lint[@]})); then
+      _hi_st_prog="$(_hi_lint_awk)"
+      for f in "${_hi_st_lint[@]}"; do
+        [ -f "$_hi_st_root/$f" ] || continue
+        awk -v mode=fix "$_hi_st_prog" "$_hi_st_root/$f" >/dev/null || exit 1
+        # no .lint at all means an empty member: awk never ran a rule on it
+        [ -f "$_hi_st_root/$f.lint" ] || continue
+        mv -f "$_hi_st_root/$f.lint" "$_hi_st_root/$f" || exit 1
+      done
+    fi
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.09); strip.awk sits at $stage and
     # matches no name above, so the stripper never eats its own script
@@ -265,13 +398,17 @@ function _hi_overlay_tar() {
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
   local -a stage_in=() stage_out=("${present[@]}") stage_excl=() stage_add=()
-  local f src
+  local -a stage_lint=()
+  local f src e
   for f in "${present[@]}"; do
     if _hi_overlay_src "$f" src && [ "$src" != "$_HI_CONFIG_DIR/$f" ]; then
       stage_add+=("$f" "$src")
     else
       stage_in+=("$f")
     fi
+    for e in "${_HI_EDITOR_FILES[@]}"; do
+      [ "$f" = "$e" ] && stage_lint+=("$f")
+    done
   done
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
@@ -367,7 +504,9 @@ function _hi_overlay_stream() {
 # The comment stripper every payload file goes through: their prose headers
 # are for the installed copy a user reads, not the wire. vim.rc's comment
 # character is `"`, emacs.el's is `;`, and init.lua's is `--`; `#` covers the
-# rest. GLOSSARY: HI.35 - the four rules, and why their order is the argument
+# rest, and blank lines and indentation go with them - none of the four
+# dialects reads either, and the indentation alone is 3% of the payload.
+# GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
 FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = 0; vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/); lua = (FILENAME ~ /\.lua$/) }
@@ -383,7 +522,9 @@ tag != "" {
   next
 }
 /^[ \t]*#/ { next }
+/^[ \t]*$/ { next }
 {
+  sub(/^[ \t]+/, "")
   s = $0
   while (match(s, /<<-?[ \t]*("[A-Za-z_][A-Za-z0-9_]*"|'[A-Za-z_][A-Za-z0-9_]*'|[A-Za-z_][A-Za-z0-9_]*)/)) {
     m = substr(s, RSTART, RLENGTH)

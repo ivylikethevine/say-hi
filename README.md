@@ -8,7 +8,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". -->
 
-![Payload](https://img.shields.io/badge/ssh_payload-59KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-60KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -204,10 +204,13 @@ everything weighed and answered **no**, and why.
 - `hi --configure` reopens that menu later: pick a preset, or flip any
   setting in its one list - Features, Header, Prompt, Advanced - and save. Answers
   land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- the install also seeds `~/.config/say-hi` with the shipped `colors`,
-  `packages`, and the editor rcs (vim, nano, emacs), for the ones you have none of - yours
-  to edit, and to version however you keep your dotfiles
-  ([docs/SETTINGS.md](docs/SETTINGS.md)).
+- the install copies nothing else into `~/.config/say-hi`: the shipped
+  `colors` and `packages` apply until you `cp` one there yourself - then it is
+  yours to edit, and to version however you keep your dotfiles. The editor
+  rcs need no copy at all: hi carries your own `~/.vimrc`,
+  `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`, and drops the lines
+  in them that read a file no target has
+  ([docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for
   a bug report); it also reports which rc files are wired and where `hi` on
   your `PATH` leads.
@@ -242,7 +245,8 @@ everything weighed and answered **no**, and why.
 Your config lives in
 `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
 say `hi` to: `settings.sh` is what `hi --configure` writes, and the other
-files overlay or extend the tree's copies. The overlay file table, the
+files are yours to create - copy one out of the tree's `settings/` to override
+it, or add an `aliases.sh` of your own. The overlay file table, the
 wizard, every toggle, and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
@@ -329,17 +333,19 @@ or descoped, and finished entries are deleted rather than ticked.
 In this checkout, and not what the tag waits on either.
 
 1. [ ] **A config that sources a file hi does not carry is caught before it
-       travels** — every overlay and `settings/` file is shipped verbatim, so
-       a `vim.rc` with `source ~/.vim/extra.vim`, an `aliases.sh` sourcing a
-       path off this machine, or an rc naming a plugin manager breaks on the
-       first target that has no such file, in the editor rather than in hi.
-       **Do:** parse each file hi packs for its dialect's include directives
-       (vim `source`/`runtime`, sh `.`/`source`, emacs `load`), resolve them
-       against what actually rides the overlay, and report the danglers in
-       `hi --doctor`; a lint flag decides whether the line travels commented
-       out or as written. **Ticks when:** `hi --doctor` names an unresolvable
-       include for every dialect, the session still opens the editor cleanly,
-       and a suite pins both.
+       travels** — the four editor rcs ship this way now: hi carries the
+       config each editor already reads on this machine, `hi.sh`'s
+       `_hi_lint_awk` reads all four dialects for the lines naming a path no
+       target has, the packer comments them out on the way and `hi --doctor`
+       names each one, `_HI_EDITOR_INCLUDES=keep` sends them as written
+       ([HI.57](docs/GLOSSARY.md#hi57-editor-config-resolution)). The sh half
+       is still open: an overlay `aliases.sh`, `bash.sh`, `zsh.zsh`, or
+       `config.fish` that sources a path off this machine breaks on the first
+       target the same way, and nothing reads it. **Do:** give the same pass a
+       `.`/`source` dialect, resolve those against what actually rides the
+       overlay, and report them beside the editors'. **Ticks when:**
+       `hi --doctor` names an unresolvable source in a shell overlay file, the
+       session still starts cleanly, and a suite pins both.
 
 2. [ ] **Someone else's feature can ride along without patching the tree** —
        the overlay carries files hi already knows the names of, so anything
@@ -374,19 +380,49 @@ In this checkout, and not what the tag waits on either.
 
 4. [ ] **A denser armor than base64** — the ssh transport base64-armors the
        payload (GLOSSARY: HI.17) because it has to survive a login shell's
-       quoting and a terminal in between, and that is a flat third of the wire
-       on every connect: about 62 KB sent for a 46 KB archive. **Do:**
-       investigate a higher-radix encoding — Z85/base85 is a quarter rather
-       than a third, base122 and friends go further — against what the
-       transport actually has to survive (the shell's quoting, `\r` and NUL,
-       what the target can decode with nothing but its base tools), and keep
-       `base64`/`openssl base64` as the floor where nothing denser is
-       available on both ends. **Ticks when:** the README's payload badge
-       falls by a measured amount, every e2e target still connects, and a
-       suite pins the encoder against its decoder on a stock OpenBSD, macOS,
-       and busybox target.
+       quoting, and that is a flat third of the wire on every connect.
+       Measured, the ceiling here is low: **Z85 is the only denser encoding
+       that ships as a base tool anywhere** (`basenc`, GNU coreutils 8.31+)
+       and the only one whose alphabet survives the shell — Ascii85 carries
+       `"`, `'`, `\` and a backtick, and nothing ships base91 or base122.
+       Z85 is worth about 7% of the wire, needs `echo '...'` rather than
+       `echo "..."` (its alphabet does carry `$`), needs the payload padded
+       to a multiple of 4, and only pays where **both** ends have coreutils
+       8.31+ — not Alpine, macOS, either BSD, or Ubuntu 20.04. **Do:** decide
+       whether 7% is worth a second encoder and a negotiation, given the entry
+       below moves four times as much. **Ticks when:** it ships behind the
+       same capability word, or the entry is deleted as not worth it.
 
-5. [ ] **A release says where the package went, and shows what changed** — the
+5. [ ] **A session sends the bytes, not a picture of them** — two levers on
+       the same wire, both blocked on the same missing thing: the client has
+       to know what the target can do before it sends. The boot probe already
+       makes that round trip (`_hi_boot_probe`, GLOSSARY: HI.19) and reports
+       only its scratch directory, so a capability word costs nothing.
+       **(a) The payload need not be armored at all.** The container, nomad,
+       and kube arms already stream the raw gzipped tar through `exec -i`
+       stdin; only ssh encodes, because the tar rides *inside* the script.
+       Raw, the wire drops from about 62 KB to 47 KB — and a target stops
+       needing `base64`/`openssl` for it, which is a support-matrix change,
+       not a size one. Three ways in, each with a measured catch: frame the
+       script and the bytes on one stdin (busybox's `head -c` over-reads a
+       pipe and eats the tail; `dd bs=1` is byte-exact everywhere but costs
+       ~220 ms on busybox), put the payload on the first call's stdin and the
+       script on the second call's argv (no framing, but 4.7 KB of argv where
+       HI.19 deliberately has none), or open a third call on the ControlMaster
+       (no framing, one extra round trip on an authenticated connection).
+       **(b) gzip is not the densest thing a target can read.** `xz -6` is 12%
+       under gzip on this payload and busybox decodes it in 7 ms; the
+       dictionary is the constraint rather than the CPU, so -6 (8 MiB) is the
+       ceiling and -9 (64 MiB) is out for a small router. Availability is the
+       other way round from the guess: **busybox and Fedora decode xz, while
+       `debian:bookworm-slim` and `ubuntu:24.04` can decode neither xz nor
+       bzip2**, so gzip stays the floor. zstd is absent nearly everywhere and
+       brotli has no CLI at all. **Ticks when:** the probe reports what the
+       target can do, a target that reports nothing still connects on
+       gzip-and-base64, the README badge falls by the measured amount, and the
+       e2e suites pass on every backend including a busybox target.
+
+6. [ ] **A release says where the package went, and shows what changed** — the
        release body carries the notes and the checksums, but the Homebrew tap
        PR that `publish-external.yml` opens is only visible to whoever watches
        that repo, and nothing on the page shows the thing running. **Do:**

@@ -1,6 +1,7 @@
-# Color pins, one "type,name,color[,rrggbb]" per line. `hi --install` seeds a copy at
-# ~/.config/say-hi/colors; edit that one - the copy in the tree is the default
-# say-hi ships, and editing it dirties the checkout `hi --update` pulls into.
+# Color pins, one "type,name,color[,rrggbb]" per line. To pin your own, copy
+# this file to ~/.config/say-hi/colors and edit that one - the copy in the tree
+# is the default say-hi ships, and editing it dirties the checkout `hi --update`
+# pulls into.
 #
 # type  = hosttag | username | hostname | usertag
 # usertag colors the username on every host carrying that # Tags: value

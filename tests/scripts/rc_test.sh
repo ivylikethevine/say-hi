@@ -361,13 +361,29 @@ function test_check_one_config_verdicts() {
   _hi_rc_in "$home" -- check_one_config x "$home/good.sh" no-such-tool-9x -n
 }
 
+# On the message and not on the bare exit status, the way the roster case
+# above already asserts: a row `_hi_config_check` *skipped* - the file missing
+# or unreadable when the child opened it, rc 2 - returns 0 exactly as a clean
+# parse does, and `! _hi_rc_in` cannot tell those apart. A Windows runner
+# reported this case red with an empty transcript, which is the failure that
+# distinction hides; whatever the child saw is now in the log.
 function test_check_shell_configs_flags_a_broken_rc() {
-  local home="$_HI_WORKDIR/checkall"
+  local home="$_HI_WORKDIR/checkall" out
   mkdir -p "$home"
   printf 'echo fine\n' >"$home/.bashrc"
-  _hi_rc_in "$home" -- check_shell_configs || return 1
+  out="$(_hi_rc_out "$home" -- check_shell_configs)" || {
+    _hi_cecho " | a valid .bashrc was flagged: $out" "$RED"
+    return 1
+  }
   printf 'if true; then\n' >"$home/.bashrc"
-  ! _hi_rc_in "$home" -- check_shell_configs
+  out="$(_hi_rc_out "$home" -- check_shell_configs)" && {
+    _hi_cecho " | a broken .bashrc was waved through; the child saw: $out" "$RED"
+    return 1
+  }
+  [[ "$out" == *".bashrc) has issues"* ]] || {
+    _hi_cecho " | flagged, but not as .bashrc: $out" "$RED"
+    return 1
+  }
 }
 
 # --yes waves a broken config through; a non-interactive run without it aborts

@@ -58,6 +58,15 @@ export GIT_CONFIG_COUNT=$((_hi_n + 1)) "GIT_CONFIG_KEY_$_hi_n=safe.directory" \
 unset _hi_n
 # shellcheck source=../common/core.sh
 source "$_hi_d/../common/core.sh"
+# ...and the half of that resolution the unset above cannot reach: paths.sh's
+# editor tier reads $HOME/.vimrc, $HOME/.nanorc, $HOME/.emacs.d/init.el and
+# friends, which the XDG_CONFIG_HOME throwaway does not move, so on a developer
+# box with any of them the baseline stops being "in-tree defaults" and every
+# overlay stream a suite builds carries their editor. Pinned *after* the source,
+# since paths.sh re-exports over whatever it was handed. A suite exercising the
+# tier points them somewhere of its own, as tests/common/paths_test.sh does.
+export _HI_VIMRC="$_HI_ROOT/settings/vim.rc" _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
+export _HI_NANORC="$_HI_ROOT/settings/nano.rc" _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
 # the heading rules the harness and the suites print with
 # shellcheck source=../scripts/lib.sh
 source "$_hi_d/../scripts/lib.sh"

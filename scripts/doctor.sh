@@ -281,6 +281,11 @@ function doctor_local() {
   # `hi --doctor` with a pair of raw "base64: command not found" lines from
   # inside _hi_wire_bytes, on the one run whose whole job is to say what is
   # wrong with this machine. Named here, once, and the size step skipped.
+  # The armor half is re-probed here rather than read off hi.sh's $_HI_ARMOR:
+  # that one is decided when hi.sh is sourced, and this asks about the $PATH
+  # the report is looking at. The difference is the whole of what
+  # doctor_test.sh's floor cases stub, and on a box with no base64(1) at all -
+  # stock OpenBSD - freezing it names openssl in a row about base64.
   local -a floor=("${_HI_LOCAL_FLOOR[@]}")
   command -v base64 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1 ||
     floor=("${floor[@]/#base64/openssl}")
@@ -352,17 +357,34 @@ function doctor_config() {
     elif [ -z "$t" ]; then
       doctor_row "$f" "tree default"
     elif [ -f "$_HI_ROOT/settings/$f" ] && cmp -s "$_HI_CONFIG_DIR/$f" "$_HI_ROOT/settings/$f"; then
-      # what hi --install seeds: the tree's own file, byte for byte, so not
-      # an override yet
-      doctor_row "$f" "seeded by hi --install, unchanged from the tree's"
+      # a copy of the tree's own file, byte for byte, so not an override yet
+      doctor_row "$f" "a copy of the tree's, unchanged - edit it to override"
     else
       doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
+  # Every editor rc hi packs ships verbatim into a config/ of its own, so a
+  # line naming a path names something no target has. hi.sh's _hi_editor_lint
+  # is the one grammar for all four dialects - the same rows the packer acts
+  # on, so what is named here is exactly what got dropped on the way out
+  # (GLOSSARY: HI.57). warn, not bad: the session still opens the editor.
+  local member lineno kind text fate said
+  fate="dropped on the way out"
+  [ "${_HI_EDITOR_INCLUDES:-comment}" != keep ] || fate="sent as written (_HI_EDITOR_INCLUDES=keep), and the target has no such file"
+  while IFS='|' read -r member lineno kind text; do
+    [ -n "$member" ] || continue
+    [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
+    doctor_row "$member:$lineno" "$said - $text - $fate" warn
+  done < <(_hi_editor_lint)
   # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
-  # aliases read, assigned there, lands after they were built and does nothing
+  # aliases read, assigned there, lands after they were built and does nothing.
+  # The toggle half of the pattern is read off that file rather than spelled
+  # here: spelled, it missed _HI_DISABLE_VIM/NANO/EMACS/MICRO the day they
+  # landed, so the four newest toggles were the four this row could not see.
+  local toggles
+  toggles="$(grep -oE '_HI_DISABLE_[A-Z_]+' "$_HI_ALIASES" 2>/dev/null | sort -u | tr '\n' '|')"
   late="$(grep -v '^[[:space:]]*#' "$_HI_CONFIG_DIR/aliases.sh" 2>/dev/null |
-    grep -oE '(_HI_[A-Z0-9]+_(OPTS|BIN)|_HI_DISABLE_(EDITORS|TOOL_ALIASES|SUDO_ALIAS))=' |
+    grep -oE "(_HI_[A-Z0-9]+_(OPTS|BIN)|${toggles%|})=" |
     tr -d = | sort -u | tr '\n' ' ')" || true
   [ -z "$late" ] ||
     doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad
