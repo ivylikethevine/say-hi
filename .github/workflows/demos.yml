@@ -1,7 +1,7 @@
 name: Demos
 
-# Renders the demo tapes and ships them as an artifact pages.yml serves - on
-# a release tag, weekly, or on dispatch. Never on a pull request: a PR must
+# Renders the demo tapes and ships them as an artifact pages.yml serves - for
+# a release, weekly, or on dispatch. Never on a pull request: a PR must
 # not re-render the packages preview (or any tape) for its own sake, and a
 # tape landing on main between releases waits for the next tag or the weekly
 # cron rather than re-rendering per push. Nothing is committed back - a bot
@@ -21,16 +21,15 @@ name: Demos
 # tree. generate.sh's preflight puts a shim for this checkout's hi.sh on the
 # front of $PATH and tears the fixtures down afterwards.
 on:
-  # A tag is what the published set should actually reflect - the same v*
-  # pattern release.yml matches, prereleases included, since an rc's GIFs are
-  # a useful rehearsal of what the release will show. The weekly run is for
+  # A release is what the published set should actually reflect, prereleases
+  # included, since an rc's GIFs are a useful rehearsal of what the release
+  # will show - but not off a tag push of its own: release.yml's publish job
+  # dispatches this at the tag once the release exists, which is what lets
+  # `attach` below find it rather than race it. The weekly run is for
   # changes that move a demo without a release in between (header, prompt,
   # anything in the shipped tree) and keeps the render inside the artifact's 90-day
   # retention. Rendering six of the seven renderable tapes stands a kind
   # cluster up and tears it down: a cadence, not a gate.
-  push:
-    tags:
-      - "v*"
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
@@ -153,3 +152,48 @@ jobs:
           path: gifs
           retention-days: 90
           if-no-files-found: error
+
+  # A release's demo: one rendered GIF uploaded to the release as demo.gif
+  # and embedded in the body's `demo` slot (.github/scripts/release_slot.sh,
+  # which publish's body leaves for it). Only for a run at a tag - release.yml
+  # dispatches one per release - and a tag with no release (a dispatch by hand
+  # against an old one) warns and attaches nothing. The `release-body-<tag>`
+  # group is shared with release.yml's tap job, the body's other writer. The
+  # sums predate the upload and do not cover it; the release body says so.
+  attach:
+    name: attach the demo to the release
+    needs: collect
+    if: ${{ !cancelled() && needs.collect.result == 'success' && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: release-body-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: demo-gifs
+          path: gifs
+
+      # packages: the header's check, the feature the top of README leads with
+      - name: Upload and embed the demo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          TAPE: packages
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::warning title=demo::no release for $TAG - the demo was not attached"
+            exit 0
+          fi
+          cp "gifs/$TAPE.gif" "$RUNNER_TEMP/demo.gif"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$RUNNER_TEMP/demo.gif"
+          .github/scripts/release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo \
+            "![say-hi $TAG: the $TAPE demo]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/demo.gif)"

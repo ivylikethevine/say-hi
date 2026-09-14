@@ -484,7 +484,9 @@ which is why the shipped `init.lua` uses line comments only.
 reason: no dialect the payload carries reads either, and the indentation alone
 is 1.5KB gzipped — 3% of the payload, where the blank lines are 0.2KB. They
 are trimmed under the heredoc rule below, so a body a target reads as data
-keeps its own shape (`<<-` still strips its tabs there, on the target). Trailing
+keeps its own shape (`<<-` still strips its tabs there, on the target). A
+line continuing a `word\` keeps its indentation too: there it is the only
+separator, and `"a:b\⏎ c:d"` stripped would read `a:bc:d`. Trailing
 whitespace is worth nothing: the lint forbids it in the tree already.
 
 Two rules keep it safe. **Full-line comments only**: an inline `#` cannot be

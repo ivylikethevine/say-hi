@@ -378,59 +378,35 @@ In this checkout, and not what the tag waits on either.
        byte what it is today, and a suite pins the grouping, the colors, and
        what the extra members cost the payload.
 
-4. [ ] **A denser armor than base64** — the ssh transport base64-armors the
-       payload (GLOSSARY: HI.17) because it has to survive a login shell's
-       quoting, and that is a flat third of the wire on every connect.
-       Measured, the ceiling here is low: **Z85 is the only denser encoding
-       that ships as a base tool anywhere** (`basenc`, GNU coreutils 8.31+)
-       and the only one whose alphabet survives the shell — Ascii85 carries
-       `"`, `'`, `\` and a backtick, and nothing ships base91 or base122.
-       Z85 is worth about 7% of the wire, needs `echo '...'` rather than
-       `echo "..."` (its alphabet does carry `$`), needs the payload padded
-       to a multiple of 4, and only pays where **both** ends have coreutils
-       8.31+ — not Alpine, macOS, either BSD, or Ubuntu 20.04. **Do:** decide
-       whether 7% is worth a second encoder and a negotiation, given the entry
-       below moves four times as much. **Ticks when:** it ships behind the
-       same capability word, or the entry is deleted as not worth it.
+4. [ ] **A denser armor than base64** — base64 (HI.17) is a third of the ssh
+       wire. Z85 (`basenc`, coreutils 8.31+) is the only denser encoding that
+       ships anywhere and survives the shell, and saves ~7% only where both
+       ends have it (not Alpine, macOS, the BSDs, or Ubuntu 20.04). **Do:**
+       decide whether 7% is worth a second encoder, given entry 5 moves four
+       times as much. **Ticks when:** it ships behind entry 5's capability
+       word, or this entry is deleted as not worth it.
 
-5. [ ] **A session sends the bytes, not a picture of them** — two levers on
-       the same wire, both blocked on the same missing thing: the client has
-       to know what the target can do before it sends. The boot probe already
-       makes that round trip (`_hi_boot_probe`, GLOSSARY: HI.19) and reports
-       only its scratch directory, so a capability word costs nothing.
-       **(a) The payload need not be armored at all.** The container, nomad,
-       and kube arms already stream the raw gzipped tar through `exec -i`
-       stdin; only ssh encodes, because the tar rides *inside* the script.
-       Raw, the wire drops from about 62 KB to 47 KB — and a target stops
-       needing `base64`/`openssl` for it, which is a support-matrix change,
-       not a size one. Three ways in, each with a measured catch: frame the
-       script and the bytes on one stdin (busybox's `head -c` over-reads a
-       pipe and eats the tail; `dd bs=1` is byte-exact everywhere but costs
-       ~220 ms on busybox), put the payload on the first call's stdin and the
-       script on the second call's argv (no framing, but 4.7 KB of argv where
-       HI.19 deliberately has none), or open a third call on the ControlMaster
-       (no framing, one extra round trip on an authenticated connection).
-       **(b) gzip is not the densest thing a target can read.** `xz -6` is 12%
-       under gzip on this payload and busybox decodes it in 7 ms; the
-       dictionary is the constraint rather than the CPU, so -6 (8 MiB) is the
-       ceiling and -9 (64 MiB) is out for a small router. Availability is the
-       other way round from the guess: **busybox and Fedora decode xz, while
-       `debian:bookworm-slim` and `ubuntu:24.04` can decode neither xz nor
-       bzip2**, so gzip stays the floor. zstd is absent nearly everywhere and
-       brotli has no CLI at all. **Ticks when:** the probe reports what the
-       target can do, a target that reports nothing still connects on
-       gzip-and-base64, the README badge falls by the measured amount, and the
-       e2e suites pass on every backend including a busybox target.
+5. [ ] **A session sends the bytes, not a picture of them** — both levers need
+       the boot probe (`_hi_boot_probe`, HI.19) to report what the target can
+       do. **(a) No armor:** the container arms already stream the raw tar;
+       ssh alone base64s it, and raw drops the wire from ~62 KB to 47 KB.
+       Each way in has a catch: one framed stdin (busybox `head -c`
+       over-reads), payload on stdin and script on argv (4.7 KB of argv), or a
+       third ControlMaster call (one more round trip). **(b) xz:** `xz -6` is
+       12% under gzip and busybox decodes it, but `debian:bookworm-slim` and
+       `ubuntu:24.04` cannot, so gzip stays the floor. **Ticks when:** the
+       probe reports capabilities, a target that reports nothing still gets
+       gzip-and-base64, the README badge falls by the measured amount, and
+       the e2e suites pass on every backend including busybox.
 
-6. [ ] **A release says where the package went, and shows what changed** — the
-       release body carries the notes and the checksums, but the Homebrew tap
-       PR that `publish-external.yml` opens is only visible to whoever watches
-       that repo, and nothing on the page shows the thing running. **Do:**
-       have the publish job write the tap PR (or the tap repo, where the PR is
-       already merged) into the release body as a link, and attach a demo gif
-       built the way `docs/tapes/` builds the README's. **Ticks when:** a tag
-       produces a release whose body links the tap PR and renders the gif, and
-       the packaging suite pins both.
+6. [ ] **A release says where the package went, and shows what changed** —
+       shipped: `publish` leaves `tap` and `demo` slots in the release body and
+       dispatches `demos.yml` at the tag; the `tap` job links its PR (or the
+       tap's formula, when already current) into one, and `demos.yml`'s
+       `attach` job uploads the `packages` GIF as `demo.gif` and embeds it in
+       the other (`.github/scripts/release_slot.sh`); the packaging suite pins
+       both. **Ticks when:** the next real tag's release page shows the tap
+       link and renders the GIF.
 
 ### Post 1.0
 
@@ -455,3 +431,12 @@ an upstream review that lands when it lands.
        `good first issue` (`small_tasks`); confirm `secure_2FA` is
        TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.
        **Ticks when:** the live entry matches the sheet.
+
+4. [ ] **vhs v0.12** — `demos.yml` pins vhs v0.11.0 because v0.12.0 writes no
+       output: it captures every frame and prints `Creating <file>.gif...`,
+       then exits 0 having never run ffmpeg (strace: it resolves
+       `/usr/bin/ffmpeg` and never execs it; the same frames encode fine by
+       hand). Suspect: upstream's browser start/close rewrite (42f1776). No
+       upstream issue or newer release as of 2026-09-14. **Do:** report it
+       upstream with that evidence. **Ticks when:** a v0.12.x release renders
+       all six tapes green on a `demos.yml` dispatch and the pin moves to it.

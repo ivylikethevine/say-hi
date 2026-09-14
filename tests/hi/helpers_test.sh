@@ -161,7 +161,9 @@ function test_flag_help_splits_local_from_anywhere() {
 }
 
 # The stripper, run the way _hi_payload_tar runs it: shebang kept, full-line
-# comments gone, heredoc bodies untouched (their "comments" are payload).
+# comments gone, heredoc bodies untouched (their "comments" are payload), and
+# a `word\` continuation keeps the indentation that separates it
+# (_HI_HEADER_ALTS once reached a target as "gitid:BRREDcontainers:BRYELLOW").
 function test_strip_awk_rules() {
   local dir="$_HI_WORKDIR/strip" out
   mkdir -p "$dir"
@@ -173,6 +175,8 @@ cat <<'EOF'
 # inside a heredoc, this line is data
 EOF
 	indented="code"
+table="a:b\
+ c:d"
 FIXTURE
   _hi_strip_awk >"$dir/strip.awk"
   awk -f "$dir/strip.awk" "$dir/x.sh"
@@ -181,6 +185,7 @@ FIXTURE
   case "$out" in *"a full-line comment"*) return 1 ;; *) ;; esac
   case "$out" in *"trailing comments stay"*) ;; *) return 1 ;; esac
   case "$out" in *"inside a heredoc, this line is data"*) ;; *) return 1 ;; esac
+  [ "$(sh -c '. "$1" >/dev/null; printf %s "$table"' _ "$dir/x.sh.strip" 2>/dev/null)" = "a:b c:d" ]
 }
 
 function test_safe_path_rejects_relative_paths() {
