@@ -18,6 +18,11 @@
 # freshness, and docker would go silent outright (GHSA has no container
 # ecosystem, so there is no security-update half). Base-image severity is
 # image-scan.yml's job, measured with trivy.
+#
+# One open PR per block, not one for the whole file: dependabot cannot group
+# across ecosystems, so github-actions and docker each cap at
+# open-pull-requests-limit: 1, giving two PRs at most instead of the three a
+# split github-actions group used to allow.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -30,18 +35,13 @@ updates:
     # window is its first days (zizmor: dependabot-cooldown)
     cooldown:
       default-days: 7
-    # Two groups, not one PR per action: first-party actions/* release
-    # together often enough that five identical bumps a week added nothing;
-    # the third-party rest stay together for the same one-review reason.
+    # One group, not one PR per action or a first-party/third-party split:
+    # every bump a week lands in a single review.
     groups:
-      actions:
-        patterns:
-          - "actions/*"
-      other:
+      all:
         patterns:
           - "*"
-        exclude-patterns:
-          - "actions/*"
+    open-pull-requests-limit: 1
 
   # The upstream base images the fixtures build on, digest-pinned in
   # tests/dockerfiles/*.Dockerfile. A digest never moves, security fixes
@@ -59,6 +59,7 @@ updates:
       fixtures:
         patterns:
           - "*"
+    open-pull-requests-limit: 1
     # bash:3.2 is the floor (what macOS ships), not a version to keep current:
     # a bump to bash:5 would leave the suite green while testing nothing it
     # exists to test. Only semver update-types are ignored, so digest refreshes

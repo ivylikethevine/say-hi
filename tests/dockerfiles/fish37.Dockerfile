@@ -24,7 +24,7 @@
 # direction - constructs 3.7 accepts that fish 4 rejects or has removed -
 # so CI's own runner version (24.04) stays covered by one image and the newer
 # major by the other, rather than either silently going unchecked.
-FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
+FROM ubuntu:24.04@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254
 # The version is *asserted*, not pinned to an exact `fish=3.7.0-1`. A floor
 # whose version can drift is not a floor - but an exact pin breaks the build
 # outright the day noble ships a security update (the package leaves the index),
