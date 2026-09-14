@@ -33,18 +33,23 @@ function _hi_restore_profile() {
   fi
   [ -n "$_hi_rp_home" ] && export _HI_HOME="$_hi_rp_home"
   [ -n "$_hi_rp_root" ] && export _HI_ROOT="$_hi_rp_root"
+  # a wired ~/.bashrc in the chain sourced that tree's core.sh too, and its
+  # load guard would skip ours: every path would stay pointed at that tree
+  unset _hi_core_loaded
   return 0
 }
+
+# only hi's remote paths chainload this file, so this is how paths.sh tells
+# "reached via hi" from "the machine say-hi lives on". Ahead of the profile
+# chain: a Debian ~/.profile sources ~/.bashrc, and a target with its own hi
+# wired there would otherwise greet with its Online header before ours.
+export _HI_REMOTE_SESSION=1
 
 # _HI_LOAD_NO_INIT=1: functions only, no profile chain - install.sh's source
 # guard as an env var, since this file is only ever sourced.
 [ "${_HI_LOAD_NO_INIT:-0}" = 1 ] || _hi_restore_profile
 
 set -euo pipefail
-
-# only hi's remote paths chainload this file, so this is how paths.sh tells
-# "reached via hi" from "the machine say-hi lives on"
-export _HI_REMOTE_SESSION=1
 
 : "${_HI_HOME:=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=./common/core.sh
@@ -175,6 +180,16 @@ function _hi_session_rc_setup() {
   # Only the set ones: an empty tag and an absent one read the same.
   # GLOSSARY: HI.47
   local v sh_vars="" fish_vars=""
+  # ...and this session's tree, re-pointed after the target's rc: one wired
+  # for a say-hi of its own exports _HI_HOME at that tree and loads its
+  # core.sh, whose load guard would skip ours
+  for v in _HI_HOME _HI_ROOT _HI_CONFIG_DIR; do
+    printf -v q '%q' "${!v}"
+    sh_vars="${sh_vars}export $v=$q"$'\n'
+    _hi_fishquote q "${!v}"
+    fish_vars="${fish_vars}set -gx $v $q"$'\n'
+  done
+  sh_vars="${sh_vars}unset _hi_core_loaded"$'\n'
   for v in "${_HI_SESSION_VARS[@]}"; do
     [ -n "${!v-}" ] || continue
     printf -v q '%q' "${!v}"

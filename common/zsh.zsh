@@ -13,6 +13,7 @@ source "$_HI_HOME/say-hi/common/core.sh"
 source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
 source "$_HI_ALIASES"
+_hi_load_plugins
 
 # NOT setopt KSH_ARRAYS: it is global, hi's block runs after oh-my-zsh's, and
 # their code assumes zsh's 1-based arrays - core.sh counts instead.
@@ -40,6 +41,15 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     _HI_ENV_DEFER=1
     __hi_env_precmd() { _hi_env_prompt __hi_env_info; }
     precmd_functions+=(__hi_env_precmd)
+    # each plugin's $_HI_SEGMENT after it, `%` doubled so prompt_subst draws
+    # the output rather than reading it as a prompt escape. GLOSSARY: HI.59
+    __hi_segment_precmd() {
+      local c o
+      for c in "${_hi_segments[@]}"; do
+        o="$(eval "$c" 2>/dev/null)" && [[ -n "$o" ]] && __hi_env_info+="${o//\%/%%} "
+      done
+    }
+    ((${#_hi_segments[@]})) && precmd_functions+=(__hi_segment_precmd)
     # OSC 133 prompt marks and OSC 7 cwd reporting, as common/bash.sh's ps1()
     # emits them
     _hi_marks_a=$'%{\e]133;A\a%}'

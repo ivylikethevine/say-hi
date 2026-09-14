@@ -1850,6 +1850,70 @@ function test_full_check_emits_a_row_for_an_installed_package() {
   [[ "$out" == *"$_HI_REAL_CMD"* ]]
 }
 
+# _hi_pkg_groups <name> - a packages file plus a packages.d beside it, under
+# $_HI_WORKDIR/<name>; the file is `cat:2` alone, and each further
+# "<member>=<content>" argument becomes a member. Prints the directory.
+function _hi_pkg_groups() {
+  local dir="$_HI_WORKDIR/$1" m
+  shift
+  rm -rf "$dir"
+  mkdir -p "$dir/packages.d"
+  printf 'cat:2\n' >"$dir/packages"
+  for m; do
+    printf '%b' "${m#*=}" >"$dir/packages.d/${m%%=*}"
+  done
+  printf '%s' "$dir"
+}
+
+# A group is its file's rows together, after the file before it, in member
+# name order - not merged into one rank sort: ls (3) and sh (3) sort ahead
+# of cat (2) in one file, and follow it here. Backups and dotfiles are no
+# members at all.
+function test_full_check_paints_groups_in_order() {
+  local dir out
+  dir="$(_hi_pkg_groups groups-order '20-box=sh:3\n' '10-lang=ls:3\n' \
+    '10-lang.bak=hi-not-a-member:3\n' '.10-lang.swp=hi-not-a-member:3\n')"
+  out="$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check)"
+  [ -n "$(_hi_pos "$out" " cat ")" ] && [ -n "$(_hi_pos "$out" " ls ")" ] &&
+    [ -n "$(_hi_pos "$out" " sh ")" ] || return 1
+  [ "$(_hi_pos "$out" " cat ")" -lt "$(_hi_pos "$out" " ls ")" ] &&
+    [ "$(_hi_pos "$out" " ls ")" -lt "$(_hi_pos "$out" " sh ")" ] &&
+    ! _hi_contains "$out" hi-not-a-member
+}
+
+# Each group wears its own color=: one name paints installed and missing
+# alike, eight are a ramp of its own, and a group without one - or with a
+# value that is neither - wears the ramp in force. The ramp is back in force
+# once the check is done.
+function test_full_check_paints_each_group_its_own_color() {
+  local dir out orange yes3 no3 ramp3
+  dir="$(_hi_pkg_groups groups-color '10-one=color=orange\nls:3\nhi-no-such-tool:3\n' \
+    '20-ramp=color=red red red red blue blue blue magenta\nhi-no-such-other:3\n' '30-none=sh:3\n' \
+    '40-bad=color=notacolor\ncat:3\n')"
+  out="$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check)"
+  _hi_ramp_escape orange orange 0
+  _hi_ramp_escape no3 brred 0
+  _hi_ramp_escape yes3 brgreen 0
+  _hi_ramp_escape ramp3 magenta 0
+  _hi_assert_contains "$out" "$(printf '%b' "$orange ls ")" &&
+    _hi_assert_contains "$out" "$(printf '%b' "$orange hi-no-such-tool ")" &&
+    _hi_assert_contains "$out" "$(printf '%b' "$ramp3 hi-no-such-other ")" &&
+    _hi_assert_contains "$out" "$(printf '%b' "$yes3 sh ")" &&
+    _hi_assert_contains "$out" "$(printf '%b' "$yes3 cat ")" || return 1
+  _HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check >/dev/null
+  [ "${_HI_NO[3]}" = "$no3" ]
+}
+
+# No member, or nothing but backups, is today's single-file check byte for byte
+function test_full_check_without_members_is_the_single_file_check() {
+  local dir one
+  dir="$(_hi_pkg_groups groups-none)"
+  one="$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="" full_check | od -c)"
+  [ "$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check | od -c)" = "$one" ] || return 1
+  printf 'sh:3\n' >"$dir/packages.d/10-x.orig"
+  [ "$(_HI_PACKAGES="$dir/packages" _HI_PACKAGES_D="$dir/packages.d" full_check | od -c)" = "$one" ]
+}
+
 # _hi_packages_palette's contract: exactly four entries - one per priority
 # 0-3 - in both tables, whichever ramp is in force. `VAR=val func` on a shell
 # function (not an external command) reverts VAR once the call returns, so
@@ -2157,6 +2221,9 @@ function run_header_tests() {
   _hi_check "...and consumes it" test_full_check_consumes_the_carry
   _hi_check "A carry still prints with no visible packages" test_full_check_prints_carry_even_with_no_visible_packages
   _hi_check "Empty carry, no packages: still silent" test_full_check_empty_carry_and_no_packages_prints_nothing
+  _hi_check_requires bash "packages.d groups follow the file, in name order" test_full_check_paints_groups_in_order
+  _hi_check_requires bash "Each group wears its own color=, or the ramp" test_full_check_paints_each_group_its_own_color
+  _hi_check "No member is the single-file check, byte for byte" test_full_check_without_members_is_the_single_file_check
 
   _hi_h2 "Testing: _hi_packages_palette"
   _hi_check "Four entries per table, either way" test_packages_palette_fills_four_slots_each_way

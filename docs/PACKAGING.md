@@ -57,7 +57,8 @@ release if the pattern stops matching, so the key has one copy in the tree.
 Keep it a single line starting `minisign -Vm SHA256SUMS -P '`, with the key in
 single quotes.
 
-That covers **every** file on the release, `say-hi-<version>.tar.gz` included:
+That covers **every** file on the release but `demo.gif` (uploaded after the
+sums, below), `say-hi-<version>.tar.gz` included:
 `gh attestation verify say-hi-*.tar.gz --repo ivylikethevine/say-hi` answers
 for the sources as the line above does for the `.deb`.
 ## After installing from a package
@@ -342,7 +343,8 @@ against the published tarball right after `publish`, filtering out the two
 expected findings further down and recording the verdict in its run summary;
 when it passes, the `tap` job opens a PR against the tap with the regenerated
 formula, linking that run and carrying the same three commands as its
-checklist. It needs the `HOMEBREW_TAP_TOKEN` repo secret (a fine-grained PAT
+checklist, and links that PR (or the tap's formula, when it is already
+current) from the release body. It needs the `HOMEBREW_TAP_TOKEN` repo secret (a fine-grained PAT
 scoped to the tap repo with contents + pull-requests write) and without it
 warns and does nothing. Merging the PR is yours, as is repeating the commands
 on a mac of your own - against the formula the release actually built, not
@@ -542,12 +544,14 @@ release's GIFs can be rendered before its tag exists.
 **Six of the seven render themselves.**
 [`.github/workflows/demos.yml`](../.github/workflows/demos.yml) runs every tape
 but `demo` in CI (installing podman, nomad, and kind on a hosted runner as
-`ci.yml`'s `e2e-backends` job does) on a tape change, weekly, or on dispatch,
+`ci.yml`'s `e2e-backends` job does) for each release, weekly, or on dispatch,
 and hands the GIFs to the Pages build, which serves them from `docs/tapes/`
 beside each tape and the committed `demo.gif`. One runner per tape, in
 parallel - a `collect` job merges the six into the single `demo-gifs` artifact
 Pages fetches, and is skipped if any tape failed, so the site never mixes a
-fresh render with a stale one. A tape added to `generate.sh`'s roster has to
+fresh render with a stale one. For a release, `release.yml`'s publish job
+dispatches the workflow at the tag, and its `attach` job uploads the
+`packages` GIF to that release as `demo.gif` and embeds it in the body. A tape added to `generate.sh`'s roster has to
 be added to that workflow's `tape` matrix as well. Nothing is committed back:
 branch protection refuses a bot commit, the same reason the tests badge is
 published rather than written into README.

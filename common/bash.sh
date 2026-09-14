@@ -25,6 +25,7 @@ source "$_HI_GIT_PROMPT"
 source "$_HI_ENV_PROMPT"
 # shellcheck source=../settings/aliases.sh
 source "$_HI_ALIASES"
+_hi_load_plugins
 
 _hi_interactive_extras
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
@@ -207,9 +208,15 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # strings is the pw3nage class of bug (github.com/njhartwell/pw3nage)
       _hi_git_prompt __powerline_git_info # out-var form: no $( ) fork per prompt
       _hi_ps_mark __powerline_git_info
-      # plain text, so no _hi_ps_mark: the one color is in the template below,
-      # inside \[ \], where readline is already told to skip it
+      # the one color is in the template below, inside \[ \]; the mark after
+      # the plugin segments is for any color a segment prints itself
       _hi_env_prompt __hi_env_info
+      # each plugin's $_HI_SEGMENT, run per draw; empty output draws nothing
+      local _hi_c _hi_o
+      for _hi_c in ${_hi_segments[@]+"${_hi_segments[@]}"}; do
+        _hi_o="$(eval "$_hi_c" 2>/dev/null)" && [ -n "$_hi_o" ] && __hi_env_info+="$_hi_o "
+      done
+      _hi_ps_mark __hi_env_info
       # the segments as references; no expansion happens without promptvars,
       # so there the values go in as text
       # shellcheck disable=SC2016 # the single quotes are the reference

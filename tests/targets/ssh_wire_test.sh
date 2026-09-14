@@ -229,7 +229,7 @@ function _hi_wire_case() {
   _hi_cecho " | hi's figure for this target: $claim B ($human)" "$BLUE"
 
   # the claim has to be *in* the count, and what is in the count beyond the
-  # claim - key exchange, auth, the install probe, per-packet MACs - has to
+  # claim - key exchange, auth, the boot probe, per-packet MACs - has to
   # stay small: a fifth of the figure, or 12KB on a small payload, whichever
   # is more. Printed as a percentage, since that is how a reader will compare
   # two runs.

@@ -6,12 +6,10 @@
 #
 # Built on the --prefix image rather than the .deb one on purpose. The scenario
 # is the same either way, and dpkg has nothing left to prove here (the .deb case
-# already covers it), but this way the tier the case exists for is still tested
-# on a machine with no nfpm to build packages with - and it exercises a second
-# standard prefix, where the brew case covers the keg one.
-#
-# Before the probe learned the standard install prefixes this answered "nothing
-# installed", and hi copied its whole payload over a tree already on the target.
+# already covers it), but this way the case still runs on a machine with no
+# nfpm to build packages with - and it covers a second standard prefix, where
+# the brew case covers the keg one. The session runs its own tree either way;
+# what this pins is that it leaves one nothing announces untouched.
 ARG BASE=hi-test-installed-prefix
 FROM ${BASE}
 RUN rm -f /etc/profile.d/say-hi.sh \

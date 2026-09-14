@@ -296,10 +296,10 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
   [[ "$out" == *"colors"*"a copy of the tree's, unchanged - edit it to override"* && "$out" != *overridden* ]]
 }
 
-# The include scan's rows. hi.sh's _hi_editor_lint is the same pass that does
+# The include scan's rows. hi.sh's _hi_include_lint is the same pass that does
 # the dropping on the way out, so what the report names is exactly what went
 # missing - and the row says which of the two happened, since
-# _HI_EDITOR_INCLUDES=keep sends the line instead. GLOSSARY: HI.57
+# _HI_INCLUDES=keep sends the line instead. GLOSSARY: HI.57
 function test_config_names_an_unresolvable_include() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
@@ -314,6 +314,20 @@ function test_config_names_an_unresolvable_include() {
     [[ "$out" == *"vim.rc:3"*"names a plugin manager"* ]]
 }
 
+# a shell overlay file gets the same yellow row, and a `# hi-allow` line above a
+# source silences it
+function test_config_names_a_shell_include_unless_allowed() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/inclsh.XXXXXX")"
+  printf '. ~/.secrets\n# hi-allow\n. ~/.kept\n' >"$dir/aliases.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"aliases.sh:1"*"reads a file hi does not carry"*"hi-allow"* && "$out" != *"aliases.sh:3"* ]]
+}
+
 # ...and with the escape hatch on, the row says the line travels and the target
 # has no such file - the same finding, the opposite fate
 function test_config_says_when_an_include_travels_anyway() {
@@ -324,7 +338,7 @@ function test_config_says_when_an_include_travels_anyway() {
     _HI_CONFIG_DIR="$dir"
     _HI_VIMRC="$dir/vim.rc"
     _HI_SETTINGS="$dir/settings.sh"
-    _HI_EDITOR_INCLUDES=keep
+    _HI_INCLUDES=keep
     doctor_config
   )"
   [[ "$out" == *"vim.rc:1"*"sent as written"* ]]
@@ -419,6 +433,47 @@ function test_config_flags_a_ramp_nothing_paints() {
     doctor_config
   )"
   [[ "$out" != *"pkg-palette"* ]]
+}
+
+# plugins.d (HI.59): the load order in one row, a warn for a plugin a shell
+# here cannot parse (bash is always here; zsh and fish when installed), and a
+# warn for a member that never travels. Quiet without a plugin.
+function test_config_lists_the_plugins() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/plugins.XXXXXX")"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_PLUGINS_D="$dir/plugins.d" doctor_config)"
+  [[ "$out" != *plugins.d* ]] || return 1
+  mkdir -p "$dir/plugins.d"
+  printf 'export A=1\n' >"$dir/plugins.d/10-a"
+  printf 'foo() {\n' >"$dir/plugins.d/20-broken"
+  printf 'export B=1\n' >"$dir/plugins.d/30-c.bak"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_PLUGINS_D="$dir/plugins.d" doctor_config)"
+  [[ "$out" == *"plugins.d"*"loads in order: 10-a, 20-broken"* ]] &&
+    [[ "$out" == *"plugins.d/20-broken"*"does not parse in bash"*"skipped there"* ]] &&
+    [[ "$out" == *"plugins.d/30-c.bak"*"ignored"* ]] &&
+    [[ "$out" != *"plugins.d/10-a"* ]]
+}
+
+# packages.d (HI.58): one row naming the groups in the order the check paints
+# them, and a warning for each thing about them a user could not see in the
+# header - a color= nothing paints, a group whose rows all sit under the
+# floor, a file that is no member. Nothing at all without the directory.
+function test_config_names_the_package_groups() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/groups.XXXXXX")"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" doctor_config)"
+  [[ "$out" != *packages.d* ]] || return 1
+  mkdir -p "$dir/packages.d"
+  printf 'color=orange\nls:3\n' >"$dir/packages.d/10-lang"
+  printf 'color=mono\nsh:3\n' >"$dir/packages.d/20-box"
+  printf 'sh:1\n' >"$dir/packages.d/30-quiet"
+  printf 'sh:3\n' >"$dir/packages.d/30-quiet.bak"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_PACKAGES_D="$dir/packages.d" _HI_PACKAGES_MIN_PRIORITY=2 doctor_config)"
+  [[ "$out" == *"packages.d"*"painted in order: packages, lang (orange), box (the ramp), quiet (the ramp)"* ]] &&
+    [[ "$out" == *"packages.d/20-box"*"color=mono is ignored"* ]] &&
+    [[ "$out" == *"packages.d/30-quiet"*"nothing paints quiet"* ]] &&
+    [[ "$out" == *"packages.d/30-quiet.bak"*"ignored"* ]] &&
+    [[ "$out" != *"packages.d/10-lang"* ]]
 }
 
 # settings.sh is sourced by fish too, and `a=1` is sh but not fish: the row
@@ -1033,12 +1088,15 @@ function run_doctor_tests() {
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
   _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway
+  _hi_check "A shell include is named unless hi-allow" test_config_names_a_shell_include_unless_allowed
   _hi_check "The editor config in force here is named" test_config_names_the_editor_config_in_force_here
   _hi_check "Reports a settings.sh that parses" test_config_reports_a_settings_file_that_parses
   _hi_check_requires fish "Flags a settings.sh that is sh but not fish" test_config_flags_a_settings_file_that_is_not_fish
   _hi_check_requires fish "Flags an aliases.sh that is sh but not fish" test_configs_fish_row_catches_sh_only_aliases
   _hi_check "Config flags a scheme nothing renders" test_config_flags_a_scheme_nothing_renders
   _hi_check "Config flags a ramp nothing paints" test_config_flags_a_ramp_nothing_paints
+  _hi_check "Config names the packages.d groups, and flags them" test_config_names_the_package_groups
+  _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
   _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
 

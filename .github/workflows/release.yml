@@ -9,9 +9,9 @@ name: Release
 # MINISIGN_SECRET_KEY (docs/PACKAGING.md) - no required reviewer on it: the
 # tag protection rule is the gate, so a tag that exists is a release that
 # publishes. APK_SIGNING_KEY and MINISIGN_SECRET_KEY are each optional and
-# skip loudly. The tap PR and the AUR push are not here -
-# publish-external.yml reaches those, by a separate manual dispatch against an
-# already-published tag, and holds HOMEBREW_TAP_TOKEN and AUR_SSH_KEY. The
+# skip loudly. The AUR push is not here - publish-external.yml reaches it, by
+# a separate manual dispatch against an already-published tag, and holds
+# AUR_SSH_KEY. The
 # manifests it builds (dist/manifests/) are release assets only - the
 # committed packaging/aur and packaging/homebrew files stay permanent
 # templates (packaging/bump.sh's header) and this workflow never writes to
@@ -312,7 +312,7 @@ jobs:
     environment: release
     permissions:
       contents: write
-      # dispatches pages.yml (Refresh the Pages package repository, above)
+      # dispatches pages.yml and demos.yml (the last two steps)
       actions: write
       # release_notes.sh reads each merged PR's body for its `## Release note`
       pull-requests: read
@@ -469,16 +469,21 @@ jobs:
           pages="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}"
           echo "HI_PAGES_URL=$pages" >>"$GITHUB_ENV"
           # printf rather than a heredoc: a heredoc body would have to be
-          # unindented, which ends the YAML block scalar
+          # unindented, which ends the YAML block scalar. The two
+          # `<!-- hi:... -->` lines are slots later jobs fill through
+          # .github/scripts/release_slot.sh - `demo` (demos.yml's attach) and
+          # `tap` (the tap job below); unfilled, a comment renders as nothing.
           body="$(printf '%s\n' \
             "![tests]($HI_BADGE_TESTS) ![kcov]($HI_BADGE_KCOV) ![bashcov]($HI_BADGE_BASHCOV)" \
+            "" \
+            "<!-- hi:demo -->" \
             "" \
             ${changed:+"$changed" ""} \
             "$notes" \
             "" \
             "## Verifying this download" \
             "" \
-            "The sums cover every file here, the source tarball included." \
+            "The sums cover every file here but the demo GIF, the source tarball included." \
             "" \
             '```sh' \
             "sha256sum -c --ignore-missing SHA256SUMS" \
@@ -494,7 +499,8 @@ jobs:
             "" \
             "- apt: \`$pages/apt\` (suite \`stable\`, component \`main\`, key [say-hi.asc]($pages/say-hi.asc))" \
             "- dnf: [say-hi.repo]($pages/say-hi.repo)" \
-            "- apk: \`$pages/apk\` (key [say-hi.rsa.pub]($pages/say-hi.rsa.pub))")"
+            "- apk: \`$pages/apk\` (key [say-hi.rsa.pub]($pages/say-hi.rsa.pub))" \
+            "<!-- hi:tap -->")"
           # A prerelease tag (anything with a `-`: v1.0.0-rc.1) is marked as
           # one and never becomes "Latest" - README's release badge and
           # pages.yml's package repository both read that pointer, and
@@ -579,6 +585,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run pages.yml --ref main
+
+      # The release's demo GIF: demos.yml renders every tape at this tag and
+      # its attach job uploads one to the release and fills the body's `demo`
+      # slot. Dispatched here rather than on its own tag trigger, so the
+      # release it attaches to always exists by the time it looks.
+      - name: Render the release's demos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run demos.yml --ref "$GITHUB_REF_NAME"
 
   # The three commands docs/PACKAGING.md's "Homebrew tap" section asks for by
   # hand before a tap PR is merged, run on a hosted mac against the tarball
@@ -695,20 +710,34 @@ jobs:
   # run and `brew` is the technical gate. No-ops loudly without the
   # HOMEBREW_TAP_TOKEN repo secret (a fine-grained PAT scoped to the tap repo,
   # contents + pull requests write). The AUR stays in publish-external.yml:
-  # its registration is closed, and its push has no PR to hide behind.
+  # its registration is closed, and its push has no PR to hide behind. The PR
+  # - or the tap's formula, when it is already current - is linked from the
+  # release body's `tap` slot, under the GITHUB_TOKEN rather than the tap's,
+  # in the one concurrency group demos.yml's attach job also edits the body in.
   tap:
     name: open the Homebrew tap PR
     needs: brew
     if: github.event_name == 'push' && !cancelled() && needs.brew.result == 'success' && needs.brew.outputs.debug != 'true' && needs.brew.outputs.prerelease != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      # gh release edit, filling the body's tap slot
+      contents: write
+    concurrency:
+      group: release-body-${{ github.ref_name }}
+      cancel-in-progress: false
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: packages
           path: dist
 
-      - name: Open the formula PR
+      - id: pr
+        name: Open the formula PR
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           TAP_REPO: ${{ github.repository_owner }}/homebrew-tap
@@ -721,6 +750,13 @@ jobs:
             exit 0
           fi
           branch="say-hi-$TAG"
+          install="\`brew install ${TAP_REPO%%/*}/tap/say-hi\`"
+          # a re-run finds the PR its first attempt opened (merged or not)
+          url="$(gh pr list --repo "$TAP_REPO" --head "$branch" --state all --json url --jq '.[0].url // empty')"
+          if [ -n "$url" ]; then
+            echo "link=- Homebrew: $install ([tap PR]($url))" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           gh repo clone "$TAP_REPO" tap -- --depth 1
           cd tap
           # gh's token into git's credential helper, so the push below is
@@ -732,6 +768,7 @@ jobs:
           git add Formula/say-hi.rb
           if git diff --cached --quiet; then
             echo "tap formula already current - nothing to open"
+            echo "link=- Homebrew: $install ([formula](https://github.com/$TAP_REPO/blob/HEAD/Formula/say-hi.rb))" >>"$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -752,5 +789,14 @@ jobs:
             '- [ ] `brew install --build-from-source Formula/say-hi.rb`' \
             '- [ ] `brew test say-hi`' \
             '- [ ] `brew audit --strict --new say-hi`')"
-          gh pr create --repo "$TAP_REPO" --head "$branch" \
-            --title "say-hi $TAG" --body "$body"
+          url="$(gh pr create --repo "$TAP_REPO" --head "$branch" \
+            --title "say-hi $TAG" --body "$body")"
+          echo "link=- Homebrew: $install ([tap PR]($url))" >>"$GITHUB_OUTPUT"
+
+      - name: Link it from the release
+        if: ${{ steps.pr.outputs.link != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          LINK: ${{ steps.pr.outputs.link }}
+        run: .github/scripts/release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap "$LINK"

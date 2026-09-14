@@ -6,8 +6,9 @@
 # what each case asserts is identical: the tree lands at /usr/share/say-hi
 # (root-owned, which SECURITY.md promises works), /usr/bin/hi is a symlink to
 # it, and the only thing that says where it went is the /etc/profile.d/say-hi.sh
-# snippet install.sh's packaging mode wrote - so this exercises the probe's
-# profile.d candidate against a real package rather than a hand-placed file.
+# snippet install.sh's packaging mode wrote - so this exercises the
+# `_HI_HOME` export load.sh's _hi_restore_profile has to take back, against a
+# real package rather than a hand-placed file.
 #
 # rpm: --nodeps because the fedora base already carries bash and openssh, and
 # the rpm names its openssh dependency `openssh-clients` (nfpm.yaml's rpm
@@ -20,8 +21,8 @@
 # must work either way. The login shell then moves to bash because the package
 # depends on bash and apk just installed it: alpine's `adduser -D -s /bin/ash`
 # put hitest on ash, and busybox has no usermod to undo that from the shared
-# entrypoint. With bash present the session takes the same tier the deb and
-# rpm cases do, so one assertion shape covers all three.
+# entrypoint. With bash present the session takes the same full-bash path the
+# deb and rpm cases do, so one assertion shape covers all three.
 ARG BASE=hi-test-sshd
 FROM ${BASE}
 ARG PKG

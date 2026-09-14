@@ -1,14 +1,13 @@
 # A Homebrew-shaped install: the keg layout packaging/homebrew/say-hi.rb
 # produces, stood up by hand because real Homebrew in a container is a
 # several-hundred-megabyte install of something this suite is not testing.
-# What *is* tested is the shape that formula leaves on disk, and the fact that
-# hi finds it - packaging_test.sh's formula cases are what keep this layout
-# honest if say-hi.rb ever moves the tree.
+# What *is* tested is the shape that formula leaves on disk, and that a session
+# beside it still runs its own tree - packaging_test.sh's formula cases are
+# what keep this layout honest if say-hi.rb ever moves the tree.
 #
 # This is the one channel that announces itself nowhere. The formula writes no
 # rc line (its caveats ask you to run hi --install, and nobody has to)
-# and no /etc/profile.d snippet, so the probe's rc-file and $HOME candidates
-# both come up empty: only the standard-install-prefix tier can answer. The
+# and no /etc/profile.d snippet, so nothing on the box points at the tree. The
 # prefix here is Linuxbrew's default, which is why the container can host it.
 ARG BASE=hi-test-sshd
 FROM ${BASE}

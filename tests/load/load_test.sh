@@ -235,7 +235,7 @@ function test_session_rc_setup_nests_under_cleanup_when_set() {
   esac
 }
 
-# ...and without one (the permanent-install shape), a standalone mktemp -
+# ...and without one (load.sh sourced outside a tree hi shipped), a standalone mktemp -
 # unaffected.
 function test_session_rc_setup_stands_alone_without_cleanup() {
   local dir

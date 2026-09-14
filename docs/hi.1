@@ -576,6 +576,13 @@ or
 .B settings/packages
 here and editing the copy.
 .TP
+.B ~/.config/say-hi/packages.d/
+more packages files, each a group the check paints after
+.B packages
+in name order, in the color its
+.B color=
+line names.
+.TP
 .B ~/.config/say-hi/vim.rc, init.lua, nano.rc, emacs.el
 per\-user replacements of the tree's editor configs, used whole rather than
 merged \- init.lua is neovim's, vim.rc is vim's. Rarely needed: with no copy
@@ -587,8 +594,10 @@ here hi carries the config each editor already reads on this machine
 minus the lines in it that read a file no target has \- which
 .B \-\-doctor
 names, and
-.B _HI_EDITOR_INCLUDES=keep
-sends anyway.
+.B _HI_INCLUDES=keep
+sends anyway, as does a
+.B # hi-allow
+line above one. The shell files below get the same pass.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced first so any
@@ -599,6 +608,13 @@ toggle you set there wins over the shipped set - an
 .B alias
 of the same name does not, since the shipped one is defined after and
 overwrites it.
+.TP
+.B ~/.config/say-hi/plugins.d/
+drop\-in plugins in the aliases.sh subset, sourced in name order after the
+aliases and before the prompt; one a shell cannot parse is skipped with a
+warning. A plugin's
+.B _HI_SEGMENT
+command is drawn in the prompt.
 .TP
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.

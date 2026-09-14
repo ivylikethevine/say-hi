@@ -49,7 +49,7 @@ Prints, in order:
                      timed, so a slow TAB or connect banner names its culprit
   the target         (with an argument) which backend the name resolves to,
                      each check timed - and for an ssh target, a BatchMode
-                     connection, the permanent-install probe, and what the
+                     connection, what each session ships, and what the
                      remote end has installed
 
 ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
@@ -92,6 +92,9 @@ _hi_doc_args=("$@")
 set --
 # shellcheck source=../hi.sh
 source "$_HI_LAUNCHER"
+# the packages groups' grammar (doctor_package_groups); only defines functions
+# shellcheck source=../common/header.sh
+source "$_HI_HEADER"
 
 # --json, the target, --use, and ssh options come in any order: `hi --doctor
 # host --json` and `hi --doctor -J bastion host` read naturally. An ssh
@@ -326,6 +329,68 @@ function doctor_local() {
   doctor_row shells "local: ${have:-none?!}"
 }
 
+# plugins.d (GLOSSARY: HI.59): one row naming the plugins in the order they
+# load, then a row for each a wired shell on this machine cannot parse - that
+# shell skips it - and each that never travels. Quiet without one.
+function doctor_plugins() {
+  local f n sh bad names=""
+  for f in "$_HI_PLUGINS_D"/*; do
+    [ -e "$f" ] || continue
+    n="${f##*/}"
+    if ! { [ -f "$f" ] && _hi_dir_member_ok "$n"; }; then
+      doctor_row "plugins.d/$n" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
+      continue
+    fi
+    names="$names, $n"
+    bad=""
+    for sh in bash zsh fish; do
+      command -v "$sh" >/dev/null 2>&1 || continue
+      case "$sh" in fish) fish --no-config -n "$f" ;; *) "$sh" -n "$f" ;; esac >/dev/null 2>&1 ||
+        bad="${bad:+$bad, }$sh"
+    done
+    [ -z "$bad" ] || doctor_row "plugins.d/$n" "does not parse in $bad - skipped there" warn
+  done
+  [ -z "$names" ] || doctor_row plugins.d "loads in order: ${names#, }"
+}
+
+# The packages.d groups (GLOSSARY: HI.58): a row naming them in the order the
+# check paints them, then a warning for a file that is not a member, a color=
+# the check ignores, and a group nothing paints - no row in it reaches
+# $_HI_PACKAGES_MIN_PRIORITY, so the header never shows it. Quiet without one.
+function doctor_package_groups() {
+  local -a files=() warns=()
+  local f g c ramp line max reach names=""
+  local min="${_HI_PACKAGES_MIN_PRIORITY:-2}"
+  for f in "$_HI_PACKAGES_D"/*; do
+    if [ -e "$f" ] && ! { [ -f "$f" ] && _hi_dir_member_ok "${f##*/}"; }; then
+      warns+=("${f##*/}|ignored - a backup, a temp file, or not a plain name, so it never travels")
+    fi
+  done
+  _hi_package_files files
+  for f in "${files[@]:1}"; do
+    _hi_group_name g "$f"
+    _hi_group_color c "$f"
+    if _hi_group_ramp ramp "$c"; then
+      names="$names, $g ($c)"
+    else
+      names="$names, $g (the ramp)"
+      [ -z "$c" ] || warns+=("${f##*/}|color=$c is ignored - not one color name or eight, so $g wears the ramp")
+    fi
+    reach=0
+    while IFS=$' ' read -r line; do
+      [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
+      _hi_row_max max "$line"
+      ((max < min)) || reach=1
+    done <"$f"
+    [ "$reach" = 1 ] ||
+      warns+=("${f##*/}|nothing paints $g - no row in it reaches _HI_PACKAGES_MIN_PRIORITY=$min")
+  done
+  [ -z "$names" ] || doctor_row packages.d "painted in order: packages$names"
+  for f in ${warns[@]+"${warns[@]}"}; do
+    doctor_row "packages.d/${f%%|*}" "${f#*|}" warn
+  done
+}
+
 function doctor_config() {
   local f t v late any=0
   doctor_section config "The config overlay ($_HI_CONFIG_DIR)"
@@ -347,6 +412,14 @@ function doctor_config() {
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do
     [ "$f" = settings.sh ] && continue
+    [ "$f" = packages.d ] && {
+      doctor_package_groups
+      continue
+    }
+    [ "$f" = plugins.d ] && {
+      doctor_plugins
+      continue
+    }
     t=""
     _hi_overlay_src "$f" t || true
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
@@ -363,19 +436,19 @@ function doctor_config() {
       doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
-  # Every editor rc hi packs ships verbatim into a config/ of its own, so a
-  # line naming a path names something no target has. hi.sh's _hi_editor_lint
-  # is the one grammar for all four dialects - the same rows the packer acts
-  # on, so what is named here is exactly what got dropped on the way out
-  # (GLOSSARY: HI.57). warn, not bad: the session still opens the editor.
+  # Every editor rc and shell file hi packs ships into a config/ of its own, so
+  # a line naming a path names something no target has. hi.sh's
+  # _hi_include_lint is the one grammar for every dialect - the same rows the
+  # packer acts on, so what is named here is exactly what got dropped on the
+  # way out (GLOSSARY: HI.57). warn, not bad: the session still starts.
   local member lineno kind text fate said
-  fate="dropped on the way out"
-  [ "${_HI_EDITOR_INCLUDES:-comment}" != keep ] || fate="sent as written (_HI_EDITOR_INCLUDES=keep), and the target has no such file"
+  fate="dropped on the way out (a # hi-allow line above it keeps it)"
+  [ "${_HI_INCLUDES:-drop}" != keep ] || fate="sent as written (_HI_INCLUDES=keep), and the target has no such file"
   while IFS='|' read -r member lineno kind text; do
     [ -n "$member" ] || continue
     [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
-  done < <(_hi_editor_lint)
+  done < <(_hi_include_lint)
   # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
@@ -663,9 +736,7 @@ function doctor_container_target() {
     ;;
   esac
 
-  # what it costs. No permanent-install branch here, unlike the ssh arm: a
-  # container target has nowhere hi would find a tree it did not put there, so
-  # every session pays the copy.
+  # what it costs: every session pays the copy, as on the ssh arm.
   doctor_row ships "$(_hi_human_bytes "$(_hi_file_bytes <(_hi_payload_tar))") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
 }
 

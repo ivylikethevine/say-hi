@@ -849,6 +849,23 @@ function test_preview_says_the_check_is_off_above_the_floor() {
   [[ "$out" == *"the check is off at this floor (_HI_PACKAGES_MIN_PRIORITY=4)"* ]]
 }
 
+# packages.d's groups get a table of their own (HI.58), in the order the check
+# paints them, each color named and painted in itself - and a single file,
+# the fixture's usual overlay, gets none.
+function test_preview_lists_the_package_groups() {
+  local cfg="$_HI_WORKDIR/cfg-groups" out orange
+  [[ "$_HI_PACKAGES_OUT" != *GROUP* ]] || return 1
+  mkdir -p "$cfg/packages.d"
+  cp "$_HI_WORKDIR/packages" "$cfg/packages"
+  printf 'color=orange\nhialpha:3\n' >"$cfg/packages.d/10-lang"
+  printf 'color=mono\nhibravo:3\n' >"$cfg/packages.d/20-box"
+  out="$(PATH="$(_hi_pkg_path)" HOME="$_HI_WORKDIR/tree" _HI_CONFIG_DIR="$cfg" \
+    "$_HI_ROOT/scripts/preview.sh" packages 2>&1)" || return 1
+  _hi_color_escape_var orange orange
+  [[ "$out" == *GROUP*packages*lang*10-lang*"$(printf '%b' "$orange")orange"*box*20-box*"mono (ignored"* ]] &&
+    _hi_table_is_rectangular "$out"
+}
+
 # Every section of the preview reads the packages file, so a missing one is
 # said out loud and stops the run - the bare redirect it replaces fails with a
 # path and no hint of which file the tool wanted.
@@ -1036,6 +1053,7 @@ EOF
   _hi_check "Ends with the real check" test_preview_ends_with_the_real_check
   _hi_check "Every line of a table is the same width" _hi_table_is_rectangular "$_HI_PACKAGES_OUT"
   _hi_check "Says the check is off above the floor" test_preview_says_the_check_is_off_above_the_floor
+  _hi_check "Lists the packages.d groups in their colors" test_preview_lists_the_package_groups
   _hi_check "Reports a missing packages file" test_preview_reports_a_missing_packages_file
   _hi_check "An exported \$_HI_PACKAGES is ignored" test_preview_ignores_an_exported_packages_path
   _hi_check "Reads the tree's own file when nothing is exported" test_preview_reads_the_trees_own_file

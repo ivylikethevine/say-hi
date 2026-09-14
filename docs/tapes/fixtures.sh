@@ -54,34 +54,10 @@ function demo_sshd_image() {
   # Two images: the e2e sshd base from tests/dockerfiles/sshd-debian.Dockerfile
   # (its context is the entrypoint below, alone in its own directory so the
   # checkout is not sent to the daemon twice), and the demo target from
-  # tests/dockerfiles/demo-sshd.Dockerfile on top of it - the box's own hi
-  # settings and the clean checkout further down are that one's context.
-
-  # The ssh demo's configuration, and the only one that lives on the target.
-  # hi.sh's permanent-install branch (_say_hi, the $remote_root arm) sets
-  # $_HI_HOME and $_HI_ROOT and stops, leaving core.sh to default
-  # $_HI_CONFIG_DIR to the box's own ~/.config/say-hi - no overlay ships, which
-  # is the point of a permanent install. So this rides in the image, where the
-  # rest of the box's identity already is, and `docker run hi-demo-sshd` alone
-  # is the demo's box rather than one that still needs configuring.
-  demo_settings "$_HI_DEMO_DIR/ssh-target-settings.sh" <<'EOF'
-export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
-export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
-EOF
-  # ...and the box's own prompt: hitest's login shell is fish, and this
-  # config.fish is sourced after hi's, so the two-line prompt below replaces
-  # hi's fish_prompt while reusing the colors hi resolved for user and host
-  # (docs/SETTINGS.md, "Your own prompt") - the tagged red and green still
-  # land, in someone else's prompt.
-  cat >"$_HI_DEMO_DIR/ssh-target-config.fish" <<'EOF'
-# ~/.config/say-hi/config.fish - a prompt of my own, on hi's colors
-function fish_prompt
-  printf '%s%s%s@%s%s%s %s%s%s\n> ' (set_color $fish_color_user) $USER (set_color normal) \
-    (set_color $fish_color_host) (prompt_hostname) (set_color normal) \
-    (set_color cyan) (prompt_pwd) (set_color normal)
-end
-EOF
-
+  # tests/dockerfiles/demo-sshd.Dockerfile on top of it - the clean checkout
+  # further down is that one's context. No hi configuration lives on the box:
+  # a session ignores a say-hi the target has and runs on the overlay it ships,
+  # so each demo's settings go in the client's overlay like any other's.
   mkdir -p "$_HI_DEMO_DIR/base"
   {
     printf '#!/bin/bash\nset -e\n'
@@ -277,12 +253,11 @@ function up_kube() {
 # line and `export NAME='value'` lines, nothing else - fish sources this file
 # too, and doctor.sh fails a settings.sh that only parses as sh.
 #
-# Body on stdin, destination optional - the ssh demo's copy is baked into its
-# image instead of the client's overlay dir, and this is the only writer of the
-# format either way. No call at all is itself a configuration: demo.tape ships
-# the stock defaults on purpose, as the one shot that shows everything on.
-function demo_settings() { # [outfile] - body on stdin
-  local out="${1:-$_HI_DEMO_DIR/config/settings.sh}"
+# Body on stdin, into the client's overlay dir; the only writer of the format.
+# No call at all is itself a configuration: demo.tape ships the stock defaults
+# on purpose, as the one shot that shows everything on.
+function demo_settings() { # body on stdin
+  local out="$_HI_DEMO_DIR/config/settings.sh"
   mkdir -p "$(dirname "$out")"
   {
     printf '#!/bin/sh\n'
@@ -665,18 +640,29 @@ EOF
   up_complete
   ;;
 up:colors)
-  # The sysadmin: kai, bash on a laptop, into two boxes that carry their own
-  # permanent install (and their own prompt - see demo_sshd_image). This
-  # demo's configuration is the `colors` overlay up_colors writes plus a
-  # hex scheme (atom's one dark), set on the client here and baked into the
-  # targets, so
-  # the preview and both sessions paint with the same truecolor. The tape
-  # exports a throwaway $HOME as well, for the ssh config the preview and
-  # the two sessions read, and COLORTERM, which vhs's shell does not set.
+  # The sysadmin: kai, bash on a laptop, into two fish boxes. This demo's
+  # configuration is the `colors` overlay up_colors writes, a hex scheme
+  # (atom's one dark) the preview and both sessions paint with, a short
+  # header, and a two-line fish prompt of kai's own - all in the overlay, so
+  # all of it rides to both boxes. The tape exports a throwaway $HOME as well,
+  # for the ssh config the preview and the two sessions read, and COLORTERM,
+  # which vhs's shell does not set.
   client_rc bash kai ops-laptop
   demo_settings <<'EOF'
 export _HI_COLOR_SCHEME='e06c75 98c379 e5c07b 61afef c678dd 56b6c2 ef596f 89ca78 e5c07b 61afef d55fde 2bbac5 d19a66 f0a1b0 3fb3a8 b5e07a a06ad6 e88a78 d8b567 7ec8f0 7c8ff0 8ee3c7 f0b088 c8a2f0'
-export _HI_HEADER_ORDER='utc version localtime os arch cores cpu ram ip gitid containers jobs pods auth pub uptime'
+export _HI_HEADER_ORDER='gitid containers jobs pods auth pub uptime'
+EOF
+  # the boxes' login shell is fish, and this config.fish is sourced after hi's,
+  # so the prompt below replaces hi's fish_prompt while reusing the colors hi
+  # resolved for user and host (docs/SETTINGS.md, "Your own prompt") - the
+  # tagged red and green still land, in someone else's prompt
+  demo_overlay config.fish <<'EOF'
+# ~/.config/say-hi/config.fish - a prompt of my own, on hi's colors
+function fish_prompt
+  printf '%s%s%s@%s%s%s %s%s%s\n> ' (set_color $fish_color_user) $USER (set_color normal) \
+    (set_color $fish_color_host) (prompt_hostname) (set_color normal) \
+    (set_color cyan) (prompt_pwd) (set_color normal)
+end
 EOF
   up_colors
   ;;

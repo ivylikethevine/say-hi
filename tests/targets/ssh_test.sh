@@ -25,7 +25,7 @@ source "${_HI_TEST_LIB:-${BASH_SOURCE[0]%/*}/../test_lib.sh}"
 _HI_ALPINE_OK=""
 
 function _hi_run_interactive_case() {
-  local label="$1" image="$2" login_shell="$3" post="${4:-}" name ok=0
+  local label="$1" image="$2" login_shell="$3" post="${4:-}" feeder="${5:-}" name ok=0
   local _HI_SSH_PORT=""
 
   name="hi-sshtest-$label-$$"
@@ -34,7 +34,7 @@ function _hi_run_interactive_case() {
   _hi_sshd_container "$name" "$image" -e "LOGIN_SHELL=$login_shell" || return 1
   _hi_ssh_launch "$_HI_SSH_PORT"
 
-  if _hi_interactive_case "$label" "ssh path" "$_HI_TEST_MARKER" 90 "${_HI_SSH_LAUNCH_BARE[@]}"; then
+  if _hi_interactive_case ${feeder:+-f "$feeder"} "$label" "ssh path" "$_HI_TEST_MARKER" 90 "${_HI_SSH_LAUNCH_BARE[@]}"; then
     ok=1
     _hi_post_check "$label" "$name" "$post" || ok=0
   fi
@@ -56,6 +56,24 @@ function _hi_forced_session_is_the_hosts() {
   fi
   _hi_h3 " | [$label] -- FAILED: hi's command ran on a forced-command host" "$RED"
   _hi_note_failure "[$label] forced command not detected"
+  return 1
+}
+
+# A target whose own say-hi is wired into its rc files, read back after the
+# batch: exactly one header - ours, not that install greeting from the ~/.profile
+# -> ~/.bashrc chain load.sh restores - and a session running out of the tree
+# it shipped rather than the one those rc lines point at. The feeder's line is
+# assembled by the shell, so the echoed input cannot satisfy the grep.
+function _hi_print_root() { printf "printf '%%s-%%s\\\\n' ROOT \"\$_HI_ROOT\"\n"; }
+function _hi_installed_session_is_ours() {
+  local label="$1" file="$2" install="$3"
+  if [ -f "$file" ] && [ "$(grep -c Connected "$file")" = 1 ] && ! grep -q Online "$file" &&
+    grep -q "ROOT-/" "$file" && ! grep -qF "ROOT-$install" "$file"; then
+    _hi_align " | [$label] -- one header, and the session runs the shipped tree" "OK" "$GREEN"
+    return 0
+  fi
+  _hi_h3 " | [$label] -- FAILED: the target's own install greeted or ran the session" "$RED"
+  _hi_note_failure "[$label] installed target leaked into the session"
   return 1
 }
 
@@ -266,6 +284,11 @@ function run_ssh_tests() {
     _hi_par_case installed-nested _hi_ssh_run_case installed-nested "hi-sshtest-debian-nested-$$" /bin/bash \
       "$(_hi_probe_cmd "$_HI_TEST_MARKER" rooted_elsewhere /home/hitest/opt/nested/say-hi)" \
       'test -f /home/hitest/opt/nested/say-hi/.installed_sentinel'
+    # the nested image's install.sh wired ~/.bashrc, which a login's ~/.profile
+    # sources - see _hi_installed_session_is_ours
+    _hi_par_case installed-nested-interactive _hi_run_interactive_case installed-nested-interactive \
+      "hi-sshtest-debian-nested-$$" /bin/bash \
+      'test -f /home/hitest/opt/nested/say-hi/.installed_sentinel' _hi_print_root
   fi
 
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then
@@ -276,6 +299,10 @@ function run_ssh_tests() {
   fi
 
   _hi_par_wait
+
+  [ "$_HI_NESTED_OK" -ne 1 ] ||
+    _hi_case _hi_installed_session_is_ours installed-nested-interactive \
+      "$_HI_WORKDIR/installed-nested-interactive.interactive.out" /home/hitest/opt/nested/say-hi
 
   # the forced-command cases' other half - see _hi_forced_session_is_the_hosts
   if [ "$_HI_DEBIAN_OK" -eq 1 ]; then

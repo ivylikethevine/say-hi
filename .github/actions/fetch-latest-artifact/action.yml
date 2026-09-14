@@ -34,7 +34,7 @@ inputs:
     required: false
     default: ""
   branch:
-    description: "branch to scope the search to; empty means any ref - for a producer whose runs never land on main (demos.yml is tag-only, so its head_branch is the tag)"
+    description: "branch to scope the search to; empty means any ref - for a producer whose runs never land on main (release.yml dispatches demos.yml at the tag, so its head_branch is the tag)"
     required: false
     default: "main"
 

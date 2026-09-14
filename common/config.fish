@@ -37,6 +37,23 @@ if test -f $_HI_CONFIG_DIR/settings.sh
 end
 source $_HI_HOME/say-hi/common/paths.sh
 source $_HI_ALIASES
+# core.sh's _hi_load_plugins, in fish: each plugins.d member in name order,
+# skipped loudly when fish cannot parse it, its $_HI_SEGMENT collected.
+# GLOSSARY: HI.59
+set -g _hi_segments
+for __hi_f in $_HI_PLUGINS_D/*
+  set -l __hi_n (string replace -r '.*/' '' -- $__hi_f)
+  test -f $__hi_f; and string match -qr '^[A-Za-z0-9][A-Za-z0-9_.-]*$' -- $__hi_n
+  and not string match -qr '\.(bak|orig|rej|tmp)$' -- $__hi_n; or continue
+  if not command fish --no-config -n $__hi_f 2>/dev/null
+    echo -s (set_color yellow) "hi: plugin $__hi_n does not parse in fish; skipped" (set_color normal) >&2
+    continue
+  end
+  set -e _HI_SEGMENT
+  source $__hi_f
+  test -n "$_HI_SEGMENT"; and set -ga _hi_segments $_HI_SEGMENT
+end
+set -e _HI_SEGMENT __hi_f
 
 # core.sh's _HI_CHILD_ENV and _HI_SESSION_VARS, mirrored (fish cannot read a
 # bash array); exports_test.sh pins both. The first is what a child inherits
@@ -249,6 +266,13 @@ if test "$_HI_DISABLE_PROMPT" != 1
       echo -n "($out) "
     end
 
+    function __hi_segments --description 'each plugin segment, run per draw'
+      for c in $_hi_segments
+        set -l o (eval $c 2>/dev/null)
+        test -n "$o"; and echo -n "$o "
+      end
+    end
+
     function prompt_login --description "display user name for the prompt"
       if not set -q __fish_machine
         set -g __fish_machine ""
@@ -264,7 +288,7 @@ if test "$_HI_DISABLE_PROMPT" != 1
       # every prompt outside a venv, conda, or direnv - the leading space would
       # go with it. `echo -ns` joins its arguments with no separator.
       echo -ns (set_color yellow) "$__fish_machine" \
-        (set_color brcyan) "$lead" (__hi_env_prompt) \
+        (set_color brcyan) "$lead" (__hi_env_prompt) (__hi_segments) \
         (set_color $fish_color_user) "$USER" \
         (set_color $color_at) @ \
         (set_color $fish_color_host) (prompt_hostname) (set_color normal)

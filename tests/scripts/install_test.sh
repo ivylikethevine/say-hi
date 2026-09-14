@@ -371,6 +371,17 @@ function test_uninstall_purge_removes_the_overlay() {
   [ "$rc" -eq 0 ] && [[ "$out" == *"no $home/.config/say-hi to remove"* ]]
 }
 
+# a purge that cannot delete everything says so, rather than "removed"
+function test_uninstall_purge_says_when_it_cannot_remove() {
+  local dir="$_HI_WORKDIR/purge-locked" out
+  mkdir -p "$dir/say-hi/locked"
+  printf 'x\n' >"$dir/say-hi/locked/colors"
+  chmod 555 "$dir/say-hi/locked"
+  out="$(_HI_CONFIG_DIR="$dir/say-hi" purge_overlay)"
+  chmod 755 "$dir/say-hi/locked"
+  [[ "$out" == *"couldn't remove all of it"* && "$out" != *"removed"* ]] && [ -d "$dir/say-hi" ]
+}
+
 # ...and --purge is --uninstall's alone
 function test_purge_is_refused_outside_uninstall() {
   local out rc=0
@@ -1002,6 +1013,7 @@ function run_install_tests() {
   _hi_check "A full install copies no default in" test_install_copies_no_default_into_the_overlay
   _hi_check "--uninstall is safe on a fresh home" test_uninstall_mode_is_safe_on_a_fresh_home
   _hi_check "--uninstall --purge removes the overlay, dry-run keeps it" test_uninstall_purge_removes_the_overlay
+  _hi_check_capable lockout "...and says when it cannot" test_uninstall_purge_says_when_it_cannot_remove
   _hi_check "--purge is refused outside --uninstall" test_purge_is_refused_outside_uninstall
   _hi_check "--configure writes settings and no rc" test_features_only_writes_settings_and_no_rc
   _hi_check "--preset=<stranger> is refused before anything is written" test_a_stranger_preset_is_refused_before_anything_is_written

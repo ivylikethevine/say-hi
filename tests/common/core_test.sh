@@ -256,6 +256,18 @@ function test_ramp_ok_takes_eight_color_names() {
   ! _hi_ramp_ok "cyan;green brcyan brgreen blue magenta bryellow brred"
 }
 
+# a .d directory's allow list (HI.58): plain names ride, and a dotfile, a
+# backup, an editor's leftovers, or a name no shell word could be never do
+function test_dir_member_ok_takes_plain_names_only() {
+  local n
+  for n in 10-lang lang box_2 init.fish A1; do
+    _hi_dir_member_ok "$n" || return 1
+  done
+  for n in '' .10-lang.swp 10-lang~ 10-lang.bak x.orig x.rej x.tmp -x '10 lang' 'a*'; do
+    ! _hi_dir_member_ok "$n" || return 1
+  done
+}
+
 # ...and the label the previews and hi --doctor print for it, the three
 # shapes _hi_scheme_label prints for a scheme
 function test_ramp_label_names_every_shape() {
@@ -1181,6 +1193,7 @@ function run_core_tests() {
   _hi_check "_hi_scheme_ok takes only lists" test_scheme_ok_takes_names_and_lists
   _hi_check "_hi_scheme_label names every shape" test_scheme_label_names_every_shape
   _hi_check "_hi_ramp_ok takes eight color names" test_ramp_ok_takes_eight_color_names
+  _hi_check "_hi_dir_member_ok takes plain names only" test_dir_member_ok_takes_plain_names_only
   _hi_check "_hi_ramp_label names every shape" test_ramp_label_names_every_shape
 
   _hi_h2 "Testing: _hi_cecho"

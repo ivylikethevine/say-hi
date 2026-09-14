@@ -255,6 +255,49 @@ function _hi_color_base() {
   printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
 }
 
+# _hi_dir_member_ok <name> - whether a file in an overlay `.d` directory is a
+# member: a plain name, never a dotfile, a backup, or a swap file, so the
+# directory stays an allow list like the roster naming it. GLOSSARY: HI.58
+function _hi_dir_member_ok() {
+  case "$1" in
+  '' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]* | *.bak | *.orig | *.rej | *.tmp) return 1 ;;
+  esac
+}
+
+# _hi_plugin_files - $_HI_PLUGINS_D's entries into $_hi_pl, in name order. Its
+# own function so zsh's null_glob stays local: set in the loader, local_options
+# would also undo every setopt a plugin makes.
+function _hi_plugin_files() {
+  [ -z "${ZSH_VERSION:-}" ] || setopt local_options null_glob
+  _hi_pl=("$_HI_PLUGINS_D"/*)
+}
+
+# _hi_load_plugins - source each plugins.d member once the aliases are built
+# and before the prompt is. One this shell cannot parse is skipped with a line
+# on stderr rather than half-run; one that sets $_HI_SEGMENT adds that command
+# to $_hi_segments, which the prompt runs per draw. Prefixed locals: a
+# plugin's own `f=` would otherwise land in them. GLOSSARY: HI.59
+function _hi_load_plugins() {
+  local _hi_pl_f _hi_pl_sh="${BASH:-bash}"
+  local -a _hi_pl=()
+  [ -z "${ZSH_VERSION:-}" ] || _hi_pl_sh=zsh
+  _hi_segments=()
+  _hi_plugin_files
+  for _hi_pl_f in ${_hi_pl[@]+"${_hi_pl[@]}"}; do
+    { [ -f "$_hi_pl_f" ] && _hi_dir_member_ok "${_hi_pl_f##*/}"; } || continue
+    "$_hi_pl_sh" -n "$_hi_pl_f" 2>/dev/null || {
+      _hi_cecho "hi: plugin ${_hi_pl_f##*/} does not parse in ${_hi_pl_sh##*/}; skipped" "${YELLOW:-}" >&2
+      continue
+    }
+    unset _HI_SEGMENT
+    # shellcheck source=/dev/null
+    source "$_hi_pl_f"
+    [ -z "${_HI_SEGMENT:-}" ] || _hi_segments+=("$_HI_SEGMENT")
+  done
+  unset _HI_SEGMENT
+  return 0
+}
+
 # _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words,
 # the shape $_HI_PACKAGES_PALETTE takes (header.sh reads it per render,
 # scripts/lib.sh's _hi_ramp_label reports it, so both judge by this one

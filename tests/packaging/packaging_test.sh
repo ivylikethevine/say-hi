@@ -30,6 +30,7 @@ _HI_PKGBUILD_GIT="$_HI_PKG_DIR/aur/say-hi-git/PKGBUILD"
 _HI_RELEASE_WF="$_HI_ROOT/.github/workflows/release.yml"
 _HI_PUBLISH_EXTERNAL_WF="$_HI_ROOT/.github/workflows/publish-external.yml"
 _HI_PAGES_WF="$_HI_ROOT/.github/workflows/pages.yml"
+_HI_DEMOS_WF="$_HI_ROOT/.github/workflows/demos.yml"
 _HI_CI_WF="$_HI_ROOT/.github/workflows/ci.yml"
 _HI_PR_TEMPLATE="$_HI_ROOT/.github/pull_request_template.md"
 _HI_MKREPO="$_HI_PKG_DIR/mkrepo.sh"
@@ -522,6 +523,67 @@ function test_release_workflow_opens_the_tap_pr_after_brew() {
     [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
     [[ "$job" == *"gh pr create"* ]] &&
     [[ "$job" != *"environment:"* ]]
+}
+
+# The release page says where the formula went and shows the thing running:
+# publish lays out a `tap` and a `demo` slot and dispatches demos.yml at the
+# tag; the tap job links its PR into one and demos.yml's attach job embeds the
+# uploaded GIF in the other, each under the GITHUB_TOKEN with contents: write
+# and in the one concurrency group, so the two writers never interleave. No
+# tag trigger of demos.yml's own: that run would race the release it attaches to.
+function test_release_body_links_the_tap_pr_and_embeds_the_demo() {
+  # shellcheck disable=SC2016 # the workflows' own literals, expanded there
+  local publish tap attach group='group: release-body-${{ github.ref_name }}'
+  publish="$(_hi_wf_job "$_HI_RELEASE_WF" publish)"
+  tap="$(_hi_wf_job "$_HI_RELEASE_WF" tap)"
+  attach="$(_hi_wf_job "$_HI_DEMOS_WF" attach)"
+  [[ "$publish" == *'"<!-- hi:demo -->"'* && "$publish" == *'"<!-- hi:tap -->"'* ]] || return 1
+  # shellcheck disable=SC2016 # likewise
+  [[ "$publish" == *'gh workflow run demos.yml --ref "$GITHUB_REF_NAME"'* ]] || return 1
+  # shellcheck disable=SC2016 # likewise
+  [[ "$tap" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap'* && "$tap" == *"contents: write"* &&
+    "$tap" == *"$group"* && "$tap" == *"GH_TOKEN: \${{ github.token }}"* ]] || return 1
+  # shellcheck disable=SC2016 # likewise
+  [[ "$attach" == *"github.ref_type == 'tag'"* && "$attach" == *"needs.collect.result == 'success'"* &&
+    "$attach" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo'* && "$attach" == *"--clobber"* &&
+    "$attach" == *'releases/download/$TAG/demo.gif'* && "$attach" == *"contents: write"* &&
+    "$attach" == *"$group"* ]] || return 1
+  ! sed -n '/^on:/,/^[a-z]/p' "$_HI_DEMOS_WF" | grep -qE '^  push:'
+}
+
+function _hi_release_slot() {
+  bash "$_HI_ROOT/.github/scripts/release_slot.sh" "$@"
+}
+
+# a fill replaces its own marker's line and keeps the marker (so a re-run
+# replaces it again), leaves the other slot alone, and appends to a body that
+# has no marker at all; the markdown reaches the body verbatim
+function test_release_slot_fills_only_its_own_line() {
+  local body=$'badges\n<!-- hi:demo -->\n- apk\n<!-- hi:tap -->' once twice
+  # shellcheck disable=SC2016 # markdown, not substitution
+  once="$(printf '%s\n' "$body" | _hi_release_slot --fill tap '- Homebrew: `brew` ([PR](u1)) \n $x')"
+  [ "$once" = $'badges\n<!-- hi:demo -->\n- apk\n- Homebrew: `brew` ([PR](u1)) \\n $x <!-- hi:tap -->' ] || return 1
+  twice="$(printf '%s\n' "$once" | _hi_release_slot --fill tap '- Homebrew: ([PR](u2))')"
+  [ "$twice" = $'badges\n<!-- hi:demo -->\n- apk\n- Homebrew: ([PR](u2)) <!-- hi:tap -->' ] || return 1
+  [ "$(printf 'old body\n' | _hi_release_slot --fill demo '![d](g)')" = $'old body\n\n![d](g) <!-- hi:demo -->' ]
+}
+
+# the network mode, against a stand-in gh: the body it reads is the body it
+# writes back, filled, to the same tag and repo
+function test_release_slot_writes_the_body_back_through_gh() {
+  local dir="$_HI_WORKDIR/relslot"
+  mkdir -p "$dir/bin"
+  cat >"$dir/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2 $3 $4 $5" in
+"release view v1.2.3 --repo o/r") printf 'top\n<!-- hi:demo -->\nend\n' ;;
+"release edit v1.2.3 --repo o/r") cp "$7" "$HI_SLOT_OUT" ;;
+*) exit 1 ;;
+esac
+EOF
+  chmod +x "$dir/bin/gh"
+  HI_SLOT_OUT="$dir/out" PATH="$dir/bin:$PATH" _hi_release_slot o/r v1.2.3 demo '![d](g)' || return 1
+  [ "$(cat "$dir/out")" = $'top\n![d](g) <!-- hi:demo -->\nend' ]
 }
 
 # each job's manifest comes off the release itself, never a same-run build
@@ -2385,6 +2447,9 @@ function run_packaging_tests() {
   _hi_check "...and skips a prerelease tag" test_prerelease_tags_reach_no_external_channel
   _hi_check "...reading its manifest off the release" test_publish_external_reads_manifests_from_the_release
   _hi_check "release.yml opens the tap PR after brew passes" test_release_workflow_opens_the_tap_pr_after_brew
+  _hi_check "The release body links the tap PR and embeds the demo" test_release_body_links_the_tap_pr_and_embeds_the_demo
+  _hi_check "release_slot.sh fills only its own line" test_release_slot_fills_only_its_own_line
+  _hi_check "release_slot.sh writes the body back through gh" test_release_slot_writes_the_body_back_through_gh
 
   _hi_h2 "Testing: mkpkg.sh / bump.sh"
   _hi_check "mkpkg.sh takes its version from the PKGBUILD" test_package_sh_reads_the_version_from_the_pkgbuild

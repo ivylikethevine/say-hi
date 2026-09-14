@@ -100,6 +100,8 @@ exactly as a connect will print it.
 Takes no arguments. Reads:
   settings/packages      the [-|+]package:priority lines (the overlay's
                      ~/.config/say-hi/packages wins when present)
+  ~/.config/say-hi/packages.d/   groups checked after it, each in its own
+                     color= - a GROUP table lists them when there are any
   common/header.sh   the priority meanings and their two color tables
   \$_HI_PACKAGES_PALETTE   the ramp in force - unset for the shipped one, or
                      eight color names of your own - printed above the legend
@@ -803,6 +805,50 @@ function _hi_print_pair_table() {
   _hi_hbar bottom "$w1" "$w2"
 }
 
+# the groups (GLOSSARY: HI.58), in the order full_check paints them: each
+# one's name, file, rows, and color - the color cell painted in the group's
+# own loudest installed slot, so a color that reads badly shows it here.
+# Fails, printing nothing, without a packages.d member: a single file is the
+# legend above.
+function _hi_print_groups_table() {
+  local -a files=() c_name=() c_color=() c_esc=() c_rows=()
+  local f g c ramp label n line i=0 w_group=5 w_file=4 w_color=5 w_rows=4
+  _hi_package_files files
+  ((${#files[@]} > 1)) || return 1
+  for f in "${files[@]}"; do
+    _hi_group_name g "$f"
+    ((i)) || g=packages
+    _hi_group_color c "$f"
+    _hi_group_ramp ramp "$c" || true
+    _hi_packages_palette "$ramp"
+    _hi_group_label label "$c"
+    c_color[i]="$label"
+    c_esc[i]="${_HI_YES[3]}"
+    n=0
+    while IFS=$' ' read -r line; do
+      [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] || n=$((n + 1))
+    done <"$f"
+    c_name[i]="$g" c_rows[i]="$n"
+    _hi_widen w_group "$g"
+    _hi_widen w_file "${f##*/}"
+    _hi_widen w_color "${c_color[i]}"
+    i=$((i + 1))
+  done
+  _hi_packages_palette
+
+  _hi_hbar top "$w_group" "$w_file" "$w_rows" "$w_color"
+  _hi_head_row "$w_group" GROUP "$w_file" FILE "$w_rows" ROWS "$w_color" COLOR
+  _hi_hbar mid "$w_group" "$w_file" "$w_rows" "$w_color"
+  for ((i = 0; i < ${#files[@]}; i++)); do
+    _hi_cell "$w_group" "" "${c_name[i]}"
+    _hi_cell "$w_file" "" "${files[i]##*/}"
+    _hi_cell "$w_rows" "" "${c_rows[i]}"
+    _hi_cell "$w_color" "${c_esc[i]}" "${c_color[i]}"
+    _hi_row_end
+  done
+  _hi_hbar bottom "$w_group" "$w_file" "$w_rows" "$w_color"
+}
+
 function _hi_print_marks_table() {
   _hi_print_pair_table MARK MEANS raw \
     "$GREEN$_HI_MARK_OK|installed, under the first name the line lists" \
@@ -854,6 +900,7 @@ packages)
   _hi_collect_examples
   _hi_print_priorities_table
   printf '\n'
+  ! _hi_print_groups_table || printf '\n'
   _hi_print_marks_table
   printf '\n'
   _hi_print_modes_table

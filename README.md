@@ -76,8 +76,9 @@ pager's description column.
 
 ### The Header Tells You What's Missing
 
-A `packages` overlay of the tools you care about, each with a priority; the
-header reads it on every target — one quiet line on a box that has them, a
+A `packages` overlay of the tools you care about, each with a priority (and a
+`packages.d/` of named groups, each in a color of its own, when one ramp is
+not enough); the header reads it on every target — one quiet line on a box that has them, a
 loud one on a box that does not. A homelab: bash from a laptop into the nas
 and the pihole, with the distro prompt this person already had — hi's is off
 (`_HI_DISABLE_PROMPT=1`), and the header, the check, and the aliases ride
@@ -111,8 +112,8 @@ hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --preview colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
-ssh hosts with their own two-line fish prompt, drawn on the colors hi
-resolved.
+fish ssh hosts, with a two-line fish prompt of their own riding the overlay,
+drawn on the colors hi resolved.
 
 ![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
@@ -155,6 +156,9 @@ everything weighed and answered **no**, and why.
   targets. `bash` gets the full experience; without it you land in the best
   shell the target has, with a smaller session
   ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
+- **A slow link**: the ssh wire stays at or under 128 KB, which is 8 s over a
+  128 kbps link to a resource-starved target. Today's payload (the badge
+  above) is about half that.
 - **fish 3.7+** (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) are the
   floors for the other two shells hi styles.
 - **bash 3.2** is the floor on both ends (macOS still ships it); what that
@@ -332,105 +336,33 @@ or descoped, and finished entries are deleted rather than ticked.
 
 In this checkout, and not what the tag waits on either.
 
-1. [ ] **A config that sources a file hi does not carry is caught before it
-       travels** — the four editor rcs ship this way now: hi carries the
-       config each editor already reads on this machine, `hi.sh`'s
-       `_hi_lint_awk` reads all four dialects for the lines naming a path no
-       target has, the packer comments them out on the way and `hi --doctor`
-       names each one, `_HI_EDITOR_INCLUDES=keep` sends them as written
-       ([HI.57](docs/GLOSSARY.md#hi57-editor-config-resolution)). The sh half
-       is still open: an overlay `aliases.sh`, `bash.sh`, `zsh.zsh`, or
-       `config.fish` that sources a path off this machine breaks on the first
-       target the same way, and nothing reads it. **Do:** give the same pass a
-       `.`/`source` dialect, resolve those against what actually rides the
-       overlay, and report them beside the editors'. **Ticks when:**
-       `hi --doctor` names an unresolvable source in a shell overlay file, the
-       session still starts cleanly, and a suite pins both.
+1. [ ] **A release says where the package went, and shows what changed** —
+       shipped: `publish` leaves `tap` and `demo` slots in the release body and
+       dispatches `demos.yml` at the tag; the `tap` job links its PR (or the
+       tap's formula, when already current) into one, and `demos.yml`'s
+       `attach` job uploads the `packages` GIF as `demo.gif` and embeds it in
+       the other (`.github/scripts/release_slot.sh`); the packaging suite pins
+       both. **Ticks when:** the next real tag's release page shows the tap
+       link and renders the GIF.
 
-2. [ ] **Someone else's feature can ride along without patching the tree** —
-       the overlay carries files hi already knows the names of, so anything
-       new (a prompt segment, another tool's init, a per-target hook) means
-       editing `common/` and losing it on the next `hi --update`. **Do:**
-       define an extension point — a `~/.config/say-hi/plugins/` of drop-in
-       files, each an `#!/bin/sh` in the POSIX+fish subset, sourced in a
-       stated order at a stated moment (after aliases, before the prompt is
-       built), with a documented set of hook names and the same overlay
-       stream carrying them to every target; `hi --doctor` lists what loaded,
-       and a plugin that fails to parse is skipped loudly rather than
-       breaking the session. **Ticks when:** a plugin of a few lines adds a
-       prompt segment on a target with no change to the tree, the payload
-       budget still holds, and a suite pins the load order, the skip, and the
-       doctor rows.
+2. [ ] **A tmux config rides along** — `--mux` runs tmux on this machine, and
+       a tmux started on a target reads the target's own `~/.tmux.conf` or
+       none. **Do:** carry the `tmux.conf` tmux reads here (`~/.tmux.conf`,
+       else `$XDG_CONFIG_HOME/tmux/tmux.conf`, overlay copy wins) as an overlay
+       member resolved in `common/paths.sh` like the editor rcs, alias `tmux`
+       to `tmux -f` it, and give `_hi_lint_awk` a tmux dialect
+       (`source-file`, TPM's `@plugin` and `run`). **Ticks when:** a tmux on
+       a target starts with the client's config, `hi --doctor` names a
+       `source-file` no target has, and a suite pins both.
 
-3. [ ] **The check groups by what you care about, not only by how loud it is**
-       — one `packages` file carries every tool and the header paints it from a
-       single eight-color ramp keyed on priority (`_HI_PACKAGES_PALETTE`), so
-       "my language toolchain" and "the box's own package manager" can only be
-       told apart by rank. **Do:** let the overlay carry more than one packages
-       file — a `packages.d/` of named members, or named groups inside one —
-       each group named, ordered, and given a color of its own (a palette entry
-       or a scheme word), with `_HI_PACKAGES_MIN_PRIORITY` still the depth dial;
-       `hi --preview packages` renders the groups and their colors, and
-       `hi --doctor` names a group nothing paints. A directory member would be
-       `$_HI_OVERLAY_FILES`' first, which is the same thing the plugins entry
-       above needs, so solve it once. **Ticks when:** two overlay groups render
-       in their own colors on one target, a single-file overlay is byte for
-       byte what it is today, and a suite pins the grouping, the colors, and
-       what the extra members cost the payload.
-
-4. [ ] **A denser armor than base64** — the ssh transport base64-armors the
-       payload (GLOSSARY: HI.17) because it has to survive a login shell's
-       quoting, and that is a flat third of the wire on every connect.
-       Measured, the ceiling here is low: **Z85 is the only denser encoding
-       that ships as a base tool anywhere** (`basenc`, GNU coreutils 8.31+)
-       and the only one whose alphabet survives the shell — Ascii85 carries
-       `"`, `'`, `\` and a backtick, and nothing ships base91 or base122.
-       Z85 is worth about 7% of the wire, needs `echo '...'` rather than
-       `echo "..."` (its alphabet does carry `$`), needs the payload padded
-       to a multiple of 4, and only pays where **both** ends have coreutils
-       8.31+ — not Alpine, macOS, either BSD, or Ubuntu 20.04. **Do:** decide
-       whether 7% is worth a second encoder and a negotiation, given the entry
-       below moves four times as much. **Ticks when:** it ships behind the
-       same capability word, or the entry is deleted as not worth it.
-
-5. [ ] **A session sends the bytes, not a picture of them** — two levers on
-       the same wire, both blocked on the same missing thing: the client has
-       to know what the target can do before it sends. The boot probe already
-       makes that round trip (`_hi_boot_probe`, GLOSSARY: HI.19) and reports
-       only its scratch directory, so a capability word costs nothing.
-       **(a) The payload need not be armored at all.** The container, nomad,
-       and kube arms already stream the raw gzipped tar through `exec -i`
-       stdin; only ssh encodes, because the tar rides *inside* the script.
-       Raw, the wire drops from about 62 KB to 47 KB — and a target stops
-       needing `base64`/`openssl` for it, which is a support-matrix change,
-       not a size one. Three ways in, each with a measured catch: frame the
-       script and the bytes on one stdin (busybox's `head -c` over-reads a
-       pipe and eats the tail; `dd bs=1` is byte-exact everywhere but costs
-       ~220 ms on busybox), put the payload on the first call's stdin and the
-       script on the second call's argv (no framing, but 4.7 KB of argv where
-       HI.19 deliberately has none), or open a third call on the ControlMaster
-       (no framing, one extra round trip on an authenticated connection).
-       **(b) gzip is not the densest thing a target can read.** `xz -6` is 12%
-       under gzip on this payload and busybox decodes it in 7 ms; the
-       dictionary is the constraint rather than the CPU, so -6 (8 MiB) is the
-       ceiling and -9 (64 MiB) is out for a small router. Availability is the
-       other way round from the guess: **busybox and Fedora decode xz, while
-       `debian:bookworm-slim` and `ubuntu:24.04` can decode neither xz nor
-       bzip2**, so gzip stays the floor. zstd is absent nearly everywhere and
-       brotli has no CLI at all. **Ticks when:** the probe reports what the
-       target can do, a target that reports nothing still connects on
-       gzip-and-base64, the README badge falls by the measured amount, and the
-       e2e suites pass on every backend including a busybox target.
-
-6. [ ] **A release says where the package went, and shows what changed** — the
-       release body carries the notes and the checksums, but the Homebrew tap
-       PR that `publish-external.yml` opens is only visible to whoever watches
-       that repo, and nothing on the page shows the thing running. **Do:**
-       have the publish job write the tap PR (or the tap repo, where the PR is
-       already merged) into the release body as a link, and attach a demo gif
-       built the way `docs/tapes/` builds the README's. **Ticks when:** a tag
-       produces a release whose body links the tap PR and renders the gif, and
-       the packaging suite pins both.
+3. [ ] **A micro config rides along** — micro is only styled through
+       `_HI_MICRO_OPTS`; its `settings.json`, `bindings.json`, and `init.lua`
+       stay behind, and micro takes a config *directory*. **Do:** carry those
+       files from micro's config directory here as overlay members, point
+       micro's `-config-dir` at them on the target, and lint `init.lua`
+       for plugin loads. **Ticks when:** micro on a target opens with the
+       client's settings and bindings, the payload budget still holds, and a
+       suite pins it.
 
 ### Post 1.0
 
@@ -455,3 +387,12 @@ an upstream review that lands when it lands.
        `good first issue` (`small_tasks`); confirm `secure_2FA` is
        TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.
        **Ticks when:** the live entry matches the sheet.
+
+4. [ ] **vhs v0.12** — `demos.yml` pins vhs v0.11.0 because v0.12.0 writes no
+       output: it captures every frame and prints `Creating <file>.gif...`,
+       then exits 0 having never run ffmpeg (strace: it resolves
+       `/usr/bin/ffmpeg` and never execs it; the same frames encode fine by
+       hand). Suspect: upstream's browser start/close rewrite (42f1776). No
+       upstream issue or newer release as of 2026-09-14. **Do:** report it
+       upstream with that evidence. **Ticks when:** a v0.12.x release renders
+       all six tapes green on a `demos.yml` dispatch and the pin moves to it.
