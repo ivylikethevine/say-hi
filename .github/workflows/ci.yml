@@ -1,13 +1,9 @@
 name: CI
 
 on:
-  # No suite does work on a draft: `changes` skips and every job below skips
-  # with it, except `test` and `e2e-checks` - matrix jobs, whose skipped
-  # entries GitHub never names, so a required check like
-  # `fast suites (ubuntu-latest)` would sit at Expected forever. Those two
-  # start anyway and no-op internally so each matrix entry still reports.
-  # ready_for_review is not in the default type set, so it is named here, or
-  # a draft marked ready would never get its run.
+  # Nothing runs on a draft: `changes` skips and every job below skips with
+  # it. ready_for_review is not in the default type set, so it is named here,
+  # or a draft marked ready would never get its run.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
@@ -39,22 +35,18 @@ jobs:
   # or the filter cleanly reporting no code changes are the only ways to
   # 'false'; a schedule or dispatch (the filter step's own `if` skips it) and
   # a failed lookup both leave it 'true', so change detection breaking is
-  # never read as "assume nothing changed". On a draft `changes` itself skips,
-  # so `code` reads empty (never 'true') and every job gating on it plainly
-  # skips too - `test` is the one exception, reading the same emptiness
-  # through a step-level flag instead of a job-level skip; see its comment.
-  # `outputs.trusted` is the other flag: a push, or a pull_request from this
-  # repository - read by test-macos's loopback, e2e-gate, and
-  # e2e-windows-client. The three e2e-* reusable-workflow jobs gate on
-  # `needs.e2e-gate.outputs.ok` instead, which is empty when that job skips.
-  # The `!cancelled()` jobs below name the draft clause themselves, since
-  # `!cancelled()` runs past a skipped need.
+  # never read as "assume nothing changed". `outputs.trusted` is the other
+  # flag: a push, or a pull_request from this repository - read by
+  # test-macos's loopback, e2e-gate, and e2e-windows-client. The three e2e-*
+  # reusable-workflow jobs gate on `needs.e2e-gate.outputs.ok` instead, which
+  # is empty when that job skips. The `!cancelled()` jobs below name the
+  # draft clause themselves, since `!cancelled()` runs past a skipped need.
   #
-  # Whether anything besides workflow YAML or markdown changed: test,
-  # test-macos, test-alpine, profile, packaging-smoke, e2e, and e2e-backends
-  # skip on a workflow-only or docs-only diff. workflow-lint and advisory-lint
-  # are exempt - such a change is what they audit - and so are lint and
-  # bench: drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md,
+  # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
+  # test-arm, test-macos, test-alpine, profile, packaging-smoke, e2e, and
+  # e2e-backends skip on a workflow-only or docs-only diff. workflow-lint and
+  # advisory-lint are exempt - such a change is what they audit - and so are
+  # lint and bench: drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md,
   # bench_test.sh README.md's payload badge, and both are cheap (~40s); they
   # read `reuse-run` only, never `code`.
   #
@@ -150,57 +142,63 @@ jobs:
           [ -z "$REUSE_RUN" ] || code=false
           echo "code=$code" >>"$GITHUB_OUTPUT"
 
-  # ubuntu-24.04-arm (free on a public repo) runs the same suites on arm64,
-  # so an x86-only assumption - the header's uname -m and CPU cells, a probe
-  # that only knows one arch - fails here rather than on someone's Pi. A red
-  # arm64 entry holds e2e-gate like a red ubuntu-latest one.
-  test:
-    name: fast suites (${{ matrix.os }})
+  # Two plain jobs, not a matrix: a matrix job's skipped entries go unnamed -
+  # GitHub reports one skip against the job id, not per `matrix.os` - so a
+  # draft or workflow/docs-only diff left `fast suites (ubuntu-latest)`,
+  # required by branch protection, sitting at Expected forever instead of
+  # showing skipped. Each of these is its own job, so a skip reports under
+  # its own name like test-macos's or test-alpine's does. ubuntu-24.04-arm
+  # (free on a public repo) runs the same suites on arm64, so an x86-only
+  # assumption - the header's uname -m and CPU cells, a probe that only knows
+  # one arch - fails here rather than on someone's Pi. A red arm64 entry
+  # holds e2e-gate like a red ubuntu-latest one.
+  test-ubuntu:
+    name: fast suites (ubuntu-latest)
     needs: changes
-    # Starts even on a draft or a workflow/docs-only diff, unlike every other
-    # code-gated job: it is a matrix job, and GitHub names none of a skipped
-    # matrix job's entries, so `fast suites (ubuntu-latest)` - required by
-    # branch protection - would sit at Expected forever. RUN below carries the
-    # job-level check this replaced; a draft (`changes` skipped, `code` empty)
-    # or a workflow/docs-only diff (`code` = false) both read RUN=false and
-    # every step no-ops, so the matrix still reports, cheaply, per entry.
-    if: ${{ !cancelled() }}
-    runs-on: ${{ matrix.os }}
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      RUN: ${{ needs.changes.result == 'failure' || needs.changes.outputs.code == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
-      - if: env.RUN == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - if: env.RUN == 'true'
-        uses: $/.github/actions/setup-shells
+      - uses: $/.github/actions/setup-shells
 
       # No --verbose: the runner then fans suites out to the core count
       # instead of width 1 for live streaming. A passing transcript still
       # folds into a ::group:: and a failing one replays in full with an
       # ::error annotation - only the live stream is lost.
-      - if: env.RUN == 'true'
-        name: Run fast test suites
+      - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast --totals-file ${{ runner.temp }}/totals"
 
       # The tests badge's number: pages.yml reads this artifact and publishes it
       # as a shields endpoint, so the figure stays generated with no bot commit
-      # on main and never fails a run over a stale README line. The ubuntu
-      # count on purpose: macOS skips a handful of cases and lints fewer files.
-      # 14 days, not 1: a workflow_dispatch of pages.yml must still find totals.
-      - if: env.RUN == 'true' && matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      # on main and never fails a run over a stale README line. This job on
+      # purpose, not test-arm: macOS skips a handful of cases and lints fewer
+      # files. 14 days, not 1: a workflow_dispatch of pages.yml must still
+      # find totals.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tests
           path: ${{ runner.temp }}/totals
           retention-days: 14
+
+  test-arm:
+    name: fast suites (ubuntu-24.04-arm)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-shells
+
+      - name: Run fast test suites
+        run: "${{ github.workspace }}/tests/test_runner.sh --host-report --group fast"
 
   # The lint group's four suites (shellcheck, dialects, tools, drift), against
   # the pinned tools below - text linting does not depend on the userland, so
@@ -810,37 +808,48 @@ jobs:
           "${{ github.workspace }}/tests/test_runner.sh" --verbose --host-report --require-run --group backends --shard "$HI_SHARD"
 
   # The two checks CONTRIBUTING.md's table and README's badge know as
-  # `e2e (ssh, docker)` and `e2e (podman, nomad, kube)`, one matrix job so the
-  # "was this rightly skipped" logic is written once. `!cancelled()` so a red
-  # or skipped shard is reported rather than skipped past itself, and so it
-  # runs on a draft too, no draft clause of its own: it is a matrix job, and a
-  # skipped matrix job's entries go unnamed, which would leave these two
-  # required checks at Expected. `code` reads empty on a draft (`changes`
-  # itself skipped) same as on a workflow-only or docs-only diff, so the step
-  # takes the "rightly skipped" branch either way and reports green without
-  # needing `e2e`/`e2e-backends` to have run. `code` is what says a shard was
-  # rightly skipped rather than a failed gate - `changes` failing outright
-  # leaves `code` 'true' (run everything), never a skip that could pass as
-  # green. The trade for one job: the ssh/docker check reports only once the
-  # slower podman/nomad/kube shards finish too; both are required regardless.
-  e2e-checks:
-    name: ${{ matrix.name }}
-    needs: [changes, e2e, e2e-backends]
-    if: ${{ !cancelled() }}
+  # `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` - two plain jobs, not
+  # one matrix job, so a skip reports under each one's own name instead of
+  # going unnamed the way a skipped matrix entry does (the same reason
+  # `test` split into `test-ubuntu`/`test-arm`), and each restates the draft
+  # clause since `!cancelled()` runs past a skipped need. `code` reads empty
+  # on a draft (`changes` itself skipped) same as on a workflow-only or
+  # docs-only diff, so the step takes the "rightly skipped" branch either way
+  # without needing its shard job to have run. `code` is what says a shard
+  # was rightly skipped rather than a failed gate - `changes` failing
+  # outright leaves `code` 'true' (run everything), never a skip that could
+  # pass as green.
+  e2e-checks-ssh:
+    name: e2e (ssh, docker)
+    needs: [changes, e2e]
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      matrix:
-        include:
-          - job: e2e
-            name: e2e (ssh, docker)
-          - job: e2e-backends
-            name: e2e (podman, nomad, kube)
     steps:
       - name: Require every shard green, unless the run was rightly skipped
         env:
           CODE: ${{ needs.changes.outputs.code }}
-          RESULT: ${{ needs[matrix.job].result }}
+          RESULT: ${{ needs.e2e.result }}
+        run: |
+          set -euo pipefail
+          if [ "$CODE" = true ]; then
+            echo "shards: $RESULT"
+            [ "$RESULT" = success ]
+          else
+            echo "no code changes, or a green PR run of this tree - shards were rightly skipped"
+          fi
+
+  e2e-checks-backends:
+    name: e2e (podman, nomad, kube)
+    needs: [changes, e2e-backends]
+    if: ${{ !cancelled() && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every shard green, unless the run was rightly skipped
+        env:
+          CODE: ${{ needs.changes.outputs.code }}
+          RESULT: ${{ needs.e2e-backends.result }}
         run: |
           set -euo pipefail
           if [ "$CODE" = true ]; then
@@ -855,35 +864,32 @@ jobs:
   # not something to hand a stranger's pull request, but a PR whose head
   # branch lives in this repository was pushed by someone who can push to
   # main already, and it is that PR where a red Windows or BSD run is worth
-  # knowing - not after the merge, off a release. Gated on `test` alone, not
-  # `test-macos` too: nearly every bad push fails a red ubuntu or arm64 unit
-  # test first, and waiting on macOS's own 30-minute job as well only delays
-  # the Windows and BSD runners starting, for what a red macOS entry catches
-  # on its own (a red gate here still holds them, so nothing ships around a
-  # macOS-only break, just later - macOS's own check still fails the run).
-  # One gate job rather than the same needs/if on every caller below;
-  # macOS's loopback rides in test-macos itself, for the same audience.
+  # knowing - not after the merge, off a release. Gated on `test-ubuntu` and
+  # `test-arm` alone, not `test-macos` too: nearly every bad push fails a red
+  # ubuntu or arm64 unit test first, and waiting on macOS's own 30-minute job
+  # as well only delays the Windows and BSD runners starting, for what a red
+  # macOS entry catches on its own (a red gate here still holds them, so
+  # nothing ships around a macOS-only break, just later - macOS's own check
+  # still fails the run). One gate job rather than the same needs/if on every
+  # caller below; macOS's loopback rides in test-macos itself, for the same
+  # audience.
   e2e-gate:
     name: e2e gate
-    needs: [changes, test]
+    needs: [changes, test-ubuntu, test-arm]
     if: ${{ !cancelled() && github.event.pull_request.draft != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       ok: ${{ steps.gate.outputs.ok }}
     steps:
-      # CODE, not just TEST=success: `test` now runs and no-ops rather than
-      # skipping on a workflow-only or docs-only diff (see its comment), so
-      # TEST alone would fire the Windows/BSD callers on a diff that changed
-      # nothing they'd catch.
       - id: gate
         env:
           TRUSTED: ${{ needs.changes.outputs.trusted }}
-          CODE: ${{ needs.changes.outputs.code }}
-          TEST: ${{ needs.test.result }}
+          TEST_UBUNTU: ${{ needs.test-ubuntu.result }}
+          TEST_ARM: ${{ needs.test-arm.result }}
         run: |
           ok=false
-          [ "$TRUSTED" = true ] && [ "$CODE" = true ] && [ "$TEST" = success ] && ok=true
+          [ "$TRUSTED" = true ] && [ "$TEST_UBUNTU" = success ] && [ "$TEST_ARM" = success ] && ok=true
           echo "ok=$ok" >>"$GITHUB_OUTPUT"
 
   e2e-windows:
