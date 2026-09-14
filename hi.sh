@@ -63,8 +63,8 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
 _HI_OVERLAY_FILES=(settings.sh colors packages packages.d vim.rc init.lua nano.rc
-  emacs.el aliases.sh bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json
-  theme.yml bat.conf)
+  emacs.el aliases.sh plugins.d bash.sh zsh.zsh config.fish starship.toml
+  oh-my-posh.json theme.yml bat.conf)
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -164,16 +164,16 @@ function _hi_overlay_src() {
   _hi_out "${2:-}" "$_hi_os_f"
 }
 
-# The editor members of the overlay, the four whose content is a dialect
-# _hi_lint_awk knows how to read. A separate roster from $_HI_OVERLAY_FILES
-# because that one answers "what rides the stream" and this one "what has
-# includes to resolve"; scripts/doctor.sh walks this one.
-_HI_EDITOR_FILES=(vim.rc init.lua nano.rc emacs.el)
+# The overlay members whose content is a dialect _hi_lint_awk reads. A
+# separate roster from $_HI_OVERLAY_FILES because that one answers "what rides
+# the stream" and this one "what has includes to resolve"; scripts/doctor.sh
+# walks this one.
+_HI_LINT_FILES=(vim.rc init.lua nano.rc emacs.el settings.sh aliases.sh bash.sh zsh.zsh config.fish)
 
-# The include scanner, in the dialect of each editor rc hi packs. Every file
-# ships verbatim into a `config/` of its own, so a line naming a *path* - a
-# second rc beside it, a plugin directory, a manager's bootstrap - names
-# something no target has, and the editor fails on it rather than hi. The four
+# The include scanner, in the dialect of each file it reads. Every member
+# ships into a `config/` of its own, so a line naming a *path* - a second rc
+# beside it, a plugin directory, a manager's bootstrap - names something no
+# target has, and the editor or shell fails on it rather than hi. The
 # grammars, and what is deliberately left alone:
 #
 #   vim     `source`/`so` (a path), the managers' verbs (`Plug`, `packadd`,
@@ -187,18 +187,28 @@ _HI_EDITOR_FILES=(vim.rc init.lua nano.rc emacs.el)
 #   emacs   `load`/`load-file`, `add-to-list 'load-path`, and the managers
 #           (`package-initialize`, `use-package`, straight, elpaca). A bare
 #           `require` is left alone: nearly every one names a built-in.
+#   sh/fish `source`/`.` of anything but a path under $_HI_CONFIG_DIR or
+#           $_HI_ROOT (which ride along) or a process substitution, and the
+#           zsh/fish managers' verbs (zinit, zplug, antigen, fisher, ...).
+#
+# A line directly under a `hi-allow` comment, in the file's own comment
+# syntax, is neither reported nor touched.
 #
 # mode=report prints one `<member>|<line>|<kind>|<text>` row per finding and
 # leaves the file alone; mode=fix also writes <file>.lint with each finding
-# commented out in its own dialect - which strip.awk then drops, so a dropped
-# line costs no wire bytes. vim and nano are line-oriented, so one line is the
-# whole statement; lua and elisp are not, so the comment runs to the end of
-# the bracket-balanced expression the finding opened, or a `require("x").setup
-# {` would leave its closing brace behind as a syntax error.
+# disabled - which strip.awk then drops, so a dropped line costs no wire bytes.
+# vim and nano are line-oriented, so one line is the whole statement; lua and
+# elisp are not, so the comment runs to the end of the bracket-balanced
+# expression the finding opened, or a `require("x").setup {` would leave its
+# closing brace behind as a syntax error. sh and fish get neither: commenting
+# a line can empty a `then`/`do` body, which does not parse, so only the verb
+# and its file word become `:` (fish: `true`), and the rest of the line stays.
+# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name.
 #
 # bal() counts that depth blind to anything inside a quoted string, and takes
 # ' as a string delimiter for lua only: in elisp it is the quote operator, and
 # reading `'load-path` as an opening quote swallows the rest of the file.
+# wlen() is the length of one shell word, quotes and $(...) nesting included.
 # Nothing in the AWK body carries a `#` comment - strip.awk spares a heredoc
 # body, so every one of them would ride the wire on every connect.
 function _hi_lint_awk() {
@@ -216,6 +226,31 @@ function bal(s,   i, c, q, d) {
   }
   return d
 }
+function wlen(s,   i, c, q, d) {
+  q = ""; d = 0
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q == "'") { if (c == q) q = ""; continue }
+    if (c == "\\") { i++; continue }
+    if (c == "\"") { q = (q == "" ? c : ""); continue }
+    if (c == "'" && q == "") { q = c; continue }
+    if (c == "(" || c == "{") d++
+    else if (c == ")" || c == "}") { if (--d < 0) return i - 1 }
+    else if (q == "" && d == 0 && c ~ /[ \t;&|]/) return i - 1
+  }
+  return length(s)
+}
+function shfix(s,   o, p, r, n, w) {
+  o = ""; s = ";" s
+  while (match(s, /([;&|{()]|[ \t;](then|do|else|and|or|begin|not))[ \t]*(source|\.)[ \t]+/)) {
+    p = substr(s, 1, RSTART + RLENGTH - 1); r = substr(s, RSTART + RLENGTH)
+    n = wlen(r); w = substr(r, 1, n)
+    if (w == "" || w ~ /^\\/ || w ~ /^"?\$\{?_HI_(CONFIG_DIR|ROOT)[}\/"]/ || w ~ /^[<=]?\(/) { o = o p; s = r; continue }
+    sub(/(source|\.)[ \t]+$/, "", p)
+    o = o p (fish ? "true" : ":"); s = substr(r, n + 1)
+  }
+  return substr(o s, 2)
+}
 function kindof(s) {
   if (vim) {
     if (s ~ /^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]/ || s ~ /(plug|vundle|dein|minpac)#/) return "plugin"
@@ -231,41 +266,47 @@ function kindof(s) {
     if (s ~ /\((package-initialize|package-install|use-package|straight-|elpaca)/) return "plugin"
     if (s ~ /\(load(-file)?[ \t]+["]/) return "include"
     if (s ~ /add-to-list[ \t]+'load-path/) return "include"
+  } else if (sh || fish) {
+    if (s ~ /^[ \t]*#/) return ""
+    if (s ~ /^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t]/) { fixed = (fish ? "true " : ": ") s; return "plugin" }
+    fixed = shfix(s)
+    if (fixed != s) return "include"
   }
   return ""
 }
 FNR == 1 {
-  close(out); out = FILENAME ".lint"; depth = 0
-  vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/)
-  lua = (FILENAME ~ /\.lua$/); nano = (FILENAME ~ /nano\.rc$/)
-  member = FILENAME; sub(/^.*\//, "", member)
+  close(out); out = FILENAME ".lint"; depth = allow = 0
+  vim = (name == "vim.rc"); el = (name == "emacs.el"); lua = (name ~ /\.lua$/); nano = (name == "nano.rc")
+  sh = (name ~ /\.(sh|zsh)$/); fish = (name ~ /\.fish$/)
 }
 depth > 0 {
   depth += bal($0)
   if (depth < 0) depth = 0
   if (mode == "fix") print cc() " hi dropped: " $0 > out
+  allow = 0
   next
 }
 {
-  kind = kindof($0)
+  kind = allow ? "" : kindof($0)
+  allow = ($0 ~ /^[ \t]*(#|"|--|;)+[ \t]*hi-allow/)
   if (kind == "") { if (mode == "fix") print > out; next }
-  printf "%s|%d|%s|%s\n", member, FNR, kind, trim($0)
-  if (mode == "fix") print cc() " hi dropped: " $0 > out
+  printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
+  if (mode == "fix") print ((sh || fish) ? fixed : cc() " hi dropped: " $0) > out
   if (lua || el) { depth = bal($0); if (depth < 0) depth = 0 }
 }
 AWK
 }
 
-# _hi_editor_lint - every finding in the editor rcs that would actually ship,
-# one row each (see _hi_lint_awk). Nothing when an editor's rc is hi's own
-# tree copy, which _hi_overlay_src declines to pack and which has no includes
-# to begin with.
-function _hi_editor_lint() {
+# _hi_include_lint - every finding in the linted members that would actually
+# ship, one row each (see _hi_lint_awk). Nothing for an editor rc that is hi's
+# own tree copy, which _hi_overlay_src declines to pack and which has no
+# includes to begin with.
+function _hi_include_lint() {
   local f src prog
   prog="$(_hi_lint_awk)"
-  for f in "${_HI_EDITOR_FILES[@]}"; do
+  for f in "${_HI_LINT_FILES[@]}"; do
     _hi_overlay_src "$f" src || continue
-    awk -v mode=report "$prog" "$src"
+    awk -v mode=report -v name="$f" "$prog" "$src"
   done
   return 0
 }
@@ -325,7 +366,7 @@ function _hi_tar_gz() {
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el
-  '*/packages.d/*')
+  '*/packages.d/*' '*/plugins.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -365,13 +406,13 @@ function _hi_stage_tar() {
     done
     # ahead of the stripper, over the staged copies rather than the user's
     # own files: an include hi cannot carry goes out commented in its own
-    # dialect, and the strip below then drops the comment. _HI_EDITOR_INCLUDES=keep
+    # dialect, and the strip below then drops the comment. _HI_INCLUDES=keep
     # sends the line as written - for a target that really does have the file.
-    if [ "${_HI_EDITOR_INCLUDES:-comment}" != keep ] && ((${#_hi_st_lint[@]})); then
+    if [ "${_HI_INCLUDES:-drop}" != keep ] && ((${#_hi_st_lint[@]})); then
       _hi_st_prog="$(_hi_lint_awk)"
       for f in "${_hi_st_lint[@]}"; do
         [ -f "$_hi_st_root/$f" ] || continue
-        awk -v mode=fix "$_hi_st_prog" "$_hi_st_root/$f" >/dev/null || exit 1
+        awk -v mode=fix -v name="$f" "$_hi_st_prog" "$_hi_st_root/$f" >/dev/null || exit 1
         # no .lint at all means an empty member: awk never ran a rule on it
         [ -f "$_hi_st_root/$f.lint" ] || continue
         mv -f "$_hi_st_root/$f.lint" "$_hi_st_root/$f" || exit 1
@@ -416,7 +457,7 @@ function _hi_overlay_tar() {
     else
       stage_in+=("$f")
     fi
-    for e in "${_HI_EDITOR_FILES[@]}"; do
+    for e in "${_HI_LINT_FILES[@]}"; do
       [ "$f" = "$e" ] && stage_lint+=("$f")
     done
   done

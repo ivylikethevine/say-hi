@@ -162,6 +162,23 @@ function test_overlay_carries_package_groups() {
   }
 }
 
+# plugins.d's members ride as plugins.d/<name>, comment-stripped, and only the
+# ones _hi_dir_member_ok admits (GLOSSARY: HI.59)
+function test_overlay_carries_plugins() {
+  local dir out
+  dir="$_HI_WORKDIR/plugins"
+  mkdir -p "$dir/plugins.d"
+  printf '#!/bin/sh\n# a comment\nexport _HI_SEGMENT="printf x"\n' >"$dir/plugins.d/10-x"
+  printf 'export Y=1\n' >"$dir/plugins.d/10-x.orig"
+  [ "$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf - | paste -sd, -)" = plugins.d/10-x ] || return 1
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat plugins.d/10-x)"
+  [ "$out" = '#!/bin/sh
+export _HI_SEGMENT="printf x"' ] || {
+    _hi_cecho " | plugins.d/10-x arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
 # starship's, eza's, and bat's configs ride from where each tool reads them
 # here (_hi_overlay_src), under the overlay's name for them, so a target draws
 # the config in force at home; a copy in the overlay is never what ships.
@@ -437,11 +454,12 @@ function test_payload_stays_clear_of_the_arg_limit() {
 # never inside a heredoc", so that is what these assert: the shipped shell is
 # still shell, the code survives byte for byte, and the one heredoc a user can
 # see - `hi --help` - is intact.
-# The include scan. Every editor rc ships verbatim into a config/ of its own,
-# so a line naming a path names something no target has and the *editor*
-# fails, not hi. hi.sh's _hi_lint_awk reads all four dialects; these pin what
-# it drops, what it deliberately leaves alone, and that a lua or elisp finding
-# takes its whole expression with it rather than leaving a stray brace.
+# The include scan. Every editor rc and shell file ships into a config/ of its
+# own, so a line naming a path names something no target has and the editor
+# or shell fails, not hi. hi.sh's _hi_lint_awk reads every dialect; these pin
+# what it drops, what it deliberately leaves alone, that a lua or elisp
+# finding takes its whole expression with it rather than leaving a stray
+# brace, and that a shell finding leaves the file parseable.
 # GLOSSARY: HI.57
 
 # _hi_lint_vars <dir> <cmd...> - <cmd> with every editor path variable
@@ -489,12 +507,12 @@ set number' ] || {
   }
 }
 
-# _HI_EDITOR_INCLUDES=keep is the escape hatch for a fleet that really does
+# _HI_INCLUDES=keep is the escape hatch for a fleet that really does
 # carry the file: nothing is touched and the line rides as written
 function test_editor_includes_keep_sends_the_lines_as_written() {
   local dir out
   dir="$(_hi_lint_fixture keep vim.rc "$_HI_LINT_VIMRC")"
-  out="$(_HI_EDITOR_INCLUDES=keep _HI_VIMRC="$dir/vim.rc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
+  out="$(_HI_INCLUDES=keep _HI_VIMRC="$dir/vim.rc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
   case "$out" in *'source ~/.vim/extra.vim'*'Plug "tpope/vim-surround"'*) return 0 ;; esac
   _hi_cecho " | vim.rc arrived as: [$out]" "$RED"
   return 1
@@ -551,8 +569,13 @@ function test_the_scan_reports_every_dialect() {
   printf 'dofile("/tmp/x.lua")\n' >"$dir/init.lua"
   printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nano.rc"
   printf '(load "~/.emacs.d/mine.el")\n' >"$dir/emacs.el"
-  out="$(_hi_lint_vars "$dir" _hi_editor_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include" ] || {
+  printf '. ~/.secrets\n' >"$dir/settings.sh"
+  printf 'source ~/.aliases.local\n' >"$dir/aliases.sh"
+  printf 'x=1\n[ -f ~/.bash_local ] && . ~/.bash_local\n' >"$dir/bash.sh"
+  printf 'zinit light foo/bar\n' >"$dir/zsh.zsh"
+  printf 'source ~/.config/fish/local.fish\n' >"$dir/config.fish"
+  out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include,settings.sh|1|include,aliases.sh|1|include,bash.sh|2|include,zsh.zsh|1|plugin,config.fish|1|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -566,7 +589,95 @@ function test_the_scan_is_silent_on_a_clean_config() {
   mkdir -p "$dir"
   printf 'set number\nruntime! plugin/sensible.vim\n' >"$dir/vim.rc"
   printf '(require (quote cl-lib))\n(setq tab-width 2)\n' >"$dir/emacs.el"
-  [ -z "$(_hi_lint_vars "$dir" _hi_editor_lint)" ]
+  [ -z "$(_hi_lint_vars "$dir" _hi_include_lint)" ]
+}
+
+# the dialect comes from the member, not the path: doctor reads ~/.vimrc under
+# its own name, and a name that matched no dialect used to report nothing
+function test_the_scan_reads_an_rc_under_its_own_name() {
+  local dir out
+  dir="$_HI_WORKDIR/lint-dotname"
+  mkdir -p "$dir"
+  printf 'source ~/.vim/extra.vim\n' >"$dir/.vimrc"
+  out="$(_HI_CONFIG_DIR="$dir" _HI_VIMRC="$dir/.vimrc" _hi_include_lint | cut -d'|' -f1,2,3)"
+  [ "$out" = "vim.rc|1|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+}
+
+# A shell finding cannot be commented out whole: that empties a then/do body,
+# which does not parse. Only the verb and its file word become `:`, so the
+# guard, the if, the case arm, and the `&& echo` all survive; a path that
+# rides along ($_HI_CONFIG_DIR, $_HI_ROOT), a process substitution, a word
+# that merely contains a dot, and a line under `# hi-allow` are left alone.
+function test_shell_includes_are_neutralized_and_still_parse() {
+  local dir out
+  dir="$(_hi_lint_fixture sh bash.sh 'export A=1
+[ -f ~/.secrets ] && . ~/.secrets
+source "${_HI_CONFIG_DIR}/colors"
+if [ -f /etc/bashrc ]; then
+  . /etc/bashrc
+fi
+source "$(brew --prefix)/share/fzf/key-bindings.bash" && echo ok
+case $x in a) . ~/a ;; esac
+source <(kubectl completion bash)
+find . -name foo
+# hi-allow
+source ~/.kept
+zinit light zsh-users/zsh-autosuggestions
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat bash.sh)"
+  [ "$out" = 'export A=1
+[ -f ~/.secrets ] && :
+source "${_HI_CONFIG_DIR}/colors"
+if [ -f /etc/bashrc ]; then
+:
+fi
+: && echo ok
+case $x in a) : ;; esac
+source <(kubectl completion bash)
+find . -name foo
+source ~/.kept
+: zinit light zsh-users/zsh-autosuggestions' ] || {
+    _hi_cecho " | bash.sh arrived as: [$out]" "$RED"
+    return 1
+  }
+  printf '%s\n' "$out" | bash -n
+}
+
+# fish has no `:`, so its stand-in is `true`
+function test_fish_includes_become_true() {
+  local dir out
+  dir="$(_hi_lint_fixture fish config.fish 'source ~/.config/fish/local.fish
+if test -f ~/x.fish; source ~/x.fish; end
+status is-interactive; and source (starship init fish | psub)
+fisher install jorgebucaran/nvm.fish
+')"
+  out="$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat config.fish)"
+  [ "$out" = 'true
+if test -f ~/x.fish; true; end
+status is-interactive; and source (starship init fish | psub)
+true fisher install jorgebucaran/nvm.fish' ] || {
+    _hi_cecho " | config.fish arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# `hi-allow` in the file's own comment syntax keeps the next line as written
+# and out of the report - the per-line answer to _HI_INCLUDES=keep
+function test_hi_allow_keeps_the_next_line() {
+  local dir out
+  dir="$(_hi_lint_fixture allow vim.rc '" hi-allow
+source ~/.vim/extra.vim
+source ~/.vim/other.vim
+')"
+  out="$(_HI_VIMRC="$dir/vim.rc" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat vim.rc)"
+  [ "$out" = 'source ~/.vim/extra.vim' ] &&
+    [ "$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2)" = "vim.rc|3" ] || {
+    _hi_cecho " | vim.rc arrived as: [$out]" "$RED"
+    return 1
+  }
 }
 
 function _hi_strip_unpack() {
@@ -783,11 +894,12 @@ function run_hi_payload_tests() {
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
   _hi_check "packages.d members ride stripped, and nearly free" test_overlay_carries_package_groups
+  _hi_check "plugins.d members ride stripped" test_overlay_carries_plugins
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
   _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
 
-  _hi_h2 "Testing: the editor include scan"
+  _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
   _hi_check "...and =keep sends it as written" test_editor_includes_keep_sends_the_lines_as_written
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
@@ -795,6 +907,10 @@ function run_hi_payload_tests() {
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
   _hi_check "A clean config is silent" test_the_scan_is_silent_on_a_clean_config
+  _hi_check "An rc is read under its member name" test_the_scan_reads_an_rc_under_its_own_name
+  _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
+  _hi_check "A fish include becomes true" test_fish_includes_become_true
+  _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
 
   _hi_h2 "Testing: block padding (BSD tar)"
   _hi_check "The payload is not block-padded" test_payload_is_not_block_padded

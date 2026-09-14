@@ -327,6 +327,50 @@ function test_remote_session_exports_overlay_config() {
   [ "$out" = "$want" ] && [ -z "$home" ]
 }
 
+# plugins.d (GLOSSARY: HI.59), one fixture for every shell: 10 exports a value
+# and a segment, 20 reads 10's value (so name order is load order), 30 uses
+# if/then/fi (bash and zsh parse it, fish does not), 40 parses nowhere, and
+# 50 is a backup that is never a member. Each shell loads what it can parse,
+# in order, says what it skipped, and draws the segment.
+function _hi_plugin_cfg() {
+  local d="$_HI_WORKDIR/plugcfg/plugins.d"
+  [ -d "$d" ] || {
+    mkdir -p "$d"
+    printf '#!/bin/sh\nexport HI_A=a\nexport _HI_SEGMENT="printf kctx"\n' >"$d/10-kube"
+    printf '#!/bin/sh\nexport HI_B="$HI_A"b\n' >"$d/20-order"
+    printf 'if [ 1 ]; then :; fi\nexport HI_C=c\n' >"$d/30-shonly"
+    printf 'foo() {\n' >"$d/40-broken"
+    printf 'export HI_D=d\n' >"$d/50-x.bak"
+  }
+  printf '%s' "${d%/*}"
+}
+
+function test_plugins_load_in_order_skip_loudly_and_draw() {
+  local shell="$1" script want out
+  case "$shell" in
+  bash)
+    script='source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; ps1; printf "[%s|%s|%s|%s]" "$HI_A" "$HI_B" "${HI_C:-}" "${HI_D:-}"; printf "%s" "$__hi_env_info"'
+    want='[a|ab|c|]kctx '
+    ;;
+  zsh)
+    script='source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; __hi_env_precmd; __hi_segment_precmd; print -rn -- "[$HI_A|$HI_B|${HI_C:-}|${HI_D:-}]$__hi_env_info"'
+    want='[a|ab|c|]kctx '
+    ;;
+  fish)
+    script='source $_HI_HOME/say-hi/common/config.fish 2>&1; echo -n "[$HI_A|$HI_B|$HI_C|$HI_D]"; fish_prompt'
+    want='[a|ab||]'
+    ;;
+  esac
+  out="$(_hi_rc_shell dumb "$shell" "$script" _HI_CONFIG_DIR="$(_hi_plugin_cfg)")"
+  # fish's drawn prompt sits between the values and the segment's lead space
+  if [[ "$out" != *"plugin 40-broken does not parse in $shell; skipped"* || "$out" == *50-x* ||
+    "$out" != *"$want"* || "$out" != *"kctx "* ]] ||
+    [[ "$shell" == fish && "$out" != *"plugin 30-shonly does not parse in fish"* ]]; then
+    _hi_cecho " | $shell said: [$out]" "$RED"
+    return 1
+  fi
+}
+
 # fish's sudo wrapper is a function behind _HI_DISABLE_SUDO_ALIAS, the same
 # toggle as the POSIX alias; off, `sudo` is the command and nothing else
 function test_fish_sudo_wrapper_follows_the_toggle() {
@@ -939,6 +983,9 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
+  _hi_check "[bash] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw bash
+  _hi_check_requires zsh "[zsh] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw zsh
+  _hi_check_requires fish "[fish] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw fish
   _hi_check_requires fish "fish registers hi completion" test_fish_registers_hi_completion
   _hi_check_requires fish "fish flag TAB does not sweep the backends" test_fish_flag_completion_does_not_also_sweep_targets
   _hi_check_requires fish "fish flag TAB completes hi's options, described" test_fish_flag_completion_offers_hi_options

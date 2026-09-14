@@ -68,6 +68,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
 - [HI.57 editor config resolution](#hi57-editor-config-resolution)
 - [HI.58 overlay directory members](#hi58-overlay-directory-members)
+- [HI.59 plugins](#hi59-plugins)
 
 ## HI.01 empty-array guard
 
@@ -1061,20 +1062,29 @@ to keep out of a visiting session, and the file the client picked is already
 unpacked at `$_HI_CONFIG_DIR`.
 
 Carrying a real config makes a second problem real with it. Every one of
-those files ships verbatim into a `config/` of its own, so a line naming a
-*path* - a second rc beside it, a plugin directory, a manager's bootstrap -
-names something no target has, and the editor fails on it rather than hi.
-`hi.sh`'s `_hi_lint_awk` reads all four dialects for exactly those lines:
-vim's `source`/`so` and the managers' verbs (`runtime` and `$VIMRUNTIME` are
-left alone - they resolve against the target vim's own runtime), lua's
+those files - and the shell overlay files beside them, `settings.sh`,
+`aliases.sh`, `bash.sh`, `zsh.zsh`, `config.fish` - ships into a `config/` of
+its own, so a line naming a *path* - a second rc beside it, a plugin
+directory, a manager's bootstrap - names something no target has, and the
+editor or shell fails on it rather than hi. `hi.sh`'s `_hi_lint_awk` reads
+every member in `$_HI_LINT_FILES` for exactly those lines: vim's
+`source`/`so` and the managers' verbs (`runtime` and `$VIMRUNTIME` are left
+alone - they resolve against the target vim's own runtime), lua's
 `dofile`/`loadfile`/`require` of a non-`vim.` module and the lazy/packer/paq
 bootstraps, nano's `include` outside `/usr/share/nano`, elisp's
-`load`/`load-file`/`load-path` and `package-initialize`/`use-package`. One
-pass serves both readers: `_hi_stage_tar` runs it in `fix` mode ahead of
+`load`/`load-file`/`load-path` and `package-initialize`/`use-package`, and
+sh/fish's `source`/`.` of anything but a path under `$_HI_CONFIG_DIR` or
+`$_HI_ROOT` (which ride along) or a process substitution, plus the
+zinit/zplug/antigen/fisher verbs. One pass serves both readers:
+`_hi_stage_tar` runs it in `fix` mode ahead of
 [HI.35](#hi35-in-transit-comment-strip)'s stripper, so a finding goes out
-commented in its own dialect and the strip then drops it for free, and
-`hi --doctor` runs it in `report` mode, so the rows name exactly what went
-missing. `_HI_EDITOR_INCLUDES=keep` sends the lines as written.
+disabled in its own dialect and the strip then drops it for free, and
+`hi --doctor` runs it in `report` mode, so its yellow rows name exactly what
+went missing. The dialect comes from the member name passed in, not the path,
+so doctor reads `~/.vimrc` as vim. A line directly under a `hi-allow` comment
+in the file's own syntax (`# hi-allow`, `" hi-allow`, `-- hi-allow`,
+`; hi-allow`) is neither reported nor touched; `_HI_INCLUDES=keep` does the
+same for every line.
 
 vim and nano are line-oriented, so a finding is one line. lua and elisp are
 not, so the comment runs to the end of the bracket-balanced expression the
@@ -1083,10 +1093,14 @@ finding opened - commenting only the matched line of a
 not parse is worse than the include it was fixing. `bal()` counts that depth
 blind to anything inside a string, and takes `'` as a string delimiter for
 lua only: in elisp it is the quote operator, and reading `'load-path` as an
-opening quote swallows the rest of the file. What the pass cannot see is a
+opening quote swallows the rest of the file. sh and fish are the reverse
+problem: commenting out `. ~/x` inside `if ...; then` leaves an empty body,
+which does not parse. So only the verb and its one file word (quotes and
+`$(...)` included) become `:` - `true` in fish, which has no `:` - and the
+guard, the `&&`, the case arm around it all stay. What the pass cannot see is a
 value the dropped line was meant to bind - a `local m = require("x")` used
-twenty lines down - so a plugin-heavy config can still error on the target;
-the doctor rows are what makes that legible rather than mysterious.
+twenty lines down, a function the sourced file defined - so a plugin-heavy
+config can still error on the target; the doctor rows are what makes that legible rather than mysterious.
 
 ## HI.58 overlay directory members
 
@@ -1114,3 +1128,35 @@ The line is not a comment on purpose: the strip would take it. With no member
 the walk is the one file it always was, and the output is byte for byte the
 single-file check's. `$_HI_PACKAGES_D` has no tree default and no guard in
 `common/paths.sh`: like `settings.sh`, the overlay is its only home.
+
+## HI.59 plugins
+
+`plugins.d` is the second [HI.58](#hi58-overlay-directory-members) directory:
+each member is a plugin, a file in the POSIX+fish subset `settings/aliases.sh`
+keeps (`export`, `alias`, `&&` chains), so one file serves all three shells
+and something new - another tool's init, a prompt segment - rides to every
+target with no edit to the tree. `common/paths.sh` exports `$_HI_PLUGINS_D`
+unguarded; the overlay is its only home.
+
+The moment is stated: right after `$_HI_ALIASES` (so a plugin sees, and can
+replace, hi's aliases and the overlay's) and before the prompt is built, in
+name order - `core.sh`'s `_hi_load_plugins` for bash and zsh, and its fish
+copy in `common/config.fish`, which cannot call bash. Each member is parsed
+first by the shell loading it (`bash -n`, `zsh -n`, `fish --no-config -n`); one
+that does not parse is skipped with a yellow `hi: plugin <name> does not
+parse in <shell>; skipped` on stderr rather than half-run, which is also what
+a fish-only or sh-only construct costs in the other shell. The parse is a fork
+per plugin per shell start, and nothing without a plugin. The zsh glob sits in
+its own function (`_hi_plugin_files`) so `null_glob` can be local there:
+`local_options` in the loader would also undo every `setopt` a plugin makes.
+
+Hooks are variables, since the subset cannot define a function all three
+shells read. The loader unsets each before a plugin runs and collects it after,
+so plugins compose without `${var:+...}`, which fish lacks. The set:
+
+| hook          | what hi does with it                                                                                                                                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_HI_SEGMENT` | a command, run in the session's own shell on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
+
+`hi --doctor` lists the plugins in load order and warns for each a shell on
+this machine cannot parse, and for a directory entry that is not a member.

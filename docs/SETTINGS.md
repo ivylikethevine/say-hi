@@ -19,6 +19,7 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias; likewise over your `~/.nanorc` |
 | `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`), and over your `~/.emacs`; micro takes no file - see `_HI_MICRO_OPTS` below |
 | `~/.config/say-hi/aliases.sh`      | -                   | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session) |
+| `~/.config/say-hi/plugins.d/`      | -                   | drop-in plugins in the same POSIX+fish subset, sourced after the aliases in name order; see [below](#plugins)                                          |
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
@@ -67,6 +68,7 @@ which, and why). A setting a child must see is an `export` in
 - [Header details](#header-details)
   - [Others](#others)
   - [Shells you drop into inside a session](#shells-you-drop-into-inside-a-session)
+  - [Plugins](#plugins)
 - [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them)
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Colors](#colors)
@@ -195,7 +197,7 @@ cannot land without a row here.
 | `_HI_DISABLE_EDITORS`       | `0`                                                  | `hi --configure`          | turns off the editor config overrides (vim, neovim, nano, emacs, micro) and, on a target, the `$EDITOR`/`$VISUAL`/`$SUDO_EDITOR` export that carries them into `git commit`, `crontab -e`, and `sudo -e`                                                                                                                                                                                                                                                                                                                      |
 | `_HI_DISABLE_VIM`          | `0`                                                  | `hi --configure`          | turns off hi's vim config alone - the `vim` and `nvim` aliases (`vim.rc` for vim, `init.lua` for neovim) and `$VIMINIT` - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_NANO`         | `0`                                                  | `hi --configure`          | turns off hi's nano config alone - the `nano` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
-| `_HI_EDITOR_INCLUDES`       | `comment`                                            | you                       | what happens to a line in an editor rc that reads a file hi does not carry, or names a plugin manager: `comment` drops it on the way out, `keep` sends it as written. `hi --doctor` names every one either way. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them) |
+| `_HI_INCLUDES`              | `drop`                                               | you                       | what happens to a line in an editor rc or shell overlay file that reads a file hi does not carry, or names a plugin manager: `drop` disables it on the way out, `keep` sends it as written. `hi --doctor` names every one either way; a `# hi-allow` line above one keeps just that line. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them) |
 | `_HI_DISABLE_EMACS`        | `0`                                                  | `hi --configure`          | turns off hi's emacs config alone - the `emacs` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_MICRO`        | `0`                                                  | `hi --configure`          | turns off hi's micro config alone - the `micro` alias and its `_HI_MICRO_OPTS` flags - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa`, and `eza` themselves stay available by name either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                           |
@@ -420,6 +422,31 @@ The `_HI_*_OPTS`, `_HI_*_BIN`, and `_HI_DISABLE_*` values hi's aliases are
 built from go in `settings.sh`, which loads first; set in `aliases.sh` they
 arrive after the aliases are built, and `hi --doctor` flags them.
 
+### Plugins
+
+Something hi does not do - another tool's init, a prompt segment of your own -
+goes in a file of its own under `~/.config/say-hi/plugins.d/`, and rides to
+every target with the rest of the overlay. A plugin is written in the same
+subset as `aliases.sh` (`export`, `alias`, `&&` chains, no `if`/`fi`), so bash,
+zsh, and fish all read the one file. They load right after the aliases and
+before the prompt is built, in name order, so `10-` runs before `20-`. A plugin
+a shell cannot parse is skipped in that shell, with a yellow line saying so,
+and `hi --doctor` lists what loads and flags what does not parse.
+
+A plugin talks to hi through hook variables. `_HI_SEGMENT` is a command hi
+runs on every prompt it draws, showing the output after the environment
+prefix; nothing is shown when it prints nothing:
+
+```sh
+command -v kubectl >/dev/null 2>&1 &&
+  export _HI_SEGMENT='kubectl config current-context'
+```
+
+The command runs in the session's own shell, so keep it to syntax all three
+share, and fast: it runs before every prompt. Each plugin sets its own; hi
+collects them in load order. The whole contract is
+[HI.59](GLOSSARY.md#hi59-plugins).
+
 ## The editor rcs come from where you keep them
 
 The four editor files are the exception, and usually you want none of them.
@@ -439,11 +466,15 @@ default applies when neither is there. On a target the lookup is off: `$HOME`
 there is the target's, and the file your client picked has already arrived.
 
 Your own config is written for a machine with your plugins on it and a target
-has none, so hi reads each file for the lines naming something it cannot
-carry — vim's `source`, lua's `require`/`dofile`, nano's `include`, elisp's
-`load`, every plugin manager's bootstrap — and comments them out on the way.
-`hi --doctor` names each one, file and line, so you can see what your target
-is not getting; `_HI_EDITOR_INCLUDES=keep` sends them as written.
+has none, so hi reads each file — and your overlay's `settings.sh`,
+`aliases.sh`, `bash.sh`, `zsh.zsh`, and `config.fish` — for the lines naming
+something it cannot carry: vim's `source`, lua's `require`/`dofile`, nano's
+`include`, elisp's `load`, a shell's `source`/`.` of a file outside
+`$_HI_CONFIG_DIR`, every plugin manager's bootstrap. Those are disabled on the
+way out, and `hi --doctor` names each one, file and line, in yellow, so you
+can see what your target is not getting. Put a `hi-allow` comment on the line
+above one (`# hi-allow`, or `" hi-allow` in vim) to send that line as written
+and silence its row; `_HI_INCLUDES=keep` sends them all.
 [HI.57](GLOSSARY.md#hi57-editor-config-resolution) is the whole mechanism,
 including what it cannot see.
 

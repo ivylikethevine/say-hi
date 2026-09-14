@@ -436,7 +436,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 }
 
 # Every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES) needs its overlay
-# lookup in paths.sh - except settings.sh and packages.d (the overlay is their
+# lookup in paths.sh - except settings.sh, packages.d, and plugins.d (the overlay is their
 # only home, so each is an unguarded export instead) and
 # the four additive ones, which each shell or settings/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
@@ -454,6 +454,10 @@ function test_overlay_guards_match_the_roster() {
     packages.d)
       # shellcheck disable=SC2016 # paths.sh's literal text
       grep -qF 'export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"' "$_HI_ROOT/common/paths.sh" && continue
+      ;;
+    plugins.d)
+      # shellcheck disable=SC2016 # paths.sh's literal text
+      grep -qF 'export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"' "$_HI_ROOT/common/paths.sh" && continue
       ;;
     bash.sh | zsh.zsh | config.fish) continue ;;
     esac

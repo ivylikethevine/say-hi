@@ -156,6 +156,9 @@ everything weighed and answered **no**, and why.
   targets. `bash` gets the full experience; without it you land in the best
   shell the target has, with a smaller session
   ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
+- **A slow link**: the ssh wire stays at or under 128 KB, which is 8 s over a
+  128 kbps link to a resource-starved target. Today's payload (the badge
+  above) is about half that.
 - **fish 3.7+** (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) are the
   floors for the other two shells hi styles.
 - **bash 3.2** is the floor on both ends (macOS still ships it); what that
@@ -333,59 +336,7 @@ or descoped, and finished entries are deleted rather than ticked.
 
 In this checkout, and not what the tag waits on either.
 
-1. [ ] **A config that sources a file hi does not carry is caught before it
-       travels** — the four editor rcs ship this way now: hi carries the
-       config each editor already reads on this machine, `hi.sh`'s
-       `_hi_lint_awk` reads all four dialects for the lines naming a path no
-       target has, the packer comments them out on the way and `hi --doctor`
-       names each one, `_HI_EDITOR_INCLUDES=keep` sends them as written
-       ([HI.57](docs/GLOSSARY.md#hi57-editor-config-resolution)). The sh half
-       is still open: an overlay `aliases.sh`, `bash.sh`, `zsh.zsh`, or
-       `config.fish` that sources a path off this machine breaks on the first
-       target the same way, and nothing reads it. **Do:** give the same pass a
-       `.`/`source` dialect, resolve those against what actually rides the
-       overlay, and report them beside the editors'. **Ticks when:**
-       `hi --doctor` names an unresolvable source in a shell overlay file, the
-       session still starts cleanly, and a suite pins both.
-
-2. [ ] **Someone else's feature can ride along without patching the tree** —
-       the overlay carries files hi already knows the names of, so anything
-       new (a prompt segment, another tool's init, a per-target hook) means
-       editing `common/` and losing it on the next `hi --update`. **Do:**
-       define an extension point — a `~/.config/say-hi/plugins.d/` of drop-in
-       files (a `.d` overlay entry already rides member by member,
-       [HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), each an `#!/bin/sh` in the POSIX+fish subset, sourced in a
-       stated order at a stated moment (after aliases, before the prompt is
-       built), with a documented set of hook names and the same overlay
-       stream carrying them to every target; `hi --doctor` lists what loaded,
-       and a plugin that fails to parse is skipped loudly rather than
-       breaking the session. **Ticks when:** a plugin of a few lines adds a
-       prompt segment on a target with no change to the tree, the payload
-       budget still holds, and a suite pins the load order, the skip, and the
-       doctor rows.
-
-3. [ ] **A denser armor than base64** — base64 (HI.17) is a third of the ssh
-       wire. Z85 (`basenc`, coreutils 8.31+) is the only denser encoding that
-       ships anywhere and survives the shell, and saves ~7% only where both
-       ends have it (not Alpine, macOS, the BSDs, or Ubuntu 20.04). **Do:**
-       decide whether 7% is worth a second encoder, given entry 4 moves four
-       times as much. **Ticks when:** it ships behind entry 4's capability
-       word, or this entry is deleted as not worth it.
-
-4. [ ] **A session sends the bytes, not a picture of them** — both levers need
-       the boot probe (`_hi_boot_probe`, HI.19) to report what the target can
-       do. **(a) No armor:** the container arms already stream the raw tar;
-       ssh alone base64s it, and raw drops the wire from ~62 KB to 47 KB.
-       Each way in has a catch: one framed stdin (busybox `head -c`
-       over-reads), payload on stdin and script on argv (4.7 KB of argv), or a
-       third ControlMaster call (one more round trip). **(b) xz:** `xz -6` is
-       12% under gzip and busybox decodes it, but `debian:bookworm-slim` and
-       `ubuntu:24.04` cannot, so gzip stays the floor. **Ticks when:** the
-       probe reports capabilities, a target that reports nothing still gets
-       gzip-and-base64, the README badge falls by the measured amount, and
-       the e2e suites pass on every backend including busybox.
-
-5. [ ] **A release says where the package went, and shows what changed** —
+1. [ ] **A release says where the package went, and shows what changed** —
        shipped: `publish` leaves `tap` and `demo` slots in the release body and
        dispatches `demos.yml` at the tag; the `tap` job links its PR (or the
        tap's formula, when already current) into one, and `demos.yml`'s
@@ -393,6 +344,36 @@ In this checkout, and not what the tag waits on either.
        the other (`.github/scripts/release_slot.sh`); the packaging suite pins
        both. **Ticks when:** the next real tag's release page shows the tap
        link and renders the GIF.
+
+2. [ ] **A tmux config rides along** — `--mux` runs tmux on this machine, and
+       a tmux started on a target reads the target's own `~/.tmux.conf` or
+       none. **Do:** carry the `tmux.conf` tmux reads here (`~/.tmux.conf`,
+       else `$XDG_CONFIG_HOME/tmux/tmux.conf`, overlay copy wins) as an overlay
+       member resolved in `common/paths.sh` like the editor rcs, alias `tmux`
+       to `tmux -f` it, and give `_hi_lint_awk` a tmux dialect
+       (`source-file`, TPM's `@plugin` and `run`). **Ticks when:** a tmux on
+       a target starts with the client's config, `hi --doctor` names a
+       `source-file` no target has, and a suite pins both.
+
+3. [ ] **A micro config rides along** — micro is only styled through
+       `_HI_MICRO_OPTS`; its `settings.json`, `bindings.json`, and `init.lua`
+       stay behind, and micro takes a config *directory*. **Do:** carry those
+       files from micro's config directory here as overlay members, point
+       micro's `-config-dir` at them on the target, and lint `init.lua`
+       for plugin loads. **Ticks when:** micro on a target opens with the
+       client's settings and bindings, the payload budget still holds, and a
+       suite pins it.
+
+4. [ ] **One header when both ends have hi** — connecting from a machine
+       with hi to a target where hi is installed and wired into the rc files
+       prints two headers: load.sh's `Connected` one, then the target's own
+       `Online` greeting. The likely path is load.sh's session rc sourcing
+       the target's `~/.bashrc`/`~/.zshrc` (`_hi_session_sh_rc`) ahead of the
+       client's verdicts, and fish reading the target's `config.fish` before
+       `fish_greeting` is blanked. **Do:** confirm which rc greets, and have
+       the session tell the target's hi it is inside one before that rc runs.
+       **Ticks when:** a session to an installed target (bash, zsh, and fish)
+       prints exactly one header, and the installed-target e2e cases pin it.
 
 ### Post 1.0
 

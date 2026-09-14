@@ -329,6 +329,30 @@ function doctor_local() {
   doctor_row shells "local: ${have:-none?!}"
 }
 
+# plugins.d (GLOSSARY: HI.59): one row naming the plugins in the order they
+# load, then a row for each a wired shell on this machine cannot parse - that
+# shell skips it - and each that never travels. Quiet without one.
+function doctor_plugins() {
+  local f n sh bad names=""
+  for f in "$_HI_PLUGINS_D"/*; do
+    [ -e "$f" ] || continue
+    n="${f##*/}"
+    if ! { [ -f "$f" ] && _hi_dir_member_ok "$n"; }; then
+      doctor_row "plugins.d/$n" "ignored - a backup, a temp file, or not a plain name, so it never loads" warn
+      continue
+    fi
+    names="$names, $n"
+    bad=""
+    for sh in bash zsh fish; do
+      command -v "$sh" >/dev/null 2>&1 || continue
+      case "$sh" in fish) fish --no-config -n "$f" ;; *) "$sh" -n "$f" ;; esac >/dev/null 2>&1 ||
+        bad="${bad:+$bad, }$sh"
+    done
+    [ -z "$bad" ] || doctor_row "plugins.d/$n" "does not parse in $bad - skipped there" warn
+  done
+  [ -z "$names" ] || doctor_row plugins.d "loads in order: ${names#, }"
+}
+
 # The packages.d groups (GLOSSARY: HI.58): a row naming them in the order the
 # check paints them, then a warning for a file that is not a member, a color=
 # the check ignores, and a group nothing paints - no row in it reaches
@@ -392,6 +416,10 @@ function doctor_config() {
       doctor_package_groups
       continue
     }
+    [ "$f" = plugins.d ] && {
+      doctor_plugins
+      continue
+    }
     t=""
     _hi_overlay_src "$f" t || true
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
@@ -408,19 +436,19 @@ function doctor_config() {
       doctor_row "$f" "overridden ($(grep -c . "$_HI_CONFIG_DIR/$f") lines)"
     fi
   done
-  # Every editor rc hi packs ships verbatim into a config/ of its own, so a
-  # line naming a path names something no target has. hi.sh's _hi_editor_lint
-  # is the one grammar for all four dialects - the same rows the packer acts
-  # on, so what is named here is exactly what got dropped on the way out
-  # (GLOSSARY: HI.57). warn, not bad: the session still opens the editor.
+  # Every editor rc and shell file hi packs ships into a config/ of its own, so
+  # a line naming a path names something no target has. hi.sh's
+  # _hi_include_lint is the one grammar for every dialect - the same rows the
+  # packer acts on, so what is named here is exactly what got dropped on the
+  # way out (GLOSSARY: HI.57). warn, not bad: the session still starts.
   local member lineno kind text fate said
-  fate="dropped on the way out"
-  [ "${_HI_EDITOR_INCLUDES:-comment}" != keep ] || fate="sent as written (_HI_EDITOR_INCLUDES=keep), and the target has no such file"
+  fate="dropped on the way out (a # hi-allow line above it keeps it)"
+  [ "${_HI_INCLUDES:-drop}" != keep ] || fate="sent as written (_HI_INCLUDES=keep), and the target has no such file"
   while IFS='|' read -r member lineno kind text; do
     [ -n "$member" ] || continue
     [ "$kind" = plugin ] && said="names a plugin manager" || said="reads a file hi does not carry"
     doctor_row "$member:$lineno" "$said - $text - $fate" warn
-  done < <(_hi_editor_lint)
+  done < <(_hi_include_lint)
   # settings/aliases.sh sources the overlay's aliases.sh last, so a value its
   # aliases read, assigned there, lands after they were built and does nothing.
   # The toggle half of the pattern is read off that file rather than spelled
