@@ -155,6 +155,16 @@ function test_report_counts_writes_the_skip_tally() {
   [ "$(cat "$file")" = "9 2 3" ]
 }
 
+function test_case_keeps_the_progress_file_current() {
+  local file="$_HI_WORKDIR/progress.live"
+  (
+    _HI_PROGRESS_FILE="$file" _HI_TOTAL=0 _HI_FAILED=0 _HI_SKIPPED=1
+    _hi_case _hi_true
+    _hi_case _hi_false
+  )
+  [ "$(cat "$file")" = "2 1 1" ]
+}
+
 function test_note_failure_appends_the_label() {
   local file
   file="$_HI_WORKDIR/fails.noted"
@@ -459,6 +469,7 @@ function run_lib_report_tests() {
   _hi_check "Writes total and failed" test_report_counts_writes_total_and_failed
   _hi_check "Writes the skip tally" test_report_counts_writes_the_skip_tally
   _hi_check "No-op without a counts file" test_report_counts_is_a_noop_without_a_counts_file
+  _hi_check "Each case rewrites the progress tally" test_case_keeps_the_progress_file_current
   _hi_check "End reports its counts" test_suite_end_reports_its_counts
   _hi_check "Note_failure appends the label" test_note_failure_appends_the_label
   _hi_check "Note_failure is a no-op standalone" test_note_failure_is_a_noop_without_a_fails_file

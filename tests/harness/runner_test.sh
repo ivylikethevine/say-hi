@@ -90,7 +90,7 @@ function _hi_run_runner() {
   # unterminated string. GLOSSARY-worthy, learned from the macOS CI job.)
   # shellcheck disable=SC2163 # the var=value pair is chosen by each caller
   _HI_RUN_OUT="$(
-    unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT
+    unset GITHUB_ACTIONS _HI_VERBOSE _HI_HOST_REPORT _HI_PROGRESS
     [ -n "${_HI_RUN_WITH:-}" ] && export "${_HI_RUN_WITH?}"
     _HI_TESTS=("${entries[@]}")
     _HI_TESTS_DIR="$_HI_FIXTURES"
@@ -539,6 +539,37 @@ function test_ci_annotates_failures_unfolded() {
     "$_HI_RUN_OUT" == *"::error title=test failure::"* ]]
 }
 
+# The progress line, read off a finished suite's counts and, failing those,
+# the live tally it is handed $_HI_PROGRESS_FILE for. Width pinned to 2 so a
+# one-core box still takes the parallel path it belongs to.
+function _hi_progress_run() {
+  local _HI_RUNNER_WIDTH=2
+  _hi_counting_fixture prog_counted 3 0
+  {
+    printf '#!/usr/bin/env bash\n'
+    # shellcheck disable=SC2016 # resolves when the fixture runs
+    printf 'printf "4 1 0\\n" >"$_HI_PROGRESS_FILE"\n'
+  } >"$_HI_FIXTURES/prog_live.sh"
+  chmod +x "$_HI_FIXTURES/prog_live.sh"
+  _hi_run_runner $'prog_counted:prog_counted.sh\nprog_live:prog_live.sh'
+}
+
+function test_progress_line_counts_suites_and_cases() {
+  _HI_RUN_WITH="_HI_PROGRESS=1" _hi_progress_run
+  [[ "$_HI_RUN_OUT" == *"[####################] 2/2 suites, 7 cases, 1 failed, 0:0"* ]] &&
+    _hi_before "$_HI_RUN_OUT" "2/2 suites" "Running prog_counted"
+}
+
+function test_progress_line_is_off_by_default() {
+  _hi_progress_run
+  [[ "$_HI_RUN_OUT" != *" suites, "* ]]
+}
+
+function test_ci_turns_the_progress_line_on() {
+  _HI_RUN_WITH="GITHUB_ACTIONS=1" _hi_progress_run
+  [[ "$_HI_RUN_OUT" == *"2/2 suites, 7 cases"* ]]
+}
+
 # the recap under the summary: a suite that noted its failing cases gets them
 # listed by name, one that failed silently still gets one line
 function test_failing_cases_are_recapped_under_the_summary() {
@@ -889,6 +920,11 @@ function run_runner_tests() {
   _hi_check "CI annotates failures, unfolded" test_ci_annotates_failures_unfolded
   _hi_check "Failing cases recapped under the summary" test_failing_cases_are_recapped_under_the_summary
   _hi_check "A green run has no recap" test_a_green_run_has_no_recap
+
+  _hi_h2 "Testing: the progress line"
+  _hi_check "Counts finished suites and cases, ahead of the replay" test_progress_line_counts_suites_and_cases
+  _hi_check "Off without CI or a terminal" test_progress_line_is_off_by_default
+  _hi_check "CI turns it on" test_ci_turns_the_progress_line_on
 
   _hi_h2 "Testing: summary case counts"
   _hi_check "Has a column header" test_summary_has_a_column_header
