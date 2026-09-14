@@ -135,8 +135,9 @@ function test_overlay_sends_nothing_outside_the_roster() {
 
 # packages.d's members ride as packages.d/<name>, comment-stripped like any
 # packages file, their color= line intact - and two of them cost the stream
-# under 128 gzipped bytes over the same rows in one file (84 when measured:
-# a tar header each, and the color= line), so splitting is nearly free.
+# under 192 gzipped bytes over the same rows in one file (a tar header each,
+# and the color= line: 84 measured under GNU tar, 143 under OpenBSD's), so
+# splitting is nearly free.
 function test_overlay_carries_package_groups() {
   local one="$_HI_WORKDIR/groups-one" split="$_HI_WORKDIR/groups-split" n out a b
   mkdir -p "$one" "$split/packages.d"
@@ -155,8 +156,8 @@ function test_overlay_carries_package_groups() {
   esac
   a="$(_HI_CONFIG_DIR="$one" _hi_overlay_tar | wc -c)"
   b="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | wc -c)"
-  [ $((b - a)) -lt 128 ] || {
-    _hi_cecho " | two packages.d members cost $((b - a)) bytes over one file (budget 128)" "$RED"
+  [ $((b - a)) -lt 192 ] || {
+    _hi_cecho " | two packages.d members cost $((b - a)) bytes over one file (budget 192)" "$RED"
     return 1
   }
 }

@@ -28,11 +28,17 @@ fill() {
 }
 
 if [ "${1:-}" = --fill ]; then
-  [ $# -eq 3 ] || { echo "usage: release_slot.sh --fill <slot> <markdown> <body-file" >&2; exit 2; }
+  [ $# -eq 3 ] || {
+    echo "usage: release_slot.sh --fill <slot> <markdown> <body-file" >&2
+    exit 2
+  }
   fill "$2" "$3"
   exit 0
 fi
-[ $# -eq 4 ] || { echo "usage: release_slot.sh <owner/repo> <tag> <slot> <markdown>" >&2; exit 2; }
+[ $# -eq 4 ] || {
+  echo "usage: release_slot.sh <owner/repo> <tag> <slot> <markdown>" >&2
+  exit 2
+}
 repo="$1" tag="$2"
 body="$(mktemp)"
 trap 'rm -f "$body"' EXIT

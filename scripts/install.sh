@@ -473,8 +473,11 @@ function purge_overlay() {
     return 0
   fi
   dry_run_say "remove $_HI_CONFIG_DIR and everything in it" && return 0
-  rm -rf "$_HI_CONFIG_DIR"
-  _hi_cecho " removed $_HI_CONFIG_DIR :)" "$GREEN"
+  if rm -rf "$_HI_CONFIG_DIR" 2>/dev/null; then
+    _hi_cecho " removed $_HI_CONFIG_DIR :)" "$GREEN"
+  else
+    _hi_cecho " couldn't remove all of it - what is left: ls -A '$_HI_CONFIG_DIR'" "$YELLOW"
+  fi
 }
 
 # What a package ships. Deliberately spelled out rather than derived from
