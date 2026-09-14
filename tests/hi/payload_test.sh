@@ -112,16 +112,18 @@ function test_overlay_dereferences_symlinks() {
 # manager at this directory safe: the manager's own metadata, the .git that
 # you made there, an editor swap file or a key that has no business
 # leaving the machine are all in the same directory and none of them travel.
-# A denylist would have to keep guessing; this asserts the allow list holds.
+# A denylist would have to keep guessing; this asserts the allow list holds -
+# inside a `.d` member too, where only the plain names ride (HI.58).
 function test_overlay_sends_nothing_outside_the_roster() {
   local dir="$_HI_WORKDIR/overlay-leak" f
-  mkdir -p "$dir/.git" "$dir/.chezmoitemplates"
+  mkdir -p "$dir/.git" "$dir/.chezmoitemplates" "$dir/packages.d/sub"
   printf 'export _HI_MAX_WIDTH=72\n' >"$dir/settings.sh"
-  for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp; do
-    printf 'x\n' >"$dir/$f"
+  for f in .git/config .chezmoiignore README.md id_rsa settings.sh.bak .settings.sh.swp \
+    packages.d/10-x packages.d/10-x.bak packages.d/.10-x.swp packages.d/10-x~ packages.d/sub/20-y; do
+    printf 'x:3\n' >"$dir/$f"
   done
   while IFS= read -r f; do
-    [ -n "$f" ] || continue
+    [ -n "$f" ] && [ "$f" != packages.d/10-x ] || continue
     case " ${_HI_OVERLAY_FILES[*]} " in
     *" $f "*) continue ;;
     esac
@@ -129,6 +131,34 @@ function test_overlay_sends_nothing_outside_the_roster() {
     return 1
   done <<<"$(_HI_CONFIG_DIR="$dir" _hi_overlay_tar | tar tzf -)"
   return 0
+}
+
+# packages.d's members ride as packages.d/<name>, comment-stripped like any
+# packages file, their color= line intact - and two of them cost the stream
+# under 128 gzipped bytes over the same rows in one file (84 when measured:
+# a tar header each, and the color= line), so splitting is nearly free.
+function test_overlay_carries_package_groups() {
+  local one="$_HI_WORKDIR/groups-one" split="$_HI_WORKDIR/groups-split" n out a b
+  mkdir -p "$one" "$split/packages.d"
+  cp "$_HI_ROOT/settings/packages" "$one/packages"
+  n="$(grep -c . "$one/packages")"
+  head -n $((n / 3)) "$one/packages" >"$split/packages"
+  { printf 'color=orange\n' && sed -n "$((n / 3 + 1)),$((2 * n / 3))p" "$one/packages"; } >"$split/packages.d/10-lang"
+  sed -n "$((2 * n / 3 + 1)),\$p" "$one/packages" >"$split/packages.d/20-box"
+  [ "$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | tar tzf - | paste -sd, -)" = packages,packages.d/10-lang,packages.d/20-box ] || return 1
+  out="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | _hi_tar_cat packages.d/10-lang)"
+  case "$out" in color=orange$'\n'*) ;; *) return 1 ;; esac
+  case "$out" in *'#'*)
+    _hi_cecho " | packages.d/10-lang kept a comment line through the strip" "$RED"
+    return 1
+    ;;
+  esac
+  a="$(_HI_CONFIG_DIR="$one" _hi_overlay_tar | wc -c)"
+  b="$(_HI_CONFIG_DIR="$split" _hi_overlay_tar | wc -c)"
+  [ $((b - a)) -lt 128 ] || {
+    _hi_cecho " | two packages.d members cost $((b - a)) bytes over one file (budget 128)" "$RED"
+    return 1
+  }
 }
 
 # starship's, eza's, and bat's configs ride from where each tool reads them
@@ -751,6 +781,7 @@ function run_hi_payload_tests() {
   _hi_check "the user's per-shell files ride the stream" test_overlay_tar_carries_shell_files
   _hi_check_capable symlink "Symlinked overlay files are dereferenced (Stow)" test_overlay_dereferences_symlinks
   _hi_check "Nothing outside the roster travels" test_overlay_sends_nothing_outside_the_roster
+  _hi_check "packages.d members ride stripped, and nearly free" test_overlay_carries_package_groups
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
   _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored

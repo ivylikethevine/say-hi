@@ -13,6 +13,7 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/settings.sh`     | -                   | what `hi --configure` writes                                                                                                                  |
 | `~/.config/say-hi/colors`          | `settings/colors`   | your color pins                                                                                                                               |
 | `~/.config/say-hi/packages`        | `settings/packages` | what the package check looks for                                                                                                              |
+| `~/.config/say-hi/packages.d/`     | -                   | more packages files, each a group of its own checked after `packages`, in its own color ([below](#grouping-the-package-check))                 |
 | `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias where vim is what answers, and by `$VIMINIT` - replaces hi's default wholesale. Only needed when it should differ from your `~/.vimrc`, which hi carries on its own ([below](#the-editor-rcs-come-from-where-you-keep-them)) |
 | `~/.config/say-hi/init.lua`        | `settings/init.lua` | the same for neovim, used by the `nvim` alias (and by `vim`, which prefers nvim where a target has it); the same goes for your `~/.config/nvim/init.lua` |
 | `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias; likewise over your `~/.nanorc` |
@@ -70,6 +71,7 @@ which, and why). A setting a child must see is an `export` in
 - [Keeping the overlay in a dotfile manager](#keeping-the-overlay-in-a-dotfile-manager)
 - [Colors](#colors)
   - [The package check's ramp](#the-package-checks-ramp)
+  - [Grouping the package check](#grouping-the-package-check)
   - [Using the hash in your own prompt](#using-the-hash-in-your-own-prompt)
 
 ## The wizard
@@ -241,7 +243,7 @@ More names look like settings and are not:
   environment, as `hi.sh` and `install.sh`'s rc line do; unset, each entry
   point derives `$_HI_HOME` from its own path.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:`
-  comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_VIMRC`,
+  comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_PACKAGES_D`, `$_HI_VIMRC`,
   `$_HI_NVIMRC`, `$_HI_NANORC`, and `$_HI_EMACSRC` are derived
   from those two by `common/paths.sh` on every source - all but the first two resolving to the overlay's copy when you have one,
   else the tree's - so an exported value does not survive. Point `$_HI_HOME`
@@ -554,6 +556,39 @@ stay legible on light and dark terminals alike. Anything that is not eight
 names from the vocabulary above falls back to the shipped ramp, `hi --doctor`
 says so, and `hi --preview packages` labels the line `default`, `custom`, or
 `(ignored - not eight color names)`.
+
+### Grouping the package check
+
+One `packages` file ranks everything on one ramp, so your language toolchain
+and the box's own package manager can only be told apart by priority. A
+`packages.d/` directory beside it holds more packages files, each a **group**:
+checked after `packages`, in file-name order, its rows kept together (sorted
+by priority within the group, not merged into one sort), and painted in a
+color of its own. The group's name is the file's, less a leading
+`<digits>-` ordering prefix:
+
+```sh
+mkdir -p ~/.config/say-hi/packages.d
+printf 'color=orange\ngo:3\ncargo:3\nuv:2\n' >~/.config/say-hi/packages.d/10-lang
+printf 'color=brblue\n+apt:3,dnf:3,apk:3,pacman:3,brew:3\n' >~/.config/say-hi/packages.d/20-box
+```
+
+A member's rows are the `packages` grammar, and one `color=` line sets its
+color: a single name from the vocabulary above paints every row, installed or
+missing (the mark still says which), and eight names are a ramp of the group's
+own in `_HI_PACKAGES_PALETTE`'s shape. No `color=` line, or a value that is
+neither, and the group wears the ramp in force. `_HI_PACKAGES_MIN_PRIORITY`
+still decides how deep every group goes.
+
+Only plain names are members — a letter or digit first, then letters, digits,
+`_`, `.`, and `-`, and not ending in `.bak`, `.orig`, `.rej`, or `.tmp` — so an
+editor's swap file or a backup never travels. Each member rides the overlay
+stream comment-stripped, a few dozen bytes apiece over the same rows in one
+file. `hi --preview packages` adds a GROUP table naming each group, its rows,
+and its color painted in itself; `hi --doctor` names the groups in order and
+warns about a `color=` it ignores, a file that is no member, and a group
+nothing paints — one whose every row sits below the floor.
+[HI.58](GLOSSARY.md#hi58-overlay-directory-members) has the mechanics.
 
 `hi --preview colors` shows every host in your ssh config and every user it
 knows of, drawn in the colors themselves, each row naming the rule it matched:

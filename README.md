@@ -76,8 +76,9 @@ pager's description column.
 
 ### The Header Tells You What's Missing
 
-A `packages` overlay of the tools you care about, each with a priority; the
-header reads it on every target — one quiet line on a box that has them, a
+A `packages` overlay of the tools you care about, each with a priority (and a
+`packages.d/` of named groups, each in a color of its own, when one ramp is
+not enough); the header reads it on every target — one quiet line on a box that has them, a
 loud one on a box that does not. A homelab: bash from a laptop into the nas
 and the pihole, with the distro prompt this person already had — hi's is off
 (`_HI_DISABLE_PROMPT=1`), and the header, the check, and the aliases ride
@@ -351,8 +352,9 @@ In this checkout, and not what the tag waits on either.
        the overlay carries files hi already knows the names of, so anything
        new (a prompt segment, another tool's init, a per-target hook) means
        editing `common/` and losing it on the next `hi --update`. **Do:**
-       define an extension point — a `~/.config/say-hi/plugins/` of drop-in
-       files, each an `#!/bin/sh` in the POSIX+fish subset, sourced in a
+       define an extension point — a `~/.config/say-hi/plugins.d/` of drop-in
+       files (a `.d` overlay entry already rides member by member,
+       [HI.58](docs/GLOSSARY.md#hi58-overlay-directory-members)), each an `#!/bin/sh` in the POSIX+fish subset, sourced in a
        stated order at a stated moment (after aliases, before the prompt is
        built), with a documented set of hook names and the same overlay
        stream carrying them to every target; `hi --doctor` lists what loaded,
@@ -362,31 +364,15 @@ In this checkout, and not what the tag waits on either.
        budget still holds, and a suite pins the load order, the skip, and the
        doctor rows.
 
-3. [ ] **The check groups by what you care about, not only by how loud it is**
-       — one `packages` file carries every tool and the header paints it from a
-       single eight-color ramp keyed on priority (`_HI_PACKAGES_PALETTE`), so
-       "my language toolchain" and "the box's own package manager" can only be
-       told apart by rank. **Do:** let the overlay carry more than one packages
-       file — a `packages.d/` of named members, or named groups inside one —
-       each group named, ordered, and given a color of its own (a palette entry
-       or a scheme word), with `_HI_PACKAGES_MIN_PRIORITY` still the depth dial;
-       `hi --preview packages` renders the groups and their colors, and
-       `hi --doctor` names a group nothing paints. A directory member would be
-       `$_HI_OVERLAY_FILES`' first, which is the same thing the plugins entry
-       above needs, so solve it once. **Ticks when:** two overlay groups render
-       in their own colors on one target, a single-file overlay is byte for
-       byte what it is today, and a suite pins the grouping, the colors, and
-       what the extra members cost the payload.
-
-4. [ ] **A denser armor than base64** — base64 (HI.17) is a third of the ssh
+3. [ ] **A denser armor than base64** — base64 (HI.17) is a third of the ssh
        wire. Z85 (`basenc`, coreutils 8.31+) is the only denser encoding that
        ships anywhere and survives the shell, and saves ~7% only where both
        ends have it (not Alpine, macOS, the BSDs, or Ubuntu 20.04). **Do:**
-       decide whether 7% is worth a second encoder, given entry 5 moves four
-       times as much. **Ticks when:** it ships behind entry 5's capability
+       decide whether 7% is worth a second encoder, given entry 4 moves four
+       times as much. **Ticks when:** it ships behind entry 4's capability
        word, or this entry is deleted as not worth it.
 
-5. [ ] **A session sends the bytes, not a picture of them** — both levers need
+4. [ ] **A session sends the bytes, not a picture of them** — both levers need
        the boot probe (`_hi_boot_probe`, HI.19) to report what the target can
        do. **(a) No armor:** the container arms already stream the raw tar;
        ssh alone base64s it, and raw drops the wire from ~62 KB to 47 KB.
@@ -399,7 +385,7 @@ In this checkout, and not what the tag waits on either.
        gzip-and-base64, the README badge falls by the measured amount, and
        the e2e suites pass on every backend including busybox.
 
-6. [ ] **A release says where the package went, and shows what changed** —
+5. [ ] **A release says where the package went, and shows what changed** —
        shipped: `publish` leaves `tap` and `demo` slots in the release body and
        dispatches `demos.yml` at the tag; the `tap` job links its PR (or the
        tap's formula, when already current) into one, and `demos.yml`'s

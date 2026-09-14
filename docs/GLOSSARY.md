@@ -67,6 +67,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
 - [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
 - [HI.57 editor config resolution](#hi57-editor-config-resolution)
+- [HI.58 overlay directory members](#hi58-overlay-directory-members)
 
 ## HI.01 empty-array guard
 
@@ -1086,3 +1087,30 @@ opening quote swallows the rest of the file. What the pass cannot see is a
 value the dropped line was meant to bind - a `local m = require("x")` used
 twenty lines down - so a plugin-heavy config can still error on the target;
 the doctor rows are what makes that legible rather than mysterious.
+
+## HI.58 overlay directory members
+
+A `$_HI_OVERLAY_FILES` entry ending in `.d` names a directory, and its
+members ride one by one: `hi.sh`'s `_hi_overlay_files` lists each as
+`<dir>/<name>`, in name order, and the rest of the stream - `_hi_overlay_src`,
+the cache key, the stager, [HI.35](#hi35-payload-comment-and-whitespace-strip)'s
+strip (a `-path` entry in `$_HI_STRIP_NAMES`) - treats that path like any
+member. The directory stays an allow list: `core.sh`'s `_hi_dir_member_ok`
+admits a plain name only (a letter or digit first, then `[A-Za-z0-9_.-]`, not
+ending `.bak`/`.orig`/`.rej`/`.tmp`), and the target reads the directory back
+through the same function, so a file hi would not send is one hi would not
+read either. The archive carries no directory entry; every tar hi unpacks with
+creates the parent, busybox's included.
+
+`packages.d` is the first: each member is a group of the package check.
+`header.sh`'s `full_check` walks `_hi_package_files` - `$_HI_PACKAGES`, then
+the members - and `_hi_check_file` runs each through `check_line` under its
+own palette and sorts it alone, so a group is a contiguous run after the file
+before it. The palette is a file's `color=` line (`_hi_group_color`), made a
+ramp by `_hi_group_ramp` - one name in all eight slots, or eight as written -
+and handed to `_hi_packages_palette`, where it outranks
+`$_HI_PACKAGES_PALETTE`; the ramp in force is put back when the check ends.
+The line is not a comment on purpose: the strip would take it. With no member
+the walk is the one file it always was, and the output is byte for byte the
+single-file check's. `$_HI_PACKAGES_D` has no tree default and no guard in
+`common/paths.sh`: like `settings.sh`, the overlay is its only home.

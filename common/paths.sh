@@ -37,6 +37,8 @@ export _HI_COLORS="$_HI_ROOT/settings/colors"
 [ -f "$_HI_CONFIG_DIR/colors" ] && export _HI_COLORS="$_HI_CONFIG_DIR/colors"
 export _HI_PACKAGES="$_HI_ROOT/settings/packages"
 [ -f "$_HI_CONFIG_DIR/packages" ] && export _HI_PACKAGES="$_HI_CONFIG_DIR/packages"
+# the named groups after it; the overlay is its only home (GLOSSARY: HI.58)
+export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"
 # The editor rcs take a middle tier the other two have no use for: the config
 # that editor already reads on this machine, so hi carries the file you
 # maintain rather than a duplicate you have to remember to update (HI.32 is

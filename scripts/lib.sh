@@ -179,6 +179,29 @@ function _hi_ramp_label() {
   fi
 }
 
+# _hi_group_name <outvar> <file> - a packages group's name: its file's, less a
+# leading `<digits>-` ordering prefix (10-lang is lang). GLOSSARY: HI.58
+function _hi_group_name() {
+  local _hi_gn="${2##*/}" _hi_gn_d
+  _hi_gn_d="${_hi_gn%%[!0-9]*}"
+  [ -z "$_hi_gn_d" ] || case "$_hi_gn" in "$_hi_gn_d"-?*) _hi_gn="${_hi_gn#"$_hi_gn_d"-}" ;; esac
+  printf -v "$1" '%s' "$_hi_gn"
+}
+
+# _hi_group_label <outvar> <color value> - a group's `color=` the way the
+# ramp label above reads: the ramp, the value, or the value and why it is
+# ignored, judged by header.sh's _hi_group_ramp.
+function _hi_group_label() {
+  local _hi_gl_r
+  if [ -z "$2" ]; then
+    printf -v "$1" '%s' "the ramp"
+  elif _hi_group_ramp _hi_gl_r "$2"; then
+    printf -v "$1" '%s' "$2"
+  else
+    printf -v "$1" '%s (ignored - not one color name or eight)' "$2"
+  fi
+}
+
 # Every rule and edge scripts/table.sh and scripts/configure.sh draw with.
 # Here and not in core.sh's _hi_choose_glyphs beside the mark glyphs, for the
 # reason at the top of this file: nothing a target runs draws a box, and

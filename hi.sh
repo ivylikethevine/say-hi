@@ -61,9 +61,10 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
-_HI_OVERLAY_FILES=(settings.sh colors packages vim.rc init.lua nano.rc emacs.el
-  aliases.sh bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json theme.yml
-  bat.conf)
+# A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
+_HI_OVERLAY_FILES=(settings.sh colors packages packages.d vim.rc init.lua nano.rc
+  emacs.el aliases.sh bash.sh zsh.zsh config.fish starship.toml oh-my-posh.json
+  theme.yml bat.conf)
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -270,11 +271,19 @@ function _hi_editor_lint() {
 }
 
 # The overlay members that have a source, one per line; callers read it once
-# and hand the list to _hi_overlay_tar.
+# and hand the list to _hi_overlay_tar. A `.d` entry lists its members as
+# <dir>/<name>, in name order, only those _hi_dir_member_ok admits.
 function _hi_overlay_files() {
   local f src
   for f in "${_HI_OVERLAY_FILES[@]}"; do
-    _hi_overlay_src "$f" src && printf '%s\n' "$f"
+    case "$f" in
+    *.d)
+      for src in "$_HI_CONFIG_DIR/$f"/*; do
+        [ -f "$src" ] && _hi_dir_member_ok "${src##*/}" && printf '%s\n' "$f/${src##*/}"
+      done
+      ;;
+    *) _hi_overlay_src "$f" src && printf '%s\n' "$f" ;;
+    esac
   done
   return 0
 }
@@ -315,7 +324,8 @@ function _hi_tar_gz() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el)
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el
+  '*/packages.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
@@ -333,7 +343,7 @@ function _hi_stage_tar() {
   local -a _hi_st_lint=(${stage_lint[@]+"${stage_lint[@]}"})
   for f in "${_HI_STRIP_NAMES[@]}"; do
     ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
-    _hi_st_names+=(-name "$f")
+    case "$f" in */*) _hi_st_names+=(-path "$f") ;; *) _hi_st_names+=(-name "$f") ;; esac
   done
   (
     stage="$(mktemp -d -t hi.stage.XXXXXX)" || exit 1

@@ -255,6 +255,15 @@ function _hi_color_base() {
   printf -v "$1" '%s' "${_HI_COLOR_NAMES[@]:$((${_hi_cb_p:0:1} * 6 + ${_hi_cb_p:1:1} - 1)):1}"
 }
 
+# _hi_dir_member_ok <name> - whether a file in an overlay `.d` directory is a
+# member: a plain name, never a dotfile, a backup, or a swap file, so the
+# directory stays an allow list like the roster naming it. GLOSSARY: HI.58
+function _hi_dir_member_ok() {
+  case "$1" in
+  '' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]* | *.bak | *.orig | *.rej | *.tmp) return 1 ;;
+  esac
+}
+
 # _hi_ramp_ok <value> - true when <value> is eight _HI_COLOR_NAMES words,
 # the shape $_HI_PACKAGES_PALETTE takes (header.sh reads it per render,
 # scripts/lib.sh's _hi_ramp_label reports it, so both judge by this one
