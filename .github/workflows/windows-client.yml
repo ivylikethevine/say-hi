@@ -11,8 +11,9 @@ name: Windows client
 # (doctor_test.sh, ~10k forks, and test_lib's) ran far past the rest and is
 # halved as shards 2a and 2b (slices 2/8 and 6/8 - which --shard's round
 # robin makes exactly 2/4). Each slice runs twice: on windows-latest (x64)
-# and windows-11-arm (arm64, free on a public repo), where Git for Windows is
-# its native arm64 build. No --verbose (ci.yml's `test` job's own comment on
+# and windows-11-arm (arm64, free on a public repo), where only git.exe is
+# native: the MSYS runtime under Git Bash is x86_64, emulated (the host
+# report's `os` row). No --verbose (ci.yml's `test` job's own comment on
 # the same flag): the runner then fans a shard's suites out to the core count
 # instead of forcing width 1 for live streaming, and a failing transcript
 # still replays in full either way - only the live stream is lost. The
@@ -51,6 +52,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # The x64 image ships Defender off with C:\ and D:\ excluded; the arm64
+      # image cannot (tamper protection), so every fork and temp file there is
+      # scanned. Exclusions are not tamper-protected on an unmanaged box, so
+      # this matches the x64 image's. Best effort: a refusal only costs speed.
+      - name: Exclude the drives from Defender scanning (arm64)
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Add-MpPreference -ExclusionPath 'C:\', 'D:\'
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+          Get-MpPreference | Select-Object ExclusionPath, DisableRealtimeMonitoring | Format-List
 
       # No `uses: ./.github/actions/setup-tools`: it resolves linux/darwin asset
       # slugs and caches into /usr/local/bin, neither a Windows shape, so the

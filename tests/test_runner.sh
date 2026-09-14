@@ -187,7 +187,9 @@ A passing suite's transcript is collapsed to one status line; failures and
 skips replay in full, and every failing case is repeated under the summary.
 --verbose (or _HI_VERBOSE=1) streams every transcript live instead. Under GitHub
 Actions, passing transcripts fold into ::group:: blocks and failing cases
-are emitted as ::error annotations.
+are emitted as ::error annotations. While suites run side by side, a progress
+line counts finished suites and cases - redrawn in place at a terminal, a line
+per finished suite (and every 30s) on CI; _HI_PROGRESS=0/1 overrides.
 
 Suites, in the order they run:
 $(_hi_test_listing)
@@ -365,6 +367,14 @@ trap "_hi_restore_tty; rm -rf '$_HI_RUN_DIR'" EXIT
 _HI_VERBOSE="${_HI_VERBOSE:-0}"
 _HI_CI="${GITHUB_ACTIONS:-}"
 
+# A parallel batch replays nothing until its last suite finishes, so it draws
+# progress meanwhile (_hi_progress_tick): on by default under CI or with a
+# terminal on stdout, and _HI_PROGRESS=0/1 decides otherwise.
+_HI_PROGRESS="${_HI_PROGRESS:-}"
+if [ -z "$_HI_PROGRESS" ]; then
+  if [ -n "$_HI_CI" ] || [ -t 1 ]; then _HI_PROGRESS=1; else _HI_PROGRESS=0; fi
+fi
+
 # One row per suite, tab-joined:
 # <name>\t<status>\t<pass>\t<fail>\t<skip>\t<duration>.
 # Six arrays appended in lockstep from two places meant a missed append in one
@@ -517,7 +527,76 @@ done
 # tally files and --require-run ride the environment; reads the loop's
 # current $_hi_counts/$_hi_fails/$_hi_path
 function _hi_run_suite() {
-  _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
+  _HI_COUNTS_FILE="$_hi_counts" _HI_FAILS_FILE="$_hi_fails" _HI_PROGRESS_FILE="${_hi_progress:-}" \
+    _HI_REQUIRE_RUN="$_HI_REQUIRE_RUN" "$_hi_path"
+}
+
+# _hi_progress_line <index-before-batch> <suite-entry...> - the batch's state
+# as one line in $_hi_pg_line, and its finished-suite count in $_hi_pg_done.
+# Read off the batch's $_HI_RUN_DIR files: .rc once a suite is done, .counts
+# or else the live .progress for its cases, .progress alone for a running
+# one. Reads and globs only - forks are what Git Bash is slow at.
+function _hi_progress_line() {
+  local k="$1" t f s entry name cases=0 running="" bar dots file
+  shift
+  _hi_pg_done=0
+  _hi_pg_failed=0
+  for entry in "$@"; do
+    k=$((k + 1))
+    name="${entry#*:}"
+    name="${name%%:*}"
+    if [ -f "$_HI_RUN_DIR/$k.rc" ]; then
+      _hi_pg_done=$((_hi_pg_done + 1))
+    elif [ -f "$_HI_RUN_DIR/$k.progress" ]; then
+      running="$running $name"
+    fi
+    file="$_HI_RUN_DIR/$k.counts"
+    [ -s "$file" ] || file="$_HI_RUN_DIR/$k.progress"
+    t="" f="" s=""
+    if [ -s "$file" ]; then read -r t f s <"$file" || :; fi
+    # a SKIP line, or a read that caught the file mid-rewrite, counts nothing
+    case "$t:$f:${s:-0}" in
+    *[!0-9:]* | :*) ;;
+    *)
+      cases=$((cases + t + ${s:-0}))
+      _hi_pg_failed=$((_hi_pg_failed + f))
+      ;;
+    esac
+  done
+  _hi_repeat bar $((_hi_pg_done * 20 / $#)) '#'
+  _hi_repeat dots $((20 - ${#bar})) '.'
+  _hi_pg_line=" | [$bar$dots] $_hi_pg_done/$# suites, $cases cases"
+  [ "$_hi_pg_failed" -eq 0 ] || _hi_pg_line="$_hi_pg_line, $_hi_pg_failed failed"
+  printf -v t '%d:%02d' $((SECONDS / 60)) $((SECONDS % 60))
+  _hi_pg_line="$_hi_pg_line, $t${running:+, running:$running}"
+}
+
+# _hi_progress_tick <index-before-batch> <suite-entry...> - run in the
+# background for a parallel batch. At a terminal it redraws one bar in place
+# every second; anywhere else (a CI log) it prints a line when a suite
+# finishes, plus one every 30s so a long suite still shows the job is alive.
+# It exits once every suite has its .rc or the batch drops <index>.stop (a
+# suite killed before writing one), clearing the bar for the replay.
+function _hi_progress_tick() {
+  local suites=$(($# - 1)) stop="$_HI_RUN_DIR/$1.stop" last=0 beat=-30 color
+  SECONDS=0
+  while kill -0 "$$" 2>/dev/null; do
+    sleep 1
+    _hi_progress_line "$@"
+    color="$BLUE"
+    [ "$_hi_pg_failed" -eq 0 ] || color="$RED"
+    if [ -t 1 ]; then
+      _hi_cecho "${_hi_pg_line:0:$((${_HI_MAX_WIDTH:-80} - 1))}" $'\r\033[K'"$color" -n
+    elif [ "$_hi_pg_done" -gt "$last" ] || [ $((SECONDS - beat)) -ge 30 ]; then
+      _hi_cecho "$_hi_pg_line" "$color"
+      beat=$SECONDS
+    fi
+    last=$_hi_pg_done
+    if [ "$_hi_pg_done" -ge "$suites" ] || [ -f "$stop" ]; then
+      [ ! -t 1 ] || printf '\r\033[K'
+      return 0
+    fi
+  done
 }
 
 # _hi_run_batch <width> <suite-entry...> - the scheduling loop plus its
@@ -527,9 +606,13 @@ function _hi_run_suite() {
 # names, so each batch's starts empty.
 function _hi_run_batch() {
   local width="$1" _hi_t _hi_rest _hi_name _hi_path _hi_counts _hi_fails _hi_log
-  local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1"
+  local _hi_t0 _hi_code _hi_dur _hi_batch_i0=$_hi_i _HI_PAR_SLOTS="$1" _hi_pid _hi_ticker="" _hi_progress=""
   local -a _HI_PAR_RUNNING=() _hi_batch_names=()
   shift
+  if [ "$width" -gt 1 ] && [ "$_HI_PROGRESS" = 1 ] && [ "$#" -gt 0 ]; then
+    _hi_progress_tick "$_hi_i" "$@" &
+    _hi_ticker=$!
+  fi
   for _hi_t in "$@"; do
     # the accessors' own expansions, inlined: this runs once per selected
     # suite and both fields come off the one row, so two forks bought nothing
@@ -542,6 +625,7 @@ function _hi_run_batch() {
     _hi_log="$_HI_RUN_DIR/$_hi_i.log"
     : >"$_hi_counts"
     : >"$_hi_fails"
+    [ -z "$_hi_ticker" ] || _hi_progress="$_HI_RUN_DIR/$_hi_i.progress"
     _hi_batch_names+=("$_hi_name")
 
     if [ ! -f "$_hi_path" ]; then
@@ -554,6 +638,8 @@ function _hi_run_batch() {
     if [ "$width" -gt 1 ]; then
       _hi_par_slot
       (
+        # its presence is what the progress line reads as "running"
+        [ -z "$_hi_progress" ] || : >"$_hi_progress"
         _hi_t0="$(_hi_now)"
         if _hi_run_suite >"$_hi_log" 2>&1; then _hi_code=0; else _hi_code=$?; fi
         printf '%s %s\n' "$_hi_code" "$(_hi_elapsed "$_hi_t0" "$(_hi_now)")" >"$_HI_RUN_DIR/$_hi_i.rc"
@@ -574,11 +660,17 @@ function _hi_run_batch() {
   done
 
   # the parallel run's collection pass, in table order: wait out every suite
-  # subshell at once (each wrote its verdict to its own .rc file, so per-pid
-  # bookkeeping buys nothing), then tally and replay each exactly as the
-  # serial loop above would have
+  # subshell (each wrote its verdict to its own .rc file) and then the ticker -
+  # by pid, since a bare `wait` would wait on the ticker too - then tally and
+  # replay each exactly as the serial loop above would have
   if [ "$width" -gt 1 ]; then
-    wait
+    for _hi_pid in ${_HI_PAR_RUNNING[@]+"${_HI_PAR_RUNNING[@]}"}; do
+      wait "$_hi_pid" 2>/dev/null || true
+    done
+    if [ -n "$_hi_ticker" ]; then
+      : >"$_HI_RUN_DIR/$_hi_batch_i0.stop"
+      wait "$_hi_ticker" 2>/dev/null || true
+    fi
     _hi_i=$_hi_batch_i0
     for _hi_name in ${_hi_batch_names[@]+"${_hi_batch_names[@]}"}; do
       _hi_i=$((_hi_i + 1))

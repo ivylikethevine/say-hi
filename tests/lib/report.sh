@@ -38,6 +38,7 @@ function _hi_align() {
 function _hi_case() {
   _HI_TOTAL=$((_HI_TOTAL + 1))
   "$@" || _HI_FAILED=$((_HI_FAILED + 1))
+  _hi_report_progress
 }
 
 # The fixed predicates every harness suite's own cases feed _hi_check/
@@ -115,6 +116,15 @@ function _hi_skip() {
 function _hi_report_counts() {
   [ -n "${_HI_COUNTS_FILE:-}" ] || return 0
   printf '%s %s %s\n' "$1" "$2" "${3:-0}" >"$_HI_COUNTS_FILE"
+}
+
+# _hi_report_progress - the tally so far, in _hi_report_counts' format, to
+# $_HI_PROGRESS_FILE after every case: what the runner's progress line counts
+# a still-running suite by. A no-op outside the runner, like its twin, and
+# never a failure: a lost update only costs the progress line a tick.
+function _hi_report_progress() {
+  [ -n "${_HI_PROGRESS_FILE:-}" ] || return 0
+  printf '%s %s %s\n' "$_HI_TOTAL" "${_HI_FAILED:-0}" "${_HI_SKIPPED:-0}" 2>/dev/null >"$_HI_PROGRESS_FILE" || :
 }
 
 # _hi_note_failure <label> - the failing case's name, up to the runner, which

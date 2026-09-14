@@ -45,6 +45,11 @@ tests/test_runner.sh --verbose          # every transcript, nothing collapsed
   in full and are recapped under the summary table. `--verbose`
   (`_HI_VERBOSE=1`) streams every transcript live, for a case that fails only
   under the runner.
+- Suites running side by side replay only once the last one finishes, so a
+  progress line fills the wait — finished suites, cases so far, failures,
+  elapsed time, what is still running. It redraws in place at a terminal and
+  prints a line per finished suite plus a 30s heartbeat on CI;
+  `_HI_PROGRESS=0` turns it off, `_HI_PROGRESS=1` on anywhere else.
 - A suite whose backend is missing reports **SKIPPED**, never green; so does a
   single case (an image that would not build, a tool not installed).
   `--require-run` — what CI's lint, e2e, and backends jobs pass — turns both

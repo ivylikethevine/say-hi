@@ -124,6 +124,7 @@ function _hi_par_case() {
     # summed back into the caller's by _hi_par_wait
     # shellcheck disable=SC2030
     _HI_SKIPPED=0
+    _HI_PROGRESS_FILE="" # this copy's tally is partial; _hi_par_wait reports
     _hi_par_rc=0
     "$@" || _hi_par_rc=$?
     printf '%s %s\n' "$_hi_par_rc" "${_HI_SKIPPED:-0}" >"$res"
@@ -231,7 +232,7 @@ function _hi_par_wait() {
   _HI_PAR_LABELS=()
   _HI_PAR_RUNNING=()
   _HI_PAR_N=0
-  return 0
+  _hi_report_progress
 }
 
 # The teardown half, reached from _hi_test_cleanup: stop anything still running
