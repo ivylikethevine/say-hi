@@ -83,10 +83,12 @@ comments are convenient to read through by eye.
 | `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)` | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass | Gate, but see below                     |
 | `fast suites (Windows client)`                      | Same-repo PRs and pushes to `main`; four x64 and four arm64 runners | Gate, but see below                     |
 
-Nothing runs on a draft: every job skips until the PR is marked ready, which
-fires a full run. Until then GitHub lists both `fast suites` checks and both
-`e2e` aggregates as Expected, since it never names the entries of a skipped
-matrix job; a draft cannot merge either way.
+No suite does work on a draft: every job skips until the PR is marked ready,
+which fires a full run. Two jobs - `test` (both `fast suites` checks) and
+`e2e-checks` (both `e2e` aggregates) - start anyway and no-op internally,
+because they are matrix jobs: GitHub never names the entries of a *skipped*
+matrix job, and a required check with no entry sits at Expected forever. They
+report green without running anything; a draft cannot merge either way.
 
 "Skipped on a workflow-only diff" is `ci.yml`'s `changes` job: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
