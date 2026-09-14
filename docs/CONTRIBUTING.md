@@ -84,9 +84,12 @@ comments are convenient to read through by eye.
 | `fast suites (Windows client)`                      | Same-repo PRs and pushes to `main`; four x64 and four arm64 runners | Gate, but see below                     |
 
 Nothing runs on a draft: every job skips until the PR is marked ready, which
-fires a full run. Until then GitHub lists both `fast suites` checks and both
-`e2e` aggregates as Expected, since it never names the entries of a skipped
-matrix job; a draft cannot merge either way.
+fires a full run. `fast suites (ubuntu-latest)`, `fast suites
+(ubuntu-24.04-arm)`, `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` are
+each their own job rather than a matrix entry, precisely so a skip on a draft
+reports correctly under that name instead of sitting at Expected the way a
+skipped matrix entry would (GitHub never names those); a draft cannot merge
+either way.
 
 "Skipped on a workflow-only diff" is `ci.yml`'s `changes` job: a PR that only touches
 `.github/workflows/**` can't move those jobs' results, so they report
