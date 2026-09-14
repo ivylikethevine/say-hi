@@ -6,8 +6,9 @@
 # Here and not in hi.sh, for the reason common/core.sh states about
 # scripts/lib.sh - hi.sh ships in the ssh payload under a size budget, and
 # this is the one subcommand that cannot succeed anywhere the payload copy is
-# what is running: a disposable tree is /tmp/<x>/say-hi with no .git, and a
-# target with a permanent install runs its own hi.sh. It goes through
+# what is running: a disposable tree is /tmp/<x>/say-hi with no .git, and
+# that is what every session runs, even on a target with a say-hi of its own.
+# It goes through
 # _hi_dispatch_subcommand like every other subcommand.
 #
 # SC2317/SC2329: shellcheck follows the `source "$_HI_LAUNCHER"` chain into

@@ -49,7 +49,7 @@ Prints, in order:
                      timed, so a slow TAB or connect banner names its culprit
   the target         (with an argument) which backend the name resolves to,
                      each check timed - and for an ssh target, a BatchMode
-                     connection, the permanent-install probe, and what the
+                     connection, what each session ships, and what the
                      remote end has installed
 
 ssh options (-p, -i, -J, -o, and the rest) reach the same BatchMode probe a
@@ -736,9 +736,7 @@ function doctor_container_target() {
     ;;
   esac
 
-  # what it costs. No permanent-install branch here, unlike the ssh arm: a
-  # container target has nowhere hi would find a tree it did not put there, so
-  # every session pays the copy.
+  # what it costs: every session pays the copy, as on the ssh arm.
   doctor_row ships "$(_hi_human_bytes "$(_hi_file_bytes <(_hi_payload_tar))") gzipped, streamed through $label exec - no base64 armor, unlike ssh"
 }
 

@@ -184,8 +184,7 @@ function tmpdir_line() {
 # roster cannot miss this half. The substituted rc file
 # is where *this* user's shell reads it: zsh under $ZDOTDIR and fish under
 # $XDG_CONFIG_HOME when those are set. core.sh's column stays the plain
-# $HOME form, which is what hi.sh's permanent-install probe looks for on a
-# target it knows nothing else about.
+# $HOME form.
 _HI_RC_TABLE=()
 while IFS='|' read -r _hi_shell _hi_label _hi_tree_rc _hi_home_rc _hi_check _hi_dialect; do
   case "$_hi_shell" in

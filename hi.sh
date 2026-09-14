@@ -785,7 +785,7 @@ function _hi_ssh_sh() {
 
 # _hi_ctl_open <run-persist-secs> <run|shared> [ssh-opts...] - a ControlMaster
 # socket into the caller's ctl_dir/ctl_path/ctl_opts/ctl_shared, so the
-# install probe and the session multiplex one authentication. _hi_ctl_close
+# boot probe and the session multiplex one authentication. _hi_ctl_close
 # tears it down, except a shared one, which outlives the call on purpose.
 #
 # `run` is always a fresh socket, *inside* a `mktemp -d` (0700) rather than at
@@ -1558,7 +1558,7 @@ if mkdir -m 700 "$d" 2>/dev/null; then printf "%s" "$d"; else printf "%s" "${TMP
   return $exit_code
 }
 
-# --plain over ssh: no bootstrap, no install probe, no payload - just ssh
+# --plain over ssh: no bootstrap, no boot probe, no payload - just ssh
 # handing over the target's own login shell. Needs nothing beyond sshd and a
 # shell. Also where _say_hi lands when the target refused its bootstrap, which
 # is when the ControlMaster options arrive in "$@".

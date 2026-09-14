@@ -245,8 +245,8 @@ never parses its braces (fish couldn't).
 Every command hi sends meets the target's _login_ shell first, which may be
 fish — and fish parses neither `x=1` nor `{ ...; }` nor `||` as sh does.
 Wrapping everything in `sh -c '...'` is the transport's job, not per-site care
-(unwrapped, the install probe answers "nothing installed" on every fish-login
-host). Quoting is single-quote-and-escape rather than `printf %q`, which
+(unwrapped, the boot probe's `if ...; then ... fi` does not even parse on a
+fish-login host). Quoting is single-quote-and-escape rather than `printf %q`, which
 backslash-escapes every space — unreadable in the code and in an `ssh -v`
 log, and one more thing for fish to differ about.
 

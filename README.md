@@ -112,8 +112,8 @@ hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
 `# Tags:` lines in `~/.ssh/config`, a `colors` overlay pinning each tag, and
 `hi --preview colors` to see what every host resolves to — then a prod host
 lands in red and a dev host in green. A sysadmin, bash from a laptop into two
-ssh hosts with their own two-line fish prompt, drawn on the colors hi
-resolved.
+fish ssh hosts, with a two-line fish prompt of their own riding the overlay,
+drawn on the colors hi resolved.
 
 ![hi --preview colors, then hi into a prod-tagged host with a red prompt and a dev-tagged host with a green one](https://ivylikethevine.github.io/say-hi/docs/tapes/colors.gif)
 
@@ -363,17 +363,6 @@ In this checkout, and not what the tag waits on either.
        for plugin loads. **Ticks when:** micro on a target opens with the
        client's settings and bindings, the payload budget still holds, and a
        suite pins it.
-
-4. [ ] **One header when both ends have hi** — connecting from a machine
-       with hi to a target where hi is installed and wired into the rc files
-       prints two headers: load.sh's `Connected` one, then the target's own
-       `Online` greeting. The likely path is load.sh's session rc sourcing
-       the target's `~/.bashrc`/`~/.zshrc` (`_hi_session_sh_rc`) ahead of the
-       client's verdicts, and fish reading the target's `config.fish` before
-       `fish_greeting` is blanked. **Do:** confirm which rc greets, and have
-       the session tell the target's hi it is inside one before that rc runs.
-       **Ticks when:** a session to an installed target (bash, zsh, and fish)
-       prints exactly one header, and the installed-target e2e cases pin it.
 
 ### Post 1.0
 

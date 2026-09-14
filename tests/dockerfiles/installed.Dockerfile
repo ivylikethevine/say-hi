@@ -1,7 +1,6 @@
-# say-hi already installed at ~/say-hi on the target, rather than pushed over the
-# wire by the payload - the permanent-install path, where load.sh finds a real
-# checkout and skips the copy entirely. The sentinel is what the case greps
-# for to prove it took that path and not the payload one.
+# say-hi already installed at ~/say-hi on the target. hi ignores it: the
+# session ships and runs its own tree, and the sentinel is what the post-check
+# reads to prove the install is still whole afterwards.
 #
 # Build context is the repo root, so `COPY .` is the working tree.
 ARG BASE=hi-test-sshd
