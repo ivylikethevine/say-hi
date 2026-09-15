@@ -76,20 +76,11 @@ function test_dispatch_keeps_the_first_argument_ahead_of_the_rest() {
 args=--configure --preset dev" ]
 }
 
-# a row with no script var (--plain, --mux, and the like) is hi.sh's own
-# case arm further down; dispatch has to decline it rather than exec nothing
-function test_dispatch_declines_a_row_with_no_script() {
-  _hi_ds_dispatch --plain
-  [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ]
-}
-
-function test_dispatch_declines_an_unknown_flag() {
-  _hi_ds_dispatch --nonesuch
-  [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ]
-}
-
-function test_dispatch_declines_with_no_argument_at_all() {
-  _hi_ds_dispatch
+# test_dispatch_declines [arg] - declined, not exec'd: an unknown flag, no
+# argument, or a row with no script var (--plain, --mux, and the like), which
+# is hi.sh's own case arm further down
+function test_dispatch_declines() {
+  _hi_ds_dispatch "$@"
   [ ! -s "$_HI_DS_OUT" ] && [ "$_HI_DS_RC" = 1 ]
 }
 
@@ -267,9 +258,9 @@ function run_dispatch_tests() {
   _hi_check "Hands a flag to its script" test_dispatch_hands_a_flag_to_its_script
   _hi_check "Prepends the row's first argument" test_dispatch_prepends_the_rows_first_argument
   _hi_check "Keeps it ahead of the rest" test_dispatch_keeps_the_first_argument_ahead_of_the_rest
-  _hi_check "Declines a row with no script" test_dispatch_declines_a_row_with_no_script
-  _hi_check "Declines an unknown flag" test_dispatch_declines_an_unknown_flag
-  _hi_check "Declines with no argument at all" test_dispatch_declines_with_no_argument_at_all
+  _hi_check "Declines a row with no script" test_dispatch_declines --plain
+  _hi_check "Declines an unknown flag" test_dispatch_declines --nonesuch
+  _hi_check "Declines with no argument at all" test_dispatch_declines
   _hi_check "Names the flag that wanted the checkout" test_run_script_says_which_flag_wanted_the_checkout
   _hi_check "Reports the missing checkout on stderr" test_run_script_reports_the_missing_checkout_on_stderr
 

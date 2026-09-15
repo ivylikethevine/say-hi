@@ -257,16 +257,6 @@ function doctor_payload_diff() {
 # this and the connect path ask.
 _HI_LOCAL_FLOOR=(base64 tar)
 
-# _hi_missing_tools <name...> - those of <name...> this machine does not have,
-# space-separated, in the order given.
-function _hi_missing_tools() {
-  local tool missing=""
-  for tool in "$@"; do
-    command -v "$tool" >/dev/null 2>&1 || missing="$missing$tool "
-  done
-  printf '%s' "${missing% }"
-}
-
 function doctor_local() {
   local branch changes wire missing nice_missing
   doctor_section local "The local tree"

@@ -623,42 +623,13 @@ function test_identity_hides_all_backend_cells_when_none_found() {
   [[ "$out" != *"Containers:"* && "$out" != *"Jobs:"* && "$out" != *"Pods:"* && "$out" != *"docker/podman"* ]]
 }
 
-# ...and once found, the count shows even at zero - a probed-and-idle backend
-# is distinguishable from an absent one
-function test_identity_shows_containers_zero_when_docker_found_but_empty() {
-  local out
-  out="$(_hi_identity_with "$(_hi_backend_shim docker 0)")"
-  [[ "$out" == *"Containers: 0"* ]]
-}
-
-function test_identity_shows_containers_count_when_docker_found() {
-  local out
-  out="$(_hi_identity_with "$(_hi_backend_shim docker 3)")"
-  [[ "$out" == *"Containers: 3"* ]]
-}
-
-function test_identity_shows_jobs_zero_when_nomad_found_but_idle() {
-  local out
-  out="$(_hi_identity_with "$(_hi_backend_shim nomad 0)")"
-  [[ "$out" == *"Jobs: 0"* ]]
-}
-
-function test_identity_shows_jobs_count_excluding_the_header_row() {
-  local out
-  out="$(_hi_identity_with "$(_hi_backend_shim nomad 2)")"
-  [[ "$out" == *"Jobs: 2"* ]]
-}
-
-function test_identity_shows_pods_zero_when_kube_found_but_empty() {
-  local out
-  out="$(_hi_identity_with "$(_hi_kube_shim 0)")"
-  [[ "$out" == *"Pods: 0"* ]]
-}
-
-function test_identity_shows_pods_count_when_kube_found() {
-  local out
-  out="$(_hi_identity_with "$(_hi_kube_shim 2)")"
-  [[ "$out" == *"Pods: 2"* ]]
+# test_identity_shows_count <backend> <n> <label> - once found, the count
+# shows even at zero: a probed-and-idle backend is distinguishable from an
+# absent one
+function test_identity_shows_count() {
+  local shim
+  if [ "$1" = kube ]; then shim="$(_hi_kube_shim "$2")"; else shim="$(_hi_backend_shim "$1" "$2")"; fi
+  [[ "$(_hi_identity_with "$shim")" == *"$3: $2"* ]]
 }
 
 function test_banner_disabled_produces_no_output() {
@@ -2125,12 +2096,12 @@ function run_header_tests() {
   _hi_check "Identity includes its static labels" test_identity_includes_static_labels
   _hi_check "Identity's uptime cell rides last" test_identity_includes_uptime_cell_last
   _hi_check "No cells at all when no backend is found" test_identity_hides_all_backend_cells_when_none_found
-  _hi_check "Containers: 0 when docker is found but empty" test_identity_shows_containers_zero_when_docker_found_but_empty
-  _hi_check "Containers count when docker is found" test_identity_shows_containers_count_when_docker_found
-  _hi_check "Jobs: 0 when nomad is found but idle" test_identity_shows_jobs_zero_when_nomad_found_but_idle
-  _hi_check "Jobs count excludes nomad's header row" test_identity_shows_jobs_count_excluding_the_header_row
-  _hi_check "Pods: 0 when kube is found but empty" test_identity_shows_pods_zero_when_kube_found_but_empty
-  _hi_check "Pods count when kube is found" test_identity_shows_pods_count_when_kube_found
+  _hi_check "Containers: 0 when docker is found but empty" test_identity_shows_count docker 0 Containers
+  _hi_check "Containers count when docker is found" test_identity_shows_count docker 3 Containers
+  _hi_check "Jobs: 0 when nomad is found but idle" test_identity_shows_count nomad 0 Jobs
+  _hi_check "Jobs count excludes nomad's header row" test_identity_shows_count nomad 2 Jobs
+  _hi_check "Pods: 0 when kube is found but empty" test_identity_shows_count kube 0 Pods
+  _hi_check "Pods count when kube is found" test_identity_shows_count kube 2 Pods
 
   _hi_h2 "Testing: a target with no coreutils"
   _hi_check "System_info says ? without uname" test_system_info_without_uname_says_unknown

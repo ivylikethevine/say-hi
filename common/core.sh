@@ -212,16 +212,8 @@ function _hi_color_escape_at() {
 # $_HI_TARGET_COLOR over the wire, preview.sh's grouping) carries one string
 # and needs to know nothing. GLOSSARY: HI.50
 function _hi_color_split() {
-  case "$3" in
-  *'#'*)
-    printf -v "$1" '%s' "${3%%#*}"
-    printf -v "$2" '%s' "${3#*#}"
-    ;;
-  *)
-    printf -v "$1" '%s' "$3"
-    printf -v "$2" '%s' ''
-    ;;
-  esac
+  printf -v "$1" '%s' "${3%%#*}"
+  case "$3" in *'#'*) printf -v "$2" '%s' "${3#*#}" ;; *) printf -v "$2" '%s' '' ;; esac
 }
 
 # _hi_color_index <outvar> <name> - <name>'s slot in $_HI_COLOR_NAMES into
@@ -471,7 +463,7 @@ function _hi_human_duration() {
 function _hi_runtime_dir() {
   # prefixed locals (GLOSSARY: HI.04): a plain `dir` would shadow the caller's
   # outvar and the assignment would never leave this function
-  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid _hi_rtd_owner
+  local _hi_rtd_dir="${XDG_RUNTIME_DIR:-}" _hi_rtd_uid
   # Memoized one deep and keyed on what it reads: a connect asks up to five
   # times, and without $XDG_RUNTIME_DIR each miss costs the id/ls branch below.
   # Keyed rather than a bare memo because cache_test.sh asks against several
@@ -489,17 +481,13 @@ function _hi_runtime_dir() {
     [ -n "$_hi_rtd_uid" ] || _hi_rtd_uid=unknown
     _hi_rtd_dir="${TMPDIR:-/tmp}/hi-$_hi_rtd_uid"
     [ -d "$_hi_rtd_dir" ] || mkdir -m 700 "$_hi_rtd_dir" 2>/dev/null
-    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ]; then
-      printf -v "$1" '%s' ''
-      return 0
-    fi
-    # shellcheck disable=SC2012 # `find -user` takes a user *name*, which a
-    # host with no passwd entry cannot supply; SC2012's hazard is parsing file
-    # *names* out of ls, and this reads a fixed column off a path it built
-    # itself. `-n` gives the owner as a number, so one comparison answers for
-    # a host with a passwd entry and one without alike.
-    _hi_rtd_owner="$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')"
-    if [ -z "$_hi_rtd_owner" ] || [ "$_hi_rtd_owner" != "$_hi_rtd_uid" ]; then
+    # `find -user` takes a user *name*, which a host with no passwd entry
+    # cannot supply; SC2012's hazard is parsing file *names* out of ls, and
+    # this reads a fixed column off a path it built itself. `-n` gives the
+    # owner as a number, so one comparison answers for either host.
+    # shellcheck disable=SC2012
+    if [ ! -d "$_hi_rtd_dir" ] || [ -L "$_hi_rtd_dir" ] ||
+      [ "$(ls -ldn "$_hi_rtd_dir" 2>/dev/null | awk 'NR == 1 { print $3 }')" != "$_hi_rtd_uid" ]; then
       printf -v "$1" '%s' ''
       return 0
     fi

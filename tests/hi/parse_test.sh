@@ -233,32 +233,14 @@ function test_an_ssh_option_without_a_target_reaches_ssh() {
   [[ "$out" == *"ssh-stub: -4"* ]] && [[ "$out" != *"hi's own options"* ]]
 }
 
-function test_is_docker_container_accepts_a_running_one() {
-  PATH="$_HI_SHIM_PATH" _hi_is_docker_container yes
-}
-
-function test_is_docker_container_rejects_a_stopped_one() {
-  ! PATH="$_HI_SHIM_PATH" _hi_is_docker_container no
-}
-
-function test_is_podman_container_accepts_a_running_one() {
-  PATH="$_HI_SHIM_PATH" _hi_is_podman_container yes
-}
-
-function test_is_nomad_alloc_accepts_a_running_one() {
-  PATH="$_HI_SHIM_PATH" _hi_is_nomad_alloc yes
-}
-
-function test_is_nomad_alloc_rejects_a_pending_one() {
-  ! PATH="$_HI_SHIM_PATH" _hi_is_nomad_alloc no
-}
-
-function test_is_k8s_pod_accepts_a_running_one() {
-  PATH="$_HI_SHIM_PATH" _hi_is_k8s_pod yes
-}
-
-function test_is_k8s_pod_rejects_a_pending_one() {
-  ! PATH="$_HI_SHIM_PATH" _hi_is_k8s_pod no
+# test_backend_predicate <fn> <yes|no> - against the shims, a predicate
+# accepts the running target (yes) and rejects the stopped or pending one (no)
+function test_backend_predicate() {
+  if [ "$2" = yes ]; then
+    PATH="$_HI_SHIM_PATH" "$1" yes
+  elif PATH="$_HI_SHIM_PATH" "$1" no; then
+    return 1
+  fi
 }
 
 # with no backend CLI on $PATH at all, every predicate must answer "no"
@@ -1382,13 +1364,13 @@ function run_hi_parse_tests() {
   _hi_check "An ssh option with no target still reaches ssh" test_an_ssh_option_without_a_target_reaches_ssh
 
   _hi_h2 "Testing: backend predicates"
-  _hi_check "docker: running" test_is_docker_container_accepts_a_running_one
-  _hi_check "docker: stopped" test_is_docker_container_rejects_a_stopped_one
-  _hi_check "podman: running" test_is_podman_container_accepts_a_running_one
-  _hi_check "nomad: running" test_is_nomad_alloc_accepts_a_running_one
-  _hi_check "nomad: pending" test_is_nomad_alloc_rejects_a_pending_one
-  _hi_check "kube: running" test_is_k8s_pod_accepts_a_running_one
-  _hi_check "kube: pending" test_is_k8s_pod_rejects_a_pending_one
+  _hi_check "docker: running" test_backend_predicate _hi_is_docker_container yes
+  _hi_check "docker: stopped" test_backend_predicate _hi_is_docker_container no
+  _hi_check "podman: running" test_backend_predicate _hi_is_podman_container yes
+  _hi_check "nomad: running" test_backend_predicate _hi_is_nomad_alloc yes
+  _hi_check "nomad: pending" test_backend_predicate _hi_is_nomad_alloc no
+  _hi_check "kube: running" test_backend_predicate _hi_is_k8s_pod yes
+  _hi_check "kube: pending" test_backend_predicate _hi_is_k8s_pod no
   _hi_check "All false with no CLI installed" test_predicates_are_false_without_their_cli
 
   _hi_h2 "Testing: _hi_resolve_backend"

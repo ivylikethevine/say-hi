@@ -209,7 +209,7 @@ function _hi_session_rc_setup() {
   # fish reads config.fish before -C, so the host's config is already in place
   # by the time this is sourced - the same order as above, for free. The
   # header is our greeting, hence fish_greeting.
-  printf -v q '%q' "$_HI_FISH_CONFIG"
+  _hi_fishquote q "$_HI_FISH_CONFIG"
   {
     printf "set fish_greeting ''\n"
     printf '%s' "$fish_vars"

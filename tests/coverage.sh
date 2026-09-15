@@ -107,6 +107,26 @@ set -euo pipefail
 # shellcheck source=lib/coverage.sh
 source "$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/coverage.sh"
 
+# _hi_cov_rank <json> [root] - every file kcov traced, worst first, <root>
+# trimmed off each path. Straight from kcov's merged JSON, where one object is
+# one line and every value is a quoted string:
+#   {"file": "...", "percent_covered": "48.84", "covered_lines": "168", ...}
+# So the percent is found by walking to the `percent_covered` key rather than
+# by field number - the first version read `file` and `percent_covered` as
+# two separate lines and printed the path where the number belonged.
+function _hi_cov_rank() {
+  awk -F'"' -v root="${2:-}" '
+    /"file"/ {
+      for (i = 1; i < NF; i++)
+        if ($i == "percent_covered") {
+          path = $4
+          sub(root, "", path)
+          printf " |   %6s%%  %5s/%-5s  %s\n", $(i + 2), $(i + 6), $(i + 10), path
+          break
+        }
+    }' "$1" | sort -n
+}
+
 # --merge <dest> <parts-dir> - coverage.yml's gather-kcov mode: merge every
 # shard's uploaded parts (one subdirectory per suite, flattened into
 # <parts-dir> by download-artifact's merge-multiple - disjoint by
@@ -132,22 +152,9 @@ if [ "${1:-}" = --merge ]; then
     exit 0
   fi
   kcov --merge "$_hi_cov_merge_dest/merged" "${_hi_cov_merge_dirs[@]}"
-  # Every file kcov traced, worst first - the same ranking a local sweep
-  # prints below, reproduced here since this merge happens in CI's gather
-  # job instead. Straight from kcov's merged JSON, where one object is one
-  # line, and every value is a quoted string - see the ranking below for why
-  # the percent is found by walking to the `percent_covered` key.
+  # the same ranking a local sweep prints, since CI's gather job merges here
   _hi_cov_merge_json="$(find "$_hi_cov_merge_dest/merged" -name coverage.json | head -1)"
-  if [ -n "$_hi_cov_merge_json" ]; then
-    awk -F'"' '
-      /"file"/ {
-        for (i = 1; i < NF; i++)
-          if ($i == "percent_covered") {
-            printf " |   %6s%%  %5s/%-5s  %s\n", $(i + 2), $(i + 6), $(i + 10), $4
-            break
-          }
-      }' "$_hi_cov_merge_json" | sort -n
-  fi
+  [ -z "$_hi_cov_merge_json" ] || _hi_cov_rank "$_hi_cov_merge_json"
   # A merge that resolved no sources still writes a well-formed report -
   # "files": [], run-wide 0.00 - and publishing that is worse than nothing:
   # a grey "not measured" badge reads as broken while 0.00% reads as true.
@@ -202,23 +209,8 @@ _hi_cov_report_failed
 
 # Every file kcov traced, worst first - the ranking is the point, since the
 # question this answers is "which arms does nothing reach", and the answer moves
-# as suites are added. Straight from kcov's merged JSON, where one object is one
-# line and every value is a quoted string:
-#   {"file": "...", "percent_covered": "48.84", "covered_lines": "168", ...}
-# So the percent is found by walking to the `percent_covered` key rather than by
-# field number - which is what the first version of this got wrong, printing the
-# path a second time where the number belonged, because it read `file` and
-# `percent_covered` as two separate lines.
+# as suites are added.
 _HI_COV_JSON="$(find "$_HI_COV_DIR/merged" -name coverage.json 2>/dev/null | head -1)"
 if [ -n "$_HI_COV_JSON" ] && [ -f "$_HI_COV_JSON" ]; then
-  awk -F'"' -v root="$_HI_HOME/say-hi/" '
-    /"file"/ {
-      for (i = 1; i < NF; i++)
-        if ($i == "percent_covered") {
-          path = $4
-          sub(root, "", path)
-          printf " |   %6s%%  %5s/%-5s  %s\n", $(i + 2), $(i + 6), $(i + 10), path
-          break
-        }
-    }' "$_HI_COV_JSON" | sort -n
+  _hi_cov_rank "$_HI_COV_JSON" "$_HI_HOME/say-hi/"
 fi

@@ -189,23 +189,17 @@ function _hi_shorten_describe() {
 # a session); a stampless, gitless install gets "unknown".
 function _hi_header_version() {
   if [ -z "${_HI_HEADER_VERSION+x}" ]; then
-    _hi_sanitize_var _HI_HEADER_VERSION "$(_hi_release_or_describe)"
+    _hi_sanitize_var _HI_HEADER_VERSION "${_HI_RELEASE:-$(_hi_release_or_describe)}"
     [ -n "$_HI_HEADER_VERSION" ] || _HI_HEADER_VERSION="unknown"
     _hi_shorten_describe "$_HI_HEADER_VERSION" _HI_HEADER_VERSION
   fi
   printf '%s\n' "$_HI_HEADER_VERSION"
 }
 
-# UTC | version | local. `|| :` on both clocks: a target with no date(1)
-# gets an empty cell, not two "command not found" lines across the header.
-# <var> gets one of timestamp()'s three cells - a pure getter, no header_row
-# call of its own: $_HI_HEADER_ORDER's dispatch (_hi_collect_header_word,
-# below) packs cells onto shared lines, and header_row always ends its call
-# with a newline. timestamp() below calls header_row once with all three.
-# <outvar> <color> [utc] - the two clock cells differ by `date -u` and a hue.
-# Prefixed local: timestamp() below passes "utc" and "localtime" as $1, and a
-# getter's own local of that name would shadow the caller's right back -
-# printf -v resolves the nearest scope, which by then is this frame.
+# _hi_cell_clock <outvar> <color> [utc] - a clock cell, a pure getter (the
+# header's dispatch packs cells onto shared lines); no date(1) reads "?".
+# Prefixed local: timestamp() passes "utc"/"localtime" as $1, and printf -v
+# would otherwise land in this frame.
 function _hi_cell_clock() {
   local _hi_ck_raw
   # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
@@ -249,10 +243,14 @@ function _hi_ghz() {
 # either input is missing, or <cpus> isn't a plain positive integer - the
 # Windows fallback's own unresolved "?" among them.
 function _hi_load_pct() {
-  local load="$2" cpus="$3"
+  local load="$2" cpus="$3" whole frac
   case "$cpus" in '' | *[!0-9]*) return 0 ;; esac
-  [ -n "$load" ] && ((cpus > 0)) || return 0
-  printf -v "$1" '%s' "$(awk -v l="$load" -v c="$cpus" 'BEGIN { printf "%.0f", (l / c) * 100 }')"
+  case "$load" in '' | *[!0-9.]* | *.*.*) return 0 ;; esac
+  ((cpus > 0)) || return 0
+  # hundredths of load over the cores, rounded half up, in shell arithmetic
+  whole="${load%%.*}" frac="${load#"${load%%.*}"}00"
+  frac="${frac#.}"
+  printf -v "$1" '%d' $(((2 * (10#${whole:-0} * 100 + 10#${frac:0:2}) + cpus) / (2 * cpus)))
 }
 
 # <seconds> [outvar] humanized to at most two units, largest first - a header
@@ -314,26 +312,52 @@ function _hi_system_info_probe() {
     # Every probe ends in `|| true`: a stripped-down target falls through to
     # "?" - and a caller under its own `set -e` (see the top of the file)
     # must not abort on a missing probe.
-    os=$(awk -F= '$1 == "PRETTY_NAME" { gsub(/"/, "", $2); print $2 }' "$_HI_LINUX_RELEASE" 2>/dev/null || true)
+    # the files themselves, a `read` loop each rather than an awk fork per
+    # shell start; nproc stays, since it honors a container's CPU affinity
+    local k v total="" avail="" line
+    while IFS='=' read -r k v; do
+      [ "$k" != PRETTY_NAME ] || os="${v//\"/}"
+    done <"$_HI_LINUX_RELEASE"
     cpus=$(exec nproc 2>/dev/null) || true
     # straight at the files free(1) and uptime(1) themselves read. Used is
     # MemTotal - MemAvailable (the "how much could a new process actually get"
     # figure free -h reports, not the naive MemTotal - MemFree); MemAvailable
-    # predates nothing this project targets but a pre-3.14 kernel, where the
-    # END block still has a total to print.
-    ram=$(awk '
-      /^MemTotal:/     { total = $2 }
-      /^MemAvailable:/ { avail = $2 }
-      END {
-        if (avail != "") printf "%.0f/%.0fG", (total - avail) / 1048576, total / 1048576
-        else if (total != "") printf "%.0fG", total / 1048576
-      }' /proc/meminfo 2>/dev/null || true)
+    # predates nothing this project targets but a pre-3.14 kernel, where
+    # there is still a total to print. kB to GiB, rounded half up.
+    if [ -r /proc/meminfo ]; then
+      while read -r k v _; do
+        case "$k" in
+        MemTotal:) total="$v" ;;
+        MemAvailable:)
+          avail="$v"
+          break
+          ;;
+        esac
+      done </proc/meminfo
+    fi
+    if [ -n "$avail" ]; then
+      ram="$(((total - avail + 524288) / 1048576))/$(((total + 524288) / 1048576))G"
+    elif [ -n "$total" ]; then
+      ram="$(((total + 524288) / 1048576))G"
+    fi
     read -r load _ 2>/dev/null </proc/loadavg || load=""
-    # base clock from the model name ("... @ 2.80GHz"); AMD chips print none,
-    # so fall back to cpufreq's base_frequency, then amd-pstate-epp's
+    # base clock from the first model name ("... @ 2.80GHz"); AMD chips print
+    # none, so fall back to cpufreq's base_frequency, then amd-pstate-epp's
     # lowest_nonlinear_freq (the driver's floor, but it beats "?").
     # `read < file`, not $(cat file): a miss is silent and costs no fork.
-    base_mhz=$(exec awk -F'@ *' '/model name/ && NF>1 { gsub(/GHz.*/, "", $2); printf "%.0f", $2 * 1000; exit }' /proc/cpuinfo 2>/dev/null) || true
+    if [ -r /proc/cpuinfo ]; then
+      while IFS= read -r line; do
+        case "$line" in "model name"*) ;; *) continue ;; esac
+        case "$line" in *@*GHz*)
+          v="${line#*@}" v="${v%%GHz*}" v="${v// /}"
+          k="${v#*.}000"
+          case "$v" in *.*) ;; *) k=000 ;; esac
+          case "${v%%.*}${k:0:3}" in '' | *[!0-9]*) ;; *) base_mhz=$((10#${v%%.*} * 1000 + 10#${k:0:3})) ;; esac
+          ;;
+        esac
+        break
+      done </proc/cpuinfo
+    fi
     local khz freq_path
     for freq_path in "$cpufreq/base_frequency" "$cpufreq/amd_pstate_lowest_nonlinear_freq"; do
       [ -n "$base_mhz" ] && break
@@ -1075,7 +1099,7 @@ function _hi_check_file() {
   local -a visible=()
   [ -f "$1" ] || return 0
   _hi_group_color color "$1"
-  [ -z "$color" ] || _hi_group_ramp ramp "$color" || true
+  _hi_group_ramp ramp "$color" || true
   _hi_packages_palette "$ramp"
   while IFS=$' ' read -r line; do
     [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue

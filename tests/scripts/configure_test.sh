@@ -531,7 +531,7 @@ function test_setting_get_leaves_other_variables_ambient() {
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
 # (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=hi) is on only when its
-# on-value is. setting_on is the one reader of both, and _hi_pending_state
+# on-value is. setting_on is the one reader of both, and _hi_setting_flip
 # writes both.
 
 function test_setting_on_opt_in_absent_is_off() {

@@ -214,17 +214,8 @@ while [ $# -gt 0 ]; do
     prof_list
     exit 0
     ;;
-  --outdir)
-    [ $# -ge 2 ] || {
-      _hi_cecho "profile.sh: --outdir needs a value" "$RED" >&2
-      exit 1
-    }
-    _HI_PROF_DIR="$2"
-    shift 2
-    continue
-    ;;
-  --outdir=*)
-    _HI_PROF_DIR="${1#--outdir=}"
+  --outdir | --outdir=*)
+    _HI_ME=profile.sh _hi_flag_word_or_die _HI_PROF_DIR "--outdir needs a value" "$@" || shift
     ;;
   -h | --help)
     sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'

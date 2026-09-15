@@ -115,27 +115,19 @@ function _hi_target_rows() {
 function _hi_complete() {
   local cur="${COMP_WORDS[COMP_CWORD]}" prev="" n
   COMPREPLY=()
+  local -a ask=()
   ((COMP_CWORD > 1)) && prev="${COMP_WORDS[COMP_CWORD - 1]}"
-  # the word a flag takes - `hi --preview <TAB>`, `hi --use <TAB>` - is
-  # neither a flag nor a target: targets.sh's words roster, no probe
-  case " $_HI_WORD_FLAGS " in
-  *" $prev "*)
+  # the word a flag takes (`hi --preview <TAB>`) is targets.sh's words roster;
+  # a `-` word is hi's own options - or, behind a local command (`hi --install
+  # --<TAB>`), that command's switches. Neither touches the target cache or
+  # its probes; uncached on purpose, the rosters are a dozen printfs.
+  case " $_HI_WORD_FLAGS " in *" $prev "*) ask=(words "$prev") ;; esac
+  ((${#ask[@]})) || [[ "$cur" != -* ]] || ask=(flags "${COMP_WORDS[1]}")
+  if ((${#ask[@]})); then
+    # "<word>\t<help>" lines; bash's menu has no room for the second column
     while IFS=$'\t' read -r n _; do
       case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
-    done < <(sh "$_HI_TARGETS" words "$prev")
-    return 0
-    ;;
-  esac
-  # A `-` word asks for hi's own options, never a target, so this answers
-  # without touching the target cache or its probes. Uncached on purpose: the
-  # roster is a dozen printfs in targets.sh.
-  if [[ "$cur" == -* ]]; then
-    # "<flag>\t<help>" lines; bash's menu has no room for the second column.
-    # Behind a local command (`hi --install --<TAB>`) the roster is that
-    # command's own switches; targets.sh tells the two apart from the word.
-    while IFS=$'\t' read -r n _; do
-      case "$n" in "$cur"*) COMPREPLY+=("$n") ;; esac
-    done < <(sh "$_HI_TARGETS" flags "${COMP_WORDS[1]}")
+    done < <(sh "$_HI_TARGETS" "${ask[@]}")
     return 0
   fi
   _hi_target_rows

@@ -806,12 +806,9 @@ function _hi_rc_reentry() {
   [ "$_HI_WAIT_EXIT" != 124 ] && cat "$cfg.out"
 }
 
-function test_bash_rc_reentry_returns() {
-  [ "$(_hi_rc_reentry bash bash.sh 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
-}
-
-function test_zsh_rc_reentry_returns() {
-  [ "$(_hi_rc_reentry zsh zsh.zsh 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
+# test_sh_rc_reentry_returns <shell> <rc>
+function test_sh_rc_reentry_returns() {
+  [ "$(_hi_rc_reentry "$1" "$2" 'printf %s "${_hi_rc_loading-done}:${_HI_ROOT:+root}"')" = done:root ]
 }
 
 function test_fish_rc_reentry_returns() {
@@ -1108,8 +1105,8 @@ function run_rc_tests() {
   _hi_check_requires fish "fish completes the word after --preview" test_fish_completes_the_word_after_preview
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
-  _hi_check "[bash] an overlay re-entering hi's rc returns" test_bash_rc_reentry_returns
-  _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_zsh_rc_reentry_returns
+  _hi_check "[bash] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns bash bash.sh
+  _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns zsh zsh.zsh
   _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
   _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag
   _hi_check_requires zsh "[zsh] completion covers the alias's launcher" test_zsh_completion_covers_the_alias_target

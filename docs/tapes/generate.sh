@@ -119,16 +119,6 @@ function gen_row() { # <name> <status> <color> [detail]
   _hi_cecho " | $(printf '%-14s %-9s' "$1" "$2")${4:+$4}" "$3"
 }
 
-# gen_missing <tool...> - of the tools named, the ones that are not installed
-function gen_missing() {
-  local tool out=""
-  # shellcheck disable=SC2086 # split on purpose: the table's tool column
-  for tool in $1; do
-    command -v "$tool" >/dev/null 2>&1 || out="$out $tool"
-  done
-  printf '%s' "${out# }"
-}
-
 # gen_bytes <path> - the file's size, or 0 when it isn't there
 function gen_bytes() {
   [ -f "$1" ] || {
@@ -240,7 +230,7 @@ function gen_preflight() {
   local missing was dirty toggle val overlay=""
   _hi_h2 "Preflight"
 
-  missing="$(gen_missing "vhs ttyd ffmpeg")"
+  missing="$(_hi_missing_tools vhs ttyd ffmpeg)"
   if [ -n "$missing" ]; then
     gen_row renderer FAILED "$RED" "not installed: $missing"
     return 1
@@ -354,7 +344,8 @@ function gen_render() { # <name> <requires>
   log="$_HI_GEN_SHIM/$name.log"
   stamp="$_HI_GEN_SHIM/$name.stamp"
 
-  missing="$(gen_missing "$2")"
+  # shellcheck disable=SC2086 # split on purpose: the table's tool column
+  missing="$(_hi_missing_tools $2)"
   if [ -n "$missing" ]; then
     if [ "$_HI_GEN_REQUIRE" = 1 ]; then
       gen_row "$name" FAILED "$RED" "not installed: $missing (--require-run)"

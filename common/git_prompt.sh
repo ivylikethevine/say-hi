@@ -17,8 +17,16 @@ _hi_git_prompt() {
   [[ -n "${1:-}" ]] && printf -v "$1" '%s' ''
   [[ "${_HI_DISABLE_GIT_STATUS:-0}" == 1 ]] && return
 
+  # no fork outside a repository: a builtin walk up for a .git, or a bare
+  # repo's HEAD and objects/, gates rev-parse, which then answers as before
+  local git_dir ref="" oid="" detached=0 up="$PWD"
+  if [[ -z "${GIT_DIR:-}" ]]; then
+    while [[ ! -e "$up/.git" && ! (-f "$up/HEAD" && -d "$up/objects") ]]; do
+      [[ -n "$up" ]] || return
+      up="${up%/*}"
+    done
+  fi
   # --no-optional-locks, or `git status` rewrites .git/index per prompt
-  local git_dir ref="" oid="" detached=0
   # `exec`, because the 2>/dev/null defeats bash's "last command in the
   # subshell runs in place" optimisation and this would otherwise cost two
   # processes per prompt draw rather than one

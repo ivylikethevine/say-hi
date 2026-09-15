@@ -473,17 +473,8 @@ function test_overlay_guards_match_the_roster() {
   while IFS= read -r f; do
     case "$f" in
     settings.sh | aliases.sh) continue ;;
-    packages.d)
-      # shellcheck disable=SC2016 # paths.sh's literal text
-      grep -qF 'export _HI_PACKAGES_D="$_HI_CONFIG_DIR/packages.d"' "$_HI_ROOT/common/paths.sh" && continue
-      ;;
-    plugins.d)
-      # shellcheck disable=SC2016 # paths.sh's literal text
-      grep -qF 'export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"' "$_HI_ROOT/common/paths.sh" && continue
-      ;;
-    micro/*)
-      # shellcheck disable=SC2016 # paths.sh's literal text
-      grep -qF '[ -d "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_DIR' "$_HI_ROOT/common/paths.sh" && continue
+    packages.d | plugins.d | micro/*)
+      grep -qF "\"\$_HI_CONFIG_DIR/${f%%/*}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
     bash.sh | zsh.zsh | config.fish | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars) continue ;;
     esac

@@ -219,13 +219,7 @@ EOF
     --group) _hi_v=_HI_GROUP ;;
     *) _hi_v=_HI_SHARD ;;
     esac
-    _hi_flag_word "$_hi_v" "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "test_runner.sh: ${1%%=*} needs a value" "$RED" >&2
-      exit 1
-      ;;
-    esac
+    _HI_ME=test_runner.sh _hi_flag_word_or_die "$_hi_v" "${1%%=*} needs a value" "$@" || shift
     ;;
   *) _HI_ARGS+=("$1") ;;
   esac
@@ -576,12 +570,15 @@ function _hi_progress_line() {
 # every second; anywhere else (a CI log) it prints a line when a suite
 # finishes, plus one every 30s so a long suite still shows the job is alive.
 # It exits once every suite has its .rc or the batch drops <index>.stop (a
-# suite killed before writing one), clearing the bar for the replay.
+# suite killed before writing one), clearing the bar for the replay. The stop
+# file is looked for every 0.2s, so a batch never waits a whole tick on it.
 function _hi_progress_tick() {
-  local suites=$(($# - 1)) stop="$_HI_RUN_DIR/$1.stop" last=0 beat=-30 color
+  local suites=$(($# - 1)) stop="$_HI_RUN_DIR/$1.stop" last=0 beat=-30 tick=0 color
   SECONDS=0
   while kill -0 "$$" 2>/dev/null; do
-    sleep 1
+    sleep 0.2
+    [ -f "$stop" ] || [ "$SECONDS" != "$tick" ] || continue
+    tick=$SECONDS
     _hi_progress_line "$@"
     color="$BLUE"
     [ "$_hi_pg_failed" -eq 0 ] || color="$RED"
