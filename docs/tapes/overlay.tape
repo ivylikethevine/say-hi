@@ -9,8 +9,8 @@
 # here first and taken out - the bash-less aliases-only tier ships hi's own
 # aliases and not the overlay, which is the tier's documented shape and not
 # this demo's subject.) Render with `vhs docs/tapes/overlay.tape` from the
-# repo root, docker and podman working, hi on PATH. Manual artifact, reviewed
-# by eye.
+# repo root, docker and podman working, hi on PATH. CI renders it too
+# (demos.yml).
 #
 # Its configuration: an `aliases.sh` overlay (docs/tapes/fixtures.sh writes it
 # - one alias in the POSIX+fish subset that file has to stay in, and a

@@ -24,7 +24,7 @@ to report what slipped through it.
   `curl`/`wget` in the shipped tree.
 - **No `curl | bash`.** Installing is `git clone` plus `scripts/install.sh`, or
   a package built from that same script; the channels that are live are
-  [PACKAGING.md](PACKAGING.md)'s first paragraph. `hi --update` is a
+  [PACKAGING.md's _Install channels_](PACKAGING.md#install-channels). `hi --update` is a
   release-tag checkout in a checkout you can read.
 - **The payload is an allow list.** What goes over the wire is exactly
   `$_HI_PAYLOAD` at the top of `hi.sh` (`common settings load.sh hi.sh`) —
@@ -88,21 +88,21 @@ opens. All three are `tests/targets/ssh_test.sh` cases.
 
 Default answer: one directory, and only for the life of the session.
 
-| what              | where                                            | when                                                                                                 |
-| ----------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always                                                                                               |
-| the ssh bootstrap | `mkdir -m 700` under the target's temp directory | ssh targets only, removed by the session it starts                                                   |
+| what              | where                                            | when                                               |
+| ----------------- | ------------------------------------------------ | -------------------------------------------------- |
+| the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always                                             |
+| the ssh bootstrap | `mkdir -m 700` under the target's temp directory | ssh targets only, removed by the session it starts |
 
 That is everything hi's own code writes. A prompt program drawing the prompt
 ([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) - by default, one you
 have installed at home and the target has too - writes what it always does,
 under the target's `$HOME`, and keeps it after the session ends:
 
-| tool                  | what it keeps, by default                                             | when                                                                              |
-| --------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| starship, oh-my-posh  | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/` | when it draws the prompt |
-| powerlevel10k         | gitstatusd under `~/.cache/gitstatus/` and its instant-prompt cache under `~/.cache/`              | when it draws the prompt |
-| tide                  | a `_tide_*` universal variable or two in the target's `fish_variables`, rewritten each start          | when it draws the prompt |
+| tool                 | what it keeps, by default                                                                        | when                     |
+| -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------ |
+| starship, oh-my-posh | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/` | when it draws the prompt |
+| powerlevel10k        | gitstatusd under `~/.cache/gitstatus/` and its instant-prompt cache under `~/.cache/`            | when it draws the prompt |
+| tide                 | a `_tide_*` universal variable or two in the target's `fish_variables`, rewritten each start     | when it draws the prompt |
 
 Each tool's own settings on that target can move those paths.
 `_HI_PROMPT_TOOL=hi` brings a session back to the first table alone;
@@ -205,12 +205,13 @@ model ([What hi does](#what-hi-does---and-deliberately-doesnt), [What runs
 where](#what-runs-where)) and the [trust boundaries](#trust-boundaries) above
 — not a claim that the tool is free of bugs.
 
-| principle                                                 | how it holds                                                                                                                                                                                                                                                                                                                                                                                       |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Least privilege, minimal surface                          | hi adds no authentication of its own and listens on nothing - every check above is "no network calls of its own" or "trusts the transport you already run"                                                                                                                                                                                                                                         |
-| Fail loud, fail closed                                    | every entry point runs under `set -euo pipefail` (`hi.sh:9`, `load.sh:29`, `common/core.sh:4`, `scripts/install.sh:12`), each with a documented re-disable where an error must not close an interactive shell                                                                                                                                                                                      |
-| Untrusted input allowlisted, not sanitized after the fact | `_hi_safe_path` (`hi.sh:520`) checks the two strings a target hands back against an explicit `[bracket-class]` before either reaches a command run back on it; `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` skip an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` (`common/core.sh:283`) strips control characters and backslashes from target-derived text |
-| No secret ever needs to be in the payload                 | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop                                                                                                                                                       |
+| principle                                                    | how it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Least privilege, minimal surface                             | hi adds no authentication of its own and listens on nothing - every check above is "no network calls of its own" or "trusts the transport you already run"                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Fail loud, fail closed                                       | every entry point (`hi.sh`, `load.sh`, `common/core.sh`, `scripts/install.sh`) runs under `set -euo pipefail`, each with a documented re-disable where an error must not close an interactive shell                                                                                                                                                                                                                                                                                                                                                                                      |
+| Untrusted input allowlisted, not sanitized after the fact    | `_hi_safe_path` in `hi.sh` checks the two strings a target hands back against an explicit `[bracket-class]` before either reaches a command run back on it; `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` in `common/core.sh` skip an ssh-config token that isn't a hostname shape rather than evaluate it; `_hi_sanitize_var` in `common/core.sh` strips control characters and backslashes from target-derived text                                                                                                                                                                         |
+| No secret ever needs to be in the payload                    | the payload is the allow list in [What hi does](#what-hi-does---and-deliberately-doesnt); credentials are handled by hand, outside CI ([CONTRIBUTING.md](CONTRIBUTING.md#when-a-push-is-refused)), with GitHub's push protection as backstop and `ci.yml`'s `secret scan (gitleaks)` sweeping the full history on every PR and push to `main`, findings redacted from the log                                                                                                                                                                                                            |
+| The build and release path is defended, not just the product | every CI and release job starts with `step-security/harden-runner` (egress audited everywhere, blocked to an allowlist on the jobs holding a publishing credential: `publish`, `tap`, and the AUR push); third-party actions are pinned by SHA; `dependency review` fails a PR that adds a dependency with a high or critical advisory; `release.yml`'s `gate` builds only a tag signed by a key in `.github/allowed_signers`, on `main`, with green CI; the signing keys are `release` environment secrets no other job can read ([RELEASING.md](RELEASING.md#the-release-environment)) |
 
 **What is not (yet) countered.** `hi --update` verifies the release tag's
 signature only as far as your keyring allows
@@ -219,13 +220,11 @@ maintainer's key is the manual step that turns its notice into a check. A
 packaged install updates through its package manager instead, with its own
 signing story ([PACKAGING.md](PACKAGING.md)).
 
-Last reviewed 2026-09.
-
 ## Supported versions
 
 No **1.0** release yet: the supported version is the tip of `main`, and
 packages exist for the pre-1.0 versions a hand-pushed `v*` tag has built
-([PACKAGING.md](PACKAGING.md)) - `v0.1.0` through the current tag today. Once
+([RELEASING.md](RELEASING.md#cutting-a-release)) - `v0.1.0` through the current tag today. Once
 v1.0 is tagged, this becomes a version table with the latest release
 supported; what a 1.x release keeps stable is
 [CONTRIBUTING.md's _What 1.x will not break_](CONTRIBUTING.md#what-1x-will-not-break).
@@ -252,3 +251,5 @@ Please don't open a public issue for anything exploitable. Instead:
   reference it. None have been reported to date.
 - **Credit.** Reporters are credited in the advisory and the release notes
   unless they ask not to be.
+
+Last reviewed 2026-09.

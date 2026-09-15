@@ -254,4 +254,4 @@ fi
 _hi_h1 "Bumping say-hi to $_HI_VERSION"
 write_manifests "$_HI_TARBALL"
 _hi_h1 "Bumped!"
-_hi_cecho " | review the diff, commit it - the release workflow re-derives and verifies the same sums from the tag" "$BLUE"
+_hi_cecho " | review the diff, then discard it - the manifests stay templates on main, and the release workflow re-derives the same sums from the tag" "$BLUE"

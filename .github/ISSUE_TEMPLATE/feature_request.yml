@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Two things answer most of these before they are asked:
-        [docs/SUPPORT.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/SUPPORT.md)
+        [docs/COMPATIBILITY.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/COMPATIBILITY.md)
         carries a verdict and a reason for everything weighed and answered no —
         runtimes, shells, packaging channels, removed features — and
         [README's Roadmap](https://github.com/ivylikethevine/say-hi/blob/main/README.md#roadmap)
@@ -38,7 +38,7 @@ body:
     attributes:
       label: If this is a new target
       description: >-
-        The bar docs/SUPPORT.md sets is whether it is something people **sit in**,
+        The bar docs/COMPATIBILITY.md sets is whether it is something people **sit in**,
         not merely something reachable: every backend on the roster costs a fork
         on every `hi <target>` and every TAB, on machines that have none of it.
         Name the CLI, how it execs an interactive shell, and how a file gets in.
@@ -54,5 +54,5 @@ body:
     attributes:
       label: Before you send it
       options:
-        - label: I checked docs/SUPPORT.md and README's Roadmap for an existing answer.
+        - label: I checked docs/COMPATIBILITY.md and README's Roadmap for an existing answer.
           required: true

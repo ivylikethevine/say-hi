@@ -17,9 +17,10 @@
 # _hi_lint_find <find-name-expr...> - the files a lint sweeps. The exclusions
 # live here, not at each caller: packaging/mkpkg.sh stages a *copy* of the tree
 # under dist/, so a run after a local package build would lint everything twice
-# and report against paths that are not the source. .claude/ is agent scratch.
+# and report against paths that are not the source. .claude/ is agent config
+# and local scratch; node_modules/ is `npm ci --prefix .github`'s install.
 function _hi_lint_find() {
-  find "$_HI_ROOT" \( "$@" \) -not -path '*/.git/*' \
+  find "$_HI_ROOT" \( "$@" \) -not -path '*/.git/*' -not -path '*/node_modules/*' \
     -not -path "$_HI_ROOT/dist/*" -not -path "$_HI_ROOT/.claude/*" | sort
 }
 

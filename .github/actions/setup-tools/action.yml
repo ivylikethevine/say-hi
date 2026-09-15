@@ -1,10 +1,10 @@
 name: Setup tools
-# Every pinned CI tool, one or several per call: the roster is
-# ../setup-tool/tools.txt, installed by ../setup-tool/install.sh. One
-# actions/cache round trip covers every tool named in the call; the trade is
-# that bumping one pin redownloads the others in the same call - pins move
-# rarely and the downloads are small.
-description: Install pinned CI tools from ../setup-tool/tools.txt, with one shared cache round trip
+# The batched form of ../setup-tool for a job that needs several pinned tools:
+# one actions/cache round trip covers every tool named. The trade is that
+# editing one tool's row redownloads the others in the same call - rows move
+# rarely and the downloads are small. Use ../setup-tool for one tool or for a
+# `version:` override; this action has neither.
+description: Install several pinned CI tools from ../setup-tool/tools.txt with one shared cache round trip
 
 inputs:
   tools:
@@ -14,33 +14,15 @@ inputs:
 runs:
   using: composite
   steps:
-    # one row lookup per tool (no network), so the cache key hashes every
-    # pin together; an unknown tool fails here, in lib.sh's roster reader
+    # one row lookup per tool (no network), so the key hashes every row
+    # together; an unknown tool or an unsupported platform fails here
     - name: Resolve every pin in ${{ inputs.tools }}
       id: resolve
       shell: bash
       env:
-        HI_TOOLS: ${{ inputs.tools }}
-      run: |
-        set -euo pipefail
-        source "$GITHUB_ACTION_PATH/../setup-tool/lib.sh"
-        key=""
-        paths=""
-        for t in $HI_TOOLS; do
-          row="$(_hi_tool_row "$t")"
-          IFS='|' read -r _ pin _ _ _ _ <<<"$row"
-          key="$key $t=$pin"
-          paths="$paths/usr/local/bin/$t"$'\n'
-        done
-        {
-          printf 'key=%s\n' "$key"
-          echo "paths<<HI_EOF"
-          printf '%s' "$paths"
-          echo "HI_EOF"
-        } >>"$GITHUB_OUTPUT"
+        CI_TOOLS: ${{ inputs.tools }}
+      run: '"$GITHUB_ACTION_PATH/resolve.sh"'
 
-    # runner.os/runner.arch on every key, not only shellcheck's (the one tool
-    # also installed on macOS): one key shape beats a per-tool column
     - name: Cache ${{ inputs.tools }}
       id: cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -48,16 +30,9 @@ runs:
         path: ${{ steps.resolve.outputs.paths }}
         key: setup-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.key }}
 
-    # a whole-key miss restores nothing, so the existence check only skips a
-    # binary something else already put there
     - name: Install whatever missed the cache
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       env:
-        HI_TOOLS: ${{ inputs.tools }}
-      run: |
-        set -euo pipefail
-        for t in $HI_TOOLS; do
-          [ -x "/usr/local/bin/$t" ] && continue
-          HI_TOOL="$t" "$GITHUB_ACTION_PATH/../setup-tool/install.sh" install
-        done
+        CI_TOOLS: ${{ inputs.tools }}
+      run: '"$GITHUB_ACTION_PATH/install-missing.sh"'

@@ -9,7 +9,7 @@
 #
 # What is deliberately NOT here: building a real .deb or a real .pkg.tar.zst.
 # That needs the toolchains and belongs in the verification runbook
-# (docs/PACKAGING.md), not in the fast group.
+# (docs/RELEASING.md), not in the fast group.
 #
 # GLOSSARY: HI.30 + HI.34
 # shellcheck disable=SC2329
@@ -224,7 +224,7 @@ function test_no_private_key_is_committed() {
 # ...and the committed GPG half, when it exists, is a public key block
 function test_committed_gpg_key_is_public() {
   local asc="$_HI_PKG_DIR/gpg/say-hi.asc"
-  [ -f "$asc" ] || return 0 # not generated yet - docs/PACKAGING.md's runbook
+  [ -f "$asc" ] || return 0 # not generated yet - docs/RELEASING.md's runbook
   grep -qF -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$asc"
 }
 
@@ -340,12 +340,13 @@ function test_srcinfo_depends_match_their_pkgbuild() {
   done
 }
 
-# `gate` runs on a dispatch only, so on a tag push it is skipped - and a
-# job-level `if` with no status function gets an implicit success() that is
+# A job-level `if` with no status function gets an implicit success() that is
 # false when any ancestor in the needs chain was skipped. Every job below the
-# gate must therefore name its `needs` result explicitly, or the publish and
-# every channel job skip on every release while the run reports green (which
-# is how v0.0.1-rc and v0.0.2-rc.1 shipped no packages).
+# gate must therefore name its `needs` result explicitly, or one skipped job
+# skips the publish and every channel job while the run reports green (which
+# is how v0.0.1-rc and v0.0.2-rc.1 shipped no packages, when `gate` still ran
+# on dispatches only). Job names may carry a dash: a `[a-z]*` list would
+# silently skip those.
 function test_release_jobs_under_the_gate_check_their_needs() {
   local name need job bad=0
   while read -r name; do
@@ -356,7 +357,70 @@ function test_release_jobs_under_the_gate_check_their_needs() {
       _hi_cecho " | release.yml's $name job needs $need but never checks needs.$need.result" "$RED"
       bad=1
     fi
-  done < <(sed -n '/^jobs:/,$s/^  \([a-z]*\):$/\1/p' "$_HI_RELEASE_WF")
+  done < <(sed -n '/^jobs:/,$s/^  \([a-z][a-z0-9-]*\):$/\1/p' "$_HI_RELEASE_WF")
+  [ "$bad" = 0 ]
+}
+
+# Green CI on the tagged commit before anything builds: `gate` is the first
+# job (no needs of its own), looks up ci.yml's push run for the commit with
+# no more than actions: read, requires it on main, and build waits on its
+# success - a skipped or failed gate is no build. A rehearsal asks the
+# manual-dispatch environment, and only a rehearsal does: a tag push stays
+# unattended.
+# shellcheck disable=SC2016 # matching release.yml's literal source text
+function test_release_requires_green_ci_before_build() {
+  local gate build
+  gate="$(_hi_wf_job "$_HI_RELEASE_WF" gate)"
+  build="$(_hi_wf_job "$_HI_RELEASE_WF" build)"
+  [ -n "$gate" ] || {
+    _hi_cecho " | release.yml has no gate job" "$RED"
+    return 1
+  }
+  [[ "$gate" != *"    needs:"* ]] &&
+    [[ "$gate" == *"environment: \${{ github.event_name == 'workflow_dispatch' && 'manual-dispatch' || '' }}"* ]] &&
+    [[ "$gate" == *"actions: read"* ]] &&
+    [[ "$gate" != *"write"* ]] &&
+    [[ "$gate" == *"actions/workflows/ci.yml/runs?head_sha=\$GITHUB_SHA&event=push"* ]] &&
+    [[ "$gate" == *"compare/main...\$GITHUB_SHA"* ]] &&
+    [[ "$gate" == *'[ "$conclusion" = success ]'* ]] &&
+    [[ "$build" == *"needs: gate"* ]] &&
+    [[ "$build" == *"needs.gate.result == 'success'"* ]]
+}
+
+# The tag itself is checked before CI is: a release version, and signed by a
+# key the committed allowed_signers file names, with no global or system git
+# config to widen that - a lightweight or unsigned tag is refused.
+# shellcheck disable=SC2016 # matching release.yml's literal source text
+function test_release_gate_verifies_the_signed_tag() {
+  local gate signers="$_HI_ROOT/.github/allowed_signers"
+  gate="$(_hi_wf_job "$_HI_RELEASE_WF" gate)"
+  [[ "$gate" == *'git -c gpg.ssh.allowedSignersFile=.github/allowed_signers tag -v "$GITHUB_REF_NAME"'* ]] &&
+    [[ "$gate" == *'GIT_CONFIG_GLOBAL: /dev/null'* ]] &&
+    [[ "$gate" == *'GIT_CONFIG_NOSYSTEM: "1"'* ]] &&
+    [[ "$gate" == *'git cat-file -t "refs/tags/$GITHUB_REF_NAME"'* ]] &&
+    [[ "$gate" == *'=~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'* ]] || return 1
+  # a shipped tree has no .github; a checkout must carry at least one key,
+  # each scoped to git's signing namespace
+  [ -f "$signers" ] || return 0
+  grep -qE '^[^#[:space:]]+ namespaces="git" ssh-[a-z0-9-]+ [A-Za-z0-9+/=]+' "$signers" &&
+    ! grep -vE '^(#|$)' "$signers" | grep -vqE '^[^#[:space:]]+ namespaces="git" '
+}
+
+# The two signing keys build reads live in the release environment, so build
+# runs in it on a tag push - and every job that names one of them does too.
+function test_release_signing_keys_are_read_under_the_release_environment() {
+  local name job bad=0
+  while read -r name; do
+    job="$(_hi_wf_job "$_HI_RELEASE_WF" "$name")"
+    case "$job" in
+    *secrets.APK_SIGNING_KEY* | *secrets.GPG_SIGNING_KEY* | *secrets.MINISIGN_SECRET_KEY*) ;;
+    *) continue ;;
+    esac
+    [[ "$job" == *"environment: release"* || "$job" == *"environment: \${{ github.event_name == 'push' && 'release' || '' }}"* ]] || {
+      _hi_cecho " | release.yml's $name job reads a signing key outside environment: release" "$RED"
+      bad=1
+    }
+  done < <(sed -n '/^jobs:/,$s/^  \([a-z][a-z0-9-]*\):$/\1/p' "$_HI_RELEASE_WF")
   [ "$bad" = 0 ]
 }
 
@@ -450,6 +514,41 @@ function test_release_note_extract_treats_none_as_empty() {
     [ -z "$(_hi_release_note_of $'## What Changed\n\nno section here')" ]
 }
 
+# --check, release-note.yml's lint: the section has to be there and say
+# something, so `none` and the untouched template (which says `none`) pass, a
+# CRLF body (the web editor's) passes, and a body without the section fails -
+# as does one whose section holds only whitespace and comments, and one whose
+# heading is followed straight by the next section
+function test_release_note_check_requires_a_written_section() {
+  local script="$_HI_ROOT/.github/scripts/release_notes.sh"
+  bash "$script" --check <"$_HI_PR_TEMPLATE" >/dev/null &&
+    printf '## Release note\n\nnone\n' | bash "$script" --check >/dev/null &&
+    [ -z "$(printf '## Release note\n\nN/A\n' | bash "$script" --check)" ] &&
+    [ "$(printf '## Release note\r\n\r\nhi keeps your prompt.\r\n' | bash "$script" --check)" = "hi keeps your prompt." ] &&
+    ! printf '## What changed\n\nno section\n' | bash "$script" --check 2>/dev/null &&
+    ! printf '' | bash "$script" --check 2>/dev/null &&
+    ! printf '## Release note\n\n   \n\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null &&
+    ! printf '## Release note\r\n\r\n<!-- a\r\nmulti-line comment -->\r\n' | bash "$script" --check 2>/dev/null &&
+    ! printf '## Release note\n## Next\n\ntext\n' | bash "$script" --check 2>/dev/null
+}
+
+# ...and release-note.yml runs it on every body edit, the body through env,
+# under the check name branch protection requires; drafts and dependabot skip
+# shellcheck disable=SC2016 # matching release-note.yml's literal source text
+function test_release_note_workflow_runs_the_check() {
+  local wf="$_HI_ROOT/.github/workflows/release-note.yml"
+  [ -f "$wf" ] || return 0
+  grep -qxF 'name: Release note' "$wf" &&
+    grep -qxF '    name: release note (pr body)' "$wf" &&
+    grep -qE '^    types: \[opened, edited, synchronize, reopened, ready_for_review\]$' "$wf" &&
+    grep -qF 'github.event.pull_request.draft != true' "$wf" &&
+    grep -qF "github.event.pull_request.user.login != 'dependabot[bot]'" "$wf" &&
+    grep -qF 'BODY: ${{ github.event.pull_request.body }}' "$wf" &&
+    grep -qF 'bash .github/scripts/release_notes.sh --check' "$wf" &&
+    ! grep -qE '^  pull_request_target:' "$wf" &&
+    [ ! -e "$_HI_ROOT/.github/workflows/pr-body.yml" ]
+}
+
 # the network mode, against a stand-in gh: one bullet per PR with a note, in
 # the generated notes' order, a multi-line note joined, `none` dropped
 function test_release_notes_builds_the_list_from_the_prs() {
@@ -522,7 +621,29 @@ function test_release_workflow_opens_the_tap_pr_after_brew() {
     [[ "$job" == *"needs.brew.outputs.prerelease != 'true'"* ]] &&
     [[ "$job" == *"secrets.HOMEBREW_TAP_TOKEN"* ]] &&
     [[ "$job" == *"gh pr create"* ]] &&
+    [[ "$job" == *"tap_formula.sh <../dist/manifests/say-hi.rb >Formula/say-hi.rb"* ]] &&
+    [[ "$job" != *"- [ ]"* ]] &&
     [[ "$job" != *"environment:"* ]]
+}
+
+# The tap's copy of the formula: the template's header (this repository's
+# v0.0.0/bump.sh warning) swapped for the tap's three lines, everything from
+# the bare `#` down byte-for-byte the template - and a formula with no bare
+# `#` above its class refused rather than emptied.
+function test_tap_formula_swaps_only_the_template_header() {
+  local script="$_HI_ROOT/.github/scripts/tap_formula.sh" out want
+  [ -f "$script" ] || return 0 # a shipped tree has no .github
+  out="$(bash "$script" <"$_HI_FORMULA")" || return 1
+  want="# Generated by say-hi's release workflow from packaging/homebrew/say-hi.rb
+# in https://github.com/ivylikethevine/say-hi. Edit it there, not here.
+# Pull requests to this tap are opened automatically for each release.
+$(sed -n '/^#$/,$p' "$_HI_FORMULA")"
+  [ "$out" = "$want" ] || {
+    _hi_cecho " | tap_formula.sh's output is not the template under the tap header" "$RED"
+    return 1
+  }
+  [[ "$out" != *"v0.0.0 sentinel"* ]] || return 1
+  ! printf 'x\nclass SayHi < Formula\n#\n' | bash "$script" >/dev/null 2>&1
 }
 
 # The release page says where the formula went and shows the thing running:
@@ -542,17 +663,20 @@ function test_release_body_links_the_tap_pr_and_embeds_the_demo() {
   [[ "$publish" == *'gh workflow run demos.yml --ref "$GITHUB_REF_NAME"'* ]] || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$tap" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap'* && "$tap" == *"contents: write"* &&
-    "$tap" == *"$group"* && "$tap" == *"GH_TOKEN: \${{ github.token }}"* ]] || return 1
+    "$tap" == *"$group"* && "$tap" == *"GH_TOKEN: \${{ github.token }}"* &&
+    "$tap" == *"RELEASE_SLOT_PREFIX: hi"* ]] || return 1
   # shellcheck disable=SC2016 # likewise
   [[ "$attach" == *"github.ref_type == 'tag'"* && "$attach" == *"needs.collect.result == 'success'"* &&
     "$attach" == *'release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo'* && "$attach" == *"--clobber"* &&
     "$attach" == *'releases/download/$TAG/demo.gif'* && "$attach" == *"contents: write"* &&
-    "$attach" == *"$group"* ]] || return 1
+    "$attach" == *"$group"* && "$attach" == *"RELEASE_SLOT_PREFIX: hi"* ]] || return 1
   ! sed -n '/^on:/,/^[a-z]/p' "$_HI_DEMOS_WF" | grep -qE '^  push:'
 }
 
+# RELEASE_SLOT_PREFIX as both workflow writers set it, to match publish's
+# `<!-- hi:... -->` markers
 function _hi_release_slot() {
-  bash "$_HI_ROOT/.github/scripts/release_slot.sh" "$@"
+  RELEASE_SLOT_PREFIX=hi bash "$_HI_ROOT/.github/scripts/release_slot.sh" "$@"
 }
 
 # a fill replaces its own marker's line and keeps the marker (so a re-run
@@ -639,6 +763,186 @@ function test_ci_chained_workflows_carry_the_green_push_gate() {
   [ "$bad" = 0 ]
 }
 
+# The workflows and composite actions every structural check below reads.
+function _hi_wf_files() {
+  local f
+  for f in "$_HI_ROOT"/.github/workflows/*.yml "$_HI_ROOT"/.github/actions/*/action.yml; do
+    [ -f "$f" ] && printf '%s\n' "$f"
+  done
+}
+
+# _hi_wf_steps_missing <file> <hit-awk-cond> <ok-awk-cond> - the line number
+# of every step with a line matching the first condition and none matching the
+# second.
+# A step runs from its `- key:` line to the next line indented no deeper than
+# that dash (comments aside), which covers both `- uses:` and `- name:` then
+# `uses:` step shapes.
+function _hi_wf_steps_missing() {
+  awk '
+    function indent(s,    i) { i = 0; while (substr(s, i + 1, 1) == " ") i++; return i }
+    function flush() {
+      if (open && hit && !ok) print start
+      open = 0; hit = 0; ok = 0
+    }
+    /^[ \t]*$/ || /^[ \t]*#/ { next }
+    open && indent($0) <= ind { flush() }
+    /^ *- [A-Za-z-]+:/ { flush(); open = 1; ind = indent($0); start = NR }
+    open && ('"$2"') { hit = 1 }
+    open && ('"$3"') { ok = 1 }
+    END { flush() }
+  ' "$1"
+}
+
+# every job carries timeout-minutes: a hung step otherwise holds a runner for
+# GitHub's 6-hour default. A job that calls a reusable workflow (`uses:` at
+# job level) takes no timeout of its own - the callee's jobs carry theirs.
+function test_every_job_has_a_timeout() {
+  local wf job bad=0
+  for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
+    while IFS= read -r job; do
+      [ -n "$job" ] || continue
+      _hi_cecho " | ${wf##*/}: job $job has no timeout-minutes" "$RED"
+      bad=1
+    done < <(awk '
+      function flush() { if (job != "" && !has) print job; job = ""; has = 0 }
+      /^jobs:/ { injobs = 1; next }
+      injobs && /^[^ #]/ { flush(); injobs = 0 }
+      !injobs { next }
+      /^  [A-Za-z0-9_-]+:[ \t]*(#.*)?$/ { flush(); job = $1; sub(/:$/, "", job); next }
+      /^    (timeout-minutes|uses):/ { has = 1 }
+      END { flush() }
+    ' "$wf")
+  done
+  [ "$bad" = 0 ]
+}
+
+# every job's first step is harden-runner, so its egress is recorded (audit)
+# or allowlisted (block) from before anything else runs. Exempt: a job that
+# calls a reusable workflow (no steps - the callee's jobs carry it), and an
+# arm runner (`*-arm`), which harden-runner's community tier does not
+# support. A matrix `runs-on` counts as supported: its x64 legs are monitored
+# and an arm leg only logs that it is not.
+function test_every_job_starts_with_harden_runner() {
+  local wf job bad=0
+  for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
+    while IFS= read -r job; do
+      [ -n "$job" ] || continue
+      _hi_cecho " | ${wf##*/}: job $job does not start with step-security/harden-runner" "$RED"
+      bad=1
+    done < <(awk '
+      function flush() {
+        if (job != "" && steps && !arm && !ok) print job
+        job = ""; steps = 0; arm = 0; ok = 0; first = 0; done = 0
+      }
+      /^jobs:/ { injobs = 1; next }
+      injobs && /^[^ #]/ { flush(); injobs = 0 }
+      !injobs { next }
+      /^  [A-Za-z0-9_-]+:[ \t]*(#.*)?$/ { flush(); job = $1; sub(/:$/, "", job); next }
+      /^    runs-on:.*-arm/ { arm = 1 }
+      /^    steps:/ { steps = 1; next }
+      !steps || done || /^[ \t]*(#.*)?$/ { next }
+      /^      - / { if (first) { done = 1; next } first = 1 }
+      /^    [A-Za-z]/ { done = 1; next }
+      first && /uses:[ \t]*step-security\/harden-runner@/ { ok = 1 }
+      END { flush() }
+    ' "$wf")
+  done
+  [ "$bad" = 0 ]
+}
+
+# every actions/checkout sets persist-credentials: false, so no later step
+# (or a compromised action) can read the job token back out of .git/config
+function test_every_checkout_drops_its_credentials() {
+  local f line bad=0
+  while IFS= read -r f; do
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      _hi_cecho " | ${f#"$_HI_ROOT/"}:$line checks out without persist-credentials: false" "$RED"
+      bad=1
+    done < <(_hi_wf_steps_missing "$f" '/uses:[ \t]*actions\/checkout@/' '/persist-credentials:[ \t]*false/')
+  done < <(_hi_wf_files)
+  [ "$bad" = 0 ]
+}
+
+# every third-party `uses:` is a 40-hex commit SHA with its full `# vX.Y.Z`
+# beside it: a tag can be moved under a pin, and the comment is what dependabot
+# rewrites and check_tool_versions.sh reads. `$/` and `./` are this repo's own.
+function test_every_third_party_action_is_sha_pinned() {
+  local f out line bad=0
+  while IFS= read -r f; do
+    out="$(grep -nE '^[^#]*uses:[[:space:]]*[^[:space:]]' "$f" |
+      grep -vE 'uses:[[:space:]]*["'"'"']?(\$/|\./)' |
+      grep -vE 'uses:[[:space:]]*[^[:space:]@]+@[0-9a-f]{40}[[:space:]]+#[[:space:]]*v[0-9]+\.[0-9]+\.[0-9]+([[:space:]]|$)' || true)"
+    [ -n "$out" ] || continue
+    while IFS= read -r line; do
+      _hi_cecho " | ${f#"$_HI_ROOT/"}:${line%%:*} is not a SHA pin with a full # vX.Y.Z comment" "$RED"
+      bad=1
+    done <<<"$out"
+  done < <(_hi_wf_files)
+  [ "$bad" = 0 ]
+}
+
+# every workflow_run workflow reads the triggering run's conclusion: the
+# trigger fires on `completed`, red runs included, so a missing gate is a job
+# running off a failed battery (test_ci_chained_workflows_carry_the_green_push_gate
+# adds the push half for those chained off CI)
+function test_workflow_run_workflows_gate_on_success() {
+  local wf bad=0
+  for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
+    grep -qE '^  workflow_run:' "$wf" || continue
+    grep -qF "workflow_run.conclusion == 'success'" "$wf" || {
+      _hi_cecho " | ${wf##*/} triggers on workflow_run without a conclusion == 'success' gate" "$RED"
+      bad=1
+    }
+  done
+  [ "$bad" = 0 ]
+}
+
+# fetch-latest-artifact scopes its lookup to the producer's trigger, default
+# push, because a fork PR's run on a branch named main otherwise passes
+# `branch: main`; `event: ""` (any trigger) is only safe for a producer with
+# no pull_request trigger at all
+function test_fetch_latest_artifact_scopes_the_event() {
+  local action="$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml" wf producer bad=0
+  # shellcheck disable=SC2016 # the action's own literal, expanded there
+  grep -qF 'event=$EVENT' "$action" || return 1
+  awk '/^  event:/ { e = 1 } e && /default: "push"/ { found = 1 } END { exit !found }' "$action" || return 1
+  for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
+    while IFS= read -r producer; do
+      [ -n "$producer" ] || continue
+      ! grep -qE '^  pull_request(_target)?:' "$_HI_ROOT/.github/workflows/$producer" || {
+        _hi_cecho " | ${wf##*/} reads $producer's artifacts from any event, and $producer runs on pull_request" "$RED"
+        bad=1
+      }
+    done < <(awk '
+      function indent(s,    i) { i = 0; while (substr(s, i + 1, 1) == " ") i++; return i }
+      function flush() { if (open && any) print producer; open = 0; any = 0; producer = "" }
+      /^[ \t]*$/ || /^[ \t]*#/ { next }
+      open && indent($0) <= ind { flush() }
+      /^ *- [A-Za-z-]+:/ { flush(); ind = indent($0) }
+      /uses:[ \t]*\$\/\.github\/actions\/fetch-latest-artifact/ { open = 1 }
+      open && /^ *workflow:/ { producer = $2 }
+      open && /^ *event:[ \t]*(""|'"''"')?[ \t]*$/ { any = 1 }
+      END { flush() }
+    ' "$wf")
+  done
+  [ "$bad" = 0 ]
+}
+
+# ...and takes the newest green run that still holds a matching artifact, not
+# simply the newest green run: a run whose producing job skipped is green with
+# nothing to download, and would hide the real one behind a grey badge. The
+# brace pattern every multi-artifact caller passes is matched per name.
+# shellcheck disable=SC2016 # the action's own literals, expanded there
+function test_fetch_latest_artifact_skips_runs_without_the_artifact() {
+  local action="$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml"
+  grep -qF 'status=success&per_page=20' "$action" &&
+    grep -qF 'actions/runs/$id/artifacts' "$action" &&
+    grep -qF 'select(.expired | not)' "$action" &&
+    grep -qF '"{a,b}" becomes "@(a|b)"' "$action" &&
+    grep -qF 'pattern: ${{ inputs.artifact-name }}' "$action"
+}
+
 # actions/upload-artifact (v4.4+, the pin every workflow here uses) drops
 # dotfiles unless a step sets include-hidden-files: true - the bug behind
 # coverage.yml's bashcov shards silently uploading nothing for
@@ -683,7 +987,7 @@ function test_publish_job_signs_the_sums() {
     [[ "$publish" == *'tools: minisign'* ]]
 }
 
-# The package repository (docs/PACKAGING.md's _Package repository_), in four
+# The package repository (docs/RELEASING.md's _Package repository_), in four
 # places that have to agree. build signs the rpm with the GPG key after
 # checking it is the one packaging/gpg/say-hi.asc names; publish builds the
 # repository with mkrepo.sh under the same check and ships it as
@@ -756,23 +1060,25 @@ function test_mkrepo_documents_the_flags_the_workflows_pass() {
 # drift-checked; the general manifest guards below cannot know that.
 function test_minisign_pin_is_drift_checked() {
   [ -f "$_HI_TOOLS_TXT" ] || return 0 # a shipped tree has no .github
-  grep -qE '^minisign\|[0-9][^|]*\|.*\|github:jedisct1/minisign$' "$_HI_TOOLS_TXT"
+  grep -qE '^minisign\|[0-9][^|]*\|.*\|github:jedisct1/minisign\|[^|]*\|[0-9a-f]{64}$' "$_HI_TOOLS_TXT"
 }
 
-# every row is six fields, a known kind, and a non-empty version and url - a
+# every row is eight fields, a known kind (a source kind may carry `:deps`),
+# a non-empty version and url, and a sha256 in the format lib.sh reads - a
 # thin row reaches CI as a runtime failure nobody sees until the job runs
 function test_tool_manifest_rows_are_wellformed() {
   [ -f "$_HI_TOOLS_TXT" ] || return 0
-  local tool version kind url verify check rest bad=0
-  while IFS='|' read -r tool version kind url verify check rest; do
+  local tool version kind url verify check sha256 rest bad=0
+  local hex='[0-9a-f]{64}' plat='(linux|darwin)-(x86_64|aarch64)(:[^=,]+)?'
+  while IFS='|' read -r tool version kind url verify check _ sha256 rest; do
     [ -n "$tool" ] && [ -n "$version" ] && [ -n "$url" ] &&
-      [ -n "$verify" ] && [ -n "$check" ] && [ -z "$rest" ] || {
+      [ -n "$verify" ] && [ -n "$check" ] && [ -n "$sha256" ] && [ -z "$rest" ] || {
       _hi_cecho " | malformed row: $tool" "$RED"
       bad=1
       continue
     }
     case "$kind" in
-    raw | tar.gz | tar.xz | cmake | make) ;;
+    raw | tar.gz | tar.xz | zip | cmake | make | cmake:?* | make:?*) ;;
     *)
       _hi_cecho " | unknown kind '$kind' for $tool" "$RED"
       bad=1
@@ -785,6 +1091,14 @@ function test_tool_manifest_rows_are_wellformed() {
       bad=1
       ;;
     esac
+    # bare hex for one asset, a platform list exactly when the url has %a
+    case "$sha256" in
+    *=*) [[ "$url" == *%a* && ",$sha256" =~ ^(,$plat=$hex)+$ ]] ;;
+    *) [[ "$url" != *%a* && "$sha256" =~ ^$hex$ ]] ;;
+    esac || {
+      _hi_cecho " | $tool's sha256 column does not fit its url (bare hex, or a platform list with %a)" "$RED"
+      bad=1
+    }
   done < <(grep -Ev '^[[:space:]]*(#|$)' "$_HI_TOOLS_TXT")
   [ "$bad" = 0 ]
 }
@@ -2406,12 +2720,15 @@ function run_packaging_tests() {
   _hi_check "Committed manifests stay templates" test_committed_manifests_are_templates
 
   _hi_h2 "Testing: release.yml"
-  # The manual approval gate. `environment:` on the publishing job is what makes
-  # GitHub hold it for a reviewer; losing that line silently turns a tag push into
-  # an unattended publish, which is exactly the thing it exists to prevent.
+  # `environment: release` on the publishing job is what seals the signing keys
+  # to it and holds it to the environment's `v*` tag rule; losing that line
+  # leaves publish reading secrets no environment guards.
   _hi_check "Publishing sits behind an environment" grep -qE '^ *environment: release' "$_HI_RELEASE_WF"
   _hi_check "Only the gated job publishes" test_only_the_gated_job_publishes
   _hi_check "Jobs under the gate check their needs" test_release_jobs_under_the_gate_check_their_needs
+  _hi_check "release.yml requires green CI before it builds" test_release_requires_green_ci_before_build
+  _hi_check "...and a well-formed tag signed by an allowed key" test_release_gate_verifies_the_signed_tag
+  _hi_check "Signing keys are read under the release environment" test_release_signing_keys_are_read_under_the_release_environment
   _hi_check "Runs on tags only" test_release_workflow_only_runs_on_tags
   _hi_check "A prerelease tag is marked as one" test_release_workflow_marks_prerelease_tags
   _hi_check "...and reaches no channel, never refreshes Pages" test_prerelease_tags_reach_no_channel
@@ -2420,6 +2737,8 @@ function run_packaging_tests() {
   _hi_check "publish freezes the tag's badges into the body" test_release_body_carries_frozen_badges
   _hi_check "release_notes.sh --extract takes the section" test_release_note_extract_takes_the_section
   _hi_check "release_notes.sh --extract treats none as empty" test_release_note_extract_treats_none_as_empty
+  _hi_check "release_notes.sh --check requires a written section" test_release_note_check_requires_a_written_section
+  _hi_check "release-note.yml runs --check on every body edit" test_release_note_workflow_runs_the_check
   _hi_check "release_notes.sh builds the list from the PRs" test_release_notes_builds_the_list_from_the_prs
   _hi_check "release_notes.sh is silent without a note" test_release_notes_are_silent_without_a_note
   # bump.sh --check is the tag/manifest gate; the build must not skip it
@@ -2442,11 +2761,21 @@ function run_packaging_tests() {
   _hi_check "every workflow chained off CI carries the green-push gate" test_ci_chained_workflows_carry_the_green_push_gate
   _hi_check "every dotfile upload-artifact path sets include-hidden-files" test_upload_artifact_dotfile_paths_set_include_hidden
 
+  _hi_h2 "Testing: every workflow and composite action"
+  _hi_check "Every job has timeout-minutes" test_every_job_has_a_timeout
+  _hi_check "Every job starts with harden-runner" test_every_job_starts_with_harden_runner
+  _hi_check "Every checkout sets persist-credentials: false" test_every_checkout_drops_its_credentials
+  _hi_check "Every third-party action is a SHA with a # vX.Y.Z" test_every_third_party_action_is_sha_pinned
+  _hi_check "Every workflow_run workflow gates on success" test_workflow_run_workflows_gate_on_success
+  _hi_check "fetch-latest-artifact scopes its lookup to an event" test_fetch_latest_artifact_scopes_the_event
+  _hi_check "...and skips a green run with no matching artifact" test_fetch_latest_artifact_skips_runs_without_the_artifact
+
   _hi_h2 "Testing: publish-external.yml"
   _hi_check "aur is dispatch-only, not in release.yml" test_aur_is_dispatch_only
   _hi_check "...and skips a prerelease tag" test_prerelease_tags_reach_no_external_channel
   _hi_check "...reading its manifest off the release" test_publish_external_reads_manifests_from_the_release
   _hi_check "release.yml opens the tap PR after brew passes" test_release_workflow_opens_the_tap_pr_after_brew
+  _hi_check "tap_formula.sh swaps only the template header" test_tap_formula_swaps_only_the_template_header
   _hi_check "The release body links the tap PR and embeds the demo" test_release_body_links_the_tap_pr_and_embeds_the_demo
   _hi_check "release_slot.sh fills only its own line" test_release_slot_fills_only_its_own_line
   _hi_check "release_slot.sh writes the body back through gh" test_release_slot_writes_the_body_back_through_gh

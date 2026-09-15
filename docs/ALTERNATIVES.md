@@ -56,7 +56,7 @@ to `xterm-256color`) rather than depending on your terminal.
 | Size ceiling                        | the wire script README's payload badge sizes, CI-held within 5% of it; gzipped tar budgeted at 64KB | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
 | Non-ssh targets                     | **docker, podman, nomad, k8s**                                                                      | no                                                                                              | no                                                       | no                              | no                       |
 | Can give you a shell the host lacks | no                                                                                                  | no                                                                                              | **yes**                                                  | no                              | no                       |
-| Maturity                            | pre-1.0, deb/rpm/apk, the package repository, and the Homebrew tap live; no AUR yet                  | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
+| Maturity                            | pre-1.0, deb/rpm/apk, the package repository, and the Homebrew tap live; no AUR yet                 | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
 
 ## Tool by tool
 
@@ -161,7 +161,7 @@ or a pod in the namespace your `kubectl` points at. Nothing else in this space
 does it.
 
 **2. It degrades in stated tiers rather than failing or lying.** The
-[compatibility tables](SUPPORT.md) answer two questions — can hi land a
+[compatibility tables](COMPATIBILITY.md) answer two questions — can hi land a
 session here at all, and what shell do you end up in — and mark every cell
 proven-by-a-suite, expected, reduced, or unsupported. A target with no bash
 gets aliases, a colored prompt, and a warning; a Windows OpenSSH host with no

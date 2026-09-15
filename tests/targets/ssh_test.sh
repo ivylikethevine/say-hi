@@ -219,7 +219,7 @@ function run_ssh_tests() {
     # the host's own, so the command's own marker must not appear: the serial
     # check after the batch. rbash forbids `/` in a command name and little
     # else; `sh` has no slash, so rbash runs hi's bootstrap unrestricted and
-    # the session is a full one - asserted so SUPPORT.md's row stays true.
+    # the session is a full one - asserted so COMPATIBILITY.md's row stays true.
     # `MaxSessions 1` caps *concurrent* channels per connection; the probe's
     # has closed before the session's opens, so the multiplexed pair fits.
     # Attached `-o` forms: $_HI_SSH_RUN_ARGS is word-split, so an option and

@@ -46,9 +46,14 @@ _HI_TARBALL=""
 # the noarch packages are listed under every architecture a client asks for
 _HI_DEB_ARCHES="amd64 arm64 all"
 _HI_APK_ARCHES="x86_64 aarch64"
-_HI_ALPINE_IMAGE="alpine:3.24"
-# createrepo_c: Alpine 3.24 does not package it, Debian stable does
-_HI_DEBIAN_IMAGE="debian:bookworm-slim"
+# By digest, the same pins as tests/dockerfiles (sshd-alpine, sshd-debian),
+# which dependabot moves; check_tool_versions.local.sh reports when these fall
+# behind them. createrepo_c: Alpine 3.24 does not package it, Debian bookworm
+# (oldstable) does. Not trixie yet: its createrepo_c 1.2 writes .zst repodata
+# where bookworm's writes .gz, a change to what every existing dnf/yum client
+# of the published repository reads.
+_HI_ALPINE_IMAGE="alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
+_HI_DEBIAN_IMAGE="debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
 _HI_USAGE="Usage: mkrepo.sh [--dist <dir>] [--outdir <dir>] [--gpg-key <file> [--public-key <asc>]] [--apk-key <file>] [--base-url <url>] [--tarball <file>]"
 
 function usage() {

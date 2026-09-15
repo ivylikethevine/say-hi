@@ -1,10 +1,9 @@
 name: Mark tree
-# The pull_request half of the push-to-main dedupe ci.yml and coverage.yml
-# share: an artifact named after the tree this run tested (the merge ref's),
-# which the push landing that same tree on main looks up with
-# .github/scripts/find_tree_run.sh. The tree, not the commit: a squash merge
-# is a new commit over the same tree, and main moving under the PR is a
-# different tree - and a full run.
+# The pull_request half of the push-to-main dedupe: an artifact named after
+# the tree this run tested (the merge ref's), which the push landing that same
+# tree on main looks up with .github/scripts/find_tree_run.sh. The tree, not
+# the commit: a squash merge is a new commit over the same tree, and main
+# moving under the PR is a different tree - and a full run.
 description: Upload an artifact named <prefix>-<tree sha of GITHUB_SHA>
 
 inputs:

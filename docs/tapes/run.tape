@@ -6,9 +6,9 @@
 # bat alias, but bat sees no terminal on a one-off command and prints plain,
 # so nothing here claims otherwise.) Render with `vhs docs/tapes/run.tape` from
 # the repo root with docker, nomad, kind, and kubectl working and hi on PATH;
-# the kind cluster takes a minute the first time. Manual artifact, reviewed by
-# eye. The most expensive fixture in the set, and last in generate.sh's order
-# for it.
+# the kind cluster takes a minute the first time. CI renders it too
+# (demos.yml). The most expensive fixture in the set, and last in
+# generate.sh's order for it.
 #
 # Its configuration: none that shows - a one-off command draws no header - so
 # settings.sh carries only _HI_TARGETS_TTL=0, for the reason up:complete gives.

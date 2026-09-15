@@ -56,4 +56,6 @@ exclude:
   - hi.sh
   - load.sh
   - CLAUDE.md
+  # untracked host notes; listed so a local build or lint sweep skips them too
+  - CLAUDE.local.md
   - docs/tldr.md

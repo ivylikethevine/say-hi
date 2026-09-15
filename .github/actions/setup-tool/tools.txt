@@ -1,52 +1,108 @@
-# The pinned CI tools, one row per tool - read by ./install.sh (which installs
-# one) and by ../../scripts/check_tool_versions.sh (which reports drift against
-# each upstream's latest release). Both reach it through ./lib.sh, so this file
-# is the single roster: a tool pinned here cannot go undrift-checked.
+# The pinned CI tools, one row per tool - installed by ./install.sh (through
+# ./action.yml or ../setup-tools) and drift-checked by
+# ../../scripts/check_tool_versions.sh. Both read it through ./lib.sh, so a
+# tool pinned here cannot go unchecked.
 #
-#   name|pin|kind|url|verify|check
+#   name|pin|kind|url|verify|check|tag-prefix|sha256
 #
-# name    the word a `uses: ./.github/actions/setup-tools` call names, and
-#         the executable's name - install.sh saves a `raw` download under it,
-#         and finds it inside an archive with `find -name <name>`.
-# pin     the version, WITHOUT a leading "v" even where upstream's tag has one:
-#         some projects tag v1.2.3 but name the asset 1.2.3, and only one
-#         placeholder is substituted. The url column carries the literal "v"
-#         where the tag needs it. check_tool_versions.sh strips a leading "v"
-#         from both sides before comparing, so either convention compares fine.
-# kind    raw (a bare executable), tar.gz, tar.xz, cmake (a source tarball
-#         this builds - kcov publishes no binary asset), or make (the same,
-#         for a ./configure && make tree - mandoc).
-# url     %v is the pin. %a is the asset slug for this runner
-#         (linux.x86_64 / darwin.aarch64 / darwin.x86_64) and is resolved
-#         first, so a version can never be mistaken for one; only shellcheck
-#         needs it, being the only tool also installed on macOS.
-# verify  the flag install.sh runs the installed tool with as a smoke test.
-# check   where to look for the latest release: github:<owner>/<repo>,
-#         gitlab:<url-encoded project path> (salsa.debian.org, where
-#         checkbashisms lives inside devscripts), or "-" to opt out of the
-#         drift report entirely.
+# name        the tool's executable name, and what `tool:`/`tools:` inputs
+#             name. install.sh finds it inside an archive by this name.
+# pin         the version WITHOUT a leading "v"; the url carries a literal
+#             "v" where upstream's tag or asset needs one.
+# kind        raw      a bare executable (or script)
+#             tar.gz   an archive searched for <name>; when it holds one build
+#             tar.xz   per arch side by side, this machine's arch dir is kept
+#             zip      an archive searched for <name>, the same way (needs unzip)
+#             cmake   a source tarball built with cmake
+#             make     a source tarball built with ./configure && make
+#             Source kinds may append apt build deps: `cmake:libfoo-dev,libbar-dev`
+#             (cmake always adds build-essential and cmake itself).
+# url         %v is the pin. %a is this platform's asset slug, taken from the
+#             sha256 column below - use it only with a per-platform sha256.
+# verify      flags install.sh runs the installed tool with as a smoke test.
+# check       where the drift check looks for newer releases:
+#             github:<owner>/<repo>      releases API
+#             gitlab:[<host>/]<project>  tags API; <project> url-encoded
+#                                        (group%2Fname), host defaults to gitlab.com
+#             npm:<package>              registry versions
+#             -                          not drift-checked (say why above the row)
+# tag-prefix  optional; what to strip off an upstream tag to get a pin. Blank
+#             means an optional leading "v" (v1.2.3 and 1.2.3 both work); set
+#             it when tags look like "<tool>-v1.2.3".
+# sha256      required. The sha256 of the downloaded file (the raw binary, or
+#             the archive before extraction) at this exact pin, one of:
+#               <64 hex>
+#                   one asset for every platform (a script, a source tarball,
+#                   or a roster that only runs on one platform); url has no %a
+#               <platform>[:<slug>]=<64 hex>,<platform>[:<slug>]=<64 hex>,...
+#                   one asset per platform; <platform> is linux-x86_64,
+#                   linux-aarch64, darwin-x86_64 or darwin-aarch64, and %a in
+#                   the url becomes <slug> (default: the platform itself). A
+#                   runner whose platform is not listed fails to install.
+#             Example: `x86_64-unknown-linux-gnu` assets become
+#               ...-%a.tar.gz|...|linux-x86_64:x86_64-unknown-linux-gnu=<hex>,linux-aarch64:aarch64-unknown-linux-gnu=<hex>
+#             Compute each with `curl -sSfL <url> | sha256sum` (real %v/%a
+#             substituted). It changes only in the commit that bumps `pin`; a
+#             bumped pin with an unchanged sha256 is a red flag.
 #
-# Bumping a pin is a hand edit here, and nothing else - the caching action.yml
-# reads the version back out of install.sh's `resolve`.
+# Bumping a pin is a hand edit to one row: pin and sha256 together.
+#
+# Floating by design - tools this repo deliberately does not pin, and why.
+# Each is still named here so "is this pinned?" has one place to look:
+#
+#   zsh, fish        ../setup-shells (apt; brew on macOS)
+#                    the runner's current packages; the floors and ceilings
+#                    under test are tests/dockerfiles pins, which dependabot moves
+#   podman, nomad    ../setup-backends (ubuntu and HashiCorp apt repos)
+#                    backends the e2e suites drive, not build inputs; the
+#                    cache key rolls weekly, so they cannot go stale for long
+#   kind, kubectl    ../setup-backends (helm/kind-action's defaults)
+#                    move with that action's SHA, which dependabot bumps
+#   ruby             coverage.yml (preinstalled on the runner image)
+#                    only runs bashcov, which is pinned in
+#                    .github/scripts/check_tool_versions.local.sh's roster
+#   ttyd, ffmpeg     demos.yml (charmbracelet/vhs-action)
+#                    the renderer's helpers; vhs itself is pinned and in the roster
+#   FreeBSD/OpenBSD  freebsd-e2e.yml / openbsd-e2e.yml `release:`
+#                    a hand pin to the newest release the vmactions action SHA
+#                    ships (its README's table); dependabot moves the SHA, and
+#                    there is no release feed to drift-check the image against
+#   node             ci.yml's lint job (actions/setup-node, `node-version: "22"`)
+#                    the newest 22.x; only runs markdownlint-cli2 and prettier,
+#                    which .github/package-lock.json pins and dependabot moves
+#   trivy's DB       image-scan.yml (fetched at scan time)
+#                    the point is today's advisories; the trivy binary is pinned
 #
 # NOTE: .gitignore blankets *.txt and un-ignores this one file by name. A new
 # roster file beside it would be swallowed the same way - see dist/'s comment
 # at the bottom of .gitignore for the same trap.
-shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck
-shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh
-checkbashisms|2.26.11|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:debian%2Fdevscripts
+#
+# Rows go below.
+shellcheck|0.11.0|tar.xz|https://github.com/koalaman/shellcheck/releases/download/v%v/shellcheck-v%v.%a.tar.xz|--version|github:koalaman/shellcheck||linux-x86_64:linux.x86_64=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198,darwin-aarch64:darwin.aarch64=56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79
+shfmt|3.14.1|raw|https://github.com/mvdan/sh/releases/download/v%v/shfmt_v%v_linux_amd64|--version|github:mvdan/sh||76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
+checkbashisms|2.26.11|raw|https://salsa.debian.org/debian/devscripts/-/raw/v%v/scripts/checkbashisms.pl|--version|gitlab:salsa.debian.org/debian%2Fdevscripts||7ffec5f4f3282d7551b7f1dd103d84ea6034bb1f177efdce2cebc60bfd72c088
 # actionlint points at kjanat's fork, not upstream rhysd/actionlint: upstream
 # is stuck on 1.7.12 and rejects zizmor's `$/...` self-repository syntax
 # (rhysd/actionlint#732 open, unmerged); the fork added `$/...` support in
 # v1.9.0 and is what unblocks the zizmor pin below.
-actionlint|1.17.0|tar.gz|https://github.com/kjanat/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:kjanat/actionlint
-zizmor|1.30.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor
-nfpm|2.47.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm
-minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign
-trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy
-hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint
-kcov|43|cmake|https://github.com/SimonKagstrom/kcov/archive/refs/tags/v%v.tar.gz|--version|github:SimonKagstrom/kcov
-typos|1.50.1|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos
+actionlint|1.17.0|tar.gz|https://github.com/kjanat/actionlint/releases/download/v%v/actionlint_%v_linux_amd64.tar.gz|--version|github:kjanat/actionlint||620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a
+zizmor|1.30.1|tar.gz|https://github.com/zizmorcore/zizmor/releases/download/v%v/zizmor-x86_64-unknown-linux-gnu.tar.gz|--version|github:zizmorcore/zizmor||e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
+nfpm|2.47.0|tar.gz|https://github.com/goreleaser/nfpm/releases/download/v%v/nfpm_%v_Linux_x86_64.tar.gz|--version|github:goreleaser/nfpm||0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783
+minisign|0.12|tar.gz|https://github.com/jedisct1/minisign/releases/download/%v/minisign-%v-linux.tar.gz|-v|github:jedisct1/minisign||9a599b48ba6eb7b1e80f12f36b94ceca7c00b7a5173c95c3efc88d9822957e73
+trivy|0.74.0|tar.gz|https://github.com/aquasecurity/trivy/releases/download/v%v/trivy_%v_Linux-64bit.tar.gz|--version|github:aquasecurity/trivy||2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+hadolint|2.15.1|raw|https://github.com/hadolint/hadolint/releases/download/v%v/hadolint-linux-x86_64|--version|github:hadolint/hadolint||c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507
+# kcov publishes no binary asset, so this builds its source tarball. The
+# runtime libs (libdw1, libelf1, libcurl4, zlib1g, libstdc++6) are the
+# caller's to keep - coverage.yml's setup-shells extra-packages. libssl-dev
+# is not redundant: kcov's CMakeLists does find_package(OpenSSL REQUIRED),
+# and libcurl4-openssl-dev only *recommends* the headers, which
+# --no-install-recommends drops ("Could NOT find OpenSSL"). The "Could NOT
+# find Bfd" line in the same log is harmless: bfd is optional.
+kcov|43|cmake:libcurl4-openssl-dev,libdw-dev,libelf-dev,libssl-dev,python3,zlib1g-dev|https://github.com/SimonKagstrom/kcov/archive/refs/tags/v%v.tar.gz|--version|github:SimonKagstrom/kcov||4cbba86af11f72de0c7514e09d59c7927ed25df7cebdad087f6d3623213b95bf
+lychee|0.24.2|tar.gz|https://github.com/lycheeverse/lychee/releases/download/lychee-v%v/lychee-x86_64-unknown-linux-gnu.tar.gz|--version|github:lycheeverse/lychee|lychee-v|1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+# ci.yml's full-history secret scan; `version` is a subcommand, not a flag
+gitleaks|8.30.1|tar.gz|https://github.com/gitleaks/gitleaks/releases/download/v%v/gitleaks_%v_linux_x64.tar.gz|version|github:gitleaks/gitleaks||551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+typos|1.50.1|tar.gz|https://github.com/crate-ci/typos/releases/download/v%v/typos-v%v-x86_64-unknown-linux-musl.tar.gz|--version|github:crate-ci/typos||edf0545109aee6a22751d04ddecb97c45be47d3aa0409564fb895eeeace91b1e
 # mandoc's snapshots page has no feed the checker can read, so the pin is
 # frozen on purpose (1.14.6 is its current release); bump it by hand.
-mandoc|1.14.6|make|https://mandoc.bsd.lv/snapshots/mandoc-%v.tar.gz|-T lint -W error /dev/null|-
+mandoc|1.14.6|make|https://mandoc.bsd.lv/snapshots/mandoc-%v.tar.gz|-T lint -W error /dev/null|-||8bf0d570f01e70a6e124884088870cbed7537f36328d512909eb10cd53179d9c

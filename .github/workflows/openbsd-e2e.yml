@@ -4,7 +4,7 @@ name: OpenBSD e2e
 # runner runs the fast suites and then ssh's to itself, client and target
 # both OpenBSD userland. Its base carries no bash, and no base64(1) -
 # LibreSSL's `openssl base64` stands in for that (GLOSSARY.md's HI.17) - so
-# the VM takes bash alone from packages, which is what SUPPORT.md's *BSD row
+# the VM takes bash alone from packages, which is what COMPATIBILITY.md's *BSD row
 # asks of an OpenBSD target. No fish: two fish
 # versions share the package stem, and a non-interactive pkg_add refuses the
 # ambiguity; the fish dialect is proven on every other platform. ci.yml calls
@@ -23,6 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

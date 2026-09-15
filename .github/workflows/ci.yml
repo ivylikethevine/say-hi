@@ -22,9 +22,11 @@ on:
 permissions:
   contents: read
 
-# superseded PR pushes cancel their in-flight run; main never cancels
+# superseded PR pushes cancel their in-flight run; main never cancels, and
+# groups per commit: a queued run in a shared group is replaced by the next
+# one, and release.yml's gate needs a finished run for every pushed commit
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -44,11 +46,11 @@ jobs:
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
   # test-arm, test-macos, test-alpine, profile, packaging-smoke, e2e, and
-  # e2e-backends skip on a workflow-only or docs-only diff. workflow-lint and
-  # advisory-lint are exempt - such a change is what they audit - and so are
-  # lint and bench: drift_test.sh checks docs/GLOSSARY.md and docs/SETTINGS.md,
-  # bench_test.sh README.md's payload badge, and both are cheap (~40s); they
-  # read `reuse-run` only, never `code`.
+  # e2e-backends skip on a workflow-only or docs-only diff. workflow-lint,
+  # advisory-lint, secret-scan, and dependency-review are exempt - such a
+  # change is what they audit - and so are lint and bench: the lint group
+  # checks the Markdown itself and bench_test.sh README.md's payload badge,
+  # and both are cheap (~40s); they read `reuse-run` only, never `code`.
   #
   # A push to main whose tree a same-repo PR run already took green (a squash
   # merge of an up-to-date PR, the usual case) is the same code twice: the
@@ -70,6 +72,10 @@ jobs:
       reuse-run: ${{ steps.reuse.outputs.run }}
       trusted: ${{ steps.trust.outputs.trusted }}
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       # a PR's files come from the API and only a push diffs the tree, but
       # both need the tree-marker helpers below
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -159,6 +165,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -190,6 +200,8 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
+    # no harden-runner: its community tier has no arm agent (it only logs
+    # that and exits), so the step would be a no-op here
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -204,7 +216,9 @@ jobs:
   # the pinned tools below - text linting does not depend on the userland, so
   # the macOS, Alpine, Windows, and BSD jobs run `--group fast` alone and this is
   # the one gate. Its own job, not a step of `test`: the two groups run side
-  # by side, and `test` installs none of the five tools only the linters call.
+  # by side, and `test` installs none of the tools only the linters call.
+  # markdownlint and prettier gate through tools_test.sh, inside this job, so
+  # making them blocking left the required-check names as they were.
   # Not in e2e-gate's `needs:` - a red lint has no bearing on whether an ssh
   # session works, and gating on it would only make the platform e2e jobs
   # wait on tool installs they don't use. Add `lint` to e2e-gate's `needs:`
@@ -218,6 +232,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -234,10 +252,28 @@ jobs:
       # are absent - these pinned installs are what make them enforce here
       - uses: $/.github/actions/setup-tools
         with:
-          tools: shellcheck shfmt checkbashisms mandoc typos
+          tools: shellcheck shfmt checkbashisms mandoc typos lychee
+
+      # markdownlint-cli2 needs node 22+, which the runner's default may not be
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      # markdownlint-cli2 and prettier with their whole dependency tree, from
+      # .github/package-lock.json (dependabot's npm entry moves it);
+      # tools_test.sh runs them from .github/node_modules/.bin
+      - name: Install the pinned Markdown tools
+        run: npm ci --prefix .github --ignore-scripts --no-audit --no-fund
 
       - name: Run the lint group
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
+
+      # Blocking, unlike link-check.yml's weekly sweep: --offline checks only
+      # what this tree decides - relative paths and #fragments - so a red here
+      # is this diff's broken link or anchor, never the internet's. Tracked
+      # files only; .claude/ is agent config, not docs.
+      - name: Check relative links and anchors in the Markdown
+        run: git ls-files -z '*.md' ':!:.claude/**' | xargs -0 lychee --config lychee.toml --offline --include-fragments --no-progress
 
   # The same suites on macOS: /bin/bash 3.2, BSD userland - a real gate (the
   # %e/width/sort fixes in common/ came out of it). No lint group here: that is
@@ -259,6 +295,10 @@ jobs:
     env:
       HI_LOOPBACK: ${{ needs.changes.outputs.trusted == 'true' }}
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -429,6 +469,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -468,6 +512,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -483,21 +531,73 @@ jobs:
         continue-on-error: true
         run: actionlint -color
 
+      # `.`, not `.github/`: collection honors .gitignore only from the root,
+      # and a local `npm ci --prefix .github` puts third-party workflows under
+      # .github/node_modules that `.github/` would audit
       - id: zizmor
         name: Audit the workflows
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: zizmor --no-progress .github/
+        run: zizmor --no-progress .
 
       - name: Fail if either found something
         if: steps.actionlint.outcome == 'failure' || steps.zizmor.outcome == 'failure'
         run: exit 1
 
-  # Advisory, not a gate: a heading level or a dockerfile nit has never
-  # shipped a bug. Each lint step keeps its exit code (`continue-on-error`
-  # on the *step*, or an output read afterwards, so findings still annotate the
-  # diff) and ./.github/actions/advisory-note restates it as a warning in the
+  # Every commit reachable from the checkout, not just this diff: a secret
+  # pushed and then deleted is still in the history anyone can clone. The
+  # binary needs no token, so a fork PR runs it too. --redact keeps a finding's
+  # value out of the public log; a false positive goes in a .gitleaks.toml
+  # allowlist with its reason, never a wider ignore.
+  secret-scan:
+    name: secret scan (gitleaks)
+    needs: changes
+    if: >-
+      !cancelled() && github.event.pull_request.draft != true
+      && needs.changes.outputs.reuse-run == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: $/.github/actions/setup-tools
+        with:
+          tools: gitleaks
+
+      - name: Scan the full history for secrets
+        run: gitleaks git --redact --no-banner --verbose .
+
+  # Pull requests only: the action diffs the dependency graph between the PR's
+  # base and head, and a push has no base to diff. Fails on a newly added
+  # dependency with a high or critical advisory - the workflows' actions and
+  # .github/package-lock.json here. Needs `changes` for the draft skip alone;
+  # not `code`, since a workflow-only diff is how a new action arrives.
+  dependency-review:
+    name: dependency review
+    needs: changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+
+  # Advisory, not a gate: a dockerfile nit has never shipped a bug. The lint
+  # step's verdict is an output read afterwards, so findings still show in the
+  # log, and ./.github/actions/advisory-note restates it as a warning in the
   # run summary; `continue-on-error` on the *job* would paint it green and hide
   # the result. Keep this job off branch protection's required checks when
   # they are set (docs/CONTRIBUTING.md) - it is designed to be ignorable.
@@ -510,35 +610,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - id: markdownlint
-        continue-on-error: true
-        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
-        with:
-          # .claude/ is gitignored agent scratch, so this negation changes
-          # nothing in CI; it keeps the local command in the summary below
-          # reporting the same findings CI did.
-          globs: |
-            **/*.md
-            !.claude/**
-          config: ".markdownlint.yaml"
-
-      - uses: $/.github/actions/advisory-note
-        if: steps.markdownlint.outcome == 'failure'
-        with:
-          title: markdownlint
-          warning-body: Markdown lint findings above - advisory, not blocking
-          heading: markdownlint found something
-          body: |
-            Advisory only: this job never blocks a merge. See the step above for the findings,
-            or run `markdownlint-cli2 '**/*.md' '!.claude/**'` locally.
-
-      # Advisory like markdownlint: .hadolint.yaml's ignore list is version
-      # pins (DL3008/DL3018/DL3041) and fixture-shape rules (DL3002, DL3066,
-      # SC2016) that have a written reason to stay. Everything else,
+      # .hadolint.yaml's ignore list is version pins (DL3008/DL3018/DL3041)
+      # and fixture-shape rules (DL3002, DL3066, SC2016) that have a written
+      # reason to stay. Everything else,
       # including DL3009/DL3015 (apt lists, --no-install-recommends) and
       # DL4006 (curl piped into sh with no pipefail, where a 404 builds a
       # green image with the framework missing), is fixed in the fixtures
@@ -591,6 +673,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -614,6 +700,10 @@ jobs:
     timeout-minutes: 15
     continue-on-error: true
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -638,6 +728,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -662,13 +756,16 @@ jobs:
       # Catches "apk-tools rejects what nfpm built" (nfpm 2.47.0's tree entries
       # did) and proves the signature chain: the pubkey lands in /etc/apk/keys
       # under the name nfpm.yaml stamps into the signature, and apk add must
-      # accept the package with NO --allow-untrusted.
+      # accept the package with NO --allow-untrusted. The image is
+      # tests/dockerfiles' alpine pin, by digest (check_tool_versions.local.sh
+      # reports when the two part).
       - name: Install the signed apk on Alpine
         run: |
           set -euo pipefail
           docker run --rm -v "$PWD/dist:/dist:ro" \
             -v "$RUNNER_TEMP/smoke.rsa.pub:/etc/apk/keys/say-hi.rsa.pub:ro" \
-            alpine:3.24 sh -c 'apk add /dist/say-hi_*_noarch.apk && sh -lc "hi --version" && ls /usr/share/say-hi/common/core.sh'
+            alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b \
+            sh -c 'apk add /dist/say-hi_*_noarch.apk && sh -lc "hi --version" && ls /usr/share/say-hi/common/core.sh'
 
       # The reproducibility contract: the same commit builds byte-identical
       # deb/rpm/apk (SOURCE_DATE_EPOCH from HEAD plus clamped staging mtimes).
@@ -746,6 +843,10 @@ jobs:
       matrix:
         shard: [1/4, 2/4, 3/4, 4/4]
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -791,6 +892,10 @@ jobs:
           - { shard: 2/3, backends: nomad }
           - { shard: 3/3, backends: kind }
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -826,6 +931,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - name: Require every shard green, unless the run was rightly skipped
         env:
           CODE: ${{ needs.changes.outputs.code }}
@@ -846,6 +955,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - name: Require every shard green, unless the run was rightly skipped
         env:
           CODE: ${{ needs.changes.outputs.code }}
@@ -882,6 +995,10 @@ jobs:
     outputs:
       ok: ${{ steps.gate.outputs.ok }}
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - id: gate
         env:
           TRUSTED: ${{ needs.changes.outputs.trusted }}
@@ -943,6 +1060,10 @@ jobs:
       actions: read
       checks: write
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: "{tests,package-install-sizes}"

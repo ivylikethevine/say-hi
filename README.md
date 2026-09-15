@@ -13,11 +13,12 @@ _Don't `ssh`ush your hosts, say `hi`!_
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
 [![OpenSSF Baseline](https://www.bestpractices.dev/projects/14397/baseline)](https://www.bestpractices.dev/projects/14397)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE.md)
 
 ![hi into a container: the header and its package check, the git segment inside a checkout on the target, cat through the box's bat, and the empty /tmp it leaves behind](docs/tapes/demo.gif)
 
 > View these docs as a [website here](https://ivylikethevine.github.io/say-hi/).
-
+>
 > [docs/README.md](docs/README.md) indexes the rest, the man page and the tldr
 > draft included.
 
@@ -38,11 +39,13 @@ _Don't `ssh`ush your hosts, say `hi`!_
 - [Built from/with/in mind](#built-fromwithin-mind)
 - [say-hi and the alternatives](#say-hi-and-the-alternatives)
 - [Testing](#testing)
-- [AI Usage](#ai-usage)
+- [Getting help and contributing](#getting-help-and-contributing)
+- [AI usage](#ai-usage)
 - [Roadmap](#roadmap)
   - [What v1.0.0 Means](#what-v100-means)
   - [Features](#features)
   - [Post 1.0](#post-10)
+- [License](#license)
 
 ---
 
@@ -93,7 +96,7 @@ bash session on a debian container and a fish session on an alpine box,
 reached through docker and podman. The operator again, in fish, with the
 header trimmed to the clocks, the backend counts, and the check on the `mono`
 ramp. A box with no bash gets the aliases-only tier — hi's own aliases, not
-the overlay ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
+the overlay ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
 ![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
@@ -142,7 +145,7 @@ A researcher, in zsh, sweeping the cluster's backends.
 
 Two questions, answered at two moments: **can hi land a session on that OS at
 all**, and **what shell do you end up in**. Both tables, with a legend and what
-proves each row, are in [docs/SUPPORT.md](docs/SUPPORT.md), along with
+proves each row, are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md), along with
 everything weighed and answered **no**, and why.
 
 - **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
@@ -155,7 +158,7 @@ everything weighed and answered **no**, and why.
 - **Target**: `base64` (or `openssl`) for ssh targets; nothing extra for container/alloc/pod
   targets. `bash` gets the full experience; without it you land in the best
   shell the target has, with a smaller session
-  ([docs/SUPPORT.md](docs/SUPPORT.md#the-shell-you-end-up-in)).
+  ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 - **A slow link**: the ssh wire stays at or under 128 KB, which is 8 s over a
   128 kbps link to a resource-starved target. Today's payload (the badge
   above) is about half that.
@@ -228,7 +231,7 @@ everything weighed and answered **no**, and why.
 - [optional] pin colors in `~/.config/say-hi/colors`; `hi --preview colors`
   shows what every ssh host and your user resolve to.
 - **A dropped connection ends the session** and nothing on the target
-  outlives it ([why](docs/SUPPORT.md#what-would-change-an-answer)). For a
+  outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For a
   flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
   `zellij`, or `screen` (whichever you have), which
   survives the drop.
@@ -237,11 +240,13 @@ everything weighed and answered **no**, and why.
   unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a
   package's stays). Left behind, on purpose: the checkout (or the
   package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
-  (your colors, packages, and aliases), and the one-time `<rc>.hi-orig`
-  backups. To take it all off a cloned install:
+  (your colors, packages, and aliases; `hi --uninstall --purge` removes
+  that directory too), and the one-time `<rc>.hi-orig` backups.
+  `--dry-run` names what either form would remove. To take it all off a
+  cloned install:
 
   ```sh
-  hi --uninstall && rm -rf ~/say-hi ~/.config/say-hi ~/.bashrc.hi-orig ~/.zshrc.hi-orig ~/.config/fish/config.fish.hi-orig
+  hi --uninstall --purge && rm -rf ~/say-hi ~/.bashrc.hi-orig ~/.zshrc.hi-orig ~/.config/fish/config.fish.hi-orig
   ```
 
 ## Configuration
@@ -305,7 +310,17 @@ cross-check rather than the number -
 [docs/TESTING.md](docs/TESTING.md#coverage-and-profiling) has why there are
 two.
 
-## AI Usage
+## Getting help and contributing
+
+A question, a bug, or an idea: [docs/SUPPORT.md](docs/SUPPORT.md) says where
+each one goes and what to bring (`hi --doctor --json` answers most of it).
+Anything exploitable goes privately, per
+[docs/SECURITY.md](docs/SECURITY.md#reporting-a-vulnerability). A change:
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) has the gate, what a review
+bounces on, and which docs change with what; who decides is
+[docs/GOVERNANCE.md](docs/GOVERNANCE.md).
+
+## AI usage
 
 Heavily inspired by
 [Dictionarry/Profilarr's AI Transparency Statement](https://v2.dictionarry.dev/ai-transparency).
@@ -358,13 +373,14 @@ an upstream review that lands when it lands.
 2. [ ] **AUR** — Registration is closed to new accounts (spam), so
        `publish-external.yml`'s `aur` job stays written and unexercised.
        **When it reopens:** register, then add an ed25519 private key as the
-       `AUR_SSH_KEY` repo secret; the first push per package is manual, and a
+       `AUR_SSH_KEY` environment secret on the `release` environment (the
+       `aur` job runs there); the first push per package is manual, and a
        `publish-external.yml` dispatch handles the versioned package after.
        **Ticks when:** both packages are live and a dispatch has kept
        `say-hi` current for one real release. <https://archlinux.org/news/>
 
 3. [ ] **Best Practices badge entry** — the answer sheet is
-       [.github/OPENSSF-IMPROVEMENTS.md](.github/OPENSSF-IMPROVEMENTS.md). **Do:**
+       [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
        enter it at bestpractices.dev; label two or three open issues
        `good first issue` (`small_tasks`); confirm `secure_2FA` is
        TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.
@@ -378,3 +394,7 @@ an upstream review that lands when it lands.
        upstream issue or newer release as of 2026-09-14. **Do:** report it
        upstream with that evidence. **Ticks when:** a v0.12.x release renders
        all six tapes green on a `demos.yml` dispatch and the pin moves to it.
+
+## License
+
+[MIT](LICENSE.md).

@@ -1,7 +1,7 @@
 # The packages demo, as the homelab tinkerer sees it: sam, from a laptop with
 # a plain distro prompt, into the nas and the pihole under the stairs. Render
 # with `vhs docs/tapes/packages.tape` from the repo root, docker running, hi
-# on PATH. Manual artifact, reviewed by eye.
+# on PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:packages): hi's prompt off
 # (_HI_DISABLE_PROMPT - this person keeps their own, and the targets keep

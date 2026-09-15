@@ -3,24 +3,30 @@ name: Release
 # Builds and publishes a release. Runs on a pushed v* tag, or by hand as a
 # rehearsal: the dispatch runs the whole build job against a HEAD archive and
 # a fake version, and the publish job is hard-gated to tag pushes. A
-# prerelease tag (a `-` in the name, v1.0.0-rc.1) is a GitHub Release only,
-# marked as a prerelease; no channel job runs for it. Branch pushes and PRs
+# prerelease tag (a `-` in the name, v1.0.0-rc.1) is a GitHub Release only:
+# marked as a prerelease and never Latest, no Pages refresh, no brew/tap job,
+# and publish-external.yml's AUR job refuses it. Branch pushes and PRs
 # are ci.yml's. Needs the `release` environment, which seals
-# MINISIGN_SECRET_KEY (docs/PACKAGING.md) - no required reviewer on it: the
-# tag protection rule is the gate, so a tag that exists is a release that
-# publishes. APK_SIGNING_KEY and MINISIGN_SECRET_KEY are each optional and
-# skip loudly. The AUR push is not here - publish-external.yml reaches it, by
-# a separate manual dispatch against an already-published tag, and holds
-# AUR_SSH_KEY. The
+# MINISIGN_SECRET_KEY, APK_SIGNING_KEY, and GPG_SIGNING_KEY (docs/RELEASING.md)
+# - no required reviewer on it: the gates are the tag protection rule and the
+# `gate` job (a tag publishes only once it is signed by a key in
+# .github/allowed_signers, sits on main, and CI went green on its commit). The
+# three keys are each optional and skip loudly. The AUR push is not here -
+# publish-external.yml reaches it, by a separate manual dispatch against an
+# already-published tag, and holds AUR_SSH_KEY. The
 # manifests it builds (dist/manifests/) are release assets only - the
 # committed packaging/aur and packaging/homebrew files stay permanent
 # templates (packaging/bump.sh's header) and this workflow never writes to
 # main.
 #
-# Every job below `gate` names its `needs` result in its `if`: `gate` is
-# skipped on the tag path, and a job-level `if` with no status function gets
-# an implicit success() that looks at the whole needs chain - a skipped
-# ancestor two jobs up skips the publish, with the run still green.
+# Every job below `gate` names its `needs` result in its `if`: a job-level
+# `if` with no status function gets an implicit success() that looks at the
+# whole needs chain - a skipped ancestor two jobs up skips everything under
+# it, with the run still green.
+#
+# Every job starts with harden-runner: `audit` records egress, and the two
+# jobs that write outside the run (publish, tap) run `block` with an
+# allowlist.
 on:
   push:
     tags:
@@ -43,29 +49,152 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Dispatch only: a v* tag push skips this and goes straight to build, which
-  # keeps the real release unattended, and a rehearsal cannot reach
-  # APK_SIGNING_KEY without a named reviewer saying so.
+  # Every release starts here. A tag push publishes only a well-formed tag,
+  # signed by a key in .github/allowed_signers, on a commit CI already took
+  # green on main: the tag protection rule says who may release, this says
+  # what. A dispatch rehearsal (a branch HEAD, publishing nothing) skips those
+  # checks and waits on the `manual-dispatch` environment instead, so it
+  # cannot start a build without a named reviewer saying so. One job for both
+  # events keeps build's single `needs:`; the environment is picked per event
+  # because it is job-level, and an empty name is no environment - a tag push
+  # stays unattended. A rejected rehearsal fails the job, and build's
+  # `== 'success'` stops there.
   gate:
-    name: approve the rehearsal
-    if: github.event_name == 'workflow_dispatch'
+    name: gate the release (signed tag, on main, green CI)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: manual-dispatch
+    # long enough to wait out a CI run still going when the tag was pushed
+    # (its slowest jobs are the ~30-minute macOS and Windows ones)
+    timeout-minutes: 60
+    environment: ${{ github.event_name == 'workflow_dispatch' && 'manual-dispatch' || '' }}
+    permissions:
+      actions: read # the CI run lookup
+      contents: read # the checkout and the compare call
     steps:
-      - run: echo "rehearsal approved for ${{ github.triggering_actor }}"
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
 
-  # Everything that can fail, nothing that can publish: a tag push runs it
-  # unattended so a bad tag is caught before anyone is asked to approve.
+      - name: The rehearsal was approved
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ACTOR: ${{ github.triggering_actor }}
+        run: echo "rehearsal approved for $ACTOR"
+
+      # vMAJOR.MINOR.PATCH with an optional -prerelease: the version build
+      # derives from the tag has to be one nfpm, bump.sh, and the manifests
+      # all read the same way
+      - name: The tag is a release version
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error title=Release refused::$GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+
+      # the commit must be on main, not only tagged: main's CI run is the
+      # one looked up below, a tag on a side branch has none to find, and the
+      # allowed_signers file the signature check reads is main's
+      - name: The tagged commit is on main
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$GITHUB_SHA" --jq .status)"
+          echo "main...$GITHUB_SHA: $status"
+          case "$status" in
+          identical | behind) ;;
+          *)
+            echo "::error title=Release refused::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"
+            exit 1
+            ;;
+          esac
+
+      # checkout fetches a tag push by its ref (+refs/tags/<tag>:refs/tags/<tag>),
+      # so the annotated tag object and its signature arrive with the commit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          persist-credentials: false
+
+      # Tags are SSH-signed (git's gpg.format=ssh), so the trust root is an
+      # allowed_signers file rather than a keyring. Only the committed file
+      # counts: the global and system git configs are ignored, and a
+      # lightweight or unsigned tag fails `git tag -v` outright.
+      - name: The tag is signed by a release key
+        if: github.event_name == 'push'
+        env:
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+        run: |
+          set -euo pipefail
+          type="$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")"
+          [ "$type" = tag ] || {
+            echo "::error title=Release refused::$GITHUB_REF_NAME is a lightweight tag - cut a signed one (git tag -s)"
+            exit 1
+          }
+          git -c gpg.ssh.allowedSignersFile=.github/allowed_signers tag -v "$GITHUB_REF_NAME" || {
+            echo "::error title=Release refused::$GITHUB_REF_NAME is not signed by a key in .github/allowed_signers"
+            exit 1
+          }
+
+      # CI's push run for exactly this commit, newest first. A push whose
+      # tree already went green on its PR concludes success too (ci.yml's
+      # carry-forward), and only a green PR run is ever carried forward.
+      # Still running: wait for it. Not there after a few minutes (a tag
+      # pushed with main can beat its run into existence): the tag landed on
+      # a commit CI never ran for, one inside a multi-commit push - refused.
+      - name: CI concluded success for the tagged commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          missing=0
+          while :; do
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&branch=main&per_page=1" \
+              --jq '.workflow_runs[0] | select(. != null) | [.status, (.conclusion // "none"), .html_url] | @tsv')"
+            if [ -z "$run" ]; then
+              missing=$((missing + 1))
+              if [ "$missing" -ge 5 ]; then
+                echo "::error title=Release refused::no CI push run on main for $GITHUB_SHA"
+                exit 1
+              fi
+              sleep 60
+              continue
+            fi
+            # "none" rather than empty while running: a tab is IFS whitespace,
+            # so an empty field would shift the url into $conclusion
+            IFS=$'\t' read -r status conclusion url <<<"$run"
+            echo "CI $status ($conclusion): $url"
+            [ "$status" = completed ] && break
+            sleep 60
+          done
+          [ "$conclusion" = success ] || {
+            echo "::error title=Release refused::CI concluded $conclusion for $GITHUB_SHA - fix main and cut a new tag"
+            exit 1
+          }
+
+  # Everything that can fail, nothing that can publish: a bad tag fails here,
+  # before publish touches the release.
+  #
+  # `environment: release` on a tag push only: APK_SIGNING_KEY and
+  # GPG_SIGNING_KEY are sealed there, and its deployment-tags rule (`v*`)
+  # would refuse a rehearsal's branch ref. An empty name is no environment, so
+  # a rehearsal builds with neither key - unsigned apk and rpm, both skipping
+  # loudly - while ci.yml's packaging-smoke keeps the signed shape covered
+  # with throwaway keys.
   build:
     name: build packages
     needs: gate
-    # gate is *skipped* on a tag push, not failed - hence the result check
-    # rather than a bare `needs`; `!cancelled()` rather than `always()` so
-    # cancelling the run still stops the build
-    if: ${{ !cancelled() && needs.gate.result != 'failure' }}
+    # gate is the verdict for both events - the explicit result, per the
+    # header; `!cancelled()` rather than `always()` so cancelling the run
+    # still stops the build
+    if: ${{ !cancelled() && needs.gate.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: ${{ github.event_name == 'push' && 'release' || '' }}
     # the provenance attestation below needs these two; contents stays read
     permissions:
       contents: read
@@ -75,6 +204,10 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
       debug: ${{ steps.tag.outputs.debug }}
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -153,10 +286,9 @@ jobs:
         with:
           tools: nfpm
 
-      # Absent APK_SIGNING_KEY (forks, before first release) the apk builds
-      # unsigned, as a keyless local build does. A plain repo secret, not the
-      # release environment: this job is ungated (rehearsals run it) and the
-      # key only signs an artifact the tag-gated publish job ships.
+      # Absent APK_SIGNING_KEY (forks, before first release, and every
+      # rehearsal - the job's environment comment says why) the apk builds
+      # unsigned, as a keyless local build does.
       - name: Write the apk signing key
         env:
           APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
@@ -179,11 +311,10 @@ jobs:
           echo "HI_APK_KEY=$RUNNER_TEMP/say-hi-apk.rsa" >>"$GITHUB_ENV"
 
       # The GPG key that signs the rpm here (nfpm, via HI_GPG_KEY) and, in
-      # publish, the package repository's indexes. A plain repo secret like the
-      # apk key, on the same reasoning: this job is ungated and only signs what
-      # publish still has to ship. Its fingerprint has to match the
+      # publish, the package repository's indexes - sealed to the release
+      # environment like the apk key. Its fingerprint has to match the
       # committed public half, packaging/gpg/say-hi.asc - the key every apt and
-      # dnf client is told to trust (docs/PACKAGING.md's _Package repository_).
+      # dnf client is told to trust (docs/RELEASING.md's _Package repository_).
       # Absent, the rpm builds unsigned and publish ships no repository, both
       # loudly.
       - name: Write the GPG signing key
@@ -295,17 +426,18 @@ jobs:
   # The only job that publishes. It runs unattended: the gate is the tag
   # protection rule (only someone who can push a v* tag can start a release),
   # not a person clicking approve. `environment: release` stays because
-  # MINISIGN_SECRET_KEY is sealed to it, and because its
+  # the signing keys are sealed to it, and because its
   # deployment-tags rule (`v*`) keeps the job to tag refs - a repo setting,
-  # not this file. See docs/PACKAGING.md.
+  # not this file. See docs/RELEASING.md.
   publish:
     name: publish to the release
     needs: build
     # hard gate on top of the environment: a rehearsal dispatch must never
     # publish, however the environment happens to be configured. The explicit
     # build result rather than a bare event check: the implicit success()
-    # sees the skipped `gate` above build and skips this on every tag push
-    # (v0.0.1-rc and v0.0.2-rc.1 shipped no packages that way).
+    # reads the whole needs chain, and a skipped job anywhere above silently
+    # skips this one (v0.0.1-rc and v0.0.2-rc.1 shipped no packages that way,
+    # when `gate` ran on dispatches only).
     if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name == 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -326,6 +458,34 @@ jobs:
       prerelease: ${{ needs.build.outputs.prerelease }}
       debug: ${{ needs.build.outputs.debug }}
     steps:
+      # block, not audit: the one job holding the signing keys and a
+      # contents: write token talks only to these - checkout and gh (github,
+      # api, uploads); setup-tools' minisign download (objects,
+      # release-assets); gh attestation download's bundle (tmaproduction);
+      # mkrepo.sh's image pulls (the docker hosts) and the package installs
+      # inside them (debian, alpine). GitHub's runner, artifact, and cache
+      # hosts are the agent's implicit allowlist. Read off the steps, not a
+      # recorded run: tighten or extend it from a release's harden-runner
+      # insights (the run summary links them), not by guessing.
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            uploads.github.com:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            tmaproduction.blob.core.windows.net:443
+            registry-1.docker.io:443
+            auth.docker.io:443
+            production.cloudflare.docker.com:443
+            production.cloudfront.docker.com:443
+            docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com:443
+            deb.debian.org:80
+            deb.debian.org:443
+            dl-cdn.alpinelinux.org:443
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -341,8 +501,8 @@ jobs:
 
       # The offline half of verification: the attestation needs gh and GitHub,
       # a detached minisign signature over SHA256SUMS verifies with one static
-      # public key (in the README) and no network. The secret is sealed to
-      # this environment, behind the gate, unlike the apk key. Generated with
+      # public key (in docs/PACKAGING.md) and no network. The secret is sealed to
+      # this environment, and only this job reads it. Generated with
       # `minisign -G -W` - no password, nobody is at this terminal to type
       # one. Absent, the release ships unsigned sums, loudly.
       - name: Sign SHA256SUMS
@@ -363,8 +523,8 @@ jobs:
       # badges. README's three badges read the newest green run of main and
       # drift with it; a release should say what it was cut at. Looked up by
       # this commit's sha (a workflow_run-triggered coverage run carries the
-      # triggering push's), and a figure that is not there - a tag cut before
-      # CI finished, an artifact past its retention - is a grey "unknown",
+      # triggering push's), and a figure that is not there - Coverage still
+      # running, an artifact past its retention - is a grey "unknown",
       # never a failed release.
       - uses: $/.github/actions/fetch-latest-artifact
         with:
@@ -383,6 +543,7 @@ jobs:
           artifact-name: "{coverage-pct,coverage-v2-pct}"
           dest-subdir: badge-coverage
           head-sha: ${{ github.sha }}
+          event: workflow_run
           found-message: "coverage figures from Coverage run"
           missing-message: "no green Coverage run for this commit - the coverage badges read unknown"
           warn-on-missing: "true"
@@ -536,7 +697,7 @@ jobs:
           fi
           gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
 
-      # The subscribable repository (docs/PACKAGING.md's _Package repository_):
+      # The subscribable repository (docs/RELEASING.md's _Package repository_):
       # apt, rpm, and apk indexes over the packages just uploaded, signed with
       # the GPG key the rpm was and the apk index with the apk's key, shipped
       # as one asset that pages.yml unpacks from the newest non-prerelease
@@ -595,7 +756,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run demos.yml --ref "$GITHUB_REF_NAME"
 
-  # The three commands docs/PACKAGING.md's "Homebrew tap" section asks for by
+  # The three commands docs/RELEASING.md's "Homebrew tap" section asks for by
   # hand before a tap PR is merged, run on a hosted mac against the tarball
   # just published - the formula's url points at the release asset, which is
   # why this waits on publish and never runs for a rehearsal. The `tap` job
@@ -633,6 +794,11 @@ jobs:
       prerelease: ${{ needs.publish.outputs.prerelease }}
       debug: ${{ needs.publish.outputs.debug }}
     steps:
+      # audit only: on macOS harden-runner has no block mode
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: packages
@@ -688,13 +854,13 @@ jobs:
             echo "### brew audit --strict --new"
             echo
             if [ "$FOUND" = 1 ]; then
-              echo "Findings beyond the two PACKAGING.md expects while the repository is private:"
+              echo "Findings beyond the two RELEASING.md expects while the repository is private:"
               echo
               echo '```'
               cat "$RUNNER_TEMP/audit.real"
               echo '```'
             else
-              echo "Clean, apart from any of the two findings PACKAGING.md expects while the repository is private."
+              echo "Clean, apart from any of the two findings RELEASING.md expects while the repository is private."
             fi
           } >>"$GITHUB_STEP_SUMMARY"
           if [ "$FOUND" = 1 ]; then
@@ -727,6 +893,17 @@ jobs:
       group: release-body-${{ github.ref_name }}
       cancel-in-progress: false
     steps:
+      # block: this job holds the tap PAT, and only needs GitHub itself -
+      # checkout, clone, and push (github) and gh's PR and release calls
+      # (api); the artifact download is on the agent's implicit allowlist.
+      # Tighten or extend it from a release's harden-runner insights.
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -746,7 +923,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning title=Homebrew tap::no HOMEBREW_TAP_TOKEN secret - the tap formula was NOT updated; copy dist/manifests/say-hi.rb to Formula/say-hi.rb by hand (docs/PACKAGING.md)"
+            echo "::warning title=Homebrew tap::no HOMEBREW_TAP_TOKEN secret - the tap formula was NOT updated; write it by hand with .github/scripts/tap_formula.sh <dist/manifests/say-hi.rb >Formula/say-hi.rb (docs/RELEASING.md)"
             exit 0
           fi
           branch="say-hi-$TAG"
@@ -764,7 +941,9 @@ jobs:
           gh auth setup-git
           git checkout -b "$branch"
           mkdir -p Formula
-          cp ../dist/manifests/say-hi.rb Formula/say-hi.rb
+          # the template's header is about this repository; the tap's copy
+          # gets the one that says where to edit it instead
+          bash ../.github/scripts/tap_formula.sh <../dist/manifests/say-hi.rb >Formula/say-hi.rb
           git add Formula/say-hi.rb
           if git diff --cached --quiet; then
             echo "tap formula already current - nothing to open"
@@ -775,20 +954,15 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "say-hi $TAG"
           git push origin "$branch"
-          # The checklist rides in the body: this run's `brew` job already
-          # ran these on a hosted mac against this tag's published tarball,
-          # so the boxes are for the reviewer confirming that run before
-          # merging. printf rather than a heredoc: a heredoc body would have
-          # to be unindented, which ends the YAML block scalar.
-          # shellcheck disable=SC2016 # the backticks are markdown, not substitution
+          # No checklist: this run's `brew` job already installed, tested, and
+          # audited the formula on a hosted mac, and the tap's own CI repeats
+          # that on macOS and Linux against this PR. printf rather than a
+          # heredoc: a heredoc body would have to be unindented, which ends
+          # the YAML block scalar.
           body="$(printf '%s\n' \
             "Formula for say-hi $TAG, generated by release.yml." \
             "" \
-            "This run's \`brew\` job ran these on a hosted mac against the tag's release ($RUN_URL); confirm from one of your own before merging:" \
-            "" \
-            '- [ ] `brew install --build-from-source Formula/say-hi.rb`' \
-            '- [ ] `brew test say-hi`' \
-            '- [ ] `brew audit --strict --new say-hi`')"
+            "Installed, tested, and audited on a hosted mac by this run's \`brew\` job ($RUN_URL); the tap's CI checks it again on this PR.")"
           url="$(gh pr create --repo "$TAP_REPO" --head "$branch" \
             --title "say-hi $TAG" --body "$body")"
           echo "link=- Homebrew: $install ([tap PR]($url))" >>"$GITHUB_OUTPUT"
@@ -799,4 +973,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           LINK: ${{ steps.pr.outputs.link }}
+          # the publish job's `<!-- hi:tap -->` marker
+          RELEASE_SLOT_PREFIX: hi
         run: .github/scripts/release_slot.sh "$GITHUB_REPOSITORY" "$TAG" tap "$LINK"

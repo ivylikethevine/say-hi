@@ -69,6 +69,10 @@ jobs:
       contents: read
       actions: read
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -108,6 +112,8 @@ jobs:
           workflow: coverage.yml
           artifact-name: "{coverage-pct,coverage-v2-pct}"
           dest-subdir: cov
+          # Coverage's main runs follow CI; its pull_request runs never count
+          event: workflow_run
           found-message: coverage figures from coverage run
           missing-message: no successful coverage run on main - both badges stay grey
 
@@ -115,7 +121,7 @@ jobs:
       # slow and per-release, so the site carries the last GIFs anyone made. None
       # is committed, so this is their only source and README.md links their
       # published URLs; until a render lands those links 404, per
-      # docs/PACKAGING.md's _Regenerating the demo GIFs_. docs/tapes/demo.gif
+      # docs/RELEASING.md's _Regenerating the demo GIFs_. docs/tapes/demo.gif
       # is not in the artifact - it is the hand-rendered, committed one, and
       # docs/tapes/ is excluded from the Jekyll build (_config.yml), so the
       # copy step below carries it into _site beside the rendered ones.
@@ -131,6 +137,8 @@ jobs:
           artifact-name: demo-gifs
           dest-subdir: demos
           branch: ""
+          # demos.yml runs on schedule and dispatch only, no pull_request
+          event: ""
           found-message: demo GIFs from run
           missing-message: no successful demos run - the rendered GIFs are missing
 
@@ -218,7 +226,7 @@ jobs:
           cov coverage-v2.json bashcov "$COVPCT2"
 
       # The package repository, out of the newest non-prerelease release's
-      # package-repo.tar.gz (docs/PACKAGING.md's _Package repository_) - a
+      # package-repo.tar.gz (docs/RELEASING.md's _Package repository_) - a
       # release asset rather than a run artifact, so it outlives the 90-day
       # artifact expiry and every docs-only rebuild, and a candidate never
       # reaches a subscriber. Only the latest release is served; older packages
@@ -258,5 +266,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

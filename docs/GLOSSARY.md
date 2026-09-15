@@ -717,7 +717,7 @@ function of that name, and without it `fish` would call itself forever.
 The wrappers cannot cover a bash or fish shell nothing typed — a `tmux` pane
 spawning a login shell, an editor's shell-out — which comes up as the host's
 own. hi writes nothing into a target's login files
-([SUPPORT.md](SUPPORT.md#what-would-change-an-answer) has the reasoning).
+([COMPATIBILITY.md](COMPATIBILITY.md#what-would-change-an-answer) has the reasoning).
 
 ## HI.47 what a child inherits
 
@@ -985,7 +985,7 @@ unconditional cursor restore, and on a terminal still on its normal screen
 that slot holds what nothing ever saved, i.e. home: the failed connect's own
 message then landed at the top of the screen and painted over the session
 still on it. Saving first makes that restore a return to where the cursor
-already is; a terminal genuinely in the alternate screen saves to *that*
+already is; a terminal genuinely in the alternate screen saves to _that_
 screen's slot, so `CSI ?1049 l` still restores the pre-alt cursor and the
 DECRC only repeats it. Never on exit 0 (the session closed itself down),
 never on a pipe (`hi host cmd | ...` gets the command's output and nothing
@@ -997,7 +997,7 @@ else).
 leading `(mise|direnv:proj|myproj)`. The awkward part is not the detection -
 every tool exports a variable, so a draw is parameter expansion and nothing
 else - it is that two of those tools draw a prefix of their own, and whether
-that prefix survives is a property of the *shell*, not of the tool.
+that prefix survives is a property of the _shell_, not of the tool.
 
 `python -m venv`'s activate script prepends to `$PS1` (bash, zsh) or copies
 `fish_prompt` to `_old_fish_prompt` and wraps it (fish); conda prepends
@@ -1052,8 +1052,7 @@ interrupted by ^C leaves it set in that one shell.
 bash's completion has no description column - every `COMPREPLY` entry is a
 word readline may put on the command line - so a backend symbol beside a
 target name (`web ▣`) is safe only while readline _lists_ matches, never when
-it inserts one. `_hi_complete` reads `$COMP_TYPE`: `?`, `!`, and `@` (63, 33,
-64) list, so their entries carry the symbol; a plain `TAB` (9) inserts the
+it inserts one. `_hi_complete` reads `$COMP_TYPE`: `?`, `!`, and `@` (63, 33, 64) list, so their entries carry the symbol; a plain `TAB` (9) inserts the
 common prefix and menu-complete (37) cycles whole entries, so both get bare
 names. A name two backends share is listed once with both symbols
 (`dup »▣`), or the entries' common prefix would run past the name into the
@@ -1067,7 +1066,7 @@ hi carries a `vim.rc`, `init.lua`, `nano.rc`, and `emacs.el` to every target
 and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
 which file. `tmux.conf` (`tmux -f`) takes the same three tiers minus a tree
 copy, so with none the value is empty and `tmux` has no alias. micro takes a
-*directory* of fixed names, so its three files ride as `micro/settings.json`,
+_directory_ of fixed names, so its three files ride as `micro/settings.json`,
 `micro/bindings.json`, and `micro/init.lua`, `$_HI_MICRO_DIR` is the
 overlay's `micro/` or nothing, and `_hi_overlay_src` resolves each file
 itself - the overlay's, else micro's own directory on the client. `common/paths.sh` answers it in three tiers, lowest first since
@@ -1083,7 +1082,7 @@ the tree's means the user has no config to carry, and the tree's copy already
 rides the payload, so nothing goes in the overlay stream.
 
 The middle tier is client-only (`[ "$_HI_REMOTE_SESSION" != 1 ]`): on a
-target `$HOME` is the *target's*, whose rcs are exactly what the `-u` exists
+target `$HOME` is the _target's_, whose rcs are exactly what the `-u` exists
 to keep out of a visiting session, and the file the client picked is already
 unpacked at `$_HI_CONFIG_DIR`.
 
@@ -1092,7 +1091,7 @@ those files - and the shell overlay files beside them, `settings.sh`,
 `aliases.sh`, `plugins.d/`'s members, `bash.sh`, `zsh.zsh`, `config.fish`, and
 the prompt configs `p10k.zsh`, `omz-theme.zsh`, `omb-theme.sh`, and
 `oh-my-posh.*` - ships into a `config/` of
-its own, so a line naming a *path* - a second rc beside it, a plugin
+its own, so a line naming a _path_ - a second rc beside it, a plugin
 directory, a manager's bootstrap - names something no target has, and the
 editor or shell fails on it rather than hi. `hi.sh`'s `_hi_lint_awk` reads
 every member in `$_HI_LINT_FILES` for exactly those lines: vim's
@@ -1111,7 +1110,7 @@ tree, which any target a theme is for has - oh-my-bash's powerline themes
 source their base that way), or a process substitution, plus the
 zinit/zplug/antigen/fisher verbs. One pass serves both readers:
 `_hi_stage_tar` runs it in `fix` mode ahead of
-[HI.35](#hi35-in-transit-comment-strip)'s stripper, so a finding goes out
+[HI.35](#hi35-payload-comment-and-whitespace-strip)'s stripper, so a finding goes out
 disabled in its own dialect and the strip then drops it for free, and
 `hi --doctor` runs it in `report` mode, so its yellow rows name exactly what
 went missing. The dialect comes from the member name passed in, not the path,
@@ -1189,8 +1188,8 @@ Hooks are variables, since the subset cannot define a function all three
 shells read. The loader unsets each before a plugin runs and collects it after,
 so plugins compose without `${var:+...}`, which fish lacks. The set:
 
-| hook          | what hi does with it                                                                                                                                                                                                             |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hook          | what hi does with it                                                                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `_HI_SEGMENT` | a command, run in the session's own shell on every prompt hi draws; non-empty output is drawn after the environment prefix, followed by a space. bash marks any color in it for readline, zsh doubles its `%`. Ignored under a prompt tool. |
 
 `hi --doctor` lists the plugins in load order and warns for each a shell on

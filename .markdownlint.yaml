@@ -1,3 +1,4 @@
+# markdownlint rules for every tracked .md; CI runs markdownlint-cli2 with them.
 # Source - https://stackoverflow.com/a/74551354 (Gabriel M. Silva, retrieved
 # 2026-08-14, CC BY-SA 4.0)
 default: true
@@ -8,10 +9,17 @@ default: true
 MD049:
   style: underscore
 
-# MD013/line-length
+# MD013/line-length: effectively off. Prose is hand-wrapped, and tables and
+# code can't wrap.
 MD013:
   line_length: 9999
   tables: false
   stern: false
   code_blocks: false
   heading_line_length: 9999
+
+# MD025/single-h1: only the `# H1` counts as a page's title, never a front
+# matter `title:`. No page here carries front matter (_config.yml), so this
+# only keeps one that slips in from counting as a second H1.
+MD025:
+  front_matter_title: ""

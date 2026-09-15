@@ -1,15 +1,20 @@
 name: Upsert tracking issue
 # One labeled, reused issue per standing finding - opened when actionable,
-# rewritten on every later run while it stays actionable, closed the run it
-# clears. Callers (image-scan.yml, tool-versions.yml) still compose the report
-# body and decide `resolved` from their own tool's verdict; the "Found by"
-# footer and the close comment's run link are composed here, so every
-# tracking issue phrases them the same way.
+# rewritten on every later run while it stays so, closed the run it clears.
+# Callers compose the report body and decide `resolved`; the "Found by"
+# footer, the close comment's run link, and the step summary are added here,
+# so every tracking issue says them the same way - callers must not add
+# their own.
+#
+# Polarity: `resolved: true` means "nothing to report" (close). A caller
+# thinking "actionable" writes the opposite expression.
+#
+# GH_REPO is set, so no checkout is needed. Needs `issues: write`.
 description: Create, update, or close one labeled GitHub issue tracking a standing finding
 
 inputs:
   label:
-    description: the issue label (also used as the tracking key - one open issue per label)
+    description: the issue label (also the tracking key - one open issue per label)
     required: true
   label-color:
     description: hex color (no '#') for `gh label create`
@@ -53,6 +58,7 @@ runs:
     - shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
         LABEL: ${{ inputs.label }}
         LABEL_COLOR: ${{ inputs.label-color }}
         LABEL_DESCRIPTION: ${{ inputs.label-description }}
@@ -68,13 +74,19 @@ runs:
         set -euo pipefail
         run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
+        # checked before any API call, so a caller bug fails with this
+        # message instead of an issue edited to an empty body
+        if [ "$RESOLVED" != true ] && { [ -z "$BODY_FILE" ] || [ ! -f "$BODY_FILE" ]; }; then
+          echo "::error title=upsert-tracking-issue::resolved is '$RESOLVED' but body-file '${BODY_FILE}' does not exist - write the report before this step"
+          exit 1
+        fi
+
         # --force is create-or-update, so a deleted label heals itself rather
         # than turning every later `issue create` into a hard failure
         gh label create "$LABEL" --force --color "$LABEL_COLOR" \
           --description "$LABEL_DESCRIPTION" >/dev/null
 
-        # one issue, reused: the finding is a standing state, not an event,
-        # so a new issue per run would be pure noise
+        # one issue, reused: the finding is a standing state, not an event
         open="$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty')"
 
         if [ "$RESOLVED" = true ]; then
@@ -88,27 +100,34 @@ runs:
           exit 0
         fi
 
-        # the footer names this action's run and the condition that will
-        # close the issue - composed here, not by each caller, so every
-        # tracking issue says it the same way (the backticks are a markdown
-        # code span, not a substitution)
+        # a copy, so the caller's file is not changed under it
+        body="$(mktemp "${RUNNER_TEMP:-/tmp}/tracking-issue.XXXXXX")"
+        cat "$BODY_FILE" >"$body"
         if [ -n "$RESOLVED_WHEN" ]; then
+          # shellcheck disable=SC2016 # the backticks are a markdown code span
           printf '\nFound by [`%s`](%s). Closed automatically once %s.\n' \
-            "$LABEL" "$run_url" "$RESOLVED_WHEN" >>"$BODY_FILE"
+            "$LABEL" "$run_url" "$RESOLVED_WHEN" >>"$body"
         fi
 
-        # --body-file, not --body: these bodies are markdown with blank lines
-        # and (for image-scan) backticks - a YAML-indented shell string would
-        # arrive with every continuation line indented into a code block
-        cat "$BODY_FILE" >>"$GITHUB_STEP_SUMMARY"
+        # --body-file, not --body: markdown with blank lines and backticks
+        # survives a file, not a YAML-indented shell string
+        cat "$body" >>"$GITHUB_STEP_SUMMARY"
 
         if [ -n "$open" ]; then
-          gh issue edit "$open" --title "$TITLE" --body-file "$BODY_FILE"
+          gh issue edit "$open" --title "$TITLE" --body-file "$body"
           echo "updated #$open"
         else
-          gh issue create --label "$LABEL" --title "$TITLE" --body-file "$BODY_FILE"
+          gh issue create --label "$LABEL" --title "$TITLE" --body-file "$body"
         fi
 
         if [ -n "$WARNING_TITLE" ]; then
-          echo "::warning title=$WARNING_TITLE::$WARNING_BODY"
+          # workflow-command escaping, as in ../advisory-note
+          esc_data() {
+            local s="${1//"%"/%25}"
+            s="${s//$'\r'/%0D}"
+            printf '%s' "${s//$'\n'/%0A}"
+          }
+          title="$(esc_data "$WARNING_TITLE")"
+          title="${title//:/%3A}"
+          echo "::warning title=${title//,/%2C}::$(esc_data "$WARNING_BODY")"
         fi

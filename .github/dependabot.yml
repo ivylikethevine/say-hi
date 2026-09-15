@@ -1,91 +1,104 @@
-# Keeps the SHA-pinned `uses:` in the workflows and the setup-tool action, and
-# the digest-pinned base images in tests/dockerfiles, moving via PRs. Not
-# covered: the curl-installed tool versions in
-# .github/actions/setup-tool/tools.txt - dependabot has no ecosystem for them;
-# tool-versions.yml watches that drift.
+# Moves the SHA-pinned `uses:` in the workflows and composite actions, the
+# digest-pinned base images in tests/dockerfiles, and the Markdown tools'
+# lockfile (.github/package-lock.json), via one weekly PR.
+#
+# What this file cannot cover, and what covers it instead:
+#
+#   * The CI tools in .github/actions/setup-tool/tools.txt (no ecosystem for
+#     curl-installed release assets), and the inline pins listed in
+#     .github/scripts/check_tool_versions.local.sh (bashcov, vhs, the
+#     just-the-docs theme): tool-versions.yml reports their drift in one
+#     tracking issue, on the same Monday and the same 7-day cooldown.
+#   * The same base images run outside a Dockerfile (packaging/mkrepo.sh,
+#     ci.yml's packaging smoke): check_tool_versions.local.sh reports them
+#     parting from the tests/dockerfiles digests this file moves, and
+#     tests/lint/drift_test.sh keeps every plain image tag in shell and YAML
+#     one of those pins.
+#   * Whether a base-image bump fixes anything: the docker ecosystem is
+#     version-updates-only (GHSA has no container ecosystem), and a digest is
+#     just a digest. image-scan.yml measures that with trivy.
+#   * The floating-by-design list (apt shells and backends, the BSD VM
+#     releases, ...) is in tools.txt's header, with the reason for each.
 #
 # Renovate was weighed as a replacement and declined: it would cover tools.txt
 # and the plain image tags in shell via customManagers, but costs a second bot
 # app, its own config dialect, and a PR stream where tool-versions.yml keeps
-# one tracking issue current. For ten curl-installed pins that is a downgrade
-# in signal; revisit if the roster grows several times over.
+# one tracking issue current.
 #
-# Dependabot cannot open a PR only when a bump reduces known vulnerabilities:
-# that is dependabot *security* updates, toggled in repo settings, and
-# `applies-to: security-updates` only groups those PRs. The nearest lever,
-# `open-pull-requests-limit: 0`, is wrong for both blocks below: github-actions
-# would freeze between rare action advisories when the cooldown guards release
-# freshness, and docker would go silent outright (GHSA has no container
-# ecosystem, so there is no security-update half). Base-image severity is
-# image-scan.yml's job, measured with trivy.
-#
-# One open PR per block, not one for the whole file: dependabot cannot group
-# across ecosystems, so github-actions and docker each cap at
-# open-pull-requests-limit: 1, giving two PRs at most instead of the three a
-# split github-actions group used to allow.
+# Every ecosystem feeds one multi-ecosystem group, so a Monday run opens (or
+# rebases) a single PR carrying every update. The schedule, commit-message,
+# and target-branch are group-only keys (GitHub rejects them on an entry in a
+# group); `patterns` is required per entry, and `cooldown`/`ignore` stay per
+# ecosystem. Dependabot *security* updates, if enabled in the repository
+# settings, are not version updates and still open their own PRs against the
+# default branch.
 version: 2
+
+multi-ecosystem-groups:
+  all-dependencies:
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: deps
+    # development happens on dev, so bumps land there with everything else
+    target-branch: dev
+
 updates:
+  # the composite actions under .github/actions/ pin their own `uses:`
+  # (actions/cache in setup-tool, setup-tools, setup-shells, ...)
   - package-ecosystem: github-actions
     directories:
       - "/"
       - "/.github/actions/*"
-    schedule:
-      interval: weekly
+    multi-ecosystem-group: all-dependencies
+    patterns: ["*"]
     # let a release age before its bump PR - a freshly compromised release's
     # window is its first days (zizmor: dependabot-cooldown)
     cooldown:
       default-days: 7
-    # One group, not one PR per action or a first-party/third-party split:
-    # every bump a week lands in a single review.
-    groups:
-      all:
-        patterns:
-          - "*"
-    open-pull-requests-limit: 1
+
+  # markdownlint-cli2 and prettier, which ci.yml's lint job installs with
+  # `npm ci --prefix .github`; the lockfile pins their whole tree
+  - package-ecosystem: npm
+    directory: "/.github"
+    multi-ecosystem-group: all-dependencies
+    patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   # The upstream base images the fixtures build on, digest-pinned in
   # tests/dockerfiles/*.Dockerfile. A digest never moves, security fixes
-  # included, and nothing would say so without this. The docker ecosystem
-  # reads Dockerfiles only; the same images named in shell (tests/test_lib.sh,
-  # docs/tapes/fixtures.sh) are out of its reach, so those stay on tags.
+  # included, and nothing would say so without this.
   - package-ecosystem: docker
     directory: "/tests/dockerfiles"
-    schedule:
-      interval: weekly
+    multi-ecosystem-group: all-dependencies
+    patterns: ["*"]
     cooldown:
       default-days: 7
-    # One PR per digest refresh round: all fixture bases, reviewed together.
-    groups:
-      fixtures:
-        patterns:
-          - "*"
-    open-pull-requests-limit: 1
-    # bash:3.2 is the floor (what macOS ships), not a version to keep current:
-    # a bump to bash:5 would leave the suite green while testing nothing it
-    # exists to test. Only semver update-types are ignored, so digest refreshes
-    # within 3.2 still arrive.
-    #
-    # ubuntu is pinned twice here - 24.04 the fish floor (fish37.Dockerfile),
-    # 26.04 the fish ceiling (fish4.Dockerfile) - and a dependency-name ignore
-    # cannot tell them apart, so this covers both: a major/minor bump against
-    # either would move it off the fish major it exists to pin (24.04->26.04
-    # swapped 3.7 for 4.x in PR #53). Digest refreshes within each major.minor
-    # still arrive; moving either file to a new release stays a hand edit.
-    #
-    # zshusers/zsh:5.8 is the zsh floor (zsh58.Dockerfile), the same shape as
-    # bash:3.2: a bump to 5.9 would leave the check green while it stopped
-    # being a floor. Upstream retags rarely, so digest refreshes are moot, but
-    # the semver ignore is what stops the bump PR.
+    # Each ignore protects a shell floor or ceiling a fixture exists to pin
+    # (docs/COMPATIBILITY.md); check_tool_versions.local.sh reports an ignore
+    # that no longer matches a fixture pin, or a floor left unprotected.
+    # Only semver update-types are ignored, so digest refreshes still arrive.
     ignore:
+      # zshusers/zsh:5.8 is the zsh floor (zsh58.Dockerfile): a bump to 5.9
+      # would leave the check green while it stopped being a floor
       - dependency-name: "zshusers/zsh"
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
+      # bash:3.2 is the bash floor (what macOS ships, sshd-bash32.Dockerfile):
+      # a bump to bash:5 would leave the suite green while testing nothing it
+      # exists to test
       - dependency-name: "bash"
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+      # ubuntu is pinned twice - 24.04 the fish floor (fish37.Dockerfile),
+      # 26.04 the fish ceiling (fish4.Dockerfile) - and a dependency-name
+      # ignore cannot tell them apart, so this holds both on their fish major
+      # (24.04->26.04 swapped 3.7 for 4.x); moving either stays a hand edit
       - dependency-name: "ubuntu"
         update-types:
           - "version-update:semver-major"

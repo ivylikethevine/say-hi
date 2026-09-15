@@ -1,8 +1,8 @@
 name: Advisory note
 # The tail every advisory (never-blocking) check ends with: a ::warning
-# annotation plus a $GITHUB_STEP_SUMMARY section saying it never blocks a
-# merge. The call site keeps the tool-specific `if:` and any ANSI-stripping or
-# truncation of the report before it is handed here.
+# annotation plus a $GITHUB_STEP_SUMMARY section. The call site keeps the
+# tool-specific `if:` and any ANSI-stripping or truncation of the report.
+# This step never fails the job - a missing report is noted, not fatal.
 description: Emit a ::warning annotation and a step-summary section for a non-blocking finding
 
 inputs:
@@ -35,15 +35,41 @@ runs:
         REPORT_FILE: ${{ inputs.report-file }}
       run: |
         set -euo pipefail
-        echo "::warning title=$TITLE::$WARNING_BODY"
+
+        # Workflow-command escaping: a raw newline would end the annotation
+        # and let the rest of the text run as a command of its own. Property
+        # values (title) also escape the ':' and ',' that delimit them.
+        esc_data() {
+          local s="${1//"%"/%25}"
+          s="${s//$'\r'/%0D}"
+          printf '%s' "${s//$'\n'/%0A}"
+        }
+        esc_prop() {
+          local s
+          s="$(esc_data "$1")"
+          s="${s//:/%3A}"
+          printf '%s' "${s//,/%2C}"
+        }
+        echo "::warning title=$(esc_prop "$TITLE")::$(esc_data "$WARNING_BODY")"
+
         {
           echo "### $HEADING"
           echo
           printf '%s\n' "$BODY"
-          if [ -n "$REPORT_FILE" ]; then
+          if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
+            # a fence longer than any backtick run in the report, so a
+            # report quoting ``` cannot close the block early
+            longest="$(grep -o '`\+' "$REPORT_FILE" | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')"
+            fence='```'
+            while [ "${#fence}" -le "$longest" ]; do fence="$fence\`"; done
             echo
-            echo '```'
+            echo "$fence"
             cat "$REPORT_FILE"
-            echo '```'
+            # a report without a trailing newline would glue the fence to it
+            [ -z "$(tail -c1 "$REPORT_FILE")" ] || echo
+            echo "$fence"
+          elif [ -n "$REPORT_FILE" ]; then
+            echo
+            echo "_(report file \`$REPORT_FILE\` was not written)_"
           fi
         } >>"$GITHUB_STEP_SUMMARY"
