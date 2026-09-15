@@ -609,7 +609,7 @@ function _hi_login_env() {
   local home="$1"
   shift
   env -i HOME="$home" PATH="$PATH" TERM="${TERM:-xterm-256color}" \
-    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" "$@"
+    SHELL=/bin/bash XDG_CONFIG_HOME="$home/.config" _HI_PROMPT_TOOL="${_HI_PROMPT_TOOL-}" "$@"
 }
 
 # _hi_bare_bash <toolbox> <tools> <script> [NAME=VALUE...] - <script> in an

@@ -8,7 +8,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
      name> / <called workflow job name>": mirror a rename on either side into
      nameFilter or the badge reads "no check runs". -->
 
-![Payload](https://img.shields.io/badge/ssh_payload-60KB-4c1)
+![Payload](https://img.shields.io/badge/ssh_payload-65KB-4c1)
 [![Release](https://img.shields.io/github/v/release/ivylikethevine/say-hi)](https://github.com/ivylikethevine/say-hi/releases)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14397/badge)](https://www.bestpractices.dev/projects/14397)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ivylikethevine/say-hi/badge)](https://scorecard.dev/viewer/?uri=github.com/ivylikethevine/say-hi)
@@ -254,7 +254,8 @@ it, or add an `aliases.sh` of your own. The overlay file table, the
 wizard, every toggle, and every environment variable are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
-target has them — starship, oh-my-posh, mise, direnv, bat, eza,
+target has them — your prompt from starship, powerlevel10k, tide, and the
+rest, mise, direnv, bat, eza,
 and more — are [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 **_IMPORTANT: everything in that directory is copied to every host you say

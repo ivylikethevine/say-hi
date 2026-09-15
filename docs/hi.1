@@ -622,8 +622,7 @@ your own per\-shell preferences, sourced after hi's own so yours win.
 .B ~/.config/say-hi/oh-my-posh.json
 oh\-my\-posh's config, carried to every target as its
 .B POSH_THEME
-when
-.BR _HI_PROMPT_TOOL=oh-my-posh ;
+when oh\-my\-posh draws the prompt there;
 at home oh\-my\-posh keeps reading its own.
 .TP
 .B ~/.config/starship.toml, ~/.config/bat/config, ~/.config/eza/theme.yml
@@ -632,12 +631,32 @@ the starship, bat, and eza configs in force here \- or wherever
 .BR BAT_CONFIG_PATH ,
 or
 .B EZA_CONFIG_DIR
-points \- carried to every target as-is (starship's only when
-.BR _HI_PROMPT_TOOL=starship ).
+points \- carried to every target as-is (starship's only when starship is
+a prompt program a target is handed).
 The aliases then leave bat's theme flag out so the file's wins. A copy of
 any of the three in
 .B ~/.config/say-hi
 is ignored.
+.TP
+.B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
+read for the prompt programs a target is handed: powerlevel10k's config,
+the oh\-my\-zsh and oh\-my\-bash theme files that
+.B ZSH_THEME
+and
+.B OSH_THEME
+name, and tide's
+.B tide_*
+universal variables alone \- carried as
+.BR p10k.zsh ,
+.BR omz-theme.zsh ,
+.BR omb-theme.sh ,
+and
+.BR tide.vars .
+Unset,
+.B _HI_PROMPT_TOOL
+hands the prompt to every such program installed here;
+.B _HI_PROMPT_TOOL=hi
+keeps hi's own.
 .SH ENVIRONMENT
 Every setting is an environment variable, and the full table with defaults is
 .IR docs/SETTINGS.md ;

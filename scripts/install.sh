@@ -108,7 +108,7 @@ of the header and prompt, then Preset / Header / Features / Prompt / Advanced
                    preset - everything, balanced, or minimal - without the
                    menu, and write that. The same presets are the menu's
                    first item. The header order, the width, the prompt
-                   separators, the starship choice, and the advanced
+                   separators, the prompt program, and the advanced
                    settings keep what they hold.
   -n, --dry-run    Say what would be written to settings.sh and write
                    nothing; s in the menu reports instead of saving.

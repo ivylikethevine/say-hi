@@ -237,8 +237,60 @@ function test_overlay_copy_of_a_tool_config_is_ignored() {
   local dir d
   _hi_tool_home_fixture
   dir="$(_hi_overlay_fixture tool-copy bat.conf theme.yml starship.toml)"
-  d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=)" || return 1
+  d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=hi)" || return 1
   [ "$(cat "$d/bat.conf" "$d/theme.yml")" = "$(printf -- '--theme=home\nfilekinds: home')" ] && [ ! -e "$d/starship.toml" ]
+}
+
+# The prompt frameworks' home half, each only with its name in the list:
+# powerlevel10k's config, the theme file the rc's last ZSH_THEME / OSH_THEME
+# names (oh-my-zsh's custom one over its stock copy), and of fish's universal
+# variables the tide_ lines alone - never the rest, which can hold secrets.
+function _hi_fw_home_fixture() {
+  local h="$_HI_WORKDIR/fw-home"
+  mkdir -p "$h/.oh-my-zsh/custom/themes" "$h/.oh-my-zsh/themes" "$h/.oh-my-bash/themes/font" "$h/.config/fish"
+  printf '# the wizard wrote this\ntypeset -g POWERLEVEL9K_MODE=home\n' >"$h/.p10k.zsh"
+  printf 'ZSH_THEME="robbyrussell"\n# ZSH_THEME="commented"\n  ZSH_THEME='"'"'agnoster'"'"' # mine\n' >"$h/.zshrc"
+  printf 'PROMPT=custom\n' >"$h/.oh-my-zsh/custom/themes/agnoster.zsh-theme"
+  printf 'PROMPT=stock\n' >"$h/.oh-my-zsh/themes/agnoster.zsh-theme"
+  printf 'export OSH_THEME="font"\n' >"$h/.bashrc"
+  printf 'PS1=font\n' >"$h/.oh-my-bash/themes/font/font.theme.sh"
+  printf '# VERSION: 3.0\nSETUVAR --export API_TOKEN:hunter2\nSETUVAR tide_character_icon:\\u276f\n' >"$h/.config/fish/fish_variables"
+}
+
+function test_overlay_carries_the_prompt_frameworks_home_files() {
+  local dir d h="$_HI_WORKDIR/fw-home"
+  set -- HOME="$h" XDG_CONFIG_HOME="$h/.config"
+  _hi_fw_home_fixture
+  dir="$(_hi_overlay_fixture fw-none colors)"
+  d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL="powerlevel10k oh-my-zsh oh-my-bash tide")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "colors omb-theme.sh omz-theme.zsh p10k.zsh tide.vars " ] &&
+    [ "$(cat "$d/p10k.zsh" "$d/omz-theme.zsh" "$d/omb-theme.sh" "$d/tide.vars")" = \
+      "$(printf 'typeset -g POWERLEVEL9K_MODE=home\nPROMPT=custom\nPS1=font\nSETUVAR tide_character_icon:\\u276f')" ] || return 1
+  # unnamed, nothing rides; and powerlevel10k as oh-my-zsh's theme is no theme file
+  d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=hi)" || return 1
+  [ "$(cd "$d" && printf '%s' *)" = colors ] || {
+    _hi_cecho " | unnamed, the stream carried: $(cd "$d" && printf '%s ' *)" "$RED"
+    return 1
+  }
+  printf 'ZSH_THEME="powerlevel10k/powerlevel10k"\n' >"$_HI_WORKDIR/fw-home/.zshrc"
+  d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=oh-my-zsh)" || return 1
+  [ ! -e "$d/omz-theme.zsh" ]
+}
+
+# Unset, a target is handed every prompt program this machine has, frameworks
+# first - the list the members above are gated on, and what _hi_session_env
+# ships; set, the setting as written; and a target passes its own along
+# rather than looking. GLOSSARY: HI.32
+function test_prompt_list_is_what_home_has() {
+  local h="$_HI_WORKDIR/fw-home" p
+  _hi_fw_home_fixture
+  p="$(_hi_fake_path list-bins starship powerline-go)"
+  # prefix assignments, not a subshell's exports: _hi_tool_home_unpacked's
+  # own already are, and the linter tracks the two as one
+  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
+    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ] &&
+    [ "$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)" = "tide hi" ] &&
+    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ]
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the
@@ -898,6 +950,8 @@ function run_hi_payload_tests() {
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
   _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
+  _hi_check "The prompt frameworks' home files ride, tide's lines alone" test_overlay_carries_the_prompt_frameworks_home_files
+  _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out

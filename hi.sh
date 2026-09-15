@@ -64,7 +64,7 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
 _HI_OVERLAY_FILES=(settings.sh colors packages packages.d vim.rc init.lua nano.rc
   emacs.el aliases.sh plugins.d bash.sh zsh.zsh config.fish starship.toml
-  oh-my-posh.json theme.yml bat.conf)
+  oh-my-posh.json p10k.zsh omz-theme.zsh omb-theme.sh tide.vars theme.yml bat.conf)
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -107,6 +107,8 @@ function _hi_session_env() {
   printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
   printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
+  _hi_prompt_list >/dev/null
+  printf '_HI_PROMPT_TOOL\t%s\n' "$_HI_PROMPT_LIST_MEMO"
   _hi_client_verdicts '%s\t%s\n'
 }
 
@@ -134,10 +136,10 @@ function _hi_target_color() {
 
 # _hi_overlay_src <member> [outvar] - where an overlay member is packed from:
 # $_HI_CONFIG_DIR/<member>, except a tool's own config, which is always the
-# file that tool reads on this machine (starship's only with
-# _HI_PROMPT_TOOL=starship, since nothing else starts it) - a target gets the
-# config in force here, and there is no second copy to drift. Fails, printing
-# nothing, when that file is not there.
+# file that tool reads on this machine (a prompt program's only with it in
+# _HI_PROMPT_TOOL, since nothing else starts it) - a target gets the config in
+# force here, and there is no second copy to drift. Fails, printing nothing,
+# when that file is not there.
 #
 # The four editor rcs come the same way, off the path variable common/paths.sh
 # already resolved (overlay, else the editor's own config on this machine) so
@@ -145,13 +147,86 @@ function _hi_target_color() {
 # sources, rather than a second time here. Its tree default means the user has
 # no config of their own, and the tree's copy ships in the payload already -
 # so there is nothing for the overlay stream to carry.
+# _hi_prompt_home <member> [outvar] - the home file a prompt program's member
+# packs from, with the program in _hi_prompt_list: starship's and
+# powerlevel10k's configs, fish's universal variables (the stager keeps the
+# tide_ lines alone), or the theme file the rc's ZSH_THEME / OSH_THEME names,
+# looked up the way oh-my-zsh and oh-my-bash look. GLOSSARY: HI.32
+function _hi_prompt_home() {
+  local _hi_ph_t=tide _hi_ph_d _hi_ph_f=""
+  case "$1" in
+  starship.toml) _hi_ph_t=starship _hi_ph_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}" ;;
+  p10k.zsh) _hi_ph_t=powerlevel10k _hi_ph_f="${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}" ;;
+  omz-theme.zsh) _hi_ph_t=oh-my-zsh ;;
+  omb-theme.sh) _hi_ph_t=oh-my-bash ;;
+  tide.vars) _hi_ph_f="${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables" ;;
+  esac
+  _hi_prompt_list >/dev/null
+  case " $_HI_PROMPT_LIST_MEMO " in *" $_hi_ph_t "*) ;; *) return 1 ;; esac
+  case "$1" in
+  omz-theme.zsh)
+    # powerlevel10k/powerlevel10k is p10k's own entry point, not a theme file
+    _hi_rc_theme ZSH_THEME "${ZDOTDIR:-$HOME}/.zshrc" _hi_ph_t || return 1
+    case "$_hi_ph_t" in */* | random) return 1 ;; esac
+    _hi_ph_d="${ZSH_CUSTOM:-${ZSH:-$HOME/.oh-my-zsh}/custom}"
+    for _hi_ph_f in {"$_hi_ph_d","$_hi_ph_d/themes","${ZSH:-$HOME/.oh-my-zsh}/themes"}/"$_hi_ph_t".zsh-theme; do
+      [ -f "$_hi_ph_f" ] && break
+    done
+    ;;
+  omb-theme.sh)
+    _hi_rc_theme OSH_THEME "$HOME/.bashrc" _hi_ph_t || return 1
+    _hi_ph_d="${OSH_CUSTOM:-${OSH:-$HOME/.oh-my-bash}/custom}"
+    for _hi_ph_f in {"$_hi_ph_d","$_hi_ph_d/themes","${OSH:-$HOME/.oh-my-bash}/themes"}/"$_hi_ph_t/$_hi_ph_t".theme.{sh,bash}; do
+      [ -f "$_hi_ph_f" ] && break
+    done
+    ;;
+  esac
+  [ -f "$_hi_ph_f" ] && _hi_out "${2:-}" "$_hi_ph_f"
+}
+
+# _hi_prompt_list [outvar] - the prompt programs a target is handed:
+# $_HI_PROMPT_TOOL when set, else every one this machine has - the programs
+# on $PATH, tide where fisher put it, and a framework with something of home's
+# to ship. Memoized: the members and the session env each ask. GLOSSARY: HI.32
+function _hi_prompt_list() {
+  local _hi_pl_t _hi_pl_f _hi_pl_out=""
+  if [ "${_HI_PROMPT_LIST_KEY-}" != "${_HI_PROMPT_TOOL:-}|$HOME" ]; then
+    _HI_PROMPT_LIST_KEY="${_HI_PROMPT_TOOL:-}|$HOME" _HI_PROMPT_LIST_MEMO="${_HI_PROMPT_TOOL:-}"
+    if [ -z "$_HI_PROMPT_LIST_MEMO" ] && [ "$_HI_REMOTE_SESSION" != 1 ]; then
+      # _hi_prompt_home asks this list too: all of it while it is being built
+      _HI_PROMPT_LIST_MEMO="$_HI_PROMPT_TOOLS"
+      for _hi_pl_t in $_HI_PROMPT_TOOLS; do
+        case "$_hi_pl_t" in
+        starship | oh-my-posh | powerline-go) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
+        tide) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
+        powerlevel10k) _hi_prompt_home p10k.zsh _hi_pl_f ;;
+        oh-my-zsh) _hi_prompt_home omz-theme.zsh _hi_pl_f ;;
+        oh-my-bash) _hi_prompt_home omb-theme.sh _hi_pl_f ;;
+        esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
+      done
+      _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
+    fi
+  fi
+  _hi_out "${1:-}" "$_HI_PROMPT_LIST_MEMO"
+}
+
+# _hi_rc_theme <NAME> <rc> [outvar] - $NAME when exported, else the last
+# NAME= line of <rc> with its quotes dropped: a framework's theme lives in a
+# shell variable the rc sets and no child of it sees. Read, never sourced.
+function _hi_rc_theme() {
+  local _hi_rt_l _hi_rt_v="${!1:-}" _hi_rt_re="^[[:space:]]*(export[[:space:]]+)?$1=[\"']?([^\"'[:space:]#]*)"
+  if [ -z "$_hi_rt_v" ] && [ -f "$2" ]; then
+    while IFS= read -r _hi_rt_l || [ -n "$_hi_rt_l" ]; do
+      [[ "$_hi_rt_l" =~ $_hi_rt_re ]] && _hi_rt_v="${BASH_REMATCH[2]}"
+    done <"$2"
+  fi
+  [ -n "$_hi_rt_v" ] && _hi_out "${3:-}" "$_hi_rt_v"
+}
+
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
   case "$1" in
-  starship.toml)
-    _hi_os_f=""
-    [ "${_HI_PROMPT_TOOL:-}" != starship ] || _hi_os_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
-    ;;
+  starship.toml | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars) _hi_prompt_home "$1" _hi_os_f || return 1 ;;
   theme.yml) _hi_os_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
   bat.conf) _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
   vim.rc) _hi_os_f="${_HI_VIMRC:-}" ;;
@@ -404,6 +479,12 @@ function _hi_stage_tar() {
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
       cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
     done
+    # fish's universal variables are everything `set -U` ever kept, secrets
+    # included: tide's lines ride and nothing else
+    if [ -f "$_hi_st_root/tide.vars" ]; then
+      grep '^SETUVAR tide_' "$_hi_st_root/tide.vars" >"$stage/tide.keep" || true
+      mv -f "$stage/tide.keep" "$_hi_st_root/tide.vars" || exit 1
+    fi
     # ahead of the stripper, over the staged copies rather than the user's
     # own files: an include hi cannot carry goes out commented in its own
     # dialect, and the strip below then drops the comment. _HI_INCLUDES=keep

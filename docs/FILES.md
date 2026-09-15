@@ -172,6 +172,7 @@ directory rides member by member; a member name is a letter or digit, then
 | `bash.sh`, `zsh.zsh`, `config.fish` | -           | -                     | the end of hi's rc for that shell                                   |
 | `vim.rc`, `init.lua`, `nano.rc`, `emacs.el` | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_NANORC`, `_HI_EMACSRC` | the tree's copy | the editor aliases and `$VIMINIT` |
 | `starship.toml`, `oh-my-posh.json`, `theme.yml`, `bat.conf` | - | -           | starship, oh-my-posh, eza, and bat on a target                      |
+| `p10k.zsh`, `omz-theme.zsh`, `omb-theme.sh`, `tide.vars` | - | -              | powerlevel10k, oh-my-zsh, oh-my-bash, and tide on a target          |
 
 An editor rc or shell file that sources a path no target has is disabled on
 the way out; `hi --doctor` names each line
@@ -181,8 +182,10 @@ the way out; `hi --doctor` names each line
 
 On this machine (never on a target), hi carries the config a tool already
 reads rather than asking for a copy. The last one found wins; an overlay copy
-wins over all of them for the editors, and is ignored for starship, eza, and
-bat.
+wins over all of them for the editors, and is ignored for the prompt
+programs, eza, and bat. A prompt program's member rides only when that program
+is in the list a target is handed
+([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)).
 
 | Member          | Looked for, in order                                                                               |
 | --------------- | -------------------------------------------------------------------------------------------------- |
@@ -190,7 +193,11 @@ bat.
 | `init.lua`      | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                   |
 | `nano.rc`       | `$XDG_CONFIG_HOME/nano/nanorc`, `~/.nanorc`                                                        |
 | `emacs.el`      | `$XDG_CONFIG_HOME/emacs/init.el`, `~/.emacs.d/init.el`, `~/.emacs`                                 |
-| `starship.toml` | `${STARSHIP_CONFIG:-~/.config/starship.toml}`, only with `_HI_PROMPT_TOOL=starship`                |
+| `starship.toml` | `${STARSHIP_CONFIG:-~/.config/starship.toml}`                                                      |
+| `p10k.zsh`      | `${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-~}/.p10k.zsh}`                                             |
+| `omz-theme.zsh` | the theme the last `ZSH_THEME=` in `${ZDOTDIR:-~}/.zshrc` names, under `$ZSH_CUSTOM`, `$ZSH_CUSTOM/themes`, then `${ZSH:-~/.oh-my-zsh}/themes` |
+| `omb-theme.sh`  | the theme the last `OSH_THEME=` in `~/.bashrc` names, under `$OSH_CUSTOM`, `$OSH_CUSTOM/themes`, then `${OSH:-~/.oh-my-bash}/themes` |
+| `tide.vars`     | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it     |
 | `theme.yml`     | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                |
 | `bat.conf`      | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                               |
 

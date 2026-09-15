@@ -23,12 +23,14 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
-| `~/.config/say-hi/oh-my-posh.json` | -                   | your oh-my-posh config, `$POSH_THEME` on every target when `_HI_PROMPT_TOOL=oh-my-posh`                                                                          |
+| `~/.config/say-hi/oh-my-posh.json` | -                   | your oh-my-posh config, `$POSH_THEME` on every target that hands the prompt to oh-my-posh                                                                          |
 
-starship's, bat's, and eza's own configs are not overlay files: every target
-gets the one each tool reads on your machine, as-is
-([Integrations](INTEGRATIONS.md#bat-and-eza)), so there is one copy to edit. A
-`starship.toml`, `bat.conf`, or `theme.yml` left in `~/.config/say-hi/` is
+starship's, powerlevel10k's, tide's, bat's, and eza's own configs, and your
+oh-my-zsh and oh-my-bash themes, are not overlay files: every target gets the
+one each tool reads on your machine
+([Integrations](INTEGRATIONS.md#prompt-programs)), so there is one copy to
+edit. A `starship.toml`, `p10k.zsh`, `omz-theme.zsh`, `omb-theme.sh`,
+`tide.vars`, `bat.conf`, or `theme.yml` left in `~/.config/say-hi/` is
 ignored, and `hi --doctor` flags it.
 
 The overlay starts empty. `hi --install` writes `settings.sh` there and
@@ -88,7 +90,8 @@ list of every setting it asks, grouped under four headings, with no submenus:
   width, the package check's depth, and the hidden addresses. Outside the
   menu, `hi --preview header` prints the header as it would draw at the saved
   settings, and `hi --preview packages` the check's legend.
-- **Prompt** — starship, and the character each shell's prompt ends with.
+- **Prompt** — hi's own prompt over the prompt programs found here, and the
+  character each shell's prompt ends with.
 - **Advanced** — the _advanced_ rows: the leading space, the `--mux` default,
   and 24-bit color.
 
@@ -123,7 +126,7 @@ without the menu:
 A preset is an absolute answer over the feature and header settings: what it
 names is set, everything else in that vocabulary returns to its default, and
 the header order, the width, the package check's ramp, the hidden
-addresses, the color scheme, the prompt separators, the starship choice, and
+addresses, the color scheme, the prompt separators, the prompt program, and
 the advanced settings keep what they hold. From the menu its answers are only
 what the preview shows until `[s]` saves them. The rows are
 `scripts/configure.sh`'s `_HI_PRESETS`; the header editor's own presets are
@@ -211,7 +214,8 @@ cannot land without a row here.
 | `_HI_COLOR_SCHEME`          | unset                                                | you                       | what the palette names render as on a terminal that reports 24-bit color: twenty-four or forty-eight six-digit hex words. Unset is the terminal's own sixteen colors. See [Colors](#colors) for the word count and order                                                                                                                                         |
 | `_HI_IP_HIDE`               | `172.*`                                              | `hi --configure`          | space-separated globs; the header's `ip` cell drops every address one matches. `none` hides nothing; an empty value counts as unset. See [Header details](#header-details)                                                                                                                                                                                       |
 | `_HI_MAX_WIDTH`             | `80`                                                 | `hi --configure`          | terminal columns the header and banner are drawn to, narrowed to a smaller real terminal; 40 is the least the wizard takes                                                                                                                                                                                                                                       |
-| `_HI_PROMPT_TOOL`                | unset                                                | `hi --configure`          | `starship` hands the prompt to [starship](https://starship.rs) when the target has it, `oh-my-posh` to [oh-my-posh](https://ohmyposh.dev) (by hand; the menu offers starship), keeping hi's header and aliases either way. Never auto-detected; hi ships neither. See [Integrations](INTEGRATIONS.md#prompt-programs) |
+| `_HI_PROMPT_TOOL`                | unset                                                | `hi --configure`          | who draws the prompt: a space-separated list of `powerlevel10k`, `oh-my-zsh`, `oh-my-bash`, `tide`, `starship`, `oh-my-posh`, `powerline-go`, and `hi`, each shell taking the first entry that fits it and that the target has - `hi` is hi's own prompt. Unset is every program installed on this machine, frameworks first, so a prompt you already use follows you; `hi` (the menu's switch) keeps hi's prompt everywhere and starts none. hi keeps its header and aliases either way, and installs nothing. See [Integrations](INTEGRATIONS.md#prompt-programs) |
+| `_HI_POWERLINE_GO_OPTS`     | unset                                                | you                       | extra flags for [powerline-go](https://github.com/justjanne/powerline-go) when it draws the prompt, word-split (`-modules venv,cwd,git -mode flat`)                                                                                                                                                                                                                |
 | `_HI_PROMPT_END_BASH`       | `\$`                                                 | `hi --configure`          | bash's prompt separator (`\$` is bash's own escape for "`$`, or `#` for root"); also the plain `sh` prompt hi bakes on the client for a bash-less target                                                                                                                                                                                                         |
 | `_HI_PROMPT_END_ZSH`        | `>`                                                  | `hi --configure`          | zsh's prompt separator - zsh prompt escapes work, so `%#` behaves as anywhere else in `PS1`                                                                                                                                                                                                                                                                      |
 | `_HI_PROMPT_END_FISH`       | `\|`                                                 | `hi --configure`          | fish's prompt separator; root still gets `#` regardless                                                                                                                                                                                                                                                                                                          |

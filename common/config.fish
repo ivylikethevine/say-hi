@@ -65,7 +65,7 @@ set -e _HI_SEGMENT __hi_f
 set -g _HI_CHILD_ENV _HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC \
     _HI_TARGETS_TTL _HI_PROBE_TIMEOUT
 set -g _HI_SESSION_VARS _HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER \
-    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR
+    _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_ASCII _HI_TRUECOLOR
 function __hi_bash --description 'bash -c <script>, with the session values hi keeps out of the environment passed along'
   for __hi_n in $_HI_SESSION_VARS
     set -q $__hi_n; and set -fx $__hi_n $$__hi_n
@@ -172,11 +172,43 @@ set -q _HI_PROMPT_END_FISH; and test -n "$_HI_PROMPT_END_FISH"; and set -g _hi_p
 # prompt: "<chroot> user@host cwd (git) [status] |", @ yellow over ssh; skipped
 # entirely when disabled, leaving fish's own default prompt in place
 if test "$_HI_DISABLE_PROMPT" != 1
-  # core.sh's _hi_wants_prompt_tool rule (fish can't call it); a missing tool
-  # falls back to hi's prompt below. The tool's config variable is paths.sh's
-  # job, which fish sourced above
-  if contains -- "$_HI_PROMPT_TOOL" starship oh-my-posh; and command -q $_HI_PROMPT_TOOL
-    $_HI_PROMPT_TOOL init fish | source
+  # core.sh's _hi_prompt_tool rule (fish can't call it): unset, every program
+  # that fits fish, at home; `hi` or none here falls back to hi's prompt
+  # below. The tool's config variable is paths.sh's job, which fish sourced
+  # above. tide counts wherever its functions autoload
+  set -l _hi_pt
+  set -l _hi_tools (string split -n ' ' -- "$_HI_PROMPT_TOOL")
+  test -z "$_hi_tools"; and test "$_HI_REMOTE_SESSION" != 1; and set _hi_tools tide starship oh-my-posh powerline-go
+  for _hi_t in $_hi_tools
+    switch $_hi_t
+      case hi
+        break
+      case starship oh-my-posh powerline-go
+        command -q $_hi_t; and set _hi_pt $_hi_t; and break
+      case tide
+        functions -q tide; and set _hi_pt tide; and break
+    end
+  end
+  set -e _hi_t
+  if test "$_hi_pt" = tide
+    # fish already loaded tide and its fish_prompt autoloads; on a target the
+    # home config rides as fish_variables lines, exported so tide's background
+    # renderer (a `fish -c`) sees them over the target's own
+    if test "$_HI_REMOTE_SESSION" = 1; and test -f $_HI_CONFIG_DIR/tide.vars
+      for _hi_l in (string match 'SETUVAR tide_*' <$_HI_CONFIG_DIR/tide.vars)
+        set -l kv (string split -m1 : -- (string sub -s 9 -- $_hi_l))
+        # \x1e joins a list, a lone \x1d is the empty one
+        set -l v (string unescape -- "$kv[2]" | string collect)
+        test "$v" = \x1d; and set -gx $kv[1]; or set -gx $kv[1] (string split -- \x1e "$v")
+      end
+      set -e _hi_l
+    end
+  else if test "$_hi_pt" = powerline-go
+    function fish_prompt
+      powerline-go -shell bare -error $status -jobs (count (jobs -p)) (string split -n ' ' -- "$_HI_POWERLINE_GO_OPTS")
+    end
+  else if test -n "$_hi_pt"
+    $_hi_pt init fish | source
   else
     # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
     # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's

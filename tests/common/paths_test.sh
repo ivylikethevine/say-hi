@@ -440,7 +440,8 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # only home, so each is an unguarded export instead) and
 # the four additive ones, which each shell or settings/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
-# aliases.sh and the three per-shell files (bash.sh, zsh.zsh, config.fish). A
+# aliases.sh and the three per-shell files (bash.sh, zsh.zsh, config.fish) -
+# and the prompt frameworks' four, which only a target reads, by name. A
 # missed lookup fails asymmetrically: the file works on targets but local
 # sessions ignore the overlay's copy - the same silent drift the toggle-gate
 # pin above catches.
@@ -459,7 +460,7 @@ function test_overlay_guards_match_the_roster() {
       # shellcheck disable=SC2016 # paths.sh's literal text
       grep -qF 'export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"' "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bash.sh | zsh.zsh | config.fish) continue ;;
+    bash.sh | zsh.zsh | config.fish | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"

@@ -380,21 +380,38 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 
 ## HI.32 starship deference
 
-`_HI_PROMPT_TOOL=starship` hands the prompt to [starship](https://starship.rs) when
-the target has it, and `_HI_PROMPT_TOOL=oh-my-posh` to
-[oh-my-posh](https://ohmyposh.dev), keeping hi's header and aliases either
-way. `common/core.sh`'s `_hi_wants_prompt_tool` is the single predicate (a
-setting naming one of the two _and_ the binary); `common/bash.sh` and
-`common/zsh.zsh` each `eval` their own `"$_HI_PROMPT_TOOL" init <shell>` behind it,
-`common/config.fish` mirrors the rule since fish cannot call it. Both tools
-take `init <shell>`, which is what lets one predicate and one stub (the rc
-suite's `_hi_prompt_stub_dir`) cover both. `common/paths.sh` points the tool
-at the overlay's `starship.toml` / `oh-my-posh.json` (`$STARSHIP_CONFIG` /
-`$POSH_THEME`) on a target only (`_HI_REMOTE_SESSION=1`) and only when the
-file came along, so the prompt on every host is the one configured at home; at
-home the tool's own config is left in force. paths.sh rather than core.sh
-because fish sources paths.sh natively and the variables have to reach a fish
-session too. Absent the tool, the setting is ignored silently.
+`_HI_PROMPT_TOOL` hands the prompt to a prompt program - starship,
+oh-my-posh, powerline-go, powerlevel10k, oh-my-zsh, oh-my-bash, or tide -
+keeping hi's header and aliases. It is a list, each shell taking the first
+entry that fits it and is present; `hi` is hi's own prompt and ends the walk.
+Unset is the whole roster (`common/core.sh`'s `$_HI_PROMPT_TOOLS`, frameworks
+ahead of the programs that fit every shell), so a prompt already in use at
+home is the default rather than something hi draws over; `hi` is the opt-in
+back. A target never looks for itself: `hi.sh`'s `_hi_prompt_list` resolves
+the list on the client - the setting, else what this machine has installed -
+and ships it as a session variable (HI.47), so an unset setting on a target
+is hi's prompt, not whatever the box happens to carry.
+
+`common/core.sh`'s `_hi_prompt_tool <shell>` is the single predicate:
+starship, oh-my-posh, and powerline-go count where the binary is, and a
+framework through the shell's own `_hi_prompt_fw` - loaded by the rc
+already, or installed where its README puts it and with something to draw.
+`common/config.fish` mirrors the rule since fish cannot call it. Each program
+is started the way its README wires it: starship and oh-my-posh by `eval`ing
+`init <shell>`; powerline-go from PROMPT_COMMAND, a precmd, or fish_prompt;
+powerlevel10k and oh-my-zsh's libraries and oh-my-bash sourced when the rc
+did not (oh-my-zsh's libraries alone, oh-my-bash without plugins, and hi's
+aliases put back over theirs); tide by leaving its autoloaded fish_prompt
+alone.
+
+Home's config rides the overlay (HI.41) and applies on a target only
+(`_HI_REMOTE_SESSION=1`), over whatever the target has: `$STARSHIP_CONFIG` /
+`$POSH_THEME` from `common/paths.sh` (paths.sh because fish sources it
+natively), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh or
+oh-my-bash theme file the home rc names sourced over the framework, and
+tide's `tide_*` universal variables exported as globals - exported because
+tide renders in a background `fish -c` that must see them over the target's
+own. Absent every program, the prompt is hi's, silently.
 
 ## HI.33 derived tree location
 
@@ -607,16 +624,18 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-The prompt tools' `starship.toml` / `oh-my-posh.json`, eza's `theme.yml`, and
-bat's `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is the one configured at home;
-`common/paths.sh` points each tool's own variable (`$STARSHIP_CONFIG`,
-`$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory itself, since eza
-fixes the file name) at the overlay on a target only (HI.32). starship's,
-eza's, and bat's never come from the client's overlay: `hi.sh`'s
-`_hi_overlay_src` packs the file each tool reads on the client under the
-member's name (starship's only with `_HI_PROMPT_TOOL=starship`), so there is
-one copy to edit and none to drift. oh-my-posh has no default file to find, so
-its config is an overlay file like the rest.
+The prompt programs' `starship.toml` / `oh-my-posh.json` / `p10k.zsh` /
+`omz-theme.zsh` / `omb-theme.sh` / `tide.vars`, eza's `theme.yml`, and bat's
+`bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is
+the one configured at home; `common/paths.sh` points each tool's own variable
+(`$STARSHIP_CONFIG`, `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory
+itself, since eza fixes the file name) at the overlay on a target only, and
+the shell files source or read the frameworks' (HI.32). Only oh-my-posh's
+comes from the client's overlay: `hi.sh`'s `_hi_overlay_src` packs the file
+each tool reads on the client under the member's name (a prompt program's
+only when `_hi_prompt_list` names it), so there is one copy to edit and none
+to drift - and the stager keeps nothing of fish's universal variables but
+the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
 The editor rcs (`vim.rc`, `init.lua`, `nano.rc`, `emacs.el`) ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,

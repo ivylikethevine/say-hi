@@ -85,7 +85,7 @@ function setting_off() {
 
 # true if $1 is on. Two shapes of setting share this: a default-on toggle is
 # on unless its value is <off> ($3), and an opt-in - one whose on-value <on>
-# ($4) has to be written out, like _HI_PROMPT_TOOL=starship - is on only when its
+# ($4) has to be written out, like _HI_PROMPT_TOOL=hi - is on only when its
 # value *is* that.
 function setting_on() {
   local var="$1" target="$2" off="${3:-1}" on="${4:-}" answer
@@ -483,12 +483,16 @@ function _hi_tool_alias_preview() {
   )
 }
 
-function _hi_starship_preview() {
-  if command -v starship >/dev/null 2>&1; then
-    printf "starship is installed here (%s); a target without it keeps hi's prompt\n" \
-      "$(starship --version 2>/dev/null | head -1)"
+# the prompt programs a target is handed without the setting - hi.sh's own
+# answer, sourced into a subshell through its BASH_SOURCE hatch
+function _hi_prompt_tool_preview() {
+  local found
+  # shellcheck source=/dev/null # hi.sh, whose functions alone are wanted
+  found="$(unset _HI_PROMPT_TOOL && source "$_HI_LAUNCHER" && _hi_prompt_list)"
+  if [ -n "$found" ]; then
+    printf "on: hi's prompt everywhere; off: the first of %s a target has draws it\n" "$found"
   else
-    printf "starship is not installed on this machine - only targets that have it are affected\n"
+    printf "no prompt program is installed here - hi's prompt draws either way\n"
   fi
 }
 
@@ -548,11 +552,11 @@ _HI_HEADER_PROMPTS=(
   "_HI_DISABLE_BANNER|1||||banner - the ~~~ Connected [host] ~~~ line, always first"
 )
 
-# whether to hand the prompt to starship where a target has one. An opt-in,
-# never auto-detected - core.sh's _hi_wants_prompt_tool, which also takes
-# _HI_PROMPT_TOOL=oh-my-posh written by hand (no menu item: one toggle, one tool)
+# hi's own prompt over the prompt programs found here, which draw it by
+# default (core.sh's _hi_prompt_tool) - the one switch that compares the two;
+# a list of programs is a line written into settings.sh by hand
 _HI_PROMPT_PROMPTS=(
-  "_HI_PROMPT_TOOL||starship|_hi_starship_preview||starship - draws the prompt on targets that have it"
+  "_HI_PROMPT_TOOL||hi|_hi_prompt_tool_preview||hi's own prompt - over powerlevel10k, starship, tide, and the other prompt programs found here"
 )
 
 # settings most installs never touch, listed last
@@ -585,7 +589,7 @@ _HI_PRESETS=(
 
 # every variable a preset answers for: the feature and header yes/no tables,
 # plus the one dial - so "not named by the preset" can mean "back to the
-# default". _HI_PROMPT_TOOL (starship) stays out, like the color scheme and the
+# default". _HI_PROMPT_TOOL (hi's prompt) stays out, like the color scheme and the
 # packages ramp: those are taste, not a feature level, and no preset has an
 # opinion on them. Neither is asked here at all - both are written into
 # settings.sh by hand (GLOSSARY: HI.50).

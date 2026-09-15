@@ -22,7 +22,7 @@ function _hi_rc_shell() {
   # keeps local settings out, so extra variables have to be injected here
   # rather than exported around the call
   shift 3
-  env -i HOME="$_HI_WORKDIR" TERM="$term" PATH="$PATH" \
+  env -i HOME="$_HI_WORKDIR" TERM="$term" PATH="$PATH" _HI_PROMPT_TOOL="$_HI_PROMPT_TOOL" \
     _HI_HOME="$_HI_HOME" _HI_CONFIG_DIR="$_HI_WORKDIR/cfg" "$@" \
     "$shell" -c "$script" </dev/null
 }
@@ -401,6 +401,51 @@ function test_bash_falls_back_when_starship_is_absent() {
   [[ "$out" == *'\u'* ]]
 }
 
+# The prompt programs without `init <shell>` (GLOSSARY: HI.32), each faked
+# where it installs under a $HOME of its own: powerlevel10k and oh-my-zsh's
+# libraries and oh-my-bash each stand in with a marker and an alias of theirs
+# (hi's must win), tide as an autoloading fish_prompt, powerline-go as a stub
+# echoing its argv. The overlay carries the home half - a p10k config, the two
+# themes, tide's variables - which only a target reads.
+function _hi_fw_home() {
+  local h="$_HI_WORKDIR/fwhome" c="$_HI_WORKDIR/fwhome/cfg"
+  [ -d "$h" ] || {
+    mkdir -p "$h/powerlevel10k" "$h/.oh-my-zsh/lib" "$h/.oh-my-bash" "$h/.config/fish/functions" "$c"
+    printf 'p10k() { :; }\nPROMPT=P10K\n'>"$h/powerlevel10k/powerlevel10k.zsh-theme"
+    printf 'git_prompt_info() { print -n G; }\nalias ls=FW-LS\n' >"$h/.oh-my-zsh/lib/git.zsh"
+    printf '_omb_module_require() { :; }\nalias ls=FW-LS\n' >"$h/.oh-my-bash/oh-my-bash.sh"
+    printf 'function tide; end\n' >"$h/.config/fish/functions/tide.fish"
+    printf 'function fish_prompt; echo -n "TIDE:$tide_character_icon:"(count $tide_left_prompt_items):(count $tide_empty):(count (env | string match "tide_*")); end\n' \
+      >"$h/.config/fish/functions/fish_prompt.fish"
+    printf 'PROMPT="$PROMPT+CFG"\n' >"$c/p10k.zsh"
+    printf 'PROMPT="OMZ-$(git_prompt_info)"\n' >"$c/omz-theme.zsh"
+    printf 'PS1=OMB\n' >"$c/omb-theme.sh"
+    printf 'SETUVAR tide_character_icon:\\u276f\nSETUVAR tide_left_prompt_items:pwd\\x1egit\nSETUVAR tide_empty:\\x1d\n' >"$c/tide.vars"
+  }
+  printf '%s' "$h"
+}
+
+# <shell> <want glob> <before-rc script> [NAME=VALUE...] - the prompt drawn
+# once hi's rc and one round of its per-draw hooks ran, then `|` and what `ls`
+# is aliased to
+function test_prompt_program_draws() {
+  local shell="$1" want="$2" pre="$3" script out h
+  shift 3
+  h="$(_hi_fw_home)"
+  case "$shell" in
+  bash) script="$pre"'; source "$_HI_HOME/say-hi/common/bash.sh" 2>&1; eval "${PROMPT_COMMAND:-}"; printf "%s|%s" "$PS1" "$(alias ls)"' ;;
+  zsh) script="$pre"'; source "$_HI_HOME/say-hi/common/zsh.zsh" 2>&1; for f in $precmd_functions; do $f; done; print -rn -- "$PS1|$aliases[ls]"' ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>&1; fish_prompt' ;;
+  esac
+  out="$(_hi_rc_shell dumb "$shell" "$script" HOME="$h" _HI_CONFIG_DIR="$h/cfg" \
+    PATH="$(_hi_stub_bin powerline-go 'printf "PLGO %s" "$*"'):$PATH" "$@")"
+  # shellcheck disable=SC2053 # $want is a pattern
+  [[ "$out" == $want && "$out" != *FW-LS* ]] || {
+    _hi_cecho " | $shell drew: [$out]" "$RED"
+    return 1
+  }
+}
+
 #
 # The environment segment (GLOSSARY: HI.54). Three implementations - the shared
 # common/env_prompt.sh for bash and zsh, config.fish's own copy for fish - and
@@ -730,7 +775,7 @@ function _hi_rc_reentry() {
   local shell="$1" rc="$2" probe="$3" cfg="$_HI_WORKDIR/reentry-$1"
   mkdir -p "$cfg"
   printf 'source "%s"\n' "$_HI_HOME/say-hi/common/$rc" >"$cfg/$rc"
-  (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" \
+  (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" _HI_PROMPT_TOOL=hi \
     _HI_CONFIG_DIR="$cfg" "$shell" -c "source \"\$_HI_HOME/say-hi/common/$rc\"; $probe" \
     </dev/null >"$cfg.out" 2>&1) &
   _hi_wait_pid $! 20
@@ -983,6 +1028,46 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
+
+  _hi_h2 "Testing: prompt programs without init (powerline-go, the frameworks)"
+  _hi_check "[bash] powerline-go draws each prompt with the status and options" \
+    test_prompt_program_draws bash 'PLGO -shell bash -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
+  _hi_check "[bash] oh-my-bash, loaded by hi, draws the home theme on a target" \
+    test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL=oh-my-bash _HI_REMOTE_SESSION=1
+  _hi_check "[bash] ...at home, with no theme to draw, hi's prompt stays" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=oh-my-bash
+  _hi_check "[bash] ...loaded by the rc, its prompt stays at home" \
+    test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=oh-my-bash
+  _hi_check "[bash] a list's first program that fits the shell wins" \
+    test_prompt_program_draws bash 'OMB|*' : _HI_PROMPT_TOOL="tide powerlevel10k oh-my-bash" _HI_REMOTE_SESSION=1
+  _hi_check "[bash] a name hi does not know keeps hi's prompt" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' : _HI_PROMPT_TOOL=powerline
+  _hi_check_requires zsh "[zsh] powerline-go draws each prompt with the status and options" \
+    test_prompt_program_draws zsh 'PLGO -shell zsh -error * -jobs 0 -mode flat|*' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
+  _hi_check_requires zsh "[zsh] powerlevel10k, loaded by hi, takes the home config on a target" \
+    test_prompt_program_draws zsh 'P10K+CFG|*' : _HI_PROMPT_TOOL=powerlevel10k _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] ...loaded by the rc, the home config goes over the target's" \
+    test_prompt_program_draws zsh 'RC+CFG|*' 'p10k() { :; }; PROMPT=RC' _HI_PROMPT_TOOL=powerlevel10k _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] oh-my-zsh's libraries, loaded by hi, draw the home theme" \
+    test_prompt_program_draws zsh 'OMZ-G|*' : _HI_PROMPT_TOOL=oh-my-zsh _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] ...at home, with no theme to draw, hi's prompt stays" \
+    test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL=oh-my-zsh
+  _hi_check_requires fish "[fish] powerline-go draws each prompt with the status and options" \
+    test_prompt_program_draws fish 'PLGO -shell bare -error 0 -jobs 0 -mode flat' : _HI_PROMPT_TOOL=powerline-go _HI_POWERLINE_GO_OPTS="-mode flat"
+  _hi_check_requires fish "[fish] tide draws with the home variables, exported, on a target" \
+    test_prompt_program_draws fish 'TIDE:❯:2:0:3' : _HI_PROMPT_TOOL=tide _HI_REMOTE_SESSION=1 LANG=C.UTF-8
+  _hi_check_requires fish "[fish] ...and with its own at home" \
+    test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL=tide LANG=C.UTF-8
+  _hi_check "[bash] unset, a framework found here keeps its prompt" \
+    test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=
+  _hi_check "[bash] ...but a target looks at nothing of its own" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] hi takes the prompt back from a loaded framework" \
+    test_prompt_program_draws zsh '*%n@%m*' 'p10k() { :; }; PROMPT=RC' _HI_PROMPT_TOOL=hi
+  _hi_check_requires fish "[fish] unset, tide found here draws" \
+    test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
+  _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \
+    test_prompt_program_draws fish '*@*' : _HI_PROMPT_TOOL="oh-my-bash powerlevel10k"
   _hi_check "[bash] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw bash
   _hi_check_requires zsh "[zsh] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw zsh
   _hi_check_requires fish "[fish] plugins load in order, skip loudly, draw a segment" test_plugins_load_in_order_skip_loudly_and_draw fish

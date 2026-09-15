@@ -422,6 +422,11 @@ function doctor_config() {
     }
     t=""
     _hi_overlay_src "$f" t || true
+    # a prompt framework's member has no tree default to report
+    case "$f" in p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars)
+      [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || continue
+      ;;
+    esac
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # a tool config: what ships is the file the tool reads, never this copy
       doctor_row "$f" "ignored - hi ships the tool's own config${t:+ ($t)}; delete this copy" warn

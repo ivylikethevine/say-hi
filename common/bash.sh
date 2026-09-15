@@ -39,7 +39,18 @@ _hi_prime_identity
 _hi_host_escape >/dev/null
 _hi_user_escape >/dev/null
 
-if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]] && ! _hi_wants_prompt_tool; then
+# the prompt program the prompt goes to, if any (GLOSSARY: HI.32). oh-my-bash
+# counts once the rc loaded it, or where it installs with a theme from home to
+# draw - the overlay's copy, so only on a target
+_hi_omb_theme=""
+[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/omb-theme.sh"
+function _hi_prompt_fw() {
+  declare -F _omb_module_require >/dev/null ||
+    { [ -f "$_hi_omb_theme" ] && [ -f "${OSH:-$HOME/.oh-my-bash}/oh-my-bash.sh" ]; }
+}
+_hi_pt=""
+[[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
+if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 && -z "$_hi_pt" ]]; then
   # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
   HI_PS1_END=""
   _hi_prompt_end BASH HI_PS1_END
@@ -171,9 +182,34 @@ complete -F _hi_load_exa_completion exa
 
 # modified from: https://github.com/riobard/bash-powerline/blob/master/bash-powerline.sh
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  if _hi_wants_prompt_tool; then
-    # GLOSSARY: HI.32
-    eval "$("$_HI_PROMPT_TOOL" init bash)"
+  if [ -n "$_hi_pt" ]; then
+    # each the way its own README wires it into an rc. GLOSSARY: HI.32
+    case "$_hi_pt" in
+    powerline-go)
+      function __hi_plgo_ps1() {
+        local ec=$?
+        # shellcheck disable=SC2086 # the options are words
+        PS1="$(powerline-go -shell bash -error "$ec" -jobs "$(($(jobs -p | wc -l)))" ${_HI_POWERLINE_GO_OPTS-})"
+      }
+      PROMPT_COMMAND="__hi_plgo_ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+      ;;
+    oh-my-bash)
+      # not loaded by the rc: all of it but plugins, aliases, and completions
+      # (none listed), and hi's aliases put back over its libraries'
+      if ! declare -F _omb_module_require >/dev/null; then
+        _hi_a="$(alias -p)"
+        OSH="${OSH:-$HOME/.oh-my-bash}"
+        # shellcheck source=/dev/null
+        DISABLE_AUTO_UPDATE=true OSH_THEME="" source "$OSH/oh-my-bash.sh"
+        unalias -a
+        eval "$_hi_a"
+        unset _hi_a
+      fi
+      # shellcheck source=/dev/null
+      [ -f "$_hi_omb_theme" ] && source "$_hi_omb_theme"
+      ;;
+    *) eval "$("$_hi_pt" init bash)" ;;
+    esac
   else
     # Readline counts every $PS1 character it was not told to ignore, so an
     # unmarked color escape makes the typed line wrap back over the prompt.
@@ -228,6 +264,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   fi
 fi
+unset _hi_pt _hi_omb_theme
 
 # Last in the required block, once every alias has expanded its paths:
 # children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.
