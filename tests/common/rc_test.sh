@@ -411,7 +411,7 @@ function _hi_fw_home() {
   local h="$_HI_WORKDIR/fwhome" c="$_HI_WORKDIR/fwhome/cfg"
   [ -d "$h" ] || {
     mkdir -p "$h/powerlevel10k" "$h/.oh-my-zsh/lib" "$h/.oh-my-bash" "$h/.config/fish/functions" "$c"
-    printf 'p10k() { :; }\nPROMPT=P10K\n'>"$h/powerlevel10k/powerlevel10k.zsh-theme"
+    printf 'p10k() { :; }\nPROMPT=P10K\n' >"$h/powerlevel10k/powerlevel10k.zsh-theme"
     printf 'git_prompt_info() { print -n G; }\nalias ls=FW-LS\n' >"$h/.oh-my-zsh/lib/git.zsh"
     printf '_omb_module_require() { :; }\nalias ls=FW-LS\n' >"$h/.oh-my-bash/oh-my-bash.sh"
     printf 'function tide; end\n' >"$h/.config/fish/functions/tide.fish"
