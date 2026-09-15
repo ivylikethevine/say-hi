@@ -1,6 +1,6 @@
 # The overlay demo, as the ops persona sees it: fish on a bastion, into a
 # docker box and a podman box, the header trimmed to an operator's cells
-# (clocks, backend counts, the check on the mono ramp). One aliases.sh
+# (clocks, backend counts, the check on its own ramp). One aliases.sh
 # overlay, sourced on every target: it works in a bash session on a debian
 # container and a fish session on an
 # alpine box - via docker and podman, so no two of client, target shell, and

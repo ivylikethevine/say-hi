@@ -968,7 +968,7 @@ function _hi_doc_anchor() {
 # plus the nesting, since a ### filed at a ##'s indent reads as a peer.
 # Headings inside a fenced block are the page's content, not its structure,
 # and an h3's entry only has to be indented under an h2's, not at one depth -
-# TESTING.md groups two h3s under a third on purpose.
+# TESTING.md nests an h3 under another on purpose.
 function lint_doc_contents() {
   local file rel line fence intoc depth text anchor want
   local heads entries filebad bad=0

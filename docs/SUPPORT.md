@@ -25,15 +25,15 @@ hi --doctor --json            # the machine you typed `hi` on
 hi --doctor --json <target>   # add this when the problem is on the far end
 ```
 
-Along with it: the exact `hi` command, what you expected, and what you saw
-instead. Redact hostnames and usernames freely; the versions, tiers, and sizes
-are what matter. The bug report form asks for each of these.
+Add the exact `hi` command, what you expected, and what you saw; the bug report
+form asks for each. Redact hostnames and usernames freely: the versions, tiers,
+and sizes are what matter.
 
 ## What to expect
 
 say-hi has one maintainer, working on it in their own time
-([GOVERNANCE.md](GOVERNANCE.md)). Questions and issues are read and answered
-as time allows, with no guaranteed turnaround; a report with the doctor output
-attached is the fastest one to act on. Security reports are the exception,
-with the acknowledgement and fix targets in
+([GOVERNANCE.md](GOVERNANCE.md)), so questions and issues are answered as time
+allows, with no guaranteed turnaround; a report with the doctor output is the
+fastest to act on. Security reports are the exception, with the
+acknowledgement and fix targets in
 [SECURITY.md](SECURITY.md#what-happens-to-a-report).

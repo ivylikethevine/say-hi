@@ -1,9 +1,7 @@
 # Code of conduct
 
-The standard for everyone in say-hi's spaces: the repository, its issues, pull
-requests, and discussions. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
-mechanics of sending a change; this page covers how people treat each other
-while doing it.
+How people treat each other in say-hi's spaces: the repository, its issues,
+pull requests, and discussions.
 
 ## Contents
 
@@ -86,11 +84,9 @@ be reviewed and investigated promptly and fairly.
 The maintainer is obligated to respect the privacy and security of the
 reporter of any incident: what happened and who reported it stay confidential.
 
-A _security_ issue rather than a conduct one goes to
-[GitHub private vulnerability reporting](https://github.com/ivylikethevine/say-hi/security/advisories/new)
-instead, as [SECURITY.md](SECURITY.md#reporting-a-vulnerability) describes.
-That channel is for vulnerabilities only; conduct reports go to the address
-above.
+A _security_ issue goes to
+[SECURITY.md's private channel](SECURITY.md#reporting-a-vulnerability)
+instead, which takes vulnerabilities only.
 
 ## Enforcement guidelines
 

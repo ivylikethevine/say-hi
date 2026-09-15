@@ -1,7 +1,7 @@
 # say-hi and the alternatives
 
-This project beside its related-but-different neighbours: some may suit you
-better, and some were instrumental in this one.
+This project beside its neighbours: some may suit you better, and some were
+instrumental in this one.
 
 ## Contents
 
@@ -15,7 +15,6 @@ better, and some were instrumental in this one.
   - [homeshick — the same constraints, the opposite answer](#homeshick--the-same-constraints-the-opposite-answer)
 - [Adjacent tools, and how they compose](#adjacent-tools-and-how-they-compose)
 - [What actually makes say-hi different](#what-actually-makes-say-hi-different)
-- [Sources](#sources)
 
 ## The problem being solved
 
@@ -36,27 +35,27 @@ the network, both leave files behind, and neither does anything per-session.
 use it for that session, get out. That is say-hi's family, and everything
 below is a member of it.
 
-A third thing that looks similar but is not: **terminal emulators that help
-with ssh**, like [kitty's ssh kitten], which solve the adjacent terminfo /
-shell-integration problem. If your pain is "backspace is broken over ssh",
-that is the fix, and it composes with say-hi — which handles the terminfo half
-itself (`_hi_remote_preamble` probes the target's terminfo tree, falling back
-to `xterm-256color`) rather than depending on your terminal.
+Not the same thing: **terminal emulators that help with ssh**, like
+[kitty's ssh kitten], which solve the adjacent terminfo / shell-integration
+problem. If your pain is "backspace is broken over ssh", that is the fix, and
+it composes with say-hi — which handles the terminfo half itself, swapping a
+`TERM` the target has no entry for to `xterm-256color`
+([HI.22](GLOSSARY.md#hi22-term-fallback-probe)).
 
 ## The direct alternatives, side by side
 
-|                                     | **say-hi**                                                                                          | **[sshrc]**                                                                                     | **[xxh]**                                                | **[kyrat]**                     | **[sshdot]**             |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------- | ------------------------ |
-| Written in                          | POSIX/bash shell                                                                                    | shell                                                                                           | Python                                                   | bash                            | shell                    |
-| Client needs                        | `bash` 3.2+, `base64` (or `openssl`)                                                                | bash, ssh                                                                                       | a Python install (pip/pipx/conda) or the portable binary | `bash` **≥ 4.0**, GNU coreutils | shell, ssh               |
-| Target needs                        | `base64` (or `openssl`); `bash` for the full session                                                | `openssl` (its base64), `tar`, `bash`                                                           | Linux **x86_64 only**                                    | shell                           | shell                    |
-| Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash                                           | broad                                                                                           | Linux x86_64                                             | Linux, macOS                    | broad                    |
-| Installs on target                  | nothing                                                                                             | nothing                                                                                         | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
-| Cleans up on exit                   | yes, automatically                                                                                  | yes, on exit (a hard kill leaves it, as with hi)                                                | no — delete `~/.xxh` yourself                            | yes, automatically              | leaves files             |
-| Size ceiling                        | the wire script README's payload badge sizes, CI-held within 5% of it; gzipped tar budgeted at 64KB | **~64KB and the server may block you**                                                          | large — it uploads whole shells                          | small                           | none (that is its point) |
-| Non-ssh targets                     | **docker, podman, nomad, k8s**                                                                      | no                                                                                              | no                                                       | no                              | no                       |
-| Can give you a shell the host lacks | no                                                                                                  | no                                                                                              | **yes**                                                  | no                              | no                       |
-| Maturity                            | pre-1.0, deb/rpm/apk, the package repository, and the Homebrew tap live; no AUR yet                 | **original deleted from GitHub**; [cdown's] fork is the maintained line, argv ceiling inherited | mature, active                                           | quiet                           | quiet                    |
+|                                     | **say-hi**                                                | **[sshrc]**                                              | **[xxh]**                                                | **[kyrat]**                     | **[sshdot]**             |
+| ----------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | ------------------------------- | ------------------------ |
+| Written in                          | POSIX/bash shell                                          | shell                                                    | Python                                                   | bash                            | shell                    |
+| Client needs                        | `bash` 3.2+, `base64` (or `openssl`)                      | bash, ssh                                                | a Python install (pip/pipx/conda) or the portable binary | `bash` **≥ 4.0**, GNU coreutils | shell, ssh               |
+| Target needs                        | `base64` (or `openssl`); `bash` for the full session      | `openssl` (its base64), `tar`, `bash`                    | Linux **x86_64 only**                                    | shell                           | shell                    |
+| Target OS                           | Linux (glibc + musl), macOS/BSD, Windows via WSL/Git Bash | broad                                                    | Linux x86_64                                             | Linux, macOS                    | broad                    |
+| Installs on target                  | nothing                                                   | nothing                                                  | a portable shell + plugins under `~/.xxh`                | nothing                         | nothing                  |
+| Cleans up on exit                   | yes, automatically                                        | yes, on exit (a hard kill leaves it, as with hi)         | not by default (`+hhr` removes it on disconnect)         | yes, automatically              | yes, on exit             |
+| Size ceiling                        | no argv cap (stdin); CI holds a 64KB gzipped budget       | **~64KB and the server may block you**                   | large — it uploads whole shells                          | small                           | none (that is its point) |
+| Non-ssh targets                     | **docker, podman, nerdctl, finch, nomad, k8s**            | no                                                       | no                                                       | no                              | no                       |
+| Can give you a shell the host lacks | no                                                        | no                                                       | **yes**                                                  | no                              | no                       |
+| Maturity                            | pre-1.0, [packaged](PACKAGING.md#install-channels)        | **original gone from GitHub**; [cdown's] fork maintained | mature, active                                           | quiet since 2020                | quiet since 2015         |
 
 ## Tool by tool
 
@@ -65,20 +64,17 @@ to `xterm-256color`) rather than depending on your terminal.
 say-hi is a fork of [sshrc] (via [cdown's] and [danrabinowitz's] lines), and
 the core idea is unchanged: tar your config, base64 it, hand it to the login
 shell, source it on the far side. Links here point at [cdown's] fork, the
-maintained continuation, which carries the design (64KB argv ceiling included)
-unchanged.
+maintained continuation, which keeps the design (64KB argv ceiling included).
 
 **Where sshrc still wins:** smaller and simpler, which counts in something
 that runs on every host you touch. If you just want your `.bashrc` and
 `.vimrc` over there, sshrc does it in a fraction of the code.
 
-**Where say-hi went further**, beyond the table's transport, cleanup, and
-target-needs deltas:
+**Where say-hi went further**, beyond the table's rows:
 
-- **Cleanup, proven for the dropped link.** What say-hi adds beyond sshrc's
-  own exit trap is the case where there is no exit: `load.sh`'s hook fires on
-  `SIGHUP`, and `tests/targets/ssh_disconnect_test.sh` proves the tree is
-  gone after a yanked connection.
+- **Cleanup, proven for the dropped link.** `tests/targets/ssh_disconnect_test.sh`
+  freezes a live session until sshd reaps it and checks the tree is gone, not
+  only after a clean `exit`.
 - **A designed session, not copied files.** Header, hashed per-host colors, a
   git prompt, aliases, editor configs — degrading in defined tiers when the
   target cannot support all of it.
@@ -90,19 +86,22 @@ zsh on a host that has neither.
 
 **Where xxh wins outright:** that capability. say-hi cannot give you a shell
 the target lacks — its no-bash ladder (`fish > zsh > dash > ash > sh`) picks
-the best of what is installed and says so. Its plugin model is also more
-principled than copying dotfiles blind.
+the best of what is installed and says so. xxh's plugins can also ship whole
+frameworks, where hi's `plugins.d` ([HI.59](GLOSSARY.md#hi59-plugins)) is
+shell lines.
 
-**Where say-hi wins**, beyond the table's reach and weight rows: say-hi's
-suite runs real Debian, Alpine/musl, and bash-3.2 targets every time, against
-xxh's single x86_64-Linux target.
+**Where say-hi wins**, beyond the table's reach and weight rows: no
+architecture or libc tie. Anything with `sh` and `base64` is in reach, and CI
+lands sessions on musl, macOS, the BSDs, and Windows
+([COMPATIBILITY.md](COMPATIBILITY.md#the-targets-os)) where xxh's shells are
+x86_64-Linux builds.
 
 ### kyrat — closest in spirit
 
 [kyrat] is the nearest neighbour: a bash ssh wrapper, base64+gzip through the
 command line, cleanup on exit, `KYRAT_SHELL` to pick bash/zsh/sh. If you don't
-use fish, kyrat is a lighter alternative — ssh only, and no macOS because it
-requires bash ≥ 4.0, but simpler.
+use fish, kyrat is a lighter alternative — ssh only, and bash ≥ 4.0 on the
+client rules out macOS's stock bash, but simpler.
 
 ### sshdot
 
@@ -118,9 +117,8 @@ half of the problem, symlinking a cloned repo's `home/` into `$HOME` and
 keeping the two in step.
 
 So it is not a competitor and is not in the table. It is the tool for a
-machine you own and will come back to: the checkout **stays**, the symlinks
-stay, and the next login is already configured with no client involved.
-say-hi is for the machine you will not come back to. The failure modes are
+machine you own and will come back to: the checkout and symlinks **stay**, and
+the next login is configured with no client involved. The failure modes are
 mirror images: homeshick on a production box you touch once leaves a
 `~/.homesick` and an edited rc file for the next person; say-hi on your own
 laptop re-sends a payload every session for what a symlink gives for free.
@@ -142,37 +140,27 @@ side.
   The two coexist — say-hi writes nothing into the remote's rc files.
 - **[chezmoi]/[yadm]/[GNU Stow] as the overlay's keeper.** Keep
   `~/.config/say-hi/` in your dotfile manager: the manager versions it, hi
-  ships it to every target per session. Stow's
-  symlinks are dereferenced on the way out, and only the overlay's own files
-  travel. The one thing to decide is who owns `settings.sh`, since
-  `hi --configure` writes the live copy —
-  [SETTINGS.md](SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager)
-  has the two ways to settle that.
+  ships it to every target per session.
+  [SETTINGS.md](SETTINGS.md#keeping-the-overlay-in-a-dotfile-manager) covers
+  symlinks and who owns `settings.sh`.
 
 ## What actually makes say-hi different
 
 Two things; the rest is degree, not kind.
 
 **1. It is not an ssh tool.** Every alternative above is an ssh wrapper. `hi`
-resolves a name through a ladder — ssh host, docker container, podman, nomad
-allocation, kubernetes pod — and gives the _same session_ on whichever it
-finds. `hi web-1` is your shell whether `web-1` is a `Host` in `~/.ssh/config`
-or a pod in the namespace your `kubectl` points at. Nothing else in this space
-does it.
+resolves a name through a ladder — ssh host, container (docker, podman,
+nerdctl, finch), nomad allocation, kubernetes pod — and gives the _same
+session_ on whichever it finds. `hi web-1` is your shell whether `web-1` is a
+`Host` in `~/.ssh/config` or a pod in the namespace your `kubectl` points at.
+Nothing else in this space does it.
 
 **2. It degrades in stated tiers rather than failing or lying.** The
 [compatibility tables](COMPATIBILITY.md) answer two questions — can hi land a
 session here at all, and what shell do you end up in — and mark every cell
-proven-by-a-suite, expected, reduced, or unsupported. A target with no bash
-gets aliases, a colored prompt, and a warning; a Windows OpenSSH host with no
-POSIX shell gets a plain PowerShell session rather than an error.
-
-## Sources
-
-[sshrc] (via [cdown's] fork; [danrabinowitz's] is the other line say-hi
-descends through), [xxh], [kyrat], [sshdot], [kitty's ssh kitten],
-[homeshick], and the install-it-there family — [chezmoi], [yadm], [GNU Stow],
-[dotbot], [rcm].
+exercised by a suite, expected, reduced, or decided against. A target with no
+bash gets aliases, a colored prompt, and a warning; a Windows OpenSSH host with
+no POSIX shell gets a plain PowerShell session rather than an error.
 
 [sshrc]: https://github.com/cdown/sshrc
 [cdown's]: https://github.com/cdown/sshrc

@@ -24,10 +24,9 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/docker \
 ARG FRAMEWORK
 COPY --chown=hitest:hitest frameworks/${FRAMEWORK}.sh /tmp/framework.sh
 USER hitest
-# pipefail on the shell the script runs under as well as inside it: three of
-# the scripts pipe curl into sh, where a 404 pipes nothing, sh succeeds on
-# empty input, and the image would ship without the framework in it - a green
-# suite testing an absence
+# pipefail on the shell the script runs under as well as inside it: a 404 or
+# a checksum mismatch mid-pipe must fail the build, not ship an image without
+# the framework in it - a green suite testing an absence
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN bash /tmp/framework.sh
 USER root

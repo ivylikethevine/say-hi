@@ -181,6 +181,58 @@ function test_update_refuses_a_bad_signature() {
   [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
 }
 
+# _hi_update_ssh_fixture <name> <signer-key> <listed-key> - the fixture plus a
+# v0.0.3 ssh-signed by <signer-key>, and an untracked .github/allowed_signers
+# in the checkout naming <listed-key>; keys are made on first use
+function _hi_update_ssh_fixture() {
+  local home k
+  home="$(_hi_update_fixture "$1")" || return 1
+  for k in "$2" "$3"; do
+    [ -f "$_HI_WORKDIR/$k" ] || ssh-keygen -q -t ed25519 -N '' -C "$k" -f "$_HI_WORKDIR/$k" || return 1
+  done
+  mkdir -p "$home/say-hi/.github"
+  printf 'hi@example.invalid namespaces="git" %s\n' "$(cat "$_HI_WORKDIR/$3.pub")" >"$home/say-hi/.github/allowed_signers"
+  (
+    cd "$home/work" || exit 1
+    git -c user.name=hi -c user.email=hi@example.invalid -c gpg.format=ssh \
+      -c user.signingkey="$_HI_WORKDIR/$2" tag -s -m three v0.0.3 &&
+      git push -q origin --tags
+  ) >/dev/null 2>"$_HI_WORKDIR/sign-$1.err" || {
+    _hi_dump_log "ssh-signing v0.0.3 in $1 failed" "$_HI_WORKDIR/sign-$1.err" >&2
+    return 1
+  }
+  printf '%s' "$home"
+}
+
+# the checkout's own allowed_signers vouches for the key: named, and moved to
+function test_update_names_a_good_ssh_signature() {
+  local home out
+  home="$(_hi_update_ssh_fixture upd-ssh-good sshkey sshkey)" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.3)" || return 1
+  [[ "$out" == *"good ssh signature from hi@example.invalid"* && "$out" == *"now on v0.0.3"* ]]
+}
+
+# intact, but a key the file does not list: said, allowed, like NO_PUBKEY
+function test_update_allows_an_ssh_key_not_listed() {
+  local home out
+  home="$(_hi_update_ssh_fixture upd-ssh-other sshkey otherkey)" || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.3)" || return 1
+  [[ "$out" == *"not in the allowed signers"* && "$out" == *"now on v0.0.3"* ]]
+}
+
+# tampered after ssh-signing, as test_update_refuses_a_bad_signature does it
+function test_update_refuses_a_bad_ssh_signature() {
+  local home out rc=0 obj
+  home="$(_hi_update_ssh_fixture upd-ssh-bad sshkey sshkey)" || return 1
+  obj="$(git -C "$home/say-hi" fetch -q --tags && git -C "$home/say-hi" cat-file tag v0.0.3 | sed 's/^three$/tampered/' | git -C "$home/say-hi" hash-object -t tag -w --stdin)" || return 1
+  git -C "$home/say-hi" update-ref refs/tags/v0.0.3 "$obj" || return 1
+  git -C "$home/say-hi" push -q -f origin "refs/tags/v0.0.3:refs/tags/v0.0.3" 2>/dev/null || return 1
+  out="$(_hi_subcmd_run "$home" --update v0.0.3)" || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  [[ "$out" == *"does not verify"* ]] || return 1
+  [ "$(git -C "$home/say-hi" describe --tags --exact-match 2>/dev/null)" = v0.0.1 ]
+}
+
 # bare: the newest tag by version, which the fetch brings in - and that
 # leaves a branch checkout detached too, since releases are tags and nothing
 # else
@@ -331,6 +383,9 @@ function run_update_tests() {
   _hi_check_capable gpg_agent "A key not in the keyring: said, allowed" test_update_allows_a_signature_it_cannot_check
   _hi_check_capable gpg_agent "A bad signature refuses the checkout" test_update_refuses_a_bad_signature
   _hi_update_gpg_cleanup
+  _hi_check_requires ssh-keygen "A good ssh signature is named with its signer" test_update_names_a_good_ssh_signature
+  _hi_check_requires ssh-keygen "An ssh key not in allowed_signers: said, allowed" test_update_allows_an_ssh_key_not_listed
+  _hi_check_requires ssh-keygen "A bad ssh signature refuses the checkout" test_update_refuses_a_bad_ssh_signature
 
   _hi_suite_end "scripts/update.sh"
 }

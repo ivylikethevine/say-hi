@@ -2,7 +2,7 @@
 
 Where the Scorecard number is capped for a one-maintainer project, and the
 Best Practices questionnaire answer sheet to enter at
-[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397/edit).
+[bestpractices.dev](https://www.bestpractices.dev/en/projects/14397).
 Work already shipped for either badge is not repeated here; git history is
 the ledger, and [SECURITY.md#assurance-case](SECURITY.md#assurance-case) is
 the security half. The account-side steps still open are in
@@ -18,26 +18,23 @@ the security half. The account-side steps still open are in
 
 ## The score has a ceiling here
 
-Scorecard weights each check (Binary-Artifacts, License, and the rest that sit
-at 10 count fully) and averages. Which of the low scores are fixable here:
+Scorecard's total is a risk-weighted average of its checks. Where it falls
+short, and whether each is fixable here:
 
-- **Code-Review sits at 0** — 0 of the last several changesets carry an
-  approved review: one maintainer, nobody else to approve a PR. A
-  `Reviewed-by:` trailer would satisfy the scanner without a review having
-  happened; that's not going to be added. The largest fixable-looking gap in
-  the report, and not fixable without a second person.
-- **Fuzzing sits at 0** — say-hi is bash; Scorecard's probe detects OSS-Fuzz,
-  ClusterFuzzLite, Go native fuzzing, cargo-fuzz, and OneFuzz, none of which
-  targets shell. `.scorecard.yml` marks it `not-applicable`.
+- **Code-Review sits at 0** — no recent changeset carries an approved review:
+  one maintainer, nobody else to approve a PR. A `Reviewed-by:` trailer would
+  satisfy the scanner without a review having happened, so it won't be added.
+  Not fixable without a second person.
+- **Fuzzing sits at 0** — Scorecard detects OSS-Fuzz, ClusterFuzzLite, Go
+  native fuzzing, cargo-fuzz, and OneFuzz, none of which targets shell.
+  `.scorecard.yml` marks it `not-applicable`.
 - **Contributors sits at 3** — the check wants ≥2 contributing organizations
   among recent contributors; there's one. `not-applicable` in
   `.scorecard.yml` too.
-- **CII-Best-Practices** — the project is registered at
-  [bestpractices.dev](https://www.bestpractices.dev/) (the OpenSSF Best
-  Practices badge in README's badge block, a self-assessment questionnaire
-  separate from Scorecard). The score reflects registration; three MUST
-  criteria are release-shaped and the project has tags, so re-check the live
-  questionnaire rather than assuming _Passing_ still waits on one.
+- **CII-Best-Practices** scores the badge level at
+  [bestpractices.dev](https://www.bestpractices.dev/en/projects/14397), a
+  self-assessment separate from Scorecard. Passing is met; silver waits on
+  `access_continuity` ([below](#the-best-practices-answer-sheet)).
 - **Signed-Releases** scores off release assets alone. `release.yml` ships
   `dist/SHA256SUMS.minisig`, which the check's signature probe recognizes for
   8/10, and `publish` re-uploads `build`'s provenance attestation as
@@ -48,25 +45,25 @@ at 10 count fully) and averages. Which of the low scores are fixable here:
   shipped same-repository `uses: $/...` references in July 2026
   ([changelog](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/)):
   a local action or reusable workflow resolves at the exact commit running,
-  with no `./` plus checkout and no separately-pinnable ref. `ci.yml` explains
-  why `actionlint` is pinned to a fork that understands it; Scorecard's
-  dependency extraction is the same story, reading every `$/...` reference as
-  an unresolvable third-party action with no `@sha`, which is where most of
-  the "unpinned" count comes from. The actual third-party (non-`$/`) actions
-  are 100% SHA-pinned; re-run the numbers by hand
-  (`grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`) before
-  assuming a `$/` reference is the gap. Reverting to `./` to satisfy the
-  parser would trade a real improvement for the score.
+  with no `./` plus checkout and no separately-pinnable ref. Scorecard's
+  dependency extraction reads every `$/...` reference as an unpinned
+  third-party action - the same gap behind `ci.yml`'s fork-pinned
+  `actionlint` - and that is most of the "unpinned" count; every real
+  third-party action is SHA-pinned (re-count with
+  `grep -rhoE 'uses: +[^ ]+' .github/workflows .github/actions`). Reverting to
+  `./` would trade a real improvement for the score. The `tests/dockerfiles/`
+  findings are annotated `test-data`
+  ([TESTING.md](TESTING.md#what-is-pinned-and-what-deliberately-is-not)).
 - **Branch-Protection sits at 8, by choice.** The next tier up requires
-  "include administrators", which would remove the maintainer's own ability to
-  push past a failing check or merge without the full gate - kept, since
-  that's the emergency valve for a one-person project. 10 additionally needs
-  two required approving reviews, which needs a second person regardless.
+  "include administrators", which would take away the maintainer's ability to
+  push past a failing check - the emergency valve for a one-person project.
+  10 also needs two required approving reviews, so a second person regardless.
 
 ## The Best Practices answer sheet
 
 Enter these at
-[bestpractices.dev/en/projects/14397/edit](https://www.bestpractices.dev/en/projects/14397/edit).
+[bestpractices.dev/en/projects/14397](https://www.bestpractices.dev/en/projects/14397)
+(signed in, _Edit_; the edit URL itself 404s without a session).
 **M** = Met, **N/A** = not applicable, **U** = Unmet. `access_continuity` (a
 silver MUST) is answered Unmet on purpose - see its row
 [below](#basics--project-oversight) - so silver will not be awarded
@@ -80,7 +77,7 @@ Already 100%. One correction worth making, and one answer worth keeping:
 | Criterion                            | Now                                                                      | Change to               | Why                                                                                                                                                                                                                                                                            |
 | ------------------------------------ | ------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `dynamic_analysis_enable_assertions` | U, "No fuzzer for bash/shell scripts."                                   | **M**                   | Wrong question answered - this criterion is about run-time assertions during testing, not fuzzing. Every entry point runs `set -euo pipefail`; the suites assert invariants directly, and `--require-run` turns a stood-down backend into a failure rather than a silent pass. |
-| `dynamic_analysis`                   | U, "No sanitizer/fuzzer works for bash/shell scripts that I'm aware of." | **U**, tighten the text | Correct as-is. The alternate route ("an automated test suite with at least 80% branch coverage") doesn't apply either: kcov and bashcov both report _statement_ coverage (the README badges), not branch.                                                                      |
+| `dynamic_analysis`                   | U, "No sanitizer/fuzzer works for bash/shell scripts that I'm aware of." | **U**, tighten the text | Unmet is right. The alternate route ("an automated test suite with at least 80% branch coverage") doesn't apply either: kcov and bashcov both report _statement_ coverage (the README badges), not branch.                                                                     |
 
 ### Silver level
 
@@ -143,14 +140,14 @@ Already 100%. One correction worth making, and one answer worth keeping:
 | `external_dependencies`           | M      | `packaging/nfpm/nfpm.yaml` `depends:`; `.github/actions/setup-tool/tools.txt`; `.github/dependabot.yml`.                                                                                                                                                |
 | `dependency_monitoring`           | M      | Dependabot weekly (actions, npm, docker); `tool-versions.yml` weekly against `tools.txt`; `image-scan.yml` runs Trivy and tracks findings via an issue; `ci.yml`'s `dependency review` fails a PR adding a dependency with a high or critical advisory. |
 | `updateable_reused_components`    | M      | Nothing is vendored; the packaged install declares its tools as package dependencies.                                                                                                                                                                   |
-| `interfaces_current`              | M      | Bash-3.2-floor grep; fish/zsh floor and ceiling exercised against pinned containers in `tests/lint/dialects_test.sh`.                                                                                                                                   |
+| `interfaces_current`              | M      | Bash-3.2-floor grep; `tests/lint/dialects_test.sh` parses the zsh and fish files under pinned builds of zsh's floor and fish's floor and ceiling.                                                                                                       |
 
 #### Quality / Tests and warnings
 
 | Criterion                       | Answer | Evidence                                                                                                                                             |
 | ------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `automated_integration_testing` | M      | `ci.yml` on every `pull_request` and `push` to `main`; seven required checks before a merge.                                                         |
-| `regression_tests_added50`      | M      | ~55 suites under `tests/`; `.github/pull_request_template.md` sets a 75% coverage target for new code, and `coverage.yml`'s PR comment flags a miss. |
+| `regression_tests_added50`      | M      | ~50 suites under `tests/`; `.github/pull_request_template.md` sets a 75% coverage target for new code, and `coverage.yml`'s PR comment flags a miss. |
 | `test_statement_coverage80`     | M      | README's kcov and bashcov badges, both past the bar, measured over the shipped product.                                                              |
 | `test_policy_mandated`          | M      | [CONTRIBUTING.md](CONTRIBUTING.md) - a new suite has a home and a `test_runner.sh` registration.                                                     |
 | `tests_documented_added`        | M      | `.github/pull_request_template.md` checklist.                                                                                                        |
@@ -166,7 +163,7 @@ Already 100%. One correction worth making, and one answer worth keeping:
 | `crypto_used_network`                                                              | M      | All transport is ssh(2) or the container/orchestrator client's own channel; hi opens no socket of its own.                                                                                                                                                                                                                                                                                     |
 | `crypto_tls12` / `crypto_certificate_verification` / `crypto_verification_private` | N/A    | The software does not use TLS.                                                                                                                                                                                                                                                                                                                                                                 |
 | `signed_releases`                                                                  | M      | `SHA256SUMS` signed with minisign, public key in [PACKAGING.md#verifying-a-release-download](PACKAGING.md#verifying-a-release-download); GPG signs the rpm and the apt/rpm repo metadata; a separate key signs the apk index. Private keys live in environment secrets on the `release` environment, readable only by the release jobs, never on the Pages site that distributes the packages. |
-| `version_tags_signed`                                                              | M      | Tags verify - `git tag -v v0.3.7` returns a good signature - and `release.yml`'s `gate` job refuses to build a tag that is not signed by a key in `.github/allowed_signers`.                                                                                                                                                                                                                   |
+| `version_tags_signed`                                                              | M      | Tags are SSH-signed and verify with `git -c gpg.ssh.allowedSignersFile=.github/allowed_signers tag -v <tag>`; `release.yml`'s `gate` job refuses to build one that doesn't ([RELEASING.md#signing-the-tag](RELEASING.md#signing-the-tag)).                                                                                                                                                     |
 | `input_validation`                                                                 | M      | `_hi_safe_path` in `hi.sh`, `_hi_ssh_host_tag`/`_hi_ssh_pattern_hit` in `common/core.sh` - allowlisted, not evaluated.                                                                                                                                                                                                                                                                         |
 | `hardening`                                                                        | M      | `set -euo pipefail` in every entry point; session payload lands in a directory removed on exit.                                                                                                                                                                                                                                                                                                |
 | `assurance_case`                                                                   | M      | [SECURITY.md#assurance-case](SECURITY.md#assurance-case).                                                                                                                                                                                                                                                                                                                                      |

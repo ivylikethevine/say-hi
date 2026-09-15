@@ -1,4 +1,4 @@
-# The zsh *floor*: 5.8, Debian oldstable's and the oldest zsh say-hi claims
+# The zsh *floor*: 5.8, Debian 11's and the oldest zsh say-hi claims
 # to work on. Nothing is installed on top and no entrypoint is set - this
 # image exists to parse and then *source* the files zsh reads, and nothing
 # else.
@@ -7,8 +7,8 @@
 # noble, alpine, and macOS all ship 5.9, so every machine anyone develops on
 # agrees with CI and none of them is the floor. 5.8 is a step back from all of
 # them, which is the only thing that makes the check worth running. Bumping
-# this image is bumping the floor - do it deliberately, and change the badge
-# in README.md with it.
+# this image is bumping the floor - do it deliberately, and change
+# COMPATIBILITY.md's shell table with it.
 #
 # Upstream's own image (zshusers/zsh, built from the 5.8 source on buster)
 # rather than a distro with 5.8 in apt: a bullseye-slim plus `apt-get install

@@ -55,7 +55,7 @@ _Don't `ssh`ush your hosts, say `hi`!_
 git clone https://github.com/ivylikethevine/say-hi ~/say-hi   # the directory has to be named say-hi
 ~/say-hi/scripts/install.sh    # wires your rc files, then the settings menu (s saves, q skips)
 exec $SHELL                    # reload
-hi <anything>                   # ssh, with your prompt, aliases, and editors along
+hi <anything>                  # ssh, with your prompt, aliases, and editors along
 ```
 
 No sudo: the install links `~/.local/bin/hi` and writes only to your rc files
@@ -70,22 +70,20 @@ are in [docs/SETTINGS.md](docs/SETTINGS.md).
 ### Connect Via More Than SSH
 
 `hi <TAB>` answers with the `Host` entries in `~/.ssh/config` _and_ every
-running container, allocation, and pod, each tagged with its backend; the
-`hi --<TAB>` answers hi's own flags
-without probing any backend. An operator at a bastion, in fish for its
-pager's description column.
+running container, allocation, and pod, each tagged with its backend;
+`hi --<TAB>` answers hi's own flags without probing any backend. An operator
+at a bastion, in fish for its pager's description column.
 
 ![hi TAB listing ssh hosts and containers from every backend, then hi --TAB listing flags](https://ivylikethevine.github.io/say-hi/docs/tapes/complete.gif)
 
 ### The Header Tells You What's Missing
 
 A `packages` overlay of the tools you care about, each with a priority (and a
-`packages.d/` of named groups, each in a color of its own, when one ramp is
-not enough); the header reads it on every target — one quiet line on a box that has them, a
-loud one on a box that does not. A homelab: bash from a laptop into the nas
-and the pihole, with the distro prompt this person already had — hi's is off
-(`_HI_DISABLE_PROMPT=1`), and the header, the check, and the aliases ride
-along anyway.
+`packages.d/` of named groups, each in its own color); the header checks it
+on every target — one quiet line on a box that has them, a loud one on a box
+that does not. A homelab: bash from a laptop into the nas and the pihole,
+keeping the distro prompt — hi's is off (`_HI_DISABLE_PROMPT=1`), and the
+header, the check, and the aliases ride along anyway.
 
 ![hi's header package check on a box with the tools installed, then on a bare one](https://ivylikethevine.github.io/say-hi/docs/tapes/packages.gif)
 
@@ -94,19 +92,20 @@ along anyway.
 `~/.config/say-hi/` ships to every target: one `aliases.sh` alias works in a
 bash session on a debian container and a fish session on an alpine box,
 reached through docker and podman. The operator again, in fish, with the
-header trimmed to the clocks, the backend counts, and the check on the `mono`
-ramp. A box with no bash gets the aliases-only tier — hi's own aliases, not
-the overlay ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
+header trimmed to the clocks, the backend counts, and the check on a
+blue-to-red ramp of their own. A box with no bash gets the aliases-only tier —
+hi's own aliases, not the overlay
+([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
 
-![one aliases.sh overlay, used in a bash session on a debian container and a fish session on a fish-only alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
+![one aliases.sh overlay, used in a bash session on a debian container and a fish session on an alpine container](https://ivylikethevine.github.io/say-hi/docs/tapes/overlay.gif)
 
 ### Your Editors
 
-`nano` opens with hi's nanorc and `vim` with hi's vimrc on a box that has
-neither - neovim with hi's `init.lua`, since it is not vim: nothing is
-installed or running on the target. A developer, zsh on a
-laptop into the team's shared dev box, where the prompt is starship's, not
-hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the header, editors, and aliases).
+`nano`, `vim`, and `nvim` open with hi's nanorc, vimrc, and `init.lua` on a
+box with none of those files, and nothing is installed or left running on the
+target. A developer, zsh on a laptop into the team's shared dev box, where the
+prompt is starship's, not hi's (`_HI_PROMPT_TOOL=starship`; hi keeps the
+header, editors, and aliases).
 
 ![nano and vim with hi's rc files inside a session](https://ivylikethevine.github.io/say-hi/docs/tapes/editors.gif)
 
@@ -143,30 +142,27 @@ A researcher, in zsh, sweeping the cluster's backends.
 ![Windows](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=e2e%20%28Windows%29%20%2F%20hi%20at%20stock%20Windows%20OpenSSH%20%28PowerShell%20fallback%29&label=Windows)
 ![Windows client](https://img.shields.io/github/check-runs/ivylikethevine/say-hi/main?nameFilter=fast%20suites%20%28Windows%20client%29%20%2F%20fast%20suites%20%28Git%20Bash%29&label=Windows%20client)
 
-Two questions, answered at two moments: **can hi land a session on that OS at
-all**, and **what shell do you end up in**. Both tables, with a legend and what
-proves each row, are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md), along with
-everything weighed and answered **no**, and why.
+Which OSes hi lands a session on, which shell you end up in, what proves each
+row, and everything answered **no**, and why:
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
-- **Client**: `bash` 3.2+ and `base64` (armors the payload through the login
-  shell; coreutils, busybox, macOS/BSD, and Git Bash all ship one, and
-  `openssl base64` stands in where none does), `ssh` for
-  ssh targets, `docker`/`podman`/`nerdctl`/`finch` (any of them, all four
-  tried) and `nomad`/`kubectl` for those backends. hi has
-  no protocol of its own: `ssh` is the transport, `base64` is armor, not
-  crypto ([docs/SECURITY.md](docs/SECURITY.md)).
-- **Target**: `base64` (or `openssl`) for ssh targets; nothing extra for container/alloc/pod
-  targets. `bash` gets the full experience; without it you land in the best
-  shell the target has, with a smaller session
+- **Client**: `bash` 3.2+ and `base64` (coreutils, busybox, macOS/BSD, and Git
+  Bash all ship one; `openssl base64` stands in where none does), `ssh` for
+  ssh targets, any of `docker`/`podman`/`nerdctl`/`finch` and
+  `nomad`/`kubectl` for those backends. hi has no protocol of its own: `ssh`
+  is the transport, `base64` is armor, not crypto
+  ([docs/SECURITY.md](docs/SECURITY.md)).
+- **Target**: `base64` (or `openssl`) for ssh targets; nothing extra for
+  container/alloc/pod targets. `bash` gets the full session; without it you
+  land in the best shell the target has, with a smaller one
   ([docs/COMPATIBILITY.md](docs/COMPATIBILITY.md#the-shell-you-end-up-in)).
-- **A slow link**: the ssh wire stays at or under 128 KB, which is 8 s over a
-  128 kbps link to a resource-starved target. Today's payload (the badge
-  above) is about half that.
-- **fish 3.7+** (Ubuntu 24.04's) and **zsh 5.8+** (Debian oldstable's) are the
-  floors for the other two shells hi styles.
-- **bash 3.2** is the floor on both ends (macOS still ships it); what that
-  rules out of the code is
-  [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on).
+- **A slow link**: the ssh wire stays at or under 128 KB — 8 s over a 128 kbps
+  link. Today's (the payload badge above) is about half that.
+- **bash 3.2** is the floor on both ends (macOS still ships it; what that rules
+  out of the code is
+  [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)),
+  **fish 3.7** (Ubuntu 24.04's) and **zsh 5.8** (Debian 11's) for the other
+  two shells hi styles.
 - Everything else is plain POSIX/bash/zsh/fish — no compiled artifacts, no
   package manager, no build step.
 
@@ -200,50 +196,34 @@ everything weighed and answered **no**, and why.
   ([the tap](docs/PACKAGING.md#homebrew-tap)), then `hi --install`.
 
 - `say-hi/scripts/install.sh`, or `hi --install` once hi is on your `PATH`.
-  It validates `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish` with
-  each shell's own syntax checker first and asks before continuing if any has
-  issues (the one question before the settings menu; `--yes` answers it). Shells that are not installed
-  get no rc file; on macOS `~/.bash_profile` is taught to read `~/.bashrc`.
-  `hi` itself is linked at `~/.local/bin/hi` (`--link system` for
-  `/usr/bin/hi`, `--link none` for none - the wired shells alias it either
-  way).
-- reload your shell!
-- `hi --configure` reopens that menu later: pick a preset, or flip any
-  setting in its one list - Features, Header, Prompt, Advanced - and save. Answers
-  land in `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
-- the install copies nothing else into `~/.config/say-hi`: the shipped
-  `colors` and `packages` apply until you `cp` one there yourself - then it is
-  yours to edit, and to version however you keep your dotfiles. The editor
-  rcs need no copy at all: hi carries your own `~/.vimrc`,
-  `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`, and drops the lines
-  in them that read a file no target has
-  ([docs/SETTINGS.md](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
-- `hi --doctor [<target>]` when something is slow or failing (`--json` for
-  a bug report); it also reports which rc files are wired and where `hi` on
-  your `PATH` leads.
-- `hi --update` moves a cloned install to the newest release tag
-  (`--dry-run` names it first; a package upgrades through its package
-  manager instead).
-- the whole surface is twelve flags: `hi --help` lists them (as does `hi` on
-  its own), `man hi` is the long form, and everything hi does not answer goes
-  to `ssh`.
-- [optional] configure `~/.ssh/config` tags via sshm
-- [optional] pin colors in `~/.config/say-hi/colors`; `hi --preview colors`
-  shows what every ssh host and your user resolve to.
+  It syntax-checks `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish`
+  with each shell's own checker first and asks before continuing if any fails
+  (the one question before the settings menu; `--yes` answers it). A shell
+  that is not installed gets no rc file; on macOS `~/.bash_profile` is taught
+  to read `~/.bashrc`. `hi` is linked at `~/.local/bin/hi` (`--link system`
+  for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
+  either way). Then reload your shell.
+- `hi --configure` reopens the settings menu: pick a preset, or flip any
+  setting in its one list — Features, Header, Prompt, Advanced — and save to
+  `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
+- `hi --doctor [<target>]` when something is slow or failing (`--json` for a
+  bug report); it also reports which rc files are wired and where `hi` on your
+  `PATH` leads.
+- `hi --update` moves a cloned install to the newest release tag (`--dry-run`
+  names it first; a package upgrades through its package manager).
+- The whole surface is twelve flags: `hi --help` (or bare `hi`) lists them,
+  `man hi` is the long form, and everything hi does not answer goes to `ssh`.
 - **A dropped connection ends the session** and nothing on the target
-  outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For a
-  flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
-  `zellij`, or `screen` (whichever you have), which
-  survives the drop.
-- done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
+  outlives it ([why](docs/COMPATIBILITY.md#what-would-change-an-answer)). For
+  a flaky link, `hi --mux <target>` starts the session inside a local `tmux`,
+  `zellij`, or `screen`, which survives the drop.
+- Done with it? `hi --uninstall` (or `scripts/install.sh --uninstall`) strips
   hi's lines from your rc files, removes the `settings.sh` it wrote, and
-  unlinks `~/.local/bin/hi` (and a `/usr/bin/hi` of its own making; a
-  package's stays). Left behind, on purpose: the checkout (or the
-  package — `apt remove say-hi` and friends), the rest of `~/.config/say-hi`
-  (your colors, packages, and aliases; `hi --uninstall --purge` removes
-  that directory too), and the one-time `<rc>.hi-orig` backups.
-  `--dry-run` names what either form would remove. To take it all off a
-  cloned install:
+  unlinks `~/.local/bin/hi` (or a `/usr/bin/hi` of its own making; a
+  package's stays). Left behind on purpose: the checkout or package
+  (`apt remove say-hi` and friends), the rest of `~/.config/say-hi` (`--purge`
+  removes that too), and the one-time `<rc>.hi-orig` backups. `--dry-run`
+  names what would go. To take it all off a cloned install:
 
   ```sh
   hi --uninstall --purge && rm -rf ~/say-hi ~/.bashrc.hi-orig ~/.zshrc.hi-orig ~/.config/fish/config.fish.hi-orig
@@ -251,20 +231,21 @@ everything weighed and answered **no**, and why.
 
 ## Configuration
 
-Your config lives in
-`${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/`, and rides along to every host you
-say `hi` to: `settings.sh` is what `hi --configure` writes, and the other
-files are yours to create - copy one out of the tree's `settings/` to override
-it, or add an `aliases.sh` of your own. The overlay file table, the
-wizard, every toggle, and every environment variable are in
+Your config lives in `${XDG_CONFIG_HOME:-$HOME/.config}/say-hi/` and rides
+along to every host you say `hi` to. `settings.sh` is what `hi --configure`
+writes; the install copies nothing else there, so the shipped `colors` and
+`packages` apply until you `cp` one out of the tree's `settings/` to edit (or
+add an `aliases.sh` of your own). The editor rcs need no copy: hi carries your
+own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
+([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
+The overlay file table, the settings menu, and every setting are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
 [How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
-target has them — your prompt from starship, powerlevel10k, tide, and the
-rest, mise, direnv, bat, eza,
-and more — are [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+target has them — your prompt program, mise, direnv, bat, eza, and more — are
+[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
-**_IMPORTANT: everything in that directory is copied to every host you say
-`hi` to — keep local-only lines (a token, an internal hostname) in
+**_IMPORTANT: every overlay file in that directory is copied to every host
+you say `hi` to — keep local-only lines (a token, an internal hostname) in
 `~/.bashrc` and friends instead._** What lands on a target, and that it is
 removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target).
 
@@ -272,18 +253,22 @@ removed on exit: [docs/SECURITY.md](docs/SECURITY.md#what-hi-writes-on-a-target)
 
 Every username and hostname gets a color derived from its name; a line in
 `~/.config/say-hi/colors` (`hostname,prod-db,yellow`) pins one, and
-`hi --preview colors` shows what every host resolves to. Tags, patterns,
-truecolor schemes of your own, and using the hash in your own prompt:
+`hi --preview colors` shows what every host and your user resolve to. Tags
+(`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
+schemes of your own, and using the hash in your own prompt:
 [docs/SETTINGS.md](docs/SETTINGS.md#colors).
 
 ## Built from/with/in mind
 
 - [sshrc](https://github.com/cdown/sshrc) — _from_ — (**became** `hi.sh`)
 - [sshm](https://github.com/Gu1llaum-3/sshm) — _with_ — (optional, but _highly_
-  recommended to configure `~/.ssh/config` hosttags)
-- [bat](https://github.com/sharkdp/bat) — _in mind_ — (essentially my reason to
-  get the aliases.sh fallthrough logic to work as portably as possible. `bat` is sometimes `batcat`)
-- [eza](https://github.com/eza-community/eza) — _in mind_ — (`eza`/`exa` [exa](https://github.com/ogham/exa) are useful colorized `ls` upgrades. support for both with relevant flag separation for more compatibility on older hosts)
+  recommended for `~/.ssh/config` host tags)
+- [bat](https://github.com/sharkdp/bat) — _in mind_ — (the reason the
+  aliases.sh fallthrough logic works as portably as it does; `bat` is
+  sometimes `batcat`)
+- [eza](https://github.com/eza-community/eza) — _in mind_ — (and its
+  predecessor [exa](https://github.com/ogham/exa): colorized `ls` upgrades,
+  both supported, with each one's flags kept apart for older hosts)
 - [fish](https://github.com/fish-shell/fish-shell) — _with_ — (my preferred
   shell: its defaults/built-ins are easy to understand, but it is not POSIX)
 
@@ -294,21 +279,17 @@ How say-hi compares to similar tools, and when to use something else:
 
 ## Testing
 
-`tests/test_runner.sh` runs the suite with a
-colored pass/fail summary; CI runs `--group fast` (the unit suites, side by
-side) and `--group lint` as two parallel jobs on every push/PR. Runbook:
-[docs/TESTING.md](docs/TESTING.md).
+`tests/test_runner.sh` runs the suites with a colored pass/fail summary;
+`--group fast` and `--group lint` are [the gate](docs/CONTRIBUTING.md#the-gate)
+CI runs on every push. Runbook: [docs/TESTING.md](docs/TESTING.md).
 
 ![Tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Ftests.json)
 [![Kcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage.json)](docs/TESTING.md#coverage-and-profiling)
 [![Bashcov](https://img.shields.io/endpoint?url=https%3A%2F%2Fivylikethevine.github.io%2Fsay-hi%2Fbadges%2Fcoverage-v2.json)](docs/TESTING.md#coverage-and-profiling)
 
 Both coverage badges measure the shipped product over the full sweep and gate
-nothing. **Read the bashcov one as the figure**: kcov cannot instrument
-`common/targets.sh` at all and undercounts `common/git_prompt.sh`, so it is the
-cross-check rather than the number -
-[docs/TESTING.md](docs/TESTING.md#coverage-and-profiling) has why there are
-two.
+nothing; read their average as the figure
+([why two](docs/TESTING.md#coverage-and-profiling)).
 
 ## Getting help and contributing
 
@@ -335,56 +316,49 @@ myself.
 
 ## Roadmap
 
-What's left. Every entry is open for consideration; nothing here is parked
-or descoped, and finished entries are deleted rather than ticked.
+What's left; nothing here is parked or descoped. An entry is deleted once
+its **Ticks when** holds.
 
 ### What v1.0.0 Means
 
 - [ ] **A stability contract is written down** — shipped as
-      [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break):
-      the twelve `common/flags`, every `docs/SETTINGS.md` row,
-      `$_HI_OVERLAY_FILES`, the install layout, `_HI_RELEASE`, the semver rule,
-      and how a toggle retires. **Ticks when** the tag commit turns
-      `docs/SECURITY.md`'s _Supported versions_ prose into the version table
-      it promises.
+      [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
+      **Ticks when** the tag commit turns `docs/SECURITY.md`'s _Supported
+      versions_ prose into the version table it promises.
 
 ### Features
 
 In this checkout, and not what the tag waits on either.
 
 1. [ ] **A release says where the package went, and shows what changed** —
-       shipped: `publish` leaves `tap` and `demo` slots in the release body and
-       dispatches `demos.yml` at the tag; the `tap` job links its PR (or the
-       tap's formula, when already current) into one, and `demos.yml`'s
-       `attach` job uploads the `packages` GIF as `demo.gif` and embeds it in
-       the other (`.github/scripts/release_slot.sh`); the packaging suite pins
-       both. **Ticks when:** the next real tag's release page shows the tap
-       link and renders the GIF.
+       shipped: `release.yml`'s `publish` leaves `tap` and `demo` slots in the
+       release body, which its `tap` job and `demos.yml`'s `attach` job fill
+       (`.github/scripts/release_slot.sh`) with the tap PR link and the
+       `packages` GIF. **Ticks when:** the next real tag's release page shows
+       the tap link and renders the GIF.
 
 ### Post 1.0
 
 Outside this checkout, and not what the tag waits on: each is an account or
 an upstream review that lands when it lands.
 
-1. [ ] **tldr page** — CLI surface is frozen, matches the hi.1, and the
+1. [ ] **tldr page** — CLI surface is frozen, matches `docs/hi.1`, and the
        draft (`docs/tldr.md`) matches upstream style. **Do:** open the PR
        against tldr-pages. **Ticks when:** merged upstream.
 
 2. [ ] **AUR** — Registration is closed to new accounts (spam), so
        `publish-external.yml`'s `aur` job stays written and unexercised.
-       **When it reopens:** register, then add an ed25519 private key as the
-       `AUR_SSH_KEY` environment secret on the `release` environment (the
-       `aur` job runs there); the first push per package is manual, and a
-       `publish-external.yml` dispatch handles the versioned package after.
-       **Ticks when:** both packages are live and a dispatch has kept
-       `say-hi` current for one real release. <https://archlinux.org/news/>
+       **When it reopens:** register, add `AUR_SSH_KEY` to the `release`
+       environment, and push each package the first time by hand
+       ([docs/RELEASING.md](docs/RELEASING.md#aur)). **Ticks when:** both
+       packages are live and a dispatch has kept `say-hi` current for one
+       real release. <https://archlinux.org/news/>
 
 3. [ ] **Best Practices badge entry** — the answer sheet is
        [docs/OPENSSF-IMPROVEMENTS.md](docs/OPENSSF-IMPROVEMENTS.md). **Do:**
-       enter it at bestpractices.dev; label two or three open issues
-       `good first issue` (`small_tasks`); confirm `secure_2FA` is
-       TOTP/WebAuthn and check `hardened_site` on securityheaders.com first.
-       **Ticks when:** the live entry matches the sheet.
+       settle the three rows it flags (`small_tasks`, `secure_2FA`,
+       `hardened_site`), then enter it at bestpractices.dev. **Ticks when:**
+       the live entry matches the sheet.
 
 4. [ ] **vhs v0.12** — `demos.yml` pins vhs v0.11.0 because v0.12.0 writes no
        output: it captures every frame and prints `Creating <file>.gif...`,

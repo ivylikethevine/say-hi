@@ -4,7 +4,8 @@ name: Windows e2e
 # else tests: a stock Windows OpenSSH target (DefaultShell = cmd, no bash on
 # the sshd PATH) must land in the PowerShell fallback - not hang, not error
 # out, and not be mistaken for a Linux host missing base64 (cmd honours `||`,
-# which is why hi's probe keeps it off the lines whose exit codes it reads).
+# which is why hi's probe keeps it off the lines whose exit codes it reads),
+# and the same sshd with Git Bash as its shell must get a full session.
 # The client is the runner's own Git Bash;
 # windows-client.yml is the client-side half. The rest is WSL: `wsl-suites`
 # runs the fast suites inside an Ubuntu distribution (sharded, from a copy on
@@ -92,6 +93,76 @@ jobs:
             echo "the session exited $rc (124 = the 120s timeout killed it)" >&2
             exit "$rc"
           }
+
+  # The same sshd with Git Bash as its DefaultShell: the shape COMPATIBILITY.md
+  # calls a Windows target "with Git Bash on PATH". bin\bash.exe, not
+  # usr\bin\bash.exe - the wrapper is what puts /usr/bin on a session's PATH.
+  git-bash-target:
+    name: hi at Windows OpenSSH with Git Bash as the shell
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start the OpenSSH server, Git Bash as its shell
+        shell: powershell
+        run: |
+          $cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*'
+          if ($cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name }
+          New-Item -Path 'HKLM:\SOFTWARE\OpenSSH' -Force | Out-Null
+          New-ItemProperty -Path 'HKLM:\SOFTWARE\OpenSSH' -Name DefaultShell -Value "$env:ProgramFiles\Git\bin\bash.exe" -PropertyType String -Force | Out-Null
+          Set-Service -Name sshd -StartupType Automatic
+          Start-Service sshd
+
+      - name: Generate a throwaway key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          ssh-keygen -t ed25519 -N '' -q -f "$HOME/.ssh/loop"
+
+      # as stock-openssh: the administrators file, with this exact ACL
+      - name: Authorize it
+        shell: powershell
+        run: |
+          $key = Get-Content "$env:USERPROFILE\.ssh\loop.pub"
+          $file = "$env:ProgramData\ssh\administrators_authorized_keys"
+          Set-Content -Path $file -Value $key
+          icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
+
+      # a full hi session this time, not the fallback: the command's output
+      # back, run out of the tree hi shipped, and the status never discarded
+      - name: Say hi (expect a hi session in Git Bash)
+        shell: bash
+        run: |
+          set -euo pipefail
+          _HI_HOME="$(cd .. && pwd)"
+          export _HI_HOME
+          rc=0
+          out="$(timeout 120 ./hi.sh -i "$HOME/.ssh/loop" \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o LogLevel=ERROR "${USERNAME:-$(whoami)}@127.0.0.1" 'echo HI_GITBASH_OK; hi_info' 2>&1)" || rc=$?
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -q HI_GITBASH_OK
+          if printf '%s\n' "$out" | grep -q "hi from PowerShell"; then
+            echo "Git Bash was the shell, yet hi fell back to PowerShell" >&2
+            exit 1
+          fi
+          printf '%s\n' "$out" | grep -Eq 'hi_root: .*\.hi\.[A-Za-z0-9.]+/say-hi'
+          [ "$rc" -eq 0 ] || {
+            echo "the session exited $rc (124 = the 120s timeout killed it)" >&2
+            exit "$rc"
+          }
+
+      - name: Nothing left behind in the target
+        shell: bash
+        run: bash .github/scripts/no_hi_session_left.sh
 
   # The fast suites inside WSL, sharded the way windows-client.yml shards
   # them under Git Bash, and run from a copy of the checkout on the

@@ -35,7 +35,7 @@
 # they ran; `env -i` children and in-container lines drop out of the trace),
 # which is why both tools ship rather than one replacing the other.
 #
-# Three more readings here are artifacts, not gaps, and are worth ruling out
+# Four more readings here are artifacts, not gaps, and are worth ruling out
 # before writing a test against a number:
 #   - a script a suite *executes from a scratch-tree copy* under $_HI_WORKDIR
 #     is filed under the copy's path, which the filters drop, so the repo file

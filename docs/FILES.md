@@ -1,10 +1,9 @@
 # Files
 
-Every file say-hi is made of, every file of yours it reads, every path it
-recognizes, and every file it creates — on your machine, on a target, and in
-a package. Where a variable moves a path, the table names it. The whole list of
-settings is [SETTINGS.md](SETTINGS.md); what a session may and may not touch on
-a target is argued in [SECURITY.md](SECURITY.md).
+Every file say-hi is made of, reads, recognizes, and creates — on your
+machine, on a target, and in a package — with the variable that moves a path
+where one does. Settings are [SETTINGS.md](SETTINGS.md); what a session may
+touch on a target is argued in [SECURITY.md](SECURITY.md).
 
 Throughout, `$_HI_HOME` is the directory holding the tree, `$_HI_ROOT` is
 `$_HI_HOME/say-hi`, and `$_HI_CONFIG_DIR` is
@@ -50,21 +49,19 @@ Each file is marked with where it goes:
 
 ### Top level
 
-| File                                                                        | Goes    | What it is                                                                                 |
-| --------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
-| `hi.sh`                                                                     | payload | The client: parses flags, resolves the target, ships the tree, chainloads `load.sh` there. |
-| `load.sh`                                                                   | payload | The target half: header, session rc, shell handoff, cleanup.                               |
-| `README.md`, `LICENSE.md`                                                   | package | The walkthrough and roadmap; the MIT license.                                              |
-| `CLAUDE.md`                                                                 | dev     | Conventions for agent sessions in this repo.                                               |
-| `_config.yml`                                                               | dev     | The GitHub Pages site's Jekyll config.                                                     |
-| `.editorconfig`                                                             | dev     | Indentation for every editor; shfmt reads its style from here.                             |
-| `.gitattributes`                                                            | dev     | LF everywhere, so Git Bash never gets a CRLF `hi.sh`.                                      |
-| `.shellcheckrc`                                                             | dev     | Resolves a `source` against the sourcing file's directory.                                 |
-| `.hadolint.yaml`                                                            | dev     | hadolint rules for `tests/dockerfiles/`.                                                   |
-| `.markdownlint.yaml`, `.prettierrc.yaml`, `.prettierignore`, `.moxide.toml` | dev     | Markdown lint and formatting, kept in agreement.                                           |
-| `.typos.toml`                                                               | dev     | The spelling check's allowlist.                                                            |
-| `.scorecard.yml`                                                            | dev     | OpenSSF Scorecard annotations.                                                             |
-| `.vscode/settings.json`, `.zed/settings.json`                               | dev     | Editor settings.                                                                           |
+| File                                                                        | Goes    | What it is                                                                                        |
+| --------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `hi.sh`                                                                     | payload | The client: parses flags, resolves the target, ships the tree, chainloads `load.sh` there.        |
+| `load.sh`                                                                   | payload | The target half: header, session rc, shell handoff, cleanup.                                      |
+| `README.md`, `LICENSE.md`                                                   | package | The walkthrough and roadmap; the MIT license.                                                     |
+| `CLAUDE.md`, `.claude/settings.json`                                        | dev     | Conventions and shared tool permissions for agent sessions in this repo.                          |
+| `_config.yml`                                                               | dev     | The GitHub Pages site's Jekyll config.                                                            |
+| `.editorconfig`, `.vscode/settings.json`, `.zed/settings.json`              | dev     | Editor settings; shfmt reads its style from `.editorconfig`.                                      |
+| `.gitattributes`, `.gitignore`                                              | dev     | LF everywhere, so Git Bash never gets a CRLF `hi.sh`; what stays untracked, `dist/` too.          |
+| `.shellcheckrc`, `.hadolint.yaml`                                           | dev     | shellcheck resolves `source` beside the sourcing file; hadolint's rules for `tests/dockerfiles/`. |
+| `.markdownlint.yaml`, `.prettierrc.yaml`, `.prettierignore`, `.moxide.toml` | dev     | Markdown lint and formatting, kept in agreement.                                                  |
+| `.typos.toml`, `lychee.toml`                                                | dev     | The spelling check's allowlist; both link checks' settings.                                       |
+| `.scorecard.yml`                                                            | dev     | OpenSSF Scorecard annotations.                                                                    |
 
 ### common/ and settings/
 
@@ -78,8 +75,7 @@ defaults an overlay copy replaces.
 | `common/bash.sh`                                     | hi's bash rc: prompt, completion, plugins, the local greeting.                                         |
 | `common/zsh.zsh`                                     | The same for zsh.                                                                                      |
 | `common/config.fish`                                 | The same for fish, with its own copies of what fish cannot call in bash.                               |
-| `common/env_prompt.sh`                               | The `(myproj)` environment segment for bash and zsh.                                                   |
-| `common/git_prompt.sh`                               | The git segment for bash and zsh.                                                                      |
+| `common/env_prompt.sh`, `git_prompt.sh`              | The `(myproj)` environment segment and the git segment, for bash and zsh.                              |
 | `common/header.sh`                                   | The connect and disconnect banner, and the package check.                                              |
 | `common/targets.sh`                                  | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                      |
 | `common/flags`                                       | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                          |
@@ -92,16 +88,15 @@ defaults an overlay copy replaces.
 
 All **package**, never in the payload.
 
-| File                   | What it is                                                                             |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `scripts/install.sh`   | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`. |
-| `scripts/rc.sh`        | The lines hi adds to rc files: writing, removing, and syntax-checking them.            |
-| `scripts/configure.sh` | `hi --configure`, the one writer of `settings.sh`.                                     |
-| `scripts/doctor.sh`    | `hi --doctor`.                                                                         |
-| `scripts/preview.sh`   | `hi --preview`.                                                                        |
-| `scripts/update.sh`    | `hi --update`: moves the checkout to a release tag.                                    |
-| `scripts/lib.sh`       | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.           |
-| `scripts/table.sh`     | The boxed table the previews draw.                                                     |
+| File                              | What it is                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------------- |
+| `scripts/install.sh`              | `hi --install`: wires the local shells, links `hi`; also `--prefix` and `--uninstall`. |
+| `scripts/rc.sh`                   | The lines hi adds to rc files: writing, removing, and syntax-checking them.            |
+| `scripts/configure.sh`            | `hi --configure`, the one writer of `settings.sh`.                                     |
+| `scripts/doctor.sh`, `preview.sh` | `hi --doctor` and `hi --preview`.                                                      |
+| `scripts/update.sh`               | `hi --update`: moves the checkout to a release tag.                                    |
+| `scripts/lib.sh`                  | Helpers shared by the tooling, kept out of `core.sh` for the payload budget.           |
+| `scripts/table.sh`                | The boxed table the previews draw.                                                     |
 
 ### packaging/
 
@@ -115,17 +110,16 @@ All **dev**: the inputs a release builds from.
 | `packaging/srctar.sh`                            | The release source tarball.                                                       |
 | `packaging/bump.sh`                              | Sets the version and checksums in the AUR and Homebrew manifests at release time. |
 | `packaging/stamp.sh`                             | Stamps `_HI_RELEASE` for `hi --version`, the same way in every channel.           |
-| `packaging/lib.sh`                               | Shared plumbing for the four scripts above.                                       |
+| `packaging/lib.sh`                               | Shared plumbing for the scripts above but `stamp.sh`, which is standalone.        |
 | `packaging/homebrew/say-hi.rb`                   | The tap formula template.                                                         |
 | `packaging/aur/say-hi/`, `aur/say-hi-git/`       | The versioned and the VCS AUR packages (`PKGBUILD`, `.SRCINFO`).                  |
 | `packaging/gpg/say-hi.asc`, `apk/say-hi.rsa.pub` | The public keys the repositories and release signatures are checked against.      |
 
 ### docs/
 
-**dev**, except `docs/hi.1`, which a package installs as
-`/usr/share/man/man1/hi.1.gz`. The prose docs are indexed in
-[README.md](README.md). `docs/tapes/` holds the VHS demo tapes, the fixtures
-they connect to, `generate.sh` to render them, and the rendered `demo.gif`.
+**dev**, except `docs/hi.1`, the man page a package installs. The docs are
+indexed in [README.md](README.md); `docs/tapes/` holds the VHS demo tapes,
+their fixtures, `generate.sh` to render them, and `demo.gif`.
 
 ### tests/
 
@@ -144,10 +138,11 @@ All **dev**; [TESTING.md](TESTING.md) is the full layout.
 
 ### .github/
 
-All **dev**. `workflows/` holds CI (`ci.yml`), coverage, release and
-publishing, the docs site, the BSD and Windows e2e runs, the pull request
-release-note lint, and the scanners; `actions/` the composite actions those
-share (shells, backends, the pinned tool roster); `scripts/` the helpers they
+All **dev**. `workflows/` holds CI (`ci.yml` and the BSD and Windows runs it
+calls), coverage, release and publishing, the docs site and demos, the link,
+tool-pin, and release-note checks, and the scanners, each header saying when
+it runs; `actions/` the composite actions they share (shells, backends,
+`setup-tool/tools.txt`'s pinned tool roster); `scripts/` the helpers they
 call; plus the issue and pull request templates, `CODEOWNERS`,
 `dependabot.yml`, `allowed_signers` (the keys a release tag may be signed
 with), and `package.json`/`package-lock.json` (the pinned Markdown linters).
@@ -210,7 +205,7 @@ member rides only when that program is in the list a target is handed
 ## Paths hi recognizes
 
 Read, probed, or checked, on whichever machine the shell runs; nothing here is
-written.
+written but zsh's `.zcompdump`, by the daily `compinit`.
 
 | Path                                                                                                      | Variable                                 | Why                                                                        |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |
@@ -252,15 +247,16 @@ reads none of their config files.
 
 In the runtime directory: `$XDG_RUNTIME_DIR` when it exists, else
 `${TMPDIR:-/tmp}/hi-<uid>`, created mode 700 and refused if it is a symlink or
-owned by someone else. Each file is written under a temporary name and moved
+owned by someone else. A cache is written under a temporary name and moved
 into place.
 
-| File                | What                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `hi.targets.<kind>` | completion's target list, for `$_HI_TARGETS_TTL` seconds                              |
-| `hi.payload.<key>`  | the gzipped payload, rebuilt when a tree file changes; off with `_HI_PAYLOAD_CACHE=0` |
-| `hi.overlay.<key>`  | the overlay stream, keyed on its member list                                          |
-| `hi.ctl.<key>`      | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off) |
+| File                  | What                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `hi.targets.<kind>`   | completion's target list, for `$_HI_TARGETS_TTL` seconds                              |
+| `hi.payload.tree`     | the gzipped payload, rebuilt when a tree file changes; off with `_HI_PAYLOAD_CACHE=0` |
+| `hi.overlay.<key>`    | the overlay stream, keyed on its member list                                          |
+| `hi.ctl.<key>`        | the shared ssh ControlMaster socket, kept `$_HI_CTL_PERSIST` seconds (0 turns it off) |
+| `hi.mux.<target>.kdl` | the zellij layout `--mux` starts a session from, rewritten each time                  |
 
 fish also keeps `__hi_color_user`, `__hi_color_host`, and `__hi_colors_key` as
 universal variables in its own store, so a color is only resolved once per
@@ -268,14 +264,14 @@ change.
 
 ### Temporary files
 
-All `mktemp -t`, so under `$TMPDIR`, and removed when the command ends.
+All under `$TMPDIR` (`mktemp -t`), and removed when the command ends.
 
 | Pattern                                                       | Made by                                                      |
 | ------------------------------------------------------------- | ------------------------------------------------------------ |
 | `hi.log.XXXXXX`                                               | every `hi` run                                               |
 | `hi.stage.XXXXXX/`                                            | building the payload and overlay (the lint and strip passes) |
-| `hi.boot.XXXXXX`                                              | the ssh boot probe script                                    |
 | `hi.cm.XXXXXX/s`                                              | a per-run ControlMaster socket, where the shared one is off  |
+| `hi-probe.<pid>/`                                             | completion's parallel backend sweep (`mkdir -m 700`)         |
 | `hi.probes.XXXXXX/`                                           | the header's parallel backend probes                         |
 | `hi.doc.err.XXXXXX`                                           | `hi --doctor`                                                |
 | `hi.append.XXXXXX`, `hi.rewrite.XXXXXX`, `hi.settings.XXXXXX` | rewriting an rc file or `settings.sh` in place               |
@@ -306,12 +302,12 @@ That directory is `$_HI_HOME` and `$_HI_CLEANUP`. Inside it:
 | `say-hi/.hi_fallback_rc`, `say-hi/.zshrc` | on a target without bash: the aliases-and-prompt rc `$ENV` or `ZDOTDIR` points at (the container arm keeps these, and a lone `aliases.sh`, at the top of the directory) |
 | `hi.rc.XXXXXX/`                           | the session rc directory, below                                                                                                                                         |
 
-The ssh arm also runs its boot probe out of `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
-removed once the bootloader has run. A read-only root works when `$TMPDIR`
+The ssh arm also lands its bootloader in `${TMPDIR:-/tmp}/hi.boot.XXXXXX/`,
+removed when the session ends. A read-only root works when `$TMPDIR`
 names a writable mount; with nowhere writable, hi says so and names `--plain`,
-which writes nothing. On exit, `load.sh`'s trap removes the rc directory and
-the tree, the remote script's own trap backs that up, and the container arm's
-client removes the directory again after the attach returns.
+which writes nothing. How the tree goes on exit is
+[SECURITY.md's](SECURITY.md#footprint-and-cleanup-on-the-target); the
+container arm's client also removes it after the attach returns.
 
 ### The session rc directory
 
