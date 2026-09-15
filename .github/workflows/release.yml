@@ -281,6 +281,17 @@ jobs:
       - name: Run fast test suites
         run: "${{ github.workspace }}/tests/test_runner.sh --group fast"
 
+      # markdownlint-cli2 and prettier, as ci.yml's lint job installs them -
+      # without these, --require-run below fails on their skips. No npm cache:
+      # a tag build should not restore state a branch run could have written
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install the pinned Markdown tools
+        run: npm ci --prefix .github --ignore-scripts --no-audit --no-fund
+
       - name: Run the lint group
         run: "${{ github.workspace }}/tests/test_runner.sh --group lint --require-run"
 
