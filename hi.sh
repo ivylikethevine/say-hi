@@ -383,6 +383,7 @@ function shfix(s,   o, p, r, n, w) {
   return substr(o s, 2)
 }
 function kindof(s,   v) {
+  if ((tmux || omp || sh || fish) && s ~ /^[ \t]*#/) return ""
   if (vim) {
     if (s ~ /^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]/ || s ~ /(plug|vundle|dein|minpac)#/) return "plugin"
     if (s ~ /^[ \t]*(source|so)!?[ \t]/ && s !~ /\$VIMRUNTIME/) return "include"
@@ -395,11 +396,9 @@ function kindof(s,   v) {
   } else if (nano) {
     if (s ~ /^[ \t]*include[ \t]/ && s !~ /\/usr\/share\/nano/) return "include"
   } else if (tmux) {
-    if (s ~ /^[ \t]*#/) return ""
     if (s ~ /@plugin/ || s ~ /(^|[ \t;{"'])run(-shell)?[ \t].*tpm/) return "plugin"
     if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
   } else if (omp) {
-    if (s ~ /^[ \t]*#/) return ""
     v = s
     if (!sub(/^(.*[ \t{,"'])?extends["']?[ \t]*[:=][ \t]*["']?/, "", v)) return ""
     sub(/["' \t,}].*$/, "", v)
@@ -413,7 +412,6 @@ function kindof(s,   v) {
     if (s ~ /\(load(-file)?[ \t]+["]/) return "include"
     if (s ~ /add-to-list[ \t]+'load-path/) return "include"
   } else if (sh || fish) {
-    if (s ~ /^[ \t]*#/) return ""
     if (s ~ /^[ \t]*(zinit|zplug|antigen|zgen|zgenom|zcomet|fisher)[ \t]/) { fixed = (fish ? "true " : ": ") s; return "plugin" }
     fixed = shfix(s)
     if (fixed != s) return "include"
@@ -570,8 +568,8 @@ function _hi_stage_tar() {
       mv -f "$stage/tide.keep" "$_hi_st_root/tide.vars" || exit 1
     fi
     # ahead of the stripper, over the staged copies rather than the user's
-    # own files: an include hi cannot carry goes out commented in its own
-    # dialect, and the strip below then drops the comment. _HI_INCLUDES=keep
+    # own files: an include hi cannot carry goes out commented, or
+    # made inert in a shell or JSON file, and the strip below drops a comment. _HI_INCLUDES=keep
     # sends the line as written - for a target that really does have the file.
     if [ "${_HI_INCLUDES:-drop}" != keep ] && ((${#_hi_st_lint[@]})); then
       _hi_st_prog="$(_hi_lint_awk)"
@@ -2130,7 +2128,7 @@ function _hi() {
   # builders ask six times between them. GLOSSARY: HI.05
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
-  [ -z "${DOMAIN:-}" ] || _hi_target_color >/dev/null
+  [ -z "${DOMAIN:-}" ] || { _hi_target_color >/dev/null && _hi_prompt_list >/dev/null; }
   # only with a terminal to attach: a piped `hi host cmd` keeps working
   if [ -t 0 ]; then _hi_mux_wrap; fi
   # No `2>"$tmp"` around this block: catching a failure to reprint in red

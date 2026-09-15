@@ -1075,7 +1075,7 @@ function _hi_check_file() {
   local -a visible=()
   [ -f "$1" ] || return 0
   _hi_group_color color "$1"
-  [ -z "$color" ] || _hi_group_ramp ramp "$color" || true
+  _hi_group_ramp ramp "$color" || true
   _hi_packages_palette "$ramp"
   while IFS=$' ' read -r line; do
     [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue

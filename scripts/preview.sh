@@ -656,7 +656,7 @@ function _hi_collect_examples() {
 
   while IFS=$' ' read -r line; do
     # the header's own filter, character for character
-    [[ "$line" == *#* || -z "$line" ]] && continue
+    [[ "$line" == *#* || -z "$line" || "$line" == color=* ]] && continue
     _HI_PKG_LISTED=$((_HI_PKG_LISTED + 1))
     check_line visible "$line"
   done <"$_HI_PACKAGES"

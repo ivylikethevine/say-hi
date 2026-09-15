@@ -1108,7 +1108,7 @@ function run_doctor_tests() {
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
-  _hi_check "An overlay copy of one is flagged as ignored" test_config_counts_a_tool_config_copy_as_an_override
+  _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
   _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
