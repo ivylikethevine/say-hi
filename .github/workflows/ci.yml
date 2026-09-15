@@ -443,8 +443,8 @@ jobs:
             exit "$rc"
           }
 
-      # read-only over the Host entry above, in JSON; the exit code is the
-      # count of `bad` rows, so a finding fails the step with the row logged
+      # read-only over the Host entry above, in JSON; any `bad` row exits 1,
+      # so a finding fails the step with the row logged
       - name: hi --doctor against the loopback
         if: env.HI_LOOPBACK == 'true'
         run: |
@@ -454,7 +454,7 @@ jobs:
           rc=0
           /bin/bash ./hi.sh --doctor --json loop >"$RUNNER_TEMP/doctor.json" || rc=$?
           python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(json.dumps(d, indent=1))' "$RUNNER_TEMP/doctor.json"
-          [ "$rc" -eq 0 ] || { echo "hi --doctor reported $rc bad row(s)" >&2; exit "$rc"; }
+          [ "$rc" -eq 0 ] || { echo "hi --doctor found a bad row (exit $rc)" >&2; exit "$rc"; }
 
       - name: The cleanup trap left nothing behind
         if: env.HI_LOOPBACK == 'true'

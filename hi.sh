@@ -516,7 +516,7 @@ function _hi_require_packer() {
 
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
-# has no member by that name. GLOSSARY: HI.09
+# has no member by that name. GLOSSARY: HI.35
 _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el tmux.conf
   '*/packages.d/*' '*/plugins.d/*')
 
@@ -578,7 +578,7 @@ function _hi_stage_tar() {
       done
     fi
     _hi_strip_awk >"$stage/strip.awk"
-    # one awk over every file (GLOSSARY: HI.09); strip.awk sits at $stage and
+    # one awk over every file (GLOSSARY: HI.35); strip.awk sits at $stage and
     # matches no name above, so the stripper never eats its own script
     find "$_hi_st_root" -type f \( "${_hi_st_names[@]}" \) -exec awk -f "$stage/strip.awk" {} + || exit 1
     # `mv`, not scripts/lib.sh's _hi_write_back: that one writes through the
@@ -800,7 +800,7 @@ function _hi_is_ssh_host() {
 # _hi_probe_is <want> <cli> <args...> - the shape every liveness predicate
 # below shares, so the roster cannot grow a member that forgets the
 # `command -v` guard or the muted stderr. core.sh's _hi_probe bounds the
-# daemon round trip: _hi_resolve_backend waits on all four, so one downed
+# daemon round trip: _hi_resolve_backend waits on every row, so one downed
 # daemon would otherwise stall every connect with no cap.
 function _hi_probe_is() {
   local want="$1"

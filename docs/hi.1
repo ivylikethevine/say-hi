@@ -46,53 +46,46 @@ hi \- your shell config, on every host you say hi to
 .B hi
 copies your
 .B say-hi
-configuration tree (prompt, colors, aliases, vim/nano configs, connect
-header) to a target, starts a session there, and removes every trace when
-the session ends. It is sshrc, supercharged.
+configuration (prompt, colors, aliases, editor configs, connect header) to a
+target, starts a session there, and removes every trace when the session ends,
+abrupt disconnect included. A say-hi installed on the target is neither read
+nor touched.
 .PP
-With no
+With a trailing
 .IR command ,
-.B hi
-opens an interactive session on the target (see
-.B SESSION SHELL
-for which shell). With a trailing
-.IR command ,
-it runs that command on the target and exits \- inside hi's session, not the
-way
-.BR ssh (1)
-runs one: the command has hi's aliases, PATH, and environment, and runs on a
-pty when your own stdin is one. Only the command's own output goes to stdout;
-hi's progress and errors go to stderr. For a plain, unstyled, pty\-free
-remote command \- a tarball you are piping into a file, say \- use
-.BR ssh (1)
-itself.
+hi runs it inside its session and exits: the command gets hi's aliases, PATH,
+and environment, and a pty when your stdin is one. Only the command's output
+goes to stdout; hi's progress and errors go to stderr. For a plain, pty\-free
+remote command (a tarball piped into a file, say), use
+.BR ssh (1).
 .PP
-The payload is base64\-armored through the target's login shell for ssh
-targets, unpacked into a private
+An ssh target with neither
+.BR base64 (1)
+nor
+.BR openssl (1),
+or nowhere to make a
 .BR mktemp (1)
-directory, and removed by cleanup traps on exit \- including on an abrupt
-disconnect. A say-hi installed on the target itself is neither read nor
-touched by a session: it is there for that machine's own shells.
+directory, gets its own login session instead, with a notice saying why.
 .SH SESSION SHELL
-The session runs in your login shell when hi styles it (bash, zsh, or fish),
-otherwise in the best of fish > zsh > bash. Both halves come off one
-ordering \- fish > zsh > bash > dash > ash > sh \- so a target with no bash
-at all falls back to the best of the rest of it: fish > zsh > dash > ash > sh,
-with hi's aliases and colored prompt but no header.
+Your login shell when hi styles it (bash, zsh, or fish), else the first of
+fish > zsh > bash on the target. A target with no bash gets the first of
+fish > zsh > dash > ash > sh, with hi's aliases (and in dash, ash, or sh a
+colored prompt) but no header.
 .SH TARGET RESOLUTION
 .I target
-is tried against each backend, in order; the first match wins:
+is tried against each backend in order; the first match wins:
 .TP
 .B 1. ssh host
 a literal
 .B Host
 entry in
 .B ~/.ssh/config
-(wildcard entries are not matched).
+(wildcards do not count).
 .TP
-.B 2. container, through docker, podman, nerdctl, or finch
-a running container, by name or ID, on whichever of the four
-answers, in that order.
+.B 2. container
+a running container, by name or ID, on the first of docker, podman, nerdctl,
+and finch that has it; docker and podman also take a compose service name
+with one running container.
 .TP
 .B 3. nomad allocation
 a running allocation, by ID or ID prefix.
@@ -102,423 +95,318 @@ a running pod in the current
 .BR kubectl (1)
 context and namespace, or
 .I namespace:pod
-and
+or
 .I context:namespace:pod
-for one elsewhere \- the prefixes become
-.B kubectl \-\-context
-and
-.BR "\-\-namespace" .
-Completion spells a pod outside the current namespace the same way.
+for one elsewhere.
 .PP
-The last two can hold more than one thing to land in, and a
-.B /
-suffix says which:
 .I alloc/task
-becomes
-.B nomad alloc exec \-task
 and
 .I pod/container
-becomes
-.BR "kubectl exec \-c" .
-Without it the two differ:
+pick one task or container
+.RB ( "nomad alloc exec \-task" ,
+.BR "kubectl exec \-c" ).
+Without it
 .BR nomad (1)
-refuses a multi-task exec outright, while
+refuses a multi\-task allocation and
 .BR kubectl (1)
-falls back to the pod's first container and warns. Completion offers the
-pairs for any allocation or pod that has more than one.
+takes the pod's first container with a warning. Completion offers the pairs
+and the prefixed pod names.
 .PP
-A name matching none of these is handed to
-.BR ssh (1)
-anyway, so unlisted hosts still work.
-.PP
+A name matching none of these still goes to
+.BR ssh (1),
+so unlisted hosts work.
 .BR \-\-use " " \fIbackend\fR
-before
-.I target
-names the arm outright and skips every probe above it \- the fix for a
-container that shadows an unrelated ssh host of the same name, or the other
-way around.
+skips every probe: the fix for a container that shadows an ssh host of the
+same name, or the other way around.
 .SH OPTIONS
 .TP
 .B \-h\fR, \fB\-\-help
-print a usage summary \- the synopsis, the target resolution order, and hi's
-own options \- and exit. Everything here in short form; this page is the long
-one. Caught anywhere ahead of the target, so it never reaches
-.BR ssh (1).
-Takes nothing after it; a stray word is refused.
+print the usage summary (synopsis, target resolution, hi's options) and exit.
+Answered anywhere ahead of the target, never passed to
+.BR ssh (1);
+a word after it is refused.
 .TP
 .B \-V\fR, \fB\-\-version
-print the version and exit: the version stamped in at packaging time, or
+print the version (the packaging stamp, or
 .B git describe
-output in a checkout, followed by which kind of tree answered (a checkout,
-a package, or a bare tree) and where it is. Takes nothing after it. The one short
-.BR ssh (1)
-option hi claims for itself \- hi's version is the first thing a bug report
-asks for, and
-.B ssh \-V
-is a keystroke away for the other one.
+in a checkout), then the kind of tree (checkout, package, or tree) and its
+path, and exit. The one ssh short option hi claims, since a bug report asks
+for it first; a word after it is refused.
 .TP
 .B \-\-use \fIbackend\fR
-force that arm for
-.I target
-and skip every probe in
-.B TARGET RESOLUTION
-above:
+force that arm and skip every probe:
 .B ssh
-(ssh's own error speaks if the host is not there), or a backend by name \-
+(ssh's own error speaks if the host is not there), or one of
 .BR docker ,
 .BR podman ,
 .BR nerdctl ,
 .BR finch ,
 .BR nomad ,
-or
-.BR kube .
-The name has to be one of those; a stranger is an error, not a guess.
-.B \-\-use=\fIbackend\fR
-is the same flag with its word joined. The joined word is always the option's
-\fIfirst\fR argument, so every option that opens on a word takes it:
-.B \-\-preview=colors
 and
-.B \-\-update=v1.0.0
-too. One that opens on a switch, or takes nothing, refuses a joined word
-.RB ( \-\-doctor=json ,
-.BR \-\-plain=1 ,
-.BR \-\-install=yes ).
+.BR kube .
+Any other name, or two different ones, is an error.
 .TP
 .B \-\-plain
-skip the payload entirely and hand over a bare shell on whichever arm
+a bare shell on whatever
 .I target
-resolves to \- no copy, no aliases, no header. Needs nothing from the target
-beyond a shell (and, for an ssh target,
-.BR sshd (8))
-\- not even
-.BR tar (1)
-or
+resolves to: no copy, no aliases, no header. The target needs only a shell
+(and
+.BR sshd (8)
+for ssh) \- no
+.BR tar (1),
+no
 .BR base64 (1),
-and no writable
+no writable
 .B /tmp
 or
-.B $HOME
-either.
+.BR $HOME .
 .TP
 .B \-\-mux
-run the session inside a local multiplexer session \-
+run the session in a local
 .BR tmux (1),
 .BR zellij (1),
 or
-.BR screen (1),
-whichever is first on your PATH \- named for the target
-.RB ( hi\-<target> ,
-with the characters tmux rejects turned into dashes), so a dropped link leaves
-the session running here: the next
+.BR screen (1)
+session, the first on your PATH, named
+.BI hi\- target
+(characters tmux rejects become dashes), so a dropped link leaves it running
+and the next
 .B hi \-\-mux
-to the same target reattaches instead of opening a second one. Entirely
-client\-side \- the target sees the same disposable session as ever. From
-inside a tmux, the session is created detached and this client switches to
-it; inside a screen or zellij, a new window or tab opens in the current
-session. Without a terminal, or without a multiplexer on this machine, hi
-connects as usual.
+to that target reattaches. Client\-side only. Inside tmux hi switches to the
+session; inside screen or zellij it opens a window or tab. With no terminal,
+or no multiplexer, hi connects as usual.
 .B _HI_MUX=1
-in
-.B settings.sh
-(the
-.I Advanced
-item in
-.BR "hi \-\-configure" )
-makes it the default for every connect.
+makes this the default.
 .TP
 .B \-\-no\-mux
-connect without the multiplexer \- the way out of
+connect without the multiplexer, past
 .B _HI_MUX=1
-for one connect. Of
-.B \-\-mux
-and
-.BR \-\-no\-mux ,
-the last one on the line wins, so the flag on the command line beats the
-setting.
+or an earlier
+.BR \-\-mux ;
+the last of the two flags wins.
 .PP
-The local commands act on this machine instead of connecting, and each needs
-a part of the tree that is not always present. All of them want
+The local commands act on this machine instead of connecting. Each needs
 .BR scripts/ ,
-which a package\-manager install ships but a hi session does not \- so inside a
-session each says so and stops.
+which a package ships and a session does not, so inside a session each says
+so and stops.
 .B \-\-update
-wants
-.B .git
-on top of that, and a package carries none.
+also needs
+.BR .git ,
+which a package has not.
+.BR \-n " is " \-\-dry\-run 's
+short form wherever it appears.
 .TP
 .B \-\-preview \fR{\fBcolors\fR|\fBpackages\fR|\fBheader\fR|\fBtargets\fR}
-print one of four things and exit, instead of connecting.
+print one of these and exit:
 .B colors
-is every ssh host and your user in their resolved colors, each row naming the
-rule it matched \- a pin, a tag, a pattern, or the hash.
+\- each user and ssh host a pin, tag, or pattern colors, in that color, with
+the rule it matched;
 .B packages
-is the package\-priority legend, as the header's check prints it, with the
-ranks the floor silences marked.
+\- the package\-priority legend, marking the ranks the floor hides;
 .B header
-is the connect header itself, as it prints here at your settings.
+\- the connect header at your settings;
 .B targets
-is every target
+\- every target
 .B hi <TAB>
-offers, with its backend \- probed past the completion cache, so it takes as
-long as a cold
-.B hi <TAB>
-does.
+offers and its backend, probed past the completion cache.
 .TP
 .B \-\-doctor \fR[\fB\-\-json\fR] [\fB\-\-use\fR \fIbackend\fR] [\fIssh\-options\fR] [\fItarget\fR]
-print a read\-only pre\-flight report instead of connecting: the local tree,
-the config overlay, the shell rc files, and the overlay's own shell files
-parsed by whatever will read them (the rc half is what
-.B \-\-install
-checks before it writes a line), the install itself \- each shell's rc lines
-and whether they name this tree, the
+print a read\-only pre\-flight report instead of connecting: the local tree;
+the config overlay; every rc and overlay shell file, parsed by the shell that
+reads it; the install (each shell's rc lines and whether they name this tree,
+the
 .B hi
-link and what
+link, what
 .B hi
-on
-.B PATH
-runs, and the file a login bash or a
-.B ZDOTDIR
-zsh really reads \- every backend probed and timed, and \- with a target \-
-which backend the name resolves to plus an ssh reachability check. Every
-ssh option a connect takes
-.RB ( \-p ", " \-i ", " \-J ", " \-o ,
-and the rest) is accepted here too, and reaches the same BatchMode probe a
-real connect would authenticate with \- given for a target that resolves to
-a container, allocation, or pod, they are reported as ignored rather than
-silently dropped.
+on PATH runs, the file a login bash or a ZDOTDIR zsh really reads); every
+backend, probed and timed; and, with a
+.IR target ,
+the backend it resolves to plus an ssh reachability check. ssh options reach
+that check's BatchMode probe as they would a connect, and are reported as
+ignored for a non\-ssh target.
 .B \-\-use
-reports the same forced backend a real connect with it would take, skipping
-the probe chain, and two of them are refused as a connect refuses them.
+forces the backend as a connect would.
 .BR \-\-plain ,
 .BR \-\-mux ,
 and
 .B \-\-no\-mux
-are accepted and ignored, so a connect line can be pasted behind
+are ignored, so a connect line pastes behind
 .BR \-\-doctor .
-With
-.BR \-\-json ,
-the same rows as one JSON document on stdout \- what a bug report should
-carry \- with the finding count in it as
+.B \-\-json
+prints the same rows as one JSON document on stdout, with the finding count
+as
 .BR findings .
-Exits 1 on any finding (see
-.BR "EXIT STATUS" ).
 .TP
 .B \-\-install \fR[\fB\-\-yes\fR] [\fB\-\-link\fR {\fBnone\fR|\fBuser\fR|\fBsystem\fR}] [\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
-install or repair say-hi's lines in your shell rc files (bash, zsh, and fish,
-each only when it is installed; on macOS a line in
+add or repair say-hi's lines in the bash, zsh, and fish rc files (each shell
+only if installed; on macOS also a
 .B ~/.bash_profile
-so a login bash reads
+line so a login bash reads
 .BR ~/.bashrc ),
 link
-.B ~/.local/bin/hi
-at this tree, and open the settings menu of
+.BR hi ,
+and open the
 .B \-\-configure
-at a terminal. Each rc file is syntax\-checked first, and a file that does
-not parse stops the install with a question; that is the one prompt, and
+menu at a terminal. An rc file that fails its syntax check stops the install:
+with a question at a terminal, outright without one;
 .BR \-y / \-\-yes
-answers it.
-.BR \-n / \-\-dry\-run
-is the short form on every local command that has one.
+installs anyway.
 .B \-\-link
-says where the
-.B hi
-link goes:
+places the link:
 .B user
-(the default,
-.BR ~/.local/bin/hi ),
+.RB ( ~/.local/bin/hi ,
+the default),
 .B system
 .RB ( /usr/bin/hi ,
 through sudo), or
 .B none
-(no link at all \- the wired shells alias
+(the wired shells alias
 .B hi
-either way; the link is for scripts and other programs). A link a package
-owns is never touched, and
-when a
+regardless; the link is for scripts). No link is made when a
 .B hi
-already on your
-.B PATH
-runs this tree (a package's
-.BR /usr/bin/hi ,
-Homebrew's wrapper) no link is made at all.
+on PATH already runs this tree, and a link owned by a package or anyone else
+is left alone.
 .B \-\-preset
 .I name
-answers the settings without the menu, as under
+answers the menu as under
 .BR \-\-configure .
 .B \-\-dry\-run
-prints every write \- rc lines, settings.sh, the link \- and makes
-none of them. The script behind it,
-.BR scripts/install.sh ,
-also takes
-.BR \-\-prefix " " \fIdir\fR,
-packaging mode \- stage the tree under
+prints every write (rc lines, settings.sh, the link) and makes none.
+.B scripts/install.sh \-\-prefix
+.I dir
+is packaging mode: stage the tree under
 .I dir
 with
 .B /usr/bin/hi
 and
-.B /etc/profile.d/say\-hi.sh
-beside it, and write nothing to a home \- which the package builds use and a
-user never needs.
+.BR /etc/profile.d/say\-hi.sh ,
+touching no home directory.
 .TP
 .B \-\-uninstall \fR[\fB\-\-purge\fR] [\fB\-\-dry\-run\fR]
-take those lines back out again, remove the settings.sh the install wrote,
-and unlink hi where the link points at this tree \-
+remove those rc lines (and a macOS
+.B ~/.bash_profile
+the install created, if nothing else was written to it), settings.sh, and a
 .B ~/.local/bin/hi
-and a
+or
 .B /usr/bin/hi
-of an earlier
-.BR "\-\-link system" ,
-never a package's. With
+link that points at this tree.
 .B \-\-purge
-the overlay directory (\fB~/.config/say-hi\fR) goes too; without it, it stays,
-since what is there is yours. A file the install created and nothing else wrote into
-(a macOS
-.BR ~/.bash_profile )
-goes with its lines. The tree itself, the rest
-of the overlay and the one\-time
+removes the whole overlay
+.RB ( ~/.config/say-hi )
+too. The tree and the one\-time
 .B .hi\-orig
-backups are left where they are.
+rc backups stay.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
-revisit the settings only, leaving the rc wiring alone: a menu over a live
-preview of the header and the prompt. Pick a preset (\fBeverything\fR,
-\fBbalanced\fR, \fBminimal\fR), or open a section \- Header (the real header
-rendered above a list of its items: toggle, reorder, presets, width, the
-package check's depth, the addresses the ip cell hides), Features,
-Prompt, Advanced \- then
-\fBs\fR saves and \fBq\fR leaves the file untouched; nothing is written
-before either.
+edit the settings alone, leaving the rc wiring and the link be: a numbered
+menu under a live preview of the header and prompt, grouped as Features,
+Header (its items to toggle and reorder, header presets, width, package check
+depth, hidden addresses), Prompt, and Advanced.
+.B p
+picks a preset
+.RB ( everything ,
+.BR balanced ,
+.BR minimal ),
+.B s
+saves, and
+.B q
+quits without writing; nothing is written before either.
 .B \-\-preset
 .I name
-applies one without the menu, and
+applies one without the menu;
 .B \-\-dry\-run
 prints the settings.sh it would write and writes nothing.
 .TP
 .B \-\-update \fR[\fItag\fR] [\fB\-\-dry\-run\fR]
-move the say-hi checkout to a release tag: the tags are fetched and the newest
-is checked out, detached \- or the
+fetch the tags and check out the newest release, detached, or
 .I tag
-named, to move on or back.
-.BR \-n / \-\-dry\-run
-fetches the tags and names the one it would check out, moving nothing. Releases are tags and nothing else; following a
-branch is
+to move forward or back. A tree with uncommitted changes is refused. Releases
+are tags only; to follow a branch, run
 .B git pull
-in the checkout, by hand.
-A working tree with uncommitted changes is refused before anything moves \-
-commit or stash first.
-Needs a checkout: an install from a package has no
-.B .git
-to move, and says so rather than running.
+in the checkout.
+.B \-\-dry\-run
+fetches and names the tag without moving. Needs a checkout: a package has no
+.BR .git .
 .PP
 Everything else is passed through to
 .BR ssh (1)
-unchanged \-
-.BR \-p ,
+unchanged
+.RB ( \-p ,
 .BR \-i ,
 .BR \-J ,
 .BR \-o ,
-and the rest behave exactly as they do there.
-.BR ssh (1)
-takes no option that starts with two dashes, so every one of those is hi's:
-one it does not know is hi's error, not ssh's usage message. Only the first
-non\-option word is taken as the target; everything after it, dashed or not,
-is the remote command \- so
+and the rest). ssh has no option starting with two dashes, so an unknown one
+is hi's error. An option that opens on a word takes it joined too
+.RB ( \-\-use=docker ,
+.BR \-\-preview=colors ,
+.BR \-\-update=v1.0.0 );
+one that opens on a switch or takes nothing refuses it
+.RB ( \-\-doctor=json ,
+.BR \-\-plain=1 ).
+The first non\-option word is the target and everything after it is the
+remote command, so
 .B hi host ls \-la
-reads as it does for ssh, and one of hi's own options there is refused by
-name rather than run on the far end.
+reads as it does for ssh; one of hi's own options there is refused by name.
 .SH EXIT STATUS
 .TP
 .B a connect
-the session's, or the remote command's, own exit status \- what
+the session's or remote command's own status, as
 .BR ssh (1)
-would hand back \- once the target has been cleaned up. 1 when hi itself
-refused before connecting: an option it does not know, one of its own out of
-place, a
-.B \-\-use
-name it was not loaded with, two of them, or a local command run inside a
-session. An
-.I ssh\-option
-with no target hands back what
+would return it. 1 when hi refuses before connecting: an unknown or misplaced
+option, a bad or conflicting
+.BR \-\-use ,
+hi's own options with no target, or a local command inside a session.
+ssh options with no target return what
 .BR ssh (1)
-exited with.
-.TP
-.B the target's bootstrap
-64 when the target has neither
-.BR base64 (1)
-nor
-.BR openssl (1)
-to unpack the payload with, 65 when it could not make a scratch directory \-
-the two ways a target refuses a session before a shell opens, each reported
-by hi with the fix.
+does.
 .TP
 .B \-\-doctor
-0 with nothing to report, 1 on any finding. The count is in the report
-(and in
+0 with nothing to report, 1 on any finding; the count is in the report (and
 .BR \-\-json 's
 .BR findings ),
 never in the status.
 .TP
 .B the other local commands
-the script's own: 0 when it did what it says, 1 otherwise \- an rc file
-that fails its syntax check stops
+0 on success, 1 otherwise; an rc file failing its syntax check stops
 .B \-\-install
-at 1 before it writes a line.
+at 1 before it writes anything.
 .SH SESSION COMMANDS
-One command hi's aliases define inside a session (and in the wired local
-shells), spelled with an underscore because they are shell functions, not
-flags of
-.BR hi :
 .TP
 .B hi_info
-print where the running say\-hi lives \- its home, root, and launcher. A
-diagnostic (the test harness's "the session is up" probe), and not part of
-the 1.x contract.
+an alias, in a session and in the wired local shells, printing where the
+running say\-hi lives: its home, root, and launcher. A diagnostic, not part
+of the 1.x contract.
 .SH COMPLETION
-.B hi
-completes in bash, zsh, and fish. All three read one list \-
-.B common/targets.sh
-\- so the three can not drift apart, and it is the only one fish can run.
+bash, zsh, and fish all complete from one lister,
+.BR common/targets.sh .
 .TP
 .B hi <TAB>
 every target: the
 .B Host
 entries in
 .B ~/.ssh/config
-plus every running container, allocation, and pod, each tagged with the
-backend it came from. The list is reused for five seconds and each backend
-gets two seconds to answer, because this runs on every keypress. In zsh the
-list is colored by backend \- ssh hosts yellow, containers blue, nomad
-allocations green, kubernetes pods light purple \- through the
+plus every running container, allocation, and pod, each with its backend's
+symbol (the
+.B _HI_SYMBOL_*
+settings; bash shows it only when bash 4 or later lists the matches). The
+list is reused for five seconds, and each backend gets two seconds to answer.
+zsh colors it by backend (ssh hosts yellow, containers blue, nomad green,
+kubernetes light purple) through the
 .B hi\-targets
 tag's
 .B list\-colors
-style, which one of your own replaces; bash's readline and fish's pager
-take no per\-candidate color. Every listed target also carries its
-backend's symbol \- in fish's description column, in zsh's display, and
-beside the name when bash 4 or later lists the matches (never on the
-command line) \- set by the
-.B _HI_SYMBOL_*
-settings.
+style, which one of your own replaces.
 .TP
 .B hi \-\-<TAB>
-hi's own options, each with its one\-line purpose where the shell has a
-column for it (fish and zsh do; bash lists the names). Answered without
-probing any backend at all. The list is
-filtered to what this install can actually run: a session is offered none of
-the local commands that need
-.BR scripts/ ,
-and a package\-manager install is not offered
-.BR \-\-update ,
-which needs
-.BR .git .
+hi's options, with their one\-line help where the shell has a column for it
+(fish and zsh), probing no backend. A session is offered none of the local
+commands, and a package install no
+.BR \-\-update .
 .TP
 .B hi \-\-install \-\-<TAB>
-behind a local command, that command's own switches instead \- the ones its
-usage line names \- and
-.B hi \-\-doctor \-\-use <TAB>
-the backends, as
+behind a local command, that command's own switches;
 .B \-\-use
-completes on a connect;
+completes the backends (on a connect too),
 .B \-\-link
 and
 .B \-\-preset
@@ -528,57 +416,37 @@ the release tags a checkout knows of.
 .SH CONFIGURATION
 Configuration lives outside the tree, in
 .B ~/.config/say-hi/
-.RB ( settings.sh ,
-.BR colors ,
-.BR packages ,
-.BR vim.rc ,
-.BR init.lua ,
-.BR nano.rc ,
-.BR emacs.el ,
-.BR tmux.conf ,
-and
-.BR micro/ ,
-additive
-.BR aliases.sh ,
-per-shell
-.BR bash.sh ,
-.BR zsh.zsh ,
-and
-.BR config.fish ,
-and an
-.B oh-my-posh.json
-.RB ( .yaml ,
-.BR .toml )
-for oh\-my\-posh).
+(under
+.B $XDG_CONFIG_HOME
+when set), and is carried to every target; the files are listed under
+.BR FILES .
 .B hi \-\-configure
 writes
 .BR settings.sh ;
-the rest you create yourself, the tree's
+you create the rest, the tree's
 .B settings/
-copy of a file being the default until you copy it here. All of it is
-carried along to every target. Every feature is an environment
-variable toggle \- header, prompt, git status, editors \- each on
-by default and tabulated in
+copy of a file being the default until you copy it here. Every setting is an
+environment variable, tabulated with its default in
 .IR docs/SETTINGS.md .
-The tree itself can be
-root\-owned (a package\-manager install): nothing hi does writes into it.
+The tree itself can be root\-owned (a package install): hi never writes into
+it.
 .SH FILES
 .TP
 .B /usr/share/say-hi
-the tree, for package\-manager installs (a git checkout at
-.B ~/say-hi
-works identically).
+the tree, in a package install; a git checkout (in a directory named
+.BR say-hi )
+works the same.
 .TP
 .B ~/.config/say-hi/settings.sh
-feature toggles, written by
+settings, written by
 .BR "hi \-\-configure" .
 .TP
 .B ~/.config/say-hi/colors, ~/.config/say-hi/packages
-per\-user overrides of the tree's defaults, made by copying
+your copies of
 .B settings/colors
-or
-.B settings/packages
-here and editing the copy.
+and
+.BR settings/packages ,
+used in place of the tree's.
 .TP
 .B ~/.config/say-hi/packages.d/
 more packages files, each a group the check paints after
@@ -588,96 +456,95 @@ in name order, in the color its
 line names.
 .TP
 .B ~/.config/say-hi/vim.rc, init.lua, nano.rc, emacs.el
-per\-user replacements of the tree's editor configs, used whole rather than
-merged \- init.lua is neovim's, vim.rc is vim's. Rarely needed: with no copy
-here hi carries the config each editor already reads on this machine
+replacements for vim's, neovim's, nano's, and emacs's configs, used whole.
+Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
 .BR ~/.config/nvim/init.lua ,
 .BR ~/.nanorc ,
-.BR ~/.emacs ),
-minus the lines in it that read a file no target has \- which
-.B \-\-doctor
-names, and
+.BR ~/.emacs ,
+and their alternates), else the tree's. A line that reads a file no target
+has is dropped and named by
+.BR \-\-doctor ;
 .B _HI_INCLUDES=keep
-sends anyway, as does a
+sends it anyway, as does a
 .B # hi-allow
-line above one. The shell files below get the same pass.
+line above it. tmux, micro, and the shell and prompt files below get the same
+pass.
 .TP
 .B ~/.config/say-hi/tmux.conf, micro/
-the same for tmux, whose alias becomes
-.BR "tmux \-f" ,
+the same for tmux (its alias becomes
+.BR "tmux \-f" )
 and for micro's
 .BR settings.json ,
 .BR bindings.json ,
 and
-.BR init.lua ,
-which its alias reads through
-.BR \-config\-dir .
-With no copy here hi carries
+.B init.lua
+(read through
+.BR \-config\-dir ).
+Without them hi carries
 .B ~/.tmux.conf
-and the files in micro's own config directory.
+and micro's own config directory.
 .TP
 .B ~/.config/say-hi/aliases.sh
-your own aliases, sourced first so any
-.B _HI_*_OPTS
-value or
+your own aliases, sourced after hi's, so one of the same name replaces hi's.
+.BR _HI_*_OPTS ,
+.BR _HI_*_BIN ,
+and
 .B _HI_DISABLE_*
-toggle you set there wins over the shipped set - an
-.B alias
-of the same name does not, since the shipped one is defined after and
-overwrites it.
+values set here arrive too late: they belong in
+.BR settings.sh .
 .TP
 .B ~/.config/say-hi/plugins.d/
-drop\-in plugins in the aliases.sh subset, sourced in name order after the
-aliases and before the prompt; one a shell cannot parse is skipped with a
-warning. A plugin's
+plugins in the aliases.sh subset, sourced in name order after the aliases and
+before the prompt; one a shell cannot parse is skipped with a warning. A
+plugin's
 .B _HI_SEGMENT
 command is drawn in the prompt.
 .TP
-.B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
-your own per\-shell preferences, sourced after hi's own so yours win.
+.B ~/.config/say-hi/bash.sh, zsh.zsh, config.fish
+your per\-shell preferences, sourced after hi's own so yours win.
 .TP
 .B ~/.config/say-hi/oh-my-posh.json, oh-my-posh.yaml, oh-my-posh.toml
 oh\-my\-posh's config, carried to every target as its
 .B POSH_CONFIG
-when oh\-my\-posh draws the prompt there. With no copy here, the file
+when oh\-my\-posh draws the prompt there. Without one, the file
 .B POSH_CONFIG
 or an rc's
 .B oh\-my\-posh init \-\-config
-names is carried instead; at home oh\-my\-posh keeps reading its own.
+names is carried instead.
 .TP
 .B ~/.config/starship.toml, ~/.config/bat/config, ~/.config/eza/theme.yml
-the starship, bat, and eza configs in force here \- or wherever
+the starship, bat, and eza configs in force here (or wherever
 .BR STARSHIP_CONFIG ,
 .BR BAT_CONFIG_PATH ,
 or
 .B EZA_CONFIG_DIR
-points \- carried to every target as-is (starship's only when starship is
-a prompt program a target is handed).
-The aliases then leave bat's theme flag out so the file's wins. A
+points), carried to every target \- starship's only when starship is a
+prompt program a target is handed. The aliases then leave out bat's theme
+flag. A
 .BR starship.toml ,
 .BR bat.conf ,
 or
 .B theme.yml
 in
 .B ~/.config/say-hi
-is carried in its place.
+is carried instead.
 .TP
 .B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
-read for the prompt programs a target is handed: powerlevel10k's config,
-the oh\-my\-zsh and oh\-my\-bash theme files that
+read for the prompt programs a target is handed: powerlevel10k's config, the
+oh\-my\-zsh and oh\-my\-bash theme files
 .B ZSH_THEME
 and
 .B OSH_THEME
 name, and tide's
 .B tide_*
-universal variables alone \- carried as
+universal variables, carried as
 .BR p10k.zsh ,
 .BR omz-theme.zsh ,
 .BR omb-theme.sh ,
 and
 .BR tide.vars ,
-each replaced by a copy under that name in
+each replaced by a copy of that name in
 .BR ~/.config/say-hi .
 Unset,
 .B _HI_PROMPT_TOOL
@@ -685,38 +552,36 @@ hands the prompt to every such program installed here;
 .B _HI_PROMPT_TOOL=hi
 keeps hi's own.
 .SH ENVIRONMENT
-Every setting is an environment variable, and the full table with defaults is
-.IR docs/SETTINGS.md ;
-.B hi \-\-configure
-writes them to
-.IR settings.sh .
-The ones that change what a connect does:
+Every setting is an environment variable (see
+.BR CONFIGURATION ).
+A few that matter here:
 .TP
 .B _HI_HOME
-the parent of the
+the directory holding the
 .B say-hi
-directory; set by
+tree: derived from hi's own path when unset, and set by
 .B /etc/profile.d/say-hi.sh
-for packaged installs.
+in a package install.
 .TP
 .B _HI_TRUECOLOR
 .B 1
 or
 .BR 0 :
-whether the client's terminal renders 24\-bit color; read off
+whether your terminal renders 24\-bit color. Unset, it is read off
 .B COLORTERM
-and shipped to the session, which ssh never forwards itself.
+and shipped to the session, since ssh never forwards that.
 .TP
 .B _HI_MUX
 .B 1
-defaults every connect to
-.BR \-\-mux ;
+makes every connect a
+.B \-\-mux
+one;
 .B \-\-no\-mux
-overrides it for one connect. Client\-side only.
+overrides it once. Client\-side only.
 .SH EXAMPLES
 .TP
 .B hi prod-db
-interactive session on the ssh host
+a session on the ssh host
 .BR prod\-db ,
 with your prompt, colors, and aliases.
 .TP
@@ -726,33 +591,31 @@ run a command on
 through a jump host.
 .TP
 .B hi 8f41c2
-session inside a running container or allocation with that ID.
+a session in the running container or allocation with that ID.
 .TP
 .B hi \-\-use docker web
-the container named
+the container
 .BR web ,
-even though an ssh host of the same name exists \- no probe is run.
+even with an ssh host of the same name; no probe runs.
 .TP
 .B hi \-\-plain rescue
 a bare shell on
-.B rescue
-with nothing copied: for a box with no writable
+.BR rescue ,
+nothing copied: for a box with no writable
 .B /tmp
 or no
 .BR tar (1).
 .TP
 .B hi \-\-doctor \-\-json prod-db > report.json
-the pre\-flight report as a document, for a bug report; the exit status
-says whether anything was found.
+the pre\-flight report as a document for a bug report; the exit status says
+whether anything was found.
 .TP
 .B hi
-no target: print this help and exit.
+no target: print the usage summary and exit.
 .SH SEE ALSO
 .BR ssh (1)
 .PP
-Full documentation \- the toggle tables in
-.IR docs/SETTINGS.md ,
-the testing story in
-.IR docs/TESTING.md ,
-and the README over both:
-.I https://github.com/ivylikethevine/say-hi
+Every setting is in
+.IR docs/SETTINGS.md ;
+the README and the rest of the docs are at
+.IR https://github.com/ivylikethevine/say-hi .

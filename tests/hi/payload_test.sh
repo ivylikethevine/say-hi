@@ -522,10 +522,9 @@ function test_overlay_is_not_block_padded_under_bsdtar() {
 
 # Two numbers guarded here: the connect line must report the wire bytes, not
 # `du` over the payload directories (the uncompressed tree, roughly double
-# the truth), and the armored script must stay clear of the *single-argument*
-# execve limit, which is 128KB on Linux however large ARG_MAX is. The second
-# one is a hard failure - "Argument list too long", no session at all - so it
-# gets a guard with headroom rather than a comment.
+# the truth), and the assembled script must not quietly double. The
+# bootloader rides stdin, so no argv cap applies (GLOSSARY: HI.19); the
+# ceiling is a tripwire on what every session pays, beside bench's budget.
 
 function test_human_bytes_matches_du_shapes() {
   [ "$(_hi_human_bytes 0)" = 0B ] || return 1
@@ -547,11 +546,10 @@ function test_wire_size_is_not_the_disk_size() {
 # The guard with teeth: the assembled script is what every session pays in
 # bandwidth, so measure the thing that is sent rather than re-deriving it from
 # the armored streams (which omits the boilerplate wrapping them).
-function test_payload_stays_clear_of_the_arg_limit() {
+function test_payload_stays_under_the_tripwire() {
   local bytes
   bytes="$(_hi_wire_bytes)"
-  # 128KB (MAX_ARG_STRLEN) is where this breaks outright; 256KB is the
-  # "this has doubled, come and look" line
+  # 256KB: the "this has doubled, come and look" line
   [ "$bytes" -lt 262144 ]
 }
 
@@ -1115,7 +1113,7 @@ function run_hi_payload_tests() {
   _hi_h2 "Testing: the size hi reports"
   _hi_check "_hi_human_bytes matches du's shapes" test_human_bytes_matches_du_shapes
   _hi_check "The wire size isn't the disk size" test_wire_size_is_not_the_disk_size
-  _hi_check "The payload stays clear of the argv limit" test_payload_stays_clear_of_the_arg_limit
+  _hi_check "The payload stays under its 256KB tripwire" test_payload_stays_under_the_tripwire
   _hi_suite_end "hi.sh (the payload)"
 }
 

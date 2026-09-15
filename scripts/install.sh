@@ -100,8 +100,8 @@ EOF
   configure)
     cat <<EOF
 Revisit the settings, leaving the rc wiring and the hi link alone: a preview
-of the header and prompt, then Preset / Header / Features / Prompt / Advanced
-/ Colors, s to save, q to leave the file alone. Answers go to
+of the header and prompt, then Features / Header / Prompt / Advanced, p for
+a preset, s to save, q to leave the file alone. Answers go to
 \${XDG_CONFIG_HOME:-\$HOME/.config}/say-hi/settings.sh.
 
   --preset <name>  Answer the feature and header settings from a

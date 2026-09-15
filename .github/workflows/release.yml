@@ -646,7 +646,7 @@ jobs:
             "" \
             "## Verifying this download" \
             "" \
-            "The sums cover every file here but the demo GIF, the source tarball included." \
+            "The sums cover the deb, rpm, apk, and source tarball." \
             "" \
             '```sh' \
             "sha256sum -c --ignore-missing SHA256SUMS" \

@@ -44,9 +44,9 @@ Prints, in order:
   the install        each shell's rc lines and whether they name this tree,
                      the hi link and what \`hi\` on PATH runs, and the rc
                      file a login bash or a ZDOTDIR zsh really reads
-  the backends       ssh config, docker, podman, nomad, kubectl - each probed
-                     with the same timeout the header and completion use, and
-                     timed, so a slow TAB or connect banner names its culprit
+  the backends       ssh config, docker, podman, nerdctl, finch, nomad,
+                     kubectl - each probed with the same timeout the header
+                     and completion use, and timed, so a slow TAB or connect banner names its culprit
   the target         (with an argument) which backend the name resolves to,
                      each check timed - and for an ssh target, a BatchMode
                      connection, what each session ships, and what the
@@ -58,7 +58,7 @@ diagnoses the connect that needed the jump host; for a container,
 allocation, or pod target they are reported as ignored. --use <backend>
 names the target's arm outright, as a real \`hi --use <backend> <target>\`
 would, and skips the probe chain. --plain, --mux, and --no-mux are
-accepted and ignored - doctor never connects.
+accepted and ignored - doctor never opens a session.
 
 Exits 0 with nothing to report and 1 on any finding (--json carries the
 count as "findings").
@@ -127,7 +127,7 @@ while [ $# -gt 0 ]; do
     [ $? -eq 2 ] && shift
     _hi_doctor_use "$_hi_arm"
     ;;
-  # doctor never connects, so the connect-time flags have nothing to report
+  # doctor never opens a session, so the connect-time flags have nothing to report
   # and are silently accepted rather than misread as a target name
   --plain | --mux | --no-mux) ;;
   # asked for anywhere on the line, not only first

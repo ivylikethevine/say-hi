@@ -8,11 +8,7 @@
 
 `hi {{host}}`
 
-- Print the help:
-
-`hi`
-
-- Run a single command inside the session (with hi's aliases and environment) and exit:
+- Run a command inside the session, with hi's aliases and environment:
 
 `hi {{host}} '{{command}}'`
 
@@ -23,6 +19,10 @@
 - Connect through a jump host (every ssh option passes through unchanged):
 
 `hi -J {{bastion}} {{host}}`
+
+- Open a bare shell with nothing copied, for a target with no `tar` or writable `/tmp`:
+
+`hi --plain {{host}}`
 
 - Force a backend instead of probing, when a container shadows an SSH host of the same name:
 

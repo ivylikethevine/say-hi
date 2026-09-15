@@ -3,7 +3,7 @@
 Only what a session cannot derive from the code and the docs. The human
 contract — the gate, what a review bounces on, what CI runs, which docs change
 with what — is [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); this file links to
-it rather than copying it, and adds what an agent needs beyond it.
+it rather than copying it.
 
 ## Contents
 
@@ -27,18 +27,14 @@ _HI_HOME="$(dirname "$PWD")" tests/test_runner.sh --group lint   # ~30s
 ```
 
 Without the `npm ci`, the lint group skips markdownlint and prettier yellow,
-and CI's lint job, which has them, fails what that run let through.
+and CI, which has them, fails what that run let through. Run both groups at
+the **end** of a multi-step change; after touching a shipped file add
+`--group bench`. Before calling an ssh or container change done, try `--group
+e2e` and `--group backends` too, and read the STATUS/SKIP columns: a yellow
+SKIPPED means "did not run", never green.
 
-The two groups are CI's gate, two parallel jobs; run both at the **end** of a multi-step
-change. After touching a shipped file (`common/`, `settings/`, `load.sh`,
-`hi.sh`) add `--group bench`. The e2e suites (ssh, docker) and
-`--group backends` (podman, nomad, kube) need real backends; try them before
-calling an ssh or container change done, and read the STATUS/SKIP columns.
-
-- A suite lives in `tests/<the directory it tests>/`, sources
-  `tests/test_lib.sh` and nothing else (GLOSSARY: HI.34), and is registered
-  in `test_runner.sh`'s `_HI_TESTS` table. The rest of the layout and the
-  lint gate's checks are [docs/TESTING.md](docs/TESTING.md).
+- A new suite's home, preamble (GLOSSARY: HI.34), and registration are
+  [docs/TESTING.md's _Where a suite lives_](docs/TESTING.md#where-a-suite-lives).
 - `_HI_PAR_WIDTH=1` runs a parallel container suite one case at a time;
   `_HI_SC_WIDTH=1` does the same for the lint fan-out — for a flaky case or a
   transcript that needs reading live.
@@ -49,17 +45,10 @@ calling an ssh or container change done, and read the STATUS/SKIP columns.
 
 ## Hard constraints
 
-The full list, with the why, is
-[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#what-a-review-will-bounce-on).
-
-- bash 3.2 floor: no mapfile/readarray, associative arrays, namerefs, or case
-  conversion; the lint suite greps for them.
-- `common/`, `settings/`, `load.sh`, and `hi.sh` ship in the ssh payload,
-  budgeted twice (the gzipped tar, and the README's wire-bytes badge to
-  within 5%); tooling-only helpers stay out of `common/core.sh`, and
-  `--group bench` checks both numbers after touching a shipped file.
-- paths.sh, aliases.sh, and targets.sh are dialect-constrained and say so at
-  the top; the stated subset wins over "cleaner" bash.
+[CONTRIBUTING.md's _What a review will bounce on_](docs/CONTRIBUTING.md#what-a-review-will-bounce-on)
+is the list, with the why — the bash 3.2 floor, the dialect-constrained
+files, and the payload budget chief among them. Read it before touching
+`common/`, `settings/`, `load.sh`, or `hi.sh`. One more, for sessions only:
 
 ### `_HI_HOME` points at this checkout
 
@@ -70,7 +59,7 @@ wrong: suites report fewer/MISSING cases, or a script runs "clean" against the
 wrong tree.
 
 **Clear inherited `_HI_*` first.** A session launched from a shell with hi
-installed starts with that install's `_HI_*` set (`_HI_HOME`, `_HI_ROOT`,
+installed inherits that install's `_HI_*` (`_HI_HOME`, `_HI_ROOT`,
 `_HI_TEST_LIB`, … — around sixty names, or six from an install carrying
 HI.47). Those paths exist, so nothing fails loudly. Check with
 `env | grep '^_HI_'` and clear with:
@@ -79,24 +68,24 @@ HI.47). Those paths exist, so nothing fails loudly. Check with
 unset $(env | sed -n 's/^\(_HI_[A-Za-z0-9_]*\)=.*/\1/p')
 ```
 
-With no `_HI_*` set, no override is needed — every entry point derives the
-tree from its own path (GLOSSARY: HI.33).
+With no `_HI_*` set, every entry point derives the tree from its own path
+(GLOSSARY: HI.33).
 
-**`fish -c` reads `config.fish`.** On a machine where hi is installed, the rc
-files (`~/.bashrc`, `~/.zshrc`, `~/.config/fish/config.fish`) each carry hi's
-install block (an `_HI_HOME=` line plus a `source`). `bash -c` and `zsh -c`
-read neither, but **`fish -c` always reads `config.fish`**, so a bare `fish -c`
-runs against the installed tree whatever you exported. The suites dodge it
-through `tests/test_lib.sh`'s `XDG_CONFIG_HOME` isolation; a fish command
-typed by hand needs `XDG_CONFIG_HOME` pointed at a throwaway directory.
+**`fish -c` reads `config.fish`.** Where hi is installed, `~/.bashrc`,
+`~/.zshrc`, and `~/.config/fish/config.fish` each carry its install block (an
+`_HI_HOME=` line plus a `source`). `bash -c` and `zsh -c` read neither, but
+**`fish -c` always reads `config.fish`**, so it runs against the installed
+tree whatever you exported. The suites dodge it through `tests/test_lib.sh`'s
+`XDG_CONFIG_HOME` isolation; a fish command typed by hand needs
+`XDG_CONFIG_HOME` pointed at a throwaway directory.
 
 ## Traps
 
 **`_HI_HOME` alone does not run one suite directly.** A suite sources
 `${_HI_TEST_LIB:-…}`, so an inherited `_HI_TEST_LIB` loads the harness from
-another tree while `core.sh` corrects `$_HI_ROOT` to the one you asked for —
-half-succeeding against two trees, and nothing warns. Go through the runner,
-which sources the harness by absolute path:
+another tree while `common/paths.sh` re-derives `$_HI_ROOT` from the
+`_HI_HOME` you set — half-succeeding against two trees, and nothing warns. Go
+through the runner, which sources the harness from its own `_HI_HOME`:
 
 ```sh
 _HI_HOME="$(dirname "$PWD")" tests/test_runner.sh <suite>
@@ -122,21 +111,12 @@ PATH=/tmp/dashsh:$PATH _HI_HOME="$(dirname "$PWD")" \
 ```
 
 **"Only `.yml`/`.md`" is _not_ prose only.** Skipping the suites is right for
-a prose-only diff, but `.github/workflows/*.yml`, `docs/GLOSSARY.md`,
-`docs/SETTINGS.md`'s _Every setting_ table, `docs/hi.1`, `docs/tldr.md`,
-every doc's `## Contents` block, `docs/PACKAGING.md`'s `minisign -Vm` line,
-and `packaging/nfpm/nfpm.yaml` are all machine-read by a suite. `README.md`'s
-payload badge is read by `--group bench`.
-
-**A bare `source "$_HI_CONFIG_DIR/<name>"` sends `shellcheck -x` into an
-OOM.** It needs `# shellcheck source=/dev/null` above it; the lint suite
-refuses to start without it.
-
-**`shfmt -w .` reformats a zsh file that ships.** A red shfmt is fixed on the
-paths it names, never the whole tree (that also rewrites `common/zsh.zsh`).
-
-**A suite that stands down reports yellow SKIPPED, never green.** Read it as
-"did not run"; `--require-run` turns skips into failures.
+a prose-only diff, but `.github/workflows/*.yml`,
+`.github/pull_request_template.md`, `docs/GLOSSARY.md`, `docs/SETTINGS.md`'s
+_Every setting_ table, `docs/hi.1`, `docs/tldr.md`, every doc's `## Contents`
+block, `docs/PACKAGING.md`'s `minisign -Vm` line, and
+`packaging/nfpm/nfpm.yaml` are all machine-read by a suite, and `README.md`'s
+payload badge by `--group bench`.
 
 ## Docs rules
 
@@ -144,33 +124,22 @@ paths it names, never the whole tree (that also rewrites `common/zsh.zsh`).
   [CONTRIBUTING.md's _Which docs change with what_](docs/CONTRIBUTING.md#which-docs-change-with-what);
   every fact has one home, mapped by [docs/README.md](docs/README.md). Link
   to that home, don't copy it — this file included.
-- `README.md`'s Roadmap is a to-do list, not a changelog
-  ([CONTRIBUTING.md](docs/CONTRIBUTING.md#which-docs-change-with-what)).
+- `README.md`'s Roadmap is a to-do list, not a changelog (same section).
   Beyond that: entries whose code half shipped but which wait on a human step
   stay unticked, rewritten to say what shipped and what the tick now means.
 
 ## Repository mechanics
 
-- **CI tiers.** Which jobs gate, which are advisory, and which are required
-  before a merge to `main` is
-  [CONTRIBUTING.md's _What CI runs_](docs/CONTRIBUTING.md#what-ci-runs); each
-  other workflow's header says when it runs and why.
-- **Releases.** A pushed, signed `v*` tag runs `release.yml` unattended,
-  gated by tag protection and the `gate` job (tag format, on `main`, signed
-  by a key in `.github/allowed_signers`, green CI); the runbook, the environments, and each channel's
-  steps are [docs/RELEASING.md](docs/RELEASING.md). How users install and
-  verify is [docs/PACKAGING.md](docs/PACKAGING.md).
-- **Tool pins.** CI's tools are pinned in
-  `.github/actions/setup-tool/tools.txt`, eight columns
-  (`name|pin|kind|url|verify|check|tag-prefix|sha256`, documented in its
-  header) with the sha256 either one hash or one per platform, and
-  drift-checked by `tool-versions.yml` plus this repo's
-  `.github/scripts/check_tool_versions.local.sh` hook; move a pin there, pin
-  and sha256 together, not in a workflow. markdownlint-cli2 and prettier are
-  `.github/package-lock.json`'s instead.
+- **CI tiers** — gate, advisory, and required before a merge to `main` — are
+  [CONTRIBUTING.md's _What CI runs_](docs/CONTRIBUTING.md#what-ci-runs).
+- **A pushed, signed `v*` tag is a release**: `release.yml` runs unattended
+  behind its `gate` job ([docs/RELEASING.md](docs/RELEASING.md)).
+- **Tool pins** move in `.github/actions/setup-tool/tools.txt`, pin and sha256
+  together, never in a workflow; markdownlint-cli2 and prettier are
+  `.github/package-lock.json`'s
+  ([docs/TESTING.md's _The lint gate_](docs/TESTING.md#the-lint-gate)).
 
 ## Machine-specific notes
 
-Machine-specific notes (absolute paths, which tree on this host is a real
-install, the host's `/bin/sh`) live in an untracked `CLAUDE.local.md` beside
-this file; `.gitignore` keeps it out of the repository.
+Absolute paths, which tree on this host is a real install, and the host's
+`/bin/sh` live in an untracked `CLAUDE.local.md` beside this file.

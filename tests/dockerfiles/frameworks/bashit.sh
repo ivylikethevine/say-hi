@@ -8,7 +8,10 @@
 # Run as hitest inside framework.Dockerfile; apt packages come from the roster
 # in tests/targets/framework_test.sh.
 set -euo pipefail
-git clone --depth=1 https://github.com/Bash-it/bash-it.git ~/.bash_it
+# pinned by commit; bump by hand
+git init -q ~/.bash_it
+git -C ~/.bash_it fetch -q --depth=1 https://github.com/Bash-it/bash-it.git 4725d29db8c0ac8c21df47664b28539f3b8fce94
+git -C ~/.bash_it checkout -q FETCH_HEAD
 ~/.bash_it/install.sh --silent --no-modify-config
 # shellcheck disable=SC2016 # the target's shell expands this at login
 printf 'export BASH_IT="$HOME/.bash_it"\nexport BASH_IT_THEME="bobby"\nsource "$BASH_IT"/bash_it.sh\n' >>~/.bashrc

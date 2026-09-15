@@ -1,10 +1,11 @@
 # Integrations
 
-hi installs none of the tools below and ships none of them. Where a target
-already has one, a session wires it in the way the tool's own README tells you
-to wire it into an rc; where it does not, the session goes on without it and
-says nothing. Each is either on wherever the tool is found or an opt-in, and
-every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
+hi installs and ships none of the tools below. Where a target has one, a
+session wires it in the way the tool's own README wires it into an rc; where
+it does not, the session goes on without it and says nothing. The switches are
+rows in [SETTINGS.md](SETTINGS.md#every-setting); `_HI_DISABLE_LOCAL=1` sets
+every `_HI_DISABLE_*` one on your own machine only
+([On your own machine](#on-your-own-machine)).
 
 ## Contents
 
@@ -34,10 +35,6 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 | vim/neovim, nano, emacs, micro                                                                                                                                                                                                                                                                                                           | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vim.rc`, micro your micro directory's files | yes                       | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
 | oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                   | loads after them and leaves their hooks working                                                                                 | -                         | [Shell frameworks](#shell-frameworks)                                           |
 
-`_HI_DISABLE_LOCAL=1` turns every `_HI_DISABLE_*` switch above on, prompt
-included, on your own machine only, and leaves every target as it was
-([On your own machine](#on-your-own-machine)).
-
 ## Prompt programs
 
 A prompt program you already use draws the prompt in hi's place, on this
@@ -57,23 +54,21 @@ this order - the first that fits the shell and that the target has wins:
 | powerline-go  | bash, zsh, fish | on `$PATH`                                     | once per prompt, as its README wires it, with `_HI_POWERLINE_GO_OPTS`                                    | the flags in `_HI_POWERLINE_GO_OPTS`                                                           |
 
 So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
-that has them, and hi's where it has neither. A target that lacks the
-program keeps hi's prompt and says nothing; hi installs none of these. The
-list is worked out on this machine and handed to the target, which never
-looks for programs of its own - a shared box with powerlevel10k installed
-does not change your prompt unless you use it too.
+that has them, and hi's where it has neither. The list is worked out on this
+machine and handed to the target, which never looks for programs of its own -
+a shared box with powerlevel10k installed does not change your prompt unless
+you use it too.
 
-To compare, or to keep hi's prompt: `_HI_PROMPT_TOOL=hi`, the Prompt item in
-`hi --configure`, gives hi's prompt everywhere and starts no program on any
-target - over an rc that loaded one, too. To choose instead, name them:
-`_HI_PROMPT_TOOL="tide starship"` is tide in fish and starship in bash and
-zsh, and `"tide hi"` tide in fish and hi's prompt elsewhere.
-`_HI_DISABLE_PROMPT=1` beats all of it: hi starts no prompt at all, its own
-or a program's.
+`_HI_PROMPT_TOOL=hi` (the Prompt item in `hi --configure`) keeps hi's prompt
+everywhere and starts no program on any target, even over an rc that loaded
+one. To choose, name them: `"tide starship"` is tide in fish and starship in
+bash and zsh, `"tide hi"` tide in fish and hi's prompt elsewhere.
+`_HI_DISABLE_PROMPT=1` beats all of it: no prompt from hi at all, its own or a
+program's.
 
-The configs from home ride the overlay - a copy of any of them in
-`~/.config/say-hi/` rides in its place, which is how targets get a different
-one - and apply on a target only, over whatever the target has; at home each program's own config
+The configs from home ride the overlay - a copy in `~/.config/say-hi/` rides
+in its place, which is how targets get a different one - and apply on a
+target only, over whatever the target has; at home each program's own config
 is already in force. Why hi hands over the prompt and nothing else, and how
 each program is started, is [HI.32](GLOSSARY.md#hi32-starship-deference).
 
@@ -115,22 +110,18 @@ the whole segment off. The segment is part of hi's prompt, so a
 
 hi stands down for a tool already drawing its own prefix, so nothing appears
 twice: a `source .venv/bin/activate` keeps its own `(myproj)` in zsh and fish,
-where the shell holds on to the prompt the activate script edited. bash is the
-exception - hi rebuilds `$PS1` on every draw, so the activate script's prefix
-cannot survive there and hi draws the segment itself. The upshot is that a
-venv is named in all three shells, in the venv's styling under zsh and fish
-and in hi's under bash; direnv, nix, and the rest have no prefix of their own
+where the shell keeps the prompt the activate script edited. bash is the
+exception - hi rebuilds `$PS1` on every draw, so that prefix cannot survive
+and hi draws the segment itself. A venv is named in all three shells, then, in
+its own styling or hi's; direnv, nix, and the rest have no prefix of their own
 and are always hi's.
 
-To get hi's styling and naming everywhere instead, silence the tool's own
-prefix the way the tool documents: `VIRTUAL_ENV_DISABLE_PROMPT=1` for a venv
-(`export` it before you activate) and `conda config --set changeps1 false`.
-With no prefix of its own on screen, hi draws the segment in every shell -
-which is also how a `.venv` stops reading as `(.venv)`, since a venv names
-itself after its own directory and hi names it after the project holding it.
-hi never sets those two for you: they are your setting, and every other shell
-and prompt you open reads them too
-([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix) has the why).
+To get hi's styling and naming everywhere, silence the tool's own prefix the
+way the tool documents: `VIRTUAL_ENV_DISABLE_PROMPT=1` for a venv (`export` it
+before you activate) and `conda config --set changeps1 false`. hi then draws
+the segment in every shell - which is also how a `.venv` stops reading as
+`(.venv)`. hi never sets those two for you: every other shell and prompt you
+open reads them too ([HI.54](GLOSSARY.md#hi54-who-draws-the-environment-prefix)).
 
 ## bat and eza
 
@@ -167,16 +158,14 @@ is the one you see through `cat`. The same rule applies at home if you export
 
 ### Shipping your eza theme
 
-eza reads its colors from `$EZA_CONFIG_DIR/theme.yml` and insists on that
-file name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
-`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - or, when
-there is one, the `theme.yml` in `~/.config/say-hi/` instead. On a target,
-`common/paths.sh` exports `EZA_CONFIG_DIR` pointing at the shipped copy - the
-directory itself, not the file. At home the variable is left alone.
-
-The file rides only when there is one, like every overlay member, and only the
-`eza` alias (`_HI_DISABLE_TOOL_ALIASES`) is affected: a bare `command eza` on
-the target reads the same variable, so it matches too.
+eza reads its colors from `$EZA_CONFIG_DIR/theme.yml`, and only under that
+name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
+`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - or the
+`theme.yml` in `~/.config/say-hi/` when there is one. On a target,
+`common/paths.sh` points `EZA_CONFIG_DIR` at the directory holding the shipped
+copy; at home the variable is left alone. Like `BAT_CONFIG_PATH`, it is
+exported whatever `_HI_DISABLE_TOOL_ALIASES` says, so a bare `command eza`
+matches too.
 
 ## Terminal multiplexers
 
@@ -204,8 +193,8 @@ Where a target has `/usr/bin/lesspipe` (Debian and Ubuntu ship it) and
 `$LESSOPEN` is not already set, bash and zsh sessions `eval` it, so `less`
 opens archives, packages, and compressed files the way the distro's own
 `~/.bashrc` sets it up. A nested shell inherits the exported `$LESSOPEN` and
-skips it. In the same spirit, a chroot's `/etc/debian_chroot` leads the bash
-and zsh prompts as `(name)`.
+skips it. In the same spirit, a chroot's `/etc/debian_chroot` leads the
+prompt: `(name)` in bash and zsh, `(chroot:name)` in fish.
 
 ## Shell frameworks
 
@@ -215,24 +204,19 @@ setup runs after that shell's own rc - so hi is the one positioned to break a
 framework, and the one tested for it. `tests/targets/framework_test.sh`
 installs twelve per their own READMEs - oh-my-zsh, powerlevel10k, starship,
 bash-it, oh-my-bash, tide, powerline-go, fzf, zoxide, direnv, atuin, and
-mise - plus a tmux under a `~/.tmux.conf` of the target's own, connects for real, and asserts
-no shell errors and the framework's own hook left intact: zsh's array base
-unchanged under oh-my-zsh and powerlevel10k, `PROMPT_COMMAND` chained rather
-than replaced for zoxide, direnv, and mise, and fzf's and atuin's `bind -x`
-Ctrl-R bindings in place. The starship case is starship started from the
-target's own rc; the powerlevel10k, oh-my-bash, tide, and powerline-go cases
-connect with `_HI_PROMPT_TOOL` set and a marker config at home, and assert the
-program drew with it; the tmux case asserts a tmux started in the session read
-the client's config over the target's, and micro's directory arrived.
+mise - plus a tmux under a `~/.tmux.conf` of the target's own, connects for
+real, and asserts no shell errors and each one's hook, Ctrl-R binding, array
+base, or prompt intact; the prompt programs are handed the prompt with a
+marker config from home, and tmux must read the client's config over the
+target's.
 
 ### On your own machine
 
-A prompt program's prompt stays yours here without asking: loaded by your
-rc, it is left drawing ([Prompt programs](#prompt-programs)).
-`_HI_DISABLE_LOCAL=1` goes further and leaves everything else on this page as
-your own rc set it up on this machine, while every target still gets hi's.
-How hi tells home from a target is
-[SETTINGS.md's _Others_](SETTINGS.md#others).
+A prompt program your rc loads keeps drawing here without asking
+([Prompt programs](#prompt-programs)). `_HI_DISABLE_LOCAL=1` goes further:
+every `_HI_DISABLE_*` switch on, so everything on this page stays as your own
+rc set it up on this machine, while every target still gets hi's. How hi
+tells home from a target is [SETTINGS.md's _Others_](SETTINGS.md#others).
 
 ## Config sizes
 
@@ -244,7 +228,9 @@ How hi tells home from a target is
 
 Everything in the overlay rides every connect beside the ~65 KB payload, so
 what a heavy config costs on the wire is the gzipped size after hi strips
-comments and blank lines (HI.09). Prose-heavy files shrink the most:
+comments and blank lines
+([HI.35](GLOSSARY.md#hi35-payload-comment-and-whitespace-strip)). Prose-heavy
+files shrink the most:
 powerlevel10k's wizard output is three-quarters comments.
 
 | user                                                        | what rides the overlay                             | on disk  | stripped | on the wire (gzip) |

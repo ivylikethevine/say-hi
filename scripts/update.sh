@@ -111,10 +111,17 @@ fi
 # imported" alike. Only a bad signature refuses: an unsigned tag is what a
 # fork or a mirror has, and a missing key is most first installs - both are
 # said out loud and allowed, so the check never strands an update that plain
-# git would have made. docs/SECURITY.md names the key.
-sig="$(git -C "$root" verify-tag --raw "refs/tags/$tag" 2>&1)" || true
+# git would have made.
+#
+# An ssh-signed tag (every release) is not checked at all without an
+# allowed-signers file, so one is always named: this checkout's own
+# .github/allowed_signers - the copy already trusted, not the tag's - else
+# git config's, else an empty one, which still catches a tampered signature.
+signers="$root/.github/allowed_signers"
+[ -f "$signers" ] || signers="$(exec git -C "$root" config --path --get gpg.ssh.allowedSignersFile)" || signers=""
+sig="$(git -C "$root" -c gpg.ssh.allowedSignersFile="$signers" verify-tag --raw "refs/tags/$tag" 2>&1)" || true
 case "$sig" in
-*'[GNUPG:] BADSIG'* | *'[GNUPG:] REVKEYSIG'*)
+*'[GNUPG:] BADSIG'* | *'[GNUPG:] REVKEYSIG'* | *'Signature verification failed'*)
   _hi_cecho "$me: the signature on $tag does not verify - refusing to check it out" "$RED" >&2
   printf '%s\n' "$sig" | grep -v '^\[GNUPG:\]' >&2
   exit 1
@@ -133,14 +140,17 @@ case "$sig" in
   _hi_cecho "$me: $tag has a good signature from $signer" "$GREEN"
   ;;
 *'Good "git" signature for '*)
-  # an ssh-signed tag (gpg.format=ssh) that a configured allowed-signers file
-  # vouches for; ssh-keygen's other verdicts land in the last arm
+  # an ssh-signed tag the allowed-signers file vouches for
   signer="${sig#*Good \"git\" signature for }"
   signer="${signer%% with*}"
   _hi_cecho "$me: $tag has a good ssh signature from $signer" "$GREEN"
   ;;
+*'Good "git" signature with '*)
+  # intact, but from a key no allowed signer names: the ssh twin of NO_PUBKEY
+  _hi_cecho "$me: $tag is signed by a key not in the allowed signers; checked nothing about who signed it" "$YELLOW"
+  ;;
 *'[GNUPG:] NO_PUBKEY'* | *'[GNUPG:] ERRSIG'*)
-  _hi_cecho "$me: $tag is signed by a key not in your keyring; checked nothing about the signature (docs/SECURITY.md has the key)" "$YELLOW"
+  _hi_cecho "$me: $tag is signed by a key not in your keyring; checked nothing about the signature" "$YELLOW"
   ;;
 *'no signature found'* | *'cannot verify a non-tag object'*)
   # the second is a lightweight tag - a bare ref, no tag object to sign

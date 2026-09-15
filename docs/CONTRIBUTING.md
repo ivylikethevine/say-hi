@@ -1,9 +1,9 @@
 # Contributing to say-hi
 
-say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md):
-interfaces can still move, and [README's Roadmap](../README.md#roadmap) is
-what is left to do. The test runbook is [docs/TESTING.md](TESTING.md); the
-named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
+say-hi is [EXPERIMENTAL UNTIL v1.0.0](../README.md): interfaces can still
+move, and [README's Roadmap](../README.md#roadmap) is what is left to do. The
+test runbook is [docs/TESTING.md](TESTING.md); the named idioms are
+[docs/GLOSSARY.md](GLOSSARY.md).
 
 ## Contents
 
@@ -21,13 +21,12 @@ named idioms are [docs/GLOSSARY.md](GLOSSARY.md).
 
 ## Before you start
 
-**Check it isn't already decided.** [docs/COMPATIBILITY.md](COMPATIBILITY.md) holds a
-verdict and a reason for every runtime, shell, and feature answered no,
-[docs/RELEASING.md](RELEASING.md#channels-weighed-and-not-shipped) for every
-packaging channel, and [docs/ALTERNATIVES.md](ALTERNATIVES.md) for the tools
-say-hi is not trying to be. A "no" there is settled, not an oversight — though
-a reason that has stopped being true is worth an issue, and a good
-implementation would be considered.
+**Check it isn't already decided.** [docs/COMPATIBILITY.md](COMPATIBILITY.md)
+holds a verdict and a reason for every runtime, shell, and feature answered
+no, [docs/RELEASING.md](RELEASING.md#channels-weighed-and-not-shipped) for
+every packaging channel, and [docs/ALTERNATIVES.md](ALTERNATIVES.md) for the
+tools say-hi is not trying to be. A "no" there is settled, not an oversight —
+though a reason that has stopped being true is worth an issue.
 
 **Anything exploitable goes to
 [SECURITY.md](SECURITY.md#reporting-a-vulnerability)**, privately, not to a
@@ -36,136 +35,104 @@ public issue or pull request.
 ## The gate
 
 ```sh
+npm ci --prefix .github   # once, or the lint group skips its Markdown checks
 tests/test_runner.sh --group fast
 tests/test_runner.sh --group lint
 ```
 
-That is what CI runs on every push; both should be green before you open the
-pull request. If your change touches an ssh or container path, run the `e2e`
-or `backends` group too and say in the pull request whether it ran or stood
-down. What each group contains, and how a skip is reported, is
+CI runs both on every push; both should be green before you open the pull
+request. If your change touches an ssh or container path, run the `e2e` or
+`backends` group too and say in the pull request whether it ran or stood down.
+What each group contains, and how a skip is reported, is
 [docs/TESTING.md](TESTING.md#running-the-tests)'s job.
 
 ### Don't reach for `act`
 
 [act](https://github.com/nektos/act) is **not** the way to check a change
 here: its container runs as root, which fails fast-group cases a real runner
-passes, and `--container-options "--user 1000"` doesn't rescue it. Run the
-suites directly instead — and `actionlint -color` for the workflows, since
-zizmor fails on act's empty `github.token`. `advisory-lint` is the one job
-green under act, and every tool in it runs directly anyway; the macOS/Windows
-jobs have no container to run in, and `bench`, `packaging-smoke`, and the two
-`e2e` jobs want the Docker socket.
-
-```sh
-act -W .github/workflows/ci.yml -j advisory-lint -P ubuntu-latest=catthehacker/ubuntu:act-latest
-```
+passes (`--container-options "--user 1000"` doesn't rescue it), zizmor fails on
+its empty `github.token`, and the macOS, Windows, and Docker-socket jobs have
+nowhere to run. Run the suites directly, and `actionlint -color` for the
+workflows.
 
 ## What CI runs
 
-Every job that runs on your pull request, and whether a red one fails the
-run or only reports — seventeen workflow files is more than `ci.yml`'s per-job
-comments are convenient to read through by eye. All but the last row are
-`ci.yml`'s.
+Every check on your pull request, and whether a red one fails the run or only
+reports. All but the last three rows are `ci.yml`'s.
 
-| Job                                                                     | Runs on your PR                                                          | Gate or advisory?                       |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| `fast suites (ubuntu-latest)`                                           | Skipped on a workflow- or docs-only diff                                 | Gate                                    |
-| `fast suites (ubuntu-24.04-arm)`                                        | Skipped on a workflow- or docs-only diff                                 | Gate                                    |
-| `lint suites (ubuntu-latest)` (the lint group, markdownlint + prettier) | Always                                                                   | Gate                                    |
-| `fast suites (macos-latest)`                                            | Skipped on a workflow- or docs-only diff; same-repo PRs also `hi` itself | Gate                                    |
-| `fast suites (Alpine client)`                                           | Skipped on a workflow- or docs-only diff                                 | Gate                                    |
-| `workflow lint` (actionlint + zizmor)                                   | Always                                                                   | Gate                                    |
-| `secret scan (gitleaks)`                                                | Always; the full history, findings redacted                              | Gate                                    |
-| `dependency review`                                                     | Always; fails on a new dependency with a high or critical advisory       | Gate                                    |
-| `advisory lint` (hadolint)                                              | Always                                                                   | Advisory — reports, never fails the job |
-| `hot-path benchmarks`                                                   | Always                                                                   | Gate                                    |
-| `hot-path profiles (timep)`                                             | Skipped on a workflow- or docs-only diff                                 | Advisory — `continue-on-error`          |
-| `package build (deb, rpm, apk)`                                         | Skipped on a workflow- or docs-only diff                                 | Gate                                    |
-| `e2e (ssh, docker)`                                                     | Beside the fast suites; skipped on a workflow- or docs-only diff         | Gate                                    |
-| `e2e (podman, nomad, kube)`                                             | Beside the fast suites; skipped on a workflow- or docs-only diff         | Gate                                    |
-| `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs and pushes to `main`, after both fast-suite jobs pass      | Gate, but see below                     |
-| `fast suites (Windows client)`                                          | Same-repo PRs and pushes to `main`; four x64 and four arm64 runners      | Gate, but see below                     |
-| `release note (pr body)` (`release-note.yml`)                           | Every body edit and push; Dependabot's PRs skip                          | Gate                                    |
+| Job                                                                     | Runs on your PR                                                            | Gate or advisory?                                 |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------- |
+| `fast suites (ubuntu-latest)`                                           | Skipped on a workflow- or docs-only diff                                   | Gate                                              |
+| `fast suites (ubuntu-24.04-arm)`                                        | Skipped on a workflow- or docs-only diff                                   | Gate                                              |
+| `lint suites (ubuntu-latest)` (the lint group, markdownlint + prettier) | Always                                                                     | Gate                                              |
+| `fast suites (macos-latest)`                                            | Skipped on a workflow- or docs-only diff; same-repo PRs also ssh to itself | Gate                                              |
+| `fast suites (Alpine client)`                                           | Skipped on a workflow- or docs-only diff                                   | Gate                                              |
+| `workflow lint` (actionlint + zizmor)                                   | Always                                                                     | Gate                                              |
+| `secret scan (gitleaks)`                                                | Always; the full history, findings redacted                                | Gate                                              |
+| `dependency review`                                                     | Always; fails on a new dependency with a high or critical advisory         | Gate                                              |
+| `advisory lint` (hadolint)                                              | Always                                                                     | Advisory — reports, never fails the job           |
+| `hot-path benchmarks`                                                   | Always                                                                     | Gate                                              |
+| `hot-path profiles (timep)`                                             | Skipped on a workflow- or docs-only diff                                   | Advisory — `continue-on-error`                    |
+| `package build (deb, rpm, apk)`                                         | Skipped on a workflow- or docs-only diff                                   | Gate                                              |
+| `e2e (ssh, docker)`                                                     | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                              |
+| `e2e (podman, nomad, kube)`                                             | Beside the fast suites; skipped on a workflow- or docs-only diff           | Gate                                              |
+| `e2e (Windows)` / `e2e (FreeBSD)` / `e2e (OpenBSD)`                     | Same-repo PRs, after both ubuntu fast-suite jobs pass                      | Gate, but see below                               |
+| `fast suites (Windows client)`                                          | Same-repo PRs, skipped on a workflow- or docs-only diff; ten runners       | Gate, but see below                               |
+| `release note (pr body)` (`release-note.yml`)                           | Every body edit and push; Dependabot's PRs skip                            | Gate                                              |
+| `CodeQL (actions)` (`codeql.yml`)                                       | Always                                                                     | Blocks a merge on a high alert (`main`'s ruleset) |
+| `coverage.yml`'s kcov and bashcov sweep                                 | Same-repo PRs; posts both figures as a comment                             | Advisory — `continue-on-error`, never blocks a PR |
 
 Nothing runs on a draft: every job skips until the PR is marked ready, which
-fires a full run. `fast suites (ubuntu-latest)`, `fast suites
-(ubuntu-24.04-arm)`, `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` are
-each their own job rather than a matrix entry, precisely so a skip on a draft
-reports correctly under that name instead of sitting at Expected the way a
-skipped matrix entry would (GitHub never names those); a draft cannot merge
-either way.
+fires a full run. "Skipped on a workflow- or docs-only diff" is `ci.yml`'s
+`changes` job: a PR touching only `.github/workflows/**` or Markdown can't move
+those results. The "Always" jobs are the ones such a diff can: a new action
+arrives through a workflow, and a docs change is what `lint suites`
+(markdownlint, prettier, and lychee's offline link and `#fragment` check) and
+the README-badge half of `hot-path benchmarks` read. `dependency review` diffs
+a PR's base against its head, so it runs on pull requests only.
 
-"Skipped on a workflow- or docs-only diff" is `ci.yml`'s `changes` job: a PR
-that only touches `.github/workflows/**` or Markdown can't move those jobs'
-results, so they report `skipped` instead of re-running. Every other job
-carries no `changes` guard and runs on each push and ready pull request — a
-workflow-only change is exactly what `workflow lint`, `secret scan`, and
-`dependency review` audit (a new action arrives that way), and a docs-only
-change is exactly when `lint suites` (markdownlint, prettier, and the
-Markdown link check) and the README-badge half of `hot-path benchmarks`
-should run. `dependency review` diffs a PR's base against its head, so it
-runs on pull requests only.
+None of it runs twice on the same code: a push to `main` whose tree a
+same-repo PR's green run already tested finds that run's `ci-tree-<tree>`
+marker and skips every job, and `carry-forward` puts the run's badge artifacts
+and platform checks on the merged commit. `coverage.yml` reuses the PR's
+figures the same way.
 
-`lint suites` installs its tools the way CI installs every tool: the binaries
-through `.github/actions/setup-tool`, pinned in its `tools.txt`, and
-markdownlint-cli2 and prettier with `npm ci --prefix .github` from
-`.github/package-lock.json`. Locally, run that `npm ci` once, or the lint
-group skips the two Markdown checks yellow. `tools.txt` is eight columns,
-`name|pin|kind|url|verify|check|tag-prefix|sha256` (its header documents
-each): the last is a sha256 of the download, one for every platform or one
-per platform (`linux-x86_64=<hex>,darwin-aarch64=<hex>`), so a pin moves
-only with its checksum. `tool-versions.yml` drift-checks every row, and
-`.github/scripts/check_tool_versions.local.sh` adds this repo's inline pins
-and image checks. The same job's last step runs lychee (a `tools.txt` row,
-settings in `lychee.toml`) offline over every tracked Markdown file, so a
-broken relative link or `#fragment` fails the PR that makes it;
-`link-check.yml`'s weekly sweep checks the external URLs.
+"Gate" means the job fails loudly rather than reporting and continuing — not,
+on its own, that it blocks the merge button. `main`'s ruleset requires six
+checks, on a branch up to date with `main`: `fast suites (ubuntu-latest)`,
+`fast suites (macos-latest)`, `lint suites (ubuntu-latest)`,
+`package build (deb, rpm, apk)`, `e2e (ssh, docker)`, and
+`e2e (podman, nomad, kube)` — the e2e pair by aggregate name, since the shard
+count is a knob — plus CodeQL reporting no high-or-higher alert.
+`workflow lint`, `secret scan (gitleaks)`, `dependency review`, and
+`release note (pr body)` belong on that list under exactly those names; until
+then each still fails its run.
 
-None of it runs twice on the same code: the push that merges a same-repo PR
-whose last run went green, and whose tree `main` still matches, finds that
-run's `ci-tree-<tree>` marker and skips every job, and `carry-forward` puts
-the run's badge artifacts and platform checks on the merged commit.
-`coverage.yml` reuses the PR's figures the same way.
+`e2e (Windows)`, `e2e (FreeBSD)`, `e2e (OpenBSD)`, and
+`fast suites (Windows client)` run on a pull request only when its head branch
+lives in this repository: each stands up an sshd and authorizes a throwaway
+key, which is not something to hand a fork's PR (the first three sit behind
+`e2e-gate`; the macOS job's loopback steps skip on a fork for the same reason).
+A fork's PR would never report them, so they stay off the required list;
+`fast suites (Alpine client)` and `fast suites (ubuntu-24.04-arm)` are off it
+until they have a track record. None carries `continue-on-error`, so a red one
+still fails the run.
 
-"Gate" means the job itself fails loudly rather than reporting and continuing
-— not, on its own, that GitHub's merge button is blocked by it. `main`
-requires seven of the jobs above before a merge: both `fast suites` jobs,
-`lint suites (ubuntu-latest)`, `workflow lint`, `package build (deb, rpm,
-apk)`, `e2e (ssh, docker)` and `e2e (podman, nomad, kube)` — by its aggregate
-name rather than a per-shard one, since the shard count is a knob. The newer
-gates, `secret scan (gitleaks)`, `dependency review`, and `release note (pr
-body)`, belong on that list under exactly those names; a gate that is not on
-it still fails its run. `e2e (Windows)` /
-`e2e (FreeBSD)` / `e2e (OpenBSD)` and `fast suites (Windows client)` run on a
-pull request only when its head branch lives in this repository: each stands
-up an sshd and authorizes a throwaway key, which is not something to hand a
-fork's PR (the first three sit behind `e2e-gate`; the macOS job's loopback
-steps skip on a fork's PR for the same reason). They stay off the required
-list for that reason — a fork PR would never report them and could never
-merge. `fast suites (Alpine client)` and `fast suites (ubuntu-24.04-arm)`
-are off it too, until they have a track record. On a same-repo PR they are real checks all the same: none carries
-`continue-on-error`, so a red suite fails the run.
-
-Every other file in `.github/workflows/` runs on a schedule, a push to
-`main`, a tag, or a manual dispatch, never on your pull request, and most
-report through a self-closing tracking issue rather than a red run; each
-file's header says which and why. The exception is `cancel-closed-pr.yml`,
-which runs once your PR is merged or closed and cancels whatever is still in
-flight for it.
+Every other workflow runs on a schedule, after CI on `main`, on a tag, or on
+dispatch, never on your pull request — except `cancel-closed-pr.yml`, which
+cancels a merged or closed PR's in-flight runs. Each file's header says when
+it runs and how it reports.
 
 ## What a review will bounce on
 
 These are constraints the tree enforces, not requests:
 
 - **Style follows the [Google Shell Style
-  Guide](https://google.github.io/styleguide/shellguide.html), with the
-  deviations this list and [GLOSSARY.md](GLOSSARY.md) spell out** — the bash
-  3.2 floor and the dialect-constrained files below chief among them.
-  `shellcheck` (`.shellcheckrc`) and `shfmt` (style from `.editorconfig`) are
-  the enforcement, both required by `lint suites` in [What CI
-  runs](#what-ci-runs); a style exception is a `# shellcheck disable=` comment
-  at the line it covers, not a blanket suppression.
+  Guide](https://google.github.io/styleguide/shellguide.html)**, with the
+  deviations this list and [GLOSSARY.md](GLOSSARY.md) spell out. `shellcheck`
+  (`.shellcheckrc`) and `shfmt` (style from `.editorconfig`) enforce it in
+  `lint suites`; a style exception is a `# shellcheck disable=` comment at the
+  line it covers, not a blanket suppression.
 - **bash 3.2 is the floor.** No `mapfile`/`readarray`, associative arrays,
   namerefs, or `${x,,}`; the lint suite greps for all four. Every deliberately
   odd construct that forces is explained once in [GLOSSARY.md](GLOSSARY.md),
@@ -173,8 +140,9 @@ These are constraints the tree enforces, not requests:
   entry can't be deleted out from under them.
 - **Several files are a smaller dialect than bash, and say so at the top.**
   `common/paths.sh` is the four-shell plain-`export` subset,
-  `settings/aliases.sh` is POSIX+fish, `common/targets.sh` is standalone POSIX.
-  The stated subset wins over anything cleaner.
+  `settings/aliases.sh` what bash, zsh, and fish all parse, and
+  `common/targets.sh` standalone POSIX. The stated subset wins over anything
+  cleaner.
 - **Nothing may guess the tree from `$HOME`.** Each entry point derives it from
   its own path (`GLOSSARY: HI.33`). The lint sweep covers the docs too.
 - **The payload is budgeted twice.** `common/`, `settings/`, `load.sh`, and
@@ -186,14 +154,14 @@ These are constraints the tree enforces, not requests:
   [TESTING.md's _Where a suite lives_](TESTING.md#where-a-suite-lives).
 - **A red `shfmt` is fixed on the paths it names**, not with `shfmt -w .`,
   which would also reformat `common/zsh.zsh` — zsh, not bash, and shipped.
-- **Every workflow job starts with `step-security/harden-runner`** as its
-  first step (`egress-policy: audit`, or `block` with an allowlist on a job
-  that holds a publishing credential); only a job on an arm64 runner goes
-  without, since harden-runner has no agent there. Beside it: third-party
-  actions pinned to a full SHA with a `# vX.Y.Z` comment, every checkout
-  with `persist-credentials: false`, least-privilege `permissions:`, and
-  untrusted input passed through `env:` rather than an inline expression in
-  a `run:`. The packaging suite and `workflow lint` enforce them.
+- **Every workflow job starts with `step-security/harden-runner`**
+  (`egress-policy: audit`, or `block` with an allowlist on a job that holds a
+  publishing credential; a Linux arm64 job goes without, having no agent) and
+  sets `timeout-minutes`. Beside it: third-party actions pinned to a full SHA
+  with a `# vX.Y.Z` comment, every checkout with `persist-credentials: false`,
+  least-privilege `permissions:`, and untrusted input passed through `env:`
+  rather than an inline expression in a `run:`. The packaging suite and
+  `workflow lint` enforce them.
 
 ## What 1.x will not break
 
@@ -205,20 +173,21 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   or removed. Anything hi does not answer still passes to `ssh`.
 - **The flag grammar** — `-h`/`-V` as the short forms of `--help`/`--version`,
   taking nothing after them; `--option=value` for every option whose first
-  argument is a word (`--use`, `--preview`, `--update`), refused on the rest; every `--word` is hi's (an unknown one is
-  hi's error); and everything after the target is the remote command.
+  argument is a word (`--use`, `--preview`, `--update`), refused on the rest;
+  every `--word` is hi's (an unknown one is hi's error); and everything after
+  the target is the remote command.
 - **The sub-command switches** — `--doctor --json`, `--install`'s
   `-y`/`--yes`, `--link {none,user,system}`, `--preset <name>`, and
   `-n`/`--dry-run`, `--uninstall --purge` and `--uninstall --dry-run`,
   `--configure --preset <name>` and `--configure --dry-run`,
-  `--update --dry-run`,
-  `scripts/install.sh --prefix <dir>` — name and meaning (`-n` is the short
-  form of `--dry-run` wherever it appears, `-y` of `--install --yes`; no
-  other switch has one); and the `--json` document's top-level keys
-  (`version`, `target`, `findings`, `rows`) with each row's four fields.
+  `--update --dry-run`, `scripts/install.sh --prefix <dir>` — name and meaning
+  (`-n` is the short form of `--dry-run` wherever it appears, `-y` of
+  `--install --yes`; no other switch has one); and the `--json` document's
+  top-level keys (`version`, `target`, `findings`, `rows`) with each row's four
+  fields.
 - **Exit status** — 0 for "did what it says", 1 for "hi refused before
-  connecting" or "a finding", 64 and 65 for a target with neither `base64`
-  nor `openssl`, or no scratch directory, and a connect's own status passed through.
+  connecting" or "a finding", and a connect's own status passed through (a
+  target hi cannot boot gets its own plain session, not an exit status).
 - **Every row of [SETTINGS.md](SETTINGS.md)'s _Every setting_ table** — name
   and default (the type is what the row's prose says: `0`/`1`, a number, a
   word list, a name from a fixed set). A toggle that has to go is a 2.0. A
@@ -226,9 +195,13 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   `config.fish`'s mirror, and `_HI_DISABLE_LOCAL`'s block in `common/paths.sh`
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
-  `packages.d/` and its `color=` line, `plugins.d/` and its hook names, `vim.rc`, `init.lua`, `nano.rc`, `emacs.el`, `tmux.conf`, `micro/`'s `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`, the per-shell rc files,
-  `oh-my-posh.json`/`.yaml`/`.toml`, and the names starship's, powerlevel10k's, oh-my-zsh's, oh-my-bash's, tide's, eza's, and bat's own configs travel under), their
-  formats, the XDG path, and the `_HI_CONFIG_DIR` override.
+  `packages.d/` and its `color=` line, `plugins.d/` and its hook names,
+  `vim.rc`, `init.lua`, `nano.rc`, `emacs.el`, `tmux.conf`, `micro/`'s
+  `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`, the per-shell rc
+  files, `oh-my-posh.json`/`.yaml`/`.toml`, and the names starship's,
+  powerlevel10k's, oh-my-zsh's, oh-my-bash's, tide's, eza's, and bat's own
+  configs travel under), their formats, the XDG path, and the `_HI_CONFIG_DIR`
+  override.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
   and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.
@@ -242,52 +215,44 @@ completion ordering, the wording of any message or report row, `hi_info`,
 the test levers [SETTINGS.md](SETTINGS.md#not-settings) lists, the `exa`
 alias name and its `_HI_EXA_OPTS` row (exa has been archived since 2023; the
 `ls`/`eza` names and the `_HI_LS_*` rows are the contract, and the exa half
-may leave in a minor),
-and anything under `tests/` or `scripts/` a package does not ship.
+may leave in a minor), and anything under `tests/` or `scripts/` a package
+does not ship.
 
 ## Which docs change with what
 
 | you changed                               | update                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------ |
 | a flag, or `_hi_parse`                    | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
-| an environment variable or toggle         | `docs/SETTINGS.md` (enforced, see below)                                 |
+| an environment variable or toggle         | `docs/SETTINGS.md` (enforced)                                            |
 | what hi leaves on a target                | `docs/SECURITY.md`                                                       |
 | a target hi does or doesn't answer to     | `docs/COMPATIBILITY.md`                                                  |
 | a tool hi wires in, or its hook           | `docs/INTEGRATIONS.md`                                                   |
-| a new idiom worth a name                  | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag                             |
+| a new idiom worth a name                  | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag (enforced)                  |
 | how a user installs or verifies a package | `docs/PACKAGING.md`                                                      |
 | a release channel or the release flow     | `docs/RELEASING.md`                                                      |
 | the harness or the lint gate              | `docs/TESTING.md`                                                        |
 | a new document under `docs/`              | `docs/README.md`'s index                                                 |
 | a heading in a doc with a `Contents`      | that doc's `Contents` list (enforced)                                    |
 
-Four rows are checked by the lint suite: a `GLOSSARY:` tag naming a missing
-entry fails, so does a toggle in `common/core.sh` with no row in
-[SETTINGS.md](SETTINGS.md)'s _Every setting_ table, so does a `docs/tldr.md`
-example whose flag is not a `common/flags` row (or a ninth example), and so
-does a heading with no `Contents` entry. The rest are on your honour and on
-review.
+"Enforced" is the lint suite, alongside a `docs/tldr.md` example whose flag is
+not a `common/flags` row, or a ninth example; the rest are on your honour and
+on review.
 
 Markdown is formatted with prettier (`.prettierrc.yaml`; Zed does it on save,
-`.github/node_modules/.bin/prettier --write <files>` by hand after
-`npm ci --prefix .github`) and linted with markdownlint (`.markdownlint.yaml`);
-the two agree by construction, and both gate in `lint suites`, pinned by
-`.github/package-lock.json`. A link from a page the site builds into a path the
-site leaves out (a dot-path such as `.github/`, or anything `_config.yml`
-excludes) is an absolute github.com URL, or it 404s on Pages; the lint group
-checks that too.
+`.github/node_modules/.bin/prettier --write <files>` by hand) and linted with
+markdownlint (`.markdownlint.yaml`); the two agree by construction. A link from
+a page the site builds into a path the site leaves out (a dot-path such as
+`.github/`, or anything `_config.yml` excludes) is an absolute github.com URL,
+or it 404s on Pages; the lint group checks that too.
 
 [README's Roadmap](../README.md#roadmap) is a to-do list, not a changelog:
 finishing an entry means **deleting** it. What a _user_ reads is the pull
-request's `## Release note` section (the template has it): `release.yml`
-collects those from the PRs merged since the last tag
-into the release body, titles as the fallback. Write it as the sentence you
-would want on the release page, or `none` when nothing a user sees changes.
-The section is linted: `release note (pr body)` fails a PR whose body has no
-`## Release note` heading, or nothing under it but whitespace and comments,
-and re-runs when you edit the body. Dependabot's PRs are exempt.
-There is deliberately no `CHANGELOG` file: it would be a second copy of those
-release notes to keep in step by hand, and the releases page already is one.
+request's `## Release note` section (the template has it), which
+[`release.yml` collects into the release body](RELEASING.md#cutting-a-release):
+write the sentence you would want on the release page, or `none` when nothing
+a user sees changes. `release note (pr body)` fails a body with no such
+section, or an empty one. There is deliberately no `CHANGELOG` file: it would
+be a second copy of those notes to keep in step by hand.
 
 ## Opening the pull request
 
@@ -295,8 +260,7 @@ release notes to keep in step by hand, and the releases page already is one.
   takes pull requests from `dev`, and releases are built off it.
 - **Simple, concise commits** — enough to see what is going on; the pull
   request body is where the detail lives.
-- **Say if AI wrote part of it**, in the template's AI disclosure; see
-  [AI-assisted contributions](#ai-assisted-contributions).
+- **Say if AI wrote part of it**, in the template's AI disclosure.
 
 ## AI-assisted contributions
 
@@ -322,10 +286,9 @@ flow, which records why; take that route rather than reshaping the string.
 Five credentials are handled by hand — the three signing keys, `AUR_SSH_KEY`,
 and `HOMEBREW_TAP_TOKEN`, each generated locally, pasted into a settings page,
 and deleted; [RELEASING.md](RELEASING.md#the-release-environment) walks each.
-Push protection is the guard because it runs on the push path, where no
-action can; behind it, `secret scan (gitleaks)` sweeps the full history on
-every pull request and push to `main`, findings redacted from the log, for
-anything that got past it.
+Push protection is the guard because it runs on the push path, where no action
+can; behind it, `secret scan (gitleaks)` sweeps the full history for anything
+that got past.
 
 ## Governance
 
