@@ -64,7 +64,8 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
 _HI_OVERLAY_FILES=(settings.sh colors packages packages.d vim.rc init.lua nano.rc
   emacs.el aliases.sh plugins.d bash.sh zsh.zsh config.fish starship.toml
-  oh-my-posh.json p10k.zsh omz-theme.zsh omb-theme.sh tide.vars theme.yml bat.conf)
+  oh-my-posh.json p10k.zsh omz-theme.zsh omb-theme.sh tide.vars theme.yml bat.conf
+  tmux.conf micro/settings.json micro/bindings.json micro/init.lua)
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -233,6 +234,12 @@ function _hi_overlay_src() {
   init.lua) _hi_os_f="${_HI_NVIMRC:-}" ;;
   nano.rc) _hi_os_f="${_HI_NANORC:-}" ;;
   emacs.el) _hi_os_f="${_HI_EMACSRC:-}" ;;
+  tmux.conf) _hi_os_f="${_HI_TMUX_CONF:-}" ;;
+  micro/*)
+    # the overlay's copy, else micro's own directory - on this machine only
+    [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] ||
+      _hi_os_f="${MICRO_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/micro}/${1#micro/}"
+    ;;
   esac
   [ "$_hi_os_f" != "$_HI_ROOT/settings/$1" ] || return 1
   [ -f "$_hi_os_f" ] || return 1
@@ -243,7 +250,7 @@ function _hi_overlay_src() {
 # separate roster from $_HI_OVERLAY_FILES because that one answers "what rides
 # the stream" and this one "what has includes to resolve"; scripts/doctor.sh
 # walks this one.
-_HI_LINT_FILES=(vim.rc init.lua nano.rc emacs.el settings.sh aliases.sh bash.sh zsh.zsh config.fish)
+_HI_LINT_FILES=(vim.rc init.lua nano.rc emacs.el tmux.conf micro/init.lua settings.sh aliases.sh bash.sh zsh.zsh config.fish)
 
 # The include scanner, in the dialect of each file it reads. Every member
 # ships into a `config/` of its own, so a line naming a *path* - a second rc
@@ -257,8 +264,13 @@ _HI_LINT_FILES=(vim.rc init.lua nano.rc emacs.el settings.sh aliases.sh bash.sh 
 #           `source $VIMRUNTIME/...` is the same argument.
 #   lua     `dofile`/`loadfile`, a `vim.cmd` carrying `source`, `require` of
 #           anything but a `vim.` module, and the managers (lazy, packer,
-#           paq, an `rtp:prepend` bootstrap).
+#           paq, an `rtp:prepend` bootstrap). micro's init.lua reads the
+#           same, plus `AddRuntimeFile` (a plugin with `RTPlugin`); its
+#           `import` names micro's own Go packages and is left alone.
 #   nano    `include` of a path outside /usr/share/nano, which nano ships.
+#   tmux    `source-file`/`source` of a path, and TPM (`@plugin`, a `run`
+#           of tpm). Line-oriented, but a finding ending in `\` takes its
+#           continuation lines with it.
 #   emacs   `load`/`load-file`, `add-to-list 'load-path`, and the managers
 #           (`package-initialize`, `use-package`, straight, elpaca). A bare
 #           `require` is left alone: nearly every one names a built-in.
@@ -332,11 +344,16 @@ function kindof(s) {
     if (s ~ /^[ \t]*(source|so)!?[ \t]/ && s !~ /\$VIMRUNTIME/) return "include"
   } else if (lua) {
     if (s ~ /(lazypath|rtp:prepend|require[ \t]*\(?[ \t]*["'](lazy|packer|paq))/) return "plugin"
+    if (s ~ /AddRuntimeFile/) return (s ~ /RTPlugin/ ? "plugin" : "include")
     if (s ~ /(dofile|loadfile)[ \t]*\(/) return "include"
     if (s ~ /vim\.cmd/ && s ~ /source[ \t]/) return "include"
     if (s ~ /require[ \t]*\(?[ \t]*["']/ && s !~ /require[ \t]*\(?[ \t]*["']vim[.]/) return "include"
   } else if (nano) {
     if (s ~ /^[ \t]*include[ \t]/ && s !~ /\/usr\/share\/nano/) return "include"
+  } else if (tmux) {
+    if (s ~ /^[ \t]*#/) return ""
+    if (s ~ /@plugin/ || s ~ /(^|[ \t;{"'])run(-shell)?[ \t].*tpm/) return "plugin"
+    if (s ~ /(^|[ \t;{"'])source(-file)?[ \t]/) return "include"
   } else if (el) {
     if (s ~ /\((package-initialize|package-install|use-package|straight-|elpaca)/) return "plugin"
     if (s ~ /\(load(-file)?[ \t]+["]/) return "include"
@@ -351,11 +368,11 @@ function kindof(s) {
 }
 FNR == 1 {
   close(out); out = FILENAME ".lint"; depth = allow = 0
-  vim = (name == "vim.rc"); el = (name == "emacs.el"); lua = (name ~ /\.lua$/); nano = (name == "nano.rc")
+  vim = (name == "vim.rc"); el = (name == "emacs.el"); lua = (name ~ /\.lua$/); nano = (name == "nano.rc"); tmux = (name == "tmux.conf")
   sh = (name ~ /\.(sh|zsh)$/); fish = (name ~ /\.fish$/)
 }
 depth > 0 {
-  depth += bal($0)
+  depth = tmux ? ($0 ~ /\\$/) : depth + bal($0)
   if (depth < 0) depth = 0
   if (mode == "fix") print cc() " hi dropped: " $0 > out
   allow = 0
@@ -368,6 +385,7 @@ depth > 0 {
   printf "%s|%d|%s|%s\n", name, FNR, kind, trim($0)
   if (mode == "fix") print ((sh || fish) ? fixed : cc() " hi dropped: " $0) > out
   if (lua || el) { depth = bal($0); if (depth < 0) depth = 0 }
+  if (tmux) depth = ($0 ~ /\\$/)
 }
 AWK
 }
@@ -440,7 +458,7 @@ function _hi_tar_gz() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.09
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el tmux.conf
   '*/packages.d/*' '*/plugins.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
@@ -477,6 +495,7 @@ function _hi_stage_tar() {
       rm -f "$stage/in.tar"
     fi
     for ((_hi_st_i = 0; _hi_st_i < ${#_hi_st_add[@]}; _hi_st_i += 2)); do
+      case "${_hi_st_add[_hi_st_i]}" in */*) mkdir -p "$_hi_st_root/${_hi_st_add[_hi_st_i]%/*}" || exit 1 ;; esac
       cp "${_hi_st_add[_hi_st_i + 1]}" "$_hi_st_root/${_hi_st_add[_hi_st_i]}" || exit 1
     done
     # fish's universal variables are everything `set -U` ever kept, secrets

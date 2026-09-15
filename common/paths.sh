@@ -66,6 +66,17 @@ export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.d/init.el" ] && export _HI_EMACSRC="$HOME/.emacs.d/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs" ] && export _HI_EMACSRC="$HOME/.emacs"
 [ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
+# tmux the same, minus a tree default: with no config anywhere the value is
+# empty and settings/aliases.sh leaves `tmux` alone
+export _HI_TMUX_CONF=""
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/tmux/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_XDG_CONFIG/tmux/tmux.conf"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"
+[ -f "$_HI_CONFIG_DIR/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_CONFIG_DIR/tmux.conf"
+# micro takes a config *directory* with fixed file names, so its members ride
+# in a micro/ of their own and the alias's -config-dir names that; at home
+# micro already reads its own, which hi.sh packs from. No tree default either.
+export _HI_MICRO_DIR=""
+[ -d "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_DIR="$_HI_CONFIG_DIR/micro"
 # The prompt tools' own config variables, on a target only: the overlay's
 # starship.toml / oh-my-posh.json is the prompt configured at home, and at home
 # the tool's own config is already in force. Only the tool named reads its

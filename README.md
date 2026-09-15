@@ -346,25 +346,6 @@ In this checkout, and not what the tag waits on either.
        both. **Ticks when:** the next real tag's release page shows the tap
        link and renders the GIF.
 
-2. [ ] **A tmux config rides along** — `--mux` runs tmux on this machine, and
-       a tmux started on a target reads the target's own `~/.tmux.conf` or
-       none. **Do:** carry the `tmux.conf` tmux reads here (`~/.tmux.conf`,
-       else `$XDG_CONFIG_HOME/tmux/tmux.conf`, overlay copy wins) as an overlay
-       member resolved in `common/paths.sh` like the editor rcs, alias `tmux`
-       to `tmux -f` it, and give `_hi_lint_awk` a tmux dialect
-       (`source-file`, TPM's `@plugin` and `run`). **Ticks when:** a tmux on
-       a target starts with the client's config, `hi --doctor` names a
-       `source-file` no target has, and a suite pins both.
-
-3. [ ] **A micro config rides along** — micro is only styled through
-       `_HI_MICRO_OPTS`; its `settings.json`, `bindings.json`, and `init.lua`
-       stay behind, and micro takes a config *directory*. **Do:** carry those
-       files from micro's config directory here as overlay members, point
-       micro's `-config-dir` at them on the target, and lint `init.lua`
-       for plugin loads. **Ticks when:** micro on a target opens with the
-       client's settings and bindings, the payload budget still holds, and a
-       suite pins it.
-
 ### Post 1.0
 
 Outside this checkout, and not what the tag waits on: each is an account or

@@ -282,6 +282,26 @@ function test_config_flags_an_ignored_tool_config_copy() {
   [[ "$out" == *"bat.conf"*"ignored - hi ships the tool's own config; delete this copy"* ]]
 }
 
+# tmux's and micro's configs come from home like a tool's: the file in force
+# here is named, a micro file nobody has gets no row, and a tmux.conf's
+# source-file is a row of the include scan like any editor rc's
+function test_config_names_tmux_and_micro_configs() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/muxcfg.XXXXXX")"
+  mkdir -p "$dir/micro"
+  printf 'set -g mouse on\nsource-file ~/.tmux/theme.conf\n' >"$dir/tmux.conf"
+  printf '{}\n' >"$dir/micro/settings.json"
+  out="$(
+    _HI_CONFIG_DIR="$dir/overlay"
+    _HI_SETTINGS="$dir/overlay/settings.sh"
+    _HI_TMUX_CONF="$dir/tmux.conf"
+    MICRO_CONFIG_HOME="$dir/micro" doctor_config
+  )"
+  [[ "$out" == *"tmux.conf"*"targets get $dir/tmux.conf"* ]] &&
+    [[ "$out" == *"micro/settings.json"*"targets get $dir/micro/settings.json"* && "$out" != *micro/bindings.json* ]] &&
+    [[ "$out" == *"tmux.conf:2"*"reads a file hi does not carry"*"source-file ~/.tmux/theme.conf"* ]]
+}
+
 # an overlay copy of the tree's own file, byte for byte: not an override
 # until somebody edits it
 function test_config_calls_an_unedited_overlay_copy_unchanged() {
@@ -1085,6 +1105,7 @@ function run_doctor_tests() {
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
   _hi_check "An overlay copy of one is flagged as ignored" test_config_flags_an_ignored_tool_config_copy
+  _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
   _hi_check "...and =keep says it travels anyway" test_config_says_when_an_include_travels_anyway

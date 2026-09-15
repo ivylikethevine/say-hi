@@ -29,9 +29,9 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 | [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                    | yes, where installed here | `_HI_PROMPT_TOOL` (`hi` for hi's own)                    |
 | mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv        | names the active ones in the prompt's leading `(myproj)` segment              | yes                  | `_HI_DISABLE_ENV_STATUS`                                 |
 | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
-| tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client                         | no - per connect     | `--mux`, `--no-mux`                                      |
+| tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux.conf` | no - per connect     | `--mux`, `--no-mux`; `_HI_DISABLE_TOOL_ALIASES` for the config |
 | lesspipe                                                                                | `less` opens archives and packages, as the distro's own rc sets it up         | yes, where installed | none                                                     |
-| vim/neovim, nano, emacs, micro                                                          | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vim.rc` | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
+| vim/neovim, nano, emacs, micro                                                          | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vim.rc`, micro your micro directory's files | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
 | oh-my-zsh, powerlevel10k, bash-it, fzf                                                  | loads after them and leaves their hooks working                               | -                    | [Shell frameworks](#shell-frameworks)                    |
 
 `_HI_DISABLE_LOCAL=1` turns every `_HI_DISABLE_*` switch above on, prompt
@@ -191,6 +191,13 @@ sessions on the target
 were [decided against](SUPPORT.md#what-would-change-an-answer), and
 [HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
 
+A tmux you start *on* a target reads the config you use here: `~/.tmux.conf`
+(else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
+both) rides along and the session's `tmux` alias is `tmux -f` it. A
+`source-file` of another file, or TPM's `@plugin` list and its `run`, names
+something the target does not have, so it goes out disabled and
+`hi --doctor` names the line.
+
 ## lesspipe
 
 Where a target has `/usr/bin/lesspipe` (Debian and Ubuntu ship it) and
@@ -208,14 +215,15 @@ setup runs after that shell's own rc - so hi is the one positioned to break a
 framework, and the one tested for it. `tests/targets/framework_test.sh`
 installs twelve per their own READMEs - oh-my-zsh, powerlevel10k, starship,
 bash-it, oh-my-bash, tide, powerline-go, fzf, zoxide, direnv, atuin, and
-mise - connects for real, and asserts
+mise - plus a tmux under a `~/.tmux.conf` of the target's own, connects for real, and asserts
 no shell errors and the framework's own hook left intact: zsh's array base
 unchanged under oh-my-zsh and powerlevel10k, `PROMPT_COMMAND` chained rather
 than replaced for zoxide, direnv, and mise, and fzf's and atuin's `bind -x`
 Ctrl-R bindings in place. The starship case is starship started from the
 target's own rc; the powerlevel10k, oh-my-bash, tide, and powerline-go cases
 connect with `_HI_PROMPT_TOOL` set and a marker config at home, and assert the
-program drew with it.
+program drew with it; the tmux case asserts a tmux started in the session read
+the client's config over the target's, and micro's directory arrived.
 
 ### On your own machine
 

@@ -637,7 +637,8 @@ only when `_hi_prompt_list` names it), so there is one copy to edit and none
 to drift - and the stager keeps nothing of fish's universal variables but
 the `tide_` lines, since `set -U` holds whatever a user ever put there.
 
-The editor rcs (`vim.rc`, `init.lua`, `nano.rc`, `emacs.el`) ride
+The editor rcs (`vim.rc`, `init.lua`, `nano.rc`, `emacs.el`), `tmux.conf`,
+and micro's `micro/` files ride
 it for the same reason `colors` and `packages` do: the tree copy is a default,
 and `common/paths.sh` points each `$_HI_*RC` at the overlay's when there is one. Left out of the stream, that
 guard could only fire on the client — an editor override working locally and
@@ -1063,7 +1064,12 @@ carry the symbol in a column of their own (`__hi_targets`' description,
 
 hi carries a `vim.rc`, `init.lua`, `nano.rc`, and `emacs.el` to every target
 and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
-which file. `common/paths.sh` answers it in three tiers, lowest first since
+which file. `tmux.conf` (`tmux -f`) takes the same three tiers minus a tree
+copy, so with none the value is empty and `tmux` has no alias. micro takes a
+*directory* of fixed names, so its three files ride as `micro/settings.json`,
+`micro/bindings.json`, and `micro/init.lua`, `$_HI_MICRO_DIR` is the
+overlay's `micro/` or nothing, and `_hi_overlay_src` resolves each file
+itself - the overlay's, else micro's own directory on the client. `common/paths.sh` answers it in three tiers, lowest first since
 the last assignment wins: the tree's copy, then the config that editor
 already reads on this machine (`~/.vimrc`, `$XDG_CONFIG_HOME/nvim/init.lua`,
 `~/.nanorc`, `~/.emacs`, each with the editor's own second location behind
@@ -1090,7 +1096,9 @@ every member in `$_HI_LINT_FILES` for exactly those lines: vim's
 `source`/`so` and the managers' verbs (`runtime` and `$VIMRUNTIME` are left
 alone - they resolve against the target vim's own runtime), lua's
 `dofile`/`loadfile`/`require` of a non-`vim.` module and the lazy/packer/paq
-bootstraps, nano's `include` outside `/usr/share/nano`, elisp's
+bootstraps (and micro's `AddRuntimeFile`, a plugin with `RTPlugin`), nano's
+`include` outside `/usr/share/nano`, tmux's `source-file`/`source` and TPM's
+`@plugin` and tpm `run`, elisp's
 `load`/`load-file`/`load-path` and `package-initialize`/`use-package`, and
 sh/fish's `source`/`.` of anything but a path under `$_HI_CONFIG_DIR` or
 `$_HI_ROOT` (which ride along) or a process substitution, plus the
@@ -1105,7 +1113,8 @@ in the file's own syntax (`# hi-allow`, `" hi-allow`, `-- hi-allow`,
 `; hi-allow`) is neither reported nor touched; `_HI_INCLUDES=keep` does the
 same for every line.
 
-vim and nano are line-oriented, so a finding is one line. lua and elisp are
+vim and nano are line-oriented, so a finding is one line; tmux is too, but a
+finding ending in `\` takes its continuation lines with it. lua and elisp are
 not, so the comment runs to the end of the bracket-balanced expression the
 finding opened - commenting only the matched line of a
 `require("lazy").setup({` would leave its `})` behind, and a config that does

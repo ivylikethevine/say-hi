@@ -422,8 +422,8 @@ function doctor_config() {
     }
     t=""
     _hi_overlay_src "$f" t || true
-    # a prompt framework's member has no tree default to report
-    case "$f" in p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars)
+    # a prompt framework's, tmux's, or micro's member has no tree default to report
+    case "$f" in p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars | tmux.conf | micro/*)
       [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || continue
       ;;
     esac

@@ -192,7 +192,7 @@ function _hi_tool_home_unpacked() {
   shift
   d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
   (
-    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR
+    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME
     export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
       _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
     _hi_overlay_tar | tar -x -z -f - -C "$d"
@@ -522,7 +522,7 @@ function _hi_lint_vars() {
   local dir="$1"
   shift
   _HI_CONFIG_DIR="$dir" _HI_VIMRC="$dir/vim.rc" _HI_NVIMRC="$dir/init.lua" \
-    _HI_NANORC="$dir/nano.rc" _HI_EMACSRC="$dir/emacs.el" "$@"
+    _HI_NANORC="$dir/nano.rc" _HI_EMACSRC="$dir/emacs.el" _HI_TMUX_CONF="$dir/tmux.conf" "$@"
 }
 
 # _hi_lint_fixture <name> <member> <body> - an overlay holding one editor rc.
@@ -621,13 +621,16 @@ function test_the_scan_reports_every_dialect() {
   printf 'dofile("/tmp/x.lua")\n' >"$dir/init.lua"
   printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nano.rc"
   printf '(load "~/.emacs.d/mine.el")\n' >"$dir/emacs.el"
+  printf 'source-file ~/.tmux/theme.conf\n' >"$dir/tmux.conf"
+  mkdir -p "$dir/micro"
+  printf 'config.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$dir/micro/init.lua"
   printf '. ~/.secrets\n' >"$dir/settings.sh"
   printf 'source ~/.aliases.local\n' >"$dir/aliases.sh"
   printf 'x=1\n[ -f ~/.bash_local ] && . ~/.bash_local\n' >"$dir/bash.sh"
   printf 'zinit light foo/bar\n' >"$dir/zsh.zsh"
   printf 'source ~/.config/fish/local.fish\n' >"$dir/config.fish"
   out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include,settings.sh|1|include,aliases.sh|1|include,bash.sh|2|include,zsh.zsh|1|plugin,config.fish|1|include" ] || {
+  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include,tmux.conf|1|include,micro/init.lua|1|plugin,settings.sh|1|include,aliases.sh|1|include,bash.sh|2|include,zsh.zsh|1|plugin,config.fish|1|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -712,6 +715,54 @@ if test -f ~/x.fish; true; end
 status is-interactive; and source (starship init fish | psub)
 true fisher install jorgebucaran/nvm.fish' ] || {
     _hi_cecho " | config.fish arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# tmux is line-oriented like vim, except that a finding ending in `\` takes
+# its continuation with it; a `source-file` inside an if-shell string counts,
+# and TPM is a plugin manager whether it is the @plugin list or its `run`
+function test_tmux_includes_are_dropped_on_the_way_out() {
+  local dir out
+  dir="$(_hi_lint_fixture tmux tmux.conf 'set -g mouse on
+source-file ~/.tmux/theme.conf
+if-shell "test -f ~/.tmux.local" "source-file ~/.tmux.local"
+bind r source-file ~/.tmux.conf \; \
+  display "reloaded"
+set -g @plugin "tmux-plugins/tpm"
+set -g status-left "#S "
+# hi-allow
+source-file -q ~/.tmux.kept
+run "~/.tmux/plugins/tpm/tpm"
+')"
+  out="$(_HI_TMUX_CONF="$dir/tmux.conf" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux.conf)"
+  [ "$out" = 'set -g mouse on
+set -g status-left "#S "
+source-file -q ~/.tmux.kept' ] || {
+    _hi_cecho " | tmux.conf arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# micro's files ride under micro/ - micro fixes their names, so -config-dir
+# names the directory - each from the overlay when it has one and from micro's
+# own directory here otherwise; init.lua loses its plugin load, and keeps the
+# `import` of micro's own package
+function test_micro_config_rides_in_a_directory_of_its_own() {
+  local h="$_HI_WORKDIR/tool-home/.config/micro" dir d
+  mkdir -p "$h"
+  printf '{"tabsize": 7}\n' >"$h/settings.json"
+  printf '{"Alt-h": "home"}\n' >"$h/bindings.json"
+  printf 'local config = import("micro/config")\n-- a comment\nconfig.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$h/init.lua"
+  dir="$_HI_WORKDIR/micro-overlay"
+  mkdir -p "$dir/micro"
+  printf '{"Alt-h": "overlay"}\n' >"$dir/micro/bindings.json"
+  d="$(_hi_tool_home_unpacked "$dir")" || return 1
+  [ "$(cd "$d/micro" && printf '%s ' *)" = "bindings.json init.lua settings.json " ] &&
+    [ "$(cat "$d/micro/settings.json" "$d/micro/bindings.json" "$d/micro/init.lua")" = '{"tabsize": 7}
+{"Alt-h": "overlay"}
+local config = import("micro/config")' ] || {
+    _hi_cecho " | micro/ arrived as: [$(cat "$d"/micro/* 2>&1)]" "$RED"
     return 1
   }
 }
@@ -951,12 +1002,14 @@ function run_hi_payload_tests() {
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
   _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
   _hi_check "The prompt frameworks' home files ride, tide's lines alone" test_overlay_carries_the_prompt_frameworks_home_files
+  _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
   _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
   _hi_check "...and =keep sends it as written" test_editor_includes_keep_sends_the_lines_as_written
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
+  _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect

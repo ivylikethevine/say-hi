@@ -534,8 +534,10 @@ Configuration lives outside the tree, in
 .BR vim.rc ,
 .BR init.lua ,
 .BR nano.rc ,
-and
 .BR emacs.el ,
+.BR tmux.conf ,
+and
+.BR micro/ ,
 additive
 .BR aliases.sh ,
 per-shell
@@ -598,6 +600,20 @@ names, and
 sends anyway, as does a
 .B # hi-allow
 line above one. The shell files below get the same pass.
+.TP
+.B ~/.config/say-hi/tmux.conf, micro/
+the same for tmux, whose alias becomes
+.BR "tmux \-f" ,
+and for micro's
+.BR settings.json ,
+.BR bindings.json ,
+and
+.BR init.lua ,
+which its alias reads through
+.BR \-config\-dir .
+With no copy here hi carries
+.B ~/.tmux.conf
+and the files in micro's own config directory.
 .TP
 .B ~/.config/say-hi/aliases.sh
 your own aliases, sourced first so any

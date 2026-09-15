@@ -327,6 +327,30 @@ function test_remote_session_exports_overlay_config() {
   [ "$out" = "$want" ] && [ -z "$home" ]
 }
 
+# on a target, tmux and micro reach the overlay's copies through their aliases:
+# tmux -f the tmux.conf, micro -config-dir the micro/ directory, and without
+# the taste flags that would beat its settings.json. With no overlay copy the
+# target's own ~/.tmux.conf is not picked up in its place.
+# <shell> <overlay file, or - for none> <alias> <wanted> [unwanted]
+function test_remote_session_aliases_overlay_config() {
+  local shell="$1" file="$2" name="$3" want="$4" bad="${5:-}" script out
+  [ "$file" = - ] || {
+    mkdir -p "$_HI_WORKDIR/cfg/micro"
+    printf '# a config\n' >"$_HI_WORKDIR/cfg/$file"
+  }
+  printf 'set -g @mine target\n' >"$_HI_WORKDIR/.tmux.conf"
+  case "$shell" in
+  bash) script='source "$_HI_HOME/say-hi/common/bash.sh" 2>/dev/null; alias '"$name" ;;
+  fish) script='source $_HI_HOME/say-hi/common/config.fish 2>/dev/null; functions '"$name" ;;
+  esac
+  out="$(_hi_rc_shell xterm-256color "$shell" "$script" _HI_REMOTE_SESSION=1 2>/dev/null)"
+  rm -rf "$_HI_WORKDIR/cfg/micro" "$_HI_WORKDIR/cfg/tmux.conf" "$_HI_WORKDIR/.tmux.conf"
+  if [[ "$out" != *"$want"* ]] || { [ -n "$bad" ] && [[ "$out" == *"$bad"* ]]; }; then
+    _hi_cecho " | $name is: [$out]" "$RED"
+    return 1
+  fi
+}
+
 # plugins.d (GLOSSARY: HI.59), one fixture for every shell: 10 exports a value
 # and a segment, 20 reads 10's value (so name order is load order), 30 uses
 # if/then/fi (bash and zsh parse it, fish does not), 40 parses nowhere, and
@@ -1020,6 +1044,9 @@ function run_rc_tests() {
   _hi_check "[bash] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config bash starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check "[bash] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config bash theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check "[bash] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config bash bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check "[bash] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config bash tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
+  _hi_check "[bash] ...and never the target's own" test_remote_session_aliases_overlay_config bash - tmux "" .tmux.conf
+  _hi_check "[bash] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config bash micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires zsh "[zsh] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked zsh starship
   _hi_check_requires zsh "[zsh] defers to oh-my-posh when asked and present" test_defers_to_prompt_tool_when_asked zsh oh-my-posh
   _hi_check_requires fish "[fish] defers to starship when asked and present" test_defers_to_prompt_tool_when_asked fish starship
@@ -1027,6 +1054,8 @@ function run_rc_tests() {
   _hi_check_requires fish "[fish] a target points the tool at the overlay's config" test_remote_session_exports_overlay_config fish starship.toml STARSHIP_CONFIG "$_HI_WORKDIR/cfg/starship.toml" PATH="$(_hi_prompt_stub_dir starship):$PATH" _HI_PROMPT_TOOL=starship
   _hi_check_requires fish "[fish] a target points eza at the overlay's theme.yml" test_remote_session_exports_overlay_config fish theme.yml EZA_CONFIG_DIR "$_HI_WORKDIR/cfg"
   _hi_check_requires fish "[fish] a target points bat at the overlay's bat.conf" test_remote_session_exports_overlay_config fish bat.conf BAT_CONFIG_PATH "$_HI_WORKDIR/cfg/bat.conf"
+  _hi_check_requires fish "[fish] a target's tmux reads the overlay's tmux.conf" test_remote_session_aliases_overlay_config fish tmux.conf tmux "tmux -f $_HI_WORKDIR/cfg/tmux.conf"
+  _hi_check_requires fish "[fish] a target's micro reads the overlay's micro/" test_remote_session_aliases_overlay_config fish micro/settings.json micro "micro -config-dir $_HI_WORKDIR/cfg/micro -backup false -savehistory false" diffgutter
   _hi_check_requires fish "[fish] the sudo wrapper follows _HI_DISABLE_SUDO_ALIAS" test_fish_sudo_wrapper_follows_the_toggle
 
   _hi_h2 "Testing: prompt programs without init (powerline-go, the frameworks)"

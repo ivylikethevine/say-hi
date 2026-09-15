@@ -17,7 +17,9 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/vim.rc`          | `settings/vim.rc`   | your vim config, used by the `vim` alias where vim is what answers, and by `$VIMINIT` - replaces hi's default wholesale. Only needed when it should differ from your `~/.vimrc`, which hi carries on its own ([below](#the-editor-rcs-come-from-where-you-keep-them)) |
 | `~/.config/say-hi/init.lua`        | `settings/init.lua` | the same for neovim, used by the `nvim` alias (and by `vim`, which prefers nvim where a target has it); the same goes for your `~/.config/nvim/init.lua` |
 | `~/.config/say-hi/nano.rc`         | `settings/nano.rc`  | the same for nano, used by the `nano` alias; likewise over your `~/.nanorc` |
-| `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`), and over your `~/.emacs`; micro takes no file - see `_HI_MICRO_OPTS` below |
+| `~/.config/say-hi/emacs.el`        | `settings/emacs.el` | the same for emacs, used by the `emacs` alias (`emacs -q -l`), and over your `~/.emacs` |
+| `~/.config/say-hi/tmux.conf`       | -                   | the same for tmux, used by the `tmux` alias (`tmux -f`), and over your `~/.tmux.conf`; with neither, `tmux` is left alone |
+| `~/.config/say-hi/micro/`          | -                   | micro's `settings.json`, `bindings.json`, and `init.lua`, each over the one in your micro config directory; the `micro` alias's `-config-dir` names it |
 | `~/.config/say-hi/aliases.sh`      | -                   | your own aliases, sourced **last** so they replace hi's of the same name - same POSIX+fish subset; see [below](#shells-you-drop-into-inside-a-session) |
 | `~/.config/say-hi/plugins.d/`      | -                   | drop-in plugins in the same POSIX+fish subset, sourced after the aliases in name order; see [below](#plugins)                                          |
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
@@ -202,8 +204,8 @@ cannot land without a row here.
 | `_HI_DISABLE_NANO`         | `0`                                                  | `hi --configure`          | turns off hi's nano config alone - the `nano` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
 | `_HI_INCLUDES`              | `drop`                                               | you                       | what happens to a line in an editor rc or shell overlay file that reads a file hi does not carry, or names a plugin manager: `drop` disables it on the way out, `keep` sends it as written. `hi --doctor` names every one either way; a `# hi-allow` line above one keeps just that line. See [The editor rcs come from where you keep them](#the-editor-rcs-come-from-where-you-keep-them) |
 | `_HI_DISABLE_EMACS`        | `0`                                                  | `hi --configure`          | turns off hi's emacs config alone - the `emacs` alias - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
-| `_HI_DISABLE_MICRO`        | `0`                                                  | `hi --configure`          | turns off hi's micro config alone - the `micro` alias and its `_HI_MICRO_OPTS` flags - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
-| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat` and the `exa`/`eza` wrappers - `bat`/`batcat`/`batn`, `exa`, and `eza` themselves stay available by name either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                           |
+| `_HI_DISABLE_MICRO`        | `0`                                                  | `hi --configure`          | turns off hi's micro config alone - the `micro` alias, its `_HI_MICRO_OPTS` flags, and its `-config-dir` - where `_HI_DISABLE_EDITORS` turns off every editor's; `$EDITOR` can still pick it, bare |
+| `_HI_DISABLE_TOOL_ALIASES`  | `0`                                                  | `hi --configure`          | turns off the styled tool aliases: the `cat`/`catn` rebind to `bat`, the `exa`/`eza` wrappers, and `tmux -f` your tmux config - `bat`/`batcat`/`batn`, `exa`, and `eza` themselves stay available by name either way. See [Integrations](INTEGRATIONS.md#bat-and-eza)                                                                                                                                                                           |
 | `_HI_DISABLE_SUDO_ALIAS`    | `0`                                                  | `hi --configure`          | turns off the `sudo` alias - the trailing-space alias in bash/zsh that lets `sudo vim` keep the vim alias's flags, and fish's wrapper function that does the same for its alias functions                                                                                                                                                                       |
 | `_HI_EDITOR`                | unset                                                | you                       | the editor a target session exports as `$EDITOR`, `$VISUAL`, and `$SUDO_EDITOR`, by command name (`nvim`, `micro`, ...); used when the target has it, else the first of `nvim vim micro nano emacs` it does have. The value carries hi's config flags, so `git commit` and `sudo -e` get the same editor the alias gives you |
 | `_HI_DISABLE_LOCAL`         | `0`                                                  | `hi --configure`          | turns off all of the above **on this machine only** - hi still styles the hosts you visit ([Others](#others) says how it tells the two apart)                                                                                                                                                                                                                                                                        |
@@ -231,7 +233,7 @@ cannot land without a row here.
 | `_HI_EZA_OPTS`              | `-F -1 -l -m --group-directories-first --smart-group` + a time format | you                       | the flags the list alias takes when eza is the rung that answered                                                                                                                                                                                                                                                                                                |
 | `_HI_EXA_OPTS`              | the same leading flags + `--group --no-filesize`     | you                       | the same for exa, whose column set its successor dropped                                                                                                                                                                                                                                                                                                         |
 | `_HI_LS_OPTS`               | whichever of the two the ladder picked, else `-F -l` | you                       | the flags the `ls`/`eza`/`exa` alias actually runs with; set it and the ladder defers to you                                                                                                                                                                                                                                                                      |
-| `_HI_MICRO_OPTS`            | `-backup false -savehistory false -mkparents true -diffgutter true` | you            | the `micro` alias's flags - micro takes settings on the command line rather than a config file, so this is its whole override; behind `_HI_DISABLE_EDITORS`                                                                                                                                                                                                  |
+| `_HI_MICRO_OPTS`            | `-backup false -savehistory false -mkparents true -diffgutter true` | you            | the `micro` alias's flags - any micro setting works as `-name value`; with an overlay `micro/` the default is the first two alone, so its `settings.json` wins; behind `_HI_DISABLE_EDITORS`                                                                                                                                                                                                  |
 | `_HI_CAT_BIN`            | first of `bat`, `batcat`, `ccat`, `cat` on PATH      | you                       | which binary the `bat` and `cat` aliases run (Debian ships bat as `batcat`; the tail keeps `cat` working where none is installed)                                                                                                                                                                                                                                                                                                               |
 | `_HI_BAT_BIN`              | first of `bat`, `batcat` on PATH                     | you                       | the bat-only tier behind it, what parses `_HI_BAT_OPTS` - two rungs shorter on purpose; set with it, or leave both alone                                                                                                                                                                                                                                         |
 | `_HI_LS_BIN`                | first of `eza`, `exa`, `ls` on PATH                  | you                       | which binary the `ls`, `eza`, and `exa` aliases all run - one ladder, and `_HI_LS_OPTS` follows the rung it answered with                                                                                                                                                                                                                                          |
@@ -250,9 +252,9 @@ More names look like settings and are not:
   point derives `$_HI_HOME` from its own path.
 - `$_HI_ROOT`, `$_HI_SSH_CONFIG` (where ssh hosts and their `# Tags:`
   comments are read from), `$_HI_COLORS`, `$_HI_PACKAGES`, `$_HI_PACKAGES_D`, `$_HI_VIMRC`,
-  `$_HI_NVIMRC`, `$_HI_NANORC`, and `$_HI_EMACSRC` are derived
+  `$_HI_NVIMRC`, `$_HI_NANORC`, `$_HI_EMACSRC`, `$_HI_TMUX_CONF`, and `$_HI_MICRO_DIR` are derived
   from those two by `common/paths.sh` on every source - all but the first two resolving to the overlay's copy when you have one,
-  else the tree's - so an exported value does not survive. Point `$_HI_HOME`
+  else the tree's (or, for the last two, nothing) - so an exported value does not survive. Point `$_HI_HOME`
   or `$HOME` elsewhere, or put your file in the overlay.
 - `$_HI_ASCII` is the *client's* verdict on whether its terminal renders
   multibyte glyphs, taken from the locale and shipped to the session next to
@@ -453,16 +455,18 @@ collects them in load order. The whole contract is
 
 ## The editor rcs come from where you keep them
 
-The four editor files are the exception, and usually you want none of them.
-hi carries the config each editor **already reads on this machine**, so there
-is one copy to edit:
+The editor files, tmux's, and micro's are the exception, and usually you want
+none of them. hi carries the config each tool **already reads on this
+machine**, so there is one copy to edit:
 
-| member     | hi looks at                                                                  |
-| ---------- | ---------------------------------------------------------------------------- |
-| `vim.rc`   | `~/.vimrc`, else `~/.vim/vimrc`                                              |
-| `init.lua` | `$XDG_CONFIG_HOME/nvim/init.lua`                                             |
-| `nano.rc`  | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                             |
-| `emacs.el` | `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el` |
+| member            | hi looks at                                                                  |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `vim.rc`          | `~/.vimrc`, else `~/.vim/vimrc`                                              |
+| `init.lua`        | `$XDG_CONFIG_HOME/nvim/init.lua`                                             |
+| `nano.rc`         | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                             |
+| `emacs.el`        | `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el` |
+| `tmux.conf`       | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                       |
+| `micro/<file>`    | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua` |
 
 An overlay copy still wins where you have one — that is how you give hi's
 sessions an editor config that differs from your local one — and hi's shipped
@@ -472,8 +476,9 @@ there is the target's, and the file your client picked has already arrived.
 Your own config is written for a machine with your plugins on it and a target
 has none, so hi reads each file — and your overlay's `settings.sh`,
 `aliases.sh`, `bash.sh`, `zsh.zsh`, and `config.fish` — for the lines naming
-something it cannot carry: vim's `source`, lua's `require`/`dofile`, nano's
-`include`, elisp's `load`, a shell's `source`/`.` of a file outside
+something it cannot carry: vim's `source`, lua's `require`/`dofile` (and
+micro's `AddRuntimeFile`), nano's `include`, elisp's `load`, tmux's
+`source-file` and TPM, a shell's `source`/`.` of a file outside
 `$_HI_CONFIG_DIR`, every plugin manager's bootstrap. Those are disabled on the
 way out, and `hi --doctor` names each one, file and line, in yellow, so you
 can see what your target is not getting. Put a `hi-allow` comment on the line
