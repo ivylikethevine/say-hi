@@ -14,7 +14,7 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}"; : "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}";: "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -46,10 +46,20 @@ command -v shift >/dev/null 2>&1 &&
 # micro takes a config *directory*, never a file, but any of its settings can
 # be set on the command line as `-name value`, so it gets flags like bat and
 # eza do: no backups or history written into a config dir on a box you are
-# only visiting, parents made on save, the diff gutter on. Override the whole
-# string with _HI_MICRO_OPTS in your settings.sh.
+# only visiting, parents made on save, the diff gutter on. With the overlay's
+# micro/ ($_HI_MICRO_DIR) it gets -config-dir, and the two taste flags go the
+# way bat's --theme does, or they would beat that settings.json. Override the
+# whole string with _HI_MICRO_OPTS in your settings.sh.
+[ -z "$_HI_MICRO_OPTS" ] && [ -n "$_HI_MICRO_DIR" ] && export _HI_MICRO_OPTS='-backup false -savehistory false' || true
 [ -z "$_HI_MICRO_OPTS" ] && export _HI_MICRO_OPTS='-backup false -savehistory false -mkparents true -diffgutter true' || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && alias micro="micro $_HI_MICRO_OPTS" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_MICRO" != 1 ] && [ -n "$_HI_MICRO_DIR" ] && alias micro="micro -config-dir $_HI_MICRO_DIR $_HI_MICRO_OPTS" || true
+
+# tmux reads one config, at server start: the one in force here ($_HI_TMUX_CONF,
+# which on a target is the overlay's copy) rather than the target's own; two
+# lines, like the wrappers below, since with no config there is no alias
+[ "$_HI_DISABLE_TOOL_ALIASES" != 1 ] && [ -n "$_HI_TMUX_CONF" ] &&
+  alias tmux="tmux -f $_HI_TMUX_CONF" || true
 
 # the trailing space makes bash/zsh alias-expand the word after sudo, so
 # `sudo vim` gets the vim alias's flags; fish has a wrapper in config.fish

@@ -171,30 +171,40 @@ directory rides member by member; a member name is a letter or digit, then
 | `plugins.d/`                  | `_HI_PLUGINS_D`   | -                     | every shell, after the aliases, in name order                       |
 | `bash.sh`, `zsh.zsh`, `config.fish` | -           | -                     | the end of hi's rc for that shell                                   |
 | `vim.rc`, `init.lua`, `nano.rc`, `emacs.el` | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_NANORC`, `_HI_EMACSRC` | the tree's copy | the editor aliases and `$VIMINIT` |
-| `starship.toml`, `oh-my-posh.json`, `theme.yml`, `bat.conf` | - | -           | starship, oh-my-posh, eza, and bat on a target                      |
+| `tmux.conf`                   | `_HI_TMUX_CONF`   | -                     | the `tmux` alias (`tmux -f`)                                        |
+| `micro/` (`settings.json`, `bindings.json`, `init.lua`) | `_HI_MICRO_DIR` | - | the `micro` alias (`-config-dir`)                                   |
+| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf` | - | - | starship, oh-my-posh, eza, and bat on a target |
+| `p10k.zsh`, `omz-theme.zsh`, `omb-theme.sh`, `tide.vars` | - | -              | powerlevel10k, oh-my-zsh, oh-my-bash, and tide on a target          |
 
-An editor rc or shell file that sources a path no target has is disabled on
+An editor rc, tmux config, or shell file that sources a path no target has is disabled on
 the way out; `hi --doctor` names each line
 ([SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 
 ### Configs read from where their tool keeps them
 
 On this machine (never on a target), hi carries the config a tool already
-reads rather than asking for a copy. The last one found wins; an overlay copy
-wins over all of them for the editors, and is ignored for starship, eza, and
-bat.
+reads rather than asking for a copy. The last one found wins, and an overlay
+copy wins over all of them - for the prompt programs, eza, and bat on a
+target only, since at home each already reads its own. A prompt program's
+member rides only when that program is in the list a target is handed
+([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)).
 
 | Member          | Looked for, in order                                                                               |
 | --------------- | -------------------------------------------------------------------------------------------------- |
-| `vim.rc`        | `~/.vim/vimrc`, `~/.vimrc`                                                                         |
+| `vim.rc`        | `$XDG_CONFIG_HOME/vim/vimrc`, `~/.vim/vimrc`, `~/.vimrc`                                           |
 | `init.lua`      | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                   |
 | `nano.rc`       | `$XDG_CONFIG_HOME/nano/nanorc`, `~/.nanorc`                                                        |
-| `emacs.el`      | `$XDG_CONFIG_HOME/emacs/init.el`, `~/.emacs.d/init.el`, `~/.emacs`                                 |
-| `starship.toml` | `${STARSHIP_CONFIG:-~/.config/starship.toml}`, only with `_HI_PROMPT_TOOL=starship`                |
+| `emacs.el`      | `$XDG_CONFIG_HOME/emacs/init.el`, `~/.emacs.d/init.el`, `~/.emacs`, `~/.emacs.el`                  |
+| `tmux.conf`     | `$XDG_CONFIG_HOME/tmux/tmux.conf`, `~/.tmux.conf`                                                  |
+| `micro/<file>`  | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, each of the three on its own                |
+| `starship.toml` | `${STARSHIP_CONFIG:-~/.config/starship.toml}`                                                      |
+| `oh-my-posh.*`  | the last `oh-my-posh init ... --config <file>` in `~/.bashrc`, `${ZDOTDIR:-~}/.zshrc`, and fish's `config.fish`, then `${POSH_CONFIG:-$POSH_THEME}` over it; the member is the one its extension names, and any overlay copy puts all of them out of the running |
+| `p10k.zsh`      | `${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-~}/.p10k.zsh}`                                             |
+| `omz-theme.zsh` | the theme the last `ZSH_THEME=` in `${ZDOTDIR:-~}/.zshrc` names, under `$ZSH_CUSTOM`, `$ZSH_CUSTOM/themes`, then `${ZSH:-~/.oh-my-zsh}/themes` |
+| `omb-theme.sh`  | the theme the last `OSH_THEME=` in `~/.bashrc` names, under `$OSH_CUSTOM`, `$OSH_CUSTOM/themes`, then `${OSH:-~/.oh-my-bash}/themes` |
+| `tide.vars`     | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it     |
 | `theme.yml`     | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                |
 | `bat.conf`      | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                               |
-
-micro takes no file: it is configured through `_HI_MICRO_OPTS`.
 
 ## Paths hi recognizes
 

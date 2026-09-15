@@ -36,10 +36,14 @@ export _HI_CONFIG_DIR="$XDG_CONFIG_HOME/say-hi"
 # ordinary child shell needs no help here - but a shell that predates those
 # companions carries the value without the record, and its tree is not this one.
 unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
-# The tools' own config variables hi.sh's _hi_overlay_src reads, and the
-# setting that gates starship's: inherited, they would pack the developer's
-# real configs into every overlay stream a suite builds.
-unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR _HI_PROMPT_TOOL
+# The tools' own config variables hi.sh's _hi_overlay_src reads: inherited,
+# they would pack the developer's real configs into every overlay stream a
+# suite builds. The prompt programs are pinned to hi's own for the same
+# reason - unset, whatever this box has installed would draw every prompt -
+# and a case about them names its list.
+unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME \
+  POWERLEVEL9K_CONFIG_FILE ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
+export _HI_PROMPT_TOOL=hi
 
 # The one place the test side resolves a tree. GLOSSARY: HI.33
 _hi_d="${BASH_SOURCE[0]}"
@@ -66,7 +70,7 @@ source "$_hi_d/../common/core.sh"
 # since paths.sh re-exports over whatever it was handed. A suite exercising the
 # tier points them somewhere of its own, as tests/common/paths_test.sh does.
 export _HI_VIMRC="$_HI_ROOT/settings/vim.rc" _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
-export _HI_NANORC="$_HI_ROOT/settings/nano.rc" _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
+export _HI_NANORC="$_HI_ROOT/settings/nano.rc" _HI_EMACSRC="$_HI_ROOT/settings/emacs.el" _HI_TMUX_CONF=""
 # the heading rules the harness and the suites print with
 # shellcheck source=../scripts/lib.sh
 source "$_hi_d/../scripts/lib.sh"

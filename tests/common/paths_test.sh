@@ -315,7 +315,7 @@ function test_an_exported_path_does_not_survive() {
 function _hi_editor_home() {
   local dir="$_HI_WORKDIR/edhome-$1" f
   shift
-  mkdir -p "$dir/.config/nvim" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.vim" "$dir/.emacs.d"
+  mkdir -p "$dir/.config/vim" "$dir/.config/nvim" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.config/tmux" "$dir/.vim" "$dir/.emacs.d"
   for f in "$@"; do printf '%s\n' "$f" >"$dir/$f"; done
   printf '%s' "$dir"
 }
@@ -338,21 +338,27 @@ function _hi_tier_is() {
 # location that editor actually reads
 function test_the_editors_own_config_beats_the_tree() {
   local home
-  home="$(_hi_editor_home own .vimrc .config/nvim/init.lua .nanorc .emacs)"
+  home="$(_hi_editor_home own .vimrc .config/nvim/init.lua .nanorc .emacs .tmux.conf)"
   _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
     _hi_tier_is _HI_NVIMRC "$home" "$home/.config/nvim/init.lua" &&
     _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs"
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs" &&
+    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.tmux.conf"
 }
 
 # ...and within the tier, the editor's own precedence: vim reads ~/.vimrc
-# before ~/.vim/vimrc, nano ~/.nanorc before the XDG copy, emacs ~/.emacs
-# before ~/.emacs.d/init.el
+# before ~/.vim/vimrc before the XDG copy, nano ~/.nanorc and tmux ~/.tmux.conf
+# before the XDG copy, emacs ~/.emacs.el before ~/.emacs before
+# ~/.emacs.d/init.el
 function test_the_tier_keeps_each_editors_precedence() {
   local home
-  home="$(_hi_editor_home order .vimrc .vim/vimrc .nanorc .config/nano/nanorc .emacs .emacs.d/init.el)"
+  home="$(_hi_editor_home order .vimrc .vim/vimrc .config/vim/vimrc .nanorc .config/nano/nanorc .emacs.el .emacs .emacs.d/init.el .tmux.conf .config/tmux/tmux.conf)"
   _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
     _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.el" &&
+    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.tmux.conf" || return 1
+  rm "$home/.vimrc" "$home/.emacs.el"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.vim/vimrc" &&
     _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs"
 }
 
@@ -360,20 +366,23 @@ function test_the_tier_keeps_each_editors_precedence() {
 # be three lines nothing reaches
 function test_the_tier_reads_the_second_locations() {
   local home
-  home="$(_hi_editor_home second .vim/vimrc .config/nano/nanorc .emacs.d/init.el)"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.vim/vimrc" &&
+  home="$(_hi_editor_home second .config/vim/vimrc .config/nano/nanorc .emacs.d/init.el .config/tmux/tmux.conf)"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.config/vim/vimrc" &&
     _hi_tier_is _HI_NANORC "$home" "$home/.config/nano/nanorc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.d/init.el"
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.d/init.el" &&
+    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/tmux/tmux.conf"
 }
 
 # an overlay copy is the hi-specific override and still outranks it: the tier
 # is a convenience, not a demotion of the file the user put in $_HI_CONFIG_DIR
 function test_the_overlay_beats_the_editors_own_config() {
   local home
-  home="$(_hi_editor_home beaten .vimrc)"
+  home="$(_hi_editor_home beaten .vimrc .tmux.conf)"
   mkdir -p "$home/.config/say-hi"
   printf 'set number\n' >"$home/.config/say-hi/vim.rc"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.config/say-hi/vim.rc"
+  printf 'set -g mouse on\n' >"$home/.config/say-hi/tmux.conf"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.config/say-hi/vim.rc" &&
+    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/say-hi/tmux.conf"
 }
 
 # and on a target the tier is off: $HOME there is the *target's*, whose rcs are
@@ -382,11 +391,22 @@ function test_the_overlay_beats_the_editors_own_config() {
 # above this one.
 function test_a_target_ignores_its_own_editor_config() {
   local home
-  home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .nanorc .emacs)"
+  home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .nanorc .emacs .tmux.conf)"
   _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/settings/vim.rc" 1 &&
     _hi_tier_is _HI_NVIMRC "$home" "$_HI_ROOT/settings/init.lua" 1 &&
     _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/settings/nano.rc" 1 &&
-    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/settings/emacs.el" 1
+    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/settings/emacs.el" 1 &&
+    _hi_tier_is _HI_TMUX_CONF "$home" "" 1
+}
+
+# micro's directory is the overlay's micro/ or nothing: at home micro reads its
+# own without being told, and an inherited value does not survive
+function test_the_micro_dir_is_the_overlays_or_empty() {
+  local dir="$_HI_WORKDIR/micro-overlay"
+  mkdir -p "$dir"
+  [ -z "$(_HI_MICRO_DIR=/anywhere _hi_resolved _HI_MICRO_DIR "$dir")" ] || return 1
+  mkdir -p "$dir/micro"
+  [ "$(_hi_resolved _HI_MICRO_DIR "$dir")" = "$dir/micro" ]
 }
 
 # ...and the same through settings.sh: a line there is read before paths.sh
@@ -440,7 +460,9 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # only home, so each is an unguarded export instead) and
 # the four additive ones, which each shell or settings/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
-# aliases.sh and the three per-shell files (bash.sh, zsh.zsh, config.fish). A
+# aliases.sh and the three per-shell files (bash.sh, zsh.zsh, config.fish) -
+# and the prompt frameworks' four, which only a target reads, by name - and
+# micro's, whose micro/ directory paths.sh resolves whole. A
 # missed lookup fails asymmetrically: the file works on targets but local
 # sessions ignore the overlay's copy - the same silent drift the toggle-gate
 # pin above catches.
@@ -459,7 +481,11 @@ function test_overlay_guards_match_the_roster() {
       # shellcheck disable=SC2016 # paths.sh's literal text
       grep -qF 'export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"' "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bash.sh | zsh.zsh | config.fish) continue ;;
+    micro/*)
+      # shellcheck disable=SC2016 # paths.sh's literal text
+      grep -qF '[ -d "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_DIR' "$_HI_ROOT/common/paths.sh" && continue
+      ;;
+    bash.sh | zsh.zsh | config.fish | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"
@@ -517,6 +543,7 @@ function run_paths_tests() {
   _hi_check "The second locations answer too" test_the_tier_reads_the_second_locations
   _hi_check "The overlay still beats it" test_the_overlay_beats_the_editors_own_config
   _hi_check "A target ignores the box's own" test_a_target_ignores_its_own_editor_config
+  _hi_check "micro's directory is the overlay's micro/ or nothing" test_the_micro_dir_is_the_overlays_or_empty
 
   _hi_h2 "Testing: per-file overlay location overrides"
   _hi_check "The overlay's copy wins over the tree's" test_unset_still_prefers_the_overlay

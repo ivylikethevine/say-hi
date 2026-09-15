@@ -38,9 +38,16 @@ _HI_FRAMEWORK_OK=""
 # its own colon (bind:fzf) survives the split.
 _HI_FRAMEWORKS=(
   "omz:/usr/bin/zsh:zsh curl git:zsh"
-  "p10k:/usr/bin/zsh:zsh curl git:zsh"
   "starship:/bin/bash:curl:bash"
   "bashit:/bin/bash:git:bash"
+  # The prompt programs, each handed the prompt (prompt:<_HI_PROMPT_TOOL>)
+  # from a client home that carries a marker config of its own: the probe
+  # asks that the program drew and that home's config reached it.
+  # GLOSSARY: HI.32
+  "p10k:/usr/bin/zsh:zsh curl git:prompt:powerlevel10k"
+  "omb:/bin/bash:curl git:prompt:oh-my-bash"
+  "tide:/usr/bin/fish:fish curl git:prompt:tide"
+  "plgo:/bin/bash:curl:prompt:powerline-go"
   # The env tools, which hook the same two surfaces hi's bash half touches -
   # each probed by the family:<needle> in its third field: bind:* is a
   # `bind -x` key binding (fzf's and atuin's Ctrl-R), hook:* a PROMPT_COMMAND
@@ -52,6 +59,10 @@ _HI_FRAMEWORKS=(
   "direnv:/bin/bash:direnv:hook:_direnv_hook"
   "atuin:/bin/bash:curl:bind:atuin"
   "mise:/bin/bash:curl:hook:mise"
+  # The configs hi carries for a tool the target runs: a tmux started in the
+  # session reads the client's ~/.tmux.conf over the target's own, and micro
+  # is pointed at the client's micro directory (_hi_config_client_home)
+  "tmux:/bin/bash:tmux:config"
 )
 
 # The line each case types into the live session, once hi and the framework are
@@ -72,7 +83,38 @@ function _hi_framework_probe() {
   # string or as bash 5.1's array form - bare $PROMPT_COMMAND would show
   # element 0 alone and cry LOST over a coexistence that is fine.
   hook:*) printf '%s\n' "[[ \${PROMPT_COMMAND[*]} == *${1#hook:}* && \${PROMPT_COMMAND[*]} == *ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # the program's prompt and not hi's, with the client home's marker config
+  # in force (_hi_prompt_client_home); p10k keeps zsh's array base check
+  prompt:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] && POWERLEVEL9K_HI_MARK )) && [[ \$PROMPT != *__hi_env_info* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
+  prompt:oh-my-bash) printf '%s\n' "[[ \$PS1 == OMBHOME* && \$PROMPT_COMMAND != ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  prompt:tide) printf '%s\n' "functions -q tide; and not functions -q __hi_env_prompt; and test \"\$tide_character_icon\" = HITIDE; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
+  # a tmux server started from the session, asked for the client's mark; the
+  # alias is the first word, so it expands
+  config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_MICRO_DIR/settings.json\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  prompt:powerline-go) printf '%s\n' "[[ \$PROMPT_COMMAND == *__hi_plgo_ps1* && \$(type -t ps1) != function && -n \$PS1 ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   esac
+}
+
+# _hi_prompt_client_home <dir> - a client home whose prompt config is a
+# marker the probe can see on the target: a p10k variable, an oh-my-bash
+# theme drawing OMBHOME, a tide variable - each where hi.sh looks for it
+function _hi_prompt_client_home() {
+  local h="$1"
+  mkdir -p "$h/.oh-my-bash/themes/hi" "$h/.config/fish"
+  printf 'typeset -g POWERLEVEL9K_HI_MARK=1\n' >"$h/.p10k.zsh"
+  printf 'OSH_THEME="hi"\n' >"$h/.bashrc"
+  # shellcheck disable=SC2016 # the target's shell expands this
+  printf '%s\n' 'function _omb_theme_PROMPT_COMMAND { PS1="OMBHOME \$ "; }' \
+    '_omb_util_add_prompt_command _omb_theme_PROMPT_COMMAND' >"$h/.oh-my-bash/themes/hi/hi.theme.sh"
+  printf 'SETUVAR tide_character_icon:HITIDE\n' >"$h/.config/fish/fish_variables"
+}
+
+# _hi_config_client_home <dir> - a client home with a tmux config and a micro
+# settings file of its own, each a marker the config probe looks for
+function _hi_config_client_home() {
+  mkdir -p "$1/.config/micro"
+  printf 'set -g @hi_mark HITMUX\n' >"$1/.tmux.conf"
+  printf '{"tabsize": 7}\n' >"$1/.config/micro/settings.json"
 }
 
 # One image per framework, each tests/dockerfiles/framework.Dockerfile with
@@ -120,6 +162,20 @@ function _hi_run_framework_case() {
     return 0
   fi
 
+  # a prompt case connects from a home of its own, handing the prompt over
+  case "$3" in
+  prompt:*)
+    local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="${3#prompt:}"
+    local -x XDG_CONFIG_HOME="$HOME/.config"
+    _hi_prompt_client_home "$HOME"
+    ;;
+  config)
+    local -x HOME="$_HI_WORKDIR/home-$label"
+    local -x XDG_CONFIG_HOME="$HOME/.config"
+    _hi_config_client_home "$HOME"
+    ;;
+  esac
+
   name="hi-fwtest-$label-c-$$"
   _hi_h3 "Testing framework: $label ($login_shell)"
   _hi_sshd_container "$name" "hi-fwtest-$label-$$" -e "LOGIN_SHELL=$login_shell" || return 1
@@ -152,7 +208,7 @@ function run_framework_tests() {
 
   _hi_suite_begin
 
-  # Nine frameworks, nine containers, nothing shared between them - the widest
+  # Thirteen rows, thirteen containers, nothing shared between them - the widest
   # fan-out in the tree and the one this suite is almost entirely made of.
   local spec label shell pkgs family
   _hi_par_begin "framework cases"

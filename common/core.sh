@@ -586,7 +586,7 @@ _HI_CHILD_ENV=(_HI_HOME _HI_CONFIG_DIR _HI_REMOTE_SESSION _HI_SESSION_RC
 # The client's verdicts hi.sh exports into a session (_hi_session_env, same
 # suite). Not in _HI_CHILD_ENV: load.sh writes them into the session rc files.
 _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
-  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_ASCII _HI_TRUECOLOR)
+  _HI_LOCAL_HOSTNAME _HI_RELEASE _HI_PROMPT_TOOL _HI_ASCII _HI_TRUECOLOR)
 
 # _hi_unexport - drop the export attribute from every _HI_* name not in
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
@@ -671,15 +671,29 @@ function _hi_prompt_end() {
   _hi_out "${2:-}" "$_hi_pe"
 }
 
-# _HI_PROMPT_TOOL names a prompt program - starship or oh-my-posh - to hand the
-# prompt to when the target has it, keeping hi's header and aliases; a missing
-# one falls back silently to hi's prompt. Never auto-detected - a target that
-# happens to carry one must not surprise. GLOSSARY: HI.32
-function _hi_wants_prompt_tool() {
-  case "${_HI_PROMPT_TOOL:-}" in
-  starship | oh-my-posh) command -v "$_HI_PROMPT_TOOL" >/dev/null 2>&1 ;;
-  *) return 1 ;;
-  esac
+# Every prompt program hi hands the prompt to, the frameworks ahead of the
+# programs that fit every shell. config.fish keeps the fish-fitting half.
+_HI_PROMPT_TOOLS="powerlevel10k oh-my-zsh oh-my-bash tide starship oh-my-posh powerline-go"
+
+# _hi_prompt_tool <bash|zsh> [outvar] - the first of $_HI_PROMPT_TOOL's prompt
+# programs that fits this shell and is here, to hand the prompt to while hi
+# keeps its header and aliases; `hi` or none leaves hi's prompt. Unset, the
+# list is every one - so a program found at home wins by default - and a
+# target is handed home's answer (hi.sh's _hi_prompt_list), never its own.
+# A framework's presence is the shell's own _hi_prompt_fw. GLOSSARY: HI.32
+function _hi_prompt_tool() {
+  local _hi_ptt _hi_ptl="${_HI_PROMPT_TOOL:-} "
+  [ "$_hi_ptl" != " " ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_ptl="$_HI_PROMPT_TOOLS "
+  while [ -n "$_hi_ptl" ]; do
+    _hi_ptt="${_hi_ptl%% *}" _hi_ptl="${_hi_ptl#* }"
+    case "$_hi_ptt:$1" in
+    hi:*) return 1 ;;
+    starship:* | oh-my-posh:* | powerline-go:*) command -v "$_hi_ptt" >/dev/null 2>&1 ;;
+    powerlevel10k:zsh | oh-my-zsh:zsh | oh-my-bash:bash) _hi_prompt_fw "$_hi_ptt" ;;
+    *) false ;;
+    esac && _hi_out "${2:-}" "$_hi_ptt" && return 0
+  done
+  return 1
 }
 
 # Does this terminal do color? $TERM, not `tput` (a fork per shell); a

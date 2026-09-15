@@ -56,7 +56,7 @@ jq:3,gojq:3,jaq:3
 tmux:3,zellij:3,screen:2,dtach:1
 zoxide:3,autojump:2
 atuin:3,mcfly:2
-starship:3,oh-my-posh:3
+starship:3,oh-my-posh:3,powerline-go:3
 lazygit:3,gitui:3,tig:2
 tldr:3,tlrc:3,tealdeer:3,man:2
 just:3,task:3

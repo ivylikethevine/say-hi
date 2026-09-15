@@ -530,7 +530,7 @@ function test_setting_get_leaves_other_variables_ambient() {
 
 #
 # A default-on toggle is on unless its off-value is written; an opt-in
-# (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=starship) is on only when its
+# (_HI_DISABLE_LEAD_SPACE=1, _HI_PROMPT_TOOL=hi) is on only when its
 # on-value is. setting_on is the one reader of both, and _hi_pending_state
 # writes both.
 
@@ -587,10 +587,10 @@ function test_opt_in_off_writes_nothing() {
   [ -z "$(_hi_collected_lines prompt_default | tr -d ' ')" ]
 }
 
-function test_starship_kept_when_chosen() {
+function test_hi_prompt_kept_when_chosen() {
   local out
-  out="$(_hi_collected_lines starship "export _HI_PROMPT_TOOL=starship")"
-  [[ "$out" == *"export _HI_PROMPT_TOOL=starship"* ]]
+  out="$(_hi_collected_lines hiprompt "export _HI_PROMPT_TOOL=hi")"
+  [[ "$out" == *"export _HI_PROMPT_TOOL=hi"* ]]
 }
 
 # the truecolor question with nobody to answer keeps what the file holds,
@@ -973,19 +973,25 @@ function test_bat_preview_without_bat_says_targets_only() {
   [[ "$out" == *"bat is not installed here"* ]]
 }
 
-function test_starship_preview_reports_an_installed_one() {
+# the preview names what draws the prompt without the setting - hi.sh's
+# list of the programs installed here, under a home with none of the
+# frameworks so only the fake $PATH answers
+function test_prompt_tool_preview_names_what_is_installed() {
   local dir out
   dir="$(_hi_fake_path preview_star starship)"
+  mkdir -p "$_HI_WORKDIR/preview_home"
   # shellcheck disable=SC2031 # the swap lives and dies in its own $( )
-  out="$(PATH="$dir:$PATH" _hi_starship_preview)"
-  [[ "$out" == *"starship is installed here"* ]]
+  out="$(HOME="$_HI_WORKDIR/preview_home" XDG_CONFIG_HOME="$_HI_WORKDIR/preview_home" \
+    PATH="$dir:$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname)" _hi_prompt_tool_preview)"
+  [[ "$out" == *"the first of starship a target has"* ]]
 }
 
-function test_starship_preview_reports_an_absent_one() {
+function test_prompt_tool_preview_reports_none() {
   local out
-  mkdir -p "$_HI_WORKDIR/preview_none"
-  out="$(hash -r && PATH="$_HI_WORKDIR/preview_none" _hi_starship_preview)"
-  [[ "$out" == *"starship is not installed on this machine"* ]]
+  mkdir -p "$_HI_WORKDIR/preview_none" "$_HI_WORKDIR/preview_home"
+  out="$(HOME="$_HI_WORKDIR/preview_home" XDG_CONFIG_HOME="$_HI_WORKDIR/preview_home" \
+    PATH="$(_hi_real_path preview_tools bash sh dirname cat tr sed awk grep uname hostname):$_HI_WORKDIR/preview_none" _hi_prompt_tool_preview)"
+  [[ "$out" == *"no prompt program is installed here"* ]]
 }
 
 # an empty render is a real answer at a high enough floor, and the preview
@@ -1275,17 +1281,17 @@ function test_prompt_end_typed_interactively_is_quoted() {
   [[ "$lines" == *"export _HI_PROMPT_END_BASH='>>'"* && "$lines" != *"_HI_PROMPT_END_ZSH"* ]]
 }
 
-function test_menu_toggles_starship() {
+function test_menu_toggles_hi_prompt() {
   _hi_cfg_pty pe_star "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" '' config_hub || return 1
-  _hi_cfg_has pe_star "starship: now on" &&
-    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=starship"* ]]
+  _hi_cfg_has pe_star "hi's own prompt: now on" &&
+    [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=hi"* ]]
 }
 
 # ...and back off: an opt-in switched off clears its line rather than
 # writing an off-value
-function test_menu_toggles_starship_off() {
-  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" 'export _HI_PROMPT_TOOL=starship' config_hub || return 1
-  _hi_cfg_has pe_star_off "starship: now off" && _hi_cfg_has pe_star_off "CFGLINES=" &&
+function test_menu_toggles_hi_prompt_off() {
+  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" 'export _HI_PROMPT_TOOL=hi' config_hub || return 1
+  _hi_cfg_has pe_star_off "hi's own prompt: now off" && _hi_cfg_has pe_star_off "CFGLINES=" &&
     [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]]
 }
 
@@ -1443,7 +1449,7 @@ function run_configure_tests() {
   _hi_check "A written opt-in is on" test_setting_on_opt_in_present_is_on
   _hi_check "An absent toggle is on" test_setting_on_toggle_absent_is_on
   _hi_check "An opt-in that is off writes nothing" test_opt_in_off_writes_nothing
-  _hi_check "starship is kept when chosen" test_starship_kept_when_chosen
+  _hi_check "hi's prompt is kept when chosen" test_hi_prompt_kept_when_chosen
   _hi_check "Advanced: unanswered keeps every value" test_advanced_declined_keeps_every_value
   _hi_check "Advanced: defaults write nothing" test_advanced_defaults_write_nothing
   _hi_check "A hand-written line is adopted, not duplicated" test_configure_adopts_a_hand_written_line
@@ -1490,8 +1496,8 @@ function run_configure_tests() {
   fi
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
-  _hi_check "starship preview reports an installed one" test_starship_preview_reports_an_installed_one
-  _hi_check "...and an absent one" test_starship_preview_reports_an_absent_one
+  _hi_check "the prompt preview names the programs installed here" test_prompt_tool_preview_names_what_is_installed
+  _hi_check "...and says when there are none" test_prompt_tool_preview_reports_none
   _hi_check "Floor preview says off at the top floor" test_floor_preview_says_off_at_the_top_floor
 
   # Every pty case fans out together: each drives its own child under its own
@@ -1531,8 +1537,8 @@ function run_configure_tests() {
   _hi_par_check_capable pty "Menu: the width item takes a width" test_menu_takes_a_width
   _hi_par_check_capable pty "Menu: the check depth opens its loop" test_menu_opens_the_check_depth
   _hi_par_check_capable pty "Menu: hidden addresses" test_menu_takes_hidden_addresses
-  _hi_par_check_capable pty "Menu: starship toggles" test_menu_toggles_starship
-  _hi_par_check_capable pty "Menu: starship toggles back off" test_menu_toggles_starship_off
+  _hi_par_check_capable pty "Menu: hi's prompt toggles" test_menu_toggles_hi_prompt
+  _hi_par_check_capable pty "Menu: hi's prompt toggles back off" test_menu_toggles_hi_prompt_off
   _hi_par_check_capable pty "Menu: a separator typed and quoted" test_prompt_end_typed_interactively_is_quoted
   _hi_par_check_capable pty "Menu: a quoted separator is refused" test_menu_refuses_a_quoted_separator
   _hi_par_check_capable pty "Menu: the advanced rows" test_menu_advanced_rows

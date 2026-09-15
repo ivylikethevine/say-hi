@@ -27,10 +27,66 @@ _hi_interactive_extras
 # _hi_color_base's answer for one of the extras.
 _hi_prime_identity
 
+# the frameworks _hi_prompt_tool asks after (GLOSSARY: HI.32): each counts
+# once the rc loaded it, or where it installs - oh-my-zsh only with a theme
+# from home to draw, the overlay's copy on a target. powerlevel10k's config is
+# that copy there, and the one it reads here at home.
+_hi_omz_theme=""
+_hi_p10k_cfg="${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"
+[[ "$_HI_REMOTE_SESSION" == 1 ]] && _hi_omz_theme="$_HI_CONFIG_DIR/omz-theme.zsh" _hi_p10k_cfg="$_HI_CONFIG_DIR/p10k.zsh"
+_hi_p10k_theme() {
+  local d
+  for d in ~/powerlevel10k "${ZSH_CUSTOM:-${ZSH:-$HOME/.oh-my-zsh}/custom}/themes/powerlevel10k" \
+    /usr/share/zsh-theme-powerlevel10k {/opt/homebrew,/usr/local,/home/linuxbrew/.linuxbrew}/share/powerlevel10k; do
+    [[ -f $d/powerlevel10k.zsh-theme ]] && REPLY="$d/powerlevel10k.zsh-theme" && return 0
+  done
+  return 1
+}
+_hi_prompt_fw() {
+  case $1 in
+  powerlevel10k) (( $+functions[p10k] )) || _hi_p10k_theme ;;
+  oh-my-zsh) (( $+functions[git_prompt_info] )) || [[ -f $_hi_omz_theme && -f ${ZSH:-$HOME/.oh-my-zsh}/lib/git.zsh ]] ;;
+  esac
+}
+
 if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
-  if _hi_wants_prompt_tool; then
-    # GLOSSARY: HI.32
-    eval "$("$_HI_PROMPT_TOOL" init zsh)"
+  _hi_pt=""
+  if _hi_prompt_tool zsh _hi_pt; then
+    # each the way its own README wires it into an rc. GLOSSARY: HI.32
+    case $_hi_pt in
+    powerline-go)
+      # first in line, so $? is still the command's status
+      __hi_plgo_precmd() { PS1="$(powerline-go -shell zsh -error $? -jobs ${${(%):-%j}:-0} ${=_HI_POWERLINE_GO_OPTS})"; }
+      precmd_functions=(__hi_plgo_precmd "${precmd_functions[@]}")
+      ;;
+    powerlevel10k)
+      # an rc that loaded it at home sourced its config too
+      if (( ! $+functions[p10k] )); then
+        typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+        _hi_p10k_theme && source "$REPLY"
+        [[ -f $_hi_p10k_cfg ]] && source "$_hi_p10k_cfg"
+      elif [[ "$_HI_REMOTE_SESSION" == 1 && -f $_hi_p10k_cfg ]]; then
+        source "$_hi_p10k_cfg"
+      fi
+      ;;
+    oh-my-zsh)
+      # not loaded by the rc: only the libraries themes call into - no plugins,
+      # completion, or key bindings - and hi's aliases put back over theirs
+      if (( ! $+functions[git_prompt_info] )); then
+        typeset -gA _hi_a
+        _hi_a=("${(@kv)aliases}")
+        : "${ZSH:=$HOME/.oh-my-zsh}"
+        autoload -Uz colors && colors
+        for _hi_l in async_prompt bzr git nvm prompt_info_functions spectrum theme-and-appearance vcs_info; do
+          [[ -f $ZSH/lib/$_hi_l.zsh ]] && source "$ZSH/lib/$_hi_l.zsh"
+        done
+        aliases=("${(@kv)_hi_a}")
+        unset _hi_a _hi_l
+      fi
+      [[ -f $_hi_omz_theme ]] && source "$_hi_omz_theme"
+      ;;
+    *) eval "$("$_hi_pt" init zsh)" ;;
+    esac
   else
     # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
     # pw3nage-safe form bash.sh's ps1() uses
@@ -98,6 +154,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     unset _hi_lead
   fi
 fi
+unset _hi_pt _hi_omz_theme _hi_p10k_cfg
 
 # completion: `hi` from the shared target list, `exa` the same way as `eza`
 zmodload zsh/complist

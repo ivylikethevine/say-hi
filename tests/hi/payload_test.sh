@@ -181,7 +181,8 @@ export _HI_SEGMENT="printf x"' ] || {
 
 # starship's, eza's, and bat's configs ride from where each tool reads them
 # here (_hi_overlay_src), under the overlay's name for them, so a target draws
-# the config in force at home; a copy in the overlay is never what ships.
+# the config in force at home - unless the overlay has its own copy, which is
+# how a target gets a different one.
 
 # _hi_tool_home_unpacked <overlay> [NAME=value...] - _hi_overlay_tar's stream
 # unpacked into a fresh directory, which is printed. HOME and XDG_CONFIG_HOME
@@ -192,7 +193,7 @@ function _hi_tool_home_unpacked() {
   shift
   d="$(mktemp -d "$_HI_WORKDIR/toolhome.XXXXXX")" || return 1
   (
-    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR
+    unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME
     export HOME="$_HI_WORKDIR/tool-home" XDG_CONFIG_HOME="$_HI_WORKDIR/tool-home/.config" \
       _HI_PROMPT_TOOL=starship _HI_CONFIG_DIR="$dir" ${1+"$@"}
     _hi_overlay_tar | tar -x -z -f - -C "$d"
@@ -231,14 +232,118 @@ function test_overlay_home_configs_follow_the_tools_variables() {
   [ "$(cat "$d/starship.toml" "$d/theme.yml" "$d/bat.conf")" = "$(printf 'format = "var"\nfilekinds: var\n--theme=var')" ]
 }
 
-# an overlay copy is ignored - the home file ships, or nothing does (starship's
-# without _HI_PROMPT_TOOL=starship, which is the only thing that starts it)
-function test_overlay_copy_of_a_tool_config_is_ignored() {
+# an overlay copy wins over home's - and starship's still rides only with
+# starship in the list, which is the only thing that starts it
+function test_overlay_copy_of_a_tool_config_wins() {
   local dir d
   _hi_tool_home_fixture
   dir="$(_hi_overlay_fixture tool-copy bat.conf theme.yml starship.toml)"
-  d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=)" || return 1
-  [ "$(cat "$d/bat.conf" "$d/theme.yml")" = "$(printf -- '--theme=home\nfilekinds: home')" ] && [ ! -e "$d/starship.toml" ]
+  d="$(_hi_tool_home_unpacked "$dir")" || return 1
+  [ "$(cat "$d/bat.conf" "$d/theme.yml" "$d/starship.toml")" = "$(printf 'x\nx\nx')" ] || return 1
+  d="$(_hi_tool_home_unpacked "$dir" _HI_PROMPT_TOOL=hi)" || return 1
+  [ "$(cat "$d/bat.conf" "$d/theme.yml")" = "$(printf 'x\nx')" ] && [ ! -e "$d/starship.toml" ]
+}
+
+# the prompt frameworks' files the same way: an overlay copy of each rides over
+# the one home has (tide's still down to its tide_ lines)
+function test_overlay_copy_of_a_prompt_framework_file_wins() {
+  local dir d h="$_HI_WORKDIR/fw-home"
+  _hi_fw_home_fixture
+  dir="$_HI_WORKDIR/fw-copy"
+  mkdir -p "$dir"
+  printf 'POWERLEVEL9K_MODE=overlay\n' >"$dir/p10k.zsh"
+  printf 'PROMPT=overlay\n' >"$dir/omz-theme.zsh"
+  printf 'PS1=overlay\n' >"$dir/omb-theme.sh"
+  printf 'SETUVAR secret:x\nSETUVAR tide_character_icon:overlay\n' >"$dir/tide.vars"
+  d="$(_hi_tool_home_unpacked "$dir" HOME="$h" XDG_CONFIG_HOME="$h/.config" \
+    _HI_PROMPT_TOOL="powerlevel10k oh-my-zsh oh-my-bash tide")" || return 1
+  [ "$(cat "$d/p10k.zsh" "$d/omz-theme.zsh" "$d/omb-theme.sh" "$d/tide.vars")" = \
+    "$(printf 'POWERLEVEL9K_MODE=overlay\nPROMPT=overlay\nPS1=overlay\nSETUVAR tide_character_icon:overlay')" ] || {
+    _hi_cecho " | the stream carried: [$(cat "$d"/* 2>&1)]" "$RED"
+    return 1
+  }
+}
+
+# oh-my-posh has no default file: home's is the one $POSH_CONFIG names, else
+# the one an rc's `oh-my-posh init ... --config` names, riding under the
+# member its extension picks. Any overlay copy outranks both, and an
+# `extends` naming a local file goes out emptied - a URL or a theme name
+# resolves on the target and stays.
+function test_oh_my_posh_config_rides_from_home_or_overlay() {
+  local h="$_HI_WORKDIR/omp-home" dir d
+  mkdir -p "$h"
+  printf '{\n  "extends": "~/base.omp.json",\n  "version": 3\n}\n' >"$h/mine.omp.json"
+  printf 'extends: https://example.com/base.yaml\nversion: 3\n' >"$h/rc.omp.yaml"
+  printf 'eval "$(oh-my-posh init bash --config ~/rc.omp.yaml)"\n' >"$h/.bashrc"
+  dir="$(_hi_overlay_fixture omp-none)"
+  set -- HOME="$h" XDG_CONFIG_HOME="$h/.config" _HI_PROMPT_TOOL=oh-my-posh
+  d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.json " ] &&
+    [ "$(cat "$d/oh-my-posh.json")" = "$(printf '{\n  "extends": "",\n  "version": 3\n}')" ] || {
+    _hi_cecho " | from \$POSH_CONFIG: [$(cd "$d" && printf '%s ' *)] $(cat "$d"/* 2>&1)" "$RED"
+    return 1
+  }
+  d="$(_hi_tool_home_unpacked "$dir" "$@")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.yaml " ] &&
+    [ "$(cat "$d/oh-my-posh.yaml")" = "$(cat "$h/rc.omp.yaml")" ] || {
+    _hi_cecho " | from the rc: [$(cd "$d" && printf '%s ' *)]" "$RED"
+    return 1
+  }
+  printf 'version = 3\n' >"$dir/oh-my-posh.toml"
+  d="$(_hi_tool_home_unpacked "$dir" "$@" POSH_CONFIG="$h/mine.omp.json")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "oh-my-posh.toml " ]
+}
+
+# The prompt frameworks' home half, each only with its name in the list:
+# powerlevel10k's config, the theme file the rc's last ZSH_THEME / OSH_THEME
+# names (oh-my-zsh's custom one over its stock copy), and of fish's universal
+# variables the tide_ lines alone - never the rest, which can hold secrets.
+function _hi_fw_home_fixture() {
+  local h="$_HI_WORKDIR/fw-home"
+  mkdir -p "$h/.oh-my-zsh/custom/themes" "$h/.oh-my-zsh/themes" "$h/.oh-my-bash/themes/font" "$h/.config/fish"
+  printf '# the wizard wrote this\ntypeset -g POWERLEVEL9K_MODE=home\n' >"$h/.p10k.zsh"
+  printf 'ZSH_THEME="robbyrussell"\n# ZSH_THEME="commented"\n  ZSH_THEME='"'"'agnoster'"'"' # mine\n' >"$h/.zshrc"
+  printf 'PROMPT=custom\n' >"$h/.oh-my-zsh/custom/themes/agnoster.zsh-theme"
+  printf 'PROMPT=stock\n' >"$h/.oh-my-zsh/themes/agnoster.zsh-theme"
+  printf 'export OSH_THEME="font"\n' >"$h/.bashrc"
+  printf 'PS1=font\n' >"$h/.oh-my-bash/themes/font/font.theme.sh"
+  printf '# VERSION: 3.0\nSETUVAR --export API_TOKEN:hunter2\nSETUVAR tide_character_icon:\\u276f\n' >"$h/.config/fish/fish_variables"
+}
+
+function test_overlay_carries_the_prompt_frameworks_home_files() {
+  local dir d h="$_HI_WORKDIR/fw-home"
+  set -- HOME="$h" XDG_CONFIG_HOME="$h/.config"
+  _hi_fw_home_fixture
+  dir="$(_hi_overlay_fixture fw-none colors)"
+  d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL="powerlevel10k oh-my-zsh oh-my-bash tide")" || return 1
+  [ "$(cd "$d" && printf '%s ' *)" = "colors omb-theme.sh omz-theme.zsh p10k.zsh tide.vars " ] &&
+    [ "$(cat "$d/p10k.zsh" "$d/omz-theme.zsh" "$d/omb-theme.sh" "$d/tide.vars")" = \
+      "$(printf 'typeset -g POWERLEVEL9K_MODE=home\nPROMPT=custom\nPS1=font\nSETUVAR tide_character_icon:\\u276f')" ] || return 1
+  # unnamed, nothing rides; and powerlevel10k as oh-my-zsh's theme is no theme file
+  d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=hi)" || return 1
+  [ "$(cd "$d" && printf '%s' *)" = colors ] || {
+    _hi_cecho " | unnamed, the stream carried: $(cd "$d" && printf '%s ' *)" "$RED"
+    return 1
+  }
+  printf 'ZSH_THEME="powerlevel10k/powerlevel10k"\n' >"$_HI_WORKDIR/fw-home/.zshrc"
+  d="$(_hi_tool_home_unpacked "$dir" "$@" _HI_PROMPT_TOOL=oh-my-zsh)" || return 1
+  [ ! -e "$d/omz-theme.zsh" ]
+}
+
+# Unset, a target is handed every prompt program this machine has, frameworks
+# first - the list the members above are gated on, and what _hi_session_env
+# ships; set, the setting as written; and a target passes its own along
+# rather than looking. GLOSSARY: HI.32
+function test_prompt_list_is_what_home_has() {
+  local h="$_HI_WORKDIR/fw-home" p
+  _hi_fw_home_fixture
+  p="$(_hi_fake_path list-bins starship powerline-go)"
+  # prefix assignments, not a subshell's exports: _hi_tool_home_unpacked's
+  # own already are, and the linter tracks the two as one
+  [ "$(HOME="$h" XDG_CONFIG_HOME="$h/.config" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _hi_prompt_list)" = \
+    "powerlevel10k oh-my-zsh oh-my-bash starship powerline-go" ] &&
+    [ "$(HOME="$h" _HI_PROMPT_TOOL="tide hi" _hi_prompt_list)" = "tide hi" ] &&
+    [ -z "$(HOME="$h" PATH="$p:$PATH" _HI_PROMPT_TOOL='' _HI_REMOTE_SESSION=1 _hi_prompt_list)" ]
 }
 
 # The payload is an allow list; this is its drift guard. Exact match on the
@@ -470,7 +575,7 @@ function _hi_lint_vars() {
   local dir="$1"
   shift
   _HI_CONFIG_DIR="$dir" _HI_VIMRC="$dir/vim.rc" _HI_NVIMRC="$dir/init.lua" \
-    _HI_NANORC="$dir/nano.rc" _HI_EMACSRC="$dir/emacs.el" "$@"
+    _HI_NANORC="$dir/nano.rc" _HI_EMACSRC="$dir/emacs.el" _HI_TMUX_CONF="$dir/tmux.conf" "$@"
 }
 
 # _hi_lint_fixture <name> <member> <body> - an overlay holding one editor rc.
@@ -569,13 +674,16 @@ function test_the_scan_reports_every_dialect() {
   printf 'dofile("/tmp/x.lua")\n' >"$dir/init.lua"
   printf 'include "~/.nano/mine.nanorc"\n' >"$dir/nano.rc"
   printf '(load "~/.emacs.d/mine.el")\n' >"$dir/emacs.el"
+  printf 'source-file ~/.tmux/theme.conf\n' >"$dir/tmux.conf"
+  mkdir -p "$dir/micro"
+  printf 'config.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$dir/micro/init.lua"
   printf '. ~/.secrets\n' >"$dir/settings.sh"
   printf 'source ~/.aliases.local\n' >"$dir/aliases.sh"
   printf 'x=1\n[ -f ~/.bash_local ] && . ~/.bash_local\n' >"$dir/bash.sh"
   printf 'zinit light foo/bar\n' >"$dir/zsh.zsh"
   printf 'source ~/.config/fish/local.fish\n' >"$dir/config.fish"
   out="$(_hi_lint_vars "$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
-  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include,settings.sh|1|include,aliases.sh|1|include,bash.sh|2|include,zsh.zsh|1|plugin,config.fish|1|include" ] || {
+  [ "$out" = "vim.rc|1|include,init.lua|1|include,nano.rc|1|include,emacs.el|1|include,tmux.conf|1|include,micro/init.lua|1|plugin,settings.sh|1|include,aliases.sh|1|include,bash.sh|2|include,zsh.zsh|1|plugin,config.fish|1|include" ] || {
     _hi_cecho " | the scan reported: [$out]" "$RED"
     return 1
   }
@@ -662,6 +770,83 @@ true fisher install jorgebucaran/nvm.fish' ] || {
     _hi_cecho " | config.fish arrived as: [$out]" "$RED"
     return 1
   }
+}
+
+# tmux is line-oriented like vim, except that a finding ending in `\` takes
+# its continuation with it; a `source-file` inside an if-shell string counts,
+# and TPM is a plugin manager whether it is the @plugin list or its `run`
+function test_tmux_includes_are_dropped_on_the_way_out() {
+  local dir out
+  dir="$(_hi_lint_fixture tmux tmux.conf 'set -g mouse on
+source-file ~/.tmux/theme.conf
+if-shell "test -f ~/.tmux.local" "source-file ~/.tmux.local"
+bind r source-file ~/.tmux.conf \; \
+  display "reloaded"
+set -g @plugin "tmux-plugins/tpm"
+set -g status-left "#S "
+# hi-allow
+source-file -q ~/.tmux.kept
+run "~/.tmux/plugins/tpm/tpm"
+')"
+  out="$(_HI_TMUX_CONF="$dir/tmux.conf" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat tmux.conf)"
+  [ "$out" = 'set -g mouse on
+set -g status-left "#S "
+source-file -q ~/.tmux.kept' ] || {
+    _hi_cecho " | tmux.conf arrived as: [$out]" "$RED"
+    return 1
+  }
+}
+
+# micro's files ride under micro/ - micro fixes their names, so -config-dir
+# names the directory - each from the overlay when it has one and from micro's
+# own directory here otherwise; init.lua loses its plugin load, and keeps the
+# `import` of micro's own package
+function test_micro_config_rides_in_a_directory_of_its_own() {
+  local h="$_HI_WORKDIR/tool-home/.config/micro" dir d
+  mkdir -p "$h"
+  printf '{"tabsize": 7}\n' >"$h/settings.json"
+  printf '{"Alt-h": "home"}\n' >"$h/bindings.json"
+  printf 'local config = import("micro/config")\n-- a comment\nconfig.AddRuntimeFile("mine", config.RTPlugin, "mine.lua")\n' >"$h/init.lua"
+  dir="$_HI_WORKDIR/micro-overlay"
+  mkdir -p "$dir/micro"
+  printf '{"Alt-h": "overlay"}\n' >"$dir/micro/bindings.json"
+  d="$(_hi_tool_home_unpacked "$dir")" || return 1
+  [ "$(cd "$d/micro" && printf '%s ' *)" = "bindings.json init.lua settings.json " ] &&
+    [ "$(cat "$d/micro/settings.json" "$d/micro/bindings.json" "$d/micro/init.lua")" = '{"tabsize": 7}
+{"Alt-h": "overlay"}
+local config = import("micro/config")' ] || {
+    _hi_cecho " | micro/ arrived as: [$(cat "$d"/micro/* 2>&1)]" "$RED"
+    return 1
+  }
+}
+
+# the prompt frameworks' files and plugins.d's members are shell like the
+# overlay's rc files, so a source of a file hi does not carry is neutralized in
+# them too - except one under $OSH or $ZSH, the framework's own tree, which is
+# on any target the theme is for
+function test_framework_and_plugin_includes_are_neutralized() {
+  local dir h="$_HI_WORKDIR/fw-home" out
+  _hi_fw_home_fixture
+  dir="$_HI_WORKDIR/lint-fw"
+  mkdir -p "$dir/plugins.d"
+  printf '. "$OSH/themes/base.theme.sh"\n. ~/.omb-mine\nPS1=x\n' >"$dir/omb-theme.sh"
+  printf 'source ~/.p10k-local.zsh\n' >"$dir/p10k.zsh"
+  printf 'export Y=1\n[ -f ~/.kube-extra ] && . ~/.kube-extra\n' >"$dir/plugins.d/10-kube"
+  out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_include_lint | cut -d'|' -f1,2,3 | paste -sd, -)"
+  [ "$out" = "p10k.zsh|1|include,omb-theme.sh|2|include,plugins.d/10-kube|2|include" ] || {
+    _hi_cecho " | the scan reported: [$out]" "$RED"
+    return 1
+  }
+  out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat plugins.d/10-kube)"
+  [ "$out" = 'export Y=1
+[ -f ~/.kube-extra ] && :' ] || {
+    _hi_cecho " | plugins.d/10-kube arrived as: [$out]" "$RED"
+    return 1
+  }
+  out="$(HOME="$h" _HI_PROMPT_TOOL="powerlevel10k oh-my-bash" _HI_CONFIG_DIR="$dir" _hi_overlay_tar | _hi_tar_cat omb-theme.sh)"
+  [ "$out" = '. "$OSH/themes/base.theme.sh"
+:
+PS1=x' ]
 }
 
 # `hi-allow` in the file's own comment syntax keeps the next line as written
@@ -897,12 +1082,18 @@ function run_hi_payload_tests() {
   _hi_check "plugins.d members ride stripped" test_overlay_carries_plugins
   _hi_check "The tool configs in force here ride along" test_overlay_carries_the_home_tool_configs
   _hi_check "...found through each tool's own variable" test_overlay_home_configs_follow_the_tools_variables
-  _hi_check "...and an overlay copy is ignored" test_overlay_copy_of_a_tool_config_is_ignored
+  _hi_check "...and an overlay copy wins" test_overlay_copy_of_a_tool_config_wins
+  _hi_check "An overlay copy of a prompt framework's file wins" test_overlay_copy_of_a_prompt_framework_file_wins
+  _hi_check "oh-my-posh's config rides from \$POSH_CONFIG, the rc, or the overlay" test_oh_my_posh_config_rides_from_home_or_overlay
+  _hi_check "The prompt frameworks' home files ride, tide's lines alone" test_overlay_carries_the_prompt_frameworks_home_files
+  _hi_check "micro's files ride under micro/, the overlay's copy first" test_micro_config_rides_in_a_directory_of_its_own
+  _hi_check "Unset, the prompt programs are what home has" test_prompt_list_is_what_home_has
 
   _hi_h2 "Testing: the include scan"
   _hi_check "An unresolvable include is dropped" test_editor_includes_are_dropped_on_the_way_out
   _hi_check "...and =keep sends it as written" test_editor_includes_keep_sends_the_lines_as_written
   _hi_check "A lua finding takes its expression with it" test_a_dropped_expression_goes_out_whole
+  _hi_check "A tmux finding takes its continuation with it" test_tmux_includes_are_dropped_on_the_way_out
   _hi_check "The editor config in force here rides along" test_the_editor_config_in_force_here_rides_the_stream
   _hi_check "...and hi's own tree copy does not" test_the_trees_own_editor_rc_is_not_streamed
   _hi_check "The scan reads every dialect" test_the_scan_reports_every_dialect
@@ -910,6 +1101,7 @@ function run_hi_payload_tests() {
   _hi_check "An rc is read under its member name" test_the_scan_reads_an_rc_under_its_own_name
   _hi_check "A shell include becomes : and still parses" test_shell_includes_are_neutralized_and_still_parse
   _hi_check "A fish include becomes true" test_fish_includes_become_true
+  _hi_check "Framework files and plugins.d are scanned as shell" test_framework_and_plugin_includes_are_neutralized
   _hi_check "hi-allow keeps the next line" test_hi_allow_keeps_the_next_line
 
   _hi_h2 "Testing: block padding (BSD tar)"

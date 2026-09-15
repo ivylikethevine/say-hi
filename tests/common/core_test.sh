@@ -1004,19 +1004,35 @@ function test_ascii_flag_ships_the_verdict() {
   )
 }
 
-# never auto-detected: the setting and the binary both have to say yes, and
-# the setting has to name a tool hi knows how to init
-function test_wants_prompt_tool_needs_both_halves() {
+# never auto-detected: the setting and the program both have to say yes, the
+# setting has to name a program hi knows how to start, and a list goes to its
+# first entry that fits the shell - a framework through the shell's own
+# _hi_prompt_fw
+function test_prompt_tool_needs_setting_program_and_shell() {
+  local got="" p
+  mkdir -p "$_HI_WORKDIR/empty.path"
+  p="$(_hi_fake_path pgo powerline-go):$(_hi_fake_path posh oh-my-posh)"
+  # unset, every program is in the list at home, and none on a target, which
+  # hi.sh hands home's answer; `hi` is hi's own prompt, ending the walk
   (
     unset _HI_PROMPT_TOOL
-    ! _hi_wants_prompt_tool
+    [ "$(PATH="$p" _hi_prompt_tool bash)" = oh-my-posh ] || exit 1
+    ! _HI_REMOTE_SESSION=1 PATH="$p" _hi_prompt_tool bash
   ) || return 1
-  mkdir -p "$_HI_WORKDIR/empty.path"
-  ! _HI_PROMPT_TOOL=starship PATH="$_HI_WORKDIR/empty.path" _hi_wants_prompt_tool || return 1
-  _HI_PROMPT_TOOL=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_wants_prompt_tool || return 1
-  _HI_PROMPT_TOOL=oh-my-posh PATH="$(_hi_fake_path posh oh-my-posh):$PATH" _hi_wants_prompt_tool || return 1
-  # a tool hi has no init line for is not handed the prompt, present or not
-  ! _HI_PROMPT_TOOL=powerline PATH="$(_hi_fake_path pl powerline):$PATH" _hi_wants_prompt_tool
+  ! _HI_PROMPT_TOOL="hi powerline-go" PATH="$p" _hi_prompt_tool bash || return 1
+  ! _HI_PROMPT_TOOL=starship PATH="$_HI_WORKDIR/empty.path" _hi_prompt_tool bash || return 1
+  _HI_PROMPT_TOOL=starship PATH="$(_hi_fake_path star starship):$PATH" _hi_prompt_tool bash || return 1
+  _HI_PROMPT_TOOL="starship  powerline-go oh-my-posh" PATH="$p" _hi_prompt_tool zsh got || return 1
+  [ "$got" = powerline-go ] || return 1
+  # a program hi has no start for is not handed the prompt, present or not
+  ! _HI_PROMPT_TOOL=powerline PATH="$(_hi_fake_path pl powerline):$PATH" _hi_prompt_tool bash || return 1
+  # a framework is asked about only in its own shell
+  (
+    function _hi_prompt_fw() { [ "$1" = oh-my-bash ]; }
+    ! _HI_PROMPT_TOOL="tide powerlevel10k oh-my-zsh" _hi_prompt_tool zsh || exit 1
+    [ "$(_HI_PROMPT_TOOL="tide oh-my-bash" _hi_prompt_tool bash)" = oh-my-bash ] || exit 1
+    ! _HI_PROMPT_TOOL=oh-my-bash _hi_prompt_tool zsh
+  )
 }
 
 function test_colors_lookup_verdicts() {
@@ -1238,7 +1254,7 @@ function run_core_tests() {
   _hi_h2 "Testing: the shipped verdicts"
   _hi_check "Local identity prefers the shipped verdict" test_local_identity_prefers_the_shipped_verdict
   _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
-  _hi_check "_hi_wants_prompt_tool needs setting, binary, and a known tool" test_wants_prompt_tool_needs_both_halves
+  _hi_check "_hi_prompt_tool needs the setting, the program, and its shell" test_prompt_tool_needs_setting_program_and_shell
 
   _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts

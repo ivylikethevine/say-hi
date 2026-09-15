@@ -51,6 +51,7 @@ export _HI_PLUGINS_D="$_HI_CONFIG_DIR/plugins.d"
 # exactly what hi's `-u`/`--rcfile`/`-q -l` exist to keep out of the session,
 # and the file the client picked is already unpacked at $_HI_CONFIG_DIR.
 export _HI_VIMRC="$_HI_ROOT/settings/vim.rc"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/vim/vimrc" ] && export _HI_VIMRC="$_HI_XDG_CONFIG/vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vim/vimrc" ] && export _HI_VIMRC="$HOME/.vim/vimrc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.vimrc" ] && export _HI_VIMRC="$HOME/.vimrc"
 [ -f "$_HI_CONFIG_DIR/vim.rc" ] && export _HI_VIMRC="$_HI_CONFIG_DIR/vim.rc"
@@ -65,13 +66,28 @@ export _HI_EMACSRC="$_HI_ROOT/settings/emacs.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/emacs/init.el" ] && export _HI_EMACSRC="$_HI_XDG_CONFIG/emacs/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.d/init.el" ] && export _HI_EMACSRC="$HOME/.emacs.d/init.el"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs" ] && export _HI_EMACSRC="$HOME/.emacs"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.emacs.el" ] && export _HI_EMACSRC="$HOME/.emacs.el"
 [ -f "$_HI_CONFIG_DIR/emacs.el" ] && export _HI_EMACSRC="$_HI_CONFIG_DIR/emacs.el"
+# tmux the same, minus a tree default: with no config anywhere the value is
+# empty and settings/aliases.sh leaves `tmux` alone
+export _HI_TMUX_CONF=""
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/tmux/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_XDG_CONFIG/tmux/tmux.conf"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.tmux.conf" ] && export _HI_TMUX_CONF="$HOME/.tmux.conf"
+[ -f "$_HI_CONFIG_DIR/tmux.conf" ] && export _HI_TMUX_CONF="$_HI_CONFIG_DIR/tmux.conf"
+# micro takes a config *directory* with fixed file names, so its members ride
+# in a micro/ of their own and the alias's -config-dir names that; at home
+# micro already reads its own, which hi.sh packs from. No tree default either.
+export _HI_MICRO_DIR=""
+[ -d "$_HI_CONFIG_DIR/micro" ] && export _HI_MICRO_DIR="$_HI_CONFIG_DIR/micro"
 # The prompt tools' own config variables, on a target only: the overlay's
-# starship.toml / oh-my-posh.json is the prompt configured at home, and at home
-# the tool's own config is already in force. Only the tool named reads its
-# variable, so neither needs an _HI_PROMPT_TOOL gate. GLOSSARY: HI.32
+# starship.toml / oh-my-posh.<format> is the prompt configured at home, and at
+# home the tool's own config is already in force. oh-my-posh reads
+# $POSH_CONFIG ($POSH_THEME in its older releases). Only the tool named reads
+# its variable, so none needs an _HI_PROMPT_TOOL gate. GLOSSARY: HI.32
 [ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/starship.toml" ] && export STARSHIP_CONFIG="$_HI_CONFIG_DIR/starship.toml"
-[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.json" ] && export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.json" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.json"
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.yaml" ] && export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.yaml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.yaml"
+[ "$_HI_REMOTE_SESSION" = 1 ] && [ -f "$_HI_CONFIG_DIR/oh-my-posh.toml" ] && export POSH_CONFIG="$_HI_CONFIG_DIR/oh-my-posh.toml" POSH_THEME="$_HI_CONFIG_DIR/oh-my-posh.toml"
 # eza the same way: it reads $EZA_CONFIG_DIR/theme.yml and nothing else from
 # that directory, and the file has to carry that exact name, so the overlay
 # itself is the directory (docs/INTEGRATIONS.md says how to put one there).

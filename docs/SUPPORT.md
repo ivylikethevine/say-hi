@@ -154,7 +154,7 @@ Everything the install writes stays on the data volume: `settings.sh` in
 | PowerShell                                       | ❌                                                                    | bash-only by design                                                                                                                               |
 
 **A shell framework loads normally on a target** ✅ — oh-my-zsh,
-powerlevel10k, starship, bash-it, fzf, zoxide, direnv, atuin, and mise, each
+powerlevel10k, starship, bash-it, oh-my-bash, tide, powerline-go, fzf, zoxide, direnv, atuin, and mise, each
 in `tests/targets/framework_test.sh`. What hi does alongside each, and which
 tools it wires in itself, is [INTEGRATIONS.md](INTEGRATIONS.md).
 

@@ -93,16 +93,19 @@ Default answer: one directory, and only for the life of the session.
 | the session tree  | `mktemp -d`, mode 0700, `<user>.hi.XXXXXX`       | always                                                                                               |
 | the ssh bootstrap | `mkdir -m 700` under the target's temp directory | ssh targets only, removed by the session it starts                                                   |
 
-That is everything hi's own code writes. A prompt program you opt into
-([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) writes what it always
-does, under the target's `$HOME`, and keeps it after the session ends:
+That is everything hi's own code writes. A prompt program drawing the prompt
+([INTEGRATIONS.md](INTEGRATIONS.md#prompt-programs)) - by default, one you
+have installed at home and the target has too - writes what it always does,
+under the target's `$HOME`, and keeps it after the session ends:
 
 | tool                  | what it keeps, by default                                             | when                                                                              |
 | --------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| starship, oh-my-posh  | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/` | only with `_HI_PROMPT_TOOL` set - off unless you set it |
+| starship, oh-my-posh  | starship's log files under `~/.cache/starship/`, oh-my-posh's cache under `~/.cache/oh-my-posh/` | when it draws the prompt |
+| powerlevel10k         | gitstatusd under `~/.cache/gitstatus/` and its instant-prompt cache under `~/.cache/`              | when it draws the prompt |
+| tide                  | a `_tide_*` universal variable or two in the target's `fish_variables`, rewritten each start          | when it draws the prompt |
 
 Each tool's own settings on that target can move those paths.
-An unset `_HI_PROMPT_TOOL` brings a session back to the first table alone;
+`_HI_PROMPT_TOOL=hi` brings a session back to the first table alone;
 what your own per-shell files start (a zoxide or atuin `init`, say) writes on
 its own account.
 

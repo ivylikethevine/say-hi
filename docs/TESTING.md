@@ -319,7 +319,9 @@ tree disagrees with the digest-pinned ones in `tests/dockerfiles/`;
 `lint_image_digests` when two Dockerfiles pin one tag to different digests.
 
 **The three `curl | sh` framework installers are pinned to a release, and the
-fetched script itself to a hash.** `frameworks/atuin.sh` (v18.20.1, in the
+fetched script itself to a hash** - as are `frameworks/plgo.sh`'s release
+binary (v1.26) and `frameworks/tide.sh`'s fisher (4.4.5, which installs tide
+v6.2.0). `frameworks/atuin.sh` (v18.20.1, in the
 download URL), `frameworks/mise.sh` (v2026.8.14, in the download URL) and
 `frameworks/starship.sh` (v1.26.0, via `--version`) each name the version pin
 in their own header and are bumped by hand when that framework's own bugs are
