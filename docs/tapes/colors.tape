@@ -3,7 +3,7 @@
 # in ~/.ssh/config and hosttag pins in the colors overlay, `hi --preview colors`
 # to see what every host resolves to, then the prod host lands red and the
 # dev host green. Render with `vhs docs/tapes/colors.tape` from the repo
-# root, docker running, hi on PATH. Manual artifact, reviewed by eye.
+# root, docker running, hi on PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:colors): the `colors` overlay
 # with hosttag pins, a one-dark _HI_COLOR_SCHEME hex list, a short

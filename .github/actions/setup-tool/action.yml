@@ -1,0 +1,57 @@
+name: Setup tool
+# One pinned CI tool from ./tools.txt: resolved, cached, downloaded,
+# sha256-verified, installed. The roster lives in tools.txt rather than in
+# per-tool actions or `run:` lines, so .github/scripts/check_tool_versions.sh
+# reads the same rows and no pin goes undrift-checked. ../setup-tools is the
+# batched form for a job that needs several tools.
+description: Install one pinned CI tool listed in ./tools.txt, sha256-verified and cached
+
+inputs:
+  tool:
+    description: which tool to install - the first column of a ./tools.txt row
+    required: true
+  version:
+    description: override the row's pin (normally empty); refused unless sha256 is also given
+    required: false
+    default: ""
+  sha256:
+    description: checksum for a version override, in tools.txt's sha256 column format
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: the version that was installed
+    value: ${{ steps.resolve.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    # actions/cache needs the version as an expression, and the pin lives in
+    # tools.txt - so resolve it first and read it back as an output
+    - name: Resolve the pin for ${{ inputs.tool }}
+      id: resolve
+      shell: bash
+      env:
+        CI_TOOL: ${{ inputs.tool }}
+        CI_TOOL_VERSION: ${{ inputs.version }}
+        CI_TOOL_SHA256: ${{ inputs.sha256 }}
+      run: '"$GITHUB_ACTION_PATH/install.sh" resolve'
+
+    # the sha256 is in the key so a corrected checksum re-downloads rather
+    # than trusting bytes cached under the old one
+    - name: Cache ${{ inputs.tool }}
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.resolve.outputs.path }}
+        key: setup-tool-${{ inputs.tool }}-${{ steps.resolve.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.sha256 }}
+
+    - name: Install ${{ inputs.tool }}
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        CI_TOOL: ${{ inputs.tool }}
+        CI_TOOL_VERSION: ${{ steps.resolve.outputs.version }}
+        CI_TOOL_SHA256: ${{ inputs.sha256 }}
+      run: '"$GITHUB_ACTION_PATH/install.sh" install'

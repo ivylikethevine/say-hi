@@ -3,3 +3,7 @@
 # (dist/) or not markdown.
 docs/tldr.md
 dist/
+# Untracked by design: a host's own agent notes, and agent worktrees (whole
+# second checkouts, formatted where they came from).
+CLAUDE.local.md
+.claude/worktrees/

@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
 # find_tree_run.sh <workflow file> <marker artifact> [artifact...] - the push
-# half of the push-to-main dedupe ci.yml and coverage.yml share. Prints
-# `run=<id>` (for $GITHUB_OUTPUT) of a green same-repo pull_request run of
-# <workflow> that uploaded <marker> (./.github/actions/mark-tree's
-# `<prefix>-<tree sha>`) and still holds every other artifact named, or `run=`
-# when there is none - the caller then runs everything, as it always did. A
-# fork's run never counts, marker or not: its green skipped the platform e2e
-# jobs, and its ci.yml is its own to rewrite.
+# half of the push-to-main dedupe. Prints `run=<id>` (for $GITHUB_OUTPUT) of a
+# green same-repo pull_request run of <workflow> that uploaded <marker>
+# (../actions/mark-tree's `<prefix>-<tree sha>`) and still holds every other
+# artifact named, or `run=` when there is none - the caller then runs
+# everything. A fork's run never counts, marker or not: its workflow file is
+# its own to rewrite, and its green may have skipped secret-bearing jobs.
+#
+# Needs GH_TOKEN with `actions: read`.
 set -euo pipefail
+
+[ $# -ge 2 ] || {
+  echo "usage: find_tree_run.sh <workflow file> <marker artifact> [artifact...]" >&2
+  exit 2
+}
 workflow="$1" marker="$2"
 shift 2
 api() { gh api "repos/$GITHUB_REPOSITORY/$1" --jq "$2"; }

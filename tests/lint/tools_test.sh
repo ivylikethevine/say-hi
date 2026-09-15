@@ -4,9 +4,10 @@
 # The external-tool wrappers that ride along with the lint gate when their
 # tool is installed, and skip yellow when it isn't: shfmt as a formatting
 # gate, checkbashisms over the #!/bin/sh files, mandoc over the man page, vim and
-# emacs over the editor rcs that ship, and typos over the whole tree. CI always has them
-# (setup-tool actions pin each one), so a local skip here is a local-only gap,
-# never a green run that CI would have failed.
+# emacs over the editor rcs that ship, typos over the whole tree, and
+# markdownlint and prettier over the Markdown. CI always has them (setup-tool
+# pins each binary; `npm ci --prefix .github` the two node tools), so a local
+# skip here is a local-only gap, never a green run that CI would have failed.
 set -euo pipefail
 
 # shellcheck source=../test_lib.sh
@@ -200,8 +201,78 @@ function lint_typos() {
   fi
 }
 
+# The Markdown git knows about - tracked, plus new files not yet added, minus
+# what .gitignore drops (CLAUDE.local.md) - so a local run and CI's checkout
+# read the same list. `-f`: a file deleted but not yet staged is still in the
+# index. One path per line; no tracked Markdown name has a newline.
+function _hi_md_files() {
+  local f
+  git -C "$_HI_ROOT" ls-files --cached --others --exclude-standard -- \
+    '*.md' ':!:.claude/**' ':!:**/node_modules/**' | while IFS= read -r f; do
+    [ -f "$_HI_ROOT/$f" ] && printf '%s\n' "$f"
+  done | sort -u
+}
+
+# _hi_node_tool <name> - the path of a .github/package.json tool, or nothing
+# when `npm ci --prefix .github` has not run or there is no node to run it.
+function _hi_node_tool() {
+  local bin="$_HI_ROOT/.github/node_modules/.bin/$1"
+  [ -x "$bin" ] && command -v node >/dev/null 2>&1 && printf '%s' "$bin"
+}
+
+# markdownlint over the Markdown, rules from .markdownlint.yaml (read from the
+# working directory). Blocking: a heading or list slip is cheap to fix on the
+# PR that makes it and a sweep to fix later. Skips yellow when the pinned copy
+# is not installed; `npm ci --prefix .github` installs it.
+function lint_markdownlint() {
+  local bin out
+  _hi_h2 "Checking the Markdown (markdownlint-cli2, rules in .markdownlint.yaml)"
+  bin="$(_hi_node_tool markdownlint-cli2)" || {
+    _hi_skip "markdownlint-cli2" "not installed (npm ci --prefix .github)"
+    return 0
+  }
+  if [ "${#_HI_MD_FILES[@]}" -eq 0 ]; then
+    _hi_skip "markdownlint-cli2" "no Markdown listed (not a git checkout?)"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if out="$(cd "$_HI_ROOT" && "$bin" "${_HI_MD_FILES[@]}" 2>&1)"; then
+    _hi_align " | markdownlint-cli2: ${#_HI_MD_FILES[@]} files clean" "OK" "$GREEN"
+  else
+    _hi_align " | markdownlint-cli2: findings below" "FAILED" "$RED"
+    printf '%s\n' "$out" | sed 's/^/      /'
+    _hi_note_failure "Markdown lint (markdownlint-cli2)"
+    return 1
+  fi
+}
+
+# prettier --check over the same list, style from .prettierrc.yaml; files in
+# .prettierignore (docs/tldr.md) are skipped even when named. Skips yellow
+# when the pinned copy is not installed.
+function lint_prettier() {
+  local bin out
+  _hi_h2 "Checking Markdown formatting (prettier --check, style in .prettierrc.yaml)"
+  bin="$(_hi_node_tool prettier)" || {
+    _hi_skip "prettier" "not installed (npm ci --prefix .github)"
+    return 0
+  }
+  if [ "${#_HI_MD_FILES[@]}" -eq 0 ]; then
+    _hi_skip "prettier" "no Markdown listed (not a git checkout?)"
+    return 0
+  fi
+  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+  if out="$(cd "$_HI_ROOT" && "$bin" --check "${_HI_MD_FILES[@]}" 2>&1)"; then
+    _hi_align " | prettier $("$bin" --version): every file already formatted" "OK" "$GREEN"
+  else
+    _hi_align " | prettier: files need reformatting (fix with: prettier --write on the paths below)" "FAILED" "$RED"
+    printf '%s\n' "$out" | sed 's/^/      /'
+    _hi_note_failure "Markdown formatting (prettier --write the paths it names)"
+    return 1
+  fi
+}
+
 function run_tools() {
-  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, nvim, emacs, typos)"
+  _hi_lint_suite_begin "Checking external-tool lints (shfmt, checkbashisms, mandoc, vim, nvim, emacs, typos, markdownlint, prettier)"
   _hi_workdir toolstest
 
   # the same *.sh list shellcheck_test.sh builds, needed here too since shfmt
@@ -209,7 +280,11 @@ function run_tools() {
   local -a _HI_SH_FILES=()
   _hi_read_lines _HI_SH_FILES < <(_hi_lint_find -name '*.sh')
 
-  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_nvim_rc lint_emacs_rc lint_typos
+  local -a _HI_MD_FILES=()
+  _hi_read_lines _HI_MD_FILES < <(_hi_md_files 2>/dev/null)
+
+  _hi_lint_halves lint_shfmt lint_checkbashisms lint_manpage lint_vim_rc lint_nvim_rc lint_emacs_rc lint_typos \
+    lint_markdownlint lint_prettier
   _hi_lint_suite_end
 }
 

@@ -24,15 +24,15 @@ every one has a switch in [SETTINGS.md](SETTINGS.md#every-setting).
 
 ## At a glance
 
-| tool                                                                                    | what hi does with it                                                          | on by default        | switch                                                   |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------- |
-| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                    | yes, where installed here | `_HI_PROMPT_TOOL` (`hi` for hi's own)                    |
-| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv        | names the active ones in the prompt's leading `(myproj)` segment              | yes                  | `_HI_DISABLE_ENV_STATUS`                                 |
-| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home | yes, where installed | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s |
-| tmux, zellij, screen                                                                    | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux.conf` | no - per connect     | `--mux`, `--no-mux`; `_HI_DISABLE_TOOL_ALIASES` for the config |
-| lesspipe                                                                                | `less` opens archives and packages, as the distro's own rc sets it up         | yes, where installed | none                                                     |
-| vim/neovim, nano, emacs, micro                                                          | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vim.rc`, micro your micro directory's files | yes                  | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
-| oh-my-zsh, powerlevel10k, bash-it, fzf                                                  | loads after them and leaves their hooks working                               | -                    | [Shell frameworks](#shell-frameworks)                    |
+| tool                                                                                                                                                                                                                                                                                                                                     | what hi does with it                                                                                                            | on by default             | switch                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------- |
+| [starship](https://starship.rs), [oh-my-posh](https://ohmyposh.dev), [powerline-go](https://github.com/justjanne/powerline-go), [powerlevel10k](https://github.com/romkatv/powerlevel10k), [oh-my-zsh](https://ohmyz.sh) themes, [oh-my-bash](https://github.com/ohmybash/oh-my-bash) themes, [tide](https://github.com/IlanCosman/tide) | draws the prompt in hi's place, with your config from home                                                                      | yes, where installed here | `_HI_PROMPT_TOOL` (`hi` for hi's own)                                           |
+| mise, asdf, pyenv, rbenv, nodenv, nix, guix, devbox, devenv, direnv, conda, venv                                                                                                                                                                                                                                                         | names the active ones in the prompt's leading `(myproj)` segment                                                                | yes                       | `_HI_DISABLE_ENV_STATUS`                                                        |
+| [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), exa                                                                                                                                                                                                                                                  | `cat`, `bat`, and one `ls`/`eza`/`exa` alias with hi's flags, your theme from home                                              | yes, where installed      | `_HI_DISABLE_TOOL_ALIASES`, the `_HI_*_OPTS` and `_BIN`s                        |
+| tmux, zellij, screen                                                                                                                                                                                                                                                                                                                     | `hi --mux` runs the connect inside one, on the client; a tmux on a target reads your `tmux.conf`                                | no - per connect          | `--mux`, `--no-mux`; `_HI_DISABLE_TOOL_ALIASES` for the config                  |
+| lesspipe                                                                                                                                                                                                                                                                                                                                 | `less` opens archives and packages, as the distro's own rc sets it up                                                           | yes, where installed      | none                                                                            |
+| vim/neovim, nano, emacs, micro                                                                                                                                                                                                                                                                                                           | opened with hi's config, or yours, through an alias - neovim reads `init.lua`, vim `vim.rc`, micro your micro directory's files | yes                       | `_HI_DISABLE_EDITORS`; the files are [SETTINGS.md](SETTINGS.md)'s overlay table |
+| oh-my-zsh, powerlevel10k, bash-it, fzf                                                                                                                                                                                                                                                                                                   | loads after them and leaves their hooks working                                                                                 | -                         | [Shell frameworks](#shell-frameworks)                                           |
 
 `_HI_DISABLE_LOCAL=1` turns every `_HI_DISABLE_*` switch above on, prompt
 included, on your own machine only, and leaves every target as it was
@@ -46,15 +46,15 @@ editors, and hands over only the prompt line. Out of the box
 `_HI_PROMPT_TOOL` is unset, which means every program installed here, in
 this order - the first that fits the shell and that the target has wins:
 
-| program       | shells           | counts as installed here                      | started on a target                                                   | your config from home                                                                                   |
-| ------------- | ---------------- | --------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| powerlevel10k | zsh              | `~/.p10k.zsh` (or `$POWERLEVEL9K_CONFIG_FILE`) | as the rc loaded it, else from `~/powerlevel10k`, oh-my-zsh's custom themes, the distro or Homebrew path | that file, sourced after powerlevel10k                                                       |
-| oh-my-zsh     | zsh              | `ZSH_THEME` in `~/.zshrc` names a theme file  | as the rc loaded it, else only the libraries themes call              | the theme file, found the way oh-my-zsh finds it - so a custom theme works on a box without it         |
-| oh-my-bash    | bash             | `OSH_THEME` in `~/.bashrc` names a theme file | as the rc loaded it, else without its plugins, aliases, or completions | the theme file, likewise                                                                                |
-| tide          | fish             | fisher put it in `~/.config/fish/functions`   | fish loads it; hi only leaves its prompt alone                        | the `tide_*` universal variables - never the rest of `fish_variables`                                   |
-| starship      | bash, zsh, fish  | on `$PATH`                                    | `starship init <shell>`                                               | `$STARSHIP_CONFIG`, else `~/.config/starship.toml`                                                      |
-| oh-my-posh    | bash, zsh, fish  | on `$PATH`                                    | `oh-my-posh init <shell>`                                             | `$POSH_CONFIG`, else the file your rc's `oh-my-posh init --config` names (json, yaml, or toml)          |
-| powerline-go  | bash, zsh, fish  | on `$PATH`                                    | once per prompt, as its README wires it, with `_HI_POWERLINE_GO_OPTS` | the flags in `_HI_POWERLINE_GO_OPTS`                                                                    |
+| program       | shells          | counts as installed here                       | started on a target                                                                                      | your config from home                                                                          |
+| ------------- | --------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| powerlevel10k | zsh             | `~/.p10k.zsh` (or `$POWERLEVEL9K_CONFIG_FILE`) | as the rc loaded it, else from `~/powerlevel10k`, oh-my-zsh's custom themes, the distro or Homebrew path | that file, sourced after powerlevel10k                                                         |
+| oh-my-zsh     | zsh             | `ZSH_THEME` in `~/.zshrc` names a theme file   | as the rc loaded it, else only the libraries themes call                                                 | the theme file, found the way oh-my-zsh finds it - so a custom theme works on a box without it |
+| oh-my-bash    | bash            | `OSH_THEME` in `~/.bashrc` names a theme file  | as the rc loaded it, else without its plugins, aliases, or completions                                   | the theme file, likewise                                                                       |
+| tide          | fish            | fisher put it in `~/.config/fish/functions`    | fish loads it; hi only leaves its prompt alone                                                           | the `tide_*` universal variables - never the rest of `fish_variables`                          |
+| starship      | bash, zsh, fish | on `$PATH`                                     | `starship init <shell>`                                                                                  | `$STARSHIP_CONFIG`, else `~/.config/starship.toml`                                             |
+| oh-my-posh    | bash, zsh, fish | on `$PATH`                                     | `oh-my-posh init <shell>`                                                                                | `$POSH_CONFIG`, else the file your rc's `oh-my-posh init --config` names (json, yaml, or toml) |
+| powerline-go  | bash, zsh, fish | on `$PATH`                                     | once per prompt, as its README wires it, with `_HI_POWERLINE_GO_OPTS`                                    | the flags in `_HI_POWERLINE_GO_OPTS`                                                           |
 
 So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
 that has them, and hi's where it has neither. A target that lacks the
@@ -188,10 +188,10 @@ client to that session rather than nesting; inside screen or zellij it
 opens a new window or tab. `_HI_MUX=1` (`hi --configure`'s advanced item) makes it the default
 and `--no-mux` skips it once. The target sees an ordinary session: persistent
 sessions on the target
-were [decided against](SUPPORT.md#what-would-change-an-answer), and
+were [decided against](COMPATIBILITY.md#what-would-change-an-answer), and
 [HI.52](GLOSSARY.md#hi52-client-multiplexer-wrap) is how the wrap works.
 
-A tmux you start *on* a target reads the config you use here: `~/.tmux.conf`
+A tmux you start _on_ a target reads the config you use here: `~/.tmux.conf`
 (else `$XDG_CONFIG_HOME/tmux/tmux.conf`, and an overlay `tmux.conf` over
 both) rides along and the session's `tmux` alias is `tmux -f` it. A
 `source-file` of another file, or TPM's `@plugin` list and its `run`, names
@@ -247,22 +247,21 @@ what a heavy config costs on the wire is the gzipped size after hi strips
 comments and blank lines (HI.09). Prose-heavy files shrink the most:
 powerlevel10k's wizard output is three-quarters comments.
 
-| user                                                        | what rides the overlay                                    | on disk   | stripped  | on the wire (gzip) |
-| ----------------------------------------------------------- | --------------------------------------------------------- | --------- | --------- | ------------------ |
-| defaults, nothing configured                                | nothing                                                   | 0         | 0         | 0                  |
-| a few settings and aliases                                  | `settings.sh`, `aliases.sh`                               | ~2 KB     | ~1 KB     | ~0.5 KB            |
-| starship with a preset                                      | `starship.toml` (the nerd-font-symbols preset)            | ~3.4 KB   | ~3.4 KB   | ~1.4 KB            |
-| oh-my-posh with a stock theme                               | `oh-my-posh.json` (jandedobbeleer)                        | ~7 KB     | ~7 KB     | ~1.4 KB            |
-| oh-my-zsh, robbyrussell                                     | `omz-theme.zsh`                                           | ~0.4 KB   | ~0.4 KB   | ~0.2 KB            |
-| oh-my-zsh, agnoster                                         | `omz-theme.zsh`                                           | ~13 KB    | ~8 KB     | ~2.5 KB            |
-| oh-my-bash, font or agnoster                                | `omb-theme.sh`                                            | 2-20 KB   | 1-9 KB    | 0.5-2.6 KB         |
-| tide, configured by its wizard                              | `tide.vars` (its ~160 variables)                          | ~6 KB     | ~6 KB     | ~1.5 KB            |
-| powerlevel10k from its wizard                               | `p10k.zsh` (lean or rainbow)                              | 90-95 KB  | 24-28 KB  | ~5.5 KB            |
-| a tuned vim                                                 | `vim.rc` (like amix/vimrc's basic.vim)                    | ~9.5 KB   | ~4 KB     | ~1.8 KB            |
-| a neovim starter config                                     | `init.lua` (like kickstart.nvim, single file)             | ~44 KB    | ~19 KB    | ~6 KB              |
-| a long-lived bash setup                                     | `bash.sh`, `aliases.sh`, a few `plugins.d` members        | 10-30 KB  | 5-15 KB   | 2-6 KB             |
-| all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once                       | ~200 KB   | ~75 KB    | ~20 KB             |
+| user                                                        | what rides the overlay                             | on disk  | stripped | on the wire (gzip) |
+| ----------------------------------------------------------- | -------------------------------------------------- | -------- | -------- | ------------------ |
+| defaults, nothing configured                                | nothing                                            | 0        | 0        | 0                  |
+| a few settings and aliases                                  | `settings.sh`, `aliases.sh`                        | ~2 KB    | ~1 KB    | ~0.5 KB            |
+| starship with a preset                                      | `starship.toml` (the nerd-font-symbols preset)     | ~3.4 KB  | ~3.4 KB  | ~1.4 KB            |
+| oh-my-posh with a stock theme                               | `oh-my-posh.json` (jandedobbeleer)                 | ~7 KB    | ~7 KB    | ~1.4 KB            |
+| oh-my-zsh, robbyrussell                                     | `omz-theme.zsh`                                    | ~0.4 KB  | ~0.4 KB  | ~0.2 KB            |
+| oh-my-zsh, agnoster                                         | `omz-theme.zsh`                                    | ~13 KB   | ~8 KB    | ~2.5 KB            |
+| oh-my-bash, font or agnoster                                | `omb-theme.sh`                                     | 2-20 KB  | 1-9 KB   | 0.5-2.6 KB         |
+| tide, configured by its wizard                              | `tide.vars` (its ~160 variables)                   | ~6 KB    | ~6 KB    | ~1.5 KB            |
+| powerlevel10k from its wizard                               | `p10k.zsh` (lean or rainbow)                       | 90-95 KB | 24-28 KB | ~5.5 KB            |
+| a tuned vim                                                 | `vim.rc` (like amix/vimrc's basic.vim)             | ~9.5 KB  | ~4 KB    | ~1.8 KB            |
+| a neovim starter config                                     | `init.lua` (like kickstart.nvim, single file)      | ~44 KB   | ~19 KB   | ~6 KB              |
+| a long-lived bash setup                                     | `bash.sh`, `aliases.sh`, a few `plugins.d` members | 10-30 KB | 5-15 KB  | 2-6 KB             |
+| all of it: powerlevel10k, tide, neovim, vim, bash, starship | everything above that ships at once                | ~200 KB  | ~75 KB   | ~20 KB             |
 
 A neovim config spread over many files under `~/.config/nvim/lua/` does not
 ride at all - only `init.lua` does - so its size here is the single file.
-

@@ -19,15 +19,14 @@ on: # zizmor: ignore[dangerous-triggers]
     - cron: "37 6 * * 3"
   workflow_dispatch:
 
-# pushes to main can stack; only the newest scan matters
+# pushes to main can stack, but queue rather than cancel: a run cancelled
+# mid-upsert can leave its tracking issue half-written (or a duplicate opened)
 concurrency:
   group: image-scan
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  # the one write this job does: upsert (and close) its own tracking issue
-  issues: write
 
 jobs:
   scan:
@@ -39,8 +38,16 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # the one write this job does: upsert (and close) its own tracking issue
+      issues: write
     timeout-minutes: 20
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -49,12 +56,13 @@ jobs:
         with:
           tools: trivy
 
-      # Advisory, like markdownlint and link-check: a CVE landing upstream is no
+      # Advisory, like hadolint and link-check: a CVE landing upstream is no
       # reason to redden an unrelated PR, so never make this a required check.
       # The three verdicts (0 clean, 1 a finding with no better image to move
       # to, 2 a repin that demonstrably helps) are all green and captured as an
       # output - continue-on-error would collapse them to "failure" - while
-      # anything else (127 is a missing trivy or jq) still fails loudly.
+      # anything else (3 a failed vulnerability database download, 127 a
+      # missing trivy or jq) still fails loudly.
       # --ignore-unfixed is the whole design: debian:bookworm-slim carries 22
       # HIGH/CRITICAL won't-fix findings (eight of them perl-base), a job that
       # counts those is red forever, and two piles of permanent findings differ
@@ -65,7 +73,7 @@ jobs:
       # reports its null .Results as unscanned rather than counting it clean.
       - id: scan
         env:
-          HI_SCAN_REPORT: ${{ runner.temp }}/image-scan-report.md
+          SCAN_REPORT: ${{ runner.temp }}/image-scan-report.md
         run: |
           set -uo pipefail
           rc=0

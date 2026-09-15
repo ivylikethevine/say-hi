@@ -91,7 +91,8 @@ Five groups (`--group <name>`; `--list` prints the membership):
   the Windows client job runs `fast` as four shards, because backgrounded
   suites barely overlap under MSYS and only more machines shorten that run.
 - **`lint`** — [The lint gate](#the-lint-gate), run once as its own CI job on
-  ubuntu against pinned tool versions, side by side with `fast`'s job. The
+  ubuntu against pinned tool versions, side by side with `fast`'s job. Run
+  `npm ci --prefix .github` first, or its two Markdown checks skip. The
   macOS, Windows, and FreeBSD jobs run `fast` alone: linting text does not
   depend on the userland.
 - **`bench`** — hot-path timings against ceilings, plus the payload's two size
@@ -196,7 +197,9 @@ few points for many commits and both are reliable: **read the average of the
 two badges** as the coverage figure, and the per-file reports for finding
 untested arms. Only a massive divergence between them (tens of points, not
 the usual few) means one tool has lost the plot and needs its probe re-run
-before either is believed. Never a gate. Both sweeps pin
+before either is believed. Never a gate: the pull request template's 75% is a
+target, and the PR comment flags an average below it without failing
+anything. Both sweeps pin
 `_HI_PAR_WIDTH=1`: a suite's cases share one trace stream, and a batch writing
 into it side by side loses lines.
 
@@ -280,7 +283,7 @@ advisory (`continue-on-error`), the bench ceilings stay the gate.
 ### The images are files; the build contexts are not
 
 Every container image an e2e suite builds is a real Dockerfile under
-[`tests/dockerfiles/`](../tests/dockerfiles): `sshd-debian`, `sshd-alpine`, and
+[`tests/dockerfiles/`](https://github.com/ivylikethevine/say-hi/tree/main/tests/dockerfiles): `sshd-debian`, `sshd-alpine`, and
 `sshd-fedora` for the ssh targets, `alpine-shell` for the bare shell ones,
 `installed-*` for the install-method targets (`installed-pkg` takes the
 `.deb`/`.rpm`/`.apk` as a build arg), `framework` for the nine shell
@@ -342,14 +345,27 @@ than shipping an image with the framework silently missing.
 
 Nothing in `tests/dockerfiles/` reaches a release; the workflows and actions
 the release path uses are SHA-pinned separately. What Scorecard dings here, and
-how it's annotated, is [`.scorecard.yml`](../.scorecard.yml).
+how it's annotated, is [`.scorecard.yml`](https://github.com/ivylikethevine/say-hi/blob/main/.scorecard.yml).
 
 ## The lint gate
 
-`--group lint` is four suites, nineteen checks between them, and CI runs all
-of them. Each suite is its own process (`tests/test_runner.sh shellcheck`,
+`--group lint` is four suites, twenty-eight checks between them, and CI runs
+all of them. Each suite is its own process (`tests/test_runner.sh shellcheck`,
 `dialects`, `tools`, `drift`) with its own file/failure/skip tally in the
 summary table, so a failure in one never hides what the others found.
+
+CI's `lint suites` job passes `--require-run`, so every check below that
+skips yellow locally for want of a tool fails there instead. Its binaries are
+pinned in `.github/actions/setup-tool/tools.txt`: eight columns,
+`name|pin|kind|url|verify|check|tag-prefix|sha256`, the last a sha256 of the
+download for every platform or one per platform, documented in the file's
+header. `tool-versions.yml` drift-checks each row weekly, with
+`.github/scripts/check_tool_versions.local.sh` adding this repo's own checks
+(the inline pins, and the images named outside a Dockerfile). markdownlint-cli2
+and prettier are pinned in `.github/package-lock.json` instead, installed by
+`npm ci --prefix .github` and run from `.github/node_modules/.bin`. The same
+job then runs lychee offline over the tracked Markdown (`lychee.toml`), which
+fails on a broken relative link or `#fragment`.
 
 **`shellcheck`** (`tests/lint/shellcheck_test.sh`) — one check, and the whole
 cost of the group. A fatal guard runs **before** it: every `source` of a
@@ -390,8 +406,8 @@ build" means the distro moved off the version the check claims.
   `zshusers/zsh:5.8` rather than a distro apt install
   (which failed on hosted runners only).
 
-**`tools`** (`tests/lint/tools_test.sh`) — four external-tool wrappers, each
-skipping yellow when its tool isn't installed locally (CI has all four):
+**`tools`** (`tests/lint/tools_test.sh`) — nine external-tool wrappers, each
+skipping yellow when its tool isn't installed locally (CI has all nine):
 
 - **6. shfmt** over the same `*.sh` list, style from `.editorconfig`. Fix a
   red run with `shfmt -w` on the paths it names, not `shfmt -w .`, which also
@@ -399,42 +415,65 @@ skipping yellow when its tool isn't installed locally (CI has all four):
 - **7. checkbashisms** over the `#!/bin/sh` files, which dash and busybox sh
   really do parse on minimal targets.
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
-- **9. typos** over the whole tree, allowlisted by `.typos.toml`.
+- **9-11. The shipped editor rcs**, each loaded by the editor that reads it,
+  the way the alias does: `settings/vim.rc` under `vim -u … -es`,
+  `settings/init.lua` under `nvim --headless -u`, and `settings/emacs.el`
+  under `emacs --batch -q -l`. The payload suites treat those files as bytes,
+  so a syntax error in one would otherwise ride the wire to every target.
+- **12. typos** over the whole tree, allowlisted by `.typos.toml`.
+- **13. markdownlint** (markdownlint-cli2, rules in `.markdownlint.yaml`)
+  over the Markdown git knows about, tracked or new.
+- **14. prettier --check** over the same list, style in `.prettierrc.yaml`;
+  `.prettierignore`'s files are skipped. Fix a red run with `prettier --write`
+  on the paths it names.
 
-**`drift`** (`tests/lint/drift_test.sh`) — ten repo-consistency sweeps, each
-a grep or small parser checking that something written down elsewhere still
-agrees with the tree:
+**`drift`** (`tests/lint/drift_test.sh`) — fourteen repo-consistency sweeps,
+each a grep or small parser checking that something written down elsewhere
+still agrees with the tree:
 
-- **10. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs, or
+- **15. The bash-3.2 grep**: no `mapfile`, associative arrays, namerefs, or
   `${x,,}` - each explained once in [GLOSSARY.md](GLOSSARY.md) by its
   `GLOSSARY: HI.NN` tag.
-- **11. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
+- **16. The `$HOME` default sweep**: nothing may fall back to `$HOME` when it
   derives the say-hi tree - over `*.zsh`, `*.fish`, and `*.md` too, since the
   docs teach the rule as much as the code obeys it.
-- **12. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
+- **17. Ignored payload**: no file the payload or a package ships is one
+  `.gitignore` swallows, asked of git itself - the suites read the working
+  tree, so nothing else would notice it never reached a commit.
+- **18. GLOSSARY tags**: every `GLOSSARY: HI.NN` in the tree names a code
   GLOSSARY.md defines, and every entry is referenced; matched by code, not
   title, anywhere on a line.
-- **13. The settings roster**: every name the tree treats as a setting
+- **19. The settings roster**: every name the tree treats as a setting
   (`_HI_TOGGLES`, the `_HI_*_PROMPTS` tables) has a row in
   [SETTINGS.md](SETTINGS.md)'s _Every setting_ table, and every row there
   names a variable the tree still reads.
-- **14. Liquid syntax**: no page the Pages build renders may carry a raw
+- **20. The docker-compatible family**: `common/core.sh`'s
+  `$_HI_CONTAINER_CLIS` and `common/targets.sh`'s copy name the same CLIs
+  (GLOSSARY: HI.51), since neither file can read the other.
+- **21. The runtime directory**: `common/core.sh`'s `_hi_runtime_dir` and
+  `common/targets.sh`'s cache directory build the same path, with the same
+  ownership guards, in their two dialects.
+- **22. Liquid syntax**: no page the Pages build renders may carry a raw
   Liquid delimiter outside a guarded span - Liquid tokenizes before Markdown,
   so a fence gives no shelter.
-- **15. Contents blocks**: in every page the Pages build renders, each `##`
+- **23. Site links**: a relative link on a page the site builds lands on a
+  page the site builds too - not into a dot-path or anything `_config.yml`
+  excludes, which renders on GitHub and 404s on Pages; link those as absolute
+  github.com URLs.
+- **24. Contents blocks**: in every page the Pages build renders, each `##`
   and `###` heading has an entry in that doc's `## Contents` list and each
   entry names a real heading, with an `###`'s entry indented under an `##`'s.
   `_config.yml` runs just-the-docs with no page front matter, so these lists
   are the site's only in-page navigation and nothing regenerates them.
-- **16. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
+- **25. The tldr page**: every `hi --flag` example in `docs/tldr.md` names a
   `common/flags` row, and there are at most eight examples - the upstream
   cap.
-- **17. tests/dockerfiles/**: every image definition has a caller and vice
+- **26. tests/dockerfiles/**: every image definition has a caller and vice
   versa.
-- **18. Image tags**: every plain image tag named in shell or YAML is one of
+- **27. Image tags**: every plain image tag named in shell or YAML is one of
   the digest-pinned `FROM` tags in `tests/dockerfiles/`.
-- **19. Image digests**: two Dockerfiles pinning the same `image:tag` must
-  agree on its digest - check 18 strips the digest before comparing, so it
+- **28. Image digests**: two Dockerfiles pinning the same `image:tag` must
+  agree on its digest - check 27 strips the digest before comparing, so it
   can't see one tag pinned to two; this one reads the digests back in.
 
 ## Test levers

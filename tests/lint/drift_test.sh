@@ -88,6 +88,8 @@ function _hi_lint_table() {
   local -a inc=()
   shift 3
   [ -n "$include" ] && inc=(--include="$include")
+  # $_HI_LINT_EXCLUDE: space-separated basenames this table skips
+  for entry in ${_HI_LINT_EXCLUDE:-}; do inc+=(--exclude="$entry"); done
   for entry in "$@"; do
     pattern="${entry%|*}"
     what="${entry##*|}"
@@ -124,10 +126,16 @@ function _hi_lint_mirror() {
   _hi_lint_blanks "$_HI_LINT_MIRROR" "${files[@]}"
 }
 
+# scan_pinned_images.sh is exempt: it runs only in image-scan.yml on an ubuntu
+# runner, never on a target or a Mac, and its worker pool needs bash 4.3's
+# `wait -n` (its header says so). grep's --exclude matches the basename.
+_HI_BASH32_EXEMPT=(scan_pinned_images.sh)
+
 function lint_bash32() {
   _hi_h2 "Checking for bash-4-only constructs (macOS ships bash 3.2)"
   _hi_lint_mirror
-  _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "bash-4 construct" "${_HI_BASH32_LINT[@]}"
+  _HI_LINT_EXCLUDE="${_HI_BASH32_EXEMPT[*]}" \
+    _hi_lint_table "$_HI_LINT_MIRROR" '*.sh' "bash-4 construct" "${_HI_BASH32_LINT[@]}"
 }
 
 # A shipped file that .gitignore swallows never reaches a commit, and nothing
@@ -190,7 +198,7 @@ function lint_home_default() {
 # spec, `/bin/bash:bash` a framework row and `bash:5` a packages fixture, all
 # the same characters meaning something else; prose in `.md` and `#` comments
 # names old versions on purpose (dependabot.yml explains bash:5 by naming it).
-# So does docs/PACKAGING.md, whose runbook installs the .deb on `debian:stable`
+# So does docs/RELEASING.md, whose runbook installs the .deb on `debian:stable`
 # deliberately - a hand-run check wants current stable, not the fixture pin.
 # The Dockerfiles are excluded too: they carry the digest, and they are what
 # everything else is compared against.
@@ -695,6 +703,124 @@ function lint_liquid_docs() {
   return "$bad"
 }
 
+# _hi_md_link_targets <file> - "<line>\t<target>" for every inline link, image,
+# reference definition, and href/src attribute, outside fenced code and inline
+# code spans. Only the target is printed; titles and fragments are the
+# caller's to strip.
+function _hi_md_link_targets() {
+  awk '
+    /^[ \t]*(```|~~~)/ { fence = !fence; next }
+    fence { next }
+    {
+      line = $0
+      gsub(/`[^`]*`/, "", line)
+      if (line ~ /^ *\[[^]]+\]:[ \t]/) {
+        t = line
+        sub(/^ *\[[^]]+\]:[ \t]*/, "", t)
+        print NR "\t" t
+      }
+      rest = line
+      while (match(rest, /\]\([^)]*\)/)) {
+        print NR "\t" substr(rest, RSTART + 2, RLENGTH - 3)
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      rest = line
+      while (match(rest, /(href|src)="[^"]*"/)) {
+        t = substr(rest, RSTART, RLENGTH)
+        sub(/^(href|src)="/, "", t)
+        print NR "\t" substr(t, 1, length(t) - 1)
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+    }
+  ' "$1"
+}
+
+# A relative link on a page the site builds has to land on a page the site
+# builds too. Jekyll drops every dot-path (.github/, .markdownlint.yaml) and
+# everything `_config.yml`'s `exclude:` names, so a link from docs/ into
+# ../.github/workflows/ or tapes/generate.sh renders fine on GitHub and 404s
+# on Pages. The rule (docs/CONTRIBUTING.md): links into those paths are
+# absolute github.com URLs. Existence is lychee's check in ci.yml; this one
+# only knows what the site leaves out, read from the same exclude parse as
+# _hi_jekyll_md_files. A link that climbs out of the repository is flagged
+# too - nothing above the root is on the site. The one way back onto it is
+# pages.yml's overlay: it copies the GIFs into _site/docs/tapes/ after Jekyll
+# runs, so docs/tapes/*.gif is allowed for as long as pages.yml still does.
+function lint_site_links() {
+  local block entry dir_excl="" file_excl="" file rel dir n target norm seg why
+  local filebad bad=0 overlay=""
+  local -a parts stack
+  _hi_h2 "Checking site pages' relative links against Jekyll's exclusions"
+  grep -qF '.gif _site/docs/tapes/' "$_HI_ROOT/.github/workflows/pages.yml" 2>/dev/null && overlay=1
+  block="$(awk '/^exclude:/{inside=1; next} /^[A-Za-z]/{inside=0} inside' "$_HI_ROOT/_config.yml" |
+    sed -n 's/^ *- *//p')"
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    case "$entry" in
+    */) dir_excl="$dir_excl$entry"$'\n' ;;
+    *) file_excl="$file_excl$entry"$'\n' ;;
+    esac
+  done <<<"$block"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    rel="${file#"$_HI_ROOT/"}"
+    dir="${rel%/*}"
+    [ "$dir" = "$rel" ] && dir=""
+    _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
+    filebad=0
+    while IFS=$'\t' read -r n target; do
+      # <target> and "title" forms, then the fragment/query
+      target="${target#<}"
+      target="${target%%>*}"
+      target="${target%% *}"
+      target="${target%%#*}"
+      target="${target%%\?*}"
+      case "$target" in
+      '' | /* | *:* | *'{{'*) continue ;;
+      esac
+      stack=()
+      why=""
+      IFS='/' read -r -a parts <<<"${dir:+$dir/}$target"
+      for seg in "${parts[@]}"; do
+        case "$seg" in
+        '' | .) ;;
+        ..)
+          if [ "${#stack[@]}" -eq 0 ]; then
+            why="climbs out of the repository"
+            break
+          fi
+          unset "stack[$((${#stack[@]} - 1))]"
+          ;;
+        .*)
+          why="points into a dot-path Jekyll never publishes"
+          stack+=("$seg")
+          ;;
+        *) stack+=("$seg") ;;
+        esac
+      done
+      if [ -z "$why" ]; then
+        norm="$(
+          IFS=/
+          printf '%s' "${stack[*]+"${stack[*]}"}"
+        )"
+        case $'\n'"$file_excl" in *$'\n'"$norm"$'\n'*) why="points at $norm, excluded in _config.yml" ;; esac
+        while IFS= read -r entry; do
+          [ -n "$entry" ] || continue
+          case "$norm/" in "$entry"*) why="points under $entry, excluded in _config.yml" ;; esac
+        done <<<"$dir_excl"
+        case "$overlay:$norm" in 1:docs/tapes/*.gif) why="" ;; esac
+      fi
+      [ -n "$why" ] || continue
+      _hi_align " | $rel:$n: $target $why - use a github.com URL" "FAILED" "$RED"
+      _hi_note_failure "site links: $rel:$n"
+      filebad=1
+    done < <(_hi_md_link_targets "$file")
+    bad=$((bad + filebad))
+  done < <(_hi_jekyll_md_files)
+  [ "$bad" -eq 0 ] && _hi_align " | every site page's relative links stay on the site" "OK" "$GREEN"
+  return "$bad"
+}
+
 # The image definitions moved out of the suites into tests/dockerfiles/, which
 # bought readable files and cost the one thing a heredoc could not get wrong: a
 # Dockerfile written inline is referenced by construction. A checked-in one can
@@ -928,7 +1054,7 @@ function run_drift() {
   _hi_workdir drifttest
 
   _hi_lint_halves lint_bash32 lint_home_default lint_ignored_payload lint_glossary_tags \
-    lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs \
+    lint_settings_table lint_container_family lint_runtime_dir lint_liquid_docs lint_site_links \
     lint_doc_contents lint_tldr_page lint_dockerfiles lint_image_tags \
     lint_image_digests
   _hi_lint_suite_end

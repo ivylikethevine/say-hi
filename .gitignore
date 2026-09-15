@@ -6,7 +6,13 @@
 **key**
 **local**
 
-.claude
+# Claude Code: .claude/settings.json is shared and tracked; a person's own
+# overrides and agent worktrees are not. CLAUDE.local.md holds host-specific
+# agent notes (the blanket **local** above already matches both local files;
+# named here so the intent survives that rule going).
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
 
 *.js
 *.ts
@@ -40,6 +46,8 @@
 # setup-tool's roster, which the blanket *.txt above would swallow; the action
 # and the drift checker both read it
 !.github/actions/setup-tool/tools.txt
+# the drift checker's repo hook, which the blanket **local** above would swallow
+!.github/scripts/check_tool_versions.local.sh
 *.tsv
 *.csv
 *.sql
@@ -47,6 +55,8 @@
 # the typos allowlist, read by the lint gate (tests/lint/tools_test.sh)
 !.typos.toml
 !.moxide.toml
+# lychee's link-check config, read by ci.yml and link-check.yml
+!lychee.toml
 # everything under the payload directories ships, whatever it is named: the
 # blanket rules above once swallowed a settings/*.toml (drift_test.sh's
 # lint_ignored_payload keeps it that way)
@@ -58,3 +68,6 @@ dist/
 
 # this project's own publishing keys
 !packaging/apk/*.rsa.pub
+
+# npm installs of the pinned CI Markdown tools (.github/package.json)
+node_modules/

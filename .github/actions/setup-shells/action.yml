@@ -41,8 +41,8 @@ runs:
       run: |
         set -euo pipefail
         source "$GITHUB_ACTION_PATH/../apt/lib.sh"
-        _hi_apt_drop_vendor_lists
-        _hi_apt_update
+        _ci_apt_drop_vendor_lists
+        _ci_apt_update
         mkdir -p "$HI_APT_CACHE/partial"
         # unquoted on purpose: a word list, one apt name each
         # shellcheck disable=SC2086

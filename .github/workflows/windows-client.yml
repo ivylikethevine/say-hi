@@ -49,6 +49,12 @@ jobs:
           - { shard: 3/4, label: "3" }
           - { shard: 4/4, label: "4" }
     steps:
+      # audit on the x64 legs; the arm64 legs only log that harden-runner
+      # has no Windows arm agent and carry on
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -96,6 +102,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - name: Require every shard green
         env:
           RESULT: ${{ needs.shard.result }}

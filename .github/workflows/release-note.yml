@@ -1,0 +1,64 @@
+name: Release note
+
+# Every pull request carries the template's `## Release note` section, with
+# something written under it: release.yml builds the release page's "What
+# changed" list out of it (.github/scripts/release_notes.sh), and a body
+# without one drops out of that list without a word. `none` is a valid answer;
+# a missing heading fails, and so does a blank section (only whitespace or
+# HTML comments under the heading). dev -> main PRs are held to it too, not
+# exempted: they are squash merged, so theirs is the one body generate-notes
+# lists for a release and the one release_notes.sh reads. Dependabot's bodies
+# are generated, have no template, and a bump is never a release note, so its
+# PRs skip.
+#
+# Its own workflow rather than a ci.yml job: `edited` is the trigger that
+# matters (fixing the body re-runs the check), and on ci.yml it would re-run
+# the whole battery on every body edit. A draft skips, like ci.yml's jobs:
+# ready_for_review is named in `types` so marking it ready runs the check.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+# a newer edit or push supersedes the check of the older body
+concurrency:
+  group: release-note-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  release-note:
+    name: release note (pr body)
+    if: github.event.pull_request.draft != true && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      # just the script: nothing else in the tree runs here
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/release_notes.sh
+          sparse-checkout-cone-mode: false
+
+      # the body via env, never inline ${{ }} in the run block: it is
+      # attacker-chosen text (zizmor: template-injection). --check's own
+      # stderr says whether the heading is missing or the section blank.
+      - name: The body has a written Release note section
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          if ! note="$(printf '%s\n' "$BODY" | bash .github/scripts/release_notes.sh --check)"; then
+            echo "::error title=Release note::the PR body needs a '## Release note' section with something under it - copy it from .github/pull_request_template.md (\`none\` is a valid answer)"
+            exit 1
+          fi
+          {
+            echo "### Release note"
+            echo
+            if [ -n "$note" ]; then printf '%s\n' "$note"; else echo "_none - this PR adds nothing to the release page_"; fi
+          } >>"$GITHUB_STEP_SUMMARY"

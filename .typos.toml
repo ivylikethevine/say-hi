@@ -7,6 +7,9 @@ extend-ignore-re = [
   "mis-parse",    # the hyphenated form, split at the hyphen
   "\\b[0-9a-fA-F]{6}\\b", # rrggbb words in core.sh's color scheme tables, and a user's own
   "[a-z]*\\[[a-z]\\][a-z]+", # the wizard's hotkey spelling: [e]verything, p[r]ompt (scripts/configure.sh, docs/SETTINGS.md)
+  # per-line opt-out: a deliberate misspelling on one line ends it with a
+  # `# spellchecker: disable-line` (or `//`) comment instead of a word here
+  "(?Rm)^.*(#|//)\\s*spellchecker:\\s*disable-line$",
 ]
 
 [default.extend-words]
@@ -17,5 +20,5 @@ unparseable = "unparseable"    # a spelling, not a typo
 intoto = "intoto"              # in-toto's SLSA attestation format, *.intoto.jsonl
 
 [default.extend-identifiers]
-ACI = "ACI"                    # Azure Container Instances, docs/SUPPORT.md
+ACI = "ACI"                    # Azure Container Instances, docs/COMPATIBILITY.md
 BRE = "BRE"                    # POSIX basic regular expressions, docs/GLOSSARY.md

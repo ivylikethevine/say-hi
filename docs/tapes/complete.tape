@@ -1,7 +1,7 @@
 # `hi <TAB>`: every target hi can reach, from one list, tagged by where it came
 # from. Render with `vhs docs/tapes/complete.tape` from the repo root, with
 # docker, podman, nomad, kind, and kubectl all working and hi on PATH; the kind
-# cluster takes a minute the first time. Manual artifact, reviewed by eye.
+# cluster takes a minute the first time. CI renders it too (demos.yml).
 #
 # The only tape whose subject is the client alone: nothing is connected to, so
 # every other demo's shape (connect, look around, exit) does not apply. What is

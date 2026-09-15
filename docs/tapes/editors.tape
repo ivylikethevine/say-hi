@@ -2,7 +2,7 @@
 # on her mac, into the team's debian. nano with hi's nanorc, vim with hi's
 # vimrc. Render with
 # `vhs docs/tapes/editors.tape` from the repo root, docker running, hi on
-# PATH. Manual artifact, reviewed by eye.
+# PATH. CI renders it too (demos.yml).
 #
 # Its configuration (docs/tapes/fixtures.sh, up:editors): the compact header
 # preset, so the header stays one line and the editors get the frame, and the

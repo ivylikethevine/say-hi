@@ -11,7 +11,7 @@ name: Windows e2e
 # the distribution's own filesystem - see the job), and its first shard's
 # distribution then also takes the package layout (`install.sh --prefix`,
 # what the .deb's package() runs) and is said hi to from Git Bash - the
-# Windows-desk homelab shape, and what turns SUPPORT.md's WSL row from
+# Windows-desk homelab shape, and what turns COMPATIBILITY.md's WSL row from
 # expected to proven - here rather than on a Windows runner of its own, since
 # a distribution already exists once a shard's fast suites finish. ci.yml
 # calls this on every push to main and every same-repository pull request
@@ -32,6 +32,10 @@ jobs:
     # ci.yml calls this on `push` and on same-repository PRs only, so a fork
     # PR never reaches it.
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -112,6 +116,10 @@ jobs:
     env:
       WSLENV: GITHUB_WORKSPACE:HI_SHARD:USERPROFILE
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -162,13 +170,13 @@ jobs:
           # be the runner's.
           # -k 30: a wedge that outlives the first signal would otherwise
           # leave `timeout` waiting on it forever too - see
-          # freebsd-e2e.yml's comment on the same flag.
+          # .github/scripts/bsd_loopback.sh's comment on the same flag.
           setsid -w timeout -k 30 900 bash ./tests/test_runner.sh --verbose --host-report \
             --group fast --shard "$HI_SHARD" </dev/null
 
       # The rest of this job is shard 1 only: the package layout on this same
       # distribution, then said hi to from Git Bash - the target side of the
-      # Windows-desk homelab shape, and what turns SUPPORT.md's WSL row from
+      # Windows-desk homelab shape, and what turns COMPATIBILITY.md's WSL row from
       # expected to proven. By the same call the .deb's package() step makes:
       # the tree under /usr/share/say-hi, /usr/bin/hi, /etc/profile.d/say-hi.sh.
       # hi ships its payload to every ssh target and does not read a
@@ -252,9 +260,10 @@ jobs:
             host="$(cat "$HOME/wsl-host")"
             echo "127.0.0.1:2222 is not relayed into WSL - using the distribution's address $host"
           }
+          rc=0
           out="$(timeout 120 ./hi.sh -p 2222 -i "$HOME/wsl-loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || true
+            -o LogLevel=ERROR "$user@$host" 'echo HI_WSL_OK; hi_info' 2>&1)" || rc=$?
           printf '%s\n' "$out"
           printf '%s\n' "$out" | grep -q HI_WSL_OK
           # the session runs out of the tree hi shipped - $_HI_HOME is a
@@ -265,7 +274,19 @@ jobs:
           # and not out of the packaged tree: hi dropped target-side install
           # detection, so a session reading /usr/share/say-hi would be a
           # regression back to it.
-          ! printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'
+          # (an `if`, not a bare `! grep`: set -e ignores a negated pipeline,
+          # so that form only failed the step while it was the last line)
+          if printf '%s\n' "$out" | grep -q 'hi_root: /usr/share/say-hi'; then
+            echo "the session ran out of the packaged tree" >&2
+            exit 1
+          fi
+          # the status last and never discarded, as the other loopbacks do: a
+          # session that prints every marker and then exits non-zero (or is
+          # killed by the timeout, rc 124) is what this step exists to catch
+          [ "$rc" -eq 0 ] || {
+            echo "the session exited $rc (124 = the 120s timeout killed it)" >&2
+            exit "$rc"
+          }
 
       # The other half of install_methods_test.sh's assertion, which a
       # transcript cannot show: the shipped tree took itself with it
@@ -286,6 +307,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - name: Require every shard green
         env:
           RESULT: ${{ needs.wsl-suites.result }}

@@ -4,7 +4,7 @@ name: FreeBSD e2e
 # the hosted ubuntu runner runs the fast suites and then ssh's to itself, so
 # one job covers client AND target - BSD sed/sort/date/mktemp, `base64`
 # without `-d`, a pkg-installed bash rather than /bin/sh. This is what proves
-# SUPPORT.md's "*BSD" row. ci.yml calls it on every push to main and every
+# COMPATIBILITY.md's "*BSD" row. ci.yml calls it on every push to main and every
 # same-repository pull request once the fast-suite jobs are green; dispatch
 # runs it on its own.
 on:
@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -32,7 +36,9 @@ jobs:
       - name: Fast suites, then say hi to ourselves
         uses: vmactions/freebsd-vm@8b0f1a8fc0ea0def307835c258940ca358fe6480 # v1.5.6
         with:
-          release: "14.2"
+          # the newest release this action pin ships (its README's table);
+          # 14.2 went EOL
+          release: "15.1"
           usesh: true
           sync: rsync
           copyback: false

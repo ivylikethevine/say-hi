@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Nothing exploitable here, please — [docs/SECURITY.md](https://github.com/ivylikethevine/say-hi/blob/main/docs/SECURITY.md#reporting-a-vulnerability)
-        has the two private channels for that.
+        has the private reporting channel for that.
 
         hi runs on two machines at once, so the useful bug report says which end
         misbehaved. `hi --doctor` answers most of that on its own.
@@ -84,9 +84,9 @@ body:
       options:
         - label: >-
             This is not an exploitable security issue (those go to
-            docs/SECURITY.md's private channels instead).
+            docs/SECURITY.md's private reporting channel instead).
           required: true
         - label: >-
             If this is about a target hi does not answer to, I checked
-            docs/SUPPORT.md — it may already carry a verdict and a reason.
+            docs/COMPATIBILITY.md — it may already carry a verdict and a reason.
           required: false

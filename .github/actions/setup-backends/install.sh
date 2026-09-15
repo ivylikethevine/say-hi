@@ -23,7 +23,7 @@ case " $HI_BACKENDS " in *' nomad '*) _hi_pkgs="$_hi_pkgs nomad" ;; esac
 
 # shellcheck source=../apt/lib.sh
 source "$GITHUB_ACTION_PATH/../apt/lib.sh"
-_hi_apt_drop_vendor_lists
+_ci_apt_drop_vendor_lists
 
 # nomad only: podman is in ubuntu's own repo. gpg unprivileged, `sudo` only
 # for the write. `sudo gpg` runs with root's HOME, creates /root/.gnupg on
@@ -42,7 +42,7 @@ case " $HI_BACKENDS " in
     sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
   ;;
 esac
-_hi_apt_update
+_ci_apt_update
 # unquoted on purpose: word lists, one apt name each
 # shellcheck disable=SC2086
 sudo apt-get -o "Dir::Cache::Archives=$HI_APT_CACHE" install -y $_hi_pkgs $HI_EXTRA_PACKAGES

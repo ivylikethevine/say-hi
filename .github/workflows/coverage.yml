@@ -76,6 +76,10 @@ jobs:
       run: ${{ steps.find.outputs.run }}
       sweep: ${{ steps.gate.outputs.sweep }}
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -159,6 +163,10 @@ jobs:
       matrix:
         shard: [1/4, 2/4, 3/4, 4/4]
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -202,8 +210,8 @@ jobs:
     if: ${{ !cancelled() && needs.reuse.outputs.sweep == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # job-level so the cache step below and check_tool_versions.sh's own
-    # grep for the literal `BASHCOV_VERSION: "..."` both still find it
+    # job-level so the cache step below and check_tool_versions.local.sh's
+    # roster regex for the literal `BASHCOV_VERSION: "..."` both still find it
     env:
       BASHCOV_VERSION: "4.0.0"
     concurrency:
@@ -215,6 +223,10 @@ jobs:
       matrix:
         shard: [1/4, 2/4, 3/4, 4/4]
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -231,9 +243,9 @@ jobs:
           key: setup-bashcov-${{ runner.os }}-${{ runner.arch }}-${{ env.BASHCOV_VERSION }}
 
       # bashcov is a rubygem, and none of tools.txt's kinds fetch one, so the
-      # pin lives here by hand - which makes it the one tool
-      # check_tool_versions.sh cannot report drift on through tools.txt; its
-      # own row in _WORKFLOW_ROSTER points at this file instead. ruby is
+      # pin lives here by hand, where check_tool_versions.sh cannot see it
+      # through tools.txt; its row in CI_WORKFLOW_ROSTER
+      # (check_tool_versions.local.sh) points at this file instead. ruby is
       # preinstalled on the hosted images; the apt install below is a
       # fallback that should never run.
       - name: Install ruby and bashcov
@@ -286,6 +298,10 @@ jobs:
       cancel-in-progress: true
     continue-on-error: true
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       # Load-bearing, and not obvious: `kcov --merge` re-reads every source
       # file at the absolute path its shard recorded, so a gather job with no
       # working tree merges to `"files": []` and `"percent_covered": "0.00"`
@@ -306,8 +322,8 @@ jobs:
           set -euo pipefail
           # shellcheck source=.github/actions/apt/lib.sh
           source .github/actions/apt/lib.sh
-          _hi_apt_drop_vendor_lists
-          _hi_apt_update
+          _ci_apt_drop_vendor_lists
+          _ci_apt_update
           sudo apt-get install -y libdw1 libelf1 libcurl4 zlib1g libstdc++6
 
       - uses: $/.github/actions/setup-tools
@@ -370,6 +386,10 @@ jobs:
       cancel-in-progress: true
     continue-on-error: true
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       # each shard's resultset lands in its own artifact-named subdirectory
       # (merge-multiple: false, the default) - never merge-multiple here:
       # every shard's file is literally named .resultset.json, and flattening
@@ -463,7 +483,9 @@ jobs:
   # lookup), as one comment edited in place on every push - see the header for
   # why never a fork's. The checkout is for that composite action alone;
   # nothing here runs the PR's code. A figure missing on either side reads
-  # "not measured", never 0.
+  # "not measured", never 0. The comment names the pull request template's 75%
+  # target and flags an average below it - a target, not a gate: this job
+  # stays continue-on-error and fails nothing.
   comment:
     name: post the figures to the PR
     needs: [gather-kcov, gather-bashcov]
@@ -484,6 +506,10 @@ jobs:
       actions: read
       pull-requests: write
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -510,6 +536,7 @@ jobs:
           workflow: coverage.yml
           artifact-name: "{coverage-pct,coverage-v2-pct}"
           dest-subdir: main
+          event: workflow_run
           found-message: main's figures from coverage run
           missing-message: no successful coverage run on main - no figures to compare
 
@@ -519,6 +546,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # the pull request template's figure; the average is held against it
+          TARGET: "75"
         run: |
           set -euo pipefail
           marker='<!-- say-hi coverage -->'
@@ -548,11 +577,20 @@ jobs:
           b="$(fig "$RUNNER_TEMP/pr/coverage-v2-pct/pct")"
           k0="$(fig "$RUNNER_TEMP/main/coverage-pct/pct")"
           b0="$(fig "$RUNNER_TEMP/main/coverage-v2-pct/pct")"
+          a="$(avg "$k" "$b")"
+          if [ -z "$a" ]; then
+            verdict="The target is ${TARGET}%; this PR's average was not measured."
+          elif awk -v a="$a" -v t="$TARGET" 'BEGIN { exit !(a < t) }'; then
+            verdict="**Below the ${TARGET}% target** at ${a}% - worth a test for what this PR adds, though nothing blocks the merge."
+          else
+            verdict="At or above the ${TARGET}% target."
+          fi
           body="$(
             printf '%s\n### Coverage\n\n| | This PR | main | Change |\n| --- | ---: | ---: | ---: |\n' "$marker"
             row kcov "$k" "$k0"
             row bashcov "$b" "$b0"
-            row '**average**' "$(avg "$k" "$b")" "$(avg "$k0" "$b0")"
+            row '**average**' "$a" "$(avg "$k0" "$b0")"
+            printf '\n%s\n' "$verdict"
             printf '\nThe average is the figure to quote, and neither gates anything ([why two](%s)). ' \
               "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/main/docs/TESTING.md#coverage-and-profiling"
             printf 'Measured at %s by [this run](%s).\n' "$HEAD_SHA" \

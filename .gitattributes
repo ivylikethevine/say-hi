@@ -3,4 +3,10 @@
 # this the windows-e2e runner would hand Git Bash a CRLF ./hi.sh - a
 # first-run failure that has nothing to do with Windows support itself.
 * text=auto eol=lf
+# Images are never text, whatever text=auto's sniffing guesses: no eol
+# conversion and no textual diff. One pattern per line, which is all
+# gitattributes accepts.
 *.gif binary
+*.png binary
+*.jpg binary
+*.webp binary

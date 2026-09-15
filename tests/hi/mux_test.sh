@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright the say-hi contributors.
+# SPDX-License-Identifier: MIT
 # tests/hi/mux_test.sh - the client-side tmux wrap: --mux, --no-mux, the
 # session name a target maps to, and the tmux calls _hi_mux_wrap makes. tmux
 # is a shim that logs its argv; one case behind a real tmux proves the name

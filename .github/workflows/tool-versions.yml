@@ -1,8 +1,9 @@
 name: Tool versions
 
-# Drift check over the curl-installed tools in setup-tool's tools.txt, plus
-# the pins that live inline in a workflow (bashcov, currently) - the one
-# class of pin dependabot cannot see. Runs after every green CI battery on a
+# Drift check over the pins dependabot cannot see - the curl-installed tools
+# in setup-tool's tools.txt and the inline pins check_tool_versions.local.sh
+# lists (bashcov, vhs, the docs theme) - plus a second look at the action SHAs
+# and image digests it does move. Runs after every green CI battery on a
 # push to main (the batch scorecard.yml and coverage.yml share) and weekly as
 # a backstop, since upstream releases land without a push here. The signal is
 # one tracking issue, kept current: opened when a pin is behind, rewritten on
@@ -18,15 +19,14 @@ on: # zizmor: ignore[dangerous-triggers]
     - cron: "23 7 * * 1"
   workflow_dispatch:
 
-# pushes to main can stack; only the newest drift report matters
+# pushes to main can stack, but queue rather than cancel: a run cancelled
+# mid-upsert can leave its tracking issue half-written (or a duplicate opened)
 concurrency:
   group: tool-versions
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  # the one write this job does: upsert (and close) its own tracking issue
-  issues: write
 
 jobs:
   check:
@@ -38,15 +38,24 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # the one write this job does: upsert (and close) its own tracking issue
+      issues: write
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # The script exits with the number of outdated pins, captured as an
-      # output rather than failing the step so the issue below closes on zero
-      # and opens on the rest; a missing upstream answer counts as current.
+      # The script exits with the number of problems (outdated pins, stale
+      # roster rows, local-check failures), captured as an output rather than
+      # failing the step so the issue below closes on zero and opens on the
+      # rest; a missing upstream answer counts as current.
       - id: check
         name: Compare pinned defaults to upstream releases
         env:
@@ -66,9 +75,9 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "$OUTDATED pinned tool(s) are behind upstream."
-            echo "Bump each OUTDATED row where it is pinned - tools.txt's version column for most,"
-            echo "or the workflow file the row names for the couple that live inline instead."
+            echo "$OUTDATED problem(s) with the pins below."
+            echo "Fix each OUTDATED or ERROR row where it says: tools.txt (pin and sha256 together),"
+            echo "or the file an inline pin, action, or image row names."
             echo
             echo '```'
             cat "$RUNNER_TEMP/tools.txt"
@@ -79,7 +88,7 @@ jobs:
         with:
           label: tool-versions
           label-color: 0E8A16
-          label-description: A tools.txt pin in .github/actions/setup-tool is behind upstream
+          label-description: A pin dependabot cannot move is behind upstream
           title: Pinned CI tools are behind their upstream releases
           resolved: ${{ steps.check.outputs.outdated == 0 && 'true' || 'false' }}
           close-comment: Every pin is current again.

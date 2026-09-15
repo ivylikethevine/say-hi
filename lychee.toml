@@ -1,0 +1,25 @@
+# lychee's settings for both link checks: ci.yml's offline gate and
+# link-check.yml's external sweep. Flags that differ between the two
+# (--offline, --include-fragments, the output format) stay on their command
+# lines.
+
+# 2xx is success. 429 is a server saying "checking too fast", not "dead";
+# failing on it would make the weekly sweep flaky against rate-limited sites.
+accept = ["200..=299", "429"]
+
+# Regexes over input paths. Agent config and scratch, git's own files, build
+# output, local runtime data, and the npm-installed Markdown tools' READMEs
+# are never this repo's docs; a '**/*.md' glob would otherwise walk into
+# them. A directory a repo does not have costs nothing here.
+exclude_path = [
+  '(^|/)\.claude/',
+  '(^|/)\.git/',
+  '(^|/)dist/',
+  '(^|/)local/',
+  '(^|/)node_modules/',
+  '(^|/)target/',
+]
+
+# a transient network error is retried before it counts as a dead link
+max_retries = 3
+retry_wait_time = 2
