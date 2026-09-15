@@ -34,12 +34,13 @@ command -v shift >/dev/null 2>&1 &&
 # A box with neither leaves vim alone (an alias of `" -u ..."` would report
 # `-u: command not found` where `vim: command not found` is the answer).
 #
-# nvim first, so an nvim-only box still answers to `vim` - and with the lua rc,
-# since settings/vim.rc is vim's and neovim reads settings/init.lua. `nvim`
-# gets an alias of its own so either name reaches the same override.
+# vim's, then nvim's over it where there is one, so an nvim box answers to
+# `vim` with the lua rc (settings/vim.rc is vim's; neovim reads
+# settings/init.lua). `nvim` gets an alias of its own so either name reaches
+# the same override. The presence gates are `command -v` alone, no $( ) fork.
 # _HI_DISABLE_VIM gates both: they are one editor to the toggle.
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -n "$(command -v nvim)" ] && alias vim="$(command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v nvim) -u $_HI_NVIMRC" || true
-[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && [ -z "$(command -v nvim)" ] && [ -n "$(command -v vim)" ] && alias vim="$(command -v vim) -u $_HI_VIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="$(command -v vim) -u $_HI_VIMRC" || true
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias vim="$(command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v nvim) -u $_HI_NVIMRC" || true
 # -q skips the target's own init, -l loads hi's in its place. The command word
 # is a literal, so no presence gate: a box without emacs says so itself.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && alias emacs="emacs -q -l $_HI_EMACSRC" || true
