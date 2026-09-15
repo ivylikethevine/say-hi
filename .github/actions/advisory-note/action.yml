@@ -59,7 +59,9 @@ runs:
           if [ -n "$REPORT_FILE" ] && [ -f "$REPORT_FILE" ]; then
             # a fence longer than any backtick run in the report, so a
             # report quoting ``` cannot close the block early
-            longest="$(grep -o '`\+' "$REPORT_FILE" | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')"
+            # (awk alone: a grep finding no backticks exits 1 and, under
+            # pipefail, fails the step)
+            longest="$(awk '{ while (match($0, /`+/)) { if (RLENGTH > m) m = RLENGTH; $0 = substr($0, RSTART + RLENGTH) } } END { print m + 0 }' "$REPORT_FILE")"
             fence='```'
             while [ "${#fence}" -le "$longest" ]; do fence="$fence\`"; done
             echo

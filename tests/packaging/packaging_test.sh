@@ -36,18 +36,35 @@ _HI_PR_TEMPLATE="$_HI_ROOT/.github/pull_request_template.md"
 _HI_MKREPO="$_HI_PKG_DIR/mkrepo.sh"
 _HI_TOOLS_TXT="$_HI_ROOT/.github/actions/setup-tool/tools.txt"
 
+# The awk every reader of a workflow's jobs: map starts with: it skips what
+# comes before `jobs:` and exits (END still runs) at the next top-level key,
+# so every reader stops at the end of the map. isjob() is a job key: a
+# top-level (2-space) key under it, whatever it's named, with an optional
+# trailing comment; jobname() is that key's name.
+# shellcheck disable=SC2016 # awk's $0 and $1, not shell expansions
+_HI_WF_JOBS_AWK='
+  function isjob() { return $0 ~ /^  [A-Za-z0-9_-]+:[ \t]*(#.*)?$/ }
+  function jobname(    k) { k = $1; sub(/:$/, "", k); return k }
+  /^jobs:/ { injobs = 1; next }
+  !injobs { next }
+  /^[^ #]/ { exit }
+'
+
 # _hi_wf_job <file> <job> - one job's block from a workflow's jobs: map, in a
-# variable rather than a pipe (nothing here can EPIPE). Closes on the next
-# top-level (2-space) job key, whatever it's named, or EOF for the last job -
-# unlike a hand-picked end pattern (`[a-z]*:$`, a literal next name), this
-# can't quietly stop matching a real key and read past the job it names.
+# variable rather than a pipe (nothing here can EPIPE). Closes on the next job
+# key or the end of the map - unlike a hand-picked end pattern (`[a-z]*:$`, a
+# literal next name), this can't quietly stop matching a real key and read
+# past the job it names.
 function _hi_wf_job() {
-  local file="$1" job="  $2:"
-  awk -v job="$job" '
-    $0 == job { found = 1; next }
-    found && /^  [A-Za-z0-9_-]+:$/ { exit }
+  awk -v job="$2" "$_HI_WF_JOBS_AWK"'
+    isjob() { if (found) exit; found = (jobname() == job); next }
     found { print }
-  ' "$file"
+  ' "$1"
+}
+
+# _hi_wf_jobs <file> - every job name in a workflow's jobs: map, one per line
+function _hi_wf_jobs() {
+  awk "$_HI_WF_JOBS_AWK"'isjob() { print jobname() }' "$1"
 }
 
 # The names SHA256SUMS covers, however the local sha256sum spelled them. GNU
@@ -357,7 +374,7 @@ function test_release_jobs_under_the_gate_check_their_needs() {
       _hi_cecho " | release.yml's $name job needs $need but never checks needs.$need.result" "$RED"
       bad=1
     fi
-  done < <(sed -n '/^jobs:/,$s/^  \([a-z][a-z0-9-]*\):$/\1/p' "$_HI_RELEASE_WF")
+  done < <(_hi_wf_jobs "$_HI_RELEASE_WF")
   [ "$bad" = 0 ]
 }
 
@@ -420,7 +437,7 @@ function test_release_signing_keys_are_read_under_the_release_environment() {
       _hi_cecho " | release.yml's $name job reads a signing key outside environment: release" "$RED"
       bad=1
     }
-  done < <(sed -n '/^jobs:/,$s/^  \([a-z][a-z0-9-]*\):$/\1/p' "$_HI_RELEASE_WF")
+  done < <(_hi_wf_jobs "$_HI_RELEASE_WF")
   [ "$bad" = 0 ]
 }
 
@@ -800,15 +817,11 @@ function test_every_job_has_a_timeout() {
   local wf job bad=0
   for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
     while IFS= read -r job; do
-      [ -n "$job" ] || continue
       _hi_cecho " | ${wf##*/}: job $job has no timeout-minutes" "$RED"
       bad=1
-    done < <(awk '
+    done < <(awk "$_HI_WF_JOBS_AWK"'
       function flush() { if (job != "" && !has) print job; job = ""; has = 0 }
-      /^jobs:/ { injobs = 1; next }
-      injobs && /^[^ #]/ { flush(); injobs = 0 }
-      !injobs { next }
-      /^  [A-Za-z0-9_-]+:[ \t]*(#.*)?$/ { flush(); job = $1; sub(/:$/, "", job); next }
+      isjob() { flush(); job = jobname(); next }
       /^    (timeout-minutes|uses):/ { has = 1 }
       END { flush() }
     ' "$wf")
@@ -826,18 +839,14 @@ function test_every_job_starts_with_harden_runner() {
   local wf job bad=0
   for wf in "$_HI_ROOT"/.github/workflows/*.yml; do
     while IFS= read -r job; do
-      [ -n "$job" ] || continue
       _hi_cecho " | ${wf##*/}: job $job does not start with step-security/harden-runner" "$RED"
       bad=1
-    done < <(awk '
+    done < <(awk "$_HI_WF_JOBS_AWK"'
       function flush() {
         if (job != "" && steps && !arm && !ok) print job
         job = ""; steps = 0; arm = 0; ok = 0; first = 0; done = 0
       }
-      /^jobs:/ { injobs = 1; next }
-      injobs && /^[^ #]/ { flush(); injobs = 0 }
-      !injobs { next }
-      /^  [A-Za-z0-9_-]+:[ \t]*(#.*)?$/ { flush(); job = $1; sub(/:$/, "", job); next }
+      isjob() { flush(); job = jobname(); next }
       /^    runs-on:.*-arm/ { arm = 1 }
       /^    steps:/ { steps = 1; next }
       !steps || done || /^[ \t]*(#.*)?$/ { next }
@@ -932,14 +941,15 @@ function test_fetch_latest_artifact_scopes_the_event() {
 # ...and takes the newest green run that still holds a matching artifact, not
 # simply the newest green run: a run whose producing job skipped is green with
 # nothing to download, and would hide the real one behind a grey badge. The
-# brace pattern every multi-artifact caller passes is matched per name.
+# brace pattern every multi-artifact caller passes is matched per name, as an
+# extglob.
 # shellcheck disable=SC2016 # the action's own literals, expanded there
 function test_fetch_latest_artifact_skips_runs_without_the_artifact() {
   local action="$_HI_ROOT/.github/actions/fetch-latest-artifact/action.yml"
   grep -qF 'status=success&per_page=20' "$action" &&
     grep -qF 'actions/runs/$id/artifacts' "$action" &&
     grep -qF 'select(.expired | not)' "$action" &&
-    grep -qF '"{a,b}" becomes "@(a|b)"' "$action" &&
+    grep -qF 'shopt -s extglob' "$action" &&
     grep -qF 'pattern: ${{ inputs.artifact-name }}' "$action"
 }
 
