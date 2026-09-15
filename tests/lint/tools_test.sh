@@ -220,55 +220,54 @@ function _hi_node_tool() {
   [ -x "$bin" ] && command -v node >/dev/null 2>&1 && printf '%s' "$bin"
 }
 
-# markdownlint over the Markdown, rules from .markdownlint.yaml (read from the
-# working directory). Blocking: a heading or list slip is cheap to fix on the
-# PR that makes it and a sweep to fix later. Skips yellow when the pinned copy
-# is not installed; `npm ci --prefix .github` installs it.
-function lint_markdownlint() {
+# _hi_lint_md_tool <tool> <heading> <ok> <failed> <note> [arg...] - one
+# pinned .github/package.json tool over _HI_MD_FILES, run from the root so it
+# reads its config there, with <arg>s before the file list. No version on the
+# OK line: .github/package-lock.json already pins it. Skips yellow when the
+# pinned copy is not installed or git listed no Markdown; `npm ci --prefix
+# .github` installs it.
+function _hi_lint_md_tool() {
+  local tool="$1" heading="$2" ok="$3" failed="$4" note="$5"
   local bin out
-  _hi_h2 "Checking the Markdown (markdownlint-cli2, rules in .markdownlint.yaml)"
-  bin="$(_hi_node_tool markdownlint-cli2)" || {
-    _hi_skip "markdownlint-cli2" "not installed (npm ci --prefix .github)"
+  shift 5
+  _hi_h2 "$heading"
+  bin="$(_hi_node_tool "$tool")" || {
+    _hi_skip "$tool" "not installed (npm ci --prefix .github)"
     return 0
   }
   if [ "${#_HI_MD_FILES[@]}" -eq 0 ]; then
-    _hi_skip "markdownlint-cli2" "no Markdown listed (not a git checkout?)"
+    _hi_skip "$tool" "no Markdown listed (not a git checkout?)"
     return 0
   fi
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(cd "$_HI_ROOT" && "$bin" "${_HI_MD_FILES[@]}" 2>&1)"; then
-    _hi_align " | markdownlint-cli2: ${#_HI_MD_FILES[@]} files clean" "OK" "$GREEN"
+  if out="$(cd "$_HI_ROOT" && "$bin" "$@" "${_HI_MD_FILES[@]}" 2>&1)"; then
+    _hi_align " | $tool: $ok" "OK" "$GREEN"
   else
-    _hi_align " | markdownlint-cli2: findings below" "FAILED" "$RED"
+    _hi_align " | $tool: $failed" "FAILED" "$RED"
     printf '%s\n' "$out" | sed 's/^/      /'
-    _hi_note_failure "Markdown lint (markdownlint-cli2)"
+    _hi_note_failure "$note"
     return 1
   fi
 }
 
+# markdownlint over the Markdown, rules from .markdownlint.yaml. Blocking: a
+# heading or list slip is cheap to fix on the PR that makes it and a sweep to
+# fix later.
+function lint_markdownlint() {
+  _hi_lint_md_tool markdownlint-cli2 \
+    "Checking the Markdown (markdownlint-cli2, rules in .markdownlint.yaml)" \
+    "${#_HI_MD_FILES[@]} files clean" "findings below" \
+    "Markdown lint (markdownlint-cli2)"
+}
+
 # prettier --check over the same list, style from .prettierrc.yaml; files in
-# .prettierignore (docs/tldr.md) are skipped even when named. Skips yellow
-# when the pinned copy is not installed.
+# .prettierignore (docs/tldr.md) are skipped even when named.
 function lint_prettier() {
-  local bin out
-  _hi_h2 "Checking Markdown formatting (prettier --check, style in .prettierrc.yaml)"
-  bin="$(_hi_node_tool prettier)" || {
-    _hi_skip "prettier" "not installed (npm ci --prefix .github)"
-    return 0
-  }
-  if [ "${#_HI_MD_FILES[@]}" -eq 0 ]; then
-    _hi_skip "prettier" "no Markdown listed (not a git checkout?)"
-    return 0
-  fi
-  _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
-  if out="$(cd "$_HI_ROOT" && "$bin" --check "${_HI_MD_FILES[@]}" 2>&1)"; then
-    _hi_align " | prettier $("$bin" --version): every file already formatted" "OK" "$GREEN"
-  else
-    _hi_align " | prettier: files need reformatting (fix with: prettier --write on the paths below)" "FAILED" "$RED"
-    printf '%s\n' "$out" | sed 's/^/      /'
-    _hi_note_failure "Markdown formatting (prettier --write the paths it names)"
-    return 1
-  fi
+  _hi_lint_md_tool prettier \
+    "Checking Markdown formatting (prettier --check, style in .prettierrc.yaml)" \
+    "every file already formatted" \
+    "files need reformatting (fix with: prettier --write on the paths below)" \
+    "Markdown formatting (prettier --write the paths it names)" --check
 }
 
 function run_tools() {

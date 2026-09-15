@@ -619,6 +619,24 @@ function _hi_settings_roster() {
   } | sort -u | grep -vxF -f <(_hi_settings_not_settings "$_HI_ROOT/docs/SETTINGS.md")
 }
 
+# `_config.yml`'s `exclude:` block, split into _HI_JEKYLL_DIR_EXCL (entries
+# with a trailing `/`) and _HI_JEKYLL_FILE_EXCL, one entry per line each.
+# Parsed on first use; later calls in the same shell reuse it.
+function _hi_jekyll_excludes() {
+  local block entry
+  [ -n "${_HI_JEKYLL_PARSED:-}" ] && return 0
+  _HI_JEKYLL_DIR_EXCL="" _HI_JEKYLL_FILE_EXCL="" _HI_JEKYLL_PARSED=1
+  block="$(awk '/^exclude:/{inside=1; next} /^[A-Za-z]/{inside=0} inside' "$_HI_ROOT/_config.yml" |
+    sed -n 's/^ *- *//p')"
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    case "$entry" in
+    */) _HI_JEKYLL_DIR_EXCL="$_HI_JEKYLL_DIR_EXCL$entry"$'\n' ;;
+    *) _HI_JEKYLL_FILE_EXCL="$_HI_JEKYLL_FILE_EXCL$entry"$'\n' ;;
+    esac
+  done <<<"$block"
+}
+
 # The markdown Jekyll actually turns into a page: every `*.md` in the tree,
 # minus anything under a dotfile directory (`.github`, `.git`, `.claude`, ...)
 # and minus every path `_config.yml`'s `exclude:` block names - directory
@@ -626,26 +644,18 @@ function _hi_settings_roster() {
 # rather than hand-kept, so excluding a file from the site (docs/tldr.md,
 # below, is exactly this) drops it from the sweep with no second edit.
 function _hi_jekyll_md_files() {
-  local block file_excl="" dir_excl="" entry file rel skip
-  block="$(awk '/^exclude:/{inside=1; next} /^[A-Za-z]/{inside=0} inside' "$_HI_ROOT/_config.yml" |
-    sed -n 's/^ *- *//p')"
-  while IFS= read -r entry; do
-    [ -n "$entry" ] || continue
-    case "$entry" in
-    */) dir_excl="$dir_excl$entry"$'\n' ;;
-    *) file_excl="$file_excl$entry"$'\n' ;;
-    esac
-  done <<<"$block"
+  local entry file rel skip
+  _hi_jekyll_excludes
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     rel="${file#"$_HI_ROOT/"}"
     case "${rel%%/*}" in .*) continue ;; esac
-    case $'\n'"$file_excl" in *$'\n'"$rel"$'\n'*) continue ;; esac
+    case $'\n'"$_HI_JEKYLL_FILE_EXCL" in *$'\n'"$rel"$'\n'*) continue ;; esac
     skip=""
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
       case "$rel" in "$entry"*) skip=1 ;; esac
-    done <<<"$dir_excl"
+    done <<<"$_HI_JEKYLL_DIR_EXCL"
     [ -n "$skip" ] && continue
     printf '%s\n' "$file"
   done < <(_hi_lint_find -name '*.md')
@@ -741,26 +751,18 @@ function _hi_md_link_targets() {
 # ../.github/workflows/ or tapes/generate.sh renders fine on GitHub and 404s
 # on Pages. The rule (docs/CONTRIBUTING.md): links into those paths are
 # absolute github.com URLs. Existence is lychee's check in ci.yml; this one
-# only knows what the site leaves out, read from the same exclude parse as
+# only knows what the site leaves out, read through _hi_jekyll_excludes like
 # _hi_jekyll_md_files. A link that climbs out of the repository is flagged
 # too - nothing above the root is on the site. The one way back onto it is
 # pages.yml's overlay: it copies the GIFs into _site/docs/tapes/ after Jekyll
 # runs, so docs/tapes/*.gif is allowed for as long as pages.yml still does.
 function lint_site_links() {
-  local block entry dir_excl="" file_excl="" file rel dir n target norm seg why
+  local entry file rel dir n target norm seg why
   local filebad bad=0 overlay=""
   local -a parts stack
   _hi_h2 "Checking site pages' relative links against Jekyll's exclusions"
   grep -qF '.gif _site/docs/tapes/' "$_HI_ROOT/.github/workflows/pages.yml" 2>/dev/null && overlay=1
-  block="$(awk '/^exclude:/{inside=1; next} /^[A-Za-z]/{inside=0} inside' "$_HI_ROOT/_config.yml" |
-    sed -n 's/^ *- *//p')"
-  while IFS= read -r entry; do
-    [ -n "$entry" ] || continue
-    case "$entry" in
-    */) dir_excl="$dir_excl$entry"$'\n' ;;
-    *) file_excl="$file_excl$entry"$'\n' ;;
-    esac
-  done <<<"$block"
+  _hi_jekyll_excludes
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     rel="${file#"$_HI_ROOT/"}"
@@ -803,11 +805,11 @@ function lint_site_links() {
           IFS=/
           printf '%s' "${stack[*]+"${stack[*]}"}"
         )"
-        case $'\n'"$file_excl" in *$'\n'"$norm"$'\n'*) why="points at $norm, excluded in _config.yml" ;; esac
+        case $'\n'"$_HI_JEKYLL_FILE_EXCL" in *$'\n'"$norm"$'\n'*) why="points at $norm, excluded in _config.yml" ;; esac
         while IFS= read -r entry; do
           [ -n "$entry" ] || continue
           case "$norm/" in "$entry"*) why="points under $entry, excluded in _config.yml" ;; esac
-        done <<<"$dir_excl"
+        done <<<"$_HI_JEKYLL_DIR_EXCL"
         case "$overlay:$norm" in 1:docs/tapes/*.gif) why="" ;; esac
       fi
       [ -n "$why" ] || continue

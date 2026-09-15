@@ -42,7 +42,8 @@ jobs:
   # test-macos's loopback, e2e-gate, and e2e-windows-client. The three e2e-*
   # reusable-workflow jobs gate on `needs.e2e-gate.outputs.ok` instead, which
   # is empty when that job skips. The `!cancelled()` jobs below name the
-  # draft clause themselves, since `!cancelled()` runs past a skipped need.
+  # draft clause themselves, since `!cancelled()` runs past a skipped need, and
+  # so does dependency-review, which does not need `changes` at all.
   #
   # Whether anything besides workflow YAML or markdown changed: test-ubuntu,
   # test-arm, test-macos, test-alpine, profile, packaging-smoke, e2e, and
@@ -249,15 +250,19 @@ jobs:
           extra-packages: neovim emacs-nox
 
       # the lint suite's shfmt/checkbashisms halves skip yellow when the tools
-      # are absent - these pinned installs are what make them enforce here
+      # are absent - these pinned installs are what make them enforce here.
+      # release.yml's build job passes the identical list, which is the cache key
       - uses: $/.github/actions/setup-tools
         with:
           tools: shellcheck shfmt checkbashisms mandoc typos lychee
 
-      # markdownlint-cli2 needs node 22+, which the runner's default may not be
+      # markdownlint-cli2 needs node 22+, which the runner's default may not be;
+      # the npm cache is keyed on the lockfile the step below installs from
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: .github/package-lock.json
 
       # markdownlint-cli2 and prettier with their whole dependency tree, from
       # .github/package-lock.json (dependabot's npm entry moves it);
@@ -578,12 +583,14 @@ jobs:
   # Pull requests only: the action diffs the dependency graph between the PR's
   # base and head, and a push has no base to diff. Fails on a newly added
   # dependency with a high or critical advisory - the workflows' actions and
-  # .github/package-lock.json here. Needs `changes` for the draft skip alone;
-  # not `code`, since a workflow-only diff is how a new action arrives.
+  # .github/package-lock.json here. Skips a draft itself rather than through
+  # `changes`, whose outputs it never reads - not `code`, since a
+  # workflow-only diff is how a new action arrives.
   dependency-review:
     name: dependency review
-    needs: changes
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

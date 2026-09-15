@@ -40,7 +40,7 @@ function ci_local_checks() {
   echo "## Images outside Dockerfiles (check_tool_versions.local.sh)"
   echo
   for f in $_HI_IMAGE_FILES; do
-    refs="$(grep -oE '[a-z0-9][a-z0-9._/-]*:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}' "$f" | sort -u)"
+    refs="$({ grep -oE '[a-z0-9][a-z0-9._/-]*:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}' "$f" || true; } | sort -u)"
     if [ -z "$refs" ]; then
       printf '%-48s %-22s ERROR (no digest-pinned image)\n' "$f" "-"
       _ci_problem "$f" "no digest-pinned image left in $f - pin it to a tests/dockerfiles digest"

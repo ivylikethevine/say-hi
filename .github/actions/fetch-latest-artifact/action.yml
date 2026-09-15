@@ -42,11 +42,6 @@ inputs:
     required: false
     default: "push"
 
-outputs:
-  run_id:
-    description: the id of the run found, empty when none was
-    value: ${{ steps.find.outputs.run_id }}
-
 runs:
   using: composite
   steps:

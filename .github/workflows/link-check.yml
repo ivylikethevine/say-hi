@@ -71,17 +71,6 @@ jobs:
           lychee --config lychee.toml --no-progress \
             --format markdown --output "$RUNNER_TEMP/lychee.md" './**/*.md'
 
-      - uses: $/.github/actions/advisory-note
-        if: steps.lychee.outcome == 'failure'
-        with:
-          title: lychee
-          warning-body: Dead or unreachable links - advisory, not blocking
-          heading: lychee found dead links
-          body: >-
-            Advisory only: this job never blocks anything. Reproduce with
-            `lychee --config lychee.toml './**/*.md'`.
-          report-file: ${{ runner.temp }}/lychee.md
-
       # a lychee that died before writing its report still opens the issue,
       # saying so rather than posting an empty body
       - name: Compose the tracking issue body
@@ -109,3 +98,5 @@ jobs:
           close-comment: Every link resolves again.
           resolved-when: every link resolves
           body-file: ${{ runner.temp }}/issue.md
+          warning-title: lychee
+          warning-body: Dead or unreachable links - advisory, not blocking - see the issue
