@@ -25,15 +25,17 @@ it rides along to every host you say `hi` to, in its own small archive.
 | `~/.config/say-hi/bash.sh`         | -                   | your bash preferences, sourced at the end of `common/bash.sh` - history sizing, `shopt`s, readline bindings                                   |
 | `~/.config/say-hi/zsh.zsh`         | -                   | the same for zsh - history, keybindings, `zstyle` completion rules                                                                            |
 | `~/.config/say-hi/config.fish`     | -                   | the same for fish - keybindings and the `fish_color_*` / `fish_pager_color_*` palette                                                         |
-| `~/.config/say-hi/oh-my-posh.json` | -                   | your oh-my-posh config, `$POSH_THEME` on every target that hands the prompt to oh-my-posh                                                                          |
+| `~/.config/say-hi/oh-my-posh.json` | -                   | your oh-my-posh config (or `oh-my-posh.yaml` / `oh-my-posh.toml`), `$POSH_CONFIG` on every target that hands the prompt to oh-my-posh; over the one `$POSH_CONFIG` or your rc's `oh-my-posh init --config` names |
 
 starship's, powerlevel10k's, tide's, bat's, and eza's own configs, and your
-oh-my-zsh and oh-my-bash themes, are not overlay files: every target gets the
+oh-my-zsh and oh-my-bash themes, need no copy here: every target gets the
 one each tool reads on your machine
 ([Integrations](INTEGRATIONS.md#prompt-programs)), so there is one copy to
 edit. A `starship.toml`, `p10k.zsh`, `omz-theme.zsh`, `omb-theme.sh`,
-`tide.vars`, `bat.conf`, or `theme.yml` left in `~/.config/say-hi/` is
-ignored, and `hi --doctor` flags it.
+`tide.vars`, `bat.conf`, or `theme.yml` in `~/.config/say-hi/` is the
+override: targets get it instead, and at home the tool keeps reading its
+own. A prompt program's copy still rides only when that program is one a
+target is handed, and `hi --doctor` says when it is not.
 
 The overlay starts empty. `hi --install` writes `settings.sh` there and
 nothing else — the tree's `colors` and `packages` stay in force until you copy
@@ -461,10 +463,10 @@ machine**, so there is one copy to edit:
 
 | member            | hi looks at                                                                  |
 | ----------------- | ---------------------------------------------------------------------------- |
-| `vim.rc`          | `~/.vimrc`, else `~/.vim/vimrc`                                              |
+| `vim.rc`          | `~/.vimrc`, else `~/.vim/vimrc`, else `$XDG_CONFIG_HOME/vim/vimrc`           |
 | `init.lua`        | `$XDG_CONFIG_HOME/nvim/init.lua`                                             |
 | `nano.rc`         | `~/.nanorc`, else `$XDG_CONFIG_HOME/nano/nanorc`                             |
-| `emacs.el`        | `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el` |
+| `emacs.el`        | `~/.emacs.el`, else `~/.emacs`, else `~/.emacs.d/init.el`, else `$XDG_CONFIG_HOME/emacs/init.el` |
 | `tmux.conf`       | `~/.tmux.conf`, else `$XDG_CONFIG_HOME/tmux/tmux.conf`                       |
 | `micro/<file>`    | `${MICRO_CONFIG_HOME:-$XDG_CONFIG_HOME/micro}/<file>`, for `settings.json`, `bindings.json`, and `init.lua` |
 
@@ -475,11 +477,14 @@ there is the target's, and the file your client picked has already arrived.
 
 Your own config is written for a machine with your plugins on it and a target
 has none, so hi reads each file — and your overlay's `settings.sh`,
-`aliases.sh`, `bash.sh`, `zsh.zsh`, and `config.fish` — for the lines naming
+`aliases.sh`, `plugins.d/` members, `bash.sh`, `zsh.zsh`, and `config.fish`,
+and the prompt configs it carries — for the lines naming
 something it cannot carry: vim's `source`, lua's `require`/`dofile` (and
 micro's `AddRuntimeFile`), nano's `include`, elisp's `load`, tmux's
-`source-file` and TPM, a shell's `source`/`.` of a file outside
-`$_HI_CONFIG_DIR`, every plugin manager's bootstrap. Those are disabled on the
+`source-file` and TPM, oh-my-posh's `extends` of a local file (emptied, since
+JSON has no comment), a shell's `source`/`.` of a file outside
+`$_HI_CONFIG_DIR` (or `$ZSH`/`$OSH`, the framework's own tree), every plugin
+manager's bootstrap. Those are disabled on the
 way out, and `hi --doctor` names each one, file and line, in yellow, so you
 can see what your target is not getting. Put a `hi-allow` comment on the line
 above one (`# hi-allow`, or `" hi-allow` in vim) to send that line as written

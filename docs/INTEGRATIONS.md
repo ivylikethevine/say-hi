@@ -53,7 +53,7 @@ this order - the first that fits the shell and that the target has wins:
 | oh-my-bash    | bash             | `OSH_THEME` in `~/.bashrc` names a theme file | as the rc loaded it, else without its plugins, aliases, or completions | the theme file, likewise                                                                                |
 | tide          | fish             | fisher put it in `~/.config/fish/functions`   | fish loads it; hi only leaves its prompt alone                        | the `tide_*` universal variables - never the rest of `fish_variables`                                   |
 | starship      | bash, zsh, fish  | on `$PATH`                                    | `starship init <shell>`                                               | `$STARSHIP_CONFIG`, else `~/.config/starship.toml`                                                      |
-| oh-my-posh    | bash, zsh, fish  | on `$PATH`                                    | `oh-my-posh init <shell>`                                             | `~/.config/say-hi/oh-my-posh.json` (it has no default file)                                             |
+| oh-my-posh    | bash, zsh, fish  | on `$PATH`                                    | `oh-my-posh init <shell>`                                             | `$POSH_CONFIG`, else the file your rc's `oh-my-posh init --config` names (json, yaml, or toml)          |
 | powerline-go  | bash, zsh, fish  | on `$PATH`                                    | once per prompt, as its README wires it, with `_HI_POWERLINE_GO_OPTS` | the flags in `_HI_POWERLINE_GO_OPTS`                                                                    |
 
 So a powerlevel10k-in-zsh, tide-in-fish user gets both prompts on every box
@@ -71,9 +71,9 @@ zsh, and `"tide hi"` tide in fish and hi's prompt elsewhere.
 `_HI_DISABLE_PROMPT=1` beats all of it: hi starts no prompt at all, its own
 or a program's.
 
-The configs from home ride the overlay as-is - a copy of any of them left
-in `~/.config/say-hi/` is ignored, and `hi --doctor` says so - and apply on a
-target only, over whatever the target has; at home each program's own config
+The configs from home ride the overlay - a copy of any of them in
+`~/.config/say-hi/` rides in its place, which is how targets get a different
+one - and apply on a target only, over whatever the target has; at home each program's own config
 is already in force. Why hi hands over the prompt and nothing else, and how
 each program is started, is [HI.32](GLOSSARY.md#hi32-starship-deference).
 
@@ -158,8 +158,8 @@ after hi's: `alias ls="$_HI_LS_BIN $_HI_LS_OPTS --icons"`.
 
 Every target gets the bat config you already keep: hi ships the file bat
 reads here - `$BAT_CONFIG_PATH`, else `$BAT_CONFIG_DIR/config`, else
-`~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - as-is, and a
-`bat.conf` in `~/.config/say-hi/` is ignored. On a target the file becomes
+`~/.config/bat/config` (under `$XDG_CONFIG_HOME` when set) - or, when there
+is one, the `bat.conf` in `~/.config/say-hi/` instead. On a target the file becomes
 `$BAT_CONFIG_PATH`, and `settings/aliases.sh` leaves `--theme` out of
 the default `_HI_BAT_OPTS` whenever that variable is set, so the file's theme
 is the one you see through `cat`. The same rule applies at home if you export
@@ -169,8 +169,8 @@ is the one you see through `cat`. The same rule applies at home if you export
 
 eza reads its colors from `$EZA_CONFIG_DIR/theme.yml` and insists on that
 file name. hi ships the one eza reads here - `$EZA_CONFIG_DIR/theme.yml`, else
-`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - as-is, and a
-`theme.yml` in `~/.config/say-hi/` is ignored. On a target,
+`~/.config/eza/theme.yml` (under `$XDG_CONFIG_HOME` when set) - or, when
+there is one, the `theme.yml` in `~/.config/say-hi/` instead. On a target,
 `common/paths.sh` exports `EZA_CONFIG_DIR` pointing at the shipped copy - the
 directory itself, not the file. At home the variable is left alone.
 

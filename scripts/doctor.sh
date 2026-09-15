@@ -423,13 +423,14 @@ function doctor_config() {
     t=""
     _hi_overlay_src "$f" t || true
     # a prompt framework's, tmux's, or micro's member has no tree default to report
-    case "$f" in p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars | tmux.conf | micro/*)
+    case "$f" in oh-my-posh.* | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars | tmux.conf | micro/*)
       [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || continue
       ;;
     esac
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
-      # a tool config: what ships is the file the tool reads, never this copy
-      doctor_row "$f" "ignored - hi ships the tool's own config${t:+ ($t)}; delete this copy" warn
+      # a prompt program's copy with the program out of the list, or an
+      # oh-my-posh format another overlay copy already stands in for
+      doctor_row "$f" "not shipped - its prompt program is not one a target is handed (_HI_PROMPT_TOOL)" warn
     elif [ -n "$t" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       doctor_row "$f" "targets get $t, the one in force here"
     elif [ -z "$t" ]; then

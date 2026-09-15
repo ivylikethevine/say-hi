@@ -315,7 +315,7 @@ function test_an_exported_path_does_not_survive() {
 function _hi_editor_home() {
   local dir="$_HI_WORKDIR/edhome-$1" f
   shift
-  mkdir -p "$dir/.config/nvim" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.config/tmux" "$dir/.vim" "$dir/.emacs.d"
+  mkdir -p "$dir/.config/vim" "$dir/.config/nvim" "$dir/.config/nano" "$dir/.config/emacs" "$dir/.config/tmux" "$dir/.vim" "$dir/.emacs.d"
   for f in "$@"; do printf '%s\n' "$f" >"$dir/$f"; done
   printf '%s' "$dir"
 }
@@ -347,23 +347,27 @@ function test_the_editors_own_config_beats_the_tree() {
 }
 
 # ...and within the tier, the editor's own precedence: vim reads ~/.vimrc
-# before ~/.vim/vimrc, nano ~/.nanorc and tmux ~/.tmux.conf before the XDG
-# copy, emacs ~/.emacs before ~/.emacs.d/init.el
+# before ~/.vim/vimrc before the XDG copy, nano ~/.nanorc and tmux ~/.tmux.conf
+# before the XDG copy, emacs ~/.emacs.el before ~/.emacs before
+# ~/.emacs.d/init.el
 function test_the_tier_keeps_each_editors_precedence() {
   local home
-  home="$(_hi_editor_home order .vimrc .vim/vimrc .nanorc .config/nano/nanorc .emacs .emacs.d/init.el .tmux.conf .config/tmux/tmux.conf)"
+  home="$(_hi_editor_home order .vimrc .vim/vimrc .config/vim/vimrc .nanorc .config/nano/nanorc .emacs.el .emacs .emacs.d/init.el .tmux.conf .config/tmux/tmux.conf)"
   _hi_tier_is _HI_VIMRC "$home" "$home/.vimrc" &&
     _hi_tier_is _HI_NANORC "$home" "$home/.nanorc" &&
-    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs" &&
-    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.tmux.conf"
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.el" &&
+    _hi_tier_is _HI_TMUX_CONF "$home" "$home/.tmux.conf" || return 1
+  rm "$home/.vimrc" "$home/.emacs.el"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.vim/vimrc" &&
+    _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs"
 }
 
 # the second-choice locations answer on their own, or the roster above would
 # be three lines nothing reaches
 function test_the_tier_reads_the_second_locations() {
   local home
-  home="$(_hi_editor_home second .vim/vimrc .config/nano/nanorc .emacs.d/init.el .config/tmux/tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.vim/vimrc" &&
+  home="$(_hi_editor_home second .config/vim/vimrc .config/nano/nanorc .emacs.d/init.el .config/tmux/tmux.conf)"
+  _hi_tier_is _HI_VIMRC "$home" "$home/.config/vim/vimrc" &&
     _hi_tier_is _HI_NANORC "$home" "$home/.config/nano/nanorc" &&
     _hi_tier_is _HI_EMACSRC "$home" "$home/.emacs.d/init.el" &&
     _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/tmux/tmux.conf"

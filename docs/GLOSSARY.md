@@ -406,7 +406,8 @@ alone.
 
 Home's config rides the overlay (HI.41) and applies on a target only
 (`_HI_REMOTE_SESSION=1`), over whatever the target has: `$STARSHIP_CONFIG` /
-`$POSH_THEME` from `common/paths.sh` (paths.sh because fish sources it
+`$POSH_CONFIG` (and `$POSH_THEME`, which older oh-my-posh releases read) from
+`common/paths.sh` (paths.sh because fish sources it
 natively), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh or
 oh-my-bash theme file the home rc names sourced over the framework, and
 tide's `tide_*` universal variables exported as globals - exported because
@@ -624,11 +625,11 @@ payload. It lands in a `config/` of its own beside `settings/`, with
 sources `$_HI_CONFIG_DIR/aliases.sh` last, so one directory would make it
 source itself forever. It is omitted when there is nothing to send.
 
-The prompt programs' `starship.toml` / `oh-my-posh.json` / `p10k.zsh` /
+The prompt programs' `starship.toml` / `oh-my-posh.{json,yaml,toml}` / `p10k.zsh` /
 `omz-theme.zsh` / `omb-theme.sh` / `tide.vars`, eza's `theme.yml`, and bat's
 `bat.conf` (`$BAT_CONFIG_PATH`) ride it so a tool's config on every target is
 the one configured at home; `common/paths.sh` points each tool's own variable
-(`$STARSHIP_CONFIG`, `$POSH_THEME`, `$EZA_CONFIG_DIR` - the overlay directory
+(`$STARSHIP_CONFIG`, `$POSH_CONFIG`, `$EZA_CONFIG_DIR` - the overlay directory
 itself, since eza fixes the file name) at the overlay on a target only, and
 the shell files source or read the frameworks' (HI.32). Only oh-my-posh's
 comes from the client's overlay: `hi.sh`'s `_hi_overlay_src` packs the file
@@ -1088,7 +1089,9 @@ unpacked at `$_HI_CONFIG_DIR`.
 
 Carrying a real config makes a second problem real with it. Every one of
 those files - and the shell overlay files beside them, `settings.sh`,
-`aliases.sh`, `bash.sh`, `zsh.zsh`, `config.fish` - ships into a `config/` of
+`aliases.sh`, `plugins.d/`'s members, `bash.sh`, `zsh.zsh`, `config.fish`, and
+the prompt configs `p10k.zsh`, `omz-theme.zsh`, `omb-theme.sh`, and
+`oh-my-posh.*` - ships into a `config/` of
 its own, so a line naming a *path* - a second rc beside it, a plugin
 directory, a manager's bootstrap - names something no target has, and the
 editor or shell fails on it rather than hi. `hi.sh`'s `_hi_lint_awk` reads
@@ -1098,10 +1101,14 @@ alone - they resolve against the target vim's own runtime), lua's
 `dofile`/`loadfile`/`require` of a non-`vim.` module and the lazy/packer/paq
 bootstraps (and micro's `AddRuntimeFile`, a plugin with `RTPlugin`), nano's
 `include` outside `/usr/share/nano`, tmux's `source-file`/`source` and TPM's
-`@plugin` and tpm `run`, elisp's
+`@plugin` and tpm `run`, oh-my-posh's `extends` of a local file (a URL or a
+built-in theme name resolves on the target; in JSON, which has no comment,
+the value is emptied, which oh-my-posh reads as no base), elisp's
 `load`/`load-file`/`load-path` and `package-initialize`/`use-package`, and
 sh/fish's `source`/`.` of anything but a path under `$_HI_CONFIG_DIR` or
-`$_HI_ROOT` (which ride along) or a process substitution, plus the
+`$_HI_ROOT` (which ride along), under `$ZSH` or `$OSH` (the framework's own
+tree, which any target a theme is for has - oh-my-bash's powerline themes
+source their base that way), or a process substitution, plus the
 zinit/zplug/antigen/fisher verbs. One pass serves both readers:
 `_hi_stage_tar` runs it in `fix` mode ahead of
 [HI.35](#hi35-in-transit-comment-strip)'s stripper, so a finding goes out

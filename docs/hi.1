@@ -547,6 +547,8 @@ and
 .BR config.fish ,
 and an
 .B oh-my-posh.json
+.RB ( .yaml ,
+.BR .toml )
 for oh\-my\-posh).
 .B hi \-\-configure
 writes
@@ -635,11 +637,14 @@ command is drawn in the prompt.
 .B ~/.config/say-hi/bash.sh, ~/.config/say-hi/zsh.zsh, ~/.config/say-hi/config.fish
 your own per\-shell preferences, sourced after hi's own so yours win.
 .TP
-.B ~/.config/say-hi/oh-my-posh.json
+.B ~/.config/say-hi/oh-my-posh.json, oh-my-posh.yaml, oh-my-posh.toml
 oh\-my\-posh's config, carried to every target as its
-.B POSH_THEME
-when oh\-my\-posh draws the prompt there;
-at home oh\-my\-posh keeps reading its own.
+.B POSH_CONFIG
+when oh\-my\-posh draws the prompt there. With no copy here, the file
+.B POSH_CONFIG
+or an rc's
+.B oh\-my\-posh init \-\-config
+names is carried instead; at home oh\-my\-posh keeps reading its own.
 .TP
 .B ~/.config/starship.toml, ~/.config/bat/config, ~/.config/eza/theme.yml
 the starship, bat, and eza configs in force here \- or wherever
@@ -649,10 +654,14 @@ or
 .B EZA_CONFIG_DIR
 points \- carried to every target as-is (starship's only when starship is
 a prompt program a target is handed).
-The aliases then leave bat's theme flag out so the file's wins. A copy of
-any of the three in
+The aliases then leave bat's theme flag out so the file's wins. A
+.BR starship.toml ,
+.BR bat.conf ,
+or
+.B theme.yml
+in
 .B ~/.config/say-hi
-is ignored.
+is carried in its place.
 .TP
 .B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
 read for the prompt programs a target is handed: powerlevel10k's config,
@@ -667,7 +676,9 @@ universal variables alone \- carried as
 .BR omz-theme.zsh ,
 .BR omb-theme.sh ,
 and
-.BR tide.vars .
+.BR tide.vars ,
+each replaced by a copy under that name in
+.BR ~/.config/say-hi .
 Unset,
 .B _HI_PROMPT_TOOL
 hands the prompt to every such program installed here;

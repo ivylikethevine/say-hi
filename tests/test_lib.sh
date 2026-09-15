@@ -41,7 +41,7 @@ unset _HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC
 # suite builds. The prompt programs are pinned to hi's own for the same
 # reason - unset, whatever this box has installed would draw every prompt -
 # and a case about them names its list.
-unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME \
+unset STARSHIP_CONFIG EZA_CONFIG_DIR BAT_CONFIG_PATH BAT_CONFIG_DIR MICRO_CONFIG_HOME POSH_CONFIG POSH_THEME \
   POWERLEVEL9K_CONFIG_FILE ZSH ZSH_CUSTOM ZSH_THEME OSH OSH_CUSTOM OSH_THEME _HI_POWERLINE_GO_OPTS
 export _HI_PROMPT_TOOL=hi
 

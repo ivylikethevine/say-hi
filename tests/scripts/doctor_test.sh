@@ -269,17 +269,21 @@ function test_config_names_a_home_tool_config() {
   [[ "$out" == *"bat.conf"*"targets get $dir/bat-flags"* ]]
 }
 
-# a tool config copy left in the overlay is flagged: it no longer ships
-function test_config_flags_an_ignored_tool_config_copy() {
+# a tool config copy in the overlay is the override, over the file the tool
+# reads here; a prompt program's copy with that program out of the list is
+# flagged, since nothing ships it
+function test_config_counts_a_tool_config_copy_as_an_override() {
   local dir out
-  dir="$(mktemp -d "$_HI_WORKDIR/staletool.XXXXXX")"
+  dir="$(mktemp -d "$_HI_WORKDIR/tooloverride.XXXXXX")"
   printf -- '--theme=x\n' >"$dir/bat.conf"
+  printf 'format = "x"\n' >"$dir/starship.toml"
   out="$(
     _HI_CONFIG_DIR="$dir"
     _HI_SETTINGS="$dir/settings.sh"
-    BAT_CONFIG_PATH="$dir/nope" doctor_config
+    BAT_CONFIG_PATH="$dir/elsewhere" doctor_config
   )"
-  [[ "$out" == *"bat.conf"*"ignored - hi ships the tool's own config; delete this copy"* ]]
+  [[ "$out" == *"bat.conf"*"overridden (1 lines)"* ]] &&
+    [[ "$out" == *"starship.toml"*"not shipped - its prompt program is not one a target is handed"* ]]
 }
 
 # tmux's and micro's configs come from home like a tool's: the file in force
@@ -1104,7 +1108,7 @@ function run_doctor_tests() {
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
-  _hi_check "An overlay copy of one is flagged as ignored" test_config_flags_an_ignored_tool_config_copy
+  _hi_check "An overlay copy of one is flagged as ignored" test_config_counts_a_tool_config_copy_as_an_override
   _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
   _hi_check "An unedited overlay copy reads as unchanged" test_config_calls_an_unedited_overlay_copy_unchanged
   _hi_check "An unresolvable include is named" test_config_names_an_unresolvable_include
