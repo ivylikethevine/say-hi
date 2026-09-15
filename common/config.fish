@@ -95,15 +95,7 @@ function __hi_targets --description 'hi targets, each kind behind its backend sy
   test -n "$_HI_SYMBOL_KUBE"; and set sym[4] $_HI_SYMBOL_KUBE
   for row in (sh $_HI_TARGETS)
     set -l f (string split -m1 \t -- $row)
-    set -l i 2
-    switch $f[2]
-      case ssh
-        set i 1
-      case nomad
-        set i 3
-      case kube
-        set i 4
-    end
+    set -l i (contains -i -- $f[2] ssh container nomad kube; or echo 2)
     printf '%s\t%s %s\n' $f[1] $sym[$i] $f[2]
   end
 end

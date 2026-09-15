@@ -255,32 +255,14 @@ EOF
   printf '%s' "$w"
 }
 
-function test_fallback_shell_takes_a_ladder_name() {
+# test_fallback_shell_answer <answer> [expected] - checked against the fixed
+# list of right answers rather than sanitized: a word off the ladder did not
+# come from the probe, and a busybox echo with a mind of its own (or a shell
+# that wrote something extra on the way past) is one word or it is nothing
+function test_fallback_shell_answer() {
   local -a probe
-  probe=("$(_hi_ct_word)" sh)
-  [ "$(_hi_container_fallback_shell)" = sh ]
-}
-
-# checked against the fixed list of right answers rather than sanitized: a
-# word that is not on the ladder did not come from the probe
-function test_fallback_shell_rejects_a_word_off_the_ladder() {
-  local -a probe
-  probe=("$(_hi_ct_word)" bogusshell)
-  [ -z "$(_hi_container_fallback_shell)" ]
-}
-
-# a busybox echo with a mind of its own, or a shell that wrote something extra
-# on the way past - the answer is one word or it is nothing
-function test_fallback_shell_rejects_a_word_with_extra_output() {
-  local -a probe
-  probe=("$(_hi_ct_word)" "sh and then some")
-  [ -z "$(_hi_container_fallback_shell)" ]
-}
-
-function test_fallback_shell_rejects_an_empty_answer() {
-  local -a probe
-  probe=("$(_hi_ct_word)" "")
-  [ -z "$(_hi_container_fallback_shell)" ]
+  probe=("$(_hi_ct_word)" "$1")
+  [ "$(_hi_container_fallback_shell)" = "${2-}" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -478,10 +460,10 @@ function run_container_tests() {
   _hi_check "kube names the container" test_cmds_kube_names_the_container_when_one_is_given
 
   _hi_h2 "Testing: _hi_container_fallback_shell"
-  _hi_check "Takes a ladder name" test_fallback_shell_takes_a_ladder_name
-  _hi_check "Rejects a word off the ladder" test_fallback_shell_rejects_a_word_off_the_ladder
-  _hi_check "Rejects a word with extra output" test_fallback_shell_rejects_a_word_with_extra_output
-  _hi_check "Rejects an empty answer" test_fallback_shell_rejects_an_empty_answer
+  _hi_check "Takes a ladder name" test_fallback_shell_answer sh sh
+  _hi_check "Rejects a word off the ladder" test_fallback_shell_answer bogusshell
+  _hi_check "Rejects a word with extra output" test_fallback_shell_answer "sh and then some"
+  _hi_check "Rejects an empty answer" test_fallback_shell_answer ""
 
   _hi_h2 "Testing: _hi_container_put / _hi_container_cleanup"
   _hi_check "Lands the file" test_put_lands_the_file

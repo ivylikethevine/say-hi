@@ -219,13 +219,7 @@ EOF
     --group) _hi_v=_HI_GROUP ;;
     *) _hi_v=_HI_SHARD ;;
     esac
-    _hi_flag_word "$_hi_v" "$@" || case $? in
-    2) shift ;;
-    *)
-      _hi_cecho "test_runner.sh: ${1%%=*} needs a value" "$RED" >&2
-      exit 1
-      ;;
-    esac
+    _HI_ME=test_runner.sh _hi_flag_word_or_die "$_hi_v" "${1%%=*} needs a value" "$@" || shift
     ;;
   *) _HI_ARGS+=("$1") ;;
   esac

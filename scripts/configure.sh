@@ -97,23 +97,6 @@ function setting_on() {
   fi
 }
 
-# _hi_pending_state <var> <off> <on> <on|off> - which of two value shapes a
-# setting takes, in one place: an opt-in (a nonempty <on>) writes its
-# on-value when switched on and clears the pending line when switched off; a
-# default-on toggle (empty <on>) does the reverse - clears when on, writes
-# its off-value when off. Getting this backwards writes a silently inverted
-# setting, which is why every site that flips one calls this.
-function _hi_pending_state() {
-  local var="$1" off="$2" on="$3" want="$4"
-  if [ "$want" = on ]; then
-    _hi_pending_set "$var" "$on"
-  elif [ -n "$on" ]; then
-    _hi_pending_set "$var" ""
-  else
-    _hi_pending_set "$var" "$off"
-  fi
-}
-
 # _hi_setting_flip <var> <off> <on> <outvar> - turn a setting the other way
 # and record it: a default-on toggle turned off gets its off-value, turned on
 # gets "" (the default, nothing written); an opt-in turned on gets its
@@ -121,22 +104,22 @@ function _hi_pending_state() {
 # outvar rather than stdout, since a `$( )` around this would record the
 # answer in a subshell and lose it.
 function _hi_setting_flip() {
-  local var="$1" off="$2" on="$3"
-  if setting_on "$var" "$_HI_SETTINGS" "$off" "$on"; then
-    _hi_pending_state "$var" "$off" "$on" off
-    printf -v "$4" '%s' off
+  local var="$1" off="$2" on="$3" want=on
+  setting_on "$var" "$_HI_SETTINGS" "$off" "$on" && want=off
+  if [ "$want" = on ]; then
+    _hi_pending_set "$var" "$on"
+  elif [ -n "$on" ]; then
+    _hi_pending_set "$var" ""
   else
-    _hi_pending_state "$var" "$off" "$on" on
-    printf -v "$4" '%s' on
+    _hi_pending_set "$var" "$off"
   fi
+  printf -v "$4" '%s' "$want"
 }
 
 # ask_setting_value <var> <default> <validator-fn> <invalid-msg> <question> -
 # ask_value against a setting, recorded. The whole shape of every free-text
 # question here: this run's answer (or the file's) is the current value, and
-# the reply goes back into the pending set. It was written out eight times,
-# six of them with a dead `current=""` ahead of it - setting_value assigns its
-# outvar on both paths, so that store never survived to be read.
+# the reply goes back into the pending set.
 function ask_setting_value() {
   local _hi_asv_cur=""
   setting_value "$1" "$_HI_SETTINGS" _hi_asv_cur

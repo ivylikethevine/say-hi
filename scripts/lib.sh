@@ -53,6 +53,16 @@ function _hi_on_path() {
   esac
 }
 
+# _hi_missing_tools <name...> - those of <name...> this machine does not have,
+# space-separated, in the order given.
+function _hi_missing_tools() {
+  local tool missing=""
+  for tool in "$@"; do
+    command -v "$tool" >/dev/null 2>&1 || missing="$missing$tool "
+  done
+  printf '%s' "${missing% }"
+}
+
 # tmp -> dest through dest's existing inode: cat, not mv, or mktemp's 0600
 # lands on the destination and severs any hardlink/ACL. The mode is captured
 # and reapplied too, since truncate-in-place alone did not preserve it on

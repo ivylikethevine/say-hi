@@ -450,29 +450,20 @@ AWK
 function _hi_include_lint() {
   local f src prog
   prog="$(_hi_lint_awk)"
-  for f in "${_HI_LINT_FILES[@]}"; do
-    case "$f" in
-    *.d)
-      for src in "$_HI_CONFIG_DIR/$f"/*; do
-        { [ -f "$src" ] && _hi_dir_member_ok "${src##*/}"; } || continue
-        awk -v mode=report -v name="$f/${src##*/}" "$prog" "$src"
-      done
-      ;;
-    *)
-      _hi_overlay_src "$f" src || continue
-      awk -v mode=report -v name="$f" "$prog" "$src"
-      ;;
-    esac
-  done
+  while IFS= read -r f; do
+    _hi_overlay_src "$f" src && awk -v mode=report -v name="$f" "$prog" "$src"
+  done < <(_hi_overlay_files "${_HI_LINT_FILES[@]}")
   return 0
 }
 
-# The overlay members that have a source, one per line; callers read it once
-# and hand the list to _hi_overlay_tar. A `.d` entry lists its members as
-# <dir>/<name>, in name order, only those _hi_dir_member_ok admits.
+# _hi_overlay_files [member...] - the members (default $_HI_OVERLAY_FILES)
+# that have a source, one per line; callers read it once and hand the list to
+# _hi_overlay_tar. A `.d` entry lists its members as <dir>/<name>, in name
+# order, only those _hi_dir_member_ok admits.
 function _hi_overlay_files() {
   local f src
-  for f in "${_HI_OVERLAY_FILES[@]}"; do
+  [ $# -gt 0 ] || set -- "${_HI_OVERLAY_FILES[@]}"
+  for f; do
     case "$f" in
     *.d)
       for src in "$_HI_CONFIG_DIR/$f"/*; do
@@ -506,16 +497,21 @@ function _hi_can_gzip() {
 # The -z arm is for a tar that compresses on its own; _hi_can_gzip is what
 # keeps a client whose tar cannot from reaching it.
 function _hi_tar_gz() {
-  local -a st
   if ! command -v gzip >/dev/null 2>&1; then
     tar -c -z -f - "$@"
     return $?
   fi
   tar -c -f - "$@" | gzip -n
-  st=("${PIPESTATUS[@]}")
+  local -a st=("${PIPESTATUS[@]}")
   [ "${st[0]}" = 0 ] || return "${st[0]}"
-  [ "${st[1]}" = 0 ] || return "${st[1]}"
-  return 0
+  return "${st[1]}"
+}
+
+# _hi_require_packer - tar, and gzip unless this tar compresses on its own:
+# _hi_can_gzip first, so such a tar is not asked for a gzip it never runs
+function _hi_require_packer() {
+  _hi_require tar "to pack the payload" &&
+    { _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z"; }
 }
 
 # What the comment-stripper is pointed at. One list, not a copy per stager:
@@ -880,21 +876,18 @@ function _hi_is_nomad_alloc() {
 # _HI_K_POD and the kubectl arguments the prefixes add. GLOSSARY: HI.43
 function _hi_kube_split() {
   local outer="${1%%/*}"
-  _HI_K_POD="$outer"
   _HI_K_ARGS=()
-  case "$outer" in
-  *:*:*)
+  case "$outer" in *:*:*)
     _HI_K_ARGS+=(--context "${outer%%:*}")
     outer="${outer#*:}"
-    _HI_K_ARGS+=(--namespace "${outer%%:*}")
-    _HI_K_POD="${outer#*:}"
-    ;;
-  *:*)
-    _HI_K_ARGS+=(--namespace "${outer%%:*}")
-    _HI_K_POD="${outer#*:}"
     ;;
   esac
-  return 0
+  case "$outer" in *:*)
+    _HI_K_ARGS+=(--namespace "${outer%%:*}")
+    outer="${outer#*:}"
+    ;;
+  esac
+  _HI_K_POD="$outer"
 }
 
 # resolves on the pod half; kubectl checks the container half at session time
@@ -1067,13 +1060,7 @@ function _hi_boot_why() {
 # not a path mktemp just made is refused. The class varies per caller, the
 # rule does not. An empty answer is the verdict, so this always returns 0.
 function _hi_safe_path() {
-  case "$1" in
-  /*) ;;
-  *) return 0 ;;
-  esac
-  case "$1" in
-  *[!$2]*) return 0 ;;
-  esac
+  case "$1" in '' | [!/]* | *[!$2]*) return 0 ;; esac
   printf '%s' "$1"
 }
 
@@ -1179,9 +1166,7 @@ function _hi_wire_bytes() {
   local DOMAIN="${DOMAIN:-target}"
   bootloader="$(_hi_bootloader | $_HI_ARMOR)"
   tree="$(_hi_payload_tar | $_HI_ARMOR)"
-  script="$(_hi_remote_preamble)
-$(_hi_remote_middle)
-$(_hi_remote_suffix)"
+  _hi_remote_script script
   printf '%s' "${#script}"
 }
 
@@ -1247,6 +1232,12 @@ function _hi_env_each() {
     # shellcheck disable=SC2059 # the format is ours, not user data
     printf "$1" "$n" "$q"
   done < <(_hi_session_env)
+}
+
+# _hi_remote_script <outvar> - the script _say_hi sends and _hi_wire_bytes
+# measures: preamble, middle, suffix. One assembly, so the two agree (HI.44).
+function _hi_remote_script() {
+  printf -v "$1" '%s\n%s\n%s' "$(_hi_remote_preamble)" "$(_hi_remote_middle)" "$(_hi_remote_suffix)"
 }
 
 # The bit both _say_hi branches need first. Everything expands on the client:
@@ -1364,7 +1355,7 @@ REMOTE
 # Connect, copy say-hi over, hand off to load.sh. Everything up to the bash
 # branch is plain POSIX under one `sh -c` (GLOSSARY: HI.18)
 function _say_hi() {
-  local size script middle boot_tmp ctl_path ctl_dir ctl_shared ct ec=0
+  local size script boot_tmp ctl_path ctl_dir ctl_shared ct ec=0
   local bootloader="" tree="" overlay_line=""
   local -a ctl_opts overlay=()
 
@@ -1372,11 +1363,7 @@ function _say_hi() {
   # `tree="$(_hi_payload_tar | base64)"` takes the armor's status, so a
   # refusal further in is swallowed and the target gets an empty archive.
   _hi_require "${_HI_ARMOR%% *}" "(or base64) to reach an ssh target" || return 1
-  _hi_require tar "to pack the payload" || return 1
-  # _hi_can_gzip first, so a tar that compresses on its own is not asked for a
-  # gzip it never runs; where it answers no, gzip really is absent and
-  # _hi_require says so in the one shape every missing tool is reported in
-  _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z" || return 1
+  _hi_require_packer || return 1
 
   # local-only, so resolved once here and reused by the warm below and the
   # real stream
@@ -1407,11 +1394,7 @@ function _say_hi() {
 $(_hi_overlay_stream "${overlay[@]}")"
   fi
   size="$_HI_SIZE_TOKEN"
-  middle="$(_hi_remote_middle)"
-
-  script="$(_hi_remote_preamble)
-$middle
-$(_hi_remote_suffix)"
+  _hi_remote_script script
 
   # the true byte count, substituted for the token (GLOSSARY: HI.44)
   size="$(_hi_human_bytes "${#script}")"
@@ -1587,8 +1570,7 @@ function _say_hi_container() {
   local label="$1" tmp="$2"
   local shell_end root fallback exit_code size prefix tarball env_kv
   local -a probe cp attach overlay=()
-  _hi_require tar "to pack the payload" || return 1
-  _hi_can_gzip || _hi_require gzip "to pack the payload - this tar runs it for -z" || return 1
+  _hi_require_packer || return 1
   _hi_container_cmds "$label"
 
   # The parent is the *target's* `${TMPDIR:-/tmp}`, expanded there, so a pod

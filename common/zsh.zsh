@@ -181,25 +181,20 @@ _HI_TARGET_ROWS_AT=-1
 
 _hi() {
   local name kind sym
-  # the word a flag takes (`hi --preview <TAB>`, `hi --use <TAB>`), then
-  # hi's own options when the word is one, targets otherwise - the split
+  # the word a flag takes (`hi --preview <TAB>`), then hi's own options (or,
+  # behind a local command, its switches), targets otherwise - the split
   # bash.sh's _hi_complete makes: a flag list must not wait on a backend probe
+  local -a ask
   if [[ " $_HI_WORD_FLAGS " == *" ${words[CURRENT-1]} "* ]]; then
-    local -a subjects sdescs
-    local srow
-    for srow in "${(@f)$(sh "$_HI_TARGETS" words "${words[CURRENT-1]}")}"; do
-      subjects+=("${srow%%$'\t'*}")
-      sdescs+=("${srow%%$'\t'*} - ${srow#*$'\t'}")
-    done
-    compadd -d sdescs -a subjects
-    return 0
+    ask=(words "${words[CURRENT-1]}")
+  elif [[ "${words[CURRENT]}" == -* ]]; then
+    ask=(flags "${words[2]}")
   fi
-  if [[ "${words[CURRENT]}" == -* ]]; then
-    # "<flag>\t<help>" lines: the flag is the match, the help its description;
-    # behind a local command (`hi --install --<TAB>`) its own switches instead
+  if (( $#ask )); then
+    # "<word>\t<help>" lines: the word is the match, the help its description
     local -a flags descs
     local row
-    for row in "${(@f)$(sh "$_HI_TARGETS" flags "${words[2]}")}"; do
+    for row in "${(@f)$(sh "$_HI_TARGETS" "${ask[@]}")}"; do
       flags+=("${row%%$'\t'*}")
       descs+=("${row%%$'\t'*} - ${row#*$'\t'}")
     done

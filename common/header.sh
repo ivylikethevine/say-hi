@@ -189,23 +189,17 @@ function _hi_shorten_describe() {
 # a session); a stampless, gitless install gets "unknown".
 function _hi_header_version() {
   if [ -z "${_HI_HEADER_VERSION+x}" ]; then
-    _hi_sanitize_var _HI_HEADER_VERSION "$(_hi_release_or_describe)"
+    _hi_sanitize_var _HI_HEADER_VERSION "${_HI_RELEASE:-$(_hi_release_or_describe)}"
     [ -n "$_HI_HEADER_VERSION" ] || _HI_HEADER_VERSION="unknown"
     _hi_shorten_describe "$_HI_HEADER_VERSION" _HI_HEADER_VERSION
   fi
   printf '%s\n' "$_HI_HEADER_VERSION"
 }
 
-# UTC | version | local. `|| :` on both clocks: a target with no date(1)
-# gets an empty cell, not two "command not found" lines across the header.
-# <var> gets one of timestamp()'s three cells - a pure getter, no header_row
-# call of its own: $_HI_HEADER_ORDER's dispatch (_hi_collect_header_word,
-# below) packs cells onto shared lines, and header_row always ends its call
-# with a newline. timestamp() below calls header_row once with all three.
-# <outvar> <color> [utc] - the two clock cells differ by `date -u` and a hue.
-# Prefixed local: timestamp() below passes "utc" and "localtime" as $1, and a
-# getter's own local of that name would shadow the caller's right back -
-# printf -v resolves the nearest scope, which by then is this frame.
+# _hi_cell_clock <outvar> <color> [utc] - a clock cell, a pure getter (the
+# header's dispatch packs cells onto shared lines); no date(1) reads "?".
+# Prefixed local: timestamp() passes "utc"/"localtime" as $1, and printf -v
+# would otherwise land in this frame.
 function _hi_cell_clock() {
   local _hi_ck_raw
   # shellcheck disable=SC2086 # ${3:+-u} is a flag or nothing, never a word
