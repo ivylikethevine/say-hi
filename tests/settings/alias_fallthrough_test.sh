@@ -320,7 +320,7 @@ function _hi_run_scenario() {
   # the only answer three dialects share (sh and fish have no $BASH_SOURCE).
   if env -i HOME="$_HI_FAKEHOME" PATH="$fakepath" _HI_ALIASES="$_HI_ALIASES" \
     _HI_ROOT="$_HI_ROOT" \
-    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/emacs.el" \
+    _HI_NANORC="$_HI_WORKDIR/nanorc" _HI_VIMRC="$_HI_WORKDIR/vimrc" _HI_EMACSRC="$_HI_WORKDIR/init.el" \
     _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS:-0}" \
     _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES:-0}" \
     "$@" "$shell_bin" "$script" 2>"$_HI_WORKDIR/err"; then
@@ -328,8 +328,7 @@ function _hi_run_scenario() {
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
   else
     t1="$(_hi_now)"
-    _hi_h3 "[$shell] -- $label: FAILED ($(_hi_elapsed "$t0" "$t1")s)" "$RED"
-    sed 's/^/      /' "$_HI_WORKDIR/err"
+    _hi_dump_log "[$shell] -- $label: FAILED ($(_hi_elapsed "$t0" "$t1")s)" "$_HI_WORKDIR/err"
     return 1
   fi
 }

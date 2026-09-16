@@ -202,6 +202,13 @@ if test "$_HI_DISABLE_PROMPT" != 1
   else if test -n "$_hi_pt"
     $_hi_pt init fish | source
   else
+    # `hi` named in the list takes the prompt back from a program the rc
+    # already started: fish_prompt below replaces its left half, and the
+    # right half and vi-mode indicator it may have defined go with it
+    if contains -- hi (string split -n ' ' -- "$_HI_PROMPT_TOOL")
+      functions -q fish_right_prompt; and functions -e fish_right_prompt
+      functions -q fish_mode_prompt; and functions -e fish_mode_prompt
+    end
     # https://no-color.org (fish has no rule of its own): non-empty $NO_COLOR
     # shadows set_color with a no-op, so every call below - and fish_vcs_prompt's
     # own - renders with no escapes

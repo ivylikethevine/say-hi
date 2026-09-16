@@ -415,7 +415,8 @@ function _hi_host_memory() {
 # and a downed daemon is why an e2e suite skips); the rest only have to be on
 # PATH. Probed through _hi_probe, so a wedged daemon costs the same ceiling
 # here as it does in the header.
-_HI_HOST_BACKENDS=(docker podman nomad kubectl kind ssh)
+# shellcheck disable=SC2206 # the family roster is core.sh's space-separated list
+_HI_HOST_BACKENDS=($_HI_CONTAINER_CLIS nomad kubectl kind ssh)
 
 function _hi_host_backend_state() {
   local bin out="" t0

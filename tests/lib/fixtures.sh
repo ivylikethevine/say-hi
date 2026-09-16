@@ -113,27 +113,11 @@ function _hi_table_is_rectangular() {
 # missing, in which case the case counts as SKIPPED. The guard lives here, not
 # inside the case body, where a `return 0` would report a green OK for a case
 # that never ran.
-function _hi_check_requires() {
-  local bin="$1"
-  shift
-  if command -v "$bin" >/dev/null 2>&1; then
-    _hi_check "$@"
-  else
-    _hi_skip "$1" "no $bin"
-  fi
-}
+function _hi_check_requires() { _hi_par_requires_body "$1" _hi_check "${@:2}"; }
 
 # _hi_check_requires_eq <bin> <label> <want> <cmd...> - the _hi_expect_eq arm
 # of the same guard, the serial twin of _hi_par_check_requires_eq.
-function _hi_check_requires_eq() {
-  local bin="$1"
-  shift
-  if command -v "$bin" >/dev/null 2>&1; then
-    _hi_check_eq "$@"
-  else
-    _hi_skip "$1" "no $bin"
-  fi
-}
+function _hi_check_requires_eq() { _hi_par_requires_body "$1" _hi_check_eq "${@:2}"; }
 
 # _hi_can_symlink - whether this filesystem makes real symbolic links, probed
 # once and remembered. Git Bash is the case that matters: `ln -s` on Windows
@@ -188,15 +172,9 @@ function _hi_can_lock_out() {
 # runtime forks. Answered by kernel name rather than by racing something at
 # suite-start: the failure mode is "every job serializes," which a race can
 # only prove by re-triggering the same cost the case under test already pays.
-function _hi_can_fork_concurrently() {
-  case "$(uname -s 2>/dev/null)" in
-  MINGW* | MSYS* | CYGWIN*) return 1 ;;
-  *) return 0 ;;
-  esac
-}
-
-# _hi_can_trust_mode_bits - whether a file's reported permission string
-# reflects chmod's stored bits alone. No on MSYS/Cygwin: a real windows-latest
+#
+# mode_bits - whether a file's reported permission string reflects chmod's
+# stored bits alone. No on MSYS/Cygwin: a real windows-latest
 # run showed a file's `ls -l` string change across a rewrite that chmod'd it
 # back to the same mode it started with (_hi_write_back does exactly that) -
 # the one thing that changed was the file gaining a `#!` first line. The
@@ -206,10 +184,11 @@ function _hi_can_fork_concurrently() {
 # already works around by giving its stand-in hi.sh a real shebang. Same
 # kernel-name probe as fork_concurrency, a different root cause: that one is
 # about scheduling, this one is about what the permission string even means.
-function _hi_can_trust_mode_bits() {
+# _hi_is_msys answers both.
+function _hi_is_msys() {
   case "$(uname -s 2>/dev/null)" in
-  MINGW* | MSYS* | CYGWIN*) return 1 ;;
-  *) return 0 ;;
+  MINGW* | MSYS* | CYGWIN*) return 0 ;;
+  *) return 1 ;;
   esac
 }
 
@@ -310,10 +289,10 @@ function _hi_can_reach_gpg_agent() {
 #                       failure by making something unwritable has to ask
 #                       first.
 #   fork_concurrency - backgrounded jobs actually run alongside each other.
-#                       No on MSYS/Cygwin - see _hi_can_fork_concurrently.
+#                       No on MSYS/Cygwin - see _hi_is_msys.
 #   mode_bits        - a permission string reflects only chmod's bits, no
 #                       content-derived guess mixed in. No on MSYS/Cygwin -
-#                       see _hi_can_trust_mode_bits.
+#                       see _hi_is_msys.
 #   mkdir_mode       - `mkdir -m` creates the directory *and* exits 0. No on
 #                       MSYS/Cygwin, where the chmod half is refused and the
 #                       status disagrees with the tree - see
@@ -328,8 +307,7 @@ function _hi_capable() {
   symlink) _hi_can_symlink ;;
   pty) [ "${#_HI_PTY_FORCED[@]}" -gt 0 ] ;;
   lockout) _hi_can_lock_out ;;
-  fork_concurrency) _hi_can_fork_concurrently ;;
-  mode_bits) _hi_can_trust_mode_bits ;;
+  fork_concurrency | mode_bits) ! _hi_is_msys ;;
   mkdir_mode) _hi_can_mkdir_mode ;;
   gpg_agent) _hi_can_reach_gpg_agent ;;
   *)

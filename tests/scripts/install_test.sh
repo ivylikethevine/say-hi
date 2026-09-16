@@ -180,7 +180,7 @@ function test_config_hi_no_link_skips_the_symlink() {
   local link="$_HI_WORKDIR/no-link-link"
   (
     _HI_LINK="$link"
-    _HI_NO_LINK=1
+    _HI_LINK_MODE=none
     config_hi
   ) | grep -q "leaving $link alone"
   [ ! -e "$link" ]
@@ -335,7 +335,7 @@ function test_install_copies_no_default_into_the_overlay() {
   local ovl="$_HI_WORKDIR/ovl-mode/.config/say-hi" out rc=0 f
   out="$(_hi_run_install_here ovl-mode --link none --yes 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && [[ "$out" == *"Installed!"* ]] || return 1
-  for f in colors packages vim.rc init.lua nano.rc emacs.el; do
+  for f in colors packages vimrc init.lua nanorc init.el; do
     [ ! -e "$ovl/$f" ] || {
       _hi_cecho " | $f was copied into the overlay" "$RED"
       return 1

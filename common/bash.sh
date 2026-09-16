@@ -43,36 +43,13 @@ _hi_user_escape >/dev/null
 # counts once the rc loaded it, or where it installs with a theme from home to
 # draw - the overlay's copy, so only on a target
 _hi_omb_theme=""
-[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/omb-theme.sh"
+[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/oh-my-bash.theme.sh"
 function _hi_prompt_fw() {
   declare -F _omb_module_require >/dev/null ||
     { [ -f "$_hi_omb_theme" ] && [ -f "${OSH:-$HOME/.oh-my-bash}/oh-my-bash.sh" ]; }
 }
 _hi_pt=""
 [[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
-if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 && -z "$_hi_pt" ]]; then
-  # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
-  HI_PS1_END=""
-  _hi_prompt_end BASH HI_PS1_END
-  _hi_ps1_lead=" "
-  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
-  # bash is the one shell where another tool's prefix cannot survive: ps1()
-  # below rebuilds $PS1 from scratch on every draw, so there is nothing to
-  # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
-  _HI_ENV_DEFER=0
-  if _hi_has_color; then
-    # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
-    # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
-    _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
-    _hi_user_escape _hi_ps1_u
-    _hi_host_escape _hi_ps1_h
-    [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
-    HI_PS1="${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
-    unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
-  else
-    HI_PS1="${debian_chroot:-}\u@\h:\w"
-  fi
-fi
 
 if ! shopt -oq posix; then
   # $BASH_COMPLETION_VERSINFO is the loader's own sentinel: the host's stock
@@ -132,7 +109,7 @@ function _hi_complete() {
   fi
   _hi_target_rows
   local -a hit_kinds=() shown=() syms=()
-  local i j sym row seen=" "
+  local i j sym row
   for row in "${_HI_TARGET_ROWS[@]}"; do
     n="${row%%$'\t'*}"
     case "$n" in "$cur"*) COMPREPLY+=("$n") hit_kinds+=("${row#*$'\t'}") ;; esac
@@ -144,13 +121,13 @@ function _hi_complete() {
   for i in "${!COMPREPLY[@]}"; do
     n="${COMPREPLY[i]}"
     _hi_target_symbol sym "${hit_kinds[i]}"
-    if [[ "$seen" == *" $n "* ]]; then
-      for j in "${!shown[@]}"; do
-        [ "${shown[j]}" = "$n" ] && syms[j]+="$sym" && break
-      done
-    else
-      shown+=("$n") syms+=("$sym") seen+="$n "
-    fi
+    for j in "${!shown[@]}"; do
+      [ "${shown[j]}" = "$n" ] && {
+        syms[j]+="$sym"
+        continue 2
+      }
+    done
+    shown+=("$n") syms+=("$sym")
   done
   COMPREPLY=()
   if ((${#shown[@]} > 1)); then
@@ -203,6 +180,43 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     *) eval "$("$_hi_pt" init bash)" ;;
     esac
   else
+    # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
+    HI_PS1_END=""
+    _hi_prompt_end BASH HI_PS1_END
+    _hi_ps1_lead=" "
+    [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
+    # bash is the one shell where another tool's prefix cannot survive: ps1()
+    # below rebuilds $PS1 from scratch on every draw, so there is nothing to
+    # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
+    _HI_ENV_DEFER=0
+    if _hi_has_color; then
+      # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
+      # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
+      _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
+      _hi_user_escape _hi_ps1_u
+      _hi_host_escape _hi_ps1_h
+      [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
+      HI_PS1="${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
+      unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
+    else
+      HI_PS1="${debian_chroot:-}\u@\h:\w"
+    fi
+    # `hi` named in the list takes the prompt back from a program the rc
+    # already started, whose PROMPT_COMMAND hook would redraw over hi's ps1()
+    # every prompt; each known hook becomes a `:`. PROMPT_COMMAND is an array
+    # from bash 5.1 when the rc made it one. Unset, or a list that ran out,
+    # leaves the rc's own choice alone.
+    if _hi_prompt_named_hi; then
+      for _hi_h in starship_precmd _omp_hook _omp_precmd __hi_plgo_ps1; do
+        # the array arm is eval'd: to the linter PROMPT_COMMAND is the string
+        # every other line here treats it as
+        case "$(declare -p PROMPT_COMMAND 2>/dev/null)" in
+        "declare -a"*) eval 'PROMPT_COMMAND=("${PROMPT_COMMAND[@]//$_hi_h/:}")' ;;
+        *) PROMPT_COMMAND="${PROMPT_COMMAND//$_hi_h/:}" ;;
+        esac
+      done
+      unset _hi_h
+    fi
     # Readline counts every $PS1 character it was not told to ignore, so an
     # unmarked color escape makes the typed line wrap back over the prompt.
     # \[ \] marks the static half; the git segment reaches PS1 through a
@@ -264,15 +278,12 @@ unset _hi_pt _hi_omb_theme
 _hi_unexport
 # === end required configuration ===
 
-# The path test stops $_HI_CONFIG_DIR pointed at common/ from sourcing this
-# file forever (a hang, not an error). The directive is the same hazard seen
-# statically, and it is NOT optional: .shellcheckrc's source-path=SCRIPTDIR
-# makes `shellcheck -x` resolve the basename to this file and follow it into
-# itself until OOM-killed. core.sh and aliases.sh guard their overlay sources
-# the same way.
+# The user's own bashrc from the overlay, last. The directive is NOT
+# optional: .shellcheckrc's source-path=SCRIPTDIR makes `shellcheck -x`
+# follow a bare basename, and core.sh and aliases.sh guard their overlay
+# sources the same way.
 # shellcheck source=/dev/null # user config, may not exist
-[[ "$_HI_CONFIG_DIR/bash.sh" != "$_HI_ROOT/common/bash.sh" ]] &&
-  [[ -f "$_HI_CONFIG_DIR/bash.sh" ]] && source "$_HI_CONFIG_DIR/bash.sh"
+[[ -f "$_HI_CONFIG_DIR/bashrc" ]] && source "$_HI_CONFIG_DIR/bashrc"
 # a local interactive shell greets with hi's header, as config.fish's
 # fish_greeting does - never a script's or `bash -i -c`'s (fish greets
 # neither), nor on a target, where load.sh prints the Connected one. A

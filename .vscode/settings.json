@@ -5,8 +5,8 @@
   "files.associations": {
     "settings/colors": "csv",
     "settings/packages": "csv",
-    "settings/vim.rc": "ini",
-    "settings/nano.rc": "ini",
+    "settings/vimrc": "ini",
+    "settings/nanorc": "ini",
   },
   "[markdown]": {
     "editor.inlineSuggest.enabled": false,

@@ -382,8 +382,8 @@ skipping yellow when its tool isn't installed (CI has all nine):
   really do parse on minimal targets.
 - **8. mandoc** over `docs/hi.1` (`mandoc -T lint -W warning`).
 - **9–11. The shipped editor rcs**, each loaded by its editor the way the alias
-  does: `settings/vim.rc` under `vim -u … -es`, `settings/init.lua` under
-  `nvim --headless -u`, `settings/emacs.el` under `emacs --batch -q -l`. The
+  does: `settings/vimrc` under `vim -u … -es`, `settings/init.lua` under
+  `nvim --headless -u`, `settings/init.el` under `emacs --batch -q -l`. The
   payload suites treat those files as bytes, so a syntax error would otherwise
   ride the wire to every target.
 - **12. typos** over the whole tree, allowlisted by `.typos.toml`.

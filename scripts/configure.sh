@@ -225,9 +225,9 @@ function _hi_menu_reject() {
   _hi_cecho " $3" "$YELLOW"
 }
 
-function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
-# a header width: 40 columns is the narrowest the banner and rows draw in
-function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
+# The value validators are scripts/lib.sh's (_hi_is_width and the rest):
+# doctor judges a hand-written settings.sh by the same rules the menu takes
+# an answer by. Only the two that need the menu's own state live here.
 
 # a settings.sh value has to survive being written into a single-quoted export
 function _hi_has_no_single_quote() {
@@ -238,25 +238,11 @@ function _hi_is_truecolor_choice() {
   case "$1" in auto | on | off) ;; *) return 1 ;; esac
 }
 
-# $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
-# dotted-quad addresses - digits, dots, `*`, and `?` - nothing else, so a
-# stray quote or a shell metacharacter can't be written into settings.sh
-function _hi_is_ip_hide() {
-  case "$1" in
-  none) return 0 ;;
-  '' | *[!0-9.*?\ ]*) return 1 ;;
-  esac
-}
-
-# _hi_is_header_word <word> - one of $_HI_HEADER_ORDER's vocabulary, read off
-# header.sh's own $_HI_HEADER_ORDER_DEFAULT rather than a second copy of the
-# word list here (a second copy would drift)
+# _hi_is_header_word <word> - one of $_HI_HEADER_ORDER's vocabulary, off
+# header.sh's own list, which the menu loads on first use
 function _hi_is_header_word() {
   _hi_load_preview_sources
-  case " $_HI_HEADER_ORDER_DEFAULT " in
-  *" $1 "*) return 0 ;;
-  *) return 1 ;;
-  esac
+  _hi_is_header_order "$1"
 }
 
 # Run $@ and box what it writes to stdout - a live render using hi's own
@@ -469,7 +455,12 @@ function _hi_tool_alias_preview() {
 # the prompt programs a target is handed without the setting - hi.sh's own
 # answer, sourced into a subshell through its BASH_SOURCE hatch
 function _hi_prompt_tool_preview() {
-  local found
+  local found off=""
+  setting_value _HI_DISABLE_PROMPT "$_HI_SETTINGS" off
+  if [ "$off" = 1 ]; then
+    printf "moot while the prompt is off (the item above): no program and no hi prompt draws\n"
+    return 0
+  fi
   # shellcheck source=/dev/null # hi.sh, whose functions alone are wanted
   found="$(unset _HI_PROMPT_TOOL && source "$_HI_LAUNCHER" && _hi_prompt_list)"
   if [ -n "$found" ]; then
@@ -515,7 +506,6 @@ declare -a _HI_SETTING_LINES=()
 # `_HI_*_PROMPTS` table is what tests/lint's settings-table check reads.
 _HI_FEATURE_PROMPTS=(
   "_HI_DISABLE_HEADER|1||||connect/disconnect header - its items are under Header"
-  "_HI_DISABLE_PROMPT|1||_hi_prompt_preview||colored user@host prompt"
   "_HI_DISABLE_GIT_STATUS|1||_hi_git_status_preview||git status in the prompt"
   "_HI_DISABLE_ENV_STATUS|1||_hi_env_status_preview||environment segment in the prompt - (myproj) for a venv, ..."
   "_HI_DISABLE_EDITORS|1||_hi_editors_preview||editor config overrides - vim, nvim, nano, emacs, micro"
@@ -535,10 +525,12 @@ _HI_HEADER_PROMPTS=(
   "_HI_DISABLE_BANNER|1||||banner - the ~~~ Connected [host] ~~~ line, always first"
 )
 
-# hi's own prompt over the prompt programs found here, which draw it by
-# default (core.sh's _hi_prompt_tool) - the one switch that compares the two;
+# the prompt's own switches, together: off altogether (a feature toggle,
+# and so in every preset's vocabulary), then hi's own prompt over the prompt
+# programs found here, which draw it by default (core.sh's _hi_prompt_tool);
 # a list of programs is a line written into settings.sh by hand
 _HI_PROMPT_PROMPTS=(
+  "_HI_DISABLE_PROMPT|1||_hi_prompt_preview||colored user@host prompt - off, your shell's own draws"
   "_HI_PROMPT_TOOL||hi|_hi_prompt_tool_preview||hi's own prompt - over powerlevel10k, starship, tide, and the other prompt programs found here"
 )
 
@@ -581,7 +573,8 @@ function _hi_preset_vocab() {
   for row in "${_HI_FEATURE_PROMPTS[@]}" "${_HI_HEADER_PROMPTS[@]}"; do
     printf '%s\n' "${row%%|*}"
   done
-  printf '%s\n' _HI_PACKAGES_MIN_PRIORITY
+  # the one feature toggle listed under Prompt rather than Features
+  printf '%s\n' _HI_DISABLE_PROMPT _HI_PACKAGES_MIN_PRIORITY
 }
 
 # preset_row <name> - its table row, or failure for a name that is not one
@@ -747,15 +740,14 @@ function _hi_menu_rows() {
   done
 }
 
-# The list, under a heading per group. Header holds the banner, the header's
-# items in the order they print - three to a line, so seventeen of them fit
-# a screen - then its width, the package check's depth, and the hidden
-# addresses, since the rendered header is what each of those changes.
+# The list, under a heading per group. Header comes first, directly under
+# the rendered header it edits: the banner, the header's items in the order
+# they print - three to a line, so seventeen of them fit a screen - then its
+# width, the package check's depth, and the hidden addresses. Features, the
+# whole-feature toggles, follow.
 function _hi_menu_list() {
   local i state word width floor iphide tc row name shell end cols=3
   _HI_MENU_ITEMS=()
-  _hi_cecho " Features" "$BRCYAN"
-  _hi_menu_rows _HI_FEATURE_PROMPTS
   _hi_cecho " Header" "$BRCYAN" 1
   _hi_cecho " - in the order it prints; up N / down N moves an item" "$BLUE"
   _hi_menu_rows _HI_HEADER_PROMPTS
@@ -773,11 +765,14 @@ function _hi_menu_list() {
   _hi_menu_value width "width" "${width:-80}"
   _hi_menu_value floor "package check depth" "${floor:-2}"
   _hi_menu_value iphide "hidden addresses" "${iphide:-172.*}"
+  _hi_cecho " Features" "$BRCYAN"
+  _hi_menu_rows _HI_FEATURE_PROMPTS
   _hi_cecho " Prompt" "$BRCYAN"
   _hi_menu_rows _HI_PROMPT_PROMPTS
-  # one separator per shell wired up locally (_HI_RC_TABLE's roster): the
+  # one separator per shell hi styles (core.sh's _HI_SHELL_TABLE), wired up
+  # here or not - a target's login shell may be one this machine lacks; the
   # shipped defaults are a different character per shell
-  for row in "${_HI_RC_TABLE[@]}"; do
+  for row in "${_HI_SHELL_TABLE[@]}"; do
     name="${row%%|*}"
     _hi_shell_var shell "$name"
     _hi_prompt_end_shown "$shell" end
@@ -1129,7 +1124,6 @@ function collect_setting_lines() {
   local row name shell
   _hi_load_preview_sources
   _HI_SETTING_LINES=()
-  _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_group _HI_HEADER_PROMPTS
   _hi_collect_value _HI_HEADER_ORDER "$_HI_HEADER_ORDER_DEFAULT" quoted
   _hi_collect_value _HI_PACKAGES_MIN_PRIORITY 2
@@ -1137,8 +1131,9 @@ function collect_setting_lines() {
   _hi_collect_value _HI_COLOR_SCHEME ""
   _hi_collect_value _HI_IP_HIDE '172.*' quoted
   _hi_collect_value _HI_MAX_WIDTH 80
+  _hi_collect_group _HI_FEATURE_PROMPTS
   _hi_collect_group _HI_PROMPT_PROMPTS
-  for row in "${_HI_RC_TABLE[@]}"; do
+  for row in "${_HI_SHELL_TABLE[@]}"; do
     name="${row%%|*}"
     _hi_shell_var shell "$name"
     _hi_collect_value "_HI_PROMPT_END_$shell" "$(_hi_prompt_end_default "$shell")" quoted
@@ -1251,17 +1246,14 @@ function run_configure() {
   configure_intro
   if [ -n "$preset" ]; then
     apply_preset "$preset" || return 1
-  fi
-  if [ -z "$preset" ]; then
-    if [ -t 0 ]; then
-      config_hub
-    elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then
-      # the menu is this run's whole job, and there is nobody to answer it
-      _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
-      return 1
-    else
-      _hi_cecho " no terminal for the settings menu - the defaults apply; hi --configure at a terminal, or --preset <name>, sets them" "$YELLOW"
-    fi
+  elif [ -t 0 ]; then
+    config_hub
+  elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then
+    # the menu is this run's whole job, and there is nobody to answer it
+    _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
+    return 1
+  else
+    _hi_cecho " no terminal for the settings menu - the defaults apply; hi --configure at a terminal, or --preset <name>, sets them" "$YELLOW"
   fi
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then
     _hi_cecho " nothing written - $_HI_SETTINGS is as it was" "$GREEN"

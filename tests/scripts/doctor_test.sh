@@ -256,6 +256,21 @@ function test_config_counts_an_overlay_file() {
   [[ "$out" == *"overridden (2 lines)"* ]] && [[ "$out" == *"packages"*"tree default"* ]]
 }
 
+# a member with no tree copy - bashrc, starship.toml - has no default to
+# report, so an absent one gets no row at all
+function test_config_has_no_tree_default_for_a_member_without_one() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/overlay.XXXXXX")"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  printf '%s\n' "$out" | grep -q 'colors.*tree default' &&
+    ! printf '%s\n' "$out" | grep -q 'bash\.sh.*tree default' &&
+    ! printf '%s\n' "$out" | grep -q 'starship\.toml.*tree default'
+}
+
 # a tool config the overlay lacks names the file that travels in its place
 function test_config_names_a_home_tool_config() {
   local dir out
@@ -327,15 +342,15 @@ function test_config_calls_an_unedited_overlay_copy_unchanged() {
 function test_config_names_an_unresolvable_include() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/incl.XXXXXX")"
-  printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vim.rc"
+  printf 'set number\nsource ~/.vim/extra.vim\ncall plug#begin()\n' >"$dir/vimrc"
   out="$(
     _HI_CONFIG_DIR="$dir"
-    _HI_VIMRC="$dir/vim.rc"
+    _HI_VIMRC="$dir/vimrc"
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"vim.rc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
-    [[ "$out" == *"vim.rc:3"*"names a plugin manager"* ]]
+  [[ "$out" == *"vimrc:2"*"reads a file hi does not carry"*"source ~/.vim/extra.vim"*"dropped on the way out"* ]] &&
+    [[ "$out" == *"vimrc:3"*"names a plugin manager"* ]]
 }
 
 # a shell overlay file gets the same yellow row, and a `# hi-allow` line above a
@@ -357,15 +372,15 @@ function test_config_names_a_shell_include_unless_allowed() {
 function test_config_says_when_an_include_travels_anyway() {
   local dir out
   dir="$(mktemp -d "$_HI_WORKDIR/inclkeep.XXXXXX")"
-  printf 'source ~/.vim/extra.vim\n' >"$dir/vim.rc"
+  printf 'source ~/.vim/extra.vim\n' >"$dir/vimrc"
   out="$(
     _HI_CONFIG_DIR="$dir"
-    _HI_VIMRC="$dir/vim.rc"
+    _HI_VIMRC="$dir/vimrc"
     _HI_SETTINGS="$dir/settings.sh"
     _HI_INCLUDES=keep
     doctor_config
   )"
-  [[ "$out" == *"vim.rc:1"*"sent as written"* ]]
+  [[ "$out" == *"vimrc:1"*"sent as written"* ]]
 }
 
 # an editor rc hi picked up from where that editor reads it says where it came
@@ -381,7 +396,7 @@ function test_config_names_the_editor_config_in_force_here() {
     _HI_SETTINGS="$dir/settings.sh"
     doctor_config
   )"
-  [[ "$out" == *"vim.rc"*"targets get $mine, the one in force here"* ]]
+  [[ "$out" == *"vimrc"*"targets get $mine, the one in force here"* ]]
 }
 
 # the row a healthy overlay gets: settings.sh there and parsing, both toggles
@@ -527,6 +542,72 @@ function test_config_lists_a_non_default_toggle() {
     doctor_config
   )"
   [[ "$out" == *"toggle"*"_HI_DISABLE_BANNER=1"* && "$out" != *"all defaults"* ]]
+}
+
+# an overlay file still under a name renamed before 1.0 is a red row with
+# the mv that fixes it; the new name beside it is an ordinary override
+function test_config_names_a_file_under_an_old_member_name() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/oldname.XXXXXX")"
+  printf 'set number\n' >"$dir/vim.rc"
+  printf 'export X=1\n' >"$dir/bash.sh"
+  printf 'export X=1\n' >"$dir/bashrc"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    doctor_config
+  )"
+  [[ "$out" == *"vim.rc"*"old name hi no longer reads"*"mv $dir/vim.rc $dir/vimrc"* &&
+    "$out" == *"bash.sh"*"old name"*"mv $dir/bash.sh $dir/bashrc"* &&
+    "$out" == *"bashrc"*"overridden (1 lines)"* ]]
+}
+
+# a hand-written value the code would fall back from silently is a row:
+# every predicate lib.sh has, one bad value each, and a good one stays quiet
+function test_config_flags_a_value_the_code_would_ignore() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/values.XXXXXX")"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_MAX_WIDTH=12 _HI_PACKAGES_MIN_PRIORITY=9 _HI_IP_HIDE='10.*;x' _HI_HEADER_ORDER='utc bogus'
+    _HI_PROMPT_TOOL='starshp hi' _HI_EDITOR=ed _HI_TRUECOLOR=maybe _HI_MUX=yes _HI_INCLUDES=sometimes
+    doctor_config
+  )"
+  local n
+  for n in _HI_MAX_WIDTH _HI_PACKAGES_MIN_PRIORITY _HI_IP_HIDE _HI_HEADER_ORDER _HI_PROMPT_TOOL _HI_EDITOR _HI_TRUECOLOR _HI_MUX _HI_INCLUDES; do
+    printf '%s\n' "$out" | grep -q "$n.*is ignored" || {
+      _hi_cecho " | no row for $n" "$RED"
+      return 1
+    }
+  done
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_MAX_WIDTH=100 _HI_PACKAGES_MIN_PRIORITY=4 _HI_IP_HIDE='10.* 192.168.?.*' _HI_HEADER_ORDER='utc check'
+    _HI_PROMPT_TOOL='tide hi' _HI_EDITOR=micro _HI_TRUECOLOR=1 _HI_MUX=0 _HI_INCLUDES=keep
+    doctor_config
+  )"
+  [[ "$out" != *"is ignored"* ]]
+}
+
+# _HI_DISABLE_LOCAL=1 sets every other toggle through paths.sh's gate: one
+# row says so, and only a toggle settings.sh sets by itself gets another
+function test_config_collapses_the_local_gates_toggles() {
+  local dir out
+  dir="$(mktemp -d "$_HI_WORKDIR/localgate.XXXXXX")"
+  printf 'export _HI_DISABLE_LOCAL=1\nexport _HI_DISABLE_BANNER=1\n' >"$dir/settings.sh"
+  out="$(
+    _HI_CONFIG_DIR="$dir"
+    _HI_SETTINGS="$dir/settings.sh"
+    _HI_DISABLE_LOCAL=1 _HI_DISABLE_BANNER=1 _HI_DISABLE_HEADER=1 _HI_DISABLE_PROMPT=1
+    doctor_config
+  )"
+  [[ "$out" == *"_HI_DISABLE_LOCAL=1 (every feature off"* && "$out" == *"_HI_DISABLE_BANNER=1"* &&
+    "$out" != *"_HI_DISABLE_HEADER"* && "$out" != *"_HI_DISABLE_PROMPT"* ]] || {
+    _hi_cecho " | rows: $(printf '%s' "$out" | grep -c toggle)" "$RED"
+    return 1
+  }
 }
 
 # the overlay's aliases.sh loads after the shipped aliases are built, so a
@@ -1107,6 +1188,7 @@ function run_doctor_tests() {
   _hi_h2 "Testing: doctor_config"
   _hi_check "Unparseable settings.sh is flagged" test_config_flags_a_settings_file_that_does_not_parse
   _hi_check "Overlay files are counted" test_config_counts_an_overlay_file
+  _hi_check "No tree default for a member without one" test_config_has_no_tree_default_for_a_member_without_one
   _hi_check "A tool config from home is named" test_config_names_a_home_tool_config
   _hi_check "An overlay copy of one is overridden, or not shipped" test_config_counts_a_tool_config_copy_as_an_override
   _hi_check "tmux's and micro's configs in force here are named" test_config_names_tmux_and_micro_configs
@@ -1123,6 +1205,9 @@ function run_doctor_tests() {
   _hi_check "Config names the packages.d groups, and flags them" test_config_names_the_package_groups
   _hi_check "Config lists the plugins, and flags them" test_config_lists_the_plugins
   _hi_check "Lists a non-default toggle" test_config_lists_a_non_default_toggle
+  _hi_check "A value the code would ignore is a row" test_config_flags_a_value_the_code_would_ignore
+  _hi_check "A file under an old member name is a row" test_config_names_a_file_under_an_old_member_name
+  _hi_check "The local gate's toggles collapse to one row" test_config_collapses_the_local_gates_toggles
   _hi_check "Flags an alias value set in aliases.sh" test_config_flags_values_set_in_aliases_sh
 
   _hi_h2 "Testing: the report primitives"

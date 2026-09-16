@@ -51,13 +51,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 # shellcheck source=../actions/setup-tool/lib.sh
 source .github/actions/setup-tool/lib.sh
+# shellcheck source=./lib.sh
+source .github/scripts/lib.sh
 
-for _ci_need in curl jq; do
-  command -v "$_ci_need" >/dev/null 2>&1 || {
-    echo "check_tool_versions: no $_ci_need on PATH" >&2
-    exit 127
-  }
-done
+_ci_need check_tool_versions curl jq
 
 # mirrors `cooldown: default-days` in .github/dependabot.yml; change both
 COOLDOWN_DAYS="${TOOL_COOLDOWN_DAYS:-7}"
@@ -197,25 +194,6 @@ function _ci_extract() {
   { compgen -G "$2" || true; } | while IFS= read -r f; do
     sed -n "s|.*$1.*|\1|p" "$f"
   done | sort -u
-}
-
-# _ci_files <globs> - tracked files matching space-separated pathspec globs
-function _ci_files() {
-  local globs=() specs=() g
-  read -ra globs <<<"$1"
-  [ "${#globs[@]}" -gt 0 ] || return 0
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    for g in "${globs[@]}"; do specs+=(":(glob)$g"); done
-    git ls-files -- "${specs[@]}"
-  else
-    (
-      shopt -s globstar nullglob
-      for g in "${globs[@]}"; do
-        # shellcheck disable=SC2086 # the glob is expanded here on purpose
-        printf '%s\n' $g
-      done
-    )
-  fi | sort -u
 }
 
 if [ -f .github/scripts/check_tool_versions.local.sh ]; then

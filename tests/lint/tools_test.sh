@@ -92,7 +92,7 @@ function lint_manpage() {
 }
 
 # The vim rc hi ships, parsed by the editor that reads it. Everything else in
-# the suite treats settings/vim.rc as *bytes* - payload_test.sh checks it ships
+# the suite treats settings/vimrc as *bytes* - payload_test.sh checks it ships
 # and survives the comment strip, load_test.sh checks $VIMINIT points at it - so
 # a syntax error in the file itself failed nothing and rode the wire to every
 # target (an orphaned `endif` left by a half-finished deletion did exactly
@@ -106,7 +106,7 @@ function lint_manpage() {
 #
 # E484 on defaults.vim is the exception, and a deliberate one: the rc sources
 # it with `silent!` precisely because a vim old enough not to ship that file
-# would error on it (settings/vim.rc says so). `silent!` suppresses the
+# would error on it (settings/vimrc says so). `silent!` suppresses the
 # message but still sets v:errmsg, so the tolerated case is spelled out here.
 #
 # No nano half: nano reports a bad rcfile only on its status bar and refuses to
@@ -116,8 +116,8 @@ function lint_manpage() {
 # way the alias does and exits non-zero on an elisp error, so there the exit
 # status is the verdict.
 function lint_vim_rc() {
-  local err out rc="$_HI_ROOT/settings/vim.rc"
-  _hi_h2 "Checking the shipped editor rc (vim -u settings/vim.rc)"
+  local err out rc="$_HI_ROOT/settings/vimrc"
+  _hi_h2 "Checking the shipped editor rc (vim -u settings/vimrc)"
   if ! command -v vim >/dev/null 2>&1; then
     _hi_skip vim "not installed"
     return 0
@@ -128,12 +128,12 @@ function lint_vim_rc() {
     </dev/null >/dev/null 2>&1 || true
   out="$(grep -v "E484.*defaults\.vim" "$err" 2>/dev/null | tr -d '[:space:]')"
   if [ -z "$out" ]; then
-    _hi_align " | settings/vim.rc (vim)" "OK" "$GREEN"
+    _hi_align " | settings/vimrc (vim)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | settings/vim.rc (vim)" "FAILED" "$RED"
+  _hi_align " | settings/vimrc (vim)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
-  _hi_note_failure "settings/vim.rc (vim)"
+  _hi_note_failure "settings/vimrc (vim)"
   return 1
 }
 
@@ -161,8 +161,8 @@ function lint_nvim_rc() {
 }
 
 function lint_emacs_rc() {
-  local err rc="$_HI_ROOT/settings/emacs.el"
-  _hi_h2 "Checking the shipped editor rc (emacs -q -l settings/emacs.el)"
+  local err rc="$_HI_ROOT/settings/init.el"
+  _hi_h2 "Checking the shipped editor rc (emacs -q -l settings/init.el)"
   if ! command -v emacs >/dev/null 2>&1; then
     _hi_skip emacs "not installed"
     return 0
@@ -170,12 +170,12 @@ function lint_emacs_rc() {
   _HI_LINT_TOTAL=$((_HI_LINT_TOTAL + 1))
   err="$_HI_WORKDIR/emacs.err"
   if emacs --batch -q -l "$rc" --eval '(kill-emacs 0)' </dev/null >"$err" 2>&1; then
-    _hi_align " | settings/emacs.el (emacs)" "OK" "$GREEN"
+    _hi_align " | settings/init.el (emacs)" "OK" "$GREEN"
     return 0
   fi
-  _hi_align " | settings/emacs.el (emacs)" "FAILED" "$RED"
+  _hi_align " | settings/init.el (emacs)" "FAILED" "$RED"
   sed 's/^/      /' "$err"
-  _hi_note_failure "settings/emacs.el (emacs)"
+  _hi_note_failure "settings/init.el (emacs)"
   return 1
 }
 

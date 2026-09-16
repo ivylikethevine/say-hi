@@ -62,10 +62,15 @@ _HI_PAYLOAD=(common settings load.sh hi.sh)
 # The user's config overlay: a second, smaller stream into its own config/ on
 # the target. GLOSSARY: HI.41 - why its own directory, why the editor rcs ride
 # A `.d` entry is a directory whose members ride one by one (GLOSSARY: HI.58).
-_HI_OVERLAY_FILES=(settings.sh colors packages packages.d vim.rc init.lua nano.rc
-  emacs.el aliases.sh plugins.d bash.sh zsh.zsh config.fish starship.toml
-  oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh omz-theme.zsh omb-theme.sh tide.vars theme.yml bat.conf
+_HI_OVERLAY_FILES=(settings.sh colors packages packages.d vimrc init.lua nanorc
+  init.el aliases.sh plugins.d bashrc zshrc config.fish starship.toml
+  oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml p10k.zsh oh-my-zsh.zsh-theme oh-my-bash.theme.sh tide.vars theme.yml bat.conf
   tmux.conf micro/settings.json micro/bindings.json micro/init.lua)
+
+# The overlay members renamed before 1.0, old:new. hi reads only the new
+# name; scripts/doctor.sh names a file still under the old one, since it
+# would otherwise be silently ignored.
+_HI_OVERLAY_RENAMES="vim.rc:vimrc nano.rc:nanorc emacs.el:init.el bash.sh:bashrc zsh.zsh:zshrc omz-theme.zsh:oh-my-zsh.zsh-theme omb-theme.sh:oh-my-bash.theme.sh"
 
 # What a bash-less target falls back to, best first - derived from
 # $_HI_SHELL_TREE so the two orderings cannot drift.
@@ -104,7 +109,8 @@ function _hi_session_env() {
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   printf '_HI_TARGET_COLOR\t%s\n' "$_HI_TARGET_COLOR_MEMO"
-  printf '_HI_TARGET_TAG\t%s\n' "$(_hi_ssh_host_tag "$DOMAIN" 2>/dev/null || true)"
+  _hi_ssh_host_tag "$DOMAIN" >/dev/null 2>&1 || true
+  printf '_HI_TARGET_TAG\t%s\n' "$_HI_TAG_VALUE"
   printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
   printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
@@ -142,13 +148,12 @@ function _hi_target_color() {
 # theme file the rc's ZSH_THEME / OSH_THEME names, looked up the way oh-my-zsh
 # and oh-my-bash look. GLOSSARY: HI.32
 function _hi_prompt_home() {
-  local _hi_ph_t=tide _hi_ph_d _hi_ph_f=""
+  local _hi_ph_t _hi_ph_d _hi_ph_f=""
+  _hi_prompt_row "$1" _hi_ph_t || return 1
+  _hi_ph_t="${_hi_ph_t%%|*}"
   case "$1" in
-  starship.toml) _hi_ph_t=starship _hi_ph_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}" ;;
-  oh-my-posh.*) _hi_ph_t=oh-my-posh ;;
-  p10k.zsh) _hi_ph_t=powerlevel10k _hi_ph_f="${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}" ;;
-  omz-theme.zsh) _hi_ph_t=oh-my-zsh ;;
-  omb-theme.sh) _hi_ph_t=oh-my-bash ;;
+  starship.toml) _hi_ph_f="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}" ;;
+  p10k.zsh) _hi_ph_f="${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}" ;;
   tide.vars) _hi_ph_f="${XDG_CONFIG_HOME:-$HOME/.config}/fish/fish_variables" ;;
   esac
   _hi_prompt_list >/dev/null
@@ -157,10 +162,15 @@ function _hi_prompt_home() {
     _hi_out "${2:-}" "$_HI_CONFIG_DIR/$1"
     return 0
   }
+  # home's copy is this machine's only: on a target the client's pick has
+  # already landed in the overlay, and a relay must not pack the middle box's
+  [ "$_HI_REMOTE_SESSION" != 1 ] || return 1
   case "$1" in
   oh-my-posh.*)
     # one config a target: an overlay copy in any format outranks home's, and
-    # home's rides under the member its extension names (oh-my-posh parses by it)
+    # home's rides under the member its extension names - oh-my-posh parses by
+    # extension and paths.sh cannot rename, so the format has to be in the
+    # member name, hence three members for one program
     for _hi_ph_f in "$_HI_CONFIG_DIR"/oh-my-posh.{json,yaml,toml}; do
       [ ! -f "$_hi_ph_f" ] || return 1
     done
@@ -171,7 +181,7 @@ function _hi_prompt_home() {
     *) return 1 ;;
     esac
     ;;
-  omz-theme.zsh)
+  oh-my-zsh.zsh-theme)
     # powerlevel10k/powerlevel10k is p10k's own entry point, not a theme file
     _hi_rc_theme ZSH_THEME "${ZDOTDIR:-$HOME}/.zshrc" _hi_ph_t || return 1
     case "$_hi_ph_t" in */* | random) return 1 ;; esac
@@ -180,7 +190,7 @@ function _hi_prompt_home() {
       [ -f "$_hi_ph_f" ] && break
     done
     ;;
-  omb-theme.sh)
+  oh-my-bash.theme.sh)
     _hi_rc_theme OSH_THEME "$HOME/.bashrc" _hi_ph_t || return 1
     _hi_ph_d="${OSH_CUSTOM:-${OSH:-$HOME/.oh-my-bash}/custom}"
     for _hi_ph_f in {"$_hi_ph_d","$_hi_ph_d/themes","${OSH:-$HOME/.oh-my-bash}/themes"}/"$_hi_ph_t/$_hi_ph_t".theme.{sh,bash}; do
@@ -196,19 +206,18 @@ function _hi_prompt_home() {
 # on $PATH, tide where fisher put it, and a framework with something of home's
 # to ship. Memoized: the members and the session env each ask. GLOSSARY: HI.32
 function _hi_prompt_list() {
-  local _hi_pl_t _hi_pl_f _hi_pl_out=""
+  local _hi_pl_r _hi_pl_t _hi_pl_f _hi_pl_out=""
   if [ "${_HI_PROMPT_LIST_KEY-}" != "${_HI_PROMPT_TOOL:-}|$HOME" ]; then
     _HI_PROMPT_LIST_KEY="${_HI_PROMPT_TOOL:-}|$HOME" _HI_PROMPT_LIST_MEMO="${_HI_PROMPT_TOOL:-}"
     if [ -z "$_HI_PROMPT_LIST_MEMO" ] && [ "$_HI_REMOTE_SESSION" != 1 ]; then
       # _hi_prompt_home asks this list too: all of it while it is being built
       _HI_PROMPT_LIST_MEMO="$_HI_PROMPT_TOOLS"
-      for _hi_pl_t in $_HI_PROMPT_TOOLS; do
-        case "$_hi_pl_t" in
-        starship | oh-my-posh | powerline-go) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
-        tide) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
-        powerlevel10k) _hi_prompt_home p10k.zsh _hi_pl_f ;;
-        oh-my-zsh) _hi_prompt_home omz-theme.zsh _hi_pl_f ;;
-        oh-my-bash) _hi_prompt_home omb-theme.sh _hi_pl_f ;;
+      for _hi_pl_r in "${_HI_PROMPT_TABLE[@]}"; do
+        _hi_pl_t="${_hi_pl_r%%|*}"
+        case "$_hi_pl_r" in
+        *'|bin|'*) command -v "$_hi_pl_t" >/dev/null 2>&1 ;;
+        tide'|'*) [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/tide.fish" ] ;;
+        *) _hi_prompt_home "${_hi_pl_r##*|}" _hi_pl_f ;;
         esac && _hi_pl_out="$_hi_pl_out${_hi_pl_out:+ }$_hi_pl_t"
       done
       _HI_PROMPT_LIST_MEMO="$_hi_pl_out"
@@ -217,32 +226,39 @@ function _hi_prompt_list() {
   _hi_out "${1:-}" "$_HI_PROMPT_LIST_MEMO"
 }
 
+# _hi_rc_last_match <regex> <outvar> <file...> - the second group of the last
+# line of <file...> the regex matches, into <outvar>; 1 when none does. What
+# an rc *sets* - a theme name, a flag on an init line - lives in a shell
+# variable or a command line no child of the rc sees, so the file is read,
+# never sourced. An absent file is skipped.
+function _hi_rc_last_match() {
+  local _hi_rl_re="$1" _hi_rl_out="$2" _hi_rl_f _hi_rl_l _hi_rl_v=""
+  shift 2
+  for _hi_rl_f; do
+    [ -f "$_hi_rl_f" ] || continue
+    while IFS= read -r _hi_rl_l || [ -n "$_hi_rl_l" ]; do
+      [[ "$_hi_rl_l" =~ $_hi_rl_re ]] && _hi_rl_v="${BASH_REMATCH[2]}"
+    done <"$_hi_rl_f"
+  done
+  [ -n "$_hi_rl_v" ] && printf -v "$_hi_rl_out" '%s' "$_hi_rl_v"
+}
+
 # _hi_rc_theme <NAME> <rc> [outvar] - $NAME when exported, else the last
-# NAME= line of <rc> with its quotes dropped: a framework's theme lives in a
-# shell variable the rc sets and no child of it sees. Read, never sourced.
+# NAME= line of <rc> with its quotes dropped: a framework's theme.
 function _hi_rc_theme() {
-  local _hi_rt_l _hi_rt_v="${!1:-}" _hi_rt_re="^[[:space:]]*(export[[:space:]]+)?$1=[\"']?([^\"'[:space:]#]*)"
-  if [ -z "$_hi_rt_v" ] && [ -f "$2" ]; then
-    while IFS= read -r _hi_rt_l || [ -n "$_hi_rt_l" ]; do
-      [[ "$_hi_rt_l" =~ $_hi_rt_re ]] && _hi_rt_v="${BASH_REMATCH[2]}"
-    done <"$2"
-  fi
+  local _hi_rt_v="${!1:-}"
+  [ -n "$_hi_rt_v" ] ||
+    _hi_rc_last_match "^[[:space:]]*(export[[:space:]]+)?$1=[\"']?([^\"'[:space:]#]*)" _hi_rt_v "$2"
   [ -n "$_hi_rt_v" ] && _hi_out "${3:-}" "$_hi_rt_v"
 }
 
 # _hi_posh_rc_config [outvar] - the local file an rc's `oh-my-posh init ...
-# --config <file>` names: oh-my-posh has no default file, and the flag lives in
-# a command line no child of the rc sees. The last such line of the bash, zsh,
-# and fish rcs, `~` and $HOME expanded. Read, never sourced.
+# --config <file>` names: oh-my-posh has no default file. The last such line
+# of the bash, zsh, and fish rcs, `~` and $HOME expanded.
 function _hi_posh_rc_config() {
-  local _hi_pc_rc _hi_pc_l _hi_pc_v=""
-  local _hi_pc_re="^[^#]*oh-my-posh[^#]*[[:space:]]init[[:space:]][^#]*(--config[=[:space:]]|-c[[:space:]])[[:space:]]*[\"']?([^\"'[:space:])]+)"
-  for _hi_pc_rc in "$HOME/.bashrc" "${ZDOTDIR:-$HOME}/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"; do
-    [ -f "$_hi_pc_rc" ] || continue
-    while IFS= read -r _hi_pc_l || [ -n "$_hi_pc_l" ]; do
-      [[ "$_hi_pc_l" =~ $_hi_pc_re ]] && _hi_pc_v="${BASH_REMATCH[2]}"
-    done <"$_hi_pc_rc"
-  done
+  local _hi_pc_v=""
+  _hi_rc_last_match "^[^#]*oh-my-posh[^#]*[[:space:]]init[[:space:]][^#]*(--config[=[:space:]]|-c[[:space:]])[[:space:]]*[\"']?([^\"'[:space:])]+)" \
+    _hi_pc_v "$HOME/.bashrc" "${ZDOTDIR:-$HOME}/.zshrc" "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
   _hi_pc_v="${_hi_pc_v/#\~/$HOME}"
   _hi_pc_v="${_hi_pc_v/#\$HOME/$HOME}"
   _hi_pc_v="${_hi_pc_v/#\$\{HOME\}/$HOME}"
@@ -252,7 +268,7 @@ function _hi_posh_rc_config() {
 # _hi_overlay_src <member> [outvar] - where an overlay member is packed from:
 # $_HI_CONFIG_DIR/<member> when the overlay has it, else where the tool itself
 # keeps that config on this machine (a prompt program's only with it in
-# _HI_PROMPT_TOOL, since nothing else starts it) - so a target gets the config
+# _hi_prompt_list, since nothing else starts it) - so a target gets the config
 # in force here with no copy to keep in step, and a copy in the overlay is the
 # way to give targets a different one. Fails, printing nothing, when there is
 # no file either way.
@@ -264,14 +280,16 @@ function _hi_posh_rc_config() {
 # there is nothing for the overlay stream to carry.
 function _hi_overlay_src() {
   local _hi_os_f="$_HI_CONFIG_DIR/$1"
+  ! _hi_prompt_row "$1" >/dev/null || { _hi_prompt_home "$1" _hi_os_f || return 1; }
   case "$1" in
-  starship.toml | oh-my-posh.* | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars) _hi_prompt_home "$1" _hi_os_f || return 1 ;;
-  theme.yml) [ -f "$_hi_os_f" ] || _hi_os_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
-  bat.conf) [ -f "$_hi_os_f" ] || _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
-  vim.rc) _hi_os_f="${_HI_VIMRC:-}" ;;
+  # the overlay's copy, else the tool's own file - on this machine only, like
+  # micro's below: a relay hop must not pack the middle box's
+  theme.yml) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_os_f="${EZA_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/eza}/theme.yml" ;;
+  bat.conf) [ -f "$_hi_os_f" ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_os_f="${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/bat}/config}" ;;
+  vimrc) _hi_os_f="${_HI_VIMRC:-}" ;;
   init.lua) _hi_os_f="${_HI_NVIMRC:-}" ;;
-  nano.rc) _hi_os_f="${_HI_NANORC:-}" ;;
-  emacs.el) _hi_os_f="${_HI_EMACSRC:-}" ;;
+  nanorc) _hi_os_f="${_HI_NANORC:-}" ;;
+  init.el) _hi_os_f="${_HI_EMACSRC:-}" ;;
   tmux.conf) _hi_os_f="${_HI_TMUX_CONF:-}" ;;
   micro/*)
     # the overlay's copy, else micro's own directory - on this machine only
@@ -283,13 +301,6 @@ function _hi_overlay_src() {
   [ -f "$_hi_os_f" ] || return 1
   _hi_out "${2:-}" "$_hi_os_f"
 }
-
-# The overlay members whose content is a dialect _hi_lint_awk reads. A
-# separate roster from $_HI_OVERLAY_FILES because that one answers "what rides
-# the stream" and this one "what has includes to resolve"; scripts/doctor.sh
-# walks this one.
-_HI_LINT_FILES=(vim.rc init.lua nano.rc emacs.el tmux.conf micro/init.lua oh-my-posh.json oh-my-posh.yaml
-  oh-my-posh.toml p10k.zsh omz-theme.zsh omb-theme.sh settings.sh aliases.sh plugins.d bash.sh zsh.zsh config.fish)
 
 # The include scanner, in the dialect of each file it reads. Every member
 # ships into a `config/` of its own, so a line naming a *path* - a second rc
@@ -334,7 +345,10 @@ _HI_LINT_FILES=(vim.rc init.lua nano.rc emacs.el tmux.conf micro/init.lua oh-my-
 # closing brace behind as a syntax error. sh and fish get neither: commenting
 # a line can empty a `then`/`do` body, which does not parse, so only the verb
 # and its file word become `:` (fish: `true`), and the rest of the line stays.
-# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name.
+# `name` is the member, not FILENAME: doctor reads ~/.vimrc under its own name,
+# and a member whose name is no dialect (colors, packages, a theme.yml) passes
+# through untouched - so every overlay member goes in, and there is no second
+# roster of "what has includes".
 #
 # bal() counts that depth blind to anything inside a quoted string, and takes
 # ' as a string delimiter for lua only: in elisp it is the quote operator, and
@@ -383,7 +397,7 @@ function shfix(s,   o, p, r, n, w) {
   return substr(o s, 2)
 }
 function kindof(s,   v) {
-  if ((tmux || omp || sh || fish) && s ~ /^[ \t]*#/) return ""
+  if (s ~ ("^[ \t]*" cc())) return ""
   if (vim) {
     if (s ~ /^[ \t]*(Plug|Plugin|NeoBundle|packadd)[ \t!]/ || s ~ /(plug|vundle|dein|minpac)#/) return "plugin"
     if (s ~ /^[ \t]*(source|so)!?[ \t]/ && s !~ /\$VIMRUNTIME/) return "include"
@@ -420,8 +434,8 @@ function kindof(s,   v) {
 }
 FNR == 1 {
   close(out); out = FILENAME ".lint"; depth = allow = 0
-  vim = (name == "vim.rc"); el = (name == "emacs.el"); lua = (name ~ /\.lua$/); nano = (name == "nano.rc"); tmux = (name == "tmux.conf")
-  sh = (name ~ /\.(sh|zsh)$/ || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
+  vim = (name == "vimrc"); el = (name == "init.el"); lua = (name ~ /\.lua$/); nano = (name == "nanorc"); tmux = (name == "tmux.conf")
+  sh = (name ~ /\.(sh|zsh|zsh-theme)$/ || name == "bashrc" || name == "zshrc" || name ~ /^plugins\.d\//); fish = (name ~ /\.fish$/); omp = (name ~ /^oh-my-posh\./)
   json = (name ~ /\.json$/)
 }
 depth > 0 {
@@ -443,7 +457,7 @@ depth > 0 {
 AWK
 }
 
-# _hi_include_lint - every finding in the linted members that would actually
+# _hi_include_lint - every finding in the overlay members that would actually
 # ship, one row each (see _hi_lint_awk). Nothing for an editor rc that is hi's
 # own tree copy, which _hi_overlay_src declines to pack and which has no
 # includes to begin with.
@@ -452,7 +466,7 @@ function _hi_include_lint() {
   prog="$(_hi_lint_awk)"
   while IFS= read -r f; do
     _hi_overlay_src "$f" src && awk -v mode=report -v name="$f" "$prog" "$src"
-  done < <(_hi_overlay_files "${_HI_LINT_FILES[@]}")
+  done < <(_hi_overlay_files)
   return 0
 }
 
@@ -517,15 +531,17 @@ function _hi_require_packer() {
 # What the comment-stripper is pointed at. One list, not a copy per stager:
 # both walk the same shapes, and `flags` is inert against an overlay, which
 # has no member by that name. GLOSSARY: HI.35
-_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc nano.rc emacs.el tmux.conf
+_HI_STRIP_NAMES=('*.sh' '*.zsh' '*.zsh-theme' '*.fish' '*.lua' bashrc zshrc flags colors packages vimrc nanorc init.el tmux.conf
   '*/packages.d/*' '*/plugins.d/*')
 
 # _hi_stage_tar <src-dir> <stage-subdir> - the shared body of the two stagers
 # below: pull the members out of <src-dir> into a scratch stage, strip their
 # comments, gzip what comes out. Reads $stage_in (members to pull), $stage_out
 # (members to emit), $stage_excl (tar --exclude words) and $stage_add
-# (<member> <path> pairs copied in from outside <src-dir>) from its caller, the
-# convention _hi_container_cleanup and _hi_remote_middle also use.
+# (<member> <path> pairs copied in from outside <src-dir>) and $stage_lint (1
+# to run the include scan over the stage: the overlay, never the tree) from
+# its caller, the convention _hi_container_cleanup and _hi_remote_middle also
+# use.
 #
 # A subshell, so cleanup is a trap and a ^C mid-build leaves nothing behind
 # (GLOSSARY: HI.39). Prefixed locals (GLOSSARY: HI.04): `root` is
@@ -533,7 +549,7 @@ _HI_STRIP_NAMES=('*.sh' '*.zsh' '*.fish' '*.lua' flags colors packages vim.rc na
 function _hi_stage_tar() {
   local stage f _hi_st_root _hi_st_i _hi_st_prog
   local -a _hi_st_names=() _hi_st_add=(${stage_add[@]+"${stage_add[@]}"})
-  local -a _hi_st_lint=(${stage_lint[@]+"${stage_lint[@]}"})
+  local _hi_st_lint="${stage_lint:-0}"
   for f in "${_HI_STRIP_NAMES[@]}"; do
     ((${#_hi_st_names[@]})) && _hi_st_names+=(-o)
     case "$f" in */*) _hi_st_names+=(-path "$f") ;; *) _hi_st_names+=(-name "$f") ;; esac
@@ -567,15 +583,14 @@ function _hi_stage_tar() {
     # own files: an include hi cannot carry goes out commented, or
     # made inert in a shell or JSON file, and the strip below drops a comment. _HI_INCLUDES=keep
     # sends the line as written - for a target that really does have the file.
-    if [ "${_HI_INCLUDES:-drop}" != keep ] && ((${#_hi_st_lint[@]})); then
+    if [ "${_HI_INCLUDES:-drop}" != keep ] && [ "$_hi_st_lint" = 1 ]; then
       _hi_st_prog="$(_hi_lint_awk)"
-      for f in "${_hi_st_lint[@]}"; do
-        [ -f "$_hi_st_root/$f" ] || continue
-        awk -v mode=fix -v name="$f" "$_hi_st_prog" "$_hi_st_root/$f" >/dev/null || exit 1
+      while IFS= read -r f; do
+        awk -v mode=fix -v name="${f#"$_hi_st_root"/}" "$_hi_st_prog" "$f" >/dev/null || exit 1
         # no .lint at all means an empty member: awk never ran a rule on it
-        [ -f "$_hi_st_root/$f.lint" ] || continue
-        mv -f "$_hi_st_root/$f.lint" "$_hi_st_root/$f" || exit 1
-      done
+        [ -f "$f.lint" ] || continue
+        mv -f "$f.lint" "$f" || exit 1
+      done < <(find "$_hi_st_root" -type f ! -name '*.lint')
     fi
     _hi_strip_awk >"$stage/strip.awk"
     # one awk over every file (GLOSSARY: HI.35); strip.awk sits at $stage and
@@ -608,17 +623,14 @@ function _hi_overlay_tar() {
   [ $# -gt 0 ] || _hi_read_lines present < <(_hi_overlay_files)
   ((${#present[@]})) || return 0
   local -a stage_in=() stage_out=("${present[@]}") stage_excl=() stage_add=()
-  local -a stage_lint=()
-  local f src e
+  local stage_lint=1
+  local f src
   for f in "${present[@]}"; do
     if _hi_overlay_src "$f" src && [ "$src" != "$_HI_CONFIG_DIR/$f" ]; then
       stage_add+=("$f" "$src")
     else
       stage_in+=("$f")
     fi
-    for e in "${_HI_LINT_FILES[@]}"; do
-      [ "$f" = "$e" ] || [ "${f%/*}" = "$e" ] && stage_lint+=("$f")
-    done
   done
   _hi_stage_tar "$_HI_CONFIG_DIR" ""
 }
@@ -633,9 +645,10 @@ function _hi_cksum() {
 }
 
 # What changes an overlay tar without touching any member's mtime: the member
-# list itself. Cksummed, not spelled out, to keep the cache filename short.
+# list itself, and _HI_INCLUDES, which the stager reads. Cksummed, not
+# spelled out, to keep the cache filename short.
 function _hi_overlay_cache_key() {
-  _hi_cksum "$*"
+  _hi_cksum "$* ${_HI_INCLUDES:-drop}"
 }
 
 # _hi_cached <outvar> <tag> <key> <builder> <watch...> - one cache, two
@@ -712,15 +725,15 @@ function _hi_overlay_stream() {
 }
 
 # The comment stripper every payload file goes through: their prose headers
-# are for the installed copy a user reads, not the wire. vim.rc's comment
-# character is `"`, emacs.el's is `;`, and init.lua's is `--`; `#` covers the
+# are for the installed copy a user reads, not the wire. vimrc's comment
+# character is `"`, init.el's is `;`, and init.lua's is `--`; `#` covers the
 # rest, and blank lines and indentation go with them - none of the four
 # dialects reads either, and the indentation alone is 3% of the payload -
 # except on a line continuing a `word\`, where it is the only separator.
 # GLOSSARY: HI.35 - the rules, and why their order is the argument
 function _hi_strip_awk() {
   cat <<'AWK'
-FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vim\.rc$/); el = (FILENAME ~ /emacs\.el$/); lua = (FILENAME ~ /\.lua$/) }
+FNR == 1 { close(out); out = FILENAME ".strip"; tag = ""; dash = cont = 0; vim = (FILENAME ~ /vimrc$/); el = (FILENAME ~ /init\.el$/); lua = (FILENAME ~ /\.lua$/) }
 FNR == 1 && /^#!/ { print > out; next }
 vim && /^[ \t]*"/ { next }
 el && /^[ \t]*;/ { next }
@@ -766,6 +779,13 @@ function _hi_require() {
 function _hi_fail() {
   _hi_cecho "$1" "$BRRED" >&2
   _HI_SAID=1
+}
+
+# _hi_die <msg> - "hi: <msg>" in red on stderr, then exit 1: a refusal made
+# before anything ran.
+function _hi_die() {
+  _hi_cecho "hi: $1" "$RED" >&2
+  exit 1
 }
 
 # The tree, comment-stripped through a staging copy; both size budgets
@@ -1499,7 +1519,7 @@ function _hi_container_cmds() {
     # the docker-compatible family (GLOSSARY: HI.51): the CLI is the arm's own
     # name and the grammar is docker's
     local target="$DOMAIN"
-    _hi_container_target "$1" "$DOMAIN" target || target="$DOMAIN"
+    _hi_container_target "$1" "$DOMAIN" target || : # errexit guard: doctor runs under set -e
     probe=("$1" exec "$target")
     cp=("$1" exec -i "$target")
     attach=("$1" exec "$it" "$target")
@@ -1754,7 +1774,6 @@ function _hi_flag_takes() {
 # 2 when it took <next> and the caller must shift again, 1 for a bare flag
 # with nothing after it. printf -v, not a nameref: bash 3.2.
 function _hi_flag_word() {
-  printf -v "$1" '%s' ''
   case "$2" in
   *=*) printf -v "$1" '%s' "${2#*=}" ;;
   *)
@@ -1771,8 +1790,7 @@ function _hi_flag_word() {
 # the target and would otherwise run on the far end as a command nobody has.
 function _hi_parse_command() {
   if _hi_flag_takes "${1%%=*}" >/dev/null; then
-    _hi_cecho "hi: $1 goes before the target (hi [options] <target> [command ...])" "$RED" >&2
-    exit 1
+    _hi_die "$1 goes before the target (hi [options] <target> [command ...])"
   fi
   local sep=""
   [[ "$*" = *[![:space:]]* ]] && sep='; '
@@ -1784,8 +1802,7 @@ function _hi_parse_command() {
 # worth naming, the way a stray word after --preview <subject> is
 function _hi_only_word() {
   [ $# -le 1 ] || {
-    _hi_cecho "hi: $1 takes no arguments (got: ${*:2})" "$RED" >&2
-    exit 1
+    _hi_die "$1 takes no arguments (got: ${*:2})"
   }
 }
 
@@ -1835,14 +1852,12 @@ function _hi_parse() {
         _hi_flag_word use_word "$@" || case $? in
         2) shift ;;
         *)
-          _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
-          exit 1
+          _hi_die "--use needs a backend name (ssh counts as one)"
           ;;
         esac
         backend_word="$(_hi_use_backend "$use_word")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
-          exit 1
+          _hi_die "--use $use_word and --use $BACKEND both name a backend; pick one"
         fi
         BACKEND="$backend_word" own=1
       elif [ "$1" = --plain ]; then
@@ -1859,8 +1874,7 @@ function _hi_parse() {
       elif _hi_is_ssh_value_opt "$1"; then
         # its value is never read as the target
         [ "$#" -ge 2 ] || {
-          _hi_cecho "hi: $1 needs a value" "$RED" >&2
-          exit 1
+          _hi_die "$1 needs a value"
         }
         SSHARGS+=("$1" "$2")
         shift
@@ -1876,8 +1890,7 @@ function _hi_parse() {
         fi
         exit 1
       elif [ "${1#--}" != "$1" ]; then
-        _hi_cecho "hi: unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)" "$RED" >&2
-        exit 1
+        _hi_die "unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)"
       else
         SSHARGS+=("$1")
       fi
@@ -1892,15 +1905,11 @@ function _hi_parse() {
     # Bare `hi` prints the help. With any ssh option present, ssh's behaviour
     # stands: an option without a host is ssh's error to report, not a target
     # to guess at.
-    if [ "${#SSHARGS[@]}" -eq 0 ] && [ -z "$own" ]; then
-      _hi_help
-      exit 0
-    fi
     # hi's own flags with nothing to connect to are hi's to name: ssh saw
     # none of them and has nothing to say
-    if [ -n "$own" ] && [ "${#SSHARGS[@]}" -eq 0 ]; then
-      _hi_cecho "hi: no target to connect to (hi [options] <target> [command ...])" "$RED" >&2
-      exit 1
+    if [ "${#SSHARGS[@]}" -eq 0 ]; then
+      [ -z "$own" ] && _hi_help && exit 0
+      _hi_die "no target to connect to (hi [options] <target> [command ...])"
     fi
     # not an exec, so the exit hook still runs
     ssh "${SSHARGS[@]}"
@@ -2009,7 +2018,6 @@ function _hi_mux_tool() {
     fi
   done
   _hi_cecho "hi: --mux needs tmux, zellij, or screen on this machine; connecting without it" "$YELLOW" >&2
-  printf -v "$1" '%s' ''
   return 1
 }
 
@@ -2096,8 +2104,7 @@ function _hi() {
   local tmp exit_code arm
 
   [ -d "$_HI_ROOT" ] || {
-    _hi_cecho "hi: no such directory: $_HI_ROOT" "$RED" >&2
-    exit 1
+    _hi_die "no such directory: $_HI_ROOT"
   }
 
   tmp="$(mktemp -t hi.log.XXXXXX)"
@@ -2191,8 +2198,7 @@ function _hi_dispatch_subcommand() {
         break
       done
       [ -n "$positional" ] || {
-        _hi_cecho "hi: $word takes no joined value (hi $word${shape:+ $shape})" "$RED" >&2
-        exit 1
+        _hi_die "$word takes no joined value (hi $word${shape:+ $shape})"
       }
     fi
     shift

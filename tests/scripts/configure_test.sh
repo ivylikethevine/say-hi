@@ -920,7 +920,7 @@ function test_editors_preview_names_every_override() {
     "$out" == *"emacs -q -l $_HI_EMACSRC"* &&
     "$out" == *"micro -> micro -backup false"* ]] || return 1
   # each name carries the rc of the binary behind it: nvim answers to both
-  # `vim` and `nvim` and reads init.lua, vim reads vim.rc
+  # `vim` and `nvim` and reads init.lua, vim reads vimrc
   if command -v nvim >/dev/null 2>&1; then
     [[ "$out" == *"nvim  -> "* && "$out" == *"-u $_HI_NVIMRC"* ]] || return 1
   elif command -v vim >/dev/null 2>&1; then
@@ -1212,10 +1212,10 @@ function test_menu_takes_a_header_preset_by_name() {
   [[ "$(_hi_cfg_lines hdr_preset_name)" == *"export _HI_HEADER_ORDER='utc localtime gitid'"* ]]
 }
 
-# item 1 turns the whole header off, and the preview says so in words
-# rather than showing an empty box
+# the header feature row turns the whole header off, and the preview says
+# so in words rather than showing an empty box
 function test_menu_header_off_previews_as_words() {
-  _hi_cfg_pty hdr_off '1\ns\n' '' config_hub || return 1
+  _hi_cfg_pty hdr_off "$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || return 1
   _hi_cfg_has hdr_off "header off - nothing prints" &&
     [[ "$(_hi_cfg_lines hdr_off)" == *"export _HI_DISABLE_HEADER=1"* ]]
 }
@@ -1247,7 +1247,7 @@ function test_menu_opens_the_check_depth() {
 
 # a feature row flips and says so under the list, with its preview
 function test_menu_feature_toggles_and_previews() {
-  _hi_cfg_pty feat_toggle '5\ns\n' '' config_hub || return 1
+  _hi_cfg_pty feat_toggle "$(_hi_item 'row|_HI_FEATURE_PROMPTS|3')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_toggle "editor config overrides: now off" &&
     _hi_cfg_has feat_toggle "nano --rcfile" &&
     [[ "$(_hi_cfg_lines feat_toggle)" == *"export _HI_DISABLE_EDITORS=1"* ]]
@@ -1258,7 +1258,7 @@ function test_menu_feature_toggles_and_previews() {
 # a bare CI box sees - so the case asserts the toggle and the paren shape, not
 # a name only this machine would have.
 function test_menu_env_segment_toggles_and_previews() {
-  _hi_cfg_pty feat_env '4\ns\n' '' config_hub || return 1
+  _hi_cfg_pty feat_env "$(_hi_item 'row|_HI_FEATURE_PROMPTS|2')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_env "environment segment in the prompt: now off" &&
     _hi_cfg_has feat_env "myproj" &&
     [[ "$(_hi_cfg_lines feat_env)" == *"export _HI_DISABLE_ENV_STATUS=1"* ]]
@@ -1266,14 +1266,14 @@ function test_menu_env_segment_toggles_and_previews() {
 
 # ...and the header row, off and back on, previews the whole header both ways
 function test_menu_header_row_previews_the_header() {
-  _hi_cfg_pty feat_header '1\n1\ns\n' '' config_hub || return 1
+  _hi_cfg_pty feat_header "$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\n$(_hi_item 'row|_HI_FEATURE_PROMPTS|0')\ns\n" '' config_hub || return 1
   _hi_cfg_has feat_header "header off - nothing prints" &&
     _hi_cfg_has feat_header "Connected" &&
     [ -z "$(_hi_cfg_lines feat_header | tr -d '[:space:]')" ]
 }
 
-# a separator typed for bash is single-quoted; zsh's is never asked and never
-# written
+# a separator typed for bash is single-quoted; zsh's, asked but left alone,
+# is never written
 function test_prompt_end_typed_interactively_is_quoted() {
   _hi_cfg_pty pe_typed "$(_hi_item 'end|bash')\n>>\ns\n" '' config_hub || return 1
   local lines
@@ -1282,7 +1282,7 @@ function test_prompt_end_typed_interactively_is_quoted() {
 }
 
 function test_menu_toggles_hi_prompt() {
-  _hi_cfg_pty pe_star "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" '' config_hub || return 1
+  _hi_cfg_pty pe_star "$(_hi_item 'row|_HI_PROMPT_PROMPTS|1')\ns\n" '' config_hub || return 1
   _hi_cfg_has pe_star "hi's own prompt: now on" &&
     [[ "$(_hi_cfg_lines pe_star)" == *"export _HI_PROMPT_TOOL=hi"* ]]
 }
@@ -1290,7 +1290,7 @@ function test_menu_toggles_hi_prompt() {
 # ...and back off: an opt-in switched off clears its line rather than
 # writing an off-value
 function test_menu_toggles_hi_prompt_off() {
-  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|0')\ns\n" 'export _HI_PROMPT_TOOL=hi' config_hub || return 1
+  _hi_cfg_pty pe_star_off "$(_hi_item 'row|_HI_PROMPT_PROMPTS|1')\ns\n" 'export _HI_PROMPT_TOOL=hi' config_hub || return 1
   _hi_cfg_has pe_star_off "hi's own prompt: now off" && _hi_cfg_has pe_star_off "CFGLINES=" &&
     [[ "$(_hi_cfg_lines pe_star_off)" != *"_HI_PROMPT_TOOL"* ]]
 }

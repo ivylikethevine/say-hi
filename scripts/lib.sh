@@ -13,10 +13,9 @@
 # (--x=y) or as the next argument (--x y): status 2 when it took <next> and
 # the caller must shift again, 1 for a bare flag with nothing after it.
 # hi.sh has its own copy of this, since it ships in the ssh payload and
-# cannot depend on a file outside common/ - two copies of six lines rather
+# cannot depend on a file outside common/ - two copies of five lines rather
 # than a payload file reaching into scripts/.
 function _hi_flag_word() {
-  printf -v "$1" '%s' ''
   case "$2" in
   *=*) printf -v "$1" '%s' "${2#*=}" ;;
   *)
@@ -27,21 +26,25 @@ function _hi_flag_word() {
   esac
 }
 
+# _hi_die <msg> - "$_HI_ME: <msg>" in red on stderr, then exit 1: every
+# refusal a script makes before it does anything.
+function _hi_die() {
+  _hi_cecho "$_HI_ME: $1" "$RED" >&2
+  exit 1
+}
+
 # _hi_flag_word_or_die <outvar> <errmsg> <flag> [next] - _hi_flag_word, but a
-# bare flag with nothing after it prints "$_HI_ME: <errmsg>" in red and exits
-# 1 itself rather than handing the caller a status to branch on. Status 2 (it
-# took <next>, the caller must shift again) still comes back, the one case
-# every call site still has to act on.
+# bare flag with nothing after it _hi_die's with <errmsg> rather than handing
+# the caller a status to branch on. Status 2 (it took <next>, the caller must
+# shift again) still comes back, the one case every call site still has to
+# act on.
 function _hi_flag_word_or_die() {
   local outvar="$1" msg="$2"
   shift 2
   _hi_flag_word "$outvar" "$@" && return 0
   case $? in
   2) return 2 ;;
-  *)
-    _hi_cecho "$_HI_ME: $msg" "$RED" >&2
-    exit 1
-    ;;
+  *) _hi_die "$msg" ;;
   esac
 }
 
@@ -150,6 +153,59 @@ function _hi_color_escape() {
   _hi_color_escape_var _hi_ce "$1"
   printf -v _hi_ce '%b' "$_hi_ce"
   _hi_out "${2:-}" "$_hi_ce"
+}
+
+# What a settings.sh value may be, one predicate per shape. The wizard takes
+# an answer by these (scripts/configure.sh), and doctor_config judges a
+# hand-written line by the same ones, so a value the menu would refuse is
+# named rather than silently falling back to the default.
+function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
+# a header width: 40 columns is the narrowest the banner and rows draw in
+function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
+# the package check's floor: a priority, or 4 for off
+function _hi_is_priority() { _hi_is_number "$1" && [ "$1" -le 4 ]; }
+# a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
+function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
+# _HI_INCLUDES's two words
+function _hi_is_includes() { [ "$1" = drop ] || [ "$1" = keep ]; }
+# one of core.sh's $_HI_EDITORS
+function _hi_is_editor() {
+  case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
+# dotted-quad addresses - digits, dots, `*`, and `?` - nothing else, so a
+# stray quote or a shell metacharacter can't be written into settings.sh
+function _hi_is_ip_hide() {
+  case "$1" in
+  none) return 0 ;;
+  '' | *[!0-9.*?\ ]*) return 1 ;;
+  esac
+}
+
+# _hi_is_header_order <words> - every word of the value one of $_HI_HEADER_ORDER's
+# vocabulary, read off header.sh's own $_HI_HEADER_ORDER_DEFAULT (the caller
+# has header.sh loaded) rather than a second copy of the list
+function _hi_is_header_order() {
+  local _hi_ho_w
+  [ -n "$1" ] || return 1
+  # shellcheck disable=SC2086 # the value is a space-separated word list
+  for _hi_ho_w in $1; do
+    case " $_HI_HEADER_ORDER_DEFAULT " in *" $_hi_ho_w "*) ;; *) return 1 ;; esac
+  done
+  return 0
+}
+
+# _hi_is_prompt_list <words> - every word of the value a program of core.sh's
+# _HI_PROMPT_TABLE, or `hi`
+function _hi_is_prompt_list() {
+  local _hi_pl_w
+  # shellcheck disable=SC2086 # the value is a space-separated word list
+  for _hi_pl_w in $1; do
+    [ "$_hi_pl_w" = hi ] || _hi_prompt_row "$_hi_pl_w" >/dev/null || return 1
+  done
+  return 0
 }
 
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh

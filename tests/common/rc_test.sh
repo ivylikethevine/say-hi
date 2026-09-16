@@ -442,8 +442,8 @@ function _hi_fw_home() {
     printf 'function fish_prompt; echo -n "TIDE:$tide_character_icon:"(count $tide_left_prompt_items):(count $tide_empty):(count (env | string match "tide_*")); end\n' \
       >"$h/.config/fish/functions/fish_prompt.fish"
     printf 'PROMPT="$PROMPT+CFG"\n' >"$c/p10k.zsh"
-    printf 'PROMPT="OMZ-$(git_prompt_info)"\n' >"$c/omz-theme.zsh"
-    printf 'PS1=OMB\n' >"$c/omb-theme.sh"
+    printf 'PROMPT="OMZ-$(git_prompt_info)"\n' >"$c/oh-my-zsh.zsh-theme"
+    printf 'PS1=OMB\n' >"$c/oh-my-bash.theme.sh"
     printf 'SETUVAR tide_character_icon:\\u276f\nSETUVAR tide_left_prompt_items:pwd\\x1egit\nSETUVAR tide_empty:\\x1d\n' >"$c/tide.vars"
   }
   printf '%s' "$h"
@@ -795,10 +795,17 @@ function test_fish_completes_the_word_after_preview() {
 # overlay copy of the same name that sources <rc> again, as an overlay sourcing
 # ~/.bashrc would; prints <probe>'s output, nothing if still recursing at the
 # deadline. exec'd, so a timeout kills the shell itself. GLOSSARY: HI.55
+# _hi_rc_of_member <overlay member> - hi's own rc for that shell, which the
+# overlay's per-shell file is named after the shell's rc rather than
+function _hi_rc_of_member() {
+  case "$1" in bashrc) printf bash.sh ;; zshrc) printf zsh.zsh ;; *) printf '%s' "$1" ;; esac
+}
+
 function _hi_rc_reentry() {
-  local shell="$1" rc="$2" probe="$3" cfg="$_HI_WORKDIR/reentry-$1"
+  local shell="$1" member="$2" probe="$3" cfg="$_HI_WORKDIR/reentry-$1" rc
+  rc="$(_hi_rc_of_member "$member")"
   mkdir -p "$cfg"
-  printf 'source "%s"\n' "$_HI_HOME/say-hi/common/$rc" >"$cfg/$rc"
+  printf 'source "%s"\n' "$_HI_HOME/say-hi/common/$rc" >"$cfg/$member"
   (exec env -i HOME="$_HI_WORKDIR" TERM=dumb PATH="$PATH" _HI_HOME="$_HI_HOME" _HI_PROMPT_TOOL=hi \
     _HI_CONFIG_DIR="$cfg" "$shell" -c "source \"\$_HI_HOME/say-hi/common/$rc\"; $probe" \
     </dev/null >"$cfg.out" 2>&1) &
@@ -925,7 +932,7 @@ function test_fish_config_dir_explicit_value_wins() {
 # run the read *without* hi's rc, for the baseline the no-file case measures
 # against.
 _HI_SHELL_OVERRIDE_ROWS=(
-  'bash|bash.sh|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
+  'bash|bashrc|printf %s "${PROMPT_DIRTRIM:-}"|PROMPT_DIRTRIM=9|9'
   'fish|config.fish|printf %s "$fish_color_command"|set -gx fish_color_command magenta|magenta'
 )
 
@@ -937,7 +944,7 @@ function _hi_shell_override_probe() {
   IFS='|' read -r shell file script line value <<<"$row"
   rm -f "$_HI_WORKDIR/cfg/$file"
   [ "$mode" = user ] && printf '%s\n' "$line" >"$_HI_WORKDIR/cfg/$file"
-  [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$file"'" 2>/dev/null; '
+  [ "$mode" = bare ] || src='source "$_HI_HOME/say-hi/common/'"$(_hi_rc_of_member "$file")"'" 2>/dev/null; '
   _hi_rc_shell xterm-256color "$shell" "$src$script"
 }
 
@@ -1090,8 +1097,16 @@ function run_rc_tests() {
     test_prompt_program_draws bash 'RC-OMB|*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL=
   _hi_check "[bash] ...but a target looks at nothing of its own" \
     test_prompt_program_draws bash '*\\u@\\h:\\w*' '_omb_module_require() { :; }; PS1=RC-OMB' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
-  _hi_check_requires zsh "[zsh] hi takes the prompt back from a loaded framework" \
-    test_prompt_program_draws zsh '*%n@%m*' 'p10k() { :; }; PROMPT=RC' _HI_PROMPT_TOOL=hi
+  _hi_check_requires zsh "[zsh] hi named takes the prompt back from a loaded framework, precmd and all" \
+    test_prompt_program_draws zsh '*%n@%m*' 'p10k() { :; }; _p9k_precmd() { PROMPT=RC; }; precmd_functions+=(_p9k_precmd); PROMPT=RC' _HI_PROMPT_TOOL=hi
+  _hi_check_requires zsh "[zsh] ...unset, the rc's own program keeps its precmd" \
+    test_prompt_program_draws zsh '*RC|*' 'starship_precmd() { PROMPT=RC; }; precmd_functions+=(starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] at home, powerlevel10k installed but not loaded stays off" \
+    test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL=powerlevel10k
+  _hi_check "[bash] hi named takes the prompt back from the rc's starship hook" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL=hi
+  _hi_check "[bash] ...unset, the rc's own program keeps its hook" \
+    test_prompt_program_draws bash '*STAR|*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
   _hi_check_requires fish "[fish] unset, tide found here draws" \
     test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
   _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \
@@ -1105,8 +1120,8 @@ function run_rc_tests() {
   _hi_check_requires fish "fish completes the word after --preview" test_fish_completes_the_word_after_preview
   _hi_check_requires fish "fish resolves \$_HI_CONFIG_DIR as bash does" test_fish_config_dir_matches_bash
   _hi_check_requires fish "fish honours an explicit \$_HI_CONFIG_DIR" test_fish_config_dir_explicit_value_wins
-  _hi_check "[bash] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns bash bash.sh
-  _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns zsh zsh.zsh
+  _hi_check "[bash] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns bash bashrc
+  _hi_check_requires zsh "[zsh] an overlay re-entering hi's rc returns" test_sh_rc_reentry_returns zsh zshrc
   _hi_check_requires zsh "[zsh] the target list is colored per backend" test_zsh_target_list_colors_per_backend
   _hi_check_requires zsh "[zsh] target completion carries the colored tag" test_zsh_target_completion_uses_the_colored_tag
   _hi_check_requires zsh "[zsh] completion covers the alias's launcher" test_zsh_completion_covers_the_alias_target

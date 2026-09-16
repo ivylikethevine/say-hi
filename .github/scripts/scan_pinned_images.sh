@@ -74,35 +74,12 @@ _CI_JOBS="${SCAN_JOBS:-4}"
 
 _CI_GLOBS="${SCAN_GLOBS:-Dockerfile */Dockerfile **/*.Dockerfile **/compose*.y*ml docker-compose*.y*ml}"
 
-for _ci_need in trivy jq; do
-  command -v "$_ci_need" >/dev/null 2>&1 || {
-    echo "scan_pinned_images: no $_ci_need on PATH" >&2
-    exit 127
-  }
-done
+# shellcheck source=./lib.sh
+source .github/scripts/lib.sh
+_ci_need scan_pinned_images trivy jq
 
 _CI_WORK="$(mktemp -d)"
 trap 'rm -rf "$_CI_WORK"' EXIT
-
-# _ci_files - the files $_CI_GLOBS names. Tracked files via git when there is
-# a work tree (so build output and vendored trees stay out); a plain
-# globstar walk otherwise.
-function _ci_files() {
-  local globs=() specs=() g
-  read -ra globs <<<"$_CI_GLOBS"
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    for g in "${globs[@]}"; do specs+=(":(glob)$g"); done
-    git ls-files -- "${specs[@]}"
-  else
-    (
-      shopt -s globstar nullglob
-      for g in "${globs[@]}"; do
-        # shellcheck disable=SC2086 # the glob is expanded here on purpose
-        printf '%s\n' $g
-      done
-    )
-  fi | sort -u
-}
 
 # _ci_trivy <ref> <out.json> - one scan, as JSON so ids can be diffed
 function _ci_trivy() {
@@ -132,7 +109,7 @@ function _ci_lines() {
   echo $(($(wc -l <"$1")))
 }
 
-mapfile -t _ci_files_list < <(_ci_files)
+mapfile -t _ci_files_list < <(_ci_files "$_CI_GLOBS")
 if [ "${#_ci_files_list[@]}" -eq 0 ]; then
   echo "scan_pinned_images: no files match SCAN_GLOBS ($_CI_GLOBS) - is the checkout complete?" >&2
   exit 127

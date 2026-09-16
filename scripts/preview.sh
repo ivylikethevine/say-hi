@@ -306,13 +306,12 @@ function _hi_group_preview_width() {
 # it lives beside it rather than taking the array as an argument (bash 3.2 has
 # no namerefs to pass one with).
 function _hi_group_index() {
-  local i=0 existing
-  for existing in ${group_order[@]+"${group_order[@]}"}; do
-    [[ "$existing" = "$1" ]] && {
+  local i
+  for i in "${!group_order[@]}"; do
+    [[ "${group_order[i]}" = "$1" ]] && {
       printf '%s' "$i"
       return 0
     }
-    i=$((i + 1))
   done
   return 1
 }
@@ -336,14 +335,13 @@ function _hi_user_row() {
 }
 
 function _hi_user_color_memo() {
-  local i=0 existing color escape
-  for existing in ${_hi_upc_keys[@]+"${_hi_upc_keys[@]}"}; do
-    if [ "$existing" = "$1"$'\x1f'"$2" ]; then
+  local i color escape
+  for i in "${!_hi_upc_keys[@]}"; do
+    if [ "${_hi_upc_keys[i]}" = "$1"$'\x1f'"$2" ]; then
       printf -v "$3" '%s' "${_hi_upc_colors[i]}"
       printf -v "$4" '%s' "${_hi_upc_escapes[i]}"
       return 0
     fi
-    i=$((i + 1))
   done
   color="$(_hi_resolve_color username "$1" "$2")"
   _hi_color_escape_var escape "$color"
@@ -358,7 +356,7 @@ function _hi_user_color_memo() {
 # users table: every known real user with a non-default color, plus LOCALUSER
 # and every usertag override as its own "example" row
 function _hi_print_users_table() {
-  local user tag source color_name name_escape uidx=0 tidx=0
+  local color_name uidx tidx
   local users=() usertags=() u_source=() u_color=() t_color=()
   local w_item=9 w_color=5 w_source=6
   local localuser_color=""
@@ -381,46 +379,38 @@ function _hi_print_users_table() {
   # _hi_color_source re-reads settings/colors end to end and walks ~/.ssh/config,
   # so the render loop below reads what this one worked out rather than asking
   # a second time for every user.
-  for user in "${users[@]}"; do
-    u_source[uidx]="$(_hi_color_source username "$user")"
-    u_color[uidx]="$(_hi_resolve_color username "$user")"
+  for uidx in "${!users[@]}"; do
+    u_source[uidx]="$(_hi_color_source username "${users[uidx]}")"
+    _hi_resolve_color username "${users[uidx]}" '' color_name # outvar form: no fork per user
+    u_color[uidx]="$color_name"
     _hi_widen w_source "${u_source[uidx]}"
     # a default row never renders (the loop below skips it), so it must not
     # widen the column either
     [[ "${u_source[uidx]}" = default ]] || _hi_widen w_color "${u_color[uidx]}"
-    uidx=$((uidx + 1))
   done
   _hi_widen w_source "local:username"
   localuser_color=$(_hi_override_color username LOCALUSER 2>/dev/null) || localuser_color=""
   [[ -n "$localuser_color" ]] && _hi_widen w_color "$localuser_color"
-  for tag in ${usertags[@]+"${usertags[@]}"}; do
-    _hi_widen w_source "usertag:$tag"
-    t_color[tidx]="$(_hi_override_color usertag "$tag")" || t_color[tidx]=""
+  for tidx in "${!usertags[@]}"; do
+    _hi_widen w_source "usertag:${usertags[tidx]}"
+    t_color[tidx]="$(_hi_override_color usertag "${usertags[tidx]}")" || t_color[tidx]=""
     [[ -n "${t_color[tidx]}" ]] && _hi_widen w_color "${t_color[tidx]}"
-    tidx=$((tidx + 1))
   done
 
   _hi_hbar top "$w_item" "$w_color" "$w_source"
   _hi_head_row "$w_item" USER "$w_color" COLOR "$w_source" SOURCE
   _hi_hbar mid "$w_item" "$w_color" "$w_source"
 
-  uidx=0
-  for user in "${users[@]}"; do
-    source="${u_source[uidx]}"
-    color_name="${u_color[uidx]}"
-    uidx=$((uidx + 1))
-    [[ "$source" = default ]] && continue
-    _hi_user_row "$user" "$color_name" "$source"
+  for uidx in "${!users[@]}"; do
+    [[ "${u_source[uidx]}" = default ]] && continue
+    _hi_user_row "${users[uidx]}" "${u_color[uidx]}" "${u_source[uidx]}"
   done
 
   [[ -z "$localuser_color" ]] || _hi_user_row LOCALUSER "$localuser_color" local:username
 
-  tidx=0
-  for tag in ${usertags[@]+"${usertags[@]}"}; do
-    color_name="${t_color[tidx]}"
-    tidx=$((tidx + 1))
-    [[ -n "$color_name" ]] || continue
-    _hi_user_row "$tag" "$color_name" "usertag:$tag"
+  for tidx in "${!usertags[@]}"; do
+    [[ -n "${t_color[tidx]}" ]] || continue
+    _hi_user_row "${usertags[tidx]}" "${t_color[tidx]}" "usertag:${usertags[tidx]}"
   done
 
   _hi_hbar bottom "$w_item" "$w_color" "$w_source"
@@ -437,7 +427,7 @@ function _hi_print_hosts_table() {
   local name color_name source user user_color user_escape name_escape key
   local cur_line sep sep_w candidate idx idx2 li total_lines itemtext previewtext
   local tag has_usertag
-  local user_width=0 pw pad pad_preview local_hostname
+  local user_width=0 pw pad local_hostname
   local preview_users=() group_order=() group_names=() item_lines=()
   # Five *parallel* indexed arrays sharing one index, rather than associative
   # arrays keyed by $key: `local -A` is bash 4 and macOS ships bash 3.2, where
@@ -557,7 +547,6 @@ function _hi_print_hosts_table() {
     # every preview line in this group has identical plain-text width (users
     # are right-padded to user_width) so one pad amount covers the whole group
     pw="${group_pw[gidx]}"
-    pad_preview=$((w_preview - pw))
 
     total_lines=${#item_lines[@]}
     ((${#preview_users[@]} > total_lines)) && total_lines=${#preview_users[@]}
@@ -593,10 +582,11 @@ function _hi_print_hosts_table() {
           # hosts is
           previewtext+="${user_escape}${user}${NC}${YELLOW}@${NC}${name_escape}${group_names[idx2]}${pad}${NC}"
         done
-        printf '%s %b%*s %s\n' "$_HI_BOX_V" "$previewtext" "$pad_preview" "" "$_HI_BOX_V"
+        _hi_cell_raw "$w_preview" "$pw" "$previewtext"
       else
-        printf '%s %*s %s\n' "$_HI_BOX_V" "$w_preview" "" "$_HI_BOX_V"
+        _hi_cell "$w_preview" "" ""
       fi
+      _hi_row_end
     done
 
     _hi_hbar bottom "$w_item" "$w_color" "$w_source" "$w_preview"

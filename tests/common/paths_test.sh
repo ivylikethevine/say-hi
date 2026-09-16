@@ -268,7 +268,7 @@ function test_settings_point_at_the_overlay_before_it_exists() {
 _HI_OVERLAY_PATH_VARS=(_HI_COLORS _HI_PACKAGES _HI_VIMRC _HI_NVIMRC _HI_NANORC _HI_EMACSRC)
 
 # the overlay basename each of the six resolves to, in the same order
-_HI_OVERLAY_PATH_FILES=(colors packages vim.rc init.lua nano.rc emacs.el)
+_HI_OVERLAY_PATH_FILES=(colors packages vimrc init.lua nanorc init.el)
 
 # an overlay directory holding a copy of all six, so every case below is
 # choosing between two real files rather than between a file and a miss
@@ -379,9 +379,9 @@ function test_the_overlay_beats_the_editors_own_config() {
   local home
   home="$(_hi_editor_home beaten .vimrc .tmux.conf)"
   mkdir -p "$home/.config/say-hi"
-  printf 'set number\n' >"$home/.config/say-hi/vim.rc"
+  printf 'set number\n' >"$home/.config/say-hi/vimrc"
   printf 'set -g mouse on\n' >"$home/.config/say-hi/tmux.conf"
-  _hi_tier_is _HI_VIMRC "$home" "$home/.config/say-hi/vim.rc" &&
+  _hi_tier_is _HI_VIMRC "$home" "$home/.config/say-hi/vimrc" &&
     _hi_tier_is _HI_TMUX_CONF "$home" "$home/.config/say-hi/tmux.conf"
 }
 
@@ -392,10 +392,10 @@ function test_the_overlay_beats_the_editors_own_config() {
 function test_a_target_ignores_its_own_editor_config() {
   local home
   home="$(_hi_editor_home remote .vimrc .config/nvim/init.lua .nanorc .emacs .tmux.conf)"
-  _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/settings/vim.rc" 1 &&
+  _hi_tier_is _HI_VIMRC "$home" "$_HI_ROOT/settings/vimrc" 1 &&
     _hi_tier_is _HI_NVIMRC "$home" "$_HI_ROOT/settings/init.lua" 1 &&
-    _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/settings/nano.rc" 1 &&
-    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/settings/emacs.el" 1 &&
+    _hi_tier_is _HI_NANORC "$home" "$_HI_ROOT/settings/nanorc" 1 &&
+    _hi_tier_is _HI_EMACSRC "$home" "$_HI_ROOT/settings/init.el" 1 &&
     _hi_tier_is _HI_TMUX_CONF "$home" "" 1
 }
 
@@ -414,8 +414,8 @@ function test_the_micro_dir_is_the_overlays_or_empty() {
 function test_a_settings_path_does_not_survive() {
   local dir
   dir="$(_hi_full_overlay_dir)"
-  printf 'export _HI_VIMRC=/dotfiles/hi-vim.rc\n' >"$dir/settings.sh"
-  [ "$(_hi_resolved _HI_VIMRC "$dir")" = "$dir/vim.rc" ]
+  printf 'export _HI_VIMRC=/dotfiles/hi-vimrc\n' >"$dir/settings.sh"
+  [ "$(_hi_resolved _HI_VIMRC "$dir")" = "$dir/vimrc" ]
 }
 
 # with nothing exported, the overlay's copy wins over the tree's, which is the
@@ -460,7 +460,7 @@ function test_a_derived_value_does_not_survive_a_new_config_dir() {
 # only home, so each is an unguarded export instead) and
 # the four additive ones, which each shell or settings/aliases.sh sources by
 # name from $_HI_CONFIG_DIR rather than reaching through a path var:
-# aliases.sh and the three per-shell files (bash.sh, zsh.zsh, config.fish) -
+# aliases.sh and the three per-shell files (bashrc, zshrc, config.fish) -
 # and the prompt frameworks' four, which only a target reads, by name - and
 # micro's, whose micro/ directory paths.sh resolves whole. A
 # missed lookup fails asymmetrically: the file works on targets but local
@@ -476,7 +476,7 @@ function test_overlay_guards_match_the_roster() {
     packages.d | plugins.d | micro/*)
       grep -qF "\"\$_HI_CONFIG_DIR/${f%%/*}\"" "$_HI_ROOT/common/paths.sh" && continue
       ;;
-    bash.sh | zsh.zsh | config.fish | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars) continue ;;
+    bashrc | zshrc | config.fish | p10k.zsh | oh-my-zsh.zsh-theme | oh-my-bash.theme.sh | tide.vars) continue ;;
     esac
     grep -qF "[ -f \"\$_HI_CONFIG_DIR/$f\" ] && export" "$_HI_ROOT/common/paths.sh" || {
       _hi_cecho " | overlay file $f has no overlay lookup in paths.sh" "$RED"

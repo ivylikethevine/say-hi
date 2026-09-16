@@ -1,6 +1,6 @@
 ;; hi's emacs override, kept to the minimum that earns the `-q -l`: emacs's own
 ;; defaults, minus what litters a target you are only visiting. Nothing to
-;; taste lives here - your own $_HI_CONFIG_DIR/emacs.el replaces this file
+;; taste lives here - your own $_HI_CONFIG_DIR/init.el replaces this file
 ;; wholesale. Loaded with `-q`, so ~/.emacs.d/init.el on the target stays out
 ;; of it, and `-l` does not read a lockfile-free init directory either.
 

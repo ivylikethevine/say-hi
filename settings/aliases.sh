@@ -35,7 +35,7 @@ command -v shift >/dev/null 2>&1 &&
 # `-u: command not found` where `vim: command not found` is the answer).
 #
 # vim's, then nvim's over it where there is one, so an nvim box answers to
-# `vim` with the lua rc (settings/vim.rc is vim's; neovim reads
+# `vim` with the lua rc (settings/vimrc is vim's; neovim reads
 # settings/init.lua). `nvim` gets an alias of its own so either name reaches
 # the same override. The presence gates are `command -v` alone, no $( ) fork.
 # _HI_DISABLE_VIM gates both: they are one editor to the toggle.

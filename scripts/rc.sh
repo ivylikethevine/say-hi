@@ -311,8 +311,8 @@ _HI_OVERLAY_CHECKS=(
   "settings.sh|fish --no-execute"
   "aliases.sh|sh -n"
   "aliases.sh|fish --no-execute"
-  "bash.sh|bash -n"
-  "zsh.zsh|zsh -n"
+  "bashrc|bash -n"
+  "zshrc|zsh -n"
   "config.fish|fish --no-execute"
 )
 
