@@ -69,8 +69,8 @@ source "$_hi_d/../common/core.sh"
 # overlay stream a suite builds carries their editor. Pinned *after* the source,
 # since paths.sh re-exports over whatever it was handed. A suite exercising the
 # tier points them somewhere of its own, as tests/common/paths_test.sh does.
-export _HI_VIMRC="$_HI_ROOT/settings/vim.rc" _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
-export _HI_NANORC="$_HI_ROOT/settings/nano.rc" _HI_EMACSRC="$_HI_ROOT/settings/emacs.el" _HI_TMUX_CONF=""
+export _HI_VIMRC="$_HI_ROOT/settings/vimrc" _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
+export _HI_NANORC="$_HI_ROOT/settings/nanorc" _HI_EMACSRC="$_HI_ROOT/settings/init.el" _HI_TMUX_CONF=""
 # the heading rules the harness and the suites print with
 # shellcheck source=../scripts/lib.sh
 source "$_hi_d/../scripts/lib.sh"

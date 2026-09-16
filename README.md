@@ -204,7 +204,7 @@ row, and everything answered **no**, and why:
   for `/usr/bin/hi`, `--link none` for no link — the wired shells alias it
   either way). Then reload your shell.
 - `hi --configure` reopens the settings menu: pick a preset, or flip any
-  setting in its one list — Features, Header, Prompt, Advanced — and save to
+  setting in its one list — Header, Features, Prompt, Advanced — and save to
   `~/.config/say-hi/settings.sh` ([Configuration](#configuration)).
 - `hi --doctor [<target>]` when something is slow or failing (`--json` for a
   bug report); it also reports which rc files are wired and where `hi` on your
@@ -240,7 +240,7 @@ own `~/.vimrc`, `~/.config/nvim/init.lua`, `~/.nanorc`, or `~/.emacs`
 ([why that works](docs/SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)).
 The overlay file table, the settings menu, and every setting are in
 [docs/SETTINGS.md](docs/SETTINGS.md); how a session reaches the target is
-[How it works](docs/SETTINGS.md#how-it-works). The tools hi wires in where a
+[How it works](docs/HOW-IT-WORKS.md). The tools hi wires in where a
 target has them — your prompt program, mise, direnv, bat, eza, and more — are
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
@@ -256,7 +256,7 @@ Every username and hostname gets a color derived from its name; a line in
 `hi --preview colors` shows what every host and your user resolve to. Tags
 (`# Tags:` lines in `~/.ssh/config`, which sshm writes), patterns, truecolor
 schemes of your own, and using the hash in your own prompt:
-[docs/SETTINGS.md](docs/SETTINGS.md#colors).
+[docs/COLORS.md](docs/COLORS.md).
 
 ## Built from/with/in mind
 

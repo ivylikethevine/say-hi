@@ -66,7 +66,7 @@ ships (`docs/` is not in `$_HI_PAYLOAD`).
 - [HI.54 who draws the environment prefix](#hi54-who-draws-the-environment-prefix)
 - [HI.55 re-entrant rc guard](#hi55-re-entrant-rc-guard)
 - [HI.56 listing-only completion symbols](#hi56-listing-only-completion-symbols)
-- [HI.57 editor config resolution](#hi57-editor-config-resolution)
+- [HI.57 carried configs and the include scan](#hi57-carried-configs-and-the-include-scan)
 - [HI.58 overlay directory members](#hi58-overlay-directory-members)
 - [HI.59 plugins](#hi59-plugins)
 
@@ -382,18 +382,27 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 oh-my-posh, powerline-go, powerlevel10k, oh-my-zsh, oh-my-bash, or tide -
 keeping hi's header and aliases. It is a list, each shell taking the first
 entry that fits it and is present; `hi` is hi's own prompt and ends the walk.
-Unset is the whole roster (`common/core.sh`'s `$_HI_PROMPT_TOOLS`, frameworks
-ahead of the programs that fit every shell), so a prompt already in use at
-home is the default rather than something hi draws over; `hi` is the opt-in
-back. A target never looks for itself: `hi.sh`'s `_hi_prompt_list` resolves
-the list on the client - the setting, else what this machine has installed -
-and ships it as a session variable (HI.47), so an unset setting on a target
-is hi's prompt, not whatever the box happens to carry.
+Unset is the whole roster (`common/core.sh`'s `_HI_PROMPT_TABLE`, one row
+per program - the shells it fits, how it is found, the overlay member its
+home config rides as - frameworks ahead of the programs that fit every
+shell; `_hi_prompt_row` answers to a program's name or a member's), so a
+prompt already in use at home is the default rather than something hi draws
+over; `hi` is the opt-in back, and the one entry that unhooks a program the
+rc already started (bash's PROMPT_COMMAND, zsh's precmd_functions, fish's
+right and mode prompts) - an unset list, or one that ran out, leaves that
+program drawing. A target never looks for itself: `hi.sh`'s
+`_hi_prompt_list` resolves the list on the client - the setting, else what
+this machine has installed - and ships it as a session variable (HI.47), so
+an unset setting on a target is hi's prompt, not whatever the box happens to
+carry.
 
 `common/core.sh`'s `_hi_prompt_tool <shell>` is the single predicate:
 starship, oh-my-posh, and powerline-go count where the binary is, and a
 framework through the shell's own `_hi_prompt_fw` - loaded by the rc
-already, or installed where its README puts it and with something to draw.
+already, or, on a target only, installed where its README puts it and with
+home's file to draw. At home the rc is the user's whole answer, so an
+installed-but-unloaded framework (a distro's powerlevel10k package nobody
+adopted) is never started there.
 `common/config.fish` mirrors the rule since fish cannot call it. Each program
 is started the way its README wires it: starship and oh-my-posh by `eval`ing
 `init <shell>`; powerline-go from PROMPT_COMMAND, a precmd, or fish_prompt;
@@ -487,10 +496,10 @@ HI.30. Both stay verbatim above their statement.
 ## HI.35 payload comment and whitespace strip
 
 Every file `hi.sh`'s `$_HI_STRIP_NAMES` matches — the shell files, `*.lua`,
-and data files such as `colors`, `vim.rc`, and `tmux.conf`, whose prose
+and data files such as `colors`, `vimrc`, and `tmux.conf`, whose prose
 headers document the _installed_ copies — is comment-stripped by
 `_hi_strip_awk` on its way into the payload or overlay; about 40% of the
-shipped shell is comment. vim.rc's comment character is `"`, emacs.el's `;`,
+shipped shell is comment. vimrc's comment character is `"`, init.el's `;`,
 and lua's `--`, each its own rule. Lua's `--[[` block form is deliberately
 not one: the strip is line-wise, so a block opener would go and its body stay
 — which is why the shipped `init.lua` uses line comments only.
@@ -1018,7 +1027,7 @@ An rc that leads back into itself recurses until the shell dies. Two shapes
 reach hi. On macOS, `hi --install` adds lines to `~/.bash_profile` that source
 `~/.profile` and `~/.bashrc`, and a `~/.bashrc` that sources
 `~/.bash_profile` back - a common fix under tmux, whose panes are login
-shells - makes the pair ping-pong. And an overlay `bash.sh`, `zsh.zsh`, or
+shells - makes the pair ping-pong. And an overlay `bashrc`, `zshrc`, or
 `config.fish` that sources the user's own rc re-enters hi's, which sources
 the overlay again.
 
@@ -1042,9 +1051,9 @@ space. bash 3.2 has no `$COMP_TYPE`, so its list stays bare. fish and zsh
 carry the symbol in a column of their own (`__hi_targets`' description,
 `_hi`'s `-d` display) and need none of this.
 
-## HI.57 editor config resolution
+## HI.57 carried configs and the include scan
 
-hi carries a `vim.rc`, `init.lua`, `nano.rc`, and `emacs.el` to every target
+hi carries a `vimrc`, `init.lua`, `nanorc`, and `init.el` to every target
 and starts the editor on it (`-u`, `--rcfile`, `-q -l`), so the question is
 which file. `tmux.conf` (`tmux -f`) takes the same three tiers minus a tree
 copy, so with none the value is empty and `tmux` has no alias. micro takes a
@@ -1067,9 +1076,9 @@ target `$HOME` is the _target's_, whose rcs are exactly what the `-u` exists
 to keep out of a visiting session, and the file the client picked is already
 unpacked at `$_HI_CONFIG_DIR`.
 
-Carrying a real config makes a second problem real with it. Every
-`$_HI_LINT_FILES` member - these rcs, the shell overlay files, the prompt
-configs - ships into a `config/` of its own, so a line naming a _path_ - a
+Carrying a real config makes a second problem real with it. Every overlay
+member - these rcs, the shell overlay files, the prompt configs - ships into
+a `config/` of its own, so a line naming a _path_ - a
 second rc beside it, a plugin directory, a manager's bootstrap - names
 something no target has, and the editor or shell fails on it rather than hi.
 `hi.sh`'s `_hi_lint_awk` finds exactly those lines; the per-dialect grammar,
@@ -1079,7 +1088,9 @@ serves both readers: `_hi_stage_tar` runs it in `fix` mode ahead of
 goes out disabled in its own dialect and the strip drops it for free, and
 `hi --doctor` runs it in `report` mode, so its yellow rows name exactly what
 went missing. The dialect comes from the member name passed in, not the path,
-so doctor reads `~/.vimrc` as vim. A line directly under a `hi-allow` comment
+so doctor reads `~/.vimrc` as vim - and a member whose name is no dialect
+(`colors`, a `theme.yml`) passes through untouched, so every member goes in
+and there is no second roster of what has includes. A line directly under a `hi-allow` comment
 in the file's own syntax is neither reported nor touched; `_HI_INCLUDES=keep`
 does the same for every line.
 

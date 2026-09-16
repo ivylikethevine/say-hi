@@ -512,7 +512,7 @@ function test_load_exports_viminit_for_nvim_only_sessions() {
 }
 
 # ...and the other half of the same pin: a vim-only box is what it always was,
-# vim.rc through $VIMINIT and vim.rc in $EDITOR's flags.
+# vimrc through $VIMINIT and vimrc in $EDITOR's flags.
 function test_load_viminit_on_a_vim_only_box_is_vim_rc() {
   local out
   out="$(_hi_load_run 'printf "VIM=%s\n" "${VIMINIT-unset}"; exit 0' \
@@ -718,10 +718,10 @@ EOF
   _hi_check_requires fish "...and a fish one" test_load_greets_the_chosen_shell fish "fish shell! :^)"
   _hi_check "Exports VIMINIT when vim is present" test_load_exports_viminit_for_vim_sessions
   _hi_check "...init.lua's on a box with nvim and no vim" test_load_exports_viminit_for_nvim_only_sessions
-  _hi_check "...and vim.rc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
+  _hi_check "...and vimrc's on a vim-only box" test_load_viminit_on_a_vim_only_box_is_vim_rc
   _hi_check "_HI_DISABLE_EDITORS=1 leaves VIMINIT unset" test_load_editors_toggle_blocks_viminit
   _hi_check "Exports EDITOR/VISUAL/SUDO_EDITOR with hi's flags" _hi_load_editor_is "nvim -u $_HI_NVIMRC|V=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC|S=$_HI_WORKDIR/withnvim/nvim -u $_HI_NVIMRC"
-  _hi_check "...and a vim-only box keeps vim.rc's" _hi_load_editor_on "E=$_HI_WORKDIR/withvimonly/vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
+  _hi_check "...and a vim-only box keeps vimrc's" _hi_load_editor_on "E=$_HI_WORKDIR/withvimonly/vim -u $_HI_VIMRC|" "$(_hi_fake_path withvimonly vim):$(_hi_editorless_path)"
   _hi_check "_HI_EDITOR picks the editor" _hi_load_editor_is "E=nano --rcfile $_HI_NANORC|" _HI_EDITOR=nano
   _hi_check "...and falls back down the ladder when absent" _hi_load_editor_is "nvim -u $_HI_NVIMRC|" _HI_EDITOR=no-such-editor
   _hi_check "...and an overlay _HI_MICRO_OPTS reaches \$EDITOR" _hi_load_editor_is "E=micro --overlay-marker|" _HI_EDITOR=micro _HI_MICRO_OPTS=--overlay-marker

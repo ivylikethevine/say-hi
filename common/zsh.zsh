@@ -28,12 +28,13 @@ _hi_interactive_extras
 _hi_prime_identity
 
 # the frameworks _hi_prompt_tool asks after (GLOSSARY: HI.32): each counts
-# once the rc loaded it, or where it installs - oh-my-zsh only with a theme
-# from home to draw, the overlay's copy on a target. powerlevel10k's config is
-# that copy there, and the one it reads here at home.
-_hi_omz_theme=""
-_hi_p10k_cfg="${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-$HOME}/.p10k.zsh}"
-[[ "$_HI_REMOTE_SESSION" == 1 ]] && _hi_omz_theme="$_HI_CONFIG_DIR/omz-theme.zsh" _hi_p10k_cfg="$_HI_CONFIG_DIR/p10k.zsh"
+# once the rc loaded it, or - on a target only - where it installs, with the
+# file from home to draw: the overlay's theme or p10k config. At home the rc
+# is the user's whole answer, so an installed-but-unloaded framework (a
+# distro's powerlevel10k package nobody adopted) is never started, and the
+# two paths stay empty there. bash.sh's oh-my-bash half is the same shape.
+_hi_omz_theme="" _hi_p10k_cfg=""
+[[ "$_HI_REMOTE_SESSION" == 1 ]] && _hi_omz_theme="$_HI_CONFIG_DIR/oh-my-zsh.zsh-theme" _hi_p10k_cfg="$_HI_CONFIG_DIR/p10k.zsh"
 _hi_p10k_theme() {
   local d
   for d in ~/powerlevel10k "${ZSH_CUSTOM:-${ZSH:-$HOME/.oh-my-zsh}/custom}/themes/powerlevel10k" \
@@ -44,7 +45,7 @@ _hi_p10k_theme() {
 }
 _hi_prompt_fw() {
   case $1 in
-  powerlevel10k) (( $+functions[p10k] )) || _hi_p10k_theme ;;
+  powerlevel10k) (( $+functions[p10k] )) || { [[ -f $_hi_p10k_cfg ]] && _hi_p10k_theme } ;;
   oh-my-zsh) (( $+functions[git_prompt_info] )) || [[ -f $_hi_omz_theme && -f ${ZSH:-$HOME/.oh-my-zsh}/lib/git.zsh ]] ;;
   esac
 }
@@ -60,14 +61,13 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       precmd_functions=(__hi_plgo_precmd "${precmd_functions[@]}")
       ;;
     powerlevel10k)
-      # an rc that loaded it at home sourced its config too
+      # not loaded by the rc (a target, then): the theme, then home's config;
+      # loaded, home's config still goes over the target's own
       if (( ! $+functions[p10k] )); then
         typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
         _hi_p10k_theme && source "$REPLY"
-        [[ -f $_hi_p10k_cfg ]] && source "$_hi_p10k_cfg"
-      elif [[ "$_HI_REMOTE_SESSION" == 1 && -f $_hi_p10k_cfg ]]; then
-        source "$_hi_p10k_cfg"
       fi
+      [[ -f $_hi_p10k_cfg ]] && source "$_hi_p10k_cfg"
       ;;
     oh-my-zsh)
       # not loaded by the rc: only the libraries themes call into - no plugins,
@@ -88,6 +88,13 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     *) eval "$("$_hi_pt" init zsh)" ;;
     esac
   else
+    # `hi` named in the list takes the prompt back from a program the rc
+    # already started: its precmd would redraw over hi's every prompt. Unset,
+    # or a list that ran out, leaves the rc's own choice alone.
+    if _hi_prompt_named_hi; then
+      precmd_functions=(${precmd_functions:#(starship_precmd|_p9k_precmd|_omp_precmd|_omp_hook|__hi_plgo_precmd)})
+      preexec_functions=(${preexec_functions:#(starship_preexec|_p9k_preexec|_omp_preexec)})
+    fi
     # git info through a precmd out-var, never a $( ) in PS1 - the fork-free,
     # pw3nage-safe form bash.sh's ps1() uses
     __hi_git_precmd() { _hi_git_prompt __hi_git_info; }
@@ -246,8 +253,7 @@ _hi_unexport
 # === end required configuration ===
 
 # see common/bash.sh for why the paths are compared before sourcing
-[[ "$_HI_CONFIG_DIR/zsh.zsh" != "$_HI_ROOT/common/zsh.zsh" ]] &&
-  [[ -f "$_HI_CONFIG_DIR/zsh.zsh" ]] && source "$_HI_CONFIG_DIR/zsh.zsh"
+[[ -f "$_HI_CONFIG_DIR/zshrc" ]] && source "$_HI_CONFIG_DIR/zshrc"
 # see common/bash.sh: a local interactive shell greets with hi's header,
 # drawn by bash since header.sh is bash's, handed the session values
 # _hi_unexport kept back (as config.fish's __hi_bash does)

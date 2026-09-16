@@ -659,9 +659,49 @@ function _hi_prompt_end() {
   _hi_out "${2:-}" "$_hi_pe"
 }
 
-# Every prompt program hi hands the prompt to, the frameworks ahead of the
-# programs that fit every shell. config.fish keeps the fish-fitting half.
-_HI_PROMPT_TOOLS="powerlevel10k oh-my-zsh oh-my-bash tide starship oh-my-posh powerline-go"
+# The editors a session's $EDITOR can be, best first: $_HI_EDITOR's pick when
+# the target has it, else the first of these it does (load.sh's
+# _hi_session_editor); scripts/lib.sh's _hi_is_editor validates against it.
+_HI_EDITORS="nvim vim micro nano emacs"
+
+# Every prompt program hi hands the prompt to, one row each:
+# name|shells it fits|how it is found|the overlay member(s) its home config
+# rides as. `bin` is a binary on $PATH; `fw` a framework the shell's own
+# _hi_prompt_fw answers for (tide: fish's autoloaded functions). The order is
+# the unset default's - frameworks ahead of the programs that fit every shell.
+# The one roster: _hi_prompt_tool, hi.sh's _hi_prompt_list and
+# _hi_prompt_home, and the wizard all read it. config.fish keeps the
+# fish-fitting names; rc_test pins that copy to this. GLOSSARY: HI.32
+_HI_PROMPT_TABLE=(
+  'powerlevel10k|zsh|fw|p10k.zsh'
+  'oh-my-zsh|zsh|fw|oh-my-zsh.zsh-theme'
+  'oh-my-bash|bash|fw|oh-my-bash.theme.sh'
+  'tide|fish|fw|tide.vars'
+  'starship|bash zsh fish|bin|starship.toml'
+  'oh-my-posh|bash zsh fish|bin|oh-my-posh.json oh-my-posh.yaml oh-my-posh.toml'
+  'powerline-go|bash zsh fish|bin|'
+)
+_HI_PROMPT_TOOLS=""
+for _hi_pt_row in "${_HI_PROMPT_TABLE[@]}"; do
+  _HI_PROMPT_TOOLS="$_HI_PROMPT_TOOLS${_HI_PROMPT_TOOLS:+ }${_hi_pt_row%%|*}"
+done
+unset _hi_pt_row
+
+# _hi_prompt_row <program|member> [outvar] - the _HI_PROMPT_TABLE row naming
+# that program, or the one whose members include that overlay file; 1 when
+# none does. Fields come off it with ${row%%|*} and the like.
+function _hi_prompt_row() {
+  local _hi_pr
+  for _hi_pr in "${_HI_PROMPT_TABLE[@]}"; do
+    case "|${_hi_pr%%|*}| ${_hi_pr##*|} " in
+    *"|$1|"* | *" $1 "*)
+      _hi_out "${2:-}" "$_hi_pr"
+      return 0
+      ;;
+    esac
+  done
+  return 1
+}
 
 # _hi_prompt_tool <bash|zsh> [outvar] - the first of $_HI_PROMPT_TOOL's prompt
 # programs that fits this shell and is here, to hand the prompt to while hi
@@ -670,17 +710,28 @@ _HI_PROMPT_TOOLS="powerlevel10k oh-my-zsh oh-my-bash tide starship oh-my-posh po
 # target is handed home's answer (hi.sh's _hi_prompt_list), never its own.
 # A framework's presence is the shell's own _hi_prompt_fw. GLOSSARY: HI.32
 function _hi_prompt_tool() {
-  local _hi_ptt _hi_ptl="${_HI_PROMPT_TOOL:-} "
+  local _hi_ptt _hi_ptr _hi_pts _hi_ptl="${_HI_PROMPT_TOOL:-} "
   [ "$_hi_ptl" != " " ] || [ "$_HI_REMOTE_SESSION" = 1 ] || _hi_ptl="$_HI_PROMPT_TOOLS "
   while [ -n "$_hi_ptl" ]; do
     _hi_ptt="${_hi_ptl%% *}" _hi_ptl="${_hi_ptl#* }"
-    case "$_hi_ptt:$1" in
-    hi:*) return 1 ;;
-    starship:* | oh-my-posh:* | powerline-go:*) command -v "$_hi_ptt" >/dev/null 2>&1 ;;
-    powerlevel10k:zsh | oh-my-zsh:zsh | oh-my-bash:bash) _hi_prompt_fw "$_hi_ptt" ;;
-    *) false ;;
+    [ "$_hi_ptt" != hi ] || return 1
+    _hi_prompt_row "$_hi_ptt" _hi_ptr || continue
+    _hi_pts="${_hi_ptr#*|}"
+    case " ${_hi_pts%%|*} " in *" $1 "*) ;; *) continue ;; esac
+    _hi_pts="${_hi_pts#*|}"
+    case "${_hi_pts%%|*}" in
+    bin) command -v "$_hi_ptt" >/dev/null 2>&1 ;;
+    *) _hi_prompt_fw "$_hi_ptt" ;;
     esac && _hi_out "${2:-}" "$_hi_ptt" && return 0
   done
+  return 1
+}
+
+# _hi_prompt_named_hi - is `hi` itself in $_HI_PROMPT_TOOL: the opt-in that
+# takes the prompt back from a program the rc already started, where an
+# unset list, or one that merely ran out, leaves that program's hooks alone
+function _hi_prompt_named_hi() {
+  case " ${_HI_PROMPT_TOOL:-} " in *" hi "*) return 0 ;; esac
   return 1
 }
 

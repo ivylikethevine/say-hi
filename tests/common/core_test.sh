@@ -1035,6 +1035,29 @@ function test_prompt_tool_needs_setting_program_and_shell() {
   )
 }
 
+# _HI_PROMPT_TABLE is the one roster: a row answers to its program and to
+# each overlay member it names, _HI_PROMPT_TOOLS is its first column in
+# order, and config.fish's hand copy of the fish-fitting names matches it
+function test_prompt_table_is_the_one_roster() {
+  local row="" tools="" fish_have fish_want="" r
+  _hi_prompt_row oh-my-posh row && [ "${row%%|*}" = oh-my-posh ] || return 1
+  _hi_prompt_row oh-my-posh.yaml row && [ "${row%%|*}" = oh-my-posh ] || return 1
+  _hi_prompt_row p10k.zsh row && [ "${row%%|*}" = powerlevel10k ] || return 1
+  ! _hi_prompt_row powerline row 2>/dev/null || return 1
+  ! _hi_prompt_row zsh row 2>/dev/null || return 1
+  for r in "${_HI_PROMPT_TABLE[@]}"; do
+    tools="$tools${tools:+ }${r%%|*}"
+    case "$r" in *'|'*fish*'|'*) fish_want="$fish_want${fish_want:+ }${r%%|*}" ;; esac
+  done
+  # shellcheck disable=SC2153 # core.sh's derived roster, not a typo of the setting
+  [ "$tools" = "$_HI_PROMPT_TOOLS" ] || return 1
+  fish_have="$(sed -n 's/.*; and set _hi_tools \(.*\)$/\1/p' "$_HI_ROOT/common/config.fish")"
+  [ "$fish_have" = "$fish_want" ] || {
+    _hi_cecho " | config.fish: [$fish_have]  core.sh: [$fish_want]" "$RED"
+    return 1
+  }
+}
+
 function test_colors_lookup_verdicts() {
   local colors="$_HI_WORKDIR/colors.lookup"
   printf 'username,alice,red\nhostname,box,blue\n' >"$colors"
@@ -1255,6 +1278,7 @@ function run_core_tests() {
   _hi_check "Local identity prefers the shipped verdict" test_local_identity_prefers_the_shipped_verdict
   _hi_check "_hi_ascii_flag ships the client's verdict" test_ascii_flag_ships_the_verdict
   _hi_check "_hi_prompt_tool needs the setting, the program, and its shell" test_prompt_tool_needs_setting_program_and_shell
+  _hi_check "the prompt table is the one roster, fish's copy included" test_prompt_table_is_the_one_roster
 
   _hi_h2 "Testing: the colors file readers and the identity memos"
   _hi_check "_hi_colors_lookup's three verdicts" test_colors_lookup_verdicts

@@ -196,12 +196,14 @@ interfaces a 1.x release keeps, and a change to any of them is a 2.0.
   together, or "all of the above" quietly stops meaning all of them.
 - **The overlay** — `$_HI_OVERLAY_FILES` (`settings.sh`, `colors`, `packages`,
   `packages.d/` and its `color=` line, `plugins.d/` and its hook names,
-  `vim.rc`, `init.lua`, `nano.rc`, `emacs.el`, `tmux.conf`, `micro/`'s
-  `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`, the per-shell rc
-  files, `oh-my-posh.json`/`.yaml`/`.toml`, and the names starship's,
-  powerlevel10k's, oh-my-zsh's, oh-my-bash's, tide's, eza's, and bat's own
-  configs travel under), their formats, the XDG path, and the `_HI_CONFIG_DIR`
-  override.
+  `vimrc`, `init.lua`, `nanorc`, `init.el`, `tmux.conf`, `micro/`'s
+  `settings.json`/`bindings.json`/`init.lua`, `aliases.sh`, `bashrc`,
+  `zshrc`, `config.fish`, `oh-my-posh.json`/`.yaml`/`.toml`, `starship.toml`,
+  `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `tide.vars`,
+  `theme.yml`, and `bat.conf`), their formats, the XDG path, and the
+  `_HI_CONFIG_DIR` override. The rule behind the names: a member is called
+  what its tool calls the file where the tool has a fixed name, and carries
+  the tool's name and extension where it has none.
 - **The installed layout** — `$_HI_HOME/say-hi` and
   `/etc/profile.d/say-hi.sh` for packages, the rc lines `install.sh` writes,
   and `_HI_RELEASE` as the version stamp `packaging/stamp.sh` fills.

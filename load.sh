@@ -261,7 +261,7 @@ function _hi_session_editor() {
   local e body
   # shellcheck source=./settings/aliases.sh
   source "$_HI_ALIASES" >/dev/null 2>&1
-  for e in ${_HI_EDITOR:-} nvim vim micro nano emacs; do
+  for e in ${_HI_EDITOR:-} $_HI_EDITORS; do
     type -P "$e" &>/dev/null || continue
     body="$(alias "$e" 2>/dev/null)"
     body="${body#alias "$e"=\'}"

@@ -398,6 +398,13 @@ function doctor_config() {
   if [ -n "${_HI_PACKAGES_PALETTE:-}" ] && ! _hi_ramp_ok "$_HI_PACKAGES_PALETTE"; then
     doctor_row pkg-palette "'$_HI_PACKAGES_PALETTE' is ignored - not eight color names" bad
   fi
+  doctor_settings_values
+  # a file still under a name hi stopped reading before 1.0: nothing else
+  # would say why the override stopped applying
+  for t in $_HI_OVERLAY_RENAMES; do
+    [ -e "$_HI_CONFIG_DIR/${t%%:*}" ] || continue
+    doctor_row "${t%%:*}" "an old name hi no longer reads - it is ${t#*:} now: mv $_HI_CONFIG_DIR/${t%%:*} $_HI_CONFIG_DIR/${t#*:}" bad
+  done
   # every overlay file hi ships (hi.sh's _HI_OVERLAY_FILES is the contract),
   # minus settings.sh, which got its richer parse-checked row above
   for f in "${_HI_OVERLAY_FILES[@]}"; do
@@ -412,11 +419,8 @@ function doctor_config() {
     }
     t=""
     _hi_overlay_src "$f" t || true
-    # a prompt framework's, tmux's, or micro's member has no tree default to report
-    case "$f" in oh-my-posh.* | p10k.zsh | omz-theme.zsh | omb-theme.sh | tide.vars | tmux.conf | micro/*)
-      [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || continue
-      ;;
-    esac
+    # a member with no tree default has nothing to report until it exists
+    [ -n "$t" ] || [ -f "$_HI_CONFIG_DIR/$f" ] || [ -f "$_HI_ROOT/settings/$f" ] || continue
     if [ -f "$_HI_CONFIG_DIR/$f" ] && [ "$t" != "$_HI_CONFIG_DIR/$f" ]; then
       # a prompt program's copy with the program out of the list, or an
       # oh-my-posh format another overlay copy already stands in for
@@ -457,14 +461,47 @@ function doctor_config() {
     tr -d = | sort -u | tr '\n' ' ')" || true
   [ -z "$late" ] ||
     doctor_row alias-vars "aliases.sh sets ${late% } - hi's aliases are built before it loads, so it does nothing; move it to settings.sh" bad
-  # only the non-default settings: a default setup stays one quiet line
+  # only the non-default settings: a default setup stays one quiet line.
+  # Under _HI_DISABLE_LOCAL=1 paths.sh's gate has set every other toggle
+  # here, so those read as one row and only a toggle settings.sh sets on its
+  # own is a row of its own.
+  local gate=0
+  [ "${_HI_DISABLE_LOCAL:-0}" = 1 ] && [ "$_HI_REMOTE_SESSION" != 1 ] && gate=1
   for t in "${_HI_TOGGLES[@]}"; do
     eval "v=\${$t:-0}"
     [ "$v" = 0 ] && continue
+    if [ "$gate" = 1 ] && [ "$t" != _HI_DISABLE_LOCAL ]; then
+      { _hi_setting_get "$_HI_SETTINGS" "$t" v && [ "$v" != 0 ]; } || continue
+    fi
+    [ "$t" = _HI_DISABLE_LOCAL ] && [ "$gate" = 1 ] && v="1 (every feature off on this machine; targets keep theirs)"
     doctor_row toggle "$t=$v" warn
     any=1
   done
   [ "$any" = 1 ] || doctor_row toggles "all defaults (every feature on, nothing written to targets)"
+}
+
+# doctor_settings_values - a hand-written settings.sh line the code would
+# silently fall back from: each value against scripts/lib.sh's predicate, the
+# ones the wizard takes an answer by. settings.sh is already sourced, so the
+# exported values are the ones to judge; unset is the default and no row.
+function doctor_settings_values() {
+  local spec name pred why v
+  for spec in \
+    "_HI_MAX_WIDTH|_hi_is_width|a number, 40 or more" \
+    "_HI_PACKAGES_MIN_PRIORITY|_hi_is_priority|0 to 3, or 4 for no check" \
+    "_HI_IP_HIDE|_hi_is_ip_hide|none, or globs like 172.* 10.0.*" \
+    "_HI_HEADER_ORDER|_hi_is_header_order|words from $_HI_HEADER_ORDER_DEFAULT" \
+    "_HI_PROMPT_TOOL|_hi_is_prompt_list|hi, or any of $_HI_PROMPT_TOOLS" \
+    "_HI_EDITOR|_hi_is_editor|one of $_HI_EDITORS" \
+    "_HI_TRUECOLOR|_hi_is_flag|1, 0, or unset for the terminal's own verdict" \
+    "_HI_MUX|_hi_is_flag|1 or 0" \
+    "_HI_INCLUDES|_hi_is_includes|drop or keep"; do
+    name="${spec%%|*}" pred="${spec#*|}"
+    why="${pred#*|}" pred="${pred%%|*}"
+    eval "v=\${$name:-}"
+    [ -n "$v" ] || continue
+    "$pred" "$v" || doctor_row "$name" "'$v' is ignored - $why" bad
+  done
 }
 
 # The backend roster both halves of this report walk is hi.sh's _HI_BACKENDS

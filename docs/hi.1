@@ -299,9 +299,10 @@ rc backups stay.
 .TP
 .B \-\-configure \fR[\fB\-\-preset\fR \fIname\fR] [\fB\-\-dry\-run\fR]
 edit the settings alone, leaving the rc wiring and the link be: a numbered
-menu under a live preview of the header and prompt, grouped as Features,
-Header (its items to toggle and reorder, header presets, width, package check
-depth, hidden addresses), Prompt, and Advanced.
+menu under a live preview of the header and prompt, grouped as Header (its
+items to toggle and reorder, header presets, width, package check depth,
+hidden addresses, right under the header they change), Features, Prompt, and
+Advanced.
 .B p
 picks a preset
 .RB ( everything ,
@@ -455,7 +456,7 @@ in name order, in the color its
 .B color=
 line names.
 .TP
-.B ~/.config/say-hi/vim.rc, init.lua, nano.rc, emacs.el
+.B ~/.config/say-hi/vimrc, init.lua, nanorc, init.el
 replacements for vim's, neovim's, nano's, and emacs's configs, used whole.
 Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
@@ -501,7 +502,7 @@ plugin's
 .B _HI_SEGMENT
 command is drawn in the prompt.
 .TP
-.B ~/.config/say-hi/bash.sh, zsh.zsh, config.fish
+.B ~/.config/say-hi/bashrc, zshrc, config.fish
 your per\-shell preferences, sourced after hi's own so yours win.
 .TP
 .B ~/.config/say-hi/oh-my-posh.json, oh-my-posh.yaml, oh-my-posh.toml
@@ -540,8 +541,8 @@ name, and tide's
 .B tide_*
 universal variables, carried as
 .BR p10k.zsh ,
-.BR omz-theme.zsh ,
-.BR omb-theme.sh ,
+.BR oh-my-zsh.zsh-theme ,
+.BR oh-my-bash.theme.sh ,
 and
 .BR tide.vars ,
 each replaced by a copy of that name in

@@ -152,6 +152,59 @@ function _hi_color_escape() {
   _hi_out "${2:-}" "$_hi_ce"
 }
 
+# What a settings.sh value may be, one predicate per shape. The wizard takes
+# an answer by these (scripts/configure.sh), and doctor_config judges a
+# hand-written line by the same ones, so a value the menu would refuse is
+# named rather than silently falling back to the default.
+function _hi_is_number() { [[ "$1" =~ ^[0-9]+$ ]]; }
+# a header width: 40 columns is the narrowest the banner and rows draw in
+function _hi_is_width() { _hi_is_number "$1" && [ "$1" -ge 40 ]; }
+# the package check's floor: a priority, or 4 for off
+function _hi_is_priority() { _hi_is_number "$1" && [ "$1" -le 4 ]; }
+# a 0/1 switch (_HI_MUX, _HI_TRUECOLOR, the toggles)
+function _hi_is_flag() { [ "$1" = 0 ] || [ "$1" = 1 ]; }
+# _HI_INCLUDES's two words
+function _hi_is_includes() { [ "$1" = drop ] || [ "$1" = keep ]; }
+# one of core.sh's $_HI_EDITORS
+function _hi_is_editor() {
+  case " $_HI_EDITORS " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# $_HI_IP_HIDE's vocabulary: the word `none`, or space-separated globs over
+# dotted-quad addresses - digits, dots, `*`, and `?` - nothing else, so a
+# stray quote or a shell metacharacter can't be written into settings.sh
+function _hi_is_ip_hide() {
+  case "$1" in
+  none) return 0 ;;
+  '' | *[!0-9.*?\ ]*) return 1 ;;
+  esac
+}
+
+# _hi_is_header_order <words> - every word of the value one of $_HI_HEADER_ORDER's
+# vocabulary, read off header.sh's own $_HI_HEADER_ORDER_DEFAULT (the caller
+# has header.sh loaded) rather than a second copy of the list
+function _hi_is_header_order() {
+  local _hi_ho_w
+  [ -n "$1" ] || return 1
+  # shellcheck disable=SC2086 # the value is a space-separated word list
+  for _hi_ho_w in $1; do
+    case " $_HI_HEADER_ORDER_DEFAULT " in *" $_hi_ho_w "*) ;; *) return 1 ;; esac
+  done
+  return 0
+}
+
+# _hi_is_prompt_list <words> - every word of the value a program of core.sh's
+# _HI_PROMPT_TABLE, or `hi`
+function _hi_is_prompt_list() {
+  local _hi_pl_w
+  # shellcheck disable=SC2086 # the value is a space-separated word list
+  for _hi_pl_w in $1; do
+    [ "$_hi_pl_w" = hi ] || _hi_prompt_row "$_hi_pl_w" >/dev/null || return 1
+  done
+  return 0
+}
+
 # The scheme helpers only the tooling reads (GLOSSARY: HI.50): core.sh
 # answers "what does slot n render as", these answer "what is the setting".
 # _hi_scheme_ok <value> - 24/48 hex words, the only shape there is

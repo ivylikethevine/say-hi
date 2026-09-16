@@ -9,6 +9,7 @@ home, the doc named for it below, and every other page links there.
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | [Settings](SETTINGS.md)                                                      | The wizard, presets, and the config overlay: every toggle and environment variable hi reads.                       |
 | [Integrations](INTEGRATIONS.md)                                              | The tools hi wires in where a target has them: your prompt program, mise, direnv, bat, eza, tmux, and the rest.    |
+| [Colors](COLORS.md)                                                          | The per-host hash, the pins, the 24-bit scheme, and the package check's ramp and groups.                           |
 | [Compatibility](COMPATIBILITY.md)                                            | Every target, OS, and shell hi answers to, and every runtime, shell, and feature answered **no**, and why.         |
 | [Packaging](PACKAGING.md)                                                    | The install channels, verifying a release download, and what a package leaves for you to do.                       |
 | [Getting help](SUPPORT.md)                                                   | Where to ask a question or file a bug, what to include, and what response to expect.                               |
@@ -18,18 +19,19 @@ home, the doc named for it below, and every other page links there.
 
 ## Understanding it
 
-| Doc                                      | Covers                                                                                                                                                                                 |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [How it works](SETTINGS.md#how-it-works) | The architecture: client to transport to target session, how the payload is built and armored, and cleanup. [What runs where](SECURITY.md#what-runs-where) is the trust-boundary view. |
-| [Files](FILES.md)                        | Every file say-hi is made of, reads, recognizes, and creates: on your machine, on a target, and in a package. Where state lives.                                                       |
-| [Alternatives](ALTERNATIVES.md)          | sshrc, xxh, kyrat, sshdot, and homeshick side by side, and the adjacent tools hi composes with.                                                                                        |
-| [Glossary](GLOSSARY.md)                  | The named idioms the code's `GLOSSARY:` tags point at; drift-checked by the lint suite. Never ships.                                                                                   |
+| Doc                             | Covers                                                                                                                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [How it works](HOW-IT-WORKS.md) | The architecture: client to transport to target session, how the payload is built and armored, and cleanup. [What runs where](SECURITY.md#what-runs-where) is the trust-boundary view. |
+| [Files](FILES.md)               | Every file say-hi is made of, reads, recognizes, and creates: on your machine, on a target, and in a package. Where state lives.                                                       |
+| [Alternatives](ALTERNATIVES.md) | sshrc, xxh, kyrat, sshdot, and homeshick side by side, and the adjacent tools hi composes with.                                                                                        |
+| [Glossary](GLOSSARY.md)         | The named idioms the code's `GLOSSARY:` tags point at; drift-checked by the lint suite. Never ships.                                                                                   |
 
 ## Changing it
 
 | Doc                                             | Covers                                                                                                                                               |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Contributing](CONTRIBUTING.md)                 | The gate, what CI runs, what a review bounces on, what 1.x will not break, which docs change with what, AI-assisted contributions, push protection.  |
+| [Roadmap](ROADMAP.md)                           | The settings, overlay, and prompt-program pass before 1.0: every item landed, and the changes turned down in it, with the reasons.                   |
 | [Testing](TESTING.md)                           | The runner, suite groups, parallel cases, coverage, the test images, the lint gate, test levers, relaying.                                           |
 | [Releasing](RELEASING.md)                       | The maintainer's runbook: channels not shipped, cutting a release, the release environment, publishing each channel, reproducibility, the demo GIFs. |
 | [Governance](GOVERNANCE.md)                     | Who decides, the roles, how a change gets in, contributor certification, sensitive access, and continuity.                                           |
