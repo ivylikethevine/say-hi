@@ -180,7 +180,7 @@ function test_config_hi_no_link_skips_the_symlink() {
   local link="$_HI_WORKDIR/no-link-link"
   (
     _HI_LINK="$link"
-    _HI_NO_LINK=1
+    _HI_LINK_MODE=none
     config_hi
   ) | grep -q "leaving $link alone"
   [ ! -e "$link" ]

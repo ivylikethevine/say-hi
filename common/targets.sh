@@ -275,22 +275,16 @@ emit_targets() {
 # and finch are unverified, and a template one of them rejects would empty its
 # lane.
 list_ps() {
-  if [ "$1" = docker ] || [ "$1" = podman ]; then
-    run_backend "$1" ps --format '{{.Names}} {{.Label "com.docker.compose.service"}}' 2>/dev/null |
-      while read -r _hi_name _hi_svc || [ -n "$_hi_name" ]; do
-        [ -n "$_hi_name" ] || continue
-        printf '%s\t%s\n' "$_hi_name" "$1"
-        # only when it differs, or a container_name equal to the service name
-        # would complete twice
-        [ -n "$_hi_svc" ] && [ "$_hi_svc" != "$_hi_name" ] && printf '%s\t%s\n' "$_hi_svc" "$1"
-      done
-  else
-    run_backend "$1" ps --format '{{.Names}}' 2>/dev/null |
-      while IFS= read -r _hi_name || [ -n "$_hi_name" ]; do
-        [ -n "$_hi_name" ] || continue
-        printf '%s\t%s\n' "$_hi_name" "$1"
-      done
-  fi
+  _hi_fmt='{{.Names}}'
+  case "$1" in docker | podman) _hi_fmt='{{.Names}} {{.Label "com.docker.compose.service"}}' ;; esac
+  run_backend "$1" ps --format "$_hi_fmt" 2>/dev/null |
+    while read -r _hi_name _hi_svc || [ -n "$_hi_name" ]; do
+      [ -n "$_hi_name" ] || continue
+      printf '%s\t%s\n' "$_hi_name" "$1"
+      # only when it differs, or a container_name equal to the service name
+      # would complete twice
+      [ -n "$_hi_svc" ] && [ "$_hi_svc" != "$_hi_name" ] && printf '%s\t%s\n' "$_hi_svc" "$1"
+    done
 }
 
 # nomad_allocs <job> - the running allocations of one job plus their task

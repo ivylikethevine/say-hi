@@ -328,8 +328,7 @@ function _hi_run_scenario() {
     _hi_align "  [$shell] -- $label" "OK ($(_hi_elapsed "$t0" "$t1")s)" "$GREEN"
   else
     t1="$(_hi_now)"
-    _hi_h3 "[$shell] -- $label: FAILED ($(_hi_elapsed "$t0" "$t1")s)" "$RED"
-    sed 's/^/      /' "$_HI_WORKDIR/err"
+    _hi_dump_log "[$shell] -- $label: FAILED ($(_hi_elapsed "$t0" "$t1")s)" "$_HI_WORKDIR/err"
     return 1
   fi
 }

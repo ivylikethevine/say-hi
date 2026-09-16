@@ -30,7 +30,14 @@ _hi_git_prompt() {
   # `exec`, because the 2>/dev/null defeats bash's "last command in the
   # subshell runs in place" optimisation and this would otherwise cost two
   # processes per prompt draw rather than one
-  git_dir=$(LC_ALL=C exec git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
+  # the walk found the ordinary case, a .git directory: that is rev-parse's
+  # answer, so no fork for it; a .git *file* (worktree, submodule), a bare
+  # repo, or $GIT_DIR still asks git
+  if [[ -z "${GIT_DIR:-}" && -d "$up/.git" && -f "$up/.git/HEAD" ]]; then
+    git_dir="$up/.git"
+  else
+    git_dir=$(LC_ALL=C exec git --no-optional-locks rev-parse --git-dir 2>/dev/null) || return
+  fi
 
   local ahead=0 behind=0 staged=0 dirty=0 invalid=0 untracked=0 line
   while IFS= read -r line; do

@@ -1246,17 +1246,14 @@ function run_configure() {
   configure_intro
   if [ -n "$preset" ]; then
     apply_preset "$preset" || return 1
-  fi
-  if [ -z "$preset" ]; then
-    if [ -t 0 ]; then
-      config_hub
-    elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then
-      # the menu is this run's whole job, and there is nobody to answer it
-      _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
-      return 1
-    else
-      _hi_cecho " no terminal for the settings menu - the defaults apply; hi --configure at a terminal, or --preset <name>, sets them" "$YELLOW"
-    fi
+  elif [ -t 0 ]; then
+    config_hub
+  elif [ -n "${_HI_FEATURES_ONLY:-}" ]; then
+    # the menu is this run's whole job, and there is nobody to answer it
+    _hi_cecho " ${_HI_ME:-hi --configure}: no terminal for the menu - --preset <name> answers it without one (one of: $(preset_names))" "$RED" >&2
+    return 1
+  else
+    _hi_cecho " no terminal for the settings menu - the defaults apply; hi --configure at a terminal, or --preset <name>, sets them" "$YELLOW"
   fi
   if [ -n "$_HI_CONFIGURE_QUIT" ]; then
     _hi_cecho " nothing written - $_HI_SETTINGS is as it was" "$GREEN"

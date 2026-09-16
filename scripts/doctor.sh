@@ -140,14 +140,12 @@ while [ $# -gt 0 ]; do
     _HI_DOC_SSHARGS+=("$_hi_arg")
     ;;
   --*)
-    _hi_cecho "$_HI_ME: unknown option $_hi_arg (--json, --use <backend>, ssh options, a target)" "$RED" >&2
-    exit 1
+    _hi_die "unknown option $_hi_arg (--json, --use <backend>, ssh options, a target)"
     ;;
   -*)
     if _hi_is_ssh_value_opt "$_hi_arg"; then
       [ $# -ge 2 ] || {
-        _hi_cecho "$_HI_ME: $_hi_arg needs a value" "$RED" >&2
-        exit 1
+        _hi_die "$_hi_arg needs a value"
       }
       _HI_DOC_SSHARGS+=("$_hi_arg" "$2")
       shift
@@ -159,8 +157,7 @@ while [ $# -gt 0 ]; do
     ;;
   *)
     [ -z "$_HI_DOC_TARGET" ] || {
-      _hi_cecho "$_HI_ME: one target at a time ($_HI_DOC_TARGET and $_hi_arg)" "$RED" >&2
-      exit 1
+      _hi_die "one target at a time ($_HI_DOC_TARGET and $_hi_arg)"
     }
     _HI_DOC_TARGET="$_hi_arg"
     ;;

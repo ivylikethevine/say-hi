@@ -1,13 +1,61 @@
 # Roadmap: settings and overlay before 1.0
 
-The pre-launch cleanup of the settings surface, the config overlay, and the
+The pre-launch pass over the settings surface, the config overlay, and the
 prompt-program support, from a full read of the code and docs on 2026-09-15.
-Like [README's Roadmap](../README.md#roadmap), this was a to-do list, and
-every item on it has landed and been deleted. What stays is the other half
-of the record: the changes that were proposed in the same pass and turned
-down, with the reason, so the next reader does not propose them again.
+Like [README's Roadmap](../README.md#roadmap), _Open_ is a to-do list: an
+item is **deleted** once its **Ticks when** holds, and the section goes with
+its last item. _Decided against_ is the other half of the record - what the
+same pass proposed and turned down, with the reason, so the next reader does
+not propose it again.
+
+## Contents
+
+- [Open](#open)
+- [Decided against](#decided-against)
+
+## Open
+
+Highest first. The first two gate the tag; the rest do not.
+
+1. [ ] **The member rename needs its release note.** Seven overlay files
+       are read under new names (`vimrc`, `nanorc`, `init.el`, `bashrc`,
+       `zshrc`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`); an existing
+       overlay's copies under the old names stop applying, and only
+       `hi --doctor` says so. **Do:** the pull request carrying this branch
+       writes that in its `## Release note` section, `mv` included, so the
+       release page carries it. **Ticks when** the PR is merged with it.
+2. [ ] **`_HI_PROMPT_TOOL=hi` is tested against stub hooks, not real ones.**
+       `common/bash.sh` and `common/zsh.zsh` unhook `starship_precmd`,
+       `_p9k_precmd`, and oh-my-posh's hooks by name; `tests/common/rc_test.sh`
+       proves the mechanism with functions of the same name. **Do:** a
+       `prompt:hi` row in `tests/targets/framework_test.sh` - the starship
+       and p10k images, connected with `_HI_PROMPT_TOOL=hi`, asserting hi's
+       prompt drew. **Ticks when** both cases are green in `--group backends`.
+3. [ ] **The ssh suite's `starved` case fails on this machine.** "could not
+       shape the target", before and after this pass, so it is the container
+       shaping and not hi. **Do:** find whether it is a local docker limit
+       (cgroup or memory shaping the case asks for) or a real regression, and
+       either fix the case's setup or record the host requirement in
+       `docs/TESTING.md`. **Ticks when** `--group e2e` is green here, or the
+       skip is explicit.
+4. [ ] **A stale `~/.p10k.zsh` still ships powerlevel10k first.** The client
+       counts powerlevel10k as in use when its config file exists; beside a
+       `ZSH_THEME=robbyrussell` that means a target with system p10k draws
+       p10k over the theme in use. Reading the rc for `powerlevel10k` would
+       fix that and miss a config that loads it from a sourced file. **Do:**
+       decide which failure is cheaper, and if the rc read, wire it into
+       `hi.sh`'s `_hi_prompt_list` with a `_hi_rc_last_match`. **Ticks when**
+       `INTEGRATIONS.md`'s _counts as installed here_ column says the rule.
 
 ## Decided against
+
+- **A three-way "prompt: auto / hi / off" menu item.** It needs a cycling
+  item kind the wizard does not have; moving `_HI_DISABLE_PROMPT` under the
+  _Prompt_ heading beside the `hi` toggle, with the toggle saying when it is
+  moot, gets the pair read as one decision without new machinery.
+- **Renaming a user's overlay files for them in `hi --update`.** hi has
+  never written into `~/.config/say-hi/` but `settings.sh`; the doctor row
+  prints the exact `mv`, which is the same outcome with no new write.
 
 - **Trimming `hi.1`'s copies of what SETTINGS.md says.** `man hi` has to
   stand alone; only `FILES.md` and `INTEGRATIONS.md` point instead of repeat.

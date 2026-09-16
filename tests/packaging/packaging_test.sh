@@ -279,7 +279,7 @@ function test_git_pkgbuild_provides_and_conflicts() {
 
 function test_pkgbuild_and_formula_agree_on_the_version() {
   local pkgver
-  pkgver="$(sed -n 's/^pkgver=//p' "$_HI_PKGBUILD" | head -1)"
+  pkgver="$(_hi_in_pkglib pkgbuild_version)"
   [ -n "$pkgver" ] &&
     grep -qF "/releases/download/v$pkgver/say-hi-$pkgver.tar.gz" "$_HI_FORMULA"
 }
@@ -334,7 +334,7 @@ function test_committed_manifests_are_templates() {
 
 function test_srcinfo_agrees_with_its_pkgbuild() {
   local pkgver
-  pkgver="$(sed -n 's/^pkgver=//p' "$_HI_PKGBUILD" | head -1)"
+  pkgver="$(_hi_in_pkglib pkgbuild_version)"
   grep -qF "pkgver = $pkgver" "$_HI_PKG_DIR/aur/say-hi/.SRCINFO"
 }
 
@@ -1137,7 +1137,7 @@ function test_release_workflow_reads_the_artifact_list() {
 # the version of record has to exist where mkpkg.sh reads it back from;
 # the actual plumbing is covered by test_package_sh_version_flag_wins
 function test_package_sh_reads_the_version_from_the_pkgbuild() {
-  [ -n "$(sed -n 's/^pkgver=//p' "$_HI_PKGBUILD" | head -1)" ]
+  [ -n "$(_hi_in_pkglib pkgbuild_version)" ]
 }
 
 function test_bump_check_rejects_a_version_the_manifests_do_not_carry() {

@@ -31,7 +31,7 @@ home, the doc named for it below, and every other page links there.
 | Doc                                             | Covers                                                                                                                                               |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Contributing](CONTRIBUTING.md)                 | The gate, what CI runs, what a review bounces on, what 1.x will not break, which docs change with what, AI-assisted contributions, push protection.  |
-| [Roadmap](ROADMAP.md)                           | The settings, overlay, and prompt-program pass before 1.0: every item landed, and the changes turned down in it, with the reasons.                   |
+| [Roadmap](ROADMAP.md)                           | The settings, overlay, and prompt-program pass before 1.0: what is still open, and the changes turned down in it, with the reasons.                  |
 | [Testing](TESTING.md)                           | The runner, suite groups, parallel cases, coverage, the test images, the lint gate, test levers, relaying.                                           |
 | [Releasing](RELEASING.md)                       | The maintainer's runbook: channels not shipped, cutting a release, the release environment, publishing each channel, reproducibility, the demo GIFs. |
 | [Governance](GOVERNANCE.md)                     | Who decides, the roles, how a change gets in, contributor certification, sensitive access, and continuity.                                           |

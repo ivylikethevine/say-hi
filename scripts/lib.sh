@@ -13,10 +13,9 @@
 # (--x=y) or as the next argument (--x y): status 2 when it took <next> and
 # the caller must shift again, 1 for a bare flag with nothing after it.
 # hi.sh has its own copy of this, since it ships in the ssh payload and
-# cannot depend on a file outside common/ - two copies of six lines rather
+# cannot depend on a file outside common/ - two copies of five lines rather
 # than a payload file reaching into scripts/.
 function _hi_flag_word() {
-  printf -v "$1" '%s' ''
   case "$2" in
   *=*) printf -v "$1" '%s' "${2#*=}" ;;
   *)
@@ -27,21 +26,25 @@ function _hi_flag_word() {
   esac
 }
 
+# _hi_die <msg> - "$_HI_ME: <msg>" in red on stderr, then exit 1: every
+# refusal a script makes before it does anything.
+function _hi_die() {
+  _hi_cecho "$_HI_ME: $1" "$RED" >&2
+  exit 1
+}
+
 # _hi_flag_word_or_die <outvar> <errmsg> <flag> [next] - _hi_flag_word, but a
-# bare flag with nothing after it prints "$_HI_ME: <errmsg>" in red and exits
-# 1 itself rather than handing the caller a status to branch on. Status 2 (it
-# took <next>, the caller must shift again) still comes back, the one case
-# every call site still has to act on.
+# bare flag with nothing after it _hi_die's with <errmsg> rather than handing
+# the caller a status to branch on. Status 2 (it took <next>, the caller must
+# shift again) still comes back, the one case every call site still has to
+# act on.
 function _hi_flag_word_or_die() {
   local outvar="$1" msg="$2"
   shift 2
   _hi_flag_word "$outvar" "$@" && return 0
   case $? in
   2) return 2 ;;
-  *)
-    _hi_cecho "$_HI_ME: $msg" "$RED" >&2
-    exit 1
-    ;;
+  *) _hi_die "$msg" ;;
   esac
 }
 

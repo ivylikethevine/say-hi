@@ -222,19 +222,21 @@ does not ship.
 
 ## Which docs change with what
 
-| you changed                               | update                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------ |
-| a flag, or `_hi_parse`                    | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
-| an environment variable or toggle         | `docs/SETTINGS.md` (enforced)                                            |
-| what hi leaves on a target                | `docs/SECURITY.md`                                                       |
-| a target hi does or doesn't answer to     | `docs/COMPATIBILITY.md`                                                  |
-| a tool hi wires in, or its hook           | `docs/INTEGRATIONS.md`                                                   |
-| a new idiom worth a name                  | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag (enforced)                  |
-| how a user installs or verifies a package | `docs/PACKAGING.md`                                                      |
-| a release channel or the release flow     | `docs/RELEASING.md`                                                      |
-| the harness or the lint gate              | `docs/TESTING.md`                                                        |
-| a new document under `docs/`              | `docs/README.md`'s index                                                 |
-| a heading in a doc with a `Contents`      | that doc's `Contents` list (enforced)                                    |
+| you changed                                            | update                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| a flag, or `_hi_parse`                                 | `docs/hi.1` (and `docs/tldr.md` when one of its eight examples shows it) |
+| an environment variable or toggle                      | `docs/SETTINGS.md` (enforced)                                            |
+| what hi leaves on a target                             | `docs/SECURITY.md`                                                       |
+| a target hi does or doesn't answer to                  | `docs/COMPATIBILITY.md`                                                  |
+| a tool hi wires in, or its hook                        | `docs/INTEGRATIONS.md`                                                   |
+| a color: the hash, a pin, the scheme, the package ramp | `docs/COLORS.md`                                                         |
+| the transport, the payload, or the session's lifecycle | `docs/HOW-IT-WORKS.md`                                                   |
+| a new idiom worth a name                               | `docs/GLOSSARY.md`, plus the `GLOSSARY:` tag (enforced)                  |
+| how a user installs or verifies a package              | `docs/PACKAGING.md`                                                      |
+| a release channel or the release flow                  | `docs/RELEASING.md`                                                      |
+| the harness or the lint gate                           | `docs/TESTING.md`                                                        |
+| a new document under `docs/`                           | `docs/README.md`'s index                                                 |
+| a heading in a doc with a `Contents`                   | that doc's `Contents` list (enforced)                                    |
 
 "Enforced" is the lint suite, alongside a `docs/tldr.md` example whose flag is
 not a `common/flags` row, or a ninth example; the rest are on your honour and

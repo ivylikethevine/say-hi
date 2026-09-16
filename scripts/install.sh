@@ -17,11 +17,10 @@ _HI_FEATURES_ONLY=""
 # plain `install.sh` run into an uninstall.
 _HI_UNINSTALL_MODE=""
 _HI_ASSUME_YES=0
-# Skip config_hi's symlink. For installs where something else already owns the
-# `hi` on $PATH - see the note on config_hi itself.
-_HI_NO_LINK=""
-# --link system: /usr/bin/hi (sudo) instead of the user's ~/.local/bin/hi
-_HI_SYSTEM_LINK=""
+# --link: user (~/.local/bin/hi), system (/usr/bin/hi, sudo), or none - skip
+# config_hi's symlink where something else already owns the `hi` on $PATH
+# (see the note on config_hi itself). One tri-state, the last on the line wins.
+_HI_LINK_MODE=user
 # --dry-run: every writer says what it would do and stops (rc.sh's dry_run_say)
 _HI_DRY_RUN=""
 # --prefix, or a non-empty $DESTDIR, puts this script in packaging mode: lay the
@@ -30,10 +29,6 @@ _HI_DRY_RUN=""
 _HI_PREFIX=""
 # --preset <name>: configure.sh's _HI_PRESETS, applied without asking
 _HI_PRESET=""
-# --link's raw word, ahead of _hi_flag_word's printf -v assigning it - so a
-# static checker can see it declared, the way it sees _HI_PREFIX/_HI_PRESET
-# above
-_hi_link_where=""
 _HI_WANT_HELP=""
 # what this run is called, in its own messages: `hi --uninstall` when reached
 # that way (hi.sh sets $_HI_ARGV0), install.sh by hand
@@ -218,18 +213,13 @@ while [ $# -gt 0 ]; do
   --install) _HI_MODES="$_HI_MODES $1" ;;
   --configure) _HI_FEATURES_ONLY=1 _HI_MODES="$_HI_MODES $1" ;;
   --uninstall) _HI_UNINSTALL_MODE=1 _HI_MODES="$_HI_MODES $1" ;;
-  # one tri-state option, not two booleans that must refuse each other;
-  # the last one on the line wins
   --link | --link=*)
-    _hi_flag_word_or_die _hi_link_where "--link needs one of none, user, or system" "$@"
+    _hi_flag_word_or_die _HI_LINK_MODE "--link needs one of none, user, or system" "$@"
     [ $? -eq 2 ] && shift
-    case "$_hi_link_where" in
-    none) _HI_NO_LINK=1 _HI_SYSTEM_LINK="" ;;
-    system) _HI_SYSTEM_LINK=1 _HI_NO_LINK="" ;;
-    user) _HI_NO_LINK="" _HI_SYSTEM_LINK="" ;;
+    case "$_HI_LINK_MODE" in
+    none | system | user) ;;
     *)
-      _hi_cecho "$_HI_ME: --link wants one of none, user, or system (got $_hi_link_where)" "$RED" >&2
-      exit 1
+      _hi_die "--link wants one of none, user, or system (got $_HI_LINK_MODE)"
       ;;
     esac
     _HI_SEEN="$_HI_SEEN --link"
@@ -250,16 +240,14 @@ while [ $# -gt 0 ]; do
   # answered after the loop, once the mode flags have all been read
   -h | --help) _HI_WANT_HELP=1 ;;
   *)
-    _hi_cecho "$_HI_ME: unknown option $1 ($_HI_ME --help lists them)" "$RED" >&2
-    exit 1
+    _hi_die "unknown option $1 ($_HI_ME --help lists them)"
     ;;
   esac
   shift
 done
 case "$_HI_MODES" in
 ' '*' '*)
-  _hi_cecho "$_HI_ME: pick one of$_HI_MODES - one mode per run" "$RED" >&2
-  exit 1
+  _hi_die "pick one of$_HI_MODES - one mode per run"
   ;;
 esac
 unset _HI_MODES
@@ -278,26 +266,23 @@ for _hi_flag in $_HI_SEEN; do
   case "$_hi_allowed" in
   *" $_hi_flag "*) ;;
   *)
-    _hi_cecho "$_HI_ME: $_hi_flag does not apply here ($_HI_ME --help lists what does)" "$RED" >&2
-    exit 1
+    _hi_die "$_hi_flag does not apply here ($_HI_ME --help lists what does)"
     ;;
   esac
 done
-unset _hi_allowed _hi_flag _hi_link_where _HI_SEEN
+unset _hi_allowed _hi_flag _HI_SEEN
 # packaging mode is scripts/install.sh's own: reached as `hi --install` it
 # would rm -rf a live prefix behind a user's flag; and the prefix lands in
 # /etc/profile.d as written, so a relative one is a wrong answer for every
 # login shell
 if [ -n "$_HI_PREFIX" ]; then
   if [ -n "${_HI_ARGV0:-}" ]; then
-    _hi_cecho "$_HI_ME: --prefix is packaging mode - run scripts/install.sh --prefix <dir> directly" "$RED" >&2
-    exit 1
+    _hi_die "--prefix is packaging mode - run scripts/install.sh --prefix <dir> directly"
   fi
   case "$_HI_PREFIX" in
   /*) ;;
   *)
-    _hi_cecho "$_HI_ME: --prefix needs an absolute path (got $_HI_PREFIX)" "$RED" >&2
-    exit 1
+    _hi_die "--prefix needs an absolute path (got $_HI_PREFIX)"
     ;;
   esac
 fi
@@ -311,12 +296,11 @@ if [ -n "$_HI_PREFIX" ] || [ -n "${DESTDIR:-}" ]; then _HI_PACKAGING=1; fi
 
 # a preset name is answered here, ahead of the banner and every write
 if [ -n "$_HI_PRESET" ] && ! preset_row "$_HI_PRESET" >/dev/null; then
-  _hi_cecho "$_HI_ME: no such preset: $_HI_PRESET (one of: $(preset_names))" "$RED" >&2
-  exit 1
+  _hi_die "no such preset: $_HI_PRESET (one of: $(preset_names))"
 fi
 
 # --link system: the one link that wants sudo, asked for by name
-[ -z "$_HI_SYSTEM_LINK" ] || _HI_LINK="/usr/bin/hi"
+[ "$_HI_LINK_MODE" != system ] || _HI_LINK="/usr/bin/hi"
 
 # link_owner and _hi_link_runs_this_tree are rc.sh's: doctor.sh reads the
 # same link this writes, and sources rc.sh rather than this file.
@@ -328,17 +312,13 @@ function config_hi() {
   # packager, so an unconditional chmod would abort the whole run under `set -e`
   # for a user configuring a perfectly good install. Ahead of --link none, since
   # the `hi` alias every wired shell gets runs this file either way.
-  if [ ! -x "$_HI_LAUNCHER" ]; then
-    if dry_run_say "make $_HI_LAUNCHER executable"; then
-      :
-    elif ! chmod +x "$_HI_LAUNCHER" 2>/dev/null; then
-      _hi_cecho " couldn't make $_HI_LAUNCHER executable - is it owned by root?" "$YELLOW"
-    fi
-  fi
+  [ -x "$_HI_LAUNCHER" ] || dry_run_say "make $_HI_LAUNCHER executable" ||
+    chmod +x "$_HI_LAUNCHER" 2>/dev/null ||
+    _hi_cecho " couldn't make $_HI_LAUNCHER executable - is it owned by root?" "$YELLOW"
   # --link none: the wired shells alias hi to this tree anyway, so the link is
   # for scripts and other programs, and an install that cannot make one (Git
   # Bash on Windows, a read-only home) still counts as complete.
-  [ -n "$_HI_NO_LINK" ] && {
+  [ "$_HI_LINK_MODE" = none ] && {
     _hi_cecho " --link none given, leaving $_HI_LINK alone :)" "$GREEN"
     return 0
   }

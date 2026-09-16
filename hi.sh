@@ -109,7 +109,8 @@ function _hi_session_env() {
   _hi_whoami >/dev/null
   _hi_hostname >/dev/null
   printf '_HI_TARGET_COLOR\t%s\n' "$_HI_TARGET_COLOR_MEMO"
-  printf '_HI_TARGET_TAG\t%s\n' "$(_hi_ssh_host_tag "$DOMAIN" 2>/dev/null || true)"
+  _hi_ssh_host_tag "$DOMAIN" >/dev/null 2>&1 || true
+  printf '_HI_TARGET_TAG\t%s\n' "$_HI_TAG_VALUE"
   printf '_HI_LOCAL_USER\t%s\n' "$_HI_WHOAMI_CACHE"
   printf '_HI_LOCAL_HOSTNAME\t%s\n' "$_HI_HOSTNAME_CACHE"
   printf '_HI_RELEASE\t%s\n' "$(_hi_version)"
@@ -778,6 +779,13 @@ function _hi_require() {
 function _hi_fail() {
   _hi_cecho "$1" "$BRRED" >&2
   _HI_SAID=1
+}
+
+# _hi_die <msg> - "hi: <msg>" in red on stderr, then exit 1: a refusal made
+# before anything ran.
+function _hi_die() {
+  _hi_cecho "hi: $1" "$RED" >&2
+  exit 1
 }
 
 # The tree, comment-stripped through a staging copy; both size budgets
@@ -1511,7 +1519,7 @@ function _hi_container_cmds() {
     # the docker-compatible family (GLOSSARY: HI.51): the CLI is the arm's own
     # name and the grammar is docker's
     local target="$DOMAIN"
-    _hi_container_target "$1" "$DOMAIN" target || target="$DOMAIN"
+    _hi_container_target "$1" "$DOMAIN" target || : # errexit guard: doctor runs under set -e
     probe=("$1" exec "$target")
     cp=("$1" exec -i "$target")
     attach=("$1" exec "$it" "$target")
@@ -1766,7 +1774,6 @@ function _hi_flag_takes() {
 # 2 when it took <next> and the caller must shift again, 1 for a bare flag
 # with nothing after it. printf -v, not a nameref: bash 3.2.
 function _hi_flag_word() {
-  printf -v "$1" '%s' ''
   case "$2" in
   *=*) printf -v "$1" '%s' "${2#*=}" ;;
   *)
@@ -1783,8 +1790,7 @@ function _hi_flag_word() {
 # the target and would otherwise run on the far end as a command nobody has.
 function _hi_parse_command() {
   if _hi_flag_takes "${1%%=*}" >/dev/null; then
-    _hi_cecho "hi: $1 goes before the target (hi [options] <target> [command ...])" "$RED" >&2
-    exit 1
+    _hi_die "$1 goes before the target (hi [options] <target> [command ...])"
   fi
   local sep=""
   [[ "$*" = *[![:space:]]* ]] && sep='; '
@@ -1796,8 +1802,7 @@ function _hi_parse_command() {
 # worth naming, the way a stray word after --preview <subject> is
 function _hi_only_word() {
   [ $# -le 1 ] || {
-    _hi_cecho "hi: $1 takes no arguments (got: ${*:2})" "$RED" >&2
-    exit 1
+    _hi_die "$1 takes no arguments (got: ${*:2})"
   }
 }
 
@@ -1847,14 +1852,12 @@ function _hi_parse() {
         _hi_flag_word use_word "$@" || case $? in
         2) shift ;;
         *)
-          _hi_cecho "hi: --use needs a backend name (ssh counts as one)" "$RED" >&2
-          exit 1
+          _hi_die "--use needs a backend name (ssh counts as one)"
           ;;
         esac
         backend_word="$(_hi_use_backend "$use_word")" || exit 1
         if [ -n "${BACKEND:-}" ] && [ "$BACKEND" != "$backend_word" ]; then
-          _hi_cecho "hi: --use $use_word and --use $BACKEND both name a backend; pick one" "$RED" >&2
-          exit 1
+          _hi_die "--use $use_word and --use $BACKEND both name a backend; pick one"
         fi
         BACKEND="$backend_word" own=1
       elif [ "$1" = --plain ]; then
@@ -1871,8 +1874,7 @@ function _hi_parse() {
       elif _hi_is_ssh_value_opt "$1"; then
         # its value is never read as the target
         [ "$#" -ge 2 ] || {
-          _hi_cecho "hi: $1 needs a value" "$RED" >&2
-          exit 1
+          _hi_die "$1 needs a value"
         }
         SSHARGS+=("$1" "$2")
         shift
@@ -1888,8 +1890,7 @@ function _hi_parse() {
         fi
         exit 1
       elif [ "${1#--}" != "$1" ]; then
-        _hi_cecho "hi: unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)" "$RED" >&2
-        exit 1
+        _hi_die "unknown option $1 (hi --help lists hi's options; ssh takes none that start with --)"
       else
         SSHARGS+=("$1")
       fi
@@ -1904,15 +1905,11 @@ function _hi_parse() {
     # Bare `hi` prints the help. With any ssh option present, ssh's behaviour
     # stands: an option without a host is ssh's error to report, not a target
     # to guess at.
-    if [ "${#SSHARGS[@]}" -eq 0 ] && [ -z "$own" ]; then
-      _hi_help
-      exit 0
-    fi
     # hi's own flags with nothing to connect to are hi's to name: ssh saw
     # none of them and has nothing to say
-    if [ -n "$own" ] && [ "${#SSHARGS[@]}" -eq 0 ]; then
-      _hi_cecho "hi: no target to connect to (hi [options] <target> [command ...])" "$RED" >&2
-      exit 1
+    if [ "${#SSHARGS[@]}" -eq 0 ]; then
+      [ -z "$own" ] && _hi_help && exit 0
+      _hi_die "no target to connect to (hi [options] <target> [command ...])"
     fi
     # not an exec, so the exit hook still runs
     ssh "${SSHARGS[@]}"
@@ -2021,7 +2018,6 @@ function _hi_mux_tool() {
     fi
   done
   _hi_cecho "hi: --mux needs tmux, zellij, or screen on this machine; connecting without it" "$YELLOW" >&2
-  printf -v "$1" '%s' ''
   return 1
 }
 
@@ -2108,8 +2104,7 @@ function _hi() {
   local tmp exit_code arm
 
   [ -d "$_HI_ROOT" ] || {
-    _hi_cecho "hi: no such directory: $_HI_ROOT" "$RED" >&2
-    exit 1
+    _hi_die "no such directory: $_HI_ROOT"
   }
 
   tmp="$(mktemp -t hi.log.XXXXXX)"
@@ -2203,8 +2198,7 @@ function _hi_dispatch_subcommand() {
         break
       done
       [ -n "$positional" ] || {
-        _hi_cecho "hi: $word takes no joined value (hi $word${shape:+ $shape})" "$RED" >&2
-        exit 1
+        _hi_die "$word takes no joined value (hi $word${shape:+ $shape})"
       }
     fi
     shift

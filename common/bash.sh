@@ -50,29 +50,6 @@ function _hi_prompt_fw() {
 }
 _hi_pt=""
 [[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
-if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 && -z "$_hi_pt" ]]; then
-  # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
-  HI_PS1_END=""
-  _hi_prompt_end BASH HI_PS1_END
-  _hi_ps1_lead=" "
-  [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
-  # bash is the one shell where another tool's prefix cannot survive: ps1()
-  # below rebuilds $PS1 from scratch on every draw, so there is nothing to
-  # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
-  _HI_ENV_DEFER=0
-  if _hi_has_color; then
-    # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
-    # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
-    _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
-    _hi_user_escape _hi_ps1_u
-    _hi_host_escape _hi_ps1_h
-    [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
-    HI_PS1="${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
-    unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
-  else
-    HI_PS1="${debian_chroot:-}\u@\h:\w"
-  fi
-fi
 
 if ! shopt -oq posix; then
   # $BASH_COMPLETION_VERSINFO is the loader's own sentinel: the host's stock
@@ -132,7 +109,7 @@ function _hi_complete() {
   fi
   _hi_target_rows
   local -a hit_kinds=() shown=() syms=()
-  local i j sym row seen=" "
+  local i j sym row
   for row in "${_HI_TARGET_ROWS[@]}"; do
     n="${row%%$'\t'*}"
     case "$n" in "$cur"*) COMPREPLY+=("$n") hit_kinds+=("${row#*$'\t'}") ;; esac
@@ -144,13 +121,13 @@ function _hi_complete() {
   for i in "${!COMPREPLY[@]}"; do
     n="${COMPREPLY[i]}"
     _hi_target_symbol sym "${hit_kinds[i]}"
-    if [[ "$seen" == *" $n "* ]]; then
-      for j in "${!shown[@]}"; do
-        [ "${shown[j]}" = "$n" ] && syms[j]+="$sym" && break
-      done
-    else
-      shown+=("$n") syms+=("$sym") seen+="$n "
-    fi
+    for j in "${!shown[@]}"; do
+      [ "${shown[j]}" = "$n" ] && {
+        syms[j]+="$sym"
+        continue 2
+      }
+    done
+    shown+=("$n") syms+=("$sym")
   done
   COMPREPLY=()
   if ((${#shown[@]} > 1)); then
@@ -203,6 +180,27 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     *) eval "$("$_hi_pt" init bash)" ;;
     esac
   else
+    # `\$` renders as $ for a user and # for root - see core.sh's _hi_prompt_end
+    HI_PS1_END=""
+    _hi_prompt_end BASH HI_PS1_END
+    _hi_ps1_lead=" "
+    [[ "${_HI_DISABLE_LEAD_SPACE:-0}" == 1 ]] && _hi_ps1_lead=""
+    # bash is the one shell where another tool's prefix cannot survive: ps1()
+    # below rebuilds $PS1 from scratch on every draw, so there is nothing to
+    # defer to and hi renders the environment segment itself. GLOSSARY: HI.54
+    _HI_ENV_DEFER=0
+    if _hi_has_color; then
+      # the *_var forms: a cache read, not a $( ) fork. Spelled empty first, so
+      # the linter sees the `printf -v` assignment (SC2154); file scope, no `local`.
+      _hi_ps1_u="" _hi_ps1_h="" _hi_ps1_at="$NC"
+      _hi_user_escape _hi_ps1_u
+      _hi_host_escape _hi_ps1_h
+      [ -n "${SSH_TTY:-}" ] && _hi_ps1_at="$YELLOW"
+      HI_PS1="${debian_chroot:-}\[$_hi_ps1_u\]\u\[$_hi_ps1_at\]@\[$_hi_ps1_h\]\h\[$NC\] \[$BRBLUE\]\w\[$NC\]"
+      unset _hi_ps1_u _hi_ps1_h _hi_ps1_at
+    else
+      HI_PS1="${debian_chroot:-}\u@\h:\w"
+    fi
     # `hi` named in the list takes the prompt back from a program the rc
     # already started, whose PROMPT_COMMAND hook would redraw over hi's ps1()
     # every prompt; each known hook becomes a `:`. PROMPT_COMMAND is an array

@@ -415,17 +415,17 @@ function _hi_out() {
 # scripts/lib.sh: they are tooling, and common/ ships in the ssh payload
 # under a size budget nothing a target runs should spend.
 
-# date +%s.%N first - it has sub-second precision and _hi_remote_preamble's
-# copy of this function (hi.sh) already proves it on bash 3.2 targets; *N*
-# or empty is a date(1) with no %N (old BSD), where $EPOCHREALTIME (bash 5)
-# or plain date +%s or $SECONDS is the fallback, in that order. Only ever
-# differenced, so any monotonic clock works; an empty answer would make
-# _hi_elapsed print a time for a session it never timed.
+# $EPOCHREALTIME (bash 5) first - free, no fork; else date +%s.%N, which has
+# sub-second precision and _hi_remote_preamble's copy of this function (hi.sh)
+# already proves on bash 3.2 targets; *N* or empty is a date(1) with no %N
+# (old BSD), where plain date +%s or $SECONDS is the fallback, in that order.
+# Only ever differenced, so any monotonic clock works; an empty answer would
+# make _hi_elapsed print a time for a session it never timed.
 function _hi_now() {
-  local d
-  d=$(date +%s.%N 2>/dev/null)
+  local d="${EPOCHREALTIME:-}"
+  [ -n "$d" ] || d=$(date +%s.%N 2>/dev/null)
   case "$d" in
-  *N* | '') printf '%s' "${EPOCHREALTIME:-$(date +%s 2>/dev/null || printf '%s' "$SECONDS")}" ;;
+  *N* | '') date +%s 2>/dev/null || printf '%s' "$SECONDS" ;;
   *) printf '%s' "$d" ;;
   esac
 }
@@ -580,17 +580,16 @@ _HI_SESSION_VARS=(_HI_TARGET_COLOR _HI_TARGET_TAG _HI_LOCAL_USER
 # _HI_CHILD_ENV, values kept. Both shell-specific arms are eval'd; zsh's `-g`
 # because a bare `typeset` in a function is local.
 function _hi_unexport() {
-  local _hi_n _hi_zsh=0
+  local _hi_n
   local -a _hi_names
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval '_hi_names=(${(k)parameters[(I)_HI_*]})'
-    _hi_zsh=1
   else
     eval '_hi_names=("${!_HI_@}")'
   fi
   for _hi_n in "${_hi_names[@]}"; do
     case " ${_HI_CHILD_ENV[*]} " in *" $_hi_n "*) continue ;; esac
-    if [ "$_hi_zsh" = 1 ]; then
+    if [ -n "${ZSH_VERSION:-}" ]; then
       typeset -g +x "$_hi_n"
     else
       # shellcheck disable=SC2163 # un-exporting the name held in $_hi_n is the point
@@ -948,8 +947,7 @@ function _hi_ssh_host_tag() {
 # shells disagreed on the same box. header.sh's _hi_ip_filter matches through
 # this too.
 function _hi_ssh_pattern_hit() {
-  local name="$1" rest="$2 " pat hit=1 zsh=""
-  [ -n "${ZSH_VERSION:-}" ] && zsh=1
+  local name="$1" rest="$2 " pat hit=1
   while [ -n "${rest// /}" ]; do
     rest="${rest#"${rest%%[! ]*}"}"
     pat="${rest%% *}"
@@ -965,7 +963,7 @@ function _hi_ssh_pattern_hit() {
     if [ -n "${_HI_SSH_LITERAL_ONLY:-}" ]; then
       case "$pat" in *[*?]*) continue ;; esac
     fi
-    if [ -n "$zsh" ]; then
+    if [ -n "${ZSH_VERSION:-}" ]; then
       # eval'd like HI.33's `${(%):-%x}`: shellcheck parses this file as bash
       # and cannot parse `${~pat}` (SC2296)
       eval 'case "$name" in ${~pat}) hit=0 ;; esac'

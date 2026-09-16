@@ -325,6 +325,10 @@ its **Ticks when** holds.
       [docs/CONTRIBUTING.md's _What 1.x will not break_](docs/CONTRIBUTING.md#what-1x-will-not-break).
       **Ticks when** the tag commit turns `docs/SECURITY.md`'s _Supported
       versions_ prose into the version table it promises.
+- [ ] **The settings pass is closed out** — its open items, the rename's
+      release note and a real-hook test for `_HI_PROMPT_TOOL=hi` first, are
+      [docs/ROADMAP.md](docs/ROADMAP.md)'s _Open_ list. **Ticks when** that
+      section is gone.
 
 ### Features
 
