@@ -106,10 +106,11 @@ Five groups (`--group <name>`; `--list` prints the membership):
 `bench`, `e2e`, and `backends` always run one suite at a time: the bench
 measures, and the other two contend on one container daemon.
 
-Fast cases stand down through two guards: `_hi_check_requires <bin>` when a
+A case stands down through two guards: `_hi_check_requires <bin>` when a
 _command_ is missing, `_hi_check_capable <capability>` when a _facility_ is —
 something `command -v` cannot answer (`_hi_par_check_capable` is the parallel
-twin). The roster is `_hi_capable` in `tests/lib/fixtures.sh`:
+twin for a fast case; an e2e case asks `_hi_capable` directly and skips
+inline). The roster is `_hi_capable` in `tests/lib/fixtures.sh`:
 
 | Capability         | How it answers                         | Why it can be no                                                    |
 | ------------------ | -------------------------------------- | ------------------------------------------------------------------- |
@@ -120,6 +121,11 @@ twin). The roster is `_hi_capable` in `tests/lib/fixtures.sh`:
 | `lockout`          | probe: writes into a `chmod 555` dir   | root bypasses the bits, so the write succeeds                       |
 | `fork_concurrency` | `uname` (MSYS/Cygwin)                  | background subshells have to genuinely overlap                      |
 | `mode_bits`        | `uname` (MSYS/Cygwin)                  | a reported permission string has to reflect `chmod`'s own bits      |
+| `netem`            | `/proc/modules` or `/sys/module`       | `modprobe sch_netem` has not run on the host; a container can't     |
+
+The `starved` case in the ssh e2e suite is the one that asks for `netem`: it
+shapes a container's own link with `tc qdisc … netem`, which needs the
+module loaded on the host kernel, not just present in it.
 
 ### Where a suite lives
 

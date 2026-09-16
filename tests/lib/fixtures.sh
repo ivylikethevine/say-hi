@@ -273,6 +273,23 @@ function _hi_can_reach_gpg_agent() {
   [ "$_HI_CAP_GPG_AGENT" = yes ]
 }
 
+# _hi_can_shape_netem - whether the netem qdisc is loadable here, what the
+# ssh suite's `starved` case needs to shape a container's own eth0. A
+# container cannot load a kernel module itself - `modprobe` inside one only
+# ever sees the host's module state - so this is a host question, answered
+# once from /proc/modules or /sys/module rather than paid for per case.
+_HI_CAP_NETEM=""
+function _hi_can_shape_netem() {
+  if [ -z "$_HI_CAP_NETEM" ]; then
+    if grep -q '^sch_netem ' /proc/modules 2>/dev/null || [ -d /sys/module/sch_netem ]; then
+      _HI_CAP_NETEM=yes
+    else
+      _HI_CAP_NETEM=no
+    fi
+  fi
+  [ "$_HI_CAP_NETEM" = yes ]
+}
+
 # _hi_capable <capability> - whether this machine can do <capability> at all.
 # The roster, and the one place either guard below asks:
 #
@@ -299,6 +316,10 @@ function _hi_can_reach_gpg_agent() {
 #                       _hi_can_mkdir_mode.
 #   gpg_agent        - a gpg-agent can be started and asked - see
 #                       _hi_can_reach_gpg_agent.
+#   netem            - the netem qdisc is loadable - see
+#                       _hi_can_shape_netem. No when `modprobe sch_netem`
+#                       has not run on the host; a container cannot load it
+#                       for itself.
 #
 # Exit 2 for a capability nobody defined, so a typo is a failing case rather
 # than a silently skipped one.
@@ -310,6 +331,7 @@ function _hi_capable() {
   fork_concurrency | mode_bits) ! _hi_is_msys ;;
   mkdir_mode) _hi_can_mkdir_mode ;;
   gpg_agent) _hi_can_reach_gpg_agent ;;
+  netem) _hi_can_shape_netem ;;
   *)
     _hi_cecho "_hi_capable: unknown capability '$1'" "$RED" >&2
     return 2

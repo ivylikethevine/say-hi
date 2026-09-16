@@ -65,6 +65,17 @@ _HI_FRAMEWORKS=(
   "tmux:/bin/bash:tmux:config"
 )
 
+# <stem in _HI_FRAMEWORKS>:<login shell>. Same two images as the starship and
+# p10k rows above, reused rather than built again, with the prompt handed to
+# hi instead (prompt:hi:<bash|zsh>) - what ROADMAP.md's real-hook item asks
+# for: that hi's own unhook of a real starship_precmd / _p9k_precmd, loaded
+# by the program's own rc rather than a stub, actually clears the way for
+# hi's prompt to draw.
+_HI_PROMPT_HI=(
+  "starship:/bin/bash"
+  "p10k:/usr/bin/zsh"
+)
+
 # The line each case types into the live session, once hi and the framework are
 # both loaded. Built from two arguments because a pty echoes the input, so the
 # token must be assembled by the shell. zsh checks the array base (hi must not
@@ -88,6 +99,13 @@ function _hi_framework_probe() {
   prompt:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] && POWERLEVEL9K_HI_MARK )) && [[ \$PROMPT != *__hi_env_info* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
   prompt:oh-my-bash) printf '%s\n' "[[ \$PS1 == OMBHOME* && \$PROMPT_COMMAND != ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:tide) printf '%s\n' "functions -q tide; and not functions -q __hi_env_prompt; and test \"\$tide_character_icon\" = HITIDE; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
+  # the inverse of prompt:powerlevel10k / the starship bash row: the real
+  # program's rc loaded it (command -v / $+functions[p10k]), hi's unhook
+  # (common/zsh.zsh, common/bash.sh) cleared its hook, hi's own prompt drew,
+  # and (zsh only) the client home's p10k.zsh never rode the overlay - the
+  # list is `hi`, so _hi_prompt_home packs no prompt config member
+  prompt:hi:zsh) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] )) && (( \${precmd_functions[(I)_p9k_precmd]} == 0 )) && [[ \$PROMPT == *__hi_env_info* && -z \$POWERLEVEL9K_HI_MARK ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
+  prompt:hi:bash) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${PROMPT_COMMAND[*]} != *starship_precmd* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # a tmux server started from the session, asked for the client's mark; the
   # alias is the first word, so it expands
   config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_MICRO_DIR/settings.json\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
@@ -149,6 +167,11 @@ function _hi_type_framework_probe() {
 # probe (a second typed line) rides _hi_interactive_case's feeder hook.
 function _hi_run_framework_case() {
   local label="$1" login_shell="$2" name ok=0
+  # the image to connect to - the same one _hi_build_frameworks tagged under
+  # $label, unless this case is reusing another row's image (a $4 image_stem,
+  # the _HI_PROMPT_HI cases' way of connecting to the starship/p10k images a
+  # second time without building either again)
+  local image_stem="${4:-$label}"
   # both case-scoped, and both for the same reason: cases run concurrently, and
   # bash's dynamic scoping is what carries the family down to the feeder hook
   # _hi_interactive_case calls on this case's behalf
@@ -162,10 +185,13 @@ function _hi_run_framework_case() {
     return 0
   fi
 
-  # a prompt case connects from a home of its own, handing the prompt over
+  # a prompt case connects from a home of its own, handing the prompt over.
+  # ${3%%:*} peels the family down to the tool name alone - prompt:hi:bash
+  # and prompt:hi:zsh both hand hi the same _HI_PROMPT_TOOL=hi
   case "$3" in
   prompt:*)
-    local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="${3#prompt:}"
+    local prompt_tool="${3#prompt:}"
+    local -x HOME="$_HI_WORKDIR/home-$label" _HI_PROMPT_TOOL="${prompt_tool%%:*}"
     local -x XDG_CONFIG_HOME="$HOME/.config"
     _hi_prompt_client_home "$HOME"
     ;;
@@ -178,7 +204,7 @@ function _hi_run_framework_case() {
 
   name="hi-fwtest-$label-c-$$"
   _hi_h3 "Testing framework: $label ($login_shell)"
-  _hi_sshd_container "$name" "hi-fwtest-$label-$$" -e "LOGIN_SHELL=$login_shell" || return 1
+  _hi_sshd_container "$name" "hi-fwtest-$image_stem-$$" -e "LOGIN_SHELL=$login_shell" || return 1
   _hi_ssh_launch "$_HI_SSH_PORT"
 
   if _hi_interactive_case -f _hi_type_framework_probe -m "HI_FW-CLEAN" \
@@ -208,8 +234,9 @@ function run_framework_tests() {
 
   _hi_suite_begin
 
-  # Thirteen rows, thirteen containers, nothing shared between them - the widest
-  # fan-out in the tree and the one this suite is almost entirely made of.
+  # Thirteen images, one container per row, nothing shared between them - the
+  # widest fan-out in the tree and the one this suite is almost entirely made
+  # of.
   local spec label shell pkgs family
   _hi_par_begin "framework cases"
   for spec in "${_HI_FRAMEWORKS[@]}"; do
@@ -218,6 +245,24 @@ function run_framework_tests() {
       _hi_par_case "$label" _hi_run_framework_case "$label" "$shell" "$family"
     else
       _hi_skip "[$label]" "image did not build"
+    fi
+  done
+
+  # Two more containers off the starship and p10k images above, with the
+  # prompt handed to hi instead of the framework - proof that the unhook in
+  # common/bash.sh and common/zsh.zsh clears a *real* starship_precmd /
+  # _p9k_precmd, loaded by the program's own rc, not just the stub hooks
+  # tests/common/rc_test.sh defines for itself.
+  for spec in "${_HI_PROMPT_HI[@]}"; do
+    IFS=: read -r label shell <<<"$spec"
+    case "$shell" in
+    *zsh) family="prompt:hi:zsh" ;;
+    *) family="prompt:hi:bash" ;;
+    esac
+    if [ "$(_hi_kv_get _HI_FRAMEWORK_OK "$label")" = 1 ]; then
+      _hi_par_case "$label-hi" _hi_run_framework_case "$label-hi" "$shell" "$family" "$label"
+    else
+      _hi_skip "[$label-hi]" "image did not build"
     fi
   done
   _hi_par_wait
