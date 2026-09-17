@@ -280,7 +280,9 @@ function test_marks_swap_to_ascii_with_the_set() {
 function test_timestamp_runs_and_has_three_cells() {
   local out
   out="$(_HI_RELEASE="" timestamp)"
-  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 3 ]
+  # four pipes for three cells: the one that opens the row, the two that join
+  # the cells, and the one that closes it on the right
+  [ "$(grep -o '|' <<<"$out" | wc -l)" -eq 4 ]
 }
 
 # the version is the middle cell, between the two clocks, and is printed bare
@@ -1304,12 +1306,16 @@ function test_system_info_with_no_kernel_and_no_release_says_unknown() {
 function test_no_lead_space_drops_only_the_leading_space() {
   local out
   out="$(NO_COLOR=1 _HI_DISABLE_LEAD_SPACE=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
-  [ "$out" = "| alpha | beta" ] || {
+  # matched by shape, not in full: the row is padded out to its right edge now,
+  # and the width that pad answers to is the terminal's. What this case is
+  # about is the two ends - no leading space, and the " | " between the cells
+  # kept - so it pins those and the closing pipe.
+  [[ "$out" == "| alpha | beta"*"|" ]] || {
     _hi_cecho " | got: [$out]" "$RED"
     return 1
   }
   out="$(NO_COLOR=1 bash -c 'source "$_HI_HEADER"; header_row alpha beta')"
-  [ "$out" = " | alpha | beta" ]
+  [[ "$out" == " | alpha | beta"*"|" ]]
 }
 
 function test_no_lead_space_applies_to_the_packages_check() {

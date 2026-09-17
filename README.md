@@ -397,23 +397,26 @@ and are not.
        `v*` tag runs it green, and putting core.sh's load guard back in
        `common/bash.sh` turns it red.
 
-7. [ ] **Every job's egress is allowlisted, not only audited** — 45 of the 50
+7. [ ] **Every job's egress is allowlisted, not only audited** — 44 of the 50
        `harden-runner` steps run `egress-policy: audit`, which records where a
-       job reached and stops nothing. Five run `block` with
-       `allowed-endpoints`: `release.yml`'s two publishing jobs,
-       `publish-external.yml`, and now the two whose whole network use is
-       legible in the job itself - `cancel-closed-pr.yml` (no checkout, only
-       `gh run list`/`cancel`) and `release-note.yml` (one sparse checkout,
-       then a local script). The rest are deliberately still `audit`:
-       `release.yml`'s own allowlist says to extend these from a run's
-       harden-runner insights rather than by guessing, and a guessed list turns
-       a job red for the wrong reason. **Do:** take the audit data a run
-       already collects, a job class at a time - the `setup-tool` fetches, the
-       container pulls, the distribution package installs - leaving the jobs
-       that reach arbitrary hosts by design (`link-check.yml`, `image-scan.yml`,
-       `scorecard.yml`) named as exceptions rather than gaps. **Ticks when:**
-       every job either blocks or is listed here as an exception with its
-       reason, and adding an unlisted download to a blocking job fails it.
+       job reached and stops nothing. Six run `block` with `allowed-endpoints`:
+       `release.yml`'s two publishing jobs, `publish-external.yml`,
+       `cancel-closed-pr.yml` and `release-note.yml` (whose whole network use
+       is legible in the job itself), and `ci.yml`'s `test-alpine`, taken off
+       its own run. Where the endpoints come from is the whole difficulty, and
+       an `audit` run answers it: harden-runner's post-step log prints an
+       `endpoint called ... domain: ...` line per host, which is the list to
+       paste. Two things make the lists short - GitHub's meta domains
+       (`github.com`, `*.github.com`, `ghcr.io`, the `productionresultssa*`
+       blobs behind the cache and artifacts) are allowed by harden-runner
+       itself, and a blocked endpoint names itself in the log, so a miss costs
+       one run rather than an investigation. **Do:** one job class at a time
+       off that log - the `setup-tool` fetches, the container pulls, the apt
+       installs - leaving the jobs that reach arbitrary hosts by design
+       (`link-check.yml`, `image-scan.yml`, `scorecard.yml`) named as
+       exceptions rather than gaps. **Ticks when:** every job either blocks or
+       is listed here as an exception with its reason, and adding an unlisted
+       download to a blocking job fails it.
 
 ### Post 1.0
 
