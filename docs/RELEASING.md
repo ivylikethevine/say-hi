@@ -264,7 +264,8 @@ pushes the versioned `say-hi` for each release, and no workflow touches
 checkout and `say-hi` from the manifests a release attached:
 
 ```bash
-gh release download v1.0.0 --pattern PKGBUILD --pattern .SRCINFO --dir /tmp/say-hi-aur
+gh release download v1.0.0 --pattern PKGBUILD --pattern SRCINFO --dir /tmp/say-hi-aur
+mv /tmp/say-hi-aur/SRCINFO /tmp/say-hi-aur/.SRCINFO   # the asset drops the dot; the AUR wants it
 cd packaging/aur/say-hi-git      # or /tmp/say-hi-aur
 makepkg -f                       # builds it
 namcap PKGBUILD                  # lints the recipe itself

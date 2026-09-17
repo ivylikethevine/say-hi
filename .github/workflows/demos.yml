@@ -208,6 +208,8 @@ jobs:
             exit 0
           fi
           cp "gifs/$TAPE.gif" "$RUNNER_TEMP/demo.gif"
-          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "$RUNNER_TEMP/demo.gif"
+          # shellcheck source=.github/scripts/gh_asset.sh
+          source .github/scripts/gh_asset.sh
+          _ci_upload_assets "$TAG" "$RUNNER_TEMP/demo.gif"
           .github/scripts/release_slot.sh "$GITHUB_REPOSITORY" "$TAG" demo \
             "![say-hi $TAG: the $TAPE demo]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/demo.gif)"

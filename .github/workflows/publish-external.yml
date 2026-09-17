@@ -70,7 +70,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist/manifests
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --dir dist/manifests --pattern PKGBUILD --pattern .SRCINFO
+            --dir dist/manifests --pattern PKGBUILD --pattern SRCINFO
 
       - name: Push PKGBUILD and .SRCINFO to the AUR
         env:
@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
           if [ -z "${AUR_SSH_KEY:-}" ]; then
             echo "no AUR_SSH_KEY secret - the AUR package was NOT updated;"
-            echo "copy dist/manifests/PKGBUILD and .SRCINFO to the aur/say-hi repo by hand,"
+            echo "copy dist/manifests/PKGBUILD and SRCINFO (as .SRCINFO) to the aur/say-hi repo by hand,"
             echo "after running the namcap gate in docs/RELEASING.md"
             exit 0
           fi
@@ -102,7 +102,7 @@ jobs:
 
           git clone --depth 1 ssh://aur@aur.archlinux.org/say-hi.git aur
           cp dist/manifests/PKGBUILD aur/PKGBUILD
-          cp dist/manifests/.SRCINFO aur/.SRCINFO
+          cp dist/manifests/SRCINFO aur/.SRCINFO
           cd aur
           # only those two files are ever tracked in an AUR repo: a stray file
           # pushed there is a package that fails to build for everyone

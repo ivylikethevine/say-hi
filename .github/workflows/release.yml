@@ -379,7 +379,11 @@ jobs:
           set -euo pipefail
           mkdir -p dist/manifests
           cp packaging/aur/say-hi/PKGBUILD dist/manifests/PKGBUILD
-          cp packaging/aur/say-hi/.SRCINFO dist/manifests/.SRCINFO
+          # SRCINFO, not .SRCINFO: GitHub refuses a release asset name that
+          # starts with a dot and stores it as `default.SRCINFO`, which
+          # publish-external.yml's `--pattern .SRCINFO` then matched nothing
+          # of. It gets its dot back at the cp into the AUR checkout.
+          cp packaging/aur/say-hi/.SRCINFO dist/manifests/SRCINFO
           cp packaging/homebrew/say-hi.rb dist/manifests/say-hi.rb
 
       # Signed build provenance for everything the release carries: the sums
@@ -430,9 +434,9 @@ jobs:
             dist/manifests/*
             dist/ARTIFACTS
             dist/say-hi.spdx.json
-          # .SRCINFO: the action drops hidden files by default, and without
-          # this the manifest step finds no .SRCINFO to cp - a failure that
-          # surfaces two jobs later, in publish
+          # kept though dist/manifests/ no longer holds a dotfile: the
+          # action drops hidden files by default, and a path list that
+          # grows one again should not fail two jobs later, in publish
           include-hidden-files: true
           if-no-files-found: error
 
@@ -453,7 +457,10 @@ jobs:
     # when `gate` ran on dispatches only).
     if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name == 'push' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 20, not 15: the assets go up one at a time now (gh_asset.sh), and a
+    # run where several need their retries spends a couple of minutes
+    # sleeping on top of mkrepo.sh's image pulls and three repo builds
+    timeout-minutes: 20
     environment: release
     permissions:
       contents: write
@@ -685,13 +692,11 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$body" "${extra[@]}"
           # the manifests ride along so publish-external.yml's later dispatch
           # is a `gh release download`, not a re-derivation; read line by
-          # line, not mapfile (bash 4). dotglob, or the two .SRCINFO
-          # manifests stay behind: a bare * never matches a dotfile
+          # line, not mapfile (bash 4). No dotglob needed: the AUR
+          # manifest travels as SRCINFO, per the collect step above
           files=()
           while IFS= read -r f; do files+=("dist/$f"); done <dist/ARTIFACTS
-          shopt -s dotglob
           files+=(dist/manifests/*)
-          shopt -u dotglob
           [ -f dist/SHA256SUMS.minisig ] && files+=(dist/SHA256SUMS.minisig)
           files+=(dist/say-hi.spdx.json)
           # build's two attest steps covered every file dist/ARTIFACTS lists,
@@ -708,7 +713,13 @@ jobs:
           else
             echo "no attestations found for dist/SHA256SUMS - shipping without one" >&2
           fi
-          gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
+          # one call per asset, not one call for the list: gh uploads the
+          # list five at a time and aborts on the first refusal, which on
+          # v0.4.3 left the signature, the SBOM and the provenance behind
+          # an rpm GitHub would not save
+          # shellcheck source=.github/scripts/gh_asset.sh
+          source .github/scripts/gh_asset.sh
+          _ci_upload_assets "$GITHUB_REF_NAME" "${files[@]}"
 
       # The subscribable repository (docs/RELEASING.md's _Package repository_):
       # apt, rpm, and apk indexes over the packages just uploaded, signed with
@@ -744,7 +755,9 @@ jobs:
             echo "no APK_SIGNING_KEY secret - the APKINDEX files ship unsigned"
           fi
           packaging/mkrepo.sh "$@" --tarball dist/package-repo.tar.gz
-          gh release upload "$GITHUB_REF_NAME" --clobber dist/package-repo.tar.gz
+          # shellcheck source=.github/scripts/gh_asset.sh
+          source .github/scripts/gh_asset.sh
+          _ci_upload_assets "$GITHUB_REF_NAME" dist/package-repo.tar.gz
 
       # pages.yml serves the package repository out of the newest
       # non-prerelease release, but its workflow_run trigger filters

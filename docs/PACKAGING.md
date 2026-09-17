@@ -89,7 +89,7 @@ gated is [RELEASING.md's Homebrew tap](RELEASING.md#homebrew-tap).
 Not yet: AUR registration is closed to new accounts because of spam. Until it
 reopens, an Arch user runs `makepkg -si` in `packaging/aur/say-hi-git` and
 upgrades with `git pull` and the same command, or runs it over the `PKGBUILD`
-and `.SRCINFO` attached to a release (the checkout's `aur/say-hi` is a
+and `SRCINFO` attached to a release (the checkout's `aur/say-hi` is a
 `v0.0.0` template). The publishing gate for once it reopens is
 [RELEASING.md's AUR](RELEASING.md#aur).
 

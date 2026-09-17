@@ -372,6 +372,6 @@ All under `dist/` in the checkout (`packaging/mkpkg.sh --outdir` moves it).
 | `dist/say-hi-<version>.tar.gz`           | the source tarball                                                              |
 | `dist/SHA256SUMS`, `SHA256SUMS.minisig`  | checksums of the above, and their signature when the release key is present     |
 | `dist/ARTIFACTS`                         | the file list the release workflow uploads                                      |
-| `dist/manifests/`                        | the bumped `PKGBUILD`, `.SRCINFO`, and `say-hi.rb`                              |
+| `dist/manifests/`                        | the bumped `PKGBUILD`, `SRCINFO`, and `say-hi.rb`                               |
 | `dist/say-hi.spdx.json`                  | the SBOM, alongside build-provenance attestations                               |
 | `dist/repo/`, `dist/package-repo.tar.gz` | the signed apt, rpm, and apk repositories, and the archive the docs site serves |
