@@ -68,21 +68,21 @@ Each file is marked with where it goes:
 All **payload**. `common/` is hi's code; `settings/` holds the shipped
 defaults an overlay copy replaces.
 
-| File                                              | What it is                                                                                             |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `common/core.sh`                                  | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions. |
-| `common/paths.sh`                                 | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                          |
-| `common/bash.sh`                                  | hi's bash rc: prompt, completion, plugins, the local greeting.                                         |
-| `common/zsh.zsh`                                  | The same for zsh.                                                                                      |
-| `common/config.fish`                              | The same for fish, with its own copies of what fish cannot call in bash.                               |
-| `common/env_prompt.sh`, `git_prompt.sh`           | The `(myproj)` environment segment and the git segment, for bash and zsh.                              |
-| `common/header.sh`                                | The connect and disconnect banner, and the package check.                                              |
-| `common/targets.sh`                               | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                      |
-| `common/flags`                                    | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                          |
-| `settings/aliases.sh`                             | The aliases, in the subset bash, zsh, and fish all parse.                                              |
-| `settings/colors`                                 | Color pins.                                                                                            |
-| `settings/packages`                               | What the package check looks for; `settings/packages_full` is a longer list in the same format.        |
-| `settings/vimrc`, `init.lua`, `nanorc`, `init.el` | The minimal editor configs a session starts vim, neovim, nano, and emacs on.                           |
+| File                                                             | What it is                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `common/core.sh`                                                 | What every bash and zsh entry point sources first: toggles, settings, paths, colors, shared functions. |
+| `common/paths.sh`                                                | Every path hi uses, in plain `export` lines bash, zsh, fish, and sh all read.                          |
+| `common/bash.sh`                                                 | hi's bash rc: prompt, completion, plugins, the local greeting.                                         |
+| `common/zsh.zsh`                                                 | The same for zsh.                                                                                      |
+| `common/config.fish`                                             | The same for fish, with its own copies of what fish cannot call in bash.                               |
+| `common/env_prompt.sh`, `git_prompt.sh`                          | The `(myproj)` environment segment and the git segment, for bash and zsh.                              |
+| `common/header.sh`                                               | The connect and disconnect banner, and the package check.                                              |
+| `common/targets.sh`                                              | Every name `hi <target>` answers to, for all three completions; standalone POSIX.                      |
+| `common/flags`                                                   | hi's own flags, one row each: dispatch, `--help`, and completion all read it.                          |
+| `settings/aliases.sh`                                            | The aliases, in the subset bash, zsh, and fish all parse.                                              |
+| `settings/colors`                                                | Color pins.                                                                                            |
+| `settings/packages`                                              | What the package check looks for; `settings/packages_full` is a longer list in the same format.        |
+| `settings/vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el` | The minimal editor configs a session starts vim, neovim, helix, nano, and emacs on.                    |
 
 ### scripts/
 
@@ -157,20 +157,20 @@ in its own small stream, and lands there as `$_HI_ROOT/config/`. A `.d`
 directory rides member by member; a member name is a letter or digit, then
 `[A-Za-z0-9_.-]`, never ending `.bak`, `.orig`, `.rej`, or `.tmp`.
 
-| File                                                                              | Variable                                               | Replaces            | Read by                                                    |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------- | ---------------------------------------------------------- |
-| `settings.sh`                                                                     | `_HI_SETTINGS`                                         | -                   | every shell, first; written by `hi --configure`            |
-| `colors`                                                                          | `_HI_COLORS`                                           | `settings/colors`   | prompt and header colors                                   |
-| `packages`                                                                        | `_HI_PACKAGES`                                         | `settings/packages` | the header's package check                                 |
-| `packages.d/`                                                                     | `_HI_PACKAGES_D`                                       | -                   | groups checked after `packages`                            |
-| `aliases.sh`                                                                      | -                                                      | -                   | `settings/aliases.sh`, sourced last                        |
-| `plugins.d/`                                                                      | `_HI_PLUGINS_D`                                        | -                   | every shell, after the aliases, in name order              |
-| `bashrc`, `zshrc`, `config.fish`                                                  | -                                                      | -                   | the end of hi's rc for that shell                          |
-| `vimrc`, `init.lua`, `nanorc`, `init.el`                                          | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_NANORC`, `_HI_EMACSRC` | the tree's copy     | the editor aliases and `$VIMINIT`                          |
-| `tmux.conf`                                                                       | `_HI_TMUX_CONF`                                        | -                   | the `tmux` alias (`tmux -f`)                               |
-| `micro/` (`settings.json`, `bindings.json`, `init.lua`)                           | `_HI_MICRO_DIR`                                        | -                   | the `micro` alias (`-config-dir`)                          |
-| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf` | -                                                      | -                   | starship, oh-my-posh, eza, and bat on a target             |
-| `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `tide.vars`             | -                                                      | -                   | powerlevel10k, oh-my-zsh, oh-my-bash, and tide on a target |
+| File                                                                                        | Variable                                                              | Replaces            | Read by                                                             |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------- |
+| `settings.sh`                                                                               | `_HI_SETTINGS`                                                        | -                   | every shell, first; written by `hi --configure`                     |
+| `colors`                                                                                    | `_HI_COLORS`                                                          | `settings/colors`   | prompt and header colors                                            |
+| `packages`                                                                                  | `_HI_PACKAGES`                                                        | `settings/packages` | the header's package check                                          |
+| `packages.d/`                                                                               | `_HI_PACKAGES_D`                                                      | -                   | groups checked after `packages`                                     |
+| `aliases.sh`                                                                                | -                                                                     | -                   | `settings/aliases.sh`, sourced last                                 |
+| `plugins.d/`                                                                                | `_HI_PLUGINS_D`                                                       | -                   | every shell, after the aliases, in name order                       |
+| `bashrc`, `zshrc`, `config.fish`                                                            | -                                                                     | -                   | the end of hi's rc for that shell                                   |
+| `vimrc`, `init.lua`, `config.toml`, `nanorc`, `init.el`                                     | `_HI_VIMRC`, `_HI_NVIMRC`, `_HI_HELIXRC`, `_HI_NANORC`, `_HI_EMACSRC` | the tree's copy     | the editor aliases and `$VIMINIT`                                   |
+| `tmux.conf`                                                                                 | `_HI_TMUX_CONF`                                                       | -                   | the `tmux` alias (`tmux -f`)                                        |
+| `micro/` (`settings.json`, `bindings.json`, `init.lua`)                                     | `_HI_MICRO_DIR`                                                       | -                   | the `micro` alias (`-config-dir`)                                   |
+| `starship.toml`, `oh-my-posh.json` (or `.yaml`, `.toml`), `theme.yml`, `bat.conf`           | -                                                                     | -                   | starship, oh-my-posh, eza, and bat on a target                      |
+| `p10k.zsh`, `oh-my-zsh.zsh-theme`, `oh-my-bash.theme.sh`, `bash-it.theme.bash`, `tide.vars` | -                                                                     | -                   | powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, and tide on a target |
 
 What happens to a line in one of these that reads a file no target has is
 [SETTINGS.md](SETTINGS.md#the-editor-rcs-come-from-where-you-keep-them)'s.
@@ -188,6 +188,7 @@ member rides only when that program is in the list a target is handed
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `vimrc`               | `$XDG_CONFIG_HOME/vim/vimrc`, `~/.vim/vimrc`, `~/.vimrc`                                                                                                                                                                                                         |
 | `init.lua`            | `$XDG_CONFIG_HOME/nvim/init.lua`                                                                                                                                                                                                                                 |
+| `config.toml`         | `$XDG_CONFIG_HOME/helix/config.toml`                                                                                                                                                                                                                             |
 | `nanorc`              | `$XDG_CONFIG_HOME/nano/nanorc`, `~/.nanorc`                                                                                                                                                                                                                      |
 | `init.el`             | `$XDG_CONFIG_HOME/emacs/init.el`, `~/.emacs.d/init.el`, `~/.emacs`, `~/.emacs.el`                                                                                                                                                                                |
 | `tmux.conf`           | `$XDG_CONFIG_HOME/tmux/tmux.conf`, `~/.tmux.conf`                                                                                                                                                                                                                |
@@ -197,6 +198,7 @@ member rides only when that program is in the list a target is handed
 | `p10k.zsh`            | `${POWERLEVEL9K_CONFIG_FILE:-${ZDOTDIR:-~}/.p10k.zsh}`                                                                                                                                                                                                           |
 | `oh-my-zsh.zsh-theme` | the theme the last `ZSH_THEME=` in `${ZDOTDIR:-~}/.zshrc` names, under `$ZSH_CUSTOM`, `$ZSH_CUSTOM/themes`, then `${ZSH:-~/.oh-my-zsh}/themes`                                                                                                                   |
 | `oh-my-bash.theme.sh` | the theme the last `OSH_THEME=` in `~/.bashrc` names, under `$OSH_CUSTOM`, `$OSH_CUSTOM/themes`, then `${OSH:-~/.oh-my-bash}/themes`                                                                                                                             |
+| `bash-it.theme.bash`  | the theme the last `BASH_IT_THEME=` in `~/.bashrc` names, under `${BASH_IT_CUSTOM:-~/.bash_it/custom}/themes`, then `${BASH_IT:-~/.bash_it}/themes`                                                                                                              |
 | `tide.vars`           | the `SETUVAR tide_*` lines of `$XDG_CONFIG_HOME/fish/fish_variables`, and nothing else from it                                                                                                                                                                   |
 | `theme.yml`           | `${EZA_CONFIG_DIR:-$XDG_CONFIG_HOME/eza}/theme.yml`                                                                                                                                                                                                              |
 | `bat.conf`            | `${BAT_CONFIG_PATH:-${BAT_CONFIG_DIR:-$XDG_CONFIG_HOME/bat}/config}`                                                                                                                                                                                             |

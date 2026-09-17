@@ -14,7 +14,7 @@
 # was wrong because macOS ships it as a file in /usr/bin). `-` not `:-`, so
 # intentional empties survive. GLOSSARY: HI.07
 command -v shift >/dev/null 2>&1 &&
-  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}";: "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
+  eval 'export _HI_DISABLE_EDITORS="${_HI_DISABLE_EDITORS-0}" _HI_DISABLE_VIM="${_HI_DISABLE_VIM-0}" _HI_DISABLE_NANO="${_HI_DISABLE_NANO-0}" _HI_DISABLE_EMACS="${_HI_DISABLE_EMACS-0}" _HI_DISABLE_MICRO="${_HI_DISABLE_MICRO-0}" _HI_DISABLE_HELIX="${_HI_DISABLE_HELIX-0}" _HI_DISABLE_TOOL_ALIASES="${_HI_DISABLE_TOOL_ALIASES-0}" _HI_DISABLE_SUDO_ALIAS="${_HI_DISABLE_SUDO_ALIAS-0}" _HI_CLEANUP="${_HI_CLEANUP-}" _HI_CONFIG_DIR="${_HI_CONFIG_DIR-}" _HI_ROOT="${_HI_ROOT-}" _HI_REMOTE_SESSION="${_HI_REMOTE_SESSION-0}" _HI_SESSION_RC="${_HI_SESSION_RC-}" _HI_CAT_BIN="${_HI_CAT_BIN-}" _HI_BAT_BIN="${_HI_BAT_BIN-}" _HI_LS_BIN="${_HI_LS_BIN-}" _HI_BAT_OPTS="${_HI_BAT_OPTS-}" _HI_EXA_OPTS="${_HI_EXA_OPTS-}" _HI_EZA_OPTS="${_HI_EZA_OPTS-}" _HI_LS_OPTS="${_HI_LS_OPTS-}" _HI_MICRO_OPTS="${_HI_MICRO_OPTS-}" _HI_MICRO_DIR="${_HI_MICRO_DIR-}" _HI_TMUX_CONF="${_HI_TMUX_CONF-}";: "${BAT_CONFIG_PATH=}"' 2>/dev/null || true
 
 # Binaries resolved before any alias exists, the overlay's included:
 # once `alias cat=...` is set, `command -v` returns the alias and poisons the
@@ -41,6 +41,9 @@ command -v shift >/dev/null 2>&1 &&
 # _HI_DISABLE_VIM gates both: they are one editor to the toggle.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v vim >/dev/null 2>&1 && alias vim="$(command -v vim) -u $_HI_VIMRC" || true
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_VIM" != 1 ] && command -v nvim >/dev/null 2>&1 && alias vim="$(command -v nvim) -u $_HI_NVIMRC" && alias nvim="$(command -v nvim) -u $_HI_NVIMRC" || true
+# hx reads one file, -c/--config overrides only it (no directory-level
+# override exists) - the same one-member shape as vim's above
+[ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_HELIX" != 1 ] && command -v hx >/dev/null 2>&1 && alias hx="$(command -v hx) -c $_HI_HELIXRC" || true
 # -q skips the target's own init, -l loads hi's in its place. The command word
 # is a literal, so no presence gate: a box without emacs says so itself.
 [ "$_HI_DISABLE_EDITORS" != 1 ] && [ "$_HI_DISABLE_EMACS" != 1 ] && alias emacs="emacs -q -l $_HI_EMACSRC" || true

@@ -456,11 +456,12 @@ in name order, in the color its
 .B color=
 line names.
 .TP
-.B ~/.config/say-hi/vimrc, init.lua, nanorc, init.el
-replacements for vim's, neovim's, nano's, and emacs's configs, used whole.
-Without one, hi carries the config each editor already reads here
+.B ~/.config/say-hi/vimrc, init.lua, config.toml, nanorc, init.el
+replacements for vim's, neovim's, helix's, nano's, and emacs's configs, used
+whole. Without one, hi carries the config each editor already reads here
 .RB ( ~/.vimrc ,
 .BR ~/.config/nvim/init.lua ,
+.BR ~/.config/helix/config.toml ,
 .BR ~/.nanorc ,
 .BR ~/.emacs ,
 and their alternates), else the tree's. A line that reads a file no target
@@ -533,16 +534,18 @@ is carried instead.
 .TP
 .B ~/.p10k.zsh, ~/.zshrc, ~/.bashrc, ~/.config/fish/fish_variables
 read for the prompt programs a target is handed: powerlevel10k's config, the
-oh\-my\-zsh and oh\-my\-bash theme files
-.B ZSH_THEME
+oh\-my\-zsh, oh\-my\-bash, and bash\-it theme files
+.B ZSH_THEME ,
+.BR OSH_THEME ,
 and
-.B OSH_THEME
+.B BASH_IT_THEME
 name, and tide's
 .B tide_*
 universal variables, carried as
 .BR p10k.zsh ,
 .BR oh-my-zsh.zsh-theme ,
 .BR oh-my-bash.theme.sh ,
+.BR bash-it.theme.bash ,
 and
 .BR tide.vars ,
 each replaced by a copy of that name in

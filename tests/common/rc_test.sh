@@ -1101,12 +1101,20 @@ function run_rc_tests() {
     test_prompt_program_draws zsh '*%n@%m*' 'p10k() { :; }; _p9k_precmd() { PROMPT=RC; }; precmd_functions+=(_p9k_precmd); PROMPT=RC' _HI_PROMPT_TOOL=hi
   _hi_check_requires zsh "[zsh] ...unset, the rc's own program keeps its precmd" \
     test_prompt_program_draws zsh '*RC|*' 'starship_precmd() { PROMPT=RC; }; precmd_functions+=(starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_check_requires zsh "[zsh] hi named takes the prompt back from starship's >=1.3.0 zsh hook name" \
+    test_prompt_program_draws zsh '*%n@%m*' 'prompt_starship_precmd() { PROMPT=RC; }; precmd_functions+=(prompt_starship_precmd)' _HI_PROMPT_TOOL=hi
+  _hi_check_requires zsh "[zsh] ...unset, starship's current-name precmd keeps drawing" \
+    test_prompt_program_draws zsh '*RC|*' 'prompt_starship_precmd() { PROMPT=RC; }; precmd_functions+=(prompt_starship_precmd)' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
   _hi_check_requires zsh "[zsh] at home, powerlevel10k installed but not loaded stays off" \
     test_prompt_program_draws zsh '*%n@%m*' : _HI_PROMPT_TOOL=powerlevel10k
   _hi_check "[bash] hi named takes the prompt back from the rc's starship hook" \
     test_prompt_program_draws bash '*\\u@\\h:\\w*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL=hi
   _hi_check "[bash] ...unset, the rc's own program keeps its hook" \
     test_prompt_program_draws bash '*STAR|*' 'starship_precmd() { PS1=STAR; }; PROMPT_COMMAND=starship_precmd' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
+  _hi_check "[bash] hi named clears bash-it's precmd_functions array, not just PROMPT_COMMAND" \
+    test_prompt_program_draws bash '*\\u@\\h:\\w*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL=hi
+  _hi_check "[bash] ...unset, bash-it's array-held hook keeps drawing" \
+    test_prompt_program_draws bash '*RC|*' 'prompt_command() { PS1=RC; }; precmd_functions=(prompt_command); __hi_test_dispatch() { local f; for f in "${precmd_functions[@]}"; do "$f"; done; }; PROMPT_COMMAND=__hi_test_dispatch' _HI_PROMPT_TOOL= _HI_REMOTE_SESSION=1
   _hi_check_requires fish "[fish] unset, tide found here draws" \
     test_prompt_program_draws fish 'TIDE::0:0:0' : _HI_PROMPT_TOOL= LANG=C.UTF-8
   _hi_check_requires fish "[fish] a program that does not fit fish keeps hi's prompt" \

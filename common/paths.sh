@@ -58,6 +58,10 @@ export _HI_VIMRC="$_HI_ROOT/settings/vimrc"
 export _HI_NVIMRC="$_HI_ROOT/settings/init.lua"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nvim/init.lua" ] && export _HI_NVIMRC="$_HI_XDG_CONFIG/nvim/init.lua"
 [ -f "$_HI_CONFIG_DIR/init.lua" ] && export _HI_NVIMRC="$_HI_CONFIG_DIR/init.lua"
+# helix has no dotfile fallback, XDG only - the same shape as nvim's, above
+export _HI_HELIXRC="$_HI_ROOT/settings/config.toml"
+[ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/helix/config.toml" ] && export _HI_HELIXRC="$_HI_XDG_CONFIG/helix/config.toml"
+[ -f "$_HI_CONFIG_DIR/config.toml" ] && export _HI_HELIXRC="$_HI_CONFIG_DIR/config.toml"
 export _HI_NANORC="$_HI_ROOT/settings/nanorc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$_HI_XDG_CONFIG/nano/nanorc" ] && export _HI_NANORC="$_HI_XDG_CONFIG/nano/nanorc"
 [ "$_HI_REMOTE_SESSION" != 1 ] && [ -f "$HOME/.nanorc" ] && export _HI_NANORC="$HOME/.nanorc"
@@ -157,6 +161,7 @@ export _HI_REMOTE_SESSION
   export _HI_DISABLE_NANO=1
   export _HI_DISABLE_EMACS=1
   export _HI_DISABLE_MICRO=1
+  export _HI_DISABLE_HELIX=1
   export _HI_DISABLE_TOOL_ALIASES=1
   export _HI_DISABLE_SUDO_ALIAS=1
   export _HI_DISABLE_BANNER=1

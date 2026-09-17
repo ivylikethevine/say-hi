@@ -39,13 +39,13 @@ _HI_FRAMEWORK_OK=""
 _HI_FRAMEWORKS=(
   "omz:/usr/bin/zsh:zsh curl git:zsh"
   "starship:/bin/bash:curl:bash"
-  "bashit:/bin/bash:git:bash"
   # The prompt programs, each handed the prompt (prompt:<_HI_PROMPT_TOOL>)
   # from a client home that carries a marker config of its own: the probe
   # asks that the program drew and that home's config reached it.
   # GLOSSARY: HI.32
   "p10k:/usr/bin/zsh:zsh curl git:prompt:powerlevel10k"
   "omb:/bin/bash:curl git:prompt:oh-my-bash"
+  "bashit:/bin/bash:git:prompt:bash-it"
   "tide:/usr/bin/fish:fish curl git:prompt:tide"
   "plgo:/bin/bash:curl:prompt:powerline-go"
   # The env tools, which hook the same two surfaces hi's bash half touches -
@@ -65,15 +65,17 @@ _HI_FRAMEWORKS=(
   "tmux:/bin/bash:tmux:config"
 )
 
-# <stem in _HI_FRAMEWORKS>:<login shell>. Same two images as the starship and
-# p10k rows above, reused rather than built again, with the prompt handed to
-# hi instead (prompt:hi:<bash|zsh>) - what ROADMAP.md's real-hook item asks
-# for: that hi's own unhook of a real starship_precmd / _p9k_precmd, loaded
-# by the program's own rc rather than a stub, actually clears the way for
-# hi's prompt to draw.
+# <stem in _HI_FRAMEWORKS>:<login shell>:<_HI_PROMPT_TOOL name>. The same
+# images the rows above already build, reused rather than built again, with
+# the prompt handed to hi instead (prompt:hi:<program>) - proof that hi's own
+# unhook of a real starship_precmd / _p9k_precmd / bash-it's precmd_functions
+# entry, loaded by the program's own rc rather than a stub, actually clears
+# the way for hi's prompt to draw. The program name is its own field, not
+# derived from the shell: starship and bash-it are both bash.
 _HI_PROMPT_HI=(
-  "starship:/bin/bash"
-  "p10k:/usr/bin/zsh"
+  "starship:/bin/bash:starship"
+  "p10k:/usr/bin/zsh:powerlevel10k"
+  "bashit:/bin/bash:bash-it"
 )
 
 # The line each case types into the live session, once hi and the framework are
@@ -98,14 +100,24 @@ function _hi_framework_probe() {
   # in force (_hi_prompt_client_home); p10k keeps zsh's array base check
   prompt:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] && POWERLEVEL9K_HI_MARK )) && [[ \$PROMPT != *__hi_env_info* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
   prompt:oh-my-bash) printf '%s\n' "[[ \$PS1 == OMBHOME* && \$PROMPT_COMMAND != ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # bash-it's own hook, direct-assigned by its theme (the shape most bundled
+  # themes, including the marker one below, use) rather than started through
+  # hi - the PS1 it drew and no ps1 of hi's chained on
+  prompt:bash-it) printf '%s\n' "[[ \$PS1 == BASHITHOME* && \$PROMPT_COMMAND != ps1* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   prompt:tide) printf '%s\n' "functions -q tide; and not functions -q __hi_env_prompt; and test \"\$tide_character_icon\" = HITIDE; and printf 'HI_FW-%s\\n' CLEAN; or printf 'HI_FW-%s\\n' LOST" ;;
-  # the inverse of prompt:powerlevel10k / the starship bash row: the real
-  # program's rc loaded it (command -v / $+functions[p10k]), hi's unhook
-  # (common/zsh.zsh, common/bash.sh) cleared its hook, hi's own prompt drew,
-  # and (zsh only) the client home's p10k.zsh never rode the overlay - the
-  # list is `hi`, so _hi_prompt_home packs no prompt config member
-  prompt:hi:zsh) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] )) && (( \${precmd_functions[(I)_p9k_precmd]} == 0 )) && [[ \$PROMPT == *__hi_env_info* && -z \$POWERLEVEL9K_HI_MARK ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
-  prompt:hi:bash) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${PROMPT_COMMAND[*]} != *starship_precmd* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # the inverse of prompt:powerlevel10k / prompt:bash-it / the starship bash
+  # row: the real program's rc loaded it, hi's unhook (common/zsh.zsh,
+  # common/bash.sh) cleared its hook, and hi's own prompt drew - the list is
+  # `hi`, so _hi_prompt_home packs no prompt config member (p10k only: the
+  # client home's p10k.zsh never rode the overlay either)
+  prompt:hi:powerlevel10k) printf '%s\n' "setopt | grep -q ksharrays && printf 'HI_FW-%s\\n' LEAKED || { (( \$+functions[p10k] )) && (( \${precmd_functions[(I)_p9k_precmd]} == 0 )) && [[ \$PROMPT == *__hi_env_info* && -z \$POWERLEVEL9K_HI_MARK ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST; }" ;;
+  prompt:hi:starship) printf '%s\n' "command -v starship >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${PROMPT_COMMAND[*]} != *starship_precmd* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
+  # bash-it's real hook lives in the precmd_functions array bash-preexec
+  # keeps (bobby, the theme the target installs, calls
+  # safe_append_prompt_command rather than assigning PROMPT_COMMAND
+  # directly), so this is the one case here that checks that array rather
+  # than PROMPT_COMMAND's own text for the hook's absence
+  prompt:hi:bash-it) printf '%s\n' "declare -F _bash-it-log-prefix-by-path >/dev/null && [[ \${PROMPT_COMMAND[*]} == *ps1* && \${precmd_functions[*]} != *prompt_command* ]] && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
   # a tmux server started from the session, asked for the client's mark; the
   # alias is the first word, so it expands
   config) printf '%s\n' "tmux -L hi new-session -d 'sleep 60' \\; show-options -gv @hi_mark | grep -qx HITMUX && grep -qs 7 \"\$_HI_MICRO_DIR/settings.json\" && printf 'HI_FW-%s\\n' CLEAN || printf 'HI_FW-%s\\n' LOST" ;;
@@ -115,15 +127,21 @@ function _hi_framework_probe() {
 
 # _hi_prompt_client_home <dir> - a client home whose prompt config is a
 # marker the probe can see on the target: a p10k variable, an oh-my-bash
-# theme drawing OMBHOME, a tide variable - each where hi.sh looks for it
+# theme drawing OMBHOME, a bash-it theme drawing BASHITHOME, a tide variable -
+# each where hi.sh looks for it
 function _hi_prompt_client_home() {
   local h="$1"
-  mkdir -p "$h/.oh-my-bash/themes/hi" "$h/.config/fish"
+  mkdir -p "$h/.oh-my-bash/themes/hi" "$h/.bash_it/themes/hi" "$h/.config/fish"
   printf 'typeset -g POWERLEVEL9K_HI_MARK=1\n' >"$h/.p10k.zsh"
-  printf 'OSH_THEME="hi"\n' >"$h/.bashrc"
+  printf 'OSH_THEME="hi"\nBASH_IT_THEME="hi"\n' >"$h/.bashrc"
   # shellcheck disable=SC2016 # the target's shell expands this
   printf '%s\n' 'function _omb_theme_PROMPT_COMMAND { PS1="OMBHOME \$ "; }' \
     '_omb_util_add_prompt_command _omb_theme_PROMPT_COMMAND' >"$h/.oh-my-bash/themes/hi/hi.theme.sh"
+  # a direct PS1 assignment, the shape robbyrussell's bundled theme uses -
+  # bash-it's own finalize hook (bash-preexec) installs after this runs, so
+  # nothing here needs to register with precmd_functions
+  # shellcheck disable=SC2016 # the target's shell expands this
+  printf 'PS1="BASHITHOME \$ "\n' >"$h/.bash_it/themes/hi/hi.theme.bash"
   printf 'SETUVAR tide_character_icon:HITIDE\n' >"$h/.config/fish/fish_variables"
 }
 
@@ -248,17 +266,16 @@ function run_framework_tests() {
     fi
   done
 
-  # Two more containers off the starship and p10k images above, with the
-  # prompt handed to hi instead of the framework - proof that the unhook in
-  # common/bash.sh and common/zsh.zsh clears a *real* starship_precmd /
-  # _p9k_precmd, loaded by the program's own rc, not just the stub hooks
-  # tests/common/rc_test.sh defines for itself.
+  # Three more containers off the starship, p10k, and bash-it images above,
+  # with the prompt handed to hi instead of the framework - proof that the
+  # unhook in common/bash.sh and common/zsh.zsh clears a *real*
+  # starship_precmd / _p9k_precmd / bash-it precmd_functions entry, loaded by
+  # the program's own rc, not just the stub hooks tests/common/rc_test.sh
+  # defines for itself.
+  local program
   for spec in "${_HI_PROMPT_HI[@]}"; do
-    IFS=: read -r label shell <<<"$spec"
-    case "$shell" in
-    *zsh) family="prompt:hi:zsh" ;;
-    *) family="prompt:hi:bash" ;;
-    esac
+    IFS=: read -r label shell program <<<"$spec"
+    family="prompt:hi:$program"
     if [ "$(_hi_kv_get _HI_FRAMEWORK_OK "$label")" = 1 ]; then
       _hi_par_case "$label-hi" _hi_run_framework_case "$label-hi" "$shell" "$family" "$label"
     else

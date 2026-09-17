@@ -379,9 +379,10 @@ beneath it is a fallback for a porcelain stream too old to carry that header.
 ## HI.32 starship deference
 
 `_HI_PROMPT_TOOL` hands the prompt to a prompt program - starship,
-oh-my-posh, powerline-go, powerlevel10k, oh-my-zsh, oh-my-bash, or tide -
-keeping hi's header and aliases. It is a list, each shell taking the first
-entry that fits it and is present; `hi` is hi's own prompt and ends the walk.
+oh-my-posh, powerline-go, powerlevel10k, oh-my-zsh, oh-my-bash, bash-it, or
+tide - keeping hi's header and aliases. It is a list, each shell taking the
+first entry that fits it and is present; `hi` is hi's own prompt and ends the
+walk.
 Unset is the whole roster (`common/core.sh`'s `_HI_PROMPT_TABLE`, one row
 per program - the shells it fits, how it is found, the overlay member its
 home config rides as - frameworks ahead of the programs that fit every
@@ -408,15 +409,25 @@ is started the way its README wires it: starship and oh-my-posh by `eval`ing
 `init <shell>`; powerline-go from PROMPT_COMMAND, a precmd, or fish_prompt;
 powerlevel10k and oh-my-zsh's libraries and oh-my-bash sourced when the rc
 did not (oh-my-zsh's libraries alone, oh-my-bash without plugins, and hi's
-aliases put back over theirs); tide by leaving its autoloaded fish_prompt
-alone.
+aliases put back over theirs); bash-it the same way, `BASH_IT_THEME` pointed
+straight at home's packed theme file when the rc had not loaded it already -
+its own loader takes a literal path there, so unlike oh-my-bash this needs no
+separate theme-file step; tide by leaving its autoloaded fish_prompt alone.
+
+Unhooking a program the rc already started (`_HI_PROMPT_TOOL=hi`) means
+different surfaces per program: bash's `PROMPT_COMMAND` string for starship,
+oh-my-posh, and powerline-go's own hooks, but bash-it's real hook lives in
+the `precmd_functions` array bash-preexec keeps (most bundled themes call its
+`safe_append_prompt_command` rather than assigning `PROMPT_COMMAND`
+directly), so `common/bash.sh` clears that array too - bash has no zsh-style
+`:#` array filter, so a rebuild loop rather than one substitution.
 
 Home's config rides the overlay (HI.41) and applies on a target only
 (`_HI_REMOTE_SESSION=1`), over whatever the target has: `$STARSHIP_CONFIG` /
 `$POSH_CONFIG` (and `$POSH_THEME`, which older oh-my-posh releases read) from
 `common/paths.sh` (paths.sh because fish sources it
-natively), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh or
-oh-my-bash theme file the home rc names sourced over the framework, and
+natively), `p10k.zsh` sourced after powerlevel10k, the oh-my-zsh, oh-my-bash,
+or bash-it theme file the home rc names sourced over the framework, and
 tide's `tide_*` universal variables exported as globals - exported because
 tide renders in a background `fish -c` that must see them over the target's
 own. Absent every program, the prompt is hi's, silently.

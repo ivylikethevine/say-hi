@@ -1,0 +1,5 @@
+# hi's helix override, kept to the minimum that earns the -c/--config: helix's
+# own defaults, which already leave nothing behind on a target you are only
+# visiting - it has no swapfile or undo-file mechanism to disable the way
+# vim/nvim's do. Nothing to taste lives here - your own $_HI_CONFIG_DIR's
+# config.toml replaces this file wholesale.

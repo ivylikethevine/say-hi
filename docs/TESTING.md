@@ -125,7 +125,9 @@ inline). The roster is `_hi_capable` in `tests/lib/fixtures.sh`:
 
 The `starved` case in the ssh e2e suite is the one that asks for `netem`: it
 shapes a container's own link with `tc qdisc … netem`, which needs the
-module loaded on the host kernel, not just present in it.
+module loaded on the host kernel, not just present in it. `ci.yml`'s e2e job
+loads it in its setup step, so the capability gate mainly matters on a local
+or dev machine that hasn't `modprobe`'d it.
 
 ### Where a suite lives
 

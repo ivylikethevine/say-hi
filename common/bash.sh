@@ -40,13 +40,23 @@ _hi_host_escape >/dev/null
 _hi_user_escape >/dev/null
 
 # the prompt program the prompt goes to, if any (GLOSSARY: HI.32). oh-my-bash
-# counts once the rc loaded it, or where it installs with a theme from home to
-# draw - the overlay's copy, so only on a target
+# and bash-it count once the rc loaded either, or where either installs with
+# a theme from home to draw - the overlay's copy, so only on a target
 _hi_omb_theme=""
+_hi_bashit_theme=""
 [ "$_HI_REMOTE_SESSION" = 1 ] && _hi_omb_theme="$_HI_CONFIG_DIR/oh-my-bash.theme.sh"
+[ "$_HI_REMOTE_SESSION" = 1 ] && _hi_bashit_theme="$_HI_CONFIG_DIR/bash-it.theme.bash"
 function _hi_prompt_fw() {
-  declare -F _omb_module_require >/dev/null ||
-    { [ -f "$_hi_omb_theme" ] && [ -f "${OSH:-$HOME/.oh-my-bash}/oh-my-bash.sh" ]; }
+  case "$1" in
+  oh-my-bash)
+    declare -F _omb_module_require >/dev/null ||
+      { [ -f "$_hi_omb_theme" ] && [ -f "${OSH:-$HOME/.oh-my-bash}/oh-my-bash.sh" ]; }
+    ;;
+  bash-it)
+    declare -F _bash-it-log-prefix-by-path >/dev/null ||
+      { [ -f "$_hi_bashit_theme" ] && [ -f "${BASH_IT:-$HOME/.bash_it}/bash_it.sh" ]; }
+    ;;
+  esac
 }
 _hi_pt=""
 [[ "${_HI_DISABLE_PROMPT:-0}" == 1 ]] || _hi_prompt_tool bash _hi_pt || true
@@ -177,6 +187,34 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
       # shellcheck source=/dev/null
       [ -f "$_hi_omb_theme" ] && source "$_hi_omb_theme"
       ;;
+    bash-it)
+      # not loaded by the rc: bash_it.sh's own loader takes a literal path in
+      # BASH_IT_THEME (sourced directly, no name lookup), so unlike oh-my-bash
+      # this needs no separate theme step - _hi_prompt_fw already required a
+      # home theme to exist before selecting bash-it here in the first place
+      if ! declare -F _bash-it-log-prefix-by-path >/dev/null; then
+        BASH_IT="${BASH_IT:-$HOME/.bash_it}"
+        # shellcheck source=/dev/null
+        BASH_IT_THEME="$_hi_bashit_theme" DISABLE_AUTO_UPDATE=true source "$BASH_IT/bash_it.sh"
+      else
+        # already loaded with its own theme, whose precmd_functions entry
+        # (prompt_command, the fixed name most bundled themes use) survives
+        # sourcing a different theme file over it - bash-preexec's
+        # safe_append_prompt_command only ever adds, so the rc's own theme
+        # would keep redrawing every prompt after this one otherwise. Clear
+        # it first, the same rebuild loop the hi-named unhook below uses.
+        if declare -p precmd_functions &>/dev/null; then
+          _hi_pf=()
+          for _hi_f in "${precmd_functions[@]}"; do
+            [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
+          done
+          precmd_functions=(${_hi_pf[@]+"${_hi_pf[@]}"})
+          unset _hi_pf _hi_f
+        fi
+        # shellcheck source=/dev/null
+        [ -f "$_hi_bashit_theme" ] && source "$_hi_bashit_theme"
+      fi
+      ;;
     *) eval "$("$_hi_pt" init bash)" ;;
     esac
   else
@@ -216,6 +254,55 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
         esac
       done
       unset _hi_h
+      # robbyrussell and some other bash-it themes assign
+      # PROMPT_COMMAND=prompt_command directly rather than going through
+      # bash-preexec. A whole-element/whole-segment check, not the loop
+      # above's substring one: "prompt_command" is also a real suffix other
+      # tools' own hook names legitimately end in (mise's
+      # _mise_hook_prompt_command, for one), which the substring form of
+      # this check corrupted into "_mise_hook_:" the first time this shipped.
+      case "$(declare -p PROMPT_COMMAND 2>/dev/null)" in
+      "declare -a"*)
+        # eval'd for the same reason as the loop above: a literal array
+        # assignment here would have the linter treat every later scalar
+        # PROMPT_COMMAND assignment in this file, line 355's included, as
+        # the wrong type
+        eval 'for _hi_i in "${!PROMPT_COMMAND[@]}"; do [ "${PROMPT_COMMAND[_hi_i]}" = prompt_command ] && PROMPT_COMMAND[_hi_i]=:; done'
+        unset _hi_i
+        ;;
+      *)
+        # sentinel-padded so a global replace only ever hits a segment
+        # bounded by ";" on both sides, never a substring mid-name
+        _hi_pc=";${PROMPT_COMMAND:-};"
+        _hi_pc="${_hi_pc//;prompt_command;/;:;}"
+        PROMPT_COMMAND="${_hi_pc#;}"
+        PROMPT_COMMAND="${PROMPT_COMMAND%;}"
+        unset _hi_pc
+        ;;
+      esac
+      # Other bash-it themes call bash-preexec's safe_append_prompt_command,
+      # which never touches PROMPT_COMMAND at all - it puts bash-preexec's
+      # own dispatcher there (during bash-it's unconditional library load)
+      # and keeps prompt_command in these two indexed arrays instead. bash
+      # has no zsh-style :# array filter, so a rebuild loop. Absent for
+      # every other framework/program above, so this is a no-op when
+      # bash-preexec was never loaded.
+      if declare -p precmd_functions &>/dev/null; then
+        _hi_pf=()
+        for _hi_f in "${precmd_functions[@]}"; do
+          [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
+        done
+        precmd_functions=(${_hi_pf[@]+"${_hi_pf[@]}"})
+        unset _hi_pf _hi_f
+      fi
+      if declare -p preexec_functions &>/dev/null; then
+        _hi_pf=()
+        for _hi_f in "${preexec_functions[@]}"; do
+          [[ "$_hi_f" == prompt_command ]] || _hi_pf+=("$_hi_f")
+        done
+        preexec_functions=(${_hi_pf[@]+"${_hi_pf[@]}"})
+        unset _hi_pf _hi_f
+      fi
     fi
     # Readline counts every $PS1 character it was not told to ignore, so an
     # unmarked color escape makes the typed line wrap back over the prompt.
@@ -270,7 +357,7 @@ if [[ "${_HI_DISABLE_PROMPT:-0}" != 1 ]]; then
     PROMPT_COMMAND="ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
   fi
 fi
-unset _hi_pt _hi_omb_theme
+unset _hi_pt _hi_omb_theme _hi_bashit_theme
 
 # Last in the required block, once every alias has expanded its paths:
 # children inherit core.sh's _HI_CHILD_ENV and nothing else with the prefix.

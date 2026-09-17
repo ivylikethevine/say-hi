@@ -909,10 +909,11 @@ function test_prompt_sample_preview_draws_the_prompt_when_on() {
   [[ "$out" == *"$(_hi_whoami)@$(_hi_hostname)"* && "$out" == *' $' && "$out" != *"prompt off"* ]]
 }
 
-# vim is presence-gated in settings/aliases.sh itself (a box with neither vim
-# nor nvim leaves the alias undefined), which _hi_editors_preview reads rather
-# than restates - so its line only needs to be there when the tool actually
-# is; nano/emacs/micro carry no such gate and are unconditional.
+# vim and hx are presence-gated in settings/aliases.sh itself (a box with
+# neither vim nor nvim, or without hx, leaves the alias undefined), which
+# _hi_editors_preview reads rather than restates - so their lines only need
+# to be there when the tool actually is; nano/emacs/micro carry no such gate
+# and are unconditional.
 function test_editors_preview_names_every_override() {
   local out
   out="$(_hi_editors_preview)"
@@ -925,6 +926,9 @@ function test_editors_preview_names_every_override() {
     [[ "$out" == *"nvim  -> "* && "$out" == *"-u $_HI_NVIMRC"* ]] || return 1
   elif command -v vim >/dev/null 2>&1; then
     [[ "$out" == *"-u $_HI_VIMRC"* ]] || return 1
+  fi
+  if command -v hx >/dev/null 2>&1; then
+    [[ "$out" == *"hx    -> "* && "$out" == *"-c $_HI_HELIXRC"* ]] || return 1
   fi
 }
 
@@ -1493,6 +1497,11 @@ function run_configure_tests() {
     _hi_check "...and the nvim preview matches its own" test_editor_preview_matches_its_alias nvim
   else
     _hi_skip "...and the nvim preview matches its own" "no nvim"
+  fi
+  if command -v hx >/dev/null 2>&1; then
+    _hi_check "...and the hx preview matches its own" test_editor_preview_matches_its_alias hx
+  else
+    _hi_skip "...and the hx preview matches its own" "no hx"
   fi
   _hi_check "bat preview names the bat it found" test_bat_preview_names_the_bat_it_found
   _hi_check "...and says so when there is none" test_bat_preview_without_bat_says_targets_only
