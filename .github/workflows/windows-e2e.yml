@@ -136,6 +136,39 @@ jobs:
           Set-Content -Path $file -Value $key
           icacls $file /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F'
 
+      # How big a heredoc can Git Bash push through a command substitution?
+      # The `bash -x` trace put the stall on hi.sh's `cat <<REMOTE` in
+      # _hi_remote_middle - the one heredoc that interpolates the armored
+      # payload - and README's badge puts that payload at 65KB, a hair over
+      # the 65536-byte MSYS pipe buffer. This walks sizes across that boundary
+      # in the same shape (a function's heredoc, read back through a command
+      # substitution) so the log names where it gives out instead of leaving it
+      # inferred. Diagnosis only: it asserts nothing and cannot fail the job.
+      - name: How big a heredoc survives a command substitution here
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "bash $BASH_VERSION | PIPE_BUF $(getconf PIPE_BUF / 2>/dev/null || echo '?') | TMPDIR ${TMPDIR:-unset}"
+          # base64, so the bytes and the line breaks look like the real payload
+          head -c 200000 /dev/urandom | base64 >"$HOME/blob"
+          cat >"$HOME/probe.sh" <<'PROBE'
+          blob=$(cat "$HOME/blob")
+          blob=${blob:0:$1}
+          mid() {
+            cat <<REMOTE
+          head
+          $blob
+          tail
+          REMOTE
+          }
+          out=$(mid)
+          printf 'in=%s out=%s\n' "${#blob}" "${#out}"
+          PROBE
+          for n in 32768 60000 65000 65400 65530 65536 65540 66000 70000 131072; do
+            printf '%7s: ' "$n"
+            timeout 15 bash "$HOME/probe.sh" "$n" || echo "STALLED or failed (rc=$?)"
+          done
+
       # a full hi session this time, not the fallback: the command's output
       # back, run out of the tree hi shipped, and the status never discarded
       - name: Say hi (expect a hi session in Git Bash)
@@ -158,18 +191,19 @@ jobs:
           # is understood.
           log="$HOME/hi-gitbash.out"
           echo "running: hi.sh -> ${USERNAME:-$(whoami)}@127.0.0.1, 120s budget"
-          # `bash -x` with a timestamped PS4: the run before this one proved
-          # ssh is never reached (DEBUG1 would have printed "Reading
-          # configuration data" first) and that no child process is spawned for
-          # the last ~114 seconds, so hi.sh is stalling inside bash itself. The
-          # trace's last line before that gap names the file and line. Single
-          # quotes on purpose - PS4 expands in the traced shell, not here.
+          # `bash -x` with a timestamped PS4, into the file rather than the
+          # console: the trace is ~1500 lines and only its tail is news - the
+          # last line before the stall, which the timestamps make obvious. The
+          # file is written as it goes, so a killed session still leaves it,
+          # which is what `tee` was here for; the assertions read all of it.
+          # Single quotes on purpose - PS4 expands in the traced shell.
           PS4='+ $EPOCHREALTIME ${BASH_SOURCE##*/}:$LINENO: ' \
             timeout 120 bash -x ./hi.sh -i "$HOME/.ssh/loop" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -o LogLevel=DEBUG1 "${USERNAME:-$(whoami)}@127.0.0.1" \
-            'echo HI_GITBASH_OK; hi_info' 2>&1 | tee "$log" || rc=$?
-          echo "the session returned $rc"
+            'echo HI_GITBASH_OK; hi_info' >"$log" 2>&1 || rc=$?
+          echo "the session returned $rc; last 60 traced lines:"
+          tail -n 60 "$log"
           out="$(cat "$log")"
           printf '%s\n' "$out" | grep -q HI_GITBASH_OK
           if printf '%s\n' "$out" | grep -q "hi from PowerShell"; then
